@@ -28,6 +28,18 @@ const IDEM_KEYED = new Set([
   "automations.templates.use",
 ]);
 
+const ACCOUNT_TYPES = ["mailbox", "number", "connection", "file", "record", "calendar", "form", "thread"];
+/**
+ * The fixture world answers like the product for the things a step names: a thing whose id names a person (mbx_alice..., con_bob...) is that person's own and no one else's; any other is the Space's and
+ * every member may use it. Anything that is not such a thing is denied. A test that needs another answer passes its own `authorize`.
+ */
+export const fixtureMayUse = (who: { id: string }, resource: { type: string; id?: string | null }): boolean => {
+  if (!ACCOUNT_TYPES.includes(resource.type)) return false;
+  const id = resource.id ?? "";
+  const owner = /alice/.test(id) ? "usr_alice" : /bob/.test(id) ? "usr_bob" : null;
+  return owner === null || owner === who.id;
+};
+
 export interface Ev {
   name: string;
   subject: string;
@@ -92,10 +104,7 @@ export function harness(o: HarnessOptions = {}) {
     }
     if (v && typeof v === "object") for (const x of Object.values(v)) nameHandles(x);
   };
-  // by default the caller may use the mailboxes, numbers, connections, files, records, calendars, forms and chats the steps under test name (F47 checks them at save); everything else is denied unless a test says otherwise
-  const ownAccounts = (_action: { level: string }, resource: { type: string }): boolean =>
-    ["mailbox", "number", "connection", "file", "record", "calendar", "form", "thread"].includes(resource.type);
-  const authorize: Authorize = o.authorize ?? ((_who, action, resource) => ownAccounts(action, resource));
+  const authorize: Authorize = o.authorize ?? ((who, _action, resource) => fixtureMayUse(who, resource));
   const emitsOf = (cap: string | null): Set<string> =>
     cap === null
       ? new Set(registry.events.filter((e) => e.name.startsWith("automation.")).map((e) => e.name))
@@ -177,6 +186,11 @@ export function harness(o: HarnessOptions = {}) {
                 ? []
                 : [...named].map((h, i) => ({ id: `vit_named${i}`, handle: h, kind: "api_key", yourLevel: "use" })),
           };
+        }
+        if (c === "connections.get" && !calleeMap[c]) {
+          // the connections capability: a person's own connection is theirs alone, the Space's is every member's
+          if (fixtureMayUse(who, { type: "connection", id: (input as { connectionId?: string }).connectionId })) return { connection: {} };
+          throw Object.assign(new Error("There is no such connection."), { error: { code: "validation.not_found" } });
         }
         const f = calleeMap[c] ?? fakeRuns[c];
         if (!f) throw new Error(`unexpected call to ${c}`);

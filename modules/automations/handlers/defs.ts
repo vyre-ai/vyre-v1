@@ -36,6 +36,7 @@ import {
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
+import { accountUseIssues } from "../account-use.ts";
 import { guardKeySteps, recordStepHosts, usableKeyIds } from "../key-steps.ts";
 import { blockedKeySteps } from "../key-run.ts";
 import { hookBase } from "../key-ref-port.ts";
@@ -589,95 +590,6 @@ export async function agentStepIssues(ctx: AutoCtx, kind: Automation["kind"], de
   return out;
 }
 
-const THING_WORDS: Readonly<Record<string, string>> = {
-  mailbox: "mailbox",
-  number: "number",
-  connection: "connection",
-  file: "file",
-  record: "record",
-  calendar: "calendar",
-  form: "form",
-  thread: "chat",
-};
-const SLOT = /^con_slot[0-9]+$/;
-const TEMPLATE = /\{\{/;
-
-/**
- * Where each step names a thing a person owns or shares: the input field its capability is bound to (the manifest's own `resource`, so a new step is covered without a list here) and the level the capability
- * asks. Only a step that names an existing thing is listed (a create names its container, which the capability checks as it runs); a bare Space-wide capability names nothing.
- */
-let namesAThing: Map<string, { field: string; type: string; level: string }> | undefined;
-const NAMES_A_THING = (): Map<string, { field: string; type: string; level: string }> => {
-  if (namesAThing) return namesAThing;
-  const caps = new Map(
-    (
-      registry.capabilities as unknown as {
-        name: string;
-        level?: string;
-        resource?: { id?: string; type?: string; create?: boolean };
-      }[]
-    ).map((c) => [c.name, c] as const),
-  );
-  const out = new Map<string, { field: string; type: string; level: string }>();
-  for (const st of registry.steps as unknown as {
-    key: string;
-    kind: string;
-    cap?: string;
-    input?: { properties?: Record<string, unknown> };
-  }[]) {
-    const c = st.kind === "capability" && st.cap ? caps.get(st.cap) : undefined;
-    const field = typeof c?.resource?.id === "string" && c.resource.id.startsWith("/") ? c.resource.id.slice(1) : "";
-    if (
-      !c ||
-      c.resource?.create === true ||
-      field === "" ||
-      !(field in ((inlineRefs(st.input) as { properties?: Record<string, unknown> } | undefined)?.properties ?? {}))
-    )
-      continue;
-    if (
-      c.resource?.type !== undefined &&
-      c.resource.type in THING_WORDS &&
-      c.level !== undefined &&
-      c.level !== "member"
-    )
-      out.set(st.key, { field, type: c.resource.type, level: c.level });
-  }
-  // a connector request names the connector in its manifest binding and the account in `connectionId`
-  out.set("connector_request", { field: "connectionId", type: "connection", level: "use" });
-  namesAThing = out;
-  return out;
-};
-
-/**
- * A step may name only a thing the person saving it may use: a mailbox, number, connection, file, record, calendar, form or chat (F47, 14 Nov 2026). The test is the product's own (ctx.authorize, at the level
- * the step's capability asks, as the person), the same one the step makes when it runs. Only what the saver wrote or changed is checked (`before`): an Automation that already holds such an id is left as it is,
- * and its run still stops at the same check. A template ({{ ... }}) is checked when it runs.
- */
-export function accountUseIssues(ctx: AutoCtx, def: Definition, before?: Definition): Issue[] {
-  if (!ctx.authorize) return [];
-  const was = new Map((before?.nodes ?? []).map((n) => [n.id, n] as const));
-  const out: Issue[] = [];
-  for (const n of def.nodes) {
-    const bound = NAMES_A_THING().get(n.key);
-    if (!bound) continue;
-    const id = ({ ...(n.ai ?? {}), ...n.input } as Record<string, unknown>)[bound.field];
-    const old = was.get(n.id);
-    const oldId = old ? ({ ...(old.ai ?? {}), ...old.input } as Record<string, unknown>)[bound.field] : undefined;
-    // a numbered slot of a shared package (con_slot1) is a blank to fill, not a connection
-    if (typeof id !== "string" || id === "" || TEMPLATE.test(id) || SLOT.test(id) || oldId === id) continue;
-    if (ctx.authorize({ perm: null, level: bound.level }, { type: bound.type, id }).effect !== "deny") continue;
-    const title = n.title?.trim() || STEPS.get(n.key)?.title || n.key;
-    out.push(
-      issue(
-        "error",
-        `${title}: you cannot use the ${THING_WORDS[bound.type]} it names. Pick another, or ask for access to it.`,
-        n.id,
-      ),
-    );
-  }
-  return out;
-}
-
 /** Why this Automation may not hand work to this agent, in a plain line, or null. Used at save (as the person saving) and at run. */
 export async function agentRefusal(
   ctx: AutoCtx,
@@ -931,7 +843,7 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const keyBlocked = Array.isArray(def?.nodes)
     ? (await blockedKeySteps(ctx, def.nodes)).map((b) => issue("error", b.line, b.nodeId))
     : [];
-  const useBlocked = Array.isArray(def?.nodes) ? accountUseIssues(ctx, def) : [];
+  const useBlocked = Array.isArray(def?.nodes) ? await accountUseIssues(ctx, def) : [];
   const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked, ...useBlocked];
   return { ok: !hasErrors(issues), issues };
 }
@@ -1010,9 +922,6 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
       reason: "agent_not_yours",
       issues: [agentIssue],
     });
-  const useIssue = accountUseIssues(ctx, def)[0];
-  if (useIssue)
-    raise(ctx, "validation.precondition_failed", useIssue.message, { reason: "account_not_yours", issues: [useIssue] });
   await guardKeySteps(ctx, undefined, def);
   if (input.groupId && !findGroup(ctx.db, input.groupId))
     raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
@@ -1070,12 +979,6 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
     await guardKeySteps(ctx, a.definition, input.definition);
-    const useIssue = accountUseIssues(ctx, input.definition, a.definition)[0];
-    if (useIssue)
-      raise(ctx, "validation.precondition_failed", useIssue.message, {
-        reason: "account_not_yours",
-        issues: [useIssue],
-      });
     const policy = readPolicy(ctx.db);
     // an agent the saver may not give work to is refused at once, on or off: it is not a draft to finish later but someone else's (lead 12 Nov, rule 4)
     const agentIssue = (await agentStepIssues(ctx, a.kind, input.definition))[0];

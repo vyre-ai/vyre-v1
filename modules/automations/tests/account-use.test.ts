@@ -2,7 +2,7 @@
 // as it is (nothing is migrated), and every refusal names the step.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { harness, codeOf } from "../fixtures/db.ts";
+import { harness, codeOf, fixtureMayUse } from "../fixtures/db.ts";
 import { alice, bob, create } from "../fixtures/seed.ts";
 
 const MINE = "mbx_alice0000001";
@@ -11,13 +11,7 @@ const def = (nodes: unknown[]) => ({ triggers: [{ key: "manual" }], nodes, start
 const mail = (mailboxId: string) => ({ id: "n1", key: "send_email", input: { mailboxId, to: ["x@example.com"], subject: "S", body: "B" } });
 const sms = (numberId: string) => ({ id: "n1", key: "send_sms", input: { numberId, to: "+15550100", body: "B" } });
 const request = (connectionId: string) => ({ id: "n1", key: "connector_request", input: { connector: "acme", action: "list", connectionId } });
-const world = () =>
-  harness({
-    authorize: (who, action, res) =>
-      action.level === "use" &&
-      ((who.id === "usr_alice" && [MINE, "num_alice0000001", "con_alice0000001"].includes(res.id ?? "")) ||
-        (res.id ?? "").startsWith("con_shared")),
-  });
+const world = () => harness();
 const refusal = async (h: ReturnType<typeof world>, nodes: unknown[], who = bob) => {
   try {
     await h.call("automations.create", create({ definition: def(nodes), idempotencyKey: `k${Math.random()}` }), who);
@@ -89,4 +83,38 @@ test("the class: every step that names an existing file, record, calendar, form 
   // a template, and a thing the person may use, are not refused
   assert.equal(await refusal(h, [{ id: "n1", key: "files.move", input: { fileId: "{{ trigger.fileId }}", toFolderId: "fld_1" } }], alice), null);
   assert.equal(await refusal(h, [{ id: "n1", key: "files.move", input: { fileId: "fil_ok", toFolderId: "fld_1" } }], alice), null);
+});
+
+test("every path that writes a definition asks: restoring a version and a Personal copy refuse what the person may not use", async () => {
+  let may = true;
+  const h = harness({
+    authorize: (who, a, r) =>
+      (who.id === bob.id && a.level === "view") || (may && fixtureMayUse(who, r)),
+  });
+  // restore: a version that names a mailbox the restorer may no longer use is not brought back
+  const made = await h.call("automations.create", create({ definition: def([mail(MINE)]), idempotencyKey: "rv" }), alice);
+  const id = made.automation.id as string;
+  const v1 = (await h.call("automations.versions", { automationId: id }, alice)).versions.find((v: { n: number }) => v.n === 1).versionId as string;
+  await h.call("automations.update", { automationId: id, definition: def([sms("num_alice0000001")]), expectedVersion: 1, idempotencyKey: "rv2" }, alice);
+  may = false;
+  await assert.rejects(h.call("automations.restore_version", { automationId: id, versionId: v1, idempotencyKey: "rv3" }, alice), (e) => codeOf(e) === "validation.precondition_failed");
+  // a Personal copy of a Space automation naming alice's mailbox is refused for bob
+  may = true;
+  const space = (await h.call("automations.create", create({ definition: def([mail(MINE)]), idempotencyKey: "sp" }), alice)).automation.id as string;
+  await h.call("automations.promote", { automationId: space, confirm: true }, alice);
+  await assert.rejects(h.call("automations.make_personal_copy", { automationId: space }, bob), (e) => codeOf(e) === "validation.precondition_failed");
+});
+
+test("a check that cannot be made refuses: no access check on the context means no", async () => {
+  const { guardAccounts } = await import("../account-use.ts");
+  const ctx = { trace: { traceId: "0123456789abcdef0123456789abcdef" } } as never;
+  await assert.rejects(guardAccounts(ctx, undefined, def([mail(MINE)]) as never), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(guardAccounts(ctx, undefined, def([request("con_shared0000001")]) as never), (e) => codeOf(e) === "validation.precondition_failed");
+});
+
+test("a connection that is someone's own is theirs: a shared one is every member's, another person's own is refused at save", async () => {
+  const h = world();
+  assert.ok(await refusal(h, [request("con_alice0000001")], bob), "bob names alice's own connection");
+  assert.equal(await refusal(h, [request("con_alice0000001")], alice), null);
+  assert.equal(await refusal(h, [request("con_shared0000001")], bob), null);
 });
