@@ -3253,6 +3253,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           resource: (id) => access.snap.resource(id),
           agentHome: (id) => homeScopeOf(db!, id)?.homeFolder ?? null,
         }),
+        madeFor: {
+          clears: (agentId, resourceId) => {
+            const who = access.snap.info(agentId);
+            return !!who && who.p.status === "active" && access.snap.effectiveLabel(resourceId) <= who.clearance;
+          },
+          inMine: (resourceId) => {
+            const chain = access.snap.chain(resourceId);
+            const root = chain?.[chain.length - 1];
+            return !!root && root.type === "vault_folder" && root.parent_id === null;
+          },
+        },
         principals: createPrincipalRegistrar({
           exists: (id) => access.snap.info(id) !== null,
           levelOf: (person, space) => {

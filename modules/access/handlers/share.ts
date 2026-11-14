@@ -1272,6 +1272,19 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
         : g.subject.kind === "role"
           ? "role"
           : "direct";
+    // the maker's grant is always written (it must not depend on what the agent's role gives today), and the list shows each subject once: it is hidden while another grant of that subject already gives the same or more
+    if (
+      g.source?.startsWith("made-by:") &&
+      all.some(
+        (o) =>
+          o !== g &&
+          !o.source?.startsWith("made-by:") &&
+          o.subject.kind === g.subject.kind &&
+          o.subject.id === g.subject.id &&
+          atLeast(res.type, o.level, g.level),
+      )
+    )
+      continue;
     shares.push({ grant: grantView(g), through });
   }
   const mine = callerLevel(ctx, store, res) ?? undefined;

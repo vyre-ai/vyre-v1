@@ -237,6 +237,8 @@ export interface InvokeDeps {
       trace: string,
     ): Promise<{ finish(): unknown } | null>;
   };
+  /** Can this agent's clearance reach what this resource is labelled (its own label and every folder above it)? Asked once a Vault folder or key an agent made for a person is born (host/src/daemon/daemon.ts). */
+  madeFor?: MadeForFacts;
   preview?: { read(token: string, cap: string, input: unknown, trace: string): Promise<{ finish(): unknown }> };
   caps: CapIndex;
   validateInput(cap: string, v: number, input: unknown): string[];
@@ -492,6 +494,56 @@ const memberAllow = (decisionId: string): KernelDecision => ({
   obligations: [],
   decisionId,
 });
+
+/** What the server knows that decides whether an agent needs a grant on a thing it just made (host/src/daemon/daemon.ts, from the access snapshot). */
+export interface MadeForFacts {
+  /** Does the agent's clearance reach the label of this place (its own and every folder above it)? */
+  clears(agentId: string, resourceId: string): boolean;
+  /** Is this place inside a person's Mine (a private root)? */
+  inMine(resourceId: string): boolean;
+}
+
+/**
+ * The one rule for what an agent holds on a thing it just made for the person it acts for (owner ruling, 14 Nov 2026: what an agent makes for me is mine, and that agent can use it at once). Written in the
+ * same commit as the birth (invoke adds the grant to the events of the call that made the thing), so there is no moment when the person owns it and the agent that made it is refused, and no grant for a
+ * thing that was never made. Only the agent that made it, only at its birth, never at a later move, never to another agent. The grant is the person's (`by`), can be removed by them like any grant, and adds no
+ * power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
+ *   record type  Manage, no source (it sets who the type is open to as part of the same work). Until this change the old record-type block granted without the owner and clearance checks; the registrar
+ *                makes the person the owner of what an agent makes for them, so the owner check changes nothing in practice, and a record type in a place above the agent's clearance now gets no grant
+ *   site         Edit, only the site this call created
+ *   vault folder Edit, vault key Use; both carry the source made-by:<agent> so the share list shows who made it
+ * Skipped, not failed (the call still succeeds, the thing is the person's), when: the place is labelled above the agent's clearance (`facts.clears`); the thing is inside a person's Mine (the agent reaches it only
+ * while acting for its owner, so a key there needs no grant; the Mine folder itself gets Edit so the agent can put the key in). The grant is removed again if the thing changes owner or moves above the agent's clearance (modules/access/consumers.ts). The agent gets no
+ * grant, so its next call on it is refused above clearance in the usual words.
+ */
+export function madeForGrant(
+  row: { id: string; type: string; parent_id?: string | null | undefined; owner_id?: string | null | undefined },
+  events: readonly { type: string; payload?: unknown }[],
+  seed: { principal: { kind: string; id: string }; actingFor?: string | undefined },
+  facts?: MadeForFacts,
+): { level: "manage" | "edit" | "use"; source: boolean } | null {
+  if (seed.principal.kind !== "agent" || !seed.actingFor?.startsWith("usr_")) return null;
+  // one order of checks for every kind: what it is and at what level, whose it is, whether the place is within the agent's clearance, then the kind's own skips
+  let level: "manage" | "edit" | "use";
+  if (row.type === "record_type") level = "manage";
+  else if (row.type === "site") {
+    const born = events.some(
+      (e) => e.type === "site.created" && (e.payload as { siteId?: unknown } | undefined)?.siteId === row.id,
+    );
+    if (!born) return null;
+    level = "edit";
+  } else if (row.type === "vault_folder") level = "edit";
+  else if (row.type === "vault_item") level = "use";
+  else return null;
+  if (row.owner_id !== seed.actingFor) return null;
+  if (facts && !facts.clears(seed.principal.id, row.parent_id ?? row.id)) return null;
+  if (level === "manage") return { level, source: false };
+  // a thing inside a person's Mine gets nothing: the agent reaches it while acting for the owner (Use), which is all a key needs. The Mine FOLDER itself (a private root, no parent) does get Edit: the gateway
+  // asks Edit on a folder before the agent may put a key in it, and the kernel gives an agent acting for the owner only Use there. The grant is the person's, and it holds only while the agent acts for them: for
+  // anyone else the call takes the lower of the agent's grants and that person's access, which in someone's Mine is none.
+  if (facts && row.parent_id != null && facts.inMine(row.parent_id)) return null;
+  return { level, source: true };
+}
 
 export function createInvoke(deps: InvokeDeps): Invoke {
   const now = deps.now ?? Date.now;
@@ -1119,14 +1171,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
             vis: deps.resources.visOf?.(row) ?? "space",
           }) as EventEnvelope,
         );
-        // An agent that makes a record type for the person it acts for holds Manage on it (the person owns it): it needs to set who the type is open to as part of the same work. Only a record type, only
-        // an agent acting for a person. This adds no power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
-        if (
-          row.type === "record_type" &&
-          seed.principal.kind === "agent" &&
-          seed.actingFor !== undefined &&
-          seed.actingFor.startsWith("usr_")
-        ) {
+        // What an agent makes for the person it acts for is that person's, and the agent goes on working on it: one rule for all of it (madeForGrant below).
+        const made = madeForGrant(row, events, seed, deps.madeFor);
+        if (made) {
           const id = `gnt_${hex(16)}`;
           events.push(
             envelope(
@@ -1136,10 +1183,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
                 id,
                 subject_kind: "actor",
                 subject_id: seed.principal.id,
-                resource_type: "record_type",
+                resource_type: row.type,
                 resource_id: row.id,
-                level: "manage",
+                level: made.level,
                 by: seed.actingFor,
+                ...(made.source ? { source: `made-by:${seed.principal.id}` } : {}),
               },
               seed,
               trace,
