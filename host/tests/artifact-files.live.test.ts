@@ -126,12 +126,16 @@ const make = async (d: Daemon, key: string): Promise<string> => {
   return (JSON.parse(r.text) as { data: { site: { siteId: string } } }).data.site.siteId;
 };
 
-
 const NOAH_AGENT = "tok-agent-noah";
 const OLIVIA_AGENT = "tok-agent-olivia";
 const WORD = "OKAPIWORD";
 
-async function publish(d: Daemon, title: string, word: string, key: string): Promise<{ siteId: string; folderId: string }> {
+async function publish(
+  d: Daemon,
+  title: string,
+  word: string,
+  key: string,
+): Promise<{ siteId: string; folderId: string }> {
   const r = await raw(d, "/v1/sites/artifact_publish", { title, html: `<p>${word}</p>`, idempotencyKey: key });
   assert.equal(r.status, 200, r.text);
   const siteId = (JSON.parse(r.text) as { data: { artifactId: string } }).data.artifactId;

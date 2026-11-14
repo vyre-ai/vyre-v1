@@ -38,7 +38,13 @@ function unseeded() {
   ] as const)
     store.resources.set(id, { id, type, parentId: "spc_test", label, ownerId: null, holds: 0, row: { name: id } });
   // a policy that lets the provider "cloud" see nothing above label 0
-  store.policies.set(pkey("p1", "space"), { key: "p1", scope: "space", kind: "provider_label", value: { allow: { cloud: 0 } }, updatedAt: 1 });
+  store.policies.set(pkey("p1", "space"), {
+    key: "p1",
+    scope: "space",
+    kind: "provider_label",
+    value: { allow: { cloud: 0 } },
+    updatedAt: 1,
+  });
   store.bump();
   return { h, store };
 }

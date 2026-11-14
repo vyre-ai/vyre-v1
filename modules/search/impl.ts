@@ -3,7 +3,14 @@
 // what it does with one; the host runs them after commit, at least once, so each is safe to repeat. `search.fts` keeps the full text index current, `search.vectors` computes
 // the vectors of what changed. Seams the host fills: the embedding model (`setEmbedder`), a source for an entity the module cannot read itself (`setSource`), and a lister for a rebuild (`setLister`).
 import type { Handler } from "../../host/src/invoke.ts";
-import { embedRun, handlers as table, indexApply, indexDropFolder, setLister, DEFAULT_SOURCES } from "./handlers/index.ts";
+import {
+  embedRun,
+  handlers as table,
+  indexApply,
+  indexDropFolder,
+  setLister,
+  DEFAULT_SOURCES,
+} from "./handlers/index.ts";
 import { forgetVectors, setEmbedder, setSource } from "./projections.ts";
 import type { Embedder, Source, SearchCtx } from "./projections.ts";
 

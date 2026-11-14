@@ -103,14 +103,22 @@ const make = async (d: Daemon, key: string): Promise<string> => {
 const AGENT_OLIVIA = "tok-agent-olivia";
 const events = async (d: Daemon, type: string): Promise<number> => (await d.log!.read({ type } as never)).length;
 const sitePick = async (d: Daemon, id: string): Promise<{ access: string; name: string }> =>
-  (JSON.parse((await raw(d, "/v1/sites/get", { siteId: id })).text) as { data: { site: { access: string; name: string } } })
-    .data.site;
+  (
+    JSON.parse((await raw(d, "/v1/sites/get", { siteId: id })).text) as {
+      data: { site: { access: string; name: string } };
+    }
+  ).data.site;
 const settle = (ms = 1300): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 test("changing who may reach a site, for every value: a plain member and the agent that made it are refused with nothing changed and nothing emitted; the owner and a manager may (F64, R1)", async () => {
   const d = await boot(seededDir());
   try {
-    const made = await raw(d, "/v1/sites/create", { name: "Maker site", kind: "artifact", access: "space", idempotencyKey: "r1-mk" }, AGENT_OLIVIA);
+    const made = await raw(
+      d,
+      "/v1/sites/create",
+      { name: "Maker site", kind: "artifact", access: "space", idempotencyKey: "r1-mk" },
+      AGENT_OLIVIA,
+    );
     assert.equal(made.status, 200, made.text);
     const id = (JSON.parse(made.text) as { data: { site: { siteId: string; owner: string } } }).data.site.siteId;
     assert.equal(
@@ -124,7 +132,10 @@ test("changing who may reach a site, for every value: a plain member and the age
     // a plain member and the maker agent: refused for every value, nothing changed, nothing emitted
     for (const access of ["public", "password", "private"]) {
       const n = await events(d, changed);
-      for (const [who, label] of [[NOAH, "a plain member"], [AGENT_OLIVIA, "the agent that made it"]] as const) {
+      for (const [who, label] of [
+        [NOAH, "a plain member"],
+        [AGENT_OLIVIA, "the agent that made it"],
+      ] as const) {
         const r = await raw(d, "/v1/sites/update", { siteId: id, access }, who);
         assert.equal(r.status, 403, `${label} set ${access}: ${r.text.slice(0, 160)}`);
         assert.match(r.text, words, `${label}, ${access}`);
@@ -233,11 +244,21 @@ test("the start-up pass closes only a private site: a Space site, a password sit
 test("no agent, and no one, moves or renames an artifact's folder, or the Artifacts folder above it, through any call in Files (F62, item 4)", async () => {
   const d = await boot(seededDir());
   try {
-    const r = await raw(d, "/v1/sites/artifact_publish", { title: "Tapir artifact", html: "<p>TAPIRWORD</p>", idempotencyKey: "tp1" }, AGENT_OLIVIA);
+    const r = await raw(
+      d,
+      "/v1/sites/artifact_publish",
+      { title: "Tapir artifact", html: "<p>TAPIRWORD</p>", idempotencyKey: "tp1" },
+      AGENT_OLIVIA,
+    );
     assert.equal(r.status, 200, r.text);
     const siteId = (JSON.parse(r.text) as { data: { artifactId: string } }).data.artifactId;
-    const f = d.db!.all("SELECT id, parent_id FROM files_folder WHERE id = (SELECT target_folder FROM sites_site WHERE id = ?)", siteId)[0] as { id: string; parent_id: string };
-    const roots = JSON.parse((await raw(d, "/v1/files/tree", {})).text) as { data: { roots: { key: string; folderId: string }[] } };
+    const f = d.db!.all(
+      "SELECT id, parent_id FROM files_folder WHERE id = (SELECT target_folder FROM sites_site WHERE id = ?)",
+      siteId,
+    )[0] as { id: string; parent_id: string };
+    const roots = JSON.parse((await raw(d, "/v1/files/tree", {})).text) as {
+      data: { roots: { key: string; folderId: string }[] };
+    };
     const personal = roots.data.roots.find((x) => x.key.startsWith("personal"))!.folderId;
     for (const who of [AGENT_OLIVIA, OWNER, NOAH]) {
       for (const [path, body] of [
@@ -248,10 +269,16 @@ test("no agent, and no one, moves or renames an artifact's folder, or the Artifa
         ["/v1/files/folder/rename", { folderId: f.parent_id, name: "Mine" }],
       ] as const) {
         const x = await raw(d, path, body, who);
-        assert.ok(x.status >= 400 && x.status < 500, `${who} ${path} ${JSON.stringify(body)}: ${x.status} ${x.text.slice(0, 200)}`);
+        assert.ok(
+          x.status >= 400 && x.status < 500,
+          `${who} ${path} ${JSON.stringify(body)}: ${x.status} ${x.text.slice(0, 200)}`,
+        );
       }
     }
-    const row = d.db!.all("SELECT parent_id, name FROM files_folder WHERE id = ?", f.id)[0] as { parent_id: string; name: string };
+    const row = d.db!.all("SELECT parent_id, name FROM files_folder WHERE id = ?", f.id)[0] as {
+      parent_id: string;
+      name: string;
+    };
     assert.equal(row.parent_id, f.parent_id, "the folder is where it was");
     await settle(1500);
     assert.equal(/TAPIRWORD/.test((await raw(d, "/v1/search/query", { q: "TAPIRWORD" }, NOAH)).text), false);
@@ -264,9 +291,14 @@ test("an artifact made Space-wide and then private leaves nothing findable by an
   const dir = seededDir();
   let d = await boot(dir);
   let siteId = "";
-  const finds = async (who: string): Promise<boolean> => /ZEBUWORD/.test((await raw(d, "/v1/search/query", { q: "ZEBUWORD" }, who)).text);
+  const finds = async (who: string): Promise<boolean> =>
+    /ZEBUWORD/.test((await raw(d, "/v1/search/query", { q: "ZEBUWORD" }, who)).text);
   try {
-    const r = await raw(d, "/v1/sites/artifact_publish", { title: "Zebu artifact", html: "<p>ZEBUWORD</p>", idempotencyKey: "zb1" });
+    const r = await raw(d, "/v1/sites/artifact_publish", {
+      title: "Zebu artifact",
+      html: "<p>ZEBUWORD</p>",
+      idempotencyKey: "zb1",
+    });
     assert.equal(r.status, 200, r.text);
     siteId = (JSON.parse(r.text) as { data: { artifactId: string } }).data.artifactId;
     assert.equal((await raw(d, "/v1/sites/update", { siteId, access: "space" })).status, 200);
@@ -293,22 +325,42 @@ test("an artifact made Space-wide and then private leaves nothing findable by an
 test("the maker's grant on a site shows in its sharing list and the owner removes it; after that the agent that made it is refused (item 10)", async () => {
   const d = await boot(seededDir());
   try {
-    const made = await raw(d, "/v1/sites/create", { name: "Grant site", kind: "artifact", access: "space", idempotencyKey: "mg1" }, AGENT_OLIVIA);
+    const made = await raw(
+      d,
+      "/v1/sites/create",
+      { name: "Grant site", kind: "artifact", access: "space", idempotencyKey: "mg1" },
+      AGENT_OLIVIA,
+    );
     assert.equal(made.status, 200, made.text);
     const id = (JSON.parse(made.text) as { data: { site: { siteId: string } } }).data.site.siteId;
     assert.equal((await raw(d, "/v1/sites/update", { siteId: id, access: "private" })).status, 200);
     await settle();
-    assert.equal((await raw(d, "/v1/sites/update", { siteId: id, name: "By the agent" }, AGENT_OLIVIA)).status, 200, "private, the agent that made it goes on working on it");
-    const grants = JSON.parse((await raw(d, "/v1/access/grants/list", { resource: { type: "site", id } })).text) as { data: { grants: { id: string; subject: { id: string }; level: string; source?: string }[] } };
+    assert.equal(
+      (await raw(d, "/v1/sites/update", { siteId: id, name: "By the agent" }, AGENT_OLIVIA)).status,
+      200,
+      "private, the agent that made it goes on working on it",
+    );
+    const grants = JSON.parse((await raw(d, "/v1/access/grants/list", { resource: { type: "site", id } })).text) as {
+      data: { grants: { id: string; subject: { id: string }; level: string; source?: string }[] };
+    };
     const g = grants.data.grants.find((x) => x.subject.id === "agt_scout");
     assert.equal(g?.level, "edit", "the maker's grant is written");
     assert.equal(g?.source, "made-by:agt_scout");
-    const shown = JSON.parse((await raw(d, "/v1/access/shares_of", { resource: { type: "site", id } })).text) as { data: { shares: { grant: { subject: { id: string } } }[] } };
-    assert.ok(shown.data.shares.some((x) => x.grant.subject.id === "agt_scout"), "it shows in the site's sharing list");
+    const shown = JSON.parse((await raw(d, "/v1/access/shares_of", { resource: { type: "site", id } })).text) as {
+      data: { shares: { grant: { subject: { id: string } } }[] };
+    };
+    assert.ok(
+      shown.data.shares.some((x) => x.grant.subject.id === "agt_scout"),
+      "it shows in the site's sharing list",
+    );
     const un = await raw(d, "/v1/access/unshare", { idempotencyKey: "mg-un", grantId: g!.id });
     assert.equal(un.status, 200, un.text);
     await settle();
-    assert.equal((await raw(d, "/v1/sites/update", { siteId: id, name: "Again" }, AGENT_OLIVIA)).status, 403, "removed, the agent is refused");
+    assert.equal(
+      (await raw(d, "/v1/sites/update", { siteId: id, name: "Again" }, AGENT_OLIVIA)).status,
+      403,
+      "removed, the agent is refused",
+    );
   } finally {
     await d.stop();
   }

@@ -608,7 +608,7 @@ export async function storeKey(
           name: putName,
           kind: "api_key",
           fields: (input.fields ?? []).map((f) => ({ key: f.key, value: f.value, secret: true })),
-          idempotencyKey: `${row.id}:put${input.attempt ? `:${input.attempt}` : ''}`,
+          idempotencyKey: `${row.id}:put${input.attempt ? `:${input.attempt}` : ""}`,
         })
         .catch((e: unknown) => {
           // a folder the caller cannot see answers exactly as one that does not exist, and as one the agent cannot use: the same words for all three, so this call is no way to learn that a folder is there

@@ -496,11 +496,20 @@ test("changing who may reach a site needs its owner or someone who manages it, f
 test("an artifact's folder cannot be moved or renamed from Files, nor the Artifacts folder above it; the page stays closed to a member (F62)", async () => {
   const d = await boot(seededDir());
   try {
-    const r = await raw(d, "/v1/sites/artifact_publish", { title: "Okapi artifact", html: "<p>OKAPIWORD</p>", idempotencyKey: "ok1" });
+    const r = await raw(d, "/v1/sites/artifact_publish", {
+      title: "Okapi artifact",
+      html: "<p>OKAPIWORD</p>",
+      idempotencyKey: "ok1",
+    });
     assert.equal(r.status, 200, r.text);
     const siteId = (JSON.parse(r.text) as { data: { artifactId: string } }).data.artifactId;
-    const f = d.db!.all("SELECT id, parent_id FROM files_folder WHERE id = (SELECT target_folder FROM sites_site WHERE id = ?)", siteId)[0] as { id: string; parent_id: string };
-    const roots = JSON.parse((await raw(d, "/v1/files/tree", {})).text) as { data: { roots: { key: string; folderId: string }[] } };
+    const f = d.db!.all(
+      "SELECT id, parent_id FROM files_folder WHERE id = (SELECT target_folder FROM sites_site WHERE id = ?)",
+      siteId,
+    )[0] as { id: string; parent_id: string };
+    const roots = JSON.parse((await raw(d, "/v1/files/tree", {})).text) as {
+      data: { roots: { key: string; folderId: string }[] };
+    };
     const personal = roots.data.roots.find((x) => x.key.startsWith("personal"))!.folderId;
     const words = /This folder belongs to the artifact Okapi artifact\./;
     const move = await raw(d, "/v1/files/folder/move", { folderId: f.id, toParentId: personal });
@@ -516,7 +525,9 @@ test("an artifact's folder cannot be moved or renamed from Files, nor the Artifa
     assert.equal(parent.status, 422, parent.text);
     assert.match(parent.text, /The Artifacts folder stays where it is/);
     await new Promise((x) => setTimeout(x, 1500));
-    const reach = JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "folder", id: f.id }] }, NOAH)).text) as { data: { items: { level: string }[] } };
+    const reach = JSON.parse(
+      (await raw(d, "/v1/access/reach", { items: [{ type: "folder", id: f.id }] }, NOAH)).text,
+    ) as { data: { items: { level: string }[] } };
     assert.equal(reach.data.items[0]!.level, "none", "a member still has no reach on the folder");
     assert.equal(/OKAPIWORD/.test((await raw(d, "/v1/search/query", { q: "OKAPIWORD" }, NOAH)).text), false);
   } finally {
@@ -527,26 +538,52 @@ test("an artifact's folder cannot be moved or renamed from Files, nor the Artifa
 test("deleting an artifact takes its pages out of reach and out of search for everyone, the person it was shared with included (F62)", async () => {
   const d = await boot(seededDir());
   try {
-    const r = await raw(d, "/v1/sites/artifact_publish", { title: "Lemur artifact", html: "<p>LEMURWORD</p>", idempotencyKey: "lm1" });
+    const r = await raw(d, "/v1/sites/artifact_publish", {
+      title: "Lemur artifact",
+      html: "<p>LEMURWORD</p>",
+      idempotencyKey: "lm1",
+    });
     assert.equal(r.status, 200, r.text);
     const siteId = (JSON.parse(r.text) as { data: { artifactId: string } }).data.artifactId;
     const folder = (d.db!.all("SELECT target_folder AS f FROM sites_site WHERE id = ?", siteId)[0] as { f: string }).f;
     const fileId = (d.db!.all("SELECT id FROM files_file WHERE folder_id = ?", folder)[0] as { id: string }).id;
-    assert.equal((await raw(d, "/v1/access/share", { idempotencyKey: "lm-share", resource: { type: "site", id: siteId }, subject: { kind: "person", id: "usr_noah" }, level: "view" })).status, 200);
+    assert.equal(
+      (
+        await raw(d, "/v1/access/share", {
+          idempotencyKey: "lm-share",
+          resource: { type: "site", id: siteId },
+          subject: { kind: "person", id: "usr_noah" },
+          level: "view",
+        })
+      ).status,
+      200,
+    );
     await new Promise((x) => setTimeout(x, 2000));
-    const finds = async (who: string): Promise<boolean> => /LEMURWORD/.test((await raw(d, "/v1/search/query", { q: "LEMURWORD" }, who)).text);
+    const finds = async (who: string): Promise<boolean> =>
+      /LEMURWORD/.test((await raw(d, "/v1/search/query", { q: "LEMURWORD" }, who)).text);
     const folderReach = async (who: string): Promise<string> =>
-      (JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "folder", id: folder }] }, who)).text) as { data: { items: { level: string }[] } }).data.items[0]!.level;
+      (
+        JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "folder", id: folder }] }, who)).text) as {
+          data: { items: { level: string }[] };
+        }
+      ).data.items[0]!.level;
     assert.equal(await finds(NOAH), true, "the person it was shared with reads the page");
     assert.notEqual(await folderReach(NOAH), "none");
     const del = await raw(d, "/v1/sites/delete", { siteId, idempotencyKey: "lm-del" });
     assert.equal(del.status, 200, del.text);
     await new Promise((x) => setTimeout(x, 1500));
-    for (const who of [NOAH, OWNER]) assert.equal(await finds(who), false, `${who} still finds a deleted artifact's page`);
+    for (const who of [NOAH, OWNER])
+      assert.equal(await finds(who), false, `${who} still finds a deleted artifact's page`);
     assert.equal(await folderReach(NOAH), "none", "the share holder still reaches the folder of a deleted artifact");
-    assert.notEqual((await raw(d, "/v1/files/read", { fileId, as: "base64" }, NOAH)).status, 200, "the share holder still reads the page");
+    assert.notEqual(
+      (await raw(d, "/v1/files/read", { fileId, as: "base64" }, NOAH)).status,
+      200,
+      "the share holder still reads the page",
+    );
     // the owner keeps the page in their own Trash, as with any deleted folder: it is there to restore, and nobody else reaches it
-    const trashed = d.db!.all("SELECT deleted_at FROM files_file WHERE id = ?", fileId)[0] as { deleted_at: number | null };
+    const trashed = d.db!.all("SELECT deleted_at FROM files_file WHERE id = ?", fileId)[0] as {
+      deleted_at: number | null;
+    };
     assert.ok(trashed.deleted_at !== null, "the page is in Trash");
   } finally {
     await d.stop();

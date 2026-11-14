@@ -1664,7 +1664,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         ) as { id: string }[];
         const mine: { id: string }[] = [...folders];
         for (const f of folders)
-          for (const x of db.all("SELECT id FROM files_file WHERE folder_id = ?", f.id) as { id: string }[]) mine.push(x);
+          for (const x of db.all("SELECT id FROM files_file WHERE folder_id = ?", f.id) as { id: string }[])
+            mine.push(x);
         for (const x of mine) {
           const have = access.snap.resource(x.id);
           if (!have || have.owner_id === person || x.id === folderId) continue;
@@ -1677,7 +1678,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             vis: "space",
             entity: "resource",
             entity_id: x.id,
-            payload: { id: x.id, type: have.type, parent_id: have.parent_id, label: have.label, owner_id: person, holds: have.holds },
+            payload: {
+              id: x.id,
+              type: have.type,
+              parent_id: have.parent_id,
+              label: have.label,
+              owner_id: person,
+              holds: have.holds,
+            },
           });
           if (w.ok && !w.duplicate) {
             access.fold(w.event);

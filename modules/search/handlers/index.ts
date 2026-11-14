@@ -301,7 +301,10 @@ const setSeen = (ctx: SearchCtx, entity: string, id: string, seq: number): void 
  */
 export function indexDropFolder(ctx: SearchCtx, folderId: string, seq: number): number {
   ensure(ctx.db);
-  const direct = ctx.db.all("SELECT entity, id, path FROM search_docs WHERE folder_id = ? AND res_type = 'file'", folderId) as {
+  const direct = ctx.db.all(
+    "SELECT entity, id, path FROM search_docs WHERE folder_id = ? AND res_type = 'file'",
+    folderId,
+  ) as {
     entity: string;
     id: string;
     path: string | null;
@@ -311,7 +314,10 @@ export function indexDropFolder(ctx: SearchCtx, folderId: string, seq: number): 
   const below =
     prefix === null
       ? []
-      : (ctx.db.all("SELECT entity, id FROM search_docs WHERE res_type = 'file' AND path LIKE ? ESCAPE '\\'", `${prefix.replace(/[\\%_]/g, "\\$&")}%`) as {
+      : (ctx.db.all(
+          "SELECT entity, id FROM search_docs WHERE res_type = 'file' AND path LIKE ? ESCAPE '\\'",
+          `${prefix.replace(/[\\%_]/g, "\\$&")}%`,
+        ) as {
           entity: string;
           id: string;
         }[]);
