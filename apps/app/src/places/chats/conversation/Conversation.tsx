@@ -109,7 +109,7 @@ import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine }
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { notInChatLine } from "./notinchat.ts";
 import { NotInChatBar } from "./NotInChatBar.tsx";
-import { MemorySwitch } from "./memory-switch.tsx";
+import { MemorySwitch, SWITCH_LABEL, chatMemory, flipChatMemory } from "./memory-switch.tsx";
 import { SWITCH_NOTE, SWITCH_TITLE, hasSwitch, repliesOf } from "../thread-replies/model.ts";
 import { useReplySwitch } from "../thread-replies/ThreadSwitch.tsx";
 import type { AgentMeta } from "./askagent.ts";
@@ -161,6 +161,7 @@ import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/Stat
 import { refusalIsPending } from "../../../shell/session/just-made.ts";
 import { copyLinkText, itemLink, messageLink } from "../../../share/rows.ts";
 import { createMenuApi } from "../menus/actions.ts";
+import { chatMenu } from "../menus/chat.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { chatHeaderEntries, isArchivedIn } from "./chat-header-menu.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
@@ -409,6 +410,9 @@ function ConversationView(): ReactElement {
   const menuApi = useMemo(() => createMenuApi(data), [data]);
   const [hdr, setHdr] = useState({ starred: false, muted: false, archived: false });
   const [renamingChat, setRenamingChat] = useState(false);
+  // the chapter the chat is in now, drawn in grey after the title (G1); the chapter layer reports it
+  const [chapterNow, setChapterNow] = useState("");
+  const [talkAt, setTalkAt] = useState(0);
   const moreAt = useRef<{ x: number; y: number }>({ x: 8, y: 48 });
   useEffect(() => {
     let live = true;
@@ -924,6 +928,8 @@ function ConversationView(): ReactElement {
     openFind: () => setFinding(true),
     openSearch: (q) => data.nav.openSearch?.(q),
     openAdd: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
+    ...(data.nav.openPaneTab ? { openPane: data.nav.openPaneTab } : {}),
+    startTalk: () => setTalkAt((n) => n + 1),
     send: (text) =>
       submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
   });
@@ -1059,7 +1065,7 @@ function ConversationView(): ReactElement {
           }),
         ),
         { separator: true },
-        { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")) },
+        { label: "Stop everyone", danger: true, onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")) },
       ],
       x,
       y,
@@ -1099,131 +1105,137 @@ function ConversationView(): ReactElement {
       data.nav.openThread(id);
     else data.nav.openAgent(id);
   };
+  // the count is everyone who is here, people and agents, as the "Who's here" list names them (G2)
+  const hereCount = new Set([...thread.members.map((m) => m.id), ...thread.agents.map((a) => a.agentId)]).size;
   const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: openFace });
-  const moreEntries = (): MenuEntry[] => {
-    const mine: MenuEntry[] =
-      thread.kind === "chat"
-        ? chatHeaderEntries(
-            { ...hdr, withPeople: thread.agents.length === 0 },
-            {
-              rename: () => setRenamingChat(true),
-              star: (on) => {
-                setHdr((h) => ({ ...h, starred: on }));
-                void Promise.resolve(
-                  data.call("stars.toggle", { resource: { type: "thread", id: data.threadId }, on }),
-                ).catch(() => {
-                  setHdr((h) => ({ ...h, starred: !on }));
-                  say("That did not go through.");
-                });
-              },
-              mute: (on) => {
-                setHdr((h) => ({ ...h, muted: on }));
-                void menuApi.setMute("thread", data.threadId, on).catch(() => {
-                  setHdr((h) => ({ ...h, muted: !on }));
-                  say("That did not go through.");
-                });
-              },
-              archive: () =>
-                void Promise.resolve(data.call("threads.archive", { threadId: data.threadId })).then(() => {
-                  setHdr((h) => ({ ...h, archived: true }));
-                  say("Archived. It left your list; an @mention brings it back.");
-                }, fail("Could not archive.")),
-              unarchive: () =>
-                void Promise.resolve(data.call("threads.unarchive", { threadId: data.threadId })).then(() => {
-                  setHdr((h) => ({ ...h, archived: false }));
-                  say("Back in your list.");
-                }, fail("Could not unarchive.")),
-              leave: () =>
-                void Promise.resolve(data.call("threads.leave", { threadId: data.threadId })).then(
-                  () => say("You left this chat."),
-                  fail("Could not leave."),
-                ),
-              remove: () =>
-                menu.show(
-                  [
-                    { head: "Delete this chat? It is hidden for you and can be restored for a while." },
-                    {
-                      label: "Delete chat",
-                      danger: true,
-                      onSelect: () =>
-                        void Promise.resolve(data.call("threads.delete", { threadId: data.threadId })).then(
-                          () => say("Chat deleted."),
-                          fail("Could not delete."),
-                        ),
-                    },
-                    { label: "Cancel" },
-                  ],
-                  moreAt.current.x,
-                  moreAt.current.y,
-                  "other",
-                ),
-              addPeople: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
-              copyLink: () => {
-                const link = itemLink("chat", data.threadId);
-                if (link === "") copyLinkText("");
-                else {
-                  data.copy(link);
-                  say("Link copied");
-                }
-              },
-            },
-          )
-        : [];
-    const items: MenuEntry[] = [
-      ...mine,
-      ...(mine.length > 0 ? [{ separator: true } as MenuEntry] : []),
-      { label: "Find in Chat", hint: "⌘F", onSelect: () => setFinding(true) },
-      { separator: true } as MenuEntry,
+  /** Star, Mute, Add people, Copy link, Leave or Delete: what the sidebar row's menu carries, from the same builder, for the open chat (G4: the head menu's "More"). */
+  const housekeeping = (): MenuEntry[] => {
+    const setMute = (on: boolean): void => {
+      setHdr((h) => ({ ...h, muted: on }));
+      void menuApi.setMute("thread", data.threadId, on).catch(() => {
+        setHdr((h) => ({ ...h, muted: !on }));
+        say("That did not go through.");
+      });
+    };
+    const copyLink = (): void => {
+      const link = itemLink("chat", data.threadId);
+      if (link === "") copyLinkText("");
+      else {
+        data.copy(link);
+        say("Link copied");
+      }
+    };
+    if (thread.kind !== "chat")
+      return [
+        { label: hdr.muted ? "Unmute" : "Mute", onSelect: () => setMute(!hdr.muted) },
+        { label: "Copy link", onSelect: copyLink },
+      ];
+    return chatMenu(
       {
-        label: "Plan Mode",
-        checked: mode === "plan",
-        onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan"),
+        starred: hdr.starred,
+        unread: false,
+        local: false,
+        archived: hdr.archived,
+        withPeople: thread.agents.length === 0,
+        muted: hdr.muted,
       },
-      ...(hasSwitch(thread) && repliesSwitch.on !== null
+      {
+        open: () => undefined,
+        rename: () => setRenamingChat(true),
+        star: (on) => {
+          setHdr((h) => ({ ...h, starred: on }));
+          void Promise.resolve(
+            data.call("stars.toggle", { resource: { type: "thread", id: data.threadId }, on }),
+          ).catch(() => {
+            setHdr((h) => ({ ...h, starred: !on }));
+            say("That did not go through.");
+          });
+        },
+        markRead: () => undefined,
+        markUnread: () => undefined,
+        mute: setMute,
+        archive: () => undefined,
+        unarchive: () => undefined,
+        leave: () =>
+          void Promise.resolve(data.call("threads.leave", { threadId: data.threadId })).then(
+            () => say("You left this chat."),
+            fail("Could not leave."),
+          ),
+        remove: () =>
+          menu.show(
+            [
+              { head: "Delete this chat? It is hidden for you and can be restored for a while." },
+              {
+                label: "Delete chat",
+                danger: true,
+                onSelect: () =>
+                  void Promise.resolve(data.call("threads.delete", { threadId: data.threadId })).then(
+                    () => say("Chat deleted."),
+                    fail("Could not delete."),
+                  ),
+              },
+              { label: "Cancel" },
+            ],
+            moreAt.current.x,
+            moreAt.current.y,
+            "other",
+          ),
+        addPeople: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
+        copyLink,
+      },
+      { open: false, read: false },
+    ).filter((e) => !("label" in e && (e.label === "Archive" || e.label === "Unarchive")));
+  };
+  const moreEntries = (): MenuEntry[] => {
+    const switchEntry: MenuEntry[] =
+      hasSwitch(thread) && repliesSwitch.on !== null
         ? [
             {
               label: SWITCH_TITLE,
               checked: repliesSwitch.on,
               ...(repliesSwitch.on ? { hint: SWITCH_NOTE } : {}),
               onSelect: () => repliesSwitch.set(!repliesSwitch.on),
-            } as MenuEntry,
+            },
           ]
-        : []),
-      ...(lead
-        ? [
-            {
-              label: `Open ${nameOf(lead.agentId)}'s Page`,
-              onSelect: () => data.nav.openAgent(lead.agentId),
-            } as MenuEntry,
-          ]
-        : []),
-      ...connectEntries(thread, data.nav),
-      { separator: true } as MenuEntry,
-      ...(data.nav.openSearch
-        ? [{ label: "Search All Chats…", onSelect: () => data.nav.openSearch!("") } as MenuEntry]
-        : []),
-      ...collect(
-        act.onlyMeHere(thread, data.me.id) ? (data.elsewhere?.spaces ?? []).slice(0, 6) : [],
-        (sp): MenuEntry => ({
-          label: `Continue in ${sp.name}`,
-          onSelect: () => void runSlash(`/continue ${sp.name}`, commandEnv()),
-        }),
-      ),
-      { label: "Fork This Chat", onSelect: () => void runSlash("/fork", commandEnv()) } as MenuEntry,
-      { label: "Export as Markdown", onSelect: () => void runSlash("/export md", commandEnv()) } as MenuEntry,
-      { label: "Export as JSON", onSelect: () => void runSlash("/export json", commandEnv()) } as MenuEntry,
-      ...(isWorking
-        ? [
-            { separator: true } as MenuEntry,
-            {
-              label: "Stop All",
-              danger: true,
-              onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")),
-            } as MenuEntry,
-          ]
-        : []),
-    ];
-    return items;
+        : [];
+    return chatHeaderEntries(
+      {
+        withAgent: lead !== undefined,
+        withPeople: thread.kind === "chat" && thread.agents.length === 0,
+        planOn: mode === "plan",
+        muted: hdr.muted,
+        archived: hdr.archived,
+        working: isWorking,
+        archivable: thread.kind === "chat",
+      },
+      {
+        plan: () => chooseChatMode(mode === "plan" ? "ask" : "plan"),
+        fork: () => void runSlash("/fork", commandEnv()),
+        find: () => setFinding(true),
+        ...(data.nav.openPaneTab ? { kept: () => data.nav.openPaneTab?.("kept") } : {}),
+        exportMd: () => void runSlash("/export md", commandEnv()),
+        mute: (on) => {
+          setHdr((h) => ({ ...h, muted: on }));
+          void menuApi.setMute("thread", data.threadId, on).catch(() => {
+            setHdr((h) => ({ ...h, muted: !on }));
+            say("That did not go through.");
+          });
+        },
+        archive: () =>
+          void Promise.resolve(data.call("threads.archive", { threadId: data.threadId })).then(() => {
+            setHdr((h) => ({ ...h, archived: true }));
+            say("Archived. It left your list; an @mention brings it back.");
+          }, fail("Could not archive.")),
+        unarchive: () =>
+          void Promise.resolve(data.call("threads.unarchive", { threadId: data.threadId })).then(() => {
+            setHdr((h) => ({ ...h, archived: false }));
+            say("Back in your list.");
+          }, fail("Could not unarchive.")),
+        stopAll: () => void act.stopAll(data).catch(fail("Could not stop.")),
+        more: () => menu.show(housekeeping(), moreAt.current.x, moreAt.current.y, "other", { label: "Chat" }),
+        extra: [...switchEntry, ...connectEntries(thread, data.nav)],
+      },
+    );
   };
   const moreMenu = (x: number, y: number): void => {
     moreAt.current = { x, y };
@@ -1656,7 +1668,7 @@ function ConversationView(): ReactElement {
       .map((x) => noteFor(x, "agent"))
       .filter((x) => mentionable(x, data.me.guest === true, inThread)),
     people: (data.lists.people ?? []).map((x) => noteFor(x, "person")),
-    commands: commandItems(data.pluginCommands?.()),
+    commands: commandItems(data.pluginCommands?.(), thread.kind === "chat" && thread.agents.length > 0),
   };
   const mode: ChatMode = modeOver ?? modeOf(thread);
   const chooseChatMode = (m: ChatMode): void => {
@@ -1781,10 +1793,10 @@ function ConversationView(): ReactElement {
                 </Text>
               </Pressable>
             )}
-            {isWorking ? (
-              <View testID="conversation-live" accessibilityLabel="Working" style={st.live}>
-                <View style={st.liveDot} />
-              </View>
+            {chapterNow !== "" ? (
+              <Text numberOfLines={1} testID="conversation-chapter" style={st.chapterNow}>
+                {chapterNow}
+              </Text>
             ) : null}
             <View style={{ flex: 1 }} />
             {online ? null : (
@@ -1823,18 +1835,9 @@ function ConversationView(): ReactElement {
                 onPress={helpersMenu}
               />
             ) : null}
-            {isWorking ? (
-              <IconButton
-                icon="stop"
-                label={stopLabel(working, nameOf)}
-                danger
-                testID="stop-button"
-                onPress={stopMenu}
-              />
-            ) : null}
             <PeopleCount
-              count={thread.members.length}
-              label={`${thread.members.length} in this chat`}
+              count={hereCount}
+              label={`${hereCount} in this chat`}
               testID="participants-button"
               onPress={peopleMenu}
             />
@@ -1981,6 +1984,7 @@ function ConversationView(): ReactElement {
         >
           {(laid) => (
             <View style={st.feedBox} onLayout={(e) => setGutter(gutterFits(e.nativeEvent.layout.width))}>
+              <ChapterNow rows={laid.rows} report={setChapterNow} />
               <GutterContext.Provider value={gutter}>
                 <Feed
                   key={jump}
@@ -2290,9 +2294,19 @@ function ConversationView(): ReactElement {
               mode={mode}
               onMode={chooseChatMode}
               barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
+              plusExtra={() => [
+                {
+                  id: "plus-memory",
+                  title: SWITCH_LABEL,
+                  icon: "lock",
+                  checked: !chatMemory(thread.threadId).remember,
+                  onPress: () => flipChatMemory(thread.threadId, data.call, say),
+                },
+              ]}
               suggest={composerSuggest(data)}
               preview={(item) => previewOf(data, item)}
               openPanelAt={panelAt}
+              talkAt={talkAt}
               renderPanel={(agent, close, narrowPanel) => (
                 <ChatBrain
                   data={data}
@@ -2328,11 +2342,13 @@ function ConversationView(): ReactElement {
               onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
               onSubmit={(p) => submit(p, "queue")}
               onInterrupt={(p) => submit(p, "interrupt")}
-              onStop={() =>
+              onStop={(at) => {
+                // two or more working: one stop per face and Stop everyone, where it was pressed (agents run together, e-parallel)
+                if (working.length > 1 && at) return stopMenu(at.x, at.y);
                 void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).catch(
                   fail("Could not stop it."),
-                )
-              }
+                );
+              }}
             />
           </View>
         )}
@@ -2370,6 +2386,18 @@ function ConversationView(): ReactElement {
 }
 
 const ROUTE_STYLE = { flex: 1, minHeight: 0 };
+
+/** Tells the head which chapter the chat is in now (the heading row marked current); draws nothing. */
+function ChapterNow({ rows, report }: { rows: readonly unknown[]; report(title: string): void }): null {
+  const now = (rows as { kind?: string; current?: boolean; title?: string }[]).find(
+    (r) => r.kind === "chapter" && r.current === true,
+  );
+  const title = now?.title ?? "";
+  useEffect(() => {
+    report(title);
+  }, [title, report]);
+  return null;
+}
 
 /**
  * Brings a message the page does not hold into it: reads the window around it, widens the page until the row is mounted, leaves it marked for a few seconds, then lets go.
@@ -2488,6 +2516,7 @@ const st = StyleSheet.create({
   },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
+  chapterNow: { flexShrink: 1, minWidth: 0, maxWidth: 260, fontSize: 12.5, color: "var(--ink-3)" as string },
   title: { flexShrink: 1, minWidth: 40, maxWidth: 320, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   titleBtn: {
     flexShrink: 1,
@@ -2532,8 +2561,6 @@ const st = StyleSheet.create({
     outlineStyle: "none",
     outlineWidth: 0,
   } as object,
-  live: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 6 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
   crewChip: {

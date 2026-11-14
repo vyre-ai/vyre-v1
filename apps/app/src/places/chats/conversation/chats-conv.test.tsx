@@ -211,15 +211,14 @@ test("one chat.post gives one message and one bubble on the page, never two", as
   assert.equal(html(s).split(body).length - 1, 1, "one bubble on the page");
 });
 
-test("stop and stop all: the header says which, and each calls its capability; the steps are kept", async () => {
+test("stop and stop all: the head stays quiet while agents work (the stop is the composer's), and each stop calls its capability; the steps are kept", async () => {
   const s = createSample("busy");
   const out = html(s);
   assert.ok(
-    has(out, 'data-testid="stop-button"') &&
-      has(out, "Working") &&
-      has(out, 'data-testid="helpers-button"') &&
-      has(out, "2 helpers running"),
+    !has(out, 'data-testid="stop-button"') && !has(out, 'data-testid="conversation-live"'),
+    "no stop and no marker in the head (G3)",
   );
+  assert.ok(has(out, "Working") && has(out, 'data-testid="helpers-button"') && has(out, "2 helpers running"));
   const working = workingAgents(msgs(s));
   assert.deepEqual(working.sort(), ["agt_docs", "agt_intake"]);
   assert.equal(stopLabel(working, s.data.nameOf), "Stop all");
@@ -262,8 +261,8 @@ test("streaming: text is on the page up to the last delta, with the work folded 
   assert.ok(has(out, 'data-testid="body-m7"') && has(out, "consult fee") && has(out, "retainer is"));
   assert.ok(
     has(out, "Worked 8s · 2 steps") &&
-      has(out, 'data-testid="conversation-live"') &&
-      has(out, 'data-testid="stop-button"'),
+      !has(out, 'data-testid="conversation-live"') &&
+      !has(out, 'data-testid="stop-button"'),
   );
   s.push(" Shall I send it to Maya?");
   assert.ok(has(html(s), "Shall I send it to Maya?"));
@@ -624,7 +623,7 @@ test("the error row offers Report a problem, which opens the shared report sheet
   assert.ok(has(html(createSample("errors")), 'data-testid="err-more"'));
 });
 
-test("the hover bar draws Copy, Edit (yours only), Reply and More while the row is hovered or focused, and none of them before: fifty hidden bars were most of the first frame", () => {
+test("the hover bar draws Copy, Edit (yours only, with Rewind where the chat can) and More while the row is hovered or focused, and none of them before: fifty hidden bars were most of the first frame (G13)", () => {
   const s = createSample("idle");
   const m3 = msgs(s).find((m) => m.messageId === "m3")!;
   const m4 = msgs(s).find((m) => m.messageId === "m4")!;
@@ -638,8 +637,9 @@ test("the hover bar draws Copy, Edit (yours only), Reply and More while the row 
   assert.ok(
     has(mine, 'data-testid="act-copy-m3"') &&
       has(mine, 'data-testid="act-edit-m3"') &&
-      has(mine, 'data-testid="act-reply-m3"') &&
+      !has(mine, 'data-testid="act-reply-m3"') &&
       has(mine, 'data-testid="act-more-m3"'),
+    "copy, edit, more: reply in thread is in the menu",
   );
   const theirs = bar(m4, false, true);
   assert.ok(
