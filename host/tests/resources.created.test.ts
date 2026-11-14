@@ -9,6 +9,7 @@ import type { CommitBatch, CtxSeed, Handler } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
 import {
   announcementVis,
+  AUTHORING_CAPS,
   createResourceRegistrar,
   idFits,
   KNOWN_TYPES,
@@ -702,6 +703,141 @@ test("registrar: a new skill is registered from its birth event, owned by the pe
     events: [ev("skill.mine_changed", { skillId: "sko_a1b2c4", op: "added", ownerId: "usr_dana" })],
   });
   assert.equal(agents[0]?.owner_id, "usr_dana", "an agent's skill is its owner's");
+});
+
+test("registrar: what an agent makes for the person it acts for is stamped with the agent (made for me, usable by the maker); a person's own, an agent's own and a re-registration are not", () => {
+  const known = new Set(["spc_1", "rt_item"]);
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => known.has(id) });
+  const made = (principal: { kind: string; id: string }, owner: string) =>
+    r.register({
+      cap: { name: "records.create", resource: { type: "record", create: true, parent: "/type" } },
+      input: { type: "rt_item" },
+      space: "spc_1",
+      owner,
+      principal,
+      events: [ev("record.created", { recordId: REC, type: "rt_item" })],
+    });
+  assert.equal(
+    made({ kind: "agent", id: "agt_helper" }, "usr_dana")[0]?.made_by,
+    "agt_helper",
+    "an agent for a person",
+  );
+  assert.equal(made({ kind: "person", id: "usr_dana" }, "usr_dana")[0]?.made_by, undefined, "a person's own");
+  assert.equal(made({ kind: "agent", id: "agt_helper" }, "agt_helper")[0]?.made_by, undefined, "an agent for no one");
+});
+
+test("registrar: a calendar event is a resource inside its calendar, owned by the person the call acts for and stamped with the agent that made it", () => {
+  const known = new Set(["spc_1", "cld_personal"]);
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => known.has(id) });
+  const made = (principal: { kind: string; id: string }) =>
+    r.register({
+      cap: { name: "calendar.create_event", resource: { type: "calendar", id: "/calendarId" } },
+      input: { calendarId: "cld_personal" },
+      space: "spc_1",
+      owner: "usr_dana",
+      principal,
+      events: [ev("calendar_event.created", { eventId: "cev_abc123", calendarId: "cld_personal" })],
+    });
+  assert.deepEqual(made({ kind: "person", id: "usr_dana" }), [
+    { id: "cev_abc123", type: "calendar_event", parent_id: "cld_personal", label: 0, owner_id: "usr_dana", holds: 0 },
+  ]);
+  assert.equal(made({ kind: "agent", id: "agt_helper" })[0]?.made_by, "agt_helper");
+});
+
+// made for me: the stamp says an agent AUTHORED a thing for the person it acts for. What arrived from outside or was synced in is never stamped, whoever triggered it (review r-keyreach 14 Nov: a mail sync an
+// agent triggered marked the person's received mail as made by the agent).
+test("registrar: the made-for-me stamp is written for what an agent authored, and never for what arrived, was synced or imported", () => {
+  const events: SubjectDef[] = [
+    ...EVENTS,
+    { name: "file.created", subject: { type: "file", id: "/fileId" } },
+    { name: "calendar_event.created", subject: { type: "entity", id: "/eventId" } },
+  ];
+  const known = new Set(["spc_1", "rt_item", "cld_1", "fld_1"]);
+  const r = createResourceRegistrar({ events, exists: (id) => known.has(id) });
+  const agent = { kind: "agent", id: "agt_helper" };
+  const run = (cap: string, event: ReturnType<typeof ev>, input: unknown = {}, principal = agent) =>
+    r.register({
+      cap: { name: cap, resource: { type: "space" } },
+      input,
+      space: "spc_1",
+      owner: "usr_dana",
+      principal,
+      events: [event],
+    });
+  const stamped = (rows: ReturnType<typeof run>) => rows.some((x) => x.made_by !== undefined);
+  // authored: stamped
+  assert.ok(
+    stamped(run("records.create", ev("record.created", { recordId: REC, type: "rt_item" }), { type: "rt_item" })),
+    "a record the agent created",
+  );
+  assert.ok(
+    stamped(run("calendar.create_event", ev("calendar_event.created", { eventId: "cev_a1", calendarId: "cld_1" }))),
+    "an event the agent created",
+  );
+  assert.ok(stamped(run("files.create", ev("file.created", { fileId: "fil_a1" }))), "a file the agent created");
+  // arrived or synced: never stamped, even with an agent as the caller acting for the person
+  const never: Array<[string, ReturnType<typeof ev>]> = [
+    ["mail.sync_now", ev("calendar_event.created", { eventId: "cev_m1", calendarId: "cld_1" })],
+    ["calendar.ingest_event", ev("calendar_event.created", { eventId: "cev_s1", calendarId: "cld_1" })],
+    ["calendar.sync_now", ev("calendar_event.created", { eventId: "cev_s2", calendarId: "cld_1" })],
+    ["mounts.sync_now", ev("file.created", { fileId: "fil_m1" })],
+    ["import.commit", ev("record.created", { recordId: REC2, type: "rt_item" })],
+    ["google.drive.sync", ev("file.created", { fileId: "fil_g1" })],
+  ];
+  for (const [cap, e] of never) assert.ok(!stamped(run(cap, e, { type: "rt_item" })), `${cap}: not stamped`);
+  // the entity births of the inbox: received mail, a conversation it opens, a message sent
+  for (const type of ["mail.received", "conversation.created", "message.sent"]) {
+    const rows = r.register({
+      cap: { name: "mail.sync_now", resource: { type: "space" } },
+      input: {},
+      space: "spc_1",
+      owner: "usr_dana",
+      principal: agent,
+      events: [ev(type, { messageId: "eml_a1b2c3", conversationId: "cnv_a1b2c3", mailboxId: "mbx_a1" })],
+    });
+    assert.ok(!stamped(rows), `${type}: not stamped`);
+  }
+  // a person's own call never stamps
+  assert.ok(
+    !stamped(
+      run(
+        "records.create",
+        ev("record.created", { recordId: REC, type: "rt_item" }),
+        { type: "rt_item" },
+        { kind: "person", id: "usr_dana" },
+      ),
+    ),
+  );
+});
+
+test("the made-for-me stamp is an allow list of authoring calls: a capability not on it never stamps, however it is named, and every name on it is a real capability", () => {
+  const known = new Set(["spc_1", "rt_item"]);
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => known.has(id) });
+  const agent = { kind: "agent", id: "agt_helper" };
+  // a new intake invented tomorrow (none of these names is on the list): the stamp stays off
+  for (const cap of [
+    "mail.pull_everything",
+    "reports.import_all",
+    "sync.anything",
+    "weather.fetch",
+    "records.create_from_feed",
+  ]) {
+    const rows = r.register({
+      cap: { name: cap, resource: { type: "space" } },
+      input: {},
+      space: "spc_1",
+      owner: "usr_dana",
+      principal: agent,
+      events: [ev("record.created", { recordId: REC, type: "rt_item" })],
+    });
+    assert.ok(
+      rows.every((x) => x.made_by === undefined),
+      `${cap}: not on the list, not stamped`,
+    );
+  }
+  const names = new Set(registry.capabilities.map((c) => c.name));
+  for (const cap of AUTHORING_CAPS)
+    assert.ok(names.has(cap), `${cap} is on the authoring list but is not a capability`);
 });
 
 test("registrar: a calendar event is a resource inside its calendar, owned by the person the call acts for", () => {

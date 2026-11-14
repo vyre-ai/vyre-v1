@@ -182,6 +182,50 @@ function insideOf(deps: RegistrarDeps, from: string, home: string): boolean {
 }
 
 /**
+ * "Made for me" (owner rule, 14 Nov 2026): the stamp `made_by` / `made_for` says an agent AUTHORED this thing for the person it acts for. The rule: the actor of the creating call is an agent, acting for a person, the
+ * thing is the product of that call (the agent made it, nothing arrived), and the creating call is one of the AUTHORING calls below. It is an allow list: a capability not named here never stamps, so a new intake of
+ * outside data (a mail sync, a calendar pull, a mount, an import, a connector or provider sync) cannot start marking what arrives as the agent's by default. Nothing is stamped for mail received, a conversation
+ * opened by incoming mail, a message sent, an event pulled from a provider, a file a mount brought in or a record an import brought in. Add a capability here only when its whole product is something the agent made.
+ */
+export const AUTHORING_CAPS: ReadonlySet<string> = new Set([
+  "agents.create",
+  "automations.create",
+  "bookings.page_create",
+  "calendar.create_calendar",
+  "calendar.create_event",
+  "calendar.duplicate_event",
+  "channels.create",
+  "chat.start",
+  "connections.create",
+  "email_builder.create",
+  "files.copy",
+  "files.create",
+  "files.folder.create",
+  "folders.create",
+  "forms.create",
+  "goals.create",
+  "projects.create",
+  "projects.from_channel",
+  "records.bulk_upsert",
+  "records.create",
+  "sheets.create",
+  "sites.artifact_publish",
+  "sites.create",
+  "skills.add",
+  "skills.mine.add",
+  "tasks.ask",
+  "tasks.create",
+  "tasks.plan",
+  "vault.folders.create",
+  "vault.item.put",
+]);
+const AUTHORED_ENTITY_BIRTHS: ReadonlySet<string> = new Set(["calendar_event.created"]);
+const madeFor = (a: RegisterArgs): { made_by?: string; made_for?: string } =>
+  a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(a.owner) && AUTHORING_CAPS.has(a.cap.name)
+    ? { made_by: a.principal.id, made_for: a.owner }
+    : {};
+
+/**
  * Where a calendar event already in the store is registered the first time a call names it: inside its calendar, owned by that calendar's owner (a private Personal calendar's events are that person's alone and
  * nobody else reaches them through the Space), and only when the calendar is unknown (a row whose calendar is gone) under the Space and the Space owner's name with the host mark.
  */
@@ -250,6 +294,8 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
               label: cur.label,
               owner_id: cur.owner_id,
               holds: cur.holds,
+              ...(cur.made_by !== undefined ? { made_by: cur.made_by } : {}),
+              ...(cur.made_for !== undefined ? { made_for: cur.made_for } : {}),
             });
           }
           continue;
@@ -261,7 +307,15 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
             seen.add(xid);
             const inside = extra.parent === undefined ? undefined : pointer(ev.payload, extra.parent);
             const parent = typeof inside === "string" && (deps.exists(inside) || seen.has(inside)) ? inside : a.space;
-            out.push({ id: xid, type: extra.type, parent_id: parent, label: 0, owner_id: a.owner, holds: 0 });
+            out.push({
+              id: xid,
+              type: extra.type,
+              parent_id: parent,
+              label: 0,
+              owner_id: a.owner,
+              holds: 0,
+              ...(AUTHORED_ENTITY_BIRTHS.has(ev.type) ? madeFor(a) : {}),
+            });
           }
         }
         const s = subjects.get(ev.type);
@@ -310,17 +364,26 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
             ? (deps.agentHome?.(a.principal.id) ?? null)
             : null;
         const agentsOwn = home !== null && insideOf(deps, container, home);
+        const owner = agentsOwn
+          ? a.principal!.id
+          : typeof named === "string" && /^usr_[a-z0-9]+$/.test(named)
+            ? named
+            : a.owner;
         out.push({
           id,
           type: s.type,
           parent_id: s.type === "space" || privateRoot ? null : container,
           label: 0,
-          owner_id: agentsOwn
-            ? a.principal!.id
-            : typeof named === "string" && /^usr_[a-z0-9]+$/.test(named)
-              ? named
-              : a.owner,
+          owner_id: owner,
           holds: 0,
+          // a calendar connected to an outside provider is flagged: the private-root rule of made-for-me does not reach it
+          ...(s.type === "calendar" &&
+          typeof pointer(ev.payload, "/provider") === "string" &&
+          pointer(ev.payload, "/provider") !== "local"
+            ? { outside: true }
+            : {}),
+          // made for a person by an agent acting for them: the same agent keeps the person's own level on it (kernel authorize, madeForPerson)
+          ...(owner === a.owner ? madeFor(a) : {}),
         });
       }
       return out;

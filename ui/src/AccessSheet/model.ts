@@ -942,7 +942,16 @@ export function sheetRows<R extends AccessRowLike>(
   };
 }
 
-export function rowSub(row: { subjectKind: ShareSubjectKind; via: string }, folderName?: string): string {
+/** Does a grant's `source` say an agent made the thing for the person? The access projection's row ("made_by") and the Vault's explicit maker's grant ("made-by:<agent>") are both the same fact: one check. */
+export const isMadeBySource = (source: string | undefined): boolean =>
+  source === "made_by" || (source !== undefined && source.startsWith("made-by:"));
+
+export function rowSub(
+  row: { subjectKind: ShareSubjectKind; via: string; madeBy?: boolean | undefined },
+  folderName?: string,
+): string {
+  // an agent that made this for the person: the one quiet line, nothing else (owner, 14 Nov 2026)
+  if (row.madeBy === true) return "Made this for you";
   // never "Not in a folder" above "From the folder": with no folder named, what is inherited comes from the Space
   if (row.via === "folder") return folderName ? `From the folder ${folderName}` : "From the Space";
   if (row.via === "space") return "From the Space";
@@ -1058,10 +1067,13 @@ export function accessView(i: AccessViewInput): AccessView {
   const everyone = merged.find(isEveryoneRow) ?? null;
   const people = merged
     .filter(
-      (r) => (r.subjectKind === "person" || r.subjectKind === "group" || r.subjectKind === "role") && !isEveryoneRow(r),
+      (r) =>
+        // an agent that made this for the person is listed among the people who can open it, with its own line ("Made this for you"); other agent shares have their own section on an agent
+        (r.subjectKind === "person" || r.subjectKind === "group" || r.subjectKind === "role" || r.madeBy === true) &&
+        !isEveryoneRow(r),
     )
     .sort(byAccess);
-  const agentRows = merged.filter((r) => r.subjectKind === "agent").sort(byAccess);
+  const agentRows = merged.filter((r) => r.subjectKind === "agent" && r.madeBy !== true).sort(byAccess);
   const specific = agentRows.filter((r) => r.via === "grant");
   const inherited = agentRows.some((r) => r.via !== "grant");
   const count = 1 + people.length + specific.length + (everyone ? 1 : 0);
