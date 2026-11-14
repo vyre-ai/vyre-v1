@@ -9,6 +9,7 @@ import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { limited, shapeOutput } from "./compact.ts";
 import { fillKey } from "./fill.ts";
+import { SeenVersions, changedSinceTurn, kindOfWrite, learned } from "./versions.ts";
 import { rejectWords } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
@@ -91,6 +92,8 @@ export function createToolSession(deps: CallDeps): ToolSession {
   /** The searches each turn has made, so the same one is not run twice. */
   const searchedIn = new Map<string, Set<string>>();
   const newTrace = deps.traceId ?? ((): string => hex(16));
+  /** The versions this session's agents have seen of the files, records and tasks they read or wrote (agent/src/tools/versions.ts). */
+  const seen = new SeenVersions();
   const loadedSet = (threadId: string): Set<string> => {
     let s = loadedBy.get(threadId);
     if (!s) {
@@ -309,14 +312,46 @@ export function createToolSession(deps: CallDeps): ToolSession {
       ...(localAsk && t.effects !== "read" ? { mustAsk: true } : {}),
       ...(t.effects !== "read" && t.planMode === "blocked" ? { askable: true } : {}),
     };
+    // a write to a file, record or task that takes a version: send the version this agent last saw when the model did not (agent/src/tools/versions.ts)
+    let given = input;
+    const versioned = isDynamic ? undefined : kindOfWrite(t.cap);
+    if (versioned && input !== null && typeof input === "object" && !Array.isArray(input)) {
+      const o = input as Record<string, unknown>;
+      const id = typeof o[versioned.field] === "number" ? undefined : versioned.idOf(o);
+      if (id !== undefined) {
+        const key = `${versioned.kind}:${id}`;
+        let base = seen.get(ctx, key);
+        if (base === undefined) {
+          // a thing this agent has not read in this turn: the version it had when the turn started (a change since then refuses the write); with no turn start known, the version it has now
+          const { askFirst: _a, mustAsk: _m, askable: _k, ...readSeed } = seed;
+          const look = versioned.peek(id, o);
+          try {
+            const res = await deps.invoke(look.cap as CapName, look.input, readSeed);
+            const n = res.status === "ok" ? versioned.now(res.output, ctx.turnStartedAt) : null;
+            if (n) {
+              if (versioned.kind === "file") base = n.atTime ?? n.version;
+              else if (ctx.turnStartedAt !== undefined && n.changedAt !== undefined && n.changedAt > ctx.turnStartedAt)
+                return fail("validation.version_conflict", traceId, {
+                  message: changedSinceTurn(versioned.noun),
+                  details: { tool: t.name, reason: "changed_since_turn" },
+                });
+              else base = n.version;
+            }
+          } catch {
+            /* a look that fails changes nothing: the write is made as the model sent it and says what is wrong itself */
+          }
+        }
+        if (base !== undefined) given = { ...o, [versioned.field]: base };
+      }
+    }
     try {
-      const res = await deps.invoke(
-        t.cap,
+      const body =
         isDynamic && deps.dynamic
           ? deps.dynamic.input(ctx, t, input)
-          : fillKey(t, limited(t.cap, unstringified(t.inputSchema, input)), ctx),
-        seed,
-      );
+          : fillKey(t, limited(t.cap, unstringified(t.inputSchema, given)), ctx);
+      const res = await deps.invoke(t.cap, body, seed);
+      if (!isDynamic && res.status === "ok")
+        for (const l of learned(t.cap, body, res.output)) seen.set(ctx, l.key, l.version);
       if (res.status === "held") {
         recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {

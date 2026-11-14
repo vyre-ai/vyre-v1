@@ -45,6 +45,8 @@ export interface ToolContext {
   turnId: string;
   agentId: string;
   asker: string;
+  /** When the turn began (ms): a thing the agent never read in the turn is written on the version it had then. */
+  startedAt?: number;
   /** What the people in the chat said since this agent last spoke: a value a person typed themselves is theirs to ask for, however much it looks like a placeholder (lib/probe.ts). */
   said?: string;
 }
@@ -1139,7 +1141,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         const runBatch = async (
           calls: readonly { id: string; name: string; input: unknown }[],
         ): Promise<"ok" | "parked" | "cancelled"> => {
-          const toolCtx = { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker };
+          const toolCtx = {
+            threadId: st.thread.id,
+            turnId: turn.id,
+            agentId: item.agentId,
+            asker,
+            startedAt: turn.startedAt,
+          };
           const cap = Math.max(1, opts.maxParallel ?? MAX_PARALLEL);
           const results = new Map<string, ToolRunResult>();
           const traces = new Map<string, ToolTrace | null>();
@@ -1240,6 +1248,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
                   turnId: turn.id,
                   agentId: item.agentId,
                   asker,
+                  startedAt: turn.startedAt,
                   said: saidSince(st, item.agentId),
                 },
               ).finally(() => {

@@ -55,6 +55,16 @@ const AGENT_WORDS: Readonly<Record<string, { what: string; next: string }>> = {
     what: "That cannot be done in the current state.",
     next: "Check where things stand before you try again.",
   },
+  // 14 Nov 2026 (F50): a write refused because the thing changed after the agent last read it. The agent is told what to do, never to write the old content back; who changed it is said only where the server's own
+  // sentence says it (a person may be told who edited a task; the agent is handed only what the server chose to put in the message).
+  "validation.version_conflict": {
+    what: "That changed after you last read it, so your change was not saved.",
+    next: "Read it again, look at what changed, and make your change on top of what is there now. Do not write the old content back, and do not retry the same call as it was.",
+  },
+  "validation.precondition_failed#stale_version": {
+    what: "That changed after you last read it, so your change was not saved.",
+    next: "Read it again, look at what changed, and make your change on top of what is there now. Do not retry the same call as it was.",
+  },
   "validation.not_found": {
     what: "I could not find that. It may have been removed.",
     next: "Look it up again, or ask the person which one they mean.",
@@ -84,9 +94,14 @@ export function modelError(error: VyreError): {
   const tool = typeof d?.tool === "string" && /^[a-z][a-z0-9_]*$/.test(d.tool) ? d.tool : undefined;
   const message = withoutIds(error.message ?? "");
   const words = describeError(error.code, { message });
-  const own = AGENT_WORDS[error.code];
+  const own = (reason ? AGENT_WORDS[`${error.code}#${reason}`] : undefined) ?? AGENT_WORDS[error.code];
   // a plain message the server raised for this very failure wins over the table; the table's next step follows it
-  const said = own && words.text === describeError(error.code).text ? own.what : words.text;
+  // a version conflict's own words always stand in for the server's (a record's says "at version 3, not 1"), except the tool layer's own refusal, which says when the thing changed
+  const ownWords =
+    own !== undefined &&
+    (words.text === describeError(error.code).text ||
+      (error.code === "validation.version_conflict" && reason !== "changed_since_turn"));
+  const said = ownWords ? own.what : words.text;
   const say = `${plainSentence(said)} ${own ? own.next : words.next}`;
   return {
     say,

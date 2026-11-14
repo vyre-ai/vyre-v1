@@ -91,7 +91,8 @@ export function saveNote(ctx: NotesCtx, r: NoteRow): void {
   r.version += 1;
 }
 /** What a refused save says: the note was changed by someone else after it was read. */
-export const NOTE_CHANGED = "This note changed after it was read, so this change was not saved. Read the note again and redo the change.";
+export const NOTE_CHANGED =
+  "This note changed after it was read, so this change was not saved. Read the note again and redo the change.";
 export function blankNote(id: string, owner: string, now: number): NoteRow {
   return {
     id,
@@ -347,7 +348,8 @@ async function change(ctx: NotesCtx, noteId: string, apply: (r: NoteRow) => void
     try {
       saveNote(ctx, r);
     } catch (e) {
-      if (tries < 3 && (e as { error?: { code?: string } } | null)?.error?.code === "validation.version_conflict") continue;
+      if (tries < 3 && (e as { error?: { code?: string } } | null)?.error?.code === "validation.version_conflict")
+        continue;
       throw e;
     }
     emit(ctx, "notes.updated", r, { by: ctx.principal.id });
