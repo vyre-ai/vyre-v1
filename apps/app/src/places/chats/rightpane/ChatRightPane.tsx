@@ -262,16 +262,21 @@ function PaneView({
                 computer: showComputer && !noComputers,
                 kept: keptBody !== undefined,
                 people: people !== undefined,
-                terminal: data.terminal !== undefined,
+                terminal: data.terminal !== undefined && !(showComputer && !noComputers),
                 skills: hasSkills || wanted === "skills",
                 hooks: hasHooks,
               },
               wanted,
             ),
           ]
-        : tabsOf(data.terminal !== undefined, hasCrew, hasComputer, hasSkills, hasHooks, longSession).filter(
-            (t) => !(noComputers && t.key === "computer"),
-          )
+        : tabsOf(
+            data.terminal !== undefined && !(hasComputer && !noComputers),
+            hasCrew,
+            hasComputer,
+            hasSkills,
+            hasHooks,
+            longSession,
+          ).filter((t) => !(noComputers && t.key === "computer"))
       ).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })),
     [
       mine,
@@ -280,6 +285,7 @@ function PaneView({
       people !== undefined,
       facts,
       noComputers,
+      hasComputer,
       data.terminal,
       hasCrew,
       showComputer,
@@ -387,7 +393,9 @@ function PaneView({
         ) : null}
         {tab === "people" ? people : null}
         {tab === "kept" ? keptBody : null}
-        {tab === "computer" ? <ComputerPane deps={deps} {...(window ? { window } : {})} /> : null}
+        {tab === "computer" || (tab === "terminal" && hasComputer && !noComputers) ? (
+          <ComputerPane deps={deps} {...(window ? { window } : {})} />
+        ) : null}
         {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}
         {tab === "crew" ? (
@@ -399,7 +407,9 @@ function PaneView({
         {tab === "files" ? (
           <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} />
         ) : null}
-        {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}
+        {tab === "terminal" && data.terminal && !(hasComputer && !noComputers) ? (
+          <TerminalPaneTab data={data.terminal} />
+        ) : null}
         {tab === "memory" ? (
           data.memory ? (
             <KnowsTab deps={deps} memory={data.memory} spaceName={data.space.name} {...(window ? { window } : {})} />

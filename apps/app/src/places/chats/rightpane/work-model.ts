@@ -21,7 +21,7 @@ export interface WorkspaceSession {
   /** where it is, as the terminal says it: "~/portal" */ cwd?: string;
   /** the person at its keyboard now, by id */ heldBy?: string;
   /** the person whose own tab it is, by id */ ownerId?: string;
-  /** what it last printed, one line (terminal.status) */ lastLine?: string;
+  /** the last command run in it (terminal.status), never the prompt */ lastCommand?: string;
   owner?: SessionOwner;
   /** left out when the host does not say */ windows?: number;
   /** people attached right now; left out when not known */ attached?: number;
@@ -39,6 +39,7 @@ export interface WorkspaceView {
   projects?: readonly string[];
   /** May this person attach? A person for their own Assistant's workspace; an owner or admin for a team agent's. */
   canAttach: boolean;
+  /** false when taking the keyboard is off (rc.28): the terminal sheet only watches; left out when the host does not say */ takeOver?: boolean;
   /** Why not, as one sentence, when canAttach is false. */
   cannotAttach?: string;
 }
@@ -185,14 +186,16 @@ export function groupSessions(
   for (const s of orderSessions(list)) {
     const o = s.owner;
     const kind = !o || o.kind === "agent" ? "agent" : o.kind;
-    // a person's own tab is named for the person: "You" to themselves, their name to everyone else, never a generic
-    const person =
-      s.ownerId !== undefined
-        ? s.ownerId === who.me
-          ? "You"
-          : (who.nameOf?.(s.ownerId) ?? o?.name ?? "Someone")
+    // a person's terminals are named for the person: "Your terminals" to themselves, "Sara, terminals" to everyone else, never a generic
+    const mine = s.ownerId !== undefined && s.ownerId === who.me;
+    const person = mine
+      ? (who.nameOf?.(s.ownerId as string) ?? "You")
+      : s.ownerId !== undefined
+        ? (who.nameOf?.(s.ownerId) ?? o?.name ?? "Someone")
         : (o?.name ?? "Someone");
-    const name = kind === "agent" ? agentName : kind === "person" ? person : (o?.name ?? "A helper");
+    const yours = mine && person === "You";
+    const name =
+      kind === "agent" ? agentName : kind === "person" ? (yours ? "Your terminals" : person) : (o?.name ?? "A helper");
     const key = `${kind}:${name}`;
     let g = out.find((x) => x.key === key);
     if (!g) {
@@ -200,7 +203,15 @@ export function groupSessions(
         key,
         name,
         kind,
-        ...(kind === "helper" ? { tag: "helper" } : kind === "person" ? { tag: "own tab" } : {}),
+        ...(kind === "helper"
+          ? { tag: "helper" }
+          : kind === "person"
+            ? yours
+              ? {}
+              : mine
+                ? { tag: "your terminals" }
+                : { tag: "terminals" }
+            : {}),
         rows: [],
       };
       out.push(g);
@@ -234,3 +245,68 @@ export function startStage(elapsedMs: number, budgetMs = 9000): string {
       ? "Opening the browser"
       : "Almost ready";
 }
+
+// ---- the full-screen terminal's one bar: every state its words, each with its one action (AGENT-COMPUTER-2026-11-13.md part B and F)
+
+export interface BarIn {
+  agentName: string;
+  /** the terminal is shown at all (a row for it exists) */ known: boolean;
+  state?: "running" | "idle" | "exited";
+  asleep: boolean;
+  /** the screen has been drawn once since the sheet opened */ ready: boolean;
+  online: boolean;
+  mine: boolean;
+  /** someone else's name, when someone else holds it */ otherHolds?: string;
+  asking: boolean;
+  hidden: boolean;
+  /** you held it and it went back to the agent by itself (15 quiet minutes) */ lost?: boolean;
+  /** taking the keyboard is off in this release: the sheet only watches, no bar and no Take over */ watchOnly?: boolean;
+  said?: string | null;
+  /** seconds the start has taken, for its stage words */ startedMs?: number;
+}
+export type BarAction = "take" | "ask" | "confirm" | "give" | "newtab" | null;
+export interface TermBar {
+  title: string;
+  note?: string;
+  action: BarAction;
+  tone: "quiet" | "wait" | "bad" | "mine";
+}
+export function terminalBar(i: BarIn): TermBar {
+  if (i.said) return { title: i.said, action: null, tone: "bad" };
+  if (!i.online) return { title: "Reconnecting", note: "The last lines stay.", action: null, tone: "wait" };
+  if (!i.known) return { title: "", action: null, tone: "quiet" };
+  if (i.state === "exited") return { title: "This terminal ended", action: "newtab", tone: "bad" };
+  // a sleeping computer wakes when its terminal is opened: its stored lines are there and the bar says it is starting
+  if (i.asleep && !i.ready)
+    return { title: "Starting", note: startStage(i.startedMs ?? 0, 9000), action: null, tone: "wait" };
+  if (i.watchOnly) return { title: "", action: null, tone: "quiet" };
+  if (i.asking && i.otherHolds)
+    return {
+      title: `Take the keyboard from ${i.otherHolds}?`,
+      note: `${i.otherHolds} is told.`,
+      action: "confirm",
+      tone: "wait",
+    };
+  if (i.mine && i.hidden)
+    return {
+      title: "The agent cannot see what you type here",
+      note: `${i.agentName} is told only that it finished.`,
+      action: "give",
+      tone: "mine",
+    };
+  if (i.mine)
+    return { title: "You have the keyboard", note: `${i.agentName}'s commands wait.`, action: "give", tone: "mine" };
+  if (i.otherHolds) return { title: `${i.otherHolds} has the keyboard`, action: "ask", tone: "wait" };
+  if (i.lost)
+    return { title: `The keyboard went back to ${i.agentName} after 15 quiet minutes.`, action: "take", tone: "wait" };
+  return {
+    title: i.state === "running" ? `${i.agentName} is typing` : "Nobody is typing",
+    note: "Press Take over, or Return, to type.",
+    action: "take",
+    tone: "quiet",
+  };
+}
+
+/** A terminal's name as shown: the agent's own is "main" (it is stored as "agent", the name its commands find it by). */
+export const sessionTitle = (s: Pick<WorkspaceSession, "name" | "owner">): string =>
+  s.owner?.kind === "agent" && s.name === "agent" ? "main" : s.name;

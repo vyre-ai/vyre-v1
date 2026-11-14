@@ -34,7 +34,7 @@ Requires: nothing.
 
 - [terminal.closed](../events/terminal.closed.md): A terminal session was closed
 - [terminal.command_finished](../events/terminal.command_finished.md): A command finished (exit code and duration only, never the command or output)
-- [terminal.given_back](../events/terminal.given_back.md): The keyboard of a terminal went back to the agent (handed back, or nobody used it for 15 minutes)
+- [terminal.given_back](../events/terminal.given_back.md): The keyboard of a terminal was handed back to the agent by the person who held it (a hold that ran out after 15 quiet minutes is read as over and emits nothing)
 - [terminal.opened](../events/terminal.opened.md): A terminal session was opened
 - [terminal.renamed](../events/terminal.renamed.md): A terminal session was renamed
 - [terminal.rules_changed](../events/terminal.rules_changed.md): A person changed their terminal rules

@@ -5,14 +5,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import type { TerminalData } from "../terminal/data.ts";
+import { useOnline } from "../mounts/live.ts";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { TmuxScreen } from "./TmuxScreen.tsx";
 import { Icon, TextButton } from "./parts.tsx";
 import { Dot, GroupHead } from "./WorkParts.tsx";
-import { groupSessions, sessionWords } from "./work-model.ts";
+import { groupSessions, sessionTitle, sessionWords, terminalBar } from "./work-model.ts";
 import type { WorkspaceSession } from "./work-model.ts";
 
 const RAIL = 208;
@@ -21,6 +23,7 @@ export function TerminalSheet({
   data,
   agentName,
   asleep,
+  watchOnly = true,
   sessions,
   start,
   me,
@@ -30,6 +33,7 @@ export function TerminalSheet({
   data: TerminalData;
   agentName: string;
   asleep: boolean;
+  /** taking the keyboard is off: a watching view, no Take over and no bar of who is typing; true until the workspace answer says take-over is on, so a dead Take over is never drawn for a moment */ watchOnly?: boolean;
   sessions: readonly WorkspaceSession[];
   start: string;
   me?: string | undefined;
@@ -38,23 +42,51 @@ export function TerminalSheet({
 }): ReactElement {
   const win = useWindowDimensions();
   const [sel, setSel] = useState(start);
-  const narrow = win.width < 720;
+  const narrow = belowPhone(win.width);
   const current0 = sessions.find((s) => s.terminalId === sel);
   // taking the keyboard: you hold it as soon as the server's answer comes, not at the next refresh of the list; keys pressed in between are kept, in order (the ref is set the instant Take over is pressed)
   const [took, setTook] = useState<string | null>(null);
   const takingRef = useRef(false);
   // handing it back is just as immediate: the list still says you hold it until its next refresh
   const [gave, setGave] = useState<string | null>(null);
+  const [lost, setLost] = useState<string | null>(null);
   const mine =
     gave !== sel &&
     ((current0?.heldBy !== undefined && current0.heldBy === me) ||
       (took === sel && (current0?.heldBy === undefined || current0.heldBy === me)));
+  // the local "I took it" bridges only until the list agrees (or 4 seconds): after that the server's word is the only one, so a hold that expired is seen as lost
+  const heldByMe = current0?.heldBy !== undefined && current0.heldBy === me;
+  useEffect(() => {
+    if (took === null) return undefined;
+    if (heldByMe) {
+      setTook(null);
+      return undefined;
+    }
+    const t = setTimeout(() => setTook(null), 4000);
+    return () => clearTimeout(t);
+  }, [took, heldByMe]);
+  const wasMine = useRef(false);
+  useEffect(() => {
+    if (wasMine.current && !mine && gave !== sel) setLost(sel);
+    if (mine) setLost(null);
+    wasMine.current = mine;
+  }, [mine, gave, sel]);
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const [nudge, setNudge] = useState(false);
   // the screen is tmux's own with colours and raw keys where the host has tmux; a host without it falls back to the line terminal
   const [lines, setLines] = useState<Record<string, true>>({});
   const [hiddenPrompt, setHiddenPrompt] = useState(false);
+  // the first drawing of the screen ends a start; a connection that is down says Reconnecting and the lines stay
+  const [ready, setReady] = useState(false);
+  const openedAt = useRef(Date.now());
+  const online = useOnline(data.connection);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (ready) return undefined;
+    const i = setInterval(() => tick((n) => n + 1), 500);
+    return () => clearInterval(i);
+  }, [ready]);
   const [said, setSaid] = useState<string | null>(null);
   // Esc closes while you only watch; while you hold the keyboard it goes to the terminal
   const mineRef = useRef(false);
@@ -91,11 +123,29 @@ export function TerminalSheet({
         setGave(null);
         setTook(sel);
       })
-      .catch((e: unknown) => setSaid(e instanceof Error && e.message ? e.message : "That did not work. Try again."))
-      .finally(() => {
+      .catch((e: unknown) => {
         takingRef.current = false;
-        setBusy(false);
-      });
+        setSaid(e instanceof Error && e.message ? e.message : "That did not work. Try again.");
+      })
+      .finally(() => setBusy(false));
+  };
+  // "taking" ends when the keyboard is drawn as yours (until then keys are kept), never earlier: no key falls between the answer and the next render
+  useEffect(() => {
+    if (mine) takingRef.current = false;
+  }, [mine]);
+  // a terminal that ended: a new tab of the same computer in its place
+  const newTab = (): void => {
+    const agentId = data.agent?.agentId;
+    if (!agentId) return;
+    setBusy(true);
+    void (
+      data.call("terminal.open", { host: "agent_computer", agentId, idempotencyKey: data.newKey() }) as Promise<{
+        terminal: { terminalId: string };
+      }>
+    )
+      .then((o) => setSel(o.terminal.terminalId))
+      .catch((e: unknown) => setSaid(e instanceof Error && e.message ? e.message : "That did not work. Try again."))
+      .finally(() => setBusy(false));
   };
   const give = (): void => {
     setBusy(true);
@@ -118,10 +168,10 @@ export function TerminalSheet({
         return;
       }
       if (mineRef.current || takingRef.current || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "Enter" && current0?.heldBy === undefined && current0?.state !== "exited") {
+      if (!watchOnly && e.key === "Enter" && current0?.heldBy === undefined && current0?.state !== "exited") {
         e.preventDefault();
         take();
-      } else if (e.key.length === 1) {
+      } else if (!watchOnly && e.key.length === 1) {
         setNudge(true);
         setTimeout(() => setNudge(false), 1000);
       }
@@ -136,7 +186,29 @@ export function TerminalSheet({
     () => ({ ...data, nav: { ...data.nav, openTerminal: (t: string) => setSel(t), closeTab: onClose } }),
     [data, onClose],
   );
-  const current = current0;
+  // a terminal that left the list (it ended) keeps the name and owner it had
+  const seen = useRef<Record<string, WorkspaceSession>>({});
+  if (current0) seen.current[sel] = current0;
+  const current = current0 ?? seen.current[sel];
+  // the list learns an exit late (it is patched by events, and an exit is none): the open sheet asks the terminal's own state and treats "exited" or "not found" as ended
+  const [goneSel, setGoneSel] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    const ask = async (): Promise<void> => {
+      try {
+        const r = (await data.call("terminal.status", { terminalIds: [sel] })) as { rows?: Array<{ state?: string }> };
+        if (live && (r.rows?.length === 0 || r.rows?.[0]?.state === "exited")) setGoneSel(sel);
+      } catch (e) {
+        if (live && String((e as { code?: unknown } | null)?.code).endsWith("not_found")) setGoneSel(sel);
+      }
+    };
+    const t = setInterval(() => void ask(), 1500);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, [data, sel]);
+  const ended = current0 === undefined || goneSel === sel;
   const groups = groupSessions(sessions, agentName, { me, nameOf });
   const w = current ? sessionWords(current, asleep, { me, nameOf }) : { word: "", dot: "idle" as const };
   const owner =
@@ -149,77 +221,85 @@ export function TerminalSheet({
         : `${agentName}'s terminal`;
   const holder = current?.heldBy;
   const hn = holder !== undefined && holder !== me ? (nameOf?.(holder) ?? "Someone") : "";
-  const bar: { title: string; note?: string; action: "take" | "ask" | "confirm" | "give" | null } = said
-    ? { title: said, action: null }
-    : asking
-      ? { title: `Take the keyboard from ${hn}?`, note: `${hn} is told.`, action: "confirm" }
-      : !current || current.state === "exited"
-        ? { title: current ? "This terminal ended" : "", action: null }
-        : mine && hiddenPrompt
-          ? {
-              title: "The agent cannot see what you type here",
-              note: `${agentName} is told only that it finished.`,
-              action: "give",
-            }
-          : mine
-            ? { title: "You have the keyboard", note: `${agentName}'s commands wait.`, action: "give" }
-            : holder !== undefined
-              ? { title: `${hn} has the keyboard`, action: "ask" }
-              : {
-                  title: current.state === "running" ? `${agentName} is typing` : "Nobody is typing",
-                  note: "Press Take over, or Return, to type.",
-                  action: "take",
-                };
+  const bar = terminalBar({
+    agentName,
+    // a terminal that left the list has ended (the list holds the live ones): its last lines stay and the bar says so
+    known: true,
+    state: ended ? "exited" : (current?.state ?? "exited"),
+    asleep,
+    ready,
+    online,
+    mine,
+    ...(holder !== undefined && !mine ? { otherHolds: hn } : {}),
+    asking,
+    hidden: hiddenPrompt,
+    lost: lost === sel,
+    watchOnly,
+    said,
+    startedMs: Date.now() - openedAt.current,
+  });
   return (
     <Overlay>
       <View testID="terminal-popup" role="dialog" aria-modal accessibilityLabel={owner} style={st.veil}>
-        <View style={st.head}>
+        <View style={[st.head, narrow && st.headNarrow]}>
           <Icon name="terminal" size={16} color="var(--ink-2)" />
           <Text style={st.title} numberOfLines={1}>
-            {current?.name ?? "Terminal"}
+            {current ? sessionTitle(current) : "Terminal"}
           </Text>
           <Text style={st.sub} numberOfLines={1}>
             {owner}
           </Text>
           <View style={{ flex: 1 }} />
-          <View
-            testID="terminal-popup-bar"
-            style={[st.bar, current?.heldBy !== undefined && !mine && st.barWait, mine && st.barMine]}
-          >
-            {bar.title ? (
-              <Text style={st.barBold} numberOfLines={1}>
-                {bar.title}
-              </Text>
-            ) : null}
-            {bar.note ? (
-              <Text style={[st.barNote, nudge && st.barNudge]} numberOfLines={1}>
-                {nudge ? "Press Take over to type." : bar.note}
-              </Text>
-            ) : null}
-            {bar.action === "take" ? (
-              <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take" />
-            ) : null}
-            {bar.action === "ask" ? (
-              <TextButton
-                label="Take over"
-                primary
-                disabled={busy}
-                onPress={() => setAsking(true)}
-                testID="terminal-take"
-              />
-            ) : null}
-            {bar.action === "confirm" ? (
-              <>
-                <TextButton label="Cancel" onPress={() => setAsking(false)} testID="terminal-take-cancel" />
-                <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take-confirm" />
-              </>
-            ) : null}
-            {bar.action === "give" ? (
-              <TextButton label="Give back" primary disabled={busy} onPress={give} testID="terminal-give" />
-            ) : null}
-          </View>
-          {mine ? <Text style={st.chord}>{"\u2318\u21E7. closes"}</Text> : null}
-          <TextButton label="Close" onPress={close} testID="terminal-popup-close" />
+          {narrow ? <TextButton label="Close" onPress={close} testID="terminal-popup-close" /> : null}
+          {watchOnly && !bar.title && !bar.action ? null : (
+            <View
+              testID="terminal-popup-bar"
+              style={[
+                st.bar,
+                narrow && st.barFull,
+                bar.tone === "wait" && st.barWait,
+                bar.tone === "bad" && st.barBad,
+                bar.tone === "mine" && st.barMine,
+              ]}
+            >
+              {bar.title ? (
+                <Text style={st.barBold} numberOfLines={1}>
+                  {bar.title}
+                </Text>
+              ) : null}
+              {bar.note && (!narrow || bar.action === null) ? (
+                <Text style={[st.barNote, nudge && st.barNudge]} numberOfLines={1}>
+                  {nudge ? "Press Take over to type." : bar.note}
+                </Text>
+              ) : null}
+              {bar.action === "take" ? (
+                <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take" />
+              ) : null}
+              {bar.action === "ask" ? (
+                <TextButton
+                  label="Take over"
+                  primary
+                  disabled={busy}
+                  onPress={() => setAsking(true)}
+                  testID="terminal-take"
+                />
+              ) : null}
+              {bar.action === "confirm" ? (
+                <>
+                  <TextButton label="Cancel" onPress={() => setAsking(false)} testID="terminal-take-cancel" />
+                  <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take-confirm" />
+                </>
+              ) : null}
+              {bar.action === "newtab" ? (
+                <TextButton label="New tab" primary disabled={busy} onPress={newTab} testID="terminal-newtab" />
+              ) : null}
+              {bar.action === "give" ? (
+                <TextButton label="Give back" primary disabled={busy} onPress={give} testID="terminal-give" />
+              ) : null}
+            </View>
+          )}
+          {mine && !narrow ? <Text style={st.chord}>{"\u2318\u21E7. closes"}</Text> : null}
+          {narrow ? null : <TextButton label="Close" onPress={close} testID="terminal-popup-close" />}
         </View>
         <View style={[st.body, narrow && { flexDirection: "column" }]}>
           {sessions.length > 1 ? (
@@ -242,7 +322,7 @@ export function TerminalSheet({
                       >
                         <Dot tone={x.dot} />
                         <Text style={st.tabText} numberOfLines={1}>
-                          {s.name}
+                          {sessionTitle(s)}
                         </Text>
                       </Pressable>
                     );
@@ -259,9 +339,12 @@ export function TerminalSheet({
                 key={sel}
                 call={data.call}
                 terminalId={sel}
-                keys={mine}
+                keys={mine && !ended}
                 taking={takingRef}
-                onHidden={setHiddenPrompt}
+                onHidden={(h) => {
+                  setHiddenPrompt(h);
+                  setReady(true);
+                }}
                 onUnsupported={() => setLines((m) => ({ ...m, [sel]: true }))}
               />
             )}
@@ -294,10 +377,12 @@ const st = StyleSheet.create({
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   sub: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },
   word: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  headNarrow: { height: "auto" as unknown as number, minHeight: 52, flexWrap: "wrap", paddingVertical: 8, rowGap: 8 },
   chord: { fontSize: 11.5, color: "var(--ink-4)" as string },
   bar: {
     minHeight: 34,
     flexShrink: 1,
+    flexGrow: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -305,7 +390,9 @@ const st = StyleSheet.create({
     borderRadius: 9,
     backgroundColor: "var(--sunk)" as string,
   },
+  barFull: { width: "100%" as unknown as number, flexShrink: 0 },
   barWait: { backgroundColor: "var(--warn-soft, var(--sunk))" as string },
+  barBad: { backgroundColor: "var(--danger-soft, var(--sunk))" as string },
   barMine: { backgroundColor: "var(--accent-soft, var(--sunk))" as string },
   barBold: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   barNote: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },

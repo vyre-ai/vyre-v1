@@ -42650,6 +42650,7 @@ export type TerminalGetOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    threadId?: string;
   };
 };
 export type TerminalGiveBackIn = {
@@ -42679,6 +42680,7 @@ export type TerminalGiveBackOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    threadId?: string;
   };
 };
 export type TerminalHealthIn = Record<string, unknown>;
@@ -42708,9 +42710,21 @@ export type TerminalKeysIn = {
       key?: string;
       paste?: string;
     }>;
+  capture?: boolean;
 };
 export type TerminalKeysOut = {
   ok: boolean;
+  screen?: {
+    text: string;
+    cols: number;
+    rows: number;
+    cursor: {
+      x: number;
+      y: number;
+    } | null;
+    history: number;
+    hidden: boolean;
+  };
 };
 export type TerminalListIn = {
   section?: "personal" | "shared" | "space";
@@ -42744,6 +42758,7 @@ export type TerminalListOut = {
       };
       heldBy?: string;
       ownerId?: string;
+      threadId?: string;
     }>;
   next?: string;
   total?: number;
@@ -42757,6 +42772,7 @@ export type TerminalOpenIn = {
   cwd?: string;
   cols?: number;
   rows?: number;
+  own?: boolean;
   idempotencyKey: string;
 };
 export type TerminalOpenOut = {
@@ -42783,6 +42799,7 @@ export type TerminalOpenOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    threadId?: string;
   };
 };
 export type TerminalOpenServerIn = {
@@ -42816,6 +42833,7 @@ export type TerminalOpenServerOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    threadId?: string;
   };
 };
 export type TerminalReadIn = {
@@ -42855,6 +42873,7 @@ export type TerminalRenameOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    threadId?: string;
   };
 };
 export type TerminalRequestIn = {
@@ -42936,6 +42955,7 @@ export type TerminalStatusOut = {
       terminalId: string;
       state: "running" | "idle" | "exited";
       lastLine?: string;
+      lastCommand?: string;
       exitCode: number | null;
     }>;
 };
@@ -42966,6 +42986,7 @@ export type TerminalTakeOverOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    threadId?: string;
   };
 };
 export type TerminalWorkspaceIn = {
@@ -42979,6 +43000,7 @@ export type TerminalWorkspaceOut = {
   projects?: Array<string>;
   canAttach: boolean;
   cannotAttach?: string;
+  takeOver?: boolean;
 };
 export type ThreadsAddAgentIn = {
   threadId: string;

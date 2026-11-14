@@ -187,7 +187,10 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
   const sb = browserOrRaise(ctx);
   const { person, access } = await mayWatch(ctx, input.agentId);
   // while a person has taken over the browser, only they see it (their page may be a login): everyone else is told who is using it
-  const holder = (await currentHold(ctx, sb, input.agentId).catch(() => null))?.personId;
+  let lookedUp = true;
+  const holder = (await currentHold(ctx, sb, input.agentId).catch(() => ((lookedUp = false), null)))?.personId;
+  if (!lookedUp)
+    raise(ctx, "validation.precondition_failed", "The browser cannot be shown now.", { reason: "browser_held" });
   if (holder !== undefined && holder !== person)
     raise(ctx, "validation.precondition_failed", "Someone is using the browser.", {
       reason: "browser_held",
@@ -237,7 +240,10 @@ export async function preview(ctx: CompCtx, input: { agentId: string }) {
   const { person } = await mayWatch(ctx, input.agentId);
   const at = ctx.now();
   // while a person has taken over the browser, nobody else gets a picture of it (their page may be a login or a code): only they do (lead ruling, 14 Nov, until the sign-in hand-off exists)
-  const holder = (await currentHold(ctx, sb, input.agentId).catch(() => null))?.personId;
+  // a hold lookup that fails answers no picture (fails closed): a page a person is signing in on is never drawn for someone else because the look-up broke
+  let lookedUp = true;
+  const holder = (await currentHold(ctx, sb, input.agentId).catch(() => ((lookedUp = false), null)))?.personId;
+  if (!lookedUp) return { state: "held" as const, at };
   if (holder !== undefined && holder !== person) return { state: "held" as const, at, by: holder };
   try {
     // a look that never starts the browser and does not count as use; a service without one is asked only after a check that it runs

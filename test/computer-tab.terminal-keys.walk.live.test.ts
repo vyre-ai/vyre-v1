@@ -9,6 +9,9 @@ import { shoot } from "./support/mail-browser.ts";
 import { world } from "./support/computer-tab-world.ts";
 import { keyLog, walkDir } from "./support/real-tmux.ts";
 
+// taking the keyboard is OFF by default in the product (rc.28); this walk is about it, so it is turned on
+process.env["VYRE_TERMINAL_TAKEOVER"] = "1";
+
 const DIR = "shots-evidence/b-pc";
 const ROW = '[data-testid^="row-session-"]';
 
@@ -116,25 +119,44 @@ test(
         text: string;
       };
       assert.ok(!read.text.includes("hunter2"), "not in what another viewer or the agent reads");
-      // key to screen in the app: from the key press to the character on the page
+      // key to screen in the app: from the key press to the character on the page, 100 keys on one line
+      const ALPHA = "abcdefghijklmnopqrstuvwxyz0123456789";
+      const typed: string[] = [];
       const times: number[] = [];
-      for (let i = 0; i < 12; i++) {
-        const ch = "klmnopqrstuv"[i]!;
+      await page.keyboard.type("echo ");
+      await page.waitForTimeout(300);
+      for (let i = 0; i < 100; i++) {
+        if (i > 0 && i % 30 === 0) {
+          // start a fresh line before the line wraps at the terminal's width
+          await page.keyboard.press("Control+u");
+          await page.keyboard.type("echo ");
+          await page.waitForTimeout(300);
+          typed.length = 0;
+        }
+        const ch = ALPHA[i % ALPHA.length]!;
+        typed.push(ch);
+        const want = typed.join("");
         const t0 = Date.now();
         await page.keyboard.type(ch);
-        await page.waitForFunction(
-          (n) =>
-            (document.querySelector("[data-testid=terminal-screen]")?.textContent ?? "").includes(
-              "klmnopqrstuv".slice(0, n),
-            ),
-          i + 1,
-          { timeout: 5_000, polling: "raf" },
-        );
+        await page
+          .waitForFunction(
+            (w) =>
+              (document.querySelector("[data-testid=terminal-screen]") as HTMLElement | null)?.innerText.includes(
+                `echo ${w}`,
+              ),
+            want,
+            { timeout: 5_000, polling: "raf" },
+          )
+          .catch(async (e: unknown) => {
+            throw new Error(
+              `${String(e).slice(0, 60)} at key ${i} | want ${want} | screen ${JSON.stringify((await screenText()).slice(-260))} | sent ${JSON.stringify(sentKeys.slice(-3))} | failed ${JSON.stringify(failedKeys.slice(0, 3))}`,
+            );
+          });
         times.push(Date.now() - t0);
       }
       times.sort((a, b) => a - b);
       console.log(
-        `APP_KEY_TO_SCREEN median ${times[6]} ms, max ${times[11]} ms (press, server call, tmux, poll, draw)`,
+        `APP_KEY_TO_SCREEN n=100 median ${times[50]} ms, p90 ${times[90]} ms, max ${times[99]} ms (press, one call with the screen back, draw)`,
       );
       await k.guard.check("keys walk");
     } finally {

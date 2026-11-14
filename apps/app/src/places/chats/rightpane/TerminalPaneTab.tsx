@@ -49,9 +49,17 @@ export type Opened = { s: "opened"; terminalId: string } | { s: "choose"; hosts:
  * with Docker for it). Waiting for room, an agent in Trash, Docker not answering for a moment, or anything unnamed keeps its own line, so the pane never quietly opens a shell
  * somewhere the agent does not work (r-term P1, 12 Nov). */
 const CANNOT_RUN_HERE = new Set(["image_missing", "no_place"]);
-const cannotRunHere = (e: unknown): boolean =>
-  errorCode(e) === "provider.unavailable" &&
-  CANNOT_RUN_HERE.has(String((e as { details?: { reason?: unknown } } | null)?.details?.reason ?? ""));
+const cannotRunHere = (err: unknown): boolean => {
+  // the workspace binding wraps a refusal into a plain sentence and keeps the refusal as its cause
+  const e = (err as { cause?: unknown } | null)?.cause ?? err;
+  return (
+    errorCode(e) === "provider.unavailable" &&
+    CANNOT_RUN_HERE.has(String((e as { details?: { reason?: unknown } } | null)?.details?.reason ?? ""))
+  );
+};
+
+/** The one line where no computer can open a terminal (the released Terminal tab's own sentence, kept word for word). */
+export const NO_COMPUTER_LINE = "No computer to open a terminal on. Open Vyre on a computer, or add a server.";
 
 /**
  * What Open terminal does. The chat's agent computer when it has one. Otherwise this computer, named by its device (a terminal on a computer must say which); when this one is not a computer
@@ -61,7 +69,6 @@ export async function openHere(
   d: Pick<TerminalData, "call" | "newKey" | "agent" | "team" | "nameOf" | "clock">,
   opts: OpenOpts = {},
 ): Promise<Opened> {
-  let host: HostChoice | undefined;
   // the chat's agent has a workspace this person may enter: the terminal opens there, in the same sessions the agent's commands use. A server that cannot run one at all (no image,
   // no machine with Docker) is not where the pane stops: it goes on to this computer or the hosts there are, and says so when there are none (Personal first hour, 12 Nov).
   // Waiting for room, an agent in Trash or Docker not answering for a moment is the workspace's own answer and is shown.
@@ -79,6 +86,16 @@ export async function openHere(
       if (!cannotRunHere(e)) throw e;
     }
   }
+  const found = await hostFor(d);
+  if (found.s !== "host") return found;
+  return { s: "opened", terminalId: await openOn(d, found.host, opts) };
+}
+
+type Fallback = { s: "host"; host: HostChoice } | { s: "choose"; hosts: HostChoice[] } | { s: "none" };
+
+/** Where a terminal opens when the agent's workspace is not the place: the agent's computer, else this computer, else the online hosts the person has (none: nowhere). */
+async function hostFor(d: Pick<TerminalData, "call" | "agent" | "team" | "nameOf" | "clock">): Promise<Fallback> {
+  let host: HostChoice | undefined;
   if (d.agent?.computerId)
     host = {
       key: `agent:${d.agent.computerId}`,
@@ -92,13 +109,27 @@ export async function openHere(
     const deviceId = await thisDeviceId(d.call);
     if (deviceId) host = { key: `device:${deviceId}`, label: "This computer", kind: "device", online: true, deviceId };
   }
-  if (!host) {
-    const hosts = (
-      await loadHosts(d.call, { team: d.team === true, now: d.clock().now, nameOf: d.nameOf ?? ((id) => id) })
-    ).filter((h) => h.online);
-    return hosts.length > 0 ? { s: "choose", hosts } : { s: "none" };
+  if (host) return { s: "host", host };
+  const hosts = (
+    await loadHosts(d.call, { team: d.team === true, now: d.clock().now, nameOf: d.nameOf ?? ((id) => id) })
+  ).filter((h) => h.online);
+  return hosts.length > 0 ? { s: "choose", hosts } : { s: "none" };
+}
+
+/**
+ * Did this refusal to open the agent's terminal mean no computer can open one here at all? The same fact Open terminal answered with "No computer to open a terminal on": the workspace
+ * cannot run on this server (no image, no machine with Docker) and there is no other computer to open it on.
+ */
+export async function noComputerFor(
+  d: Pick<TerminalData, "call" | "agent" | "team" | "nameOf" | "clock">,
+  e: unknown,
+): Promise<boolean> {
+  if (!cannotRunHere(e)) return false;
+  try {
+    return (await hostFor(d)).s === "none";
+  } catch {
+    return false;
   }
-  return { s: "opened", terminalId: await openOn(d, host, opts) };
 }
 
 /** Does this agent have a workspace this person may open (terminal.workspace: running, asleep or not made yet, and theirs to enter)? */
@@ -153,7 +184,7 @@ export function TerminalPaneTab({ data }: { data: TerminalData }): ReactElement 
       .then((o) => {
         if (o.s === "opened") setId(o.terminalId);
         else if (o.s === "choose") setChoices(o.hosts);
-        else setLine("No computer to open a terminal on. Open Vyre on a computer, or add a server.");
+        else setLine(NO_COMPUTER_LINE);
       }, fail)
       .finally(() => setBusy(false));
   };

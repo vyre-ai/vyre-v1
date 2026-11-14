@@ -7,6 +7,9 @@ import os from "node:os";
 import { shoot } from "./support/mail-browser.ts";
 import { world } from "./support/computer-tab-world.ts";
 
+// taking the keyboard is OFF by default in the product (rc.28); this walk is about it, so it is turned on
+process.env["VYRE_TERMINAL_TAKEOVER"] = "1";
+
 const DIR = "shots-evidence/b-pc";
 const ROW = '[data-testid^="row-session-"]';
 
@@ -21,7 +24,10 @@ test(
       const o = (await k.w.owner.ok("terminal.list", { host: "agent_computer" })) as {
         terminals: Array<{ agentId?: string; heldBy?: string; state: string }>;
       };
-      return o.terminals.find((x) => x.agentId === k.agentId && x.state !== "exited")?.heldBy;
+      // the agent's own terminal is open beside the person's: whoever holds either one counts
+      return o.terminals
+        .filter((x) => x.agentId === k.agentId && x.state !== "exited")
+        .find((x) => x.heldBy !== undefined)?.heldBy;
     };
     try {
       await k.computerTab();

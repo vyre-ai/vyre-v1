@@ -4,6 +4,9 @@ import test from "node:test";
 import { shoot, SIZES } from "./support/mail-browser.ts";
 import { world } from "./support/computer-tab-world.ts";
 
+// taking the keyboard is OFF by default in the product (rc.28); this walk is about it, so it is turned on
+process.env["VYRE_TERMINAL_TAKEOVER"] = "1";
+
 const DIR = "shots-evidence/b-pc";
 const ROW = '[data-testid^="row-session-"]';
 const WIDE = { width: 1440, height: 900 };
@@ -45,7 +48,21 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
       idempotencyKey: "pic-lint",
     });
     await page.getByTestId("row-session-build").waitFor({ timeout: 15_000 });
-    await shoot(page, DIR, "a2-pane-three-terminals");
+    // the agent's own terminal is there by itself, the first group, and shows live while its commands run (the command is run as the owner on the agent's own terminal: the tab its commands land in)
+    await page.getByTestId("row-session-agent").waitFor({ timeout: 15_000 });
+    const own = (
+      (await k.w.owner.ok("terminal.list", { host: "agent_computer" })) as {
+        terminals: Array<{ terminalId: string; name: string; agentId?: string }>;
+      }
+    ).terminals.find((x) => x.agentId === k.agentId && x.name === "agent");
+    void k.w.owner.call("terminal.run", {
+      terminalId: own?.terminalId,
+      command: "echo running tests; sleep 25",
+      idempotencyKey: "pic-run",
+      timeoutSec: 60,
+    });
+    await page.getByTestId("row-session-agent").getByText("Running", { exact: true }).waitFor({ timeout: 15_000 });
+    await shoot(page, DIR, "a2-pane-agent-terminal-and-yours");
     // the terminal full screen: watching, a real prompt, then holding with a command and its answer
     await page.getByTestId("row-session-build").click();
     await page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });
@@ -60,8 +77,18 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
     await page.keyboard.press("Enter");
     await page.waitForTimeout(1200);
     await shoot(page, DIR, "d2-terminal-you-hold");
-    await page.getByTestId("terminal-give").click();
-    await page.keyboard.press("Escape");
+    // a terminal that ended: exit the shell; the bar says so with one action
+    await page.keyboard.type("exit");
+    await page.keyboard.press("Enter");
+    await page.getByTestId("terminal-newtab").waitFor({ timeout: 20_000 });
+    await shoot(page, DIR, "d3-terminal-ended");
+    // the connection is down: the last lines stay and the bar says Reconnecting
+    await page.context().setOffline(true);
+    await page.getByTestId("terminal-popup-bar").getByText("Reconnecting").waitFor({ timeout: 20_000 });
+    await shoot(page, DIR, "d4-terminal-reconnecting");
+    await page.context().setOffline(false);
+    await page.getByTestId("terminal-popup-close").click();
+    await page.getByTestId("terminal-popup").waitFor({ state: "detached", timeout: 10_000 });
     // a sleeping browser: the pane, then the sheet starting
     const row = k.browserd.rows.get(k.agentId)!;
     k.browserd.rows.set(k.agentId, { ...row, running: false });

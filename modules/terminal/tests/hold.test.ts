@@ -1,9 +1,12 @@
 // The keyboard of a terminal (13 Nov, AGENT-COMPUTER-2026-11-13.md B2 and B3, section 11 rules 1 and 4): a person takes it with one call and hands it back; while held the agent's commands and everyone
 // else's keys are refused with one plain sentence; a hold nobody uses for 15 minutes ends by itself; only the owner of the terminal or an admin takes it from another person.
 import test from "node:test";
+
+// the hold and the keys are tested with take-over ON; it is OFF by default in the product (see the last tests of this file)
+process.env["VYRE_TERMINAL_TAKEOVER"] = "1";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { bindHost, rememberSecrets, scopeOfId } from "../projections.ts";
+import { bindHost, hideRunLine, rememberSecrets, scopeOfId } from "../projections.ts";
 import { registry } from "../../../generated/registry.ts";
 import { assertEventsConform, codeOf, contractErrors, fakeHost, harness, reset } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -309,26 +312,31 @@ test("taking from another person: someone who may enter the workspace but neithe
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_sara");
 });
 
-test("the holder looking renews the hold: reading and attaching keep it past 15 minutes; someone else looking does not", async () => {
+test("only the holder's keys renew a hold: reads, captures and attaches never do, so a sheet left open gives the keyboard back after 15 quiet minutes", async () => {
   const { hn } = setup();
   const id = await open(hn);
   await call(hn, "terminal.take_over", { terminalId: id });
+  // a sheet left open: a capture and a read every few seconds for 16 minutes, no key
+  for (let i = 0; i < 16; i++) {
+    hn.advance(60_000);
+    await call(hn, "terminal.read", { terminalId: id });
+    await call(hn, "terminal.attach", { terminalId: id });
+  }
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
+    undefined,
+    "16 quiet minutes: back to the agent",
+  );
+  // keys do renew it
+  await call(hn, "terminal.take_over", { terminalId: id });
   for (let i = 0; i < 3; i++) {
     hn.advance(10 * 60_000);
-    await call(hn, "terminal.read", { terminalId: id });
+    await call(hn, "terminal.input", { terminalId: id, data: "x" });
   }
   assert.equal(
     (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
     "usr_dana",
-    "30 minutes in, kept by reads",
-  );
-  hn.advance(10 * 60_000);
-  await call(hn, "terminal.read", { terminalId: id }, hn.as(SARA));
-  hn.advance(6 * 60_000);
-  assert.equal(
-    (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
-    undefined,
-    "another person's read keeps nothing",
+    "30 minutes in, kept by keys",
   );
 });
 
@@ -386,4 +394,233 @@ test("capture scrubs a Vault value filled into a command, as every other reading
   const r = await call(hn2, "terminal.capture", { terminalId: id });
   assert.ok(!r.text.includes("sk-live-1234567890abcdef"), "the value is not in the screen");
   assert.match(r.text, /token is .* ok/);
+});
+
+test("keys with capture answer with the screen a moment after, scrubbed, in the same call", async () => {
+  const { hn, sent } = keyed();
+  const id = await open(hn);
+  const r = await call(hn, "terminal.keys", {
+    terminalId: id,
+    keys: [{ text: "ls" }, { key: "Enter" }],
+    capture: true,
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.screen.hidden, true, "the screen of the stand-in host");
+  assert.equal(sent.length, 1);
+  const plain = await call(hn, "terminal.keys", { terminalId: id, keys: [{ key: "Up" }] });
+  assert.equal(plain.screen, undefined, "no screen unless asked");
+});
+
+test("the agent's own terminal is there before anyone asks: opened once per person, the one its commands land in, and a person's call only", async () => {
+  const { hn } = setup();
+  const a = await call(hn, "terminal.open", {
+    host: "agent_computer",
+    agentId: "agt_intake",
+    own: true,
+    idempotencyKey: "own1",
+  });
+  assert.equal(a.terminal.name, "agent");
+  assert.deepEqual(a.terminal.by, { kind: "agent" });
+  const again = await call(hn, "terminal.open", {
+    host: "agent_computer",
+    agentId: "agt_intake",
+    own: true,
+    idempotencyKey: "own2",
+  });
+  assert.equal(again.terminal.terminalId, a.terminal.terminalId, "asked again it is the same one");
+  // the agent's command, acting for Dana, lands in it and opens no second tab
+  const before = hn.rows("SELECT terminal_id FROM terminal_sessions").length;
+  await h["terminal.run"]!(hn.as(AGENT, "usr_dana"), { command: "echo hi" });
+  assert.equal(
+    hn.rows("SELECT terminal_id FROM terminal_sessions").length,
+    before,
+    "its commands go to the terminal that was already there",
+  );
+  assert.equal(
+    await rejects(() =>
+      h["terminal.open"]!(hn.as(AGENT), { host: "agent_computer", agentId: "agt_intake", own: true }),
+    ),
+    "permission.no_grant",
+  );
+});
+
+test("a terminal row says which chat it was opened from, and status gives the last command run in it", async () => {
+  const { hn } = setup();
+  const ctx = { ...hn.ctx, thread: "thr_launch" };
+  const id = (
+    await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "th1" }, ctx)
+  ).terminal.terminalId;
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.threadId, "thr_launch");
+  const listed = (await call(hn, "terminal.list", {})).terminals.find(
+    (x: { terminalId: string }) => x.terminalId === id,
+  );
+  assert.equal(listed.threadId, "thr_launch");
+  const none = await open(hn);
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: none })).terminal.threadId,
+    undefined,
+    "a terminal that belongs to no chat has none",
+  );
+  await h["terminal.run"]!(ctx, { command: "npm test", terminalId: id });
+  const st = await call(hn, "terminal.status", { terminalIds: [id] });
+  assert.equal(st.rows[0].lastCommand, "npm test");
+});
+
+test("a member who may only View the workspace is refused terminal.keys, terminal.input and terminal.interrupt, and sees no change in the terminal", async () => {
+  const { hn } = setup();
+  const id = await open(hn); // owner usr_dana
+  hn.allowOnly((a) => a.level === "view");
+  const sara = hn.as(SARA);
+  for (const [cap, input] of [
+    ["terminal.keys", { terminalId: id, keys: [{ text: "x" }] }],
+    ["terminal.input", { terminalId: id, data: "x" }],
+    ["terminal.interrupt", { terminalId: id }],
+  ] as const) {
+    const code = await rejects(() => h[cap]!(sara, input));
+    assert.ok(code.startsWith("permission."), `${cap} refused for a viewer, got ${code}`);
+  }
+  hn.allowOnly(() => true);
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
+    undefined,
+    "nothing was taken or typed",
+  );
+});
+
+test("after the terminal has ended its screen is not drawn again: a capture of it is an error, never an empty or different screen", async () => {
+  const { hn } = keyed();
+  const id = await open(hn);
+  const before = await call(hn, "terminal.capture", { terminalId: id });
+  assert.equal(typeof before.text, "string");
+  await call(hn, "terminal.close", { terminalId: id });
+  assert.equal(await rejects(() => h["terminal.capture"]!(hn.ctx, { terminalId: id })), "validation.not_found");
+});
+
+test("a terminal the person ended with exit reads as exited in status and gives the keyboard back; its last screen is still readable until it is closed", async () => {
+  reset();
+  const hn = harness();
+  const base = fakeHost({}).host;
+  let gone = false;
+  bindHost({
+    ...base,
+    async status(ids: string[]) {
+      return ids.map((terminalId) => ({
+        terminalId,
+        state: gone ? ("exited" as const) : ("idle" as const),
+        exitCode: null,
+      }));
+    },
+  });
+  const id = await open(hn);
+  await call(hn, "terminal.take_over", { terminalId: id });
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_dana");
+  gone = true;
+  const st = await call(hn, "terminal.status", { terminalIds: [id] });
+  assert.equal(st.rows[0].state, "exited");
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
+    undefined,
+    "an ended terminal holds nobody",
+  );
+});
+
+test("a person watching sees the command an agent ran, never the line that types it: no marker, session id or exit-code store on any surface", async () => {
+  reset();
+  const hn = harness();
+  const base = fakeHost({}).host;
+  const typed =
+    "root@host:~# printf '%s\\n' '__VYRE_BEG_ab12cd__'; { echo running tests; sleep 25\n}; __vyre_rc=$?; 'tmux' set-option -q -t 'vyre-trm_01a1dbc4358945eea07c60dbb198b89d' @vyre_rc_ab12cd \"$__vyre_rc\" 2>/dev/null; printf '\\n%s:%d\\n' '__VYRE_END_ab12cd__' \"$__vyre_rc\"; unset __vyre_rc";
+  // the screen wraps the typed line at 40 columns
+  const wrapped = typed
+    .replace(/\n/g, "")
+    .match(/.{1,40}/g)!
+    .join("\n");
+  const screen = `${wrapped}\n__VYRE_BEG_ab12cd__\nrunning tests\nroot@host:~# `;
+  bindHost({
+    ...base,
+    async capture() {
+      return { text: screen, cols: 40, rows: 10, cursor: { x: 13, y: 8 }, history: 0, hidden: false };
+    },
+    async read() {
+      return { text: screen, next: 0 };
+    },
+  });
+  const id = await open(hn);
+  const seen = [
+    (await call(hn, "terminal.capture", { terminalId: id })).text,
+    (await call(hn, "terminal.read", { terminalId: id })).text,
+    (await call(hn, "terminal.attach", { terminalId: id })).replay ?? "",
+  ];
+  for (const t of seen) {
+    assert.ok(!/vyre-trm_|@vyre_rc_|__VYRE_|__vyre_rc|printf '%s/.test(t), `no internal text in: ${t}`);
+    assert.ok(
+      t.includes("root@host:~# echo running tests; sleep 25") && t.includes("running tests"),
+      "the command and its output are there",
+    );
+  }
+  // a person's own printf is left alone
+  const own = "$ printf '%s' hello";
+  assert.equal(hideRunLine(own), own);
+});
+
+test("take-over OFF (the product's default): EVERY kind of caller is refused terminal.take_over, terminal.keys and terminal.give_back with one plain sentence, and nothing happens: no host call, no hold row, no event", async () => {
+  const { hn, sent } = keyed();
+  const id = await open(hn);
+  const was = process.env["VYRE_TERMINAL_TAKEOVER"];
+  delete process.env["VYRE_TERMINAL_TAKEOVER"];
+  const rows = (): number => hn.rows("SELECT * FROM terminal_hold").length;
+  const events = (): number => hn.named("terminal.taken").length + hn.named("terminal.given_back").length;
+  const callers: Array<[string, Harness["ctx"]]> = [
+    ["person", hn.ctx],
+    ["agent", hn.as(AGENT)],
+    ["agent acting for a person", hn.as(AGENT, "usr_dana")],
+    ["actor", hn.as({ kind: "actor" as never, id: "act_x" })],
+    ["service", hn.as({ kind: "service" as never, id: "svc_x" })],
+    ["a kind added later", hn.as({ kind: "something_new" as never, id: "x_1" })],
+  ];
+  try {
+    const before = [sent.length, rows(), events()];
+    for (const [who, ctx] of callers)
+      for (const [cap, input] of [
+        ["terminal.take_over", { terminalId: id }],
+        ["terminal.keys", { terminalId: id, keys: [{ text: "x" }] }],
+        ["terminal.give_back", { terminalId: id }],
+      ] as const) {
+        let msg = "";
+        const code = await rejects(async () => {
+          try {
+            await h[cap]!(ctx, input);
+          } catch (e) {
+            msg = String((e as { error?: { message?: string } }).error?.message ?? e);
+            throw e;
+          }
+        });
+        assert.equal(code, "permission.no_grant", `${who}: ${cap}`);
+        assert.equal(msg, "Typing here is not available yet.", `${who}: ${cap}`);
+      }
+    assert.deepEqual([sent.length, rows(), events()], before, "no host call, no hold row, no event");
+    assert.equal((await call(hn, "terminal.workspace", { agentId: "agt_intake" })).takeOver, false, "the app is told");
+  } finally {
+    process.env["VYRE_TERMINAL_TAKEOVER"] = was ?? "1";
+  }
+});
+
+test("a hold stored before the switch went off blocks no one: nothing reads as held and the agent's command runs", async () => {
+  const { hn } = setup();
+  const id = await open(hn);
+  await call(hn, "terminal.take_over", { terminalId: id });
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_dana");
+  const was = process.env["VYRE_TERMINAL_TAKEOVER"];
+  delete process.env["VYRE_TERMINAL_TAKEOVER"];
+  try {
+    assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined, "not shown as held");
+    const r = await h["terminal.run"]!(hn.as(AGENT, "usr_dana"), {
+      command: "echo hi",
+      terminalId: id,
+      idempotencyKey: "off-run",
+    });
+    assert.ok(r, "the agent's command is not refused");
+  } finally {
+    process.env["VYRE_TERMINAL_TAKEOVER"] = was ?? "1";
+  }
 });

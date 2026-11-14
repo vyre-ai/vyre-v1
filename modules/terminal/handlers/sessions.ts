@@ -38,6 +38,7 @@ import {
   insertTab,
   scopeOf,
   dropHold,
+  takeOverOn,
   holderOf,
   setHold,
   workspaceHolder,
@@ -74,6 +75,8 @@ const DEFAULT_TIMEOUT_SEC = 120;
 const MAX_COMMAND_CHARS = 20_000;
 const REPLAY_LINES = 200;
 const AGENT_SESSION = "agent";
+/** How long keys sent with `capture` wait before the screen is read back: tmux has drawn them well inside it. */
+const SETTLE_MS = 15;
 
 const TITLE: Readonly<Record<HostKind, string>> = {
   agent_computer: "Workspace",
@@ -101,6 +104,7 @@ export function terminalRow(x: SessionRow) {
     ...(x.runId === undefined ? {} : { runId: x.runId }),
     ...(x.by === undefined ? {} : { by: x.by }),
     ...(x.heldBy === undefined ? {} : { heldBy: x.heldBy }),
+    ...(x.threadId === undefined ? {} : { threadId: x.threadId }),
     ...(x.owner === "" || x.by?.kind !== "person" ? {} : { ownerId: x.owner }),
   };
 }
@@ -501,7 +505,8 @@ const unavailable =
     );
   };
 
-export async function open(ctx: TermCtx, input: Omit<OpenInput, "host"> & { host?: HostKind }) {
+export async function open(ctx: TermCtx, input: Omit<OpenInput, "host"> & { host?: HostKind; own?: boolean }) {
+  if (input.own === true) return openOwn(ctx, input);
   // an agent that names no host opens a tab in its workspace: its own, or its parent's when it is a helper
   let host = input.host;
   let agentId = input.agentId;
@@ -522,6 +527,43 @@ export async function open(ctx: TermCtx, input: Omit<OpenInput, "host"> & { host
       await openSession(
         ctx,
         { ...input, host, ...(agentId === undefined ? {} : { agentId }), ...(name === undefined ? {} : { name }), by },
+        unavailable(ctx),
+      ),
+    ),
+  };
+}
+
+/**
+ * The agent's own terminal, there before anyone asks (14 Nov: no Attach). A person's call: the tab is the one the agent's commands go to (named `agent`, found by terminal.run for the person it acts for), so what the
+ * agent runs shows in it. One per person and workspace: asked again it returns the one that is there.
+ */
+async function openOwn(ctx: TermCtx, input: Omit<OpenInput, "host"> & { own?: boolean }) {
+  ensure(ctx.db);
+  if (ctx.principal.kind === "agent")
+    raise(ctx, "permission.no_grant", "An agent's own terminal opens by itself when it runs a command.");
+  if (input.agentId === undefined) raise(ctx, "validation.bad_input", "Say whose terminal to open.");
+  await needWorkspace(ctx, input.agentId);
+  const found = ctx.db.all(
+    `${SESSION_SELECT} WHERE s.owner = ? AND s.host = 'agent_computer' AND s.name = ? AND s.closed_at IS NULL AND s.agent_id = ? ORDER BY s.created_at DESC LIMIT 1`,
+    actorOf(ctx),
+    AGENT_SESSION,
+    input.agentId,
+  ) as Row[];
+  if (found[0]) return { terminal: terminalRow(fresh(ctx, sessionOf(found[0]))) };
+  return {
+    terminal: terminalRow(
+      await openSession(
+        ctx,
+        {
+          host: "agent_computer",
+          agentId: input.agentId,
+          name: AGENT_SESSION,
+          named: true,
+          by: { kind: "agent" },
+          ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
+          ...(input.cols === undefined ? {} : { cols: input.cols }),
+          ...(input.rows === undefined ? {} : { rows: input.rows }),
+        },
         unavailable(ctx),
       ),
     ),
@@ -631,8 +673,18 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
             exitCode,
             x.terminalId,
           );
+        // a terminal that ended (the person typed exit) holds nobody: the keyboard is released with it
+        if (h?.state === "exited" && x.heldBy !== undefined) dropHold(ctx.db, x.terminalId);
         const last = h?.lastLine === undefined ? undefined : clean(scopeOf(x), h.lastLine);
-        return { terminalId: x.terminalId, state, ...(last === undefined ? {} : { lastLine: last }), exitCode };
+        const cmd = commandsOf(ctx.db, x.terminalId, 1)[0]?.command;
+        const lastCommand = cmd === undefined ? undefined : clean(scopeOf(x), cmd).trim().slice(0, 200);
+        return {
+          terminalId: x.terminalId,
+          state,
+          ...(last === undefined ? {} : { lastLine: last }),
+          ...(lastCommand ? { lastCommand } : {}),
+          exitCode,
+        };
       })
       .concat(
         kept.map((x) => ({
@@ -648,7 +700,6 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
 export async function read(ctx: TermCtx, input: { terminalId: string; lines?: number; since?: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
-  looked(ctx, x);
   try {
     const r = await (
       await hostFor(ctx, x)
@@ -665,7 +716,6 @@ export async function read(ctx: TermCtx, input: { terminalId: string; lines?: nu
 export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
-  looked(ctx, x);
   let replay: string;
   try {
     replay = clean(scopeOf(x), (await (await hostFor(ctx, x)).read(input.terminalId, { lines: REPLAY_LINES })).text);
@@ -717,11 +767,6 @@ function needKeyboard(ctx: TermCtx, x: SessionRow): void {
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
 }
 
-/** The holder looking (reading the screen, attaching) keeps the hold in use, as typing does. */
-function looked(ctx: TermCtx, x: SessionRow): void {
-  if (isHolder(ctx, x.terminalId)) touchHold(ctx.db, x.terminalId, actorOf(ctx), ctx.now());
-}
-
 /** May this caller take the keyboard from another person: the person whose terminal it is, or someone who manages the agent whose computer it is. */
 function mayTakeFromOther(ctx: TermCtx, x: SessionRow): boolean {
   if (x.owner === actorOf(ctx)) return true;
@@ -731,8 +776,17 @@ function mayTakeFromOther(ctx: TermCtx, x: SessionRow): boolean {
   );
 }
 
+// the one switch (takeOverOn) lives in projections.ts: with it off nothing reads as held either
+export { takeOverOn };
+const TAKE_OVER_OFF = "Typing here is not available yet.";
+function needTakeOver(ctx: TermCtx): void {
+  // every kind of caller is refused, not a listed few: a kind added later is refused by default. It is the first thing each of the three does, before any lookup, host call, hold or event.
+  if (!takeOverOn()) raise(ctx, "permission.no_grant", TAKE_OVER_OFF, { reason: "take_over_off" });
+}
+
 export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
+  needTakeOver(ctx);
   if (ctx.principal.kind === "agent")
     raise(ctx, "permission.no_grant", "An agent types in its own terminal; taking the keyboard is for people.");
   const x = await needAccess(ctx, live(ctx, input.terminalId));
@@ -756,6 +810,7 @@ export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
 
 export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
+  needTakeOver(ctx);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h === null) return { terminal: terminalRow(x) };
@@ -834,17 +889,29 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
   return { ok: true };
 }
 
+/** A screen with its text changed: when rows were taken out (the run's typed line, hidden) the screen keeps its height and the cursor, which sits below them, moves up by as many. */
+function screenOf<T extends { text: string; cursor: { x: number; y: number } | null }>(r: T, text: string): T {
+  const before = r.text.split("\n").length;
+  const after = text.split("\n").length;
+  if (after >= before) return { ...r, text };
+  const k = before - after;
+  return {
+    ...r,
+    text: text + "\n".repeat(k),
+    cursor: r.cursor === null ? null : { x: r.cursor.x, y: Math.max(0, r.cursor.y - k) },
+  };
+}
+
 export async function capture(ctx: TermCtx, input: { terminalId: string; lines?: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
-  looked(ctx, x);
   const host = await hostFor(ctx, x);
   if (!host.capture)
     raise(ctx, "validation.precondition_failed", "This terminal draws lines, not a screen.", { reason: "no_screen" });
   try {
     const r = await host.capture(input.terminalId, { lines: input.lines ?? 2000 });
     // the screen has its colours; a Vault value filled into a command is removed from it as from every other reading
-    return { ...r, text: clean(scopeOf(x), r.text) };
+    return screenOf(r, clean(scopeOf(x), r.text));
   } catch (e) {
     return unexpected(ctx, "draw the screen", e);
   }
@@ -856,9 +923,10 @@ export async function capture(ctx: TermCtx, input: { terminalId: string; lines?:
  */
 export async function keys(
   ctx: TermCtx,
-  input: { terminalId: string; keys: Array<{ text?: string; key?: string; paste?: string }> },
+  input: { terminalId: string; capture?: boolean; keys: Array<{ text?: string; key?: string; paste?: string }> },
 ) {
   ensure(ctx.db);
+  needTakeOver(ctx);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   needKeyboard(ctx, x);
   const list: KeyPress[] = [];
@@ -880,7 +948,15 @@ export async function keys(
     return unexpected(ctx, "take those keys", e);
   }
   touch(ctx.db, input.terminalId, ctx.now());
-  return { ok: true };
+  if (input.capture !== true || !host.capture) return { ok: true };
+  // the screen a moment after the keys landed, in the same answer: a key shows in one round trip (tmux has drawn it in a few milliseconds)
+  await new Promise<void>((r) => setTimeout(r, SETTLE_MS));
+  try {
+    const r = await host.capture(input.terminalId, { lines: 2000 });
+    return { ok: true, screen: screenOf(r, clean(scopeOf(x), r.text)) };
+  } catch {
+    return { ok: true };
+  }
 }
 
 export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
@@ -1022,6 +1098,10 @@ export const NO_WORKSPACE_TEAM =
  * in a sentence. A Space with no machine for it says so in one plain line, and the agent's commands go where its turn runs.
  */
 export async function workspace(ctx: TermCtx, input: { agentId: string }) {
+  return { ...(await workspaceRead(ctx, input)), takeOver: takeOverOn() };
+}
+
+async function workspaceRead(ctx: TermCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const may = await mayEnterWorkspace(ctx, input.agentId);
   const cannot =

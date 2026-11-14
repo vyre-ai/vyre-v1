@@ -16,6 +16,20 @@ export interface Capture {
   hidden: boolean;
 }
 
+/** The screen to draw after an answer: the last good one stays when the answer is not a screen (a failed capture, a terminal that ended), and an identical one changes nothing. */
+export function nextShot(was: Capture | null, r: unknown): Capture | null {
+  const c = r as Partial<Capture> | null | undefined;
+  if (c === null || c === undefined || typeof c !== "object" || typeof c.text !== "string") return was;
+  const n = c as Capture;
+  return was &&
+    was.text === n.text &&
+    was.hidden === n.hidden &&
+    was.cursor?.x === n.cursor?.x &&
+    was.cursor?.y === n.cursor?.y
+    ? was
+    : n;
+}
+
 // ---- keys
 
 const NAMED: Readonly<Record<string, string>> = {
@@ -216,43 +230,79 @@ export function TmuxScreen({
   const el = useRef<HTMLElement | null>(null);
   const stuck = useRef(true);
   // one batcher for the life of the screen: a new one per render would send batches side by side and out of order
-  const latest = useRef({ call, terminalId });
-  latest.current = { call, terminalId };
-  // after keys land the screen is read at once, not at the next tick of the poll: the key shows as soon as tmux has drawn it
+  const lastKeyAt = useRef(0);
+  // every screen read is numbered when it is asked; an answer older than the newest one already drawn is dropped, so a slow poll never puts an old screen over a newer one
+  const asked = useRef(0);
+  const drawn = useRef(0);
+  const apply = (r: Capture): void => {
+    if (nextShot(null, r) === null) return;
+    setShot((was) => nextShot(was, r));
+    onHiddenRef.current?.(r.hidden);
+  };
+  const latest = useRef({ call, terminalId, show: apply });
+  latest.current = { call, terminalId, show: apply };
+  const onHiddenRef = useRef(onHidden);
+  onHiddenRef.current = onHidden;
+  // when the answer to the keys has no screen, or fails, the screen is read at once instead of at the next tick
   const kick = useRef<() => void>(() => undefined);
   const batcher = useRef<ReturnType<typeof keyBatcher> | null>(null);
   if (batcher.current === null)
-    batcher.current = keyBatcher((ks) =>
-      latest.current
-        .call("terminal.keys", { terminalId: latest.current.terminalId, keys: ks })
-        .finally(() => kick.current()),
-    );
+    batcher.current = keyBatcher(async (ks) => {
+      // the keys and the screen they made come back in one answer: a key shows in one round trip, no wait for the next poll
+      lastKeyAt.current = Date.now();
+      const n = ++asked.current;
+      // a batch that did not land (a busy server, a rate limit, a dropped connection) is sent again, in its place, before any later key: keys are never dropped or reordered. An answer that says no (the keyboard is
+      // someone else's, a key that is not one) is final.
+      for (let attempt = 0; attempt < 8; attempt++) {
+        try {
+          const r = (await latest.current.call("terminal.keys", {
+            terminalId: latest.current.terminalId,
+            keys: ks,
+            capture: true,
+          })) as { screen?: Capture };
+          if (r.screen) {
+            if (n > drawn.current) {
+              drawn.current = n;
+              latest.current.show(r.screen);
+            }
+          } else kick.current();
+          return;
+        } catch (e) {
+          const code = (e as { code?: unknown } | null)?.code;
+          if (typeof code === "string" && (code.startsWith("validation.") || code.startsWith("permission."))) {
+            kick.current();
+            return;
+          }
+          await new Promise<void>((r) => setTimeout(r, 120 * (attempt + 1)));
+        }
+      }
+      kick.current();
+    });
   useEffect(() => {
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let busy = false;
     let again = false;
+    let startedAt = 0;
     const pull = async (): Promise<void> => {
       busy = true;
+      startedAt = Date.now();
+      const n = ++asked.current;
       try {
         const r = (await call("terminal.capture", { terminalId, lines: 2000 })) as Capture;
         if (!live) return;
-        setShot((was) =>
-          was &&
-          was.text === r.text &&
-          was.hidden === r.hidden &&
-          was.cursor?.x === r.cursor?.x &&
-          was.cursor?.y === r.cursor?.y
-            ? was
-            : r,
-        );
-        onHidden?.(r.hidden);
+        if (n > drawn.current) {
+          drawn.current = n;
+          latest.current.show(r);
+        }
       } catch (e) {
         const code = (e as { code?: unknown } | null)?.code;
         if (live && typeof code === "string" && code.endsWith("precondition_failed")) {
           onUnsupported?.();
           return;
         }
+        // the terminal ended: the last screen stays as it was and is not read again
+        if (live && code === "validation.not_found") return;
       }
       busy = false;
       if (live && again) {
@@ -260,11 +310,13 @@ export function TmuxScreen({
         void pull();
         return;
       }
-      if (live) timer = setTimeout(() => void pull(), SCREEN_POLL_MS);
+      // while keys are being pressed the screen is read often (a program that answers a moment later shows at once); at rest, four times a second
+      if (live) timer = setTimeout(() => void pull(), Date.now() - lastKeyAt.current < 2000 ? 70 : SCREEN_POLL_MS);
     };
     kick.current = () => {
       if (!live) return;
-      if (busy) {
+      // a read still out after 2 seconds does not hold the next one back
+      if (busy && Date.now() - startedAt < 2000) {
         again = true;
         return;
       }
@@ -285,6 +337,21 @@ export function TmuxScreen({
     const e = el.current;
     if (e && stuck.current) e.scrollTop = e.scrollHeight;
   }, [shot]);
+  // kept keys older than 5 seconds belong to a take that failed: they are dropped, never sent later
+  const early = useRef<Array<{ k: KeyPress; at: number }>>([]);
+  /** Keys kept while the take was in flight go first, in the order they were pressed, before anything pressed since; older than 5 seconds they belong to a take that failed and are dropped. */
+  const drainEarly = (): void => {
+    const now = Date.now();
+    const kept = early.current;
+    early.current = [];
+    for (const e of kept) if (now - e.at < 5000) batcher.current?.push(e.k);
+  };
+  useEffect(() => {
+    if (keys) drainEarly();
+    else early.current = [];
+    // drainEarly reads only refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keys]);
   if (Platform.OS !== "web") return null;
   const lines = (shot?.text ?? "").split("\n");
   const cur = shot?.cursor ?? null;
@@ -315,18 +382,11 @@ export function TmuxScreen({
       ),
     );
   });
-  // kept keys older than 5 seconds belong to a take that failed: they are dropped, never sent later
-  const early = useRef<Array<{ k: KeyPress; at: number }>>([]);
-  useEffect(() => {
-    if (keys) {
-      const now = Date.now();
-      for (const e of early.current) if (now - e.at < 5000) batcher.current?.push(e.k);
-    }
-    early.current = [];
-  }, [keys]);
   const press = (k: KeyPress): void => {
-    if (keys) batcher.current?.push(k);
-    else if (taking?.current === true) early.current.push({ k, at: Date.now() });
+    if (keys) {
+      drainEarly();
+      batcher.current?.push(k);
+    } else if (taking?.current === true) early.current.push({ k, at: Date.now() });
   };
   const onKeyDown = (e: KeyboardEvent): void => {
     if (!keys && taking?.current !== true) return;

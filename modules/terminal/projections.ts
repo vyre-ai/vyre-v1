@@ -328,6 +328,7 @@ export interface SessionRow {
   /** The person at the keyboard now (terminal_hold), when one is. */
   heldBy?: string;
   heldSeen?: number;
+  threadId?: string;
 }
 
 export function sessionOf(r: Row): SessionRow {
@@ -364,8 +365,10 @@ export function sessionOf(r: Row): SessionRow {
   const u = opt(r["run_id"]);
   if (u !== undefined) out.runId = u;
   if (r["closed_at"] !== null && r["closed_at"] !== undefined) out.closedAt = Number(r["closed_at"]);
+  const th = opt(r["tab_thread"]);
+  if (th !== undefined) out.threadId = th;
   const h = opt(r["hold_person"]);
-  if (h !== undefined) {
+  if (h !== undefined && takeOverOn()) {
     out.heldBy = h;
     out.heldSeen = Number(r["hold_seen"]);
   }
@@ -379,7 +382,7 @@ export function sessionBy(db: Db, terminalId: string): SessionRow | null {
 
 /** A session with its tab: who made it. */
 export const SESSION_SELECT =
-  "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor, h.person_id AS hold_person, h.seen AS hold_seen FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id LEFT JOIN terminal_hold h ON h.terminal_id = s.terminal_id";
+  "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor, h.person_id AS hold_person, h.seen AS hold_seen, t.thread_id AS tab_thread FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id LEFT JOIN terminal_hold h ON h.terminal_id = s.terminal_id";
 
 export function insertTab(db: Db, terminalId: string, by: TabBy, actor: string, threadId?: string): void {
   db.run(
@@ -688,10 +691,55 @@ export const forgetAllSecrets = (): void => {
   secretsByScope.clear();
 };
 
-/** Text from a screen, with every value used in the scope removed. */
+/**
+ * What `terminal.run` types is one long line (markers, the exit-code store, the tmux session id): a person watching the terminal sees the command and its output, never that line. The typed line, wrapped over
+ * as many rows as the screen needs, is replaced by the bare command after the prompt. The markers the shell prints are the run's own and are dropped too. Every surface that returns a screen, a read, a
+ * replay or a last line goes through `clean`, so this is the one place.
+ */
+// eslint-disable-next-line no-control-regex
+const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
+const MARKER_ROW = /^__VYRE_(?:BEG|END)_[0-9a-f]+__(?::\d+)?$/;
+export function hideRunLine(text: string): string {
+  if (!text.includes("printf '%s") && !text.includes("__VYRE_")) return text;
+  const rows = text.split("\n");
+  const out: string[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const plain = rows[i]!.replace(ANSI, "");
+    if (MARKER_ROW.test(plain.trim())) continue;
+    const at = plain.indexOf(" printf '%s");
+    const head = rows
+      .slice(i, i + 4)
+      .map((r) => r.replace(ANSI, ""))
+      .join("");
+    if (at < 0 || !/^ printf '%s\\n' '__VYRE_BEG_[0-9a-f]+__'; /.test(head.slice(at))) {
+      out.push(rows[i]!);
+      continue;
+    }
+    // the typed line ends at its own `unset __vyre_rc`, some rows on
+    let j = i;
+    while (j < rows.length && j < i + 200 && !rows[j]!.replace(ANSI, "").includes("unset __vyre_rc")) j++;
+    if (j >= rows.length || j >= i + 200) {
+      // still being typed or drawn: the part so far is hidden too
+      out.push(plain.slice(0, at));
+      break;
+    }
+    const joined = rows
+      .slice(i, j + 1)
+      .map((r) => r.replace(ANSI, ""))
+      .join("");
+    const body =
+      /; (?:cd '[^']*' && )?\{ ([\s\S]*?)\n?(?:> ?)?\}; __vyre_rc=/.exec(joined) ??
+      /eval "\$__vyre_env"; unset __vyre_env; ([\s\S]*?)\n?\); __vyre_rc=/.exec(joined);
+    out.push(`${plain.slice(0, at).trimEnd()} ${body ? body[1]!.trim() : ""}`.trimEnd());
+    i = j;
+  }
+  return out.join("\n");
+}
+
+/** Text from a screen, with every value used in the scope removed and the run's typed line hidden. */
 export function clean(scope: string, text: string): string {
   const sc = scrubberFor(scope);
-  return sc ? sc.scrub(text) : text;
+  return hideRunLine(sc ? sc.scrub(text) : text);
 }
 
 // ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------
@@ -703,7 +751,14 @@ export const HOLD_IDLE_MS = 15 * 60_000;
  * The person at the keyboard of a terminal now, or null. A hold nobody used for HOLD_IDLE_MS is over: it is read as not there (nothing a read does writes or emits; the stale row is replaced by the next
  * take and removed by the next give back).
  */
+/**
+ * One switch for a person taking an agent's terminal keyboard (15 Nov, rc.28): OFF by default, ON with VYRE_TERMINAL_TAKEOVER=1 (the tests and walks of the hold and the keys). Off because a re-sent key batch
+ * is not idempotent yet (terminal.keys has no idempotency key). Read at each call, so a test turns it on. With it off nothing reads as held: a hold stored before it went off blocks no one.
+ */
+export const takeOverOn = (): boolean => process.env["VYRE_TERMINAL_TAKEOVER"] === "1";
+
 export function holderOf(db: Db, terminalId: string, now: number): string | null {
+  if (!takeOverOn()) return null;
   const r = (
     db.all(
       "SELECT person_id FROM terminal_hold WHERE terminal_id = ? AND seen >= ?",
@@ -716,6 +771,7 @@ export function holderOf(db: Db, terminalId: string, now: number): string | null
 
 /** Does a person hold any terminal of this agent's workspace now? Who, or null. */
 export function workspaceHolder(db: Db, agentId: string, now: number): string | null {
+  if (!takeOverOn()) return null;
   const r = (
     db.all(
       "SELECT h.person_id FROM terminal_hold h JOIN terminal_sessions t ON t.terminal_id = h.terminal_id WHERE t.agent_id = ? AND t.closed_at IS NULL AND h.seen >= ? LIMIT 1",

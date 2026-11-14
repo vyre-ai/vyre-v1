@@ -2,7 +2,7 @@
   "module": "computers",
   "capabilities": {
     "computers.browser.give_back@1": "d636c4e4bb619481a667ca2d367ffedd1d1de0471d5af56af4a5cf569c20c017",
-    "computers.browser.preview@1": "5c49bb53ca11871f3e93b7757ad6ca0662beff53415b20d93dde1ac456727a04",
+    "computers.browser.preview@1": "84b76d1527a9839f595438f435968ab969fb1034306dca7cd0fbda84bd4169f6",
     "computers.browser.profiles@1": "aa5aa7b609ae41c82b7ebe5e31336e5cb4af5fa7f8c88916ec55bde050e5c5fd",
     "computers.browser.sessions@1": "2b3860beb66632357ed0b29116175f2784c5a1a9fce3863411cbd08edbca515d",
     "computers.browser.sign_out@1": "77db909807a28c696741a03a5023c562f1dbb0c7724051866be99197c1caa051",
