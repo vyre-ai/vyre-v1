@@ -8,3 +8,5 @@
 - A reply that continues after a helper finishes now starts a new paragraph. Before, two answers could run together with no space ("kernel.The terminal").
 - An agent that writes the name of a tool the way it sees it (a name beginning mcp__) now reads in plain words to you.
 - The name of a tool the way the model sees it (mcp__...) no longer shows for a moment while a reply is being written: it reads in plain words from the first frame.
+- In the list of kept lessons, Remove now says "Removing" until the server answers, then "Removed" with Undo. A refused Remove puts the lesson back and shows the reason. Undo is not offered before the Remove has finished.
+- Undo on the small line over the composer now says when it fails, instead of failing silently. A Knows edit that did not save comes back open with what was typed and the reason.

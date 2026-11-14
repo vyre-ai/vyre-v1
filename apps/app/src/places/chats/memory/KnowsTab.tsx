@@ -177,7 +177,12 @@ export function KnowsTab({
         say("Saved. The old wording is kept in history.", () =>
           store.write("memory.fact.correct", { factId: r.fact.factId, text: f.text }),
         );
-      else setErr(r.error);
+      else {
+        // the save did not go through: the editor comes back with what was typed, and the reason is said
+        setEdit(f.factId);
+        setDraft(text);
+        setErr(r.error);
+      }
     });
   };
   const forget = (f: ChatFact): void => {

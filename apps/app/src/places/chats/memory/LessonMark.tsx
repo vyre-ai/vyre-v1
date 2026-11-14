@@ -10,7 +10,7 @@ import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { placeNear } from "../../../../../../ui/src/Overlay/anchor.ts";
 import { Icon } from "../../files/memory/parts.tsx";
 import { forgetFacts } from "./actions.ts";
-import { useChatMemory, useRead } from "./data.tsx";
+import { errorLine, useChatMemory, useRead } from "./data.tsx";
 import { isLesson, lessonMarkLabel } from "./model.ts";
 import type { UsedOut } from "./model.ts";
 import { LinkButton, webProps } from "./parts.tsx";
@@ -126,7 +126,14 @@ function LessonList({
   const card = useRef<unknown>(null);
   const [whole, setWhole] = useState<string | null>(null);
   // lessons removed from this list, with what puts each back
-  const [removed, setRemoved] = useState<Record<string, (() => void | Promise<unknown>) | undefined>>({});
+  // a row says "Removed" only once the server has said so: while it waits it says "Removing", and a failed call puts the row back with the reason
+  type Gone = { phase: "pending" } | { phase: "done"; undo: () => void | Promise<unknown> };
+  const [removed, setRemoved] = useState<Record<string, Gone>>({});
+  const [failed, setFailed] = useState<Record<string, string>>({});
+  const without = <T,>(r: Record<string, T>, id: string): Record<string, T> => {
+    const { [id]: _gone, ...rest } = r;
+    return rest;
+  };
   useEffect(() => {
     (card.current as { focus?: () => void } | null)?.focus?.();
     return undefined;
@@ -158,22 +165,30 @@ function LessonList({
           <View key={l.factId} testID={`lesson-row-${l.factId}`} style={st.row}>
             {l.factId in removed ? (
               <View style={st.gone}>
-                <Text testID={`lesson-removed-${l.factId}`} style={st.goneText}>
-                  Removed. It stays in Trash for 60 days.
-                </Text>
-                <LinkButton
-                  label="Undo"
-                  testID={`lesson-undo-${l.factId}`}
-                  a11y={`Undo: put the lesson back: ${l.text}`}
-                  onPress={() => {
-                    const undo = removed[l.factId];
-                    setRemoved((r) => {
-                      const { [l.factId]: _gone, ...rest } = r;
-                      return rest;
-                    });
-                    void undo?.();
-                  }}
-                />
+                {removed[l.factId]!.phase === "pending" ? (
+                  <Text testID={`lesson-removing-${l.factId}`} style={st.goneText}>
+                    Removing
+                  </Text>
+                ) : (
+                  <>
+                    <Text testID={`lesson-removed-${l.factId}`} style={st.goneText}>
+                      Removed. It stays in Trash for 60 days.
+                    </Text>
+                    <LinkButton
+                      label="Undo"
+                      testID={`lesson-undo-${l.factId}`}
+                      a11y={`Undo: put the lesson back: ${l.text}`}
+                      onPress={() => {
+                        const g = removed[l.factId];
+                        setRemoved((r) => without(r, l.factId));
+                        if (g?.phase === "done")
+                          void Promise.resolve(g.undo()).catch((e: unknown) =>
+                            setFailed((f) => ({ ...f, [l.factId]: errorLine(e, "Could not put it back") })),
+                          );
+                      }}
+                    />
+                  </>
+                )}
               </View>
             ) : (
               <>
@@ -207,13 +222,25 @@ function LessonList({
                     testID={`lesson-remove-${l.factId}`}
                     a11y={`Remove this lesson: ${l.text}`}
                     onPress={() => {
-                      setRemoved((r) => ({ ...r, [l.factId]: undefined }));
-                      void forgetFacts(mem, [l.factId], (_text, undo) => {
-                        if (undo) setRemoved((r) => (l.factId in r ? { ...r, [l.factId]: undo } : r));
+                      setFailed((f) => without(f, l.factId));
+                      setRemoved((r) => ({ ...r, [l.factId]: { phase: "pending" } }));
+                      void forgetFacts(mem, [l.factId], (text, undo) => {
+                        if (undo)
+                          setRemoved((r) => (l.factId in r ? { ...r, [l.factId]: { phase: "done", undo } } : r));
+                        else {
+                          // the call failed: the row is a lesson again, and says why
+                          setRemoved((r) => without(r, l.factId));
+                          setFailed((f) => ({ ...f, [l.factId]: text }));
+                        }
                       });
                     }}
                   />
                 </View>
+                {failed[l.factId] ? (
+                  <Text testID={`lesson-error-${l.factId}`} accessibilityRole="alert" style={st.error}>
+                    {failed[l.factId]}
+                  </Text>
+                ) : null}
               </>
             )}
           </View>
@@ -256,6 +283,7 @@ const st = StyleSheet.create({
   },
   words: { alignSelf: "stretch", paddingVertical: 2 },
   gone: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", columnGap: 8, minHeight: 28 },
+  error: { fontSize: 12, color: "var(--danger)" as string, paddingTop: 2 },
   goneText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   text: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   acts: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2 },

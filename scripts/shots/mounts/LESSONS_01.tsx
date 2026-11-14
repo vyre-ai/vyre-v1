@@ -50,6 +50,8 @@ const LESSONS = [
   lesson: { how: "refuse", used: 6, scope: "you" },
 }));
 
+// the person correcting the agent: the message the one learned lesson came from
+const FRESH_ASK = "Show me your draft text here first. You are the team's automation agent, not mine.";
 const ASKS = [
   "Can you test the terminal for me? Run a few commands and tell me what you see.",
   "Now check the disk, and say it in plain words.",
@@ -79,7 +81,7 @@ function rows(part: string): Row[] {
       threadSeq: seq++,
       author: { kind: "person", id: ME },
       kind: "text",
-      body: ASKS[i],
+      body: part === "fresh" ? FRESH_ASK : ASKS[i],
       createdAt: T(9, i * 4),
     });
     if (part === "fresh") break;

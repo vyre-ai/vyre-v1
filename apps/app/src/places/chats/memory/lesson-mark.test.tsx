@@ -6,6 +6,9 @@ import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { pushEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
+import { createMemoryStore } from "./data.tsx";
+import { useThreadMemory } from "./thread.tsx";
+import { useEffect } from "react";
 import { LessonMark } from "./LessonMark.tsx";
 import { LESSON_IDS, createChatMemorySample } from "./sample.ts";
 import { ChatMemoryProvider } from "./thread.tsx";
@@ -185,6 +188,120 @@ test("with a layer drawn over the list, one Escape closes that layer and leaves 
     assert.equal(find(root, "lesson-list-m1"), null, "the second Escape closes the list");
   } finally {
     drop();
+    off();
+  }
+});
+
+/** A memory whose forget is held until `release()` (or refused with `refuse`), over the sample's other answers. */
+function slowForget(refuse?: string) {
+  const { s, memory, lessons } = setup();
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((r) => (release = r));
+  const store = createMemoryStore(async (cap, input) => {
+    if (cap === "memory.forget") {
+      s.calls.push({ cap, input });
+      await held;
+      if (refuse) throw new Error(refuse);
+      return { forgotten: 1 };
+    }
+    return s.memory.store.call(cap, input);
+  });
+  return { s, memory: { ...memory, store }, lessons, release };
+}
+
+test("a failed Remove puts the row back and says why: it never shows Removed for something the server refused", async () => {
+  const off = installDom();
+  try {
+    const { memory, lessons, release } = slowForget("The server refused it.");
+    const root = await mount(
+      createRoot,
+      <ChatMemoryProvider memory={memory} threadId="c1">
+        <LessonMark id="m1" kind="used" lessons={lessons} />
+      </ChatMemoryProvider>,
+    );
+    await flush();
+    await press(find(root, "lesson-mark-m1")!);
+    await flush();
+    await press(find(root, `lesson-remove-${LESSON_IDS.dollars}`)!);
+    await flush();
+    assert.ok(find(root, `lesson-removing-${LESSON_IDS.dollars}`), "while the call waits the row says Removing");
+    assert.equal(find(root, `lesson-removed-${LESSON_IDS.dollars}`), null, "and not Removed");
+    release();
+    await flush();
+    await flush();
+    assert.equal(find(root, `lesson-removed-${LESSON_IDS.dollars}`), null, "a refused call is never Removed");
+    assert.ok(find(root, `lesson-remove-${LESSON_IDS.dollars}`), "the row is a lesson again, with Remove");
+    assert.match(
+      textOf(find(root, `lesson-error-${LESSON_IDS.dollars}`)),
+      /refused|forget/i,
+      "and the reason is in the list",
+    );
+  } finally {
+    off();
+  }
+});
+
+test("Undo is not offered until the forget has returned; a quick press cannot leave a forgotten lesson under a normal row", async () => {
+  const off = installDom();
+  try {
+    const { s, memory, lessons, release } = slowForget();
+    const root = await mount(
+      createRoot,
+      <ChatMemoryProvider memory={memory} threadId="c1">
+        <LessonMark id="m1" kind="used" lessons={lessons} />
+      </ChatMemoryProvider>,
+    );
+    await flush();
+    await press(find(root, "lesson-mark-m1")!);
+    await flush();
+    await press(find(root, `lesson-remove-${LESSON_IDS.dollars}`)!);
+    await flush();
+    assert.equal(
+      find(root, `lesson-undo-${LESSON_IDS.dollars}`),
+      null,
+      "no Undo to press while the forget is still on its way",
+    );
+    release();
+    await flush();
+    await flush();
+    assert.ok(find(root, `lesson-undo-${LESSON_IDS.dollars}`), "Undo appears once it has returned");
+    await press(find(root, `lesson-undo-${LESSON_IDS.dollars}`)!);
+    await flush();
+    assert.deepEqual(
+      s.calls.filter((c) => c.cap === "memory.restore").map((c) => c.input),
+      [{ factId: LESSON_IDS.dollars }],
+    );
+  } finally {
+    off();
+  }
+});
+
+test("an Undo on the memory flash line that fails says so, never silently", async () => {
+  const off = installDom();
+  try {
+    const { memory } = setup();
+    function Flasher() {
+      const t = useThreadMemory();
+      useEffect(() => {
+        t?.flash("Saved.", async () => {
+          throw new Error("The server said no.");
+        });
+      }, []); // eslint-disable-line react-hooks/exhaustive-deps
+      return null;
+    }
+    const root = await mount(
+      createRoot,
+      <ChatMemoryProvider memory={memory} threadId="c1">
+        <Flasher />
+      </ChatMemoryProvider>,
+    );
+    await flush();
+    await press(find(root, "memory-flash-undo")!);
+    await flush();
+    await flush();
+    assert.match(textOf(find(root, "memory-flash")), /no|could not/i, "the flash now says the Undo failed");
+    assert.equal(find(root, "memory-flash-undo"), null, "and offers no Undo of a failed Undo");
+  } finally {
     off();
   }
 });
