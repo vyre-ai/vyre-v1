@@ -155,6 +155,81 @@ test("navigation walk: every opened thing has a way back on screen, by keyboard 
     await guard.check("rapid Back and Forward");
     // H02 a file (the owner named it)
     await walk("H02-file", `/files#subject=file:${fileId}`, /^Back to Files$/, /subject=file/);
+    // rule 1: Back lands on the same scroll. A long list, scrolled; a file opened by a press; Back.
+    {
+      for (let i = 0; i < 80; i++)
+        await api("files.create", {
+          folderId: folder,
+          name: `Doc ${String(i).padStart(2, "0")}.md`,
+          content: { text: `doc ${i}` },
+          idempotencyKey: `n-doc-${i}`,
+        });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto(`${web.origin}/files#subject=folder:${folder}`, { waitUntil: "load" });
+      await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+      await page.getByText("Doc 00.md").first().waitFor({ timeout: 20_000 });
+      const scrolled = (await page.evaluate(`(() => {
+        let best = null, room = 0;
+        for (const el of document.querySelectorAll("*")) {
+          const r = el.scrollHeight - el.clientHeight;
+          const st = getComputedStyle(el).overflowY;
+          if (r > room && (st === "auto" || st === "scroll") && el.clientHeight > 200) { best = el; room = r; }
+        }
+        if (!best) return null;
+        best.scrollTop = Math.min(900, room);
+        best.setAttribute("data-nav-scroller", "1");
+        window.__sc = best.tagName + " testid=" + best.getAttribute("data-testid") + " cls=" + String(best.className).slice(0, 60) + " parent=" + (best.parentElement && best.parentElement.getAttribute("data-testid"));
+        return best.scrollTop;
+      })()`)) as number | null;
+      assert.ok(scrolled !== null && scrolled > 200, `the Files list scrolls (${scrolled})`);
+      await page.waitForTimeout(500);
+      const row = page.getByText(/^Doc \d\d\.md$/).nth(3);
+      console.log(`[walk] row ${await row.textContent()} hash ${await page.evaluate(() => location.hash)}`);
+      await row.click();
+      // the box settles after the list loads: what counts is where it is at the moment of the press
+      const before = (await page.evaluate(
+        `(() => { const el = document.querySelector('[data-nav-scroller]'); return el ? el.scrollTop : -1; })()`,
+      )) as number;
+      assert.ok(before > 100, `the list is scrolled when the file is pressed (${before})`);
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(800);
+      console.log(`[walk] after open hash ${await page.evaluate(() => location.hash)}`);
+      await page.waitForFunction(() => /subject=file|files\.viewer/.test(location.hash), null, { timeout: 10_000 });
+      // Back: the time from the press until the list is scrolled where it was (budget: a place's first paint under 50 ms, done under 100 ms)
+      const restoredMs = (await page.evaluate(`new Promise((resolve) => {
+        const want = ${before};
+        const t0 = performance.now();
+        document.querySelector('[data-testid="nav-back"]').click();
+        const tick = () => {
+          let top = 0;
+          for (const el of document.querySelectorAll("*")) {
+            if (el.closest("[data-swap]")) continue;
+            const st = getComputedStyle(el).overflowY;
+            if ((st === "auto" || st === "scroll") && el.scrollTop > top) top = el.scrollTop;
+          }
+          if (Math.abs(top - want) <= 4 && !/files\\.viewer|subject=file/.test(location.hash)) resolve(Math.round(performance.now() - t0));
+          else if (performance.now() - t0 > 5000) resolve(-1);
+          else requestAnimationFrame(tick);
+        };
+        tick();
+      })`)) as number;
+      console.log(`[walk] Back to the scrolled list took ${restoredMs} ms (budget: done under 100 ms)`);
+      assert.ok(
+        restoredMs >= 0 && restoredMs <= 100,
+        `Back paints the list where it was within the 100 ms budget: ${restoredMs} ms`,
+      );
+      await page.waitForTimeout(700);
+      const after = (await page.evaluate(
+        `(() => { const el = document.querySelector('[data-nav-scroller]'); return el ? el.scrollTop : -1; })()`,
+      )) as number;
+      const live = (await page.evaluate(
+        `(() => { let m = 0; for (const el of document.querySelectorAll("*")) { const st = getComputedStyle(el).overflowY; if ((st === "auto" || st === "scroll") && el.scrollTop > m) m = el.scrollTop; } return m; })()`,
+      )) as number;
+      console.log(
+        `[walk] scroll before the press ${before}, after Back ${live} (first read ${scrolled}, box now ${after})`,
+      );
+      assert.ok(Math.abs(live - before) <= 4, `Back lands on the same scroll: ${before} then ${live}`);
+    }
     // the control, as it looks: light and dark, desktop and phone width
     for (const scheme of ["light", "dark"] as const) {
       for (const [w, h, tag] of [

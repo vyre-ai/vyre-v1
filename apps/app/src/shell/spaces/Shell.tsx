@@ -7,6 +7,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { reportProblem } from "../../../../../ui/src/Menu/index.tsx";
 import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
+import { applyScroll, captureScroll, scrollMemory } from "../scroll-memory.ts";
 import { holdView, installMotion } from "../../../../../ui/src/theme/motion.ts";
 import type { Swap } from "../../../../../ui/src/theme/motion.ts";
 import {
@@ -51,6 +52,8 @@ import { shellKey } from "./keys.ts";
 
 /** A slow view stops holding the old one after this long: its own quiet sign takes over. */
 const HOLD_MAX_MS = 900;
+/** How long a returning page is given to draw tall enough for its old scroll to be put back. */
+const RESTORE_MAX_MS = 3000;
 import type { SpaceKind } from "./model.ts";
 import { SpaceSkeleton } from "./Skeleton.tsx";
 import { watchPurge } from "./purge.ts";
@@ -170,7 +173,47 @@ export function Sheets({
     if (!hub || Platform.OS !== "web") return undefined;
     installMotion((globalThis as { document?: Parameters<typeof installMotion>[0] }).document);
     let held: Swap | null = null;
+    // Back lands on the same scroll: what is scrolled is noted under the address before the view changes, and put back when that address returns
+    const memory = scrollMemory();
+    const where = (): string => `${hub.state().openId}|${hub.state().place}|${hub.state().hash}`;
+    let shown = where();
+    let restoring = 0;
+    const off = hub.subscribe(() => {
+      const now = where();
+      if (now === shown) return;
+      shown = now;
+      const saved = memory.get(now);
+      const mine = (restoring += 1);
+      if (!saved) return;
+      const began = Date.now();
+      let watcher: { disconnect(): void } | null = null;
+      const done = (): void => {
+        watcher?.disconnect();
+        watcher = null;
+      };
+      const again = (): void => {
+        if (mine !== restoring) return done();
+        // the page draws over a few frames and its rows may load after: try as the page changes (before the frame is painted) and on each frame, until its boxes are tall enough; three seconds at most
+        if (applyScroll(main.current, saved) === 0 || Date.now() - began >= RESTORE_MAX_MS) return done();
+        requestAnimationFrame(again);
+      };
+      const Observer = (
+        globalThis as {
+          MutationObserver?: new (f: () => void) => { observe(n: unknown, o: object): void; disconnect(): void };
+        }
+      ).MutationObserver;
+      if (Observer && main.current) {
+        const o = new Observer(() => {
+          if (mine !== restoring) return done();
+          if (applyScroll(main.current, saved) === 0) done();
+        });
+        o.observe(main.current, { childList: true, subtree: true });
+        watcher = o;
+      }
+      requestAnimationFrame(again);
+    });
     hub.setHolder(() => {
+      memory.note(shown, captureScroll(main.current));
       if (held !== null) return;
       const swap = holdView(main.current, main.current);
       if (swap === null) return;
@@ -192,7 +235,10 @@ export function Sheets({
       };
       requestAnimationFrame(wait);
     });
-    return () => hub.setHolder(null);
+    return () => {
+      off();
+      hub.setHolder(null);
+    };
   }, [hub]);
   const [left, setLeft] = useState<unknown>(null);
   const [right, setRight] = useState<unknown>(null);
