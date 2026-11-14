@@ -332,6 +332,55 @@ function policyOf(p: PolicyRec): Policy | null {
   return null;
 }
 
+// F49 (14 Nov 2026): the Space-level grant of each built-in role used to be added only to the snapshot the host decides with, so access.reach and access.check (built here) said "none" for what a member may use.
+// The answers a screen asks for (check, reach) add them through `decisionSnapshot`; the store itself stays as the events left it.
+/** the Space level each built-in role carries in a Space nothing was seeded in, the same as the seeded roles. Guest (and Temp) get nothing Space-wide: they only hold per-resource grants. */
+const BUILT_IN_LEVEL: Readonly<Record<string, "manage" | "edit">> = {
+  rol_owner: "manage",
+  rol_admin: "manage",
+  rol_developer: "edit",
+  rol_member: "edit",
+};
+
+/**
+ * A role carries permissions; the Space-level grant is what lets them act. A role the Space was seeded with (owner, admin, manager, member, temp) arrives with its grants and keeps exactly
+ * those. The built-in rol_* roles get their standard level (BUILT_IN_LEVEL). A role made through access.roles.create has none, so one that holds permissions gets an Edit grant on the Space
+ * (Manage when it is an elevated role or holds access.manage). A role with no permissions confers nothing.
+ */
+const ROLE_GRANTED = new WeakSet<AccessSnapshot>();
+export function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string): AccessSnapshot {
+  if (ROLE_GRANTED.has(snap)) return snap;
+  ROLE_GRANTED.add(snap);
+  const have = new Set<string>();
+  for (const g of store.grants.values())
+    if (g.subject.kind === "role" && g.resource.type === "space") have.add(g.subject.id);
+  for (const r of store.roles.values()) {
+    if (have.has(r.id) || !r.id.startsWith("rol_")) continue;
+    let level = BUILT_IN_LEVEL[r.id];
+    if (!level) {
+      if (r.builtIn || r.permissions.length === 0) continue;
+      level = isElevatedRole(r.id, r.name) || r.permissions.includes("access.manage") ? "manage" : "edit";
+    }
+    snap.putGrant({
+      id: `gr_role_${r.id}`,
+      subject_kind: "role",
+      subject_id: r.id,
+      resource_type: "space",
+      resource_id: space,
+      level,
+      by: "svc_host",
+    });
+  }
+  return snap;
+}
+
+
+/** The snapshot the host decides with, for the handlers that tell a screen what the server would do (access.check, access.reach). */
+export function decisionSnapshot(store: AccessStore): AccessSnapshot {
+  const space = [...store.resources.values()].find((r) => r.type === "space");
+  return space ? asKeptWriter(() => withRoleGrants(store.snapshot(), store, space.id)) : store.snapshot();
+}
+
 export class AccessStore {
   epoch = 0;
   catalogue = new Set<string>();

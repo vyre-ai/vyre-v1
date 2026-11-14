@@ -215,6 +215,19 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
           }
           continue;
         }
+        // an inbox set to private (or to chosen people) leaves the Space's access: it is registered again with no parent, its owner and label kept, so only the owner and what is shared with it reach it
+        // (F48, 14 Nov 2026: the setting used to change the row and nothing else). Set back to the Space it goes back under it.
+        if (ev.type === "mailbox.privacy_changed" && deps.resource) {
+          const id = pointer(ev.payload, "/mailboxId"),
+            privacy = pointer(ev.payload, "/privacy");
+          const cur = typeof id === "string" ? deps.resource(id) : undefined;
+          if (cur && cur.type === "mailbox" && (privacy === "private" || privacy === "people" || privacy === "space")) {
+            const parent = privacy === "space" ? a.space : null;
+            if (cur.parent_id !== parent)
+              out.push({ id: cur.id, type: cur.type, parent_id: parent, label: cur.label, owner_id: cur.owner_id, holds: cur.holds });
+          }
+          continue;
+        }
         const extra = births.get(ev.type);
         if (extra) {
           const xid = pointer(ev.payload, extra.id);
