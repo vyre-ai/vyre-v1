@@ -7,7 +7,7 @@ import { glyphOf, tintOf } from "../picker/glyphs.ts";
 import type { Sentence, Story } from "../story/model.ts";
 import { look } from "./look.ts";
 
-export type StoryAction = "bar" | "need" | "open" | "add" | "test" | "primary" | "secondary" | "ask" | "insert";
+export type StoryAction = "bar" | "need" | "open" | "add" | "test" | "primary" | "secondary" | "ask" | "insert" | "trigger";
 
 function Btn({
   id,
@@ -135,6 +135,17 @@ export function StoryView({
       ))}
       <ScrollView contentContainerStyle={s.rows}>
         {/* ui-rows-lint: not a list (sentence rows with inline data chips; a Row title is plain text) */}
+        {!readOnly && !story.rows.some((r) => r.kind === "trigger") ? (
+          <Pressable
+            testID="sv-choose-trigger"
+            accessibilityRole="button"
+            onPress={(e) => on("trigger", undefined, e)}
+            style={s.row}
+          >
+            <Text style={[s.no, s.when]}>When</Text>
+            <Text style={s.sentence}>Choose what starts this</Text>
+          </Pressable>
+        ) : null}
         {story.rows.map((r) => {
           if (r.kind === "label" || r.kind === "head")
             return (
@@ -146,6 +157,7 @@ export function StoryView({
               </Text>
             );
           const split = r.kind === "trigger" ? splitHead(r.sentence) : null;
+          const lastTrigger = r.kind === "trigger" && !story.rows.slice(story.rows.indexOf(r) + 1).some((x) => x.kind === "trigger");
           return (
             <View key={r.id}>
               <Pressable
@@ -194,6 +206,17 @@ export function StoryView({
                   ) : null}
                 </View>
               </Pressable>
+              {!readOnly && lastTrigger ? (
+                <Pressable
+                  testID="sv-add-trigger"
+                  accessibilityRole="button"
+                  accessibilityLabel="Add another thing that starts this"
+                  onPress={(e) => on("trigger", undefined, e)}
+                  style={s.slot}
+                >
+                  <Text style={look.quiet}>Or</Text>
+                </Pressable>
+              ) : null}
               {!readOnly && story.slots.includes(r.id) ? (
                 <Pressable
                   testID={`sv-slot-${r.id}`}

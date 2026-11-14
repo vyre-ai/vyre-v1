@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { find, flush, installDom, mount, press } from "../../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { AutomationsDataProvider } from "../canvas/data.tsx";
 import { createSampleAutomations, northwind } from "../sidebar/sample.ts";
 import { BuilderPage } from "./BuilderPage.tsx";
@@ -86,4 +86,35 @@ test("a person without the right: no Turn on or off, no +, no Add a step, no ste
   assert.ok(find(root, "read-only-note"), "one line says who can edit");
   await new Promise((r) => setTimeout(r, 1200));
   assert.equal(updates(s).length, 0, "no write");
+});
+
+test("a trigger can be added by hand: an empty Automation shows one row, Choose what starts this; Or adds another", async () => {
+  installDom();
+  const s = createSampleAutomations(northwind);
+  const row = s.replica.rows("automations").find((r) => r["id"] === "aut_nurture")!;
+  const root0 = await mount(
+    createRoot,
+    <AutomationsDataProvider value={s.data}>
+      <BuilderPage automationId="aut_digest" />
+    </AutomationsDataProvider>,
+  );
+  await flush();
+  assert.ok(find(root0, "sv-add-trigger"), "Or is offered after the trigger");
+  assert.equal(find(root0, "sv-choose-trigger"), null, "a trigger exists, so no empty row");
+  void row;
+  const s2 = createSampleAutomations(northwind);
+  const mine = s2.replica.rows("automations").find((r) => r["id"] === "aut_digest")!;
+  s2.replica.put("automations", [{ ...mine, status: "off", definition: { triggers: [], nodes: [] } }]);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={s2.data}>
+      <BuilderPage automationId="aut_digest" />
+    </AutomationsDataProvider>,
+  );
+  await flush();
+  assert.ok(find(root, "sv-choose-trigger"), "one row, Choose what starts this");
+  const before = textOf(root);
+  await press(find(root, "sv-choose-trigger"));
+  await flush();
+  assert.notEqual(textOf(root), before, "pressing it opens the list of what can start this: never a silent press");
 });

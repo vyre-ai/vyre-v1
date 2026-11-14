@@ -30,3 +30,4 @@
 - chore: the shots script takes --size=phone (390 wide).
 - fix: a draft carries the version it started on and every save sends that base; when another person saved first nothing is overwritten and nothing is retried: the page says so and offers See theirs (after a confirm) or Keep mine as a copy; autosave stops until the person chooses.
 - fix: a person who may not edit sees no Turn on or off, no Run now, no + and no Add a step, no step form, and one line saying why.
+- feat: a trigger can be added by hand: an empty Automation shows one row, Choose what starts this, and Or adds another from the list of what this person can use; a trigger can be removed from its form.

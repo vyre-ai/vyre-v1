@@ -15,6 +15,8 @@ import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } f
 import { Inspector } from "../canvas/Inspector.tsx";
 import {
   addAfter,
+  addTrigger,
+  removeTrigger,
   check,
   describeTrigger,
   removeStep,
@@ -416,6 +418,25 @@ function Body({
             else flash("Connected. Pick it on the step.");
           });
       } else setSel(id);
+    } else if (action === "trigger") {
+      const p = pos(e);
+      const triggers = catalog?.triggers ?? [];
+      const entries: MenuEntry[] =
+        catalog === null
+          ? [{ label: "Loading what can start this", onSelect: () => undefined }]
+          : triggers.length === 0
+            ? [{ label: "Nothing is available to start this", onSelect: () => undefined }]
+            : triggers
+                // a Personal Space has no web request trigger, and a trigger nobody can use is not offered
+                .filter((t) => t.availability !== "unavailable" && !(data.personalSpace === true && t.key === "webhook"))
+                .map((t) => ({
+                  label: t.availability === "preview" ? `${t.title} (Preview)` : t.title,
+                  onSelect: () => {
+                    edit(addTrigger(def, t.key));
+                    setSel(def.triggers.length === 0 ? "trigger" : `trigger:${def.triggers.length}`);
+                  },
+                }));
+      show(entries, p.x, p.y, "other");
     } else if (action === "add" || action === "insert") {
       const p = pos(e);
       setPicker({ after: action === "insert" && id ? id : (def.nodes.at(-1)?.id ?? null), x: p.x, y: p.y });
@@ -504,6 +525,10 @@ function Body({
       {...(stepSchema !== undefined ? { inputSchema: stepSchema } : {})}
       onChange={edit}
       onClose={() => setSel(null)}
+      onRemoveTrigger={(i) => {
+        edit(removeTrigger(def, i));
+        setSel(null);
+      }}
       onDelete={() => {
         if (selNode) {
           edit(removeStep(def, selNode.id));
