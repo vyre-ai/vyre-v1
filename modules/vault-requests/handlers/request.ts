@@ -547,13 +547,20 @@ export async function requestsFulfil(
         );
     }
     const made = asRow(
-      await ctx.call("vault.item.put", {
-        folderId,
-        name: row.name,
-        kind: "api_key",
-        fields: (input.fields ?? []).map((f) => ({ key: f.key, value: f.value, secret: true })),
-        idempotencyKey: `${row.id}:put`,
-      }),
+      await ctx
+        .call("vault.item.put", {
+          folderId,
+          name: row.name,
+          kind: "api_key",
+          fields: (input.fields ?? []).map((f) => ({ key: f.key, value: f.value, secret: true })),
+          idempotencyKey: `${row.id}:put`,
+        })
+        .catch((e: unknown) => {
+          // a folder the caller cannot see answers exactly as one that does not exist, and as one the agent cannot use: the same words for all three, so this call is no way to learn that a folder is there
+          if ((e as { error?: { code?: string } })?.error?.code === "validation.not_found")
+            raise(trace, "validation.precondition_failed", RESTRICTED_FOLDER_WORDS);
+          throw e;
+        }),
     );
     itemId = strOf(asRow(made?.["item"])?.["id"]);
     handle = strOf(asRow(made?.["item"])?.["handle"]);
