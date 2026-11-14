@@ -17,6 +17,8 @@ export interface Shortcut {
 export const KEYBOARD_MAP: readonly Shortcut[] = [
   { id: "cmdk.open", combo: "Cmd-K", title: "Search", scope: "shell" },
   { id: "tab.new", combo: "Cmd-T", title: "New tab", scope: "shell" },
+  { id: "nav.back", combo: "Cmd-[", title: "Back", scope: "shell" },
+  { id: "nav.forward", combo: "Cmd-]", title: "Forward", scope: "shell" },
   { id: "agent.jump", combo: "Cmd-1", title: "Jump to a starred agent", scope: "chats", digits: [1, 9] },
   { id: "space.switch", combo: "Shift-Cmd-1", title: "Switch Space", scope: "shell", digits: [1, 3] },
   { id: "star.toggle", combo: "Cmd-D", title: "Star", scope: "shell" },
@@ -66,10 +68,19 @@ export function matchShortcut(e: KeyLike, platform: Platform, ctx: { inTerminal?
   const other = platform === "mac" ? e.ctrlKey === true : e.metaKey === true;
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (e.altKey === true && !mod && !e.shiftKey && key === "ArrowDown") return { id: "unread.next" };
+  // Back and Forward: Cmd-[ and Cmd-] on a Mac; Ctrl-[ and Ctrl-] or Alt-Left and Alt-Right elsewhere. Alt-Left is a word move in a Mac text field, so it is not Back there. A terminal keeps them.
+  if (!ctx.inTerminal && platform === "other" && e.altKey === true && !mod && !other && !e.shiftKey) {
+    if (key === "ArrowLeft") return { id: "nav.back" };
+    if (key === "ArrowRight") return { id: "nav.forward" };
+  }
   if (!mod || other) return null;
   const shift = e.shiftKey === true,
     alt = e.altKey === true;
   if (alt) return null;
+  if (!ctx.inTerminal && !shift) {
+    if (key === "[") return { id: "nav.back" };
+    if (key === "]") return { id: "nav.forward" };
+  }
   const digit = /^Digit([1-9])$/.exec(e.code ?? "")?.[1] ?? (/^[1-9]$/.test(key) ? key : null);
   if (digit !== null) {
     const n = Number(digit);

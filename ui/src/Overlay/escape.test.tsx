@@ -97,3 +97,39 @@ test("one listener serves any number of layers", () => {
     d.restore();
   }
 });
+
+test("when a layer goes, focus returns to the control that opened it (unless something else holds focus)", async () => {
+  const g = globalThis as { document?: Record<string, unknown> };
+  const had = g.document;
+  const body = {};
+  const opener = {
+    isConnected: true,
+    focused: 0,
+    focus() {
+      this.focused += 1;
+    },
+  };
+  const doc: Record<string, unknown> = {
+    body,
+    activeElement: opener,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  };
+  g.document = doc;
+  try {
+    const close = pushEscapeLayer(() => undefined);
+    doc["activeElement"] = body; // the layer drew and took focus, then went: nothing holds focus
+    close();
+    await new Promise((r) => setTimeout(r, 5));
+    assert.equal(opener.focused, 1, "the opener has focus again");
+    const other = { isConnected: true };
+    const close2 = pushEscapeLayer(() => undefined);
+    doc["activeElement"] = other; // a field in the page took focus on purpose
+    close2();
+    await new Promise((r) => setTimeout(r, 5));
+    assert.equal(opener.focused, 1, "focus someone else holds is left alone");
+  } finally {
+    if (had === undefined) delete g.document;
+    else g.document = had;
+  }
+});

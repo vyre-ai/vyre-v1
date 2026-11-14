@@ -1,37 +1,21 @@
-// The URL carries both the place and its item. Browser history and copied links
-// use the same hub navigation as opening an item inside a place.
+// The URL carries both the place and its item. The browser's Back and Forward, the keys, the mouse buttons and the swipe all run the tab's own Back and Forward
+// (history-bridge.ts); a copied link or a hand-edited address opens its place and item through the same hub navigation as opening an item inside a place.
 import { useEffect } from "react";
-import { useHubState } from "../spaces/context.tsx";
 import type { ShellHub } from "../spaces/hub.ts";
-import { hubUrl, readUrlIntoHub } from "./url.ts";
+import { startHistoryBridge } from "./history-bridge.ts";
+import { startNavInput } from "./nav-input.ts";
+import type { BridgeWindow } from "./history-bridge.ts";
 
 export function UrlSync({ hub }: { hub: ShellHub }): null {
-  const state = useHubState(hub);
-
   useEffect(() => {
-    if (typeof window === "undefined" || !window.location) return;
-    const read = (): void => {
-      readUrlIntoHub(hub, window.location);
-    };
-    read();
-    window.addEventListener("popstate", read);
-    window.addEventListener("hashchange", read);
+    if (typeof window === "undefined" || !window.location) return undefined;
+    const stopBridge = startHistoryBridge(hub, window as unknown as BridgeWindow);
+    const desktop = (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined;
+    const stopInput = startNavInput(hub, document, { desktop });
     return () => {
-      window.removeEventListener("popstate", read);
-      window.removeEventListener("hashchange", read);
+      stopBridge();
+      stopInput();
     };
   }, [hub]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.location) return;
-    const next = hubUrl(hub, window.location.search);
-    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (!next || next === current) return;
-    // The shell already owns the rendered tab. Routing the URL through Expo can
-    // replay older asynchronous transitions and remount an editor after typing.
-    // Commit history synchronously; copied loads and Back/Forward still use read.
-    window.history.pushState(window.history.state, "", next);
-  }, [state.place, state.hash, hub]);
-
   return null;
 }

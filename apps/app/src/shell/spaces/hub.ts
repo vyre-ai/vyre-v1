@@ -5,7 +5,7 @@
 import type { ThemeController } from "../../../../../ui/src/theme/index.ts";
 import { NO_SCREEN_PLACES, PLACE_TITLE, kitById, livePlace, railFor } from "../rail/kits.ts";
 import type { KitDef, PlaceId, RailGroups } from "../rail/kits.ts";
-import { activeEntry, createTabsController, screenTitle, tabKey } from "../tabs/store.ts";
+import { activeEntry, backTarget, createTabsController, forwardTarget, screenTitle, tabKey } from "../tabs/store.ts";
 import type { TabEntry, TabsController, TabsStorage } from "../tabs/store.ts";
 import type { SpaceDef } from "./model.ts";
 
@@ -64,6 +64,13 @@ export interface HubState {
   error: string | null;
   /** A place that just joined the open Space's rail; null once it has settled. */
   fresh: FreshPlace | null;
+  /** Where Back and Forward would go from the tab on screen: the name of that place, or null when there is nowhere. */
+  nav?: NavState;
+}
+
+export interface NavState {
+  back: string | null;
+  forward: string | null;
 }
 
 export interface HubOptions {
@@ -106,6 +113,10 @@ export interface ShellHub {
   retry(): void;
   /** Navigate: open a place (or an item in it) as a tab and show it. */
   go(place: PlaceId, hash?: string, background?: boolean): void;
+  /** Back in the tab on screen: a step it took, the tab it was opened from, or one level up. False when there is nowhere to go. */
+  back(): boolean;
+  /** Forward in the tab on screen, after Back. */
+  forward(): boolean;
   /** The person went somewhere inside the place on screen: the selected tab follows, no tab opens (tabs/store.ts moveTab). */
   move(place: PlaceId, hash?: string): void;
   /** The "+" tab on screen becomes this place and item (a chat started from its search): the same tab, named, no second tab (tabs/store.ts fillTab). */
@@ -223,9 +234,28 @@ export function createShellHub(options: HubOptions): ShellHub {
 
   function build(): HubState {
     const s = open();
-    return { openId, phase, epoch, place: s.place, hash: s.hash, away, online, waiting, status, error, fresh };
+    const tabs = s.tabs.state();
+    const back = backTarget(tabs);
+    const fwd = forwardTarget(tabs);
+    const nav: NavState = { back: back === null ? null : back.title, forward: fwd === null ? null : fwd.title };
+    return { openId, phase, epoch, place: s.place, hash: s.hash, away, online, waiting, status, error, fresh, nav };
   }
   snap = build();
+
+  /** Back or Forward in the tab on screen; the page shows what the tab shows afterwards. */
+  function step(run: (tabs: TabsController) => boolean): boolean {
+    const s = open();
+    holder?.();
+    if (!run(s.tabs)) return false;
+    const now = s.tabs.state();
+    const t = now.tabs.find((x) => x.key === now.active);
+    if (t !== undefined) {
+      s.place = t.place;
+      s.hash = t.hash ?? "";
+    }
+    emit();
+    return true;
+  }
 
   function emit(): void {
     snap = build();
@@ -406,6 +436,12 @@ export function createShellHub(options: HubOptions): ShellHub {
         s.hash = same ? (t.hash ?? "") : (hash ?? "");
       }
       emit();
+    },
+    back() {
+      return backTarget(open().tabs.state()) !== null && step((tabs) => tabs.back());
+    },
+    forward() {
+      return forwardTarget(open().tabs.state()) !== null && step((tabs) => tabs.forward());
     },
     move(place, hash) {
       const s = open();
