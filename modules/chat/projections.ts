@@ -604,6 +604,11 @@ export function messageBy(db: Db, id: string): MessageRec | null {
 export function stepsFor(blocks: MessageRec["blocks"], mayDetail: boolean): MessageRec["blocks"] {
   if (mayDetail) return blocks;
   return blocks.map((b) => {
+    // the agent's browser: the picture of the page, its site and what a held send says belong to the person whose turn it is; others read that a browser was used (F51)
+    if (b["type"] === "chrome_step" || b["type"] === "browser_screenshot" || (b["type"] === "screenshot" && (b["data"] as { live?: unknown } | undefined)?.live === true))
+      return { type: "turn_status", v: 1, id: b["id"], data: { state: "note", text: "Using a browser" } } as (typeof blocks)[number];
+    if (b["type"] === "chrome_held")
+      return { type: "turn_status", v: 1, id: b["id"], data: { state: "note", text: "Waiting for the person's OK" } } as (typeof blocks)[number];
     if (b["type"] === "turn_status") {
       // the account that failed is the asker's: its Vault handle goes to them alone; the others still read that it failed and why
       const { account: _a, ...rest } = ((b["data"] ?? {}) as Record<string, unknown>);

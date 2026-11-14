@@ -54,3 +54,21 @@ test("a failed turn's status names the account that failed to the asker only; ot
   assert.equal(other.includes("Alice_Claude"), false);
   assert.equal(other.includes("engine.signin_missing"), true, "the plain reason stays");
 });
+
+test("the agent's browser cards: the asker sees the site, the summary and the picture; others read that a browser was used", () => {
+  const cards = {
+    ...reply,
+    blocks: [
+      { type: "chrome_step", v: 1, id: "c1", data: { agentId: "agt_x", site: "mybank.example", thumb: "data:image/png;base64,AAAA", state: "using" } },
+      { type: "chrome_held", v: 1, id: "c2", data: { heldId: "h1", site: "mybank.example", kind: "payment", summary: "Pay 4,000 to Dana", state: "waiting" } },
+      { type: "screenshot", v: 1, id: "c3", data: { computerId: "agt_x", fileId: "fil_private_shot", caption: "Opened mybank.example/accounts", live: true } },
+      { type: "browser_screenshot", v: 1, id: "c5", data: { agentId: "agt_x", fileId: "fil_space_browser_shot", caption: "Opened mybank.example", live: true } },
+      { type: "screenshot", v: 1, id: "c4", data: { computerId: "agt_x", fileId: "fil_asked_for", caption: "A shot you asked for" } },
+    ],
+  } as unknown as MessageRec;
+  assert.equal(JSON.stringify(messageOut(cards, 0, "usr_alice")).includes("mybank.example"), true, "the asker sees their own page");
+  const other = JSON.stringify(messageOut(cards, 0, "usr_bob"));
+  for (const gone of ["mybank", "Pay 4,000", "fil_private_shot", "fil_space_browser_shot", "AAAA"]) assert.equal(other.includes(gone), false, gone);
+  assert.equal(other.includes("Using a browser"), true);
+  assert.equal(other.includes("fil_asked_for"), true, "a picture someone posted on purpose is not a live card");
+});
