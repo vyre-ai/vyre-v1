@@ -17,6 +17,7 @@ import { MASK, formatEnv, keysOf } from "./env.ts";
 import { AutomationsRow } from "./AutomationsRow.tsx";
 import { hiddenOf, trashLine, usedByOf } from "./automations.ts";
 import { WhoCanUse } from "./WhoCanUse.tsx";
+import { moveChoices, moveEntries, useAgentsThatCannot } from "./restricted.ts";
 import { createRevealStore } from "./reveal.ts";
 import type { RevealStore } from "./reveal.ts";
 
@@ -150,6 +151,18 @@ export function ItemEnv({
     if (revealAll && fieldKeys.length > 0) void store.reveal(fieldKeys);
   }, [revealAll, fieldKeys.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // F35: the agents this item is shared with that cannot use it where it is kept (a Mine item is the owner's own and an agent works as them, so there is nothing to ask)
+  const sharedAgents =
+    got.status === "ready" && (got.data.item as { scope?: string }).scope !== "mine"
+      ? (shares ?? []).filter((x) => x.subject.kind === "agent" && x.through === "direct").map((x) => x.subject)
+      : [];
+  const cannotUse = useAgentsThatCannot(
+    data.call,
+    got.status === "ready" ? { type: "vault_item", id: itemId } : null,
+    sharedAgents,
+    got.status === "ready" ? got.data.item.folderId.length + sharesAt : sharesAt,
+  );
+
   if (got.status !== "ready") return <DetailSkeleton />;
   const item = got.data.item;
   const fields = got.data.fields;
@@ -242,6 +255,37 @@ export function ItemEnv({
     } catch (e) {
       fail(e);
     }
+  };
+
+  // Move, from the line under an agent that cannot use this item or from the share sheet: Mine and the folders those agents can use are choosable, the other shared folders are listed and are not
+  const openMove = async (e?: unknown, only?: readonly string[]): Promise<void> => {
+    const r = rectOf(e);
+    const agents = only ? only.map((id) => ({ kind: "agent", id })) : sharedAgents.filter((a) => cannotUse.has(a.id));
+    const all = folders.status === "ready" ? folders.data.folders : [];
+    const choices = await moveChoices(
+      data.call,
+      all.map((f) => ({ id: f.id, name: f.name, scope: f.scope })),
+      agents,
+      item.folderId,
+    );
+    menu.show(
+      moveEntries(choices, (to) => {
+        const from = item.folderId;
+        void data
+          .call("vault.item.move", { itemId, folderId: to })
+          .then(() => {
+            setSharesAt((n) => n + 1);
+            onNote(`Moved ${item.name}`, async () => {
+              await data.call("vault.item.move", { itemId, folderId: from });
+              setSharesAt((n) => n + 1);
+            });
+          })
+          .catch(fail);
+      }),
+      r.x,
+      r.y,
+      "other",
+    );
   };
 
   // Share: the one Access sheet. A Mine item is yours alone, so it says so instead.
@@ -344,6 +388,10 @@ export function ItemEnv({
           name={item.name}
           onClose={() => setSharing(false)}
           onChanged={() => setSharesAt((n) => n + 1)}
+          onMove={(ids) => {
+            setSharing(false);
+            void openMove(undefined, ids);
+          }}
         />
       ) : null}
       <View style={s.bar}>
@@ -551,6 +599,8 @@ export function ItemEnv({
               }}
               onShare={(e) => openShare(e)}
               onMenu={(entries, x, y) => menu.show(entries, x, y, "other")}
+              cannotUse={cannotUse}
+              onMove={(e) => void openMove(e)}
             />
           )}
 
@@ -578,6 +628,8 @@ export function ItemEnv({
 }
 
 function rectOf(e: unknown): { x: number; y: number } {
+  // no press to anchor to (Move from the share sheet, which has just closed): near the top of the item
+  if (e === undefined || e === null) return { x: 260, y: 140 };
   const ev = e as {
     currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
     nativeEvent?: { pageX?: number; pageY?: number };

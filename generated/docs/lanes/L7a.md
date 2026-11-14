@@ -6,7 +6,7 @@ Generated from the manifests. The lead completes it by hand (spec sections, reus
 
 ### access
 
-Capabilities to implement: 75. Events to emit: 21. Contract tests that must go green: `generated/tests/access/`.
+Capabilities to implement: 76. Events to emit: 21. Contract tests that must go green: `generated/tests/access/`.
 
 Capabilities:
 - access.actors.create (write, access.manage, level view)
@@ -20,6 +20,7 @@ Capabilities:
 - access.audience_set (write, grant only, level view)
 - access.automation_senders (write, grant only, level view)
 - access.check (read, access.manage, level view)
+- access.clears (read, grant only, level view)
 - access.connector_builder.grant (write, access.manage, level view)
 - access.connector_builder.status (read, grant only, level view)
 - access.deciders (read, grant only, level view)
@@ -511,9 +512,16 @@ Events:
 
 ### vault-requests
 
-Capabilities to implement: 6. Events to emit: 4. Contract tests that must go green: `generated/tests/vault-requests/`.
+Capabilities to implement: 13. Events to emit: 4. Contract tests that must go green: `generated/tests/vault-requests/`.
 
 Capabilities:
+- vault.connect (write, grant only, level view)
+- vault.connect_card.ask_admin (write, grant only, level view)
+- vault.connect_card.disconnect (write, grant only, level view)
+- vault.connect_card.get (read, grant only, level view)
+- vault.connect_card.options (read, grant only, level view)
+- vault.connect_card.reopen (write, grant only, level view)
+- vault.connect_card.submit (write, grant only, level view)
 - vault.request (write, grant only, level view)
 - vault.requests.cancel (write, grant only, level view)
 - vault.requests.decline (write, grant only, level view)

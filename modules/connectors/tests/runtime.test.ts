@@ -56,7 +56,7 @@ test("every capability of the connectors manifest (framework, connections, synce
     .filter((c) => c.module === "connectors")
     .map((c) => c.name)
     .sort();
-  assert.equal(names.length, 62);
+  assert.equal(names.length, 64);
   assert.deepEqual(Object.keys(loaderHandlers).sort(), names);
   assert.deepEqual(Object.keys(kit().hs).sort(), names);
 });

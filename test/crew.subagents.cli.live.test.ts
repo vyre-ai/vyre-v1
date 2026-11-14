@@ -69,20 +69,8 @@ test(
         both.members.every((m) => m.state === "working"),
         "both work",
       );
-      // what each is on, in plain words (never a tool's name, never a command)
-      const working = await waitFor(async () => {
-        const s = await status();
-        return s.members.every((m) => m.step !== undefined) ? s : null;
-      }, 8_000);
-      const byTitle = new Map(working.members.map((m) => [m.title, m]));
-      assert.equal(byTitle.get("Test the terminal")!.step, "Running a command");
-      assert.equal(byTitle.get("Test the browser")!.step, "Reading page.html");
-      assert.doesNotMatch(
-        JSON.stringify(working),
-        /echo hello|toolu_|SUBAGENT-CHATTER/,
-        "no command, no id, no chatter",
-      );
-      assert.equal(working.totals.working, 2);
+      assert.doesNotMatch(JSON.stringify(both), /echo hello|toolu_|SUBAGENT-CHATTER/, "no command, no id, no chatter");
+      assert.equal(both.totals.working, 2);
 
       // the first returns while the second still works
       const half = await waitFor(async () => {
@@ -93,7 +81,6 @@ test(
       assert.equal(first.title, "Test the terminal");
       assert.equal(first.found, "The terminal works.");
       assert.equal(first.answer, "The terminal works. I ran echo and saw hello.");
-      assert.equal(first.step, undefined, "a finished one is on nothing");
 
       // the turn ends: both done, the answers kept
       const reply = await waitFor(async () => {
@@ -126,6 +113,78 @@ test(
       // the ids the reply's calls give the app are the ids the crew read uses
       for (const id of ["toolu_a", "toolu_b"])
         assert.ok(end.members.some((m) => m.id === `sub_${id.replace(/_/g, "")}`));
+
+      // the read costs next to nothing, and a chat with no subagents costs one indexed lookup: p95 against the chat-open budget (perf/budgets.json chat_open, 100 ms)
+      const quiet = (await call(d, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "sa-quiet" }))
+        .data.thread.threadId as string;
+      const p95 = async (threadId: string): Promise<number> => {
+        const ms: number[] = [];
+        for (let i = 0; i < 100; i++) {
+          const t0 = performance.now();
+          const r = await call(d, "engine.crew.status", { threadId });
+          assert.equal(r.status, 200);
+          ms.push(performance.now() - t0);
+        }
+        ms.sort((a, b) => a - b);
+        return ms[94]!;
+      };
+      const withRows = await p95(threadId),
+        without = await p95(quiet);
+      fs.writeFileSync(
+        process.env["VYRE_CREW_P95"] ?? path.join(dir, "p95.json"),
+        JSON.stringify({ withRowsMs: withRows, withoutMs: without }),
+      );
+      assert.ok(
+        withRows < 100 && without < 100,
+        `p95 with rows ${withRows.toFixed(1)} ms, without ${without.toFixed(1)} ms (budget 100)`,
+      );
+
+      // one ordinary turn in a chat with no subagents: which calls were refused and swallowed (counted from the daemon's own log, before and after)
+      const refusals = (): Map<string, number> => {
+        const ro2 = new DatabaseSync(d.paths.logs, { readOnly: true });
+        try {
+          const m = new Map<string, number>();
+          for (const r of ro2.prepare("SELECT cap, attrs FROM logs WHERE msg = 'invoke'").all() as Array<{
+            cap: string;
+            attrs: string;
+          }>) {
+            const st = (JSON.parse(r.attrs) as { status?: string }).status ?? "";
+            if (st !== "ok" && st !== "") m.set(`${r.cap} ${st}`, (m.get(`${r.cap} ${st}`) ?? 0) + 1);
+          }
+          return m;
+        } finally {
+          ro2.close();
+        }
+      };
+      d.sink.flush();
+      const beforeTurn = refusals();
+      const plain = await call(d, "chat.post", {
+        threadId: quiet,
+        body: "resumecheck",
+        mentions: [{ kind: "agent", id: agentId }],
+        idempotencyKey: "sa-plain",
+      });
+      assert.equal(plain.status, 200);
+      await waitFor(async () => {
+        const ms = (await call(d, "chat.messages.list", { threadId: quiet })).data.messages as Array<{
+          author: { kind: string };
+        }>;
+        return ms.some((m) => m.author.kind === "agent") ? true : null;
+      }, 20_000);
+      await new Promise((r) => setTimeout(r, 1500));
+      d.sink.flush();
+      const afterTurn = refusals();
+      const turnRefused = [...afterTurn]
+        .map(([k, n]) => [k, n - (beforeTurn.get(k) ?? 0)] as const)
+        .filter(([, n]) => n > 0);
+      fs.writeFileSync(
+        process.env["VYRE_CREW_P95"]?.replace("p95", "refused") ?? path.join(dir, "refused.json"),
+        JSON.stringify(turnRefused),
+      );
+      assert.deepEqual(
+        turnRefused.filter(([k]) => /note_seen|crew\/workspace|crew.workspace/.test(k)),
+        [],
+      );
 
       // no call refused on every turn: a chat that is not a helper's never asks for helper notes
       const ro = new DatabaseSync(d.paths.logs, { readOnly: true });

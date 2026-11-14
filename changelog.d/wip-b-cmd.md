@@ -3,3 +3,4 @@
 - "/model" opens the model menu the message box already has, where you would press it, instead of a second list at a fixed spot.
 - Nothing a person sees changes: the shared set gains a Group (titled block with its own hairlines) and a card variant of the shared dialog that sits above the message box with no veil.
 - "/btw" now follows the same rules as the other command cards: one at a time, closed by your next message or a click outside, and as wide as the message box.
+- The usage card counts your use in "replies", not "turns".

@@ -227,3 +227,18 @@ Signed: pending the lead (lane b-pc did not sign it).
 - Who gains: a caller that sends the version it read is never silently overwritten. Who loses: nobody; no input was removed or made required, and a person's own edit in the app sends no version, so it saves as it did.
 - Not changed: agents have no tool that writes a note (`notes_create`, `notes_get` and `notes_search` only), so no agent can lose a note's text this way today; the version is ready for the day one does.
 - Signed: ______ (lead)
+
+## 14 Nov 2026: engine.round.get added (lane chat-agents)
+
+- What changed: one new read, `engine.round.get@1` (input: threadId, up to 50 messageIds; output: per message, each agent asked with its state working, waiting (with the agent in front), replied or stopped). Read from the engine's queue, never stored. Thread scope like `engine.live_turns`: only people who may read the chat reach it. Snapshot: docs/frozen/snapshots/engine.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: the row under a message that asked more than one agent (who is working, who waits on whom) needs one read that survives a restart; the prototype's round row and the Threads tab (G56, G61) draw from it.
+
+## 14 Nov 2026: chat.round.decide added (lane chat-agents)
+
+- What changed: one new write, `chat.round.decide@1` (input: threadId, messageId, agentId, idempotencyKey; output: the id of the line it leaves). After a message asked several agents and each answered, the person who asked goes with one answer: one quiet "Decided: going with Nova's answer" line (a link card authored by the person), no agent woken. Refused unless the caller is the author of the message and the agent answered after it. Snapshot: docs/frozen/snapshots/chat.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: the round table card's "Go with Nova" (G57); the answer line is the record that the round ended.
+
+## 14 Nov 2026: chat.round.discuss added (lane chat-agents)
+
+- What changed: one new write, `chat.round.discuss@1` (input: threadId, messageId, idempotencyKey; output: the thread). After a message asked several agents and at least two answered, the person who asked lets them talk it over: the inline thread under the message gets one message from the person with the answers and a request for one short turn each, ending on a "Decided:" line; the first agent is tagged and tags the next, so the engine's hand-off limits cap it at four turns. It emits `agent.engaged` for agents it brings into the thread. Snapshot: docs/frozen/snapshots/chat.json.
+- Why: the round table's "Let them discuss" (G57). It adds no new engine rule: the talk is ordinary turns on the asker's account, bounded by the hand-off limits of 4 Nov.

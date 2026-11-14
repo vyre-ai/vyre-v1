@@ -2,7 +2,7 @@
 // the moment the reply is posted (StreamEvent); this reads those for the threads that are crew jobs and nothing else. A finished teammate has its leftovers committed, its branch summarised, and posts one
 // message in the lead's chat, as itself and mentioning the lead, with a `crew_result` block. That message is the wake: the lead's turn starts from it the ordinary way, so nobody polls and nothing new is routed.
 import { noteSteps } from "./helper-tests.ts";
-import { noteOwn, settleOwn } from "./own-subagents.ts";
+import { hangOwn, noteOwn, settleOwn } from "./own-subagents.ts";
 import type { Db } from "./projections.ts";
 import type { EngineHostSeam } from "../../host/src/seams/engine.ts";
 import { commitLeftovers, summarize } from "./crew-git.ts";
@@ -214,7 +214,7 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
         /* the test state is best effort */
       }
       try {
-        noteOwn(o.db, e, [e], o.now());
+        noteOwn(o.db, { ...e, asker: askers.get(e.turnId) ?? askerOfTurn(e.turnId) ?? "" }, [e], o.now());
       } catch (err) {
         warn("a subagent step was not kept", {
           threadId: e.threadId,
@@ -222,6 +222,14 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
         });
       }
       return;
+    }
+    // the reply was posted: the engine's own subagents of that turn hang under it
+    if (e.kind === "final" && e.messageId) {
+      try {
+        hangOwn(o.db, e.turnId, e.messageId);
+      } catch {
+        /* the rows are best effort */
+      }
     }
     // a turn that ends takes any subagent of its own that never returned with it
     if (e.kind === "end") {

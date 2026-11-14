@@ -397,13 +397,17 @@ export function assignedName(t: Task, nameOf: (id: string) => string): string {
 }
 
 /** A key request (vault.request): its id and the fields it wants, from its own card. Null for any other task. */
-export function keyRequestOf(t: Task): { requestId: string; name: string } | null {
+export function keyRequestOf(t: Task): { requestId: string; name: string; service?: string } | null {
   const b = t.blocks.find((x) => x.type === "vault_request");
   const d = b?.data;
   if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
   const r = d as Record<string, unknown>;
   return typeof r["requestId"] === "string"
-    ? { requestId: r["requestId"], name: typeof r["name"] === "string" ? r["name"] : "" }
+    ? {
+        requestId: r["requestId"],
+        name: typeof r["name"] === "string" ? r["name"] : "",
+        ...(typeof r["service"] === "string" ? { service: r["service"] } : {}),
+      }
     : null;
 }
 
