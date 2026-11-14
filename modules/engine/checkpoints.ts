@@ -160,6 +160,8 @@ export interface Restored {
   restored: number;
   /** Files that did not exist at that point and were removed. */
   removed: number;
+  /** Paths that could not be put back or removed (the rest was). */
+  failed: number;
 }
 
 /** Put the folder back as it was at `sha`, one of this store's points. Takes a point of the present first. Only files of the work folder are touched. */
@@ -180,23 +182,37 @@ export async function restore(o: { gitDir: string; workDir: string; sha: string;
         "The change could not be read",
       )
     ).split("\0");
-    const changes: Array<{ status: string; mode: string; blob: string; file: string }> = [];
+    const changes: Array<{ status: string; mode: string; mode1: string; blob: string; file: string }> = [];
     for (let i = 0; i + 1 < raw.length; i += 2) {
       const meta = /^:(\d+) (\d+) ([0-9a-f]+) ([0-9a-f]+) ([A-Z])/.exec(raw[i] ?? "");
-      if (meta && raw[i + 1]) changes.push({ status: meta[5]!, mode: meta[2]!, blob: meta[4]!, file: raw[i + 1]! });
+      // a git repository inside the work folder is one entry (mode 160000, a commit id): it is kept as it is, never rewound, and its files are never read as files of the point
+      if (meta && raw[i + 1] && meta[1] !== "160000" && meta[2] !== "160000")
+        changes.push({ status: meta[5]!, mode: meta[2]!, mode1: meta[1]!, blob: meta[4]!, file: raw[i + 1]! });
     }
     // Every path below is the work folder's own: nothing is written, replaced or removed through a link. The paths come from git, but the folder is the agent's to arrange as it likes, so each one is
     // walked from the real work folder, one component at a time, and a component that is a link is never entered.
     const base = fs.realpathSync(o.workDir);
     let restored = 0;
     let removed = 0;
+    let failed = 0;
     // removals first (a path that is not in the point), so a folder that is about to become a file or a link is empty of them
-    for (const c of changes.filter((x) => x.status === "D")) if (removeIn(base, c.file)) removed++;
-    for (const c of changes.filter((x) => x.status !== "D")) {
-      await writeIn(o.gitDir, o.workDir, base, c.file, c.mode, c.blob);
-      restored++;
+    // never stops half way: a path that cannot be put back is counted and the rest goes on, so the folder and what the caller does next (hiding messages) never disagree about whether it happened
+    for (const c of changes.filter((x) => x.status === "D")) {
+      try {
+        if (removeIn(base, c.file)) removed++;
+      } catch {
+        failed++;
+      }
     }
-    return { undoPoint, restored, removed };
+    for (const c of changes.filter((x) => x.status !== "D")) {
+      try {
+        await writeIn(o.gitDir, o.workDir, base, c.file, c.mode, c.blob);
+        restored++;
+      } catch {
+        failed++;
+      }
+    }
+    return { undoPoint, restored, removed, failed };
   });
 }
 

@@ -8023,6 +8023,7 @@ export type ChatRewindIn = {
 export type ChatRewindOut = {
   restored: number;
   removed: number;
+  failed: number;
   at: number;
   undid: boolean;
 };
@@ -12805,6 +12806,7 @@ export type EngineRewindToOut = {
   at: number;
   restored: number;
   removed: number;
+  failed: number;
   undoPointId: string;
   undid: boolean;
 };

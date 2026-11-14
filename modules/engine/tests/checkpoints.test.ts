@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { checkpointTurn, erase, points, prune, pruneSpace, restore, snapshot, storeOf } from "../checkpoints.ts";
@@ -323,5 +324,62 @@ test("a folder too big to keep is skipped in the background with the reason, and
     assert.equal((await points({ gitDir: storeOf(data, dir), workDir: dir })).length, 0, "nothing was saved");
   } finally {
     fs.rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("a git repository inside the work folder is kept as one entry: going back neither throws nor leaves the folder half done", async () => {
+  const w = world();
+  try {
+    put(w.workDir, "keep.txt", "v1");
+    const proj = path.join(w.workDir, "proj");
+    fs.mkdirSync(proj);
+    const git = (...a: string[]) =>
+      spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t.invalid", ...a], { cwd: proj, encoding: "utf8" });
+    git("init", "-q");
+    fs.writeFileSync(path.join(proj, "a.txt"), "one");
+    git("add", "-A");
+    git("commit", "-qm", "one");
+    const p = await snapshot({ ...w, label: "turn p", now: 1_000_000 });
+    fs.writeFileSync(path.join(proj, "a.txt"), "two");
+    git("add", "-A");
+    git("commit", "-qm", "two");
+    put(w.workDir, "keep.txt", "v2");
+    put(w.workDir, "later.txt", "new");
+    const r = await restore({ ...w, sha: p.sha, now: 2_000_000 });
+    assert.equal(r.failed, 0);
+    assert.equal(read(w.workDir, "keep.txt"), "v1", "the files around it were put back");
+    assert.equal(read(w.workDir, "later.txt"), null);
+    assert.equal(
+      fs.readFileSync(path.join(proj, "a.txt"), "utf8"),
+      "two",
+      "the project inside is left exactly as it is",
+    );
+  } finally {
+    fs.rmSync(w.root, { recursive: true, force: true });
+  }
+});
+
+test("a path that cannot be put back is counted and the rest goes on: going back never stops half way", async () => {
+  const w = world();
+  try {
+    put(w.workDir, "a.txt", "1");
+    put(w.workDir, "b.txt", "1");
+    const p = await snapshot({ ...w, label: "turn p", now: 1_000_000 });
+    put(w.workDir, "a.txt", "2");
+    put(w.workDir, "b.txt", "2");
+    // a.txt becomes a folder that cannot be emptied: its content is read-only under a read-only folder
+    fs.rmSync(path.join(w.workDir, "a.txt"));
+    fs.mkdirSync(path.join(w.workDir, "a.txt"));
+    fs.writeFileSync(path.join(w.workDir, "a.txt", "x"), "x");
+    fs.chmodSync(path.join(w.workDir, "a.txt"), 0o500);
+    const r = await restore({ ...w, sha: p.sha, now: 2_000_000 });
+    fs.chmodSync(path.join(w.workDir, "a.txt"), 0o700);
+    assert.equal(read(w.workDir, "b.txt"), "1", "the other file was put back");
+    assert.ok(
+      r.failed >= 1 || fs.statSync(path.join(w.workDir, "a.txt")).isFile(),
+      "what could not be done is counted, or was done",
+    );
+  } finally {
+    fs.rmSync(w.root, { recursive: true, force: true });
   }
 });

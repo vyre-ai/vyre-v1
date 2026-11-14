@@ -128,7 +128,15 @@ export async function rewindIn(
   ctx: EngineCtx,
   input: { threadId: string; pointId: string; afterSeq: number; uptoSeq: number },
   dataDir: string | undefined,
-): Promise<{ agentId: string; at: number; restored: number; removed: number; undoPointId: string; undid: boolean }> {
+): Promise<{
+  agentId: string;
+  at: number;
+  restored: number;
+  removed: number;
+  failed: number;
+  undoPointId: string;
+  undid: boolean;
+}> {
   ensure(ctx.db);
   const who = person(ctx);
   const chat = await privateChat(ctx, input.threadId);
@@ -188,6 +196,7 @@ export async function rewindIn(
     at: point!.at,
     restored: r.restored,
     removed: r.removed,
+    failed: r.failed,
     undoPointId: `${agentId}.${r.undoPoint.sha}`,
     undid: undone.length > 0,
   };

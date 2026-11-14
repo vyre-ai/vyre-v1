@@ -3523,12 +3523,14 @@ if (!("agentId" in o2934)) e.push(p + "/agentId" + ': required');
 if (!("at" in o2934)) e.push(p + "/at" + ': required');
 if (!("restored" in o2934)) e.push(p + "/restored" + ': required');
 if (!("removed" in o2934)) e.push(p + "/removed" + ': required');
+if (!("failed" in o2934)) e.push(p + "/failed" + ': required');
 if (!("undoPointId" in o2934)) e.push(p + "/undoPointId" + ': required');
 if (!("undid" in o2934)) e.push(p + "/undid" + ': required');
 if ("agentId" in o2934) lf(o2934["agentId"], p + "/agentId", e, L10);
 if ("at" in o2934) lf(o2934["at"], p + "/at", e, L17);
 if ("restored" in o2934) lf(o2934["restored"], p + "/restored", e, L17);
 if ("removed" in o2934) lf(o2934["removed"], p + "/removed", e, L17);
+if ("failed" in o2934) lf(o2934["failed"], p + "/failed", e, L17);
 if ("undoPointId" in o2934) lf(o2934["undoPointId"], p + "/undoPointId", e, L597);
 if ("undid" in o2934) lf(o2934["undid"], p + "/undid", e, L3);
 }

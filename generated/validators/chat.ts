@@ -3842,10 +3842,12 @@ if (g2143 === "object") {
 if (g2143 === 'object') { const o2143 = x2143 as Record<string, unknown>;
 if (!("restored" in o2143)) e.push(p + "/restored" + ': required');
 if (!("removed" in o2143)) e.push(p + "/removed" + ': required');
+if (!("failed" in o2143)) e.push(p + "/failed" + ': required');
 if (!("at" in o2143)) e.push(p + "/at" + ': required');
 if (!("undid" in o2143)) e.push(p + "/undid" + ': required');
 if ("restored" in o2143) lf(o2143["restored"], p + "/restored", e, L17);
 if ("removed" in o2143) lf(o2143["removed"], p + "/removed", e, L17);
+if ("failed" in o2143) lf(o2143["failed"], p + "/failed", e, L17);
 if ("at" in o2143) lf(o2143["at"], p + "/at", e, L17);
 if ("undid" in o2143) lf(o2143["undid"], p + "/undid", e, L3);
 }

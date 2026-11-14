@@ -2003,6 +2003,7 @@ export default defineManifest({
           at: t.ts(),
           restored: t.int({ minimum: 0 }),
           removed: t.int({ minimum: 0 }),
+          failed: t.int({ minimum: 0 }),
           undoPointId: t.str({ maxLength: 120 }),
           undid: t.bool(),
         },

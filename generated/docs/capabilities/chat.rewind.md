@@ -37,6 +37,7 @@ type In = {
 type Out = {
   restored: number;
   removed: number;
+  failed: number;
   at: number;
   undid: boolean;
 };
@@ -63,6 +64,7 @@ type Out = {
   },
   "output": {
     "at": 1760000000000,
+    "failed": 1,
     "removed": 1,
     "restored": 1,
     "undid": true

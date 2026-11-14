@@ -40,6 +40,7 @@ type Out = {
   at: number;
   restored: number;
   removed: number;
+  failed: number;
   undoPointId: string;
   undid: boolean;
 };
@@ -69,6 +70,7 @@ type Out = {
   "output": {
     "agentId": "agt_a1b2c3",
     "at": 1760000000000,
+    "failed": 1,
     "removed": 1,
     "restored": 1,
     "undid": true,

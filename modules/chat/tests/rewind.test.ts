@@ -25,7 +25,7 @@ async function world() {
       },
       "engine.rewind.to": (i: any) => {
         engineCalls.push({ cap: "engine.rewind.to", input: i });
-        return { restored: 2, removed: 1, undid: false };
+        return { restored: 2, removed: 1, failed: 0, undid: false };
       },
     },
   });

@@ -38,9 +38,9 @@ export async function chatRewind(ctx: ChatCtx, input: { threadId: string; pointI
     pointId: input.pointId,
     afterSeq,
     uptoSeq,
-  })) as { restored: number; removed: number; undid: boolean };
+  })) as { restored: number; removed: number; failed?: number; undid: boolean };
   const files = done.restored + done.removed;
-  const n = files === 1 ? "1 file" : `${files} files`;
+  const n = (files === 1 ? "1 file" : `${files} files`) + (done.failed ? `, ${done.failed} could not be put back` : "");
   postLinkCard(
     ctx,
     t.id,
@@ -59,5 +59,5 @@ export async function chatRewind(ctx: ChatCtx, input: { threadId: string; pointI
         },
     done.undid ? "Came back to where you were" : `Went back${point!.after ? ` to before "${point!.after}"` : ""}`,
   );
-  return { restored: done.restored, removed: done.removed, at: point!.at, undid: done.undid };
+  return { restored: done.restored, removed: done.removed, failed: done.failed ?? 0, at: point!.at, undid: done.undid };
 }
