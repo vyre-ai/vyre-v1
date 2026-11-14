@@ -92,12 +92,13 @@ const titleOf = (k: TabKey): string => KIND_TITLE[k] ?? BASE_TITLE.get(k) ?? k;
 
 /**
  * The tabs of the chat's pane, in the order the prototype lists them (CTXK in a-data.js). The strip draws as many as the width holds and folds the rest behind its More menu, so the tail
- * (Knows, Routines, Terminal, Skills) is what More holds at the pane's usual width. A tab for something the chat does not have is not drawn.
+ * (Knows, Routines, Terminal, Skills) is what More holds at the pane's usual width. A tab for something the chat does not have is not drawn. `asked` is the tab a card or hook line pressed: a chat with one
+ * person adds Skills or Hooks only for that request.
  */
-export function kindTabs(kind: PaneKind, has: PaneHas): { key: TabKey; title: string }[] {
+export function kindTabs(kind: PaneKind, has: PaneHas, asked?: TabKey): { key: TabKey; title: string }[] {
   const order: TabKey[] =
     kind === "dm"
-      ? ["files", "kept"]
+      ? ["files", "kept", ...(asked === "skills" || asked === "hooks" ? [asked] : [])] // a chat with one person has no Skills or Hooks tab until a card or hook line asks for it, then it shows what was pressed
       : kind === "channel"
         ? ["threads", "files", "kept", "people"]
         : kind === "group"
