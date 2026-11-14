@@ -6494,6 +6494,7 @@ export type ChannelsMembersAddIn = {
   personIds: Array<string>;
   level?: "view" | "use" | "edit" | "manage";
   mentionedIn?: string;
+  fromStart?: boolean;
 };
 export type ChannelsMembersAddOut = {
   channel: {
@@ -8002,6 +8003,7 @@ export type ChatReplyDetailsOut = {
           factId: string;
           text: string;
           sourceTitle?: string;
+          kind?: string;
         }>;
       quotes: Array<{
           ref: string;
@@ -10271,6 +10273,9 @@ export type ConnectorsForServiceOut = {
         optional: boolean;
       }>;
     site?: string;
+    builtin: boolean;
+    host?: string;
+    checks: boolean;
   };
   connection?: {
     connectionId: string;
@@ -44426,7 +44431,7 @@ export type VaultConnectIn = {
   idempotencyKey: string;
 };
 export type VaultConnectOut = {
-  status: "connected" | "waiting_person" | "waiting_admin" | "declined";
+  status: "connected" | "waiting_person" | "waiting_admin" | "declined" | "no_connector";
   requestId?: string;
   tell: string;
 };
@@ -44461,6 +44466,8 @@ export type VaultConnectCardAskAdminOut = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{
@@ -44499,6 +44506,8 @@ export type VaultConnectCardDisconnectOut = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{
@@ -44537,6 +44546,8 @@ export type VaultConnectCardGetOut = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{
@@ -44587,6 +44598,8 @@ export type VaultConnectCardReopenOut = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{
@@ -44633,6 +44646,8 @@ export type VaultConnectCardSubmitOut = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{
@@ -48402,7 +48417,7 @@ export type AutomationRunsMigratedPayload = {
 export type AutomationTriggerDroppedPayload = {
   automationId: string;
   eventId: string;
-  reason: "self_trigger" | "depth_limit" | "paused" | "filter_error";
+  reason: "self_trigger" | "depth_limit" | "paused" | "filter_error" | "outsider";
 };
 export type AutomationUpdatedPayload = {
   automationId: string;
