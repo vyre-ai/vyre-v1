@@ -2265,6 +2265,8 @@ export default defineManifest({
         job: t.opt(t.bool()),
         copy: t.opt(t.bool()),
         typed: t.opt(t.bool()),
+        // the author has no standing in the Space (a guest): an Automation that triggers on a message does not run for it (automation.trigger_dropped, reason outsider)
+        outsider: t.opt(t.bool()),
         poke: t.opt(t.obj({ agentId: id.agent, by: id.user, outside: t.opt(t.bool()) })),
       },
       subject: ["thread", "/threadId"],

@@ -33,7 +33,7 @@ type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-expl
 const TRIGGERS = new Map(registry.triggers.map((t) => [t.key, t] as const));
 const rand = (): string =>
   Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("");
-export type DropReason = "self_trigger" | "depth_limit" | "paused" | "filter_error";
+export type DropReason = "self_trigger" | "depth_limit" | "paused" | "filter_error" | "outsider";
 
 export interface StartOpts {
   trigger: string;
@@ -664,6 +664,12 @@ export async function consumeEvent(
       if (m === false) continue;
       if (m === "filter_error") {
         out.push({ automationId: a.id, result: dropped(ctx, a, "filter_error", ev.id) });
+        continue;
+      }
+      // not run: the message was from a guest. An Automation runs under its own standing, which reaches what its owner's does; a person with no standing in the Space does not start one by posting (an opt-in on the
+      // trigger, set by the Automation's owner, would be one more condition here). Their words are never instructions to a step.
+      if (ev.type === "message.received" && (ev.payload as { outsider?: unknown } | undefined)?.outsider === true) {
+        out.push({ automationId: a.id, result: dropped(ctx, a, "outsider", ev.id) });
         continue;
       }
       if (a.status === "on" && overBurst(a.id, ctx.now())) {

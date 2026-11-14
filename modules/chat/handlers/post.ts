@@ -96,7 +96,10 @@ export function mayView(ctx: ChatCtx, type: "thread" | "channel", id: string): b
       resource: { type: string; id: string | null },
     ) => { effect?: string };
   };
-  return typeof host.authorize !== "function" || host.authorize({ perm: null, level: "view" }, { type, id }).effect === "allow";
+  return (
+    typeof host.authorize !== "function" ||
+    host.authorize({ perm: null, level: "view" }, { type, id }).effect === "allow"
+  );
 }
 export const mayViewChannel = (ctx: ChatCtx, channelId: string): boolean => mayView(ctx, "channel", channelId);
 
@@ -246,7 +249,12 @@ export function deliver(
   m: MessageRec,
   mentions: Mention[],
   author: { kind: "person" | "agent" | "actor" | "service"; id: string },
-  opts: { notify?: boolean; job?: boolean; poke?: { agentId: string; by: string; outside?: boolean } } = {},
+  opts: {
+    notify?: boolean;
+    job?: boolean;
+    outsider?: boolean;
+    poke?: { agentId: string; by: string; outside?: boolean };
+  } = {},
 ): void {
   ctx.emit("message.received", thread.id, {
     messageId: m.id,
@@ -260,6 +268,8 @@ export function deliver(
     ...(m.via ? { via: m.via.routineOwner } : {}),
     ...(opts.job === true ? { job: true } : {}),
     ...(opts.copy === true ? { copy: true } : {}),
+    // the author has no standing in the Space: what triggers on a message (an Automation) does not run for it
+    ...(opts.outsider === true ? { outsider: true } : {}),
     // an agent speaks for the person it works for: the engine reads a private thread as that person when nobody has spoken in it yet
     ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { actingFor: ctx.actingFor } : {}),
     // a person typed this: not a line a module or the server posted in their name. Only these words can ask for an outward act (chat design, hole 3)
@@ -469,7 +479,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   // a person who replies in a thread is in it: its later replies reach them and it counts on their Threads row
   if (author.kind === "person") joinThread(ctx, thread, author.id);
   saveScreen(ctx, thread.id, m.id, input.screen);
-  deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id }, { job });
+  deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id }, { job, outsider });
   // "Also post to the chat" from a thread: the same words in the chat the thread hangs in, marked as coming from the thread, so the main chat reads the outcome and not the work. It is a copy, not a message to answer.
   if (input.alsoToChat === true && thread.kind === "thread" && thread.parentThreadId !== undefined) {
     const root = threadBy(ctx.db, thread.parentThreadId);
