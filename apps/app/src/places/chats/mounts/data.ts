@@ -537,7 +537,10 @@ export function wireConversation(
       togglePane: () => go.togglePane(),
       openBeside: (kind: string, id: string) =>
         kind === "computer" ? go.computerOfAgent(id) : base.nav.openBeside(kind, id),
-      openConnectOutsideAgent: (channelId: string) => go.connect(channelId),
+      // the server asks for channels.agents to add an agent to a channel: a person without it is not given the door
+      ...(allows(rt, "channels.agents")
+        ? { openConnectOutsideAgent: (channelId: string) => go.connect(channelId) }
+        : {}),
     },
     toast: (text: string) => go.say(text),
     ...(o.focus ? { focus: o.focus } : {}),
