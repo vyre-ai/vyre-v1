@@ -1769,7 +1769,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             e.type === "principal.role_set" ||
             e.type === "grant.created" ||
             e.type === "grant.revoked" ||
-            e.type.startsWith("agent.")
+            e.type.startsWith("agent.") ||
+            e.type === "mailbox.privacy_changed"
           )
             agentAccessEvents.push(e);
           access.fold(e);
@@ -1850,6 +1851,53 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               entity: "agent",
               entity_id: row.id,
               attrs: { owner: row.owner_id },
+            });
+          }
+        }
+        // An inbox a person set to private (or to chosen people) before the setting was enforced is registered under the Space, so every member still reaches it (F48, 14 Nov 2026). Close it from the
+        // event that set it, at every start: an inbox already closed is left as it is, so this is safe to repeat and moves no data.
+        const lastPrivacy = new Map<string, { privacy: string; at: string }>();
+        for (const e of agentAccessEvents)
+          if (e.type === "mailbox.privacy_changed") {
+            const p = (
+              e.payload instanceof Uint8Array ? JSON.parse(new TextDecoder().decode(e.payload)) : e.payload
+            ) as { mailboxId?: unknown; privacy?: unknown };
+            if (typeof p.mailboxId === "string" && typeof p.privacy === "string")
+              lastPrivacy.set(p.mailboxId, { privacy: p.privacy, at: String((e as { seq?: unknown }).seq ?? "") });
+          }
+        for (const [mailboxId, { privacy, at }] of lastPrivacy) {
+          if (privacy !== "private" && privacy !== "people") continue;
+          const row = access.snap.resource(mailboxId);
+
+          if (!row || row.type !== "mailbox" || row.parent_id === null) continue;
+          const closed = await appendRepair({
+            id: `evt_res_private_${mailboxId}_${at}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: mailboxId,
+            payload: {
+              id: mailboxId,
+              type: "mailbox",
+              parent_id: null,
+              label: row.label,
+              owner_id: row.owner_id,
+              holds: row.holds,
+            },
+          });
+          if (!closed.duplicate) {
+            access.fold(closed.event);
+            accessPending.push(toAccessEvent(closed.event));
+            sink.log({
+              space,
+              level: 20,
+              msg: "access.mailbox_privacy_reconciled",
+              place: "boot",
+              entity: "mailbox",
+              entity_id: mailboxId,
             });
           }
         }

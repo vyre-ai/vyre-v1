@@ -28,6 +28,17 @@ function seededDir(): string {
   const core = bootCore();
   core.store.appendBatch([
     {
+      id: "evt_f47_num",
+      type: "resource.created",
+      sv: 1,
+      trace_id: "1".repeat(32),
+      actor: "svc_seed",
+      vis: "space",
+      entity: "resource",
+      entity_id: "num_privatenum0001",
+      payload: { id: "num_privatenum0001", type: "number", parent_id: null, label: 0, owner_id: "usr_olivia", holds: 0 },
+    } as never,
+    {
       id: "evt_f47_box",
       type: "resource.created",
       sv: 1,
@@ -192,6 +203,27 @@ test("a private mailbox cannot be named by another person; a shared inbox and th
     assert.match(run.text, /runs only as its owner/, "a Personal automation is run by its owner alone");
     await new Promise((r) => setTimeout(r, 3000));
     assert.equal((d.db!.all(`SELECT COUNT(*) AS n FROM mail_message`) as { n: number }[])[0]!.n, before, "nothing was sent");
+  } finally {
+    await d.stop();
+  }
+});
+
+test("a real private number of someone else cannot be named by a member; its owner can", async () => {
+  const d = await boot(seededDir());
+  try {
+    await mailbox(d, "setup", false);
+    d.db!.run(
+      `INSERT INTO telephony_number ("id", "e164", "title", "capabilities", "assigneeKind", "assigneeId", "route", "hours", "recording", "a2p", "state", "twilioSid", "version", "updated_at") VALUES (?, ?, ?, ?, 'person', 'usr_olivia', '{}', '{}', 0, 'none', 'active', 'PN_fixture', 1, 1)`,
+      "num_privatenum0001",
+      "+15550100",
+      "Olivia",
+      '["sms"]',
+    );
+    const smsStep = { triggers: [{ key: "manual" }], nodes: [{ id: "t", key: "send_sms", input: { numberId: "num_privatenum0001", to: "+15550111", body: "Hi" } }] };
+    const refused = await raw(d, "/v1/automations/create", { name: "Text", idempotencyKey: "t1", definition: smsStep }, NOAH);
+    assert.equal(refused.status, 422, refused.text);
+    assert.match(refused.text, /Send a text message: you cannot use the number it names/);
+    assert.equal((await raw(d, "/v1/automations/create", { name: "Text", idempotencyKey: "t2", definition: smsStep }, OWNER)).status, 200);
   } finally {
     await d.stop();
   }

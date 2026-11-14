@@ -36,7 +36,14 @@ function seededDir(): string {
       vis: "space",
       entity: "resource",
       entity_id: "mbx_privatebox0001",
-      payload: { id: "mbx_privatebox0001", type: "mailbox", parent_id: null, label: 0, owner_id: "usr_olivia", holds: 0 },
+      payload: {
+        id: "mbx_privatebox0001",
+        type: "mailbox",
+        parent_id: null,
+        label: 0,
+        owner_id: "usr_olivia",
+        holds: 0,
+      },
     } as never,
   ]);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-grant-"));
@@ -146,7 +153,6 @@ async function outcome(d: Daemon, id: string, key: string, who = NOAH): Promise<
   });
 }
 
-
 const raw = async (d: Daemon, p: string, body: unknown, token: string): Promise<{ status: number; text: string }> => {
   const r = await fetch(`${d.url}${p}`, {
     method: "POST",
@@ -157,10 +163,13 @@ const raw = async (d: Daemon, p: string, body: unknown, token: string): Promise<
   return { status: r.status, text: await r.text() };
 };
 
-
-
 const sendAs = async (d: Daemon, box: string, token: string, key: string) =>
-  raw(d, "/v1/mail/send", { idempotencyKey: key, mailboxId: box, to: [{ address: "real@person.test" }], subject: "Hi", text: "B" }, token);
+  raw(
+    d,
+    "/v1/mail/send",
+    { idempotencyKey: key, mailboxId: box, to: [{ address: "real@person.test" }], subject: "Hi", text: "B" },
+    token,
+  );
 const savesAs = async (d: Daemon, box: string, token: string, key: string) =>
   raw(d, "/v1/automations/create", { name: key, idempotencyKey: key, definition: sendStep(box) }, token);
 
@@ -169,27 +178,61 @@ test("setting an inbox private makes it private: members are refused, the owner 
   try {
     const box = await mailbox(d, "inbox", false);
     const reachOf = async (token: string): Promise<string> =>
-      ((JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "mailbox", id: box }] }, token)).text) as { data: { items: { level: string }[] } }).data.items[0]!.level);
+      (
+        JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "mailbox", id: box }] }, token)).text) as {
+          data: { items: { level: string }[] };
+        }
+      ).data.items[0]!.level;
     const checkOf = async (): Promise<string> =>
-      ((JSON.parse((await raw(d, "/v1/access/check", { principal: { kind: "person", id: "usr_noah" }, action: { level: "use" }, resource: { type: "mailbox", id: box } }, OWNER)).text) as { data: { decision: { effect: string } } }).data.decision.effect);
+      (
+        JSON.parse(
+          (
+            await raw(
+              d,
+              "/v1/access/check",
+              {
+                principal: { kind: "person", id: "usr_noah" },
+                action: { level: "use" },
+                resource: { type: "mailbox", id: box },
+              },
+              OWNER,
+            )
+          ).text,
+        ) as { data: { decision: { effect: string } } }
+      ).data.decision.effect;
     await new Promise((r) => setTimeout(r, 3000));
     // F49: what the screens are told (reach, check) is what the server does
     assert.notEqual(await reachOf(NOAH), "none", "reach says none for an inbox the server lets a member use");
     assert.equal(await checkOf(), "allow", "check denies what the server allows");
     // before: a shared inbox is every member's (the product's rule)
     assert.notEqual((await sendAs(d, box, NOAH, "s0")).status, 403, "a Space inbox is open to members");
-    const set = (privacy: string, key: string) => raw(d, "/v1/mail/mailbox/set_privacy", { mailboxId: box, privacy, idempotencyKey: key }, OWNER);
+    const set = (privacy: string, key: string) =>
+      raw(d, "/v1/mail/mailbox/set_privacy", { mailboxId: box, privacy, idempotencyKey: key }, OWNER);
     assert.equal((await set("private", "p1")).status, 200);
     await new Promise((r) => setTimeout(r, 1500));
     const refused = await sendAs(d, box, NOAH, "s1");
     assert.equal(await reachOf(NOAH), "none", "reach after private");
     assert.equal(await checkOf(), "deny", "check after private");
     assert.equal(refused.status, 403, `a member sends from a private inbox: ${refused.text.slice(0, 200)}`);
-    assert.equal((await savesAs(d, box, NOAH, "save-noah")).status, 422, "a member names a private inbox in a definition");
+    assert.equal(
+      (await savesAs(d, box, NOAH, "save-noah")).status,
+      422,
+      "a member names a private inbox in a definition",
+    );
     assert.notEqual((await sendAs(d, box, OWNER, "s2")).status, 403, "the owner still sends");
     assert.equal((await savesAs(d, box, OWNER, "save-olivia")).status, 200);
     // shared with Noah: he may use it
-    await raw(d, "/v1/access/share", { idempotencyKey: "share", resource: { type: "mailbox", id: box }, subject: { kind: "person", id: "usr_noah" }, level: "use" }, OWNER);
+    await raw(
+      d,
+      "/v1/access/share",
+      {
+        idempotencyKey: "share",
+        resource: { type: "mailbox", id: box },
+        subject: { kind: "person", id: "usr_noah" },
+        level: "use",
+      },
+      OWNER,
+    );
     assert.notEqual((await sendAs(d, box, NOAH, "s3")).status, 403, "the person it is shared with sends");
     // back to the Space for everyone
     assert.equal((await set("space", "p2")).status, 200);
@@ -197,5 +240,51 @@ test("setting an inbox private makes it private: members are refused, the owner 
     assert.notEqual((await sendAs(d, box, NOAH, "s4")).status, 403);
   } finally {
     await d.stop();
+  }
+});
+
+test("an inbox set private BEFORE the setting was enforced is closed when the daemon starts on that store", async () => {
+  // the store as it was before the fix: the inbox registered under the Space, and the event that set it private in the log, nothing closing it
+  const core = bootCore();
+  const ids = { box: "mbx_oldprivate0001" };
+  const base = { sv: 1, trace_id: "1".repeat(32), actor: "usr_olivia", vis: "space" } as const;
+  assert.ok(
+    core.store
+      .appendBatch([
+        {
+          ...base,
+          id: "evt_old_res",
+          type: "resource.created",
+          entity: "resource",
+          entity_id: ids.box,
+          payload: { id: ids.box, type: "mailbox", parent_id: core.space, label: 0, owner_id: "usr_olivia", holds: 0 },
+        },
+        {
+          ...base,
+          id: "evt_old_priv",
+          type: "mailbox.privacy_changed",
+          entity: "mailbox",
+          entity_id: ids.box,
+          payload: { mailboxId: ids.box, privacy: "private" },
+        },
+      ] as never)
+      .every((r) => r.ok),
+  );
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-privacy-old-"));
+  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
+  fs.copyFileSync(core.file, path.join(dir, "events.db"));
+  core.close();
+  const d = await boot(dir);
+  try {
+    await new Promise((r) => setTimeout(r, 2000));
+    const levelFor = async (who: typeof NOAH): Promise<string> => {
+      const r = await raw(d, "/v1/access/reach", { items: [{ type: "mailbox", id: ids.box }] }, who);
+      return (JSON.parse(r.text) as { data: { items: { level: string }[] } }).data.items[0]!.level;
+    };
+    assert.equal(await levelFor(NOAH), "none", "a member still reaches an inbox its owner set to private");
+    assert.notEqual(await levelFor(OWNER), "none", "its owner still does");
+  } finally {
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
