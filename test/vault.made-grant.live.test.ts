@@ -138,20 +138,29 @@ test("an agent makes a shared folder and a key for its person and uses it; what 
       (i: { name: string }) => i.name === "Fathom",
     );
     assert.equal(item.owner, "usr_mia");
-    // In a Team Space every agent is born with Edit on the Space itself, so the maker already holds Edit on its folder and Use on its key: no second, made-by grant is written (the sharing list shows each subject once)
-    const sharesOf = async (type: string, id: string) =>
+    // The maker's grant is always written; in a Team Space every agent already holds Edit on the Space itself, so the sharing list shows the maker once and hides the made-by row
+    const listed = async (type: string, id: string) =>
       (await api("usr_mia", "access.shares_of", { resource: { type, id } })).data.shares as Array<{
-        grant: { subject: { id: string; kind: string }; resource: { id: string }; source?: string };
+        grant: { subject: { id: string }; resource: { id: string }; source?: string };
       }>;
-    for (const [type, id] of [
-      ["vault_folder", folder.id],
-      ["vault_item", item.id],
-    ] as const)
+    const written = async (type: string, id: string) =>
+      (await api("usr_olivia", "access.grants.list", { resource: { type, id } })).data.grants as Array<{
+        subject: { id: string };
+        resource: { id: string };
+        source?: string;
+        level: string;
+      }>;
+    for (const [type, id, level] of [
+      ["vault_folder", folder.id, "edit"],
+      ["vault_item", item.id, "use"],
+    ] as const) {
+      const w = (await written(type, id)).find((g) => g.resource.id === id && g.source === `made-by:${maker}`);
+      assert.equal(w?.level, level, `${type}: the maker's grant is written`);
       assert.ok(
-        !(await sharesOf(type, id)).some((x) => x.grant.resource.id === id && x.grant.source?.startsWith("made-by:")),
-        `${type}: no duplicate made-by grant where the Space already gives the level`,
+        !(await listed(type, id)).some((x) => x.grant.resource.id === id && x.grant.source?.startsWith("made-by:")),
+        `${type}: and the sharing list does not show the maker twice`,
       );
-
+    }
     assert.ok(!hostLog(d).includes(SECRET), "the value never reached the log");
   } catch (e) {
     console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e);

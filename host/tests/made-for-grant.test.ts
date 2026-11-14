@@ -35,9 +35,8 @@ test("never for a person, never for an agent with nobody behind it, never for a 
   assert.equal(madeForGrant(row("file"), [], agent), null);
 });
 
-const facts = (over: Partial<{ clears: boolean; holds: boolean; mine: string[] }> = {}) => ({
+const facts = (over: Partial<{ clears: boolean; mine: string[] }> = {}) => ({
   clears: () => over.clears ?? true,
-  holds: () => over.holds ?? false,
   inMine: (id: string) => (over.mine ?? []).includes(id),
 });
 
@@ -64,15 +63,9 @@ test("a thing inside a person's Mine gets nothing; the Mine folder itself (a pri
   assert.deepEqual(madeForGrant(row("vault_folder"), [], agent, facts()), { level: "edit", source: true });
 });
 
-test("skipped when the agent already holds that level through the Space or a role: the sharing list shows it once", () => {
-  assert.equal(madeForGrant(row("vault_folder"), [], agent, facts({ holds: true })), null);
-  assert.equal(madeForGrant(row("vault_item"), [], agent, facts({ holds: true })), null);
-  assert.deepEqual(madeForGrant(row("vault_item"), [], agent, facts({ holds: false })), { level: "use", source: true });
-  assert.deepEqual(
-    madeForGrant(row("record_type"), [], agent, facts({ holds: true })),
-    { level: "manage", source: false },
-    "a record type is unchanged",
-  );
+test("always written: it does not depend on what the agent's role or the Space gives it today", () => {
+  assert.deepEqual(madeForGrant(row("vault_folder"), [], agent, facts()), { level: "edit", source: true });
+  assert.deepEqual(madeForGrant(row("vault_item"), [], agent, facts()), { level: "use", source: true });
 });
 
 test("a record type is held to the same owner and clearance checks as every other kind", () => {

@@ -3224,18 +3224,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             const who = access.snap.info(agentId);
             return !!who && who.p.status === "active" && access.snap.effectiveLabel(resourceId) <= who.clearance;
           },
-          holds: (agentId, personId, resourceId, level) => {
-            const at = access.snap.resource(resourceId);
-            return (
-              !!at &&
-              authorize(access.snap, {
-                principal: agentId,
-                actingFor: personId,
-                action: { perm: null, level },
-                resource: { type: at.type, id: resourceId },
-              } as Parameters<typeof authorize>[1]).effect === "allow"
-            );
-          },
           inMine: (resourceId) => {
             const chain = access.snap.chain(resourceId);
             const root = chain?.[chain.length - 1];
