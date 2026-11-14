@@ -118,9 +118,15 @@ test("discuss: the thread under the ask gets one message from the person with bo
   assert.match(String(seed["body"]), /Intake: Object storage\./);
   assert.match(String(seed["body"]), /Drafter: The server disk\./);
   assert.match(String(seed["body"]), /Decided:/);
-  assert.doesNotMatch(String(seed["body"]), /you answered on your own/, "the seed is short: the answers and one request");
+  assert.doesNotMatch(
+    String(seed["body"]),
+    /you answered on your own/,
+    "the seed is short: the answers and one request",
+  );
   assert.deepEqual(
-    hn.emitted.filter((e) => e.name === "message.received" && e.subject === out.threadId).map((e) => (e.payload as any).mentions),
+    hn.emitted
+      .filter((e) => e.name === "message.received" && e.subject === out.threadId)
+      .map((e) => (e.payload as any).mentions),
     [[{ kind: "agent", id: INTAKE }]],
     "it wakes the first agent like a mention",
   );
@@ -318,4 +324,97 @@ test("the talking-it-over line becomes the decision when an agent ends on Decide
   for (const who of [INTAKE, DRAFTER, INTAKE, DRAFTER])
     await say(c.threadId, who, "Still thinking.", [{ kind: "agent", id: INTAKE }]);
   assert.deepEqual(card(c.t), ["They used their 4 turns without settling it. Ask again to go on."]);
+});
+
+// Mutants the reviewer found alive (r-agents): the event, the version bump and the lead are what an open chat and a reload depend on, so each is pinned here and not only in a browser walk.
+test("the outcome line: an agent's Decided edits it in place, bumps its version, emits message.edited for the chat, and leads with Agents decided", async () => {
+  const holder: { ctx?: any } = {};
+  const hn = harness({
+    calls: {
+      "agents.get": () => ({ agent: {} }),
+      "search.resolve": () => ({ hit: { title: "Intake Agent" } }),
+      "chat.thread": (i: any) => h["chat.thread"]!(holder.ctx, i),
+    },
+  });
+  holder.ctx = hn.ctx;
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE, DRAFTER], idempotencyKey: key() }))
+    .thread.threadId as string;
+  const asked = (
+    await h["chat.post"]!(hn.ctx, {
+      threadId: t,
+      body: "@Intake @Drafter which storage?",
+      mentions: [
+        { kind: "agent", id: INTAKE },
+        { kind: "agent", id: DRAFTER },
+      ],
+      idempotencyKey: key(),
+    })
+  ).message.messageId as string;
+  for (const who of [INTAKE, DRAFTER])
+    await h["chat.post"]!(hn.as({ kind: "agent", id: who }, DANA), {
+      threadId: t,
+      body: `${who} says`,
+      idempotencyKey: key(),
+    });
+  const { threadId } = await h["chat.round.discuss"]!(hn.ctx, { threadId: t, messageId: asked, idempotencyKey: key() });
+  const card = () =>
+    hn.rows("SELECT id, version, blocks, updated_at FROM chat_message WHERE thread = ? AND kind = 'system'", t)[0]!;
+  const before = card();
+  const edits = () => hn.emitted.filter((e) => e.name === "message.edited");
+  const nEdits = edits().length;
+  const r = await h["chat.post"]!(hn.as({ kind: "agent", id: DRAFTER }, DANA), {
+    threadId,
+    body: "Decided: the disk.",
+    idempotencyKey: key(),
+  });
+  onDiscussionMessage(hn.ctx, {
+    payload: { threadId, messageId: r.message.messageId, author: { kind: "agent", id: DRAFTER }, mentions: [] },
+  });
+  const after = card();
+  assert.equal(
+    Number(after["version"]),
+    Number(before["version"]) + 1,
+    "the row's version moved, so replicas take the change",
+  );
+  assert.ok(Number(after["updated_at"]) >= Number(before["updated_at"] ?? 0));
+  assert.match(
+    String(after["blocks"]),
+    /"lead":"Agents decided"/,
+    "an agent's words are not led as a person's Decided",
+  );
+  assert.doesNotMatch(String(after["blocks"]), /"lead":"Decided"/);
+  const fresh = edits().slice(nEdits);
+  assert.deepEqual(
+    fresh.map((e) => [e.subject, e.payload["threadId"], e.payload["messageId"]]),
+    [[t, t, String(before["id"])]],
+    "one message.edited, for the chat the line is in",
+  );
+});
+
+test("deciding with the other agent replaces the line in place: version up, message.edited for the chat, still led by the person's Decided", async () => {
+  const { hn, t, asked } = await world();
+  await h["chat.post"]!(hn.as({ kind: "agent", id: DRAFTER }, DANA), {
+    threadId: t,
+    body: "Disk.",
+    idempotencyKey: key(),
+  });
+  const first = await h["chat.round.decide"]!(hn.ctx, {
+    threadId: t,
+    messageId: asked,
+    agentId: INTAKE,
+    idempotencyKey: key(),
+  });
+  const row = () => hn.rows("SELECT version, blocks FROM chat_message WHERE id = ?", first.messageId)[0]!;
+  const v0 = Number(row()["version"]);
+  const n0 = hn.emitted.filter((e) => e.name === "message.edited").length;
+  await h["chat.round.decide"]!(hn.ctx, { threadId: t, messageId: asked, agentId: DRAFTER, idempotencyKey: key() });
+  assert.equal(Number(row()["version"]), v0 + 1);
+  assert.match(String(row()["blocks"]), /"lead":"Decided"/, "a person's press keeps the bare Decided");
+  assert.deepEqual(
+    hn.emitted
+      .filter((e) => e.name === "message.edited")
+      .slice(n0)
+      .map((e) => [e.subject, e.payload["threadId"], e.payload["messageId"]]),
+    [[t, t, first.messageId]],
+  );
 });
