@@ -31,8 +31,7 @@ test("a turn that ends does not drop the thread lease while another turn of the 
   );
   const first = start("agt_a", "msg_1");
   const second = start("agt_b", "msg_1");
-  const leases = (): number =>
-    Number(h.db.all("SELECT COUNT(*) AS n FROM engine_thread_lease WHERE thread_id = 'thr_l'")[0]?.["n"]);
+  const leases = (): number => h.db.all("SELECT 1 FROM engine_thread_lease WHERE thread_id = 'thr_l'").length;
   await turnFinish(h.ctx as never, { turnId: first, outcome: "completed" });
   assert.equal(leases(), 1, "the other turn still runs: the lease stays");
   await turnFinish(h.ctx as never, { turnId: second, outcome: "completed" });

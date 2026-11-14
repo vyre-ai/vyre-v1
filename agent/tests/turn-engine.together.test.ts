@@ -188,6 +188,73 @@ test("the same agent never starts its next turn while its previous one is still 
   assert.equal(p.sessions.filter((s) => s.spec.agent.id === "dex").length >= 2, true);
 });
 
+test("a second message to an agent that is still starting waits: one session", async () => {
+  const p = scriptedProvider({ script: (_i, spec) => says(spec.agent.id) });
+  const slow = gate();
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: p.openSession,
+    admit: async ({ agentId }) => {
+      if (agentId === "dex") await slow.wait;
+      return null;
+    },
+  });
+  engine.openThread(thread());
+  ask(engine, ["dex"], "first");
+  await sleepMs(30);
+  engine.receive({ threadId: "T", author: person("sam"), mentions: [agent("dex")], body: "second" });
+  await sleepMs(80);
+  assert.equal(p.sessions.filter((s) => s.spec.agent.id === "dex").length, 0, "still starting: nothing opened twice");
+  slow.open();
+  await engine.idle("T");
+  assert.equal(engine.turns("T").filter((t) => t.agentId === "dex").length >= 2, true);
+});
+
+test("Stop on one agent while both are starting marks only that agent", async () => {
+  const slow = gate();
+  const p = scriptedProvider({ script: (_i, spec) => says(spec.agent.id) });
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: p.openSession,
+    admit: async () => {
+      await slow.wait;
+      return null;
+    },
+  });
+  engine.openThread(thread());
+  ask(engine, ["dex", "nova"]);
+  await sleepMs(30);
+  const r = await engine.stop("T", { agentId: "nova" });
+  assert.equal(r.starting, 1);
+  slow.open();
+  await engine.idle("T");
+  const state = (id: string): string | undefined => engine.turns("T").find((t) => t.agentId === id)?.state;
+  assert.deepEqual([state("dex"), state("nova")], ["completed", "cancelled"]);
+});
+
+test("a turn that throws out of the engine leaves no running row or run behind, and its agent can run again", async () => {
+  const p = scriptedProvider({ script: (_i, spec) => says(spec.agent.id) });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  let boom = true;
+  engine.subscribe((e) => {
+    if (boom && e.type === "turn.started" && e.agentId === "dex") {
+      boom = false;
+      throw new Error("a listener threw");
+    }
+  });
+  engine.openThread(thread());
+  ask(engine, ["dex", "nova"]);
+  await engine.idle("T");
+  assert.equal(
+    engine.queue("T").some((r) => r.state === "running"),
+    false,
+  );
+  assert.ok(engine.events("T").some((e) => e.type === "turn.failed" && e.agentId === "dex"));
+  ask(engine, ["dex"], "again");
+  await engine.idle("T");
+  assert.ok(replies(engine).includes("dex:dex"));
+});
+
 test("one agent fails while the other finishes: the failure is its own and the other's reply stands", async () => {
   const p = scriptedProvider({
     script: (_i, spec) =>

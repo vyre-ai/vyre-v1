@@ -874,6 +874,26 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           qseq: item.qseq,
           error: e instanceof Error ? e.message : String(e),
         });
+        // the row must not stay running (a sibling turn keeps the lease alive, so no sweep would close it): it ends here and the chat hears of it once
+        try {
+          if (st.running.get(item.agentId)?.qseq === item.qseq) st.running.delete(item.agentId); // a turn that threw leaves no stale run behind
+          if (
+            !st.running.has(item.agentId) &&
+            queue.list(st.thread.id).find((r) => r.qseq === item.qseq)?.state === "running"
+          ) {
+            queue.setState(st.thread.id, item.qseq, "done");
+            emit({
+              type: "turn.failed",
+              threadId: st.thread.id,
+              turnId: `lost:${st.thread.id}:${item.qseq}`,
+              agentId: item.agentId,
+              code: "engine_error",
+              qseq: item.qseq,
+            });
+          }
+        } catch {
+          /* the log has it */
+        }
       })
       .finally(() => {
         if (st.starting.get(item.agentId) === starting) st.starting.delete(item.agentId);
