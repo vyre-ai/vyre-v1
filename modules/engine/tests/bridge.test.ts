@@ -1326,7 +1326,9 @@ test("the typed-message rows are bounded: a new typed message drops the rows old
   assert.deepEqual(kept, ["msg_typed_two"]);
 });
 
-test("two people's turns of two agents in one chat do not overlap, and each reply speaks for the person whose turn it was", async () => {
+// Rewritten 14 Nov 2026 (ARCH 6.2 changed: one turn per AGENT per thread). It used to assert the second agent waits for the first; two agents asked by two people now run together, and what must still hold
+// is that each reply speaks for the person whose turn it was.
+test("two people's turns of two agents in one chat run together, and each reply speaks for the person whose turn it was", async () => {
   let release!: () => void;
   const held = new Promise<void>((r) => (release = r));
   const seen: AgentPost[] = [];
@@ -1345,8 +1347,9 @@ test("two people's turns of two agents in one chat do not overlap, and each repl
   await s.say("for the first", [{ kind: "agent", id: LEAD }], "msg_dana1", { wait: false });
   await s.say("for the second", [{ kind: "agent", id: WATCHER }], "msg_mia1", { as: "usr_mia", wait: false });
   await new Promise((r) => setTimeout(r, 50));
-  // the engine runs one turn at a time in a chat: the second agent has not replied while the first is held, so no reply can be stamped with the other person's turn
-  assert.equal(seen.length, 0, "the second turn waits for the first");
+  // the second agent does not wait for the held first one: its reply is out already, stamped with its own asker
+  assert.equal(seen.length, 1, "the second agent answered while the first was held");
+  assert.equal(seen[0]?.actingFor, "usr_mia");
   release();
   await s.engine.idle(T);
   await s.bridge.flush();

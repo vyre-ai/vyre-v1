@@ -358,9 +358,9 @@ export function sqlQueue(db: Db): QueueStore {
         }
       }
     },
-    peek: (threadId) => queued(threadId)[0] ?? null,
-    dequeue(threadId) {
-      const next = queued(threadId)[0];
+    peek: (threadId, accept) => queued(threadId).find((r) => !accept || accept(r)) ?? null,
+    dequeue(threadId, accept) {
+      const next = queued(threadId).find((r) => !accept || accept(r));
       if (!next) return null;
       db.run("UPDATE engine_thread_queue SET state = 'running' WHERE thread_id = ? AND qseq = ?", threadId, next.qseq);
       return { ...next, state: "running" };

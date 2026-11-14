@@ -1,5 +1,5 @@
 // engine.round.get (chat gap G56/G61, C-chat.md): who is on each message right now, read from the engine queue and never stored, so nothing stays stuck after a restart. One row per agent that
-// was asked by that message. States: working (its turn runs), waiting (queued behind another turn of this chat; `on` names the agent in front), replied (its turn ended), stopped (a person stopped it).
+// was asked by that message. States: working (its turn runs), waiting (queued behind an earlier turn of its own agent: agents asked together run together), replied (its turn ended), stopped (a person stopped it).
 // Rows that were dropped unrun carry no stop reason and are left out. Only the thread's own readers reach it (the manifest's thread scope), so a round in a chat names agents to people who may read the chat.
 import { ensure } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -25,7 +25,6 @@ export async function roundGet(
     "SELECT qseq, message_id, agent_id, state, stop_reason FROM engine_thread_queue WHERE thread_id = ? AND message_id IS NOT NULL ORDER BY qseq",
     input.threadId,
   ) as Row[];
-  const running = rows.filter((r) => r["state"] === "running").map((r) => String(r["agent_id"]));
   const want = new Set(wanted);
   const by = new Map<string, Map<string, RoundAgent>>();
   for (const r of rows) {
@@ -36,8 +35,8 @@ export async function roundGet(
     let agent: RoundAgent | undefined;
     if (state === "running") agent = { agentId, state: "working" };
     else if (state === "queued") {
-      const front = running.find((a) => a !== agentId);
-      agent = { agentId, state: "waiting", ...(front ? { on: front } : {}) };
+      // one turn per agent: a queued row waits only behind an earlier turn of its own agent, never behind another agent
+      agent = { agentId, state: "waiting" };
     } else if (state === "done") agent = { agentId, state: "replied" };
     else if (state === "stopping" || (state === "cancelled" && r["stop_reason"] != null && r["stop_reason"] !== ""))
       agent = { agentId, state: "stopped" };

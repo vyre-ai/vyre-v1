@@ -1918,7 +1918,7 @@ export default defineManifest({
     ),
     read(
       "engine.round.get",
-      "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting on another agent, replied, stopped). Read from the engine's queue, never stored",
+      "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
       {
         in: { ...threadT, messageIds: t.arr(id.message, { maxItems: 50 }) },
         out: {
