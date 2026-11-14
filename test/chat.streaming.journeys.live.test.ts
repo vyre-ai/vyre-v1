@@ -43,9 +43,9 @@ test("a reply from the CLI shows a sign of work at once, streams in pieces, repe
     t0 = sent;
     await me.page.getByTestId("composer-send").click();
 
-    // 1. a sign of work: the Stop button is the app's mark that an agent is writing; it must be there before the first word (the fake pauses 1.4 s first)
+    // 1. a sign of work: the composer's Stop is the app's mark that an agent is writing (the head draws none, G3); it must be there before the first word (the fake pauses 1.4 s first)
     await me.page
-      .getByTestId("stop-button")
+      .locator("[data-testid=composer-send][aria-label=Stop]")
       .waitFor({ timeout: 1_200 })
       .catch((e) => {
         throw new Error(
@@ -53,6 +53,23 @@ test("a reply from the CLI shows a sign of work at once, streams in pieces, repe
         );
       });
     const signAt = Date.now() - sent;
+    // and the one a person sees without looking at the composer (G3): the "Working" line under the agent's name, before the first word; removing it later fails here
+    await me.page
+      .locator("[data-testid=activity-line], [data-testid^='work-']")
+      .first()
+      .waitFor({ timeout: 2_000 })
+      .catch((e) => {
+        throw new Error(
+          `no Working line under the agent's name: ${String(e).slice(0, 80)}; host log: ${hostLog(s.world.d)}`,
+        );
+      });
+    const lineAt = Date.now() - sent;
+    const lineText = await me.page.locator("[data-testid=activity-line], [data-testid^='work-']").first().innerText();
+    assert.match(
+      lineText,
+      /Working|Thinking|Writing|Reading|Running|Searching/i,
+      `the line says what it is doing: ${lineText} (stop at ${signAt} ms, line at ${lineAt} ms)`,
+    );
     assert.equal(await me.page.getByText(/word1/).count(), 0, "and no word yet: the sign came first");
     await shoot(me.page, dir, "working-before-text", { phone: false });
 
@@ -64,7 +81,7 @@ test("a reply from the CLI shows a sign of work at once, streams in pieces, repe
       const n = (text.match(/word\d/g) ?? []).length;
       if (seen.at(-1) !== n) seen.push(n);
       last = text;
-      if (n >= 8 && (await me.page.getByTestId("stop-button").count()) === 0) break;
+      if (n >= 8 && (await me.page.locator("[data-testid=composer-send][aria-label=Stop]").count()) === 0) break;
       await me.page.waitForTimeout(100);
     }
     assert.ok(

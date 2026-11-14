@@ -203,28 +203,24 @@ test("chat layout, team Space: long draft, scrolled feed, thread pane beside a l
       .innerText()
       .catch(() => "");
     fs.writeFileSync(path.join(shots, "19-tab-text.txt"), tabs + "\n");
-    // a tab has no title of its own: each of the chats opened above reads as that chat's real title, and "New chat" shows only on the landing tab (G7)
+    // a tab has no title of its own: each of the chats opened above reads as that chat's real title (a whole line of the strip, not a piece of it); "New chat" is only the landing tab, the first line
     const strip = await page.getByTestId("tab-strip").first().innerText();
+    const lines = strip
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l !== "");
+    const said = `the strip says: ${lines.join(" | ")}`;
     for (const title of [
       "Create a landing page",
       "Set up the onboarding goal",
       "Write the reminder emails",
       "Go through the retainer letters",
     ])
-      assert.ok(
-        strip.includes(title),
-        `the tab for "${title}" reads that title; the strip says: ${strip.replaceAll("\n", " | ")}`,
-      );
-    // design source: gap row G7 in team/v1/CHAT-GAP-2026-11-14.md (accepted by the lead): the Chats landing tab is named "New chat". The only tab that reads "New chat" is the landing tab, the first one; every opened chat's tab reads its own title (asserted above)
-    const tabLines = strip
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-    const newChatAt = tabLines.flatMap((l, i) => (l === "New chat" ? [i] : []));
+      assert.ok(lines.includes(title), `a tab line equals "${title}"; ${said}`);
     assert.deepEqual(
-      newChatAt,
+      lines.flatMap((l, i) => (l === "New chat" ? [i] : [])),
       [0],
-      `the only tab that reads New chat is the first, the Chats landing tab: ${strip.replaceAll("\n", " | ")}`,
+      `the only tab reading New chat is the first, the landing tab; ${said}`,
     );
     assert.deepEqual(errors, []);
   } finally {
