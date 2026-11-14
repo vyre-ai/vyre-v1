@@ -1623,30 +1623,74 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   ): Promise<boolean> => {
     const row = access.snap.resource(folderId);
     const into = via ?? log;
-    if (!into || !row || row.parent_id === siteId || !access.snap.resource(siteId)) return false;
-    const r = await into.appendResult({
-      id: `evt_res_artfolder_${folderId.slice(-12)}_${Date.now()}`,
-      type: "resource.created",
-      sv: 1,
-      trace_id: "c0".repeat(16),
-      actor: "svc_host",
-      vis: "space",
-      entity: "resource",
-      entity_id: folderId,
-      payload: {
-        id: folderId,
-        type: row.type,
-        parent_id: siteId,
-        label: row.label,
-        owner_id: /^usr_[a-z0-9]+$/.test(ownerId) ? ownerId : row.owner_id,
-        holds: row.holds,
-      },
-    });
-    if (!r.ok || r.duplicate) return false;
-    access.fold(r.event);
-    accessPending.push(toAccessEvent(r.event));
-    await syncAccess(true);
-    return true;
+    if (!into || !row || !access.snap.resource(siteId)) return false;
+    let changed = false;
+    const person = /^usr_[a-z0-9]+$/.test(ownerId) ? ownerId : null;
+    if (row.parent_id !== siteId) {
+      const r = await into.appendResult({
+        id: `evt_res_artfolder_${folderId.slice(-12)}_${Date.now()}`,
+        type: "resource.created",
+        sv: 1,
+        trace_id: "c0".repeat(16),
+        actor: "svc_host",
+        vis: "space",
+        entity: "resource",
+        entity_id: folderId,
+        payload: {
+          id: folderId,
+          type: row.type,
+          parent_id: siteId,
+          label: row.label,
+          owner_id: person ?? row.owner_id,
+          holds: row.holds,
+        },
+      });
+      if (r.ok && !r.duplicate) {
+        access.fold(r.event);
+        accessPending.push(toAccessEvent(r.event));
+        changed = true;
+      }
+    }
+    // the pages are the server's files (the server wrote them), and ownership is not inherited down the tree: so its owner, who reaches the artifact and its folder by owning them, read none of its pages. Each page
+    // and sub folder of the artifact is registered as the person's, where it sits, so who reads the pages is who reads the artifact (r-auto2 re-run, F62, 14 Nov 2026).
+    if (person !== null && db) {
+      try {
+        const top = db.all("SELECT path FROM files_folder WHERE id = ?", folderId)[0] as { path?: string } | undefined;
+        const like = `${String(top?.path ?? "\u0000").replace(/[\\%_]/g, "\\$&")}/%`;
+        const folders = db.all(
+          "SELECT id FROM files_folder WHERE id = ? OR path LIKE ? ESCAPE '\\'",
+          folderId,
+          like,
+        ) as { id: string }[];
+        const mine: { id: string }[] = [...folders];
+        for (const f of folders)
+          for (const x of db.all("SELECT id FROM files_file WHERE folder_id = ?", f.id) as { id: string }[]) mine.push(x);
+        for (const x of mine) {
+          const have = access.snap.resource(x.id);
+          if (!have || have.owner_id === person || x.id === folderId) continue;
+          const w = await into.appendResult({
+            id: `evt_res_artpage_${x.id.slice(-12)}_${Date.now()}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: x.id,
+            payload: { id: x.id, type: have.type, parent_id: have.parent_id, label: have.label, owner_id: person, holds: have.holds },
+          });
+          if (w.ok && !w.duplicate) {
+            access.fold(w.event);
+            accessPending.push(toAccessEvent(w.event));
+            changed = true;
+          }
+        }
+      } catch {
+        // no files tables yet: nothing to register
+      }
+    }
+    if (changed) await syncAccess(true);
+    return changed;
   };
   let accessStale = false,
     kicking = false,
@@ -3409,7 +3453,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
           // a new artifact's folder follows the artifact in the access tree, now that the artifact is a resource (see adoptArtifactFolder)
           for (const e of b.events)
-            if (e.type === "site.created") {
+            if (e.type === "site.created" || e.type === "site.published") {
               const siteId = (e.payload as { siteId?: unknown }).siteId;
               const row =
                 typeof siteId === "string"
