@@ -689,6 +689,8 @@ export default defineManifest({
           tested: t.opt(t.str({ description: "What the check read, in a few words" })),
         },
         audit: "none",
+        // the connector's call can end in a refused key; with no connection behind it nothing is marked, but the framework's path is shared with connections.test
+        emits: ["connection.needs_reconnect"],
         errors: ["validation.not_found", "validation.precondition_failed"],
       },
     ),

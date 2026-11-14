@@ -401,22 +401,7 @@ export async function connectSubmit(
   const stay = (phase: "wrong" | "offline" | null) =>
     ctx.db.run(`UPDATE ${TABLE} SET phase = ? WHERE id = ?`, phase, row.id);
 
-  // 1 Checked: the typed key is tried against the app and kept nowhere
-  if (!saved) {
-    const checked = asRow(
-      await ctx.call("connectors.check_key", { connector: svc.key, secrets: Object.fromEntries(given) }),
-    );
-    if (checked?.["result"] === "rejected") {
-      stay("wrong");
-      return done("wrong");
-    }
-    if (checked?.["result"] !== "ok") {
-      stay("offline");
-      return done("offline");
-    }
-  }
-
-  // 2 keep the key where it goes (a new item, or the saved one attached); a shared folder only when an agent can use a key kept there
+  // where the key will be kept is settled first, so a refusal here comes before anything is written: a shared folder only when an agent can use a key kept there
   const chosen = !saved && input.folderId ? (await foldersOf(ctx)).get(input.folderId) : undefined;
   if (chosen?.scope === "shared") {
     const usable = await keptUsable(
@@ -444,6 +429,22 @@ export async function connectSubmit(
         "There is no shared folder an agent can use. Make one that is not restricted, then connect it.",
       );
   }
+  // 1 Checked: the typed key is tried against the app and kept nowhere
+  if (!saved) {
+    const checked = asRow(
+      await ctx.call("connectors.check_key", { connector: svc.key, secrets: Object.fromEntries(given) }),
+    );
+    if (checked?.["result"] === "rejected") {
+      stay("wrong");
+      return done("wrong");
+    }
+    if (checked?.["result"] !== "ok") {
+      stay("offline");
+      return done("offline");
+    }
+  }
+
+  // 2 keep the key where it goes (a new item, or the saved one attached)
   const stored = await storeKey(
     ctx,
     decided,

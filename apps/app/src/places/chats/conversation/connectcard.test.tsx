@@ -206,3 +206,23 @@ test("a card the agent took back leaves nothing behind", async () => {
     restore();
   }
 });
+
+test("an admin the Space cannot name is never shown as an id: the card says an admin", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { find, flush, installDom, mount, textOf } = await import("../../../onboarding/test-dom.ts");
+  const { assertNoRawIds } = await import("../../../../../../ui/src/testing/raw-ids.ts");
+  const restore = installDom();
+  try {
+    const h = harness({
+      "vault.connect_card.get": () => card("admin", { mayFill: false, admin: { id: "usr_0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d" } }),
+    });
+    const data = { ...h.data, nameOf: (id: string) => id } as never;
+    const root = await mount(createRoot, <ConnectCardLive requestId="vrq_1" agent="Dex" data={data} />);
+    await flush();
+    assert.ok(textOf(root).includes("Ask an admin"), textOf(root));
+    assert.ok(find(root, "connect-vrq_1-ask"));
+    assertNoRawIds(root, "the connect card");
+  } finally {
+    restore();
+  }
+});

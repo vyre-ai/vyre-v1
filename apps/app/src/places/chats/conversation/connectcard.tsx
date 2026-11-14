@@ -9,6 +9,7 @@ import type { ConnectState, ConnectWork } from "../../../../../../ui/src/Connect
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useWhenText } from "../../../../../../ui/src/Time/index.tsx";
+import { rawIdsIn } from "../../../../../../lib/id-shapes.ts";
 import type { ConversationData } from "./data.tsx";
 import { useFollow } from "./use-follow.ts";
 import { cardOf, keptWords, stepsFor } from "./connectcard-model.ts";
@@ -174,7 +175,12 @@ export function ConnectCardLive({
     show(items, at.x, at.y, "other", { label: "Kept in" });
   };
 
-  const adminName = card.admin ? (data.nameOf?.(card.admin.id) ?? "") : "";
+  // a person is named by name, never by id: an id the Space cannot name reads as "an admin" and no name
+  const named = (id: string): string => {
+    const n = data.nameOf?.(id) ?? "";
+    return n && rawIdsIn(n).length === 0 && !/^[a-z]{2,4}_[0-9a-z]+$/i.test(n) ? n : "";
+  };
+  const adminName = card.admin ? named(card.admin.id) : "";
   const state: ConnectState =
     (card.state === "wrong" && edited) || (card.state === "have" && other) ? "ask" : card.state;
   return (
@@ -196,7 +202,7 @@ export function ConnectCardLive({
         askedAt={card.admin?.askedAt ? whenText(card.admin.askedAt, Date.now()) : undefined}
         tested={card.tested}
         usedBy={card.usedBy.length > 0 ? card.usedBy.map(() => agent).join(", ") : undefined}
-        connectedBy={card.connectedBy ? data.nameOf?.(card.connectedBy) : undefined}
+        connectedBy={card.connectedBy ? named(card.connectedBy) || undefined : undefined}
         open={open}
         onToggle={() => setOpen(!open)}
         focusField={focusField}

@@ -19,7 +19,7 @@ Try the key a person typed against the app before it is stored; answers ok, reje
 | HTTP | POST /v1/connectors/check_key |
 | MCP tool | none |
 | CLI | none |
-| Emits | none |
+| Emits | connection.needs_reconnect |
 
 ## Input
 
