@@ -1627,19 +1627,32 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let accessFedTo = 0;
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
   /** Is this the folder the server made for this artifact? (see adoptArtifactFolder) */
-  const serverMadeFolder = (folderId: string, siteId: string, resourceOwner: string | null | undefined): boolean => {
+  const serverMadeFolder = (
+    folderId: string,
+    siteId: string,
+    resource: { owner_id?: string | null | undefined; parent_id?: string | null | undefined },
+  ): boolean => {
     if (!db) return false;
     try {
-      const site = db.all("SELECT settings FROM sites_site WHERE id = ? AND kind = 'artifact'", siteId)[0] as
-        | { settings?: string | null }
-        | undefined;
-      if (!site) return false;
-      const kept: unknown = JSON.parse(site.settings ?? "{}");
-      if (kept !== null && typeof kept === "object" && (kept as { serverFolder?: unknown }).serverFolder === folderId)
-        return true;
-      if (typeof resourceOwner !== "string" || !resourceOwner.startsWith("svc_")) return false;
+      const site = db.all(
+        "SELECT settings, target_folder FROM sites_site WHERE id = ? AND kind = 'artifact'",
+        siteId,
+      )[0] as { settings?: string | null; target_folder?: string | null } | undefined;
+      if (!site || site.target_folder !== folderId) return false;
+      // the folder is under the server's own Artifacts path for this artifact (a path alone is not enough: a person can name a folder anything)
       const f = db.all("SELECT path FROM files_folder WHERE id = ?", folderId)[0] as { path?: string } | undefined;
-      return new RegExp(`^Deployments/Artifacts/[^/]+ \\(${siteId.slice(-6)}\\)$`).test(f?.path ?? "");
+      if (!new RegExp(`^Deployments/Artifacts/[^/]+ \\(${siteId.slice(-6)}\\)$`).test(f?.path ?? "")) return false;
+      // and the server made it: either it is still registered as the server's (a service owns it), or it already sits under this artifact (adopted when it was made)
+      if (
+        resource.parent_id !== siteId &&
+        !(typeof resource.owner_id === "string" && resource.owner_id.startsWith("svc_"))
+      )
+        return false;
+      const kept: unknown = JSON.parse(site.settings ?? "{}");
+      const marked =
+        kept !== null && typeof kept === "object" && (kept as { serverFolder?: unknown }).serverFolder === folderId;
+      // an artifact made before the marker has none: the service owner and the path are what only the server can have made
+      return marked || (typeof resource.owner_id === "string" && resource.owner_id.startsWith("svc_"));
     } catch {
       return false;
     }
@@ -1659,7 +1672,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (!into || !row || !access.snap.resource(siteId)) return false;
     // only the folder the server itself made for the artifact is adopted: one a caller named (artifact_publish with a folderId) belongs to its owner and stays as it is. The server marks the folder it makes
     // in the artifact's own record (settings.serverFolder); an artifact made before the mark is recognised by what a person cannot make: a folder owned by the server (a service) at the server's own path for this artifact.
-    if (!serverMadeFolder(folderId, siteId, row.owner_id)) return false;
+    if (!serverMadeFolder(folderId, siteId, row)) return false;
     let changed = false;
     const person = /^usr_[a-z0-9]+$/.test(ownerId) ? ownerId : null;
     if (row.parent_id !== siteId) {

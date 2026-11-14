@@ -426,7 +426,7 @@ test("an artifact made before this build, whose folder is still under the Space,
       vis: "space",
       entity: "resource",
       entity_id: f.id,
-      payload: { id: f.id, type: "folder", parent_id: f.parent_id, label: 0, owner_id: "usr_olivia", holds: 0 },
+      payload: { id: f.id, type: "folder", parent_id: f.parent_id, label: 0, owner_id: "svc_host", holds: 0 },
     } as never);
   } finally {
     await d.stop();

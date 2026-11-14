@@ -290,3 +290,60 @@ test("the owner of a private artifact reads and finds its pages; another member 
     await d.stop();
   }
 });
+
+for (const [label, token] of [
+  ["olivia", OWNER],
+  ["an agent acting for olivia", AGENT_OLIVIA],
+] as const) {
+  test(`${label} cannot forge the server's folder marker with sites.update: noah keeps his folder through a second publish and a restart`, async () => {
+    const dir = seededDir();
+    let d = await boot(dir);
+    let mine = { folder: "", file: "" };
+    const check = async (when: string): Promise<void> => {
+      assert.equal(await reach(d, "folder", mine.folder, NOAH), "manage", `${when}: noah's folder`);
+      assert.equal(await reach(d, "file", mine.file, NOAH), "manage", `${when}: noah's file`);
+      assert.equal(
+        (await raw(d, "/v1/files/read", { fileId: mine.file, as: "text" }, NOAH)).status,
+        200,
+        `${when}: noah reads his file`,
+      );
+      assert.equal(await reach(d, "folder", mine.folder, OWNER), "view", `${when}: olivia only views the folder`);
+    };
+    try {
+      mine = await noahFolder(d, token === AGENT_OLIVIA);
+      await settle(600);
+      const p = await raw(
+        d,
+        "/v1/sites/artifact_publish",
+        { title: "Forger", folderId: mine.folder, idempotencyKey: "fg1" },
+        token,
+      );
+      assert.equal(p.status, 200, p.text);
+      const siteId = J(p.text).data.artifactId as string;
+      const u = await raw(d, "/v1/sites/update", { siteId, settings: { serverFolder: mine.folder } }, token);
+      assert.equal(u.status, 422, `a settings patch naming the reserved key is refused: ${u.text.slice(0, 200)}`);
+      assert.match(u.text, /kept by the server/);
+      const again = await raw(
+        d,
+        "/v1/sites/artifact_publish",
+        { title: "Forger", artifactId: siteId, folderId: mine.folder, idempotencyKey: "fg2" },
+        token,
+      );
+      assert.equal(again.status, 200, again.text);
+      await settle(2000);
+      await check("after the forged marker and a second publish");
+      const kept = d.db!.all("SELECT settings FROM sites_site WHERE id = ?", siteId)[0] as { settings: string };
+      assert.doesNotMatch(kept.settings, /serverFolder/, "the marker is not in a caller's hands");
+    } finally {
+      await d.stop();
+    }
+    d = await boot(dir);
+    try {
+      await settle(2500);
+      await check("after a restart");
+    } finally {
+      await d.stop();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}

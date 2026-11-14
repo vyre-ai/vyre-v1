@@ -455,6 +455,15 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   unchangedSince(ctx, site, o);
   const name = optStr(ctx, o, "name");
+  if (
+    o.settings !== null &&
+    typeof o.settings === "object" &&
+    !Array.isArray(o.settings) &&
+    Object.hasOwn(o.settings, "serverFolder")
+  )
+    fail(ctx, "validation.bad_input", "serverFolder is kept by the server and cannot be set.", {
+      field: "settings.serverFolder",
+    });
   const deployed = !isNull(site.source) || (o.source !== undefined && o.source !== null);
   // who may reach a site is the owner's to say, or whoever manages it (F56 R1, 14 Nov 2026): not a member who may only edit, and not an agent, whose Edit never reaches this (no Gate-held path for an agent exists)
   if (optStr(ctx, o, "access") !== undefined && o.access !== site.access) {
