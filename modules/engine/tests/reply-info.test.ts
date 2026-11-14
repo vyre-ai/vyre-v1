@@ -377,18 +377,29 @@ test("a manager of AI spend who is not the asker sees the account and cost but n
   const boss = harness({ raw: h.raw, principal: { kind: "person", id: "usr_boss" }, manager: true });
   const { turn } = H["engine.turn.of_message"](boss.ctx, { threadId: T, messageId: MSG });
   assert.equal(turn.accountRef, "#Team_Anthropic", "the managers of AI spend still see the account");
-  assert.deepEqual(turn.tools.map((x) => x.args), [undefined, undefined], "but not what a tool was asked to touch");
+  assert.deepEqual(
+    turn.tools.map((x) => x.args),
+    [undefined, undefined],
+    "but not what a tool was asked to touch",
+  );
   assert.deepEqual(turn.files, { read: [], written: [] });
   // engine.turn.get: a member who is neither the asker nor a manager is not told the key, who paid, where the engine went or where it switched
   const omar = harness({ raw: h.raw, principal: { kind: "person", id: "usr_omar" }, manager: false });
   const dana = harness({ raw: h.raw, principal: { kind: "person", id: "usr_dana" }, manager: false });
   // omar may open the chat (view on the thread) but is no manager of AI spend
-  const member = { ...omar.ctx, authorize: (a: { perm: string | null }) => ({ effect: a.perm === "ai.spend" ? "deny" : "allow" }) } as unknown as EngineCtx;
+  const member = {
+    ...omar.ctx,
+    authorize: (a: { perm: string | null }) => ({ effect: a.perm === "ai.spend" ? "deny" : "allow" }),
+  } as unknown as EngineCtx;
   const other = H["engine.turn.get"](member, { turnId: "trn_reply1" });
   assert.equal(other.what.keyUsed, undefined);
   assert.equal(other.what.paid, undefined);
   assert.equal(other.what.reached, undefined);
   assert.equal((other.what.turn as { accountRef?: unknown }).accountRef, undefined);
   const own = H["engine.turn.get"](dana.ctx, { turnId: "trn_reply1" });
-  assert.equal(own.what.keyUsed !== undefined || (own.what.turn as { accountRef?: unknown }).accountRef !== undefined, true, "the asker is told which key paid");
+  assert.equal(
+    own.what.keyUsed !== undefined || (own.what.turn as { accountRef?: unknown }).accountRef !== undefined,
+    true,
+    "the asker is told which key paid",
+  );
 });

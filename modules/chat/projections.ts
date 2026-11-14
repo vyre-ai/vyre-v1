@@ -748,7 +748,11 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
     JSON.stringify(m.blocks ?? []),
     m.replyTo ?? null,
     m.via || m.paidBy || m.askedBy
-      ? JSON.stringify({ ...m.via, ...(m.paidBy ? { paidBy: m.paidBy } : {}), ...(m.askedBy ? { askedBy: m.askedBy } : {}) })
+      ? JSON.stringify({
+          ...m.via,
+          ...(m.paidBy ? { paidBy: m.paidBy } : {}),
+          ...(m.askedBy ? { askedBy: m.askedBy } : {}),
+        })
       : null,
     m.depth ?? 0,
     JSON.stringify(m.attachments ?? []),

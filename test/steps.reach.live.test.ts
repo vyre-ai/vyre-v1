@@ -13,6 +13,7 @@ import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../agen
 const SECRET_NAME = "alice-private-notes.txt";
 const SECRET_TEXT = "OLIVIA-ONLY-CONTENT-7731";
 const VAULT_NAME = "Alice Bank Key";
+const SUB_NEEDLES = ["bank-statement-page.html", "BANK-ANSWER-4410", "Alice's bank page"];
 
 test("steps of a turn in a shared chat: what the other readers see", { timeout: 240_000 }, async () => {
   let toolOut: string[] = [];
@@ -56,6 +57,25 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
             payload: { id, ok: true, detail: `2 passing\n1 failing: ${SECRET_TEXT}` },
           } as DriverEvent;
         }
+        // a subagent the engine runs: its own lines carry the id of the Agent call that started it
+        yield { type: "block", kind: "tool_call", payload: { id: "ag1", name: "Agent" } } as DriverEvent;
+        yield {
+          type: "block",
+          kind: "tool_input",
+          payload: { id: "ag1", detail: "Check Alice's bank page" },
+        } as DriverEvent;
+        yield { type: "block", kind: "tool_call", payload: { id: "sub1", name: "Read", parent: "ag1" } } as DriverEvent;
+        yield {
+          type: "block",
+          kind: "tool_input",
+          payload: { id: "sub1", detail: "bank-statement-page.html", parent: "ag1" },
+        } as DriverEvent;
+        yield { type: "block", kind: "tool_result", payload: { id: "sub1", ok: true, parent: "ag1" } } as DriverEvent;
+        yield {
+          type: "block",
+          kind: "tool_result",
+          payload: { id: "ag1", ok: true, result: "BANK-ANSWER-4410" },
+        } as DriverEvent;
         yield { type: "text", text: "Done." };
         yield { type: "done" };
       },
@@ -246,7 +266,35 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
         await new Promise((r) => setTimeout(r, 2000));
       } else assistantTried["why"] = JSON.stringify(add.data).slice(0, 200);
     }
-    const dump: Record<string, unknown> = { toolOut, assistantTried };
+    // a guest who CAN open the chat: added to a chat of Alice's by name, with Bob
+    const gchat = (await ok(alice.token, "chat.start", { kind: "chat", agentIds: [agent] })).thread.threadId as string;
+    await ok(alice.token, "threads.members.add", { threadId: gchat, personId: bob.personId });
+    const gadd = await api(d, alice.token, "threads.members.add", {
+      threadId: gchat,
+      personId: accepted.personId,
+      idempotencyKey: "sr-gchat-guest",
+    });
+    const guestOpens = (await api(d, tok["gwen"]!, "threads.get", { threadId: gchat })).status === 200;
+    const gbefore = frames["gwen"]!.length;
+    if (guestOpens) {
+      toolOut = [];
+      script = [];
+      await ok(alice.token, "chat.post", {
+        threadId: gchat,
+        body: "probe guest chat",
+        mentions: [{ kind: "agent", id: agent }],
+      });
+      await new Promise((r) => setTimeout(r, 7000));
+      await d.hooks?.pump?.();
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    const crewThreads = [
+      ...new Set(frames["bob"]!.filter((f) => f["t"] === "turn").map((f) => String(f["delta"].threadId))),
+    ];
+    const dump: Record<string, unknown> = { toolOut, assistantTried, guestChat: { add: gadd.status, guestOpens } };
+    dump["guest chat live frames"] = frames["gwen"]!.slice(gbefore)
+      .filter((f) => f["t"] === "turn")
+      .map((f) => f["delta"]);
     dump["bob assistant frames"] = frames["bob"]!.slice(before)
       .filter((f) => f["t"] === "turn")
       .map((f) => f["delta"]);
@@ -306,6 +354,10 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
         dump[`${who} turn record ${th.slice(-4)}`] = `${rec.status} ${JSON.stringify(rec.data).slice(0, 1500)}`;
       }
     }
+    for (const th of crewThreads.slice(0, 2)) {
+      const cs = await api(d, tok["bob"]!, "engine.crew.status", { threadId: th });
+      dump[`crew.status bob ${th.slice(-4)}`] = `${cs.status} ${JSON.stringify(cs.data).slice(0, 1200)}`;
+    }
     const aliceKeys = Object.keys(dump).filter((k) => k.startsWith("alice "));
     const aliceText = JSON.stringify(aliceKeys.map((k) => dump[k]));
     for (const k of aliceKeys) delete dump[k];
@@ -316,11 +368,12 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
     if (process.env["STEPS_EVIDENCE"]) fs.writeFileSync(process.env["STEPS_EVIDENCE"], JSON.stringify(dump, null, 1));
     console.log(`ASKER SEES ${aliceText.slice(0, 3000)}`);
     // door by door: what each reader door told Bob (the guest cannot open the chat in this setup, so he is sent nothing live and reads nothing stored)
-    const doors = Object.keys(dump).filter((k) => k !== "toolOut");
+    // engine.crew.status is lane b-crew's (its own fix is on its branch): shown in the evidence, not asserted here until that fix is on the line
+    const doors = Object.keys(dump).filter((k) => k !== "toolOut" && !k.startsWith("crew.status"));
     const leaks = doors
       .map(
         (k) =>
-          `${k}: ${[SECRET_NAME, SECRET_TEXT, VAULT_NAME, fileId].filter((x) => JSON.stringify(dump[k]).includes(x)).join(", ")}`,
+          `${k}: ${[SECRET_NAME, SECRET_TEXT, VAULT_NAME, fileId, ...SUB_NEEDLES].filter((x) => JSON.stringify(dump[k]).includes(x)).join(", ")}`,
       )
       .filter((l) => !l.endsWith(": "));
     assert.deepEqual(leaks, [], "what Bob was told names things only Alice may open");

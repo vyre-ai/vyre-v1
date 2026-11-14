@@ -83,9 +83,13 @@ test("a store written by the old code is served to a second reader without the f
 
 test("the asker reads their own step details whoever paid: on a key of the Space a member still sees them, a second member does not", async () => {
   const hn = baseHarness({
-    calls: { "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: "Checker", runtime: "vyre" } }), "access.principals.get": () => ({ principal: { name: "Someone" } }) },
+    calls: {
+      "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: "Checker", runtime: "vyre" } }),
+      "access.principals.get": () => ({ principal: { name: "Someone" } }),
+    },
   });
-  const threadId = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "sd2" })).thread.threadId as string;
+  const threadId = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "sd2" })).thread
+    .threadId as string;
   await h["threads.members.add"]!(hn.ctx, { threadId, personId: MAYA });
   // the agent's reply for Dana, paid by a key of the Space (no paidBy)
   const agentForDana = { ...hn.agent(INTAKE, DANA), sharedKey: true } as Harness["ctx"];
