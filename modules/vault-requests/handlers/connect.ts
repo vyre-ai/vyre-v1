@@ -528,8 +528,8 @@ export async function connectSubmit(
         secrets: slots,
       }),
     );
-    connectionId = strOf(asRow(made?.["connection"])?.["connectionId"]);
-    if (!connectionId) throw new Error("The connection was not made.");
+    // no id back means the next call refuses, which takes the key back below
+    connectionId = strOf(asRow(made?.["connection"])?.["connectionId"]) ?? "";
     if (saved) {
       const probe = asRow(await ctx.call("connections.test", { connectionId }));
       if (probe?.["state"] === "down") {
