@@ -1642,11 +1642,31 @@ async function folderCreate(ctx: Ctx, input: unknown): Promise<{ folder: FolderO
   return { folder: folderOut(ctx, mustFolder(ctx, id)) };
 }
 
+/**
+ * The server keeps an artifact's page in Deployments/Artifacts/<name> (<id>), and the access tree keeps that folder under the artifact (F62, 14 Nov 2026): moving or renaming it from Files would put the page where the
+ * Space's members can read it, or lose it. So that folder, and the Artifacts folder above it, stay where they are; their files and their own subfolders are the person's to work with.
+ */
+function keepsArtifact(ctx: Ctx, row: Row): void {
+  const path = String(row.path ?? "");
+  const m = /^Deployments\/Artifacts(?:\/([^/]+))?$/.exec(path);
+  if (!m) return;
+  const name = m[1] === undefined ? undefined : m[1].replace(/ \([0-9a-f]{6}\)$/, "");
+  fail(
+    ctx,
+    "validation.precondition_failed",
+    name === undefined
+      ? "The Artifacts folder stays where it is: it holds the pages artifacts show."
+      : `This folder belongs to the artifact ${name}. Change it from the artifact, not from Files.`,
+    { reason: "artifact_folder" },
+  );
+}
+
 async function folderRename(ctx: Ctx, input: unknown): Promise<{ folder: FolderOut }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
   const row = liveFolder(ctx, reqStr(ctx, o, "folderId"));
   if (isRoot(row)) fail(ctx, "validation.precondition_failed", "A root folder keeps its name.");
+  keepsArtifact(ctx, row);
   const name = cleanName(ctx, reqStr(ctx, o, "name"));
   const from = String(row.name);
   if (name === from) return { folder: folderOut(ctx, row) };
@@ -1684,6 +1704,7 @@ async function folderMove(ctx: Ctx, input: unknown): Promise<{ folder: FolderOut
     dest = up;
   }
   if (isRoot(row)) fail(ctx, "validation.precondition_failed", "A root folder stays where it is.");
+  keepsArtifact(ctx, row);
   if (String(dest.id) === String(row.id) || underPath(dest, row)) {
     fail(ctx, "validation.precondition_failed", "A folder cannot move into itself.");
   }

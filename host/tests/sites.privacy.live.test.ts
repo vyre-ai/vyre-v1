@@ -492,3 +492,34 @@ test("changing who may reach a site needs its owner or someone who manages it, f
     await d.stop();
   }
 });
+
+test("an artifact's folder cannot be moved or renamed from Files, nor the Artifacts folder above it; the page stays closed to a member (F62)", async () => {
+  const d = await boot(seededDir());
+  try {
+    const r = await raw(d, "/v1/sites/artifact_publish", { title: "Okapi artifact", html: "<p>OKAPIWORD</p>", idempotencyKey: "ok1" });
+    assert.equal(r.status, 200, r.text);
+    const siteId = (JSON.parse(r.text) as { data: { artifactId: string } }).data.artifactId;
+    const f = d.db!.all("SELECT id, parent_id FROM files_folder WHERE id = (SELECT target_folder FROM sites_site WHERE id = ?)", siteId)[0] as { id: string; parent_id: string };
+    const roots = JSON.parse((await raw(d, "/v1/files/tree", {})).text) as { data: { roots: { key: string; folderId: string }[] } };
+    const personal = roots.data.roots.find((x) => x.key.startsWith("personal"))!.folderId;
+    const words = /This folder belongs to the artifact Okapi artifact\./;
+    const move = await raw(d, "/v1/files/folder/move", { folderId: f.id, toParentId: personal });
+    assert.equal(move.status, 422, move.text);
+    assert.match(move.text, words);
+    const up = await raw(d, "/v1/files/folder/move", { folderId: f.id });
+    assert.equal(up.status, 422, up.text);
+    const ren = await raw(d, "/v1/files/folder/rename", { folderId: f.id, name: "Mine now" });
+    assert.equal(ren.status, 422, ren.text);
+    assert.match(ren.text, words);
+    // the Artifacts folder above it
+    const parent = await raw(d, "/v1/files/folder/move", { folderId: f.parent_id, toParentId: personal });
+    assert.equal(parent.status, 422, parent.text);
+    assert.match(parent.text, /The Artifacts folder stays where it is/);
+    await new Promise((x) => setTimeout(x, 1500));
+    const reach = JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "folder", id: f.id }] }, NOAH)).text) as { data: { items: { level: string }[] } };
+    assert.equal(reach.data.items[0]!.level, "none", "a member still has no reach on the folder");
+    assert.equal(/OKAPIWORD/.test((await raw(d, "/v1/search/query", { q: "OKAPIWORD" }, NOAH)).text), false);
+  } finally {
+    await d.stop();
+  }
+});
