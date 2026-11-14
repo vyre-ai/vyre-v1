@@ -40,6 +40,27 @@ export function LoadFailed({
   /** One quiet row-height line (a section of a list that failed): the words and Retry; a refusal says so plainly with no Retry. Same rules as the block; the reason and trace id stay for the block. */
   compact?: boolean;
 }): ReactElement {
+  if (compact) {
+    const refused = refusable && isRefused(failure);
+    return (
+      <View testID={testID} style={st.line}>
+        <Text numberOfLines={1} style={st.lineText}>
+          {refused ? `You can't open ${what}` : `Couldn't load ${what}`}
+        </Text>
+        {refused ? null : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry"
+            testID={`${testID}-retry`}
+            onPress={onRetry}
+            style={st.lineRetry}
+          >
+            <Text style={st.lineRetryText}>Retry</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
   // a refusal is not a failure to wait out: say so plainly and offer no Retry, which could never work
   if (refusable && isRefused(failure))
     return (

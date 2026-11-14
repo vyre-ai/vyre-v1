@@ -14,6 +14,7 @@ import { usePaneAdd } from "./add.tsx";
 import { Face, LeadIcon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
 import { useCrew } from "../crew/context.tsx";
+import { SessionBlockMount } from "../conversation/chapters/index.ts";
 import { CrewOverview, CrewPeek } from "../crew/pane.tsx";
 
 type CrewOut = CapMap["engine.crew.list"]["out"];
@@ -134,8 +135,14 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
           />
         )}
         {jobs.length > 0 && !sel ? list : null}
+        {sel ? null : <SessionBlockMount call={data.call} threadId={data.threadId} />}
       </>
     );
   }
-  return list;
+  return (
+    <>
+      {list}
+      <SessionBlockMount call={data.call} threadId={data.threadId} />
+    </>
+  );
 }

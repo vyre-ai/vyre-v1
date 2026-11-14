@@ -105,7 +105,7 @@ test("saved duplicates close on load, keeping the one used last; different chats
   );
 });
 
-test("an unnamed chat tab is a different tab from the landing: both survive load (the landing is the new chat, G7), and a chat never shows the word Chats", () => {
+test("an unnamed chat tab is a different chat from the Chats place: both survive load, and the chat shows a real title, never Chats", () => {
   const raw = writeTabs(
     state(
       [
@@ -120,7 +120,7 @@ test("an unnamed chat tab is a different tab from the landing: both survive load
   assert.equal(read.tabs.length, 3, "nothing closed");
   assert.deepEqual(
     read.tabs.map((t) => t.title),
-    ["New chat", "New chat", "New chat"],
+    ["Chats", "New chat", "New chat"],
   );
   assert.equal(screenTitle("subject=thread:thr_1"), "New chat");
   assert.equal(screenTitle("subject=chat:c1"), "New chat");
@@ -294,7 +294,7 @@ test("the landing asked for by address: the selected tab of the place becomes it
   const became = landOn(state([task], task.key), "chats");
   assert.deepEqual(
     [keys(became), became.active, became.tabs[0]?.title, became.tabs[0]?.hash],
-    [["chats"], "chats", "New chat", undefined],
+    [["chats"], "chats", "Chats", undefined],
     "the task tab is the landing now; nothing still names the task",
   );
   const landing = tab("chats"),

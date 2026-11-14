@@ -156,7 +156,7 @@ export function Tool({
       accessibilityRole="button"
       accessibilityLabel={label}
       testID={testID}
-      {...webProps({ title: label })}
+      {...webProps({ dataSet: { tt: label } })}
       onPress={(e) => {
         const ev = e as unknown as {
           currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };

@@ -815,7 +815,7 @@ function BatonPath({ steps, nameOf }: { steps: ReturnType<typeof stepsOf>; nameO
       <View
         key={s.key}
         testID={`baton-step-${s.key}`}
-        {...webProps({ title: s.who ? `${title}: ${nameOf(s.who.id)}` : title })}
+        {...webProps({ dataSet: { tt: s.who ? `${title}: ${nameOf(s.who.id)}` : title } })}
         style={[st.path, s.lit === "now" ? null : s.lit === "past" ? { opacity: 0.8 } : { opacity: 0.5 }]}
       >
         {s.who ? (

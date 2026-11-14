@@ -22,28 +22,7 @@ export interface TabEntry {
   at?: number;
   /** A chat with no name and no message yet: one such tab is kept, and starting another focuses it. */
   empty?: true;
-  /** What a place's own tab is showing, by name (the chat or agent it moved to), for the Back control to say where it goes. The tab's own title stays the place's name. */
-  name?: string;
-  /** Where this tab has been, oldest first: what Back returns to. One history per tab (NAV-2026-11-14 rule 1). */
-  back?: readonly Step[];
-  /** What Back stepped away from, oldest first; the last one is what Forward returns to. Any new step clears it. */
-  fwd?: readonly Step[];
-  /** The tab this one was opened from by pressing an item: Back with nowhere to go back to returns there. */
-  from?: string;
-  /** The tab that was selected before this one (a rail press, the strip, a link): Back with no steps of its own returns there, so switching places is undone by Back like any other open. */
-  came?: string;
-  /** The tab Back just came from (this one was selected by Back): Forward returns there. Any step of this tab forgets it. */
-  next?: string;
 }
-
-/** One place in a tab's history: the address inside the tab's place (the empty text is the place's landing) and the name the tab had there. */
-export interface Step {
-  hash: string;
-  title: string;
-}
-
-/** How many steps a tab remembers. */
-export const HISTORY_MAX = 50;
 
 export interface TabsState {
   tabs: readonly TabEntry[];
@@ -67,8 +46,6 @@ export function tabKey(place: PlaceId, hash?: string): string {
   const subject = subjectOf(t);
   if (subject !== undefined) return `${place}:subject=${subject.type}:${subject.id}`;
   if (t.screen === "tasks.page" && t.args["taskId"]) return `${place}:subject=task:${t.args["taskId"]}`;
-  // an agent's page is that agent's tab, never the place's: opened from a chat it is a step in the chat's tab (or its own tab), so Back returns to the chat
-  if (t.screen === "chats.agent-page" && t.args["agentId"]) return `${place}:subject=agent:${t.args["agentId"]}`;
   if (t.screen !== undefined && OWN_TAB[t.screen] !== undefined) return `${place}:${t.screen}`;
   const type = t.args["type"];
   if (type !== undefined && type !== "") return `${place}:type=${type}`;
@@ -86,10 +63,6 @@ const OWN_TAB: Readonly<Record<string, string>> = {
 
 /** What a chat tab is called while the chat has no name and no message. */
 export const NEW_CHAT = "New chat";
-
-/** What a place's own tab says: its name, except Chats, whose own tab is the landing, the new chat (G7, prototype scene "new"). */
-export const placeTabTitle = (place: PlaceId, hash?: string): string =>
-  place === "chats" && (hash === undefined || hash === "") ? NEW_CHAT : PLACE_TITLE[place];
 
 /** The name a tab starts with when its screen has one of its own; the place's name otherwise. */
 export function screenTitle(hash: string | undefined): string | undefined {
@@ -124,41 +97,15 @@ function holding(state: TabsState, key: string, except?: TabEntry): TabEntry | u
   );
 }
 
-/** A tab that stays the tab and shows another address: a step. */
-function stepTo(t: TabEntry, hash: string): TabEntry {
-  const { fwd: _fwd, back: _back, next: _next, came: _came, ...rest } = t;
-  return { ...rest, hash, ...pushed(t) };
-}
-
-const stepOf = (t: TabEntry): Step => ({ hash: t.hash ?? "", title: t.name ?? t.title });
-
-/** The history a tab carries to where it moves: what it showed goes on the back list, and the forward list is cleared (a new step). */
-function pushed(cur: TabEntry): Pick<TabEntry, "back" | "fwd" | "from"> {
-  const back = [...(cur.back ?? []), stepOf(cur)].slice(-HISTORY_MAX);
-  return { back, ...(cur.from !== undefined ? { from: cur.from } : {}) };
-}
-
-/** The history a tab keeps when it changes its name only. */
-function kept(cur: TabEntry): Pick<TabEntry, "back" | "fwd" | "from" | "name" | "next" | "came"> {
-  return {
-    ...(cur.back !== undefined && cur.back.length > 0 ? { back: cur.back } : {}),
-    ...(cur.fwd !== undefined && cur.fwd.length > 0 ? { fwd: cur.fwd } : {}),
-    ...(cur.from !== undefined ? { from: cur.from } : {}),
-    ...(cur.name !== undefined ? { name: cur.name } : {}),
-    ...(cur.next !== undefined ? { next: cur.next } : {}),
-    ...(cur.came !== undefined ? { came: cur.came } : {}),
-  };
-}
-
 /** Opens a tab or selects the one already open with that key (or showing it). `background` opens it behind the current tab (Cmd-click). */
-export function openTab(state: TabsState, tab: TabEntry, background = false, exact = false, link = false): TabsState {
+export function openTab(state: TabsState, tab: TabEntry, background = false, exact = false): TabsState {
   const at = holding(state, tab.key);
   if (at !== undefined) {
     if (background) return state;
     // the tab follows where its place went (a new screen inside it), so coming back lands there
     const moved = tab.hash !== undefined && tab.hash !== at.hash && !at.isNew;
     return {
-      tabs: moved ? state.tabs.map((t) => (t === at ? stepTo(t, tab.hash as string) : t)) : state.tabs,
+      tabs: moved ? state.tabs.map((t) => (t === at ? { ...t, hash: tab.hash as string } : t)) : state.tabs,
       active: at.key,
     };
   }
@@ -169,24 +116,8 @@ export function openTab(state: TabsState, tab: TabEntry, background = false, exa
       same.find((t) => t.key === state.active) ?? [...same].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0] ?? undefined;
     if (there !== undefined) return background ? state : { tabs: state.tabs, active: there.key };
   }
-  // an item opened by a press from the tab on screen remembers that tab: its Back goes there
-  const opener = activeEntry(state);
-  const opened: TabEntry =
-    !background &&
-    !link &&
-    tab.isNew !== true &&
-    tab.hash !== undefined &&
-    tab.from === undefined &&
-    opener !== undefined
-      ? { ...tab, from: opener.key }
-      : tab;
-  const tabs = [...state.tabs, opened];
+  const tabs = [...state.tabs, tab];
   return { tabs, active: background && state.active !== "" ? state.active : tab.key };
-}
-
-/** Whether a move changes the address the tab shows (a step), as against only its name. */
-function next0Moved(cur: TabEntry, hash: string | undefined): boolean {
-  return (cur.hash ?? "") !== (hash ?? "");
 }
 
 /**
@@ -206,22 +137,12 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
     // a place's tab keeps its name; a tab that now shows another item starts from the place's name until that item's name arrives (hub.retitle)
     // the same chat the tab was just opened on (the page reporting its own address) keeps the name it has: the placeholder a chat address carries never replaces a real name
     title:
-      // a place's own tab is named for the screen it shows now (Notes, not Chats), and the place's name at its landing
-      own
-        ? screenTitle(hash) === undefined || screenTitle(hash) === NEW_CHAT
-          ? hash === undefined || hash === "" || Object.values(OWN_TAB).includes(cur.title)
-            ? placeTabTitle(place)
-            : cur.title
-          : (screenTitle(hash) as string)
-        : cur.key === tab.key && title === NEW_CHAT && cur.title !== NEW_CHAT
-          ? cur.title
-          : (title ?? placeTabTitle(place, hash)),
+      own || (cur.key === tab.key && title === NEW_CHAT && cur.title !== NEW_CHAT)
+        ? cur.title
+        : (title ?? PLACE_TITLE[place]),
     place,
     ...(hash === undefined || hash === "" ? {} : { hash }),
     ...(cur.pinned === true ? { pinned: true } : {}),
-    ...(next0Moved(cur, hash) ? pushed(cur) : kept(cur)),
-    // a place's own tab names the item it shows now
-    ...(own && hash !== undefined && hash !== "" && title !== undefined ? { name: title } : {}),
   };
   if (next.key === cur.key && next.hash === cur.hash && next.title === cur.title) return state;
   return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key };
@@ -263,13 +184,7 @@ export function landOn(state: TabsState, place: PlaceId): TabsState {
   const cur = activeEntry(state);
   if (cur === undefined || cur.isNew === true || cur.place !== place)
     return openTab(state, placeTab(place), false, true);
-  const next: TabEntry = {
-    key,
-    title: placeTabTitle(place),
-    place,
-    ...(cur.pinned === true ? { pinned: true } : {}),
-    ...(next0Moved(cur, undefined) ? pushed(cur) : kept(cur)),
-  };
+  const next: TabEntry = { key, title: PLACE_TITLE[place], place, ...(cur.pinned === true ? { pinned: true } : {}) };
   return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: key };
 }
 
@@ -336,156 +251,11 @@ export function reorderTabs(state: TabsState, keys: readonly string[]): TabsStat
   return { tabs: out, active: state.active };
 }
 
-/* ---------- Back and Forward: one history per tab (NAV-2026-11-14) ---------- */
-
-/** The address one level up inside a place: an item goes to the list it belongs to, a list goes to the place's landing. Null at the landing. */
-export function upHash(hash: string | undefined): string | null {
-  if (hash === undefined || hash === "") return null;
-  if (!hash.includes("=")) return "";
-  const t = parseHash(hash);
-  const type = t.args["type"];
-  // an item that names the list it sits in (a record's type, a file's folder) goes to that list
-  if ((t.subject !== undefined || t.screen !== undefined) && typeof type === "string" && type !== "") {
-    const list = `type=${type}`;
-    return list === hash ? "" : list;
-  }
-  return "";
-}
-
-const ownTab = (t: TabEntry): boolean => t.key === t.place;
-
-/** The key a tab would have showing `hash`. A place's own tab keeps its key. */
-function keyAt(cur: TabEntry, hash: string): string {
-  return ownTab(cur) ? cur.key : tabKey(cur.place, hash === "" ? undefined : hash);
-}
-
-/** Whether the tab can show `hash`: no other tab already shows it (that tab is where it lives). */
-function free(state: TabsState, cur: TabEntry, hash: string): boolean {
-  const item = tabKey(cur.place, hash === "" ? undefined : hash);
-  return item === cur.key || holding(state, item, cur) === undefined;
-}
-
-/** Where Back goes from the selected tab: a step it took, the tab it was opened from, or one level up. Null when there is nowhere. */
-export type BackTarget =
-  | { kind: "step"; index: number; title: string; hash: string }
-  | { kind: "opener"; key: string; title: string }
-  | { kind: "up"; hash: string; title: string };
-
-export function backTarget(state: TabsState, o: { up?: boolean } = {}): BackTarget | null {
-  const cur = activeEntry(state);
-  if (cur === undefined || cur.isNew === true) return null;
-  // the last thing done was selecting this tab (the rail, the strip, a link): Back undoes that first, then the steps the tab itself took
-  const entered = cur.came === undefined ? undefined : findTab(state, cur.came);
-  if (entered !== undefined && entered !== cur)
-    return { kind: "opener", key: entered.key, title: entered.name ?? entered.title };
-  const steps = cur.back ?? [];
-  for (let i = steps.length - 1; i >= 0; i--) {
-    const s = steps[i] as Step;
-    if (free(state, cur, s.hash)) return { kind: "step", index: i, ...s };
-  }
-  const opener = cur.from === undefined ? undefined : findTab(state, cur.from);
-  if (opener !== undefined && opener !== cur)
-    return { kind: "opener", key: opener.key, title: opener.name ?? opener.title };
-  if (o.up === false) return null;
-  const up = upHash(cur.hash);
-  if (up === null) return null;
-  return {
-    kind: "up",
-    hash: up,
-    title: up === "" ? PLACE_TITLE[cur.place] : (screenTitle(up) ?? PLACE_TITLE[cur.place]),
-  };
-}
-
-/** Where Forward goes from the selected tab: a step Back stepped away from, or the tab Back came from. */
-export type ForwardTarget =
-  | { kind: "step"; index: number; title: string; hash: string }
-  | { kind: "tab"; key: string; title: string };
-
-export function forwardTarget(state: TabsState): ForwardTarget | null {
-  const cur = activeEntry(state);
-  if (cur === undefined || cur.isNew === true) return null;
-  const steps = cur.fwd ?? [];
-  for (let i = steps.length - 1; i >= 0; i--) {
-    const s = steps[i] as Step;
-    if (free(state, cur, s.hash)) return { kind: "step", index: i, ...s };
-  }
-  const next = cur.next === undefined ? undefined : findTab(state, cur.next);
-  if (next !== undefined && next !== cur) return { kind: "tab", key: next.key, title: next.name ?? next.title };
-  return null;
-}
-
-function showing(cur: TabEntry, s: Step, back: readonly Step[], fwd: readonly Step[]): TabEntry {
-  const { back: _b, fwd: _f, hash: _h, name: _n, ...rest } = cur;
-  return {
-    ...rest,
-    key: keyAt(cur, s.hash),
-    // a place's own tab keeps its name and names the item it shows; an item's tab has the name it had there
-    title: ownTab(cur) ? cur.title : s.title,
-    ...(ownTab(cur) && s.hash !== "" ? { name: s.title } : {}),
-    ...(s.hash === "" ? {} : { hash: s.hash }),
-    ...(back.length > 0 ? { back } : {}),
-    ...(fwd.length > 0 ? { fwd } : {}),
-  };
-}
-
-/** Leaving a tab for another that is already open (the one this was opened from, or the one that shows where Back goes): that tab is selected, this one stays, and Forward comes back to it. */
-function goTo(state: TabsState, from: TabEntry, to: string): TabsState {
-  return {
-    tabs: state.tabs.map((t) => {
-      // the selection this Back undoes is spent (so Back goes on to the one before it); Forward on the tab it returned to comes back here
-      if (t.key === from.key) {
-        const { came: _c, ...rest } = t;
-        return rest;
-      }
-      return t.key === to ? { ...t, next: from.key } : t;
-    }),
-    active: to,
-  };
-}
-
-/** Back from the selected tab. */
-export function goBack(state: TabsState, o: { up?: boolean } = {}): TabsState {
-  const to = backTarget(state, o);
-  const cur = activeEntry(state);
-  if (to === null || cur === undefined) return state;
-  if (to.kind === "opener") return goTo(state, cur, to.key);
-  const here = stepOf(cur);
-  const fwd = [...(cur.fwd ?? []), here].slice(-HISTORY_MAX);
-  if (to.kind === "up") {
-    // one level up is where another tab already is (the place's own tab): go there
-    const held = holding(state, tabKey(cur.place, to.hash === "" ? undefined : to.hash), cur);
-    if (held !== undefined) return goTo(state, cur, held.key);
-    const next = showing(cur, { hash: to.hash, title: to.title }, cur.back ?? [], fwd);
-    return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key };
-  }
-  const steps = cur.back ?? [];
-  const next = showing(cur, to, steps.slice(0, to.index), fwd);
-  return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key };
-}
-
-/** Forward from the selected tab. */
-export function goForward(state: TabsState): TabsState {
-  const to = forwardTarget(state);
-  const cur = activeEntry(state);
-  if (to === null || cur === undefined) return state;
-  if (to.kind === "tab") {
-    const { next: _n, ...rest } = cur;
-    return {
-      tabs: state.tabs.map((t) => (t === cur ? rest : t.key === to.key ? { ...t, came: cur.key } : t)),
-      active: to.key,
-    };
-  }
-  const steps = cur.fwd ?? [];
-  const back = [...(cur.back ?? []), stepOf(cur)].slice(-HISTORY_MAX);
-  const next = showing(cur, to, back, steps.slice(0, to.index));
-  return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key };
-}
-
 /** A place's own tab, or an item inside it. */
 export function placeTab(place: PlaceId, hash?: string, title?: string): TabEntry {
   return {
     key: tabKey(place, hash),
-    title: title ?? placeTabTitle(place, hash),
+    title: title ?? PLACE_TITLE[place],
     place,
     ...(hash === undefined || hash === "" ? {} : { hash }),
   };
@@ -574,17 +344,6 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
-/** Steps as saved; anything that is not a step is dropped. */
-function readSteps(v: unknown): Step[] {
-  if (!Array.isArray(v)) return [];
-  const out: Step[] = [];
-  for (const row of v as unknown[]) {
-    if (isRecord(row) && typeof row["hash"] === "string" && typeof row["title"] === "string")
-      out.push({ hash: row["hash"], title: row["title"] });
-  }
-  return out.slice(-HISTORY_MAX);
-}
-
 const KNOWN_PLACES: ReadonlySet<string> = new Set(Object.keys(PLACE_TITLE));
 
 /** Reads what writeTabs wrote. Anything malformed is null, and the Space opens on its Kit's start place instead. */
@@ -604,12 +363,6 @@ export function readTabs(raw: string | null): TabsState | null {
   for (const row of data["tabs"] as unknown[]) {
     if (!isRecord(row)) return null;
     const { key, title, place, hash, isNew, pinned, at, empty } = row;
-    const back = readSteps(row["back"]);
-    const fwd = readSteps(row["fwd"]);
-    const from = typeof row["from"] === "string" ? row["from"] : undefined;
-    const name = typeof row["name"] === "string" ? row["name"] : undefined;
-    const came = typeof row["came"] === "string" ? row["came"] : undefined;
-    const nextTab = typeof row["next"] === "string" ? row["next"] : undefined;
     if (typeof key !== "string" || typeof title !== "string" || typeof place !== "string" || !KNOWN_PLACES.has(place))
       return null;
     const hashText = typeof hash === "string" && hash !== "" ? hash : undefined;
@@ -639,7 +392,7 @@ export function readTabs(raw: string | null): TabsState | null {
           ? hashText === undefined
             ? PLACE_TITLE.chats
             : title
-          : hashText !== undefined && (title === PLACE_TITLE[where] || (where === "chats" && title === NEW_CHAT))
+          : hashText !== undefined && title === PLACE_TITLE[where]
             ? (screenTitle(hashText) ?? title)
             : title,
       place: where,
@@ -648,17 +401,9 @@ export function readTabs(raw: string | null): TabsState | null {
       ...(pinned === true ? { pinned: true } : {}),
       ...(typeof at === "number" ? { at } : {}),
       // a chat saved while its name read as blank carries the placeholder title: tab lists saved before the mark held are marked now, so they collapse to one like the rest
-      ...((empty === true ||
-        (title === NEW_CHAT && pinned !== true && isNew !== true && screenTitle(hashText) === NEW_CHAT)) &&
-      hashText !== undefined
+      ...((empty === true || (title === NEW_CHAT && pinned !== true && isNew !== true)) && hashText !== undefined
         ? { empty: true as const }
         : {}),
-      ...(back.length > 0 ? { back } : {}),
-      ...(fwd.length > 0 ? { fwd } : {}),
-      ...(from !== undefined ? { from } : {}),
-      ...(name !== undefined ? { name } : {}),
-      ...(came !== undefined ? { came } : {}),
-      ...(nextTab !== undefined ? { next: nextTab } : {}),
     });
   }
   const active = renamed.get(data["active"]) ?? data["active"];
@@ -679,7 +424,7 @@ export interface TabsController {
   state(): TabsState;
   subscribe(listener: () => void): () => void;
   /** Open a place (or an item in it) as a tab, or select it. */
-  openPlace(place: PlaceId, hash?: string, title?: string, background?: boolean, link?: boolean): void;
+  openPlace(place: PlaceId, hash?: string, title?: string, background?: boolean): void;
   /** The place's landing was asked for by address: its own tab shows it (landOn). */
   land(place: PlaceId): void;
   /** The person went somewhere inside the selected tab's place: the tab follows (moveTab). */
@@ -697,10 +442,6 @@ export interface TabsController {
   pin(key: string, on: boolean): void;
   /** Close every unpinned tab to the right of this one. */
   closeRight(key: string): void;
-  /** Back in the selected tab: a step it took, the tab it was opened from, or one level up. False when there is nowhere to go. */
-  back(o?: { up?: boolean }): boolean;
-  /** Forward in the selected tab, after Back. */
-  forward(): boolean;
   /** A tab that was closed comes back, the last closed first. */
   reopen(): void;
   /** Whether a closed tab can come back. */
@@ -746,8 +487,6 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     }
   };
 
-  /** Back and Forward select tabs without that being a new step. */
-  let navigating = false;
   const set = (given: TabsState): void => {
     // closing the last tab leaves the Space's start place open, never an empty stage
     let next = given.tabs.length === 0 ? openTab(EMPTY_TABS, placeTab(options.start)) : given;
@@ -755,21 +494,6 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     if (next.active !== state.active || state.tabs.length === 0)
       next = {
         tabs: next.tabs.map((t) => (t.key === next.active ? { ...t, at: Date.now() } : t)),
-        active: next.active,
-      };
-    // selecting another tab (the rail, the strip, a link) is remembered on the tab selected: Back returns to where the person was
-    if (
-      !navigating &&
-      next.active !== state.active &&
-      state.active !== "" &&
-      next.tabs.some((t) => t.key === state.active)
-    )
-      next = {
-        tabs: next.tabs.map((t) => {
-          if (t.key !== next.active) return t;
-          const { next: _n, ...rest } = t;
-          return { ...rest, came: state.active };
-        }),
         active: next.active,
       };
     if (next === state) return;
@@ -791,15 +515,9 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
         listeners.delete(listener);
       };
     },
-    openPlace(place, hash, title, background = false, link = false) {
+    openPlace(place, hash, title, background = false) {
       if (hidden.includes(place)) return;
-      // a link (an address, a pasted URL) is not reached from the tab on screen: it has an up, not a way back to a tab the person never pressed from
-      navigating = link;
-      try {
-        set(openTab(state, placeTab(place, hash, title), background, false, link));
-      } finally {
-        navigating = false;
-      }
+      set(openTab(state, placeTab(place, hash, title), background));
     },
     move(place, hash, title) {
       if (hidden.includes(place)) return;
@@ -825,13 +543,7 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
       return tab;
     },
     select(key) {
-      // choosing among open tabs in the strip is not a step: Back in that tab steps that tab's own history
-      navigating = true;
-      try {
-        set(selectTab(state, key));
-      } finally {
-        navigating = false;
-      }
+      set(selectTab(state, key));
     },
     close(key) {
       remember([key]);
@@ -855,28 +567,6 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
       set(openTab(state, tab));
     },
     canReopen: () => closed.length > 0,
-    back(o) {
-      const next = goBack(state, o);
-      if (next === state) return false;
-      navigating = true;
-      try {
-        set(next);
-      } finally {
-        navigating = false;
-      }
-      return true;
-    },
-    forward() {
-      const next = goForward(state);
-      if (next === state) return false;
-      navigating = true;
-      try {
-        set(next);
-      } finally {
-        navigating = false;
-      }
-      return true;
-    },
     reorder(keys) {
       set(reorderTabs(state, keys));
     },

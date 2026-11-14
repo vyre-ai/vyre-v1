@@ -156,7 +156,7 @@ export function IconButton({
       accessibilityLabel={label}
       accessibilityState={{ selected: active }}
       testID={testID}
-      {...webProps({ title: label })}
+      {...webProps({ dataSet: { tt: label } })}
       onPress={(e) => {
         const p = anchorOf(e);
         onPress(p.x, p.y);
@@ -189,7 +189,7 @@ export function PeopleCount({
       accessibilityRole="button"
       accessibilityLabel={label}
       testID={testID}
-      {...webProps({ title: label })}
+      {...webProps({ dataSet: { tt: label } })}
       onPress={(e) => {
         const p = anchorOf(e);
         onPress(p.x, p.y);
@@ -232,7 +232,7 @@ export function FaceButton({
       accessibilityRole="button"
       accessibilityLabel={`${name}, ${mode === "lead" ? "leads" : "listening"}`}
       testID={testID}
-      {...webProps({ title })}
+      {...webProps({ dataSet: { tt: title } })}
       onPress={(e) => {
         const p = anchorOf(e);
         onPress(p.x, p.y);

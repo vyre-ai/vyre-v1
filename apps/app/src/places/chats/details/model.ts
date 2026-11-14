@@ -446,7 +446,7 @@ function knew(d: ReplyDetails, out: Line[]): void {
   // the lessons the agent was given for this reply come first, under their own heading: one line each (the chat itself prints none of them)
   const lessons = m ? m.facts.filter((f) => f.kind === "lesson") : [];
   if (lessons.length > 0) {
-    out.push(label("lessons", "Lessons used", lessons.length));
+    out.push(label("lessons", "Lessons kept in mind", lessons.length));
     for (const f of lessons) out.push({ kind: "item", key: `lesson-${f.factId}`, title: f.text, icon: "bubble" });
   }
   const facts = m ? m.facts.filter((f) => f.kind !== "lesson") : [];

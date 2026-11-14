@@ -43,6 +43,8 @@ const connectCard = t.obj({
   keptIn: t.opt(t.str()),
   tested: t.opt(t.str()),
   /** a call exists that tries a key, so the progress line has a Checked step and a Tested row can be true */
+  /** one line when a typed key was kept but the service could not be connected */
+  notice: t.opt(t.str()),
   checks: t.bool(),
   /** the host a typed key is tried against, said on Ask when the connector is not built in */
   checksWith: t.opt(t.str()),

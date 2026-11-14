@@ -6,12 +6,14 @@ import type { Handlers } from './handlers.ts';
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
   "terminal.attach": async (ctx) => { throw new VyreErr(notImplemented("terminal.attach", ctx.trace)); },
+  "terminal.capture": async (ctx) => { throw new VyreErr(notImplemented("terminal.capture", ctx.trace)); },
   "terminal.close": async (ctx) => { throw new VyreErr(notImplemented("terminal.close", ctx.trace)); },
   "terminal.get": async (ctx) => { throw new VyreErr(notImplemented("terminal.get", ctx.trace)); },
   "terminal.give_back": async (ctx) => { throw new VyreErr(notImplemented("terminal.give_back", ctx.trace)); },
   "terminal.health": async (ctx) => { throw new VyreErr(notImplemented("terminal.health", ctx.trace)); },
   "terminal.input": async (ctx) => { throw new VyreErr(notImplemented("terminal.input", ctx.trace)); },
   "terminal.interrupt": async (ctx) => { throw new VyreErr(notImplemented("terminal.interrupt", ctx.trace)); },
+  "terminal.keys": async (ctx) => { throw new VyreErr(notImplemented("terminal.keys", ctx.trace)); },
   "terminal.list": async (ctx) => { throw new VyreErr(notImplemented("terminal.list", ctx.trace)); },
   "terminal.open": async (ctx) => { throw new VyreErr(notImplemented("terminal.open", ctx.trace)); },
   "terminal.open_server": async (ctx) => { throw new VyreErr(notImplemented("terminal.open_server", ctx.trace)); },

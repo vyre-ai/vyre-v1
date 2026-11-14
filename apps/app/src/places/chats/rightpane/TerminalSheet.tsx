@@ -9,6 +9,7 @@ import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import type { TerminalData } from "../terminal/data.ts";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
+import { TmuxScreen } from "./TmuxScreen.tsx";
 import { Icon, TextButton } from "./parts.tsx";
 import { Dot, GroupHead } from "./WorkParts.tsx";
 import { groupSessions, sessionWords } from "./work-model.ts";
@@ -39,10 +40,21 @@ export function TerminalSheet({
   const [sel, setSel] = useState(start);
   const narrow = win.width < 720;
   const current0 = sessions.find((s) => s.terminalId === sel);
-  const mine = current0?.heldBy !== undefined && current0.heldBy === me;
+  // taking the keyboard: you hold it as soon as the server's answer comes, not at the next refresh of the list; keys pressed in between are kept, in order (the ref is set the instant Take over is pressed)
+  const [took, setTook] = useState<string | null>(null);
+  const takingRef = useRef(false);
+  // handing it back is just as immediate: the list still says you hold it until its next refresh
+  const [gave, setGave] = useState<string | null>(null);
+  const mine =
+    gave !== sel &&
+    ((current0?.heldBy !== undefined && current0.heldBy === me) ||
+      (took === sel && (current0?.heldBy === undefined || current0.heldBy === me)));
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const [nudge, setNudge] = useState(false);
+  // the screen is tmux's own with colours and raw keys where the host has tmux; a host without it falls back to the line terminal
+  const [lines, setLines] = useState<Record<string, true>>({});
+  const [hiddenPrompt, setHiddenPrompt] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   // Esc closes while you only watch; while you hold the keyboard it goes to the terminal
   const mineRef = useRef(false);
@@ -69,15 +81,26 @@ export function TerminalSheet({
     return () => clearInterval(t);
   }, [mine, sel]);
   const take = (): void => {
+    if (takingRef.current) return;
+    takingRef.current = true;
     setBusy(true);
     setAsking(false);
     void data
       .call("terminal.take_over", { terminalId: sel })
+      .then(() => {
+        setGave(null);
+        setTook(sel);
+      })
       .catch((e: unknown) => setSaid(e instanceof Error && e.message ? e.message : "That did not work. Try again."))
-      .finally(() => setBusy(false));
+      .finally(() => {
+        takingRef.current = false;
+        setBusy(false);
+      });
   };
   const give = (): void => {
     setBusy(true);
+    setTook(null);
+    setGave(sel);
     void data
       .call("terminal.give_back", { terminalId: sel })
       .catch((e: unknown) => setSaid(e instanceof Error && e.message ? e.message : "That did not work. Try again."))
@@ -94,7 +117,7 @@ export function TerminalSheet({
         close();
         return;
       }
-      if (mineRef.current || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (mineRef.current || takingRef.current || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "Enter" && current0?.heldBy === undefined && current0?.state !== "exited") {
         e.preventDefault();
         take();
@@ -114,13 +137,15 @@ export function TerminalSheet({
     [data, onClose],
   );
   const current = current0;
-  const groups = groupSessions(sessions, agentName);
+  const groups = groupSessions(sessions, agentName, { me, nameOf });
   const w = current ? sessionWords(current, asleep, { me, nameOf }) : { word: "", dot: "idle" as const };
   const owner =
     current?.owner?.kind === "helper"
       ? `${current.owner.name ?? "A helper"}, ${agentName}'s helper`
       : current?.owner?.kind === "person"
-        ? `${current.owner.name ?? "A person"}'s tab`
+        ? current.ownerId !== undefined && current.ownerId === me
+          ? "Your tab"
+          : `${(current.ownerId !== undefined ? nameOf?.(current.ownerId) : undefined) ?? current.owner.name ?? "Someone"}'s tab`
         : `${agentName}'s terminal`;
   const holder = current?.heldBy;
   const hn = holder !== undefined && holder !== me ? (nameOf?.(holder) ?? "Someone") : "";
@@ -130,15 +155,21 @@ export function TerminalSheet({
       ? { title: `Take the keyboard from ${hn}?`, note: `${hn} is told.`, action: "confirm" }
       : !current || current.state === "exited"
         ? { title: current ? "This terminal ended" : "", action: null }
-        : mine
-          ? { title: "You have the keyboard", note: `${agentName}'s commands wait.`, action: "give" }
-          : holder !== undefined
-            ? { title: `${hn} has the keyboard`, action: "ask" }
-            : {
-                title: current.state === "running" ? `${agentName} is typing` : "Nobody is typing",
-                note: "Press Take over, or Return, to type.",
-                action: "take",
-              };
+        : mine && hiddenPrompt
+          ? {
+              title: "The agent cannot see what you type here",
+              note: `${agentName} is told only that it finished.`,
+              action: "give",
+            }
+          : mine
+            ? { title: "You have the keyboard", note: `${agentName}'s commands wait.`, action: "give" }
+            : holder !== undefined
+              ? { title: `${hn} has the keyboard`, action: "ask" }
+              : {
+                  title: current.state === "running" ? `${agentName} is typing` : "Nobody is typing",
+                  note: "Press Take over, or Return, to type.",
+                  action: "take",
+                };
   return (
     <Overlay>
       <View testID="terminal-popup" role="dialog" aria-modal accessibilityLabel={owner} style={st.veil}>
@@ -150,44 +181,45 @@ export function TerminalSheet({
           <Text style={st.sub} numberOfLines={1}>
             {owner}
           </Text>
-          {current ? <Dot tone={w.dot} /> : null}
-          {current ? <Text style={st.word}>{w.word}</Text> : null}
           <View style={{ flex: 1 }} />
+          <View
+            testID="terminal-popup-bar"
+            style={[st.bar, current?.heldBy !== undefined && !mine && st.barWait, mine && st.barMine]}
+          >
+            {bar.title ? (
+              <Text style={st.barBold} numberOfLines={1}>
+                {bar.title}
+              </Text>
+            ) : null}
+            {bar.note ? (
+              <Text style={[st.barNote, nudge && st.barNudge]} numberOfLines={1}>
+                {nudge ? "Press Take over to type." : bar.note}
+              </Text>
+            ) : null}
+            {bar.action === "take" ? (
+              <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take" />
+            ) : null}
+            {bar.action === "ask" ? (
+              <TextButton
+                label="Take over"
+                primary
+                disabled={busy}
+                onPress={() => setAsking(true)}
+                testID="terminal-take"
+              />
+            ) : null}
+            {bar.action === "confirm" ? (
+              <>
+                <TextButton label="Cancel" onPress={() => setAsking(false)} testID="terminal-take-cancel" />
+                <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take-confirm" />
+              </>
+            ) : null}
+            {bar.action === "give" ? (
+              <TextButton label="Give back" primary disabled={busy} onPress={give} testID="terminal-give" />
+            ) : null}
+          </View>
           {mine ? <Text style={st.chord}>{"\u2318\u21E7. closes"}</Text> : null}
           <TextButton label="Close" onPress={close} testID="terminal-popup-close" />
-        </View>
-        <View
-          testID="terminal-popup-bar"
-          style={[st.bar, current?.heldBy !== undefined && !mine && st.barWait, mine && st.barMine]}
-        >
-          {bar.title ? <Text style={st.barBold}>{bar.title}</Text> : null}
-          {bar.note ? (
-            <Text style={[st.barNote, nudge && st.barNudge]} numberOfLines={1}>
-              {nudge ? "Press Take over to type." : bar.note}
-            </Text>
-          ) : null}
-          <View style={{ flex: 1 }} />
-          {bar.action === "take" ? (
-            <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take" />
-          ) : null}
-          {bar.action === "ask" ? (
-            <TextButton
-              label="Take over"
-              primary
-              disabled={busy}
-              onPress={() => setAsking(true)}
-              testID="terminal-take"
-            />
-          ) : null}
-          {bar.action === "confirm" ? (
-            <>
-              <TextButton label="Cancel" onPress={() => setAsking(false)} testID="terminal-take-cancel" />
-              <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take-confirm" />
-            </>
-          ) : null}
-          {bar.action === "give" ? (
-            <TextButton label="Give back" primary disabled={busy} onPress={give} testID="terminal-give" />
-          ) : null}
         </View>
         <View style={[st.body, narrow && { flexDirection: "column" }]}>
           {sessions.length > 1 ? (
@@ -220,7 +252,19 @@ export function TerminalSheet({
             </View>
           ) : null}
           <View testID="terminal-popup-screen" style={st.screen}>
-            <TerminalTab key={sel} data={inner} terminalId={sel} readonly={!mine} />
+            {lines[sel] ? (
+              <TerminalTab key={sel} data={inner} terminalId={sel} readonly={!mine} />
+            ) : (
+              <TmuxScreen
+                key={sel}
+                call={data.call}
+                terminalId={sel}
+                keys={mine}
+                taking={takingRef}
+                onHidden={setHiddenPrompt}
+                onUnsupported={() => setLines((m) => ({ ...m, [sel]: true }))}
+              />
+            )}
           </View>
         </View>
       </View>
@@ -252,11 +296,13 @@ const st = StyleSheet.create({
   word: { fontSize: 12.5, color: "var(--ink-3)" as string },
   chord: { fontSize: 11.5, color: "var(--ink-4)" as string },
   bar: {
-    minHeight: 44,
+    minHeight: 34,
+    flexShrink: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+    borderRadius: 9,
     backgroundColor: "var(--sunk)" as string,
   },
   barWait: { backgroundColor: "var(--warn-soft, var(--sunk))" as string },

@@ -523,8 +523,10 @@ export function Recipients(props: RecipientsViewProps): ReactElement {
           testID={`recipient-${row}-${i}`}
           {...menuTrigger((x, y) => tokenMenu(row, i, x, y))}
           {...webProps({
-            title: t.kind === "group" ? `${t.name}\n${t.sub ?? ""}` : `${t.email}\n${t.sub ?? "Typed address"}`,
-            dataSet: { bad: bad ? "true" : "false" },
+            dataSet: {
+              tt: t.kind === "group" ? `${t.name}\n${t.sub ?? ""}` : `${t.email}\n${t.sub ?? "Typed address"}`,
+              bad: bad ? "true" : "false",
+            },
           })}
           style={({ hovered }: { hovered?: boolean }) => [
             styles.token,
@@ -553,7 +555,7 @@ export function Recipients(props: RecipientsViewProps): ReactElement {
           accessibilityLabel={`Add ${ROW_LABEL[h]}`}
           onPress={() => reveal(h)}
           testID={`recipients-add-${h}`}
-          {...webProps({ title: `Add ${ROW_LABEL[h]}  \u21e7\u2318${h === "cc" ? "C" : "B"}` })}
+          {...webProps({ dataSet: { tt: `Add ${ROW_LABEL[h]}  \u21e7\u2318${h === "cc" ? "C" : "B"}` } })}
           style={({ hovered }: { hovered?: boolean }) => [styles.revealButton, hovered === true && HOVER]}
         >
           <Text style={styles.revealText}>{ROW_LABEL[h]}</Text>

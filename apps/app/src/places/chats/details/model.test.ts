@@ -263,7 +263,7 @@ test("the lessons a reply used are a section of the Details: one line each, apar
   const lines = detailLines(withLesson, me("usr_irfad"));
   const labels = lines.filter((l) => l.kind === "label").map((l) => (l.kind === "label" ? [l.text, l.right] : null));
   assert.ok(
-    labels.some((l) => l?.[0] === "Lessons used" && String(l[1]) === "2"),
+    labels.some((l) => l?.[0] === "Lessons kept in mind" && String(l[1]) === "2"),
     JSON.stringify(labels),
   );
   const item = (key: string) => lines.find((l) => l.key === key);
@@ -274,6 +274,6 @@ test("the lessons a reply used are a section of the Details: one line each, apar
   assert.equal(String(knew?.[1]), "1", "its count leaves the lessons out");
   // a reply that used no lesson has no such section
   assert.ok(
-    !detailLines(details(signin), me("usr_irfad")).some((l) => l.kind === "label" && l.text === "Lessons used"),
+    !detailLines(details(signin), me("usr_irfad")).some((l) => l.kind === "label" && l.text === "Lessons kept in mind"),
   );
 });

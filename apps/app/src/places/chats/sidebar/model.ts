@@ -468,9 +468,9 @@ export interface SectionError {
 
 /** Retry on a failed row: ask the Space's live reads to read again (the remote hooks have `invalidate`; a stand-in without it has nothing to re-ask). True when a re-read was asked for. */
 export function refetch(screens: object): boolean {
-  const f = (screens as { invalidate?: () => void }).invalidate;
+  const f = (screens as { invalidate?: (o?: { now?: boolean }) => void }).invalidate;
   if (typeof f !== "function") return false;
-  f.call(screens);
+  f.call(screens, { now: true }); // the person's own action: read at once, never held for the quiet time
   return true;
 }
 

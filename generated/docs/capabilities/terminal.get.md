@@ -55,6 +55,7 @@ type Out = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 ```
@@ -94,6 +95,7 @@ type Out = {
       "lastActiveAt": 1760000000000,
       "name": "build",
       "named": true,
+      "ownerId": "usr_a1b2c3",
       "rows": 1,
       "runId": "run_a1b2c3",
       "state": "running",

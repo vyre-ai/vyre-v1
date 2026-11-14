@@ -201,3 +201,24 @@ export function problemWords(e: unknown, fallback?: string): Described {
     details: [code, traceId, plain || message === undefined ? "" : message.slice(0, 200)].filter(Boolean).join(" · "),
   };
 }
+
+/** A name a caller wrote that is safe to say back: plain characters, short, and not an id (an id is never shown, and a name that is one is not repeated). */
+export function sayableName(given: unknown): string | null {
+  if (typeof given !== "string") return null;
+  const name = given.trim();
+  if (name === "" || name.length > 80 || !/^[A-Za-z0-9 _.#@:/-]+$/.test(name)) return null;
+  if (/\b(?:[a-z]{2,6}_(?=[a-z0-9]*[0-9])[a-z0-9]{8,}|[0-9a-f]{16,})\b/i.test(name)) return null;
+  return name;
+}
+
+/**
+ * What a person or an agent reads when something they named is not there, or is there but not open to them (the two read the same, so nobody can tell which). It says which kind of thing and the name
+ * as the caller gave it, never an id: "There is no connector called fathom that you can see." A name that is an id, or too odd to say back, is left out and the kind stands alone.
+ */
+export function notFoundLine(kind: string, given?: unknown): string {
+  const name = sayableName(given);
+  // looksLikeCode would turn a snake_case name (google_ads) into the catalogue's vague words, so a person reads it with spaces
+  const shown = name === null ? null : name.replace(/_/g, " ");
+  if (shown === null || looksLikeCode(shown)) return `There is no ${kind} by that name that you can see.`;
+  return `There is no ${kind} called ${shown} that you can see.`;
+}
