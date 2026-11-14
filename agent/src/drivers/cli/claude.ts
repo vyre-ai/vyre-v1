@@ -103,6 +103,13 @@ export function createClaudeDecoder(): CliDecoder {
   const perMessage = new Map<string, Tally>();
   let current = "";
   let sawText = false;
+  /** The engine's message that wrote the last words of the turn: words of a later message are a new paragraph, never the end of the sentence before (a helper's end comes between two messages with no tool step of the lead's own). */
+  let wroteIn = "";
+  const words = (message: string, text: string): string => {
+    const apart = wroteIn !== "" && message !== wroteIn && !/^\s/.test(text);
+    wroteIn = message;
+    return apart ? `\n\n${text}` : text;
+  };
   let sid = "";
   /** The model the engine says it ran on (the init line, then each message): a chat that picked none runs on the engine's own default, and this is the only place its name is. */
   let model = "";
@@ -136,7 +143,7 @@ export function createClaudeDecoder(): CliDecoder {
         if (t === "text_delta" && str(d["text"]) !== "") {
           streamed.add(current);
           sawText = true;
-          return [{ type: "text", text: str(d["text"]) }];
+          return [{ type: "text", text: words(current, str(d["text"])) }];
         }
         if (t === "thinking_delta" && str(d["thinking"]) !== "") {
           streamed.add(current);
@@ -164,7 +171,7 @@ export function createClaudeDecoder(): CliDecoder {
       const t = str(b["type"]);
       if (t === "text" && str(b["text"]) !== "" && !streamed.has(id)) {
         sawText = true;
-        out.push({ type: "text", text: str(b["text"]) });
+        out.push({ type: "text", text: words(id, str(b["text"])) });
       } else if (t === "thinking" && str(b["thinking"]) !== "" && !streamed.has(id))
         out.push({ type: "thinking", text: str(b["thinking"]) });
       else if (t === "tool_use" && str(b["id"]) !== "") {

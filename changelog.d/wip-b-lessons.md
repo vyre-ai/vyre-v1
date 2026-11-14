@@ -1,0 +1,6 @@
+- Lessons are no longer printed under every reply. A reply that used lessons has one quiet mark on its top row, next to the time, with a number when it used more than one. Pressing the mark opens a small list where you pressed: each lesson on one line (press the words to read all of it), with See and Remove. Escape closes it.
+- The line under a message that taught something now says only "Learned a lesson", with Undo and See, and none of the lesson's words. Once the agent has answered, it folds into the same quiet mark on that message.
+- A reply is shown as having used a lesson only when the lesson was put in front of the agent for that message. Before, every later reply in a chat showed the lessons of the first one.
+- A reply's Details have a "Lessons used" section with one line for each lesson.
+- A reply that continues after a helper finishes now starts a new paragraph. Before, two answers could run together with no space ("kernel.The terminal").
+- An agent that writes the name of a tool the way it sees it (a name beginning mcp__) now reads in plain words to you.

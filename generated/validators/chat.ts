@@ -3523,6 +3523,7 @@ if (!("text" in o2102)) e.push(p + "/details" + "/memory" + "/facts" + '/' + i21
 if ("factId" in o2102) lf(o2102["factId"], p + "/details" + "/memory" + "/facts" + '/' + i2101 + "/factId", e, L1);
 if ("text" in o2102) lf(o2102["text"], p + "/details" + "/memory" + "/facts" + '/' + i2101 + "/text", e, L1);
 if ("sourceTitle" in o2102) lf(o2102["sourceTitle"], p + "/details" + "/memory" + "/facts" + '/' + i2101 + "/sourceTitle", e, L1);
+if ("kind" in o2102) lf(o2102["kind"], p + "/details" + "/memory" + "/facts" + '/' + i2101 + "/kind", e, L1);
 }
 }
 }

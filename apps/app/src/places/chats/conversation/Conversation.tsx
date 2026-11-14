@@ -895,6 +895,14 @@ function ConversationView(): ReactElement {
     openedAt: openedAt.current,
     mentionsMe: (m) => mentionsIn(m.body, [{ kind: "person", id: data.me.id, name: data.me.name }]).length > 0,
   });
+  // a message of the person's that an agent has answered since: what it taught is then one quiet mark on its row, not a line under it
+  const answered = new Set<string>();
+  let agentAfter = false;
+  for (let i = timelineMessages.length - 1; i >= 0; i--) {
+    const m = timelineMessages[i]!;
+    if (m.author.kind === "agent") agentAfter = true;
+    else if (m.author.kind === "person" && agentAfter) answered.add(m.messageId);
+  }
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
@@ -1896,6 +1904,7 @@ function ConversationView(): ReactElement {
                       stream={stream}
                       sending={sending}
                       below={it.kind === "me" ? notHereSig(it.message) : undefined}
+                      answered={it.kind === "me" ? answered.has(it.message.messageId) : undefined}
                       mark={markOf(it, matches, activeId, finding)}
                       replies={under ? { s: under, clock: data.clock() } : undefined}
                     />

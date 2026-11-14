@@ -5,6 +5,7 @@
 // An interrupt cancels the running turn now and runs first. runTurn catches everything: a failed thread accepts the next message as a fresh turn.
 // A tool call held at the Gate parks the turn (turn.waiting { task }, state waiting); resume() queues the wake that continues it once the task is answered.
 // Messages and waits sit behind MessageStore and WaitStore, so a second host that takes the thread over (recover) replays the same bodies.
+import { plainToolWords } from "../../../lib/plain-words.ts";
 import { nextDepth, route } from "../../../lib/route.ts";
 import { payLine } from "../accounts/paid.ts";
 import { createMemoryQueue } from "./queue.ts";
@@ -1582,6 +1583,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     }
     if (turn.state === "completed" && (reply !== "" || mentions.length > 0)) {
       // the answer is checked against everyone who reads the chat before it is stored and posted: the stored copy is what other agents read next, so it never holds what was withheld
+      // a tool is named to the model as mcp__<server>__<tool>; if the model says that name, the person reads plain words (the rules ask it not to, this is what is left when it does)
+      reply = plainToolWords(reply);
       let body = reply;
       let said = mentions;
       if (opts.screenAnswer && reply !== "") {

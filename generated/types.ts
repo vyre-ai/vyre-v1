@@ -7961,6 +7961,7 @@ export type ChatReplyDetailsOut = {
           factId: string;
           text: string;
           sourceTitle?: string;
+          kind?: string;
         }>;
       quotes: Array<{
           ref: string;
