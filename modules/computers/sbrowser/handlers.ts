@@ -186,6 +186,13 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const sb = browserOrRaise(ctx);
   const { person, access } = await mayWatch(ctx, input.agentId);
+  // while a person has taken over the browser, only they see it (their page may be a login): everyone else is told who is using it
+  const holder = (await currentHold(ctx, sb, input.agentId).catch(() => null))?.personId;
+  if (holder !== undefined && holder !== person)
+    raise(ctx, "validation.precondition_failed", "Someone is using the browser.", {
+      reason: "browser_held",
+      by: holder,
+    });
   // the browser service wakes for a viewer; the address it gives stays in the Space, and the viewer gets the Space's own relay path with a ticket for this person (host/src/routes/browser-stream.ts)
   // the view wakes the browser: it needs room on the host like any browser that starts
   await needRoom(ctx, sb, input.agentId);
@@ -227,24 +234,24 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
 export async function preview(ctx: CompCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const sb = browserOrRaise(ctx);
-  await mayWatch(ctx, input.agentId);
+  const { person } = await mayWatch(ctx, input.agentId);
   const at = ctx.now();
-  const row = (await sb.profiles().catch((e: unknown) => refuse(ctx, e))).profiles.find(
-    (x) => x.profileId === input.agentId,
-  );
-  if (!row || !row.running) return { state: "asleep" as const, at };
+  // while a person has taken over the browser, nobody else gets a picture of it (their page may be a login or a code): only they do (lead ruling, 14 Nov, until the sign-in hand-off exists)
+  const holder = (await currentHold(ctx, sb, input.agentId).catch(() => null))?.personId;
+  if (holder !== undefined && holder !== person) return { state: "held" as const, at, by: holder };
   try {
-    const shot = await sb.screenshot(input.agentId);
+    // a look that never starts the browser and does not count as use; a service without one is asked only after a check that it runs
+    let shot: { bytes: Uint8Array; width: number; height: number } | { asleep: true };
+    if (sb.preview) shot = await sb.preview(input.agentId);
+    else {
+      const row = (await sb.profiles()).profiles.find((x) => x.profileId === input.agentId);
+      shot = row?.running ? await sb.screenshot(input.agentId) : { asleep: true };
+    }
+    if ("asleep" in shot) return { state: "asleep" as const, at };
     const png = Buffer.from(shot.bytes).toString("base64");
     const fit = await fitPngOffLoop(png, { width: shot.width, height: shot.height });
     if (!fit.ok) return { state: "live" as const, at };
-    return {
-      state: "live" as const,
-      png: fit.shot.base64,
-      width: fit.shot.width,
-      height: fit.shot.height,
-      at,
-    };
+    return { state: "live" as const, png: fit.shot.base64, width: fit.shot.width, height: fit.shot.height, at };
   } catch (e) {
     return refuse(ctx, e);
   }
@@ -264,6 +271,9 @@ export async function browserStreamOpen(
   const who = await redeemTicket(ctx.db, String(input.ticket), ctx.now());
   if (!who || who.computerId !== String(input.agentId) || (who.kind !== "stream" && who.kind !== "takeover"))
     return null;
+  // a viewer whose ticket was minted before someone took the browser over is cut off at the door
+  const taken = heldBy(ctx, who.computerId);
+  if (taken !== null && taken !== who.personId) return null;
   let target: Awaited<ReturnType<SpaceBrowser["stream"]>>;
   try {
     target = await sb.stream({ profileId: who.computerId, personId: who.personId });

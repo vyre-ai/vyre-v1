@@ -8673,7 +8673,8 @@ export type ComputersBrowserPreviewIn = {
   agentId: string;
 };
 export type ComputersBrowserPreviewOut = {
-  state: "live" | "asleep";
+  state: "live" | "asleep" | "held";
+  by?: string;
   png?: string;
   width?: number;
   height?: number;
@@ -41935,6 +41936,7 @@ export type TerminalGetOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalGiveBackIn = {
@@ -41963,6 +41965,7 @@ export type TerminalGiveBackOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalHealthIn = Record<string, unknown>;
@@ -42027,6 +42030,7 @@ export type TerminalListOut = {
         name?: string;
       };
       heldBy?: string;
+      ownerId?: string;
     }>;
   next?: string;
   total?: number;
@@ -42065,6 +42069,7 @@ export type TerminalOpenOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalOpenServerIn = {
@@ -42097,6 +42102,7 @@ export type TerminalOpenServerOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalReadIn = {
@@ -42135,6 +42141,7 @@ export type TerminalRenameOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalRequestIn = {
@@ -42245,6 +42252,7 @@ export type TerminalTakeOverOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalWorkspaceIn = {

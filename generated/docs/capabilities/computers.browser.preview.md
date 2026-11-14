@@ -33,7 +33,8 @@ type In = {
 
 ```ts
 type Out = {
-  state: "live" | "asleep";
+  state: "live" | "asleep" | "held";
+  by?: string;
   png?: string;
   width?: number;
   height?: number;
@@ -61,6 +62,7 @@ type Out = {
   },
   "output": {
     "at": 1760000000000,
+    "by": "usr_a1b2c3",
     "height": 1,
     "png": "example",
     "state": "live",

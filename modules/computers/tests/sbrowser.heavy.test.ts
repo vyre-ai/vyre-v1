@@ -330,6 +330,32 @@ test(
 );
 
 test(
+  "@heavy space browser: the Computer tab's picture is a quiet look: it never starts a browser and never counts as use, so a browser with the tab open still goes to sleep",
+  { skip, timeout: 300_000 },
+  async () => {
+    // not running: the look answers asleep and starts nothing
+    const none = await sb.preview!("agt_prev");
+    assert.ok("asleep" in none, "a browser that is not running is asleep, and the look did not start it");
+    assert.equal((await sb.profiles()).profiles.find((x) => x.profileId === "agt_prev")?.running ?? false, false);
+    // running: a picture
+    await tool("agt_prev", "chrome_open", { url: siteUrl("/whoami") });
+    const shot = await sb.preview!("agt_prev");
+    assert.ok(!("asleep" in shot) && shot.bytes.length > 100, "a running browser gives a picture");
+    // looked at twice a second the whole time, the idle stop (3 s of quiet, looked at every 2 s) still closes it
+    let stopped = false;
+    for (let i = 0; i < 80 && !stopped; i++) {
+      await sleep(500);
+      await sb.preview!("agt_prev");
+      stopped = (await sb.profiles()).profiles.find((x) => x.profileId === "agt_prev")?.running === false;
+    }
+    assert.ok(stopped, "the browser went to sleep with the picture being pulled all the time");
+    // and the look after it did not wake it
+    assert.ok("asleep" in (await sb.preview!("agt_prev")));
+    assert.equal((await sb.profiles()).profiles.find((x) => x.profileId === "agt_prev")?.running ?? false, false);
+  },
+);
+
+test(
   "@heavy space browser: the live view sends screencast frames, and a person who takes over has the agent's tools paused and their click and keys reach the page",
   { skip, timeout: 300_000 },
   async () => {

@@ -146,6 +146,19 @@ test(
   },
 );
 
+test("early typing: until the program has really turned echo off, hidden is false (the bar says nothing reassuring), and it turns true only once echo is off", { skip }, async () => {
+  await open("e1");
+  // the program sleeps before it asks: for two seconds the terminal echoes whatever is typed, so nothing is hidden
+  await host.keys!("e1", [{ text: "sleep 2; read -s -p 'Pass: ' P; echo; echo done-$((1+1))" }, { key: "Enter" }]);
+  await sleep(300);
+  assert.equal((await host.capture!("e1", { lines: 50 })).hidden, false, "the program is not reading yet: echo is on");
+  await host.keys!("e1", [{ text: "typed-too-early" }]);
+  assert.equal((await host.capture!("e1", { lines: 50 })).hidden, false, "still echoing: not hidden");
+  await until("echo really off at the prompt", async () => (await host.capture!("e1", { lines: 50 })).hidden);
+  const at = await host.capture!("e1", { lines: 50 });
+  assert.ok(at.hidden && at.text.includes("Pass:"), "hidden only at the prompt");
+});
+
 test("key to screen: the delay from sending a key to seeing it on tmux's screen, measured", { skip }, async () => {
   await open("m1");
   const times: number[] = [];

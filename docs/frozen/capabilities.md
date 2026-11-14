@@ -181,3 +181,12 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 - Both terminal capabilities need a host with tmux; another host answers `validation.precondition_failed` and the app falls back to the line terminal.
 
 Signed: pending the lead (lane b-pc did not sign it).
+
+## 14 Nov 2026: what the keyboard hold and the browser picture changed in existing capabilities (lane b-pc, after review r-agentpc)
+
+- No call emits `terminal.given_back` except `terminal.give_back` (and `terminal.take_over` emits `terminal.taken`). A hold nobody used for 15 minutes is read as over; nothing a read does writes or emits. `terminal.get`, `list`, `input`, `interrupt`, `run`, `keys`, `capture` emit nothing new.
+- New declared error `validation.precondition_failed` on `terminal.input`, `interrupt`, `resize`, `close`, `rename`, `run` (and `terminal.keys`): another person holds the keyboard, or, for the agent, a person holds any terminal of its workspace. While a person holds a terminal the agent's commands wait in every tab of its computer and it opens no new tab.
+- The terminal row gains optional `heldBy` and `ownerId` (the person who opened a person's tab).
+- `computers.browser.preview` answers `state: held` with `by` (no picture) to everyone but the person who has taken the browser over; `computers.browser.stream` answers `validation.precondition_failed` to them (declared), and the stream relay cuts an older ticket of theirs. The preview never starts the browser and does not count as use (browserd `screenshot` with `quiet`).
+- Snapshots: docs/frozen/snapshots/terminal.json and computers.json.
+

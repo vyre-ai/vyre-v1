@@ -355,7 +355,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
           : v.state === "takeover"
             ? v.mine === true
               ? "You have the browser"
-              : `${v.takenBy ?? "Someone"} has the browser`
+              : `${v.takenBy ?? "Someone"} is using the browser`
             : v.state === "waiting"
               ? "Waiting for room"
               : v.state === "error"
@@ -374,7 +374,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
               <PreviewImage
                 call={data.call}
                 agentId={agentId}
-                active={!sheet && (v.state === "open" || v.state === "takeover")}
+                active={!sheet && (v.state === "open" || (v.state === "takeover" && v.mine === true))}
               />
             }
           />

@@ -2,11 +2,11 @@
   "module": "computers",
   "capabilities": {
     "computers.browser.give_back@1": "d636c4e4bb619481a667ca2d367ffedd1d1de0471d5af56af4a5cf569c20c017",
-    "computers.browser.preview@1": "781f2b8ddeff993c21de4c9b9a0ebe7a4e9c9be8970608c5d1ebf62e8d346b85",
+    "computers.browser.preview@1": "5c49bb53ca11871f3e93b7757ad6ca0662beff53415b20d93dde1ac456727a04",
     "computers.browser.profiles@1": "aa5aa7b609ae41c82b7ebe5e31336e5cb4af5fa7f8c88916ec55bde050e5c5fd",
     "computers.browser.sessions@1": "2b3860beb66632357ed0b29116175f2784c5a1a9fce3863411cbd08edbca515d",
     "computers.browser.sign_out@1": "77db909807a28c696741a03a5023c562f1dbb0c7724051866be99197c1caa051",
-    "computers.browser.stream@1": "a2e6ae23f7c3304cf0cbdc0afa0eebd0bd82d4bad00d3bc1b22a8f5d91170a78",
+    "computers.browser.stream@1": "4acb40939823498cb3f6e7abd05d5c353a4d32ddbdee148ed9cbe8ed7acfd7fd",
     "computers.browser.take_over@1": "ecce8ee9cfb9cc98ab9fb7d76d1f9074b56f663d5037ca2cbb0a3c4d18293379",
     "computers.browser.timeline@1": "4057698edbcd0234406f5b91818cd9ca8ddd60eee9d3b655787e58ed4ff6a01e",
     "computers.chrome.act@1": "cb9bfcafe6b17bf946b7f8a5ab61b69e8eca96e29c240cd79df36c06a9a4b870",

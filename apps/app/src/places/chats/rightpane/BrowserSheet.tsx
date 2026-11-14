@@ -65,7 +65,8 @@ export function BrowserSheet({
   const maxH = Math.max(160, win.height - 150);
   const width = Math.min(win.width - 32, maxH * RATIO);
   const bar = barOf(view, name, mine, Date.now() - t0.current);
-  const live = view.state === "open" || view.state === "takeover";
+  // while someone else has taken the browser over, nobody but them gets a picture of it (the server refuses it too)
+  const live = view.state === "open" || (view.state === "takeover" && mine);
   return (
     <Overlay>
       <View testID="browser-popup" role="dialog" aria-modal accessibilityLabel={`${name}'s browser`} style={st.veil}>

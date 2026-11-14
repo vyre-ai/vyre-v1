@@ -483,7 +483,12 @@ export default defineManifest({
         perm: "computers.watch",
         label: "check",
         offline: "online",
-        errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
+        errors: [
+          "permission.no_grant",
+          "provider.unavailable",
+          "validation.not_found",
+          "validation.precondition_failed",
+        ],
       },
     ),
     read(
@@ -492,7 +497,8 @@ export default defineManifest({
       {
         in: { agentId: id.agent },
         out: {
-          state: t.enm("live", "asleep"),
+          state: t.enm("live", "asleep", "held"),
+          by: t.opt(id.user),
           png: t.opt(t.str({ description: "The picture as base64 PNG, at most 256 KB" })),
           width: t.opt(t.int()),
           height: t.opt(t.int()),

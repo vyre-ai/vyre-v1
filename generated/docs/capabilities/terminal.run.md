@@ -60,6 +60,7 @@ type Out = {
 - timeout.deadline
 - validation.bad_input
 - validation.not_found
+- validation.precondition_failed
 
 ## Example
 

@@ -522,7 +522,7 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
           await tmux(["send-keys", "-t", session, k.key]);
         } else {
           // a paste is one write, whatever its size: into a tmux buffer through stdin, then into the pane, and the buffer is dropped
-          const name = `vyre-paste-${process.pid}-${Date.now().toString(36)}`;
+          const name = `vyre-paste-${globalThis.crypto.randomUUID()}`;
           const r = await o.exec(["tmux", "load-buffer", "-b", name, "-"], { stdin: k.paste });
           if (r.code !== 0) throw new Error(`tmux load-buffer failed: ${r.stderr.trim().slice(0, 200)}`);
           await tmux(["paste-buffer", "-b", name, "-d", "-t", session]);
