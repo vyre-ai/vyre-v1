@@ -1608,6 +1608,38 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   /** The last log seq the access module has been handed (in order) and folded; the next sync reads the log after it. Set after the boot read, which hands the log over up to it. */
   let accessFedTo = 0;
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
+  /**
+   * An artifact's files are the artifact's own (F56, 14 Nov 2026): its folder sits under the site in the access tree, not under the Space, so who may read the files is who may read the artifact (the owner, what it is
+   * shared with, the Space when its access is the Space's). Without this a member found a private artifact's page by searching its words. Returns true when the folder was moved.
+   */
+  const adoptArtifactFolder = async (folderId: string, siteId: string, ownerId: string, via?: LogClient): Promise<boolean> => {
+    const row = access.snap.resource(folderId);
+    const into = via ?? log;
+    if (!into || !row || row.parent_id === siteId || !access.snap.resource(siteId)) return false;
+    const r = await into.appendResult({
+      id: `evt_res_artfolder_${folderId.slice(-12)}_${Date.now()}`,
+      type: "resource.created",
+      sv: 1,
+      trace_id: "c0".repeat(16),
+      actor: "svc_host",
+      vis: "space",
+      entity: "resource",
+      entity_id: folderId,
+      payload: {
+        id: folderId,
+        type: row.type,
+        parent_id: siteId,
+        label: row.label,
+        owner_id: /^usr_[a-z0-9]+$/.test(ownerId) ? ownerId : row.owner_id,
+        holds: row.holds,
+      },
+    });
+    if (!r.ok || r.duplicate) return false;
+    access.fold(r.event);
+    accessPending.push(toAccessEvent(r.event));
+    await syncAccess(true);
+    return true;
+  };
   let accessStale = false,
     kicking = false,
     noAccessModule = false;
@@ -1914,7 +1946,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const row = access.snap.resource(siteId);
           if (!row || row.type !== "site" || row.parent_id === null) continue;
           const closed = await appendRepair({
-            id: `evt_res_private_${siteId}`,
+            id: `evt_res_private_${siteId.slice(-12)}_${Date.now()}`,
             type: "resource.created",
             sv: 1,
             trace_id: "c0".repeat(16),
@@ -1944,7 +1976,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             });
           }
         }
-        const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
+// An artifact's folder follows the artifact (see adoptArtifactFolder): the ones made before this build, and any whose site was not yet a resource when the folder was made, are moved at every start.
+        try {
+          for (const r of db!.all(
+            "SELECT id, owner, target_folder FROM sites_site WHERE kind = 'artifact' AND target_folder IS NOT NULL AND deleted_at IS NULL",
+          ) as { id: string; owner: string; target_folder: string }[])
+            if (await adoptArtifactFolder(r.target_folder, r.id, r.owner, log))
+              sink.log({ space, level: 20, msg: "access.artifact_folder_reconciled", place: "boot", entity: "site", entity_id: r.id });
+        } catch {
+          // no sites table yet: nothing to move
+        }
+                const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
           const may = (level: "edit" | "view"): boolean =>
             authorize(access.snap, {
               principal: person,
@@ -2409,13 +2451,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 idempotencyKey: "artifacts-root",
               })) as { folder: { folderId: string } }
             ).folder.folderId;
-          return (
+          const made = (
             (await call("files.folder.create", {
               parentId: kept,
               name: `${title.replaceAll("/", "-")} (${siteId.slice(-6)})`,
               idempotencyKey: `artifact-folder-${siteId}`,
             })) as { folder: { folderId: string } }
           ).folder.folderId;
+          return made;
         },
         async put(folderId: string, name: string, base64: string, mime: string): Promise<void> {
           const call = dispatchSystem as (cap: string, input: unknown) => Promise<unknown>;
@@ -3336,6 +3379,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }
           headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
           if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
+          // a new artifact's folder follows the artifact in the access tree, now that the artifact is a resource (see adoptArtifactFolder)
+          for (const e of b.events)
+            if (e.type === "site.created") {
+              const siteId = (e.payload as { siteId?: unknown }).siteId;
+              const row =
+                typeof siteId === "string"
+                  ? (db?.all("SELECT owner, target_folder FROM sites_site WHERE id = ? AND kind = 'artifact'", siteId)[0] as
+                      | { owner?: string; target_folder?: string | null }
+                      | undefined)
+                  : undefined;
+              if (typeof siteId === "string" && row?.target_folder) await adoptArtifactFolder(row.target_folder, siteId, row.owner ?? "");
+            }
           for (const e of b.events)
             if (e.type === "agent.created") await grantOwnPlaces?.((e.payload as { ownerId?: string }).ownerId ?? "");
           if (b.audit) recordAudit(b.audit);
