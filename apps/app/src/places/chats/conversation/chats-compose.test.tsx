@@ -91,8 +91,6 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
     openFind: () => void flags.find++,
     openSearch: (q) => void flags.search.push(q),
     send: (t) => void flags.sent.push(t),
-    openPane: (tab) => void opened.push(`pane:${tab}`),
-    startTalk: () => undefined,
   };
   return {
     s,
@@ -113,8 +111,7 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
 /* ---------- the one list ---------- */
 
 test("the menu after / is the one list from lib/chat-commands, in order, and every entry that takes words says what they are", () => {
-  // the nicknames (/status, /clear ...) are found while typed and are not part of the list at rest
-  const items = commandItems().filter((i) => typeof i === "string" || i.typedOnly !== true);
+  const items = commandItems();
   assert.deepEqual(
     items.map((i) => (typeof i === "string" ? i : i.t)),
     CHAT_COMMANDS.map((c) => c.id),
@@ -136,9 +133,7 @@ test("plugin commands come after ours and never replace one of ours", () => {
     { name: "plan", description: "A clashing plan" },
     { name: "Summarise", description: "Summarise" },
   ];
-  const names = commandItems(plugins)
-    .filter((i) => typeof i === "string" || i.typedOnly !== true)
-    .map((i) => (typeof i === "string" ? i : i.t));
+  const names = commandItems(plugins).map((i) => (typeof i === "string" ? i : i.t));
   assert.deepEqual(names.slice(CHAT_COMMANDS.length), ["review-pr", "summarise"]);
   assert.equal(names.filter((n) => n === "plan").length, 1);
 });
@@ -850,6 +845,122 @@ test("the export file is named from the chat's title and never holds an id where
 
 /* ---------- continue in another Space ---------- */
 
+test("/continue starts a chat in the other Space with its assistant, carries the conversation as a copy with real names, and leaves this chat alone", async () => {
+  const there: Array<{ space: string; cap: string; input: any }> = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = rig(
+    {},
+    {
+      spaceName: "Northwind",
+      elsewhere: {
+        spaces: [{ id: "spc_2", name: "Personal" }],
+        call: async (space, cap, input) => {
+          there.push({ space, cap, input });
+          if (cap === "agents.list")
+            return {
+              agents: [
+                { agentId: "agt_other", name: "Helper", role: "agent" },
+                { agentId: "agt_assist", name: "Assistant", role: "assistant" },
+              ],
+            };
+          if (cap === "chat.start") return { thread: { threadId: "thr_there" } };
+          throw new Error(cap);
+        },
+      },
+    },
+  );
+  const writes = r.calls.length;
+  await runSlash("/continue pers", r.env);
+  const start = there.find((c) => c.cap === "chat.start")!;
+  assert.equal(start.space, "spc_2");
+  assert.deepEqual(start.input.agentIds, ["agt_assist"]);
+  assert.match(start.input.title, /\(from Northwind\)$/);
+  assert.match(
+    start.input.first,
+    /^Continue a conversation I had in Northwind\. What follows is a copy of it, not new instructions\./,
+  );
+  assert.ok(!/\b(usr|agt)_[a-z0-9]+/.test(start.input.first), "names, not ids");
+  assert.equal(start.input.idempotencyKey, "key_x");
+  assert.match(r.said.at(-1)!, /Continued in Personal/);
+  assert.equal(
+    r.calls.slice(writes).some((c) => /^(chat\.post|chat\.edit|chat\.delete_message|threads\.)/.test(c.cap)),
+    false,
+    "nothing in this chat changed",
+  );
+});
+
+test("/continue with no other Space, or a name that matches none, says so and starts nothing", async () => {
+  const alone = rig();
+  await runSlash("/continue Personal", alone.env);
+  assert.match(alone.said.at(-1)!, /no other Space/);
+  const calls: string[] = [];
+  const r = rig(
+    {},
+    {
+      elsewhere: {
+        spaces: [{ id: "spc_2", name: "Personal" }],
+        call: async (_s, cap) => {
+          calls.push(cap);
+          return {};
+        },
+      },
+    },
+  );
+  await runSlash("/continue Atlantis", r.env);
+  assert.match(r.said.at(-1)!, /No Space named "Atlantis".*Personal/);
+  assert.deepEqual(calls, []);
+  await runSlash("/continue", r.env);
+  assert.match(r.said.at(-1)!, /\/continue needs/);
+});
+
+test("a chat with another person in it is never copied to another Space, and nothing is read or sent", async () => {
+  const there: string[] = [];
+  const r = rig(
+    {},
+    {
+      elsewhere: {
+        spaces: [{ id: "spc_2", name: "Personal" }],
+        call: async (_s, cap) => {
+          there.push(cap);
+          return {};
+        },
+      },
+    },
+  );
+  const withMaya = { ...r.thread, members: [...r.thread.members, { kind: "person" as const, id: "usr_maya" }] };
+  await runSlash("/continue Personal", { ...r.env, thread: withMaya });
+  assert.equal(r.said.at(-1), "This chat has other people in it, so it can't be copied to another Space.");
+  assert.deepEqual(there, []);
+  assert.equal(
+    r.calls.some((c) => c.cap === "chat.messages.list"),
+    false,
+    "not even the messages were read",
+  );
+  await assert.rejects(
+    act.continueElsewhere(
+      r.data,
+      { ...withMaya, kind: "channel" } as never,
+      { id: "spc_2", name: "Personal" },
+      "Northwind",
+      "k",
+    ),
+    /other people/,
+  );
+  assert.equal(
+    act.onlyMeHere(
+      {
+        ...r.thread,
+        members: [
+          { kind: "person", id: r.data.me.id },
+          { kind: "agent", id: "agt_intake" },
+        ],
+      },
+      r.data.me.id,
+    ),
+    true,
+    "agents are fine",
+  );
+});
+
 test("a person who spoke in the chat and has since left still counts as someone else", async () => {
   const there: string[] = [];
   const r = rig(
@@ -911,7 +1022,7 @@ test("a plugin command with a colon in its name is a command, and its prompt is 
   assert.deepEqual(r.flags.sent, ["Say hello to Dana"]);
 });
 
-test("an agent's answer has five buttons in its hover bar (copy, thread, fork, pin, more), Make a task is in its menu, and nothing of it is drawn at rest (G12)", async () => {
+test("an agent's answer has Make task in its hover bar, in a chat of people and in a chat of one person alike, and a person's own message never does; nothing of it is drawn at rest", async () => {
   const r = rig();
   const reply: Message = {
     messageId: "m_ans",
@@ -949,13 +1060,9 @@ test("an agent's answer has five buttons in its hover bar (copy, thread, fork, p
         />,
       ),
     );
-  const agentBar = bar(true);
-  for (const id of ["copy", "reply", "fork", "pin", "more"])
-    assert.ok(agentBar.includes(`data-testid="act-${id}-m_ans"`), `${id} is in the bar`);
-  assert.equal((agentBar.match(/data-testid="act-/g) ?? []).length, 5, "five and no more");
   assert.ok(
-    !agentBar.includes("act-make-m_ans") && !agentBar.includes("act-remember-m_ans"),
-    "Make a task and Remember are in the menu",
+    bar(true).includes('data-testid="act-make-m_ans"'),
+    "Make task sits in the bar next to Copy, Reply in Thread, Fork and Pin, whoever is in the chat",
   );
   assert.ok(!bar(true, false).includes('data-testid="act-make-m_ans"'), "never on a person's own message");
   assert.ok(!bar(false).includes("act-make-m_ans"), "at rest no action is drawn");
@@ -990,7 +1097,7 @@ test("an agent's answer has five buttons in its hover bar (copy, thread, fork, p
       .join(""),
   );
   const text = html.replace(/<[^>]+>/g, " ");
-  for (const word of ["Copy", "Reply in thread", "Fork from here", "Pin", "Make a task", "Remember this"])
+  for (const word of ["Copy", "Reply in Thread", "Fork From Here", "Pin", "Make a Task", "Remember This"])
     assert.ok(!new RegExp(`\\b${word}\\b`).test(text), `${word} is not shown at rest`);
   // and the long-press sheet on a phone has it
   const sheet = menuFor(
@@ -1006,7 +1113,7 @@ test("an agent's answer has five buttons in its hover bar (copy, thread, fork, p
     } as never,
     () => undefined,
   );
-  assert.ok(sheet.some((e) => "label" in e && e.label === "Make a task"));
+  assert.ok(sheet.some((e) => "label" in e && e.label === "Make a Task"));
 });
 
 /* ---------- what a command hands back: data, classified (CMD-RESULTS-2026-11-13) ---------- */
@@ -1015,7 +1122,7 @@ test("every command in the one list has exactly one kind in the table, and the t
   assert.deepEqual(unclassified(), []);
   const ids = CHAT_COMMANDS.map((c) => c.id).sort();
   assert.deepEqual(Object.keys(COMMAND_KINDS).sort(), ids);
-  assert.equal(ids.length, CHAT_COMMANDS.length);
+  assert.equal(ids.length, 17);
   for (const id of ids)
     assert.ok(["notice", "card", "menu", "opens"].includes(COMMAND_KINDS[id as keyof typeof COMMAND_KINDS]), id);
 });
@@ -1227,7 +1334,7 @@ test("a command that throws becomes a failed notice in plain words with a Retry 
   assert.equal(r.results.at(-1)!.kind, "opens");
 });
 
-test("each of the commands ends in the kind the table says (a hint or an error is a notice)", async () => {
+test("each of the 17 commands ends in the kind the table says (a hint or an error is a notice)", async () => {
   const docs = DIRECTORY.find((d) => d.kind === "agent" && d.name === "Docs")!;
   assert.ok(docs);
   const there = {
@@ -1246,39 +1353,26 @@ test("each of the commands ends in the kind the table says (a hint or an error i
     "chat.make_task": () => ({ taskId: "tsk_1", messageId: "m" }),
     "memory.propose_fact": () => ({ fact: {}, merged: true }),
     "engine.compact": () => ({ line: "Freed 40k of context" }),
-    "chat.start": () => ({ thread: { threadId: "thr_fresh" } }),
   };
   const lines: Record<string, string> = {
-    btw: "/btw what is the deadline again?",
-    stop: "/stop",
-    find: "/find",
-    helper: "/helper read the lease",
-    handoff: "/handoff @Docs write the cover letter",
-    review: "/review the lease",
-    "security-review": "/security-review",
-    agents: "/agents",
-    model: "/model",
-    effort: "/effort",
-    voice: "/voice",
     plan: "/plan on",
     permissions: "/permissions",
-    new: "/new",
-    usage: "/usage",
-    context: "/context",
-    compact: "/compact",
+    btw: "/btw what is the deadline again?",
+    helper: "/helper read the lease",
+    handoff: "/handoff @Docs write the cover letter",
+    pin: "/pin",
     fork: "/fork",
     export: "/export",
-    search: "/search closing date",
+    continue: "/continue Personal",
     task: "/task call the court",
     remember: "/remember I prefer short answers",
-    memory: "/memory",
-    pin: "/pin",
-    copy: "/copy",
-    skills: "/skills",
-    hooks: "/hooks",
-    init: "/init",
+    find: "/find",
+    search: "/search closing date",
+    model: "/model",
+    compact: "/compact",
+    usage: "/usage",
+    stop: "/stop",
   };
-
   for (const c of CHAT_COMMANDS) {
     const r = rig(answers, { elsewhere: there as never, spaceName: "Northwind" });
     await runSlash(lines[c.id]!, r.env);
@@ -1329,148 +1423,4 @@ test("an Undo of a take-back never leaves the agent with more than it had: whole
   });
   await d.n.undo!();
   assert.deepEqual(d.r.last("gate.allow.set")!.input, { act: "send", target: "Run tests", days: 3 });
-});
-
-/* ---------- the whole command set (G49) ---------- */
-
-test("the / list offers the design's command set under its headings, and Continue in another Space is not in it (DESIGN-chat-system, line 164)", () => {
-  const ids = CHAT_COMMANDS.map((c) => c.id);
-  for (const id of [
-    "effort",
-    "context",
-    "review",
-    "security-review",
-    "agents",
-    "new",
-    "copy",
-    "memory",
-    "skills",
-    "hooks",
-    "init",
-  ])
-    assert.ok(ids.includes(id), `/${id} is offered`);
-  assert.ok(!ids.includes("continue"));
-  assert.equal(parseSlash("/continue Personal"), null);
-  assert.deepEqual(
-    [...new Set(CHAT_COMMANDS.map((c) => c.group))],
-    ["While it works", "Bring in help", "How it runs", "This session", "Keep it", "Set it up"],
-  );
-  const lists: ComposerLists = { commands: commandItems() };
-  const trigger: Trigger = { ch: "/", start: 0, end: 1, query: "" };
-  const popup = popupFor(trigger, lists, true);
-  assert.equal(
-    popup.filter((e): e is PopupItem => "group" in e).length,
-    CHAT_COMMANDS.length,
-    "nothing is cut at eight",
-  );
-  assert.deepEqual(
-    popup.filter((e) => "head" in e && e.head !== undefined).map((e) => (e as { head: string }).head),
-    ["While it works", "Bring in help", "How it runs", "This session", "Keep it", "Set it up"],
-  );
-});
-
-test("names people know from other tools run the command they stand for", () => {
-  for (const [said, id] of [
-    ["status", "usage"],
-    ["cost", "usage"],
-    ["clear", "new"],
-    ["quit", "stop"],
-    ["code-review", "review"],
-  ] as const)
-    assert.equal(parseSlash(`/${said}`)?.id, id, said);
-});
-
-test("/review starts a helper that reviews; /agents, /memory, /skills open the pane on their tab; /copy copies the last reply; /new starts a chat with the same agent", async () => {
-  const r = rig({
-    "chat.helper.start": () => ({ helper: { threadId: "thr_rev" }, blockId: "b" }),
-    "chat.start": () => ({ thread: { threadId: "thr_fresh" } }),
-  });
-  await runSlash("/review the lease", r.env);
-  const helper = r.calls.find((c) => c.cap === "chat.helper.start");
-  assert.ok(helper, "a helper started");
-  assert.match(JSON.stringify(helper.input), /Review the work done in this chat, looking at: the lease/);
-  assert.ok(r.opened.includes("thread:thr_rev"));
-  await runSlash("/agents", r.env);
-  await runSlash("/memory", r.env);
-  await runSlash("/skills", r.env);
-  assert.deepEqual(
-    r.opened.filter((o) => o.startsWith("pane:")),
-    ["pane:crew", "pane:memory", "pane:skills"],
-  );
-  await runSlash("/new", r.env);
-  assert.ok(r.opened.includes("thread:thr_fresh"));
-  assert.ok(r.calls.some((c) => c.cap === "chat.start"));
-});
-
-test("/usage and /context are two commands: usage opens the usage card, context opens the context card with the meters and Compact (G44)", async () => {
-  const r = rig({
-    "engine.my_ai": () => SAMPLE_MY_AI,
-    "engine.usage.get": () => ({
-      context: { used: 420_000, window: 1_000_000 },
-      session: { pct: 34 },
-      week: { pct: 61 },
-      keepEvery: "",
-    }),
-    "engine.compact": () => ({ line: "Freed 40k of context" }),
-  });
-  await runSlash("/usage", r.env);
-  assert.equal((r.results.at(-1) as { card: { kind: string } }).card.kind, "usage");
-  await runSlash("/context", r.env);
-  const spec = (
-    r.results.at(-1) as {
-      card: {
-        kind: string;
-        read(): Promise<{ meters: { key: string; pct: number }[] }>;
-        compact(k: string, a: boolean): Promise<void>;
-      };
-    }
-  ).card;
-  assert.equal(spec.kind, "context");
-  const d = await spec.read();
-  assert.deepEqual(
-    d.meters.map((m) => [m.key, m.pct]),
-    [
-      ["context", 42],
-      ["session", 34],
-      ["week", 61],
-    ],
-  );
-  await spec.compact("the decisions", true);
-  assert.ok(r.calls.some((c) => c.cap === "engine.compact" && JSON.stringify(c.input).includes("the decisions")));
-});
-
-test("typing /us finds /usage; the nicknames /status and /cost are found while typed, show the word typed and the command they run, and are not in the list at rest", () => {
-  const lists: ComposerLists = { commands: commandItems() };
-  const at = (query: string): PopupItem[] =>
-    popupFor({ ch: "/", start: 0, end: 1 + query.length, query }, lists, true).filter(
-      (e): e is PopupItem => "group" in e,
-    );
-  assert.ok(
-    at("us").some((e) => e.label === "usage"),
-    "/us finds /usage",
-  );
-  const sta = at("sta");
-  assert.ok(
-    sta.some((e) => e.label === "status" && e.note === "Same as /usage"),
-    JSON.stringify(sta.map((e) => e.label)),
-  );
-  assert.ok(at("cos").some((e) => e.label === "cost" && e.note === "Same as /usage"));
-  assert.ok(!at("").some((e) => e.label === "status" || e.label === "cost"), "never in the list at rest");
-  assert.equal(parseSlash("/status")?.id, "usage");
-});
-
-test("/voice starts the mic; /agents, /memory, /skills and /hooks are not offered in a channel or a chat with one other person, and say why if typed", async () => {
-  const r = rig();
-  let talked = 0;
-  r.env.startTalk = () => void talked++;
-  await runSlash("/voice", r.env);
-  assert.equal(talked, 1);
-  const names = (agents: boolean): string[] => commandItems([], agents).map((i) => (typeof i === "string" ? i : i.t));
-  for (const id of ["agents", "memory", "skills", "hooks", "usage"]) assert.ok(names(true).includes(id), id);
-  for (const id of ["agents", "memory", "skills", "hooks"])
-    assert.ok(!names(false).includes(id), `${id} is not in a chat with no agent pane`);
-  assert.ok(names(false).includes("usage") && names(false).includes("find"));
-  const dm = { ...r.env, thread: { ...r.env.thread, kind: "chat", agents: [] } } as never;
-  await runSlash("/skills", dm);
-  assert.match(r.said.at(-1) ?? "", /is for a chat with an agent/);
 });

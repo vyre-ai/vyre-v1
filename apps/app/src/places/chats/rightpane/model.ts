@@ -13,9 +13,7 @@ export type TabKey =
   | "routines"
   | "crew"
   | "skills"
-  | "hooks"
-  | "kept"
-  | "people";
+  | "hooks";
 export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "about", title: "About" },
   { key: "computer", title: "Computer" },
@@ -55,72 +53,6 @@ export const HOOKS_TAB: { key: TabKey; title: string } = { key: "hooks", title: 
 /** The Skills tab: the person's skills and an agent's, last, once there are any. */
 export const SKILLS_TAB: { key: TabKey; title: string } = { key: "skills", title: "Skills" };
 export const DEFAULT_TAB: TabKey = "about";
-
-/* ---------- the chat's own pane, by what the chat is (G5, G6; DESIGN-chat-system, Side pane row) ---------- */
-
-/** What the pane's tabs follow. Agent and group chat read Crew, Computer, Threads, Files, Kept; a channel Threads, Files, Kept, People; a chat with one other person Files, Kept. */
-export type PaneKind = "agent" | "group" | "channel" | "dm";
-
-/** What the chat has, which decides which of its optional tabs are drawn: Crew once teammates work, Computer once the agent has one, Kept once there is a Kept list, and the rest where they exist. */
-export interface PaneHas {
-  crew: boolean;
-  computer: boolean;
-  kept: boolean;
-  people: boolean;
-  terminal: boolean;
-  skills: boolean;
-  hooks: boolean;
-}
-
-/** The titles the chat's pane gives its tabs (a key's title in the agent page stays as it was). */
-const KIND_TITLE: Partial<Record<TabKey, string>> = {
-  threads: "Threads",
-  memory: "Knows",
-  kept: "Kept",
-  people: "People",
-  crew: "Crew",
-};
-const BASE_TITLE = new Map<string, string>([
-  ["computer", "Computer"],
-  ["files", "Files"],
-  ["routines", "Routines"],
-  ["terminal", "Terminal"],
-  ["skills", "Skills"],
-  ["hooks", "Hooks"],
-]);
-const titleOf = (k: TabKey): string => KIND_TITLE[k] ?? BASE_TITLE.get(k) ?? k;
-
-/**
- * The tabs of the chat's pane, in the order the prototype lists them (CTXK in a-data.js). The strip draws as many as the width holds and folds the rest behind its More menu, so the tail
- * (Knows, Routines, Terminal, Skills) is what More holds at the pane's usual width. A tab for something the chat does not have is not drawn.
- */
-export function kindTabs(kind: PaneKind, has: PaneHas): { key: TabKey; title: string }[] {
-  const order: TabKey[] =
-    kind === "dm"
-      ? ["files", "kept"]
-      : kind === "channel"
-        ? ["threads", "files", "kept", "people"]
-        : kind === "group"
-          ? ["crew", "computer", "threads", "files", "kept", "memory", "terminal", "skills", "hooks"]
-          : ["crew", "computer", "threads", "files", "kept", "memory", "routines", "terminal", "skills", "hooks"];
-  const keep = (k: TabKey): boolean =>
-    k === "crew"
-      ? has.crew
-      : k === "computer"
-        ? has.computer
-        : k === "kept"
-          ? has.kept
-          : k === "people"
-            ? has.people
-            : k === "terminal"
-              ? has.terminal
-              : k === "skills"
-                ? has.skills
-                : k === "hooks"
-                  ? has.hooks
-                  : true;
-  return order.filter(keep).map((key) => ({ key, title: titleOf(key) }));
-}
 
 /* ---------- the tab strip at a narrow width ---------- */
 

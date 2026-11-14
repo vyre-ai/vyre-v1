@@ -37,17 +37,15 @@ import { TerminalPaneTab } from "./TerminalPaneTab.tsx";
 import { HooksTab } from "./HooksTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN, PANE_SCREEN } from "./ThreadsTab.tsx";
 import { CrewTab } from "./CrewTab.tsx";
-import { KeptTab } from "../conversation/chapters/KeptTab.tsx";
-import { SessionBlockMount } from "../conversation/chapters/SessionBlock.tsx";
 import { useCrew } from "../crew/context.tsx";
 import { useSession } from "../session/context.tsx";
 import { SessionOverview } from "../session/Overview.tsx";
 import { sessionTabs, timeWords } from "../session/model.ts";
 import { SkillsTab } from "../install/SkillsTab.tsx";
 import { onOpenSkills } from "../install/open.ts";
-import { DEFAULT_TAB, OVERVIEW_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS, kindTabs, tabsOf } from "./model.ts";
+import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS, tabsOf } from "./model.ts";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "./fit.tsx";
-import type { PaneKind, TabKey } from "./model.ts";
+import type { TabKey } from "./model.ts";
 import { Face, Notice } from "./parts.tsx";
 
 type AgentOut = CapMap["agents.get"]["out"];
@@ -63,15 +61,6 @@ export interface ChatRightPaneProps {
   initialTab?: TabKey;
   /** Draw only the pane body, with no side-pane frame: an agent's profile opened as a tab inside another pane. */
   embedded?: boolean;
-  /**
-   * What the chat is. Given, the pane is the chat's own (G5, G6): its tabs follow the kind (agent and group chat: Crew, Computer, Threads, Files, Kept; channel: Threads, Files, Kept, People; one other
-   * person: Files, Kept), they sit in the pane's header row beside what was opened from the chat, and there is no agent header above them. Left out, the pane is the agent's profile as it always was.
-   */
-  kind?: PaneKind;
-  /** The People tab's body (who is here), drawn by the shell. Without it the pane has no People tab. */
-  people?: ReactNode;
-  /** The Kept tab's body (decisions and kept notes), drawn by the lane that owns it. Without it the pane has no Kept tab. */
-  kept?: ReactNode;
   /** The hook to show and flash when the Hooks tab was opened from a line in the chat. */
   hookSel?: string | null;
   onTab?: (tab: TabKey) => void;
@@ -148,9 +137,6 @@ function PaneView({
   openRoutine,
   extra,
   embedded,
-  kind,
-  people,
-  kept,
 }: ChatRightPaneProps): ReactElement {
   const data = usePaneData();
   const online = useOnline();
@@ -167,22 +153,8 @@ function PaneView({
   const session = useSession();
   const longSession = session?.summary.long === true;
   const [own, setOwn] = useState<TabKey | null>(initialTab ?? null);
-  const mine = kind !== undefined && embedded !== true;
-  // the Kept list is the session's own (decisions, kept notes); it has a tab once the chat has a session to read
-  const keptBody =
-    kept ??
-    (mine && session
-      ? ((
-          <KeptTab
-            summary={session.summary}
-            onJump={(id) => session.jump(id)}
-            trail={(by, at) =>
-              `${data.me && by === data.me.id ? "You" : (data.nameOf?.(by) ?? by)}, ${timeWords(at, data.clock())}`
-            }
-          />
-        ) as ReactNode)
-      : undefined);
   const wanted = controlled ?? own ?? (longSession ? "overview" : DEFAULT_TAB);
+  const tab: TabKey = wanted === "computer" && !showComputer ? "about" : wanted;
   // Open on an install card: the Skills tab, with that skill lit
   const [lit, setLit] = useState<string | undefined>(undefined);
   // the Skills tab appears once the person has skills (their own, an agent's they own, or shared with them)
@@ -249,59 +221,19 @@ function PaneView({
   }, [data]);
   // the Hooks tab appears once the chat has hooks, or when a hook line opened it
   const hooksQ = useScreenQuery<CapMap["hooks.list"]["out"]>(PANE_SCREEN, "hooks", { threadId: data.threadId });
-  const hasHooks = (hooksQ.status === "ready" && hooksQ.data.hooks.length > 0) || wanted === "hooks";
+  const hasHooks = (hooksQ.status === "ready" && hooksQ.data.hooks.length > 0) || tab === "hooks";
   const baseTabs = useMemo(
     () =>
-      (mine
-        ? [
-            ...(longSession ? [OVERVIEW_TAB] : []),
-            ...kindTabs(kind, {
-              crew: hasCrew,
-              computer: showComputer && !noComputers,
-              kept: keptBody !== undefined,
-              people: people !== undefined,
-              terminal: data.terminal !== undefined,
-              skills: hasSkills || wanted === "skills",
-              hooks: hasHooks,
-            }),
-          ]
-        : tabsOf(data.terminal !== undefined, hasCrew, hasComputer, hasSkills, hasHooks, longSession).filter(
-            (t) => !(noComputers && t.key === "computer"),
-          )
-      ).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })),
-    [
-      mine,
-      kind,
-      keptBody !== undefined,
-      people !== undefined,
-      facts,
-      noComputers,
-      data.terminal,
-      hasCrew,
-      showComputer,
-      hasSkills,
-      hasHooks,
-      longSession,
-      wanted,
-    ],
+      tabsOf(data.terminal !== undefined, hasCrew, hasComputer, hasSkills, hasHooks, longSession)
+        .filter((t) => !(noComputers && t.key === "computer"))
+        .map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })),
+    [facts, noComputers, data.terminal, hasCrew, showComputer, hasSkills, hasHooks, longSession],
   );
   // a long session shows the chat's own pane: Overview, Threads, Files, Kept, then the rest behind More (the agent's profile is one tap away on its page)
-  const tabs = useMemo(() => (longSession && !mine ? sessionTabs(baseTabs) : baseTabs), [baseTabs, longSession, mine]);
-  // a tab that the chat does not have (Crew once the helpers are gone, About in the chat's own pane) gives way to the first one it does
-  // /agents asks for Crew; with nobody else working the right place is Threads, where the agents of the chat are listed
-  const asked: TabKey = mine && wanted === "crew" && !tabs.some((t) => t.key === "crew") ? "threads" : wanted;
-  const tab: TabKey = mine
-    ? tabs.some((t) => t.key === asked)
-      ? asked
-      : (tabs[0]?.key ?? DEFAULT_TAB)
-    : wanted === "computer" && !showComputer
-      ? "about"
-      : wanted;
+  const tabs = useMemo(() => (longSession ? sessionTabs(baseTabs) : baseTabs), [baseTabs, longSession]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
-  // in the chat's own pane the tabs share the header row with what was opened from the chat (a profile, a thread): each of those takes a tab's room
-  const room = paneNow - (mine ? (extra?.tabs.length ?? 0) * 110 : 0);
-  const { strip, select } = useFittedTabs(tabs, tab, room, {
+  const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
     extra: PANE_TAB_EXTRA,
     chrome: PANE_CHROME,
     dots: true,
@@ -332,21 +264,19 @@ function PaneView({
       }}
     >
       <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
-      {longSession || mine ? null : <AgentHeader deps={deps} role={agent?.role} status={agent?.status} menu={menu} />}
-      {mine ? null : (
-        <View style={st.tabs}>
-          <TabStrip
-            tabs={strip}
-            active={tab}
-            onSelect={select}
-            tight
-            bare
-            underline
-            noOptions
-            label={`${data.agent.name}'s tabs`}
-          />
-        </View>
-      )}
+      {longSession ? null : <AgentHeader deps={deps} role={agent?.role} status={agent?.status} menu={menu} />}
+      <View style={st.tabs}>
+        <TabStrip
+          tabs={strip}
+          active={tab}
+          onSelect={select}
+          tight
+          bare
+          underline
+          noOptions
+          label={`${data.agent.name}'s tabs`}
+        />
+      </View>
       {online ? null : (
         <Text testID="pane-offline" style={st.offline}>
           Offline. Showing what this device keeps.
@@ -381,17 +311,10 @@ function PaneView({
             }}
           />
         ) : null}
-        {tab === "people" ? people : null}
-        {tab === "kept" ? keptBody : null}
         {tab === "computer" ? <ComputerPane deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}
-        {tab === "crew" ? (
-          <>
-            <CrewTab deps={deps} {...(window ? { window } : {})} />
-            {mine ? <SessionBlockMount call={data.call} threadId={data.threadId} agentId={data.agent.agentId} /> : null}
-          </>
-        ) : null}
+        {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "files" ? (
           <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} />
         ) : null}
@@ -443,25 +366,13 @@ function PaneView({
       paneKey={PANE_KEY}
       toggle={{ open, onPress: onToggle }}
       title={data.agent.name}
-      tabs={mine ? [...strip, ...(extra?.tabs ?? [])] : orderedTabs(openTab, extra)}
-      activeTab={mine ? (extra?.active ?? tab) : (extra?.active ?? "open")}
-      onSelectTab={(key) => {
-        if (mine) {
-          // a tab of the pane's own (or its More) selects here and puts what was opened from the chat away; a tab that was opened from the chat shows it
-          if (extra?.tabs.some((t) => t.key === key)) extra.onSelect(key);
-          else {
-            extra?.onSelect(null);
-            select(key);
-          }
-          return;
-        }
-        extra?.onSelect(key === "open" ? null : key);
-      }}
+      tabs={orderedTabs(openTab, extra)}
+      activeTab={extra?.active ?? "open"}
+      onSelectTab={(key) => extra?.onSelect(key === "open" ? null : key)}
       onCloseTab={(key) => {
-        if (!mine && key === "open") onToggle();
+        if (key === "open") onToggle();
         else extra?.onClose(key);
       }}
-      {...(mine ? { tight: true } : {})}
       {...(narrow ? { max: 1, defaultWidth: win.width } : { defaultWidth: WIDE_PANE_W })}
     >
       {extra?.active ? (

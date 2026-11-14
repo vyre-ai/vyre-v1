@@ -1,6 +1,0 @@
-{
-  "targets": [
-    { "id": "CHATFRAME_01-agent", "route": "/m/CHATFRAME_01", "proto": "chat,{skin}", "waitFor": "[data-testid='conversation-feed']", "note": "The chat with its pane of an agent chat: Crew, Computer, Threads, Files." },
-    { "id": "CHATFRAME_01-channel", "route": "/m/CHATFRAME_01?kind=channel", "proto": "chat,{skin}", "waitFor": "[data-testid='conversation-feed']", "note": "The pane of a channel: Threads, Files, People." }
-  ]
-}

@@ -13,7 +13,6 @@ import type { ConversationData } from "./conversation/data.tsx";
 import { ChatsSidebarSlot } from "./sidebar/ChatsSidebar.tsx";
 import type { ChatsSidebarData } from "./sidebar/data.tsx";
 import type { VirtualWindow } from "../../../../../ui/src/VirtualList/index.tsx";
-import type { PaneKind } from "./rightpane/model.ts";
 
 export const SIDEBAR_W = 272;
 export const WIDE = 640;
@@ -26,18 +25,9 @@ export interface ChatsPlaceProps {
   paneOpen?: boolean;
   /** Pins which rows are drawn (tests and screenshots draw them all). */
   window?: VirtualWindow;
-  /** What the open chat is (its pane's tabs follow it). Left out: the agent's pane as before. */
-  paneKind?: PaneKind;
 }
 
-export function ChatsPlace({
-  sidebar,
-  conversation,
-  pane,
-  paneOpen = true,
-  window,
-  paneKind,
-}: ChatsPlaceProps): ReactElement {
+export function ChatsPlace({ sidebar, conversation, pane, paneOpen = true, window }: ChatsPlaceProps): ReactElement {
   const width = useWindowDimensions().width;
   const wide = width === 0 || width >= WIDE;
   const [open, setOpen] = useState(paneOpen);
@@ -59,7 +49,6 @@ export function ChatsPlace({
               data={pane}
               open={open}
               onToggle={() => setOpen((o) => !o)}
-              {...(paneKind ? { kind: paneKind } : {})}
               {...(window ? { window } : {})}
             />
           ) : null}

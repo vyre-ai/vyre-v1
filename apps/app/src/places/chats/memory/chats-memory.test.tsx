@@ -526,7 +526,7 @@ const threadOf = (
   };
 };
 
-test("the message menu keeps every item it had (behind More) and adds Remember This, Add to a Page and Forget This", async () => {
+test("the message menu keeps every item it had and adds Remember This, Add to a Page and Forget This", async () => {
   const s = await withWarm();
   const { thread } = threadOf(s);
   const shown: string[][] = [];
@@ -543,24 +543,26 @@ test("the message menu keeps every item it had (behind More) and adds Remember T
   const plain = labels(
     menuFor(msg("m1", "hello"), false, { ...actions, memoryEntries: undefined } as MessageActions, () => undefined),
   );
-  // the message menu is the short list (G14); the memory items sit behind its last entry, More, as a group of their own
-  assert.deepEqual(plain, ["Copy", "Reply in thread", "Pin", "Add reaction"]);
-  assert.deepEqual(withMemory, ["Copy", "Reply in thread", "Pin", "Add reaction", "-", "More"]);
-  const press = (items: ReturnType<typeof menuFor>, label: string): void =>
-    (items.find((e) => "label" in e && e.label === label) as { onSelect: () => void }).onSelect();
-  shown.length = 0;
-  press(
-    menuFor(msg("m1", "hello"), false, actions, () => undefined, { x: 5, y: 6 }),
-    "More",
-  );
-  assert.deepEqual(shown.at(-1), ["Remember This", "Add to a Page…", "Forget This"]);
-  const mineMenu = menuFor(msg("m1", "hello", "text"), true, actions, () => undefined);
-  assert.deepEqual(labels(mineMenu), ["Copy", "Reply in thread", "Pin", "Add reaction", "-", "More"]);
-  press(mineMenu, "More");
-  assert.deepEqual(shown.at(-1), ["Edit", "-", "Remember This", "Add to a Page…", "Forget This", "-", "Delete"]);
+  // the message menu is grouped (Copy; Reply in Thread; Pin and React), and the memory items are a group of their own
+  assert.deepEqual(plain, ["Copy", "-", "Reply in Thread", "-", "Pin", "Add Reaction"]);
+  assert.deepEqual(withMemory, [
+    "Copy",
+    "-",
+    "Reply in Thread",
+    "-",
+    "Pin",
+    "Add Reaction",
+    "-",
+    "Remember This",
+    "Add to a Page…",
+    "Forget This",
+  ]);
+  const mine = labels(menuFor(msg("m1", "hello", "text"), true, actions, () => undefined));
+  assert.deepEqual(mine.filter((x) => x !== "-").slice(0, 3), ["Copy", "Edit", "Reply in Thread"]);
+  assert.deepEqual(mine.slice(-4), ["Add to a Page…", "Forget This", "-", "Delete"]);
   assert.deepEqual(
     labels(menuFor(msg("q1", "", "quiet"), false, actions, () => undefined)),
-    ["Copy", "Reply in thread", "Pin", "Add reaction"],
+    ["Copy", "-", "Reply in Thread", "-", "Pin", "Add Reaction"],
     "a quiet event line has no memory items",
   );
   const entries = memoryEntries(
@@ -570,7 +572,6 @@ test("the message menu keeps every item it had (behind More) and adds Remember T
     (items, x, y) => void shown.push([...labels(items as never), `@${x},${y}`]),
   );
   const add = entries.find((e) => "label" in e && e.label.startsWith("Add to a Page"))!;
-  shown.length = 0;
   (add as { onSelect: () => void }).onSelect();
   assert.deepEqual(
     shown[0],

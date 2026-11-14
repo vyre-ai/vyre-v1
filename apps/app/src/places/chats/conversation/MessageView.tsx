@@ -22,7 +22,6 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { isItem } from "../../../../../../ui/src/Menu/props.ts";
-import { tidy } from "../../../../../../ui/src/Menu/entries.ts";
 import { ActivityLine, LiveBody } from "./ActivityLine.tsx";
 import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
@@ -41,6 +40,7 @@ import {
 } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import type { CardState } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import { useThreadMemory } from "../memory/thread.tsx";
+import { rememberMessage } from "../memory/actions.ts";
 import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
@@ -184,8 +184,6 @@ export interface MessageActions {
   memoryEntries?: (m: MenuMessage, x: number, y: number, show: ShowMenu) => MenuEntry[];
   /** Branch the chat into a new one at this message. */
   fork?(messageId: string): void;
-  /** Go back to this message, files too ("Rewind to here"). Left out until the chat can rewind. */
-  rewind?(messageId: string): void;
   /** Make a task from this message, linked back to it. */
   makeTask?(messageId: string): void;
   /** Ask an agent to answer this message, as if it had been named (owner ruling, 3 Nov 2026): opens the channel's agent picker where you pressed. Left out where no agent can be asked. */
@@ -434,10 +432,6 @@ function TimeTip({
   return item.timeTitle ? <TimePop at={item.message.createdAt}>{children}</TimePop> : children;
 }
 
-/**
- * A message's menu (G14, prototype "ctxmenu"): the short list in sentence case, then Details. What was in the long list (Copy link, Edit, Retry, Mark unread, Remember, Delete) is behind its last
- * entry, "More", so nothing a person could do is gone; the first list stays eight or nine rows.
- */
 export function menuFor(
   m: Message,
   mine: boolean,
@@ -445,63 +439,49 @@ export function menuFor(
   onEdit: () => void,
   at: { x: number; y: number } = { x: 0, y: 0 },
 ): MenuEntry[] {
+  // groups, split by a separator: read and write it, then turn it into something, then keep it, then how it was made, then remove it last
   const talk = m.kind !== "system" && m.kind !== "quiet";
-  const first: MenuEntry[] = [
-    { label: "Copy", onSelect: () => a.copy(m.body) },
-    { label: "Reply in thread", onSelect: () => a.openThread(m.messageId) },
-  ];
-  if (a.askAgent && talk)
-    first.push({ label: "Ask an agent\u2026", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
-  if (a.makeTask && talk) first.push({ label: "Make a task", onSelect: () => a.makeTask!(m.messageId) });
-  if (a.share && talk) first.push({ label: "Share to\u2026", onSelect: () => a.share!(m.messageId, at.x, at.y) });
-  if (a.fork && talk) first.push({ label: "Fork from here", onSelect: () => a.fork!(m.messageId) });
-  if (a.rewind && talk && !m.messageId.startsWith("pending:"))
-    first.push({ label: "Rewind to here", onSelect: () => a.rewind!(m.messageId) });
-  first.push(
+  const write: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
+  if (a.copyLink) write.push({ label: "Copy Link", onSelect: () => a.copyLink!(m.messageId) });
+  if (mine && m.kind === "text") write.push({ label: "Edit", onSelect: onEdit });
+  const turn: MenuEntry[] = [{ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) }];
+  // an agent's reply cannot be edited by you; it can be asked again
+  if (!mine && m.author.kind === "agent" && m.kind !== "system" && m.kind !== "quiet" && a.regenerate)
+    turn.push({ label: "Retry", onSelect: () => a.regenerate!(m.messageId) });
+  if (a.askAgent && talk) turn.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
+  if (a.makeTask && talk) turn.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
+  if (a.share && talk) turn.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
+  if (a.fork && talk) turn.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
+  const keep: MenuEntry[] = [
     { label: m.pinned ? "Unpin" : "Pin", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
     {
-      label: "Add reaction",
-      onSelect: () =>
-        a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "\u{1F44D}", false),
+      label: "Add Reaction",
+      onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)),
     },
-  );
-  // how an agent's reply was made: the right pane's Details tab (what the agent knew is a section of it)
-  const how: MenuEntry[] = [];
-  if (!mine && a.details && m.author.kind === "agent")
-    how.push({ label: "Details", onSelect: () => a.details!.open(m.messageId) });
-
-  // behind "More": the rest of what a message can do, in the order it always had
-  const rest: MenuEntry[] = [];
-  const own: MenuEntry[] = [];
-  if (a.copyLink) own.push({ label: "Copy link", onSelect: () => a.copyLink!(m.messageId) });
-  if (mine && m.kind === "text") own.push({ label: "Edit", onSelect: onEdit });
-  // an agent's reply cannot be edited by you; it can be asked again
-  if (!mine && m.author.kind === "agent" && talk && a.regenerate)
-    own.push({ label: "Retry", onSelect: () => a.regenerate!(m.messageId) });
-  const keep: MenuEntry[] = [];
+  ];
   if (a.markUnreadFrom && !m.messageId.startsWith("pending:"))
-    keep.push({ label: "Mark unread from here", onSelect: () => a.markUnreadFrom!(m.threadSeq) });
+    keep.push({ label: "Mark Unread From Here", onSelect: () => a.markUnreadFrom!(m.threadSeq) });
   if (m.kind !== "quiet" && a.memoryEntries)
     keep.push(
       ...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu),
     );
+  const how: MenuEntry[] = [];
+  // how an agent's reply was made: the right pane's Details tab (what the agent knew is a section of it)
+  if (!mine && a.details && m.author.kind === "agent")
+    how.push({ label: "Details", onSelect: () => a.details!.open(m.messageId) });
   const ob = onBehalfOf(m);
   if (ob && a.agentMute && ob.teammate === a.agentMute.me)
-    keep.push({
-      label: `Mute agent messages from ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for today`,
+    how.push({
+      label: `Mute Agent Messages From ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for Today`,
       onSelect: () => a.agentMute!.mute(ob.person),
     });
   const last: MenuEntry[] = mine ? [{ label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) }] : [];
-  for (const group of [own, keep, last]) {
+  const out: MenuEntry[] = [];
+  for (const group of [write, turn, keep, how, last]) {
     if (group.length === 0) continue;
-    if (rest.length > 0) rest.push({ separator: true });
-    rest.push(...group);
+    if (out.length > 0) out.push({ separator: true });
+    out.push(...group);
   }
-  const behind = tidy(rest);
-  const out: MenuEntry[] = [...first];
-  if (how.length > 0) out.push({ separator: true }, ...how);
-  if (behind.length > 0)
-    out.push({ separator: true }, { label: "More", onSelect: () => a.showMenu(behind, at.x, at.y, "Message") });
   return out;
 }
 
@@ -523,24 +503,37 @@ export function HoverBar({
   byAgent?: boolean;
 }): ReactElement {
   const bar: { icon: GlyphName; label: string; run: (x: number, y: number) => void }[] = [];
+  const memory = useThreadMemory();
   const talk = m.kind !== "system" && m.kind !== "quiet";
   if (byAgent) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
-    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
-    if (a.fork && talk) bar.push({ icon: "fork", label: "Fork from here", run: () => a.fork!(m.messageId) });
+    bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
+    if (a.fork && talk) bar.push({ icon: "fork", label: "Fork From Here", run: () => a.fork!(m.messageId) });
     if (talk)
       bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
+    // an agent's answer, in any chat, can become work or a memory in one tap, from here and from the long-press sheet; nothing of it is drawn at rest
+    if (a.makeTask && talk && m.body.trim() !== "")
+      bar.push({ icon: "task", label: "Make a Task", run: () => a.makeTask!(m.messageId) });
+    if (memory && talk && m.body.trim() !== "")
+      bar.push({
+        icon: "remember",
+        label: "Remember This",
+        run: () => {
+          void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash);
+        },
+      });
   } else if (mine && a.humanChat !== true) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
-    if (a.rewind && talk && !m.messageId.startsWith("pending:"))
-      bar.push({ icon: "back", label: "Rewind to here", run: () => a.rewind!(m.messageId) });
+    bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
+    if (a.askAgent && talk)
+      bar.push({ icon: "spark", label: "Ask an Agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
   } else {
     if (a.pickReaction && talk)
-      bar.push({ icon: "smile", label: "Add reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
-    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+      bar.push({ icon: "smile", label: "Add Reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
+    bar.push({ icon: "reply", label: "Reply in Thread", run: () => a.openThread(m.messageId) });
     if (a.askAgent && talk)
-      bar.push({ icon: "spark", label: "Ask an agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
+      bar.push({ icon: "spark", label: "Ask an Agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
     if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
   }
   return (

@@ -5,16 +5,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { renderToStaticMarkup } from "react-dom/server";
 import { find, flush, installDom, mount, press, textOf } from "../../../onboarding/test-dom.ts";
-import {
-  MemorySwitch,
-  QUIET_LINE,
-  chatMemory,
-  flipChatMemory,
-  SWITCH_LABEL,
-  SWITCH_TIP,
-  rememberOf,
-  tipOf,
-} from "./memory-switch.tsx";
+import { MemorySwitch, QUIET_LINE, SWITCH_LABEL, SWITCH_TIP, rememberOf, tipOf } from "./memory-switch.tsx";
 
 test("off by default: a chat memory cannot answer for is remembered, and nothing quiet is shown", () => {
   assert.equal(rememberOf(undefined), true);
@@ -23,7 +14,9 @@ test("off by default: a chat memory cannot answer for is remembered, and nothing
   const out = renderToStaticMarkup(
     <MemorySwitch threadId="thr_1" call={() => new Promise(() => undefined)} say={() => undefined} />,
   ).replaceAll("&#x27;", "'");
-  assert.equal(out, "", "while the chat is remembered nothing is drawn beside the mic (G47)");
+  assert.ok(out.includes(`aria-label="${SWITCH_LABEL}"`) && out.includes('aria-checked="false"'));
+  assert.ok(!out.includes(QUIET_LINE));
+  assert.ok(!out.includes("pill"));
 });
 
 test("turning it on writes remember: false to memory and shows the quiet line; pressing again remembers the chat", async () => {
@@ -44,11 +37,9 @@ test("turning it on writes remember: false to memory and shows the quiet line; p
       { cap: "memory.chat_learning.get", input: { threadId: "thr_1" } },
       "the state is read from memory",
     );
-    assert.equal(find(root, "memory-switch"), null, "no chip while remembered");
-    flipChatMemory("thr_1", call, (l) => said.push(l)); // the plus menu's row
+    await press(find(root, "memory-switch"));
     await flush();
     assert.deepEqual(calls.at(-1), { cap: "memory.chat_learning.set", input: { threadId: "thr_1", remember: false } });
-    assert.equal(chatMemory("thr_1").remember, false);
     assert.ok(textOf(find(root, "memory-off-line")).includes(QUIET_LINE));
     assert.equal(tipOf(false), "Not remembering this chat. Press to remember it again.");
     assert.equal(find(root, "memory-switch")?.props["aria-checked"], true);

@@ -192,7 +192,7 @@ test("the strip draws the Space's tabs with the selected one marked and a plus; 
   c.openPlace("files");
   c.openPlace("records", "pruitt", "Pruitt matter");
   const out = renderToStaticMarkup(<MainTabs controller={c} />).replaceAll("<!-- -->", "");
-  for (const title of ["New chat", "Files", "Pruitt matter"]) assert.ok(out.includes(title), title);
+  for (const title of ["Chats", "Files", "Pruitt matter"]) assert.ok(out.includes(title), title);
   assert.ok(out.includes('data-testid="tab-records:pruitt-selected"'), "the selected tab is marked");
   assert.ok(out.includes('data-testid="tab-chats"') && out.includes('data-testid="tab-files"'));
   assert.ok(out.includes('data-testid="tab-strip-plus"') && !out.includes('data-testid="tab-strip-more"'));
@@ -201,7 +201,7 @@ test("the strip draws the Space's tabs with the selected one marked and a plus; 
     specs.map((s) => [s.key, s.title, s.pinned === true]),
     [
       ["home", "Home", true],
-      ["chats", "New chat", false],
+      ["chats", "Chats", false],
     ],
   );
   assert.ok(

@@ -82,7 +82,7 @@ import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
 import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
-import type { PaneKind, TabKey } from "../rightpane/model.ts";
+import type { TabKey } from "../rightpane/model.ts";
 import { ChatDetails } from "../rightpane/ChatDetails.tsx";
 import { paneAction, paneSubject } from "../rightpane/subject.ts";
 import { ReplyDetailsPane } from "../details/ReplyDetailsPane.tsx";
@@ -678,12 +678,6 @@ export function ChatsMounted({
           act({ t: "pane-open" });
         },
         openDetails: (tid: string, mid: string) => replyDetails(tid, mid),
-        openPaneTab: (tab: "crew" | "memory" | "skills" | "hooks" | "kept") => {
-          setPaneTab(tab);
-          setRightOn(null);
-          selectedFor.current = threadId;
-          go.openPane();
-        },
         openHooks: (_tid: string, hookId?: string) => {
           setPaneTab("hooks");
           setHookSel(hookId ?? null);
@@ -819,24 +813,16 @@ export function ChatsMounted({
     if (subject.kind === "person") {
       profile(subject.id, true);
       autoTab.current = `profile:${subject.id}`;
-    } else {
-      // an agent's chat, a group and a channel keep the chat's own pane (Crew, Threads, Files ... and People in a channel): who is here is a tab of it, not a tab that opens over it (G5)
+    } else if (subject.kind === "agent") {
       setRightOn(null);
       autoTab.current = null;
+    } else {
+      const key = `chat:${threadId}`;
+      setRightTabs((t) => withTab(t, { key, id: threadId, title: "Details", kind: "chat" }));
+      setRightOn(key);
+      autoTab.current = key;
     }
   }, [shown.pane, subject?.kind, subjectKey, threadId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const paneKind: PaneKind =
-    subject === null
-      ? "agent"
-      : subject.kind === "person"
-        ? "dm"
-        : subject.kind === "channel"
-          ? "channel"
-          : subject.kind === "group"
-            ? thread.status === "ready" && thread.data.thread.agents.length > 0
-              ? "group"
-              : "channel"
-            : "agent";
   const agentTabId =
     rightTabNow && (rightTabNow.kind === "agent" || rightTabNow.kind === "assistant") ? rightTabNow.id : null;
   const agentTabData = useMemo(
@@ -1234,21 +1220,6 @@ export function ChatsMounted({
         <AgentPane
           data={paneFull ?? paneCtx}
           open
-          kind={paneKind}
-          {...(paneKind === "channel" && threadId !== null
-            ? {
-                people: (
-                  <ChatDetails
-                    key={`people:${threadId}`}
-                    threadId={threadId}
-                    call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
-                    nameOf={nameOf}
-                    meId={rt.me.id}
-                    openProfile={profile}
-                  />
-                ),
-              }
-            : {})}
           onToggle={go.togglePane}
           {...(paneTab ? { tab: paneTab } : {})}
           onTab={(t: TabKey) => {

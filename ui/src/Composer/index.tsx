@@ -23,7 +23,7 @@ import { Row } from "../Row/index.tsx";
 import { answering, deleteToken, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
 import { ChatField, canMountChatField } from "./ChatField.tsx";
-import { GroupHead, I, IconTile, Kbd, Pop, STOP, Sep, ensureComposerCss, useDismiss } from "./parts.tsx";
+import { GroupHead, I, IconTile, Kbd, Pop, STOP, ensureComposerCss, useDismiss } from "./parts.tsx";
 import { composerSymbols } from "./props.ts";
 import { closeEmoji, findEmoji } from "./emoji.ts";
 import type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
@@ -127,8 +127,6 @@ export type ListItem =
       arg?: string;
       /** Other words it is found by, past its name: a connected folder's provider ("Google Drive", "SharePoint"), so typing the provider finds it. */
       find?: string;
-      /** Found only while typed (a nickname such as /status for /usage): not in the list at rest. */
-      typedOnly?: boolean;
       /** In the @ menu: the group it is listed under (the place knows who is in the chat). Without it an agent is under Agents and a person under People. */
       group?: string;
     };
@@ -229,7 +227,6 @@ function ranked(
 ): PopupItem[] {
   const scored: { at: number; q: number; item: PopupItem }[] = [];
   (items ?? []).forEach((x, at) => {
-    if (query === "" && typeof x !== "string" && x.typedOnly === true) return;
     const label = nameOf(x).replace(/^[#/]/, "");
     const find = typeof x === "string" ? undefined : x.find;
     const q = Math.max(quality(query, prepare(label)), find ? quality(query, prepare(find)) : 0);
@@ -259,36 +256,6 @@ function ranked(
   scored.sort((a, b) => b.q - a.q || a.at - b.at);
   return scored.slice(0, limit).map((s) => s.item);
 }
-
-/** The small icon each command carries in the "/" list (the prototype's own pick); a command without one draws the terminal glyph. */
-const CMD_ICON: Readonly<Record<string, string>> = {
-  btw: I.bulb,
-  stop: I.x,
-  find: I.search,
-  helper: I.people,
-  handoff: I.swap,
-  review: I.check,
-  "security-review": I.lock,
-  agents: I.people,
-  model: I.tune,
-  effort: I.tune,
-  plan: I.plan,
-  permissions: I.lock,
-  new: I.plus,
-  context: I.tune,
-  compact: I.plan,
-  fork: I.fork,
-  export: I.file,
-  search: I.search,
-  task: I.check,
-  remember: I.bulb,
-  memory: I.bulb,
-  pin: I.pin,
-  copy: I.copy,
-  skills: I.skill,
-  hooks: I.bolt,
-  init: I.edit,
-};
 
 /** The groups # searches, in the order they show. */
 export const HASH_GROUPS = ["Records", "Files", "Folders", "Chats", "Automations", "Projects", "Channels"] as const;
@@ -339,11 +306,8 @@ export function popupFor(
     const skill = (x: ListItem): boolean => typeof x !== "string" && (x.kind === "Plugin" || x.kind === "Skill");
     const commands = (lists.commands ?? []).filter((x) => !skill(x));
     const skills = (lists.commands ?? []).filter(skill);
-    // the whole command set is offered, in the headings the design gives it (While it works, Bring in help ...); the list scrolls, nothing is cut at eight
-    const grouped = ranked(commands, q, "Commands", "Command", Number.MAX_SAFE_INTEGER);
-    const heads = [...new Set(grouped.map((x) => x.group))];
-    for (const h of heads) out.push({ head: h }, ...grouped.filter((x) => x.group === h));
     for (const [name, items, kind] of [
+      ["Commands", commands, "Command"],
       ["Skills", skills, "Skill"],
       ["Templates", lists.templates, "Template"],
       ["Snippets", lists.snippets, "Snippet"],
@@ -771,10 +735,6 @@ export interface ComposerProps extends ComposerShellProps {
   onAttach?: () => void;
   /** Opens the one Add people and agents sheet for this chat: the "Add people and agents" row under This chat. Left out where the place has no such sheet. */
   onAddPeople?: () => void;
-  /** Rows a place adds to the plus menu under "This chat" (a switch such as Don't remember this chat); read each time the menu is drawn. */
-  plusExtra?: () => readonly { id: string; title: string; icon: "lock"; checked: boolean; onPress: () => void }[];
-  /** The plus menu's "Connect a folder": the place opens its mount sheet. Left out where there is none, and the row with it. */
-  onConnectFolder?: () => void;
   /** Recipients for a composer that sends outside. Mounted above the field. */
   recipients?: ReactNode;
   banner?: ReactNode;
@@ -796,8 +756,6 @@ export interface ComposerProps extends ComposerShellProps {
   panelBelow?: boolean;
   /** A count the place raises to open the model menu itself (the /model command): each increase opens it, where the strip's own press would. */
   openPanelAt?: number;
-  /** The place asked for the mic (/voice): the same press the mic button takes, once per ask. */
-  talkAt?: number;
   /** Where the chat runs, when it is not this computer: "On Northwind" in the pill. */
   runsChip?: string;
   /** The chat's mode; with onMode the chip shows and Shift+Tab cycles it. */
@@ -1016,6 +974,7 @@ function AgentStrip({
   const body = (
     <>
       <Glyph icon={I.tune} native="≡" size={16} color={open ? "var(--ink)" : "var(--ink-3)"} />
+      {dot ? <View style={styles.setDot} testID="composer-settings-dot" /> : null}
     </>
   );
   if (!onPress)
@@ -1282,14 +1241,6 @@ export function Composer(props: ComposerProps): ReactElement {
     },
     focus: () => input.current?.focus?.(),
   });
-  // /voice: the same press the mic button takes, once per ask
-  const talkAsked = useRef(props.talkAt ?? 0);
-  useEffect(() => {
-    const n = props.talkAt ?? 0;
-    if (n <= talkAsked.current) return;
-    talkAsked.current = n;
-    if (talk.port?.on === true) talk.tapped();
-  }, [props.talkAt]);
 
   const submit = useCallback(
     (mode: SendMode) => {
@@ -1378,18 +1329,14 @@ export function Composer(props: ComposerProps): ReactElement {
   const dropZone = useFileDrop(takeFiles, { drop: !routed, enabled: takesFiles });
 
   /** Upload: the system picker on the web; a place's own sheet elsewhere. */
-  const upload = useCallback(
-    (accept = "") => {
-      const node = picker.current as { click?: () => void; accept?: string } | null;
-      if (node?.click) {
-        node.accept = accept;
-        node.click();
-        return;
-      }
-      props.onAttach?.();
-    },
-    [props.onAttach],
-  );
+  const upload = useCallback(() => {
+    const node = picker.current as { click?: () => void } | null;
+    if (node?.click) {
+      node.click();
+      return;
+    }
+    props.onAttach?.();
+  }, [props.onAttach]);
 
   const typeSymbol = (mark: string): void => {
     const cur = stateRef.current;
@@ -1528,7 +1475,7 @@ export function Composer(props: ComposerProps): ReactElement {
 
   const menuItems = (): MenuEntry[] =>
     composerMenu({
-      attach: () => upload(),
+      attach: upload,
       paste: () => void paste(),
       clear: () => {
         setState((s) => ({ ...initialState("", s.folder), cursor: 0 }));
@@ -1595,17 +1542,11 @@ export function Composer(props: ComposerProps): ReactElement {
       />,
     );
   };
-  // the plus menu, as the prototype draws it: what you can put in this message, then voice and a folder, then who is in the chat
   if (plusOpen) {
-    if (takesFiles)
-      plusRow("plus-photo", "Photo", I.image, () => {
-        setPlusOpen(false);
-        upload("image/*");
-      });
     if (takesFiles)
       plusRow(
         "plus-upload",
-        "File",
+        "Upload files",
         I.file,
         () => {
           setPlusOpen(false);
@@ -1613,50 +1554,57 @@ export function Composer(props: ComposerProps): ReactElement {
         },
         <Text style={styles.rowNote}>or drop</Text>,
       );
-    // a file that is already kept in Files goes in by its id, not uploaded again
     if (takesFiles && (props.onAttach || (props.suggest && symbols.includes("hash"))))
       plusRow("plus-files", "From Files", I.folder, fromFiles);
     if (symbols.includes("hash"))
-      plusRow("plus-record", "Record", I.record, () => {
-        setPlusOpen(false);
-        setScope("Records");
-        typeSymbol("#");
-      });
-    if (symbols.includes("hash"))
-      plusRow("plus-link", "Link", I.link, () => {
-        setPlusOpen(false);
-        typeSymbol("https://");
-      });
-    const voice = talk.port?.on === true;
-    const folder = props.onConnectFolder !== undefined;
-    if (voice || folder) plusRows.push(<Sep key="s-more" />);
-    if (voice)
-      plusRow("plus-voice", "Voice note", I.mic, () => {
-        setPlusOpen(false);
-        talk.tapped();
-      });
-    if (folder)
-      plusRow("plus-folder", "Connect a folder", I.folder, () => {
-        setPlusOpen(false);
-        props.onConnectFolder?.();
-      });
-    const extra = props.plusExtra?.() ?? [];
-    if (props.onAddPeople || extra.length > 0) plusRows.push(<Sep key="s-people" />);
+      plusRow(
+        "composer-symbol-hash",
+        "Link something",
+        I.hash,
+        () => {
+          setPlusOpen(false);
+          typeSymbol("#");
+        },
+        <Kbd k="#" />,
+      );
+    if (symbols.includes("at"))
+      plusRow(
+        "composer-symbol-at",
+        "Mention",
+        I.at,
+        () => {
+          setPlusOpen(false);
+          typeSymbol("@");
+        },
+        <Kbd k="@" />,
+      );
+    if (symbols.includes("slash"))
+      plusRow(
+        "composer-symbol-slash",
+        "Commands",
+        I.slash,
+        () => {
+          setPlusOpen(false);
+          typeSymbol("/");
+        },
+        <Kbd k="/" />,
+      );
+    if ((showMode && props.mode) || props.onAddPeople) plusRows.push(<GroupHead key="g-chat" label="This chat" />);
     if (props.onAddPeople)
       plusRow("plus-people", "Add people and agents", I.people, () => {
         setPlusOpen(false);
         props.onAddPeople?.();
       });
-    for (const x of extra)
+    if (showMode && props.mode)
       plusRow(
-        x.id,
-        x.title,
-        I[x.icon],
+        "plus-mode",
+        `Mode: ${modeInfo(props.mode).label}`,
+        MODE_ICON[props.mode],
         () => {
           setPlusOpen(false);
-          x.onPress();
+          cycleMode();
         },
-        x.checked ? <Glyph icon={I.check} native="✓" size={14} color="var(--ink-2)" /> : undefined,
+        <Kbd k={"⇧⇥"} />,
       );
   }
 
@@ -1710,44 +1658,27 @@ export function Composer(props: ComposerProps): ReactElement {
           />,
         );
       } else if (trigger?.ch === "/") {
-        // a command is one line (the prototype's .pi): its own small icon, the name, and what it does in grey at the right; no tile, no second line
-        const isCmd = entry.kind === "Command";
         const icon =
           entry.kind === "Template" || entry.kind === "Snippet"
             ? I.template
-            : entry.group === "Skills" || entry.kind === "Skill" || entry.kind === "Plugin"
+            : entry.group === "Skills"
               ? I.skill
-              : (CMD_ICON[entry.label] ?? I.cmd);
+              : I.cmd;
         const title = entry.kind === "Template" || entry.kind === "Snippet" ? entry.label : `/${entry.label}`;
         listNodes.push(
           <Row
             key={`${entry.group}:${entry.label}`}
             id={`pop-${i}`}
             title={title}
-            {...(!isCmd && entry.note !== undefined ? { note: entry.note } : {})}
-            {...(isCmd && entry.note !== undefined
-              ? {
-                  trailing: (
-                    <Text numberOfLines={1} style={styles.cmdNote}>
-                      {entry.note}
-                    </Text>
-                  ),
-                }
-              : {})}
+            {...(entry.note === undefined ? {} : { note: entry.note })}
             selected={i === active}
             onPress={() => pick(entry)}
             leading={
-              isCmd ? (
-                <View style={styles.cmdLead}>
-                  <Glyph icon={icon} native="/" size={15} color="var(--ink-3)" />
-                </View>
-              ) : (
-                <View style={styles.lead}>
-                  <IconTile icon={icon} />
-                </View>
-              )
+              <View style={styles.lead}>
+                <IconTile icon={icon} />
+              </View>
             }
-            domProps={isCmd ? { ...hover, style: { minHeight: 34, borderRadius: RADIUS } } : hover}
+            domProps={hover}
           />,
         );
       } else {
@@ -1885,10 +1816,7 @@ export function Composer(props: ComposerProps): ReactElement {
       <Pop
         testID="composer-popup"
         label={trigger?.ch === "@" ? "Mention" : trigger?.ch === ":" ? "Emoji" : "Commands"}
-        style={[
-          popLeft,
-          { width: trigger?.ch === "@" ? 300 : trigger?.ch === "/" ? 460 : 340, maxWidth: "100%" } as ViewStyle,
-        ]}
+        style={[popLeft, { width: trigger?.ch === "@" ? 300 : 340, maxWidth: "100%" } as ViewStyle]}
       >
         <View style={styles.scr} accessibilityRole="menu" {...webProps({ role: "listbox" })}>
           {listNodes}
@@ -1933,7 +1861,7 @@ export function Composer(props: ComposerProps): ReactElement {
         accessibilityRole="button"
         accessibilityLabel="Stop"
         testID="composer-send"
-        onPress={(e: unknown) => props.onStop?.(anchorOf(e))}
+        onPress={() => props.onStop?.()}
         {...webProps({ title: "Stop" })}
         style={[styles.send, styles.sendStop]}
       >
@@ -1979,7 +1907,7 @@ export function Composer(props: ComposerProps): ReactElement {
     <View ref={plusBtn as never}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Add to this message"
+        accessibilityLabel="Attach a file"
         accessibilityState={{ expanded: plusOpen }}
         testID="composer-attach"
         onPress={() => {
@@ -2338,6 +2266,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
+  setDot: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "var(--accent)" as string,
+    boxShadow: "0 0 0 2px var(--raised)",
+  } as object,
   spacer: { flex: 1 },
   send: {
     width: CTRL,
@@ -2365,8 +2303,6 @@ const styles = StyleSheet.create({
   splitText: { fontSize: 12.5, fontWeight: "600", color: "var(--accent-ink)" as string },
   splitKbd: { fontSize: 11, color: "var(--accent-ink)" as string, opacity: 0.6 },
   lead: { marginRight: 10 },
-  cmdLead: { width: 20, alignItems: "center", justifyContent: "center" },
-  cmdNote: { fontSize: 12.5, color: "var(--ink-3)" as string, maxWidth: 230, textAlign: "right" },
   rowNote: { fontSize: 11.5, color: "var(--ink-4)" as string },
   scr: { padding: 6, maxHeight: 360, overflow: "scroll" } as object,
   plusPop: { width: 280, maxWidth: "100%" } as object,

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { pressChip } from "../conversation/MessageView.tsx";
 import { faceDoor } from "../conversation/model.ts";
 import { chatHeaderEntries, isArchivedIn } from "../conversation/chat-header-menu.ts";
+import { chatMenu } from "./chat.ts";
 import { openFace } from "../mounts/data.ts";
 import { tabMenuEntries } from "../../../../../../ui/src/TabStrip/index.tsx";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -46,68 +47,68 @@ test("a face opens by what it is: a person's profile, an agent's page, a helper'
   assert.equal(faceDoor(["thr_helper1"], "agt_mira"), "principal");
 });
 
-test("the chat header menu is short and in sentence case: an agent chat reads Plan first, Fork, Find in this chat, Export, Archive; each entry calls what it says (G4)", () => {
+test("the chat header menu is the sidebar row menu's own builder: Rename, Star, Mute, Archive and Delete, each calling what it says; no Open, no Mark as Read", () => {
   const calls: string[] = [];
   const d = {
-    plan: () => calls.push("plan"),
-    fork: () => calls.push("fork"),
-    find: () => calls.push("find"),
-    exportMd: () => calls.push("export"),
+    rename: () => calls.push("rename"),
+    star: (on: boolean) => calls.push(`star:${on}`),
     mute: (on: boolean) => calls.push(`mute:${on}`),
     archive: () => calls.push("archive"),
     unarchive: () => calls.push("unarchive"),
-    stopAll: () => calls.push("stop"),
+    leave: () => calls.push("leave"),
+    remove: () => calls.push("remove"),
+    addPeople: () => calls.push("add"),
+    copyLink: () => calls.push("link"),
   };
-  const facts = {
-    withAgent: true,
-    withPeople: false,
-    planOn: false,
-    muted: false,
-    archived: false,
-    working: false,
-    archivable: true,
-  };
-  const e = chatHeaderEntries(facts, d);
-  assert.deepEqual(labels(e), ["Plan first", "Fork", "Find in this chat", "-", "Export", "-", "Archive"]);
-  for (const x of rows(e)) x.onSelect?.();
-  assert.deepEqual(calls, ["plan", "fork", "find", "export", "archive"]);
-  // while an agent works, Stop everyone closes the list, in red
-  const working = chatHeaderEntries({ ...facts, working: true }, d);
-  assert.deepEqual(labels(working).slice(-2), ["Archive", "Stop everyone"]);
-  assert.equal(rows(working).at(-1)!.danger, true);
-  // Rewind and Kept are drawn only where the chat can do them
-  const more = chatHeaderEntries(facts, { ...d, rewind: () => calls.push("rewind"), kept: () => calls.push("kept") });
-  assert.deepEqual(labels(more), [
-    "Plan first",
-    "Fork",
-    "Rewind",
-    "Find in this chat",
-    "Kept",
-    "-",
-    "Export",
-    "-",
-    "Archive",
-  ]);
-  // a chat with one other person: Find, Export, Mute, Archive; no Plan first, no Fork, nothing about an agent
-  const dm = chatHeaderEntries({ ...facts, withAgent: false, withPeople: true }, d);
-  assert.deepEqual(labels(dm), ["Find in this chat", "-", "Export", "-", "Mute", "Archive"]);
-  assert.deepEqual(
-    labels(chatHeaderEntries({ ...facts, withAgent: false, withPeople: true, muted: true, archived: true }, d)),
-    ["Find in this chat", "-", "Export", "-", "Unmute", "Unarchive"],
-  );
-  // no Title Case, no Rename, Star, Copy Link, Delete: those are the title and the sidebar row menu
-  for (const l of [...labels(e), ...labels(dm), ...labels(more)])
-    assert.ok(l === "-" || !/\b[A-Z][a-z]+ [A-Z][a-z]+/.test(l), l);
-  for (const gone of [
+  const e = chatHeaderEntries({ starred: false, muted: false, archived: false, withPeople: false }, d);
+  assert.deepEqual(labels(e), [
     "Rename",
     "Star",
-    "Delete chat",
+    "Mute",
+    "-",
+    "Add People…",
     "Copy Link",
-    "Add People\u2026",
-    "Search All Chats\u2026",
-    "Fork This Chat",
-  ])
-    assert.ok(!labels(e).includes(gone), gone);
+    "-",
+    "Archive",
+    "-",
+    "Delete chat",
+  ]);
+  for (const x of rows(e)) x.onSelect?.();
+  assert.deepEqual(calls, ["rename", "star:true", "mute:true", "add", "link", "archive", "remove"]);
+  assert.deepEqual(labels(chatHeaderEntries({ starred: true, muted: true, archived: true, withPeople: true }, d)), [
+    "Rename",
+    "Remove Star",
+    "Unmute",
+    "-",
+    "Add People…",
+    "Copy Link",
+    "-",
+    "Unarchive",
+    "-",
+    "Leave chat",
+  ]);
+  // the same items, in the same words, as the row menu
+  const side = labels(
+    chatMenu(
+      { starred: false, unread: false, local: false, archived: false, withPeople: false, muted: false },
+      {
+        open() {},
+        rename() {},
+        star() {},
+        markRead() {},
+        markUnread() {},
+        mute() {},
+        archive() {},
+        unarchive() {},
+        leave() {},
+        remove() {},
+        addPeople() {},
+        copyLink() {},
+      },
+    ),
+  );
+  for (const word of labels(e).filter((l) => l !== "-"))
+    assert.ok(side.includes(word), `${word} is in the row menu too`);
 });
 
 test("a tab strip whose tabs cannot be closed offers no Close items (they did nothing); one that can still has all three", () => {
@@ -183,12 +184,23 @@ test("the header menu says Unarchive for a chat that is in the Archived list, an
   assert.equal(isArchivedIn(recent, "thr_old"), true);
   assert.equal(isArchivedIn(recent, "thr_new"), false);
   assert.equal(isArchivedIn(null, "thr_new"), false);
-  const d = { plan() {}, fork() {}, find() {}, exportMd() {}, mute() {}, archive() {}, unarchive() {}, stopAll() {} };
-  const facts = { withAgent: true, withPeople: false, planOn: false, muted: false, working: false, archivable: true };
+  const d = { rename() {}, star() {}, mute() {}, archive() {}, unarchive() {}, leave() {}, remove() {} };
   assert.ok(
-    labels(chatHeaderEntries({ ...facts, archived: isArchivedIn(recent, "thr_old") }, d)).includes("Unarchive"),
+    labels(
+      chatHeaderEntries(
+        { starred: false, muted: false, archived: isArchivedIn(recent, "thr_old"), withPeople: false },
+        d,
+      ),
+    ).includes("Unarchive"),
   );
-  assert.ok(labels(chatHeaderEntries({ ...facts, archived: isArchivedIn(recent, "thr_new") }, d)).includes("Archive"));
+  assert.ok(
+    labels(
+      chatHeaderEntries(
+        { starred: false, muted: false, archived: isArchivedIn(recent, "thr_new"), withPeople: false },
+        d,
+      ),
+    ).includes("Archive"),
+  );
 });
 
 test("the folder Move picker opens with a search box and the path, and never offers the folder being moved", () => {
@@ -204,36 +216,4 @@ test("the folder Move picker opens with a search box and the path, and never off
     html.includes("Move Billing") && html.includes('data-testid="folder-move-search"') && html.includes("Top of Files"),
   );
   assert.ok(html.includes("Move to Top of Files"), "the one action names where it moves to");
-});
-
-test("the head menu never offers what the chat cannot use: no Archive for a channel, no Stop everyone with nobody working or no agent, no Mute in a chat with an agent; More closes it where the chat can say it", () => {
-  const d = { plan() {}, fork() {}, find() {}, exportMd() {}, mute() {}, archive() {}, unarchive() {}, stopAll() {} };
-  const base = {
-    withAgent: true,
-    withPeople: false,
-    planOn: false,
-    muted: false,
-    archived: false,
-    working: false,
-    archivable: true,
-  };
-  const has = (f: object, l: string, extra: object = {}): boolean =>
-    labels(chatHeaderEntries({ ...base, ...f }, { ...d, ...extra })).includes(l);
-  assert.equal(has({ archivable: false }, "Archive"), false, "a channel is archived in its own place");
-  assert.equal(has({ archivable: false, archived: true }, "Unarchive"), false);
-  assert.equal(has({ working: false }, "Stop everyone"), false, "nobody working");
-  assert.equal(
-    has({ withAgent: false, withPeople: true, working: true }, "Stop everyone"),
-    false,
-    "no agent in the chat",
-  );
-  assert.equal(
-    has({ withAgent: true, withPeople: true }, "Mute"),
-    false,
-    "an agent chat with people has no Mute in the head",
-  );
-  assert.equal(has({ withAgent: false, withPeople: true }, "Mute"), true);
-  assert.equal(has({}, "More"), false, "More only where the chat can say what is behind it");
-  const entries = labels(chatHeaderEntries({ ...base, working: true }, { ...d, more: () => undefined }));
-  assert.deepEqual(entries.slice(-3), ["Archive", "More", "Stop everyone"], "More closes the list, before the red row");
 });
