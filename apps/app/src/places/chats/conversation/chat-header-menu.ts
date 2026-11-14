@@ -1,48 +1,58 @@
-// The chat header's "..." carries the chat's own items (Rename, Star, Mute, Archive, Leave or Delete, Add People, Copy Link) from the SAME builder as the sidebar row menu (menus/chat.ts chatMenu): one list, one set of words.
-// Open and Mark as Read are left out, because the chat is open and its read mark is the sidebar's. Pure: facts in, what each item does in, entries out.
+// The chat header's "..." (G4, prototype c-render.js popup "menu"): a short list in sentence case. An agent chat reads Plan first, Fork, Rewind, Find in this chat, Kept, Export, Archive,
+// and Stop everyone while it works; a chat with one other person reads Find, Kept, Export, Mute, Archive. The chat's own housekeeping (Rename, Star, Mute, Add people, Copy link, Delete)
+// lives where the prototype keeps it: the title renames, the sidebar row menu (menus/chat.ts) stars, mutes, copies the link and deletes, and the plus menu in the composer adds people.
+// Pure: facts in, what each item does in, entries out. An entry whose action the caller cannot do yet (Rewind, Kept) is left out, never drawn dead.
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { chatMenu } from "../menus/chat.ts";
+import { item, sep, tidy } from "../menus/shared.ts";
 
-export interface HeaderChatFacts {
-  starred: boolean;
+export interface HeaderMenuFacts {
+  /** The chat has an agent in it: Plan first, Fork and Stop everyone are about the agent. */
+  withAgent: boolean;
+  /** A chat with other people and no agent: Mute and Archive are what is left to say. */
+  withPeople: boolean;
+  planOn: boolean;
   muted: boolean;
   archived: boolean;
-  /** A direct message with other people (no agent): Leave, not Delete. */ withPeople: boolean;
+  /** An agent is writing now: Stop everyone is offered only then. */
+  working: boolean;
+  /** Archive is a chat's own (a channel and a task thread have their own places for it). */
+  archivable: boolean;
 }
-export interface HeaderChatDo {
-  rename(): void;
-  star(on: boolean): void;
+export interface HeaderMenuDo {
+  plan(): void;
+  fork(): void;
+  /** Left out until the chat can rewind (a restore point per turn). */
+  rewind?: (() => void) | undefined;
+  find(): void;
+  /** Left out until the pane has its Kept tab. */
+  kept?: (() => void) | undefined;
+  exportMd(): void;
   mute(on: boolean): void;
   archive(): void;
   unarchive(): void;
-  leave(): void;
-  remove(): void;
-  addPeople?: (() => void) | undefined;
-  copyLink?: (() => void) | undefined;
-  notifications?: (() => void) | undefined;
+  stopAll(): void;
+  /** The chat's own housekeeping (Star, Mute, Add people, Copy link, Leave or Delete): a closing "More" row, so a chat opened from search, a link or a notification, with no sidebar row on screen, still reaches them. */
+  more?: (() => void) | undefined;
+  /** Entries only some chats have (a channel's "Agents reply in threads", "Connect an outside agent"), placed before the closing group. */
+  extra?: readonly MenuEntry[] | undefined;
 }
 
-const none = (): void => undefined;
-export function chatHeaderEntries(f: HeaderChatFacts, d: HeaderChatDo): MenuEntry[] {
-  return chatMenu(
-    { starred: f.starred, unread: false, local: false, archived: f.archived, withPeople: f.withPeople, muted: f.muted },
-    {
-      open: none,
-      rename: d.rename,
-      star: d.star,
-      markRead: none,
-      markUnread: none,
-      mute: d.mute,
-      archive: d.archive,
-      unarchive: d.unarchive,
-      leave: d.leave,
-      remove: d.remove,
-      addPeople: d.addPeople,
-      copyLink: d.copyLink,
-      notifications: d.notifications,
-    },
-    { open: false, read: false },
-  );
+export function chatHeaderEntries(f: HeaderMenuFacts, d: HeaderMenuDo): MenuEntry[] {
+  return tidy([
+    f.withAgent ? item("Plan first", d.plan, { checked: f.planOn }) : null,
+    f.withAgent ? item("Fork", d.fork) : null,
+    f.withAgent && d.rewind ? item("Rewind", d.rewind) : null,
+    item("Find in this chat", d.find, { hint: "\u2318F" }),
+    d.kept ? item("Kept", d.kept) : null,
+    sep,
+    item("Export", d.exportMd),
+    ...(d.extra && d.extra.length > 0 ? [sep, ...d.extra] : []),
+    sep,
+    f.withPeople && !f.withAgent ? item(f.muted ? "Unmute" : "Mute", () => d.mute(!f.muted)) : null,
+    f.archivable ? (f.archived ? item("Unarchive", d.unarchive) : item("Archive", d.archive)) : null,
+    d.more ? item("More", d.more) : null,
+    f.withAgent && f.working ? item("Stop everyone", d.stopAll, { danger: true }) : null,
+  ]);
 }
 
 /** Whether a chat is in the Archived list of chat.recent (the list the sidebar's Archived section reads). An older server that sends none has none. */

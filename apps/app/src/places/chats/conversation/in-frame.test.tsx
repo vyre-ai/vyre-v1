@@ -27,7 +27,7 @@ test("in a project frame the conversation draws no header and hands its controls
   await flush();
   assert.equal(store.get()!.find.active, true, "find toggles the conversation's own find bar");
   const labels = c.chatEntries().flatMap((e) => ("label" in e ? [e.label] : []));
-  for (const l of ["Plan Mode", "Fork This Chat", "Export as Markdown"]) assert.ok(labels.includes(l), l);
+  for (const l of ["Plan first", "Fork", "Find in this chat", "Export", "More"]) assert.ok(labels.includes(l), l);
   const alone = await mount(createRoot, <Conversation data={createSample("idle").data} />);
   await flush();
   assert.ok(find(alone, "conversation-head") && find(alone, "conversation-title"));

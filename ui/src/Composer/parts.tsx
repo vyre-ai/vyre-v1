@@ -319,6 +319,11 @@ export function GroupHead({ label }: { label: string }): ReactElement {
   );
 }
 
+/** A thin line between two groups of rows in a menu. */
+export function Sep(): ReactElement {
+  return <View style={s.sepLine} accessibilityElementsHidden />;
+}
+
 /** A small square tile with a line icon, for menu rows (Upload files, a command, a record). */
 export function IconTile({ icon, tint, size = 26 }: { icon: string; tint?: string; size?: number }): ReactElement {
   // a hex tint gets a soft wash of itself (#rrggbb + alpha); anything else sits on the sunk ground
@@ -356,6 +361,12 @@ export const I = {
   mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11.500a6.500 6.500 0 0 0 13 0M12 18v3"/>'),
   up: svg('<path d="M12 19V5M6 11l6-6 6 6"/>'),
   file: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
+  image: svg(
+    '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.800"/><path d="m21 16-5-5-8 8"/>',
+  ),
+  link: svg(
+    '<path d="M10 14a4 4 0 0 0 5.700 0l3-3a4 4 0 0 0-5.700-5.700l-1 1M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1-1"/>',
+  ),
   folder: svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
   record: svg('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/>'),
   chat: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
@@ -368,6 +379,20 @@ export const I = {
   at: svg('<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>'),
   hash: svg('<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>'),
   slash: svg('<path d="m15 4-6 16"/>'),
+  search: svg('<circle cx="11" cy="11" r="6"/><path d="m20 20-4.200-4.200"/>'),
+  fork: svg(
+    '<circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M6 7v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7M12 12v5"/>',
+  ),
+  copy: svg(
+    '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  ),
+  pin: svg('<path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7"/>'),
+  reply: svg('<path d="M9 7 4 12l5 5M4 12h10a6 6 0 0 1 6 6"/>'),
+  edit: svg('<path d="M4 20h4L19 9l-4-4L4 16z"/>'),
+  bulb: svg(
+    '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.500 10.900c.6.500 1 1.200 1 2.100h5c0-.9.400-1.600 1-2.100A6 6 0 0 0 12 3z"/>',
+  ),
+  swap: svg('<path d="M4 8h14l-3-3M20 16H6l3 3"/>'),
   cmd: svg('<path d="M4 17l6-6-6-6M12 19h8"/>'),
   skill: svg('<path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 15.6 7.1 18.2 8 12.7 4 8.8 9.5 8z"/>'),
   template: svg('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>'),
@@ -409,11 +434,9 @@ const s = StyleSheet.create({
     borderColor: "var(--line-2)" as string,
     borderRadius: RADIUS,
   },
+  sepLine: { height: 1, marginVertical: 5, marginHorizontal: 8, backgroundColor: "var(--line)" as string },
   grp: {
-    fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
+    fontSize: 11.5,
     color: "var(--ink-4)" as string,
     paddingTop: 10,
     paddingBottom: 4,
