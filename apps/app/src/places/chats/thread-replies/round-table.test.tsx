@@ -8,7 +8,7 @@ import { ConversationDataProvider } from "../conversation/data.tsx";
 import { createSample } from "../conversation/sample.ts";
 import type { Message } from "../conversation/model.ts";
 import { RoundTable } from "./RoundTable.tsx";
-import { roundAnswers } from "./round-table-model.ts";
+import { agreement, roundAnswers, splitHeadline } from "./round-table-model.ts";
 
 const names: Record<string, string> = { agt_dex: "Dex", agt_nova: "Nova" };
 const nameOf = (id: string): string => names[id] ?? id;
@@ -130,4 +130,25 @@ test("the card: a tab per agent, a press on a tab shows its answer, Go with call
   });
   await flush();
   assert.equal(find(root, "round-table-q1"), null, "folds once the person wrote after the answers");
+});
+
+test("headlines: split off the Answer line; agreement is claimed only for the same headline after trimming case and punctuation", () => {
+  assert.deepEqual(splitHeadline("Answer: Object storage.\nFiles are large."), {
+    headline: "Object storage",
+    rest: "Files are large.",
+  });
+  assert.deepEqual(splitHeadline("Object storage."), { rest: "Object storage." });
+  assert.deepEqual(agreement(["Object storage", "object  storage!", "The server disk"]), { kind: "some", n: 2, of: 3 });
+  assert.deepEqual(agreement(["Yes", "yes."]), { kind: "all", n: 2, of: 2 });
+  assert.deepEqual(
+    agreement(["Object storage", "The server disk"]),
+    { kind: "none", n: 0, of: 2 },
+    "different: no claim",
+  );
+  assert.deepEqual(
+    agreement(["Object storage", undefined]),
+    { kind: "none", n: 0, of: 2 },
+    "a missing headline claims nothing",
+  );
+  assert.deepEqual(agreement([undefined, undefined]), { kind: "none", n: 0, of: 2 });
 });

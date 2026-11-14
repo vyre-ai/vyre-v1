@@ -9,7 +9,7 @@ import { useConversationData, useOptionalConversationData } from "../conversatio
 import { useLive } from "../mounts/live.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { asksSeveral } from "./round-model.ts";
-import { askBefore, roundAnswers } from "./round-table-model.ts";
+import { agreement, askBefore, roundAnswers, splitHeadline } from "./round-table-model.ts";
 
 type MessagesOut = CapMap["chat.messages.list"]["out"];
 
@@ -36,6 +36,9 @@ function Table({
   // the card sits under the last answer, so it reads after what it sums up
   if (answers === null || answers[answers.length - 1]!.messageId !== after) return null;
   const on = answers.find((a) => a.agentId === pick) ?? answers[0]!;
+  const split = answers.map((a) => ({ ...a, ...splitHeadline(a.text) }));
+  const agree = agreement(split.map((a) => a.headline));
+  const shown = split.find((a) => a.agentId === on.agentId)!;
   const first = (id: string): string => nameOf(id).split(" ")[0] ?? nameOf(id);
   const decide = (): void => {
     if (busy) return;
@@ -90,8 +93,17 @@ function Table({
           </Pressable>
         ))}
       </View>
+      {agree.kind !== "none" ? (
+        <Text testID={`round-table-${messageId}-agree`} style={st.agree}>
+          {agree.kind === "all" ? "All agree" : `${agree.n} of ${agree.of} agree`}
+        </Text>
+      ) : split.every((a) => a.headline !== undefined) ? (
+        <Text testID={`round-table-${messageId}-heads`} style={st.agree}>
+          {split.map((a) => `${nameOf(a.agentId).split(" ")[0] ?? ""}: ${a.headline}`).join("   ")}
+        </Text>
+      ) : null}
       <Text testID={`round-table-${messageId}-answer`} style={st.answer}>
-        {on.text}
+        {shown.headline !== undefined ? `${shown.headline}. ${shown.rest}`.trim() : shown.text}
       </Text>
       <View style={st.foot}>
         <Pressable
@@ -157,6 +169,7 @@ const st = StyleSheet.create({
   },
   tabOn: { backgroundColor: "var(--hover)" as string },
   tabText: { fontSize: 13, color: "var(--ink)" as string, fontWeight: "500" },
+  agree: { fontSize: 12.5, color: "var(--ink-3)" as string },
   answer: { fontSize: 14, lineHeight: 20, color: "var(--ink)" as string },
   foot: { flexDirection: "row", gap: 8 },
   go: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "var(--accent)" as string },

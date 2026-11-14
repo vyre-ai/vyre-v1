@@ -64,3 +64,37 @@ export function askBefore(
   const tagged = (ask.mentions ?? []).filter((x) => x.kind === "agent").map((x) => x.id);
   return { messageId: ask.messageId, agents: tagged.length > 1 ? tagged : null };
 }
+
+const HEADLINE = /^\s*answer\s*:\s*(.+?)\s*(?:\n|$)/i;
+
+/** The headline an agent opened with ("Answer: Object storage") and the rest of its answer. No such line: no headline, the whole text. */
+export function splitHeadline(text: string): { headline?: string; rest: string } {
+  const m = HEADLINE.exec(text);
+  if (!m) return { rest: text };
+  return { headline: m[1]!.replace(/^[*_`"]+|[*_`".]+$/g, "").trim(), rest: text.slice(m[0].length).trim() };
+}
+
+const same = (h: string): string =>
+  h
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/**
+ * What the card may claim. "all" only when every agent gave a headline and they are the same after trimming case and punctuation; "some" (n of m) only for the largest identical group of two or more;
+ * otherwise nothing is claimed and the card shows the headlines side by side (a wrong claim of agreement is worse than none).
+ */
+export function agreement(headlines: readonly (string | undefined)[]): {
+  kind: "all" | "some" | "none";
+  n: number;
+  of: number;
+} {
+  const of = headlines.length;
+  const counts = new Map<string, number>();
+  for (const h of headlines) if (h !== undefined && same(h) !== "") counts.set(same(h), (counts.get(same(h)) ?? 0) + 1);
+  const n = Math.max(0, ...counts.values());
+  if (n >= 2 && n === of) return { kind: "all", n, of };
+  if (n >= 2) return { kind: "some", n, of };
+  return { kind: "none", n: 0, of };
+}

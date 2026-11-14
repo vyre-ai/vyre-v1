@@ -256,6 +256,10 @@ interface ThreadState {
 /** The stopped turn's own entry in the history the next turn reads. */
 export const STOPPED_MARK = "(Stopped by the person before it finished.)";
 
+/** What an agent asked together with others is told: a headline first (the round table reads it; agreement is claimed only when the headlines are the same). */
+export const ROUND_NOTE =
+  'You were asked together with other agents, and each of you answers alone. Start your answer with one line, "Answer: " and the answer in a few words, then one or two sentences of why.';
+
 export function stopNote(why: string, ask: string): string {
   const how =
     why === "interrupt"
@@ -1204,7 +1208,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           // a stopped turn of this agent before this one is closed in what the model reads (stopNote), together with any note a hook left
           ...((): { notice?: string } => {
             const stopped = stoppedTurn;
-            const notes = [...(stopped ? [stopNote(stopped.why, stopped.ask)] : []), ...hookNotes];
+            // asked together with other agents (a round of independent answers): one headline line first, so the round table can set the answers side by side and claim agreement only when the headlines match
+            const inRound = item.kind === "message" && askedAll.get(st.thread.id)?.has(item.agentId) === true;
+            const notes = [
+              ...(stopped ? [stopNote(stopped.why, stopped.ask)] : []),
+              ...(inRound ? [ROUND_NOTE] : []),
+              ...hookNotes,
+            ];
             return notes.length > 0 ? { notice: notes.join("\n") } : {};
           })(),
           ...(wait && wait.resolution

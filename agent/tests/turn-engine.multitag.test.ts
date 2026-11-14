@@ -29,3 +29,27 @@ test("@Dex @Nova in one message starts both agents", async () => {
   assert.equal(p.sessions.filter((s) => s.spec.agent.id === "dex").length, 1);
   assert.equal(p.sessions.filter((s) => s.spec.agent.id === "nova").length, 1);
 });
+
+test("agents asked together are told to open with an Answer line; an agent asked alone is not", async () => {
+  const p = scriptedProvider({ script: quiet });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread({ id: "T", kind: "chat", starter: "dana", agents: crew() });
+  const dana = { kind: "person" as const, id: "dana" };
+  engine.receive({
+    threadId: "T",
+    author: dana,
+    mentions: [
+      { kind: "agent", id: "dex" },
+      { kind: "agent", id: "nova" },
+    ],
+    body: "@Dex @Nova which?",
+  });
+  await engine.idle("T");
+  const notices = p.sessions.flatMap((s) => s.inputs.map((i) => i.notice ?? ""));
+  assert.equal(notices.length, 2);
+  for (const n of notices) assert.match(n, /Answer: /);
+  engine.receive({ threadId: "T", author: dana, mentions: [{ kind: "agent", id: "dex" }], body: "@Dex again" });
+  await engine.idle("T");
+  const last = p.sessions.flatMap((s) => s.inputs).at(-1)!;
+  assert.equal(last.notice ?? "", "", "one agent asked alone gets no round note");
+});

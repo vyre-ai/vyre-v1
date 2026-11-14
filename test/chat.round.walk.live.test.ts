@@ -22,7 +22,13 @@ const model = scriptedModel(async function* (input: any) {
     yield { type: "text", text: "Decided: the server disk for now, object storage later." };
     return;
   }
-  yield { type: "text", text: who === nova ? "I would use the server disk. It is already paid for." : "Object storage. The files are large." };
+  yield {
+    type: "text",
+    text:
+      who === nova
+        ? "Answer: The server disk\nIt is already paid for."
+        : "Answer: Object storage\nThe files are large.",
+  };
   await new Promise((r) => setTimeout(r, 4000));
 });
 
@@ -40,7 +46,11 @@ test("a message that tags two agents: the round row, the round table, and the di
     const dex = await makeAgent(w.owner, "Dex", account);
     nova = await makeAgent(w.owner, "Nova", account);
     const me = await seat(s, w.owner, "Owner");
-    const started = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [dex, nova], idempotencyKey: "rw-start" })) as {
+    const started = (await w.owner.ok("chat.start", {
+      kind: "chat",
+      agentIds: [dex, nova],
+      idempotencyKey: "rw-start",
+    })) as {
       thread: { threadId: string };
     };
     const threadId = started.thread.threadId;
@@ -59,7 +69,11 @@ test("a message that tags two agents: the round row, the round table, and the di
     await field.press("Enter");
     const row = me.page.locator('[data-testid^="round-"][role="list"]').first();
     await row.waitFor({ timeout: 10_000 });
-    assert.equal(await me.page.locator('[data-testid^="round-"][data-testid*="-agt_"]').count(), 2, "both agents on the row");
+    assert.equal(
+      await me.page.locator('[data-testid^="round-"][data-testid*="-agt_"]').count(),
+      2,
+      "both agents on the row",
+    );
     await shoot(me.page, OUT, "round-row", { restore: async () => open(me, s, hash(threadId)) });
     const card = me.page.locator('[data-testid^="round-table-"]').first();
     await card.waitFor({ timeout: 40_000 });
@@ -70,7 +84,11 @@ test("a message that tags two agents: the round row, the round table, and the di
     assert.ok(cardBox && lastAnswer && cardBox.y > lastAnswer.y, "the card sits under the last answer");
     await me.page.locator('[data-testid$="-discuss"]').first().click();
     await me.page.getByText("are talking it over", { exact: false }).first().waitFor({ timeout: 20_000 });
-    assert.equal(await me.page.locator('[data-testid^="round-table-"]').count(), 0, "the card folds once the talk starts");
+    assert.equal(
+      await me.page.locator('[data-testid^="round-table-"]').count(),
+      0,
+      "the card folds once the talk starts",
+    );
     await until(
       async () => ((await me.page.getByText("Decided:", { exact: false }).count()) > 0 ? true : null),
       "the discussion ends on a Decided line",
