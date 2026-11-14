@@ -5,7 +5,7 @@ import type { LearnHost } from "./learn.ts";
 
 export function chaptersAfterTurn(h: LearnHost, turn: Readonly<TurnRow>, account: ResolvedAccount | null): boolean {
   if (turn.state !== "completed" || turn.routine || !turn.asker.startsWith("usr") || !account) return false;
-  const input = { threadId: turn.threadId, account: { ref: account.ref, driver: account.driver } };
+  const input = { threadId: turn.threadId, account: { ref: account.ref, driver: account.driver, kind: account.kind } };
   setTimeout(() => {
     try {
       void h.call("chat.chapters_write", input, turn.asker).catch((e: unknown) =>

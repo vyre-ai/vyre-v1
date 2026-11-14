@@ -7,3 +7,5 @@ export type { ChapterRow } from "./model.ts";
 export { ContextCard, metersOf } from "./ContextCard.tsx";
 export { KeptTab } from "./KeptTab.tsx";
 export { NO_USAGE, SessionBlock, SessionBlockMount, sessionRows, useUsage } from "./SessionBlock.tsx";
+export { KeptList, useKept } from "./KeptList.tsx";
+export { useCurrentChapter } from "./current-chapter.ts";

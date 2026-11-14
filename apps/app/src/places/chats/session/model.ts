@@ -373,6 +373,8 @@ export interface SessionSummary {
   to: number;
   /** Notes kept from a side question (an Aside line): what was asked and the answer, newest last. */
   notes: KeptNote[];
+  /** The agent that spoke last in the messages loaded: whose usage the pane reads. */
+  lead: string;
   /** How many steps the agents took in the messages loaded (a step is one line of work: read, edit, run). */
   steps: number;
 }
@@ -386,6 +388,7 @@ export const NO_SESSION: SessionSummary = {
   from: 0,
   to: 0,
   notes: [],
+  lead: "",
   steps: 0,
 };
 
@@ -444,6 +447,7 @@ export function summaryOf(messages: readonly Message[], meId: string): SessionSu
     from: messages.reduce((n, m) => Math.min(n, m.createdAt), Infinity),
     to: messages.reduce((n, m) => Math.max(n, m.createdAt), 0),
     notes: notesOf(messages),
+    lead: [...messages].reverse().find((m) => m.author.kind === "agent" && m.kind === "agent")?.author.id ?? "",
     steps: messages.reduce((n, m) => n + (workOf(m)?.steps.length ?? 0), 0),
   };
 }
