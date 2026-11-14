@@ -4,8 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { checkpointTurn, points, restore, snapshot, storeOf } from "../checkpoints.ts";
-import { workFolder } from "../sandbox.ts";
+import { points, restore, snapshot } from "../checkpoints.ts";
 
 function world() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ckpt-"));
@@ -58,51 +57,11 @@ test("node_modules and logs are not kept; the store cannot live inside the folde
     put(w.workDir, "run.log", "noise");
     const p = await snapshot({ ...w, label: "t", now: 1_000 });
     assert.equal(p.files, 1);
-    await assert.rejects(
-      snapshot({ gitDir: path.join(w.workDir, "store"), workDir: w.workDir, label: "t", now: 1 }),
-      /inside the folder/,
-    );
+    await assert.rejects(snapshot({ gitDir: path.join(w.workDir, "store"), workDir: w.workDir, label: "t", now: 1 }), /inside the folder/);
     await assert.rejects(restore({ ...w, sha: "0".repeat(40), now: 2 }), /not here/);
     await assert.rejects(restore({ ...w, sha: "--force", now: 2 }), /not a checkpoint/);
     assert.equal(read(w.workDir, "node_modules/x/index.js"), "big", "left alone");
   } finally {
     fs.rmSync(w.root, { recursive: true, force: true });
-  }
-});
-
-test("a turn's checkpoint lives beside the work folders, never inside one, and is labelled with the turn", async () => {
-  const data = fs.mkdtempSync(path.join(os.tmpdir(), "ckpt-data-"));
-  try {
-    const dir = workFolder(data, "usr_dana", "thr_one", "agt_dex");
-    fs.writeFileSync(path.join(dir, "notes.txt"), "hello");
-    const store = storeOf(data, dir);
-    assert.ok(path.relative(dir, store).startsWith(".."), "the store is outside the work folder");
-    assert.ok(store.startsWith(path.join(fs.realpathSync(data), "checkpoints")));
-    const r = await checkpointTurn({
-      dataDir: data,
-      person: "usr_dana",
-      thread: "thr_one",
-      agent: "agt_dex",
-      turnId: "trn_1",
-      now: 5_000,
-    });
-    assert.equal(r.point?.label, "turn trn_1");
-    assert.equal(r.point?.files >= 1, true);
-    assert.equal((await points({ gitDir: store, workDir: dir })).length, 1);
-    // a data folder that is really a file cannot hold a work folder: reported, not thrown, so the turn goes on
-    const notADir = path.join(data, "plain-file");
-    fs.writeFileSync(notADir, "x");
-    const none = await checkpointTurn({
-      dataDir: notADir,
-      person: "p",
-      thread: "t",
-      agent: "a",
-      turnId: "x",
-      now: 1,
-    });
-    assert.equal(none.point, null);
-    assert.ok(none.why);
-  } finally {
-    fs.rmSync(data, { recursive: true, force: true });
   }
 });

@@ -8,7 +8,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { git, GitError } from "./crew-git.ts";
-import { layoutRoots, workFolder } from "./sandbox.ts";
 
 export interface Point {
   sha: string;
@@ -137,36 +136,4 @@ export async function restore(o: { gitDir: string; workDir: string; sha: string;
     }
   }
   return { undoPoint, restored, removed };
-}
-
-/** Where the checkpoints of one agent's work folder live: `<dataDir>/checkpoints/<person>/<thread>/<agent>.git`, beside the work folders and never inside one (the sandbox binds only the work folder). */
-export function storeOf(dataDir: string, workDir: string): string {
-  const root = fs.realpathSync(path.join(dataDir, layoutRoots().work));
-  const rel = path.relative(root, workDir);
-  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel))
-    throw new GitError("validation.bad_input", "That folder is not one of the Space's work folders.");
-  return path.join(fs.realpathSync(dataDir), "checkpoints", `${rel}.git`);
-}
-
-/** The checkpoint taken as an agent's turn starts, labelled with the turn. Best effort: a folder that cannot be snapshotted never stops the turn (null, and the reason in `why`). */
-export async function checkpointTurn(o: {
-  dataDir: string;
-  person: string;
-  thread: string;
-  agent: string;
-  turnId: string;
-  now: number;
-}): Promise<{ point: Point | null; why?: string }> {
-  try {
-    const workDir = workFolder(o.dataDir, o.person, o.thread, o.agent);
-    const point = await snapshot({
-      gitDir: storeOf(o.dataDir, workDir),
-      workDir,
-      label: `turn ${o.turnId}`,
-      now: o.now,
-    });
-    return { point };
-  } catch (e) {
-    return { point: null, why: e instanceof Error ? e.message : String(e) };
-  }
 }
