@@ -3,6 +3,7 @@
 // it while you hold and hands the keyboard back. Needs the production web export (VYRE_APP_DIST) and Chromium.
 import test from "node:test";
 import assert from "node:assert/strict";
+import os from "node:os";
 import { shoot } from "./support/mail-browser.ts";
 import { world } from "./support/computer-tab-world.ts";
 
@@ -13,7 +14,7 @@ test(
   "the keyboard: watch, nudge, take with Return, type, Esc stays, give back, Esc closes, the chord closes and hands back",
   { timeout: 300_000 },
   async (t) => {
-    const k = await world(t);
+    const k = await world(t, { tmux: true });
     if (!k) return;
     const page = k.me.page;
     const held = async (): Promise<string | undefined> => {
@@ -58,7 +59,7 @@ test(
       await page.keyboard.press("Enter");
       await page
         .getByTestId("terminal-screen")
-        .getByText("whoami")
+        .getByText(os.userInfo().username, { exact: true })
         .first()
         .waitFor({ timeout: 10_000 })
         .catch(async (e: unknown) => {

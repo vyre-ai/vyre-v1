@@ -11,10 +11,11 @@ import { bindSpaceBrowser } from "../../modules/computers/sbrowser/port.ts";
 import { createDockerSpaceBrowser } from "../../modules/computers/sbrowser/docker.ts";
 import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { bindHost as bindComputers } from "../../modules/computers/projections.ts";
+import { realTmuxHost, stopRealTmux } from "./real-tmux.ts";
 
 /** A team world with one agent, one chat, a workspace that runs with one terminal of a person's, and a Space browser that is open. The chat's right pane is on its Computer tab. */
 /** `noTerminal`: nothing is opened for the person (the pane must open the agent's terminal by itself). `realBrowser`: an image name; the Space browser is then the real one in Docker (the profile of the agent is started with a page open) instead of the stand-in. */
-export async function world(t: test.TestContext, o: { realBrowser?: string; noTerminal?: boolean } = {}) {
+export async function world(t: test.TestContext, o: { realBrowser?: string; noTerminal?: boolean; tmux?: boolean } = {}) {
   const env = await browserOrSkip();
   if (typeof env === "string") {
     t.skip(env);
@@ -25,7 +26,7 @@ export async function world(t: test.TestContext, o: { realBrowser?: string; noTe
   const { unlockVault } = await import("./mail-world.ts");
   await unlockVault(w);
   bindComputers(null);
-  bindTerminal(scriptedTerminal());
+  bindTerminal(o.tmux === true ? realTmuxHost() : scriptedTerminal());
   bindWorkspaces(true);
   bindWorkspaceStatus(async () => ({ state: "running" as const, host: "space" as const }));
   const browserd = fakeSpaceBrowser();
@@ -116,6 +117,7 @@ export async function world(t: test.TestContext, o: { realBrowser?: string; noTe
     bindWorkspaceStatus(null);
     bindWorkspaces(false);
     bindTerminal(null);
+    if (o.tmux === true) await stopRealTmux();
     await s.close();
   };
   return { s, w, me, guard, agentId, threadId, browserd, real, computerTab, close };

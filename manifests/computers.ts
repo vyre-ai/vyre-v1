@@ -486,6 +486,24 @@ export default defineManifest({
         errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
       },
     ),
+    read(
+      "computers.browser.preview",
+      "One still picture of an agent's browser for the Computer tab, from the Space; it never wakes the browser (asleep answers no picture). Who may watch the live view may ask; a person never sees a page that a sign-in hides from them",
+      {
+        in: { agentId: id.agent },
+        out: {
+          state: t.enm("live", "asleep"),
+          png: t.opt(t.str({ description: "The picture as base64 PNG, at most 256 KB" })),
+          width: t.opt(t.int()),
+          height: t.opt(t.int()),
+          at: t.ts(),
+        },
+        perm: "computers.watch",
+        label: "check",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
+      },
+    ),
     // The Space browser's own rule decides who takes over, gives back and signs out (sbrowser/policy.ts): a personal agent's browser is its owner's, a team agent's its owner's and the admins'. The capability asks
     // only for the right every member holds to watch, so a plain member can take over their own Assistant's browser; computers.take_over (an agent computer) is not theirs and is not asked for here.
     write(

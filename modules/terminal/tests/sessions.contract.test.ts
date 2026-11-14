@@ -21,7 +21,7 @@ const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any
 const NO_RULES = { allow: [], ask: [], deny: [], folders: [] };
 
 test("the handler table covers exactly the capabilities of the terminal manifest", () => {
-  assert.equal(mine.length, 21);
+  assert.equal(mine.length, 23);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
 });
 

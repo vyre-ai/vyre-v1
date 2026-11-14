@@ -173,5 +173,11 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 - Why: the owner's drawing of an agent's computer (13 Nov, AGENT-COMPUTER-2026-11-13.md B2, B3, section 11 rules 1 and 4): a person takes the keyboard with one deliberate press, the agent is told and waits, and gives it back. The Space browser already worked this way (`computers.browser.take_over`).
 - Snapshots: `docs/frozen/snapshots/terminal.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`. New table `terminal_hold` (`modules/terminal/migrations/0004_hold.sql`, created on first use like the earlier ones).
 
-Signed: pending the lead (lane b-pc did not sign it).
+## 14 Nov 2026: a still picture of an agent's browser, and a real keyboard for a terminal (lane b-pc, lead rulings of 14 Nov)
 
+- `computers.browser.preview` (read, permission computers.watch): one still picture (PNG, at most 256 KB) of an agent's browser for the Computer tab. It never wakes the browser (a browser that is not running answers `asleep` with no picture), it is for whoever may watch the live view, and an agent cannot ask it.
+- `terminal.capture` (read): the screen of a terminal as tmux draws it, with colours (escape sequences), the cursor, the history size and `hidden` (a program is reading a hidden prompt: the pty's echo is off while it keeps line mode). Not an agent tool.
+- `terminal.keys` (write, level use): keys as a person at a keyboard presses them, text, a named key or a paste, raw through tmux send-keys; for the person who holds the keyboard (refused to anyone else while a hold stands). Never stored, audited or logged by Vyre; what is typed at a hidden prompt is not printed by the program, so no screen, scrollback, log pipe or read has it (tested on a real tmux, modules/terminal/tests/keys.heavy.test.ts). Not an agent tool.
+- Both terminal capabilities need a host with tmux; another host answers `validation.precondition_failed` and the app falls back to the line terminal.
+
+Signed: pending the lead (lane b-pc did not sign it).

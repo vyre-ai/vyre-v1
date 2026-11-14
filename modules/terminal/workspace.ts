@@ -2233,6 +2233,14 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     async interrupt(id) {
       await inSession(id, (h) => h.interrupt(id));
     },
+    async capture(id, o) {
+      return inSession(id, (h) => h.capture!(id, o));
+    },
+    async keys(id, ks) {
+      await inSession(id, (h) => h.keys!(id, ks));
+      const x = where.get(id);
+      if (x) m.worked(x.agentId);
+    },
     async resize(id, cols, rows) {
       await inSession(id, (h) => h.resize(id, cols, rows));
       const x = where.get(id);

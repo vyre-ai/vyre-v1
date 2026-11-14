@@ -102,6 +102,10 @@ interface Marks {
   anchor?: { at: number; lines: string[] };
 }
 const POS = "#{history_size} #{cursor_y} #{history_limit}";
+const CAP = "__VYRE_CAP__:";
+/** The names tmux send-keys takes for a key a person presses: a few words, Ctrl or Alt with one character, and F1 to F12. Anything else is not a key. */
+const KEY_NAME =
+  /^(Enter|Tab|BTab|BSpace|Escape|Space|Up|Down|Left|Right|Home|End|PageUp|PageDown|DC|IC|F([1-9]|1[0-2])|[CM]-[A-Za-z0-9]|C-M-[A-Za-z0-9])$/;
 
 const SHELLS: ReadonlySet<string> = new Set(["bash", "zsh", "sh", "dash", "fish", "ksh", "ash", "tmux"]);
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -199,6 +203,15 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     return r.stdout;
   }
   const tidy = (text: string): string => text.replace(/\s+$/u, "");
+  /** Is the pty's echo off (a program reading a password)? Asked of the terminal itself; a host that cannot say is taken to echo. */
+  async function echoOff(tty: string): Promise<boolean> {
+    if (!/^\/dev\/[\w/.-]+$/.test(tty)) return false;
+    const r = await o.exec(["stty", "-a", "-F", tty]).catch(() => null);
+    // a line editor (bash at its prompt) turns echo off too, and draws the line itself; it also leaves line mode. A password prompt keeps line mode: echo off and icanon on
+    return (
+      r !== null && r.code === 0 && /(^|[\s;])-echo([\s;]|$)/.test(r.stdout) && /(^|[\s;])icanon([\s;]|$)/.test(r.stdout)
+    );
+  }
   /** A session's shell keeps no line that starts with a space in its history (agent commands are typed that way). A tmux older than 3.0 has no -e: the session opens without it. */
   async function newSession(session: string, cols: number, rows: number, cwd: string | undefined): Promise<void> {
     const rest = [
@@ -460,6 +473,57 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     },
     async interrupt(terminalId) {
       await tmux(["send-keys", "-t", nameOf(terminalId), "C-c"]);
+    },
+    async capture(terminalId, r) {
+      const session = nameOf(terminalId);
+      // the screen with its colours and the facts about it in one tmux call, so a line of output between two calls cannot shift one against the other
+      const both = await o.exec([
+        "tmux",
+        "capture-pane",
+        "-e",
+        "-p",
+        "-t",
+        session,
+        "-S",
+        `-${Math.max(1, Math.min(r.lines, 5000))}`,
+        ";",
+        "display-message",
+        "-p",
+        "-t",
+        session,
+        `${CAP}#{pane_width} #{pane_height} #{cursor_x} #{cursor_y} #{history_size} #{pane_tty} #{cursor_flag}`,
+      ]);
+      if (both.code !== 0) throw new Error(`tmux capture-pane failed: ${both.stderr.trim().slice(0, 200)}`);
+      const at = both.stdout.lastIndexOf(CAP);
+      const text = (at >= 0 ? both.stdout.slice(0, at) : both.stdout).replace(/\n$/, "");
+      const f = (at >= 0 ? both.stdout.slice(at + CAP.length) : "").trim().split(" ");
+      const num = (i: number): number => (Number.isFinite(Number(f[i])) ? Number(f[i]) : 0);
+      return {
+        text,
+        cols: num(0) || 80,
+        rows: num(1) || 24,
+        cursor: f[6] === "0" ? null : { x: num(2), y: num(3) },
+        history: num(4),
+        hidden: await echoOff(f[5] ?? ""),
+      };
+    },
+    async keys(terminalId, ks) {
+      const session = nameOf(terminalId);
+      for (const k of ks) {
+        if ("text" in k) {
+          for (let i = 0; i < k.text.length; i += 1000)
+            await tmux(["send-keys", "-t", session, "-l", "--", tmuxLiteral(k.text.slice(i, i + 1000))]);
+        } else if ("key" in k) {
+          if (!KEY_NAME.test(k.key)) throw Object.assign(new Error("That key is not one a terminal takes."), { code: "bad_input" });
+          await tmux(["send-keys", "-t", session, k.key]);
+        } else {
+          // a paste is one write, whatever its size: into a tmux buffer through stdin, then into the pane, and the buffer is dropped
+          const name = `vyre-paste-${process.pid}-${Date.now().toString(36)}`;
+          const r = await o.exec(["tmux", "load-buffer", "-b", name, "-"], { stdin: k.paste });
+          if (r.code !== 0) throw new Error(`tmux load-buffer failed: ${r.stderr.trim().slice(0, 200)}`);
+          await tmux(["paste-buffer", "-b", name, "-d", "-t", session]);
+        }
+      }
     },
     async resize(terminalId, cols, rows) {
       await tmux(["resize-window", "-t", nameOf(terminalId), "-x", String(cols), "-y", String(rows)]);
@@ -1092,6 +1156,18 @@ export function createLocalHost(
     read: async (id, r) => {
       if (r.since === undefined) await ready(id);
       return (await of(id)).read(id, r);
+    },
+    capture: async (id, r) => {
+      await ready(id);
+      const h = await of(id);
+      if (!h.capture) throw Object.assign(new Error("This terminal has no screen to draw with colours."), { code: "unsupported" });
+      return h.capture(id, r);
+    },
+    keys: async (id, ks) => {
+      await ready(id);
+      const h = await of(id);
+      if (!h.keys) throw Object.assign(new Error("This terminal takes lines, not keys."), { code: "unsupported" });
+      return h.keys(id, ks);
     },
     run: async (id, r) => {
       await ready(id);

@@ -9,6 +9,7 @@ import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import type { TerminalData } from "../terminal/data.ts";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
+import { TmuxScreen } from "./TmuxScreen.tsx";
 import { Icon, TextButton } from "./parts.tsx";
 import { Dot, GroupHead } from "./WorkParts.tsx";
 import { groupSessions, sessionWords } from "./work-model.ts";
@@ -43,6 +44,9 @@ export function TerminalSheet({
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const [nudge, setNudge] = useState(false);
+  // the screen is tmux's own with colours and raw keys where the host has tmux; a host without it falls back to the line terminal
+  const [lines, setLines] = useState<Record<string, true>>({});
+  const [hiddenPrompt, setHiddenPrompt] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   // Esc closes while you only watch; while you hold the keyboard it goes to the terminal
   const mineRef = useRef(false);
@@ -130,7 +134,9 @@ export function TerminalSheet({
       ? { title: `Take the keyboard from ${hn}?`, note: `${hn} is told.`, action: "confirm" }
       : !current || current.state === "exited"
         ? { title: current ? "This terminal ended" : "", action: null }
-        : mine
+        : mine && hiddenPrompt
+          ? { title: "The agent cannot see what you type here", note: `${agentName} is told only that it finished.`, action: "give" }
+          : mine
           ? { title: "You have the keyboard", note: `${agentName}'s commands wait.`, action: "give" }
           : holder !== undefined
             ? { title: `${hn} has the keyboard`, action: "ask" }
@@ -220,7 +226,18 @@ export function TerminalSheet({
             </View>
           ) : null}
           <View testID="terminal-popup-screen" style={st.screen}>
-            <TerminalTab key={sel} data={inner} terminalId={sel} readonly={!mine} />
+            {lines[sel] ? (
+              <TerminalTab key={sel} data={inner} terminalId={sel} readonly={!mine} />
+            ) : (
+              <TmuxScreen
+                key={sel}
+                call={data.call}
+                terminalId={sel}
+                keys={mine}
+                onHidden={setHiddenPrompt}
+                onUnsupported={() => setLines((m) => ({ ...m, [sel]: true }))}
+              />
+            )}
           </View>
         </View>
       </View>

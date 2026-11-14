@@ -51,6 +51,7 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import { NO_PLACE } from "../fleet.ts";
 import type {
   HostKind,
+  KeyPress,
   Lookup,
   Rules,
   SessionRow,
@@ -807,6 +808,49 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
     return unexpected(ctx, "take that input", e);
   }
   touch(ctx.db, a.terminalId, ctx.now());
+  return { ok: true };
+}
+
+export async function capture(ctx: TermCtx, input: { terminalId: string; lines?: number }) {
+  ensure(ctx.db);
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  const host = await hostFor(ctx, x);
+  if (!host.capture) raise(ctx, "validation.precondition_failed", "This terminal draws lines, not a screen.", { reason: "no_screen" });
+  try {
+    const r = await host.capture(input.terminalId, { lines: input.lines ?? 2000 });
+    // the screen has its colours; a Vault value filled into a command is removed from it as from every other reading
+    return { ...r, text: clean(scopeOf(x), r.text) };
+  } catch (e) {
+    return unexpected(ctx, "draw the screen", e);
+  }
+}
+
+/**
+ * Keys as a person presses them (text, a named key, a paste), raw through the terminal's own keyboard, for whoever holds the keyboard. What is typed here is never stored, audited or logged by Vyre: a program that
+ * reads a hidden prompt does not print it, so no screen, scrollback or viewer has it either (design section 11, point 6).
+ */
+export async function keys(
+  ctx: TermCtx,
+  input: { terminalId: string; keys: Array<{ text?: string; key?: string; paste?: string }> },
+) {
+  ensure(ctx.db);
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needKeyboard(ctx, x);
+  const list: KeyPress[] = [];
+  for (const k of input.keys) {
+    const set = [k.text, k.key, k.paste].filter((v) => v !== undefined).length;
+    if (set !== 1) raise(ctx, "validation.bad_input", "Each key is text, a named key or a paste, one of the three.");
+    list.push(k.text !== undefined ? { text: k.text } : k.key !== undefined ? { key: k.key } : { paste: k.paste as string });
+  }
+  const host = await hostFor(ctx, x);
+  if (!host.keys) raise(ctx, "validation.precondition_failed", "This terminal takes lines, not keys.", { reason: "no_keys" });
+  try {
+    await host.keys(input.terminalId, list);
+  } catch (e) {
+    if ((e as { code?: unknown } | null)?.code === "bad_input") raise(ctx, "validation.bad_input", "That key is not one a terminal takes.");
+    return unexpected(ctx, "take those keys", e);
+  }
+  touch(ctx.db, input.terminalId, ctx.now());
   return { ok: true };
 }
 

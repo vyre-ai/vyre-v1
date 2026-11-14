@@ -2,3 +2,6 @@
 - Press the browser picture in the Computer tab to open the browser full screen, live. Take over and Give back are there, not in the tab. A sleeping browser wakes when you press its picture. Closing the browser while you hold it hands it back.
 - In the full-screen terminal you watch until you take the keyboard with one press (the button, or Return). While you hold it the agent's commands wait and Esc goes to the terminal; Give back, or closing the window, returns it. A hold nobody uses for 15 minutes ends by itself. Taking the keyboard from another person needs the terminal's owner or an admin.
 - The Computer tab lost its "Asleep" chip, its explanation lines, its Steps list and the paragraph about the older desktop. Each state is a dot and one word. Signed-in sites show only when there are some.
+- The full-screen terminal shows the real screen with its colours and takes real keys: arrows, Tab, Ctrl-C and pasted codes work, so command-line sign-ins such as `gh auth login` can be done there. What you type at a hidden prompt such as a password or passphrase never appears on any screen, in the saved text, or to the agent.
+- The browser picture in the Computer tab refreshes by itself, at most twice a second, without flicker, and never wakes a sleeping browser.
+

@@ -8669,6 +8669,16 @@ export type ComputersBrowserGiveBackOut = {
     access: "owner" | "admin" | "viewer";
   };
 };
+export type ComputersBrowserPreviewIn = {
+  agentId: string;
+};
+export type ComputersBrowserPreviewOut = {
+  state: "live" | "asleep";
+  png?: string;
+  width?: number;
+  height?: number;
+  at: number;
+};
 export type ComputersBrowserProfilesIn = Record<string, unknown>;
 export type ComputersBrowserProfilesOut = {
   profiles: Array<{
@@ -41878,6 +41888,21 @@ export type TerminalAttachOut = {
   expiresAt: number;
   replay: string;
 };
+export type TerminalCaptureIn = {
+  terminalId: string;
+  lines?: number;
+};
+export type TerminalCaptureOut = {
+  text: string;
+  cols: number;
+  rows: number;
+  cursor: {
+    x: number;
+    y: number;
+  } | null;
+  history: number;
+  hidden: boolean;
+};
 export type TerminalCloseIn = {
   terminalId: string;
 };
@@ -41958,6 +41983,17 @@ export type TerminalInterruptIn = {
   terminalId: string;
 };
 export type TerminalInterruptOut = {
+  ok: boolean;
+};
+export type TerminalKeysIn = {
+  terminalId: string;
+  keys: Array<{
+      text?: string;
+      key?: string;
+      paste?: string;
+    }>;
+};
+export type TerminalKeysOut = {
   ok: boolean;
 };
 export type TerminalListIn = {
@@ -45434,6 +45470,7 @@ export interface CapMap {
   "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
   "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
+  "computers.browser.preview": { in: ComputersBrowserPreviewIn; out: ComputersBrowserPreviewOut };
   "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
   "computers.browser.sessions": { in: ComputersBrowserSessionsIn; out: ComputersBrowserSessionsOut };
   "computers.browser.sign_out": { in: ComputersBrowserSignOutIn; out: ComputersBrowserSignOutOut };
@@ -47116,12 +47153,14 @@ export interface CapMap {
   "templates.project_starters": { in: TemplatesProjectStartersIn; out: TemplatesProjectStartersOut };
   "templates.save": { in: TemplatesSaveIn; out: TemplatesSaveOut };
   "terminal.attach": { in: TerminalAttachIn; out: TerminalAttachOut };
+  "terminal.capture": { in: TerminalCaptureIn; out: TerminalCaptureOut };
   "terminal.close": { in: TerminalCloseIn; out: TerminalCloseOut };
   "terminal.get": { in: TerminalGetIn; out: TerminalGetOut };
   "terminal.give_back": { in: TerminalGiveBackIn; out: TerminalGiveBackOut };
   "terminal.health": { in: TerminalHealthIn; out: TerminalHealthOut };
   "terminal.input": { in: TerminalInputIn; out: TerminalInputOut };
   "terminal.interrupt": { in: TerminalInterruptIn; out: TerminalInterruptOut };
+  "terminal.keys": { in: TerminalKeysIn; out: TerminalKeysOut };
   "terminal.list": { in: TerminalListIn; out: TerminalListOut };
   "terminal.open": { in: TerminalOpenIn; out: TerminalOpenOut };
   "terminal.open_server": { in: TerminalOpenServerIn; out: TerminalOpenServerOut };

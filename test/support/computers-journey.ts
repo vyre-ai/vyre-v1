@@ -39,6 +39,11 @@ export const modelWithCommand: OpenSession = async (spec) => {
   } as ReturnType<OpenSession> extends Promise<infer S> ? S : never;
 };
 
+const PIXEL = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
+
 export function scriptedTerminal(): TerminalHost {
   const screens = new Map<string, string>();
   return {
@@ -106,7 +111,8 @@ export function fakeSpaceBrowser(): { sb: SpaceBrowser; rows: Map<string, Profil
       rows.set(id, { ...r, takeover: false });
     },
     async screenshot() {
-      return { bytes: new Uint8Array(), width: 1, height: 1 };
+      // a real one-pixel picture; every call differs a little so the pane has a new frame each time
+      return { bytes: new Uint8Array(PIXEL), width: 1, height: 1 };
     },
     async stream(a) {
       return {

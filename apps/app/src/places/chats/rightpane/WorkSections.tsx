@@ -14,6 +14,7 @@ import { Icon, LeadIcon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
 import { BrowserSheet } from "./BrowserSheet.tsx";
 import { TerminalSheet } from "./TerminalSheet.tsx";
+import { PreviewImage } from "./PreviewImage.tsx";
 import { useWhenText } from "../../../../../../ui/src/Time/index.tsx";
 import { Dot, GroupHead, SectionHead } from "./WorkParts.tsx";
 import { browserHead, groupSessions, olderDesktopMenu, sessionWords, sharedWait, terminalsHead } from "./work-model.ts";
@@ -369,7 +370,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
             name={name}
             caption={caption}
             onOpen={() => setSheet(true)}
-            live={sheet ? undefined : data.browser?.renderLive?.(agentId, { state: v.state, control: false })}
+            live={<PreviewImage call={data.call} agentId={agentId} active={!sheet && (v.state === "open" || v.state === "takeover")} />}
           />
         ),
       });

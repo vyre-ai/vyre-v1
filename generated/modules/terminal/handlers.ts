@@ -6,12 +6,14 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "terminal.attach": Handler<"terminal.attach", X>;
+  "terminal.capture": Handler<"terminal.capture", X>;
   "terminal.close": Handler<"terminal.close", X>;
   "terminal.get": Handler<"terminal.get", X>;
   "terminal.give_back": Handler<"terminal.give_back", X>;
   "terminal.health": Handler<"terminal.health", X>;
   "terminal.input": Handler<"terminal.input", X>;
   "terminal.interrupt": Handler<"terminal.interrupt", X>;
+  "terminal.keys": Handler<"terminal.keys", X>;
   "terminal.list": Handler<"terminal.list", X>;
   "terminal.open": Handler<"terminal.open", X>;
   "terminal.open_server": Handler<"terminal.open_server", X>;

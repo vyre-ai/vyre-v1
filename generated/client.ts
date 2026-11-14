@@ -534,6 +534,7 @@ export function createClient(transport: Transport) {
     computers: {
       browser: {
         give_back: call("computers.browser.give_back", 1),
+        preview: call("computers.browser.preview", 1),
         profiles: call("computers.browser.profiles", 1),
         sessions: call("computers.browser.sessions", 1),
         sign_out: call("computers.browser.sign_out", 1),
@@ -2859,12 +2860,14 @@ export function createClient(transport: Transport) {
     },
     terminal: {
       attach: call("terminal.attach", 1),
+      capture: call("terminal.capture", 1),
       close: call("terminal.close", 1),
       get: call("terminal.get", 1),
       give_back: call("terminal.give_back", 1),
       health: call("terminal.health", 1),
       input: call("terminal.input", 1),
       interrupt: call("terminal.interrupt", 1),
+      keys: call("terminal.keys", 1),
       list: call("terminal.list", 1),
       open: call("terminal.open", 1),
       open_server: call("terminal.open_server", 1),

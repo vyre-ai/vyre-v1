@@ -64,6 +64,9 @@ export interface Target {
  * What the executor of a host does for a session (ARCH 6.7: local tools execute where the target lives). The agent computer's agentd, the Space server and a person's device daemon each
  * provide one; `createTmuxHost` (impl.ts) is the implementation all three share, over their own way of running `tmux`. The module never spawns a process itself.
  */
+/** One thing a person does at a keyboard: type text, press a named key, or paste. */
+export type KeyPress = { text: string } | { key: string } | { paste: string };
+
 export interface TerminalHost {
   open(a: {
     terminalId: string;
@@ -93,6 +96,16 @@ export interface TerminalHost {
   status(
     terminalIds: readonly string[],
   ): Promise<Array<{ terminalId: string; state: TermState; lastLine?: string; exitCode: number | null }>>;
+  /**
+   * What the session's screen shows now, with its colours (tmux's own capture, escape sequences kept), the cursor, how much history there is, and whether the program is reading a hidden prompt (the pty's echo is off:
+   * a password, a passphrase). What is typed there is never printed, so no screen, log or viewer ever has it. A host without tmux does not have this.
+   */
+  capture?(
+    terminalId: string,
+    o: { lines: number },
+  ): Promise<{ text: string; cols: number; rows: number; cursor: { x: number; y: number } | null; history: number; hidden: boolean }>;
+  /** Keys as a person presses them: text typed, a named key (Enter, Tab, Up, C-c ...), or a paste as one write. Raw through tmux send-keys, so a program that wants a real keyboard gets one. */
+  keys?(terminalId: string, keys: readonly KeyPress[]): Promise<void>;
   /** Live frames: what the session prints, as it prints it (tmux control mode). Returns the function that stops it. */
   stream?(terminalId: string, onFrame: (text: string) => void): () => void;
   close(terminalId: string): Promise<void>;

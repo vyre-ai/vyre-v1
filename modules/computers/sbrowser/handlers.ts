@@ -12,6 +12,7 @@ import type { ProfileRow, SpaceBrowser } from "./port.ts";
 import { currentHold, dropHold, heldBy, setHold, touchHold } from "./hold.ts";
 import { needRoom, roomWaitLine, waitingForRoom, waitingProfiles } from "./room.ts";
 import { signInSites } from "./sites.ts";
+import { fitPngOffLoop } from "../png-fit.ts";
 
 const TICKET_MS = 5 * 60_000;
 
@@ -219,6 +220,37 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
 }
 
 /**
+ * One still picture of an agent's browser for the Computer tab (lead, 14 Nov): read only and it never wakes the browser. A browser that is not running answers `asleep` with no picture; a person who may not
+ * watch gets the same refusal as the live view (a browser hidden from them reads as missing). Never an agent: an agent sees its own page through its tools, and cannot ask this for what a hold hides.
+ * The picture is fitted to a small size (256 KB at most) and refreshed by the page at most twice a second.
+ */
+export async function preview(ctx: CompCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  const sb = browserOrRaise(ctx);
+  await mayWatch(ctx, input.agentId);
+  const at = ctx.now();
+  const row = (await sb.profiles().catch((e: unknown) => refuse(ctx, e))).profiles.find(
+    (x) => x.profileId === input.agentId,
+  );
+  if (!row || !row.running) return { state: "asleep" as const, at };
+  try {
+    const shot = await sb.screenshot(input.agentId);
+    const png = Buffer.from(shot.bytes).toString("base64");
+    const fit = await fitPngOffLoop(png, { width: shot.width, height: shot.height });
+    if (!fit.ok) return { state: "live" as const, at };
+    return {
+      state: "live" as const,
+      png: fit.shot.base64,
+      width: fit.shot.width,
+      height: fit.shot.height,
+      at,
+    };
+  } catch (e) {
+    return refuse(ctx, e);
+  }
+}
+
+/**
  * What the Space's relay asks when a viewer arrives (host/src/routes/browser-stream.ts): spend the ticket, get the browser service's own addresses, and say whether the person may send input. A host call, never
  * a capability: no session can reach it.
  */
@@ -384,6 +416,7 @@ export const sbrowserHandlers = {
   "computers.browser.timeline": timeline,
   "computers.browser.profiles": profiles,
   "computers.browser.stream": stream,
+  "computers.browser.preview": preview,
   "computers.browser.take_over": takeOver,
   "computers.browser.give_back": giveBack,
 };
