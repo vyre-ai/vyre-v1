@@ -372,3 +372,61 @@ test("a guest of a channel (a member from a later moment) gets no model heading 
     "nothing from before the guest joined",
   );
 });
+
+test("a reader who joined in the middle of a chapter never gets its model heading, and cannot have one written from what they cannot see", async () => {
+  const prompts: string[] = [];
+  const hn = harness({
+    calls: {
+      ...lister,
+      "engine.complete": (i) => (prompts.push(String(i["prompt"])), { text: "Secret plan\nSettled it" }),
+    },
+  });
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() }))
+    .thread.threadId as string;
+  const at: number[] = [];
+  const leo = hn.person("usr_leo");
+  for (let i = 1; i <= 200; i++) {
+    hn.advance(10_000);
+    at[i] = hn.clock.t;
+    if (i === 20)
+      hn.raw.run(
+        "INSERT INTO chat_thread_member (id, thread, principal, role, fromAt, version, updated_at) VALUES (?, ?, ?, 'member', ?, 0, ?)",
+        "mem_leo",
+        t,
+        "usr_leo",
+        at[20] + 1,
+        at[20],
+      );
+    // Leo speaks first among the people he can see in chapter 1 (message 21)
+    if (i === 21) {
+      await h["chat.post"]!(leo, { threadId: t, body: "Leo here, joining the plan", idempotencyKey: key() });
+      continue;
+    }
+    await h["chat.post"]!(hn.ctx, {
+      threadId: t,
+      body: i === 10 ? "Hidden budget is nine million" : `Plan item ${i}`,
+      idempotencyKey: key(),
+    });
+  }
+  // Dana's own account writes the headings (chapters close at 80 and 160)
+  await h["chat.chapters_write"]!(hn.ctx, { threadId: t, account: API });
+  const owner = (await h["chat.chapters"]!(hn.ctx, { threadId: t })).chapters;
+  assert.equal(owner[0].by, "model");
+  const seen = (await h["chat.chapters"]!(leo, { threadId: t })).chapters;
+  const first = seen[0];
+  assert.equal(first.by, "extract", "V3: not the stored model heading of a chapter he cannot see whole");
+  assert.notEqual(first.title, "Secret plan");
+  assert.ok(first.startSeq > owner[0].startSeq, "his chapter starts at what he can see");
+  assert.ok(!`${first.title} ${first.summary}`.includes("Hidden budget"));
+  // V5 and V6: Leo opens a chapter he cannot see from its start, then asks for headings on his own key
+  hn.raw.run('DELETE FROM chat_chapter WHERE "thread" = ?', t);
+  hn.raw.run('UPDATE chat_chapter_edge SET "tries" = 0 WHERE "thread" = ?', t);
+  const before = prompts.length;
+  const w = await h["chat.chapters_write"]!(leo, {
+    threadId: t,
+    account: { ref: "leo", driver: "claude", kind: "api_key" },
+  });
+  assert.equal(w.written, 0);
+  assert.equal(prompts.length, before, "nothing is sent from messages he cannot read");
+  assert.ok(prompts.slice(before).every((p) => !p.includes("Hidden budget")));
+});
