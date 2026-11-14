@@ -4,6 +4,7 @@
 // @reads /modules/connectors/migrations/0002_source_folders.sql
 // @reads /modules/connectors/migrations/0003_oauth.sql
 // @reads /modules/connectors/migrations/0004_sync_specs.sql
+import { notFoundLine } from "../../lib/words/errors.ts";
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { secretForms } from "../../lib/redact.ts";
@@ -222,6 +223,14 @@ export function refuse(
   details?: Record<string, unknown>,
 ): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
+}
+
+/**
+ * A connection the caller may not see, or that is not there. A made-up connection id is stopped by authorize before any handler runs and answers permission.not_found with the host's words, so a real
+ * one the caller may not see must answer exactly that (code and words), or the difference tells them the id is real.
+ */
+export function noSuchConnection(ctx: Pick<ConnectorsCtx, "trace">): never {
+  return refuse(ctx, "permission.not_found", notFoundLine("connection"), { reason: "not_found", thing: "connection" });
 }
 
 const ready = new WeakSet<object>();

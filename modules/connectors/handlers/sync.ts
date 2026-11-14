@@ -9,7 +9,7 @@
 // @reads /modules/sources/migrations/0001_sources.sql
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { clearRunning, markRunning, noteResult } from "./cadence.ts";
-import { ensureTables, mintShort, nowOf, PAGE, refuse, seedBuiltins } from "../projections.ts";
+import { ensureTables, mintShort, noSuchConnection, nowOf, PAGE, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { executeAction } from "./runtime.ts";
 import { retrySubscriptions } from "./subscribe.ts";
@@ -376,7 +376,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
     c.owner_kind === "space" || c.owner_id === actorOf(ctx);
   const needConn = (ctx: ConnectorsCtx, id: string): ConnectionDb => {
     const c = connRow(id);
-    if (!c || !visible(ctx, c)) return refuse(ctx, "validation.not_found", "There is no such connection.");
+    if (!c || !visible(ctx, c)) return noSuchConnection(ctx);
     return c;
   };
   const defOf = (ctx: ConnectorsCtx, key: string): ConnectorDef => {
@@ -995,7 +995,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       }
       for (const r of rows) {
         const conn = connRow(r.connection_id);
-        if (conn && !visible(ctx, conn)) refuse(ctx, "validation.not_found", "There is no such connection.");
+        if (conn && !visible(ctx, conn)) noSuchConnection(ctx);
         usable(ctx, conn, r.type);
         if (r.paused && mode !== "dry_run")
           refuse(ctx, "validation.precondition_failed", `Sync of ${r.type} is paused: resume it first.`);

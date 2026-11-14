@@ -115,15 +115,15 @@ test("visibility: your own connections and the Space's, nobody else's", async ()
   assert.deepEqual(await ids(k.ctx, { connector: "mine" }), [dana.connectionId]);
   await assert.rejects(
     k.hs["connections.get"](k.ctx, { connectionId: boConn.connectionId }),
-    code("validation.not_found"),
+    code("permission.not_found"),
   );
   await assert.rejects(
     k.hs["connections.pause"](k.ctx, { connectionId: boConn.connectionId }),
-    code("validation.not_found"),
+    code("permission.not_found"),
   );
   await assert.rejects(
     k.hs["connections.delete"](k.ctx, { connectionId: boConn.connectionId }),
-    code("validation.not_found"),
+    code("permission.not_found"),
   );
   assert.equal((await k.hs["connections.get"](bo, { connectionId: space.connectionId })).connection.title, "Acme");
   const page = await k.hs["connections.list"](k.ctx, { limit: 1 });
@@ -176,7 +176,7 @@ test("the owner pauses and resumes; a paused connection remembers what it was", 
   k.events.length = 0;
   assert.deepEqual(await k.hs["connections.delete"](k.ctx, { connectionId: active }), { deleted: true });
   assert.deepEqual(k.events2("connection.deleted"), [{ connectionId: active, connector: "acme" }]);
-  await assert.rejects(k.hs["connections.get"](k.ctx, { connectionId: active }), code("validation.not_found"));
+  await assert.rejects(k.hs["connections.get"](k.ctx, { connectionId: active }), code("permission.not_found"));
 });
 
 test("a probe makes a pending connection active, and reports what went wrong", async () => {
@@ -624,7 +624,7 @@ test("mark_working (Google delegation, which mints its own tokens, tells the con
   );
   await assert.rejects(
     k.hs["connections.mark_working"](k.ctx, { connectionId: "con_nope" }),
-    code("validation.not_found"),
+    code("permission.not_found"),
   );
 });
 

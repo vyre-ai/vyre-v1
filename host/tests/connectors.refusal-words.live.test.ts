@@ -248,27 +248,27 @@ test("a refused connector or connection call says which thing was missing and wh
       ["404 permission.not_found"],
       probe.join("\n"),
     );
-    // a person's own connection that someone else asks about: the same answer as a connection that does not exist
+    // a person's own connection that someone else asks about answers exactly like a connection that does not exist: same code, same words (a made-up id is stopped by authorize, a real one by the handler)
     const personConnector = ((await post(ada.token, "connectors.list", {})).body.data?.connectors ?? []).find(
       (c: { scope?: string }) => c.scope === "person",
     )?.key;
+    assert.ok(personConnector, "the Space has a connector that connects to a person's own account");
     const mine = await post(ada.token, "connections.create", {
-      connector: personConnector ?? "none",
+      connector: personConnector,
       title: "Mine",
       ownerKind: "person",
     });
-    const conProbe: string[] = [];
-    if (mine.status === 200) {
-      const cid = String(mine.body.data.connection.connectionId);
-      for (const [how, id] of [
-        ["real", cid],
-        ["made-up", "con_00000000000000000000"],
-      ] as const) {
-        const r = await post(mel.token, "connections.get", { connectionId: id });
-        conProbe.push(`person ${how}: ${r.status} ${r.body.error?.code ?? "ok"}`);
-      }
-    } else conProbe.push(`could not make a person connection: ${mine.status} ${mine.text.slice(0, 120)}`);
-    console.log(`ORACLE-PROBE connection\n${conProbe.join("\n")}`);
+    assert.equal(mine.status, 200, mine.text);
+    const cid = String(mine.body.data.connection.connectionId);
+    for (const cap of ["connections.get", "connections.test"]) {
+      const real = await post(mel.token, cap, { connectionId: cid });
+      const fake = await post(mel.token, cap, { connectionId: "con_00000000000000000000" });
+      assert.equal(real.status, fake.status, cap);
+      assert.equal(errOf(real).code, errOf(fake).code, cap);
+      assert.equal(errOf(real).message, errOf(fake).message, cap);
+      assert.equal(errOf(real).code, "permission.not_found", cap);
+      assert.ok(!real.text.includes(cid), "the real id is not said back");
+    }
   } finally {
     clearInterval(pump);
     await d.stop();

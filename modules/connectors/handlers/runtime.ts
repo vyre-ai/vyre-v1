@@ -24,6 +24,7 @@ import {
   fillString,
   fillValue,
   clone,
+  noSuchConnection,
   PAGE,
 } from "../projections.ts";
 import type {
@@ -1015,9 +1016,9 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         );
       const conn =
         tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", input.connectionId) ??
-        refuse(ctx, "validation.not_found", "There is no such connection.");
+        noSuchConnection(ctx);
       if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system"))
-        refuse(ctx, "validation.not_found", "There is no such connection.");
+        noSuchConnection(ctx);
       const out = await executeAction(deps, ctx, def, input.action, { connection: conn, input: input.input });
       tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
       return { output: out.output };
@@ -1033,9 +1034,9 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         );
       const conn =
         tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", input.connectionId) ??
-        refuse(ctx, "validation.not_found", "There is no such connection.");
+        noSuchConnection(ctx);
       if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system"))
-        refuse(ctx, "validation.not_found", "There is no such connection.");
+        noSuchConnection(ctx);
       const out = await executeAction(deps, ctx, JSON.parse(c.def) as ConnectorDef, input.action, {
         connection: conn,
         input: input.input,

@@ -321,7 +321,7 @@ test("create refuses what cannot work, and a refused create binds nothing", asyn
   await bad({ deletes: "always" }, "validation.bad_input");
   await bad({ conflict: "coin" }, "validation.bad_input");
   await bad({ polling: { activeSec: 5, idleSec: 60, dormantSec: 300 } }, "validation.bad_input");
-  await bad({ connectionId: "con_nope" }, "validation.not_found");
+  await bad({ connectionId: "con_nope" }, "permission.not_found");
   assert.equal(w.k.tx.all("SELECT * FROM cn_synced_types").length, 0);
   assert.equal(w.calls.filter((c) => c.cap === "schema.apply").length, 0, "nothing reached the schema");
   await bind(w);
@@ -428,8 +428,8 @@ test("a person's own connection keeps its synced types from everyone else", asyn
   await assert.rejects(w.hs["sync_types.get"](other, { type: "contact" }), code("validation.not_found"));
   await assert.rejects(w.hs["sync_types.pause"](other, { type: "contact" }), code("validation.not_found"));
   await assert.rejects(w.hs["connectors.sync_now"](other, { type: "contact" }), code("validation.not_found"));
-  await assert.rejects(w.hs["sync_types.discover"](other, { connectionId: mine }), code("validation.not_found"));
-  await assert.rejects(bind({ ...w, ctx: other }, { type: "other", connectionId: mine }), code("validation.not_found"));
+  await assert.rejects(w.hs["sync_types.discover"](other, { connectionId: mine }), code("permission.not_found"));
+  await assert.rejects(bind({ ...w, ctx: other }, { type: "other", connectionId: mine }), code("permission.not_found"));
   const syt = (await w.hs["sync_types.get"](w.ctx, { type: "contact" })).syncedType.syncTypeId;
   seedOutbox(w, syt, "obx_1", "failed");
   assert.deepEqual((await w.hs["connectors.outbox.list"](other, {})).items, []);
@@ -502,7 +502,7 @@ test("discover needs a connector that can list its objects, and a usable connect
     })
   ).connection.connectionId;
   await assert.rejects(w.hs["sync_types.discover"](w.ctx, { connectionId: plain }), code("validation.unsupported"));
-  await assert.rejects(w.hs["sync_types.discover"](w.ctx, { connectionId: "con_nope" }), code("validation.not_found"));
+  await assert.rejects(w.hs["sync_types.discover"](w.ctx, { connectionId: "con_nope" }), code("permission.not_found"));
   await w.k.hs["connections.pause"](w.k.ctx, { connectionId: w.connectionId });
   await assert.rejects(
     w.hs["sync_types.discover"](w.ctx, { connectionId: w.connectionId }),
@@ -886,7 +886,7 @@ test("sync_now refuses what cannot run and starts nothing", async () => {
   await none({ type: "contact", mode: "sideways" }, "validation.bad_input");
   await none({ type: "nope" }, "validation.not_found");
   await none({ syncTypeId: "syt_nope" }, "validation.not_found");
-  await none({ connectionId: "con_nope" }, "validation.not_found");
+  await none({ connectionId: "con_nope" }, "permission.not_found");
   const empty = (
     await w.k.hs["connections.create"](w.k.ctx, {
       connector: "acme",

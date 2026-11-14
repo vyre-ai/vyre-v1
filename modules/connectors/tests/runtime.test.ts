@@ -302,7 +302,7 @@ test("a connection that is paused, pending, someone else's or the wrong connecto
       connectionId: person.connection.connectionId,
       input: {},
     }),
-    code("validation.not_found"),
+    code("permission.not_found"),
     "dana cannot even see it",
   );
   const row = k.tx.get<never>("SELECT * FROM cn_connections WHERE connection_id = ?", person.connection.connectionId)!;
@@ -312,7 +312,7 @@ test("a connection that is paused, pending, someone else's or the wrong connecto
   );
   await assert.rejects(
     k.hs["connectors.run"](k.ctx, { key: "other", action: "ping", connectionId: "con_nope", input: {} }),
-    code("validation.not_found"),
+    code("permission.not_found"),
   );
   await assert.rejects(
     k.hs["connectors.run"](k.ctx, { key: "other", action: "ping", connectionId: id, input: {} }),
@@ -385,7 +385,7 @@ test("list and get: built-in connectors come from the generator's registry", asy
   await assert.rejects(k.hs["connectors.get"](k.ctx, { key: "nope" }), code("validation.not_found"));
   await assert.rejects(
     k.hs["connectors.run"](k.ctx, { key: "stripe", action: "x", connectionId: "con_x", input: {} }),
-    code("validation.not_found"),
+    code("permission.not_found"),
   );
   await assert.rejects(k.hs["connectors.remove"](k.ctx, { key: "stripe" }), code("validation.precondition_failed"));
   await assert.rejects(k.hs["connectors.publish"](k.ctx, { key: "stripe" }), code("validation.precondition_failed"));

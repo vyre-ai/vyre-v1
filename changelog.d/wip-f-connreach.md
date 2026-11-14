@@ -2,3 +2,4 @@
 - When a connector, a connection or any other thing an agent names is not found, the refusal now says which kind of thing it was and the name the agent gave, for example "There is no connector called fathom that you can see." An internal id is never said back. A thing that exists but is above what the agent may open still answers with its own words (restricted beyond what it can open), not as missing.
 - When a key kept for a connection cannot be used, the refusal now says whether the key is not in the Vault, or is in a restricted place (and where to move it), instead of one line for both.
 - Giving the Connector builder role again now repairs a role of that name that had lost its permission to manage connectors, so the Allow press cannot succeed and still do nothing.
+- Asking about another person's own connection now gets exactly the answer a connection that does not exist gets (same refusal, same words), so nobody can tell a real connection id from a made-up one.

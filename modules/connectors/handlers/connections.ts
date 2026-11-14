@@ -3,7 +3,7 @@
 import { mustUse } from "../../../lib/vault-check.ts";
 import { CONNECTION_KEY_LINE } from "../../../lib/vault-lines.ts";
 import { newPkce, oauthOf, OAUTH_TTL_MS } from "./oauth.ts";
-import { checkEgress, ensureTables, mintShort, nowOf, PAGE, refuse, scrubber, seedBuiltins } from "../projections.ts";
+import { checkEgress, ensureTables, mintShort, noSuchConnection, nowOf, PAGE, refuse, scrubber, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectionState, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { clearReconnectTask, executeAction } from "./runtime.ts";
 
@@ -93,7 +93,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
   const need = (ctx: ConnectorsCtx, id: string): ConnectionDb => {
     ready();
     const r = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", id);
-    if (!r || !visible(ctx, r)) return refuse(ctx, "validation.not_found", "There is no such connection.");
+    if (!r || !visible(ctx, r)) return noSuchConnection(ctx);
     return r;
   };
   /** Only the owner pauses or changes a person's connection; a Space connection is open to whoever manages it (the host checks level manage). */
