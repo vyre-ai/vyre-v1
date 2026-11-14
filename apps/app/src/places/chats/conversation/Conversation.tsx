@@ -155,6 +155,7 @@ import {
   workingAgents,
   withoutAnswered,
   faceDoor,
+  peopleIn,
 } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
@@ -980,7 +981,7 @@ function ConversationView(): ReactElement {
     ? weave(folded, data.activity.events).filter((m) => keepItem(m, data.activity!.show))
     : folded;
   // a channel, or a chat between people, is shared: its times read in the Space zone; a chat with only you and your agents reads in your own
-  const sharedChat = thread.kind === "channel" || thread.members.filter((p) => p.kind === "person").length >= 2;
+  const sharedChat = thread.kind === "channel" || peopleIn(thread) >= 2;
   const items = timeline(woven, {
     meId: data.me.id,
     nameOf,
