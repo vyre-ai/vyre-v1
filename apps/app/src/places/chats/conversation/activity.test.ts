@@ -130,3 +130,13 @@ test("a live reply shows one calm word, never a step's name or a count (G21)", (
   );
   assert.equal(calmWord(snap({ steps: [step("live")] as never }), true), "Writing", "words coming win");
 });
+
+test("a turn that sits a minute in one tool call keeps a true word, and one waiting on its computer says Waiting", () => {
+  const long = snap({
+    startedAt: Date.now() - 60_000,
+    steps: [{ id: "s1", name: "Bash", state: "live" }] as never,
+  });
+  assert.equal(calmWord(long, false), "Working");
+  const parked = snap({ steps: [{ id: "s2", name: "device_wait", state: "live" }] as never });
+  assert.equal(calmWord(parked, false), "Waiting");
+});
