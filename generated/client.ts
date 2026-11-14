@@ -910,6 +910,9 @@ export function createClient(transport: Transport) {
         get: call("engine.reviewer.get", 1),
         set: call("engine.reviewer.set", 1),
       },
+      round: {
+        get: call("engine.round.get", 1),
+      },
       route: {
         preview: call("engine.route.preview", 1),
       },

@@ -910,6 +910,9 @@ export function stubs(ctx: CallCtx) {
         get: call("engine.reviewer.get"),
         set: call("engine.reviewer.set"),
       },
+      round: {
+        get: call("engine.round.get"),
+      },
       route: {
         preview: call("engine.route.preview"),
       },

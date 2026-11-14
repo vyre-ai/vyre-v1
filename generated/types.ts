@@ -12494,6 +12494,20 @@ export type EngineReviewerSetOut = {
     id: string;
   }) | null;
 };
+export type EngineRoundGetIn = {
+  threadId: string;
+  messageIds: Array<string>;
+};
+export type EngineRoundGetOut = {
+  rounds: Array<{
+      messageId: string;
+      agents: Array<{
+          agentId: string;
+          state: "working" | "waiting" | "replied" | "stopped";
+          on?: string;
+        }>;
+    }>;
+};
 export type EngineRoutePreviewIn = {
   threadId: string;
   mentions?: Array<{
@@ -45644,6 +45658,7 @@ export interface CapMap {
   "engine.review.mark": { in: EngineReviewMarkIn; out: EngineReviewMarkOut };
   "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
   "engine.reviewer.set": { in: EngineReviewerSetIn; out: EngineReviewerSetOut };
+  "engine.round.get": { in: EngineRoundGetIn; out: EngineRoundGetOut };
   "engine.route.preview": { in: EngineRoutePreviewIn; out: EngineRoutePreviewOut };
   "engine.running_here": { in: EngineRunningHereIn; out: EngineRunningHereOut };
   "engine.runtime.opt_in": { in: EngineRuntimeOptInIn; out: EngineRuntimeOptInOut };

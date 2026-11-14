@@ -166,3 +166,8 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 - `automations.steps.list@1` also answers an optional `checked` (false only when the Space's connected apps could not be read, so an app missing from the list is unknown rather than unconnected; absent otherwise). Additive.
 
 Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
+
+## 14 Nov 2026: engine.round.get added (lane chat-agents)
+
+- What changed: one new read, `engine.round.get@1` (input: threadId, up to 50 messageIds; output: per message, each agent asked with its state working, waiting (with the agent in front), replied or stopped). Read from the engine's queue, never stored. Thread scope like `engine.live_turns`: only people who may read the chat reach it. Snapshot: docs/frozen/snapshots/engine.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: the row under a message that asked more than one agent (who is working, who waits on whom) needs one read that survives a restart; the prototype's round row and the Threads tab (G56, G61) draw from it.

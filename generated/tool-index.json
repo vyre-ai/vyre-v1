@@ -2870,6 +2870,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_round_get",
+      "summary": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting on another agent, replied, stopped). Read from the engine's queue, never stored",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_route_preview",
       "summary": "Who will answer a draft message (\"Intake will reply\" or \"No agent will reply, type @ to ask one\"); same route() the client runs locally",
       "toolset": "chats"
