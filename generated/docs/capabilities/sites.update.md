@@ -47,6 +47,7 @@ type In = {
   computerId?: string;
   port?: number;
   folderId?: string;
+  expectedUpdatedAt?: number;
 };
 ```
 
@@ -128,6 +129,7 @@ type Out = {
 - permission.role_lacks_permission
 - validation.bad_input
 - validation.not_found
+- validation.version_conflict
 
 ## Example
 
@@ -138,6 +140,7 @@ type Out = {
     "access": "public",
     "autoDeploy": true,
     "computerId": "cmt_a1b2c3",
+    "expectedUpdatedAt": 1760000000000,
     "folderId": "fld_a1b2c3",
     "limits": {
       "cpus": 1,
