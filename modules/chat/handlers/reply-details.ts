@@ -2,7 +2,8 @@
 // The turn comes from the engine (engine.turn.of_message, which keeps the account, the cost and the tool arguments for the asker and the AI-spend managers), what the agent knew from
 // memory (memory.used, which shows each person only what they may read). Both are asked as the caller, so their own rules apply. When no turn was recorded for the reply (a reply from
 // before the engine kept them, or one whose turn could not be linked), the tool steps saved on the reply itself are what is left, and the Details say the rest was not recorded.
-import { askerOf, messageBy, raise, stepsFor, threadBy } from "../projections.ts";
+import { askerOf, raise, stepsFor, threadBy } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
 import type { ChatCtx } from "../projections.ts";
 import { canSpeak } from "./post.ts";
 
@@ -50,7 +51,7 @@ function stepsOf(blocks: Array<Obj>): Array<{ name: string; ok?: boolean; secs?:
 export async function replyDetails(ctx: ChatCtx, input: { threadId: string; messageId: string }) {
   const t = threadBy(ctx.db, input.threadId);
   if (!t || !canSpeak(ctx, t)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours to open.");
-  const m = messageBy(ctx.db, input.messageId);
+  const m = messageAsMe(ctx, input.messageId);
   if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   if (!m.author.startsWith("agt_"))
     raise(ctx, "validation.bad_input", "Only an agent's reply has details.", { messageId: m.id });

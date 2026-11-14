@@ -227,6 +227,11 @@ export interface AddSheetProps extends CommonProps {
   target: AddTarget;
   /** False where no capability can give a new member the earlier messages: the "Include earlier messages" switch stays hidden. Default true. */
   earlierMessages?: boolean;
+  /**
+   * Who may give earlier messages to whom (the server's rule): only the chat's owner widens someone who is already in, and anyone else gives a new member what they can read themselves. Without it the switch shows for
+   * every person picked.
+   */
+  earlierRule?: { owner: boolean; members: readonly string[] };
   /** The picks and whether earlier messages go with them. */
   onAdd(picks: readonly AccessPick[], opts: { earlier: boolean }): void;
 }

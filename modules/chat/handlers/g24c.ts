@@ -44,7 +44,9 @@ function openThread(ctx: ChatCtx, threadId: string): ThreadRec {
 
 function messageIn(ctx: ChatCtx, t: ThreadRec, messageId: string): MessageRec {
   const m = messageBy(ctx.db, messageId);
-  if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
+  // a message from before the caller's reading floor is not theirs to act on or to learn about
+  if (!m || m.thread !== t.id || m.createdAt < readFloor(ctx, t))
+    raise(ctx, "validation.not_found", "That message is not in this chat.");
   return m;
 }
 
@@ -161,9 +163,11 @@ export async function deleteMessage(ctx: ChatCtx, input: { threadId: string; mes
   const t = openThread(ctx, input.threadId);
   // A repeat finds the row already marked and answers the same.
   const row = (
-    ctx.db.all("SELECT thread, author, deleted_at FROM chat_message WHERE id = ?", input.messageId) as Row[]
+    ctx.db.all("SELECT thread, author, deleted_at, createdAt FROM chat_message WHERE id = ?", input.messageId) as Row[]
   )[0];
-  if (!row || String(row["thread"]) !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
+  // a message from before the caller's reading floor is not found, not "yours to delete": the answer must not tell that it is there
+  if (!row || String(row["thread"]) !== t.id || Number(row["createdAt"] ?? 0) < readFloor(ctx, t))
+    raise(ctx, "validation.not_found", "That message is not in this chat.");
   if (String(row["author"]) !== ctx.principal.id)
     raise(ctx, "permission.no_grant", "You can only delete a message you wrote.");
   if (row["deleted_at"] !== null && row["deleted_at"] !== undefined) return { deleted: true };
