@@ -301,3 +301,39 @@ test("a reader who joined later never gets a heading written from messages befor
   );
   assert.ok(!leo.some((c: any) => c.title === "Secret plan"));
 });
+
+test("past the read window, with no gaps and no Fresh lines, one new message moves no chapter start (reviewer's case)", async () => {
+  const hn = harness();
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread
+    .threadId as string;
+  const N = 6_100;
+  for (let i = 1; i <= N; i++) {
+    // seqs continue after the two the chat started with, 10 s apart: no gaps, no Fresh lines
+    hn.db.run(
+      'INSERT INTO chat_message (id, "thread", "threadSeq", author, kind, body, blocks, depth, attachments, pinned, reactions, "createdAt", version) VALUES (?, ?, ?, ?, \'text\', ?, \'[]\', 0, \'[]\', 0, \'[]\', ?, 0)',
+      `bulk${i}`,
+      t,
+      1_000 + i,
+      i % 2 === 1 ? "usr_dana" : "agt_x",
+      i % 2 === 1 ? `Ask ${i}` : `Answer ${i}`,
+      hn.clock.t + i * 10_000,
+    );
+  }
+  const starts = async (): Promise<number[]> =>
+    (await h["chat.chapters"]!(hn.ctx, { threadId: t })).chapters.filter((c: any) => !c.current).map((c: any) => c.startSeq);
+  const before = await starts();
+  assert.ok(before.length >= 70, `${before.length} closed chapters`);
+  hn.db.run(
+    'INSERT INTO chat_message (id, "thread", "threadSeq", author, kind, body, blocks, depth, attachments, pinned, reactions, "createdAt", version) VALUES (?, ?, ?, ?, \'text\', ?, \'[]\', 0, \'[]\', 0, \'[]\', ?, 0)',
+    "bulk-new",
+    t,
+    1_000 + N + 1,
+    "usr_dana",
+    "One more",
+    hn.clock.t + (N + 1) * 10_000,
+  );
+  const after = await starts();
+  const kept = before.filter((s) => after.includes(s)).length;
+  console.log(`CHAPTER-STARTS ${JSON.stringify({ closed: before.length, kept })}`);
+  assert.equal(kept, before.length, "every closed chapter start kept its place");
+});

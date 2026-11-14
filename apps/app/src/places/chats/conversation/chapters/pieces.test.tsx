@@ -153,5 +153,9 @@ test("the mount reads the chat's session and engine.usage.get, and draws nothing
   assert.match(textOf(find(el, "session-steps")), /9/);
   assert.match(textOf(find(el, "session-context")), /42%/);
   assert.match(textOf(find(el, "session-plan")), /61%/);
-  assert.deepEqual(seen, ["engine.usage.get"]);
+  assert.deepEqual(
+    seen,
+    ["engine.usage.get", "engine.usage.get"],
+    "once on show, once when the summary moved; no timer",
+  );
 });
