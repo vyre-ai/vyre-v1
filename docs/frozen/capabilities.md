@@ -256,5 +256,6 @@ All additive: every new input is optional, no input, output or error was removed
 - Not covered: Google-native sheets compare the same way from the grid they just read (same input), but no live test runs against Google.
 - Agents with no engine turn: an outside agent over MCP has no turn start, so for a thing it never read it keeps the race-only protection (the version now, checked where the write is made); its first call always works.
 - A turn placed on a device is guarded by reasoning from the code only (the engine that notes the turn start and the tool layer share the Space's process; only the engine process runs on the computer) and has no run behind it yet.
+- A page republish that never settles holds that page's claim until the process ends (it is not bounded by a timeout), and an unversioned republish racing a versioned one is not protected, as before.
 - Tokens: none. These seven version inputs are hidden from the model's tool schema (the tool layer fills them; a value a model sends for one is dropped); they stay in the capability contract for people's clients.
 - Signed: ______ (lead)

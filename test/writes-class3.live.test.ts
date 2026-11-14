@@ -66,7 +66,34 @@ test(
         ),
       );
       assert.deepEqual(pair.map((r) => r.status).sort(), [200, 409], "artifact pair");
-      console.log("MEASURE artifact: 200 then 409; pair 200,409");
+      // two DIFFERENT pages republished at the same moment, each naming the version it read: they never hold each other up
+      const other = await ok(d, d.token, "sites.artifact_publish", {
+        title: "Other",
+        html: "<p>o</p>",
+        idempotencyKey: key(),
+      });
+      const mine = (await ok(d, d.token, "sites.get", { siteId: made.artifactId })).site.updatedAt as number;
+      clock.t += 10;
+      const two = await Promise.all([
+        call("sites.artifact_publish", {
+          title: "Numbers",
+          html: "<p>M</p>",
+          artifactId: made.artifactId,
+          expectedUpdatedAt: mine,
+        }),
+        call("sites.artifact_publish", {
+          title: "Other",
+          html: "<p>O</p>",
+          artifactId: other.artifactId,
+          expectedUpdatedAt: other.updatedAt,
+        }),
+      ]);
+      assert.deepEqual(
+        two.map((r) => r.status),
+        [200, 200],
+        "two different pages both land",
+      );
+      console.log("MEASURE artifact: 200 then 409; pair 200,409; two pages 200,200");
     } finally {
       await d.stop();
       fs.rmSync(dir, { recursive: true, force: true });
