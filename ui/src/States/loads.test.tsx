@@ -162,3 +162,26 @@ test("a refused read offers Back to Chats, which sends the one event the place h
     restore();
   }
 });
+
+test("a compact failed row is one line: the words and Retry; a refusal says so plainly with no Retry", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(
+      createRoot,
+      <LoadFailed compact what="chats" failure={{ message: "x", code: "internal.error" }} />,
+    );
+    const text = textOf(find(root, "load-failed"));
+    assert.match(text, /Couldn't load chats/);
+    assert.match(text, /Retry/);
+    assert.doesNotMatch(text, /internal\.error|trace/i, "no code or trace id in a row");
+    const refused = await mount(
+      createRoot,
+      <LoadFailed compact what="the team" failure={{ message: "no", code: "permission.denied" }} />,
+    );
+    const rt = textOf(find(refused, "load-failed"));
+    assert.match(rt, /You can't open the team/);
+    assert.doesNotMatch(rt, /Retry/);
+  } finally {
+    restore();
+  }
+});
