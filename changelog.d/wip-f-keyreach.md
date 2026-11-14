@@ -8,3 +8,4 @@
 - A manager answering someone else's key ask can no longer put the key in their own keys (the agent works for the person who asked and could not use it): it is refused in plain words, and the card says there is no folder to use instead of choosing one. A folder the server made itself (Sealed fields) is never chosen for an agent's key.
 - Saving or attaching a key for an agent now refuses when the Vault cannot tell whether the agent may use the folder, instead of going ahead; nothing is stored first.
 - The key request card says "Only Maya can use it through Ops" (the person's name) when that is the only way to share, instead of a one-choice list; and when there is no shared folder the agent can use, it says so and gives one button, "Make a shared folder".
+- When the key card has no shared folder to offer, it says that every agent in the Space can use keys kept in a shared folder.
