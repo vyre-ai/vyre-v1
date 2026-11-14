@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
+import { onDiscussionMessage } from "../handlers/round.ts";
 import { DANA, INTAKE, DRAFTER, failure, harness } from "../fixtures/harness.ts";
 
 type Fn = (ctx: any, input: any) => Promise<any>;
@@ -231,4 +232,55 @@ test("one discussion per message: a second press opens the thread that is there 
     1,
     "one Discussion line",
   );
+});
+
+test("the talking-it-over line becomes the decision when an agent ends on Decided, says they did not settle it when the talk ends without one, and stays while it goes on", async () => {
+  const holder: { ctx?: any } = {};
+  const hn = harness({
+    calls: {
+      "agents.get": () => ({ agent: {} }),
+      "search.resolve": () => ({ hit: { title: "Intake Agent" } }),
+      "chat.thread": (i: any) => h["chat.thread"]!(holder.ctx, i),
+      "chat.post": (i: any) => h["chat.post"]!(holder.ctx, i),
+    },
+  });
+  holder.ctx = hn.ctx;
+  const start = async () => {
+    const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE, DRAFTER], idempotencyKey: key() })).thread.threadId as string;
+    const asked = (
+      await h["chat.post"]!(hn.ctx, {
+        threadId: t,
+        body: "@Intake @Drafter which storage?",
+        mentions: [
+          { kind: "agent", id: INTAKE },
+          { kind: "agent", id: DRAFTER },
+        ],
+        idempotencyKey: key(),
+      })
+    ).message.messageId as string;
+    for (const who of [INTAKE, DRAFTER])
+      await h["chat.post"]!(hn.as({ kind: "agent", id: who }, DANA), { threadId: t, body: `${who} says`, idempotencyKey: key() });
+    const { threadId } = await h["chat.round.discuss"]!(hn.ctx, { threadId: t, messageId: asked, idempotencyKey: key() });
+    return { t, threadId: threadId as string };
+  };
+  const say = async (threadId: string, who: string, body: string, mentions: Array<{ kind: string; id: string }> = []) => {
+    const r = await h["chat.post"]!(hn.as({ kind: "agent", id: who }, DANA), { threadId, body, mentions, idempotencyKey: key() });
+    onDiscussionMessage(hn.ctx, { payload: { threadId, messageId: r.message.messageId, author: { kind: "agent", id: who }, mentions } });
+  };
+  const card = (t: string) => hn.rows("SELECT body FROM chat_message WHERE thread = ? AND kind = 'system'", t).map((r) => r["body"]);
+  // it goes on while the next agent is handed the turn
+  const a = await start();
+  await say(a.threadId, INTAKE, "Fair point.", [{ kind: "agent", id: DRAFTER }]);
+  assert.deepEqual(card(a.t), ["Discussion: Intake and Intake are talking it over"]);
+  // it ends on a Decided line: the line is the decision
+  await say(a.threadId, DRAFTER, "Decided: the server disk for now, object storage later.");
+  assert.deepEqual(card(a.t), ["Decided: the server disk for now, object storage later."]);
+  // the talk stops with no one handed the turn and no Decided line
+  const b = await start();
+  await say(b.threadId, INTAKE, "I do not know.");
+  assert.deepEqual(card(b.t), ["They did not settle it"]);
+  // the cap: four agent turns without a Decided line
+  const c = await start();
+  for (const who of [INTAKE, DRAFTER, INTAKE, DRAFTER]) await say(c.threadId, who, "Still thinking.", [{ kind: "agent", id: INTAKE }]);
+  assert.deepEqual(card(c.t), ["They did not settle it"]);
 });

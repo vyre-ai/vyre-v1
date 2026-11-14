@@ -1,4 +1,5 @@
 // chat module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
+import { onDiscussionMessage } from "./handlers/round.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { recentWithUnread } from "./handlers/g26.ts";
@@ -61,6 +62,11 @@ export const consumers = {
   "chat.agent_dm_answer": {
     on: ["task.approved", "task.rejected", "task.sent_back", "vault.request_fulfilled", "vault.request_declined"],
     run: (ctx: ChatCtx, event: Parameters<typeof onCardAnswered>[1]) => onCardAnswered(ctx, event),
+  },
+  /** An agent spoke in a discussion thread: the "talking it over" line in the chat becomes what they decided, or says they did not settle it (G57). */
+  "chat.discussion_outcome": {
+    on: ["message.received"],
+    run: (ctx: ChatCtx, event: Parameters<typeof onDiscussionMessage>[1]) => onDiscussionMessage(ctx, event),
   },
   /** A direct message, an @mention or a reply in a thread someone follows: a notification for that person (and, in a task's thread, a mention makes them a follower of the task). */
   "chat.notify": { on: [...NOTIFY_EVENTS], run: (ctx: ChatCtx, event: NotifyEvent) => notify(ctx, event) },
