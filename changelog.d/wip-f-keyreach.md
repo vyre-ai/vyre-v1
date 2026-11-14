@@ -6,3 +6,4 @@
 - The names of the folders the server keeps for itself are declared once and used everywhere.
 - Asking whether an agent can use a folder is open only to the server and to people who may put a key into that folder; anyone else gets "not found", the same as for a folder that does not exist.
 - A manager answering someone else's key ask can no longer put the key in their own keys (the agent works for the person who asked and could not use it): it is refused in plain words, and the card says there is no folder to use instead of choosing one. A folder the server made itself (Sealed fields) is never chosen for an agent's key.
+- A folder or key an agent makes for the person it is working for is that person's: a shared folder or key is owned by them (the agent is recorded as the maker), and the agent may make a Mine folder for that person, never for anyone else.
