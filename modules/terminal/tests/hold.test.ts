@@ -368,12 +368,21 @@ test("capture scrubs a Vault value filled into a command, as every other reading
   bindHost({
     ...fakeHost({}).host,
     async capture() {
-      return { text: "token is sk-live-1234567890abcdef ok", cols: 80, rows: 24, cursor: null, history: 0, hidden: false };
+      return {
+        text: "token is sk-live-1234567890abcdef ok",
+        cols: 80,
+        rows: 24,
+        cursor: null,
+        history: 0,
+        hidden: false,
+      };
     },
   });
   void hn;
   const id = await open(hn2);
-  rememberSecrets(scopeOfId(hn2.db, id), [{ handle: "#Key.token", itemId: "itm_1", value: "sk-live-1234567890abcdef" }]);
+  rememberSecrets(scopeOfId(hn2.db, id), [
+    { handle: "#Key.token", itemId: "itm_1", value: "sk-live-1234567890abcdef" },
+  ]);
   const r = await call(hn2, "terminal.capture", { terminalId: id });
   assert.ok(!r.text.includes("sk-live-1234567890abcdef"), "the value is not in the screen");
   assert.match(r.text, /token is .* ok/);

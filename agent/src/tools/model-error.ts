@@ -133,8 +133,7 @@ export function modelError(error: VyreError): {
   const missingName = thing !== undefined ? sayableName(dn?.name) : null;
   const message = withoutIds(error.message ?? "");
   const words = describeError(error.code, { message });
-  const own =
-    cap ?? (reason ? AGENT_WORDS[`${error.code}#${reason}`] : undefined) ?? AGENT_WORDS[error.code];
+  const own = cap ?? (reason ? AGENT_WORDS[`${error.code}#${reason}`] : undefined) ?? AGENT_WORDS[error.code];
   // a plain message the server raised for this very failure wins over the table; the table's next step follows it
   // a version conflict's own words always stand in for the server's (a record's says "at version 3, not 1"), except the tool layer's own refusal, which says when the thing changed
   const ownWords =

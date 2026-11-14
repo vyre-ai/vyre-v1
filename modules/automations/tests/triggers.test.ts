@@ -550,8 +550,23 @@ test("a change a guest made starts no Automation, whichever trigger it is: the d
   const h = harness();
   const id = await live(h);
   const byMember = await h.consumer(engine, (ctx) => consumeEvent(ctx, change({ id: "evt_member" })));
-  assert.deepEqual(byMember.map((r) => ("runId" in r.result ? "run" : r.result.dropped)), ["run"], "control: a member's change starts it");
+  assert.deepEqual(
+    byMember.map((r) => ("runId" in r.result ? "run" : r.result.dropped)),
+    ["run"],
+    "control: a member's change starts it",
+  );
   const byGuest = await h.consumer(engine, (ctx) => consumeEvent(ctx, change({ id: "evt_guest", outsider: true })));
-  assert.deepEqual(byGuest.map((r) => ("runId" in r.result ? "run" : r.result.dropped)), ["outsider"]);
-  assert.ok(h.events.some((e) => e.name === "automation.trigger_dropped" && (e.payload as { reason?: string; automationId?: string }).reason === "outsider" && (e.payload as { automationId?: string }).automationId === id), "and the drop is logged");
+  assert.deepEqual(
+    byGuest.map((r) => ("runId" in r.result ? "run" : r.result.dropped)),
+    ["outsider"],
+  );
+  assert.ok(
+    h.events.some(
+      (e) =>
+        e.name === "automation.trigger_dropped" &&
+        (e.payload as { reason?: string; automationId?: string }).reason === "outsider" &&
+        (e.payload as { automationId?: string }).automationId === id,
+    ),
+    "and the drop is logged",
+  );
 });

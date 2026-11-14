@@ -19,8 +19,15 @@ test("members, admins and the owner see the same table of reads, posts, reply th
       ana = await join(d, "ana", "ana@example.com");
     const adm = await join(d, "adam", "adam@example.com", "Admin");
     // a custom role cloned from Member with the lowest clearance: it must read a labelled channel as little as it did before
-    const member = ((await o("access.roles.list")).roles as Array<{ id: string; name: string }>).find((r) => r.name === "Member")!;
-    await o("access.roles.create", { name: "Intern", cloneFrom: member.id, clearance: "public", idempotencyKey: "mx-intern" });
+    const member = ((await o("access.roles.list")).roles as Array<{ id: string; name: string }>).find(
+      (r) => r.name === "Member",
+    )!;
+    await o("access.roles.create", {
+      name: "Intern",
+      cloneFrom: member.id,
+      clearance: "public",
+      idempotencyKey: "mx-intern",
+    });
     const intern = await join(d, "ivy", "ivy@example.com", "Intern");
     const pub = (
       await o("channels.create", {
@@ -40,7 +47,12 @@ test("members, admins and the owner see the same table of reads, posts, reply th
     ).channel as { mainThreadId: string };
     // a public channel marked confidential: the thread now inherits that label through its channel
     const lab = (
-      await o("channels.create", { name: "labelled", visibility: "public", memberIds: [maya.personId], agentIds: [agent] })
+      await o("channels.create", {
+        name: "labelled",
+        visibility: "public",
+        memberIds: [maya.personId],
+        agentIds: [agent],
+      })
     ).channel as { mainThreadId: string; channelId: string };
     await o("access.labels.set", { resource: { type: "channel", id: lab.channelId }, label: "confidential" });
     const first: Record<string, string> = {};

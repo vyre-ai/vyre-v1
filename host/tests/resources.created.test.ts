@@ -878,7 +878,14 @@ test("an event already in the store is registered inside its calendar and owned 
 });
 
 test("announcementVis: births of a private root and of anything under one are announced to participants only; everything under the Space stays the Space's", () => {
-  const R = (id: string, type: string, parent: string | null): ResourceRow => ({ id, type, parent_id: parent, label: 0, owner_id: "usr_noah", holds: 0 });
+  const R = (id: string, type: string, parent: string | null): ResourceRow => ({
+    id,
+    type,
+    parent_id: parent,
+    label: 0,
+    owner_id: "usr_noah",
+    holds: 0,
+  });
   const rows: Record<string, ResourceRow> = Object.fromEntries(
     [
       R("spc_1", "space", null),
@@ -892,14 +899,19 @@ test("announcementVis: births of a private root and of anything under one are an
   );
   const at = (row: ResourceRow) => announcementVis(row, (id) => rows[id]);
   assert.equal(at(rows["spc_1"]!), "space", "the Space itself");
-  for (const id of ["cld_private", "fld_personal", "vfd_mine"]) assert.equal(at(rows[id]!), "participants", `${id}: a private root`);
+  for (const id of ["cld_private", "fld_personal", "vfd_mine"])
+    assert.equal(at(rows[id]!), "participants", `${id}: a private root`);
   assert.equal(at(R("cev_1", "calendar_event", "cld_private")), "participants", "an event in a Personal calendar");
   assert.equal(at(R("fil_1", "file", "fld_sub")), "participants", "a file two levels down in Personal files");
   assert.equal(at(R("vit_1", "vault_item", "vfd_mine")), "participants", "a Vault item in Mine");
   assert.equal(at(R("cev_2", "calendar_event", "cld_team")), "space", "an event on a Space calendar");
   assert.equal(at(R("fil_2", "file", "fld_space")), "space", "a file in a Space folder");
   assert.equal(at(R("rec_1", "record", "spc_1")), "space", "a record");
-  assert.equal(at(R("cev_3", "calendar_event", "cld_gone")), "space", "a parent it cannot find is not a reason to hide");
+  assert.equal(
+    at(R("cev_3", "calendar_event", "cld_gone")),
+    "space",
+    "a parent it cannot find is not a reason to hide",
+  );
   const r = createResourceRegistrar({ events: EVENTS, exists: (id) => id in rows, resource: (id) => rows[id] });
   assert.equal(r.visOf!(R("cev_1", "calendar_event", "cld_private")), "participants", "the registrar uses it");
 });

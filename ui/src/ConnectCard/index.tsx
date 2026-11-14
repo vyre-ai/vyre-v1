@@ -333,7 +333,9 @@ export function ConnectCard(p: ConnectCardProps): ReactElement {
           {p.notice && !working ? (
             <View style={st.line} testID={`${id}-notice`}>
               <Glyph icon={WARN} native="!" size={14} color="var(--warn)" />
-              <Text accessibilityRole="alert" style={st.lineText}>{p.notice}</Text>
+              <Text accessibilityRole="alert" style={st.lineText}>
+                {p.notice}
+              </Text>
             </View>
           ) : null}
           {p.checksWith && !working ? (
@@ -366,7 +368,9 @@ export function ConnectCard(p: ConnectCardProps): ReactElement {
           {p.notice && !working ? (
             <View style={st.line} testID={`${id}-notice`}>
               <Glyph icon={WARN} native="!" size={14} color="var(--warn)" />
-              <Text accessibilityRole="alert" style={st.lineText}>{p.notice}</Text>
+              <Text accessibilityRole="alert" style={st.lineText}>
+                {p.notice}
+              </Text>
             </View>
           ) : null}
           <View style={st.have} testID={`${id}-have`}>

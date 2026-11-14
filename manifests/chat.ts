@@ -1598,7 +1598,10 @@ export default defineManifest({
         in: {
           ...threadT,
           account: t.opt(
-            t.obj({ ref: t.str(), driver: t.str(), kind: t.opt(t.str()) }, { description: "The account the turn ran on" }),
+            t.obj(
+              { ref: t.str(), driver: t.str(), kind: t.opt(t.str()) },
+              { description: "The account the turn ran on" },
+            ),
           ),
         },
         out: { written: t.int({ minimum: 0 }) },
@@ -2347,7 +2350,12 @@ export default defineManifest({
           personIds: t.arr(id.user, { minItems: 1 }),
           level: t.opt(level),
           mentionedIn: t.opt(id.message),
-          fromStart: t.opt(t.bool({ description: "Read the channel from its first message (the default). False: they read from now on, as a guest invited into a channel does" })),
+          fromStart: t.opt(
+            t.bool({
+              description:
+                "Read the channel from its first message (the default). False: they read from now on, as a guest invited into a channel does",
+            }),
+          ),
         },
         out: { channel: channelRow },
         on: ["channel", "/channelId"],

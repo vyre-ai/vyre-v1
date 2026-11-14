@@ -80,7 +80,14 @@ test(
       ).run("cev_oldevent0001", calendarId, "Old lunch", Date.now() + 86_400_000, Date.now() + 90_000_000, Date.now());
       db.prepare(
         `INSERT INTO calendar_event (id, "calendarId", title, "startsAt", "endsAt", "allDay", attendees, "recordIds", status, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, 0, '[]', '[]', 'confirmed', 1, ?, NULL)`,
-      ).run("cev_oldteam0001", teamCalendarId, "Team sync", Date.now() + 86_400_000, Date.now() + 90_000_000, Date.now());
+      ).run(
+        "cev_oldteam0001",
+        teamCalendarId,
+        "Team sync",
+        Date.now() + 86_400_000,
+        Date.now() + 90_000_000,
+        Date.now(),
+      );
     } finally {
       db.close();
     }
@@ -101,7 +108,7 @@ test(
         assert.ok(hit, `${what} shows the old event`);
       }
       // strangers, before anything registered it: a member and the Space's owner. The event is in Noah's private calendar, so neither reaches it, and each answer is, in every part but its trace id, the answer for an
-      // 
+      //
       for (const who of ["usr_sana", "usr_olivia"])
         for (const [cap, extra] of [
           ["calendar.get_event", {}],
@@ -113,7 +120,7 @@ test(
           assert.notEqual(real.status, 200, `${who} ${cap}: refused`);
           assert.notEqual(madeUp.status, 200, `${who} ${cap}: a made-up id is refused too`);
         }
-            const stranger = await again.as("usr_sana", "calendar.get_event", { eventId: "cev_oldevent0001" });
+      const stranger = await again.as("usr_sana", "calendar.get_event", { eventId: "cev_oldevent0001" });
       assert.notEqual(stranger.status, 200, "a person with no access to the calendar cannot read it");
       const got = await again.as("usr_noah", "calendar.get_event", { eventId: "cev_oldevent0001" });
       assert.equal(got.status, 200, JSON.stringify(got.data));

@@ -1578,7 +1578,9 @@ export function createBridge(o: BridgeOptions): Bridge {
       dirty.add(threadId);
     },
     onEvent: (ctx, event) =>
-      event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload, event.device, event.outsider),
+      event.name === "message.edited"
+        ? onEdited(ctx, event.payload)
+        : onReceived(ctx, event.payload, event.device, event.outsider),
     liveTurns(threadId) {
       const out: Array<{ turnId: string; agentId: string; text: string; step?: string }> = [];
       // a turn whose text is the asker's alone for now shows no text to whoever opens the chat mid-turn: its answer arrives checked

@@ -571,12 +571,19 @@ test("the version inputs of the seven tools are not in the model's schema (it di
       assert.ok(f in contract, `${cap}: ${f} stays in the capability's contract, for people's clients`);
       assert.ok(!(f in shown), `${cap}: ${f} is not shown to a model`);
     }
-    assert.equal(Object.keys(shown).length, Object.keys(contract).length - fields.length - (("idempotencyKey" in contract) ? 1 : 0));
+    assert.equal(
+      Object.keys(shown).length,
+      Object.keys(contract).length - fields.length - ("idempotencyKey" in contract ? 1 : 0),
+    );
   }
   // a model that sends its own value: it is dropped, and the layer's (the thing's updatedAt now) is sent
   const r = rig();
   r.make(r.stamped, "gol_1", 1_000);
-  const out = await r.s.call(r.c({ turnStartedAt: 5_000 }), "goals_update", { goalId: "gol_1", outcome: "x", expectedUpdatedAt: 42 });
+  const out = await r.s.call(r.c({ turnStartedAt: 5_000 }), "goals_update", {
+    goalId: "gol_1",
+    outcome: "x",
+    expectedUpdatedAt: 42,
+  });
   assert.equal(out.kind, "result");
   assert.equal(r.lastWrite("goals.update")?.["expectedUpdatedAt"], 1_000);
 });

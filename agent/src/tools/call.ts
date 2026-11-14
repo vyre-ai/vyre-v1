@@ -10,7 +10,15 @@ import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/
 import { limited, shapeOutput } from "./compact.ts";
 import { fillKey } from "./fill.ts";
 import { turnStartOf } from "./turn-start.ts";
-import { HIDDEN_FROM_MODEL, SeenVersions, changedSinceTurn, kindOfWrite, learned, learnedRows, rowKey } from "./versions.ts";
+import {
+  HIDDEN_FROM_MODEL,
+  SeenVersions,
+  changedSinceTurn,
+  kindOfWrite,
+  learned,
+  learnedRows,
+  rowKey,
+} from "./versions.ts";
 import { rejectWords } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";

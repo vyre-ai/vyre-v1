@@ -350,7 +350,11 @@ async function runStep(ctx: MembersCtx, personId: string, step: JoinStep, invite
     // a guest reads a channel from the moment they accept: what was said before they came was said to the people there (an "include earlier messages" choice for the inviter is a later option)
     const inv = inviteId ? inviteById(ctx, inviteId) : undefined;
     const guest = inviteId !== undefined && (guestOf(ctx, inviteId) !== undefined || inv?.role === GUEST_ROLE);
-    await ctx.call("channels.members.add", { channelId: arg, personIds: [personId], ...(guest ? { fromStart: false } : {}) });
+    await ctx.call("channels.members.add", {
+      channelId: arg,
+      personIds: [personId],
+      ...(guest ? { fromStart: false } : {}),
+    });
   }
   // the agent is the inviter's to give: the grant is their act, tagged with the invite (the joiner could give nothing, and the host never gives on its own)
   else if (kind === "agent") {
