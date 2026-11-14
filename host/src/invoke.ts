@@ -937,7 +937,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
               (resource?.type === "space" || (resource?.type === "connection" && resource.id === null))))
             ? roleLine(c.name)
             : null;
-        // a thing the caller named that is not there reads the same as one they may not see, and says which kind of thing and the name they gave (never an id), so an agent can tell the person what to look for
+        // a thing the caller named that the kernel found nothing for (not_found; a thing that exists above the caller's clearance answers above_clearance instead, with its own words) says which kind of thing and the name they gave (never an id), so an agent can tell the person what to look for
         const missing = d.reason === "not_found" && resource !== null ? missingThing(c, input, resource) : null;
         const missingName = missing === null ? null : sayableName(missing.name);
         // an agent refused for a role: say whose role is short. The agent's roles and its person's are separate (an agent never does more than its person may), and the fix differs.

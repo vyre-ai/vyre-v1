@@ -1,4 +1,4 @@
-// The words for a thing that is not there: which kind of thing and the name as the caller gave it, never an id, and the same words whether it is missing or only hidden.
+// The words for a thing that is not there: which kind of thing and the name as the caller gave it, never an id, and no claim about things that exist: only what the kernel answered as not found.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { looksLikeCode, notFoundLine, sayableName } from "./errors.ts";

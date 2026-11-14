@@ -1,5 +1,5 @@
 // What an agent is told when a connector or connection call is refused (F36, F37, 14 Nov 2026): whose role is short (the agent's, the person's, both) and what fixes it; and which kind of thing was not found and
-// the name the caller gave, the same for a thing that is missing and one that is only hidden. A key the person cannot use says whether it is missing or Restricted. Real daemon, real access rules, no model.
+// the name the caller gave. A thing that exists above the caller's clearance answers with its own words, and the probe below records what a caller with no relation to it can tell apart. A key the person cannot use says whether it is missing or Restricted. Real daemon, real access rules, no model.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -203,6 +203,72 @@ test("a refused connector or connection call says which thing was missing and wh
     });
     assert.equal(noKey.status, 403, noKey.text);
     assert.match(errOf(noKey).message, /^There is no Vault item #Nope that you can use\./);
+
+    // person only: Mel's agent is allowed to build connectors, Mel (a member) is not, and an agent never does more than its person
+    assert.equal((await post(ada.token, "access.connector_builder.grant", { agentId: melAgent })).status, 200);
+    agentFor = { id: melAgent, person: mel.id };
+    const personOnly = await post("tok-agent", "connectors.list", {});
+    assert.equal(personOnly.status, 403, personOnly.text);
+    assert.match(errOf(personOnly).message, /^The person this agent works for may not do this/);
+
+    // a thing that exists above the caller's clearance: its own words, never "no such item" (pinned both ways)
+    const folder = await post(ada.token, "vault.folders.create", { name: "Company", scope: "shared" });
+    assert.equal(folder.status, 200, folder.text);
+    const lab = await post(ada.token, "access.labels.set", {
+      resource: { type: "vault_folder", id: folder.body.data.folder.id },
+      label: "restricted",
+    });
+    assert.equal(lab.status, 200, lab.text);
+    const put = await post(ada.token, "vault.item.put", {
+      folderId: folder.body.data.folder.id,
+      name: "Secretly",
+      kind: "api_key",
+      fields: [{ key: "api_key", value: "fake_restricted_88" }],
+    });
+    assert.equal(put.status, 200, put.text);
+    const realId = String(put.body.data.item.id);
+    // oracle probe: the person Mel and her agent have no relation to the item. Record what each way of naming it answers, against a made-up one
+    const probe: string[] = [];
+    for (const [who, token] of [
+      ["person", mel.token],
+      ["agent", "tok-agent"],
+    ] as const)
+      for (const [how, input] of [
+        ["name", { item: "#Secretly", fields: ["api_key"] }],
+        ["name-made-up", { item: "#Nothing_Here", fields: ["api_key"] }],
+        ["id", { item: realId, fields: ["api_key"] }],
+        ["id-made-up", { item: "vit_00000000000000000000000000000000", fields: ["api_key"] }],
+      ] as const) {
+        const r = await post(token, "vault.use", input);
+        probe.push(`${who} ${how}: ${r.status} ${r.body.error?.code ?? "ok"}`);
+      }
+    // pinned: someone with no relation to a Restricted item cannot tell it from one that does not exist, by name or by id, as a person or through their agent
+    assert.deepEqual(
+      [...new Set(probe.map((x) => x.replace(/^\w+ [\w-]+: /, "")))],
+      ["404 permission.not_found"],
+      probe.join("\n"),
+    );
+    // a person's own connection that someone else asks about: the same answer as a connection that does not exist
+    const personConnector = ((await post(ada.token, "connectors.list", {})).body.data?.connectors ?? []).find(
+      (c: { scope?: string }) => c.scope === "person",
+    )?.key;
+    const mine = await post(ada.token, "connections.create", {
+      connector: personConnector ?? "none",
+      title: "Mine",
+      ownerKind: "person",
+    });
+    const conProbe: string[] = [];
+    if (mine.status === 200) {
+      const cid = String(mine.body.data.connection.connectionId);
+      for (const [how, id] of [
+        ["real", cid],
+        ["made-up", "con_00000000000000000000"],
+      ] as const) {
+        const r = await post(mel.token, "connections.get", { connectionId: id });
+        conProbe.push(`person ${how}: ${r.status} ${r.body.error?.code ?? "ok"}`);
+      }
+    } else conProbe.push(`could not make a person connection: ${mine.status} ${mine.text.slice(0, 120)}`);
+    console.log(`ORACLE-PROBE connection\n${conProbe.join("\n")}`);
   } finally {
     clearInterval(pump);
     await d.stop();
