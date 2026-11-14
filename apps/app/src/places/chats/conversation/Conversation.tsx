@@ -7,7 +7,8 @@ import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { isLong, sessionItems } from "../session/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
-import { CrewWhileWorking, useCrew } from "../crew/context.tsx";
+import { useCrew } from "../crew/context.tsx";
+import { LiveSubagents } from "../crew/live.tsx";
 import { crewChipOf, liveSubagents, subagentIdsOf, totalsOf } from "../crew/model.ts";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { CrewIsland } from "../crew/island.tsx";
@@ -2070,7 +2071,7 @@ function ConversationView(): ReactElement {
                 onPeople={(x, y) => peopleMenu(x, y)}
               />
             ) : null}
-            <CrewWhileWorking working={isWorking} />
+            <LiveSubagents turns={liveTurns} activityOf={data.activityOf ? (id) => data.activityOf!(id) : undefined} />
             {(() => {
               // while an agent's engine has subagents of its own at work, they are on screen here (no reply carries them yet); when the reply lands, the same rows sit under it
               const shown = new Set(timelineMessages.flatMap((m) => subagentIdsOf(m.blocks)));

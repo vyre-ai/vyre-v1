@@ -9,6 +9,8 @@ interface Waiting {
   threadId: string;
   agentId: string;
   steps: Array<Omit<Step, "kind" | "threadId" | "turnId" | "agentId">>;
+  /** a subagent's own lines: sent apart, to the person the turn runs for alone */
+  sub: Array<Omit<Step, "kind" | "threadId" | "turnId" | "agentId">>;
   thinking: string;
   asker?: string;
   timer: ReturnType<typeof setTimeout> | null;
@@ -49,17 +51,26 @@ export function coalesceLive(
         text: w.thinking,
         ...(w.asker ? { asker: w.asker } : {}),
       });
+    if (w.sub.length > 0 && w.asker)
+      out({
+        kind: "substeps",
+        threadId: w.threadId,
+        turnId,
+        agentId: w.agentId,
+        asker: w.asker,
+        steps: w.sub as never,
+      });
+    w.sub = [];
     w.steps = [];
     w.thinking = "";
   };
   return (e) => {
-    // a subagent's own lines are for the crew rows (crew-watch.ts reads the raw stream); the live line says "Working with a helper" while its call runs
-    if (e.kind === "step" && e.parent) return;
     if (e.kind === "step" || e.kind === "thinking") {
       const w = turns.get(e.turnId) ?? {
         threadId: e.threadId,
         agentId: e.agentId,
         steps: [],
+        sub: [],
         thinking: "",
         timer: null,
         last: 0,
@@ -69,8 +80,12 @@ export function coalesceLive(
         w.thinking += (e as Think).text;
         if ((e as Think).asker) w.asker = (e as Think).asker as string;
       } else {
-        const { kind: _k, threadId: _t, turnId: _u, agentId: _a, result: _r, parent: _p, ...step } = e as Step;
-        w.steps.push(step);
+        const { kind: _k, threadId: _t, turnId: _u, agentId: _a, result: _r, asker, ...step } = e as Step;
+        // what a subagent is on is the asker's alone: its own frame, never mixed into the steps everyone who reads the chat gets
+        if (step.parent) {
+          w.sub.push(step);
+          if (asker) w.asker = asker;
+        } else w.steps.push(step);
       }
       const wait = every - (now() - w.last);
       if (wait <= 0) send(e.turnId, w);
