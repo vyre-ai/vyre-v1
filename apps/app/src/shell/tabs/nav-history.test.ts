@@ -165,7 +165,7 @@ test("a place's own tab is named for the screen it shows: Notes, not Chats", () 
   s = moveTab(s, "chats", "screen=chats.notes", "Notes");
   assert.equal(active(s).title, "Notes");
   s = moveTab(s, "chats", undefined);
-  assert.equal(active(s).title, "Chats");
+  assert.equal(active(s).title, "New chat", "the Chats landing is the new chat (chat-frame G7)");
 });
 
 test("selecting a tab is undone first, then the tab's own steps (no ping-pong between two tabs)", () => {
