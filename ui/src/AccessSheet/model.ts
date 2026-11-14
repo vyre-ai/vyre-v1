@@ -372,10 +372,22 @@ export function idleLine(mode: "add" | "share", type?: ShareItemType, name?: str
   return mode === "add" ? "Pick who to add. You will see what they get before you confirm." : "";
 }
 
-/** Whether the "Include earlier messages" switch shows: a person, not a guest, is picked. */
-export function showsEarlier(picks: readonly AccessPick[]): boolean {
-  return picks.some((p) => p.kind === "person");
+/**
+ * Whether the "Include earlier messages" switch shows: a person, not a guest, is picked. When the server's rule is known (rule), a person who is not the chat's owner is offered it only for someone who is not in yet:
+ * widening a member who is already in is the owner's alone, and a switch that does nothing is never shown.
+ */
+export function showsEarlier(
+  picks: readonly AccessPick[],
+  rule?: { owner: boolean; members: readonly string[] },
+): boolean {
+  const people = picks.filter((p) => p.kind === "person");
+  if (rule === undefined || rule.owner) return people.length > 0;
+  return people.some((p) => !rule.members.includes(p.id));
 }
+
+/** What the switch says: the owner gives everything earlier; anyone else gives what they can read themselves. */
+export const earlierLabel = (rule?: { owner: boolean }): string =>
+  rule === undefined || rule.owner ? "Include earlier messages" : "Include earlier messages you can read";
 
 /* ---------- the main button ---------- */
 

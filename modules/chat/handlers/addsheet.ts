@@ -25,7 +25,7 @@ import {
 import type { ChatCtx, ThreadRec } from "../projections.ts";
 import { agentMayChange, load, out } from "./g24a.ts";
 import { readFloor } from "./floor.ts";
-import { deliver, mayGovernChannel, rootOf } from "./post.ts";
+import { deliver, mayGovernChannel, rootOf, startsAlone } from "./post.ts";
 import { followHome, grantsOf, homesOf, revokeGrants, shareOwnedWithReaders, sourceOf, trashOwned } from "./owned.ts";
 import type { Granted } from "./owned.ts";
 
@@ -246,7 +246,7 @@ export async function agentCreate(
       ? [{ kind: "group" as const, id: "space" }]
       : [
           ...new Set([
-            ...(root.starter?.startsWith("usr_") ? [root.starter] : []),
+            ...(startsAlone(root) && root.starter?.startsWith("usr_") ? [root.starter] : []),
             ...membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_")),
           ]),
         ].map((id) => ({ kind: "person" as const, id }));
@@ -255,7 +255,7 @@ export async function agentCreate(
     t.id,
     agentId,
     readers,
-    (person) => person === root.starter || isMember(ctx.db, root.id, person),
+    (person) => (startsAlone(root) && person === root.starter) || isMember(ctx.db, root.id, person),
   );
   // its files folder follows this chat: closed to the Space when the chat is (owned.ts followHome), once the agent carries this chat's grants (access lets the host set a folder's audience only
   // for a chat's own agent). The folder is new and empty until then. An agent whose folder would stay open is not made

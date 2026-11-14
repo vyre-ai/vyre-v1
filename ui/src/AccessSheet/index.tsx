@@ -43,6 +43,7 @@ import {
   shareCalls,
   shareLines,
   showsEarlier,
+  earlierLabel,
   takenFromRows,
   targetNoun,
   targetOwn,
@@ -544,7 +545,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
   const idle = lines.length === 0 ? idleLine(props.mode, share?.itemType, share?.itemName) : "";
 
   const noOutside = (props.directory.outside ?? []).length === 0;
-  const showEarlier = add !== null && add.earlierMessages !== false && showsEarlier(picks);
+  const showEarlier = add !== null && add.earlierMessages !== false && showsEarlier(picks, add.earlierRule);
   const label = actionLabel(props.mode, picks, compactLabel);
 
   /* ---------- the views ---------- */
@@ -744,7 +745,13 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
           </View>
         ) : null}
         {showEarlier ? (
-          <Switch labelled label="Include earlier messages" on={earlier} onChange={setEarlier} testID="as-earlier" />
+          <Switch
+            labelled
+            label={earlierLabel(add?.earlierRule)}
+            on={earlier}
+            onChange={setEarlier}
+            testID="as-earlier"
+          />
         ) : null}
         <View style={st.footBtns}>
           {share?.records ? <ExportMore rec={share.records} /> : null}
