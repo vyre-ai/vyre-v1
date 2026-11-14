@@ -6,7 +6,7 @@ import { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Text } from "react-native";
 import { find, installDom, mount, press } from "../testing/dom.ts";
-import { MAX_TABS, Page, shownTabs } from "./index.tsx";
+import { MAX_TABS, Page, fitTabs, shownTabs } from "./index.tsx";
 
 const tabs = [
   { id: "details", label: "Details" },
@@ -35,20 +35,26 @@ test("bare draws no head: the children alone", () => {
   assert.ok(!html.includes("<h1") && !html.includes("Hidden title"));
 });
 
-test("tabs show their labels and counts, the active one is selected, and the first is active by default", () => {
+test("tabs are the one TabStrip: labels and counts, the open one selected and the only one in the tab order", () => {
   const html = renderToStaticMarkup(
     <Page title="Goal" tabs={tabs}>
       <Text>x</Text>
     </Page>,
   );
   assert.match(html, /role="tablist"/);
-  for (const t of ["Details", "Activity", "3", "Files"]) assert.ok(html.includes(t), t);
-  const tag = (id: string): string => html.match(new RegExp(`<div[^>]*data-testid="page-tab-${id}"[^>]*>`))![0];
-  assert.match(tag("details"), /aria-selected="true"/);
-  assert.match(tag("files"), /aria-selected="false"/);
+  for (const t of ["Details", "Activity 3", "Files"]) assert.ok(html.includes(t), t);
+  const tag = (id: string, on: boolean): string =>
+    html.match(new RegExp(`<div[^>]*data-testid="tab-${id}${on ? "-selected" : ""}"[^>]*>`))![0];
+  assert.match(tag("details", true), /aria-selected="true"/);
+  assert.match(tag("details", true), /tabindex="0"/);
+  assert.match(
+    tag("files", false),
+    /tabindex="-1"/,
+    "a roving tab index: the tabs that are not open are not in the tab order",
+  );
 });
 
-test("more than seven tabs is a mistake and says so", () => {
+test("more than seven tabs is a mistake and says so while developing", () => {
   const many = Array.from({ length: MAX_TABS + 1 }, (_, i) => ({ id: `t${i}`, label: `Tab ${i}` }));
   assert.throws(
     () =>
@@ -102,41 +108,6 @@ test("on a phone three tabs show, the active one always among them, and the rest
   assert.equal(shownTabs(seven, "t0", false).more.length, 0);
 });
 
-test("a tab press chooses it, and Left, Right, Home and End move between tabs", async () => {
-  const restore = installDom();
-  try {
-    const seen: string[] = [];
-    let current = "details";
-    const root = await mount(
-      createRoot,
-      <Page title="Goal" tabs={tabs} tab={current} onTab={(id) => void seen.push(id)} testID="p">
-        <Text>x</Text>
-      </Page>,
-    );
-    await press(find(root, "p-tab-activity"));
-    const key = async (k: string): Promise<void> => {
-      await act(async () => {
-        (find(root, "p-tab-details")!.props["onKeyDown"] as (e: unknown) => void)({
-          key: k,
-          persist() {},
-          stopPropagation() {},
-          preventDefault() {},
-          target: { tagName: "DIV", getAttribute: () => null },
-          currentTarget: { tagName: "DIV", getAttribute: () => null },
-          nativeEvent: {},
-        });
-      });
-    };
-    await key("ArrowRight");
-    await key("End");
-    await key("Home");
-    void current;
-    assert.deepEqual(seen, ["activity", "activity", "files", "details"]);
-  } finally {
-    restore();
-  }
-});
-
 test("the status line sits under the head and a failed child still has its head", () => {
   const html = renderToStaticMarkup(
     <Page title="Settings" status={{ tone: "warn", text: "Offline, showing your saved copy" }}>
@@ -146,4 +117,55 @@ test("the status line sits under the head and a failed child still has its head"
   assert.ok(html.indexOf("Settings") < html.indexOf("Offline, showing your saved copy"));
   assert.ok(html.indexOf("Offline, showing your saved copy") < html.indexOf("Could not load settings"));
   assert.ok(!html.includes("Loading"), "a Page never draws Loading");
+});
+
+// 14 Nov 2026 review: throwing in production gave a person "Couldn't draw this page" with a Retry that threw again. In the product the mistake is logged once and the page still draws.
+test("in the product eight tabs show seven and put the rest under More, and a side pane puts Details first; nothing throws", () => {
+  const g = globalThis as { process?: { env?: { NODE_ENV?: string } } };
+  const was = g.process!.env!.NODE_ENV;
+  const logged: string[] = [];
+  const error = console.error;
+  console.error = (m: string) => void logged.push(m);
+  g.process!.env!.NODE_ENV = "production";
+  try {
+    const many = Array.from({ length: 8 }, (_, i) => ({ id: `t${i}`, label: `Tab ${i}` }));
+    const r = fitTabs(many, "page", "Data");
+    assert.equal(r.shown.length, 7);
+    assert.deepEqual(
+      r.overflow.map((t) => t.id),
+      ["t7"],
+    );
+    assert.doesNotThrow(() =>
+      renderToStaticMarkup(
+        <Page title="Data" tabs={many}>
+          <Text>x</Text>
+        </Page>,
+      ),
+    );
+    const side = fitTabs(
+      [
+        { id: "activity", label: "Activity" },
+        { id: "details", label: "Details" },
+      ],
+      "side",
+      "Goal",
+    );
+    assert.equal(side.shown[0]?.id, "details");
+    assert.ok(logged.length >= 2, "reported to the log");
+    const before = logged.length;
+    fitTabs(many, "page", "Data");
+    assert.equal(logged.length, before, "each mistake is logged once");
+  } finally {
+    g.process!.env!.NODE_ENV = was;
+    console.error = error;
+  }
+});
+
+test("the tabs past the seventh go under More", () => {
+  const seven = Array.from({ length: 7 }, (_, i) => ({ id: `t${i}`, label: `Tab ${i}` }));
+  const over = [{ id: "x", label: "X" }];
+  assert.deepEqual(
+    shownTabs(seven, "t0", false, over).more.map((t) => t.id),
+    ["x"],
+  );
 });
