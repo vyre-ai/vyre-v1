@@ -492,6 +492,10 @@ export function createClient(transport: Transport) {
       },
       unpin: call("chat.unpin", 1),
     },
+    chats: {
+      presence: call("chats.presence", 1),
+      sidebar: call("chats.sidebar", 1),
+    },
     ci: {
       cost: {
         month: call("ci.cost.month", 1),
@@ -935,9 +939,11 @@ export function createClient(transport: Transport) {
         set: call("engine.subscription_share.set", 1),
       },
       switch: call("engine.switch", 1),
+      thread_states: call("engine.thread_states", 1),
       time_convert: call("engine.time_convert", 1),
       turn: {
         append: call("engine.turn.append", 1),
+        asked_by: call("engine.turn.asked_by", 1),
         enqueue: call("engine.turn.enqueue", 1),
         fallback: call("engine.turn.fallback", 1),
         finish: call("engine.turn.finish", 1),
@@ -2098,6 +2104,7 @@ export function createClient(transport: Transport) {
         set: call("notifications.rules.set", 1),
       },
       send: call("notifications.send", 1),
+      unseen_by_thread: call("notifications.unseen_by_thread", 1),
     },
     plugins: {
       agent_template: {
@@ -2639,6 +2646,25 @@ export function createClient(transport: Transport) {
       list: call("stars.list", 1),
       toggle: call("stars.toggle", 1),
     },
+    state: {
+      arrive: call("state.arrive", 1),
+      counts: call("state.counts", 1),
+      forget: call("state.forget", 1),
+      gain: call("state.gain", 1),
+      get: call("state.get", 1),
+      layout: {
+        get: call("state.layout.get", 1),
+        set: call("state.layout.set", 1),
+      },
+      list: call("state.list", 1),
+      lose: call("state.lose", 1),
+      merge: call("state.merge", 1),
+      read: call("state.read", 1),
+      read_scope: call("state.read_scope", 1),
+      retract: call("state.retract", 1),
+      set: call("state.set", 1),
+      verify: call("state.verify", 1),
+    },
     steps: {
       support: call("steps.support", 1),
       test: call("steps.test", 1),
@@ -2864,6 +2890,7 @@ export function createClient(transport: Transport) {
       attach: call("terminal.attach", 1),
       close: call("terminal.close", 1),
       get: call("terminal.get", 1),
+      give_back: call("terminal.give_back", 1),
       health: call("terminal.health", 1),
       input: call("terminal.input", 1),
       interrupt: call("terminal.interrupt", 1),
@@ -2881,6 +2908,7 @@ export function createClient(transport: Transport) {
       },
       run: call("terminal.run", 1),
       status: call("terminal.status", 1),
+      take_over: call("terminal.take_over", 1),
       workspace: call("terminal.workspace", 1),
     },
     threads: {
@@ -2909,6 +2937,7 @@ export function createClient(transport: Transport) {
         remove: call("threads.members.remove", 1),
       },
       move: call("threads.move", 1),
+      open_state: call("threads.open_state", 1),
       outside_agent: {
         add: call("threads.outside_agent.add", 1),
         remove: call("threads.outside_agent.remove", 1),

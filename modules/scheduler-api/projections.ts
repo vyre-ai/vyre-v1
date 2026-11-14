@@ -515,6 +515,14 @@ export function closeFire(
     ).changes === 1
   );
 }
+/** A wake was cancelled: its fires that were made but never started (due, or claimed with no Run reported) end as dropped. A fire already running or waiting is left to its Run and the sweep. */
+export function dropOpenFires(db: Db, scheduleId: string, now: number): void {
+  db.run(
+    "UPDATE scheduler_api_fires SET state = 'dropped', skip_reason = 'The schedule was cancelled', ended_at = ? WHERE schedule_id = ? AND state IN ('due', 'claimed')",
+    now,
+    scheduleId,
+  );
+}
 /** A note on a fire that is still open (the last reason its target did not run): kept for the words when it finally fails. */
 export function noteFire(db: Db, scheduleId: string, dueKey: string, note: string): void {
   db.run(

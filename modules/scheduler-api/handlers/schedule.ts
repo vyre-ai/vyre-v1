@@ -17,6 +17,7 @@ import {
   idemFind,
   claimFire,
   closeFire,
+  dropOpenFires,
   noteFire,
   createFire,
   LEASE_MS,
@@ -150,7 +151,8 @@ export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
     kind,
     scope: (input.scope as Schedule["scope"] | undefined) ?? "private",
     overlap: (input.overlap as Schedule["overlap"] | undefined) ?? "skip",
-    maxAttempts: (input.maxAttempts as number | undefined) ?? 1,
+    // a routine's fire is retried (its key is the Run's key, so a retry never makes a second Run): three tries; a plain call keeps one
+    maxAttempts: (input.maxAttempts as number | undefined) ?? (kind === "call" ? 1 : 3),
   };
   // the Wake columns that are only there when given
   if (typeof input.person === "string") s.person = input.person;
@@ -193,6 +195,7 @@ export async function cancel(ctx: SchedCtx, input: In): Promise<unknown> {
   s.canceledAt = ctx.now();
   delete s.nextAt;
   saveSchedule(ctx.db, s);
+  dropOpenFires(ctx.db, s.id, ctx.now()); // a fire nobody started will never start: closed, so the wake is not left with an open fire and retention can prune it
   emitSched(ctx, "schedule.canceled", s.id, { owner: s.owner, by: ctx.principal.id });
   return { canceled: true };
 }
@@ -505,7 +508,12 @@ export async function sweepFires(ctx: SchedCtx): Promise<{ closed: number }> {
     const slice = openRunFires(ctx.db, after);
     if (slice.length === 0) break;
     after = slice[slice.length - 1]!.rowid;
-    const ids = [...new Set(slice.flatMap((f) => (f.runId !== undefined ? [f.runId] : [])))];
+    // a Run id that is not shaped like one cannot be asked (it would fail the whole slice) and cannot be a Run: its fire closes alone
+    const shaped = (id: string): boolean => /^run_[a-z0-9]+$/.test(id);
+    for (const f of slice)
+      if (f.runId !== undefined && !shaped(f.runId) && closeFire(ctx.db, f, "failed", "Its Run id is not a Run", now))
+        closed += 1;
+    const ids = [...new Set(slice.flatMap((f) => (f.runId !== undefined && shaped(f.runId) ? [f.runId] : [])))];
     let states: Map<string, string> | undefined;
     if (ids.length > 0) {
       try {
@@ -531,6 +539,7 @@ export async function sweepFires(ctx: SchedCtx): Promise<{ closed: number }> {
     for (const f of slice) {
       let status: string | undefined;
       if (f.runId !== undefined) {
+        if (!shaped(f.runId)) continue; // closed above
         if (states === undefined) continue;
         status = states.get(f.runId); // the runs module says "gone" for a Run that is not there; an id it did not answer closes nothing
         if (status === undefined) {

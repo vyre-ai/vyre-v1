@@ -1188,3 +1188,66 @@ test("a routine has one wake: a second for the same routine is refused, whoever 
   await h.call("scheduler.cancel", { scheduleId: first.scheduleId }, host);
   assert.ok((await h.call("scheduler.schedule", wake({ ...own, idempotencyKey: "k3" }), host)).scheduleId);
 });
+
+// ---- the sixth look ----
+
+test("one malformed Run id on a fire does not stop the rest of its slice from closing: it is closed alone as not a Run", async () => {
+  const good = `run_${"1".repeat(32)}`;
+  const asked: string[][] = [];
+  const h = harness({
+    now: Date.UTC(2026, 0, 5, 9, 1),
+    calls: {
+      "runs.states": (i) => {
+        asked.push(i.runIds as string[]);
+        if ((i.runIds as string[]).some((x) => !/^run_[a-z0-9]+$/.test(x)))
+          throw Object.assign(new Error("invalid"), { error: { code: "validation.bad_input" } });
+        return { states: (i.runIds as string[]).map((runId) => ({ runId, status: "succeeded" })) };
+      },
+    },
+  });
+  const fires = await openWithRun(h, [good, good.replace("1", "2")]);
+  h.db.run("UPDATE scheduler_api_fires SET run_id = ? WHERE schedule_id = ?", "RUN bad id!", fires[1]!.scheduleId); // the report door would refuse it: a row written some other way
+  const out = await h.consumer(host, async (ctx) => (await import("../impl.ts")).sweepFires(ctx));
+  assert.equal(out.closed, 2);
+  assert.equal(state(h, fires[0]!)["state"], "done");
+  assert.equal(state(h, fires[1]!)["state"], "failed");
+  assert.ok(
+    asked.every((ids) => ids.every((x) => /^run_[a-z0-9]+$/.test(x))),
+    "the malformed id never reached the runs module",
+  );
+});
+
+test("cancelling a wake closes its fires that nobody started, and they are pruned like any finished fire", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  const f = await dueFire(h);
+  const open = await h.call("scheduler.schedule", wake({ owner: { kind: "agent_routine", id: "rtn_k" } }), host);
+  h.setNow(Date.UTC(2026, 0, 5, 9, 25));
+  await h.consumer(host, async (ctx) => tickWakes(ctx));
+  await h.call("scheduler.cancel", { scheduleId: f.scheduleId }, host);
+  await h.call("scheduler.cancel", { scheduleId: open.scheduleId }, host);
+  const left = (id: string) =>
+    h.db
+      .all("SELECT state FROM scheduler_api_fires WHERE schedule_id = ?", id)
+      .map((r) => (r as { state: string }).state);
+  assert.ok(left(f.scheduleId).length >= 1 && left(f.scheduleId).every((s) => s === "dropped"));
+  assert.ok(left(open.scheduleId).every((s) => s === "dropped"));
+  assert.equal(openFire(h.db, f.scheduleId), false);
+  h.setNow(Date.UTC(2027, 11, 1));
+  await h.consumer(host, async (ctx) => prune(ctx));
+  assert.equal(left(f.scheduleId).length, 0, "pruned");
+});
+
+test("a wake of another kind defaults to three tries, a plain call to one; an explicit number wins", async () => {
+  const h = harness();
+  const tries = async (over: Record<string, unknown>, who = host) => {
+    const made = await h.call("scheduler.schedule", over, who);
+    return (
+      h.db.all("SELECT max_attempts FROM scheduler_api_schedules WHERE id = ?", made.scheduleId)[0] as {
+        max_attempts: number;
+      }
+    ).max_attempts;
+  };
+  assert.equal(await tries(wake({ owner: { kind: "agent_routine", id: "rtn_d1" } })), 3);
+  assert.equal(await tries(wake({ owner: { kind: "agent_routine", id: "rtn_d2" }, maxAttempts: 5 })), 5);
+  assert.equal(await tries(newSchedule()), 1);
+});
