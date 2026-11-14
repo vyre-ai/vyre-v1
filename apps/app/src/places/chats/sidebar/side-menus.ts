@@ -288,6 +288,31 @@ export function newMenu(d: NewDo, keyOf: KeyOf = defaultKey): MenuEntry[] {
   ]);
 }
 
+/** A section head's "+" menu: only what the section makes or adds (design 2.5, the section "+" row), no Fold and no Mark all as read. An item whose action is not built is not drawn, so a section with nothing to add has no "+". Chats: New chat. Channels: New channel, Browse channels. Team: Invite someone (a Team Space), New agent. */
+export function plusMenu(section: SectionId, d: HeadDo, keyOf: KeyOf = defaultKey): MenuEntry[] {
+  const m = (label: string, icon: string, id: string, f?: () => void): MenuItem | null =>
+    it(label, f, { icon, hint: keyOf(id) });
+  switch (section) {
+    case "chats":
+      return tidy([m("New chat", NEW_ICON.chat, "chat.new", d.newChat)]);
+    case "channels":
+      return tidy([
+        m("New channel", NEW_ICON.channel, "channel.new", d.newChannel),
+        it("Browse channels", d.browseChannels),
+      ]);
+    case "team":
+      return tidy([it("Invite someone\u2026", d.invite), it("New agent\u2026", d.newAgent)]);
+    default:
+      return [];
+  }
+}
+/** What the "+" of a section head says it does (its tooltip and its label): the Team head reads Agents in a Personal Space, where the plus makes an agent. */
+export function plusWords(section: SectionId, label: string): string {
+  if (section === "chats") return "New in Chats";
+  if (section === "channels") return "New in Channels";
+  return label === "Agents" ? "New agent" : "Add to Team";
+}
+
 export interface FilterDo {
   pick: (f: FilterId) => void;
   nextUnread?: () => void;
