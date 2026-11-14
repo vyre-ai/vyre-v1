@@ -2,7 +2,7 @@
 // the few animations need. Colours are skin tokens, so light and dark (and every skin) repaint with no re-render.
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { createElement, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { clipTop, popOpensBelow } from "./pop-room.ts";
+import { clipBox, popPlacement } from "./pop-room.ts";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
@@ -259,19 +259,36 @@ export function Pop({
   nodeRef?: (n: unknown) => void;
 }): ReactElement {
   ensureComposerCss();
-  // every popover of the composer opens upward; with no room above (a composer high in a short pane) it opens below, so its first rows are never cut off by the pane (F32)
+  // every popover of the composer opens upward; with no room above (a composer high in a short pane) it opens below, or on the larger side with a height limit, so its first rows are never cut off (F32)
   const mine = useRef<unknown>(null);
-  const [below, setBelow] = useState(false);
+  const [place, setPlace] = useState<{ side: "above" | "below"; maxHeight?: number } | null>(null);
   useLayoutEffect(() => {
-    const n = mine.current as { getBoundingClientRect?: () => { top: number } } | null;
-    if (!n?.getBoundingClientRect || below) return;
-    if (popOpensBelow({ popTop: n.getBoundingClientRect().top, paneTop: clipTop(n) })) setBelow(true);
+    const n = mine.current as {
+      offsetHeight?: number;
+      parentElement?: { getBoundingClientRect(): { top: number; bottom: number } };
+    } | null;
+    const anchor = n?.parentElement?.getBoundingClientRect();
+    if (!n || !anchor || n.offsetHeight === undefined) return;
+    const pane = clipBox(n);
+    const next = popPlacement({
+      height: n.offsetHeight,
+      anchorTop: anchor.top,
+      anchorBottom: anchor.bottom,
+      paneTop: pane.top,
+      paneBottom: pane.bottom,
+    });
+    setPlace((cur) => (cur && cur.side === next.side && cur.maxHeight === next.maxHeight ? cur : next));
   });
+  const below = place?.side === "below";
+  const limited =
+    place?.maxHeight !== undefined
+      ? ({ maxHeight: place.maxHeight, overflow: "scroll" } as unknown as ViewStyle)
+      : null;
   return (
     <View
       testID={testID}
       accessibilityLabel={label}
-      style={[s.pop, POP_SHADOW, style, below ? FLIPPED : null]}
+      style={[s.pop, POP_SHADOW, style, below ? FLIPPED : null, limited]}
       ref={
         ((n: unknown) => {
           mine.current = n;
