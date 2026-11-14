@@ -55,13 +55,13 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
     void k.w.owner.call("terminal.run", {
       terminalId: own?.terminalId,
       command: "echo running tests; sleep 25",
+        idempotencyKey: "pic-run",
       timeoutSec: 60,
     });
     await page
       .getByTestId("row-session-agent")
       .getByText("Running")
-      .waitFor({ timeout: 15_000 })
-      .catch(() => undefined); // a picture, not a check: the word is proved by work-sections.test.tsx
+      .waitFor({ timeout: 15_000 });
     await shoot(page, DIR, "a2-pane-agent-terminal-and-yours");
     // the terminal full screen: watching, a real prompt, then holding with a command and its answer
     await page.getByTestId("row-session-build").click();

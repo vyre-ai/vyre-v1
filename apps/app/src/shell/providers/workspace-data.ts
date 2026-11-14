@@ -92,6 +92,12 @@ export function workspaceData(d: {
   const names = new Map<string, string>();
   const ensuring = new Map<string, Promise<string>>();
   const lastSeen = new Map<string, Map<string, string>>();
+  // the state each terminal last said in terminal.status (the host's own word): the list is patched by events and an exit or a command's start is none, so a row shows the newer of the two
+  const lastStates = new Map<string, Map<string, TerminalRowLike["state"]>>();
+  const withStates = (agentId: string, rows: readonly TerminalRowLike[]): TerminalRowLike[] => {
+    const m = lastStates.get(agentId);
+    return rows.map((r) => (m?.has(r.terminalId) ? { ...r, state: m.get(r.terminalId) as TerminalRowLike["state"] } : r));
+  };
   const nameOfProject = async (id: string): Promise<string | null> => {
     const known = names.get(id);
     if (known !== undefined) return known;
@@ -146,21 +152,24 @@ export function workspaceData(d: {
           );
           if (live && mine === seq) {
             shown = true;
-            on(workspaceView(agentId, read, rows, projects, lastSeen.get(agentId)));
+            on(workspaceView(agentId, read, withStates(agentId, rows), projects, lastSeen.get(agentId)));
           }
           if (mineRows.length > 0 && mineRows.length <= 12 && read.state === "running") {
             try {
               const st = (await d.call("terminal.status", { terminalIds: mineRows.map((r) => r.terminalId) })) as {
-                rows?: Array<{ terminalId: string; lastCommand?: string }>;
+                rows?: Array<{ terminalId: string; state?: TerminalRowLike["state"]; lastCommand?: string }>;
               };
               const m = new Map<string, string>();
               for (const x of st.rows ?? [])
                 if (x.lastCommand && x.lastCommand.trim() !== "")
                   m.set(x.terminalId, x.lastCommand.trim().slice(0, 160));
-              const before = JSON.stringify([...(lastSeen.get(agentId) ?? [])]);
+              const ss = new Map<string, TerminalRowLike["state"]>();
+              for (const x of st.rows ?? []) if (x.state) ss.set(x.terminalId, x.state);
+              const before = JSON.stringify([[...(lastSeen.get(agentId) ?? [])], [...(lastStates.get(agentId) ?? [])]]);
               lastSeen.set(agentId, m);
-              if (live && mine === seq && JSON.stringify([...m]) !== before)
-                on(workspaceView(agentId, read, rows, projects, m));
+              lastStates.set(agentId, ss);
+              if (live && mine === seq && JSON.stringify([[...m], [...ss]]) !== before)
+                on(workspaceView(agentId, read, withStates(agentId, rows), projects, m));
             } catch {
               /* the rows keep what they had */
             }

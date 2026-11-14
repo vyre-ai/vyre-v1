@@ -266,3 +266,18 @@ test("the last line of each terminal comes from terminal.status after the first 
   assert.ok(w.calls.some((c) => c.cap === "terminal.status"));
   off();
 });
+
+test("a row shows the state terminal.status last said: a terminal the list still calls idle is Running, and one that ended drops out of the pane", async () => {
+  const w = wire([row({ terminalId: "t1", name: "main" }), row({ terminalId: "t2", name: "build" })], {
+    status: [
+      { terminalId: "t1", state: "running" },
+      { terminalId: "t2", state: "exited" },
+    ] as never,
+  });
+  const seen: Array<Array<[string, string]>> = [];
+  const off = w.data.watch("agt_dex", (v) => seen.push(v.sessions.map((s) => [s.name, s.state ?? ""])));
+  await flush();
+  await flush();
+  off();
+  assert.deepEqual(seen.at(-1), [["main", "running"]]);
+});

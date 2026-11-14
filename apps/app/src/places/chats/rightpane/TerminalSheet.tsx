@@ -188,7 +188,25 @@ export function TerminalSheet({
   const seen = useRef<Record<string, WorkspaceSession>>({});
   if (current0) seen.current[sel] = current0;
   const current = current0 ?? seen.current[sel];
-  const ended = current0 === undefined;
+  // the list learns an exit late (it is patched by events, and an exit is none): the open sheet asks the terminal's own state and treats "exited" or "not found" as ended
+  const [goneSel, setGoneSel] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    const ask = async (): Promise<void> => {
+      try {
+        const r = (await data.call("terminal.status", { terminalIds: [sel] })) as { rows?: Array<{ state?: string }> };
+        if (live && (r.rows?.length === 0 || r.rows?.[0]?.state === "exited")) setGoneSel(sel);
+      } catch (e) {
+        if (live && String((e as { code?: unknown } | null)?.code).endsWith("not_found")) setGoneSel(sel);
+      }
+    };
+    const t = setInterval(() => void ask(), 1500);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, [data, sel]);
+  const ended = current0 === undefined || goneSel === sel;
   const groups = groupSessions(sessions, agentName, { me, nameOf });
   const w = current ? sessionWords(current, asleep, { me, nameOf }) : { word: "", dot: "idle" as const };
   const owner =
@@ -316,7 +334,7 @@ export function TerminalSheet({
                 key={sel}
                 call={data.call}
                 terminalId={sel}
-                keys={mine}
+                keys={mine && !ended}
                 taking={takingRef}
                 onHidden={(h) => {
                   setHiddenPrompt(h);

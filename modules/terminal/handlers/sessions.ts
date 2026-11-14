@@ -672,6 +672,8 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
             exitCode,
             x.terminalId,
           );
+        // a terminal that ended (the person typed exit) holds nobody: the keyboard is released with it
+        if (h?.state === "exited" && x.heldBy !== undefined) dropHold(ctx.db, x.terminalId);
         const last = h?.lastLine === undefined ? undefined : clean(scopeOf(x), h.lastLine);
         const cmd = commandsOf(ctx.db, x.terminalId, 1)[0]?.command;
         const lastCommand = cmd === undefined ? undefined : clean(scopeOf(x), cmd).trim().slice(0, 200);

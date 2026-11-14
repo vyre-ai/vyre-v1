@@ -492,3 +492,23 @@ test("after the terminal has ended its screen is not drawn again: a capture of i
   await call(hn, "terminal.close", { terminalId: id });
   assert.equal(await rejects(() => h["terminal.capture"]!(hn.ctx, { terminalId: id })), "validation.not_found");
 });
+
+test("a terminal the person ended with exit reads as exited in status and gives the keyboard back; its last screen is still readable until it is closed", async () => {
+  reset();
+  const hn = harness();
+  const base = fakeHost({}).host;
+  let gone = false;
+  bindHost({
+    ...base,
+    async status(ids: string[]) {
+      return ids.map((terminalId) => ({ terminalId, state: gone ? ("exited" as const) : ("idle" as const), exitCode: null }));
+    },
+  });
+  const id = await open(hn);
+  await call(hn, "terminal.take_over", { terminalId: id });
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_dana");
+  gone = true;
+  const st = await call(hn, "terminal.status", { terminalIds: [id] });
+  assert.equal(st.rows[0].state, "exited");
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined, "an ended terminal holds nobody");
+});
