@@ -64,7 +64,12 @@ export function foldEvent(snap: AccessSnapshot, e: FoldableEvent): void {
       return;
     case "grant.revoked": {
       const grantId = body<{ grantId?: unknown }>(e).grantId;
-      if (typeof grantId === "string") snap.revokeGrant(grantId);
+      // the maker's reach taken away: the resource is no longer stamped as made by that agent
+      if (typeof grantId === "string" && grantId.startsWith("gnt_made")) {
+        const named = (body<{ resource?: { id?: unknown } }>(e).resource ?? {}).id;
+        const r = typeof named === "string" ? snap.resource(named) : undefined;
+        if (r && r.made_by !== undefined) snap.putResource({ ...r, made_by: undefined, made_for: undefined });
+      } else if (typeof grantId === "string") snap.revokeGrant(grantId);
       return;
     }
     default:

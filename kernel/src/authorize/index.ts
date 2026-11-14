@@ -120,7 +120,7 @@ const PRIVATE_ROOT_CAPS: ReadonlySet<string> = new Set(["calendar.create_event"]
 /** Removing what it made takes the person's own permission for removing, not the agent role's (a member's agent has none of its own); the Gate still holds the removal for a yes. */
 const MADE_BY_REMOVE: ReadonlySet<string> = new Set(["records.delete", "files.delete"]);
 /** What an agent never holds as its person's own through having made it: Vault items and folders (their own rules, never the value), and the identities it would speak as. */
-const MADE_FOR_PERSON_NOT: ReadonlySet<string> = new Set([
+export const MADE_FOR_PERSON_NOT: ReadonlySet<string> = new Set([
   "vault_item",
   "vault_folder",
   "mailbox",

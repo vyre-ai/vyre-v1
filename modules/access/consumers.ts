@@ -15,6 +15,7 @@ import {
   asKeptWriter,
   EVERYONE,
   changed,
+  clearMadeBy,
   kernelResource,
   labelOf,
   loadStore,
@@ -266,6 +267,8 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
     }
     case "grant.revoked": {
       const id = str(p["grantId"]);
+      // the maker's reach taken away (access.unshare on the row "made this for you"): the thing is no longer stamped as made by that agent; idempotent
+      if (id?.startsWith("gnt_made")) return clearMadeBy(store, str(rec(rec(p)["resource"])["id"]) ?? "");
       if (!id || !store.grants.delete(id)) return false;
       return true;
     }

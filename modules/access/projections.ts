@@ -1313,6 +1313,17 @@ export function agentLevel(resourceType: string, level: Level): Level {
   return resourceType === "agent" && level === "view" ? "use" : level;
 }
 
+/** Clear the made-by stamp of a resource: the agent has only what its role and the person's grants give it from now on. Idempotent. */
+export function clearMadeBy(store: AccessStore, id: string): boolean {
+  const res = store.resources.get(id);
+  if (!res?.row || res.row["madeBy"] === undefined) return false;
+  const { madeBy: _b, madeFor: _f, ...rest } = res.row;
+  void _b;
+  void _f;
+  store.resources.set(id, { ...res, row: rest });
+  return true;
+}
+
 export function grantView(g: GrantRec): GrantRec {
   const conditions: Cond = {};
   if (g.conditions.rowFilter !== undefined) conditions.rowFilter = g.conditions.rowFilter;

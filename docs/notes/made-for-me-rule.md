@@ -15,6 +15,12 @@ Owner rule: what an agent makes, adds, asks for or connects for a person belongs
 - **Destructive acts:** remove, archive and delete follow the Gate's existing `delete` hold for an agent (files, records, sites, forms, automations already; channels.archive and projects.archive now too, for agent actors only). Never `no_grant`, never silent.
 - **Outward acts:** a calendar event is held only when it invites someone (`len(input.attendees) > 0`). The old condition `input.attendees != null` could not be read by the expression language, so every agent event was held.
 
+## The person's control of the maker's reach
+- `access.shares_of` lists the reach as a row of its own: the agent, level Edit, `source: "made_by"`, id `gnt_made<hash of the resource id>`, and writes no grant. If the agent also has an explicit share on the same thing, only the explicit row is listed (one row, not two). Kinds the kernel never gives this reach to (Vault items and folders, mailboxes, numbers, domains, agents, the Space) are not listed.
+- `access.unshare` on that row (by its id, or by naming the agent on the thing), or on the agent's explicit share of a thing it made, clears `made_by` at once and emits `grant.revoked` (the same event a replay or another computer folds, idempotently). The agent is then refused like any other agent and does not come back unless the person shares it again. Whoever may remove an ordinary share (Manage on the thing) may remove it. `modules/access/tests/made-by.sharing.test.ts`, `test/reach.made-by.sharing.live.test.ts`.
+- The sharing sheet shows the row as an ordinary agent row with its level and a remove button; the label "made this for you" is sheet copy still to write (it can read `source: "made_by"`).
+- `AUTHORING_CAPS` names `connections.create`, `vault.item.put` and `vault.folders.create`: the stamp is harmless there (a connection's own hold stays, and the Vault kinds are excluded from the path), kept so the stamp is right if that changes.
+
 ## Existing rows
 No migration. `made_by` lives in the access resource row (`row_json`), a column that already exists, and rows without it simply have today's level. Nothing is backfilled by guessing who made an old thing.
 
