@@ -112,6 +112,11 @@ export interface ResourceRow {
   home?: string | undefined;
   /** Anyone who can view this resource may also export it (the Who can export setting on a record type). */
   export_viewers?: boolean | undefined;
+  /**
+   * The agent that made this resource for the person who owns it (made for me, usable by the maker: owner rule, 14 Nov 2026). Set once, by the host's registrar, when an agent acting for a person
+   * brings the thing into being. That same agent, acting for that same person, holds the person's own level on it (authorize: madeForPerson), and nobody else gains anything from it.
+   */
+  made_by?: string | undefined;
 }
 
 export type Policy =

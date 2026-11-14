@@ -211,6 +211,7 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
               label: cur.label,
               owner_id: cur.owner_id,
               holds: cur.holds,
+              ...(cur.made_by !== undefined ? { made_by: cur.made_by } : {}),
             });
           }
           continue;
@@ -258,17 +259,22 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
             ? (deps.agentHome?.(a.principal.id) ?? null)
             : null;
         const agentsOwn = home !== null && insideOf(deps, container, home);
+        const owner = agentsOwn
+          ? a.principal!.id
+          : typeof named === "string" && /^usr_[a-z0-9]+$/.test(named)
+            ? named
+            : a.owner;
         out.push({
           id,
           type: s.type,
           parent_id: s.type === "space" || privateRoot ? null : container,
           label: 0,
-          owner_id: agentsOwn
-            ? a.principal!.id
-            : typeof named === "string" && /^usr_[a-z0-9]+$/.test(named)
-              ? named
-              : a.owner,
+          owner_id: owner,
           holds: 0,
+          // made for a person by an agent acting for them: the same agent keeps the person's own level on it (kernel authorize, madeForPerson)
+          ...(a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(owner) && owner === a.owner
+            ? { made_by: a.principal.id }
+            : {}),
         });
       }
       return out;

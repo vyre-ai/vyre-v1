@@ -696,3 +696,24 @@ test("registrar: a new skill is registered from its birth event, owned by the pe
   });
   assert.equal(agents[0]?.owner_id, "usr_dana", "an agent's skill is its owner's");
 });
+
+test("registrar: what an agent makes for the person it acts for is stamped with the agent (made for me, usable by the maker); a person's own, an agent's own and a re-registration are not", () => {
+  const known = new Set(["spc_1", "rt_item"]);
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => known.has(id) });
+  const made = (principal: { kind: string; id: string }, owner: string) =>
+    r.register({
+      cap: { name: "records.create", resource: { type: "record", create: true, parent: "/type" } },
+      input: { type: "rt_item" },
+      space: "spc_1",
+      owner,
+      principal,
+      events: [ev("record.created", { recordId: REC, type: "rt_item" })],
+    });
+  assert.equal(
+    made({ kind: "agent", id: "agt_helper" }, "usr_dana")[0]?.made_by,
+    "agt_helper",
+    "an agent for a person",
+  );
+  assert.equal(made({ kind: "person", id: "usr_dana" }, "usr_dana")[0]?.made_by, undefined, "a person's own");
+  assert.equal(made({ kind: "agent", id: "agt_helper" }, "agt_helper")[0]?.made_by, undefined, "an agent for no one");
+});
