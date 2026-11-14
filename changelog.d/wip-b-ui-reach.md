@@ -1,0 +1,2 @@
+- The Attach menu (Upload files, From Files) in a chat is no longer cut off at the top of the pane when the composer sits high: it opens below the composer when there is no room above.
+- The checker for buttons a pointer cannot reach now waits for the launch frame to go, and presses Escape only for a layer its own click opened.

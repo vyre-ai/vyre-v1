@@ -58,21 +58,21 @@ if ("currency" in o57) lf(o57["currency"], p + "/currency", e, L50);
 
 function d_s_22aca4e091(v: unknown, p: string, e: string[]): void {
 {
-const x172 = v;
-const g172 = typeOf(x172);
-const b172: string[] = []; lf(x172, p, b172, L0); if (b172.length) e.push(...b172);
-if (g172 === "object") {
-if (g172 === 'object') { const o172 = x172 as Record<string, unknown>;
-if (!("id" in o172)) e.push(p + "/id" + ': required');
-if (!("status" in o172)) e.push(p + "/status" + ': required');
-if (!("customerId" in o172)) e.push(p + "/customerId" + ': required');
-if (!("cancelAtPeriodEnd" in o172)) e.push(p + "/cancelAtPeriodEnd" + ': required');
-if ("id" in o172) lf(o172["id"], p + "/id", e, L1);
-if ("status" in o172) lf(o172["status"], p + "/status", e, L1);
-if ("customerId" in o172) lf(o172["customerId"], p + "/customerId", e, L1);
-if ("priceId" in o172) lf(o172["priceId"], p + "/priceId", e, L1);
-if ("currentPeriodEnd" in o172) lf(o172["currentPeriodEnd"], p + "/currentPeriodEnd", e, L17);
-if ("cancelAtPeriodEnd" in o172) lf(o172["cancelAtPeriodEnd"], p + "/cancelAtPeriodEnd", e, L3);
+const x171 = v;
+const g171 = typeOf(x171);
+const b171: string[] = []; lf(x171, p, b171, L0); if (b171.length) e.push(...b171);
+if (g171 === "object") {
+if (g171 === 'object') { const o171 = x171 as Record<string, unknown>;
+if (!("id" in o171)) e.push(p + "/id" + ': required');
+if (!("status" in o171)) e.push(p + "/status" + ': required');
+if (!("customerId" in o171)) e.push(p + "/customerId" + ': required');
+if (!("cancelAtPeriodEnd" in o171)) e.push(p + "/cancelAtPeriodEnd" + ': required');
+if ("id" in o171) lf(o171["id"], p + "/id", e, L1);
+if ("status" in o171) lf(o171["status"], p + "/status", e, L1);
+if ("customerId" in o171) lf(o171["customerId"], p + "/customerId", e, L1);
+if ("priceId" in o171) lf(o171["priceId"], p + "/priceId", e, L1);
+if ("currentPeriodEnd" in o171) lf(o171["currentPeriodEnd"], p + "/currentPeriodEnd", e, L17);
+if ("cancelAtPeriodEnd" in o171) lf(o171["cancelAtPeriodEnd"], p + "/cancelAtPeriodEnd", e, L3);
 }
 }
 }
@@ -186,13 +186,13 @@ lf(o752[k], p + "/metadata" + '/' + k, e, L1);
 
 function d_s_c89719c3d9(v: unknown, p: string, e: string[]): void {
 {
-const x983 = v;
-const g983 = typeOf(x983);
-const b983: string[] = []; lf(x983, p, b983, L0); if (b983.length) e.push(...b983);
-if (g983 === "object") {
-if (g983 === 'object') { const o983 = x983 as Record<string, unknown>;
-if (!("customer" in o983)) e.push(p + "/customer" + ': required');
-if ("customer" in o983) d_s_8ec0b22028(o983["customer"], p + "/customer", e);
+const x987 = v;
+const g987 = typeOf(x987);
+const b987: string[] = []; lf(x987, p, b987, L0); if (b987.length) e.push(...b987);
+if (g987 === "object") {
+if (g987 === 'object') { const o987 = x987 as Record<string, unknown>;
+if (!("customer" in o987)) e.push(p + "/customer" + ': required');
+if ("customer" in o987) d_s_8ec0b22028(o987["customer"], p + "/customer", e);
 }
 }
 }
@@ -200,13 +200,13 @@ if ("customer" in o983) d_s_8ec0b22028(o983["customer"], p + "/customer", e);
 
 function d_s_dbc080deb1(v: unknown, p: string, e: string[]): void {
 {
-const x1082 = v;
-const g1082 = typeOf(x1082);
-const b1082: string[] = []; lf(x1082, p, b1082, L0); if (b1082.length) e.push(...b1082);
-if (g1082 === "object") {
-if (g1082 === 'object') { const o1082 = x1082 as Record<string, unknown>;
-if (!("subscription" in o1082)) e.push(p + "/subscription" + ': required');
-if ("subscription" in o1082) d_s_22aca4e091(o1082["subscription"], p + "/subscription", e);
+const x1086 = v;
+const g1086 = typeOf(x1086);
+const b1086: string[] = []; lf(x1086, p, b1086, L0); if (b1086.length) e.push(...b1086);
+if (g1086 === "object") {
+if (g1086 === 'object') { const o1086 = x1086 as Record<string, unknown>;
+if (!("subscription" in o1086)) e.push(p + "/subscription" + ': required');
+if ("subscription" in o1086) d_s_22aca4e091(o1086["subscription"], p + "/subscription", e);
 }
 }
 }

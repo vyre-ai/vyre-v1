@@ -11,7 +11,11 @@ const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith("--"));
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync((await import(path.join(REPO, "scripts/shots/expo-cmd.mjs"))).exportCmd(REPO), { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(REPO, "scripts/shots/expo-cmd.mjs"))).exportCmd(REPO), {
+    cwd: appDir,
+    stdio: "inherit",
+    env: exportEnv(),
+  });
 }
 fs.mkdirSync(out, { recursive: true });
 const real = await serve(path.join(appDir, "dist"), { spa: true });
@@ -21,7 +25,12 @@ const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const SIZES = { w1440: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
 for (const skin of ["paper", "graphite"])
   for (const [size, vp] of Object.entries(SIZES)) {
-    const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
+    const ctx = await browser.newContext({
+      viewport: vp,
+      deviceScaleFactor: 1,
+      colorScheme: skin === "graphite" ? "dark" : "light",
+      reducedMotion: "reduce",
+    });
     const page = await ctx.newPage();
     const errs = [];
     page.on("pageerror", (e) => errs.push(String(e)));

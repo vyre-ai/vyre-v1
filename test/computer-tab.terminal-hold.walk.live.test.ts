@@ -37,14 +37,17 @@ test(
       await shoot(page, DIR, "h-terminal-nudge");
       // Return takes it
       await page.evaluate(() => {
-        (window as unknown as { __scr: Element | null }).__scr = document.querySelector("[data-testid=terminal-screen]");
+        (window as unknown as { __scr: Element | null }).__scr = document.querySelector(
+          "[data-testid=terminal-screen]",
+        );
       });
       await page.keyboard.press("Enter");
       await bar.getByText("You have the keyboard").waitFor({ timeout: 10_000 });
       assert.equal(await held(), k.w.owner.id, "the server has the owner at the keyboard");
       const same = await page.evaluate(
         () =>
-          (window as unknown as { __scr: Element | null }).__scr === document.querySelector("[data-testid=terminal-screen]"),
+          (window as unknown as { __scr: Element | null }).__scr ===
+          document.querySelector("[data-testid=terminal-screen]"),
       );
       assert.equal(same, true, "taking the keyboard does not rebuild the screen (keys typed at once would be lost)");
       await shoot(page, DIR, "i-terminal-you-hold");

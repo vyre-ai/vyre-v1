@@ -14,6 +14,8 @@ export interface ConnectCardData {
   have?: { itemId: string; name: string; keptIn: string };
   keptIn?: string;
   tested?: string;
+  checks?: boolean;
+  checksWith?: string;
   connectedBy?: string;
   connectionId?: string;
   usedBy: { kind: string; id: string }[];
@@ -39,7 +41,8 @@ export function cardOf(out: unknown): ConnectCardData | null {
 
 /** The three steps of a try, in the order the server does them. A saved key is not typed, so it is not Checked here: the connection's own probe does that, and the steps are two. */
 export const STEPS = ["Checked", "Connected", "Saved"] as const;
-export const stepsFor = (useSaved: boolean): readonly string[] => (useSaved ? STEPS.slice(1) : STEPS);
+export const stepsFor = (useSaved: boolean, checks = true): readonly string[] =>
+  useSaved || !checks ? STEPS.slice(1) : STEPS;
 
 /** "Mine", or the folder the person chose; before a choice, where the card says it will be kept: Mine. */
 export function keptWords(chosen: KeptInFolder | null, card: ConnectCardData): string {

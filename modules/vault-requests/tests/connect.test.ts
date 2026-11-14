@@ -83,14 +83,13 @@ test("asking again for the same service answers with the same card; a service th
   assert.equal(BANNED.test(done.tell), false);
 });
 
-test("a service that is not set up is not found by name, and says so in words the agent can pass on", async () => {
+test("a service with no connector answers no_connector with the one next step, and draws no card", async () => {
   const w = room();
-  await assert.rejects(ask(w, "Zendesk"), (e: unknown) => {
-    const x = e as { error?: { code?: string; message?: string } };
-    assert.equal(x.error?.code, "validation.not_found");
-    assert.match(x.error?.message ?? "", /"Zendesk" is not a service set up in this Space/);
-    return true;
-  });
+  const r = await ask(w, "Zendesk");
+  assert.equal(r.status, "no_connector");
+  assert.match(r.tell, /Build one/);
+  assert.equal(BANNED.test(r.tell), false);
+  assert.equal(w.called("chat.post").length, 0);
 });
 
 test("Connect: the key is tried first, kept second, connected third, and nothing but the try ever carries it", async () => {
@@ -155,11 +154,11 @@ test("an app that cannot be reached keeps nothing either, and Retry is the same 
   assert.equal((await submit(w, requestId!)).result, "connected");
 });
 
-test("if connecting fails after the key was kept, the key is taken back out and the request stays open", async () => {
+test("if connecting fails after the key was kept, the request stays open and the key stays where the person can see it", async () => {
   const w = room({ fail: { "connections.create": "boom" } });
   const { requestId } = await ask(w);
   await assert.rejects(submit(w, requestId!));
-  assert.equal(w.called("vault.item.delete").length, 1, "the item made by this call is taken back");
+  assert.equal(w.called("vault.item.delete").length, 0, "nothing is moved to Trash behind the person's back");
   assert.equal((await card(w, requestId!)).state, "ask");
   assert.equal(
     w.events.some((e) => e.name === "vault.request_fulfilled"),
@@ -218,7 +217,7 @@ test("a person who may not connect services is sent to an admin by name; the ask
   assert.equal(mine.connectedBy, "usr_admin");
 });
 
-test("Not now folds the card, the next ask opens the same card again, and the person can reopen it themselves", async () => {
+test("Not now folds the card, the agent's next ask leaves it folded, and the person's own Connect opens the same card again", async () => {
   const w = room();
   const { requestId } = await ask(w);
   await handlers["vault.requests.decline"](person(w), { requestId } as never);
@@ -227,9 +226,6 @@ test("Not now folds the card, the next ask opens the same card again, and the pe
   assert.equal((declined.payload as Record<string, unknown>)["service"], "Fathom");
   const reopened = await handlers["vault.connect_card.reopen"](person(w), { requestId } as never);
   assert.equal(reopened.card.state, "ask");
-  await handlers["vault.requests.decline"](person(w), { requestId } as never);
-  const again = await ask(w, "Fathom", "k9");
-  assert.deepEqual([again.requestId, again.status], [requestId, "waiting_person"]);
 });
 
 test("Disconnect removes the connection, keeps the key and folds the card to Not connected", async () => {
@@ -285,4 +281,107 @@ test("the agent's words never carry the words a person is spared", async () => {
   const w2 = room({ connections: { fathom: { connectionId: "c", owner: "mine", state: "active" } } });
   said.push((await ask(w2)).tell);
   for (const t of said) assert.equal(BANNED.test(t), false, t);
+});
+
+test("the card's own acts are a person's: an agent, even one acting for the asker, is refused for submit, ask_admin, reopen and disconnect", async () => {
+  const w = room();
+  const { requestId } = await ask(w, "HubSpot");
+  const as = dex(w);
+  for (const [cap, input] of [
+    ["vault.connect_card.submit", { requestId, useSaved: true }],
+    ["vault.connect_card.ask_admin", { requestId }],
+    ["vault.connect_card.reopen", { requestId }],
+    ["vault.connect_card.disconnect", { requestId }],
+  ] as const)
+    await assert.rejects(
+      (handlers as Record<string, (c: never, i: never) => Promise<unknown>>)[cap]!(as, input as never),
+      (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.no_grant",
+      cap,
+    );
+  assert.equal(w.called("tasks.create").length, 0);
+  assert.equal(w.called("connectors.check_key").length, 0);
+});
+
+test("an agent's ask never opens a card the person folded; only the person's press does", async () => {
+  const w = room();
+  const { requestId } = await ask(w);
+  await handlers["vault.requests.decline"](person(w), { requestId } as never);
+  const again = await ask(w, "Fathom", "k9");
+  assert.deepEqual([again.status, again.requestId], ["declined", requestId]);
+  assert.match(again.tell, /press Connect/);
+  assert.equal((await card(w, requestId!)).state, "later");
+  await handlers["vault.connect_card.reopen"](person(w), { requestId } as never);
+  assert.equal((await card(w, requestId!)).state, "ask");
+});
+
+test("two people asking through one agent get two cards, and one cannot read the other's", async () => {
+  const w = room();
+  const a = await ask(w);
+  const b = await handlers["vault.connect"](
+    { ...w.as("agt_dex", "agent", "usr_other"), thread: "thr_2" } as never,
+    {
+      service: "Fathom",
+      idempotencyKey: "o1",
+    } as never,
+  );
+  assert.notEqual(a.requestId, b.requestId);
+  await assert.rejects(card(w, a.requestId!, "usr_other"));
+});
+
+test("a shared folder an agent cannot use is refused before anything is written", async () => {
+  const w = room({ unusable: ["vfd_fin"] });
+  const { requestId } = await ask(w);
+  await assert.rejects(submit(w, requestId!, undefined, "usr_asker", { folderId: "vfd_fin" }));
+  assert.equal(w.called("connectors.check_key").length, 0);
+  assert.equal(w.called("vault.item.put").length, 0);
+});
+
+test("a saved key whose connection fails its probe leaves the connection removed and the key where the person can see it", async () => {
+  const w = room({
+    saved: [{ id: "vit_old", name: "Fathom", folderId: "vfd_mine", fieldKeys: ["api_key"] }],
+    probe: "down",
+  });
+  const { requestId } = await ask(w);
+  const out = await handlers["vault.connect_card.submit"](person(w), { requestId, useSaved: true } as never);
+  assert.notEqual(out.result, "connected");
+  assert.equal(w.called("connections.delete").length, 1);
+  assert.equal(w.called("vault.item.delete").length, 0);
+  assert.equal((await card(w, requestId!)).state === "connected", false);
+});
+
+test("a typed key that fails after it was kept is never moved to Trash behind the person's back, and a retry uses a fresh key", async () => {
+  const w = room({ fail: { "connections.create": "boom" } });
+  const { requestId } = await ask(w);
+  await assert.rejects(submit(w, requestId!));
+  await assert.rejects(submit(w, requestId!));
+  assert.equal(w.called("vault.item.delete").length, 0);
+  const keys = w.called("vault.item.put").map((c) => c.input["idempotencyKey"]);
+  assert.equal(new Set(keys).size, 2, "each try has its own key");
+});
+
+test("Tested is only said when a call really ran; a connector with no check shows no Tested row and no Checked step", async () => {
+  const w = room({ noProbe: true });
+  const { requestId } = await ask(w);
+  const c0 = await card(w, requestId!);
+  assert.equal(c0.checks, false);
+  const out = await submit(w, requestId!);
+  assert.equal(out.card.tested, undefined);
+});
+
+test("a connector that is not built in says on Ask which host the key is tried against", async () => {
+  const w = room({ thirdParty: true });
+  const { requestId } = await ask(w);
+  assert.equal((await card(w, requestId!)).checksWith, "api.example.test");
+  const b = room();
+  const r = await ask(b);
+  assert.equal((await card(b, r.requestId!)).checksWith, undefined);
+});
+
+test("the typed key is in no event, log line, request row or nested call but the check and the Vault put", async () => {
+  const w = room();
+  const { requestId } = await ask(w);
+  await submit(w, requestId!);
+  const only = new Set(["connectors.check_key", "vault.item.put"]);
+  for (const c of w.calls) assert.equal(JSON.stringify(c.input).includes(KEY), only.has(c.cap), c.cap);
+  assert.equal(JSON.stringify([w.events, w.warnings, w.db.dump()]).includes(KEY), false);
 });

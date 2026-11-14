@@ -42,6 +42,10 @@ const connectCard = t.obj({
   have: t.opt(t.obj({ itemId: id.vaultItem, name: t.str(), keptIn: t.str() })),
   keptIn: t.opt(t.str()),
   tested: t.opt(t.str()),
+  /** a call exists that tries a key, so the progress line has a Checked step and a Tested row can be true */
+  checks: t.bool(),
+  /** the host a typed key is tried against, said on Ask when the connector is not built in */
+  checksWith: t.opt(t.str()),
   connectedBy: t.opt(id.user),
   connectionId: t.opt(id.connection),
   usedBy: t.arr(principalRef),
@@ -190,7 +194,7 @@ export default defineManifest({
           reason: t.opt(t.str()),
         },
         out: {
-          status: t.enm("connected", "waiting_person", "waiting_admin", "declined"),
+          status: t.enm("connected", "waiting_person", "waiting_admin", "declined", "no_connector"),
           requestId: t.opt(reqId),
           tell: t.str({ description: "What to do next, in one line" }),
         },

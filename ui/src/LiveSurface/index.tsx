@@ -116,7 +116,9 @@ function usePageVisible(override: boolean | undefined): boolean {
 
 const preloadImage = (f: Frame): Promise<void> =>
   new Promise((res, rej) => {
-    const Img = (globalThis as unknown as { Image?: new () => { onload: () => void; onerror: () => void; src: string } }).Image;
+    const Img = (
+      globalThis as unknown as { Image?: new () => { onload: () => void; onerror: () => void; src: string } }
+    ).Image;
     if (!Img) return res();
     const i = new Img();
     i.onload = () => res();

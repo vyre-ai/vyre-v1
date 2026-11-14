@@ -210,7 +210,9 @@ test("star, follow, alert and mute are separate flags; a mute leaves the badge a
   );
   assert.deepEqual(stateOf(fx).verify({}).problems, [], "so nothing is out of step");
   assert.deepEqual(
-    stateOf(fx).sweep().map((x) => ({ person: x.person, thing: x.thing })),
+    stateOf(fx)
+      .sweep()
+      .map((x) => ({ person: x.person, thing: x.thing })),
     [{ person: MAYA, thing: c }],
   );
   assert.deepEqual(badge(fx, MAYA), { scope: "box:main", things: 1, entries: 1 });
@@ -517,7 +519,8 @@ for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
       } else if (roll < 0.94) open();
       else if (roll < 0.97) st.sweep();
       else fx.clock.t += Math.floor(r() * 4000);
-      if (own !== null) assert.equal(others(p), own, `seed ${seed}, step ${step}: ${p}'s own operation moved someone else's rows`);
+      if (own !== null)
+        assert.equal(others(p), own, `seed ${seed}, step ${step}: ${p}'s own operation moved someone else's rows`);
       const found = st.verify({ deep: true, repair: false }).problems;
       assert.deepEqual(
         found,

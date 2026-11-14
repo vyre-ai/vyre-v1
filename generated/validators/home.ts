@@ -5,14 +5,14 @@ import type { Check } from './core.ts';
 
 function d_s_19ba8545d8(v: unknown, p: string, e: string[]): void {
 {
-const x111 = v;
-const g111 = typeOf(x111);
-const b111: string[] = []; lf(x111, p, b111, L4); if (b111.length) e.push(...b111);
-if (g111 === "array") {
-if (g111 === 'array') { const a111 = x111 as unknown[];
-if (a111.length > 7) e.push(p + ': too many items');
-for (let i111 = 0; i111 < a111.length; i111++) {
-d_s_fa58c6be4e(a111[i111], p + '/' + i111, e);
+const x110 = v;
+const g110 = typeOf(x110);
+const b110: string[] = []; lf(x110, p, b110, L4); if (b110.length) e.push(...b110);
+if (g110 === "array") {
+if (g110 === 'array') { const a110 = x110 as unknown[];
+if (a110.length > 7) e.push(p + ': too many items');
+for (let i110 = 0; i110 < a110.length; i110++) {
+d_s_fa58c6be4e(a110[i110], p + '/' + i110, e);
 }
 }
 }
