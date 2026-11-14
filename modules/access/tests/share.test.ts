@@ -1081,3 +1081,37 @@ test("make owner: only the owner, only to an active person; the previous owner k
   );
   assert.equal((await sharesOf(a, { resource: res })).mine, "manage");
 });
+
+test("the host writes and takes back a through-agent:<person> share of a Vault item to an agent, by source: a person who only holds Use cannot write it, and no other source is the host's", async () => {
+  const r = rig();
+  r.item("vit_k", "usr_a", "vault_item");
+  putPrincipal(r.store, { id: "agt_dex", kind: "agent", name: "Dex" });
+  r.item("vit_other", "usr_a", "vault_item");
+  const host = { ...r.ctx, principal: { kind: "service", id: "svc_host" } } as typeof r.ctx;
+  const input = (id: string, source: string): Parameters<typeof share>[1] => ({
+    resource: { type: "vault_item", id },
+    subject: { kind: "agent", id: "agt_dex" },
+    level: "use",
+    source,
+  });
+  // a person who holds only Use on the item cannot make the share themselves
+  assert.notEqual(await code(share(r.as("usr_b"), input("vit_k", "through-agent:usr_b"))), "no error");
+  // the host can, for a source that names one person
+  await share(host, input("vit_k", "through-agent:usr_b"));
+  assert.equal(
+    [...r.store.grants.values()].filter(
+      (g) => g.subject.id === "agt_dex" && g.resource.id === "vit_k" && g.source === "through-agent:usr_b",
+    ).length,
+    1,
+  );
+  // not for "anyone", and not under a project source
+  assert.notEqual(await code(share(host, input("vit_other", "through-agent:anyone"))), "no error");
+  assert.deepEqual(
+    await unshare(host, {
+      resource: { type: "vault_item", id: "vit_k" },
+      subject: { kind: "agent", id: "agt_dex" },
+      source: "through-agent:usr_b",
+    }),
+    { revoked: 1 },
+  );
+});

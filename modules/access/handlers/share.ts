@@ -848,7 +848,11 @@ function hostWritesProjectGrant(
   store: AccessStore,
   res: ResourceRec,
   source: string | undefined,
+  subject?: SubjectRef,
 ): boolean {
+  // the Assistant let to use one Vault item for one person (vault.assistant_grant.give checked that person holds Use): a Use share to an agent that names that one person, never "anyone"
+  if (isHostService(ctx.principal) && source?.startsWith("through-agent:usr_"))
+    return res.type === "vault_item" && subject?.kind === "agent";
   if (isHostService(ctx.principal) && source?.startsWith("chat:")) return hostWritesChatGrant(store, res, source);
   if (!isHostService(ctx.principal) || !source?.startsWith("project:")) return false;
   if (res.type === "project") return res.id === source.slice("project:".length);
@@ -917,7 +921,7 @@ export async function share(
   if (input.subject.kind === "group" && input.subject.id === EVERYONE)
     assertEveryone(ctx, store, res, input.level, grant);
   // the host writing a project's roles for the people it started with (projects.initial_roles, after project.created commits) is not a person delegating: the people it names were vetted when the project was made
-  if (!hostWritesProjectGrant(ctx, store, res, sameSource))
+  if (!hostWritesProjectGrant(ctx, store, res, sameSource, input.subject))
     assertDelegation(ctx, store, res, input.subject, input.level, cond, grant?.id);
   const created = !grant;
   if (grant) {
@@ -1052,6 +1056,9 @@ function mayRemove(ctx: ShareCtx, store: AccessStore, g: GrantRec): boolean {
   if (isHostService(ctx.principal) && g.source?.startsWith("project:")) return true;
   // the host taking back what a chat membership gave (grants tagged chat:<thread>) when the person or agent leaves or is taken out (host/src/daemon/daemon.ts CHAT_LEAVES)
   if (isHostService(ctx.principal) && g.source?.startsWith("chat:")) return true;
+  // and what the Assistant was let use for one person (vault.assistant_grant.revoke)
+  if (isHostService(ctx.principal) && g.source?.startsWith("through-agent:usr_") && g.resource.type === "vault_item")
+    return true;
   if (g.resource.id === "*") return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");
   const res = store.resources.get(g.resource.id);
   if (!res) return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");
