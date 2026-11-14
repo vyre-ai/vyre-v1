@@ -10,6 +10,12 @@ export const CANNOT_USE =
 export const itemOfHandle = (handle: string): string =>
   `#${handle.replace(/^#/, "").replace(/\.[A-Za-z][A-Za-z0-9_]*$/, "")}`;
 
+/** The item named as the caller wrote it (never a value): "#Fathom". */
+export const missingItemLine = (handle: string): string =>
+  `There is no Vault item ${itemOfHandle(handle)} that you can use. Check it is still in the Vault, or ask for the key.`;
+export const restrictedItemLine = (handle: string): string =>
+  `${itemOfHandle(handle)} is in a Restricted place, so it cannot be kept here. Move it to your own keys in the Vault, or to a folder that is not restricted, and try again.`;
+
 const codeOf = (e: unknown): string | undefined => {
   const x = e as { code?: unknown; error?: { code?: unknown } } | null;
   const c = x?.error?.code ?? x?.code;
@@ -29,7 +35,11 @@ export async function mustUse(
   try {
     await call("vault.use", { item: itemOfHandle(handle), purpose: "kept for the server to use" });
   } catch (e) {
-    if (o.missingOk === true && codeOf(e) === "validation.not_found") return;
+    const code = codeOf(e);
+    if (o.missingOk === true && code === "validation.not_found") return;
+    // three different refusals, three different words: the item is not there (or not open to the caller, which reads the same), it is Restricted, or it is simply not theirs to use
+    if (code === "validation.not_found" || code === "permission.not_found") refuse(missingItemLine(handle));
+    if (code === "permission.above_clearance") refuse(restrictedItemLine(handle));
     refuse(CANNOT_USE);
   }
 }

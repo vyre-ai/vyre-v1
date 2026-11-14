@@ -59,6 +59,7 @@ type Out = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;
@@ -112,6 +113,7 @@ type Out = {
       },
       "keptIn": "example",
       "mayFill": true,
+      "notice": "example",
       "requestId": "vrq_a1b2c3",
       "service": {
         "key": "hubspot",
