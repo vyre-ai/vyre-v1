@@ -428,6 +428,41 @@ export function HintView({ entry, onPress }: { entry: Entry<"hint">; onPress(): 
   );
 }
 
+/** The sections whose head wears a "+" (the design's section plus: Chats, Channels, Team). It opens the head's own menu where it was pressed, so New agent in Team (Agents in a Personal Space) is one press away without a right-click. */
+const HEAD_PLUS: readonly string[] = ["chats", "channels", "team"];
+
+function HeadPlus({
+  label,
+  section,
+  onPress,
+}: {
+  label: string;
+  section: string;
+  onPress: (x: number, y: number) => void;
+}): ReactElement {
+  return (
+    <Tooltip text={`More for ${label}`}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label} menu`}
+        testID={`head-plus-${section}`}
+        onPress={(ev) => {
+          const x = ev as unknown as {
+            currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+            stopPropagation?: () => void;
+          };
+          x.stopPropagation?.();
+          const b = x.currentTarget?.getBoundingClientRect?.();
+          onPress(b?.left ?? 0, (b?.bottom ?? 0) + 4);
+        }}
+        style={s.moreBtn as never}
+      >
+        <Glyph name="plus" size={15} />
+      </Pressable>
+    </Tooltip>
+  );
+}
+
 /** A section head: its label, a chevron, and when folded its count and the sum of its marks, so a folded Chats still says there is a mention in it. Sticky heads are the list's job. */
 export function HeadView({
   entry,
@@ -464,7 +499,12 @@ export function HeadView({
         ) : null}
       </Pressable>
       <View style={s.grow as never} />
-      <View style={s.tools as never}>{children}</View>
+      <View style={s.tools as never}>
+        {on.more && HEAD_PLUS.includes(h.section) ? (
+          <HeadPlus label={h.label} section={h.section} onPress={on.more} />
+        ) : null}
+        {children}
+      </View>
     </View>,
   );
 }

@@ -257,6 +257,27 @@ test("a folded head shows its count and the sum of its marks; an open head shows
   assert.doesNotMatch(open, /folded/);
 });
 
+test("the Team head (Agents in a Personal Space) has a visible plus that opens its menu; Goals and Pinned have none", () => {
+  const xs = [mk("chat", "agent", { key: "c:1" })];
+  const l = layoutOf(xs);
+  const pressed: number[][] = [];
+  const withMenu = { press: () => {}, more: (x: number, y: number) => void pressed.push([x, y]) };
+  for (const sec of ["chats", "channels", "team"] as const) {
+    const html = renderToStaticMarkup(
+      <HeadView entry={{ ...entryOf(l, "head", "chats"), section: sec }} state={st} on={withMenu} />,
+    );
+    assert.match(html, new RegExp(`data-testid="head-plus-${sec}"`), `${sec} head has its plus`);
+  }
+  for (const sec of ["goals", "pinned"] as const) {
+    const html = renderToStaticMarkup(
+      <HeadView entry={{ ...entryOf(l, "head", "chats"), section: sec }} state={st} on={withMenu} />,
+    );
+    assert.doesNotMatch(html, /head-plus/);
+  }
+  const bare = renderToStaticMarkup(<HeadView entry={entryOf(l, "head", "chats")} state={st} on={on} />);
+  assert.doesNotMatch(bare, /head-plus/, "no menu, no plus");
+});
+
 test('"N more" carries the marks of what it hides; "Show less" ends an open list', () => {
   const xs = Array.from({ length: 8 }, (_, n) =>
     mk("chat", "agent", {

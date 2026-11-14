@@ -1,0 +1,1 @@
+- The Chats sidebar's Chats, Channels and Team heads (Agents in a Personal Space) wear a plus that opens the head's menu, so New agent, New channel and New chat are one press away and not only behind a right-click.

@@ -454,8 +454,14 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
 
     await step("Chats: New agent works in a Personal Space", async () => {
       await go("chat", "chats-place");
-      // the Agents header's plus (New agent)
-      await page.getByTestId("all-agents").first().click({ timeout: 10_000 });
+      // The Chats sidebar of the 13 Nov design (c5da6ccd8, "the product shows the new sidebar") has no "all-agents" tool.
+      // The door to New agent is now the plus on the Agents head (a Personal Space's Team section), which opens that
+      // head's menu; its item "New agent..." opens the same New agent form as before.
+      await page.getByTestId("head-plus-team").first().click({ timeout: 10_000 });
+      await page
+        .getByRole("menuitem", { name: /^New agent/ })
+        .first()
+        .click({ timeout: 10_000 });
       // the New agent form opens at once: a name, then Save
       await page.getByTestId("agent-name").fill("Walk Agent", { timeout: 10_000 });
       await page.getByTestId("agent-save").click({ timeout: 10_000 });
