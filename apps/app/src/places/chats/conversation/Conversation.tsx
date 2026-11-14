@@ -118,7 +118,7 @@ import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
-import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq } from "./chapters/index.ts";
+import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq, usedTerminal } from "./chapters/index.ts";
 import {
   WINDOW,
   beforeCursor,
@@ -155,6 +155,7 @@ import {
   workingAgents,
   withoutAnswered,
   faceDoor,
+  peopleIn,
 } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
@@ -1000,7 +1001,7 @@ function ConversationView(): ReactElement {
     ? weave(folded, data.activity.events).filter((m) => keepItem(m, data.activity!.show))
     : folded;
   // a channel, or a chat between people, is shared: its times read in the Space zone; a chat with only you and your agents reads in your own
-  const sharedChat = thread.kind === "channel" || thread.members.filter((p) => p.kind === "person").length >= 2;
+  const sharedChat = thread.kind === "channel" || peopleIn(thread) >= 2;
   const items = timeline(woven, {
     meId: data.me.id,
     nameOf,
@@ -1979,7 +1980,12 @@ function ConversationView(): ReactElement {
           size={hasEarlier ? Math.max(all.length, CHAPTER_MIN + 1) : all.length}
           newest={win.rows[win.rows.length - 1]?.threadSeq ?? 0}
           focusSeq={activeId ? (all.find((m) => m.messageId === activeId)?.threadSeq ?? null) : null}
-          jobs={{ agentIds: thread.agents.map((a) => a.agentId), working: isWorking }}
+          jobs={{
+            agentIds: thread.agents.map((a) => a.agentId),
+            screens: data.screens,
+            watch: isWorking || usedTerminal(timelineMessages),
+            shared: sharedChat,
+          }}
           rows={rows}
           own={ownSeq}
           clock={{ ...data.clock(), ...(sharedChat ? { zones } : {}) }}
