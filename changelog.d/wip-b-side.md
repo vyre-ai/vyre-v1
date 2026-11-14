@@ -11,3 +11,4 @@
 - The Chats sidebar can be read in one answer: your needs, goals, pinned, chats, channels and team with their marks, a page at a time.
 - The Chats sidebar opens fast however many chats you have: one page of 50 is read without reading every chat, and a person with 5,000 chats and 200 channels gets the first page in under 50 ms.
 - The Chats sidebar is the new one: Tasks (which folds), Goals, Pinned, Chats, Channels and Team, one mark on each row, a menu on every row, and one word under each place in the rail. It loads in one read.
+- Option-Command-1 to 5 go to the first five places of the rail.

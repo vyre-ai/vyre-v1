@@ -130,3 +130,8 @@ export function railPlaces(groups: RailGroups): PlaceId[] {
 
 /** Places with no screen in the signed-in shell: never on a rail, never a tab. "join" is the old "+" at the foot of the rail; Add a Space lives in the Space menu. */
 export const NO_SCREEN_PLACES: readonly PlaceId[] = ["join"];
+
+/** Option-Cmd-1 to 5 go to the first five places of the rail, in the order it draws them (design 2.7); a place the Kit does not have is no key. */
+export function placeForDigit(groups: RailGroups, n: number): PlaceId | null {
+  return groups.top[n - 1]?.place ?? null;
+}

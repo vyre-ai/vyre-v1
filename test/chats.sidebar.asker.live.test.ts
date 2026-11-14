@@ -167,6 +167,9 @@ test("a person's mentions are their own: each asker gets only their own unseen m
 test("presence: a guest gets nobody, and no one gets an agent's chat title", async () => {
   const guest: Any = await g.call("chats.presence", {});
   assert.deepEqual(guest.people, [], "a guest has no team");
+  assert.deepEqual(guest.working, [], "and sees no agent at work");
+  const gm: Any = await g.call("notifications.unseen_by_thread", {});
+  assert.deepEqual(gm.counts, [], "a guest with no mention has no count, and none for a thread they cannot open");
   const member: Any = await m.call("chats.presence", {});
   assert.ok(!JSON.stringify(member).includes("owner's private words"));
 });

@@ -95,7 +95,7 @@ test("perf navigate: one sidebar read, first page and a later page, at 5,000 cha
     new Set(reads).size === 1,
     `the same number of database reads every call (${[...new Set(reads)].join(",")})`,
   );
-  assert.ok(reads[0]! < 100, `a page of 50 is a constant handful of reads, not one per chat (${reads[0]})`);
+  assert.ok(reads[0]! <= 12, `a page of 50 is a constant handful of reads, not one per chat (${reads[0]})`);
   assert.ok(
     p95(first) < budget,
     `first page p95 ${p95(first).toFixed(1)} ms must be under ${budget} (processor time ${p95(firstCpu).toFixed(1)} ms, box load ${loadavg()[0]})`,

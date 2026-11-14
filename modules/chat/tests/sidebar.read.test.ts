@@ -226,7 +226,7 @@ test("proof: 5,000 chats paged to the end cost at most ceil(5000 / page) reads o
     new Set(perRead).size === 1,
     `each read asked the neighbours the same number of times (${[...new Set(perRead)].join(",")}), not once per row`,
   );
-  assert.ok(perRead[0]! <= 12, `a handful of neighbour reads per page, not one per row (${perRead[0]})`);
+  assert.ok(perRead[0]! <= 11, `a handful of neighbour reads per page, not one per row (${perRead[0]})`);
 });
 
 test("a chat whose latest turn failed is marked failed with words, from one engine read for the rows the answer carries", async () => {
