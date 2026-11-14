@@ -74,6 +74,8 @@ const DEFAULT_TIMEOUT_SEC = 120;
 const MAX_COMMAND_CHARS = 20_000;
 const REPLAY_LINES = 200;
 const AGENT_SESSION = "agent";
+/** How long keys sent with `capture` wait before the screen is read back: tmux has drawn them well inside it. */
+const SETTLE_MS = 15;
 
 const TITLE: Readonly<Record<HostKind, string>> = {
   agent_computer: "Workspace",
@@ -856,7 +858,7 @@ export async function capture(ctx: TermCtx, input: { terminalId: string; lines?:
  */
 export async function keys(
   ctx: TermCtx,
-  input: { terminalId: string; keys: Array<{ text?: string; key?: string; paste?: string }> },
+  input: { terminalId: string; capture?: boolean; keys: Array<{ text?: string; key?: string; paste?: string }> },
 ) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
@@ -880,7 +882,15 @@ export async function keys(
     return unexpected(ctx, "take those keys", e);
   }
   touch(ctx.db, input.terminalId, ctx.now());
-  return { ok: true };
+  if (input.capture !== true || !host.capture) return { ok: true };
+  // the screen a moment after the keys landed, in the same answer: a key shows in one round trip (tmux has drawn it in a few milliseconds)
+  await new Promise<void>((r) => setTimeout(r, SETTLE_MS));
+  try {
+    const r = await host.capture(input.terminalId, { lines: 2000 });
+    return { ok: true, screen: { ...r, text: clean(scopeOf(x), r.text) } };
+  } catch {
+    return { ok: true };
+  }
 }
 
 export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {

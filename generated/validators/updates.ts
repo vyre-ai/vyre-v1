@@ -5,15 +5,15 @@ import type { Check } from './core.ts';
 
 function d_s_c0084dac30(v: unknown, p: string, e: string[]): void {
 {
-const x926 = v;
-const g926 = typeOf(x926);
-const b926: string[] = []; lf(x926, p, b926, L0); if (b926.length) e.push(...b926);
-if (g926 === "object") {
-if (g926 === 'object') { const o926 = x926 as Record<string, unknown>;
-if (!("from" in o926)) e.push(p + "/from" + ': required');
-if (!("to" in o926)) e.push(p + "/to" + ': required');
-if ("from" in o926) lf(o926["from"], p + "/from", e, L388);
-if ("to" in o926) lf(o926["to"], p + "/to", e, L388);
+const x929 = v;
+const g929 = typeOf(x929);
+const b929: string[] = []; lf(x929, p, b929, L0); if (b929.length) e.push(...b929);
+if (g929 === "object") {
+if (g929 === 'object') { const o929 = x929 as Record<string, unknown>;
+if (!("from" in o929)) e.push(p + "/from" + ': required');
+if (!("to" in o929)) e.push(p + "/to" + ': required');
+if ("from" in o929) lf(o929["from"], p + "/from", e, L388);
+if ("to" in o929) lf(o929["to"], p + "/to", e, L388);
 }
 }
 }

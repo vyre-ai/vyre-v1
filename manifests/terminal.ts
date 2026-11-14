@@ -56,6 +56,14 @@ const terminalRow = t.obj({
   // the person who opened it: a person's own tab says whose it is
   ownerId: t.opt(id.user),
 });
+const captureOut = t.obj({
+  text: t.str(),
+  cols: t.int(),
+  rows: t.int(),
+  cursor: t.nullable(t.obj({ x: t.int(), y: t.int() })),
+  history: t.int(),
+  hidden: t.bool(),
+});
 const command = t.obj({
   command: t.str(),
   exitCode: t.nullable(t.int()),
@@ -255,14 +263,16 @@ export default defineManifest({
             minItems: 1,
             maxItems: 200,
           }),
+          // answer with the screen a moment after the keys landed (what terminal.capture says), so a key shows in one round trip
+          capture: t.opt(t.bool()),
         },
-        out: { ok: t.bool() },
+        out: { ok: t.bool(), screen: t.opt(captureOut) },
         on: ["terminal", "/terminalId"],
         level: "use",
         idem: "none",
         offline: "online",
         risk: "medium",
-        rate: { n: 1200, perSeconds: 60, scope: "principal" },
+        rate: { n: 3000, perSeconds: 60, scope: "principal" },
         errors: ["validation.bad_input", "validation.precondition_failed"],
       },
     ),

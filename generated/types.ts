@@ -41995,9 +41995,21 @@ export type TerminalKeysIn = {
       key?: string;
       paste?: string;
     }>;
+  capture?: boolean;
 };
 export type TerminalKeysOut = {
   ok: boolean;
+  screen?: {
+    text: string;
+    cols: number;
+    rows: number;
+    cursor: {
+      x: number;
+      y: number;
+    } | null;
+    history: number;
+    hidden: boolean;
+  };
 };
 export type TerminalListIn = {
   section?: "personal" | "shared" | "space";

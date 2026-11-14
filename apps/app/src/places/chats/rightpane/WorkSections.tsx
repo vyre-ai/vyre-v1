@@ -61,12 +61,16 @@ export function BrowserPicture({
   name,
   live,
   onOpen,
+  onRestart,
+  offline = false,
   caption,
 }: {
   view: BrowserView;
   name: string;
   live?: ReactElement | undefined;
   onOpen(): void;
+  /** the browser stopped: the one action on the greyed picture */ onRestart?: (() => void) | undefined;
+  /** the connection to the Space is down: the last picture stays, greyed, and says so */ offline?: boolean;
   caption: string;
 }): ReactElement {
   const awake = view.state === "open" || view.state === "takeover";
@@ -89,6 +93,17 @@ export function BrowserPicture({
             </View>
           </View>
         )}
+        {view.state === "error" || offline ? (
+          <View style={st.fault2} pointerEvents="box-none">
+            <Text testID="browser-fault" style={st.faultText}>
+              {offline ? "Reconnecting" : "The browser stopped"}
+            </Text>
+            {offline ? <Text style={st.note}>The last picture stays.</Text> : null}
+            {!offline && onRestart ? (
+              <TextButton label="Restart" primary onPress={onRestart} testID="browser-restart-pane" />
+            ) : null}
+          </View>
+        ) : null}
         {/* the press layer sits above everything in the box, so a click always reaches it, whatever the live view draws */}
         <Pressable
           accessibilityRole="button"
@@ -370,6 +385,8 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
             name={name}
             caption={caption}
             onOpen={() => setSheet(true)}
+            offline={!online}
+            onRestart={() => run(() => data.browser!.open(agentId))}
             live={
               <PreviewImage
                 call={data.call}
@@ -479,6 +496,19 @@ const st = StyleSheet.create({
     borderColor: "transparent",
   } as object,
   pressOver: { borderColor: "var(--accent)" as string },
+  fault2: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(245,246,248,0.78)" as string,
+    zIndex: 3,
+  },
+  faultText: { fontSize: 13, fontWeight: "500", color: "#1f2430" as string },
   skeleton: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, padding: 18, gap: 10 },
   sk: { height: 8, borderRadius: 4, backgroundColor: "#e3e5ea" as string },
   liveOver: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },

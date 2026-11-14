@@ -4,3 +4,6 @@
 - The Computer tab lost its "Asleep" chip, its explanation lines, its Steps list and the paragraph about the older desktop. Each state is a dot and one word. Signed-in sites show only when there are some.
 - A person's own terminal tab is named for them: "You" and "Your tab" for yourself, their name for everyone else. The full-screen terminal has one bar. Keys typed right after pressing Take over are no longer lost.
 - While a person holds a terminal, the agent's commands wait in every tab of its computer, and it cannot close, rename or resize the held one. The keyboard stays yours while you read or watch, and ends by itself after 15 quiet minutes without anything writing or announcing it.
+- Typing in the full-screen terminal shows at once: the keys and the screen they made come back in one answer, and keys that did not land are sent again in order instead of being dropped.
+- While a person has taken over the browser, only they see its picture; everyone else sees who is using it. The browser picture in the Computer tab no longer keeps a sleeping browser awake.
+- The full-screen terminal and the Computer tab say what is wrong in each fault, with its one action: a terminal that ended (New tab), a connection that dropped (Reconnecting, the last lines stay), a computer starting, a browser that stopped (Restart).

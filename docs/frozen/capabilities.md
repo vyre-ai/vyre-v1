@@ -189,4 +189,5 @@ Signed: pending the lead (lane b-pc did not sign it).
 - The terminal row gains optional `heldBy` and `ownerId` (the person who opened a person's tab).
 - `computers.browser.preview` answers `state: held` with `by` (no picture) to everyone but the person who has taken the browser over; `computers.browser.stream` answers `validation.precondition_failed` to them (declared), and the stream relay cuts an older ticket of theirs. The preview never starts the browser and does not count as use (browserd `screenshot` with `quiet`).
 - Snapshots: docs/frozen/snapshots/terminal.json and computers.json.
+- `terminal.keys` takes an optional `capture` (answer with the screen a moment after the keys landed, in the same call; the same answer as `terminal.capture`, scrubbed) and answers an optional `screen`; its rate is now 3000 a minute per principal (was 1200) so fast typing is not refused. Snapshot: docs/frozen/snapshots/terminal.json.
 

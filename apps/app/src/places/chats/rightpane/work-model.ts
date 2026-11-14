@@ -234,3 +234,59 @@ export function startStage(elapsedMs: number, budgetMs = 9000): string {
       ? "Opening the browser"
       : "Almost ready";
 }
+
+// ---- the full-screen terminal's one bar: every state its words, each with its one action (AGENT-COMPUTER-2026-11-13.md part B and F)
+
+export interface BarIn {
+  agentName: string;
+  /** the terminal is shown at all (a row for it exists) */ known: boolean;
+  state?: "running" | "idle" | "exited";
+  asleep: boolean;
+  /** the screen has been drawn once since the sheet opened */ ready: boolean;
+  online: boolean;
+  mine: boolean;
+  /** someone else's name, when someone else holds it */ otherHolds?: string;
+  asking: boolean;
+  hidden: boolean;
+  said?: string | null;
+  /** seconds the start has taken, for its stage words */ startedMs?: number;
+}
+export type BarAction = "take" | "ask" | "confirm" | "give" | "newtab" | null;
+export interface TermBar {
+  title: string;
+  note?: string;
+  action: BarAction;
+  tone: "quiet" | "wait" | "bad" | "mine";
+}
+export function terminalBar(i: BarIn): TermBar {
+  if (i.said) return { title: i.said, action: null, tone: "bad" };
+  if (!i.online) return { title: "Reconnecting", note: "The last lines stay.", action: null, tone: "wait" };
+  if (!i.known) return { title: "", action: null, tone: "quiet" };
+  if (i.state === "exited") return { title: "This terminal ended", action: "newtab", tone: "bad" };
+  // a sleeping computer wakes when its terminal is opened: its stored lines are there and the bar says it is starting
+  if (i.asleep && !i.ready)
+    return { title: "Starting", note: startStage(i.startedMs ?? 0, 9000), action: null, tone: "wait" };
+  if (i.asking && i.otherHolds)
+    return {
+      title: `Take the keyboard from ${i.otherHolds}?`,
+      note: `${i.otherHolds} is told.`,
+      action: "confirm",
+      tone: "wait",
+    };
+  if (i.mine && i.hidden)
+    return {
+      title: "The agent cannot see what you type here",
+      note: `${i.agentName} is told only that it finished.`,
+      action: "give",
+      tone: "mine",
+    };
+  if (i.mine)
+    return { title: "You have the keyboard", note: `${i.agentName}'s commands wait.`, action: "give", tone: "mine" };
+  if (i.otherHolds) return { title: `${i.otherHolds} has the keyboard`, action: "ask", tone: "wait" };
+  return {
+    title: i.state === "running" ? `${i.agentName} is typing` : "Nobody is typing",
+    note: "Press Take over, or Return, to type.",
+    action: "take",
+    tone: "quiet",
+  };
+}
