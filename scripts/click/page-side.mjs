@@ -220,17 +220,45 @@ export function pointFor(idx) {
   const xs = [0.5, 0.25, 0.75, 0.1, 0.9],
     ys = [0.5, 0.25, 0.75, 0.1, 0.9];
   let cover = "";
+  let layer = false;
   for (const fy of ys)
     for (const fx of xs) {
       const x = Math.min(innerWidth - 1, Math.max(0, r.x + r.width * fx)),
         y = Math.min(innerHeight - 1, Math.max(0, r.y + r.height * fy));
       const hit = document.elementFromPoint(x, y);
       if (own(hit)) return { x, y };
+      // a layer over the page: a dialog, a menu, a backdrop (a veil: window-sized and silent); the element is behind it, not under something that stays
+      if (hit && !layer) {
+        const hr = hit.getBoundingClientRect();
+        const veil =
+          hr.width >= innerWidth * 0.9 &&
+          hr.height >= innerHeight * 0.9 &&
+          !(hit.innerText || "").trim() &&
+          !hit.closest(SEL);
+        layer =
+          veil ||
+          !!hit.closest(
+            '[role=dialog],[role=menu],[aria-modal],[data-testid=menu],[data-testid$="-veil"],[data-testid^="as-"],[data-dbg-added]',
+          );
+      }
       if (!cover && hit)
-        cover = `${hit.tagName.toLowerCase()}${hit.getAttribute("data-testid") ? `[data-testid=${hit.getAttribute("data-testid")}]` : ""} ${(hit.innerText || "").replace(/\s+/g, " ").slice(0, 30)}`;
+        cover = `${(() => {
+          const ids = [];
+          for (let a = hit; a && ids.length < 4; a = a.parentElement)
+            if (a.getAttribute("data-testid")) ids.push(a.getAttribute("data-testid"));
+          return ids.length ? `in ${ids.join(" < ")}: ` : `${(hit.getAttribute("style") || "").slice(0, 60)}: `;
+        })()}${hit.tagName.toLowerCase()}${hit.getAttribute("data-testid") ? `[data-testid=${hit.getAttribute("data-testid")}]` : ""} ${(hit.innerText || "").replace(/\s+/g, " ").slice(0, 30)}`;
     }
   const kids = [...e.querySelectorAll(SEL)].length > 0;
-  return { x: null, y: null, cover, kids };
+  return {
+    x: null,
+    y: null,
+    cover,
+    kids,
+    layer,
+    splash: document.querySelector("[data-testid=shell-skeleton]") ? "shell-skeleton" : document.querySelector("[data-testid=first-frame]") ? "first-frame" : "",
+    shell: !!document.querySelector("[data-testid=shell],[data-testid=mobile-shell]"),
+  };
 }
 
 /** Marks the element under test and clears the record, so the next poll is only what the click did. */
