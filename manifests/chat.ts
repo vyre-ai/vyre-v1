@@ -1319,6 +1319,31 @@ export default defineManifest({
       },
     ),
     read(
+      "chat.chapters",
+      "The chapters of a long chat: where each starts (a Fresh context line, a gap of 3 hours, or 80 messages), its title and one line of what it settled. Empty for a chat of 40 messages or fewer. Worked out from the messages on every read",
+      {
+        in: threadT,
+        out: {
+          chapters: t.arr(
+            t.obj({
+              startSeq: t.int(),
+              endSeq: t.int(),
+              startAt: t.ts(),
+              count: t.int(),
+              current: t.bool(),
+              title: t.str(),
+              summary: t.str(),
+              by: t.enm("extract", "model", "person"),
+            }),
+          ),
+          wanted: t.int({ description: "Closed chapters that still carry only the plain words of the chat" }),
+        },
+        on: ["thread", "/threadId"],
+        tool: "chats",
+        label: "check",
+      },
+    ),
+    read(
       "chat.catch_up",
       "What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives",
       {
@@ -1519,6 +1544,20 @@ export default defineManifest({
       },
     ),
     // ---- native blocks, plan mode
+    write(
+      "chat.chapters_write",
+      "Write the title and one line of up to 3 closed chapters that only have the plain words of the chat, on a cheap model of the account that ran the turn. A model that fails leaves the plain words. Never holds a post",
+      {
+        in: {
+          ...threadT,
+          account: t.opt(t.obj({ ref: t.str(), driver: t.str() }, { description: "The account the turn ran on" })),
+        },
+        out: { written: t.int({ minimum: 0 }) },
+        on: ["thread", "/threadId"],
+        level: "use",
+        errors: ["validation.not_found", "permission.no_grant"],
+      },
+    ),
     write(
       "chat.title_make",
       "Name a chat from its first real request: 2 to 5 plain words, on a cheap model of the account that ran the turn or from the request's own words, never from a greeting. Made again once if the first came from a thin request; never after a person renamed the chat",

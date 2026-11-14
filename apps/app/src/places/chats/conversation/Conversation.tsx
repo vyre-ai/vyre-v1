@@ -118,6 +118,7 @@ import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq } from "./chapters/index.ts";
 import {
   WINDOW,
   beforeCursor,
@@ -1939,73 +1940,91 @@ function ConversationView(): ReactElement {
             />
           </View>
         )}
-        <View style={st.feedBox} onLayout={(e) => setGutter(gutterFits(e.nativeEvent.layout.width))}>
-          <GutterContext.Provider value={gutter}>
-            <Feed
-              key={jump}
-              followKey={timelineMessages.length}
-              {...(lastStream ? { store: lastStream } : {})}
-              {...(data.head ? { startAway: true, endKey: sentOnPage } : {})}
-              testID="conversation-feed"
-              contentStyle={st.feedContent}
-              onAtEndChange={setAtEnd}
-            >
-              {data.head ?? null}
-              <View style={st.col}>
-                {hasEarlier ? (
-                  <View style={st.earlier}>
-                    <TextButton
-                      label="Show earlier messages"
-                      testID="earlier-button"
-                      onPress={() => {
-                        if (win.hiddenLocal > 0) setShown((n) => n + WINDOW);
-                        else {
-                          const c = beforeCursor(all);
-                          if (c !== null) setCursor(c);
-                        }
-                      }}
-                    />
+        <ChapterLayer
+          call={data.call}
+          threadId={thread.threadId}
+          size={hasEarlier ? Math.max(all.length, CHAPTER_MIN + 1) : all.length}
+          newest={win.rows[win.rows.length - 1]?.threadSeq ?? 0}
+          focusSeq={activeId ? (all.find((m) => m.messageId === activeId)?.threadSeq ?? null) : null}
+          jobs={{ agentIds: thread.agents.map((a) => a.agentId), working: isWorking }}
+          rows={rows}
+          own={ownSeq}
+          clock={{ ...data.clock(), ...(sharedChat ? { zones } : {}) }}
+        >
+          {(laid) => (
+            <View style={st.feedBox} onLayout={(e) => setGutter(gutterFits(e.nativeEvent.layout.width))}>
+              <GutterContext.Provider value={gutter}>
+                <Feed
+                  key={jump}
+                  followKey={timelineMessages.length}
+                  {...(lastStream ? { store: lastStream } : {})}
+                  {...(data.head ? { startAway: true, endKey: sentOnPage } : {})}
+                  testID="conversation-feed"
+                  contentStyle={st.feedContent}
+                  onAtEndChange={setAtEnd}
+                >
+                  {data.head ?? null}
+                  <View style={st.col}>
+                    {hasEarlier ? (
+                      <View style={st.earlier}>
+                        <TextButton
+                          label="Show earlier messages"
+                          testID="earlier-button"
+                          onPress={() => {
+                            if (win.hiddenLocal > 0) setShown((n) => n + WINDOW);
+                            else {
+                              const c = beforeCursor(all);
+                              if (c !== null) setCursor(c);
+                            }
+                          }}
+                        />
+                      </View>
+                    ) : null}
+                    {items.length === 0 && !data.head && thread.kind !== "thread" ? (
+                      <States kind="empty" icon="chat" title="Say something to start" />
+                    ) : null}
+                    {collect(laid.rows, (it, at) => {
+                      const key = it.key;
+                      if (it.kind === "chapter") return <ChapterHead key={key} row={it} onToggle={laid.flip} />;
+                      const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
+                      const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
+                      const under =
+                        it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
+                      const row = (
+                        <MessageView
+                          key={key}
+                          item={it}
+                          actions={rowActions}
+                          meId={data.me.id}
+                          stream={stream}
+                          sending={sending}
+                          below={
+                            it.kind === "me"
+                              ? `${notHereSig(it.message) ?? ""}${stillQ[stillQ.length - 1] === it.message.messageId ? `|queued${stillQ.length}${q}` : ""}`
+                              : undefined
+                          }
+                          mark={markOf(it, matches, activeId, finding)}
+                          replies={under ? { s: under, clock: data.clock() } : undefined}
+                        />
+                      );
+                      // always wrapped on the web, so a row that grows old keeps its state; only the style changes
+                      return Platform.OS === "web" ? (
+                        <View key={key} style={at < laid.rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>
+                          {row}
+                        </View>
+                      ) : (
+                        row
+                      );
+                    })}
+                    {laid.jobs}
+                    {data.tail ?? null}
                   </View>
-                ) : null}
-                {items.length === 0 && !data.head && thread.kind !== "thread" ? (
-                  <States kind="empty" icon="chat" title="Say something to start" />
-                ) : null}
-                {collect(rows, (it, at) => {
-                  const key = it.key;
-                  const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
-                  const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
-                  const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
-                  const row = (
-                    <MessageView
-                      key={key}
-                      item={it}
-                      actions={rowActions}
-                      meId={data.me.id}
-                      stream={stream}
-                      sending={sending}
-                      below={
-                        it.kind === "me"
-                          ? `${notHereSig(it.message) ?? ""}${stillQ[stillQ.length - 1] === it.message.messageId ? `|queued${stillQ.length}${q}` : ""}`
-                          : undefined
-                      }
-                      mark={markOf(it, matches, activeId, finding)}
-                      replies={under ? { s: under, clock: data.clock() } : undefined}
-                    />
-                  );
-                  // always wrapped on the web, so a row that grows old keeps its state; only the style changes
-                  return Platform.OS === "web" ? (
-                    <View key={key} style={at < rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>
-                      {row}
-                    </View>
-                  ) : (
-                    row
-                  );
-                })}
-                {data.tail ?? null}
-              </View>
-            </Feed>
-          </GutterContext.Provider>
-        </View>
+                </Feed>
+              </GutterContext.Provider>
+              <ChapterRail dots={laid.dots} onJump={laid.jump} />
+            </View>
+          )}
+        </ChapterLayer>
         {/* in its own row under the list, at the right: it never sits over a line of text */}
         {atEnd || data.head ? null : (
           <Pressable
