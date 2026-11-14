@@ -211,3 +211,29 @@ test("a new message in the watched channel starts one run under the routine owne
   assert.equal(started.length, before);
 });
 // run on the final commit
+
+test("a schedule that posts into a channel its owner cannot use is refused with permission.no_grant and never saved (F47 audit)", async () => {
+  const { hn, id } = await setup();
+  hn.allowOnly((_a, res) => !(res.type === "channel" && res.id === "chn_secret"));
+  const code = await failure(() =>
+    h["agents.routine.save"]!(hn.ctx, {
+      agentId: id,
+      title: "Daily post",
+      cron: "0 9 * * 1-5",
+      channelId: "chn_secret",
+      prompt: "Post the numbers.",
+      idempotencyKey: "sec2",
+    }),
+  );
+  assert.equal(code, "permission.no_grant");
+  assert.equal((await call(hn, "agents.routines.list", { agentId: id })).routines.length, 0);
+  const fine = await h["agents.routine.save"]!(hn.ctx, {
+    agentId: id,
+    title: "Daily post",
+    cron: "0 9 * * 1-5",
+    channelId: "chn_leads",
+    prompt: "Post the numbers.",
+    idempotencyKey: "sec3",
+  });
+  assert.equal(fine.routine.channelId, "chn_leads");
+});

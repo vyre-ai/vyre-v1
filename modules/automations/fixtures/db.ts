@@ -28,7 +28,18 @@ const IDEM_KEYED = new Set([
   "automations.templates.use",
 ]);
 
-const ACCOUNT_TYPES = ["mailbox", "number", "connection", "file", "record", "calendar", "form", "thread"];
+const ACCOUNT_TYPES = [
+  "mailbox",
+  "number",
+  "connection",
+  "file",
+  "record",
+  "calendar",
+  "form",
+  "thread",
+  "agent",
+  "computer",
+];
 /**
  * The fixture world answers like the product for the things a step names: a thing whose id names a person (mbx_alice..., con_bob...) is that person's own and no one else's; any other is the Space's and
  * every member may use it. Anything that is not such a thing is denied. A test that needs another answer passes its own `authorize`.
@@ -189,7 +200,8 @@ export function harness(o: HarnessOptions = {}) {
         }
         if (c === "connections.get" && !calleeMap[c]) {
           // the connections capability: a person's own connection is theirs alone, the Space's is every member's
-          if (fixtureMayUse(who, { type: "connection", id: (input as { connectionId?: string }).connectionId })) return { connection: {} };
+          if (fixtureMayUse(who, { type: "connection", id: (input as { connectionId?: string }).connectionId ?? null }))
+            return { connection: {} };
           throw Object.assign(new Error("There is no such connection."), { error: { code: "validation.not_found" } });
         }
         const f = calleeMap[c] ?? fakeRuns[c];

@@ -115,6 +115,14 @@ export async function routineSave(
     raise(ctx, "validation.bad_input", `The routine needs a prompt of up to ${MAX_PROMPT} characters.`);
   if (input.channelId !== undefined && !input.channelId.startsWith("chn_"))
     raise(ctx, "validation.bad_input", "That is not a channel.", { channelId: input.channelId });
+  // the channel a routine posts into: its owner may use it, or the schedule would put words where they cannot (F47 audit, 14 Nov 2026)
+  if (
+    input.channelId !== undefined &&
+    ctx.authorize?.({ perm: null, level: "use" }, { type: "channel", id: input.channelId })?.effect !== "allow"
+  )
+    raise(ctx, "permission.no_grant", "You cannot post in that channel, so a routine cannot post there.", {
+      channelId: input.channelId,
+    });
   const owner = askerOf(ctx);
   const now = ctx.now();
   const enabled = input.enabled !== false;

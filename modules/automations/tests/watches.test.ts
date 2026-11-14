@@ -279,3 +279,40 @@ test("a change is also told in the channels the person chose; a watch can count 
     "null takes it off the goal",
   );
 });
+
+test("a watch cannot name an agent, a computer or a chat its saver may not use; their own and the Space's are fine (F47 audit)", async () => {
+  const { h } = world();
+  for (const [field, id] of [
+    ["agentId", "agt_bob"],
+    ["computerId", "cmp_bob"],
+  ] as const) {
+    const e = await save(h, { agentId: "agt_scout", runsOn: "computer", [field]: id }, alice).then(
+      () => null,
+      (x) => x,
+    );
+    assert.ok(e, `${field} naming Bob's was accepted`);
+    assert.equal(codeOf(e), "validation.precondition_failed");
+    assert.match(
+      String(e.message),
+      /You cannot use the (agent|computer) it names\. Pick another, or ask for access to it\./,
+    );
+  }
+  const t = await save(h, { tellThreads: ["thr_bob"] }, alice).then(
+    () => null,
+    (x) => x,
+  );
+  assert.ok(t && /chat it names/.test(String(t.message)), "a chat of Bob's was accepted");
+  const ok = await save(
+    h,
+    { agentId: "agt_scout", computerId: "cmp_alice", runsOn: "computer", tellThreads: ["thr_shared"] },
+    alice,
+  );
+  assert.ok(ok.watch.watchId);
+  // an unchanged id on a later save is not asked again
+  const again = await save(
+    h,
+    { watchId: ok.watch.watchId, agentId: "agt_scout", computerId: "cmp_alice", runsOn: "computer", title: "Renamed" },
+    alice,
+  );
+  assert.equal(again.watch.title, "Renamed");
+});
