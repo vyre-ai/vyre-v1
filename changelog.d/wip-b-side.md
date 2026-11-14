@@ -20,3 +20,4 @@
 - Unsent text is kept for each person and each Space on a computer, so two people sharing one browser never see each other's lines or pencils. Signing out of a Space clears the lines kept for it.
 - The Chats sidebar read fails closed: if the Space cannot say who is asking, the caller is treated as a guest. A paging key that is not one of your own chats now gives the first page instead of reading your whole list, and the chat id of an agent's work in a chat you are not in no longer leaves the presence read.
 - A busy Space no longer makes the Chats sidebar read again on every change: the sidebar and the dots for who is around and which agents work are each read at most once a second (before, up to 8 a second for each, about 480 a minute). Your own actions, like pinning or renaming, are still read at once. An idle Space reads nothing.
+- Walk proving an archived chat (Team and Personal Spaces) and a chat past the first 50 can be found and opened from the sidebar.
