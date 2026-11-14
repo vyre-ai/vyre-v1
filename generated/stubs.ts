@@ -2970,6 +2970,15 @@ export function stubs(ctx: CallCtx) {
       status: call("updates.status"),
     },
     vault: {
+      connect: call("vault.connect"),
+      connect_card: {
+        ask_admin: call("vault.connect_card.ask_admin"),
+        disconnect: call("vault.connect_card.disconnect"),
+        get: call("vault.connect_card.get"),
+        options: call("vault.connect_card.options"),
+        reopen: call("vault.connect_card.reopen"),
+        submit: call("vault.connect_card.submit"),
+      },
       export_env: call("vault.export_env"),
       exports: {
         list: call("vault.exports.list"),

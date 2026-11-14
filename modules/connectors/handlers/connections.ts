@@ -87,7 +87,11 @@ export interface ForService {
 const squash = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 /** "API key" for api_key, "Webhook secret" for webhook_secret: the connector's own slot name, said as a label. */
 export const labelOfSlot = (name: string): string => {
-  const w = name.replace(/[_-]+/g, " ").trim().toLowerCase().replace(/\bapi\b/g, "API");
+  const w = name
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\bapi\b/g, "API");
   return w ? w.charAt(0).toUpperCase() + w.slice(1) : name;
 };
 
@@ -578,7 +582,11 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       } catch (e) {
         const code = (e as { error?: { code?: string } }).error?.code;
         if (code === "provider.auth_failed") return { result: "rejected" as const };
-        if (code === "validation.precondition_failed" || code === "validation.bad_input" || code === "permission.no_grant")
+        if (
+          code === "validation.precondition_failed" ||
+          code === "validation.bad_input" ||
+          code === "permission.no_grant"
+        )
           throw e;
         return { result: "unreachable" as const };
       }

@@ -18,7 +18,7 @@ const NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 const FIELD = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 /** Who a call is for as a decider: the signed-in person, or the person an agent acts for. */
-function personOf(ctx: VaultReqCtx): string | null {
+export function personOf(ctx: VaultReqCtx): string | null {
   if (ctx.principal.kind === "person") return ctx.principal.id;
   return ctx.actingFor ?? null;
 }
@@ -26,7 +26,7 @@ function personOf(ctx: VaultReqCtx): string | null {
  * Is this request the caller's own as its requester? The agent that made it counts only in a turn for nobody, or for the person it was made for (lib/agent-asker.ts): another person who merely asks that
  * agent does not see, read or withdraw it.
  */
-function ownRequest(ctx: VaultReqCtx, r: RequestRow): boolean {
+export function ownRequest(ctx: VaultReqCtx, r: RequestRow): boolean {
   const ids = new Set([ctx.principal.id, ...(ctx.actingFor ? [ctx.actingFor] : [])]);
   if (ctx.principal.kind === "agent" && ctx.principal.id === r.requester_id)
     return agentStanding(ctx, (p) => r.asker_id === p || r.requester_id === p);
@@ -66,7 +66,7 @@ export function neededTitle(name: string): string {
 }
 
 /** The chat the agent asked in and the agent's id, read back from the request's own card (no column holds them). */
-async function chatOf(
+export async function chatOf(
   ctx: VaultReqCtx,
   row: RequestRow,
 ): Promise<{ threadId: string; agentId?: string; asker?: string } | null> {
@@ -102,8 +102,7 @@ async function companyFolder(ctx: VaultReqCtx): Promise<string | undefined> {
   const name = COMPANY_FOLDER;
   const have = (
     (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
-      | { id?: string; name?: string }[]
-      | undefined) ?? []
+      { id?: string; name?: string }[] | undefined) ?? []
   ).find((f) => f.name === name);
   const id =
     have?.id ??
@@ -310,7 +309,7 @@ export async function requestCreate(
 }
 
 /** The person an agent asked for may add a key that names no folder into their own Mine (owner ruling 3 Nov). Never a company key, never an outside agent's name-only ask. */
-function askerDecides(row: RequestRow, me: string | null): boolean {
+export function askerDecides(row: RequestRow, me: string | null): boolean {
   return (
     !!me &&
     row.asker_id === me &&
@@ -322,7 +321,10 @@ function askerDecides(row: RequestRow, me: string | null): boolean {
 }
 
 /** A request the caller made, or may decide. Anyone else gets "not found". */
-function visible(ctx: VaultReqCtx, requestId: string): { row: RequestRow; asRequester: boolean; asManager: boolean } {
+export function visible(
+  ctx: VaultReqCtx,
+  requestId: string,
+): { row: RequestRow; asRequester: boolean; asManager: boolean } {
   const row = requestById(ctx, requestId);
   const me = personOf(ctx);
   const asRequester = !!row && (ownRequest(ctx, row) || (!!me && row.asker_id === me));
@@ -354,7 +356,12 @@ export async function requestsGet(ctx: VaultReqCtx, input: { requestId: string }
 }
 
 /** A card that cannot close is logged; the decision stands. */
-async function closeCards(ctx: VaultReqCtx, row: RequestRow, to: "done" | "canceled", note: string): Promise<void> {
+export async function closeCards(
+  ctx: VaultReqCtx,
+  row: RequestRow,
+  to: "done" | "canceled",
+  note: string,
+): Promise<void> {
   for (const taskId of idsOf(row.task_ids_json)) {
     try {
       await ctx.call("tasks.transition", { taskId, to, note });
@@ -369,11 +376,11 @@ async function closeCards(ctx: VaultReqCtx, row: RequestRow, to: "done" | "cance
 }
 
 /** The agent that asked, when an agent did: an agent outside Vyre has no chat to be told in, so the answer reaches it by its id (modules/mcp). */
-const agentOf = (row: RequestRow): { agentId?: string } =>
+export const agentOf = (row: RequestRow): { agentId?: string } =>
   row.requester_kind === "agent" ? { agentId: row.requester_id } : {};
 
 /** A manager decides a request that is still waiting, or the person it was asked for adds their own key (`own`: into their Mine). */
-function decidable(
+export function decidable(
   ctx: VaultReqCtx,
   requestId: string,
 ): { row: RequestRow; me: string; own: boolean; askedForMe: boolean } {
@@ -392,8 +399,7 @@ async function serverOnlyFolder(ctx: VaultReqCtx, folderId: string): Promise<boo
   try {
     const folders =
       (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
-        | { id?: string; name?: string }[]
-        | undefined) ?? [];
+        { id?: string; name?: string }[] | undefined) ?? [];
     return folders.some((f) => f.id === folderId && isServerOnlyFolder(String(f.name ?? "")));
   } catch {
     return false;
@@ -401,7 +407,11 @@ async function serverOnlyFolder(ctx: VaultReqCtx, folderId: string): Promise<boo
 }
 
 /** The person's own Mine folder for a key they add for themselves: the one they named when it is theirs, else their first, else a new one. */
-async function ownMine(ctx: VaultReqCtx, row: RequestRow, named: string | undefined): Promise<string | undefined> {
+export async function ownMine(
+  ctx: VaultReqCtx,
+  row: RequestRow,
+  named: string | undefined,
+): Promise<string | undefined> {
   const mine = (
     (asRow(await ctx.call("vault.folders.list", { scope: "mine" }))?.["folders"] as { id?: string }[] | undefined) ?? []
   )
@@ -436,13 +446,40 @@ export async function requestsFulfil(
     audience?: KeyAudience;
   },
 ) {
-  const trace = ctx.trace.traceId;
   const decided = decidable(ctx, input.requestId);
+  const stored = await storeKey(ctx, decided, input);
+  return finishFulfil(ctx, decided, stored);
+}
+
+/** What storing a key left: the item and its handle, who it is for and whether it is the asker's own. */
+export interface Stored {
+  itemId: string;
+  handle: string | undefined;
+  own: boolean;
+  /** 1: a new item was made by this call (it can be taken back), 0: an existing item was attached */
+  made: boolean;
+}
+
+/** Put the key where it goes (a new item, or an attached one) and share it as the request says. Does not close the request: finishFulfil does. */
+export async function storeKey(
+  ctx: VaultReqCtx,
+  decided: { row: RequestRow; me: string; own: boolean; askedForMe: boolean },
+  input: {
+    itemId?: string;
+    fields?: { key: string; value: string }[];
+    folderId?: string;
+    audience?: KeyAudience;
+    /** the person chose a shared folder for it on the connect card: not their own Mine */
+    shared?: boolean;
+  },
+): Promise<Stored> {
+  const trace = ctx.trace.traceId;
   const { row, me } = decided;
   // 14 Nov 2026 (owner's own Space): an owner whose Assistant asked them for a key typed it into the card, and because an owner is also a manager the key went to the first shared folder, which was
   // Restricted, where no agent is cleared; the Assistant was refused its own key three times. A new key typed by the person the agent asked for is that person's own, in their Mine, whatever else they
   // are in the Space. It is for the team only when they say so: "anyone who asks this agent", or an item they attach.
-  const own = decided.own || (decided.askedForMe && !input.itemId && input.audience !== "anyone");
+  const own =
+    input.shared !== true && (decided.own || (decided.askedForMe && !input.itemId && input.audience !== "anyone"));
   const hasFields = !!input.fields && input.fields.length > 0;
   if (!input.itemId === !hasFields)
     raise(trace, "validation.bad_input", "Attach an item, or give the fields for a new one, not both and not neither.");
@@ -541,12 +578,27 @@ export async function requestsFulfil(
       });
   }
 
+  return { itemId: itemId!, handle, own, made: !input.itemId };
+}
+
+/** Close the request as fulfilled: the state, the event that tells the agent to carry on, the managers' cards, a waiting Run. */
+export async function finishFulfil(
+  ctx: VaultReqCtx,
+  decided: { row: RequestRow; me: string },
+  stored: Stored,
+  extra: { connectionId?: string; tested?: string } = {},
+) {
+  const { row, me } = decided;
+  const { itemId, handle, own } = stored;
   ctx.db.run(
-    `UPDATE ${TABLE} SET state = ?, item_id = ?, decided_by = ?, decided_at = ? WHERE id = ?`,
+    `UPDATE ${TABLE} SET state = ?, item_id = ?, decided_by = ?, decided_at = ?, phase = ?, connection_id = ?, tested = ? WHERE id = ?`,
     "fulfilled",
     itemId,
     me,
     ctx.now(),
+    null,
+    extra.connectionId ?? null,
+    extra.tested ?? null,
     row.id,
   );
   const chat = await chatOf(ctx, row);
@@ -556,6 +608,7 @@ export async function requestsFulfil(
     itemId,
     ...(handle && /^#[A-Za-z0-9_]+$/.test(handle) ? { handle } : {}),
     name: row.name,
+    ...(row.service ? { service: row.name.replace(/_+/g, " ") } : {}),
     ...(row.for_run ? { forRun: row.for_run } : {}),
     ...agentOf(row),
     ...(chat
@@ -597,6 +650,7 @@ export async function requestsDecline(ctx: VaultReqCtx, input: { requestId: stri
   ctx.emit("vault.request_declined", row.id, {
     requestId: row.id,
     name: row.name,
+    ...(row.service ? { service: row.name.replace(/_+/g, " ") } : {}),
     ...(row.for_run ? { forRun: row.for_run } : {}),
     ...(note ? { note } : {}),
     ...agentOf(row),

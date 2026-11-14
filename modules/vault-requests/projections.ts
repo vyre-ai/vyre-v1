@@ -54,6 +54,14 @@ export interface RequestRow {
   asker_id?: string | null;
   /** the newest chat the agent asked in (migrations/0004_thread.sql), where it carries on */
   thread_id?: string | null;
+  /** the connector a connect card is for (migrations/0005_connect.sql); null for a plain key request */
+  service?: string | null;
+  /** what the server learned by trying: wrong, offline or asked; null otherwise */
+  phase?: string | null;
+  admin_id?: string | null;
+  admin_asked_at?: number | null;
+  connection_id?: string | null;
+  tested?: string | null;
 }
 
 type Code = Parameters<typeof fail>[0];
@@ -102,6 +110,7 @@ export function requestOut(r: RequestRow) {
     state: r.state,
     ...(r.item_id ? { itemId: r.item_id } : {}),
     ...(r.note ? { note: r.note } : {}),
+    ...(r.service ? { service: r.service } : {}),
     taskId: tasks[0] ?? "",
     at: r.at,
     ...(r.decided_at !== null ? { decidedAt: r.decided_at } : {}),

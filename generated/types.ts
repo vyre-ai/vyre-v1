@@ -43862,6 +43862,226 @@ export type UpdatesStatusOut = {
   available?: string;
   lastResult?: "ok" | "failed" | "rolled_back";
 };
+export type VaultConnectIn = {
+  service: string;
+  reason?: string;
+  idempotencyKey: string;
+};
+export type VaultConnectOut = {
+  status: "connected" | "waiting_person" | "waiting_admin" | "declined";
+  requestId?: string;
+  tell: string;
+};
+export type VaultConnectCardAskAdminIn = {
+  requestId: string;
+  admin?: string;
+};
+export type VaultConnectCardAskAdminOut = {
+  card: {
+    requestId: string;
+    state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
+    service: {
+      key: string;
+      title: string;
+      site?: string;
+    };
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    agentId?: string;
+    mayFill: boolean;
+    admin?: {
+      id: string;
+      askedAt?: number;
+    };
+    have?: {
+      itemId: string;
+      name: string;
+      keptIn: string;
+    };
+    keptIn?: string;
+    tested?: string;
+    connectedBy?: string;
+    connectionId?: string;
+    usedBy: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+  };
+};
+export type VaultConnectCardDisconnectIn = {
+  requestId: string;
+};
+export type VaultConnectCardDisconnectOut = {
+  card: {
+    requestId: string;
+    state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
+    service: {
+      key: string;
+      title: string;
+      site?: string;
+    };
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    agentId?: string;
+    mayFill: boolean;
+    admin?: {
+      id: string;
+      askedAt?: number;
+    };
+    have?: {
+      itemId: string;
+      name: string;
+      keptIn: string;
+    };
+    keptIn?: string;
+    tested?: string;
+    connectedBy?: string;
+    connectionId?: string;
+    usedBy: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+  };
+};
+export type VaultConnectCardGetIn = {
+  requestId: string;
+};
+export type VaultConnectCardGetOut = {
+  card: {
+    requestId: string;
+    state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
+    service: {
+      key: string;
+      title: string;
+      site?: string;
+    };
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    agentId?: string;
+    mayFill: boolean;
+    admin?: {
+      id: string;
+      askedAt?: number;
+    };
+    have?: {
+      itemId: string;
+      name: string;
+      keptIn: string;
+    };
+    keptIn?: string;
+    tested?: string;
+    connectedBy?: string;
+    connectionId?: string;
+    usedBy: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+  };
+};
+export type VaultConnectCardOptionsIn = {
+  requestId: string;
+};
+export type VaultConnectCardOptionsOut = {
+  folders: Array<{
+      id: string;
+      name: string;
+      scope: "mine" | "shared";
+      usable: boolean;
+    }>;
+};
+export type VaultConnectCardReopenIn = {
+  requestId: string;
+};
+export type VaultConnectCardReopenOut = {
+  card: {
+    requestId: string;
+    state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
+    service: {
+      key: string;
+      title: string;
+      site?: string;
+    };
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    agentId?: string;
+    mayFill: boolean;
+    admin?: {
+      id: string;
+      askedAt?: number;
+    };
+    have?: {
+      itemId: string;
+      name: string;
+      keptIn: string;
+    };
+    keptIn?: string;
+    tested?: string;
+    connectedBy?: string;
+    connectionId?: string;
+    usedBy: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+  };
+};
+export type VaultConnectCardSubmitIn = {
+  requestId: string;
+  fields?: Array<{
+      key: string;
+      value: string;
+    }>;
+  useSaved?: boolean;
+  folderId?: string;
+  audience?: "asker" | "anyone";
+};
+export type VaultConnectCardSubmitOut = {
+  result: "connected" | "wrong" | "offline";
+  card: {
+    requestId: string;
+    state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
+    service: {
+      key: string;
+      title: string;
+      site?: string;
+    };
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    agentId?: string;
+    mayFill: boolean;
+    admin?: {
+      id: string;
+      askedAt?: number;
+    };
+    have?: {
+      itemId: string;
+      name: string;
+      keptIn: string;
+    };
+    keptIn?: string;
+    tested?: string;
+    connectedBy?: string;
+    connectionId?: string;
+    usedBy: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+  };
+};
 export type VaultExportEnvIn = {
   folderId: string;
   expiresIn: "1h" | "1d" | "7d";
@@ -44389,6 +44609,7 @@ export type VaultRequestOut = {
     state: "waiting" | "fulfilled" | "declined" | "canceled";
     itemId?: string;
     note?: string;
+    service?: string;
     taskId: string;
     at: number;
     decidedAt?: number;
@@ -44432,6 +44653,7 @@ export type VaultRequestsFulfilOut = {
     state: "waiting" | "fulfilled" | "declined" | "canceled";
     itemId?: string;
     note?: string;
+    service?: string;
     taskId: string;
     at: number;
     decidedAt?: number;
@@ -44455,6 +44677,7 @@ export type VaultRequestsGetOut = {
     state: "waiting" | "fulfilled" | "declined" | "canceled";
     itemId?: string;
     note?: string;
+    service?: string;
     taskId: string;
     at: number;
     decidedAt?: number;
@@ -44481,6 +44704,7 @@ export type VaultRequestsListOut = {
       state: "waiting" | "fulfilled" | "declined" | "canceled";
       itemId?: string;
       note?: string;
+      service?: string;
       taskId: string;
       at: number;
       decidedAt?: number;
@@ -47168,6 +47392,13 @@ export interface CapMap {
   "updates.history": { in: UpdatesHistoryIn; out: UpdatesHistoryOut };
   "updates.rollback": { in: UpdatesRollbackIn; out: UpdatesRollbackOut };
   "updates.status": { in: UpdatesStatusIn; out: UpdatesStatusOut };
+  "vault.connect": { in: VaultConnectIn; out: VaultConnectOut };
+  "vault.connect_card.ask_admin": { in: VaultConnectCardAskAdminIn; out: VaultConnectCardAskAdminOut };
+  "vault.connect_card.disconnect": { in: VaultConnectCardDisconnectIn; out: VaultConnectCardDisconnectOut };
+  "vault.connect_card.get": { in: VaultConnectCardGetIn; out: VaultConnectCardGetOut };
+  "vault.connect_card.options": { in: VaultConnectCardOptionsIn; out: VaultConnectCardOptionsOut };
+  "vault.connect_card.reopen": { in: VaultConnectCardReopenIn; out: VaultConnectCardReopenOut };
+  "vault.connect_card.submit": { in: VaultConnectCardSubmitIn; out: VaultConnectCardSubmitOut };
   "vault.export_env": { in: VaultExportEnvIn; out: VaultExportEnvOut };
   "vault.exports.list": { in: VaultExportsListIn; out: VaultExportsListOut };
   "vault.exports.revoke": { in: VaultExportsRevokeIn; out: VaultExportsRevokeOut };
@@ -51345,6 +51576,7 @@ export type VaultRequestDeclinedPayload = {
   forRun?: string;
   note?: string;
   name?: string;
+  service?: string;
   threadId?: string;
   agentId?: string;
   asker?: string;

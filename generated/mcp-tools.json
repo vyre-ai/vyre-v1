@@ -68210,6 +68210,245 @@
     },
     {
       "blocks": [],
+      "cap": "vault.connect",
+      "deferred": false,
+      "description": "Is X connected, connect X (Fathom, Slack), or before saying you cannot reach X. The person gets one card; you get connected, waiting or declined.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "service": {
+            "examples": [
+              "Fathom"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.ask_admin",
+      "deferred": false,
+      "description": "Ask an admin to connect the service when this person may not",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "admin": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_ask_admin",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.disconnect",
+      "deferred": false,
+      "description": "Disconnect the service; the key stays in the Vault",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_disconnect",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.get",
+      "deferred": false,
+      "description": "The connect card of one request: its state, the fields, who can fill it, where the key is kept",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_get",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.options",
+      "deferred": false,
+      "description": "Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_options",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.reopen",
+      "deferred": false,
+      "description": "Open a card the person folded with Not now",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_reopen",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.submit",
+      "deferred": false,
+      "description": "Try the key, connect the service and keep the key; nothing is kept unless the key works. The values are in this call only",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "audience": {
+            "enum": [
+              "asker",
+              "anyone"
+            ],
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "properties": {
+                "key": {
+                  "examples": [
+                    "api_key"
+                  ],
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "folderId": {
+            "examples": [
+              "vfd_a1b2c3"
+            ],
+            "pattern": "^vfd_[a-z0-9]+$",
+            "type": "string"
+          },
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          },
+          "useSaved": {
+            "description": "Use the key the person already has instead of a typed one",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_submit",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "vault.export_env",
       "deferred": false,
       "description": "Export a folder as a .env file: one pull link that expires after 1 hour, 1 day or 7 days; never for Restricted items; the folder owner is notified",
@@ -69318,7 +69557,7 @@
       "blocks": [],
       "cap": "vault.request",
       "deferred": false,
-      "description": "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
+      "description": "Ask for a missing key that is not a service (a key a skill or run needs, by name): creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status. For a service the person names, use vault_connect",
       "effects": "write",
       "inputSchema": {
         "properties": {

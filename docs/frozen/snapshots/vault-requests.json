@@ -1,16 +1,23 @@
 {
   "module": "vault-requests",
   "capabilities": {
-    "vault.request@1": "dbfef1313c4fccfe4d2427a95e2af16dfff0362d8731d7a32955363ccc8180c9",
+    "vault.connect@1": "c336e9c7347441585a28c540fec4acf5d006b0fd820e53ea06f217ecb1660cc6",
+    "vault.connect_card.ask_admin@1": "eae177fe74abdc0c8e52d3124fd702698726040b713fa7cb2cf0113e68c5e68f",
+    "vault.connect_card.disconnect@1": "875b43e680d35eae3b11a87e2706fcdafc8b67a50ca4686f3c794e3441626a5c",
+    "vault.connect_card.get@1": "266e0ae7feb2dce8962bdc2a94427264992095f292a7bf15b9fde6e20377f415",
+    "vault.connect_card.options@1": "d675fe1cad8c5640580d26028cce61484c3c47ae21bef194f3ea83c58ea51a21",
+    "vault.connect_card.reopen@1": "95148412f735d1366c39d153aead8c6ddacdddb3baa9a07dc7517bbc3be07fb6",
+    "vault.connect_card.submit@1": "d3b7d20a91d1997daab89bb93557278b4d523d47b4b6e941ffb92621316b20f7",
+    "vault.request@1": "71b2cf066df6de78107765207c8f70ea80b27080218a98a4835f762cc760c6e1",
     "vault.requests.cancel@1": "1b91febcaa5fe6e2a97979eb0d6851f844465cf545d4f780aae8fe71094a3f7e",
     "vault.requests.decline@1": "f19e12ab3f2bd919d2c785fdd47b79787475b8e959ee3bb217243ede78efd7f2",
-    "vault.requests.fulfil@1": "0f48c71fb9735adac95d03325159b739bf6a723ce8a185c64a504f1b0e201db6",
-    "vault.requests.get@1": "8372376d8649586049a5cfb5a8229c0f89859404078e3659112d124b855207d5",
-    "vault.requests.list@1": "49d4f299e8d2f1ca03fea88d4244f73aed1141d5718e2d2b4da181782ff2f443"
+    "vault.requests.fulfil@1": "8b49ecb1a337250fbfb365f5dd2c9f81e4e00612e553a2b13d653fd91b3492d2",
+    "vault.requests.get@1": "31bbd3bb0a122aea999e1b81d30f34465bfc33b0654dff905a885f6e6ad26002",
+    "vault.requests.list@1": "e0150b3b4ebfad08157dda78c472fa09e389e46bd795f9237852ce6266e155a6"
   },
   "events": {
     "vault.request_canceled": "275d2e8c6c7d00296701d4309974bc321595a251271411380c4be33f089f0419",
-    "vault.request_declined": "2e71cebbfd13e65fd9520a5e448bfb97d1a280eb9c0e42bc52a9e92f481a43e5",
+    "vault.request_declined": "b87f089fbef00311eb0cd3410cba702c586e85bb0cd1141d8410b9785fdaffbb",
     "vault.request_fulfilled": "aed80eae7e3953665d00dcc3e14e2277d15a788181837439c1127915d366ce6a",
     "vault.requested": "82f1596f9c0fc1395fe9d32681f8026948f23c9bf3d068e5cac6a88e2bfabb9b"
   }

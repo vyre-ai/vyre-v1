@@ -9794,6 +9794,48 @@
     },
     {
       "deferred": false,
+      "name": "vault_connect",
+      "summary": "Is X connected, connect X (Fathom, Slack), or before saying you cannot reach X. The person gets one card; you get connected, waiting or declined.",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_ask_admin",
+      "summary": "Ask an admin to connect the service when this person may not",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_disconnect",
+      "summary": "Disconnect the service; the key stays in the Vault",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_get",
+      "summary": "The connect card of one request: its state, the fields, who can fill it, where the key is kept",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_options",
+      "summary": "Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_reopen",
+      "summary": "Open a card the person folded with Not now",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_submit",
+      "summary": "Try the key, connect the service and keep the key; nothing is kept unless the key works. The values are in this call only",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "vault_export_env",
       "summary": "Export a folder as a .env file: one pull link that expires after 1 hour, 1 day or 7 days; never for Restricted items; the folder owner is notified",
       "toolset": "vault"
@@ -9963,7 +10005,7 @@
     {
       "deferred": false,
       "name": "vault_request",
-      "summary": "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
+      "summary": "Ask for a missing key that is not a service (a key a skill or run needs, by name): creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status. For a service the person names, use vault_connect",
       "toolset": "vault"
     },
     {

@@ -86,7 +86,11 @@ test("check_key: a good key is ok, a rejected key says rejected, an app that can
 
   const seen = JSON.stringify([ok, bad, down, k.events, k.logs, k.calls]);
   assert.equal(seen.includes(SECRET), false, "the key is in no answer, event, log line or nested call");
-  assert.equal(k.calls.some((c) => c.cap.startsWith("vault.")), false, "nothing was stored");
+  assert.equal(
+    k.calls.some((c) => c.cap.startsWith("vault.")),
+    false,
+    "nothing was stored",
+  );
 });
 
 test("check_key refuses a missing required field, an unknown field and a draft, and leaves the optional one out", async () => {
