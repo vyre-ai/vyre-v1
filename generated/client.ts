@@ -494,6 +494,7 @@ export function createClient(transport: Transport) {
     },
     chats: {
       presence: call("chats.presence", 1),
+      sidebar: call("chats.sidebar", 1),
     },
     ci: {
       cost: {
@@ -938,6 +939,7 @@ export function createClient(transport: Transport) {
         set: call("engine.subscription_share.set", 1),
       },
       switch: call("engine.switch", 1),
+      thread_states: call("engine.thread_states", 1),
       time_convert: call("engine.time_convert", 1),
       turn: {
         append: call("engine.turn.append", 1),
@@ -2639,6 +2641,25 @@ export function createClient(transport: Transport) {
     stars: {
       list: call("stars.list", 1),
       toggle: call("stars.toggle", 1),
+    },
+    state: {
+      arrive: call("state.arrive", 1),
+      counts: call("state.counts", 1),
+      forget: call("state.forget", 1),
+      gain: call("state.gain", 1),
+      get: call("state.get", 1),
+      layout: {
+        get: call("state.layout.get", 1),
+        set: call("state.layout.set", 1),
+      },
+      list: call("state.list", 1),
+      lose: call("state.lose", 1),
+      merge: call("state.merge", 1),
+      read: call("state.read", 1),
+      read_scope: call("state.read_scope", 1),
+      retract: call("state.retract", 1),
+      set: call("state.set", 1),
+      verify: call("state.verify", 1),
     },
     steps: {
       support: call("steps.support", 1),

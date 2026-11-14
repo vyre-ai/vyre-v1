@@ -4,7 +4,7 @@ import { act } from "react";
 import type { ReactElement } from "react";
 import { installDom, find, flush } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
-import { ChatsSidebar } from "./ChatsSidebar.tsx";
+import { LegacyChatsSidebar as ChatsSidebar } from "./ChatsSidebar.tsx";
 import { createSampleSidebar, northwind } from "./sample.ts";
 import type { SampleImported } from "./sample.ts";
 

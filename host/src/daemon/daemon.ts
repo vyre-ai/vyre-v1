@@ -323,6 +323,7 @@ import {
 } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
+import { bindStateKinds } from "../seams/state.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
 import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
@@ -2155,6 +2156,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return true;
         },
       };
+      // the kinds of thing that carry per-person state (modules export `stateKinds`): registered before the scheduler's first state.verify
+      bindStateKinds(db!, loaded.moduleExports);
       boundPorts = bindSpacePorts(loaded.moduleExports, portDeps);
       closers.push(() => unbindSpacePorts(loaded.moduleExports, portDeps));
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes

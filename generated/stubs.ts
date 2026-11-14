@@ -494,6 +494,7 @@ export function stubs(ctx: CallCtx) {
     },
     chats: {
       presence: call("chats.presence"),
+      sidebar: call("chats.sidebar"),
     },
     ci: {
       cost: {
@@ -938,6 +939,7 @@ export function stubs(ctx: CallCtx) {
         set: call("engine.subscription_share.set"),
       },
       switch: call("engine.switch"),
+      thread_states: call("engine.thread_states"),
       time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),
@@ -2639,6 +2641,25 @@ export function stubs(ctx: CallCtx) {
     stars: {
       list: call("stars.list"),
       toggle: call("stars.toggle"),
+    },
+    state: {
+      arrive: call("state.arrive"),
+      counts: call("state.counts"),
+      forget: call("state.forget"),
+      gain: call("state.gain"),
+      get: call("state.get"),
+      layout: {
+        get: call("state.layout.get"),
+        set: call("state.layout.set"),
+      },
+      list: call("state.list"),
+      lose: call("state.lose"),
+      merge: call("state.merge"),
+      read: call("state.read"),
+      read_scope: call("state.read_scope"),
+      retract: call("state.retract"),
+      set: call("state.set"),
+      verify: call("state.verify"),
     },
     steps: {
       support: call("steps.support"),

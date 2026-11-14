@@ -90,6 +90,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "chat.transcript.summary": async (ctx) => { throw new VyreErr(notImplemented("chat.transcript.summary", ctx.trace)); },
   "chat.unpin": async (ctx) => { throw new VyreErr(notImplemented("chat.unpin", ctx.trace)); },
   "chats.presence": async (ctx) => { throw new VyreErr(notImplemented("chats.presence", ctx.trace)); },
+  "chats.sidebar": async (ctx) => { throw new VyreErr(notImplemented("chats.sidebar", ctx.trace)); },
   "threads.add_agent": async (ctx) => { throw new VyreErr(notImplemented("threads.add_agent", ctx.trace)); },
   "threads.agent.configure": async (ctx) => { throw new VyreErr(notImplemented("threads.agent.configure", ctx.trace)); },
   "threads.agent.create": async (ctx) => { throw new VyreErr(notImplemented("threads.agent.create", ctx.trace)); },
