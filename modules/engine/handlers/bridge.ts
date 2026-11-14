@@ -15,6 +15,7 @@ import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { ALL_AGENTS, route as routeOf } from "../../../lib/route.ts";
 import { localClock, readPublicTime } from "../../../lib/presence.ts";
+import { eraseOwn } from "../own-subagents.ts";
 import { hasReads } from "../../../host/src/seams/answer-reads.ts";
 import { findProgram } from "../cli-programs.ts";
 import { engineIfBound, sqlMessages, withMessageId, mintId } from "../projections.ts";
@@ -150,6 +151,12 @@ export type StreamEvent =
       name?: string;
       ok?: boolean;
       /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string;
+      /** Who the turn runs for: a subagent's own lines go to them alone (live-coalesce.ts, the host's stream). */
+      asker?: string;
+      /** The call a subagent made this step under: the id of the Agent call that started that subagent (crew rows read it; the live line does not). */
+      parent?: string;
+      /** What a subagent returned, on the result of the call that started it. Never sent to a screen's live line (live-coalesce.ts drops it); the crew row keeps it. */
+      result?: string;
     }
   /** Steps gathered to about one frame a second for the screens (live-coalesce.ts): what the fan-out sends instead of each `step`. */
   | {
@@ -157,7 +164,30 @@ export type StreamEvent =
       threadId: string;
       turnId: string;
       agentId: string;
-      steps: Array<{ phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; detail?: string }>;
+      steps: Array<{
+        phase: "call" | "result" | "input";
+        id: string;
+        name?: string;
+        ok?: boolean;
+        detail?: string;
+        parent?: string;
+      }>;
+    }
+  /** What a subagent of the engine is on, from its own lines: for the person the turn runs for alone. */
+  | {
+      kind: "substeps";
+      threadId: string;
+      turnId: string;
+      agentId: string;
+      asker: string;
+      steps: Array<{
+        phase: "call" | "result" | "input";
+        id: string;
+        name?: string;
+        ok?: boolean;
+        detail?: string;
+        parent: string;
+      }>;
     }
   /** A piece of the thinking the provider sent. It goes only to the person whose turn it is (hole 8), over the live link; it is never logged and never saved. */
   | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
@@ -725,7 +755,50 @@ export function createBridge(o: BridgeOptions): Bridge {
         const seg: Segment = { blocks: [], text: "", mentions: 0, t0: (o.now ?? Date.now)(), calls: new Map() };
         let afterBlock = false;
         live.set(input.turnId, seg);
+        const subCalls = new Map<string, string>(); // a subagent's own calls: id -> tool name
         for await (const ev of s.send(input)) {
+          // a line a subagent of the engine works through (its call carries the id of the Agent call that started it): told to the crew rows and the live line, never kept in the reply's own trail
+          if (
+            ev.type === "block" &&
+            (ev.kind === "tool_call" || ev.kind === "tool_input" || ev.kind === "tool_result") &&
+            typeof (ev.payload as { parent?: unknown } | null)?.parent === "string" &&
+            (ev.payload as { parent: string }).parent !== ""
+          ) {
+            const p = ev.payload as { id?: unknown; name?: unknown; detail?: unknown; ok?: unknown; parent: string };
+            const id = typeof p.id === "string" ? p.id : "";
+            if (id !== "") {
+              if (ev.kind === "tool_call" && typeof p.name === "string") {
+                subCalls.set(id, p.name);
+                if (NATIVE_OUTSIDE.has(p.name)) {
+                  try {
+                    await o.callAs?.("gate.taint.mark", { threads: [input.threadId], source: p.name }, input.asker);
+                  } catch (e) {
+                    warn("a web read was not marked", {
+                      threadId: input.threadId,
+                      error: e instanceof Error ? e.message : String(e),
+                    });
+                  }
+                }
+              }
+              const name = subCalls.get(id);
+              emit({
+                kind: "step",
+                threadId: input.threadId,
+                turnId: input.turnId,
+                agentId: input.agent.id,
+                phase: ev.kind === "tool_call" ? "call" : ev.kind === "tool_input" ? "input" : "result",
+                id,
+                parent: p.parent,
+                asker: input.asker,
+                ...(name ? { name } : {}),
+                ...(typeof p.detail === "string" && ev.kind === "tool_input" ? { detail: p.detail } : {}),
+                ...(ev.kind === "tool_result" && typeof p.ok === "boolean" ? { ok: p.ok } : {}),
+              });
+              if (ev.kind === "tool_result") subCalls.delete(id);
+            }
+            yield ev;
+            continue;
+          }
           if (ev.type === "text") {
             // words that come after a tool call are a new paragraph, not a continuation of the sentence before it
             const t =
@@ -857,7 +930,15 @@ export function createBridge(o: BridgeOptions): Bridge {
                 ...(call?.name ? { name: call.name } : {}),
                 ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}),
                 ...(said !== "" ? { detail: said } : {}),
+                // what a subagent returned is for its crew row; the reply keeps only that it ran
+                ...(call && /^(Agent|Task)$/.test(call.name) && typeof (p as { result?: unknown }).result === "string"
+                  ? { result: (p as { result: string }).result }
+                  : {}),
               });
+              if (typeof (p as { result?: unknown }).result === "string") {
+                const { result: _gone, ...rest } = data as Record<string, unknown>;
+                data = rest;
+              }
               if (typeof (p as { detail?: unknown }).detail === "string") {
                 const { detail: _drop, ...rest } = data as Record<string, unknown>;
                 data = rest;
@@ -1483,6 +1564,16 @@ export const bridgeConsumers = {
     },
   },
   // a person signed in again (a Vault item was saved or changed): the turns parked on a missing sign-in run once. Whose sign-in is not in the event, and a turn whose account is still missing parks again at once.
+  // a message or a whole chat was erased: the subagents of the engine that hung under it go with it (own-subagents.ts)
+  "engine.own_subagents_erase": {
+    on: ["message.deleted", "thread.erased"],
+    run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ removed: number }> => ({
+      removed: eraseOwn(ctx.db, {
+        ...(event.name === "message.deleted" ? { messageId: str(event.payload["messageId"]) } : {}),
+        ...(event.name === "thread.erased" ? { threadId: str(event.payload["threadId"]) } : {}),
+      }),
+    }),
+  },
   "engine.signin_resume": {
     on: ["vault.item_updated", "vault.item_created"],
     run: async (): Promise<{ skipped?: string; resumed?: number }> => {

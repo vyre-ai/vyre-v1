@@ -90,7 +90,7 @@ export const BatonMarks = memo(function BatonMarks({
   for (const [i, m] of marks.entries())
     bits.push(<View key={i} style={[s.bat, m === "p" && s.batPast, m === "c" && s.batNow]} />);
   return (
-    <View {...webProps({ title })} accessibilityLabel={title} style={s.bats}>
+    <View {...webProps({ dataSet: { tt: title } })} accessibilityLabel={title} style={s.bats}>
       {bits}
     </View>
   );
@@ -375,7 +375,7 @@ function NativeLine({
                 (e as unknown as { stopPropagation?: () => void }).stopPropagation?.();
                 env.pick(row.id, false);
               }}
-              {...webProps({ title: "Select (X)" })}
+              {...webProps({ dataSet: { tt: "Select (X)" } })}
               style={[s.pick, selected && s.pickOn, !selected && hovered !== true && { opacity: 0 }]}
             >
               {selected ? <Glyph name="check" size={10} color="var(--accent-ink)" /> : null}

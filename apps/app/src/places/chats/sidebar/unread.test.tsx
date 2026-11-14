@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ChatsSidebar } from "./ChatsSidebar.tsx";
+import { LegacyChatsSidebar as ChatsSidebar } from "./ChatsSidebar.tsx";
 import type { ChatsSidebarData } from "./data.tsx";
 import { createSidebarApi } from "./actions.ts";
 import { chatMenuEntries } from "./chat-menu.ts";

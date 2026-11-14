@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ChatsSidebar } from "../sidebar/ChatsSidebar.tsx";
+import { LegacyChatsSidebar as ChatsSidebar } from "../sidebar/ChatsSidebar.tsx";
 import { buildEntries, groupRecent, waitingAgents } from "../sidebar/model.ts";
 import type { Agent, NeedsItem } from "../sidebar/model.ts";
 import { createSampleSidebar, harbor, northwind } from "../sidebar/sample.ts";

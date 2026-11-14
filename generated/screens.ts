@@ -1887,6 +1887,13 @@ export const screens: ScreenIndexEntry[] = [
           "folderId": "/state/folderId"
         },
         "live": true
+      },
+      "side": {
+        "cap": "chats.sidebar",
+        "input": {
+          "filter": "/state/filter"
+        },
+        "live": true
       }
     },
     "actions": {

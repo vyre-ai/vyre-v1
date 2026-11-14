@@ -557,3 +557,9 @@ test("a new desktop container keeps today's limits: 2 CPUs, 4 GB, no swap, 1024 
   assert.equal(c.HostConfig.MemorySwap, c.HostConfig.Memory);
   assert.equal(c.HostConfig.PidsLimit, 1024);
 });
+
+test("F33: the old desktop's host name, which the shell prompt shows a person, is a word and never carries the agent's or computer's id", () => {
+  const c = computerContainerConfig("vyre-comp-abc", "cmt_abc", INTAKE, { api: fakeApi().api }, 8);
+  assert.equal(c.Hostname, "computer");
+  assert.ok(!/cmt_|agt_|abc/.test(c.Hostname ?? ""), String(c.Hostname));
+});

@@ -91,6 +91,8 @@ test(
         k.me.page.evaluate(() => (window as unknown as { __cv: { draws: number; resizes: number } }).__cv);
       const watching = summary(await sample(8_000));
       await shoot(k.me.page, `${DIR}/b3-real`, "watching");
+      await k.me.page.getByTestId("browser-picture").click();
+      await k.me.page.getByTestId("browser-popup").waitFor({ timeout: 10_000 });
       await k.me.page.getByTestId("browser-take").click();
       await k.me.page.getByTestId("browser-give").waitFor({ timeout: 20_000 });
       const before = await counts();

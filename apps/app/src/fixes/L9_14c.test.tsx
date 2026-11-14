@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { ChatsPlace, SIDEBAR_W, WIDE } from "../places/chats/ChatsPlace.tsx";
-import { ChatsSidebarSlot } from "../places/chats/sidebar/ChatsSidebar.tsx";
+import { LegacyChatsSidebarSlot as ChatsSidebarSlot } from "../places/chats/sidebar/ChatsSidebar.tsx";
 import { SidebarContent } from "../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../shell/sidebar/index.ts";
 import { createSample as createConversationSample } from "../places/chats/conversation/sample.ts";

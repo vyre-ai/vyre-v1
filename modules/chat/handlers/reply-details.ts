@@ -62,6 +62,8 @@ export async function replyDetails(ctx: ChatCtx, input: { threadId: string; mess
     factId: String(f["factId"] ?? ""),
     text: String(f["text"] ?? ""),
     ...(typeof f["sourceTitle"] === "string" ? { sourceTitle: f["sourceTitle"] } : {}),
+    // a lesson is told apart so the Details can list it under its own heading
+    ...(f["kind"] === "lesson" ? { kind: "lesson" } : {}),
   }));
   const quotes = (known?.quotes ?? []).map((q) => ({
     ref: String(q["ref"] ?? ""),

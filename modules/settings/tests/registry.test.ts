@@ -117,7 +117,7 @@ test("each person's value is their own: Omar's change does not move Maya's", asy
   const lists = (await handlers["settings.list"](asMaya(h), { page: "ai" })).rows;
   assert.deepEqual(
     lists.map((r) => r.key).sort(),
-    ["chat.agent_tabs", "chat.ask_agent", "engine.local_runs", "memory.lessons"],
+    ["chat.agent_tabs", "chat.ask_agent", "engine.local_runs", "memory.lessons", "state.agents_may_triage"],
     "a page of You lists no Space row, even one declared under the same name",
   );
 });

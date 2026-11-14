@@ -51,6 +51,10 @@ const terminalRow = t.obj({
       },
     ),
   ),
+  // the person at the keyboard now: the agent's commands and everyone else's keys wait until they hand it back (or 15 minutes pass with nobody using it)
+  heldBy: t.opt(id.user),
+  // the person who opened it: a person's own tab says whose it is
+  ownerId: t.opt(id.user),
 });
 const command = t.obj({
   command: t.str(),
@@ -169,6 +173,7 @@ export default defineManifest({
       emits: ["terminal.renamed"],
       tool: "terminal",
       offline: "patch",
+      errors: ["validation.precondition_failed"],
     }),
     write("terminal.close", "Close a session and kill its tmux session", {
       in: target,
@@ -179,6 +184,7 @@ export default defineManifest({
       tool: "terminal",
       idem: "natural",
       offline: "online",
+      errors: ["validation.precondition_failed"],
     }),
     write(
       "terminal.input",
@@ -192,7 +198,72 @@ export default defineManifest({
         idem: "none",
         offline: "online",
         risk: "medium",
+        errors: ["validation.precondition_failed"],
         rate: { n: 600, perSeconds: 60, scope: "principal" },
+      },
+    ),
+    write(
+      "terminal.take_over",
+      "Take the keyboard of a terminal: the agent's commands and everyone else's keys wait until you hand it back. Only the owner of the terminal or an admin can take it from another person",
+      {
+        in: target,
+        out: { terminal: terminalRow },
+        on: ["terminal", "/terminalId"],
+        level: "use",
+        emits: ["terminal.taken"],
+        idem: "natural",
+        offline: "online",
+        errors: ["permission.no_grant", "permission.role_lacks_permission"],
+      },
+    ),
+    write("terminal.give_back", "Hand the keyboard of a terminal back to the agent", {
+      in: target,
+      out: { terminal: terminalRow },
+      on: ["terminal", "/terminalId"],
+      level: "use",
+      emits: ["terminal.given_back"],
+      idem: "natural",
+      offline: "online",
+      errors: ["permission.role_lacks_permission"],
+    }),
+    read(
+      "terminal.capture",
+      "The screen of a session as tmux draws it, with its colours (escape sequences), the cursor, how much history there is, and whether a program is reading a hidden prompt (secrets already scrubbed)",
+      {
+        in: { ...target, lines: t.opt(t.int({ minimum: 1, maximum: 5000 })) },
+        out: {
+          text: t.str(),
+          cols: t.int(),
+          rows: t.int(),
+          cursor: t.nullable(t.obj({ x: t.int(), y: t.int() })),
+          history: t.int(),
+          hidden: t.bool(),
+        },
+        on: ["terminal", "/terminalId"],
+        label: "check",
+        offline: "online",
+        errors: ["validation.not_found", "validation.precondition_failed"],
+      },
+    ),
+    write(
+      "terminal.keys",
+      "Press keys in a session as a person at a keyboard does: text, a named key (Enter, Tab, Up, C-c, F5 ...) or a paste as one write, raw through tmux; for a person who holds the keyboard. Never stored or logged: what is typed at a hidden prompt does not reach the stored log, other viewers or the agent",
+      {
+        in: {
+          ...target,
+          keys: t.arr(t.obj({ text: t.opt(t.str()), key: t.opt(t.str()), paste: t.opt(t.str()) }), {
+            minItems: 1,
+            maxItems: 200,
+          }),
+        },
+        out: { ok: t.bool() },
+        on: ["terminal", "/terminalId"],
+        level: "use",
+        idem: "none",
+        offline: "online",
+        risk: "medium",
+        rate: { n: 1200, perSeconds: 60, scope: "principal" },
+        errors: ["validation.bad_input", "validation.precondition_failed"],
       },
     ),
     write("terminal.interrupt", "Send Ctrl-C to a session", {
@@ -204,6 +275,7 @@ export default defineManifest({
       idem: "none",
       offline: "online",
       risk: "low",
+      errors: ["validation.precondition_failed"],
     }),
     write("terminal.resize", "Resize the terminal window", {
       in: { ...target, cols: t.int({ minimum: 20, maximum: 500 }), rows: t.int({ minimum: 5, maximum: 200 }) },
@@ -213,6 +285,7 @@ export default defineManifest({
       idem: "natural",
       offline: "online",
       risk: "low",
+      errors: ["validation.precondition_failed"],
       tool: "terminal",
     }),
     read("terminal.read", "Read the scrollback of a session (secrets already scrubbed)", {
@@ -271,7 +344,13 @@ export default defineManifest({
         audit: "sensitive",
         risk: "high",
         offline: "online",
-        errors: ["permission.needs_approval", "timeout.deadline", "provider.unavailable", "validation.not_found"],
+        errors: [
+          "permission.needs_approval",
+          "timeout.deadline",
+          "provider.unavailable",
+          "validation.not_found",
+          "validation.precondition_failed",
+        ],
       },
     ),
     write(
@@ -340,6 +419,20 @@ export default defineManifest({
       subject: ["terminal", "/terminalId"],
       vis: "participants",
     }),
+    ev("terminal.taken", "A person took the keyboard of a terminal (the agent is told, its commands wait)", {
+      p: { terminalId: id.terminal, by: t.str(), from: t.opt(t.str()) },
+      subject: ["terminal", "/terminalId"],
+      vis: "participants",
+    }),
+    ev(
+      "terminal.given_back",
+      "The keyboard of a terminal went back to the agent (handed back, or nobody used it for 15 minutes)",
+      {
+        p: { terminalId: id.terminal, by: t.str() },
+        subject: ["terminal", "/terminalId"],
+        vis: "participants",
+      },
+    ),
     ev("terminal.renamed", "A terminal session was renamed", {
       p: { terminalId: id.terminal, name: t.str() },
       subject: ["terminal", "/terminalId"],

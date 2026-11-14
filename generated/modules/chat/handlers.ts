@@ -33,6 +33,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.ask_suggest": Handler<"chat.ask_suggest", X>;
   "chat.asks_of": Handler<"chat.asks_of", X>;
   "chat.catch_up": Handler<"chat.catch_up", X>;
+  "chat.chapters": Handler<"chat.chapters", X>;
+  "chat.chapters_write": Handler<"chat.chapters_write", X>;
   "chat.composer.suggest": Handler<"chat.composer.suggest", X>;
   "chat.crew_line": Handler<"chat.crew_line", X>;
   "chat.delete_message": Handler<"chat.delete_message", X>;
@@ -75,6 +77,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.recent": Handler<"chat.recent", X>;
   "chat.remember": Handler<"chat.remember", X>;
   "chat.reply_details": Handler<"chat.reply_details", X>;
+  "chat.round.decide": Handler<"chat.round.decide", X>;
+  "chat.round.discuss": Handler<"chat.round.discuss", X>;
   "chat.screen.get": Handler<"chat.screen.get", X>;
   "chat.search": Handler<"chat.search", X>;
   "chat.share": Handler<"chat.share", X>;
@@ -89,6 +93,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.transcript.summarize": Handler<"chat.transcript.summarize", X>;
   "chat.transcript.summary": Handler<"chat.transcript.summary", X>;
   "chat.unpin": Handler<"chat.unpin", X>;
+  "chats.presence": Handler<"chats.presence", X>;
+  "chats.sidebar": Handler<"chats.sidebar", X>;
   "threads.add_agent": Handler<"threads.add_agent", X>;
   "threads.agent.configure": Handler<"threads.agent.configure", X>;
   "threads.agent.create": Handler<"threads.agent.create", X>;

@@ -23,11 +23,17 @@ const SECTIONS: readonly Section[] = ["starred", "today", "yesterday", "earlier"
 /** How many of my inline threads the Threads count looks at, newest first: the same cap the Threads page lists. */
 const THREADS_MAX = 100;
 
-export async function recentWithUnread(ctx: ChatCtx, input: { filter?: "all" | "unread" | "people" | "agents" }) {
+export async function recentWithUnread(
+  ctx: ChatCtx,
+  input: { filter?: "all" | "unread" | "people" | "agents"; max?: number },
+) {
   const asker = askerOf(ctx);
   const filter = input.filter ?? "all";
   // The group's function knows the listing rules; the unread filter is applied here on the counts it cannot see.
-  const base = (await recent(ctx, { filter: filter === "unread" ? "all" : filter })) as Record<Section, Row[]> & {
+  const base = (await recent(ctx, {
+    filter: filter === "unread" ? "all" : filter,
+    ...(input.max !== undefined ? { max: input.max } : {}),
+  })) as Record<Section, Row[]> & {
     nextUnread: string | null;
   };
   // what is new in the replies to messages I follow (the inline threads I am in: a reply or a mention joins me), counted by the same read cursor. A task's replies are the task's (Tasks shows

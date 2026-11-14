@@ -113,41 +113,6 @@ export function PickButton({
   );
 }
 
-/** An on or off switch. */
-export function Switch({
-  on,
-  onChange,
-  label,
-  disabled = false,
-  testID,
-}: {
-  on: boolean;
-  onChange(next: boolean): void;
-  label: string;
-  disabled?: boolean;
-  testID?: string;
-}): ReactElement {
-  return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityLabel={label}
-      accessibilityState={{ checked: on, disabled }}
-      aria-checked={on}
-      testID={testID}
-      disabled={disabled}
-      onPress={() => onChange(!on)}
-      style={[
-        p.track,
-        { backgroundColor: (on ? "var(--accent)" : "var(--line-2)") as string },
-        disabled && { opacity: 0.5 },
-        pointer,
-      ]}
-    >
-      <View style={[p.knob, on && { left: 18 }]} />
-    </Pressable>
-  );
-}
-
 /** A quiet line of explanation below a group. */
 export function Hint({ children, testID }: { children: ReactNode; testID?: string }): ReactElement {
   return (

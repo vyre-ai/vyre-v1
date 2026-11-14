@@ -22,7 +22,8 @@ import { aiMenu, useAiRefill } from "../../vault/providers/aiMenu.ts";
 import { aiName, automaticLine } from "../../vault/providers/pick.ts";
 import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
 import { Overlay } from "./Overlay.tsx";
-import { Group, Hint, IconLine, Lab, PickButton, SRow, Switch } from "./parts.tsx";
+import { Group, Hint, IconLine, Lab, PickButton, SRow } from "./parts.tsx";
+import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
 import { PromoteSheet, usePromotePreview } from "./PromoteSheet.tsx";
 import { useSaved } from "./saved.ts";
 

@@ -115,6 +115,7 @@ test("the island: the agent's name and question, the first answer as the primary
     assert.match(textOf(find(root, "question-island")), /Question q1\?/);
     assert.equal(textOf(find(root, "island-primary")).trim(), "Yes");
     assert.equal(find(root, "island-count"), null, "one question: no 1 of 1");
+    assert.ok(find(root, "island-other"), "Other is always there beside the first answer (G32)");
     await press(find(root, "island-primary"));
     await flush();
     await press(find(root, "island-people"));
@@ -160,7 +161,7 @@ test("a chat with a waiting question draws the island above its composer; one wi
   const s = createSample("plan");
   const out = clean(renderToStaticMarkup(<Conversation data={s.data} />));
   assert.match(out, /data-testid="question-island"/);
-  assert.match(out, /Who signs the engagement letter\?/);
+  assert.match(out, /Who signs the order form\?/);
   assert.ok(
     out.indexOf('data-testid="question-island"') < out.indexOf('data-testid="composer"'),
     "above the composer, in its own space",

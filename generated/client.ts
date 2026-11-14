@@ -412,6 +412,8 @@ export function createClient(transport: Transport) {
       ask_suggest: call("chat.ask_suggest", 1),
       asks_of: call("chat.asks_of", 1),
       catch_up: call("chat.catch_up", 1),
+      chapters: call("chat.chapters", 1),
+      chapters_write: call("chat.chapters_write", 1),
       composer: {
         suggest: call("chat.composer.suggest", 1),
       },
@@ -474,6 +476,10 @@ export function createClient(transport: Transport) {
       recent: call("chat.recent", 1),
       remember: call("chat.remember", 1),
       reply_details: call("chat.reply_details", 1),
+      round: {
+        decide: call("chat.round.decide", 1),
+        discuss: call("chat.round.discuss", 1),
+      },
       screen: {
         get: call("chat.screen.get", 1),
       },
@@ -492,6 +498,10 @@ export function createClient(transport: Transport) {
         summary: call("chat.transcript.summary", 1),
       },
       unpin: call("chat.unpin", 1),
+    },
+    chats: {
+      presence: call("chats.presence", 1),
+      sidebar: call("chats.sidebar", 1),
     },
     ci: {
       cost: {
@@ -535,6 +545,7 @@ export function createClient(transport: Transport) {
     computers: {
       browser: {
         give_back: call("computers.browser.give_back", 1),
+        preview: call("computers.browser.preview", 1),
         profiles: call("computers.browser.profiles", 1),
         sessions: call("computers.browser.sessions", 1),
         sign_out: call("computers.browser.sign_out", 1),
@@ -913,6 +924,9 @@ export function createClient(transport: Transport) {
         get: call("engine.reviewer.get", 1),
         set: call("engine.reviewer.set", 1),
       },
+      round: {
+        get: call("engine.round.get", 1),
+      },
       route: {
         preview: call("engine.route.preview", 1),
       },
@@ -938,6 +952,7 @@ export function createClient(transport: Transport) {
         set: call("engine.subscription_share.set", 1),
       },
       switch: call("engine.switch", 1),
+      thread_states: call("engine.thread_states", 1),
       time_convert: call("engine.time_convert", 1),
       turn: {
         append: call("engine.turn.append", 1),
@@ -2102,6 +2117,7 @@ export function createClient(transport: Transport) {
         set: call("notifications.rules.set", 1),
       },
       send: call("notifications.send", 1),
+      unseen_by_thread: call("notifications.unseen_by_thread", 1),
     },
     plugins: {
       agent_template: {
@@ -2639,6 +2655,25 @@ export function createClient(transport: Transport) {
       list: call("stars.list", 1),
       toggle: call("stars.toggle", 1),
     },
+    state: {
+      arrive: call("state.arrive", 1),
+      counts: call("state.counts", 1),
+      forget: call("state.forget", 1),
+      gain: call("state.gain", 1),
+      get: call("state.get", 1),
+      layout: {
+        get: call("state.layout.get", 1),
+        set: call("state.layout.set", 1),
+      },
+      list: call("state.list", 1),
+      lose: call("state.lose", 1),
+      merge: call("state.merge", 1),
+      read: call("state.read", 1),
+      read_scope: call("state.read_scope", 1),
+      retract: call("state.retract", 1),
+      set: call("state.set", 1),
+      verify: call("state.verify", 1),
+    },
     steps: {
       support: call("steps.support", 1),
       test: call("steps.test", 1),
@@ -2862,11 +2897,14 @@ export function createClient(transport: Transport) {
     },
     terminal: {
       attach: call("terminal.attach", 1),
+      capture: call("terminal.capture", 1),
       close: call("terminal.close", 1),
       get: call("terminal.get", 1),
+      give_back: call("terminal.give_back", 1),
       health: call("terminal.health", 1),
       input: call("terminal.input", 1),
       interrupt: call("terminal.interrupt", 1),
+      keys: call("terminal.keys", 1),
       list: call("terminal.list", 1),
       open: call("terminal.open", 1),
       open_server: call("terminal.open_server", 1),
@@ -2881,6 +2919,7 @@ export function createClient(transport: Transport) {
       },
       run: call("terminal.run", 1),
       status: call("terminal.status", 1),
+      take_over: call("terminal.take_over", 1),
       workspace: call("terminal.workspace", 1),
     },
     threads: {

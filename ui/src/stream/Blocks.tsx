@@ -6,7 +6,7 @@ import { createContext, createElement, useContext, useEffect, useState } from "r
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Block, ChartSpec } from "./markdown.ts";
-import { CHART_MAX, CODE_TINT, RADIUS } from "../tokens/calm.ts";
+import { CODE_TINT, RADIUS } from "../tokens/calm.ts";
 import { chartGeometry, chartTable } from "./charts.ts";
 import type { Geo } from "./charts.ts";
 import { highlight } from "./highlight.ts";
@@ -516,12 +516,43 @@ export function currentTheme(): DiagramTheme {
   };
 }
 
-const frameDoc = (svg: string): string =>
-  `<!doctype html><html><body style="margin:0;background:transparent;display:flex;justify-content:center">${svg}</body></html>`;
+// The frame's own page says which scheme it is in: a light page inside a dark one gets an opaque white canvas from the browser, which hid a dark diagram on white (looked at, 14 Nov). Its text is the app's sans.
+/** Nothing a diagram's SVG (or a model's text inside it) names loads from outside: no script, image, stylesheet, font or frame; only its own inline style and data pictures. */
+export const DIAGRAM_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:";
+export const frameDoc = (svg: string): string =>
+  `<!doctype html><html style="color-scheme:${currentTheme().dark ? "dark" : "light"}"><head><meta http-equiv="Content-Security-Policy" content="${DIAGRAM_CSP}"></head><body style="margin:0;background:transparent;display:flex;justify-content:center;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">${svg}</body></html>`;
+/** The one iframe a diagram is drawn in: fully sandboxed (no scripts, no same-origin) and under the policy above. */
+export function diagramFrameProps(svg: string, big: boolean): Record<string, unknown> {
+  return {
+    sandbox: "",
+    srcDoc: frameDoc(svg),
+    title: "Diagram",
+    style: {
+      border: 0,
+      width: "100%",
+      aspectRatio: String(aspectOf(svg)),
+      maxHeight: big ? "78vh" : 420,
+      background: "transparent",
+      display: "block",
+    },
+  };
+}
 const aspectOf = (svg: string): number => {
   const vb = /viewBox="[\d.\-]+\s+[\d.\-]+\s+([\d.]+)\s+([\d.]+)"/.exec(svg);
   return vb ? Number(vb[1]) / Number(vb[2]) : 2;
 };
+
+/** What a diagram is called in its header, from the first word of its source: "Flowchart", "Sequence diagram", else "Diagram". */
+export function diagramLabel(source: string): string {
+  const w = (source.trim().split(/[\s\n]/)[0] ?? "").toLowerCase();
+  if (w === "flowchart" || w === "graph") return "Flowchart";
+  if (w === "sequencediagram") return "Sequence diagram";
+  if (w === "classdiagram") return "Class diagram";
+  if (w === "statediagram" || w === "statediagram-v2") return "State diagram";
+  if (w === "erdiagram") return "Entity diagram";
+  if (w === "gantt") return "Timeline";
+  return "Diagram";
+}
 
 export function DiagramBlock({ source, id }: { source: string; id: string }): ReactElement {
   const [s, setS] = useState<{ svg: string } | { error: string } | null>(null);
@@ -543,24 +574,11 @@ export function DiagramBlock({ source, id }: { source: string; id: string }): Re
       live = false;
     };
   }, [source]);
-  const frame = (svg: string, big: boolean): ReactNode =>
-    createElement("iframe", {
-      sandbox: "",
-      srcDoc: frameDoc(svg),
-      title: "Diagram",
-      style: {
-        border: 0,
-        width: "100%",
-        aspectRatio: String(aspectOf(svg)),
-        maxHeight: big ? "78vh" : 420,
-        background: "transparent",
-        display: "block",
-      },
-    });
+  const frame = (svg: string, big: boolean): ReactNode => createElement("iframe", diagramFrameProps(svg, big));
   const failed = s !== null && "error" in s;
   return (
     <Frame
-      label="diagram"
+      label={diagramLabel(source)}
       testID={`block-${id}`}
       controls={
         s && "svg" in s ? (
@@ -721,7 +739,7 @@ function svgChart(g: Geo, spec: ChartSpec): ReactNode {
       viewBox: `0 0 ${g.box.w} ${g.box.h}`,
       role: "img",
       "aria-label": spec.title ?? `${spec.type} chart`,
-      style: { width: "auto", height: CHART_MAX, maxWidth: "100%", display: "block" },
+      style: { width: "100%", height: "auto", display: "block" },
     },
     ...kids,
   );
@@ -768,8 +786,7 @@ export function ChartBlock({
       : null;
   return (
     <Frame
-      quiet
-      label={spec.title ?? ""}
+      label={`Chart \u00b7 ${spec.type}`}
       testID={`block-${id}`}
       controls={
         <>
@@ -777,12 +794,13 @@ export function ChartBlock({
             <SmallBtn label="Chart" on={!table} onPress={() => setTable(false)} testID={`chart-tab-${id}`} />
           ) : null}
           <SmallBtn label="Table" on={table} onPress={() => setTable(true)} testID={`table-tab-${id}`} />
-          <SmallBtn label="Copy CSV" onPress={() => copyText(csv)} testID={`chart-csv-${id}`} />
+          <SmallBtn label="Copy as CSV" onPress={() => copyText(csv)} testID={`chart-csv-${id}`} />
         </>
       }
     >
       {!table && web ? (
         <View style={st.chartBody} testID={`chart-${id}`}>
+          {spec.title ? <Text style={st.chartTitle}>{spec.title}</Text> : null}
           {svgChart(g, spec)}
           {legend ? <View style={st.legend}>{legend}</View> : null}
         </View>
@@ -821,8 +839,22 @@ const st = StyleSheet.create({
   grow: { flex: 1 },
   controls: { flexDirection: "row", alignItems: "center", gap: 4 },
   controlsOff: { opacity: 0 },
-  frame: { borderRadius: RADIUS, overflow: "hidden", marginBottom: 12 },
-  head: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 0, paddingVertical: 4, minHeight: 30 },
+  frame: {
+    borderRadius: RADIUS,
+    overflow: "hidden",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    minHeight: 32,
+    backgroundColor: "var(--sunk)" as string,
+  },
   headLabel: { color: "var(--ink-3)" as string, fontSize: 12 },
   small: { height: 24, paddingHorizontal: 8, borderRadius: RADIUS, justifyContent: "center" },
   smallOver: { backgroundColor: "var(--hover)" as string },
@@ -830,14 +862,21 @@ const st = StyleSheet.create({
   smallText: { color: "var(--ink-2)" as string, fontSize: 12 },
   smallTextOn: { color: "var(--accent)" as string },
   pre: {
-    backgroundColor: CODE_TINT,
     borderRadius: RADIUS,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    overflow: "hidden",
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
   },
-  codeHead: { flexDirection: "row", alignItems: "center", marginBottom: 6, marginHorizontal: -6 },
-  lang: { flex: 1, color: "var(--ink-3)" as string, fontSize: 11.5, paddingLeft: 6 },
+  codeHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    minHeight: 32,
+    backgroundColor: "var(--sunk)" as string,
+  },
+  lang: { flex: 1, color: "var(--ink-3)" as string, fontSize: 12 },
   preText: { color: "var(--ink)" as string, fontFamily: MONO, fontSize: 13, lineHeight: 20, padding: 10 },
   callout: {
     borderLeftWidth: 3,
@@ -925,7 +964,8 @@ const st = StyleSheet.create({
   dg: { padding: 12, alignItems: "center" },
   note: { color: "var(--ink-3)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingVertical: 6 },
   error: { color: "var(--danger)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingTop: 8 },
-  chartBody: { paddingVertical: 6, alignItems: "flex-start" },
+  chartBody: { paddingVertical: 10, paddingHorizontal: 12, alignItems: "stretch" },
+  chartTitle: { color: "var(--ink)" as string, fontSize: 13.5, fontWeight: "600", paddingBottom: 4 },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 14, paddingTop: 8 },
   lg: { flexDirection: "row", alignItems: "center", gap: 6 },
   lgDot: { width: 9, height: 9, borderRadius: 2 },

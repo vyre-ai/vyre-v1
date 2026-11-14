@@ -1,0 +1,161 @@
+// Mount for lane chat-chapters: the pieces that sit beside a long session. In the chat, a background job's quiet line (terminal.list is stood in for); in a pane column, the Session block of the Crew tab,
+// the Kept tab and the /context card.
+import { useMemo } from "react";
+import type { ReactNode } from "react";
+import { View } from "react-native";
+import { Conversation } from "../../../apps/app/src/places/chats/conversation/Conversation.tsx";
+import {
+  ContextCard,
+  KeptTab,
+  NO_USAGE,
+  SessionBlock,
+  metersOf,
+} from "../../../apps/app/src/places/chats/conversation/chapters/index.ts";
+import { createSample } from "../../../apps/app/src/places/chats/conversation/sample.ts";
+
+export const title = "Chapters, pieces";
+
+/** two: the chat has two people in it, so the job line names nothing. */
+export function Pieces({ two }: { two: boolean }): ReactNode {
+  const sample = useMemo(() => {
+    const s = createSample("idle", {
+      title: "Launch plan",
+      ...(two
+        ? {
+            members: [
+              { kind: "person" as const, id: "usr_irfad" },
+              { kind: "person" as const, id: "usr_maya" },
+              { kind: "agent" as const, id: "agt_intake" },
+            ],
+          }
+        : {}),
+    });
+    // neutral words: the sample's own messages are replaced
+    s.replica.remove(
+      "messages",
+      s.replica.rows("messages").map((r) => String(r["id"])),
+    );
+    const said = (id: string, seq: number, who: "person" | "agent", body: string) => ({
+      id,
+      messageId: id,
+      threadId: "c1",
+      threadSeq: seq,
+      author:
+        who === "person" ? { kind: "person" as const, id: "usr_irfad" } : { kind: "agent" as const, id: "agt_intake" },
+      kind: who === "person" ? "text" : "agent",
+      body,
+      blocks: [],
+      depth: 0,
+      attachments: [],
+      reactions: [],
+      pinned: false,
+      createdAt: Date.UTC(2025, 9, 24, 11, 40 + seq),
+    });
+    s.replica.put("messages", [
+      said("n1", 1, "person", "Can you check that the build passes before the review?"),
+      said("n2", 2, "agent", "Yes. I will run the full suite and tell you what it says."),
+    ]);
+    const rows = {
+      status: "ready",
+      data: {
+        terminals: [
+          {
+            terminalId: "term_1",
+            threadId: "c1",
+            name: "full-test-suite",
+            agentId: "agt_intake",
+            state: "running",
+            exitCode: null,
+            createdAt: Date.now() - (2 * 60 + 14) * 1000,
+            lastActiveAt: Date.now(),
+          },
+        ],
+      },
+    };
+    // the agent has run a command in this chat: a shell tool step, which is what makes the job line watch the live rows
+    s.replica.put("messages", [
+      {
+        id: "sh1",
+        messageId: "sh1",
+        threadId: "c1",
+        threadSeq: 900,
+        author: { kind: "agent", id: "agt_intake" },
+        kind: "agent",
+        body: "Running the full test suite in the background.",
+        blocks: [{ type: "tool_call", v: 1, id: "tc1", state: "done", data: { name: "bash", detail: "npm test" } }],
+        depth: 0,
+        attachments: [],
+        reactions: [],
+        pinned: false,
+        createdAt: Date.UTC(2025, 9, 24, 12, 5),
+      },
+    ]);
+    const base = s.data;
+    return {
+      ...s,
+      data: {
+        ...base,
+        // the live terminal rows the job line subscribes to (screen chats.terminal-list)
+        screens: {
+          ...base.screens,
+          query: (screen: string, name: string, state: Record<string, unknown>) =>
+            screen === "chats.terminal-list"
+              ? {
+                  subscribe: () => () => undefined,
+                  getSnapshot: () => rows,
+                }
+              : base.screens.query(screen, name, state),
+        },
+      },
+    };
+  }, []);
+  const at = Date.UTC(2025, 9, 24, 12, 0);
+  return (
+    <View style={{ flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Conversation data={sample.data} />
+      </View>
+      <View style={{ width: 420, padding: 16, backgroundColor: "var(--side)" as string }}>
+        <SessionBlock
+          summary={{ from: at, to: at + (4 * 60 + 12) * 60_000, steps: 318 }}
+          usage={{ ...NO_USAGE, context: 42, plan: 61, session: 12 }}
+        />
+        <View style={{ height: 24 }} />
+        <KeptTab
+          summary={{
+            decisions: [
+              {
+                messageId: "d1",
+                kind: "decision",
+                label: "Decision",
+                sub: "A file link stays private until shared",
+                at,
+                by: "usr_irfad",
+              },
+            ],
+            notes: [
+              {
+                messageId: "n1",
+                title: "How large can an upload be?",
+                body: "Two gigabytes, measured on the server.",
+                at,
+              },
+            ],
+          }}
+          onJump={() => undefined}
+          trail={() => "Maya, 3:53 PM"}
+        />
+        <ContextCard
+          meters={metersOf({ ...NO_USAGE, context: 42, plan: 61, session: 12 })}
+          keepEvery="the open questions"
+          onCompact={async () => undefined}
+          onKnows={() => undefined}
+        />
+      </View>
+    </View>
+  );
+}
+
+export default function Mount(): ReactNode {
+  return <Pieces two={false} />;
+}

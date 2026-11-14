@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
 import { capsMatch, dollarInput, dollars, limitDraft, raiseAmount } from "./ai-data-values.ts";
 
@@ -221,11 +221,11 @@ function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): Rea
         <Group>
           {editingCaps ? (
             <>
-              <Field label="Per run ($)" value={run} onChange={(value) => edit(setRun, value)} />
-              <Field label="Per day ($)" value={day} onChange={(value) => edit(setDay, value)} />
-              <Field label="Per month ($)" value={month} onChange={(value) => edit(setMonth, value)} />
-              <Field label="Turns per day" value={turns} onChange={(value) => edit(setTurns, value)} />
-              <Field label="Minutes per run" value={time} onChange={(value) => edit(setTime, value)} />
+              <TextBox label="Per run ($)" value={run} onChange={(value) => edit(setRun, value)} />
+              <TextBox label="Per day ($)" value={day} onChange={(value) => edit(setDay, value)} />
+              <TextBox label="Per month ($)" value={month} onChange={(value) => edit(setMonth, value)} />
+              <TextBox label="Turns per day" value={turns} onChange={(value) => edit(setTurns, value)} />
+              <TextBox label="Minutes per run" value={time} onChange={(value) => edit(setTime, value)} />
               {error ? <Note>{error}</Note> : null}
               {reviewedCaps ? (
                 <>
@@ -309,7 +309,7 @@ function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): Rea
             </>
           ) : (
             <>
-              <Field
+              <TextBox
                 label="Pause reason"
                 value={pauseReason}
                 onChange={(value) => {
@@ -379,7 +379,7 @@ function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): Rea
               setReviewedRaise(null);
             }}
           />
-          <Field
+          <TextBox
             label={
               raiseLimit === "turns"
                 ? "Additional turns (optional)"

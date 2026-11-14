@@ -21,7 +21,8 @@
     "notifications.push.unregister@1": "55685a4bad4058bf5f6c083d8996b6224d7bde548394717800175d360f487687",
     "notifications.rules.get@1": "3af9eb8984f142eb338704e9c6af4200500ffe34ae649d8bc627aa2ae1c9ccaf",
     "notifications.rules.set@1": "372f8990120869c86fbf8927e5acdf4e96e49128f7fbec8c833ef1cd9729ecb2",
-    "notifications.send@1": "7e92d4bebba03ae2536cbd528ddb29d7d150d12ba8cd75ed70ae70df6a62490d"
+    "notifications.send@1": "7e92d4bebba03ae2536cbd528ddb29d7d150d12ba8cd75ed70ae70df6a62490d",
+    "notifications.unseen_by_thread@1": "b33d942dc44c02c64198b1c3432ccef0bb57431247907828e4668f305f9bca34"
   },
   "events": {
     "away.cleared": "2c8a54b62d271ece06c8e7d043774b967ba76d48ce07458b0e4f5e9788a9e291",

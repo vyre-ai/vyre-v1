@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ShellIcon } from "../rail/icons.tsx";
 import { useResume } from "../../onboarding/resume-context.ts";
+import { useResumeInFoot } from "../../onboarding/resume-place.ts";
 import { syncLabel, reconnectingNow } from "./model.ts";
 import { NoticeSlot } from "../noticeslot/NoticeSlot.tsx";
 import { notices } from "../noticeslot/model.ts";
@@ -30,6 +31,7 @@ export function TitleBar(props: TitleBarProps): ReactElement {
   // the device itself has a network unless the device positively says it has none (navigator.onLine is false); when the app cannot tell, it is reconnecting, not offline
   const sync = syncLabel(online, waiting, reconnectingNow());
   const resume = useResume();
+  const setupInFoot = useResumeInFoot();
   const [over, setOver] = useState(false);
   // the connection is a notice like any other: raised while it is not plain "Connected", resolved when it is
   useEffect(() => {
@@ -45,7 +47,7 @@ export function TitleBar(props: TitleBarProps): ReactElement {
   return (
     <View testID="shell-titlebar" accessibilityRole="header" accessibilityLabel={title} style={styles.bar}>
       <View style={styles.side}>
-        {resume?.pill ? (
+        {resume?.pill && !setupInFoot ? (
           <View testID="title-setup" style={styles.setup}>
             {resume.pill}
           </View>
