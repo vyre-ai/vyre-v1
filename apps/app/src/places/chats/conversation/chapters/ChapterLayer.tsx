@@ -6,6 +6,7 @@ import type { ChapterInfo, ChapterRow, Dot } from "./model.ts";
 import { useEffect } from "react";
 import { setCurrentChapter } from "./current-chapter.ts";
 import { JobsLine } from "./JobsLine.tsx";
+import type { Screens } from "./JobsLine.tsx";
 import { useChapters } from "./use-chapters.ts";
 import type { Clock } from "../model.ts";
 
@@ -28,7 +29,7 @@ export function ChapterLayer<R extends { kind: string }>(p: {
   /** The sequence number of a message that has to be on screen, if any. */
   focusSeq: number | null;
   /** Where background jobs are read from: the agents in the chat, and whether one is working now. */
-  jobs?: { agentIds: readonly string[]; working: boolean };
+  jobs?: { agentIds: readonly string[]; screens: Screens | undefined };
   rows: readonly R[];
   own: (r: R) => number | null;
   clock: Clock;
@@ -46,7 +47,7 @@ export function ChapterLayer<R extends { kind: string }>(p: {
       {p.children({
         rows: withChapters(p.rows, p.own, chapters, s.flipped, p.clock, s.reveal),
         dots: railOf(chapters),
-        jobs: p.jobs ? <JobsLine call={p.call} agentIds={p.jobs.agentIds} working={p.jobs.working} /> : null,
+        jobs: p.jobs ? <JobsLine screens={p.jobs.screens} agentIds={p.jobs.agentIds} /> : null,
         flip: s.flip,
         jump: s.jump,
       })}

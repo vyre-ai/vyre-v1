@@ -1,10 +1,15 @@
 // Background jobs in a chat (G45, prototype scene bgjob): a long command an agent runs in a terminal tab of its computer is a Job. While it runs the chat shows one quiet line, "Tests  2 min  Background",
 // and when it ends one line says how it ended. The jobs are read from the terminals of the agents in the chat (terminal.list), so nothing new is stored: the terminal and its log belong to the host and
-// outlive the chat. Pure here; the hook that reads is below. It reads once when the chat opens and once when work ends; the terminal feed of lane b-pc will replace the reads.
-import { useCallback, useEffect, useRef, useState } from "react";
+// outlive the chat. Pure here; the hook that reads is below. The rows come from the live terminal feed (lane b-pc): no reads at all.
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { durationWords } from "../../../../../../../lib/duration.ts";
 
-type Call = (cap: string, input: unknown) => Promise<unknown>;
+/** The live terminal rows (screen chats.terminal-list, query terminals): patched by terminal events, so nothing here reads or polls. */
+export interface TerminalFeed {
+  subscribe(f: () => void): () => void;
+  getSnapshot(): { status: string; data?: { terminals: readonly Term[] } };
+}
+const NONE: TerminalFeed = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "idle" }) };
 
 /** The part of a terminal row a job needs. */
 export interface Term {
@@ -87,54 +92,36 @@ export const MAX_FINISHED = 5;
 /** The words "2 min" are redrawn this often while a job runs: a clock on this computer, never a read. */
 export const JOB_CLOCK_MS = 30_000;
 
-export function useJobs(o: {
-  call: Call | undefined;
-  agentIds: readonly string[];
-  /** An agent is working in this chat right now. */
-  working: boolean;
-  now: () => number;
-}): { running: Job[]; finished: Finished[]; tick: number } {
-  const [state, setState] = useState<{ running: Job[]; finished: Finished[] }>({ running: [], finished: [] });
-  const [tick, setTick] = useState(0);
-  const before = useRef<Job[]>([]);
+export function useJobs(o: { feed: TerminalFeed | undefined; agentIds: readonly string[]; now: () => number }): {
+  running: Job[];
+  finished: Finished[];
+  tick: number;
+} {
+  const feed = o.feed ?? NONE;
+  const snap = useSyncExternalStore(feed.subscribe, feed.getSnapshot, feed.getSnapshot);
   const ids = o.agentIds.join(",");
-  const callRef = useRef(o.call);
-  callRef.current = o.call;
-  const nowRef = useRef(o.now);
-  nowRef.current = o.now;
-  const read = useCallback((): void => {
-    const call = callRef.current;
-    if (!call || ids === "") return;
-    void Promise.resolve(call("terminal.list", { state: ["running", "exited"] })).then(
-      (r) => {
-        const terms = ((r as { terminals?: Term[] } | null)?.terminals ?? []) as Term[];
-        const next = settle(before.current, terms, new Set(ids.split(",")), nowRef.current());
-        before.current = next.running;
-        setState((cur) => ({
-          running: next.running,
-          finished: [...cur.finished, ...next.finished].slice(-MAX_FINISHED),
-        }));
-      },
-      () => undefined,
-    );
-  }, [ids]);
+  const rows = snap.status === "ready" && snap.data ? snap.data.terminals : [];
+  const before = useRef<Job[]>([]);
+  const [finished, setFinished] = useState<Finished[]>([]);
+  const [tick, setTick] = useState(0);
+  const running = jobsOf(rows, new Set(ids === "" ? [] : ids.split(",")));
+  const key = running.map((j) => j.id).join(",");
   useEffect(() => {
     before.current = [];
-    setState({ running: [], finished: [] });
-    read();
-  }, [ids, read]);
-  // no polling (P7): one read when the chat opens, one when an agent's work ends (the turn's own end), and a clock for the words only
-  const was = useRef(false);
+    setFinished([]);
+  }, [ids]);
   useEffect(() => {
-    if (!o.working && was.current) read();
-    was.current = o.working;
-  }, [o.working, read]);
-  const running = state.running.length > 0;
+    const next = settle(before.current, rows, new Set(ids === "" ? [] : ids.split(",")), o.now());
+    before.current = next.running;
+    if (next.finished.length > 0) setFinished((cur) => [...cur, ...next.finished].slice(-MAX_FINISHED));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the set of running jobs changes
+  }, [key, ids]);
+  const live = running.length > 0;
   useEffect(() => {
-    if (!running) return;
+    if (!live) return;
     const t = setInterval(() => setTick((n) => n + 1), JOB_CLOCK_MS);
     (t as { unref?: () => void }).unref?.();
     return () => clearInterval(t);
-  }, [running]);
-  return { ...state, tick };
+  }, [live]);
+  return { running, finished, tick };
 }

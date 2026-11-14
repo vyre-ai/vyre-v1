@@ -89,20 +89,36 @@ test("the lines draw a running job and a finished one", async () => {
   assert.equal(find(await mount(createRoot, <JobLines running={[]} finished={[]} now={0} />), "job-lines"), null);
 });
 
-test("the layer reads terminals for a chat with agents, shows a running job, and asks for nothing without agents", async () => {
-  const calls: string[] = [];
-  const call = async (cap: string): Promise<unknown> => {
-    calls.push(cap);
-    return { terminals: [T({ terminalId: "t1", createdAt: Date.now() - 3 * MIN })] };
+function feedOf(terminals: Term[]) {
+  let rows = terminals;
+  const subs = new Set<() => void>();
+  const snap = { status: "ready", data: { terminals: rows } };
+  let cur = snap;
+  return {
+    screens: {
+      query: (): unknown => ({
+        subscribe: (f: () => void) => (subs.add(f), () => void subs.delete(f)),
+        getSnapshot: () => cur,
+      }),
+    },
+    set(next: Term[]) {
+      rows = next;
+      cur = { status: "ready", data: { terminals: rows } };
+      for (const f of subs) f();
+    },
   };
+}
+
+test("the job line rides the live terminal rows: a running job shows, then leaves one finished line when the row ends; no reads", async () => {
+  const f = feedOf([T({ terminalId: "t1", createdAt: Date.now() - 3 * MIN })]);
   const el = (agents: string[]) => (
     <ChapterLayer
-      call={call}
+      call={async () => ({})}
       threadId="thr_1"
       size={5}
       newest={5}
       focusSeq={null}
-      jobs={{ agentIds: agents, working: false }}
+      jobs={{ agentIds: agents, screens: f.screens }}
       rows={[]}
       own={ownSeq}
       clock={{ now: 0, offsetMin: 0 }}
@@ -110,39 +126,13 @@ test("the layer reads terminals for a chat with agents, shows a running job, and
       {(laid) => laid.jobs}
     </ChapterLayer>
   );
-  await mount(createRoot, el([]));
-  await flush();
-  assert.deepEqual(calls, []);
+  const none = await mount(createRoot, el([]));
+  assert.equal(find(none, "job-lines"), null, "no agent in the chat, no job");
   const root = await mount(createRoot, el(["agt_a"]));
-  await act(async () => {
-    await flush();
-  });
-  assert.deepEqual(calls, ["terminal.list"]);
+  await flush();
   assert.match(textOf(find(root, "job-running-t1")), /Tests.*3 min.*Background/);
-});
-
-test("the job clock redraws only the job line: the layer's rows callback does not run again", async () => {
-  const call = async (): Promise<unknown> => ({ terminals: [T({ terminalId: "t1", createdAt: Date.now() })] });
-  let runs = 0;
-  await mount(
-    createRoot,
-    <ChapterLayer
-      call={call}
-      threadId="thr_c"
-      size={5}
-      newest={5}
-      focusSeq={null}
-      jobs={{ agentIds: ["agt_a"], working: false }}
-      rows={[]}
-      own={ownSeq}
-      clock={{ now: 0, offsetMin: 0 }}
-    >
-      {(laid) => (runs++, laid.jobs)}
-    </ChapterLayer>,
-  );
+  await act(async () => f.set([T({ terminalId: "t1", state: "exited", exitCode: 0, lastActiveAt: Date.now() })]));
   await flush();
-  const after = runs;
-  await flush();
-  await flush();
-  assert.equal(runs, after, "nothing above the job line re-renders on its own reads");
+  assert.equal(find(root, "job-running-t1"), null);
+  assert.match(textOf(find(root, "job-done-t1")), /Tests finished/);
 });
