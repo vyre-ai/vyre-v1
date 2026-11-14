@@ -1,5 +1,6 @@
 import { workspaceInTurn } from "./workspace-turns.ts";
 import { CODE_BUILTINS } from "../../../lib/builtin-connectors.ts";
+import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
 import { ownsSubject } from "./own-subject.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
@@ -315,7 +316,12 @@ import {
   touchesAccess,
 } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
-import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
+import {
+  announcementVis,
+  createResourceRegistrar,
+  lateEventPlace,
+  missingAgentResources,
+} from "../gateway/resources.ts";
 import {
   createPrincipalRegistrar,
   lowAgentUpgradeEvents,
@@ -369,9 +375,18 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
  */
 export const HOOKS_STOP_MS = 15_000;
 export const CODE_ROOT = path.resolve(HERE, "../../..");
+/** the subject each event type names (a resource type and a pointer to its id in the payload), for the event log's read rule: an event about a thing is read only by someone who may view the thing */
+const eventSubjects: ReadonlyMap<string, { type: string; id: string }> = new Map(
+  (registry as unknown as { events: Array<{ name: string; subject?: { type: string; id: string } }> }).events.flatMap(
+    (e) => (e.subject ? [[e.name, e.subject] as const] : []),
+  ),
+);
 /** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
 const registryHash = sha256Hex(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
 const ZERO_TRACE = "0".repeat(32);
+/** How long a module's answer to "may this person read this chat or agent" is kept for the event log's read rule. */
+const EVENT_VIEW_TTL_MS = 10_000;
+const eventViewVerdicts = new Map<string, { at: number; ok: boolean }>();
 const RING = 5000;
 /** A probe whose state and detail are unchanged is written again after this long (health calls a scheduler report older than 90 s stale). */
 const PROBE_REFRESH_MS = 60_000;
@@ -1805,6 +1820,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       access.mark(marks);
       for (const id of marks)
         accessPending.push({ seq: -1, type: "resource.created", payload: { id, space_owned: true, mark_only: true } });
+      // Calendars connected to Google or Outlook that were registered before the outside flag existed: flag them (idempotent), so an agent's write there is never taken for a write to the person's own private calendar
+      try {
+        const outside = (
+          db!.all(
+            `SELECT id FROM calendar_list WHERE provider IS NOT NULL AND provider != 'local' AND deleted_at IS NULL`,
+          ) as {
+            id: string;
+          }[]
+        ).map((r) => r.id);
+        access.markOutside(outside);
+        for (const id of outside)
+          accessPending.push({ seq: -1, type: "resource.created", payload: { id, outside_only: true } });
+      } catch {
+        /* a fresh store has no calendars yet */
+      }
       // Ruling 71: an empty log is a fresh install. The host makes the Space once, with an owner who claims it through a one-time link.
       if (!sawSpace) {
         const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });
@@ -2040,6 +2070,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             ]
           : [...loaded.moduleExports].map(([id, ns]) => collectHooks(id, ns)),
         log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
+        // a guest is a person with no View on the Space (kernel/src/authorize/snapshot.ts); a consumer reads that from the event, it never asks
+        outsiderOf: (actor) => actor.startsWith("usr_") && access.snap.info(actor)?.guest === true,
         invoke: (cap, input, seed) => invokeRef(cap, input, seed),
         emitsOf: (m) => [
           ...new Set(
@@ -2971,8 +3003,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }
         },
         ensureResource: async (r) => {
-          if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) {
+          if (
+            (r.type === "conversation" || r.type === "mail_message" || r.type === "calendar_event") &&
+            r.id !== null
+          ) {
             await ensureRow(r.type, r.id);
+            return;
+          }
+          if (r.type === "thread" && r.id !== null) {
+            await ensureThreadInChannel(r.id);
             return;
           }
           const key =
@@ -3223,6 +3262,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           resource: (id) => access.snap.resource(id),
           agentHome: (id) => homeScopeOf(db!, id)?.homeFolder ?? null,
         }),
+        madeFor: {
+          clears: (agentId, resourceId) => {
+            const who = access.snap.info(agentId);
+            return !!who && who.p.status === "active" && access.snap.effectiveLabel(resourceId) <= who.clearance;
+          },
+          inMine: (resourceId) => {
+            const chain = access.snap.chain(resourceId);
+            const root = chain?.[chain.length - 1];
+            return !!root && root.type === "vault_folder" && root.parent_id === null;
+          },
+        },
         principals: createPrincipalRegistrar({
           exists: (id) => access.snap.info(id) !== null,
           levelOf: (person, space) => {
@@ -3890,7 +3940,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // An Inbox conversation and a mail message are resources in access (under the Space), made the first time a call names one that exists. The modules open these rows themselves, and an event whose
       // subject is an `entity` is never registered by the generic registrar, so without this every call that names one answered "not found" to everyone, the owner included. The module's own door
       // (a private mailbox, a private message) still decides who sees the content; this only makes the row nameable for the role grants of the Space.
-      const ROW_TABLES: Record<string, string> = { conversation: "inbox_conversation", mail_message: "mail_message" };
+      const ROW_TABLES: Record<string, string> = {
+        conversation: "inbox_conversation",
+        mail_message: "mail_message",
+        calendar_event: "calendar_event",
+      };
       const ensuringRow = new Map<string, Promise<void>>();
       const ensureRow = (type: string, id: string): Promise<void> => {
         if (access.snap.resource(id)) return Promise.resolve();
@@ -3898,29 +3952,48 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!p) {
           p = (async () => {
             let found = false;
+            // an event lives in its calendar, and is the calendar's owner's (a private Personal calendar's events are that person's alone); a deleted one is still named by Undo
+            let inside: string | null = null;
             try {
-              found =
-                (db!.all(`SELECT id FROM ${ROW_TABLES[type]} WHERE id = ? AND deleted_at IS NULL`, id) as unknown[])
-                  .length > 0;
+              if (type === "calendar_event") {
+                const rows = db!.all(`SELECT "calendarId" AS cal FROM calendar_event WHERE id = ?`, id) as {
+                  cal?: unknown;
+                }[];
+                found = rows.length > 0;
+                inside = typeof rows[0]?.cal === "string" ? rows[0].cal : null;
+              } else
+                found =
+                  (db!.all(`SELECT id FROM ${ROW_TABLES[type]} WHERE id = ? AND deleted_at IS NULL`, id) as unknown[])
+                    .length > 0;
             } catch {
               return;
             }
             if (!found) return;
+            const calendar = inside === null ? undefined : access.snap.resource(inside);
+            const place = lateEventPlace({
+              calendar,
+              spaceId,
+              spaceOwner: access.owner() ?? cfg.owner ?? "usr_owner",
+            });
             const r = await spaceLog.appendResult({
               id: `evt_res_${id}`,
               type: "resource.created",
               sv: 1,
               trace_id: "c0".repeat(16),
               actor: "svc_host",
-              vis: "space",
+              // an event inside a private calendar is announced only to those who can view it (announcementVis)
+              vis: announcementVis(
+                { id, type, parent_id: place.parent_id, label: 0, owner_id: place.owner_id, holds: 0 },
+                (rid) => access.snap.resource(rid),
+              ),
               entity: "resource",
               entity_id: id,
-              payload: spaceOwned({
+              payload: hostOwned(place.hostOwned, {
                 id,
                 type,
-                parent_id: spaceId,
+                parent_id: place.parent_id,
                 label: 0,
-                owner_id: access.owner() ?? cfg.owner ?? "usr_owner",
+                owner_id: place.owner_id /* the calendar's owner, else access.owner() (lateEventPlace) */,
                 holds: 0,
               }),
             });
@@ -3935,6 +4008,66 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           ensuringRow.set(id, p);
         }
         return p;
+      };
+      // A channel's chat and the reply threads under its messages live in the channel (threadHome in host/src/gateway/resources.ts), so what the channel is shared with reaches them. Threads made before that were registered
+      // under the Space: the first call that names one moves it into its channel, once, so a guest invited to an old channel can use it too. The same rule decides both, from the chat's own row.
+      const movingThread = new Map<string, Promise<void>>();
+      const ensureThreadInChannel = async (id: string): Promise<void> => {
+        const have = access.snap.resource(id);
+        if (!have || have.type !== "thread") return;
+        let row:
+          | {
+              kind?: string | null;
+              title?: string | null;
+              channelId?: string | null;
+              parentThreadId?: string | null;
+              parentMessageId?: string | null;
+            }
+          | undefined;
+        try {
+          row = db!.all(
+            `SELECT kind, title, channelId, parentThreadId, parentMessageId FROM chat_thread WHERE id = ? AND deleted_at IS NULL`,
+            id,
+          )[0] as typeof row;
+        } catch {
+          return;
+        }
+        if (!row) return;
+        // a reply thread is a titled-by-nobody thread under a message (a teammate's handoff thread always carries its note as its title)
+        const reply = row.kind === "thread" && !row.title && !!row.parentMessageId;
+        // a reply thread follows the thread it replies in, so that one is moved first
+        if (reply && row.parentThreadId) await ensureThreadInChannel(row.parentThreadId);
+        const home = threadHome(
+          { kind: row.kind, channelId: row.channelId, parentThreadId: row.parentThreadId, replyThread: reply },
+          (t) => underChannelOf((x) => access.snap.resource(x), t),
+        );
+        const moved = threadMoveInto(have, home, home !== null && access.snap.resource(home) !== undefined);
+        if (moved === null) return;
+        let p = movingThread.get(id);
+        if (!p) {
+          p = (async () => {
+            const r = await spaceLog.appendResult({
+              id: `evt_thread_home_${id}`,
+              type: "resource.created",
+              sv: 1,
+              trace_id: "c0".repeat(16),
+              actor: "svc_host",
+              vis: "space",
+              entity: "resource",
+              entity_id: id,
+              payload: moved as unknown as Record<string, unknown>,
+            });
+            if (!r.ok) throw new Error(`could not move the thread ${id} into its channel: ${r.message}`);
+            if (!r.duplicate) {
+              access.fold(r.event);
+              accessPending.push(toAccessEvent(r.event));
+              headSeq = Math.max(headSeq, r.event.seq);
+              await syncAccess();
+            }
+          })().finally(() => movingThread.delete(id));
+          movingThread.set(id, p);
+        }
+        await p;
       };
       const ensureBuiltinConnector = (key: string): Promise<void> => {
         let p = ensuringConnector.get(key);
@@ -4050,7 +4183,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           sv: 1,
           trace_id: "c0".repeat(16),
           actor: "svc_host",
-          vis: "space",
+          // a private root (a Personal files root) is announced to its owner alone
+          vis: privateOwner ? "participants" : "space",
           entity: "resource",
           entity_id: f.id,
           payload: hostOwned(!privateOwner && !old && f.ownerId === undefined, {
@@ -4087,7 +4221,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           sv: 1,
           trace_id: "c0".repeat(16),
           actor: "svc_host",
-          vis: "space",
+          // a Mine folder is a private root: announced to its owner alone
+          vis: mine && owner ? "participants" : "space",
           entity: "resource",
           entity_id: id,
           payload: hostOwned(!mine && !old && spaceFolder, {
@@ -5406,6 +5541,55 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               access: () => access.snap,
               owner: () => access.owner() ?? cfg.owner ?? null,
               now,
+              subjects: (name) => eventSubjects.get(name),
+              // a chat's readers and an agent's visibility (a person's Assistant) are decided by their modules, the same reads the person's own screen makes
+              moduleView: async (person, type, id) => {
+                if (type !== "thread" && type !== "agent" && type !== "channel") return undefined;
+                // kept for a few seconds so a feed read over thousands of events asks each chat once, not once per page; a person removed from a chat stops reading its events within that time
+                const k = `${spaceId}\u0000${person}\u0000${id}`,
+                  t = now();
+                const hit = eventViewVerdicts.get(k);
+                if (hit && t - hit.at < EVENT_VIEW_TTL_MS) return hit.ok;
+                let ok: boolean;
+                try {
+                  const as = {
+                    space: spaceId,
+                    principal: { kind: "person" as const, id: person },
+                    origin: "engine" as const,
+                  };
+                  if (type === "channel") {
+                    // the chat module's own read, as channels.list answers it (not the Console's governance view, which lets an admin see that an invite-only channel exists): a public channel is read
+                    // by whoever channels.get lets in; an invite-only one only by someone who reads its main thread (a member)
+                    const r = await invoke("channels.get", { channelId: id }, as);
+                    const ch =
+                      r.status === "ok"
+                        ? (r.output as { channel?: { visibility?: string; mainThreadId?: string } }).channel
+                        : undefined;
+                    ok = ch !== undefined;
+                    if (ok && ch!.visibility !== "public") {
+                      const m =
+                        ch!.mainThreadId === undefined
+                          ? undefined
+                          : await invoke("threads.get", { threadId: ch!.mainThreadId }, as);
+                      ok = m?.status === "ok";
+                    }
+                  } else {
+                    const r = await invoke(
+                      type === "thread" ? "threads.get" : "agents.get",
+                      type === "thread" ? { threadId: id } : { agentId: id },
+                      as,
+                    );
+                    ok = r.status === "ok";
+                  }
+                } catch {
+                  ok = false;
+                }
+                if (eventViewVerdicts.size > 5000)
+                  for (const [key, v] of eventViewVerdicts)
+                    if (t - v.at >= EVENT_VIEW_TTL_MS) eventViewVerdicts.delete(key);
+                eventViewVerdicts.set(k, { at: t, ok });
+                return ok;
+              },
             },
             post: {
               allow: o.seams?.webhookAllow ?? (() => []),

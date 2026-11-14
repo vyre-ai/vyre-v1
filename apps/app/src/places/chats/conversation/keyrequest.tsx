@@ -15,8 +15,7 @@ import { ConnectCardLive } from "./connectcard.tsx";
 
 type Data = Pick<ConversationData, "call" | "changes"> & { nameOf?: (id: string) => string };
 
-const NO_FOLDER =
-  "There is no shared folder this agent can use. Make one that is not restricted, or let the person who asked add the key.";
+const NO_FOLDER = "No shared folder is open to this agent yet. Make one, then add the key.";
 
 export function isKeyRequest(type: string): boolean {
   return type === "vault_request";
@@ -32,11 +31,20 @@ export function KeyRequestCard(p: {
   data: Data;
   /** The connector the request is for, when it is for a service (the block's own `service`). */
   service?: string | undefined;
+  /** The person the agent asked for (the block's own `asker`): the plain card says their name. */
+  asker?: string | undefined;
 }): ReactElement | null {
   return p.service ? (
     <ConnectCardLive requestId={p.requestId} agent={p.agent} data={p.data} />
   ) : (
-    <PlainKeyRequestCard requestId={p.requestId} agent={p.agent} agentId={p.agentId} data={p.data} />
+    <PlainKeyRequestCard
+      requestId={p.requestId}
+      agent={p.agent}
+      agentId={p.agentId}
+      {...(p.asker ? { asker: p.asker } : {})}
+      {...(p.data.nameOf ? { nameOf: p.data.nameOf } : {})}
+      data={p.data}
+    />
   );
 }
 
@@ -44,11 +52,16 @@ function PlainKeyRequestCard({
   requestId,
   agent,
   agentId,
+  asker,
+  nameOf,
   data,
 }: {
   requestId: string;
   agent: string;
   agentId: string;
+  /** the person the agent asked for (the card's own block says who), and how to say their name */
+  asker?: string;
+  nameOf?: (id: string) => string;
   data: Data;
 }): ReactElement | null {
   const [req, setReq] = useState<KeyRequest | null | undefined>(undefined);
@@ -144,6 +157,23 @@ function PlainKeyRequestCard({
       })) as { folder: { id: string } }
     ).folder.id;
   };
+  // a shared folder made here for the agent's keys: it is not restricted, so the agent can use a key kept in it
+  const makeFolder = async (): Promise<void> => {
+    setBusy(true);
+    setProblem("");
+    try {
+      const made = (await data.call("vault.folders.create", {
+        name: `${agent} keys`,
+        scope: "shared",
+        idempotencyKey: `kr-${requestId}-team`,
+      })) as { folder: { id: string } };
+      setShared(made.folder.id);
+    } catch (e) {
+      setProblem((e as { message?: string }).message ?? "That folder was not made. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
   const add = async (): Promise<void> => {
     setBusy(true);
     setProblem("");
@@ -225,30 +255,39 @@ function PlainKeyRequestCard({
               disabled={busy}
             />
           ))}
-          <View
-            accessibilityRole="radiogroup"
-            accessibilityLabel={`Who can use it through ${agent}`}
-            testID={`keyreq-audience-${requestId}`}
-            style={st.col}
-          >
-            <Text style={st.ask}>{`Who can use it through ${agent}?`}</Text>
-            {/* ui-rows-lint: not a list (the two choices of one question) */}
-            {choices.map((a) => (
-              <Pressable
-                key={a.key}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: chosen === a.key }}
-                aria-checked={chosen === a.key}
-                accessibilityLabel={a.label}
-                testID={`keyreq-audience-${a.key}-${requestId}`}
-                onPress={() => setAudience(a.key)}
-                style={st.choice}
-              >
-                <View style={[st.dot, chosen === a.key && st.dotOn]} />
-                <Text style={st.choiceText}>{a.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {choices.length > 1 ? (
+            <View
+              accessibilityRole="radiogroup"
+              accessibilityLabel={`Who can use it through ${agent}`}
+              testID={`keyreq-audience-${requestId}`}
+              style={st.col}
+            >
+              <Text style={st.ask}>{`Who can use it through ${agent}?`}</Text>
+              {/* ui-rows-lint: not a list (the two choices of one question) */}
+              {choices.map((a) => (
+                <Pressable
+                  key={a.key}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: chosen === a.key }}
+                  aria-checked={chosen === a.key}
+                  accessibilityLabel={a.label}
+                  testID={`keyreq-audience-${a.key}-${requestId}`}
+                  onPress={() => setAudience(a.key)}
+                  style={st.choice}
+                >
+                  <View style={[st.dot, chosen === a.key && st.dotOn]} />
+                  <Text style={st.choiceText}>{a.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            // one way to share is a fact, not a choice: say it
+            <Text testID={`keyreq-audience-${requestId}`} style={st.reason}>
+              {`Only ${
+                req.askedYou ? "you" : asker && nameOf ? nameOf(asker) : "the person it is for"
+              } can use it through ${agent}`}
+            </Text>
+          )}
           {nowhere ? (
             <Text testID={`keyreq-nowhere-${requestId}`} style={st.reason}>
               {NO_FOLDER}
@@ -256,7 +295,18 @@ function PlainKeyRequestCard({
           ) : null}
           <CardActions
             busy={busy}
-            secondary={[{ label: "Deny", onPress: () => setDeclining(true), testID: `keyreq-decline-${requestId}` }]}
+            secondary={[
+              ...(nowhere
+                ? [
+                    {
+                      label: "Make a shared folder",
+                      onPress: () => void makeFolder(),
+                      testID: `keyreq-makefolder-${requestId}`,
+                    },
+                  ]
+                : []),
+              { label: "Deny", onPress: () => setDeclining(true), testID: `keyreq-decline-${requestId}` },
+            ]}
             primary={{
               label: "Add the key",
               disabled: !ready || nowhere,
@@ -264,6 +314,11 @@ function PlainKeyRequestCard({
               testID: `keyreq-add-${requestId}`,
             }}
           />
+          {nowhere ? (
+            <Text testID={`keyreq-whocan-${requestId}`} style={st.reason}>
+              Every agent in this Space can use keys kept in a shared folder.
+            </Text>
+          ) : null}
         </View>
       )}
       {problem ? (

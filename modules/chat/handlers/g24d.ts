@@ -4,6 +4,7 @@
 //   chat.helper.start / chat.helpers.list / chat.handoff   sub-task threads and agent-to-agent threads
 // No handler here calls a model. transcript.summarize writes the plain extract of agent/src/transcript (the floor every switch and rollover already uses) and marks the thread as wanting a
 // model refresh; search is lexical, because the module holds no embedding index.
+import { stepWords } from "../../../lib/plain-words.ts";
 import { modelName } from "../../../lib/model-names.ts";
 import { readFloor } from "./floor.ts";
 import { createTranscript, redact, refreshSummary, transcriptPath } from "../../../agent/src/transcript/index.ts";
@@ -114,6 +115,16 @@ const isPrivateRow = (r: { role: string; kind: string }): boolean =>
   r.kind === "tool_result" || (r.role.toLowerCase() === "tool" && r.kind !== "tool_call");
 const privateOwner = (ctx: ChatCtx): string =>
   ctx.principal.kind === "person" || ctx.principal.kind === "agent" ? askerOf(ctx) : (ctx.actingFor ?? "");
+
+/**
+ * What a saved call says to a reader of the chat (F51): which step ran, in plain words, never the one-line summary of what it was asked to touch (a file's name or id, a Vault item, a query). The summary
+ * is not shared even by the asker's own transcript view; what the call returned stays the asker's private row. Applied when a row is read, so transcripts written before this rule are served the same way.
+ */
+export function stepRow(r: Row): Row {
+  return String(r["kind"]) === "tool_call"
+    ? { ...r, content: JSON.stringify(stepWords(String(r["toolName"] ?? ""))) }
+    : r;
+}
 
 /** The one row filter of every transcript read: shared rows, and the reader's own private ones. `r` is the row alias. */
 export function seenRows(ctx: Pick<ChatCtx, "principal" | "actingFor">, r = "r"): { sql: string; args: unknown[] } {
@@ -229,7 +240,7 @@ export async function transcriptGet(ctx: ChatCtx, input: { threadId: string; tur
   ) as Row[];
   return {
     turnId: input.turnId,
-    rows: rows.map((r) => ({
+    rows: rows.map(stepRow).map((r) => ({
       idx: Number(r["idx"]),
       role: String(r["role"]),
       kind: String(r["kind"]),
@@ -257,7 +268,7 @@ export async function transcriptRead(ctx: ChatCtx, input: { threadId: string; fr
     limit + 1,
   ) as Row[];
   const shown = rows.slice(0, limit);
-  const parts = shown.map((r) => {
+  const parts = shown.map(stepRow).map((r) => {
     const tool = r["toolName"] ? `, ${String(r["toolName"])}` : "";
     return `## #${Number(r["idx"])} ${String(r["role"])} (${String(r["kind"])}${tool}), ${new Date(Number(r["at"])).toISOString()}\n\n${textOf(json(r["content"]))}\n`;
   });
@@ -318,7 +329,8 @@ export async function transcriptSearch(
     return ok;
   };
   const hits: Array<{ score: number; hit: Row }> = [];
-  for (const r of rows) {
+  for (const raw of rows) {
+    const r = stepRow(raw);
     const thread = String(r["thread"]);
     if (!allowed(thread)) continue;
     const text = textOf(json(r["content"]));
@@ -367,7 +379,7 @@ export async function transcriptSummary(ctx: ChatCtx, input: { threadId: string 
 /** The stored rows of a thread as the agent package's turns: one turn per turn id, in the order written. */
 function turnsOf(rows: Row[], threadId: string): { turns: Turn[]; lastIdx: number[] } {
   const groups = new Map<string, Row[]>();
-  for (const r of rows) {
+  for (const r of rows.map(stepRow)) {
     const id = String(r["turnId"]);
     const g = groups.get(id);
     if (g) g.push(r);

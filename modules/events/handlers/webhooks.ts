@@ -2,6 +2,7 @@
 // Capability handlers of the events module (16): event log reads (events.list, get, since, types, replay) and outgoing webhooks (webhooks.*).
 // Reading the log and sending a request both go through the host ports (see projections.ts). The signing secret is shown once, kept sealed (ctx.seal), opened only to sign.
 import { readFileSync } from "node:fs";
+import { isHostService } from "../../../lib/trust.ts";
 import type { EventRow } from "../../../host/src/seams/events-ports.ts";
 import { HostError } from "../../../host/src/routes/errors.ts";
 import { isPrivateHost } from "../../../host/src/seams/events-ports.ts";
@@ -63,6 +64,7 @@ const RESOURCE_TYPES = new Set([
 const caller = (ctx: EventsCtx) => ({
   principal: ctx.principal.id,
   ...(ctx.actingFor ? { actingFor: ctx.actingFor } : {}),
+  ...(isHostService(ctx.principal) ? { system: true } : {}),
 });
 
 function eventOut(r: EventRow) {

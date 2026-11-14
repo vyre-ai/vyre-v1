@@ -371,35 +371,39 @@ export function subagentsOfActivity(
       endedAt?: number;
     }>;
     subs?: Readonly<Record<string, ReadonlyArray<{ name: string; detail?: string }>>>;
+    titles?: Readonly<Record<string, string>>;
   },
   words: (name: string, detail?: string) => string,
   now: number,
+  /** Whether the viewer is the person the turn runs for. Anyone else gets a plain "Helper N": no task line, no steps (they never receive them either). */
+  asker = true,
 ): CrewMember[] {
-  return (
-    snap.steps
-      // a call whose task line has not arrived yet (it follows the call by up to a frame) is not drawn as an unnamed helper: it shows as soon as the line comes
-      .filter((x) => /^(Agent|Task)$/.test(x.name) && (x.detail ?? "") !== "")
-      .map((x) => {
-        const own = (snap.subs?.[x.id] ?? []).map((y) => words(y.name, y.detail));
-        const startedAt = x.at ?? now;
-        return {
-          kind: "subagent",
-          id: subagentId(x.id),
-          parentThreadId: turn.threadId,
-          title: x.detail && x.detail !== "" ? x.detail : "Helper",
-          agentId: turn.agentId,
-          state: x.state === "live" ? "working" : x.state === "done" ? "done" : "failed",
-          ...(x.state === "live" && own.length > 0 ? { step: own[own.length - 1]! } : {}),
-          ...(own.length > 0 ? { steps: own } : {}),
-          startedAt,
-          ...(x.endedAt !== undefined ? { endedAt: x.endedAt } : {}),
-          elapsedMs: Math.max(0, (x.endedAt ?? now) - startedAt),
-          tokensIn: 0,
-          tokensOut: 0,
-          costMicros: 0,
-        } as CrewMember;
-      })
-  );
+  let nth = 0;
+  return snap.steps
+    .filter((x) => /^(Agent|Task)$/.test(x.name))
+    .map((x) => {
+      const own = asker ? (snap.subs?.[x.id] ?? []).map((y) => words(y.name, y.detail)) : [];
+      nth += 1;
+      const task = asker ? (snap.titles?.[x.id] ?? "") : "";
+      const startedAt = x.at ?? now;
+      return {
+        kind: "subagent",
+        id: subagentId(x.id),
+        parentThreadId: turn.threadId,
+        // the task line follows the call by up to a frame: the row is there at once and says "Starting" until it lands
+        title: asker ? (task !== "" ? task : "Starting") : `Helper ${nth}`,
+        agentId: turn.agentId,
+        state: x.state === "live" ? "working" : x.state === "done" ? "done" : "failed",
+        ...(x.state === "live" && own.length > 0 ? { step: own[own.length - 1]! } : {}),
+        ...(own.length > 0 ? { steps: own } : {}),
+        startedAt,
+        ...(x.endedAt !== undefined ? { endedAt: x.endedAt } : {}),
+        elapsedMs: Math.max(0, (x.endedAt ?? now) - startedAt),
+        tokensIn: 0,
+        tokensOut: 0,
+        costMicros: 0,
+      } as CrewMember;
+    });
 }
 
 /** The crew read with the subagents of a running turn added (the live ones win for the same id): the strip, island, chip and pane all see one list. */

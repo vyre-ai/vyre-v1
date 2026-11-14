@@ -86,6 +86,7 @@ import {
   hookLineOf,
   hookLineText,
   pokeLine,
+  discussionLine,
   pokedBy,
   reportLabel,
   bodyBlocks,
@@ -413,7 +414,11 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     return (
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
         <View style={st.eventDot} />
-        <Text style={st.eventText}>{pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
+        <Text style={st.eventText}>
+          {pokeLine(item.message, props.actions.nameOf ?? unnamed) ??
+            discussionLine(item.message, props.actions.nameOf ?? unnamed) ??
+            item.text}
+        </Text>
         <TimeTip item={item}>
           <Text style={st.eventTime}>{item.time}</Text>
         </TimeTip>
@@ -1491,6 +1496,11 @@ function Theirs({
                   ? String((b.data as { service?: unknown }).service)
                   : undefined
               }
+              asker={
+                typeof (b.data as { asker?: unknown }).asker === "string"
+                  ? String((b.data as { asker?: unknown }).asker)
+                  : undefined
+              }
             />
           );
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
@@ -2279,7 +2289,12 @@ export const st = StyleSheet.create({
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
   eventText: { flexShrink: 1, fontSize: SYSTEM_PX, color: "var(--ink-3)" as string },
   eventLink: { color: "var(--accent)" as string, textDecorationLine: "underline", cursor: "pointer" } as object,
-  eventTime: { fontSize: META_PX, color: "var(--ink-4)" as string },
+  eventTime: {
+    fontSize: META_PX,
+    color: "var(--ink-4)" as string,
+    flexShrink: 0,
+    ...({ whiteSpace: "nowrap" } as object),
+  },
   hookText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
   hookLead: { color: "var(--ink)" as string, fontWeight: "500" },
   hookAct: { fontSize: 12.5, lineHeight: 19, color: "var(--ink-3)" as string, cursor: "pointer" } as object,

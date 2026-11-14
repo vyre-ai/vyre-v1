@@ -17,7 +17,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Principal } from "../../../shell/session/runtime-data.ts";
 import { conversationData } from "../../../shell/providers/chats-data.ts";
 import type { ChatsActions } from "../../../shell/providers/chats-data.ts";
-import { allows } from "../../../shell/providers/runtime.tsx";
+import { GATE, allows } from "../../../shell/providers/runtime.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { AgentPage, AgentPageLoading } from "../agentpage/AgentPage.tsx";
 import { ComputerPopup, ComputerPopupLoading } from "../computer/ComputerPopup.tsx";
@@ -219,6 +219,7 @@ export function ChatsMounted({
   routeNow.current = shown.route.view;
   const act = useCallback(
     (a: Act): void => {
+      routeFrom.current = null;
       if (stacked && a.t === "chat" && routeNow.current === "new" && a.threadId !== "") {
         opened?.({ subject: { type: "thread", id: a.threadId } });
         return;
@@ -244,13 +245,22 @@ export function ChatsMounted({
   // an agent form that came in on a link of its own (a tab opened for it) closes that tab when it is done; one opened in this tab from the sidebar's New agent leaves the tab and goes on to the chat in it
   const formTab = useRef(hash !== "" && fromHash(hash).route.view === "agent-form");
   const linked = useRef(hash);
+  // The address the page on screen came from when it followed the tab (a Back, a tab switch, a link), null when the person's own press made it. A page that followed an address the tab has
+  // since left is out of date: it must not write itself back into the tab (two quick Backs made the page and the tab undo each other until React gave up, #185).
+  const routeFrom = useRef<string | null>(null);
+  const hashNow = useRef(hash);
+  hashNow.current = hash;
   useEffect(() => {
     if (hash === linked.current) return;
     linked.current = hash;
     // a person's profile opens beside what is on screen (the right pane), so the page itself stays
     if (personOfHash(hash) !== null) return;
     // a tab switch or a link: the same thing already on screen keeps its pane and its place
-    setShown((s) => linkedTo(s, hash));
+    setShown((s) => {
+      const next = linkedTo(s, hash);
+      if (next !== s) routeFrom.current = hash;
+      return next;
+    });
     forgetLayerLink(hash);
   }, [hash]);
   // A popover or sheet a link opened (the terminal list, All agents, the rules) is not a place: if it stayed in the tab's address, closing it and coming back, or a reload, opened it again, and the landing address
@@ -294,6 +304,8 @@ export function ChatsMounted({
   useEffect(() => {
     const report = openedRef.current;
     if (!report || routeKey === "") return;
+    // this page followed an address the tab has left: the tab is the newer word, and the page is about to follow it
+    if (routeFrom.current !== null && routeFrom.current !== hashNow.current) return;
     if (routeKey === "new") report({});
     else if (routeKey === "tasks") report({ screen: "tasks.my-work" });
     else if (routeKey === "artifacts") report({ screen: "chats.artifacts" });
@@ -1037,6 +1049,24 @@ export function ChatsMounted({
       >
         {page}
       </NotesArtifactsFrame>
+    );
+  } else if (route.view === "new" && !allows(rt, GATE.newChat)) {
+    // a guest of a channel or two starts no chats (chat.start is refused them): the start is a line about where to go, and on a phone the list itself
+    main = (
+      <View testID="chats-guest-start" style={{ flex: 1, minHeight: 0 }}>
+        {stacked ? (
+          <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} />
+        ) : (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: "var(--ink)" as string }}>
+              Pick a channel to read and reply
+            </Text>
+            <Text style={{ fontSize: 13, color: "var(--ink-3)" as string, paddingTop: 6, textAlign: "center" }}>
+              The channels you were added to are on the left.
+            </Text>
+          </View>
+        )}
+      </View>
     );
   } else if (route.view === "new") {
     main = (

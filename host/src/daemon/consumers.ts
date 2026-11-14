@@ -94,6 +94,8 @@ export interface HookEvent {
   runId?: string;
   /** the device the call that made it came from (the person's computer or phone), when one did */
   device?: string;
+  /** the person who caused it has no standing in the Space (a guest): decided by the kernel's snapshot when the event is handed over, never by a call the consumer makes */
+  outsider?: boolean;
 }
 
 export interface ConsumerDef {
@@ -225,6 +227,8 @@ export interface HookRunnerDeps {
   /** one real capability of the module, so the loader's per-module services (ctx.db) are built for the right owner */
   capOf(module: string): CapabilityDef | undefined;
   warn(msg: string, attrs?: Record<string, unknown>): void;
+  /** does this actor, a person, stand outside the Space? Answered from the access snapshot. Omitted: nobody does. */
+  outsiderOf?(actor: string): boolean;
   /** a line that is not a problem (an event kept for the next start); omitted, it is not logged */
   info?(msg: string, attrs?: Record<string, unknown>): void;
 }
@@ -387,6 +391,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
 
   async function deliver(c: ConsumerDef, e: StoredEvent): Promise<boolean> {
     const ev = toHookEvent(e);
+    if (d.outsiderOf?.(e.actor) === true) ev.outsider = true;
     inFlight = { consumer: c.name, event: e.type, seq: e.seq };
     try {
       await d.invoke(

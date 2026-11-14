@@ -109,6 +109,7 @@ type In = {
       dependsOn?: Array<string>;
       due?: number;
     }>;
+  expectedUpdatedAt?: number;
 };
 ```
 
@@ -231,6 +232,7 @@ type Out = {
 - validation.bad_input
 - validation.not_found
 - validation.precondition_failed
+- validation.version_conflict
 
 ## Example
 
@@ -243,6 +245,7 @@ type Out = {
       "turns": 1
     },
     "deadline": 1760000000000,
+    "expectedUpdatedAt": 1760000000000,
     "finish": {
       "direction": "up",
       "items": [

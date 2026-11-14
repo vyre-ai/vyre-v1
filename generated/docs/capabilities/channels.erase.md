@@ -19,7 +19,7 @@ Erase one channel for good with all its messages (governance erase)
 | HTTP | POST /v1/channels/erase |
 | MCP tool | none |
 | CLI | none |
-| Emits | channel.erased |
+| Emits | channel.erased, thread.erased |
 
 ## Input
 

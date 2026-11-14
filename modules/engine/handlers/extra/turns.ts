@@ -2,7 +2,7 @@
 //   engine.turn.enqueue/start/append/wait/finish/fallback, engine.turn.get, engine.turns.list, engine.turn.retry.
 // The worker in @vyre/agent calls these through invoke, so every turn event has an owning capability and a trace id. Each turn is one engine_turns row;
 // queue rows stay in engine_thread_queue (shared with the in-process engine). A write that repeats (same queue row, same outcome) answers with the first result.
-import { nodeOfTurn, whereOfTurn } from "../../node-turns.ts";
+import { nodeOfTurn, setTurnStop, stopOfTurn, whereOfTurn } from "../../node-turns.ts";
 import { REFUSAL_WORDS, egressOfTurn } from "../../egress-log.ts";
 import { engines } from "../../engine-install.ts";
 import { PRIORITY_INTERRUPT } from "../../../../agent/src/turn-engine/queue.ts";
@@ -32,8 +32,10 @@ function withNode(ctx: EngineCtx, r: Row): Row {
     name: w.name,
     ...(w.note ? { note: w.note } : {}),
   }));
+  const stopped = stopOfTurn(ctx.db, str(r["turn_id"]));
   return {
     ...r,
+    ...(stopped ? { stopped_by: stopped } : {}),
     ...(node === undefined || node.startsWith("device:") ? {} : { node_id: node }),
     ...(ran.length > 0 ? { ran_on: ran } : {}),
   };
@@ -421,6 +423,7 @@ export async function turnRecord(
     costMicros?: number;
     code?: string;
     message?: string;
+    stoppedBy?: { id: string; kind: "person" | "guest" | "agent" | "system" };
     info?: TurnInfo;
   },
 ): Promise<{ turn: TurnOut }> {
@@ -559,6 +562,7 @@ export async function turnRecord(
       message: error?.message ?? "The turn failed.",
     });
   } else {
+    if (input.stoppedBy) setTurnStop(ctx.db, input.turnId, input.stoppedBy);
     ctx.emit("turn.cancelled", threadId, {
       turnId: input.turnId,
       threadId,
@@ -648,6 +652,13 @@ function paidOf(ctx: EngineCtx, turnId: string): string | undefined {
   }
 }
 
+const spendManager = (ctx: EngineCtx): boolean =>
+  ctx.authorize({ perm: "ai.spend", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
+function withoutAccount<T extends { accountRef?: unknown }>(turn: T): T {
+  const { accountRef: _gone, ...rest } = turn;
+  return rest as T;
+}
+
 export function turnGet(
   ctx: EngineCtx,
   input: { turnId: string },
@@ -671,6 +682,10 @@ export function turnGet(
   ) {
     raise(ctx, "validation.not_found", "There is no such turn.", { turnId: input.turnId });
   }
+  // which key paid, what it cost, which sites the engine reached and where it switched are the asker's, and the managers of AI spend's: everyone else who reads the chat is told only what ran (F51)
+  const full =
+    str(t["asker"]) === actorOf(ctx) ||
+    ctx.authorize({ perm: "ai.spend", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
   const blocks = rows(ctx, "SELECT * FROM engine_turn_blocks WHERE turn_id = ? ORDER BY idx ASC", input.turnId);
   let prev = num(t["started_at"]);
   const steps: Step[] = [];
@@ -704,19 +719,19 @@ export function turnGet(
     from: num(t["started_at"]),
     to: t["ended_at"] === null || t["ended_at"] === undefined ? ctx.now() : num(t["ended_at"]),
   });
-  for (const r of net.refused)
+  for (const r of full ? net.refused : [])
     denials.push({ cap: "internet", reason: `${r.host}:${r.port} blocked: ${REFUSAL_WORDS[r.reason]}` });
   const firstRan = Array.isArray(t["ran_on"]) ? (t["ran_on"] as Array<{ kind?: string }>)[0]?.kind : undefined;
   return {
     what: {
-      turn: turnOf(t),
+      turn: full ? turnOf(t) : withoutAccount(turnOf(t)),
       machine: str(t["placement"]) === "device" || firstRan === "computer" ? "device" : "host",
-      ...(key === undefined ? {} : { keyUsed: key }),
-      ...(paidOf(ctx, input.turnId) ? { paid: paidOf(ctx, input.turnId) } : {}),
+      ...(key === undefined || !full ? {} : { keyUsed: key }),
+      ...(full && paidOf(ctx, input.turnId) ? { paid: paidOf(ctx, input.turnId) } : {}),
       steps,
-      denials,
-      fallbacks,
-      ...(net.reached.length > 0 ? { reached: net.reached } : {}),
+      denials: full ? denials : denials.filter((d) => d.cap !== "internet"),
+      fallbacks: full ? fallbacks : fallbacks.map((f) => ({ kind: f.kind, to: "", at: f.at })),
+      ...(full && net.reached.length > 0 ? { reached: net.reached } : {}),
     },
   };
 }
@@ -733,7 +748,11 @@ export function turnsList(
     `SELECT * FROM engine_turns WHERE thread_id = ?${where} ORDER BY started_at DESC, qseq DESC`,
     input.threadId,
     ...(states ?? []),
-  ).map((r) => turnOf(withNode(ctx, r)));
+  ).map((r) => {
+    const out = turnOf(withNode(ctx, r));
+    // the account a turn ran on is the asker's, and the managers of AI spend's (F51)
+    return str(r["asker"]) === actorOf(ctx) || spendManager(ctx) ? out : withoutAccount(out);
+  });
   const p = pageOf(all, input);
   return { turns: p.items, ...(p.next === undefined ? {} : { next: p.next }), total: p.total };
 }

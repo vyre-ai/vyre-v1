@@ -1,7 +1,20 @@
 // chat.round.decide (chat gap G57): after a message asked several agents and each answered, the person goes with one answer. One quiet line is left in the chat ("Decided: going with Nova's answer"),
 // authored by the person, and no agent is woken by it. The round table card folds because a message of theirs now follows the answers. Only the person who asked decides, only for an agent that answered
 // after their message, and a replay with the same key is the same line.
-import { addAgent, agentsOf, askerOf, ensure, messageBy, raise, threadBy } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
+import {
+  addAgent,
+  agentsOf,
+  askerOf,
+  ensure,
+  insertMessage,
+  messageBy,
+  mintId,
+  raise,
+  threadBy,
+} from "../projections.ts";
+import { recordMentions } from "./pace.ts";
+import { deliver } from "./post.ts";
 import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
 import { postLinkCard } from "./link-card.ts";
@@ -32,7 +45,7 @@ export async function decideRound(ctx: ChatCtx, input: { threadId: string; messa
   personOnly(ctx);
   ensure(ctx.db);
   const t = load(ctx, input.threadId);
-  const m = messageBy(ctx.db, input.messageId);
+  const m = messageAsMe(ctx, input.messageId);
   if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   const asker = askerOf(ctx);
   if (m.author !== asker)
@@ -65,12 +78,16 @@ export async function decideRound(ctx: ChatCtx, input: { threadId: string; messa
     const block = had.blocks[0] as { data?: { title?: string } } | undefined;
     if (block?.data?.title === line) return { messageId: had.id };
     const next = had.blocks.map((b) => ({ ...b, data: { ...((b["data"] as object) ?? {}), title: line } }));
+    const now = ctx.now();
     ctx.db.run(
-      "UPDATE chat_message SET body = ?, blocks = ? WHERE id = ?",
+      "UPDATE chat_message SET body = ?, blocks = ?, version = version + 1, updated_at = ? WHERE id = ?",
       `Decided: ${line}`,
       JSON.stringify(next),
+      now,
       had.id,
     );
+    // an open chat sees the line change at once, as it sees an edit
+    ctx.emit("message.edited", t.id, { messageId: had.id, threadId: t.id });
     return { messageId: had.id };
   }
   const card = postLinkCard(
@@ -142,7 +159,7 @@ export async function discussRound(
   personOnly(ctx);
   ensure(ctx.db);
   const t = load(ctx, input.threadId);
-  const m = messageBy(ctx.db, input.messageId);
+  const m = messageAsMe(ctx, input.messageId);
   if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   if (m.author !== askerOf(ctx)) raise(ctx, "validation.bad_input", "Only the person who asked starts the discussion.");
   const answers = answersAfter(ctx, t.id, m.seq);
@@ -175,16 +192,27 @@ export async function discussRound(
     ...named.map((a) => `${a.name}: ${a.text}`),
     `${SEED_MARK}. ${first.name}, go first and tag ${next.name}. Whoever speaks last ends on one line that starts "Decided:".`,
   ].join("\n\n");
-  await ctx.call(
-    "chat.post",
-    {
-      threadId,
-      body,
-      mentions: [{ kind: "agent", id: first.agentId }],
-      idempotencyKey: `${input.idempotencyKey}:discuss`,
-    },
-    { idempotencyKey: `${input.idempotencyKey}:discuss` },
-  );
+  // The seed is a quiet line in the thread, written as the person's: it draws as "Dex and Nova are talking it over" and the instruction in it is only for the agents (the engine reads its body). It wakes the
+  // first agent like a mention, runs on the asker's account, and asks for nothing outward (it is not typed).
+  const dthread = threadBy(ctx.db, threadId);
+  if (!dthread) raise(ctx, "internal.unexpected", "The discussion could not be opened.");
+  const seed = insertMessage(ctx, threadId, {
+    author: askerOf(ctx),
+    kind: "quiet",
+    body,
+    blocks: [
+      {
+        type: "discussion_seed",
+        v: 1,
+        id: mintId("blk", ctx.now()),
+        data: { agentIds: named.map((a) => a.agentId) },
+        state: "done",
+        traceId: ctx.trace.traceId,
+      },
+    ],
+  });
+  recordMentions(ctx, seed.id, threadId, [{ kind: "agent", id: first.agentId }]);
+  deliver(ctx, dthread!, seed, [{ kind: "agent", id: first.agentId }], { kind: "person", id: askerOf(ctx) });
   // one quiet line in the chat, authored by the person: it says where the talk is, opens it, and folds the round table (the person has written since the answers)
   postLinkCard(
     ctx,
@@ -204,7 +232,7 @@ export async function discussRound(
 const MAX_TURNS = 4;
 
 /**
- * An agent spoke in a discussion thread (message.received). The "talking it over" line in the chat becomes the outcome: "Decided: ..." when an agent ends on a Decided line, or "They did not settle it" when
+ * An agent spoke in a discussion thread (message.received). The "talking it over" line in the chat becomes the outcome: "Agents decided: ..." (an agent wrote it: "Decided" is only a person's own press) when an agent ends on a Decided line, or "They did not settle it" when
  * the talk ended without one (nobody was handed the next turn, or the cap was reached). Pressing the line still opens the thread. Quiet: it edits the one line, it posts nothing.
  */
 export function onDiscussionMessage(
@@ -259,12 +287,16 @@ export function onDiscussionMessage(
       : "They did not settle it";
   const blocks = (JSON.parse(String(row["blocks"])) as Array<Record<string, unknown>>).map((b) => ({
     ...b,
-    data: { ...((b["data"] as object) ?? {}), lead: decided ? "Decided" : "Discussion ended", title: text },
+    data: { ...((b["data"] as object) ?? {}), lead: decided ? "Agents decided" : "Discussion ended", title: text },
   }));
+  const now = ctx.now();
   ctx.db.run(
-    "UPDATE chat_message SET body = ?, blocks = ? WHERE id = ?",
-    decided ? `Decided: ${text}` : text,
+    "UPDATE chat_message SET body = ?, blocks = ?, version = version + 1, updated_at = ? WHERE id = ?",
+    decided ? `Agents decided: ${text}` : text,
     JSON.stringify(blocks),
+    now,
     String(row["id"]),
   );
+  // an open chat sees the line change at once, as it sees an edit
+  ctx.emit("message.edited", t.parentThreadId, { messageId: String(row["id"]), threadId: t.parentThreadId });
 }

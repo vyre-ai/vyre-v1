@@ -1,5 +1,6 @@
 // The live line of a busy turn: a hundred tool calls a minute must not become a hundred frames to every open screen (hole 19). Steps and thinking gather and go out about once a second, in order, the first at
 // once so a turn looks alive straight away. A frame of words, a start or an end sends what is waiting first, so nothing reads out of order. None of this is ever written to the log.
+import { stepClass, stepWords } from "../../lib/plain-words.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 
 export const LIVE_EVERY_MS = 1000;
@@ -35,13 +36,42 @@ export function coalesceLive(
       return t;
     });
   const turns = new Map<string, Waiting>();
+  const urgent = new Map<string, Set<string>>(); // turnId -> the ids of its subagent calls
   const send = (turnId: string, w: Waiting): void => {
     if (w.timer) {
       clearTimeout(w.timer);
       w.timer = null;
     }
     w.last = now();
-    if (w.steps.length > 0) out({ kind: "steps", threadId: w.threadId, turnId, agentId: w.agentId, steps: w.steps });
+    if (w.steps.length > 0) {
+      // Everyone who reads the chat is told THAT work happened: the step's name, working or done, whether it went well. What a step touched (a file name, a path, a query, a line of output) goes only to the person
+      // whose turn it is, in a frame of its own that the host sends to them alone; the rest get the same steps without it (F51).
+      const plain = w.steps.map(({ detail: _d, name, ...rest }) => ({
+        ...rest,
+        ...(name ? { name: stepClass(name), words: stepWords(name) } : {}),
+      }));
+      const touched = w.steps.some((x) => x.detail !== undefined);
+      if (touched && w.asker) {
+        out({
+          kind: "steps",
+          threadId: w.threadId,
+          turnId,
+          agentId: w.agentId,
+          steps: w.steps,
+          asker: w.asker,
+          audience: "asker",
+        });
+        out({
+          kind: "steps",
+          threadId: w.threadId,
+          turnId,
+          agentId: w.agentId,
+          steps: plain,
+          asker: w.asker,
+          audience: "others",
+        });
+      } else out({ kind: "steps", threadId: w.threadId, turnId, agentId: w.agentId, steps: plain });
+    }
     if (w.thinking !== "")
       out({
         kind: "thinking",
@@ -64,7 +94,12 @@ export function coalesceLive(
     w.steps = [];
     w.thinking = "";
   };
+  const askers = new Map<string, string>();
   return (e) => {
+    if (e.kind === "start") {
+      askers.set(e.turnId, e.asker);
+      if (askers.size > 2_000) askers.delete(askers.keys().next().value as string);
+    }
     if (e.kind === "step" || e.kind === "thinking") {
       const w = turns.get(e.turnId) ?? {
         threadId: e.threadId,
@@ -72,6 +107,7 @@ export function coalesceLive(
         steps: [],
         sub: [],
         thinking: "",
+        ...(askers.get(e.turnId) ? { asker: askers.get(e.turnId) as string } : {}),
         timer: null,
         last: 0,
       };
@@ -87,6 +123,16 @@ export function coalesceLive(
           if (asker) w.asker = asker;
         } else w.steps.push(step);
       }
+      // a subagent's start, its task line and its end go out at once: a person watching sees the row the moment the engine starts it, not up to a frame later
+      const sid = (e as Step).id;
+      if (e.kind === "step" && !(e as Step).parent && sid) {
+        const set = (urgent.get(e.turnId) ?? urgent.set(e.turnId, new Set()).get(e.turnId))!;
+        if ((e as Step).phase === "call" && /^(Agent|Task)$/.test((e as Step).name ?? "")) set.add(sid);
+        if (set.has(sid)) {
+          send(e.turnId, w);
+          return;
+        }
+      }
       const wait = every - (now() - w.last);
       if (wait <= 0) send(e.turnId, w);
       else
@@ -98,7 +144,10 @@ export function coalesceLive(
     }
     const w = "turnId" in e ? turns.get(e.turnId) : undefined;
     if (w) send(e.turnId, w);
-    if (e.kind === "final" && w) turns.delete(e.turnId);
+    if (e.kind === "final" && w) {
+      turns.delete(e.turnId);
+      urgent.delete(e.turnId);
+    }
     out(e);
   };
 }

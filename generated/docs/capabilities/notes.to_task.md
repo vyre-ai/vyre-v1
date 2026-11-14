@@ -88,6 +88,7 @@ type Out = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
   taskId: string;
 };
@@ -170,7 +171,8 @@ type Out = {
         "space": "off"
       },
       "title": "example",
-      "updatedAt": 1760000000000
+      "updatedAt": 1760000000000,
+      "version": 1
     },
     "taskId": "tsk_a1b2c3"
   }

@@ -313,17 +313,34 @@ test("delegate hands a routine to another person and undo hands it back; a secon
     "validation.not_found",
   );
   const maya = hn.as({ kind: "person", id: MAYA });
+  // 13 Nov 2026 (P1 step 3, stricter): a routine goes only to someone scheduler.can_hold says may hold it. It used to go to anyone, usr_zed included.
+  hn.world.answer("scheduler.can_hold", (i: any) =>
+    i.person === "usr_zed"
+      ? { ok: false, reasons: ["not_in_space"] }
+      : i.person === "usr_kim"
+        ? { ok: false, reasons: ["cannot_use_agent", "cannot_read_channel"] }
+        : { ok: true, reasons: [] },
+  );
+  const toZed = { agentId: id, routineId: routine.routineId, to: { kind: "person" as const, id: "usr_zed" } };
+  assert.equal(await failure(() => h["agents.routine.delegate"]!(maya, toZed)), "validation.not_found");
+  const refused = await h["agents.routine.delegate"]!(maya, {
+    ...toZed,
+    to: { kind: "person", id: "usr_kim" },
+  }).catch((e: any) => e);
+  assert.equal(refused.error?.code, "validation.precondition_failed");
+  assert.deepEqual(refused.error?.details?.reasons, ["cannot_use_agent", "cannot_read_channel"]);
+  assert.equal((await call(hn, "agents.routines.list", { agentId: id }, maya)).routines[0].ownerId, MAYA, "still hers");
   await call(
     hn,
     "agents.routine.delegate",
-    { agentId: id, routineId: routine.routineId, to: { kind: "person", id: "usr_zed" } },
+    { agentId: id, routineId: routine.routineId, to: { kind: "person", id: "usr_sam" } },
     maya,
   );
   const back = await call(
     hn,
     "agents.routine.delegate",
     { agentId: id, routineId: routine.routineId, undo: true },
-    hn.as({ kind: "person", id: "usr_zed" }),
+    hn.as({ kind: "person", id: "usr_sam" }),
   );
   assert.equal(back.routine.ownerId, DANA);
   assert.deepEqual(

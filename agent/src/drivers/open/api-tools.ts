@@ -83,7 +83,14 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
     if (calledIn.size > 500) calledIn.delete(calledIn.keys().next().value as string);
     return `${boot}.${n}:${id}`;
   };
-  const ctxFor = (threadId: string, agentId: string, asker: string, turnId?: string, callId?: string): ToolCtx => {
+  const ctxFor = (
+    threadId: string,
+    agentId: string,
+    asker: string,
+    turnId?: string,
+    callId?: string,
+    startedAt?: number,
+  ): ToolCtx => {
     const rules = d.rules?.(agentId);
     const provider = providerOf.get(threadId);
     return {
@@ -95,16 +102,17 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       ...(provider ? { provider } : {}),
       ...(turnId ? { turnId } : {}),
       ...(callId ? { callId } : {}),
+      ...(startedAt !== undefined ? { turnStartedAt: startedAt } : {}),
     };
   };
   /** tool_batch: the reads run together and each answer comes back under its request id; a request that is not an independent read is refused by itself and does not stop the rest. */
   const runBatch = async (
     input: unknown,
-    ctx: { threadId: string; agentId: string; asker: string; turnId: string },
+    ctx: { threadId: string; agentId: string; asker: string; turnId: string; startedAt?: number },
   ): Promise<ToolOutcomeLike> => {
     const asked = (input as { requests?: unknown } | null)?.requests;
     const list = Array.isArray(asked) ? asked.slice(0, BATCH_MAX) : [];
-    const c = ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId);
+    const c = ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId, undefined, ctx.startedAt);
     const settled = await Promise.allSettled(
       list.map(async (r, i) => {
         const q = (r ?? {}) as { id?: unknown; tool?: unknown; input?: unknown };
@@ -173,7 +181,7 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       if (call.name === "tool_batch" && d.isRead) return runBatch(call.input, ctx);
       const out = await d.session.call(
         {
-          ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId, nextCallId(ctx.turnId, call.id)),
+          ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId, nextCallId(ctx.turnId, call.id), ctx.startedAt),
           ...(ctx.said !== undefined ? { said: ctx.said } : {}),
         },
         call.name,

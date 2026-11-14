@@ -388,3 +388,61 @@ test("a picture taken on open is kept once, and again only after the artifact ch
     configureRoutes(null);
   }
 });
+
+// F50 (14 Nov 2026): a republish or a change that names the updatedAt it read is refused when the site changed since, and nothing is written; one that names nothing goes as before.
+test("a page republished or a site changed on an old expectedUpdatedAt is refused; the page keeps the first change", async () => {
+  const w = harness();
+  let t = 1_000_000;
+  const stored: string[] = [];
+  configureRoutes(
+    host({
+      artifacts: {
+        folder: async () => "fld_a",
+        put: async (_f: string, _n: string, b64: string) => void stored.push(Buffer.from(b64, "base64").toString()),
+      },
+    }) as never,
+  );
+  const ctx = { ...w.ctx, now: () => (t += 10) };
+  try {
+    const first = await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>1</p>" });
+    assert.equal(typeof first.updatedAt, "number");
+    const ann = await h["sites.artifact_publish"]!(ctx, {
+      title: "Numbers",
+      html: "<p>ANN</p>",
+      artifactId: first.artifactId,
+      expectedUpdatedAt: first.updatedAt,
+    });
+    assert.ok(ann.updatedAt > first.updatedAt);
+    await assert.rejects(
+      () =>
+        h["sites.artifact_publish"]!(ctx, {
+          title: "Numbers",
+          html: "<p>BOB</p>",
+          artifactId: first.artifactId,
+          expectedUpdatedAt: first.updatedAt,
+        }),
+      (e: unknown) => (e as { error?: { code?: string } }).error?.code === "validation.version_conflict",
+    );
+    assert.deepEqual(stored, ["<p>1</p>", "<p>ANN</p>"], "the refused page was never written");
+    const plain = await h["sites.artifact_publish"]!(ctx, {
+      title: "Numbers",
+      html: "<p>plain</p>",
+      artifactId: first.artifactId,
+    });
+    assert.equal(plain.updated, true);
+    const made = await h["sites.create"]!(ctx, { name: "Mine", port: 3000 });
+    const got = (await h["sites.get"]!(ctx, { siteId: made.site.siteId })).site;
+    const renamed = await h["sites.update"]!(ctx, {
+      siteId: made.site.siteId,
+      name: "Ann's",
+      expectedUpdatedAt: got.updatedAt,
+    });
+    assert.equal(renamed.site.name, "Ann's");
+    await assert.rejects(
+      () => h["sites.update"]!(ctx, { siteId: made.site.siteId, name: "Bob's", expectedUpdatedAt: got.updatedAt }),
+      (e: unknown) => (e as { error?: { code?: string } }).error?.code === "validation.version_conflict",
+    );
+  } finally {
+    configureRoutes(null);
+  }
+});

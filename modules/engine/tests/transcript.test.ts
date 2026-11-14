@@ -66,6 +66,7 @@ test("a turn writes the person's words, then the agent's words, calls and result
     { type: "done" },
   ]);
   const s = await withTranscript(open, async (cap, i, as) => {
+    if (cap === "threads.get") return { thread: { threadId: "thr_1", kind: "chat", starter: "usr_maya", members: [] } }; // who else reads the chat (F51): nobody
     calls.push({ cap, input: i, as });
     return {};
   })({} as never);
@@ -276,4 +277,25 @@ test("what a tool returned before a person joined the chat is not given back to 
   );
   await drain(await wrapped(api), at(23, 9, 2));
   assert.match(results(seen.at(-1)!), /\$80,000/, "a cut that starts earlier than the result keeps it");
+});
+
+test("in a chat others read, the transcript says which step ran, not what it touched; in a chat nobody else reads it keeps the one-line summary", async () => {
+  const run = async (members: Array<{ kind: string; id: string }>): Promise<string> => {
+    const rowsOut: Array<{ kind: string; content: string }> = [];
+    const { open } = session([
+      { type: "tool_call", id: "c1", name: "files_read", input: { fileId: "fil_private_1" } },
+      { type: "done" },
+    ]);
+    const s = await withTranscript(open, async (cap, i) => {
+      if (cap === "threads.get") return { thread: { threadId: "thr_1", kind: "chat", starter: "usr_maya", members } };
+      rowsOut.push(...(i as { rows: Array<{ kind: string; content: string }> }).rows);
+      return {};
+    })({} as never);
+    for await (const e of s.send(input(3)))
+      if (e.type === "tool_call") s.sendToolResult(e.id, { ok: true, content: "x" });
+    return rowsOut.find((r) => r.kind === "tool_call")!.content;
+  };
+  assert.match(await run([{ kind: "person", id: "usr_ben" }]), /^Reading/);
+  assert.doesNotMatch(await run([{ kind: "person", id: "usr_ben" }]), /fil_private_1/);
+  assert.match(await run([]), /fil_private_1/, "a private chat keeps it");
 });

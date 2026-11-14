@@ -6,7 +6,7 @@
 // Project roles reuse the 0.6 idea in kernel/gateway/project-members.js@dbd2dfb: a team role is a grant tagged with source 'project:<id>' and
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
-import { authorize, evalExpr } from "../../../kernel/src/authorize/index.ts";
+import { MADE_FOR_PERSON_NOT, authorize, evalExpr } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
 import type { ResourceType } from "../../../packages/contracts/src/types.ts";
@@ -25,6 +25,7 @@ import type {
 import {
   agentLevel,
   changed,
+  clearMadeBy,
   EVERYONE,
   fnv,
   grantView,
@@ -1072,6 +1073,39 @@ export async function automationSenders(
 }
 
 /** May this caller take this grant away: Manage on the resource, or the person who gave it and still holds Edit. */
+/**
+ * The maker's reach as a row of its own (owner rule, 14 Nov 2026: what an agent makes for a person is theirs, and they stay in control of who can use it). An agent that made a thing for its person, who still owns
+ * it, can use it with no grant: the access kernel says so from `made_by`/`made_for` on the resource. This row shows that reach in the thing's sharing list ("made this for you"), at the level the reach gives, and
+ * is removed like any share: removing it clears `made_by` at once and the agent is refused like any other agent. It writes no grant. Vault items, mailboxes and the other kinds the kernel never gives this reach
+ * to are not listed, since there is none.
+ */
+export const MADE_ROW_PREFIX = "gnt_made";
+/** The row's id carries the resource's id, losslessly (its bytes in hex), so it can be turned back into the one resource it names: no hash to collide and no scan of the store. */
+export const madeRowId = (resourceId: string): string =>
+  `${MADE_ROW_PREFIX}${Buffer.from(resourceId, "utf8").toString("hex")}`;
+const resourceOfMadeRow = (id: string): string | null => {
+  const hex = id.slice(MADE_ROW_PREFIX.length);
+  if (!/^(?:[0-9a-f]{2})+$/.test(hex)) return null;
+  return Buffer.from(hex, "hex").toString("utf8");
+};
+function madeRow(store: AccessStore, res: ResourceRec): GrantRec | null {
+  const by = res.row?.["madeBy"],
+    forWhom = res.row?.["madeFor"];
+  if (typeof by !== "string" || res.ownerId === null || forWhom !== res.ownerId || MADE_FOR_PERSON_NOT.has(res.type))
+    return null;
+  if (!store.principals.has(by)) return null;
+  return {
+    id: madeRowId(res.id),
+    subject: { kind: "agent", id: by },
+    resource: { type: res.type, id: res.id },
+    level: "edit",
+    conditions: {},
+    by: res.ownerId,
+    source: "made_by",
+    createdAt: 0,
+  };
+}
+
 function mayRemove(ctx: ShareCtx, store: AccessStore, g: GrantRec): boolean {
   // the host taking back a project role it wrote (a Space admin removed the person through projects.members.remove, which checked the right): only a grant that carries a project source
   if (isHostService(ctx.principal) && g.source?.startsWith("project:")) return true;
@@ -1095,10 +1129,21 @@ export async function unshare(
   if (!input.grantId && !input.resource && !input.source)
     raise(trace, "validation.bad_input", "name a grant, a resource or a source");
   let doomed: GrantRec[];
-  if (input.grantId) {
+  // the maker's reach, listed as a row of its own: named by its id (the sheet's unshare), or by the agent on the thing
+  const made: GrantRec[] = [];
+  if (input.grantId?.startsWith(MADE_ROW_PREFIX)) {
+    const named = resourceOfMadeRow(input.grantId);
+    const res = named === null ? undefined : store.resources.get(named);
+    const row = res ? madeRow(store, res) : null;
+    if (!row || row.id !== input.grantId) raise(trace, "validation.not_found", "no such grant");
+    made.push(row!);
+  }
+  if (input.grantId && made.length === 0) {
     const g = store.grants.get(input.grantId);
     if (!g) raise(trace, "validation.not_found", "no such grant");
     doomed = [g];
+  } else if (input.grantId) {
+    doomed = [];
   } else {
     doomed = [...store.grants.values()].filter((g) => {
       if (input.resource && (g.resource.type !== input.resource.type || g.resource.id !== input.resource.id))
@@ -1108,11 +1153,32 @@ export async function unshare(
       return true;
     });
   }
-  for (const g of doomed)
+  // an agent's share taken away from a thing it made, or the agent named on it, takes the made-by reach with it: one row, one removal
+  if (!input.grantId?.startsWith(MADE_ROW_PREFIX)) {
+    const seen = new Set<string>();
+    for (const g of doomed) {
+      if (g.subject.kind !== "agent" || g.resource.id === "*" || seen.has(g.resource.id)) continue;
+      seen.add(g.resource.id);
+      const res = store.resources.get(g.resource.id);
+      const row = res ? madeRow(store, res) : null;
+      if (row && row.subject.id === g.subject.id) made.push(row);
+    }
+    if (input.resource && input.subject?.kind === "agent" && !seen.has(input.resource.id)) {
+      const res = store.resources.get(input.resource.id);
+      const row = res ? madeRow(store, res) : null;
+      if (row && row.subject.id === input.subject.id) made.push(row);
+    }
+  }
+  for (const g of [...doomed, ...made])
     if (!mayRemove(ctx, store, g)) raise(trace, "permission.no_grant", "removing this access needs Manage on it");
-  if (doomed.length === 0) return { revoked: 0 };
+  if (doomed.length === 0 && made.length === 0) return { revoked: 0 };
   const wasFresh = isFresh(ctx, store, ss);
   const roots = new Set<string>();
+  for (const m of made) {
+    clearMadeBy(store, m.resource.id);
+    roots.add(m.resource.id);
+    ctx.emit("grant.revoked", m.id, { grantId: m.id, subject: m.subject, resource: m.resource, reason: "unshared" });
+  }
   for (const g of doomed) {
     store.grants.delete(g.id);
     if (g.resource.id !== "*") roots.add(g.resource.id);
@@ -1129,7 +1195,7 @@ export async function unshare(
   }
   const typeWide = doomed.some((g) => g.resource.id === "*");
   commit(ctx, store, ss, wasFresh && !typeWide, [...roots], false);
-  return { revoked: doomed.length };
+  return { revoked: doomed.length + made.length };
 }
 
 /**
@@ -1185,6 +1251,14 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
   const all = [...store.grants.values()].filter((g) =>
     g.resource.id === "*" ? g.resource.type === res.type : ids.has(g.resource.id),
   );
+  // the maker's reach is one row: the agent's own share of this thing when it has one, else the made-by row
+  const made = madeRow(store, res);
+  if (
+    made &&
+    !hiddenAgent(ctx, store, made.subject.id) &&
+    !all.some((g) => g.resource.id === res.id && g.subject.kind === "agent" && g.subject.id === made.subject.id)
+  )
+    shares.push({ grant: grantView(made), through: "direct" });
   all.sort((a, b) => (a.id < b.id ? -1 : 1));
   for (const g of all) {
     if (g.conditions.expiresAt !== undefined && g.conditions.expiresAt <= now) continue;
@@ -1198,6 +1272,19 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
         : g.subject.kind === "role"
           ? "role"
           : "direct";
+    // the maker's grant is always written (it must not depend on what the agent's role gives today), and the list shows each subject once: it is hidden while another grant of that subject already gives the same or more
+    if (
+      g.source?.startsWith("made-by:") &&
+      all.some(
+        (o) =>
+          o !== g &&
+          !o.source?.startsWith("made-by:") &&
+          o.subject.kind === g.subject.kind &&
+          o.subject.id === g.subject.id &&
+          atLeast(res.type, o.level, g.level),
+      )
+    )
+      continue;
     shares.push({ grant: grantView(g), through });
   }
   const mine = callerLevel(ctx, store, res) ?? undefined;

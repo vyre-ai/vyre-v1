@@ -1,7 +1,16 @@
 // The item's own link and the call input the Share sheet builds: an artifact has its address on the Space, every other kind its vyre:// deep link, never the page the person is on.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { callbackOrigin, copyItemLink, itemLink, linkOrigin, messageLink, setLinkOrigin, withNotify } from "./rows.ts";
+import {
+  callbackOrigin,
+  copyItemLink,
+  itemLink,
+  linkOrigin,
+  messageLink,
+  setLinkOrigin,
+  shareRows,
+  withNotify,
+} from "./rows.ts";
 import { targetOfOpen } from "../shell/reach/open-link.ts";
 import { notices } from "../shell/noticeslot/model.ts";
 import { resolveSpaceLink } from "../shell/reach/space-link.ts";
@@ -186,4 +195,26 @@ test("round trip: every kind the maker can write in the in-app form is one the a
     if (had) Object.defineProperty(g, "location", had);
     else delete g.location;
   }
+});
+
+test("shareRows marks the rows whose grant source says an agent made the thing, for both spellings of that source", () => {
+  const grant = (id: string, source?: string) => ({
+    grant: {
+      id: `g_${id}`,
+      subject: { kind: "agent", id },
+      resource: { type: "file", id: "fil_1" },
+      level: "edit",
+      conditions: {},
+      by: "usr_a",
+      createdAt: 0,
+      ...(source ? { source } : {}),
+    },
+    through: "direct",
+  });
+  const out = { shares: [grant("agt_a", "made_by"), grant("agt_b", "made-by:agt_b"), grant("agt_c")] } as never;
+  const rows = shareRows(out, (id) => id, "fil_1");
+  assert.deepEqual(
+    rows.map((r) => r.madeBy === true),
+    [true, true, false],
+  );
 });

@@ -84,6 +84,7 @@ type Out = {
       canEdit: boolean;
       createdAt: number;
       updatedAt: number;
+      version: number;
     }>;
   labels: Array<{
       name: string;
@@ -174,7 +175,8 @@ type Out = {
           "space": "off"
         },
         "title": "example",
-        "updatedAt": 1760000000000
+        "updatedAt": 1760000000000,
+        "version": 1
       }
     ],
     "total": 1

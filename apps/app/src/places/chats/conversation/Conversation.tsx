@@ -405,7 +405,14 @@ function ConversationView(): ReactElement {
   }, [data, data.threadId, online]);
   const menu = useMenu();
   const add = useAddSheet(
-    { call: data.call, me: data.me, nameOf: data.nameOf, newKey: data.newKey, toast: data.toast },
+    {
+      call: data.call,
+      me: data.me,
+      nameOf: data.nameOf,
+      newKey: data.newKey,
+      toast: data.toast,
+      ...(data.mayChat === false ? { mayChat: false } : {}),
+    },
     { copy: data.copy },
   );
   // the header "..." carries the chat's own items; what is starred and muted is read when the chat opens and follows what the person does here
@@ -2217,7 +2224,11 @@ function ConversationView(): ReactElement {
                 onPeople={(x, y) => peopleMenu(x, y)}
               />
             ) : null}
-            <LiveSubagents turns={liveTurns} activityOf={data.activityOf ? (id) => data.activityOf!(id) : undefined} />
+            <LiveSubagents
+              me={data.me.id}
+              turns={liveTurns}
+              activityOf={data.activityOf ? (id) => data.activityOf!(id) : undefined}
+            />
             {(() => {
               // while an agent's engine has subagents of its own at work, they are on screen here (no reply carries them yet); when the reply lands, the same rows sit under it
               const shown = new Set(timelineMessages.flatMap((m) => subagentIdsOf(m.blocks)));

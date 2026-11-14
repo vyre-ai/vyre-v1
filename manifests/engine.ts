@@ -188,6 +188,13 @@ const accountRow = t.obj({
   capCents: t.opt(t.nullable(t.int())),
   why: t.opt(t.str({ description: "With a place, when usable is false: the reason, in plain words" })),
 });
+const stoppedBy = t.obj(
+  { id: t.str(), kind: t.enm("person", "guest", "agent", "system") },
+  {
+    description:
+      "Who stopped a stopped turn: a person or guest who pressed Stop or sent a new message, an agent, or the system (a time-out, a lost lease, the server closing). Absent when it is not known. Anyone who can read the chat sees it",
+  },
+);
 const turnRow = t.obj({
   turnId: id.turn,
   threadId: id.thread,
@@ -206,6 +213,7 @@ const turnRow = t.obj({
   costMicros: t.int(),
   error: t.opt(errShape),
   nodeId: t.opt(t.str({ description: "The server of the asker's the turn ran on, when the chat was pinned to one" })),
+  stoppedBy: t.opt(stoppedBy),
   ranOn: t.opt(
     t.arr(
       t.obj({
@@ -936,6 +944,7 @@ export default defineManifest({
           message: t.opt(t.str()),
           // a cancelled turn: why the engine stopped it (stop, interrupt, limit, left, moved; closing when a daemon stops or updates; lease when its host was lost)
           reason: t.opt(t.str()),
+          stoppedBy: t.opt(stoppedBy),
           info: t.opt(turnInfoIn),
         },
         out: { turn: turnRow },
@@ -2287,6 +2296,7 @@ export default defineManifest({
   ],
   settings: [
     // 8 agent turns since a person wrote, helpers and teammates counted, then a Continue card (owner ruling, 3 Nov 2026; was 4)
+    setting("engine.space_runs", "space", "Policies", "The Space's own server may run members' turns", t.bool(), true),
     setting(
       "engine.agent_hops",
       "space",

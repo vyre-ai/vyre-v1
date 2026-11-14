@@ -10,8 +10,11 @@ import { subagentsOfActivity } from "./model.ts";
 export function LiveSubagents({
   turns,
   activityOf,
+  me,
 }: {
-  turns: readonly Pick<LiveTurn, "turnId" | "threadId" | "agentId">[];
+  turns: readonly Pick<LiveTurn, "turnId" | "threadId" | "agentId" | "asker">[];
+  /** The person looking: only the one the turn runs for gets task lines and steps. */
+  me: string;
   activityOf: ((rowId: string) => ActivityStore | undefined) | undefined;
 }): null {
   const setLive = useCrew()?.setLive;
@@ -26,13 +29,13 @@ export function LiveSubagents({
       return s ? [{ t, s }] : [];
     });
     const compute = (): void =>
-      setLive(stores.flatMap(({ t, s }) => subagentsOfActivity(t, s.get(), stepLabel, Date.now())));
+      setLive(stores.flatMap(({ t, s }) => subagentsOfActivity(t, s.get(), stepLabel, Date.now(), t.asker === me)));
     compute();
     const off = stores.map(({ s }) => s.subscribe(compute));
     return () => {
       for (const f of off) f();
       setLive([]);
     };
-  }, [turns, setLive]);
+  }, [turns, setLive, me]);
   return null;
 }

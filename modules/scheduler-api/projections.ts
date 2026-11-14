@@ -1,7 +1,10 @@
 // Scheduler projections (spec 2.12, 2.13; ARCH 6.8, 7.7). Schedule and wait rows, the cron engine, and the two scheduler.* settings.
 // Durable tables: migrations/0001_scheduler.sql. Every statement names only scheduler_* tables (ctx.db refuses anything else, ARCH B2).
+import { nextCron, parseCron } from "../../lib/clock.ts";
+import type { CronSpec } from "../../lib/clock.ts";
 import { agentStanding } from "../../lib/agent-asker.ts";
 import { isTrustedService } from "../../lib/trust.ts";
+import { validZone as validTimeZone } from "../../lib/zones.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 
@@ -33,6 +36,15 @@ export interface SchedCtx {
   db: Db;
   emit(name: string, subject: string, payload: unknown, opts?: EmitOpts): { id: string };
   call?(cap: string, input: unknown, opts?: CallOpts): Promise<unknown>;
+  log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
+  /** On a nested call: the capability whose handler made it (the pipeline sets it; a caller cannot). */
+  callerCap?: string;
+  /** May every one of these people do this? Their own grants, never the caller's. Present on a booted daemon; a hand-built test ctx may omit it. */
+  mayAll?(
+    people: readonly string[],
+    action: { perm: string | null; level: string },
+    resource: { type: string; id: string | null },
+  ): boolean;
 }
 
 type Code = Parameters<typeof fail>[0];
@@ -128,157 +140,10 @@ export function syncPolicy(db: Db, p: Record<string, unknown>): boolean {
   return true;
 }
 
-// ---- cron ----
+// ---- cron: the clock's (lib/clock.ts), under the names this module has always had ----
 
-interface Field {
-  set: ReadonlySet<number>;
-  star: boolean;
-}
-export interface CronSpec {
-  min: Field;
-  hour: Field;
-  dom: Field;
-  mon: Field;
-  dow: Field;
-}
-
-const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-const DOWS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-const MACROS: Record<string, string> = {
-  "@hourly": "0 * * * *",
-  "@daily": "0 0 * * *",
-  "@midnight": "0 0 * * *",
-  "@weekly": "0 0 * * 0",
-  "@monthly": "0 0 1 * *",
-  "@yearly": "0 0 1 1 *",
-  "@annually": "0 0 1 1 *",
-};
-
-function parseField(text: string, lo: number, hi: number, names?: readonly string[], nameBase = 0): Field | undefined {
-  const value = (s: string): number | undefined => {
-    if (/^\d+$/.test(s)) return Number(s);
-    const i = names ? names.indexOf(s.toLowerCase()) : -1;
-    return i >= 0 ? i + nameBase : undefined;
-  };
-  const set = new Set<number>();
-  let star = false;
-  for (const part of text.split(",")) {
-    const [range, stepText, extra] = part.split("/");
-    if (extra !== undefined || range === undefined || range === "") return undefined;
-    let step = 1;
-    if (stepText !== undefined) {
-      if (!/^\d+$/.test(stepText) || Number(stepText) < 1) return undefined;
-      step = Number(stepText);
-    }
-    let a: number | undefined;
-    let b: number | undefined;
-    if (range === "*") {
-      a = lo;
-      b = hi;
-      if (stepText === undefined) star = true;
-    } else if (range.includes("-")) {
-      const [x, y, z] = range.split("-");
-      if (z !== undefined || x === undefined || y === undefined) return undefined;
-      a = value(x);
-      b = value(y);
-    } else {
-      a = value(range);
-      b = stepText !== undefined ? hi : a;
-    }
-    if (a === undefined || b === undefined || a < lo || b > hi || a > b) return undefined;
-    for (let v = a; v <= b; v += step) set.add(v);
-  }
-  return { set, star };
-}
-
-/** A five field cron: minute hour day-of-month month day-of-week. Lists, ranges, steps, month and weekday names and the @daily style macros. Weekday 7 is Sunday. */
-export function parseCron(text: string): CronSpec | undefined {
-  const t = text.trim().toLowerCase();
-  const parts = (MACROS[t] ?? t).split(/\s+/);
-  if (parts.length !== 5) return undefined;
-  const min = parseField(parts[0]!, 0, 59);
-  const hour = parseField(parts[1]!, 0, 23);
-  const dom = parseField(parts[2]!, 1, 31);
-  const mon = parseField(parts[3]!, 1, 12, MONTHS, 1);
-  const dowRaw = parseField(parts[4]!, 0, 7, DOWS, 0);
-  if (!min || !hour || !dom || !mon || !dowRaw) return undefined;
-  const dow: Field = { star: dowRaw.star, set: new Set([...dowRaw.set].map((d) => d % 7)) };
-  return { min, hour, dom, mon, dow };
-}
-
-export function validTimeZone(tz: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const fmts = new Map<string, Intl.DateTimeFormat>();
-interface Local {
-  y: number;
-  mo: number;
-  d: number;
-  h: number;
-  mi: number;
-}
-function localOf(ms: number, tz: string): Local {
-  let f = fmts.get(tz);
-  if (!f) {
-    f = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-    });
-    fmts.set(tz, f);
-  }
-  const o: Record<string, number> = {};
-  for (const p of f.formatToParts(new Date(ms))) if (p.type !== "literal") o[p.type] = Number(p.value);
-  return { y: o.year!, mo: o.month!, d: o.day!, h: o.hour! % 24, mi: o.minute! };
-}
-const asUtc = (l: Local): number => Date.UTC(l.y, l.mo - 1, l.d, l.h, l.mi);
-/** The instant a wall-clock time has in a zone; undefined when that time does not exist (the hour skipped when clocks go forward). */
-function localToUtc(l: Local, tz: string): number | undefined {
-  const want = asUtc(l);
-  let guess = want - (asUtc(localOf(want, tz)) - want);
-  for (let i = 0; i < 2; i++) {
-    const got = asUtc(localOf(guess, tz));
-    if (got === want) return guess;
-    guess -= got - want;
-  }
-  return asUtc(localOf(guess, tz)) === want ? guess : undefined;
-}
-
-/** The first fire time strictly after `after`, in the zone's wall clock; undefined for a cron that never fires (30 February). */
-export function nextCron(spec: CronSpec, tz: string, after: number): number | undefined {
-  const start = localOf(after, tz);
-  const hours = [...spec.hour.set].sort((a, b) => a - b);
-  const mins = [...spec.min.set].sort((a, b) => a - b);
-  const day0 = Date.UTC(start.y, start.mo - 1, start.d);
-  for (let n = 0; n < 366 * 9; n++) {
-    const dt = new Date(day0 + n * DAY);
-    const y = dt.getUTCFullYear();
-    const mo = dt.getUTCMonth() + 1;
-    const d = dt.getUTCDate();
-    if (!spec.mon.set.has(mo)) continue;
-    const domOk = spec.dom.set.has(d);
-    const dowOk = spec.dow.set.has(dt.getUTCDay());
-    // when both day fields are restricted either one matches (cron's rule); a star in one leaves the other in charge
-    const dayOk = spec.dom.star || spec.dow.star ? domOk && dowOk : domOk || dowOk;
-    if (!dayOk) continue;
-    for (const h of hours)
-      for (const mi of mins) {
-        const at = localToUtc({ y, mo, d, h, mi }, tz);
-        if (at !== undefined && at > after) return at;
-      }
-  }
-  return undefined;
-}
+export { nextCron, parseCron, validTimeZone };
+export type { CronSpec };
 
 // ---- schedules ----
 
@@ -303,7 +168,21 @@ export interface Schedule {
   createdBy: string;
   createdAt: number;
   canceledAt?: number;
+  /** The Wake columns (P1): what this wake is for, whose account it runs on, who may see it, the zone it keeps its clock in (absent follows the Space), and what to do when a time comes while one is open. */
+  kind: WakeKind;
+  person?: string;
+  agentId?: string;
+  scope: WakeScope;
+  roomId?: string;
+  zone?: string;
+  quiet?: { from: string; to: string };
+  overlap: "skip" | "coalesce";
+  answerWithinMin?: number;
+  maxAttempts: number;
+  pausedBy?: string;
 }
+export type WakeKind = "call" | "routine" | "watch" | "goal" | "baton";
+export type WakeScope = "private" | "shared" | "room";
 export const CAP = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
 
 type Raw = Record<string, unknown>;
@@ -320,7 +199,25 @@ function rowToSchedule(r: Raw): Schedule {
     active: num(r.active) === 1,
     createdBy: r.created_by as string,
     createdAt: num(r.created_at) ?? 0,
+    kind: (str(r.kind) as WakeKind | undefined) ?? "call",
+    scope: (str(r.scope) as WakeScope | undefined) ?? "private",
+    overlap: r.overlap === "coalesce" ? "coalesce" : "skip",
+    maxAttempts: num(r.max_attempts) ?? 1,
   };
+  for (const [k, col] of [
+    ["person", "person"],
+    ["agentId", "agent_id"],
+    ["roomId", "room_id"],
+    ["zone", "zone"],
+    ["pausedBy", "paused_by"],
+  ] as const) {
+    const v = str(r[col]);
+    if (v !== undefined) s[k] = v;
+  }
+  const q = json<{ from: string; to: string } | undefined>(r.quiet, undefined);
+  if (q) s.quiet = q;
+  const aw = num(r.answer_within_min);
+  if (aw !== undefined) s.answerWithinMin = aw;
   const p = str(r.paused_reason);
   if (p !== undefined) s.pausedReason = p;
   const n = num(r.next_at);
@@ -335,16 +232,28 @@ export function findSchedule(db: Db, id: string): Schedule | undefined {
   const r = (db.all("SELECT * FROM scheduler_api_schedules WHERE id = ? AND canceled_at IS NULL", id) as Raw[])[0];
   return r ? rowToSchedule(r) : undefined;
 }
+/** The one live wake of a kind that belongs to an owner (a routine id), if there is one. */
+export function wakeOf(db: Db, kind: string, owner: Owner): Schedule | undefined {
+  const r = (
+    db.all(
+      "SELECT * FROM scheduler_api_schedules WHERE kind = ? AND owner_kind = ? AND owner_id = ? AND canceled_at IS NULL LIMIT 1",
+      kind,
+      owner.kind,
+      owner.id,
+    ) as Raw[]
+  )[0];
+  return r ? rowToSchedule(r) : undefined;
+}
 export function allSchedules(db: Db): Schedule[] {
   return (
     db.all("SELECT * FROM scheduler_api_schedules WHERE canceled_at IS NULL ORDER BY created_at ASC, id ASC") as Raw[]
   ).map(rowToSchedule);
 }
-/** Active schedules whose next fire time has come, oldest first. */
+/** Active schedules whose next fire time has come, by time, then in the order they were made (rowid): never by id, which is random. */
 export function dueSchedules(db: Db, now: number): Schedule[] {
   return (
     db.all(
-      "SELECT * FROM scheduler_api_schedules WHERE canceled_at IS NULL AND active = 1 AND next_at IS NOT NULL AND next_at <= ? ORDER BY next_at ASC, id ASC",
+      "SELECT * FROM scheduler_api_schedules WHERE canceled_at IS NULL AND active = 1 AND next_at IS NOT NULL AND next_at <= ? ORDER BY next_at ASC, created_at ASC, rowid ASC",
       now,
     ) as Raw[]
   ).map(rowToSchedule);
@@ -352,8 +261,9 @@ export function dueSchedules(db: Db, now: number): Schedule[] {
 export function saveSchedule(db: Db, s: Schedule): void {
   const cron = "cron" in s.when ? s.when : undefined;
   db.run(
-    `INSERT OR REPLACE INTO scheduler_api_schedules (id, owner_kind, owner_id, principal, cap, input, at_ms, cron, tz, if_missed, active, paused_reason, next_at, last_fired_at, created_by, created_at, canceled_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO scheduler_api_schedules (id, owner_kind, owner_id, principal, cap, input, at_ms, cron, tz, if_missed, active, paused_reason, next_at, last_fired_at, created_by, created_at, canceled_at,
+       kind, person, agent_id, scope, room_id, zone, quiet, overlap, answer_within_min, max_attempts, paused_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     s.id,
     s.owner.kind,
     s.owner.id,
@@ -371,6 +281,17 @@ export function saveSchedule(db: Db, s: Schedule): void {
     s.createdBy,
     s.createdAt,
     nul(s.canceledAt),
+    s.kind,
+    nul(s.person),
+    nul(s.agentId),
+    s.scope,
+    nul(s.roomId),
+    nul(s.zone),
+    s.quiet ? js(s.quiet) : null,
+    s.overlap,
+    nul(s.answerWithinMin),
+    s.maxAttempts,
+    nul(s.pausedBy),
   );
 }
 /** The next time after `after` that a schedule's When fires; a one-shot has none once its time passed. */
@@ -392,6 +313,9 @@ export function scheduleOut(s: Schedule): Record<string, unknown> {
     nextAt: s.nextAt,
     lastFiredAt: s.lastFiredAt,
     createdAt: s.createdAt,
+    zone: s.zone,
+    scope: s.scope,
+    person: s.person,
   });
 }
 
@@ -405,15 +329,16 @@ export function idemSave(db: Db, key: string, ref: string): void {
 export function fireRow(db: Db, scheduleId: string, scheduledFor: number): { runId?: string } | undefined {
   const r = (
     db.all(
-      "SELECT run_id FROM scheduler_api_fires WHERE schedule_id = ? AND scheduled_for = ?",
+      "SELECT run_id FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?",
       scheduleId,
-      scheduledFor,
+      String(scheduledFor),
     ) as Raw[]
   )[0];
   if (!r) return undefined;
   const runId = str(r.run_id);
   return runId !== undefined ? { runId } : {};
 }
+/** A fire of a time that was made and is over (the call was made): `done`. The due key of a time wake is the instant, in milliseconds, as text. */
 export function saveFire(
   db: Db,
   scheduleId: string,
@@ -422,12 +347,247 @@ export function saveFire(
   at: number,
 ): void {
   db.run(
-    "INSERT OR IGNORE INTO scheduler_api_fires (schedule_id, scheduled_for, run_id, fired_at) VALUES (?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO scheduler_api_fires (schedule_id, due_key, scheduled_for, run_id, fired_at, state, ended_at) VALUES (?, ?, ?, ?, ?, 'done', ?)",
     scheduleId,
+    String(scheduledFor),
     scheduledFor,
     nul(runId),
     at,
+    at,
   );
+}
+
+// ---- the claim rule (P1): a fire is created once and claimed once, each a conditional write ----
+
+export type FireState =
+  | "due"
+  | "claimed"
+  | "running"
+  | "waiting"
+  | "done"
+  | "failed"
+  | "stopped"
+  | "skipped"
+  | "dropped";
+/** A claim is taken again when it is older than this. */
+export const LEASE_MS = 2 * MINUTE;
+export const fireIdOf = (scheduleId: string, dueKey: string): string => `${scheduleId}#${dueKey}`;
+export function splitFireId(fireId: string): { scheduleId: string; dueKey: string } | undefined {
+  const i = fireId.indexOf("#");
+  return i > 0 ? { scheduleId: fireId.slice(0, i), dueKey: fireId.slice(i + 1) } : undefined;
+}
+/** Makes a fire due. True when this write made the row: whoever gets true goes on, whoever gets false finds it already made. */
+export function createFire(
+  db: Db,
+  scheduleId: string,
+  dueKey: string,
+  scheduledFor: number,
+  now: number,
+  as: { state?: "due" | "skipped"; reasons?: unknown; skipReason?: string } = {},
+): boolean {
+  // ONE insert carries the state and the reasons: a kill cannot leave a stale fire without them
+  const state = as.state ?? "due";
+  return (
+    db.run(
+      "INSERT OR IGNORE INTO scheduler_api_fires (schedule_id, due_key, scheduled_for, fired_at, state, reasons, skip_reason, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      scheduleId,
+      dueKey,
+      scheduledFor,
+      now,
+      state,
+      as.reasons === undefined ? null : js(as.reasons),
+      nul(as.skipReason),
+      state === "skipped" ? now : null,
+    ).changes === 1
+  );
+}
+/** Claims a due fire, or one whose claim ran out. True only for the write that changed the row. */
+export function claimFire(
+  db: Db,
+  scheduleId: string,
+  dueKey: string,
+  host: string,
+  now: number,
+): { attempt: number } | undefined {
+  const won =
+    db.run(
+      `UPDATE scheduler_api_fires SET state = 'claimed', claimed_by = ?, lease_until = ?, attempt = attempt + 1
+         WHERE schedule_id = ? AND due_key = ? AND (state = 'due' OR (state = 'claimed' AND lease_until < ?))`,
+      host,
+      now + LEASE_MS,
+      scheduleId,
+      dueKey,
+      now,
+    ).changes === 1;
+  if (!won) return undefined;
+  const r = (
+    db.all("SELECT attempt FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?", scheduleId, dueKey) as Raw[]
+  )[0];
+  return { attempt: num(r?.attempt) ?? 1 };
+}
+export function fireState(db: Db, scheduleId: string, dueKey: string): FireState | undefined {
+  const r = (
+    db.all("SELECT state FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?", scheduleId, dueKey) as Raw[]
+  )[0];
+  return r ? (str(r.state) as FireState) : undefined;
+}
+const OPEN: readonly FireState[] = ["claimed", "running", "waiting"];
+const ENDED: readonly FireState[] = ["done", "failed", "stopped", "skipped"];
+/** Moves a fire the engine holds on: running, waiting for a person, or ended. A fire that is not claimed, running or waiting does not move (a late report of a fire already ended changes nothing). */
+export function reportFire(
+  db: Db,
+  scheduleId: string,
+  dueKey: string,
+  attempt: number,
+  state: "running" | "waiting" | "done" | "failed" | "stopped" | "skipped",
+  runId: string | undefined,
+  note: string | undefined,
+  now: number,
+): { ok: boolean; superseded?: true } {
+  const moved =
+    db.run(
+      `UPDATE scheduler_api_fires SET state = ?, run_id = COALESCE(?, run_id), skip_reason = COALESCE(?, skip_reason), ended_at = ?, lease_until = ?
+         WHERE schedule_id = ? AND due_key = ? AND attempt = ? AND state IN ('claimed', 'running', 'waiting')`,
+      state,
+      nul(runId),
+      nul(note),
+      (ENDED as readonly string[]).includes(state) ? now : null,
+      // a fire that says running or waiting has two leases from now to show a Run: the sweep closes a Run-less one only after that, measured from this report, not from when the fire was made
+      state === "running" || state === "waiting" ? now + 2 * LEASE_MS : null,
+      scheduleId,
+      dueKey,
+      attempt,
+    ).changes === 1;
+  if (moved) return { ok: true };
+  // the fence: a claim that was taken over reports to a fire that is now another claimer's; it is told so and nothing moves
+  const have = (
+    db.all("SELECT attempt FROM scheduler_api_fires WHERE schedule_id = ? AND due_key = ?", scheduleId, dueKey) as Raw[]
+  )[0];
+  const held = num(have?.attempt) ?? 0; // 0: never claimed, so nothing was taken over
+  return held > 0 && held !== attempt ? { ok: false, superseded: true } : { ok: false };
+}
+/** Fires that say running or waiting. The sweep asks each one's Run how it really is. */
+export function openRunFires(
+  db: Db,
+  after = 0,
+  limit = SWEEP_SLICE,
+): { rowid: number; scheduleId: string; dueKey: string; runId?: string; state: FireState; graceUntil: number }[] {
+  return (
+    db.all(
+      "SELECT rowid, schedule_id, due_key, run_id, state, lease_until FROM scheduler_api_fires WHERE state IN ('running', 'waiting') AND rowid > ? ORDER BY rowid ASC LIMIT ?",
+      after,
+      limit,
+    ) as Raw[]
+  ).map((r) => ({
+    rowid: num(r.rowid) ?? 0,
+    scheduleId: r.schedule_id as string,
+    dueKey: r.due_key as string,
+    ...(str(r.run_id) !== undefined ? { runId: str(r.run_id) as string } : {}),
+    state: r.state as FireState,
+    graceUntil: num(r.lease_until) ?? 0,
+  }));
+}
+/** How many open fires the sweep reads at a time: all of them are visited, oldest first, a slice after a slice. */
+export const SWEEP_SLICE = 200;
+/**
+ * Closes a fire the sweep found over, if it is still as the sweep read it: running or waiting, with the same Run (or none) and the same grace time. A report that landed between the read and this write
+ * (the fire just got its Run) makes this do nothing, and the next pass looks again.
+ */
+export function closeFire(
+  db: Db,
+  seen: { scheduleId: string; dueKey: string; runId?: string; graceUntil: number },
+  state: "done" | "failed" | "stopped",
+  note: string,
+  now: number,
+): boolean {
+  return (
+    db.run(
+      `UPDATE scheduler_api_fires SET state = ?, skip_reason = ?, ended_at = ?
+         WHERE schedule_id = ? AND due_key = ? AND state IN ('running', 'waiting')
+           AND COALESCE(run_id, '') = ? AND COALESCE(lease_until, 0) = ?`,
+      state,
+      note,
+      now,
+      seen.scheduleId,
+      seen.dueKey,
+      seen.runId ?? "",
+      seen.graceUntil,
+    ).changes === 1
+  );
+}
+/** A wake was cancelled: its fires that were made but never started (due, or claimed with no Run reported) end as dropped. A fire already running or waiting is left to its Run and the sweep. */
+export function dropOpenFires(db: Db, scheduleId: string, now: number): void {
+  db.run(
+    "UPDATE scheduler_api_fires SET state = 'dropped', skip_reason = 'The schedule was cancelled', ended_at = ? WHERE schedule_id = ? AND state IN ('due', 'claimed')",
+    now,
+    scheduleId,
+  );
+}
+/** A note on a fire that is still open (the last reason its target did not run): kept for the words when it finally fails. */
+export function noteFire(db: Db, scheduleId: string, dueKey: string, note: string): void {
+  db.run(
+    "UPDATE scheduler_api_fires SET skip_reason = ? WHERE schedule_id = ? AND due_key = ? AND state = 'claimed'",
+    note,
+    scheduleId,
+    dueKey,
+  );
+}
+/** Due fires in a stable order: by due time, then the order they were made (rowid). Whoever works through them (the engine consumer) gets "first A then B" whatever the ids are. */
+export function dueFires(db: Db, now?: number): { scheduleId: string; dueKey: string; scheduledFor: number }[] {
+  // with `now`, a claim whose lease ran out counts too: it is the one to take again
+  const where = now === undefined ? "state = 'due'" : "(state = 'due' OR (state = 'claimed' AND lease_until < ?))";
+  return (
+    db.all(
+      `SELECT schedule_id, due_key, scheduled_for FROM scheduler_api_fires WHERE ${where} ORDER BY scheduled_for ASC, rowid ASC`,
+      ...(now === undefined ? [] : [now]),
+    ) as Raw[]
+  ).map((r) => ({
+    scheduleId: r.schedule_id as string,
+    dueKey: r.due_key as string,
+    scheduledFor: num(r.scheduled_for) ?? 0,
+  }));
+}
+/** Is a fire of this wake open (due, claimed, running or waiting)? The overlap rule asks. */
+export function openFire(db: Db, scheduleId: string): boolean {
+  return (
+    db.all(
+      "SELECT 1 AS x FROM scheduler_api_fires WHERE schedule_id = ? AND state IN ('due', 'claimed', 'running', 'waiting') LIMIT 1",
+      scheduleId,
+    ).length > 0
+  );
+}
+export { OPEN as OPEN_FIRE_STATES };
+
+// ---- retention: bounded, one statement per pass, never a fire that is open ----
+
+/** Most rows one pass deletes. */
+export const PRUNE_BOUND = 500;
+const KEEP_CALL_PER_WAKE = 20;
+const KEEP_FAILED_MS = 7 * DAY;
+const KEEP_HISTORY_MS = 400 * DAY;
+/**
+ * `call` and `baton` fires: the last 20 finished per wake, plus any that failed in the last 7 days. `routine`, `watch` and goal fires are history people read: kept 400 days. A fire that is due, claimed, running
+ * or waiting is never deleted. Returns how many rows went; never more than PRUNE_BOUND.
+ */
+export function pruneFires(db: Db, now: number): number {
+  const finished = "('done', 'failed', 'stopped', 'skipped', 'dropped')";
+  return db.run(
+    `DELETE FROM scheduler_api_fires WHERE rowid IN (
+       SELECT f.rowid FROM scheduler_api_fires f JOIN scheduler_api_schedules s ON s.id = f.schedule_id
+        WHERE f.state IN ${finished} AND (
+          (s.kind IN ('call', 'baton') AND NOT (f.state = 'failed' AND f.fired_at > ?)
+             AND (f.scheduled_for, f.due_key) < (
+               SELECT g.scheduled_for, g.due_key FROM scheduler_api_fires g
+                WHERE g.schedule_id = f.schedule_id AND g.state IN ${finished} AND NOT (g.state = 'failed' AND g.fired_at > ?)
+                ORDER BY g.scheduled_for DESC, g.due_key DESC LIMIT 1 OFFSET ?))
+          OR (s.kind NOT IN ('call', 'baton') AND f.fired_at < ?))
+        LIMIT ?)`,
+    now - KEEP_FAILED_MS,
+    now - KEEP_FAILED_MS,
+    KEEP_CALL_PER_WAKE - 1,
+    now - KEEP_HISTORY_MS,
+    PRUNE_BOUND,
+  ).changes;
 }
 
 export interface MissedRow {
@@ -607,6 +767,18 @@ export function filterMatches(filter: unknown, payload: unknown): boolean {
 
 export const me = (ctx: SchedCtx): string => ctx.actingFor ?? ctx.principal.id;
 export const isService = (ctx: SchedCtx): boolean => isTrustedService(ctx.principal);
+/**
+ * What a wake of each kind may name, a fixed table in code (never a free-form capability on the row), and who may make or change one. A person, an agent, a tenant service and an outside agent calling
+ * scheduler.* directly cannot: only the host, or the agents module's own doors as a nested call. A plain `call` schedule is as before.
+ */
+export const WAKE_CAP: Readonly<Record<string, string>> = { routine: "agents.routine.fire" };
+export const WAKE_DOORS: readonly string[] = [
+  "agents.routine.save",
+  "agents.routine.delete",
+  "agents.routine.delegate",
+];
+export const mayMakeWake = (ctx: SchedCtx): boolean =>
+  isTrustedService(ctx.principal) || (ctx.callerCap !== undefined && WAKE_DOORS.includes(ctx.callerCap));
 /**
  * Manage a schedule: the host (a service caller), or the principal it runs as. A schedule an agent made for nobody runs as the agent: that standing counts in a turn for nobody, and never for a person
  * who merely asks the agent (lib/agent-asker.ts); a schedule made in a person's turn runs as that person, so it is theirs through the agent.

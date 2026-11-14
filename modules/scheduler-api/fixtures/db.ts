@@ -12,7 +12,9 @@ import type { Caller } from "./seed.ts";
 
 // Boundary B2 keeps the node:sqlite module out of the import lines of modules: only the host builds a ctx and opens databases.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
-const migration = readFileSync(new URL("../migrations/0001_scheduler_api.sql", import.meta.url), "utf8");
+const migrations = ["0001_scheduler_api.sql", "0002_campaigns_removed.sql", "0003_wake.sql"].map((f) =>
+  readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"),
+);
 export const TRACE = "0123456789abcdef0123456789abcdef";
 const IDEM_KEYED = new Set(["scheduler.schedule", "scheduler.waits.register"]);
 
@@ -32,13 +34,19 @@ type Callee = (input: any, who: { id: string }) => unknown; // eslint-disable-li
 export interface HarnessOptions {
   now?: number;
   calls?: Record<string, Callee>;
+  /** ctx.mayAll: may every one of these people do this? Default yes. */
+  mayAll?: (
+    people: readonly string[],
+    action: { level: string },
+    resource: { type: string; id: string | null },
+  ) => boolean;
 }
 
 const norm = (a: unknown): unknown => (a === undefined ? null : a);
 
 export function harness(o: HarnessOptions = {}) {
   const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(migration);
+  for (const m of migrations) sqlite.exec(m);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
     run: (sql, ...args) => ({ changes: Number(sqlite.prepare(sql).run(...(args.map(norm) as never[])).changes) }),
@@ -81,11 +89,12 @@ export function harness(o: HarnessOptions = {}) {
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input, who);
       },
+      mayAll: (people, action, resource) => (o.mayAll ? o.mayAll(people, action, resource) : true),
     };
   }
 
   let keys = 0;
-  async function call(cap: string, raw0: unknown, who: Caller, run?: string): Promise<any> {
+  async function call(cap: string, raw0: unknown, who: Caller, run?: string, callerCap?: string): Promise<any> {
     // eslint-disable-line @typescript-eslint/no-explicit-any
     const input =
       IDEM_KEYED.has(cap) && !(raw0 as { idempotencyKey?: unknown }).idempotencyKey
@@ -96,7 +105,7 @@ export function harness(o: HarnessOptions = {}) {
     const h = (handlers as Record<string, (ctx: SchedCtx, input: unknown) => Promise<unknown>>)[cap];
     if (!h) throw new Error(`no handler for ${cap}`);
     events = [];
-    const result = await h(ctxFor(cap, who, run), input);
+    const result = await h({ ...ctxFor(cap, who, run), ...(callerCap ? { callerCap } : {}) }, input);
     const badOut = validateOutput(cap, 1, result);
     if (badOut.length) throw new Error(`${cap} output is invalid: ${badOut.join("; ")}`);
     all.push(...events);
