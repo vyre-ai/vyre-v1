@@ -17,6 +17,7 @@ import { States } from "../../../../../ui/src/States/index.tsx";
 import { forgetKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
+import { PendingChat } from "../../places/chats/landing/PendingChat.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
 import { formatHash } from "../hash/hash.ts";
@@ -202,8 +203,9 @@ export function ShellHost({
       notice: (text) => {
         navRef.current?.flash(text);
       },
-      navigate: (p, hash, background) => {
-        navRef.current?.go(p, hash, background);
+      navigate: (p, hash, background, into) => {
+        if (into !== undefined) navRef.current?.fill(p, hash, undefined, into);
+        else navRef.current?.go(p, hash, background);
         if (phoneGo.current && background !== true) phoneGo.current(p, hash);
       },
       shell: (screen, args) => {
@@ -352,6 +354,14 @@ export function ShellHost({
             }),
             console: () => session.def.console === true,
             ...(team ? { away: setAway } : {}),
+            retitle: (title) => hub.retitle(hub.session().tabs.state().active, title),
+            fill: (place, hash, title, from) => hub.fill(place, hash, title, from),
+            activeTab: () => hub.session().tabs.state().active,
+            // the Space's own address, and the page's address when it differs (a Space reached by two names): itemLink writes the page's address on the web
+            origins: () => {
+              const here = (globalThis as { location?: { origin?: string } }).location?.origin;
+              return here && /^https?:/.test(here) ? [stored.baseUrl, here] : [stored.baseUrl];
+            },
             signOut: () => signOutRef.current(),
           }))
         : null,
@@ -637,7 +647,28 @@ export function ShellHost({
   };
   const renderNewTab = (): ReactElement =>
     search ? (
-      <NewTabSearch data={search} />
+      <NewTabSearch
+        data={search}
+        {...(session
+          ? {
+              chatView: (c, a) => (
+                <PendingChat
+                  title={c.title}
+                  text={c.text}
+                  files={[]}
+                  lead={session.runtime.assistant.name}
+                  phase={c.phase}
+                  {...(session.runtime.turns
+                    ? { live: { turns: session.runtime.turns, asker: session.runtime.me.id, since: c.since } }
+                    : {})}
+                  {...(c.note ? { note: c.note } : {})}
+                  onRetry={a.retry}
+                  onDiscard={a.discard}
+                />
+              ),
+            }
+          : {})}
+      />
     ) : (
       <States kind="empty" title="Open anything, or start something" icon="search" />
     );

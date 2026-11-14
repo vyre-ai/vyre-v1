@@ -3984,6 +3984,7 @@ const b1774: string[] = []; lf(x1774, p, b1774, L0); if (b1774.length) e.push(..
 if (g1774 === "object") {
 if (g1774 === 'object') { const o1774 = x1774 as Record<string, unknown>;
 if ("category" in o1774) lf(o1774["category"], p + "/category", e, L538);
+if ("all" in o1774) lf(o1774["all"], p + "/all", e, L3);
 }
 }
 }
@@ -4032,6 +4033,7 @@ if ("gateAct" in o1777) lf(o1777["gateAct"], p + "/steps" + '/' + i1776 + "/gate
 }
 }
 }
+if ("checked" in o1775) lf(o1775["checked"], p + "/checked", e, L3);
 }
 }
 }

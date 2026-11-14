@@ -498,6 +498,7 @@ export const consumers = keptWhileStopping({
           ...(result !== undefined ? { result } : {}),
           ...(p.note ? { note: p.note } : {}),
         }),
+        person,
       );
       if (host.postAs) {
         await Promise.resolve(
@@ -618,6 +619,7 @@ export const consumers = keptWhileStopping({
         p.threadId,
         p.agentId,
         `${by} reviewed ${p.name} (file ${p.fileId}). Read it again now: you get the redacted version, with [REDACTED] where a part is hidden. Do not guess what a redacted part says; if you need it, say so and ask ${by} to un-redact it.`,
+        p.actingFor,
       );
       if (host.postAs) {
         await Promise.resolve(

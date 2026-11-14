@@ -447,8 +447,13 @@ export default defineManifest({
     }),
     read(
       "access.connector_builder.status",
-      "Does this assistant hold the permission to build connectors, and may the caller give it",
-      { ...V, in: { agentId: id.agent }, out: { allowed: t.bool(), canGrant: t.bool() }, agent: false },
+      "Does this assistant hold the permission to build connectors, may the caller give it, and (when an item is named) may the assistant use that Vault item",
+      {
+        ...V,
+        in: { agentId: id.agent, itemId: t.opt(id.vaultItem) },
+        out: { allowed: t.bool(), canGrant: t.bool(), reaches: t.opt(t.bool()) },
+        agent: false,
+      },
     ),
     write(
       "access.connector_builder.grant",

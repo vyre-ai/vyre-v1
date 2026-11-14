@@ -18,6 +18,8 @@ const workflows = fs
  * Walks no per-push job can run, each with where it runs instead. Take a file off when it is named in a workflow; the test fails while a listed file is already named, or is gone.
  */
 export const PENDING: Readonly<Record<string, string>> = {
+  "apps/app/tests/chat.newchat-open.perf.test.ts":
+    "a speed budget: a perf file in test/slow.json, run on the v1-perf host by perf.yml and affected-perf (which export the app first)",
   "test/cut-proof.heavy.test.ts":
     "needs a running server from compose.server.yml, its claim link and VYRE_HEAVY_DOCKER; run by hand at the cut",
 };

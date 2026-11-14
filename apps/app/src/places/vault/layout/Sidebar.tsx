@@ -1,10 +1,11 @@
 // Vault sidebar (Apple Passwords layout; the four sections, owner 3 Nov): Requested (only when something waits), All, AI accounts, Google and Microsoft, Connections, then Everything else (Keys,
 // Logins, Cards, Health when something needs a look), then Shared with its folders, Mine and Advanced. Each has a count. A Personal Space has no Shared and no Mine: everything there is yours. Rows are the shared ui/Row with a leading icon and a trailing count.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { sameSelection } from "./model.ts";
 import type { Counts, Folder, Selection } from "./model.ts";
 import { Glyph, IconBtn } from "./parts.tsx";
@@ -80,7 +81,18 @@ export function Sidebar({
     }
     return d;
   };
+  // Esc puts the name box away without making the folder (owner, 13 Nov 2026: it stayed open); the blur that follows must not make it either
+  const escaped = useRef(false);
+  useEffect(() => {
+    if (naming !== null) escaped.current = false;
+  }, [naming === null]); // eslint-disable-line react-hooks/exhaustive-deps -- reset only when the box opens
+  useEscapeLayer(naming !== null, () => {
+    escaped.current = true;
+    setNaming(null);
+    setFolderError(null);
+  });
   const submit = async (): Promise<void> => {
+    if (escaped.current) return;
     const name = (naming ?? "").trim();
     if (!name) {
       setNaming(null);

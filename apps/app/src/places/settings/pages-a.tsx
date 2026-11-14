@@ -33,6 +33,7 @@ import { Choice, TextBox, Glyph, Section, SettingsRow, SmallButton, Switch, Valu
 import { useZones } from "../../../../../ui/src/Time/index.tsx";
 import { zoneName, zoneCity } from "../../../../../lib/zones.ts";
 import { useOpenConnect } from "../../shell/connect/context.ts";
+import { refreshZones } from "../../shell/zones/ZonesHost.tsx";
 import { statusNote, useSpaceAi } from "../../ai-signin/SpaceAiStatus.tsx";
 
 export interface PageProps {
@@ -75,7 +76,16 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
     } catch {
       return;
     }
-    void change(tz, zone);
+    // quietly: nobody changed anything, so no "Saved  Undo" line (owner, 13 Nov 2026); a failed write is tried again the next time the page opens
+    void Promise.resolve(data.call("settings.set", { key: tz.key, value: zone }))
+      .then(() => refreshZones())
+      .catch(() => {
+        try {
+          globalThis.localStorage?.removeItem(flag);
+        } catch {
+          /* nothing to undo */
+        }
+      });
   }, [tz?.value]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = (contact?.value ?? {}) as { email?: string; phone?: string };
   const here = data.spaces.find((sp) => sp.current);

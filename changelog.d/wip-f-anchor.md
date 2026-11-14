@@ -1,0 +1,2 @@
+- The hover card on a message's time now draws right under the time, wherever the chat is scrolled; it used to appear far from the pointer.
+- Photo and link viewers, calendar hover cards and the reaction picker draw above everything in the window instead of inside the chat they came from; the reaction picker opens above its button when there is no room below.

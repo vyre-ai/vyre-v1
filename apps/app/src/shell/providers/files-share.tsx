@@ -1,4 +1,5 @@
 // Share a folder: the same sheet Records uses (ui/ShareSheet), on the folder through access.share. It reads the shares live, so a change shows at once.
+import { notices } from "../noticeslot/model.ts";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -18,6 +19,11 @@ import { useDirectory } from "./automations-parts.tsx";
 import { capLive, nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
+/** The level a share goes out with. The sheet picks an agent with no level of its own (an agent's role is set elsewhere), and an empty level is refused by the server ("level: not in enum", found 13 Nov 2026
+ * when Share with the Assistant failed silently): an agent is given the least that lets it use the item, view (use for a skill). */
+export const shareLevelOf = (i: ShareInput, type: string): string =>
+  (i.level as string | undefined) || (type === "skill" ? "use" : "view");
+
 const SKILL_LEVELS = ["use", "edit", "manage"] as const;
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["position"];
 
@@ -26,6 +32,7 @@ export function FolderShareSheet({
   folderId,
   resource,
   onClose,
+  onChanged,
 }: {
   rt: ShellRuntime;
   folderId: string;
@@ -35,6 +42,8 @@ export function FolderShareSheet({
     name: string;
   };
   onClose(): void;
+  /** A share or a removal went through: the caller reads again what it shows about who has access (the sheet has already closed by then). */
+  onChanged?(): void;
 }): ReactElement {
   // the sheet is titled with the folder's own name
   const [name, setName] = useState(resource?.name ?? "Folder");
@@ -63,12 +72,21 @@ export function FolderShareSheet({
   );
   const state = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
   const [failed, setFailed] = useState<string | null>(null);
-  const run = (call: Promise<unknown>): void => {
+  // The sheet closes itself the moment Share is pressed, so what happened is said where the person still looks: a passing notice in the top bar ("Shared with Ada", or that it did not go through). Before,
+  // a share said nothing at all, and a person could not tell whether it had worked (owner, 13 Nov 2026).
+  const run = (call: Promise<unknown>, said?: { ok: string; bad: string }): void => {
     setFailed(null);
-    call.catch((e: unknown) => {
-      const x = e as { error?: { message?: string }; message?: string };
-      setFailed(x?.error?.message ?? x?.message ?? "That did not go through.");
-    });
+    call.then(
+      () => {
+        if (said) notices.pass(said.ok);
+        onChanged?.();
+      },
+      (e: unknown) => {
+        const x = e as { error?: { message?: string }; message?: string };
+        setFailed(x?.error?.message ?? x?.message ?? "That did not go through.");
+        if (said) notices.pass(said.bad);
+      },
+    );
   };
   const shell = (inner: ReactElement): ReactElement => (
     <View testID="files-share" accessibilityLabel="Share" style={s.layer}>
@@ -122,16 +140,25 @@ export function FolderShareSheet({
             }),
           )
         }
-        onCopyLink={() => copyItemLink(type, folderId)}
+        onCopyLink={() => copyItemLink(type, folderId, true)}
         onShare={(i: ShareInput, opts) =>
           run(
             rt.call(
               "access.share",
-              withNotify({ resource: { type, id: folderId }, subject: i.subject, level: i.level }, opts),
+              withNotify({ resource: { type, id: folderId }, subject: i.subject, level: shareLevelOf(i, type) }, opts),
             ),
+            {
+              ok: `Shared with ${nameOf(i.subject.id)}`,
+              bad: `Could not share with ${nameOf(i.subject.id)}. Try again.`,
+            },
           )
         }
-        onUnshare={(i: UnshareInput) => run(rt.call("access.unshare", { resource: i.resource, subject: i.subject }))}
+        onUnshare={(i: UnshareInput) =>
+          run(rt.call("access.unshare", { resource: i.resource, subject: i.subject }), {
+            ok: `Stopped sharing with ${nameOf(i.subject.id)}`,
+            bad: `Could not stop sharing with ${nameOf(i.subject.id)}. Try again.`,
+          })
+        }
         onClose={onClose}
       />
       {failed ? (

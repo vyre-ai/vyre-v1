@@ -228,6 +228,17 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
       const url = new URL(req.url ?? "/", "http://vyred");
       // an artifact's plain address: the app opens it for whoever is signed in. Only a token below it serves anything
       const plain = /^\/a\/(sit_[a-z0-9]{1,64})\/?$/.exec(url.pathname);
+      // an address under /a/ that is not an artifact's (a mistyped or cut link): a plain page with the way to the Space, never the gateway's raw JSON "There is no such endpoint"
+      const other = /^\/a\/([^/]*)\/?$/.exec(url.pathname);
+      if (!plain && other && (req.method ?? "GET").toUpperCase() === "GET") {
+        page(
+          res,
+          404,
+          "This is not a page address",
+          "The link is cut short or mistyped. Open Vyre and find the page from Artifacts.",
+        );
+        return true;
+      }
       if (plain && (req.method ?? "GET").toUpperCase() === "GET") {
         res.writeHead(302, {
           location: `/#subject=artifact:${plain[1] as string}`,

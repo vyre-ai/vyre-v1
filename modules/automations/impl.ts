@@ -34,6 +34,7 @@ export {
   startRun,
   triggerPayload,
 } from "./handlers/triggers.ts";
+import { isCompanyKeyName } from "../../lib/company-keys.ts";
 import { recordSavedItem } from "./offer-store.ts";
 import type { OfferDb } from "./offer-store.ts";
 import { backfillGrants } from "./grants.ts";
@@ -117,6 +118,8 @@ export const consumers = {
       if (itemId === "") return;
       // a card, a note, a code, an SSH key or an AI account is not an app to connect
       if (typeof payload["kind"] === "string" && !CONNECTOR_KINDS.has(payload["kind"])) return;
+      // a company key (the Google delegation key, the sign-in apps' secrets) is for the server alone: no assistant may use it, so no setup for it can be finished
+      if (isCompanyKeyName(name)) return;
       recordSavedItem(
         ctx.db as OfferDb,
         { itemId, name, fieldKeys: [] },

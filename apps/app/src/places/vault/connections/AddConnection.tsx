@@ -558,7 +558,6 @@ function Setup({
     );
   }
   if (added) {
-    const origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? "";
     return (
       <View style={{ gap: 10 }} testID="connection-added">
         <View style={s.result}>
@@ -572,7 +571,7 @@ function Setup({
               label="Sign in"
               primary
               onPress={() => {
-                void signIn(data.call, added.connectionId, origin).then(
+                void signIn(data.call, added.connectionId).then(
                   (u) => Linking.openURL(u),
                   (e) => setError(messageOf(e)),
                 );

@@ -550,7 +550,7 @@ function AgentObject({
             onChange={setPauseReason}
           />
         )}
-        <Row id="agent-folder" title="Home folder" note={agent.folderId} />
+        <Row id="agent-folder" title="Home folder" note="Its own folder in Files" />
         <Row id="agent-computer" title="Computer" note={agent.hasComputer ? "Attached" : "None"} />
         <Row id="agent-template" title="Version" note={String(agent.templateVersion)} />
       </ObjectSection>

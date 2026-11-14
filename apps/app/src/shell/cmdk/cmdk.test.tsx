@@ -349,12 +349,21 @@ test("the sheet renders the search field, a filter menu button, quiet group head
 test("one row per thing, no raw [ ] marks, no group name repeated on the row (polish audit L15)", async () => {
   const { groupRows, plainMarks } = await import("./model.ts");
   assert.equal(plainMarks("Review the [launch] post"), "Review the launch post");
-  const hit = (kind: string, id: string, title: string, snippet?: string) =>
-    ({ kind, id, title, ...(snippet ? { snippet } : {}), score: 1, link: `vyre://${kind}/${id}` }) as never;
+  const hit = (kind: string, id: string, title: string, snippet?: string, of?: string) =>
+    ({
+      kind,
+      id,
+      title,
+      ...(snippet ? { snippet } : {}),
+      ...(of ? { of } : {}),
+      score: 1,
+      link: `vyre://${kind}/${id}`,
+    }) as never;
+  // things are the same by id, never by title (13 Nov 2026): the same chat found twice, by its title and by a message in it, is one row
   const rows = groupRows(
     [
       hit("chat", "thr_1", "Launch page live by Friday"),
-      hit("chat", "msg_9", "Launch page live by Friday", "Review the [launch] post"),
+      hit("chat", "thr_1", "Launch page live by Friday", "Review the [launch] post"),
       hit("channel", "chn_1", "launch"),
     ],
     8,
@@ -366,8 +375,9 @@ test("one row per thing, no raw [ ] marks, no group name repeated on the row (po
     "Review the launch post",
     "the later hit's snippet fills the row, without the marks",
   );
+  // a channel's own chat says whose it is (`of`, set by gate.ts linkedTo from ids): it is not a second row beside the channel
   const both = groupRows(
-    [hit("chat", "thr_9", "launch", "Review the [launch] post"), hit("channel", "chn_9", "launch")],
+    [hit("chat", "thr_9", "launch", "Review the [launch] post", "channel:chn_9"), hit("channel", "chn_9", "launch")],
     8,
   ).filter((r) => r.type === "hit") as { hit: { kind: string; snippet?: string } }[];
   assert.deepEqual(
@@ -376,6 +386,11 @@ test("one row per thing, no raw [ ] marks, no group name repeated on the row (po
     "a channel's own thread is not a second row beside the channel",
   );
   assert.equal(both[0]!.hit.snippet, "Review the launch post");
+  // a chat that only shares the channel's name is another thing: both rows stay
+  const named = groupRows([hit("chat", "thr_8", "launch"), hit("channel", "chn_9", "launch")], 8).filter(
+    (r) => r.type === "hit",
+  ) as { hit: { kind: string } }[];
+  assert.deepEqual(named.map((r) => r.hit.kind).sort(), ["channel", "chat"], "the same title is not the same thing");
 });
 
 test("a row's second line is dropped when it only repeats the title, whatever the case or spacing", async () => {

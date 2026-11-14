@@ -48,3 +48,8 @@ test("every compose.env variable the daemon's config reads is passed into the vy
   for (const n of ["VYRE_DOCKER_ROOT_DIR", "VYRE_DOCKER_ROOT_STATE", "VYRE_DISK_ENCRYPTION", "VYRE_NETWORK_REV"])
     assert.ok(w.has(n) && r.has(n) && passed.has(n), n);
 });
+
+test("the artifact host can be set from compose.env: VYRE_ARTIFACT_HOST is passed into vyred (rc.26 did not, so the live Space needed an override file), and empty means the default", () => {
+  assert.ok(vyredEnvironment().has("VYRE_ARTIFACT_HOST"));
+  assert.match(read("images/vyred/compose.server.yml"), /VYRE_ARTIFACT_HOST: \$\{VYRE_ARTIFACT_HOST:-\}/);
+});

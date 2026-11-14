@@ -11,6 +11,7 @@ import { fail } from "../../../host/src/routes/errors.ts";
 import {
   bad,
   codeOf,
+  holderOf,
   ensure,
   first,
   getConversation,
@@ -62,9 +63,9 @@ interface Reach {
 
 function reachOf(ctx: InboxCtx): Reach {
   const follows = new Set(
-    rowsOf(
-      ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, ctx.principal.id),
-    ).map((r) => str(r, "contactId")),
+    rowsOf(ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, holderOf(ctx))).map(
+      (r) => str(r, "contactId"),
+    ),
   );
   return { follows, access: new Map() };
 }
@@ -84,7 +85,7 @@ function canSee(ctx: InboxCtx, reach: Reach, type: string, id: string): boolean 
 
 async function reasonsOf(ctx: InboxCtx, reach: Reach, row: Row): Promise<Reason[]> {
   const out: Reason[] = [];
-  if (strOrNull(row, "ownerId") === ctx.principal.id) out.push("owner");
+  if (strOrNull(row, "ownerId") === holderOf(ctx)) out.push("owner");
   const contactId = strOrNull(row, "contactId");
   if (contactId && reach.follows.has(contactId)) out.push("follow");
   if (
@@ -558,7 +559,7 @@ export async function following(
   }
   // a followed contact with no messages yet still reaches you
   for (const f of rowsOf(
-    ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, ctx.principal.id),
+    ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, holderOf(ctx)),
   )) {
     const contactId = str(f, "contactId");
     const have = byContact.get(contactId) ?? new Set<Reason>();
@@ -576,7 +577,7 @@ export async function following(
             ctx.db.all(
               `SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`,
               contactId,
-              ctx.principal.id,
+              holderOf(ctx),
             ),
           ),
           "alertOnReplies",

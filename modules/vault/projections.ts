@@ -1,10 +1,16 @@
 // vault store helpers (spec 2.17, 3.8; ARCH 7.8): the context subset the handlers use, the schema apply, row readers and the shapes of item metadata, folders and history. No value passes through here:
 // rows hold names, kinds and field keys; sealed values live in vault_secret and are opened only in handlers/crypto.ts.
+import { agentStanding } from "../../lib/agent-asker.ts";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 
+/** The caller's own row: an agent's own standing counts for nobody and for no one it is acting for (lib/agent-asker.ts). */
+export const ownRow = (
+  ctx: { principal: { kind: string; id: string }; actingFor?: string | undefined },
+  r: Record<string, unknown>,
+): boolean => String(r["owner"] ?? "") === ctx.principal.id && agentStanding(ctx, () => false);
 export interface VaultDb {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
@@ -172,7 +178,7 @@ export function handleOf(name: string): string {
 
 export function metaOut(ctx: VaultCtx, r: Row): Json {
   const x = first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, str(r, "id")));
-  const level = str(r, "owner") === ctx.principal.id ? "manage" : (levelOn(ctx, "vault_item", str(r, "id")) ?? "use");
+  const level = ownRow(ctx, r) ? "manage" : (levelOn(ctx, "vault_item", str(r, "id")) ?? "use");
   const out: Json = {
     id: str(r, "id"),
     name: str(r, "name"),
