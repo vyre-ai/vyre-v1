@@ -1,7 +1,8 @@
 // The page head the Automations screens use until the shared Page lands (contract P3): a title and one quiet line, tabs, one action slot, a "..." menu, then the children. Its props are the contract's
 // (title, subtitle, tabs, tab, onTab, action, menu, children), so swapping in ui/Page is a change of import.
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { look } from "./look.ts";
 
 export interface PageProps {
@@ -17,6 +18,19 @@ export interface PageProps {
 }
 
 export function Page(p: PageProps): ReactElement {
+  // on a phone the buttons take a row of their own under the name, so the name is read whole
+  const phone = isPhoneWidth(useWindowDimensions().width);
+  const more = p.onMenu ? (
+    <Pressable
+      testID="page-menu"
+      accessibilityRole="button"
+      accessibilityLabel="More"
+      onPress={p.onMenu}
+      style={s.more}
+    >
+      <Text style={s.moreText}>{"…"}</Text>
+    </Pressable>
+  ) : null;
   return (
     <View style={s.page} testID="page">
       <View style={s.head}>
@@ -30,19 +44,10 @@ export function Page(p: PageProps): ReactElement {
             </Text>
           ) : null}
         </View>
-        {p.action}
-        {p.onMenu ? (
-          <Pressable
-            testID="page-menu"
-            accessibilityRole="button"
-            accessibilityLabel="More"
-            onPress={p.onMenu}
-            style={s.more}
-          >
-            <Text style={s.moreText}>{"…"}</Text>
-          </Pressable>
-        ) : null}
+        {phone ? more : p.action}
+        {phone ? null : more}
       </View>
+      {phone && p.action ? <View style={s.actions}>{p.action}</View> : null}
       {p.tabs && p.tabs.length > 0 ? (
         <View style={s.tabs} accessibilityRole="tablist">
           {/* ui-rows-lint: not a list (the page's tab strip) */}
@@ -69,6 +74,7 @@ const s = StyleSheet.create({
   page: { flex: 1, minHeight: 0, width: "100%" },
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
   grow: { flex: 1, minWidth: 0 },
+  actions: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
   title: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },
   more: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 12 },
   moreText: { fontSize: 18, color: "var(--ink-2)" as string },

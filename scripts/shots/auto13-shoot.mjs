@@ -22,7 +22,7 @@ if (!args.includes("--skip-export")) {
   });
 }
 fs.mkdirSync(out, { recursive: true });
-const SIZES = { wide: { width: 1440, height: 900 } };
+const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
@@ -35,6 +35,7 @@ for (const t of targets)
     for (const [size, vp] of Object.entries(SIZES)) {
       if (sizeOnly && size !== sizeOnly) continue;
       if (size === "wide" && t.id.includes("phone")) continue;
+      if (size === "phone" && !sizeOnly) continue;
       const ctx = await browser.newContext({
         viewport: vp,
         deviceScaleFactor: 1,

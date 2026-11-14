@@ -450,21 +450,21 @@ function Body({
   const trigSel = trigIndex !== null;
   const headingOf = (() => {
     const r = model.rows.find((x) => x.kind === "step" && x.id === sel);
-    return r && r.kind === "step" ? r.sentence.text : undefined;
+    return r && r.kind === "step" ? { text: r.sentence.text, app: r.app } : undefined;
   })();
   const inspect = !locked && (selNode !== null || trigSel);
   const stepSchema = selNode && catalog ? catalog.all.find((s) => s.key === selNode.key)?.input : undefined;
   const inspector = inspect ? (
     <Inspector
       automationId={a.id}
-      embedded={!phone}
+      embedded
       mode="basic"
       onMode={() => undefined}
       samples={{}}
       version={a.version}
       def={def}
       node={selNode}
-      {...(headingOf ? { heading: headingOf } : {})}
+      {...(headingOf ? { heading: headingOf.text, mark: headingOf.app } : {})}
       trigger={trigIndex !== null ? (def.triggers[trigIndex] ?? null) : null}
       triggerIndex={trigIndex}
       issues={issues}

@@ -26,3 +26,5 @@
 - fix: no field label is a raw key (numberId reads Number); ids no name can be found for and engineering summaries stay off the form; message notes sit under a closed About this message.
 - fix: the first-page card reads a paused Automation's reason from the Automation, the same words as the builder head.
 - test: the walk, an Automation of every manifest step kind opens with its step form and writes nothing (four files; the text step is drawn statically, the editor needs a browser DOM).
+- fix: on a phone the page head puts Ask Vyre, Test and the primary button on their own row so the name reads whole, and the step form fills the width; the form's head wears the same mark as its row.
+- chore: the shots script takes --size=phone (390 wide).
