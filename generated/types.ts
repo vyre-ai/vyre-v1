@@ -8338,6 +8338,8 @@ export type ChatsSidebarOut = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -8368,6 +8370,8 @@ export type ChatsSidebarOut = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -8398,6 +8402,8 @@ export type ChatsSidebarOut = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -8428,6 +8434,8 @@ export type ChatsSidebarOut = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -8458,6 +8466,8 @@ export type ChatsSidebarOut = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;

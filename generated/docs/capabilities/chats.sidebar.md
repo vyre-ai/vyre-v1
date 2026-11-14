@@ -69,6 +69,8 @@ type Out = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -99,6 +101,8 @@ type Out = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -129,6 +133,8 @@ type Out = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -159,6 +165,8 @@ type Out = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -189,6 +197,8 @@ type Out = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -238,8 +248,10 @@ type Out = {
           "key": "example",
           "kind": "chat",
           "lastAt": 1760000000000,
+          "line": "example",
           "mentions": 1,
           "muted": true,
+          "nextCheckinAt": 1760000000000,
           "personId": "example",
           "pinned": 1,
           "private": true,
@@ -272,8 +284,10 @@ type Out = {
           "key": "example",
           "kind": "chat",
           "lastAt": 1760000000000,
+          "line": "example",
           "mentions": 1,
           "muted": true,
+          "nextCheckinAt": 1760000000000,
           "personId": "example",
           "pinned": 1,
           "private": true,
@@ -306,8 +320,10 @@ type Out = {
           "key": "example",
           "kind": "chat",
           "lastAt": 1760000000000,
+          "line": "example",
           "mentions": 1,
           "muted": true,
+          "nextCheckinAt": 1760000000000,
           "personId": "example",
           "pinned": 1,
           "private": true,
@@ -352,8 +368,10 @@ type Out = {
           "key": "example",
           "kind": "chat",
           "lastAt": 1760000000000,
+          "line": "example",
           "mentions": 1,
           "muted": true,
+          "nextCheckinAt": 1760000000000,
           "personId": "example",
           "pinned": 1,
           "private": true,
@@ -387,8 +405,10 @@ type Out = {
           "key": "example",
           "kind": "chat",
           "lastAt": 1760000000000,
+          "line": "example",
           "mentions": 1,
           "muted": true,
+          "nextCheckinAt": 1760000000000,
           "personId": "example",
           "pinned": 1,
           "private": true,
