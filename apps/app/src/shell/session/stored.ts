@@ -160,8 +160,13 @@ export function writeStored(s: StoredSession, store: KeyValueStore | undefined =
 }
 
 export function clearStored(store: KeyValueStore | undefined = browserStore(), baseUrl?: string): void {
-  // a sign-out forgets what the person had half written on this browser (drafts are per person and Space)
-  forgetDrafts(store as never, baseUrl);
+  // a sign-out forgets what the person had half written on this browser (drafts are kept per person): the people of the sessions that end, or everyone when every session ends
+  try {
+    const held = sessions(store);
+    forgetDrafts(store as never, baseUrl ? (held[baseUrl] ? [held[baseUrl]!.personId] : []) : undefined);
+  } catch {
+    /* blocked storage */
+  }
   try {
     if (!baseUrl) {
       store?.removeItem(KEY);

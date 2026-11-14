@@ -5,10 +5,12 @@ import {
   DRAFTS_PREFIX,
   MAX_CHARS,
   MAX_DRAFTS,
+  OLD_DRAFTS_KEY,
   draftOf,
   draftScope,
   draftThreads,
   forgetDrafts,
+  resetRetired,
   scopeOf,
   setDraft,
   subscribeDrafts,
@@ -27,8 +29,8 @@ const fake = () => {
     m,
   };
 };
-const A = draftScope("https://one.example", "usr_ana");
-const B = draftScope("https://one.example", "usr_ben");
+const A = draftScope("usr_ana");
+const B = draftScope("usr_ben");
 
 test("a typed line is kept per chat and read back", () => {
   const st = fake();
@@ -47,26 +49,32 @@ test("two people on one browser: each sees only their own drafts and pencils, ev
   setDraft("t1", "Ben's line", B, st);
   assert.equal(draftOf("t1", A, st), "Ana's private line");
   assert.equal(draftOf("t1", B, st), "Ben's line");
-  const other = draftScope("https://two.example", "usr_ana");
-  assert.equal(draftOf("t1", other, st), "", "another Space is another store");
 });
 
-test("sign-out forgets: one Space's drafts, or every Space on the browser", () => {
+test("sign-out forgets the drafts of the people who sign out; signing out of everything forgets everyone's", () => {
   const st = fake();
   setDraft("t1", "x", A, st);
   setDraft("t1", "y", B, st);
-  const two = draftScope("https://two.example", "usr_ana");
-  setDraft("t1", "z", two, st);
-  forgetDrafts(st, "https://one.example");
+  forgetDrafts(st, ["usr_ana"]);
   assert.equal(draftOf("t1", A, st), "");
-  assert.equal(draftOf("t1", B, st), "");
-  assert.equal(draftOf("t1", two, st), "z", "the other Space's drafts stay");
+  assert.equal(draftOf("t1", B, st), "y", "another person's drafts stay");
   forgetDrafts(st);
-  assert.equal(draftOf("t1", two, st), "");
+  assert.equal(draftOf("t1", B, st), "");
   assert.deepEqual(
     [...st.m.keys()].filter((k) => k.startsWith(DRAFTS_PREFIX)),
     [],
   );
+});
+
+test("the device's first shared store is deleted on the first read, and its text is never moved into anyone's drafts", () => {
+  const st = fake();
+  st.setItem(OLD_DRAFTS_KEY, JSON.stringify({ t1: { t: "someone's old line", at: 1 } }));
+  resetRetired();
+  assert.equal(draftOf("t1", A, st), "", "not attributed to the person who opens the app");
+  assert.equal(st.getItem(OLD_DRAFTS_KEY), null, "deleted");
+  st.setItem(OLD_DRAFTS_KEY, "again");
+  forgetDrafts(st, ["usr_nobody"]);
+  assert.equal(st.getItem(OLD_DRAFTS_KEY), null, "and a sign-out removes it too");
 });
 
 test("nobody signed in (no person) keeps no draft", () => {
