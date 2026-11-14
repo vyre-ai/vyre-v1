@@ -129,6 +129,10 @@ function Body({
   const [tab, setTab] = useState<Tab>(initialTab);
   const [draft, setDraft] = useState<Definition | null>(null);
   const undo = useRef<Definition[]>([]);
+  // the version a draft was STARTED on: every write sends this base, never the live version, so another person's save is never overwritten
+  const base = useRef<number | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const [confirmTheirs, setConfirmTheirs] = useState(false);
   const def: Definition = draft ?? a.definition;
   const [sel, setSel] = useState<string | null>(initialSelected);
   const [note, setNote] = useState<string | null>(null);
@@ -199,29 +203,35 @@ function Body({
   const edit = useCallback(
     (next: Definition): void => {
       if (locked) return;
+      if (draft === null) base.current = a.version;
       undo.current.push(def);
       setDraft(next);
     },
-    [def, locked],
+    [def, locked, draft, a.version],
   );
   const save = useCallback(async (): Promise<void> => {
-    if (!draft || saving) return;
+    if (!draft || saving || conflict || locked) return;
     setSaving(true);
     try {
-      await data.call("automations.update", { automationId: a.id, definition: draft, expectedVersion: a.version });
+      await data.call("automations.update", { automationId: a.id, definition: draft, expectedVersion: base.current ?? a.version });
       setDraft(null);
+      base.current = null;
       undo.current = [];
     } catch (e) {
-      setNote(e instanceof Error ? e.message : "That did not save. Your edits are still here.");
+      const code = (e as { code?: string } | null)?.code;
+      if (code === "validation.version_conflict" || /newer version|version_conflict/i.test(String((e as Error)?.message ?? ""))) {
+        // nothing was overwritten and nothing is retried on the new version: the person chooses
+        setConflict(true);
+      } else setNote(e instanceof Error ? e.message : "That did not save. Your edits are still here.");
     }
     setSaving(false);
-  }, [draft, saving, data, a.id, a.version]);
+  }, [draft, saving, conflict, locked, data, a.id, a.version]);
   // an Off Automation is saved as you go; an On one waits for Save, because saving it makes the change live
   useEffect(() => {
-    if (!draft || a.status === "on" || locked) return undefined;
+    if (!draft || a.status === "on" || locked || conflict) return undefined;
     const t = setTimeout(() => void save(), 900);
     return () => clearTimeout(t);
-  }, [draft, a.status, locked, save]);
+  }, [draft, a.status, locked, conflict, save]);
 
   const pickIn = useMemo(() => (catalog ? pickInFromCatalog(catalog.steps) : null), [catalog]);
   const openConnect = useOpenConnect();
@@ -303,6 +313,23 @@ function Body({
   );
 
   const flash = (t: string): void => setNote(t);
+  const discardMine = (): void => {
+    setDraft(null);
+    base.current = null;
+    undo.current = [];
+    setConflict(false);
+    setConfirmTheirs(false);
+  };
+  const keepMineAsCopy = async (): Promise<void> => {
+    if (!draft) return;
+    try {
+      await data.call("automations.create", { name: `${a.name} (my edits)`, definition: draft });
+      flash("Your edits are kept as a copy in your Automations");
+      discardMine();
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "No copy was made. Your edits are still here.");
+    }
+  };
   const setEnabled = async (enabled: boolean): Promise<void> => {
     if (enabled && errors.length > 0) {
       flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} before turning this on.`);
@@ -363,6 +390,7 @@ function Body({
       if (id === "Save") void save();
       else if (id === "Discard") {
         setDraft(null);
+        base.current = null;
         undo.current = [];
       }
     } else if (action === "open" && id) setSel(id === sel ? null : id);
@@ -500,8 +528,35 @@ function Body({
       tab={tab}
       onTab={(t) => setTab(t as Tab)}
       onMenu={openMore}
-      action={<StoryActions story={model} on={(x, id) => onAction(x, id)} />}
+      action={<StoryActions story={model} readOnly={locked} on={(x, id) => onAction(x, id)} />}
     >
+      {conflict ? (
+        <View style={s.conflict} testID="save-conflict" accessibilityRole="alert">
+          <Text style={look.body}>Someone else changed this while you were editing. Nothing of theirs was overwritten.</Text>
+          {confirmTheirs ? (
+            <View style={s.conflictRow}>
+              <Text style={look.quiet}>Seeing theirs discards your changes.</Text>
+              <Pressable testID="conflict-discard" accessibilityRole="button" onPress={discardMine}>
+                <Text style={look.btnText}>Discard mine</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={s.conflictRow}>
+              <Pressable testID="conflict-theirs" accessibilityRole="button" onPress={() => setConfirmTheirs(true)}>
+                <Text style={look.btnText}>See theirs</Text>
+              </Pressable>
+              <Pressable testID="conflict-copy" accessibilityRole="button" onPress={() => void keepMineAsCopy()}>
+                <Text style={look.btnText}>Keep mine as a copy</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      ) : null}
+      {locked ? (
+        <Text style={[look.quiet, s.note]} testID="read-only-note">
+          You can read this Automation. Only people who can edit Space Automations can change it.
+        </Text>
+      ) : null}
       {note ? (
         <Text style={[look.quiet, s.note]} testID="builder-note">
           {note}
@@ -510,7 +565,7 @@ function Body({
       {tab === "steps" ? (
         <View style={s.split}>
           <View style={s.main}>
-            <StoryView story={model} headless on={onAction} />
+            <StoryView story={model} headless readOnly={locked} on={onAction} />
           </View>
           {inspector ? <View style={phone ? s.fill : s.side}>{inspector}</View> : null}
         </View>
@@ -618,6 +673,8 @@ function pos(e: unknown): { x: number; y: number } {
 }
 
 const s = StyleSheet.create({
+  conflict: { gap: 8, padding: 12, marginHorizontal: 16, marginBottom: 8, borderRadius: 10, backgroundColor: "var(--hover)" as string },
+  conflictRow: { flexDirection: "row", gap: 16, alignItems: "center" },
   split: { flex: 1, flexDirection: "row", minHeight: 0 },
   main: { flex: 1, minWidth: 0 },
   side: { width: 400, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },

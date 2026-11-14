@@ -63,19 +63,22 @@ function SentenceText({ sentence }: { sentence: Sentence }): ReactElement {
 export function StoryActions({
   story,
   on,
+  readOnly = false,
 }: {
   story: Story;
   on(action: StoryAction, id?: string, e?: unknown): void;
+  /** A person who may not edit sees no Turn on, Turn off or Run now: nothing is shown that they cannot press. */
+  readOnly?: boolean;
 }): ReactElement {
   const h = story.head;
   return (
     <>
       <Btn id="sv-ask" label="Ask Vyre" kind="outlined" onPress={() => on("ask")} />
       {h.test ? <Btn id="sv-test" label="Test" kind="quiet" onPress={() => on("test")} /> : null}
-      {h.secondary ? (
+      {h.secondary && !readOnly ? (
         <Btn id="sv-secondary" label={h.secondary.label} kind="quiet" onPress={() => on("secondary")} />
       ) : null}
-      {h.primary ? (
+      {h.primary && !readOnly ? (
         <Btn
           id="sv-primary"
           label={h.primary.label}
@@ -92,11 +95,14 @@ export function StoryView({
   story,
   on,
   headless = false,
+  readOnly = false,
 }: {
   story: Story;
   on(action: StoryAction, id?: string, e?: unknown): void;
   /** The page draws the head (title, state, buttons) itself. */
   headless?: boolean;
+  /** No "+" and no Add a step for a person who may not edit. */
+  readOnly?: boolean;
 }): ReactElement {
   const h = story.head;
   return (
@@ -188,7 +194,7 @@ export function StoryView({
                   ) : null}
                 </View>
               </Pressable>
-              {story.slots.includes(r.id) ? (
+              {!readOnly && story.slots.includes(r.id) ? (
                 <Pressable
                   testID={`sv-slot-${r.id}`}
                   accessibilityRole="button"
@@ -202,10 +208,12 @@ export function StoryView({
             </View>
           );
         })}
-        <Pressable testID="sv-add" accessibilityRole="button" onPress={(e) => on("add", undefined, e)} style={s.add}>
-          <Text style={s.addPlus}>+</Text>
-          <Text style={look.quiet}>Add a step</Text>
-        </Pressable>
+        {readOnly ? null : (
+          <Pressable testID="sv-add" accessibilityRole="button" onPress={(e) => on("add", undefined, e)} style={s.add}>
+            <Text style={s.addPlus}>+</Text>
+            <Text style={look.quiet}>Add a step</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </View>
   );

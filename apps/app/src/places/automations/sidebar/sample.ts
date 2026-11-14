@@ -678,7 +678,9 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
       const cur = autos().find((x) => x.id === i.automationId);
       if (!cur) throw new Error("no such automation");
       if (i.expectedVersion !== undefined && i.expectedVersion !== cur["version"])
-        throw new Error("Someone else saved a newer version. Reload to see it.");
+        throw Object.assign(new Error("Someone else saved a newer version. Reload to see it."), {
+          code: "validation.version_conflict",
+        });
       const bump = i.definition ? { version: Number(cur["version"]) + 1, definition: i.definition } : {};
       return { automation: patch(i.automationId, { ...(i.name ? { name: i.name } : {}), ...bump }) };
     },

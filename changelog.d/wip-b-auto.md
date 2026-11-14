@@ -28,3 +28,5 @@
 - test: the walk, an Automation of every manifest step kind opens with its step form and writes nothing (four files; the text step is drawn statically, the editor needs a browser DOM).
 - fix: on a phone the page head puts Ask Vyre, Test and the primary button on their own row so the name reads whole, and the step form fills the width; the form's head wears the same mark as its row.
 - chore: the shots script takes --size=phone (390 wide).
+- fix: a draft carries the version it started on and every save sends that base; when another person saved first nothing is overwritten and nothing is retried: the page says so and offers See theirs (after a confirm) or Keep mine as a copy; autosave stops until the person chooses.
+- fix: a person who may not edit sees no Turn on or off, no Run now, no + and no Add a step, no step form, and one line saying why.
