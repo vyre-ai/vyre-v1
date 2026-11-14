@@ -374,7 +374,6 @@ export function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: 
   return snap;
 }
 
-
 /** The snapshot the host decides with, for the handlers that tell a screen what the server would do (access.check, access.reach). */
 export function decisionSnapshot(store: AccessStore): AccessSnapshot {
   const space = [...store.resources.values()].find((r) => r.type === "space");

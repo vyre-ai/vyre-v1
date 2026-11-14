@@ -652,9 +652,7 @@ test("Promote shows what the Space Automation will hold, and which subscription 
   // the creator may use the mailbox and connection while saving (F47); the preview then asks what the Space Automation would newly hold, so the use is switched off for it
   let savingNow = true;
   const h = harness({
-    authorize: (_who, a, r) =>
-      (a.level === "edit" && r.id === "rec_abc") ||
-      (savingNow && fixtureMayUse(_who, r)),
+    authorize: (_who, a, r) => (a.level === "edit" && r.id === "rec_abc") || (savingNow && fixtureMayUse(_who, r)),
   });
   // the Vault as the creator sees it: the subscription promote must replace, and the key the send step uses
   h.callee("vault.items.list", (i) => ({

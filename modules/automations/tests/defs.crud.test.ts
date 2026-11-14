@@ -77,7 +77,9 @@ test("create refuses a blank name, a broken graph and a Group that is not there"
 });
 
 test("an Automation is seen by its owner and followers, not by others", async () => {
-  const h = harness({ authorize: (who, a, r) => (who.id === "usr_viewer" && a.level === "view") || fixtureMayUse(who, r) });
+  const h = harness({
+    authorize: (who, a, r) => (who.id === "usr_viewer" && a.level === "view") || fixtureMayUse(who, r),
+  });
   const id = await mk(h);
   assert.equal((await get(h, id)).id, id);
   await refused(h.call("automations.get", { automationId: id }, bob), "permission.not_found");

@@ -224,7 +224,14 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
           if (cur && cur.type === "mailbox" && (privacy === "private" || privacy === "people" || privacy === "space")) {
             const parent = privacy === "space" ? a.space : null;
             if (cur.parent_id !== parent)
-              out.push({ id: cur.id, type: cur.type, parent_id: parent, label: cur.label, owner_id: cur.owner_id, holds: cur.holds });
+              out.push({
+                id: cur.id,
+                type: cur.type,
+                parent_id: parent,
+                label: cur.label,
+                owner_id: cur.owner_id,
+                holds: cur.holds,
+              });
           }
           continue;
         }
@@ -236,7 +243,14 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
           if (cur && cur.type === "site" && typeof access === "string") {
             const parent = access === "private" ? null : a.space;
             if (cur.parent_id !== parent)
-              out.push({ id: cur.id, type: cur.type, parent_id: parent, label: cur.label, owner_id: cur.owner_id, holds: cur.holds });
+              out.push({
+                id: cur.id,
+                type: cur.type,
+                parent_id: parent,
+                label: cur.label,
+                owner_id: cur.owner_id,
+                holds: cur.holds,
+              });
           }
           continue;
         }

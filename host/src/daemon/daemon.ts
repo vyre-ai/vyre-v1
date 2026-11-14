@@ -1922,12 +1922,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             vis: "space",
             entity: "resource",
             entity_id: siteId,
-            payload: { id: siteId, type: "site", parent_id: null, label: row.label, owner_id: row.owner_id, holds: row.holds },
+            payload: {
+              id: siteId,
+              type: "site",
+              parent_id: null,
+              label: row.label,
+              owner_id: row.owner_id,
+              holds: row.holds,
+            },
           });
           if (!closed.duplicate) {
             access.fold(closed.event);
             accessPending.push(toAccessEvent(closed.event));
-            sink.log({ space, level: 20, msg: "access.site_privacy_reconciled", place: "boot", entity: "site", entity_id: siteId });
+            sink.log({
+              space,
+              level: 20,
+              msg: "access.site_privacy_reconciled",
+              place: "boot",
+              entity: "site",
+              entity_id: siteId,
+            });
           }
         }
         const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
