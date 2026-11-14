@@ -8,7 +8,7 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 - Agent parity: every capability a principal screen query or action reaches is agent-visible or wrapped by an `agentTools` entry. The generator rejects a manifest that breaks this; the test re-checks it from the manifests (all principal screens, more than 500 references).
 - Pre-auth capabilities (anonymous and pending callers, 11 in all) are never agent-visible.
 - Four capabilities set `surfaces.agent: false`, so no MCP tool exists for them: `automations.http_read` and `automations.http_send` (the host side of an Automation's HTTP step), `engine.step_turn` (its AI step) and `access.provider_check` (the label check of the records an AI step read). An agent has its own tools for the same ends. `contracts/agent-optout.json` is not needed. 255 principal capabilities have no MCP surface; none is reached by a screen.
-- A tool with `deferred: true` is found with `tool_search` and called after its schema is returned. The default listed toolset is the 65 tools below (about 60, plus or minus 5). The `engineer` toolset is never in the default list; it needs `engineer.mcp`.
+- A tool with `deferred: true` is found with `tool_search` and called after its schema is returned. The default listed toolset is the 66 tools below (about 60, plus or minus 6). The `engineer` toolset is never in the default list; it needs `engineer.mcp`.
 
 ## Default listed toolset (65 tools)
 
@@ -41,6 +41,7 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 | `memory_forget` | memory | Forget facts by id: they stop being recalled and stay in history |
 | `vault_use` | vault | Ask for an item by name: returns a handle like #Dana_Lawmatics and the field names, never values |
 | `vault_connect` | vault | Is X connected, connect X (Fathom, Slack), or before saying you cannot reach X. The person gets one card; you get connected, waiting or declined. |
+| `vault_request` | vault | Ask for a missing key that is not a service (a key a skill or run needs, by name): creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status. For a service the person names, use vault_connect |
 | `automations_list` | automations | List Automations by section (Personal, Shared with me, Space), folder and Group |
 | `automations_create` | automations | Create an Automation; it starts Personal |
 | `artifact_publish` | sites | THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link |

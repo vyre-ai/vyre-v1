@@ -3,13 +3,13 @@
 export type ConnectStatus = "connected" | "waiting_person" | "waiting_admin" | "declined" | "no_connector";
 
 export const TELL = {
-  connected: (t: string) => `${t} is connected. Say so in one line and carry on with the question.`,
+  connected: (t: string) => `${t} is connected. Say so in one line and carry on.`,
   waiting_person: (t: string) =>
-    `The person has a card to connect ${t}. Say one short line, nothing more, and wait: you are told when it is done.`,
+    `The person has a card to connect ${t}. Say one line and wait; you are told when done.`,
   waiting_admin: (t: string) =>
-    `The person cannot connect ${t} themselves and the card offers to ask an admin. Say one short line and wait.`,
+    `The person cannot connect ${t}; the card offers to ask an admin. Say one line and wait.`,
   declined: (t: string) =>
-    `The person chose not to connect ${t} now. Carry on without it; they can press Connect on the card if they want it.`,
+    `The person chose not to connect ${t} now. Carry on without it; they can press Connect on the card.`,
   no_connector: (t: string) =>
-    `No connector for ${t} yet. Build one from its docs (connectors_init, connectors_define, connectors_publish), then call vault_connect again. One line to the person.`,
+    `No connector for ${t} yet. Build one (connectors_init, connectors_define, connectors_publish), then call vault_connect again.`,
 } as const;

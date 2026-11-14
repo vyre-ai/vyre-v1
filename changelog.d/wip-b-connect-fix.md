@@ -1,0 +1,1 @@
+- An agent asking for a key that is not a service finds `vault_request` in its listed tools on the first call again, and the connect tool's answer is shorter.

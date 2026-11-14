@@ -65,7 +65,7 @@ export const DEFAULT_TOOLS: Record<string, string[]> = {
     "memory_remember",
     "memory_forget",
   ],
-  vault: ["vault_use", "vault_connect"],
+  vault: ["vault_use", "vault_connect", "vault_request"],
   automations: ["automations_list", "automations_create", "read_link", "automations_run", "journeys_start", "wait_for"],
   chats: ["chat_post", "chat_thread", "handoff", "ask_question", "plan_propose", "open_tab"],
   inbox: ["mail_message_search", "mail_draft", "mail_send", "calendar_list_events", "calendar_create_event"],
@@ -132,8 +132,8 @@ test("pre-auth capabilities stay off the agent surface and no capability opts ou
     }
 });
 
-test("the frozen default toolset is 60 plus or minus 5 and only lists real, listed, non-engineer tools", () => {
-  assert.ok(defaults.length >= 55 && defaults.length <= 65, `default toolset has ${defaults.length} tools`);
+test("the frozen default toolset is 60 plus or minus 6 and only lists real, listed, non-engineer tools", () => {
+  assert.ok(defaults.length >= 55 && defaults.length <= 66, `default toolset has ${defaults.length} tools`);
   assert.equal(new Set(defaults).size, defaults.length, "no tool listed twice");
   for (const [toolset, names] of Object.entries(DEFAULT_TOOLS)) {
     assert.ok(TOOLSETS.includes(toolset) && toolset !== "engineer", toolset);
