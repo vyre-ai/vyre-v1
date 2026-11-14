@@ -208,3 +208,16 @@ test("a shell that cannot tell whether the device has a network says Reconnectin
     else delete (globalThis as { navigator?: unknown }).navigator;
   }
 });
+
+test("Back and Forward sit at the start of the bar, always drawn, naming where they go, dim when there is nowhere", () => {
+  const out = html(
+    props({ nav: { back: "Renewal", forward: null }, onBack: () => undefined, onForward: () => undefined }),
+  );
+  assert.ok(out.includes('data-testid="nav-back"') && out.includes('aria-label="Back to Renewal"'));
+  assert.ok(out.includes('data-testid="nav-forward"') && out.includes('aria-label="Forward"'));
+  assert.match(
+    out,
+    /<button[^>]*disabled=""[^>]*data-testid="nav-forward"|<button[^>]*data-testid="nav-forward"[^>]*disabled=""/,
+  );
+  assert.ok(out.indexOf("title-nav") < out.indexOf("title-search"), "before the search field");
+});
