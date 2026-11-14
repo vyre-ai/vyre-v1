@@ -83,10 +83,15 @@ const KIND: Record<SideRow["kind"], ItemKind> = {
   agent: "agent",
 };
 
-/** "Next check-in Wed 9:00" for a moving goal: the weekday and time on this device. */
-export function checkinLine(at: number): string {
-  const d = new Date(at);
-  return `Next check-in ${d.toLocaleDateString(undefined, { weekday: "short" })} ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+/** How the sidebar says a moment: the chat's one formatter (side-clock.ts hands it over), so this file keeps no clock of its own. */
+export interface SayWhen {
+  weekday(at: number): string;
+  time(at: number): string;
+}
+
+/** "Next check-in Wed 9:00 AM" for a moving goal: the weekday, then the time exactly as a message row says it. */
+export function checkinLine(at: number, say: SayWhen): string {
+  return `Next check-in ${say.weekday(at)} ${say.time(at)}`;
 }
 
 const NO_DRAFTS: ReadonlySet<string> = new Set();
@@ -97,6 +102,8 @@ export function itemsOf(
   presence: Presence = NO_PRESENCE,
   /** Chats this person has unsent text in, on this device (per person and Space). */
   drafts: ReadonlySet<string> = NO_DRAFTS,
+  /** How a check-in time is said; without it a goal shows only its own line. */
+  say?: SayWhen,
 ): { items: Item[]; refs: Map<string, SideRow> } {
   const names = namesOf(out);
   const refs = new Map<string, SideRow>();
@@ -123,6 +130,7 @@ export function itemsOf(
                   : "agent";
     const faces = r.faceIds.map((id) => ({ id, name: names.get(id) ?? (single && r.kind !== "goal" ? r.title : "") }));
     const pres = r.personId ? presence.people.get(r.personId) : undefined;
+    const sub = r.kind === "goal" ? (r.line ?? (r.nextCheckinAt && say ? checkinLine(r.nextCheckinAt, say) : undefined)) : undefined;
     return {
       key: r.key,
       kind: KIND[r.kind],
@@ -140,9 +148,7 @@ export function itemsOf(
       lastAt: r.lastAt,
       ...(r.failed ? { failed: r.failedLine ?? "Something went wrong." } : {}),
       ...(r.progress ? { progress: r.progress } : {}),
-      ...(r.kind === "goal" && (r.line ?? (r.nextCheckinAt ? checkinLine(r.nextCheckinAt) : undefined))
-        ? { sub: r.line ?? checkinLine(r.nextCheckinAt!) }
-        : {}),
+      ...(sub ? { sub } : {}),
       ...(r.quiet ? { quiet: true } : {}),
       ...(pres ? { presence: pres } : {}),
       ...(r.private ? { private: true } : {}),

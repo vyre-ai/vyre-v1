@@ -32,6 +32,7 @@ import { itemLink } from "../../../share/rows.ts";
 import { createSidebarApi } from "./actions.ts";
 import { useScreenQuery, useSidebarData } from "./data.tsx";
 import { Glyph, Tool } from "./parts.tsx";
+import { sayWhen } from "./side-clock.ts";
 import { NO_PRESENCE, itemsOf, namesOf, openKeyFor, pinsOf } from "./side-data.ts";
 import type { Presence, SideOut, SideRow } from "./side-data.ts";
 import { buildLayout, filterChoices, FILTER_CHOICES } from "./layout.ts";
@@ -281,8 +282,8 @@ export function SideChats({
     [imported],
   );
   const serverBuilt = useMemo(
-    () => (out ? itemsOf(out, assistantId, presence, drafts) : null),
-    [out, assistantId, presence, drafts],
+    () => (out ? itemsOf(out, assistantId, presence, drafts, sayWhen(data.clock())) : null),
+    [out, assistantId, presence, drafts, data],
   );
   const built = useMemo(
     () => (filter === "imported" ? { items: importedItems, refs: new Map<string, SideRow>() } : serverBuilt),
