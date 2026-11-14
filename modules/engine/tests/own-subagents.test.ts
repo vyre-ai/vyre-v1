@@ -164,3 +164,32 @@ test("the consumer erases on message.deleted and thread.erased, as chat emits th
   });
   assert.deepEqual(listOwn(h.ctx.db, "thr_9", new Set()), []);
 });
+
+test("retention: a purge that names the messages it removed takes their rows; a soft-deleted chat keeps them, and they go when the chat is erased for good", async () => {
+  const { bridgeConsumers } = await import("../handlers/bridge.ts");
+  const run = bridgeConsumers["engine.own_subagents_erase"].run;
+  const h = harness();
+  noteOwn(h.ctx.db, e, [{ phase: "call", id: "a", name: "Agent" }], 1);
+  noteOwn(h.ctx.db, { ...e, turnId: "trn_2" }, [{ phase: "call", id: "b", name: "Agent" }], 2);
+  hangOwn(h.ctx.db, "trn_1", "msg_1");
+  hangOwn(h.ctx.db, "trn_2", "msg_2");
+  // the chat is soft-deleted (restorable): no event, the rows stay and come back with it
+  assert.deepEqual(
+    listOwn(h.ctx.db, "thr_1", new Set()).map((x) => x.callId),
+    ["a", "b"],
+  );
+  // the retention purge removes msg_1 for good
+  assert.deepEqual(
+    await run(h.ctx, { name: "transcripts.purged", payload: { removed: 1, messageIds: ["msg_1"] } } as never),
+    { removed: 1 },
+  );
+  assert.deepEqual(
+    listOwn(h.ctx.db, "thr_1", new Set()).map((x) => x.callId),
+    ["b"],
+  );
+  // the soft-deleted chat passes its restore window: the purge erases it for good
+  assert.deepEqual(await run(h.ctx, { name: "thread.erased", payload: { threadId: "thr_1" } } as never), {
+    removed: 1,
+  });
+  assert.deepEqual(listOwn(h.ctx.db, "thr_1", new Set()), []);
+});

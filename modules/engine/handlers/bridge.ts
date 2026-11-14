@@ -1567,9 +1567,16 @@ export const bridgeConsumers = {
   // a person signed in again (a Vault item was saved or changed): the turns parked on a missing sign-in run once. Whose sign-in is not in the event, and a turn whose account is still missing parks again at once.
   // a message or a whole chat was erased: the subagents of the engine that hung under it go with it (own-subagents.ts)
   "engine.own_subagents_erase": {
-    on: ["message.deleted", "thread.erased"],
+    on: ["message.deleted", "thread.erased", "transcripts.purged"],
     run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ removed: number }> => ({
       removed: eraseOwn(ctx.db, {
+        ...(event.name === "transcripts.purged"
+          ? {
+              messageIds: Array.isArray(event.payload["messageIds"])
+                ? (event.payload["messageIds"] as unknown[]).map(String)
+                : [],
+            }
+          : {}),
         ...(event.name === "message.deleted" ? { messageId: str(event.payload["messageId"]) } : {}),
         ...(event.name === "thread.erased" ? { threadId: str(event.payload["threadId"]) } : {}),
       }),
