@@ -117,42 +117,88 @@ test(
       const teamRef = team.provider.handle as string;
       const agent = (await ok("usr_olivia", "agents.create", { name: "Intake", role: "You check things." })).agent
         .agentId as string;
-      const ch = await ok("usr_olivia", "channels.create", { name: "intake", visibility: "public", memberIds: ["usr_mia"], agentIds: [agent] });
-    const threadId = ch.channel.mainThreadId as string;
-    // Olivia's private things: a file in her Personal files
-    const tree = await ok("usr_olivia", "files.tree", {});
-    const personal = tree.roots.find((r: { key: string }) => r.key === "personal").folderId as string;
-    await ok("usr_olivia", "files.create", { folderId: personal, name: "T-private-file.txt", content: { text: "C-body" } });
-    const turn = async (who: string, tool: string, args: unknown): Promise<Seen> => {
-      const before = seen.length;
-      await ok(who, "chat.post", { threadId, body: `${tool} ${JSON.stringify(args)}`, mentions: [{ kind: "agent", id: agent }] });
-      return waitFor(async () => { await d.hooks?.pump?.(); return seen.length > before ? seen[seen.length - 1]! : null; }, 60_000, () => hostLog(d));
-    };
-    void listAll; void keys; void teamRef;
-    // F61, the shared agent: Olivia has the agent make her a private chat and a personal calendar,; then Mia asks the same agent for the log. The agent is the maker of the first two, so
-    // a rule keyed on the agent would hand Mia their ids; keyed on the person, only Olivia reads them.
-    const madeIds = new Set<string>();
-    for (const [tool, args] of [
-      ["chat_start", { kind: "chat", agentIds: [agent], title: "T-agent-made-chat", idempotencyKey: "ap-made-1" }],
-      ["calendar_create_calendar", { title: "T-agent-made-cal", personal: true, idempotencyKey: "ap-made-2" }],
-    ] as Array<[string, unknown]>) {
-      const made = await turn("usr_olivia", tool, args);
-      for (const m of made.text.matchAll(/(thr|cld)_[0-9a-f]{20,}/g)) madeIds.add(m[0]);
+      const ch = await ok("usr_olivia", "channels.create", {
+        name: "intake",
+        visibility: "public",
+        memberIds: ["usr_mia"],
+        agentIds: [agent],
+      });
+      const threadId = ch.channel.mainThreadId as string;
+      // Olivia's private things: a file in her Personal files
+      const tree = await ok("usr_olivia", "files.tree", {});
+      const personal = tree.roots.find((r: { key: string }) => r.key === "personal").folderId as string;
+      await ok("usr_olivia", "files.create", {
+        folderId: personal,
+        name: "T-private-file.txt",
+        content: { text: "C-body" },
+      });
+      const turn = async (who: string, tool: string, args: unknown): Promise<Seen> => {
+        const before = seen.length;
+        await ok(who, "chat.post", {
+          threadId,
+          body: `${tool} ${JSON.stringify(args)}`,
+          mentions: [{ kind: "agent", id: agent }],
+        });
+        return waitFor(
+          async () => {
+            await d.hooks?.pump?.();
+            return seen.length > before ? seen[seen.length - 1]! : null;
+          },
+          60_000,
+          () => hostLog(d),
+        );
+      };
+      void listAll;
+      void keys;
+      void teamRef;
+      // F61, the shared agent: Olivia has the agent make her a private chat and a personal calendar,; then Mia asks the same agent for the log. The agent is the maker of the first two, so
+      // a rule keyed on the agent would hand Mia their ids; keyed on the person, only Olivia reads them.
+      const madeIds = new Set<string>();
+      for (const [tool, args] of [
+        ["chat_start", { kind: "chat", agentIds: [agent], title: "T-agent-made-chat", idempotencyKey: "ap-made-1" }],
+        ["calendar_create_calendar", { title: "T-agent-made-cal", personal: true, idempotencyKey: "ap-made-2" }],
+      ] as Array<[string, unknown]>) {
+        const made = await turn("usr_olivia", tool, args);
+        for (const m of made.text.matchAll(/(thr|cld)_[0-9a-f]{20,}/g)) madeIds.add(m[0]);
+      }
+      assert.ok(
+        madeIds.size >= 2,
+        `the agent made a chat and a calendar for Olivia (ids seen: ${[...madeIds].join(",")})`,
+      );
+      const rows: Seen[] = [];
+      for (const who of ["usr_olivia", "usr_mia"]) {
+        rows.push(await turn(who, "events_since", { after: 0, limit: 1000 }));
+        rows.push(await turn(who, "events_list", { limit: 500 }));
+      }
+      console.log(
+        `AGENT-DOOR ${JSON.stringify(rows.map((r) => [r.asker, r.tool, r.ok, /T-private-file/.test(r.text), r.text.length, r.text.slice(0, 120)]))}`,
+      );
+      assert.equal(rows.length, 4);
+      for (const r of rows) {
+        const seenMade = [...madeIds].filter((i) => r.text.includes(i));
+        const named = /T-agent-made/.test(r.text);
+        if (r.asker === "usr_olivia")
+          assert.equal(
+            seenMade.length,
+            madeIds.size,
+            `Olivia's turn with the agent still gets the ids of what it made for her (${r.tool})`,
+          );
+        else
+          assert.deepEqual(
+            [seenMade, named],
+            [[], false],
+            `Mia's ${r.tool} reads nothing of what the same agent made for Olivia`,
+          );
+      }
+      for (const r of rows)
+        assert.equal(
+          /T-private-file/.test(r.text),
+          r.asker === "usr_olivia",
+          `${r.asker}'s ${r.tool} ${/T-private-file/.test(r.text) ? "reads" : "does not read"} Olivia's private file name`,
+        );
+    } finally {
+      globalThis.fetch = realFetch;
+      await stop(d);
     }
-    assert.ok(madeIds.size >= 2, `the agent made a chat and a calendar for Olivia (ids seen: ${[...madeIds].join(",")})`);
-    const rows: Seen[] = [];
-    for (const who of ["usr_olivia", "usr_mia"]) {
-      rows.push(await turn(who, "events_since", { after: 0, limit: 1000 }));
-      rows.push(await turn(who, "events_list", { limit: 500 }));
-    }
-    console.log(`AGENT-DOOR ${JSON.stringify(rows.map((r) => [r.asker, r.tool, r.ok, /T-private-file/.test(r.text), r.text.length, r.text.slice(0, 120)]))}`);
-    assert.equal(rows.length, 4);
-    for (const r of rows) {
-      const seenMade = [...madeIds].filter((i) => r.text.includes(i));
-      const named = /T-agent-made/.test(r.text);
-      if (r.asker === "usr_olivia") assert.equal(seenMade.length, madeIds.size, `Olivia's turn with the agent still gets the ids of what it made for her (${r.tool})`);
-      else assert.deepEqual([seenMade, named], [[], false], `Mia's ${r.tool} reads nothing of what the same agent made for Olivia`);
-    }
-    for (const r of rows) assert.equal(/T-private-file/.test(r.text), r.asker === "usr_olivia", `${r.asker}'s ${r.tool} ${/T-private-file/.test(r.text) ? "reads" : "does not read"} Olivia's private file name`);
-  } finally { globalThis.fetch = realFetch; await stop(d); }
-});
+  },
+);

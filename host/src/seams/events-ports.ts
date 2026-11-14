@@ -274,15 +274,21 @@ function aboutOf(deps: EventReaderDeps, e: StoredEvent): Array<[string, string]>
   const one = (a: [string, string] | null): Array<[string, string]> => (a ? [a] : []);
   if (e.type.startsWith("grant.")) {
     const p = payloadOf(e);
-    const type = str(p["resource_type"]), id = str(p["resource_id"]), to = str(p["subject_id"]);
-    return [...(type && id ? [[type, id] as [string, string]] : []), ...(to !== undefined && to.startsWith("agt_") ? [["agent", to] as [string, string]] : [])];
+    const type = str(p["resource_type"]),
+      id = str(p["resource_id"]),
+      to = str(p["subject_id"]);
+    return [
+      ...(type && id ? [[type, id] as [string, string]] : []),
+      ...(to !== undefined && to.startsWith("agt_") ? [["agent", to] as [string, string]] : []),
+    ];
   }
   return one(aboutOne(deps, e));
 }
 function aboutOne(deps: EventReaderDeps, e: StoredEvent): [string, string] | null {
   if (e.type === "resource.created") {
     const p = payloadOf(e);
-    const type = str(p["type"]), id = str(p["id"]);
+    const type = str(p["type"]),
+      id = str(p["id"]);
     return type && id ? [type, id] : null;
   }
   const def = deps.subjects?.(e.type);
@@ -310,18 +316,40 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
    * stored is covered. The person who made it, or whom it was made for, keeps it (the person, not the agent that did the work: see madeBy). A thing that is not in the access snapshot cannot be judged and keeps the event's own visibility. The verdict per
    * thing is kept for the call, so a page of thousands of events asks the kernel once per thing.
    */
-  async function reaches(snap: AccessSnapshot, r: Reader, c: EventCaller, e: StoredEvent, now: number, cache: Map<string, boolean>): Promise<boolean> {
+  async function reaches(
+    snap: AccessSnapshot,
+    r: Reader,
+    c: EventCaller,
+    e: StoredEvent,
+    now: number,
+    cache: Map<string, boolean>,
+  ): Promise<boolean> {
     if (c.system === true || madeBy(r, e)) return true;
-    for (const [type, id] of aboutOf(deps, e)) if (!(await mayViewThing(snap, r, c, now, cache, type, id))) return false;
+    for (const [type, id] of aboutOf(deps, e))
+      if (!(await mayViewThing(snap, r, c, now, cache, type, id))) return false;
     return true;
   }
-  async function mayViewThing(snap: AccessSnapshot, r: Reader, c: EventCaller, now: number, cache: Map<string, boolean>, type: string, id: string): Promise<boolean> {
+  async function mayViewThing(
+    snap: AccessSnapshot,
+    r: Reader,
+    c: EventCaller,
+    now: number,
+    cache: Map<string, boolean>,
+    type: string,
+    id: string,
+  ): Promise<boolean> {
     if (snap.resource(id) === undefined) return true;
     const key = `${type}\u0000${id}`;
     let ok = cache.get(key);
     if (ok === undefined) {
       ok =
-        authorize(snap, { principal: c.principal, actingFor: c.actingFor, action: { perm: null, level: "view" }, resource: { type, id }, now }).effect === "allow";
+        authorize(snap, {
+          principal: c.principal,
+          actingFor: c.actingFor,
+          action: { perm: null, level: "view" },
+          resource: { type, id },
+          now,
+        }).effect === "allow";
       if (ok && deps.moduleView) ok = (await deps.moduleView(r.person, type, id).catch(() => false)) !== false;
       cache.set(key, ok);
     }
@@ -368,7 +396,13 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
         }
         cursor = e.seq;
         scanned++;
-        if (!match(e.type) || (a.keep && !a.keep(e)) || !visible(snap, owner, reader, c, e, now) || !(await reaches(snap, reader, c, e, now, verdicts))) continue;
+        if (
+          !match(e.type) ||
+          (a.keep && !a.keep(e)) ||
+          !visible(snap, owner, reader, c, e, now) ||
+          !(await reaches(snap, reader, c, e, now, verdicts))
+        )
+          continue;
         events.push(toRow(e));
       }
       if (more) break;
@@ -423,7 +457,11 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
           scanned += rows.length;
         }
       }
-      return found && visible(snap, deps.owner(), reader, c, found, deps.now()) && (await reaches(snap, reader, c, found, deps.now(), new Map())) ? toRow(found) : null;
+      return found &&
+        visible(snap, deps.owner(), reader, c, found, deps.now()) &&
+        (await reaches(snap, reader, c, found, deps.now(), new Map()))
+        ? toRow(found)
+        : null;
     },
   };
 }

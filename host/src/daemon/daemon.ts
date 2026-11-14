@@ -371,8 +371,8 @@ export const HOOKS_STOP_MS = 15_000;
 export const CODE_ROOT = path.resolve(HERE, "../../..");
 /** the subject each event type names (a resource type and a pointer to its id in the payload), for the event log's read rule: an event about a thing is read only by someone who may view the thing */
 const eventSubjects: ReadonlyMap<string, { type: string; id: string }> = new Map(
-  (registry as unknown as { events: Array<{ name: string; subject?: { type: string; id: string } }> }).events.flatMap((e) =>
-    e.subject ? [[e.name, e.subject] as const] : [],
+  (registry as unknown as { events: Array<{ name: string; subject?: { type: string; id: string } }> }).events.flatMap(
+    (e) => (e.subject ? [[e.name, e.subject] as const] : []),
   ),
 );
 /** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
@@ -5420,30 +5420,47 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               moduleView: async (person, type, id) => {
                 if (type !== "thread" && type !== "agent" && type !== "channel") return undefined;
                 // kept for a few seconds so a feed read over thousands of events asks each chat once, not once per page; a person removed from a chat stops reading its events within that time
-                const k = `${spaceId}\u0000${person}\u0000${id}`, t = now();
+                const k = `${spaceId}\u0000${person}\u0000${id}`,
+                  t = now();
                 const hit = eventViewVerdicts.get(k);
                 if (hit && t - hit.at < EVENT_VIEW_TTL_MS) return hit.ok;
                 let ok: boolean;
                 try {
-                  const as = { space: spaceId, principal: { kind: "person" as const, id: person }, origin: "engine" as const };
+                  const as = {
+                    space: spaceId,
+                    principal: { kind: "person" as const, id: person },
+                    origin: "engine" as const,
+                  };
                   if (type === "channel") {
                     // the chat module's own read, as channels.list answers it (not the Console's governance view, which lets an admin see that an invite-only channel exists): a public channel is read
                     // by whoever channels.get lets in; an invite-only one only by someone who reads its main thread (a member)
                     const r = await invoke("channels.get", { channelId: id }, as);
-                    const ch = (r.status === "ok" ? (r.output as { channel?: { visibility?: string; mainThreadId?: string } }).channel : undefined);
+                    const ch =
+                      r.status === "ok"
+                        ? (r.output as { channel?: { visibility?: string; mainThreadId?: string } }).channel
+                        : undefined;
                     ok = ch !== undefined;
                     if (ok && ch!.visibility !== "public") {
-                      const m = ch!.mainThreadId === undefined ? undefined : await invoke("threads.get", { threadId: ch!.mainThreadId }, as);
+                      const m =
+                        ch!.mainThreadId === undefined
+                          ? undefined
+                          : await invoke("threads.get", { threadId: ch!.mainThreadId }, as);
                       ok = m?.status === "ok";
                     }
                   } else {
-                    const r = await invoke(type === "thread" ? "threads.get" : "agents.get", type === "thread" ? { threadId: id } : { agentId: id }, as);
+                    const r = await invoke(
+                      type === "thread" ? "threads.get" : "agents.get",
+                      type === "thread" ? { threadId: id } : { agentId: id },
+                      as,
+                    );
                     ok = r.status === "ok";
                   }
                 } catch {
                   ok = false;
                 }
-                if (eventViewVerdicts.size > 5000) for (const [key, v] of eventViewVerdicts) if (t - v.at >= EVENT_VIEW_TTL_MS) eventViewVerdicts.delete(key);
+                if (eventViewVerdicts.size > 5000)
+                  for (const [key, v] of eventViewVerdicts)
+                    if (t - v.at >= EVENT_VIEW_TTL_MS) eventViewVerdicts.delete(key);
                 eventViewVerdicts.set(k, { at: t, ok });
                 return ok;
               },
