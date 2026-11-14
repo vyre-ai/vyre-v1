@@ -38,7 +38,7 @@ for (const cap of CAPS)
   test(`${cap} refuses for every caller with the one plain message and does nothing`, async () => {
     for (const [who, ctx] of Object.entries(callers(room()))) {
       const w = room();
-      const c = (callers(w) as Record<string, never>)[who]!;
+      const c = (callers(w) as unknown as Record<string, never>)[who]!;
       const before = JSON.stringify(w.db.all("SELECT * FROM vault_requests_requests"));
       await assert.rejects(
         async () =>
