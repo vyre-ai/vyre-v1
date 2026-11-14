@@ -60,3 +60,21 @@ test("a private chat's words are found by its person alone, and the service is n
   );
   assert.ok(refusalsOf() <= 2, `the service was refused ${refusalsOf()} times over four turns of one private chat`);
 });
+
+test("a person finds the agents they can see by name, and no one else's private ones: a Space agent by every member, an Assistant by its person alone", async () => {
+  const agentId = (await h.owner.call("agents.create", { name: "Quillfeather", role: "Reads the harbor leases." })).agent.agentId as string;
+  const titles = async (p: Person, q: string): Promise<string[]> =>
+    ((await p.call("search.query", { q })).hits as Array<{ kind: string; id: string; title: string }>).filter((x) => x.kind === "agent").map((x) => x.title);
+  // an agent shared with the whole Space (made so by default) is found by every member, once
+  for (const p of [h.owner, a, b]) assert.deepEqual(await titles(p, "quillfeather"), ["Quillfeather"], `${p.label} finds the Space agent once`);
+  assert.deepEqual(await titles(h.owner, "reads the harbor"), ["Quillfeather"], "and by its role");
+  // an Assistant is private to its person (the service may not read it, so it is never in the shared index): found by its person, by no one else
+  const mine = await titles(h.owner, "assistant");
+  const bilals = await titles(b, "assistant");
+  assert.equal(mine.length, 1, `the owner finds their own Assistant: ${JSON.stringify(mine)}`);
+  assert.equal(bilals.length, 1, `Bilal finds his own Assistant: ${JSON.stringify(bilals)}`);
+  assert.notDeepEqual(mine, bilals, "and not each other's");
+  assert.ok(!bilals.some((t) => mine.includes(t)), "Bilal does not find the owner's Assistant");
+  assert.ok(!mine.some((t) => bilals.includes(t)), "the owner does not find Bilal's");
+  assert.ok(agentId);
+});
