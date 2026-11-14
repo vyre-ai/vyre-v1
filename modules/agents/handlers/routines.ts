@@ -282,6 +282,8 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
       });
     throw e;
   }
+  // another path (an rc.27 build's tick) may have started this very time while runs.start was answering: the Run is the same by its key, so it is marked and told once, by whoever moved the time first
+  if (String(routineBy(ctx.db, r.id)?.nextRunAt) !== input.dueKey) return { started: true, runId: started.runId };
   markRoutineRan(ctx.db, r.id, now);
   noteRoutineRun(ctx.db, r.id, started.runId, now);
   ctx.emit("agent.routine_run_started", agent.id, {

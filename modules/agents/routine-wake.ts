@@ -74,6 +74,7 @@ export async function applyWake(ctx: AgentsCtx, w: WantWake): Promise<void> {
       person: w.ownerId,
       agentId: w.agentId,
       ifMissed: "run_once",
+      maxAttempts: 3,
       idempotencyKey: `routine-wake:${w.routineId}`,
       ...(w.nextAt != null ? { nextAt: w.nextAt } : {}),
     })) as { scheduleId: string };
@@ -135,7 +136,8 @@ export async function reconcileWakes(ctx: AgentsCtx): Promise<string[]> {
       // A fire's three tries end within three leases (six minutes), so a mirror left behind for longer than the quarter of an hour has no fire waiting for it.
       const waiting =
         r?.nextRunAt !== undefined && r.nextRunAt <= ctx.now() && ctx.now() - r.nextRunAt < MIRROR_STALE_MS;
-      if (r && r.nextRunAt !== wake.nextAt && !waiting) {
+      // and only forward: a mirror ahead of the wake is a Run that an rc.27 build already started and moved on; moving it back would start that time again
+      if (r && (r.nextRunAt === undefined || wake.nextAt > r.nextRunAt) && !waiting) {
         ctx.db.run(
           "UPDATE agents_routine SET nextRunAt = ?, updatedAt = ? WHERE id = ?",
           wake.nextAt,

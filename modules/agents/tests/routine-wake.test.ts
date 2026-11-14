@@ -211,9 +211,13 @@ test("the reconcile heals each way the routine and its wake can be left apart", 
   hn.db.run("UPDATE agents_routine SET cron = '0 4 * * *' WHERE id = ?", r.routineId); // the cron changed, the wake did not
   await run();
   assert.equal(w().when.cron, "0 4 * * *", "rescheduled");
-  w().nextAt = 12345; // the mirror disagrees with the wake: the wake is the clock
+  const ahead = routineBy(hn.db, r.routineId)!.nextRunAt! + 7 * MIN;
+  w().nextAt = ahead; // the mirror is behind the wake: the wake is the clock
   await run();
-  assert.equal(routineBy(hn.db, r.routineId)!.nextRunAt, 12345);
+  assert.equal(routineBy(hn.db, r.routineId)!.nextRunAt, ahead);
+  w().nextAt = 12345; // the mirror is ahead of the wake (an older build moved it on): it is never moved back
+  await run();
+  assert.equal(routineBy(hn.db, r.routineId)!.nextRunAt, ahead, "forward only");
   hn.db.run("DELETE FROM agents_routine WHERE id = ?", r.routineId); // deleted, the wake cancel lost
   await run();
   assert.equal(w().cancelled, true, "cancelled");
@@ -259,4 +263,38 @@ test("the reconcile leaves the mirror alone while a fire may still be tried, so 
   wakes(hn)[0]!.nextAt = hn.clock.t + MIN;
   await run();
   assert.equal(routineBy(hn.db, r.routineId)!.nextRunAt, hn.clock.t + MIN, "repaired from the wake");
+});
+
+test("an rc.27 tick, a reconcile and a second tick: the time is started and told once, and a fire that finds the time already moved on starts nothing twice", async () => {
+  const hn = harness();
+  const keys = runsWith(hn);
+  const agentId = await agentOf(hn);
+  const r = (await save(hn, agentId, { cron: "* * * * *" })).routine;
+  const due = routineBy(hn.db, r.routineId)!.nextRunAt!;
+  hn.advance(MIN);
+  // the old tick of an rc.27 build starts the time and moves the row; the wake still says the same time
+  const { markRoutineRan } = await import("../projections.ts");
+  markRoutineRan(hn.db, r.routineId, hn.clock.t);
+  const moved = routineBy(hn.db, r.routineId)!.nextRunAt!;
+  assert.ok(moved > due);
+  await periodic["agents.routines_wake_sync"].run(hn.as(svc));
+  assert.equal(routineBy(hn.db, r.routineId)!.nextRunAt, moved, "the reconcile does not put the time back");
+  assert.equal((await fire(hn, r.routineId, String(due))).started, false);
+  assert.equal(hn.named("agent.routine_run_started").length, 0);
+  assert.equal(keys.length, 0);
+  // a slow runs.start: the old tick moves the row while this fire waits for its answer; the Run is told once
+  let release!: () => void;
+  const slow = new Promise<void>((res) => (release = res));
+  hn.world.answer("runs.start", async (i: { idempotencyKey: string }) => {
+    await slow;
+    keys.push(i.idempotencyKey);
+    return { runId: "run_slow" };
+  });
+  hn.advance(MIN);
+  const key = String(routineBy(hn.db, r.routineId)!.nextRunAt);
+  const pending = fire(hn, r.routineId, key);
+  markRoutineRan(hn.db, r.routineId, hn.clock.t);
+  release();
+  assert.deepEqual(await pending, { started: true, runId: "run_slow" });
+  assert.equal(hn.named("agent.routine_run_started").length, 0, "the one that moved the time first tells it");
 });
