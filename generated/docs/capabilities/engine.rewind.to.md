@@ -41,6 +41,7 @@ type Out = {
   restored: number;
   removed: number;
   undoPointId: string;
+  undid: boolean;
 };
 ```
 
@@ -70,6 +71,7 @@ type Out = {
     "at": 1760000000000,
     "removed": 1,
     "restored": 1,
+    "undid": true,
     "undoPointId": "example"
   }
 }

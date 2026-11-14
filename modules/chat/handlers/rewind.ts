@@ -1,7 +1,7 @@
 // chat.rewind (chat gap G36, G37; DESIGN-chat-system item 20): go back in a private chat with an agent to a point the person picked. The engine puts the agent's work folder back and hides what came after from the
 // agents (engine.rewind); this leaves the chat's own line: "Went back to before ...", with what it did and what it never does. Every message stays in the chat. Off in a chat with other people. Only the
 // person themselves, never an agent for them.
-import { askerOf, ensure, isMember, membersOf, raise } from "../projections.ts";
+import { askerOf, ensure, isMember, membersOf, messageBy, raise } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
 import { postLinkCard } from "./link-card.ts";
@@ -22,18 +22,13 @@ export async function chatRewind(ctx: ChatCtx, input: { threadId: string; pointI
   if (!ctx.call) raise(ctx, "internal.unavailable", "Going back is not available just now.");
   const listed = (await ctx.call("engine.rewind.points", { threadId: t.id })) as {
     available: boolean;
-    points: Array<{ pointId: string; at: number; after?: string }>;
+    points: Array<{ pointId: string; at: number; after?: string; messageId?: string; undo?: boolean }>;
   };
   const point = listed.points.find((p) => p.pointId === input.pointId);
   if (!listed.available || !point) raise(ctx, "validation.not_found", "That point is not in this chat.");
-  // the person's message that began the turn is the first thing the agents stop reading: going back is to before it
-  const asked = ctx.db.all(
-    "SELECT threadSeq FROM chat_message WHERE thread = ? AND author = ? AND createdAt <= ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 1",
-    t.id,
-    asker,
-    point!.at + 1000,
-  ) as Array<Record<string, unknown>>;
-  const afterSeq = Math.max(0, Number(asked[0]?.["threadSeq"] ?? 1) - 1);
+  // the agents stop reading from the person's message that began the turn: going back is to before it. An undo point has none: it brings back what the rewind hid.
+  const began = point!.messageId ? messageBy(ctx.db, point!.messageId) : null;
+  const afterSeq = Math.max(0, (began && began.thread === t.id ? began.seq : 1) - 1);
   const last = ctx.db.all("SELECT MAX(threadSeq) AS top FROM chat_message WHERE thread = ?", t.id) as Array<
     Record<string, unknown>
   >;
@@ -43,18 +38,26 @@ export async function chatRewind(ctx: ChatCtx, input: { threadId: string; pointI
     pointId: input.pointId,
     afterSeq,
     uptoSeq,
-  })) as { restored: number; removed: number };
+  })) as { restored: number; removed: number; undid: boolean };
   const files = done.restored + done.removed;
+  const n = files === 1 ? "1 file" : `${files} files`;
   postLinkCard(
     ctx,
     t.id,
-    {
-      icon: "reply",
-      lead: "Went back",
-      title: point!.after ? `Before "${point!.after}"` : "To an earlier point",
-      sub: `${files === 1 ? "1 file" : `${files} files`} put back. ${LEAVES}`,
-    },
-    `Went back${point!.after ? ` to before "${point!.after}"` : ""}`,
+    done.undid
+      ? {
+          icon: "reply",
+          lead: "Came back",
+          title: "To where you were before going back",
+          sub: `${n} put back. The agents read the later messages again. ${LEAVES}`,
+        }
+      : {
+          icon: "reply",
+          lead: "Went back",
+          title: point!.after ? `Before "${point!.after}"` : "To an earlier point",
+          sub: `${n} put back. ${LEAVES}`,
+        },
+    done.undid ? "Came back to where you were" : `Went back${point!.after ? ` to before "${point!.after}"` : ""}`,
   );
-  return { restored: done.restored, removed: done.removed, at: point!.at };
+  return { restored: done.restored, removed: done.removed, at: point!.at, undid: done.undid };
 }

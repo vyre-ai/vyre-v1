@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useConversationData } from "../conversation/data.tsx";
-import { LEAVES, NONE, UNDOES, UNDO_NOTE, pointLine, whyOff } from "./model.ts";
+import { KEPT_FOR, LEAVES, NONE, NOT_KEPT, UNDOES, UNDO_NOTE, pointLine, whyOff } from "./model.ts";
 import type { RewindPoint } from "./model.ts";
 
 type Read =
@@ -111,7 +111,10 @@ export function RewindCard({
       <Text testID="rewind-leaves" style={st.note}>
         {LEAVES}
       </Text>
-      <Text style={st.note}>{UNDO_NOTE}</Text>
+      <Text testID="rewind-not-kept" style={st.note}>
+        {NOT_KEPT}
+      </Text>
+      <Text style={st.note}>{`${UNDO_NOTE} ${KEPT_FOR}`}</Text>
       {failed ? <Text style={st.warn}>It did not go back. Nothing changed.</Text> : null}
       <View style={st.foot}>
         <Pressable
@@ -156,13 +159,13 @@ const st = StyleSheet.create({
   dotOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent)" as string },
   when: { fontSize: 13, color: "var(--ink)" as string, width: 64 },
   what: { fontSize: 13, color: "var(--ink-2)" as string, flexShrink: 1, flexGrow: 1, minWidth: 0 },
-  files: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  files: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 0 },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
   warn: { fontSize: 12.5, color: "var(--warn)" as string },
   foot: { flexDirection: "row", gap: 8, marginTop: 4 },
   go: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "var(--accent)" as string },
   dim: { opacity: 0.5 },
-  goText: { fontSize: 13, fontWeight: "600", color: "var(--on-accent)" as string },
+  goText: { fontSize: 13, fontWeight: "600", color: "var(--accent-ink)" as string },
   cancel: {
     paddingVertical: 6,
     paddingHorizontal: 12,

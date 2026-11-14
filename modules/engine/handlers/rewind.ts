@@ -7,7 +7,7 @@ import { points, restore, storeOf } from "../checkpoints.ts";
 import { forgetSessions } from "../cli-sessions.ts";
 import { boundEngine, ensure, raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
-import { engineHost } from "../runtime.ts";
+import { dropWarmSessions, engineHost } from "../runtime.ts";
 import { workFolder } from "../sandbox.ts";
 
 
@@ -18,6 +18,10 @@ export interface RewindPoint {
   files: number;
   /** What the person had just said when the turn began: the first words of their message. */
   after?: string;
+  /** The message that started that turn. */
+  messageId?: string;
+  /** The point a rewind took just before it: going back to it undoes that rewind. */
+  undo?: boolean;
 }
 
 const MAX_POINTS = 30;
@@ -26,6 +30,19 @@ const POINT = /^(agt_[A-Za-z0-9_]+)\.([0-9a-f]{40})$/;
 
 interface ThreadOut {
   thread?: { kind?: string; channelId?: string; members?: Array<{ id: string }>; agents?: Array<{ agentId: string }> };
+}
+
+/** The undo points of this chat's rewinds that have not been undone. */
+function undoable(ctx: EngineCtx, threadId: string): Set<string> {
+  try {
+    return new Set(
+      (ctx.db.all("SELECT undo_sha FROM engine_rewind WHERE thread_id = ? AND undo_sha IS NOT NULL", threadId) as Array<Record<string, unknown>>).map(
+        (r) => String(r["undo_sha"]),
+      ),
+    );
+  } catch {
+    return new Set();
+  }
 }
 
 /** A private chat: a chat of this person and their agents, no channel, nobody else in it. */
@@ -55,17 +72,18 @@ export async function pointsIn(
   input: { threadId: string },
   dataDir: string | undefined,
 ): Promise<{ available: boolean; why?: string; points: RewindPoint[] }> {
+  ensure(ctx.db);
   const who = person(ctx);
   const chat = await privateChat(ctx, input.threadId);
   if (!chat.ok) return { available: false, why: chat.why, points: [] };
   if (!dataDir) return { available: false, why: "no_folder", points: [] };
   // what they said, to name each point by it
-  let said: Array<{ at: number; body: string }> = [];
+  const said = new Map<string, string>();
   try {
     const list = (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 100 })) as {
-      messages: Array<{ author: { id: string }; body: string; createdAt: number }>;
+      messages: Array<{ messageId: string; author: { id: string }; body: string }>;
     };
-    said = list.messages.filter((m) => m.author.id === who).map((m) => ({ at: m.createdAt, body: m.body }));
+    for (const m of list.messages) if (m.author.id === who) said.set(m.messageId, m.body);
   } catch {
     /* the points still list, unnamed */
   }
@@ -78,14 +96,19 @@ export async function pointsIn(
       continue;
     }
     for (const p of await points({ gitDir: storeOf(dataDir, dir), workDir: dir, limit: MAX_POINTS })) {
-      if (!p.label.startsWith("turn ")) continue; // the "before going back" points are for undoing, not for going back to
-      const ask = [...said].reverse().find((m) => m.at <= p.at + 1000);
+      const undo = p.label === "Before going back" && undoable(ctx, input.threadId).has(p.sha);
+      if (!p.label.startsWith("turn ") && !undo) continue;
+      // the point is named by the message that started its turn: "turn <turnId> <messageId>"
+      const msgId = /^turn \S+ (\S+)$/.exec(p.label)?.[1];
+      const ask = msgId !== undefined ? said.get(msgId) : undefined;
       out.push({
         pointId: `${agentId}.${p.sha}`,
         agentId,
         at: p.at,
         files: p.files,
-        ...(ask ? { after: ask.body.trim().replace(/\s+/g, " ").slice(0, 60) } : {}),
+        ...(undo ? { undo: true } : {}),
+        ...(msgId && !undo ? { messageId: msgId } : {}),
+        ...(ask !== undefined && !undo ? { after: ask.trim().replace(/\s+/g, " ").slice(0, 60) } : {}),
       });
     }
   }
@@ -100,7 +123,7 @@ export async function rewindIn(
   ctx: EngineCtx,
   input: { threadId: string; pointId: string; afterSeq: number; uptoSeq: number },
   dataDir: string | undefined,
-): Promise<{ agentId: string; at: number; restored: number; removed: number; undoPointId: string }> {
+): Promise<{ agentId: string; at: number; restored: number; removed: number; undoPointId: string; undid: boolean }> {
   ensure(ctx.db);
   const who = person(ctx);
   const chat = await privateChat(ctx, input.threadId);
@@ -121,26 +144,46 @@ export async function rewindIn(
   const point = all.find((p) => p.sha === sha && (p.label.startsWith("turn ") || p.label === "Before going back"));
   if (!point) raise(ctx, "validation.not_found", "That point is not in this chat.");
   const r = await restore({ gitDir: storeOf(dataDir!, dir), workDir: dir, sha, now: ctx.now() });
-  // the agents read the chat as it was at the point: the messages after it are hidden from them (the chat shows them all), and the engine's own session starts again from what is left
-  ctx.db.run(
-    "INSERT INTO engine_rewind (thread_id, after_seq, upto_seq, by_person, at) VALUES (?, ?, ?, ?, ?)",
+  // going back to the point a rewind took first undoes that rewind: the messages the agents had stopped reading are read again
+  const undone = ctx.db.all(
+    "SELECT rowid AS id, after_seq, upto_seq FROM engine_rewind WHERE thread_id = ? AND undo_sha = ?",
     input.threadId,
-    input.afterSeq,
-    input.uptoSeq,
-    who,
-    ctx.now(),
-  );
-  try {
-    boundEngine(ctx).hide(input.threadId, input.afterSeq, input.uptoSeq);
-  } catch {
-    /* the thread is not open here: the range is read when it is */
+    sha,
+  ) as Array<Record<string, unknown>>;
+  if (undone.length > 0) {
+    for (const u of undone) {
+      ctx.db.run("DELETE FROM engine_rewind WHERE rowid = ?", u["id"]);
+      try {
+        boundEngine(ctx).unhide(input.threadId, Number(u["after_seq"]), Number(u["upto_seq"]));
+      } catch {
+        /* the thread is not open here: the ranges are read when it is */
+      }
+    }
+  } else {
+    // the agents read the chat as it was at the point: the messages after it are hidden from them (the chat shows them all), and the engine's own session starts again from what is left
+    ctx.db.run(
+      "INSERT INTO engine_rewind (thread_id, after_seq, upto_seq, by_person, at, undo_sha) VALUES (?, ?, ?, ?, ?, ?)",
+      input.threadId,
+      input.afterSeq,
+      input.uptoSeq,
+      who,
+      ctx.now(),
+      r.undoPoint.sha,
+    );
+    try {
+      boundEngine(ctx).hide(input.threadId, input.afterSeq, input.uptoSeq);
+    } catch {
+      /* the thread is not open here: the range is read when it is */
+    }
   }
   forgetSessions(ctx.db, input.threadId, agentId);
+  await dropWarmSessions(input.threadId); // the engine's own memory of what was undone goes with its session
   return {
     agentId,
     at: point!.at,
     restored: r.restored,
     removed: r.removed,
     undoPointId: `${agentId}.${r.undoPoint.sha}`,
+    undid: undone.length > 0,
   };
 }
