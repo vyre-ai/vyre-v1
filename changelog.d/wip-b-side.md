@@ -16,3 +16,5 @@
 - You can rename a chat and add people to it from its row in the sidebar; a goal's row says why it waits or when it next checks in, and Report progress and Mark stuck work from it.
 - Open "N more" in the sidebar to reach every chat, not only the first 50. Finish setup now sits at the foot of the sidebar, Notes & artifacts is one page with a Notes and Artifacts switch that remembers the tab, and the Chats number on the rail is the same number the sidebar adds up.
 - All text in the app uses one font family; on computers without Inter the rail words and the list titles were two different fonts.
+- An archived chat and an imported coding session can always be found: the filter menu lists Archived and Imported (Imported in a Personal Space), and each list loads past its first 50 rows. People and agents beyond the first 200 are read as well.
+- Unsent text is kept for each person and each Space on a computer, so two people sharing one browser never see each other's lines or pencils. Signing out of a Space clears the lines kept for it.

@@ -2054,6 +2054,7 @@ function SidebarChoice(p: {
       slot={p.slot}
       {...(p.open !== undefined ? { open: p.open } : {})}
       {...(p.window ? { window: p.window } : {})}
+      {...(p.startFilter ? { startFilter: p.startFilter as never } : {})}
     />
   ) : (
     <LegacySidebar {...p} />

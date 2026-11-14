@@ -16,6 +16,8 @@ import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { matchShortcut } from "../../../shell/keyboard/map.ts";
 import { detectPlatform } from "../../../shell/keyboard/useShellKeys.ts";
+import { importedRows } from "../imported/model.ts";
+import type { ImportedRow } from "../imported/model.ts";
 import { lastNotesTab } from "../notes/notes-tab.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { askedCall } from "../goals/goal-menu.ts";
@@ -39,6 +41,7 @@ import { SidebarList } from "./SidebarList.tsx";
 import { filterMenu, newMenu, notesMenu } from "./side-menus.ts";
 import type { RowDo } from "./side-menus.ts";
 import { refetch } from "./model.ts";
+import { draftThreads, scopeOf, subscribeDrafts } from "../conversation/drafts.ts";
 import { MoreRow } from "../../../../../../ui/src/MoreRow/index.tsx";
 
 const SECTIONS_PAGED = ["goals", "pinned", "chats", "channels", "team"] as const;
@@ -124,6 +127,11 @@ export function SideChats({
   const port = useMemo(() => deviceSideState(data.space.name, store()), [data.space.name]);
   const [, tick] = useState(0);
   useEffect(() => port.subscribe(() => tick((n) => n + 1)), [port]);
+  const [draftTick, setDraftTick] = useState(0);
+  useEffect(() => subscribeDrafts(() => setDraftTick((n) => n + 1)), []);
+  const meId = data.me?.id;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const drafts = useMemo(() => draftThreads(scopeOf(meId)), [meId, draftTick]);
   const [pages, setPages] = useState<Partial<Record<(typeof SECTIONS_PAGED)[number], SideRow[]>>>({});
   const [more, setMore] = useState<ReadonlySet<SectionId>>(new Set());
   const [sheet, setSheet] = useState<ChannelSheetKind | null>(null);
@@ -201,7 +209,57 @@ export function SideChats({
     { copy: (t: string) => copyToClipboard(t) },
   );
   const assistantId = data.space.assistant.agentId;
-  const built = useMemo(() => (out ? itemsOf(out, assistantId, presence) : null), [out, assistantId, presence]);
+  // imported coding sessions (a Personal Space): read on open and when the Space changes; they are the Imported filter's rows
+  const [imported, setImported] = useState<ImportedRow[]>([]);
+  useEffect(() => {
+    if (!personal) {
+      setImported([]);
+      return undefined;
+    }
+    let live = true;
+    const read = (): void => {
+      void Promise.resolve(data.call("sessions.list", {})).then(
+        (r) => live && setImported(importedRows((r as { sessions?: Partial<ImportedRow>[] } | null)?.sessions)),
+        () => live && setImported([]),
+      );
+    };
+    read();
+    const off = data.changes?.subscribe(read);
+    return () => {
+      live = false;
+      off?.();
+    };
+  }, [data, personal]);
+  const importedItems = useMemo(
+    () =>
+      imported.map(
+        (r): Item => ({
+          key: `i:${r.conversationId}`,
+          kind: "chat",
+          shape: "agent",
+          title: r.title,
+          faces: [{ id: r.conversationId, name: r.title }],
+          unread: 0,
+          mentions: 0,
+          muted: false,
+          draft: false,
+          working: false,
+          archived: r.archived === true,
+          ask: false,
+          ended: false,
+          lastAt: r.importedAt,
+        }),
+      ),
+    [imported],
+  );
+  const serverBuilt = useMemo(
+    () => (out ? itemsOf(out, assistantId, presence, drafts) : null),
+    [out, assistantId, presence, drafts],
+  );
+  const built = useMemo(
+    () => (filter === "imported" ? { items: importedItems, refs: new Map<string, SideRow>() } : serverBuilt),
+    [filter, importedItems, serverBuilt],
+  );
   const pins = useMemo(() => (out ? pinsOf(out) : []), [out]);
   const openKey = built ? openKeyFor(open, built.refs) : null;
   const layout = useMemo(
@@ -238,6 +296,13 @@ export function SideChats({
   const refOf = (x: Item): SideRow | undefined => built?.refs.get(x.key);
 
   const openItem = (x: Item, how: "here" | "tab"): void => {
+    if (x.key.startsWith("i:")) {
+      const s = imported.find((i) => `i:${i.conversationId}` === x.key);
+      if (s?.continuedThreadId) data.nav.openChat(s.continuedThreadId);
+      else if (s) data.nav.openImported?.(s.conversationId);
+      leave();
+      return;
+    }
     const r = refOf(x);
     if (x.kind === "task") data.nav.openNeedsYou(x.key.slice(2));
     else if (!r) return;
@@ -331,7 +396,13 @@ export function SideChats({
         : {}),
     });
   const filterItems = (): ReturnType<typeof filterMenu> =>
-    filterMenu(filterChoices(built?.items ?? []), filter, { pick: setFilter });
+    filterMenu(
+      filterChoices(serverBuilt?.items ?? [])
+        .filter((r) => r.id !== "imported" || imported.length > 0)
+        .map((r) => (r.id === "imported" ? { ...r, count: imported.length } : r)),
+      filter,
+      { pick: setFilter },
+    );
 
   // the keys of the shell table that act on this list: new chat and channel, the nth pinned row, next and previous unread, hide
   useEffect(() => {

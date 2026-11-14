@@ -504,17 +504,28 @@ export async function chatsSidebar(
     member ? safe<{ projects?: Record<string, any>[] }>("projects.list", {}) : Promise.resolve(null), // eslint-disable-line @typescript-eslint/no-explicit-any
     member ? safe<{ agents?: { agentId: string; name: string }[] }>("agents.list", {}) : Promise.resolve(null),
     member
-      ? safe<{ principals?: { id: string; name: string; kind?: string; status?: string }[] }>(
+      ? safe<{ principals?: { id: string; name: string; kind?: string; status?: string }[]; next?: string }>(
           "access.principals.list",
           {
             kind: "person",
             status: "active",
-            limit: 200,
+            limit: 500,
           },
         )
       : Promise.resolve(null),
     safe<{ working?: { agentId: string; threadId?: string }[] }>("engine.now", {}),
   ]);
+  // people past the first 500: the rest of the directory by its cursor (a handful of extra reads only in a Space that big)
+  for (let page = 0; peopleOut?.next !== undefined && page < 20; page++) {
+    const more = await safe<{
+      principals?: { id: string; name: string; kind?: string; status?: string }[];
+      next?: string;
+    }>("access.principals.list", { kind: "person", status: "active", limit: 500, cursor: peopleOut.next });
+    if (!more) break;
+    peopleOut.principals = [...(peopleOut.principals ?? []), ...(more.principals ?? [])];
+    if (more.next === undefined) delete peopleOut.next;
+    else peopleOut.next = more.next;
+  }
   const mentions = new Map((mentionsOut?.counts ?? []).map((c) => [c.threadId, c.mentions]));
   const muted = await src.mutedThreads();
   const me = askerOf(ctx);

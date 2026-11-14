@@ -496,6 +496,7 @@ test("the filter menu is Show, then Only, and every choice has a count", () => {
       "only:goals",
       "only:asks",
       "only:archived",
+      "only:imported",
     ],
   );
 });

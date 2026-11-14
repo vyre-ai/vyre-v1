@@ -2,6 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createRoot } from "test-renderer";
+import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { ChatsSidebar, LegacyChatsSidebar, NEW_SIDEBAR } from "./ChatsSidebar.tsx";
 import type { ChatsSidebarData } from "./data.tsx";
 import type { SideOut, SideRow } from "./side-data.ts";
@@ -145,4 +147,57 @@ test("loading draws the one quiet mark, a failed read draws Couldn't load chats 
   assert.match(e, /Ask your Assistant/);
   assert.match(e, /Start a chat/);
   assert.ok(!e.includes("toggle-") && !e.includes("Tasks"));
+});
+
+test("a Personal Space's imported coding sessions are reachable: the Imported filter lists them as rows and a press opens the session, or the chat it was continued in", async () => {
+  const restore = installDom();
+  try {
+    const opened: string[] = [];
+    const base = dataFor(EMPTY);
+    const data: ChatsSidebarData = {
+      ...base,
+      space: { ...base.space, personal: true },
+      call: async (cap) =>
+        cap === "sessions.list"
+          ? {
+              sessions: [
+                {
+                  conversationId: "cnv_1",
+                  provider: "claude_code",
+                  title: "Fix the upload retries",
+                  startedAt: 1,
+                  importedAt: 2,
+                },
+                {
+                  conversationId: "cnv_2",
+                  provider: "codex",
+                  title: "Refactor billing",
+                  startedAt: 1,
+                  importedAt: 3,
+                  continuedThreadId: "thr_c",
+                },
+              ],
+            }
+          : {},
+      nav: {
+        ...base.nav,
+        openImported: (id: string) => void opened.push(`imported:${id}`),
+        openChat: (id: string) => void opened.push(`chat:${id}`),
+      },
+    };
+    const root = await mount(
+      createRoot,
+      <ChatsSidebar data={data} startFilter="imported" window={{ start: 0, end: 50 }} />,
+    );
+    await flush();
+    await flush();
+    const text = textOf(find(root, "chats-sidebar"));
+    assert.match(text, /Fix the upload retries/);
+    assert.match(text, /Refactor billing/);
+    await press(find(root, "row-i:cnv_1"));
+    await press(find(root, "row-i:cnv_2"));
+    assert.deepEqual(opened, ["imported:cnv_1", "chat:thr_c"]);
+  } finally {
+    restore();
+  }
 });

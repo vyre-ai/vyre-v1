@@ -161,7 +161,8 @@ export type FilterId =
   | "muted"
   | "goals"
   | "asks"
-  | "archived";
+  | "archived"
+  | "imported";
 export interface FilterChoice {
   id: FilterId;
   label: string;
@@ -179,6 +180,8 @@ export const FILTER_CHOICES: readonly FilterChoice[] = [
   { id: "goals", label: "Goals", group: "only" },
   { id: "asks", label: "Asks", group: "only" },
   { id: "archived", label: "Archived", group: "only" },
+  /** Imported coding sessions (a Personal Space): the device draws them from sessions.list; the server has none, so under this filter it answers nothing. */
+  { id: "imported", label: "Imported", group: "only" },
 ];
 
 /** Does a row pass a filter. Everything leaves out archived chats, Ask panes and ended goals; they are one press away under "Only". */
@@ -204,6 +207,8 @@ export function passes(x: Item, f: FilterId): boolean {
       return x.ask;
     case "archived":
       return x.archived;
+    case "imported":
+      return x.key.startsWith("i:");
   }
 }
 

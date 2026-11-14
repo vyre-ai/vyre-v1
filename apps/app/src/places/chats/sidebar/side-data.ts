@@ -89,10 +89,14 @@ export function checkinLine(at: number): string {
   return `Next check-in ${d.toLocaleDateString(undefined, { weekday: "short" })} ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
 }
 
+const NO_DRAFTS: ReadonlySet<string> = new Set();
+
 export function itemsOf(
   out: SideOut,
   assistantId: string,
   presence: Presence = NO_PRESENCE,
+  /** Chats this person has unsent text in, on this device (per person and Space). */
+  drafts: ReadonlySet<string> = NO_DRAFTS,
 ): { items: Item[]; refs: Map<string, SideRow> } {
   const names = namesOf(out);
   const refs = new Map<string, SideRow>();
@@ -128,7 +132,7 @@ export function itemsOf(
       unread: r.unread,
       mentions: r.mentions,
       muted: r.muted,
-      draft: false,
+      draft: r.threadId !== undefined && drafts.has(r.threadId),
       working: r.working || (r.agentId !== undefined && presence.working.has(r.agentId)),
       archived: r.archived === true,
       ask: false,

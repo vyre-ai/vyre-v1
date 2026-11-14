@@ -3,6 +3,7 @@
 import { spaceLabel } from "../spaces/space-label.ts";
 import type { SpaceDef } from "../spaces/model.ts";
 
+import { forgetDrafts } from "../../places/chats/conversation/drafts.ts";
 const KEY = "vyre.session.v1";
 
 export interface StoredSession {
@@ -159,6 +160,8 @@ export function writeStored(s: StoredSession, store: KeyValueStore | undefined =
 }
 
 export function clearStored(store: KeyValueStore | undefined = browserStore(), baseUrl?: string): void {
+  // a sign-out forgets what the person had half written on this browser (drafts are per person and Space)
+  forgetDrafts(store as never, baseUrl);
   try {
     if (!baseUrl) {
       store?.removeItem(KEY);
