@@ -204,7 +204,7 @@ export const RULE_KINDS: readonly { key: RuleKind; label: string; hint: string; 
     key: "record_filter",
     label: "Records that match",
     hint: "A record type, a field and the value it holds",
-    example: "invoice · client = Rivera",
+    example: "invoice · client = Harbor",
   },
   { key: "email_domain", label: "Email from an address", hint: "Every thread from this domain", example: "client.com" },
 ];

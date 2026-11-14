@@ -327,7 +327,7 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
             style={st.screen}
             disabled={!online && c.state === "takeover"}
           >
-            <Desk kind={view.screen} caption="Elena Rivera, referred by Maya" />
+            <Desk kind={view.screen} caption="Elena Park, referred by Maya" />
             {c.state === "asleep" ? (
               <View style={st.wakeWrap}>
                 <View testID="popup-wake" style={st.wake}>

@@ -100,7 +100,7 @@ export function RuleSheet({
         <>
           {field("type", "Record type", "recordType", "invoice")}
           {field("field", "Field", "field", "client")}
-          {field("equals", "Equals", "equals", "Rivera")}
+          {field("equals", "Equals", "equals", "Harbor")}
         </>
       ) : null}
       {problem !== "" ? (

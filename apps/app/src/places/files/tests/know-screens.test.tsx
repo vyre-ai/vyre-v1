@@ -534,7 +534,7 @@ test("Search with nothing typed offers the three example questions", () => {
   has(m, "Try a question");
   assert.deepEqual(
     [...EXAMPLE_QUESTIONS],
-    ["How does Ian like to hear from us?", "What do we charge for a first consult?", "When does Maya take consults?"],
+    ["How does Ian like to hear from us?", "What do we charge for a first demo?", "When does Maya take demos?"],
   );
   for (const q of EXAMPLE_QUESTIONS) has(m, q);
   assert.equal(count(m, 'data-testid="search-example"'), 3);
