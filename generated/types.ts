@@ -5382,6 +5382,8 @@ export type CalendarCreateEventIn = {
 export type CalendarCreateEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5439,6 +5441,8 @@ export type CalendarDuplicateEventIn = {
 export type CalendarDuplicateEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5496,6 +5500,8 @@ export type CalendarGetEventIn = {
 export type CalendarGetEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5590,6 +5596,8 @@ export type CalendarLinkRecordIn = {
 export type CalendarLinkRecordOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5654,6 +5662,8 @@ export type CalendarListEventsIn = {
 export type CalendarListEventsOut = {
   events: Array<{
       id: string;
+      version?: number;
+      updatedAt?: number;
       calendarId: string;
       title: string;
       startsAt: number;
@@ -5700,6 +5710,8 @@ export type CalendarMoveToCalendarIn = {
 export type CalendarMoveToCalendarOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5745,6 +5757,8 @@ export type CalendarRespondIn = {
 export type CalendarRespondOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5788,6 +5802,8 @@ export type CalendarRestoreEventIn = {
 export type CalendarRestoreEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5868,10 +5884,13 @@ export type CalendarUpdateEventIn = {
   joinProvider?: "zoom" | "meet" | "teams" | "none";
   scope?: "this" | "all";
   video?: "meet" | "zoom" | "teams";
+  expectedVersion?: number;
 };
 export type CalendarUpdateEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -6857,6 +6876,7 @@ export type ChatChaptersIn = {
 export type ChatChaptersOut = {
   chapters: Array<{
       startSeq: number;
+      startMsg: string;
       endSeq: number;
       startAt: number;
       count: number;
@@ -6872,6 +6892,7 @@ export type ChatChaptersWriteIn = {
   account?: {
     ref: string;
     driver: string;
+    kind?: string;
   };
 };
 export type ChatChaptersWriteOut = {
@@ -13056,6 +13077,10 @@ export type EngineTurnFinishOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13094,6 +13119,10 @@ export type EngineTurnGetOut = {
         traceId: string;
       };
       nodeId?: string;
+      stoppedBy?: {
+        id: string;
+        kind: "person" | "guest" | "agent" | "system";
+      };
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
@@ -13215,6 +13244,10 @@ export type EngineTurnRecordIn = {
   code?: string;
   message?: string;
   reason?: string;
+  stoppedBy?: {
+    id: string;
+    kind: "person" | "guest" | "agent" | "system";
+  };
   info?: {
     effort?: string;
     account?: {
@@ -13276,6 +13309,10 @@ export type EngineTurnRecordOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13327,6 +13364,10 @@ export type EngineTurnRetryOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13371,6 +13412,10 @@ export type EngineTurnStartOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13421,6 +13466,10 @@ export type EngineTurnsListOut = {
         traceId: string;
       };
       nodeId?: string;
+      stoppedBy?: {
+        id: string;
+        kind: "person" | "guest" | "agent" | "system";
+      };
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
@@ -18246,6 +18295,7 @@ export type GoalsUpdateIn = {
       dependsOn?: Array<string>;
       due?: number;
     }>;
+  expectedUpdatedAt?: number;
 };
 export type GoalsUpdateOut = {
   goal: {
@@ -25315,6 +25365,7 @@ export type MemoryCorrectionsRecordOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25387,6 +25438,7 @@ export type MemoryFactAcceptOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25429,6 +25481,7 @@ export type MemoryFactCorrectOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25464,6 +25517,7 @@ export type MemoryFactCorrectOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25504,6 +25558,7 @@ export type MemoryFactGetOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25539,6 +25594,7 @@ export type MemoryFactGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25579,6 +25635,7 @@ export type MemoryFactRejectOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25627,6 +25684,7 @@ export type MemoryFactsListOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25686,6 +25744,7 @@ export type MemoryFactsAsOfOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25731,6 +25790,7 @@ export type MemoryFindBySubjectOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25978,6 +26038,7 @@ export type MemoryLearnedOut = {
           how?: "edit" | "refuse" | "reverse" | "rewrite";
           used: number;
           scope: "you" | "proposed" | "space";
+          sent?: boolean;
         };
         subject?: {
           pageId: string;
@@ -26177,6 +26238,7 @@ export type MemoryPageGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26401,6 +26463,7 @@ export type MemoryProfileAddOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26464,6 +26527,7 @@ export type MemoryProfileGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26502,6 +26566,7 @@ export type MemoryProfileGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26546,6 +26611,7 @@ export type MemoryProfileMoveOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26591,6 +26657,7 @@ export type MemoryProfileSuggestOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26646,6 +26713,7 @@ export type MemoryPromotionApproveOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26708,6 +26776,7 @@ export type MemoryProposeFactOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26769,6 +26838,7 @@ export type MemoryQuestionsListOut = {
             how?: "edit" | "refuse" | "reverse" | "rewrite";
             used: number;
             scope: "you" | "proposed" | "space";
+            sent?: boolean;
           };
           subject?: {
             pageId: string;
@@ -26872,6 +26942,7 @@ export type MemoryRememberOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26914,6 +26985,7 @@ export type MemoryRestoreOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26974,6 +27046,7 @@ export type MemorySearchOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -27072,6 +27145,7 @@ export type MemoryTrashSearchOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -27132,6 +27206,7 @@ export type MemoryUndoOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -27218,6 +27293,7 @@ export type MemoryUsedOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -28928,6 +29004,7 @@ export type NotesClipOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesCreateIn = {
@@ -28995,6 +29072,7 @@ export type NotesCreateOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesDeleteIn = {
@@ -29057,6 +29135,7 @@ export type NotesGetOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesImageIn = {
@@ -29120,6 +29199,7 @@ export type NotesLabelOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesListIn = {
@@ -29177,6 +29257,7 @@ export type NotesListOut = {
       canEdit: boolean;
       createdAt: number;
       updatedAt: number;
+      version: number;
     }>;
   labels: Array<{
       name: string;
@@ -29237,6 +29318,7 @@ export type NotesPinOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesRestoreIn = {
@@ -29290,6 +29372,7 @@ export type NotesRestoreOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesSearchIn = {
@@ -29358,6 +29441,7 @@ export type NotesSetOwnerOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesShareIn = {
@@ -29419,6 +29503,7 @@ export type NotesShareOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesToRecordIn = {
@@ -29476,6 +29561,7 @@ export type NotesToRecordOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
   recordId: string;
 };
@@ -29538,6 +29624,7 @@ export type NotesToTaskOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
   taskId: string;
 };
@@ -29551,6 +29638,7 @@ export type NotesUpdateIn = {
     contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
   }) | null;
   link?: string | null;
+  expectedVersion?: number;
 };
 export type NotesUpdateOut = {
   note: {
@@ -29600,6 +29688,7 @@ export type NotesUpdateOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotificationsAwayClearIn = Record<string, unknown>;
@@ -34925,6 +35014,7 @@ export type SheetsUpdateRowIn = {
     value: unknown;
   };
   values: Record<string, unknown>;
+  expect?: Record<string, unknown>;
   label?: string;
 };
 export type SheetsUpdateRowOut = {
@@ -34936,6 +35026,7 @@ export type SheetsUpsertRowIn = {
   sheet?: string;
   match: Array<string>;
   values: Record<string, unknown>;
+  expect?: Record<string, unknown>;
   label?: string;
 };
 export type SheetsUpsertRowOut = {
@@ -34981,12 +35072,14 @@ export type SitesArtifactPublishIn = {
   port?: number;
   computerId?: string;
   artifactId?: string;
+  expectedUpdatedAt?: number;
   thumb?: string;
   idempotencyKey: string;
 };
 export type SitesArtifactPublishOut = {
   artifactId: string;
   url?: string;
+  updatedAt?: number;
   updated: boolean;
   opened: boolean;
 };
@@ -35797,6 +35890,7 @@ export type SitesUpdateIn = {
   computerId?: string;
   port?: number;
   folderId?: string;
+  expectedUpdatedAt?: number;
 };
 export type SitesUpdateOut = {
   site: {
@@ -45012,6 +45106,7 @@ export type VaultItemUpdateIn = {
   spaceOnly?: boolean;
   injectIntoDeployments?: boolean;
   rotateEveryDays?: number | null;
+  expectedUpdatedAt?: number;
 };
 export type VaultItemUpdateOut = {
   item: {
@@ -52063,6 +52158,7 @@ export type TombstonesReappliedPayload = {
 };
 export type TranscriptsPurgedPayload = {
   removed: number;
+  messageIds?: Array<string>;
 };
 export type TurnBlockPayload = {
   turnId: string;

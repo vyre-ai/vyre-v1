@@ -43,6 +43,7 @@ type In = {
   joinProvider?: "zoom" | "meet" | "teams" | "none";
   scope?: "this" | "all";
   video?: "meet" | "zoom" | "teams";
+  expectedVersion?: number;
 };
 ```
 
@@ -52,6 +53,8 @@ type In = {
 type Out = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -99,6 +102,7 @@ type Out = {
 - permission.above_clearance
 - permission.no_grant
 - validation.bad_input
+- validation.version_conflict
 
 ## Example
 
@@ -120,6 +124,7 @@ type Out = {
     "description": "example",
     "endsAt": 1760000000000,
     "eventId": "cev_a1b2c3",
+    "expectedVersion": 1,
     "joinProvider": "zoom",
     "location": "example",
     "scope": "this",
@@ -171,7 +176,9 @@ type Out = {
       "seriesId": "example",
       "startsAt": 1760000000000,
       "status": "confirmed",
-      "title": "example"
+      "title": "example",
+      "updatedAt": 1760000000000,
+      "version": 1
     },
     "notice": "example"
   }
