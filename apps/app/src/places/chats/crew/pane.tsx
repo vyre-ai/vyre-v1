@@ -98,6 +98,10 @@ export function CrewOverview({
   const [show, setShow] = useState<Show>(initialShow);
   const menu = useMenu();
   const live = status.totals.working + status.totals.needsYou > 0;
+  // the engine's own subagents stop with their turn: Stop all is for the helpers and teammates Vyre started
+  const stoppable = status.members.some(
+    (m) => m.kind !== "subagent" && (m.state === "working" || m.state === "needs_you"),
+  );
   const now = useNow(live);
   const [sortKey, setSortKey] = useState<SortKey>("state");
   const all = sortedBy(status.members, sortKey);
@@ -115,7 +119,7 @@ export function CrewOverview({
       if (!a) return;
       e.preventDefault();
       if (a.kind === "stop_all") {
-        if (live) stopAll();
+        if (stoppable) stopAll();
       } else onPeek(a.id);
     };
     (globalThis as { addEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void }).addEventListener?.(
@@ -160,7 +164,7 @@ export function CrewOverview({
         >
           <Text style={st.quietText}>{`Show: ${SHOW.find((o) => o.key === show)!.label} ▾`}</Text>
         </Pressable>
-        {live ? (
+        {stoppable ? (
           <Pressable accessibilityRole="button" testID="crew-stop-all" onPress={stopAll} style={st.quiet}>
             <Text style={st.quietText}>Stop all</Text>
           </Pressable>
@@ -466,7 +470,10 @@ export function CrewPeek({
   const [err, setErr] = useState<string | null>(null);
   const live = member.state === "working" || member.state === "needs_you";
   const now = useNow(live);
+  // a subagent the engine started in its own turn: no chat of its own, so no notes, no steering, no model to change; the row says all there is
+  const own = member.kind === "subagent";
   useEffect(() => {
+    if (own) return undefined;
     let dead = false;
     const read = (): void => {
       void Promise.resolve(call("chat.helper.notes", { threadId: member.id })).then(
@@ -497,7 +504,7 @@ export function CrewPeek({
       dead = true;
       if (t) clearInterval(t);
     };
-  }, [call, member.id, member.state, live]);
+  }, [call, member.id, member.state, live, own]);
   const brief = notes.find((n) => n.who === "brief");
   const log = notes.filter(
     (n) => n.restart !== true && ((n.who !== "brief" && n.kind !== undefined) || n.who === "person"),
@@ -558,15 +565,40 @@ export function CrewPeek({
           {lineOf(member)}
         </Text>
       ) : null}
-      <Text style={st.section}>Brief from {brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"}</Text>
-      <View style={st.brief}>
-        <Text testID="crew-peek-brief" style={st.briefText}>
-          {brief?.body ?? member.title}
-        </Text>
-      </View>
-      {steps.length > 0 || member.state === "working" || member.state === "needs_you" ? (
+      {/* a subagent's whole brief is its name above: the engine keeps no more of it, so it is not said twice */}
+      {own ? null : (
+        <>
+          <Text style={st.section}>Brief from {brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"}</Text>
+          <View style={st.brief}>
+            <Text testID="crew-peek-brief" style={st.briefText}>
+              {brief?.body ?? member.title}
+            </Text>
+          </View>
+        </>
+      )}
+      {steps.length > 0 ||
+      (own && (member.steps?.length ?? 0) > 0) ||
+      member.state === "working" ||
+      member.state === "needs_you" ? (
         <Text style={st.section}>Steps</Text>
       ) : null}
+      {own
+        ? (member.steps ?? []).map((x, i) => (
+            <View key={`${i}-${x}`} testID={`crew-step-${i}`} style={st.step}>
+              <View
+                style={[
+                  st.stepDot,
+                  member.state === "working" && i === (member.steps?.length ?? 0) - 1
+                    ? { backgroundColor: "var(--accent)" as string }
+                    : null,
+                ]}
+              />
+              <Text numberOfLines={1} style={st.rowLine}>
+                {x}
+              </Text>
+            </View>
+          ))
+        : null}
       {steps.length === 0 && !member.step && (member.state === "working" || member.state === "needs_you") ? (
         <View style={st.step}>
           <View style={[st.stepDot, { backgroundColor: "var(--accent)" as string }]} />
@@ -585,7 +617,7 @@ export function CrewPeek({
           </Text>
         </View>
       ))}
-      {member.state === "working" && member.step && !steps.some((x) => x.state === "live") ? (
+      {!own && member.state === "working" && member.step && !steps.some((x) => x.state === "live") ? (
         <View style={st.step}>
           <View style={[st.stepDot, { backgroundColor: "var(--accent)" as string }]} />
           <Text testID="crew-peek-step" numberOfLines={1} style={st.rowLine}>
@@ -593,26 +625,30 @@ export function CrewPeek({
           </Text>
         </View>
       ) : null}
-      <Text style={st.section}>Runs on</Text>
-      <Text testID="crew-peek-model" style={st.rowLine}>
-        {member.model
-          ? `${modelTag(member)}${member.accountLabel ? ` · ${accountName(member.accountLabel)}` : ""}`
-          : "The same model as the chat"}
-      </Text>
-      {live || member.state === "failed" || member.state === "stopped" ? (
-        <ChangeModel member={member} call={call} onDone={onRefresh} />
-      ) : null}
-      <HelperHooksSection
-        threadId={member.id}
-        call={call}
-        lead={brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"}
-        name={nameOf(member)}
-      />
+      {own ? null : (
+        <>
+          <Text style={st.section}>Runs on</Text>
+          <Text testID="crew-peek-model" style={st.rowLine}>
+            {member.model
+              ? `${modelTag(member)}${member.accountLabel ? ` · ${accountName(member.accountLabel)}` : ""}`
+              : "The same model as the chat"}
+          </Text>
+          {live || member.state === "failed" || member.state === "stopped" ? (
+            <ChangeModel member={member} call={call} onDone={onRefresh} />
+          ) : null}
+          <HelperHooksSection
+            threadId={member.id}
+            call={call}
+            lead={brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"}
+            name={nameOf(member)}
+          />
+        </>
+      )}
       {member.found ? (
         <>
-          <Text style={st.section}>Answer</Text>
+          <Text style={st.section}>{own ? "Returned" : "Answer"}</Text>
           <Text testID="crew-peek-answer" style={st.rowLine}>
-            {member.found}
+            {own ? (member.answer ?? member.found) : member.found}
           </Text>
         </>
       ) : null}
@@ -677,20 +713,22 @@ export function CrewPeek({
         </View>
       ) : null}
       <View style={st.actions}>
-        <Pressable
-          accessibilityRole="button"
-          testID="crew-peek-open"
-          onPress={() => onOpenChat(member.id)}
-          style={st.pill}
-        >
-          <Text style={st.pillText}>Open chat</Text>
-        </Pressable>
-        {member.state === "failed" || member.state === "stopped" ? (
+        {own ? null : (
+          <Pressable
+            accessibilityRole="button"
+            testID="crew-peek-open"
+            onPress={() => onOpenChat(member.id)}
+            style={st.pill}
+          >
+            <Text style={st.pillText}>Open chat</Text>
+          </Pressable>
+        )}
+        {!own && (member.state === "failed" || member.state === "stopped") ? (
           <Pressable accessibilityRole="button" testID="crew-peek-retry" onPress={retry} style={st.pill}>
             <Text style={st.pillText}>Retry</Text>
           </Pressable>
         ) : null}
-        {live ? (
+        {live && !own ? (
           <Pressable
             accessibilityRole="button"
             testID="crew-peek-stop"
@@ -703,7 +741,7 @@ export function CrewPeek({
           </Pressable>
         ) : null}
       </View>
-      {live ? (
+      {live && !own ? (
         <View style={st.ask}>
           <TextInput
             testID="crew-peek-ask"

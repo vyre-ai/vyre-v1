@@ -109,8 +109,8 @@ export function computerBody(name: string, body: unknown): { body: Record<string
   if ("vyre.ingress" in labels) return { why: "a computer container cannot be the ingress" };
   if (name !== computerName(id)) return { why: "a computer container is named vyre-comp-<its computer>" };
   if (!isComputerImage(String(body["Image"] ?? ""))) return { why: "a computer runs the agent computer image" };
-  if (body["Hostname"] !== undefined && body["Hostname"] !== name)
-    return { why: "a computer's hostname is its container name" };
+  if (body["Hostname"] !== undefined && body["Hostname"] !== name && body["Hostname"] !== "computer")
+    return { why: "a computer's hostname is the word computer (or, from an older server, its container name)" };
   const env = Array.isArray(body["Env"]) ? (body["Env"] as unknown[]) : [];
   for (const e of env)
     if (typeof e !== "string" || !/^(VYRE_COMPUTER_ID|VYRE_AGENT_ID|VYRE_TAB_LIMIT)=[A-Za-z0-9_.:-]{0,100}$/.test(e))

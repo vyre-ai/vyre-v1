@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (95)
+## Capabilities (96)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
@@ -82,6 +82,7 @@ Requires: nothing.
 - [engine.stop_all](../capabilities/engine.stop_all.md): Stop every agent working in a thread (Stop all in the conversation header)
 - [engine.subscription_share.set](../capabilities/engine.subscription_share.set.md): Let the Space run work on my subscription (server runs for my chats, routines and personal automations); off kills my sandbox
 - [engine.switch](../capabilities/engine.switch.md): Switch engine mid-chat: the new engine starts from the rolling summary, the last turns and a pointer to the transcript
+- [engine.thread_states](../capabilities/engine.thread_states.md): The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out
 - [engine.time_convert](../capabilities/engine.time_convert.md): Convert a time between time zones, or turn "tomorrow 2pm" into a time. Use it for any time not already in the person's zone; never work out zones, dates or epoch numbers yourself
 - [engine.turn.append](../capabilities/engine.turn.append.md): Persist a coalesced chunk of a running turn (text, tool call, tool result, block)
 - [engine.turn.asked_by](../capabilities/engine.turn.asked_by.md): System use only: who asked for the calling agent's running turn in this chat (answers only to a module's own nested call). askedBy is set only when a person's own message started the turn or joined it

@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "SHEET_01-full-keys", "route": "/m/SHEET_01?size=full&keys=1", "proto": "sheet,{skin}", "waitFor": "[data-testid='sheet-close']", "note": "The full-size sheet that captures the keyboard: header, bar, the chord in words, Close" },
+    { "id": "SHEET_01-m", "route": "/m/SHEET_01?size=m", "proto": "sheet,{skin}", "waitFor": "[role='dialog']", "note": "The medium sheet with a note and actions" }
+  ]
+}

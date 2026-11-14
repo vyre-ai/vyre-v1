@@ -18,9 +18,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "connections.test": Handler<"connections.test", X>;
   "connections.update": Handler<"connections.update", X>;
   "connectors.build": Handler<"connectors.build", X>;
+  "connectors.check_key": Handler<"connectors.check_key", X>;
   "connectors.define": Handler<"connectors.define", X>;
   "connectors.diff": Handler<"connectors.diff", X>;
   "connectors.export": Handler<"connectors.export", X>;
+  "connectors.for_service": Handler<"connectors.for_service", X>;
   "connectors.get": Handler<"connectors.get", X>;
   "connectors.health": Handler<"connectors.health", X>;
   "connectors.init": Handler<"connectors.init", X>;

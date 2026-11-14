@@ -501,7 +501,17 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
         key={o.key}
         id={`blk-question-${block.id}-opt-${o.key}`}
         title={o.label}
-        {...(o.detail !== undefined ? { note: o.detail } : {})}
+        trailing={
+          o.recommended || o.detail !== undefined ? (
+            <Text
+              testID={`blk-question-${block.id}-opt-${o.key}-hint`}
+              numberOfLines={1}
+              style={o.recommended ? styles.optRecommended : styles.optHint}
+            >
+              {o.recommended ? "Recommended" : o.detail}
+            </Text>
+          ) : null
+        }
         selected={on}
         leading={<Text style={styles.optMark}>{d.mode === "multi" ? (on ? "☑" : "☐") : on ? "●" : "○"}</Text>}
         onPress={() => choose(o.key)}
@@ -533,7 +543,7 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
             <View style={styles.free}>
               <TextInput
                 accessibilityLabel={d.mode === "free" ? "Your answer" : "Your own answer"}
-                placeholder={d.mode === "free" ? "Write your answer" : "Or write your own answer"}
+                placeholder={d.mode === "free" ? "Write your answer" : "Your own answer"}
                 placeholderTextColor="var(--ink-4)"
                 value={text}
                 onChangeText={setText}
@@ -543,13 +553,14 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
                 testID={`blk-question-${block.id}-text`}
                 style={styles.input}
               />
-              <Btn
-                id={`blk-question-${block.id}-answer`}
-                label="Answer"
-                primary
-                disabled={!canAnswer(d.mode, picked, text)}
-                onPress={() => submit(picked, text)}
-              />
+              {canAnswer(d.mode, picked, text) ? (
+                <Btn
+                  id={`blk-question-${block.id}-answer`}
+                  label="Answer"
+                  primary
+                  onPress={() => submit(picked, text)}
+                />
+              ) : null}
             </View>
           ) : d.mode === "multi" ? (
             <View style={styles.acts}>
@@ -1110,6 +1121,8 @@ const styles = StyleSheet.create({
   optMark: { color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, width: 16 },
   why: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string, paddingHorizontal: 12, paddingBottom: 6 },
   optLabel: { ...textBase },
+  optHint: { fontSize: 12.5, color: "var(--ink-3)" as string, maxWidth: 180 },
+  optRecommended: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   free: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   input: {
     flex: 1,

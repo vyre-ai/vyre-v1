@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useAppsData } from "./data.tsx";
 import { actionKey, errorMessage, mutate } from "./mutations.ts";
-import { Button, Field, s } from "./editor-ui.tsx";
+import { Button, TextBox, s } from "./editor-ui.tsx";
 
 export const MAX_CHOICES = 200;
 export interface SavedChoice {
@@ -120,7 +120,7 @@ export function FormChoices({
         <Text style={s.text}>{`Save the form first, so ${field.title} is an asked question.`}</Text>
       ) : (
         <>
-          <Field label={`Search ${noun}`} value={q} onChange={setQ} disabled={disabled} />
+          <TextBox label={`Search ${noun}`} value={q} onChange={setQ} disabled={disabled} />
           <View>
             {rows.map((r) => (
               <Row

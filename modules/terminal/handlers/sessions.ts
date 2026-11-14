@@ -37,6 +37,11 @@ import {
   SESSION_SELECT,
   insertTab,
   scopeOf,
+  dropHold,
+  holderOf,
+  setHold,
+  sweepHolds,
+  touchHold,
 } from "../projections.ts";
 import { classify, QuotedHereDoc, referHandles, UnsurePlace } from "../fill.ts";
 import type { HandleRef } from "../fill.ts";
@@ -93,6 +98,7 @@ export function terminalRow(x: SessionRow) {
     lastActiveAt: x.lastActiveAt,
     ...(x.runId === undefined ? {} : { runId: x.runId }),
     ...(x.by === undefined ? {} : { by: x.by }),
+    ...(x.heldBy === undefined ? {} : { heldBy: x.heldBy }),
   };
 }
 
@@ -532,6 +538,7 @@ export function list(
   },
 ) {
   ensure(ctx.db);
+  endIdleHolds(ctx);
   const me = actorOf(ctx);
   const all = (
     ctx.db.all(
@@ -563,6 +570,7 @@ export function list(
 
 export function get(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
+  endIdleHolds(ctx);
   const x = sessionBy(ctx.db, input.terminalId);
   if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
   return { terminal: terminalRow(x) };
@@ -664,6 +672,89 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   return { ticket, expiresAt, replay };
 }
 
+// ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------
+
+/** Ends the holds nobody used for 15 minutes, and tells the people looking that the keyboard went back. */
+function endIdleHolds(ctx: TermCtx): void {
+  for (const id of sweepHolds(ctx.db, ctx.now())) ctx.emit("terminal.given_back", id, { terminalId: id, by: "idle" });
+}
+
+/** What the agent, or anyone else who is not the holder, is told while a person has the keyboard. */
+export const KEYBOARD_HELD =
+  "A person has the keyboard on this terminal. Commands wait until they hand it back; if nobody uses it for 15 minutes it comes back to you by itself.";
+
+/**
+ * A terminal a person holds takes input and commands from that person alone: the agent's run, another person's keys and Ctrl-C are refused with one plain sentence. The holder's own keys keep the hold in use.
+ * (A terminal nobody holds takes input as before: the pane and the sheet make the take a deliberate press, the server only guards what is held.)
+ */
+function needKeyboard(ctx: TermCtx, x: SessionRow): void {
+  endIdleHolds(ctx);
+  const h = holderOf(ctx.db, x.terminalId);
+  if (h === null) return;
+  const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
+  if (me !== undefined && h === me) {
+    touchHold(ctx.db, x.terminalId, me, ctx.now());
+    return;
+  }
+  raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
+}
+
+/** May this caller take the keyboard from another person: the person whose terminal it is, or someone who manages the agent whose computer it is. */
+function mayTakeFromOther(ctx: TermCtx, x: SessionRow): boolean {
+  if (x.owner === actorOf(ctx)) return true;
+  return (
+    x.agentId !== undefined &&
+    ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect === "allow"
+  );
+}
+
+export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
+  ensure(ctx.db);
+  endIdleHolds(ctx);
+  if (ctx.principal.kind === "agent")
+    raise(ctx, "permission.no_grant", "An agent types in its own terminal; taking the keyboard is for people.");
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  const me = actorOf(ctx);
+  const h = holderOf(ctx.db, x.terminalId);
+  if (h !== null && h !== me && !mayTakeFromOther(ctx, x))
+    raise(
+      ctx,
+      "permission.role_lacks_permission",
+      "Someone else has the keyboard. Only the owner of the terminal or an admin can take it from them.",
+      {
+        reason: "keyboard_held",
+      },
+    );
+  if (h !== me) {
+    setHold(ctx.db, x.terminalId, me, ctx.now());
+    ctx.emit("terminal.taken", x.terminalId, { terminalId: x.terminalId, by: me, ...(h === null ? {} : { from: h }) });
+  } else touchHold(ctx.db, x.terminalId, me, ctx.now());
+  return { terminal: terminalRow({ ...x, heldBy: me }) };
+}
+
+export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
+  ensure(ctx.db);
+  endIdleHolds(ctx);
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  const h = holderOf(ctx.db, x.terminalId);
+  if (h === null) return { terminal: terminalRow(x) };
+  const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
+  if (h !== me && !mayTakeFromOther(ctx, x))
+    raise(
+      ctx,
+      "permission.role_lacks_permission",
+      "Someone else has the keyboard. Only they, the owner of the terminal or an admin can hand it back.",
+      {
+        reason: "keyboard_held",
+      },
+    );
+  dropHold(ctx.db, x.terminalId);
+  ctx.emit("terminal.given_back", x.terminalId, { terminalId: x.terminalId, by: me ?? "agent" });
+  const { heldBy: _gone, ...rest } = x;
+  void _gone;
+  return { terminal: terminalRow(rest) };
+}
+
 // ---- acting in a session ------------------------------------------------------------------------------------------------------------------------------
 
 export function rename(ctx: TermCtx, input: { terminalId: string; name: string }) {
@@ -709,6 +800,7 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
   if (a.data === "") raise(ctx, "validation.bad_input", "There is nothing to send.");
+  needKeyboard(ctx, x);
   try {
     await (await hostFor(ctx, x)).input(a.terminalId, a.data);
   } catch (e) {
@@ -721,6 +813,7 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
 export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
+  needKeyboard(ctx, x);
   try {
     await (await hostFor(ctx, x)).interrupt(a.terminalId);
   } catch (e) {
@@ -984,6 +1077,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
     });
 
   const s = await sessionForRun(ctx, a);
+  needKeyboard(ctx, s);
   const host = await hostFor(ctx, s);
   const timeoutMs = (a.timeoutSec ?? DEFAULT_TIMEOUT_SEC) * 1000;
 

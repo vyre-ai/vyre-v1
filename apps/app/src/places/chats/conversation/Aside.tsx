@@ -7,6 +7,7 @@ import { Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } fro
 import { createStreamStore } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { Glyph, IconButton } from "./parts.tsx";
+import { COLUMN } from "../../../../../../ui/src/tokens/calm.ts";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { ActivityLine } from "./ActivityLine.tsx";
@@ -304,7 +305,7 @@ const st = StyleSheet.create({
   floatPhone: { bottom: 0, paddingHorizontal: 0 },
   card: {
     width: "100%",
-    maxWidth: 760,
+    maxWidth: COLUMN,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingTop: 6,

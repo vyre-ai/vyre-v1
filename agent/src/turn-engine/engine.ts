@@ -245,6 +245,8 @@ interface ThreadState {
   starting: Map<string, Starting>;
   /** Every turn launched by the worker and not ended yet. */
   inflight: Set<Promise<void>>;
+  /** The agents with a launched turn that has not fully returned (its end work, hooks, metering and reply post included): one turn per agent means this, not only `running`. */
+  launched: Set<string>;
   /** Wakes the worker when something new can start (a message for an agent that is free) while it waits for turns to end. */
   nudge: (() => void) | null;
 }
@@ -792,7 +794,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   /** A turn of this agent runs or is starting: the agent's next queued row waits (one turn per agent per thread). */
-  const busy = (st: ThreadState, agentId: string): boolean => st.running.has(agentId) || st.starting.has(agentId);
+  const busy = (st: ThreadState, agentId: string): boolean => st.launched.has(agentId);
 
   /**
    * The scheduler of one thread. It starts every queued turn whose agent is free (in queue order), without waiting for the turns it started, and sleeps until one ends or a message arrives. The lease
@@ -866,6 +868,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   function launch(st: ThreadState, item: QueueItem): void {
     const starting: Starting = { agentId: item.agentId, qseq: item.qseq };
     st.starting.set(item.agentId, starting);
+    st.launched.add(item.agentId);
     // the chat as it is now is what this turn reads (not what other agents post while it starts): turns taken off the queue in one pass all see the same chat
     const seen = st.messages.length > 0 ? st.messages[st.messages.length - 1]!.threadSeq : 0;
     const p: Promise<void> = runTurn(st, item, seen)
@@ -875,10 +878,31 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           qseq: item.qseq,
           error: e instanceof Error ? e.message : String(e),
         });
+        // the row must not stay running (a sibling turn keeps the lease alive, so no sweep would close it): it ends here and the chat hears of it once
+        try {
+          if (st.running.get(item.agentId)?.qseq === item.qseq) st.running.delete(item.agentId); // a turn that threw leaves no stale run behind
+          if (
+            !st.running.has(item.agentId) &&
+            queue.list(st.thread.id).find((r) => r.qseq === item.qseq)?.state === "running"
+          ) {
+            queue.setState(st.thread.id, item.qseq, "done");
+            emit({
+              type: "turn.failed",
+              threadId: st.thread.id,
+              turnId: `lost:${st.thread.id}:${item.qseq}`,
+              agentId: item.agentId,
+              code: "engine_error",
+              qseq: item.qseq,
+            });
+          }
+        } catch {
+          /* the log has it */
+        }
       })
       .finally(() => {
         if (st.starting.get(item.agentId) === starting) st.starting.delete(item.agentId);
         st.inflight.delete(p);
+        st.launched.delete(item.agentId);
       });
     st.inflight.add(p);
   }
@@ -1740,6 +1764,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         active: false,
         starting: new Map(),
         inflight: new Set(),
+        launched: new Set(),
         nudge: null,
       });
     },
@@ -2066,9 +2091,11 @@ function noteBlock(info: TurnInfo, kind: string, payload: unknown, at: number): 
     name?: unknown;
     detail?: unknown;
     ok?: unknown;
+    parent?: unknown;
   };
   const id = typeof p.id === "string" ? p.id : "";
   if (id === "") return;
+  if (typeof p.parent === "string" && p.parent !== "") return; // a subagent's own call is not a step of this turn's trail
   const known = info.tools.find((t) => t.id === id);
   if (kind === "tool_call") {
     if (!known) traceTool(info, { id, name: typeof p.name === "string" ? p.name : "", startedAt: at });

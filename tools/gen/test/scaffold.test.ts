@@ -15,8 +15,8 @@ const hostModules = JSON.parse(readFileSync(new URL("../../../host/modules.json"
   modules: Array<{ id: string; owner: string; status: string }>;
 };
 
-test("host/modules.json lists the 79 modules with the manifest owner and status stub", () => {
-  assert.equal(hostModules.modules.length, 79);
+test("host/modules.json lists the 80 modules with the manifest owner and status stub", () => {
+  assert.equal(hostModules.modules.length, 80);
   for (const m of hostModules.modules) {
     const man = all.find((x) => x.id === m.id);
     assert.ok(man, `${m.id} has a manifest`);

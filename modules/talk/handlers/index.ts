@@ -2,6 +2,7 @@
 // DECISION: a key is validated before anything is written, with the same grant Talk makes every time. A key that fails is never stored.
 // DECISION: talk.session mints from the Space key through the host with no asker, so it reads a Shared item with no grant to the member. That is what keeps the key Restricted: members never need Use on it.
 import { fail } from "../../../host/src/routes/errors.ts";
+import { VOICE_FOLDER } from "../../../lib/company-keys.ts";
 import { boostTerms, talkProvider } from "../../../lib/talk.ts";
 import type { TalkProvider } from "../../../lib/talk.ts";
 import {
@@ -21,7 +22,7 @@ import type { Prefs, SpaceKey, TalkCtx } from "../projections.ts";
 type Item = { id: string; name: string; handle: string; scope: string; owner: string; folderId?: string };
 type Row = Record<string, unknown>;
 type Field = { key: string; value: string; secret?: boolean };
-const VOICE_FOLDER = "Voice";
+
 const MINE_FOLDER = "Accounts";
 
 const refuse = (ctx: Pick<TalkCtx, "trace">, message: string, reason?: string): never => {

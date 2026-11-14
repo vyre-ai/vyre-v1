@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { useState } from "react";
+import { Pressable } from "react-native";
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createRoot } from "test-renderer";
@@ -882,4 +883,49 @@ test("a chat with an agent in it has the settings icon even when nobody will ans
     renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={[]} renderPanel={() => null} />),
   );
   assert.doesNotMatch(alone, /composer-strip/, "no agent in the chat: no icon");
+});
+
+function AskedHost({ log }: { log: string[] }): ReactElement {
+  const [n, setN] = useState(0);
+  return (
+    <Composer
+      whoWillAnswer=""
+      lead="Intake"
+      lists={lists}
+      agents={agents}
+      openPanelAt={n}
+      renderPanel={(_agent, close) => (
+        <ModelPanelStub
+          onClose={() => {
+            log.push("close");
+            close();
+          }}
+        />
+      )}
+      barExtra={<Pressable testID="ask-panel" onPress={() => setN((x) => x + 1)} />}
+    />
+  );
+}
+function ModelPanelStub({ onClose }: { onClose: () => void }): ReactElement {
+  return <Pressable testID="model-panel" onPress={onClose} />;
+}
+
+test("the place can open the model menu itself (/model): the same menu the strip opens, once per ask, and it closes the same way", async () => {
+  await withDom(async () => {
+    const log: string[] = [];
+    const root = await mount(createRoot, <AskedHost log={log} />);
+    assert.equal(find(root, "model-panel"), null, "not open to start with, and a count of 0 opens nothing");
+    await press(find(root, "ask-panel"));
+    assert.ok(find(root, "model-panel"), "asked: open");
+    await press(find(root, "model-panel"));
+    assert.equal(find(root, "model-panel"), null, "closed with its own close");
+    await press(find(root, "ask-panel"));
+    assert.ok(find(root, "model-panel"), "asked again: open again");
+    await press(find(root, "composer-strip"));
+    assert.equal(
+      find(root, "model-panel"),
+      null,
+      "the strip's own press closes it, as it does for a menu it opened itself",
+    );
+  });
 });

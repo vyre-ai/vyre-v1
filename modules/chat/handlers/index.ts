@@ -3,6 +3,7 @@
 import { archiveHandlers } from "./archive.ts";
 import { messagePerson, mute as agentDmMute, peopleStatus } from "./agent-dm.ts";
 import { catchUp } from "./catch-up.ts";
+import { chaptersRead, chaptersWrite } from "./chapters.ts";
 import { paceOfPerson } from "./pace.ts";
 import { replyDetails } from "./reply-details.ts";
 import { aside, asideKeep } from "./aside.ts";
@@ -21,6 +22,7 @@ import { noteOfferHandlers } from "./note-offer.ts";
 import { crewLineHandlers, hookLineHandlers } from "./hook-line.ts";
 import { titleMake } from "./title.ts";
 import { g26Handlers } from "./g26.ts";
+import { sidebarHandlers } from "./sidebar.ts";
 import { historySearch } from "./history.ts";
 import { g27Handlers } from "./g27.ts";
 import { followHandlers } from "./follow.ts";
@@ -53,6 +55,8 @@ export const handlers = {
   "chat.aside_keep": asideKeep,
   "chat.flow_card": flowCard,
   "chat.catch_up": catchUp,
+  "chat.chapters": chaptersRead,
+  "chat.chapters_write": chaptersWrite,
   "chat.pace_of": paceOfPerson,
   "chat.remember": remember,
   "chat.noted": noted,
@@ -88,4 +92,5 @@ export const handlers = {
   ...g26Handlers,
   ...g27Handlers,
   ...followHandlers,
+  ...sidebarHandlers,
 };

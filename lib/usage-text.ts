@@ -4,10 +4,19 @@ export interface MyAi {
   accounts: Array<{
     name: string;
     provider: string;
+    /** The account's handle in the Vault (engine.my_ai returns it; it is never shown). */
+    ref?: string;
+    /** "subscription" for a sign-in; another value for a key. */
+    kind?: string;
     usable: boolean;
     why?: string;
     models: string[];
-    limits: { state: "read" | "not_readable"; session?: { pct: number }; week?: { pct: number }; note?: string };
+    limits: {
+      state: "read" | "not_readable";
+      session?: { pct: number; resetsAt?: number };
+      week?: { pct: number; resetsAt?: number };
+      note?: string;
+    };
   }>;
   use: { today: MyUse; month: MyUse };
 }
