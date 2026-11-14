@@ -3,7 +3,6 @@
 // The service's own refusals are not repeated on every turn of the chat. (A guest cannot be made in this rig; a guest has no more reach than a member here, and is the same check as the second member.)
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import { bootHour, say, twoMembers, waitFor } from "./support/member-hour.ts";
 import type { Hour, Person } from "./support/member-hour.ts";
 
@@ -50,23 +49,19 @@ test("a private chat's words are found by its person alone, and the service is n
     1,
     "Aina finds her private chat in search (the command bar), once",
   );
-  fs.writeFileSync(
-    process.env["VYRE_SEARCH_NOTE"] ?? "/tmp/search-private.json",
-    JSON.stringify({
-      ainaChatSearch: await hits(a, "chat.search", "zebrafoxtrot1"),
-      ainaSearchQuery: await hits(a, "search.query", "zebrafoxtrot1"),
-      serviceRefusals: refusalsOf(),
-    }),
-  );
   assert.ok(refusalsOf() <= 2, `the service was refused ${refusalsOf()} times over four turns of one private chat`);
 });
 
 test("a person finds the agents they can see by name, and no one else's private ones: a Space agent by every member, an Assistant by its person alone", async () => {
-  const agentId = (await h.owner.call("agents.create", { name: "Quillfeather", role: "Reads the harbor leases." })).agent.agentId as string;
+  const agentId = (await h.owner.call("agents.create", { name: "Quillfeather", role: "Reads the harbor leases." }))
+    .agent.agentId as string;
   const titles = async (p: Person, q: string): Promise<string[]> =>
-    ((await p.call("search.query", { q })).hits as Array<{ kind: string; id: string; title: string }>).filter((x) => x.kind === "agent").map((x) => x.title);
+    ((await p.call("search.query", { q })).hits as Array<{ kind: string; id: string; title: string }>)
+      .filter((x) => x.kind === "agent")
+      .map((x) => x.title);
   // an agent shared with the whole Space (made so by default) is found by every member, once
-  for (const p of [h.owner, a, b]) assert.deepEqual(await titles(p, "quillfeather"), ["Quillfeather"], `${p.label} finds the Space agent once`);
+  for (const p of [h.owner, a, b])
+    assert.deepEqual(await titles(p, "quillfeather"), ["Quillfeather"], `${p.label} finds the Space agent once`);
   assert.deepEqual(await titles(h.owner, "reads the harbor"), ["Quillfeather"], "and by its role");
   // an Assistant is private to its person (the service may not read it, so it is never in the shared index): found by its person, by no one else
   const mine = await titles(h.owner, "assistant");
