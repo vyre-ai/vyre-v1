@@ -1042,9 +1042,10 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
         if (input.state !== "sent") args.push(input.state);
       }
       const rows = tx
-        .all<
-          OutboxDb & { connection_id: string }
-        >(`SELECT o.*, s.connection_id AS connection_id FROM sy_outbox o JOIN cn_synced_types s ON s.sync_type_id = o.sync_type ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY o.created_at DESC, o.rowid DESC`, ...args)
+        .all<OutboxDb & { connection_id: string }>(
+          `SELECT o.*, s.connection_id AS connection_id FROM sy_outbox o JOIN cn_synced_types s ON s.sync_type_id = o.sync_type ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY o.created_at DESC, o.rowid DESC`,
+          ...args,
+        )
         .filter((r) => {
           const c = connRow(r.connection_id);
           return !c || visible(ctx, c);
