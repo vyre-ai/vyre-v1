@@ -92,27 +92,13 @@ for (const kind of ["personal", "team"] as const)
         await me.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
         if ((await me.page.getByTestId("pane-agent").count()) === 0) await me.page.getByTestId("pane-button").click();
         await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
-        // the pane's tabs that do not fit sit behind the chevron: in a Team Space (Computer is also there) Terminal is one of them
-        if ((await me.page.getByTestId("tab-terminal").count()) > 0) await me.page.getByTestId("tab-terminal").click();
-        else {
-          await me.page.getByTestId("tab-more").click();
-          await me.page
-            .getByRole("menuitem", { name: "Terminal" })
-            .or(me.page.getByRole("button", { name: "Terminal", exact: true }))
-            .first()
-            .click();
-        }
-        await me.page
-          .getByTestId("terminal-pane-open")
-          .waitFor({ timeout: 20_000 })
-          .catch(async (e: unknown) => {
-            await guard.check("waiting for Open terminal");
-            throw e;
-          });
-        await guard.check("on the Terminal tab");
+        // one door (owner, 14 Nov): there is no Terminal tab and no Open terminal button; the agent's terminal is open by itself in the Computer tab and a row press shows it
+        await me.page.getByTestId("tab-computer").click();
+        await me.page.locator('[data-testid^="row-session-"]').first().waitFor({ timeout: 30_000 });
+        await guard.check("on the Computer tab");
         await shoot(me.page, dir, "pane-empty");
-        await me.page.getByTestId("terminal-pane-open").click();
-        await me.page.getByTestId("terminal-tab").waitFor({ timeout: 20_000 });
+        await me.page.locator('[data-testid^="row-session-"]').first().click();
+        await me.page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });
         assert.equal(await me.page.getByText("Could not open").count(), 0, "no dead button");
         assert.equal(opened.length, 1);
         // 12 Nov (audit item 15): an agent with a workspace the person may enter opens there, the sessions its own commands use; only where the Space has no machine for one does it open on this computer
