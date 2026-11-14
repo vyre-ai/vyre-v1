@@ -130,7 +130,10 @@ export function itemsOf(
                   : "agent";
     const faces = r.faceIds.map((id) => ({ id, name: names.get(id) ?? (single && r.kind !== "goal" ? r.title : "") }));
     const pres = r.personId ? presence.people.get(r.personId) : undefined;
-    const sub = r.kind === "goal" ? (r.line ?? (r.nextCheckinAt && say ? checkinLine(r.nextCheckinAt, say) : undefined)) : undefined;
+    const sub =
+      r.kind === "goal"
+        ? (r.line ?? (r.nextCheckinAt && say ? checkinLine(r.nextCheckinAt, say) : undefined))
+        : undefined;
     return {
       key: r.key,
       kind: KIND[r.kind],
