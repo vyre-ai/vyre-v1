@@ -1,6 +1,6 @@
 # terminal.given_back
 
-The keyboard of a terminal went back to the agent (handed back, or nobody used it for 15 minutes)
+The keyboard of a terminal was handed back to the agent by the person who held it (a hold that ran out after 15 quiet minutes is read as over and emits nothing)
 
 | | |
 |---|---|

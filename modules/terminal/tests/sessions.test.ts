@@ -577,7 +577,7 @@ test("read returns the screen or only what is new since a cursor; status merges 
   const st = await call(hn, "terminal.status", { terminalIds: [t.terminalId, "trm_unknown"] });
   assert.deepEqual(
     st.rows,
-    [{ terminalId: t.terminalId, state: "idle", lastLine: "more", exitCode: 0 }],
+    [{ terminalId: t.terminalId, state: "idle", lastLine: "more", lastCommand: "ls", exitCode: 0 }],
     "the last exit code Vyre recorded stays: tmux does not know one",
   );
   host.host.status = async () => {

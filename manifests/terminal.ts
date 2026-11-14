@@ -55,6 +55,16 @@ const terminalRow = t.obj({
   heldBy: t.opt(id.user),
   // the person who opened it: a person's own tab says whose it is
   ownerId: t.opt(id.user),
+  // the chat it was opened from, when it was opened from one (a background job line in that chat reads it)
+  threadId: t.opt(id.thread),
+});
+const captureOut = t.obj({
+  text: t.str(),
+  cols: t.int(),
+  rows: t.int(),
+  cursor: t.nullable(t.obj({ x: t.int(), y: t.int() })),
+  history: t.int(),
+  hidden: t.bool(),
 });
 const command = t.obj({
   command: t.str(),
@@ -98,6 +108,12 @@ export default defineManifest({
           projects: t.opt(t.arr(id.project)),
           canAttach: t.bool(),
           cannotAttach: t.opt(t.str({ description: "Why not, as one sentence" })),
+          takeOver: t.opt(
+            t.bool({
+              description:
+                "Whether a person may take the keyboard of a terminal here (off by default in rc.28: re-sent keys are not idempotent yet). When false the app draws a watching view and no Take over",
+            }),
+          ),
         },
         tool: "terminal",
         label: "check",
@@ -114,7 +130,13 @@ export default defineManifest({
       in: { terminalIds: t.arr(id.terminal, { maxItems: 50 }) },
       out: {
         rows: t.arr(
-          t.obj({ terminalId: id.terminal, state: termState, lastLine: t.opt(t.str()), exitCode: t.nullable(t.int()) }),
+          t.obj({
+            terminalId: id.terminal,
+            state: termState,
+            lastLine: t.opt(t.str()),
+            lastCommand: t.opt(t.str()),
+            exitCode: t.nullable(t.int()),
+          }),
         ),
       },
       tool: "terminal",
@@ -138,12 +160,18 @@ export default defineManifest({
           cwd: t.opt(t.str()),
           cols: t.opt(t.int({ minimum: 20, maximum: 500 })),
           rows: t.opt(t.int({ minimum: 5, maximum: 200 })),
+          own: t.opt(
+            t.bool({
+              description:
+                "Open the agent's own terminal in its workspace (named agent, its commands land in it), or return the one already there: nobody presses Attach. A person's call only",
+            }),
+          ),
         },
         out: { terminal: terminalRow },
         perm: "terminal.use",
         emits: ["terminal.opened"],
         tool: "terminal",
-        errors: ["permission.needs_team", "provider.unavailable"],
+        errors: ["permission.needs_team", "permission.no_grant", "provider.unavailable"],
         cli: "vyre terminal open",
       },
     ),
@@ -224,7 +252,7 @@ export default defineManifest({
       emits: ["terminal.given_back"],
       idem: "natural",
       offline: "online",
-      errors: ["permission.role_lacks_permission"],
+      errors: ["permission.no_grant", "permission.role_lacks_permission"],
     }),
     read(
       "terminal.capture",
@@ -255,15 +283,17 @@ export default defineManifest({
             minItems: 1,
             maxItems: 200,
           }),
+          // answer with the screen a moment after the keys landed (what terminal.capture says), so a key shows in one round trip
+          capture: t.opt(t.bool()),
         },
-        out: { ok: t.bool() },
+        out: { ok: t.bool(), screen: t.opt(captureOut) },
         on: ["terminal", "/terminalId"],
         level: "use",
         idem: "none",
         offline: "online",
         risk: "medium",
-        rate: { n: 1200, perSeconds: 60, scope: "principal" },
-        errors: ["validation.bad_input", "validation.precondition_failed"],
+        rate: { n: 3000, perSeconds: 60, scope: "principal" },
+        errors: ["permission.no_grant", "validation.bad_input", "validation.precondition_failed"],
       },
     ),
     write("terminal.interrupt", "Send Ctrl-C to a session", {
@@ -426,7 +456,7 @@ export default defineManifest({
     }),
     ev(
       "terminal.given_back",
-      "The keyboard of a terminal went back to the agent (handed back, or nobody used it for 15 minutes)",
+      "The keyboard of a terminal was handed back to the agent by the person who held it (a hold that ran out after 15 quiet minutes is read as over and emits nothing)",
       {
         p: { terminalId: id.terminal, by: t.str() },
         subject: ["terminal", "/terminalId"],

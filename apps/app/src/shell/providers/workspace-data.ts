@@ -26,6 +26,7 @@ export interface WorkspaceRead {
   projects?: readonly string[] | undefined;
   canAttach: boolean;
   cannotAttach?: string | undefined;
+  takeOver?: boolean | undefined;
 }
 
 /**
@@ -37,7 +38,7 @@ export function workspaceView(
   read: WorkspaceRead,
   rows: readonly TerminalRowLike[],
   projectNames: readonly string[] = [],
-  lastLines: ReadonlyMap<string, string> = new Map(),
+  lastCommands: ReadonlyMap<string, string> = new Map(),
 ): WorkspaceView {
   const mine = rows.filter((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited");
   const sessions: WorkspaceSession[] = mine.map((r) => ({
@@ -47,7 +48,7 @@ export function workspaceView(
     ...(r.cwd ? { cwd: r.cwd } : {}),
     ...(r.heldBy ? { heldBy: r.heldBy } : {}),
     ...(r.ownerId ? { ownerId: r.ownerId } : {}),
-    ...(lastLines.get(r.terminalId) ? { lastLine: lastLines.get(r.terminalId) as string } : {}),
+    ...(lastCommands.get(r.terminalId) ? { lastCommand: lastCommands.get(r.terminalId) as string } : {}),
     owner: r.by ?? { kind: "agent" },
     ...(r.lastActiveAt !== undefined ? { lastActiveAt: r.lastActiveAt } : {}),
   }));
@@ -56,6 +57,7 @@ export function workspaceView(
     state,
     sessions,
     canAttach: read.canAttach && read.state !== "unavailable",
+    ...(read.takeOver === false ? { takeOver: false } : {}),
     // waiting and unavailable say why; running says what keeps it awake past its idle time ("running: tail -f app.log")
     ...(read.state === "waiting" || read.state === "unavailable" || read.state === "running"
       ? read.line
@@ -92,6 +94,14 @@ export function workspaceData(d: {
   const names = new Map<string, string>();
   const ensuring = new Map<string, Promise<string>>();
   const lastSeen = new Map<string, Map<string, string>>();
+  // the state each terminal last said in terminal.status (the host's own word): the list is patched by events and an exit or a command's start is none, so a row shows the newer of the two
+  const lastStates = new Map<string, Map<string, TerminalRowLike["state"]>>();
+  const withStates = (agentId: string, rows: readonly TerminalRowLike[]): TerminalRowLike[] => {
+    const m = lastStates.get(agentId);
+    return rows.map((r) =>
+      m?.has(r.terminalId) ? { ...r, state: m.get(r.terminalId) as TerminalRowLike["state"] } : r,
+    );
+  };
   const nameOfProject = async (id: string): Promise<string | null> => {
     const known = names.get(id);
     if (known !== undefined) return known;
@@ -111,12 +121,12 @@ export function workspaceData(d: {
   const open = async (agentId: string): Promise<string> => {
     try {
       return (
-        (await d.call("terminal.open", { host: "agent_computer", agentId, idempotencyKey: d.newKey() })) as {
+        (await d.call("terminal.open", { host: "agent_computer", agentId, own: true, idempotencyKey: d.newKey() })) as {
           terminal: { terminalId: string };
         }
       ).terminal.terminalId;
     } catch (e) {
-      throw new Error(sentence(e));
+      throw Object.assign(new Error(sentence(e)), { cause: e });
     }
   };
   type Rows = {
@@ -146,20 +156,24 @@ export function workspaceData(d: {
           );
           if (live && mine === seq) {
             shown = true;
-            on(workspaceView(agentId, read, rows, projects, lastSeen.get(agentId)));
+            on(workspaceView(agentId, read, withStates(agentId, rows), projects, lastSeen.get(agentId)));
           }
           if (mineRows.length > 0 && mineRows.length <= 12 && read.state === "running") {
             try {
               const st = (await d.call("terminal.status", { terminalIds: mineRows.map((r) => r.terminalId) })) as {
-                rows?: Array<{ terminalId: string; lastLine?: string }>;
+                rows?: Array<{ terminalId: string; state?: TerminalRowLike["state"]; lastCommand?: string }>;
               };
               const m = new Map<string, string>();
               for (const x of st.rows ?? [])
-                if (x.lastLine && x.lastLine.trim() !== "") m.set(x.terminalId, x.lastLine.trim().slice(0, 160));
-              const before = JSON.stringify([...(lastSeen.get(agentId) ?? [])]);
+                if (x.lastCommand && x.lastCommand.trim() !== "")
+                  m.set(x.terminalId, x.lastCommand.trim().slice(0, 160));
+              const ss = new Map<string, TerminalRowLike["state"]>();
+              for (const x of st.rows ?? []) if (x.state) ss.set(x.terminalId, x.state);
+              const before = JSON.stringify([[...(lastSeen.get(agentId) ?? [])], [...(lastStates.get(agentId) ?? [])]]);
               lastSeen.set(agentId, m);
-              if (live && mine === seq && JSON.stringify([...m]) !== before)
-                on(workspaceView(agentId, read, rows, projects, m));
+              lastStates.set(agentId, ss);
+              if (live && mine === seq && JSON.stringify([[...m], [...ss]]) !== before)
+                on(workspaceView(agentId, read, withStates(agentId, rows), projects, m));
             } catch {
               /* the rows keep what they had */
             }
@@ -188,7 +202,10 @@ export function workspaceData(d: {
       const s = rowsQuery().getSnapshot();
       const has =
         s.status === "ready" && s.data
-          ? s.data.terminals.find((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited")
+          ? s.data.terminals.find(
+              (r) =>
+                r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited" && r.by?.kind === "agent",
+            )
           : undefined;
       if (has) return has.terminalId;
       const p = open(agentId).then(

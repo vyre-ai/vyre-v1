@@ -39,7 +39,7 @@ const ws = (over: Partial<WorkspaceView> = {}): WorkspaceView => ({
   host: "the Space server",
   canAttach: true,
   sessions: [
-    { name: "main", terminalId: "trm_main", state: "running", cwd: "~/portal" },
+    { name: "main", terminalId: "trm_main", state: "running", cwd: "~/portal", owner: { kind: "agent" } },
     { name: "build", terminalId: "trm_build", state: "idle", cwd: "~/portal" },
   ],
   projects: ["Client portal launch"],
@@ -137,6 +137,10 @@ test("mounted: Terminals, then Browser; the agent has no computer to set up, and
     );
     assert.ok(!/Give .* its own computer|Set up its computer/.test(t), "no setup step");
     assert.equal(find(root, "terminal-attach"), null);
+    assert.ok(
+      !/(^|\s)(\+|\.\.\.|\u2026)(\s|$)/.test(t),
+      "no plus or three dots drawn on a head: nothing is drawn that does nothing",
+    );
     assert.equal(find(root, "browser-take"), null);
     assert.equal(find(root, "browser-give"), null);
     assert.ok(!t.includes(String.fromCharCode(0x2014)), "no em dash");
@@ -210,7 +214,7 @@ test("mounted: the helpers' and people's terminals are rows too, grouped by whos
     const t = textOf(root);
     const at = (x: string): number => t.indexOf(x);
     assert.ok(at(s.data.agent.name) < at("Tess") && at("Tess") < at("Dana"), "agent, helper, person");
-    assert.ok(t.includes("helper") && t.includes("own tab"));
+    assert.ok(t.includes("helper") && t.includes("terminals"));
     assert.ok(at("main") < at("lint") && at("lint") < at("Dana's tab"));
     await press(find(root, "row-session-lint"));
     assert.deepEqual(k.log, ["ws.open t_h"]);
@@ -524,7 +528,7 @@ test("the words of the pane: a dot and one word, never a chip or a sentence", ()
     [
       ["Mira", undefined, 1],
       ["Tess", "helper", 2],
-      ["Sara", "own tab", 1],
+      ["Sara", "terminals", 1],
     ],
   );
   assert.deepEqual(
@@ -553,4 +557,106 @@ test("a terminal held by a person says so in the row's word, for you and for oth
     word: "Ended",
     dot: "dead",
   });
+});
+
+// ---- no computer can open a terminal (15 Nov, the Personal walk): the one plain line, never a row or a picture that does nothing
+const refusal = (reason: string, code = "provider.unavailable"): Error =>
+  Object.assign(new Error("That did not start."), {
+    cause: Object.assign(new Error("x"), { code, details: { reason } }),
+  });
+const termData = {
+  call: async (cap: string) =>
+    cap === "devices.mine" ? { devices: [] } : cap === "computers.list" ? { computers: [] } : {},
+  newKey: () => "k",
+  clock: () => ({ now: 10, offsetMin: 0 }),
+  agent: { agentId: "agt_1", name: "Assistant" },
+  connection: { get: () => "online", subscribe: () => () => undefined },
+  nav: { openTerminal() {}, closeTab() {} },
+} as never;
+const closedBrowser = (): BrowserView => ({
+  state: "closed",
+  host: "the Space server",
+  tabs: 0,
+  canTakeOver: true,
+  sites: [],
+});
+const stubEnsure = (ensure: () => Promise<string>) => {
+  const k = stub(ws({ state: "asleep", sessions: [] }), closedBrowser());
+  return { ...k, workspace: { ...(k.workspace as WorkspaceData), ensure } };
+};
+const NONE = "No computer to open a terminal on";
+
+test("mounted: no computer can run a terminal here: the one plain line, no row, no press target, no browser picture", async () => {
+  const off = installDom();
+  try {
+    const s = createSample();
+    const k = stubEnsure(async () => {
+      throw refusal("image_missing");
+    });
+    const root = await mount(
+      createRoot,
+      paneOver(s, { workspace: k.workspace, browser: k.browser, terminal: termData }, depsOf([])),
+    );
+    await flush();
+    await flush();
+    const t = textOf(root);
+    assert.ok(t.includes(NONE), t);
+    assert.ok(find(root, "terminal-no-computer"));
+    assert.equal(find(root, "row-session-main"), null, "no row to press");
+    assert.equal(find(root, "browser-picture"), null, "no picture that pretends to sleep");
+    assert.ok(!/Asleep|Opens when/.test(t), t);
+  } finally {
+    off();
+  }
+});
+
+test("mounted: a capable computer keeps the row, and pressing it opens the sheet", async () => {
+  const off = installDom();
+  try {
+    const s = createSample();
+    let n = 0;
+    const k = stubEnsure(async () => {
+      n += 1;
+      if (n === 1) throw new Error("not yet");
+      return "trm_main";
+    });
+    const root = await mount(
+      createRoot,
+      paneOver(s, { workspace: k.workspace, browser: k.browser, terminal: termData }, depsOf([])),
+    );
+    await flush();
+    assert.ok(!textOf(root).includes(NONE), "an ordinary failure is not 'no computer'");
+    await press(find(root, "row-session-main"));
+    await flush();
+    assert.ok(find(root, "terminal-popup"), "the sheet opened");
+    assert.ok(find(root, "browser-picture"), "the picture stays");
+  } finally {
+    off();
+  }
+});
+
+test("mounted: a press that fails for another reason says why in one line, never silence", async () => {
+  const off = installDom();
+  try {
+    const s = createSample();
+    let n = 0;
+    const k = stubEnsure(async () => {
+      n += 1;
+      throw n === 1 ? new Error("warming up") : new Error("Waiting for room on the Space server.");
+    });
+    const root = await mount(
+      createRoot,
+      paneOver(s, { workspace: k.workspace, browser: k.browser, terminal: termData }, depsOf([])),
+    );
+    await flush();
+    await press(find(root, "row-session-main"));
+    await flush();
+    assert.equal(
+      textOf(find(root, "terminal-open-line") as never).includes("Waiting for room on the Space server"),
+      true,
+    );
+    assert.equal(find(root, "terminal-popup"), null);
+  } finally {
+    off();
+  }
 });

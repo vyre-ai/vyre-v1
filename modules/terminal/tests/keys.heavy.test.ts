@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createTmuxHost } from "../impl.ts";
+import { hideRunLine } from "../projections.ts";
 import type { Exec, ExecResult } from "../impl.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
@@ -147,6 +148,42 @@ test(
 );
 
 test(
+  "hidden prompt, 50 runs: the secret typed the instant the prompt is hidden is on no screen, in no capture, no scrollback, no log pipe and no read, and the program got it every time",
+  { skip, timeout: 240_000 },
+  async () => {
+    for (let n = 0; n < 50; n++) {
+      const id = `r${n}`;
+      await open(id);
+      const got = path.join(work, `got-${n}.txt`);
+      const log = path.join(work, `log-${n}.txt`);
+      await run("tmux", [...TMUX, "pipe-pane", "-t", `vyre-${id}`, `cat >> ${log}`]);
+      const SECRET = `s3cret-${n}-correct-horse-battery`;
+      await host.keys!(id, [
+        { text: `read -s -p 'Pass: ' P; printf '%s' "$P" > ${got}; echo; echo ok-${n}` },
+        { key: "Enter" },
+      ]);
+      // the instant the capture says the prompt is hidden, type: no pause
+      let seenHidden = false;
+      const t0 = Date.now();
+      while (!seenHidden && Date.now() - t0 < 5000) seenHidden = (await host.capture!(id, { lines: 100 })).hidden;
+      assert.ok(seenHidden, `run ${n}: the prompt became hidden`);
+      await host.keys!(id, [{ text: SECRET }]);
+      const mid = await host.capture!(id, { lines: 5000 });
+      assert.ok(!mid.text.includes("s3cret"), `run ${n}: not on the screen while typed`);
+      await host.keys!(id, [{ key: "Enter" }]);
+      await until(`run ${n} finished`, async () => (await screen(id)).includes(`ok-${n}`));
+      assert.equal(fs.readFileSync(got, "utf8"), SECRET, `run ${n}: the program got it`);
+      const after = await host.capture!(id, { lines: 5000 });
+      assert.ok(!after.text.includes("s3cret"), `run ${n}: not in the capture`);
+      assert.ok(!(await host.read(id, { lines: 5000 })).text.includes("s3cret"), `run ${n}: not in a read`);
+      await sleep(60);
+      assert.ok(!fs.readFileSync(log, "utf8").includes("s3cret"), `run ${n}: not in the log pipe`);
+      await host.close(id);
+    }
+  },
+);
+
+test(
   "early typing: until the program has really turned echo off, hidden is false (the bar says nothing reassuring), and it turns true only once echo is off",
   { skip },
   async () => {
@@ -188,3 +225,25 @@ test("key to screen: the delay from sending a key to seeing it on tmux's screen,
   );
   assert.ok(med < 150, `median ${med.toFixed(0)} ms is over 150 ms`);
 });
+
+test(
+  "an agent's terminal.run shows the bare command and its output to a person, and no marker, session id or exit-code store on the screen, the scrollback or a read",
+  { skip },
+  async () => {
+    await open("r1");
+    const r = await host.run("r1", { command: "echo running tests; sh -c 'exit 4'", env: {}, timeoutMs: 8000 });
+    assert.equal(r.exitCode, 4, "the exit code is still recorded and answered");
+    const shown = [
+      hideRunLine(await screen("r1")),
+      hideRunLine((await host.capture!("r1", { lines: 5000 })).text),
+      hideRunLine((await host.read("r1", { lines: 200 })).text),
+    ];
+    for (const t of shown) {
+      assert.ok(!/vyre-trm_|@vyre_rc_|__VYRE_|__vyre_rc|printf '%s/.test(t), `internal text on a surface: ${t}`);
+      assert.ok(
+        /[$#] echo running tests; sh -c 'exit 4'$/m.test(t) && t.includes("running tests"),
+        `the command and its output: ${t}`,
+      );
+    }
+  },
+);

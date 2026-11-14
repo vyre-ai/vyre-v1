@@ -1,7 +1,7 @@
 // The full-screen terminal's screen: tmux's colours drawn, the cursor placed, a key press turned into the key tmux knows, and keys pressed together sent as one call in order.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { keyBatcher, keyToPress, parseLine, withCursor } from "./TmuxScreen.tsx";
+import { keyBatcher, keyToPress, nextShot, parseLine, withCursor } from "./TmuxScreen.tsx";
 
 test("keys: text, named keys, Ctrl and Alt chords, F keys; browser shortcuts and lone modifiers are not the terminal's", () => {
   assert.deepEqual(keyToPress({ key: "a" }), { text: "a" });
@@ -103,4 +103,13 @@ test("the cursor marks the character under it, splitting a run, and stands on a 
     withCursor([], 0).map((s) => [s.text, s.cursor === true]),
     [[" ", true]],
   );
+});
+
+test("after exit the last screen stays: a failed capture, an empty answer or an error object never replaces it", () => {
+  const good = { text: "$ ls\nREADME.md", cols: 80, rows: 24, cursor: { x: 0, y: 2 }, history: 0, hidden: false };
+  assert.equal(nextShot(null, good), good, "the first screen is drawn");
+  for (const bad of [undefined, null, {}, { error: "can't find session" }, { text: 5 }, "gone"])
+    assert.equal(nextShot(good, bad), good, `kept against ${JSON.stringify(bad)}`);
+  assert.equal(nextShot(good, { ...good }), good, "the same screen changes nothing");
+  assert.equal(nextShot(good, { ...good, text: "$ exit" })?.text, "$ exit", "a real new screen replaces it");
 });

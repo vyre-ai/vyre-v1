@@ -31,6 +31,7 @@ type In = {
       key?: string;
       paste?: string;
     }>;
+  capture?: boolean;
 };
 ```
 
@@ -39,6 +40,17 @@ type In = {
 ```ts
 type Out = {
   ok: boolean;
+  screen?: {
+    text: string;
+    cols: number;
+    rows: number;
+    cursor: {
+      x: number;
+      y: number;
+    } | null;
+    history: number;
+    hidden: boolean;
+  };
 };
 ```
 
@@ -57,6 +69,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "capture": true,
     "keys": [
       {
         "key": "example",
@@ -67,7 +80,18 @@ type Out = {
     "terminalId": "trm_a1b2c3"
   },
   "output": {
-    "ok": true
+    "ok": true,
+    "screen": {
+      "cols": 1,
+      "cursor": {
+        "x": 1,
+        "y": 1
+      },
+      "hidden": true,
+      "history": 1,
+      "rows": 1,
+      "text": "example"
+    }
   }
 }
 ```

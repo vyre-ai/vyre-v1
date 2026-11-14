@@ -32,7 +32,7 @@ test(
       // Esc closes it; the pane is there as it was
       await page.keyboard.press("Escape");
       await page.getByTestId("terminal-popup").waitFor({ state: "detached", timeout: 10_000 });
-      await page.getByTestId("pane-agent").waitFor({ timeout: 10_000 });
+      await page.getByTestId("chats-right-pane").waitFor({ timeout: 10_000 });
       // the row again shows it again, and Close closes it
       await page.locator(ROW).first().click();
       await page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });

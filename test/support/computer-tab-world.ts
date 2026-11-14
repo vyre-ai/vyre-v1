@@ -102,9 +102,10 @@ export async function world(
     await me.page.getByTestId("chats-place").waitFor({ timeout: 20_000 });
     await me.page.getByText("Desk work", { exact: true }).first().click();
     await me.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
-    if ((await me.page.getByTestId("pane-agent").count()) === 0) await me.page.getByTestId("pane-button").click();
-    await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
-    await me.page.getByTestId("tab-computer").click();
+    // the chat frame of 15 Nov: the chat's right pane has no agent header and may already be on its Computer tab
+    if ((await me.page.getByTestId("chats-right-pane").count()) === 0) await me.page.getByTestId("pane-button").click();
+    await me.page.getByTestId("chats-right-pane").waitFor({ timeout: 20_000 });
+    await me.page.getByTestId("tab-computer").or(me.page.getByTestId("tab-computer-selected")).first().click();
   };
   const close = async (): Promise<void> => {
     if (real) {

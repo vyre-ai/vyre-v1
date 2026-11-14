@@ -588,10 +588,66 @@ test("while a person has taken over the browser, only they get a picture or a li
       (e) => codeOf(e) === "permission.no_grant",
     );
     void r;
+    // a viewer whose ticket was minted before the take is cut off at the relay
+    // (the ticket was minted by the watcher before Dana took over: see the next test)
     // given back: everyone sees again
     await tool["computers.browser.give_back"]!(dana, { agentId: "agt_named" });
     assert.equal((await tool["computers.browser.preview"]!(w, { agentId: "agt_named" })).state, "live");
   } finally {
+    off();
+  }
+});
+
+test("the stream relay cuts a viewer whose ticket was minted before another person took the browser over, and lets the holder in", async () => {
+  rig();
+  try {
+    const base = as(DANA, false);
+    const sh = (person: string, manager = true) =>
+      harness({ raw: base.raw, principal: { kind: "person", id: person }, manager, respond }).ctx;
+    const watcher = sh(WATCHER, false);
+    const early = await tool["computers.browser.stream"]!(watcher, { agentId: "agt_named" });
+    const ticket = /ticket=([^&]+)/.exec(early.url)![1]!;
+    await tool["computers.browser.take_over"]!(base.ctx, { agentId: "agt_named" });
+    // the watcher's early ticket is refused now
+    assert.equal(await browserStreamOpen(watcher, { ticket, agentId: "agt_named" }), null, "cut at the door");
+    // the holder's own ticket works
+    const mine = await tool["computers.browser.stream"]!(base.ctx, { agentId: "agt_named" });
+    const t2 = /ticket=([^&]+)/.exec(mine.url)![1]!;
+    const ok = await browserStreamOpen(base.ctx, { ticket: t2, agentId: "agt_named" });
+    assert.ok(ok && ok.personId === DANA);
+  } finally {
+    off();
+  }
+});
+
+test("the browser picture fails closed: when the hold look-up itself fails, preview answers no picture and stream is refused", async () => {
+  const r = rig();
+  try {
+    const base = as(DANA, false);
+    await tool["computers.browser.take_over"]!(base.ctx, { agentId: "agt_named" });
+    const w = harness({ raw: base.raw, principal: { kind: "person", id: WATCHER }, manager: false, respond }).ctx;
+    const broken = {
+      ...w,
+      db: new Proxy(w.db, {
+        get(t, k, rcv) {
+          const v = Reflect.get(t, k, rcv);
+          return k === "all" || k === "get"
+            ? (sql: string, ...a: unknown[]) => {
+                if (/hold/i.test(String(sql))) throw new Error("the hold table is unreadable");
+                return (v as (...x: unknown[]) => unknown).call(t, sql, ...a);
+              }
+            : v;
+        },
+      }),
+    } as typeof w;
+    const p = await tool["computers.browser.preview"]!(broken, { agentId: "agt_named" });
+    assert.deepEqual([p.state, p.png], ["held", undefined], "no picture");
+    await assert.rejects(
+      () => tool["computers.browser.stream"]!(broken, { agentId: "agt_named" }),
+      (e) => codeOf(e) === "validation.precondition_failed",
+    );
+  } finally {
+    void r;
     off();
   }
 });

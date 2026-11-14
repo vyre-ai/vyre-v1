@@ -67046,6 +67046,10 @@
             "description": "The tab's name, such as build or tests; a helper's tab is named for the helper when left out",
             "type": "string"
           },
+          "own": {
+            "description": "Open the agent's own terminal in its workspace (named agent, its commands land in it), or return the one already there: nobody presses Attach. A person's call only",
+            "type": "boolean"
+          },
           "rows": {
             "maximum": 200,
             "minimum": 5,
