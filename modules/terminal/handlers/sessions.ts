@@ -38,6 +38,7 @@ import {
   insertTab,
   scopeOf,
   dropHold,
+  takeOverOn,
   holderOf,
   setHold,
   workspaceHolder,
@@ -775,15 +776,12 @@ function mayTakeFromOther(ctx: TermCtx, x: SessionRow): boolean {
   );
 }
 
-/**
- * One switch for a person taking an agent's terminal keyboard (15 Nov, rc.28): OFF by default, ON with VYRE_TERMINAL_TAKEOVER=1 (the tests and walks of the hold and the keys). Off because a re-sent key batch
- * is not idempotent yet (terminal.keys has no idempotency key), so a person's keys could run twice. Read at each call, so a test turns it on.
- */
-export const takeOverOn = (): boolean => process.env["VYRE_TERMINAL_TAKEOVER"] === "1";
+// the one switch (takeOverOn) lives in projections.ts: with it off nothing reads as held either
+export { takeOverOn };
 const TAKE_OVER_OFF = "Typing here is not available yet.";
 function needTakeOver(ctx: TermCtx): void {
-  if (!takeOverOn() && ctx.principal.kind === "person")
-    raise(ctx, "permission.no_grant", TAKE_OVER_OFF, { reason: "take_over_off" });
+  // every kind of caller is refused, not a listed few: a kind added later is refused by default. It is the first thing each of the three does, before any lookup, host call, hold or event.
+  if (!takeOverOn()) raise(ctx, "permission.no_grant", TAKE_OVER_OFF, { reason: "take_over_off" });
 }
 
 export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {

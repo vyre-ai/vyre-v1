@@ -563,31 +563,63 @@ test("a person watching sees the command an agent ran, never the line that types
   assert.equal(hideRunLine(own), own);
 });
 
-test("take-over OFF (the product's default): a person is refused terminal.take_over, terminal.keys and terminal.give_back with one plain sentence, and nothing is sent", async () => {
-  const { hn } = keyed();
+test("take-over OFF (the product's default): EVERY kind of caller is refused terminal.take_over, terminal.keys and terminal.give_back with one plain sentence, and nothing happens: no host call, no hold row, no event", async () => {
+  const { hn, sent } = keyed();
   const id = await open(hn);
   const was = process.env["VYRE_TERMINAL_TAKEOVER"];
   delete process.env["VYRE_TERMINAL_TAKEOVER"];
+  const rows = (): number => hn.rows("SELECT * FROM terminal_hold").length;
+  const events = (): number => hn.named("terminal.taken").length + hn.named("terminal.given_back").length;
+  const callers: Array<[string, Harness["ctx"]]> = [
+    ["person", hn.ctx],
+    ["agent", hn.as(AGENT)],
+    ["agent acting for a person", hn.as(AGENT, "usr_dana")],
+    ["actor", hn.as({ kind: "actor" as never, id: "act_x" })],
+    ["service", hn.as({ kind: "service" as never, id: "svc_x" })],
+    ["a kind added later", hn.as({ kind: "something_new" as never, id: "x_1" })],
+  ];
   try {
-    for (const [cap, input] of [
-      ["terminal.take_over", { terminalId: id }],
-      ["terminal.keys", { terminalId: id, keys: [{ text: "x" }] }],
-      ["terminal.give_back", { terminalId: id }],
-    ] as const) {
-      let msg = "";
-      const code = await rejects(async () => {
-        try {
-          await h[cap]!(hn.ctx, input);
-        } catch (e) {
-          msg = String((e as { error?: { message?: string } }).error?.message ?? e);
-          throw e;
-        }
-      });
-      assert.equal(code, "permission.no_grant", cap);
-      assert.equal(msg, "Typing here is not available yet.", cap);
-    }
+    const before = [sent.length, rows(), events()];
+    for (const [who, ctx] of callers)
+      for (const [cap, input] of [
+        ["terminal.take_over", { terminalId: id }],
+        ["terminal.keys", { terminalId: id, keys: [{ text: "x" }] }],
+        ["terminal.give_back", { terminalId: id }],
+      ] as const) {
+        let msg = "";
+        const code = await rejects(async () => {
+          try {
+            await h[cap]!(ctx, input);
+          } catch (e) {
+            msg = String((e as { error?: { message?: string } }).error?.message ?? e);
+            throw e;
+          }
+        });
+        assert.equal(code, "permission.no_grant", `${who}: ${cap}`);
+        assert.equal(msg, "Typing here is not available yet.", `${who}: ${cap}`);
+      }
+    assert.deepEqual([sent.length, rows(), events()], before, "no host call, no hold row, no event");
     assert.equal((await call(hn, "terminal.workspace", { agentId: "agt_intake" })).takeOver, false, "the app is told");
-    assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined, "nothing was taken");
+  } finally {
+    process.env["VYRE_TERMINAL_TAKEOVER"] = was ?? "1";
+  }
+});
+
+test("a hold stored before the switch went off blocks no one: nothing reads as held and the agent's command runs", async () => {
+  const { hn } = setup();
+  const id = await open(hn);
+  await call(hn, "terminal.take_over", { terminalId: id });
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_dana");
+  const was = process.env["VYRE_TERMINAL_TAKEOVER"];
+  delete process.env["VYRE_TERMINAL_TAKEOVER"];
+  try {
+    assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined, "not shown as held");
+    const r = await h["terminal.run"]!(hn.as(AGENT, "usr_dana"), {
+      command: "echo hi",
+      terminalId: id,
+      idempotencyKey: "off-run",
+    });
+    assert.ok(r, "the agent's command is not refused");
   } finally {
     process.env["VYRE_TERMINAL_TAKEOVER"] = was ?? "1";
   }

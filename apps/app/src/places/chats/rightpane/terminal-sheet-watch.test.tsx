@@ -41,6 +41,42 @@ test("with take-over off the sheet has no Take over control and no 'Nobody is ty
   }
 });
 
+test("before the workspace answer has loaded the sheet only watches: the default is no Take over, and it appears only when the answer says take-over is on", async () => {
+  const off = installDom();
+  try {
+    const unknown = await mount(
+      createRoot,
+      <TerminalSheet
+        data={data}
+        agentName="Desk"
+        asleep={false}
+        sessions={sessions}
+        start="trm_1"
+        onClose={() => undefined}
+      />,
+    );
+    await flush();
+    assert.equal(find(unknown, "terminal-take"), null, "no Take over before the answer");
+    assert.equal(find(unknown, "terminal-popup-bar"), null);
+    const on = await mount(
+      createRoot,
+      <TerminalSheet
+        data={data}
+        agentName="Desk"
+        asleep={false}
+        watchOnly={false}
+        sessions={sessions}
+        start="trm_1"
+        onClose={() => undefined}
+      />,
+    );
+    await flush();
+    assert.ok(find(on, "terminal-take"), "Take over when the answer says it is on");
+  } finally {
+    off();
+  }
+});
+
 test("with take-over off the ended and the reconnecting states keep their bar", () => {
   const base = {
     agentName: "Desk",

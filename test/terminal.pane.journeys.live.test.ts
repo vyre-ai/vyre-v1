@@ -90,10 +90,11 @@ for (const kind of ["personal", "team"] as const)
         await me.page.getByTestId("chats-place").waitFor({ timeout: 20_000 });
         await me.page.getByText("Desk work", { exact: true }).first().click();
         await me.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
-        if ((await me.page.getByTestId("pane-agent").count()) === 0) await me.page.getByTestId("pane-button").click();
-        await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
+        if ((await me.page.getByTestId("chats-right-pane").count()) === 0)
+          await me.page.getByTestId("pane-button").click();
+        await me.page.getByTestId("chats-right-pane").waitFor({ timeout: 20_000 });
         // one door (owner, 14 Nov): there is no Terminal tab and no Open terminal button; the agent's terminal is open by itself in the Computer tab and a row press shows it
-        await me.page.getByTestId("tab-computer").click();
+        await me.page.getByTestId("tab-computer").or(me.page.getByTestId("tab-computer-selected")).first().click();
         await me.page.locator('[data-testid^="row-session-"]').first().waitFor({ timeout: 30_000 });
         await guard.check("on the Computer tab");
         await shoot(me.page, dir, "pane-empty");

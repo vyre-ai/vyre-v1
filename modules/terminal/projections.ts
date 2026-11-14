@@ -368,7 +368,7 @@ export function sessionOf(r: Row): SessionRow {
   const th = opt(r["tab_thread"]);
   if (th !== undefined) out.threadId = th;
   const h = opt(r["hold_person"]);
-  if (h !== undefined) {
+  if (h !== undefined && takeOverOn()) {
     out.heldBy = h;
     out.heldSeen = Number(r["hold_seen"]);
   }
@@ -751,7 +751,14 @@ export const HOLD_IDLE_MS = 15 * 60_000;
  * The person at the keyboard of a terminal now, or null. A hold nobody used for HOLD_IDLE_MS is over: it is read as not there (nothing a read does writes or emits; the stale row is replaced by the next
  * take and removed by the next give back).
  */
+/**
+ * One switch for a person taking an agent's terminal keyboard (15 Nov, rc.28): OFF by default, ON with VYRE_TERMINAL_TAKEOVER=1 (the tests and walks of the hold and the keys). Off because a re-sent key batch
+ * is not idempotent yet (terminal.keys has no idempotency key). Read at each call, so a test turns it on. With it off nothing reads as held: a hold stored before it went off blocks no one.
+ */
+export const takeOverOn = (): boolean => process.env["VYRE_TERMINAL_TAKEOVER"] === "1";
+
 export function holderOf(db: Db, terminalId: string, now: number): string | null {
+  if (!takeOverOn()) return null;
   const r = (
     db.all(
       "SELECT person_id FROM terminal_hold WHERE terminal_id = ? AND seen >= ?",
@@ -764,6 +771,7 @@ export function holderOf(db: Db, terminalId: string, now: number): string | null
 
 /** Does a person hold any terminal of this agent's workspace now? Who, or null. */
 export function workspaceHolder(db: Db, agentId: string, now: number): string | null {
+  if (!takeOverOn()) return null;
   const r = (
     db.all(
       "SELECT h.person_id FROM terminal_hold h JOIN terminal_sessions t ON t.terminal_id = h.terminal_id WHERE t.agent_id = ? AND t.closed_at IS NULL AND h.seen >= ? LIMIT 1",

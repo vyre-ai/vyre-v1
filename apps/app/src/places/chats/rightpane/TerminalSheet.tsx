@@ -23,7 +23,7 @@ export function TerminalSheet({
   data,
   agentName,
   asleep,
-  watchOnly = false,
+  watchOnly = true,
   sessions,
   start,
   me,
@@ -33,7 +33,7 @@ export function TerminalSheet({
   data: TerminalData;
   agentName: string;
   asleep: boolean;
-  /** taking the keyboard is off: a watching view, no Take over and no bar of who is typing */ watchOnly?: boolean;
+  /** taking the keyboard is off: a watching view, no Take over and no bar of who is typing; true until the workspace answer says take-over is on, so a dead Take over is never drawn for a moment */ watchOnly?: boolean;
   sessions: readonly WorkspaceSession[];
   start: string;
   me?: string | undefined;
