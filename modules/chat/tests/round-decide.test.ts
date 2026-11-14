@@ -109,11 +109,17 @@ test("discuss: the thread under the ask gets one message from the person with bo
     idempotencyKey: key(),
   });
   const out = await h["chat.round.discuss"]!(hn.ctx, { threadId: t, messageId: asked, idempotencyKey: "disc-1" });
-  const seeds = hn.rows("SELECT body, kind, author, blocks FROM chat_message WHERE thread = ?", out.threadId);
+  const seeds = hn.rows("SELECT id, body, kind, author, blocks FROM chat_message WHERE thread = ?", out.threadId);
   assert.equal(seeds.length, 1);
   const seed = seeds[0]!;
   assert.equal(seed["kind"], "quiet", "a quiet line: drawn as a line, never as the person's words");
   assert.equal(seed["author"], DANA);
+  // the first agent's mention is kept (notifications and the reply pace read these rows)
+  assert.deepEqual(
+    hn.rows("SELECT person, thread FROM chat_mention WHERE message = ?", seed["id"]),
+    [{ person: INTAKE, thread: out.threadId }],
+    "the mention of the first agent is recorded",
+  );
   assert.match(String(seed["blocks"]), /"type":"discussion_seed"/);
   assert.match(String(seed["body"]), /Intake: Object storage\./);
   assert.match(String(seed["body"]), /Drafter: The server disk\./);

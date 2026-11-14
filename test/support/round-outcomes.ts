@@ -38,7 +38,6 @@ const model = scriptedModel(async function* (input: any) {
   };
 });
 
-
 export type Ending = "decided" | "stalled" | "cap";
 const WORDS: Record<Ending, RegExp> = {
   decided: /Agents decided: the server disk/,
@@ -122,5 +121,4 @@ export async function runEndings(
   } finally {
     await s.close();
   }
-
 }

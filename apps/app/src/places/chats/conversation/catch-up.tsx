@@ -163,7 +163,11 @@ export function CatchUpLine({
       })
     : "";
   const own = data.threadId;
-  const holder = useSyncExternalStore(watch, () => owner.id, () => owner.id);
+  const holder = useSyncExternalStore(
+    watch,
+    () => owner.id,
+    () => owner.id,
+  );
   useEffect(() => {
     if (line !== "") claim(own);
     return () => release(own);

@@ -1,7 +1,17 @@
 // chat.round.decide (chat gap G57): after a message asked several agents and each answered, the person goes with one answer. One quiet line is left in the chat ("Decided: going with Nova's answer"),
 // authored by the person, and no agent is woken by it. The round table card folds because a message of theirs now follows the answers. Only the person who asked decides, only for an agent that answered
 // after their message, and a replay with the same key is the same line.
-import { addAgent, agentsOf, askerOf, ensure, insertMessage, messageBy, mintId, raise, threadBy } from "../projections.ts";
+import {
+  addAgent,
+  agentsOf,
+  askerOf,
+  ensure,
+  insertMessage,
+  messageBy,
+  mintId,
+  raise,
+  threadBy,
+} from "../projections.ts";
 import { recordMentions } from "./pace.ts";
 import { deliver } from "./post.ts";
 import type { ChatCtx } from "../projections.ts";
