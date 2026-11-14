@@ -8,7 +8,9 @@ import {
   forgetExpiredWorkspaces,
   onAgentGone,
   onAgentRestored,
-  onPersonGone,
+  onPersonBack,
+  onPersonLeft,
+  forgetExpiredPeople,
   openTabForRun,
   stopRuns,
 } from "./handlers/sessions.ts";
@@ -86,6 +88,8 @@ export interface TmuxOptions {
   maxOutput?: number;
   /** Lines of scrollback read when looking for a command's end. Default 5000. */
   scrollback?: number;
+  /** The command a new session runs instead of the default shell (a workspace: a bash with a private umask). */
+  shell?: readonly string[];
   /** tmux session names are `<prefix><terminalId>`. Default "vyre-". */
   prefix?: string;
   /** How a tab's live read (read with `since`) runs tmux: an exec that neither wakes the machine nor counts as use (a workspace). Default `exec`. */
@@ -227,7 +231,7 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     ];
     // a person who uses a shared agent without owning it: their shell's home, history and config folders (asker.ts)
     const own = Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]);
-    const r = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...own, ...rest]);
+    const r = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...own, ...rest, ...(o.shell ?? [])]);
     if (r.code === 0) return;
     if (/unknown option|invalid option|usage:/i.test(r.stderr)) {
       await tmux(["new-session", ...rest]);
@@ -1214,6 +1218,23 @@ export const periodic = {
         inTrashCheck,
       ),
   },
+  /** Hourly: the folders of people who left the Space more than the Trash time ago are removed from the workspaces that are awake. */
+  "terminal.leavers_folders": {
+    everyMs: 60 * 60_000,
+    run: (ctx: TermCtx): Promise<string[]> =>
+      forgetExpiredPeople(
+        ctx,
+        workspaceManager
+          ? async (agentId, place) => {
+              const r = await (workspaceManager as WorkspaceManager).exec(agentId, removeCommand(place), {
+                quiet: true,
+                user: place.uid,
+              });
+              return r.code === 0;
+            }
+          : null,
+      ),
+  },
 };
 
 /**
@@ -1237,18 +1258,19 @@ export const hostCalls = {
 
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
-  /** A person left the Space: their folder in every shared agent's workspace is removed with the rest of their data (asker.ts). */
-  "terminal.person_gone": {
+  /** A person left the Space: unreachable at once, their processes stopped where they run; their folder is removed after the Space's Trash time (forgetExpiredPeople). */
+  "terminal.person_left": {
     on: ["member.removed"],
     run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): Promise<string[]> =>
-      onPersonGone(
-        ctx,
-        event,
-        async () => (workspaceManager ? (await workspaceManager.list()).map((w) => w.agentId) : []),
-        async (agentId, place) => {
-          await workspaceManager?.exec(agentId, removeCommand(place), { quiet: true });
-        },
-      ),
+      onPersonLeft(ctx, event, async (agentId, place) => {
+        // as them, and only where it runs: a sleeping workspace has nothing of theirs running and is not woken
+        await workspaceManager?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
+      }),
+  },
+  /** Back inside the Trash time: their folder is theirs again. */
+  "terminal.person_back": {
+    on: ["member.joined"],
+    run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): boolean => onPersonBack(ctx, event),
   },
   /** An agent went to Trash (deleted, or the Assistant of a person removed from the Space): its sessions close and its workspace's container and room go; what it kept stays (handlers/sessions.ts onAgentGone). */
   "terminal.agent_gone": {

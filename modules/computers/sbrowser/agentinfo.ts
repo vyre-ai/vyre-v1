@@ -35,7 +35,8 @@ export async function agentInfo(ctx: CompCtx, agentId: string): Promise<AgentInf
   } catch {
     info = null;
   }
-  cache.set(key, { at: ctx.now(), info });
+  // a failure is never remembered as an answer: the next call asks again (14 Nov: one timeout put every asker on the owner's profile for five minutes)
+  if (info !== null) cache.set(key, { at: ctx.now(), info });
   return info;
 }
 export const resetAgentInfo = (): void => cache.clear();

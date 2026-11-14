@@ -1508,7 +1508,7 @@ test("T1: the Trash pass removes the volumes through the fleet although the agen
   assert.equal(dk.boxes.has(NAME), false);
   assert.deepEqual(removedVols(), [], "kept while in Trash");
   await fleet.remove(AGENT); // the pass, past the retention: no container anywhere now
-  assert.deepEqual(removedVols().sort(), [`${NAME}-files`, `${NAME}-home`], "both volumes removed");
+  assert.deepEqual(removedVols().sort(), [`${NAME}-files`, `${NAME}-home`, `${NAME}-people`], "all three volumes removed");
   fleet.close();
   // a server that holds workspaces and does not answer: the removal throws, so the pass keeps the row
   const down = createWorkspaceFleet({

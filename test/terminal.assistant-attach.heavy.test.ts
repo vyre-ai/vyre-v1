@@ -94,7 +94,7 @@ async function scenario(t: import("node:test").TestContext, roles: string): Prom
     await d.stop();
     if (name !== "") {
       await docker(["rm", "-f", name], 60_000);
-      await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`], 60_000);
+      await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`, `${name}-people`], 60_000);
     }
     fs.rmSync(dir, { recursive: true, force: true });
   });

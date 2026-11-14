@@ -56,7 +56,7 @@ test(
       // behind the runner the workspace has a network of its own: it goes too, or every run leaves one behind and Docker runs out of address pools (12 Nov: 29 left on the CI box)
       if (name !== "") {
         await docker(["rm", "-f", name]);
-        await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`]);
+        await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`, `${name}-people`]);
         const nets = (
           await docker(["network", "ls", "-q", "--filter", `label=vyre.workspace=${name.slice("vyre-ws-".length)}`])
         ).out

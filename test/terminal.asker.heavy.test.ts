@@ -39,7 +39,7 @@ test(
     await ownerTab(w, "echo OWNER-TYPED-SECRET-7731");
     // Ana's turn leaves a file in her home, a token in a config folder, and a marker on her screen
     const ana = await w.turn(w.ana, "ana-1", [
-      { cmd: 'echo "$HOME|$HISTFILE|$XDG_CONFIG_HOME|$XDG_CACHE_HOME|$(pwd)"' },
+      { cmd: 'echo "$HOME|$HISTFILE|$XDG_CONFIG_HOME|$XDG_CACHE_HOME|$(pwd)|$(id -u)"' },
       {
         cmd: "echo ANA-FILE-SECRET > ~/a-private.txt && mkdir -p ~/.config/tool && echo ANA-TOKEN > ~/.config/tool/token && echo ok",
       },
@@ -53,7 +53,7 @@ test(
 
     // Ben's turn: his own environment, and nothing of Ana's or the owner's
     const ben = await w.turn(w.ben, "ben-1", [
-      { cmd: 'echo "$HOME|$HISTFILE|$XDG_CONFIG_HOME|$XDG_CACHE_HOME|$(pwd)"' },
+      { cmd: 'echo "$HOME|$HISTFILE|$XDG_CONFIG_HOME|$XDG_CACHE_HOME|$(pwd)|$(id -u)"' },
       { cmd: "cat ~/.bash_history 2>&1; echo END" },
       { cmd: "cat ~/a-private.txt 2>&1; echo END" },
       { cmd: "ls -A ~ 2>&1; echo END" },
@@ -63,12 +63,14 @@ test(
     ]);
     console.log("BEN ", JSON.stringify(ben));
     const [env, hist, file, home, token, ls, cap] = ben.map((x) => x.text);
-    const peopleOf = (id: string): string => `/home/agent/people/${id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-    const mine = peopleOf(w.ben.id);
+    const uid = Number((env ?? "").split("|").at(-1));
+    const anaUid = Number((ana[0]!.text ?? "").split("|").at(-1));
+    assert.ok(uid >= 20000 && anaUid >= 20000 && uid !== anaUid, `each person is a Unix user of their own: ${anaUid}, ${uid}`);
+    const mine = `/people/u${uid}`;
     assert.equal(
       env,
-      `${mine}|${mine}/.bash_history|${mine}/.config|${mine}/.cache|${mine}`,
-      "Ben's shell starts with his own home, history, config, cache and folder",
+      `${mine}|${mine}/.bash_history|${mine}/.config|${mine}/.cache|${mine}|${uid}`,
+      "Ben's shell starts, as his own Unix user, with his own home, history, config, cache and folder",
     );
     assert.ok(!/OWNER-TYPED-SECRET/.test(hist ?? ""), `Ben cannot read the owner's typed history: ${hist}`);
     assert.ok(!/ANA-FILE-SECRET/.test(file ?? ""), `Ben cannot read Ana's file: ${file}`);
@@ -78,7 +80,7 @@ test(
     assert.ok(!/ANA-SCREEN-SECRET/.test(cap ?? ""), `Ben cannot capture Ana's screen: ${cap}`);
 
     // the tool layer: another person's folder is refused as a working directory and as a path in the command
-    const anaDir = peopleOf(w.ana.id);
+    const anaDir = `/people/u${anaUid}`;
     const refused = await w.turn(w.ben, "ben-2", [
       { cmd: "pwd", cwd: anaDir, session: "elsewhere" },
       { cmd: `cat ${anaDir}/a-private.txt` },
@@ -109,23 +111,13 @@ test(
     const asst = await w.turn(w.owner, "maya-2", [{ cmd: 'echo "$HOME"' }], w.assistant);
     assert.equal(asst[0]!.text, "/home/agent", "an Assistant's shell");
 
-    // git over ssh uses the person's own key files only: ssh reads the agent's home (the owner's keys) unless it is told otherwise, whatever $HOME says
-    const idents = await w.turn(w.ben, "ben-ssh", [
-      { cmd: 'D="$HOME/.s""sh"; mkdir -p "$D"; echo "$GIT_SSH_COMMAND" | head -c 20; echo' },
-      { cmd: 'eval "$GIT_SSH_COMMAND -G example.test" | grep -i "^identityfile" | tr "\\n" " "; echo' },
-      {
-        cmd: 'X="$(printf s; printf sh)"; $X -G example.test | grep -i "^identityfile" | head -2 | tr "\\n" " "; echo',
-      },
+    // the person has a passwd entry with their own home, so `whoami` and ssh (which reads the home the system lists) are theirs too
+    const who = await w.turn(w.ben, "ben-who", [
+      { cmd: "whoami" },
+      { cmd: 'getent passwd "$(id -u)"' },
     ]);
-    console.log("SSH ", JSON.stringify(idents));
-    assert.ok(
-      !idents[1]!.text.includes("/home/agent/.ssh/"),
-      `Ben's git over ssh names the owner's key folder: ${idents[1]!.text}`,
-    );
-    assert.ok(
-      idents[1]!.text.includes(`${mine}/.ssh/id_ed25519`),
-      `his own key file is the one named: ${idents[1]!.text}`,
-    );
+    assert.equal(who[0]!.text, `u${uid}`);
+    assert.match(who[1]!.text, new RegExp(`:${mine}:`), who[1]!.text);
 
     // after the workspace slept: Ben's session is made again in his own place, on his own tmux server
     const mgr = boundWorkspaces();
@@ -194,24 +186,13 @@ test(
     check(await reads("fresh"), "fresh");
     // the owner's are in the agent's home itself, nobody's were moved or copied under people/
     const ws = `vyre-ws-${w.agent}`;
-    const where = (
-      await docker([
-        "exec",
-        ws,
-        "sh",
-        "-c",
-        "ls /home/agent/.git-credentials; find /home/agent/people -name .git-credentials | wc -l",
-      ])
-    ).out
-      .split("\n")
-      .map((x) => x.trim())
-      .filter(Boolean);
-    assert.equal(
-      where[0],
-      "/home/agent/.git-credentials",
-      "the owner's credential is in the agent's home where it always was",
-    );
-    assert.equal(where[1], "1", "one other person has one, in their own folder");
+    const own = (await docker(["exec", ws, "ls", "/home/agent/.git-credentials"])).out.trim();
+    assert.equal(own.split("\n")[0], "/home/agent/.git-credentials", "the owner's credential is in the agent's home where it always was");
+    // Ana's is in her own home (the first person on this agent is u20000): hers to read, and the agent's own user cannot even list it
+    const hers = await docker(["exec", "--user", "20000:20000", ws, "ls", "/people/u20000/.git-credentials"]);
+    assert.match(hers.out, /\/people\/u20000\/\.git-credentials/);
+    const others = await docker(["exec", ws, "ls", "/people/u20000"]);
+    assert.match(others.out, /Permission denied/, "the agent's own user is refused by the kernel");
 
     const mgr = boundWorkspaces();
     assert.ok(mgr);

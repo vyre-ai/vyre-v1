@@ -1,5 +1,6 @@
 // @reads /modules/terminal/migrations/0001_init.sql
 // @reads /modules/terminal/migrations/0003_gone.sql
+// @reads /modules/terminal/migrations/0004_people.sql
 // Durable rows of the terminal module (sessions, commands, rules, attach tickets), the port to the machine a session lives on, the rule matcher and the per-session secret scrubbers.
 // Every statement names a terminal_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -228,6 +229,13 @@ const GONE_SCHEMA = readFileSync(new URL("./migrations/0003_gone.sql", import.me
   .split(";")
   .map((x) => x.trim())
   .filter((x) => x.length > 0);
+const PEOPLE_SCHEMA = readFileSync(new URL("./migrations/0004_people.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -249,7 +257,41 @@ export function ensure(db: Db): void {
   } catch {
     for (const stmt of GONE_SCHEMA) db.run(stmt);
   }
+  // and before the Unix users of the people who use a shared agent
+  try {
+    db.all("SELECT person FROM terminal_people WHERE person = ?", "probe");
+  } catch {
+    for (const stmt of PEOPLE_SCHEMA) db.run(stmt);
+  }
   ready.add(db);
+}
+
+/** The first and last Unix user id given to a person (the workspace image has a user for each: images/agent-workspace/Dockerfile). */
+export const PEOPLE_UID_FIRST = 20000;
+export const PEOPLE_UID_LAST = 20999;
+
+/** The Unix user id of a person in this Space, made on first use and the same afterwards. Null when all are taken (the Space has more people on shared agents than the image has users). */
+export function uidOf(db: Db, person: string, now: number): number | null {
+  ensure(db);
+  const have = db.all("SELECT uid FROM terminal_people WHERE person = ?", person)[0] as { uid?: unknown } | undefined;
+  if (have && typeof have.uid === "number") return have.uid;
+  const used = new Set<number>([
+    ...(db.all("SELECT uid FROM terminal_people") as Array<{ uid: number }>).map((r) => r.uid),
+    ...(db.all("SELECT uid FROM terminal_uid_burned") as Array<{ uid: number }>).map((r) => r.uid),
+  ]);
+  for (let uid = PEOPLE_UID_FIRST; uid <= PEOPLE_UID_LAST; uid++) {
+    if (used.has(uid)) continue;
+    db.run("INSERT INTO terminal_people (person, uid, created_at) VALUES (?, ?, ?)", person, uid, now);
+    return uid;
+  }
+  return null;
+}
+
+/** A uid whose folder someone else made first: never used again; the person gets the next. */
+export function burnUid(db: Db, person: string, uid: number): void {
+  ensure(db);
+  db.run("DELETE FROM terminal_people WHERE person = ? AND uid = ?", person, uid);
+  db.run("INSERT INTO terminal_uid_burned (uid) VALUES (?) ON CONFLICT (uid) DO NOTHING", uid);
 }
 
 export const mintId = (prefix: string, now: number = Date.now()): string =>

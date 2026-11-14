@@ -13,6 +13,8 @@ import type { Caller } from "./people.ts";
 export interface Step {
   /** The command (terminal_run). */
   cmd: string;
+  /** Type this line into a terminal of the agent (terminal_open, terminal_input, terminal_read) instead of running `cmd`: the other way a model drives a shell. */
+  typed?: string;
   cwd?: string;
   session?: string;
 }
@@ -66,6 +68,21 @@ export async function world(): Promise<World> {
     const got: Got[] = [];
     let n = 0;
     for (const s of steps) {
+      if (s.typed !== undefined) {
+        yield* run("tool_search", { query: "terminal open input read" });
+        const opened = (yield* run("terminal_open", { name: `typed-${m[1]}-${n}`, idempotencyKey: `${m[1]}-${++n}-o` })) as {
+          content: { data?: { terminal?: { terminalId?: string } }; terminal?: { terminalId?: string } };
+        };
+        const terminalId = (opened.content?.data ?? opened.content)?.terminal?.terminalId as string;
+        yield* run("terminal_input", { terminalId, data: `${s.typed}\n`, idempotencyKey: `${m[1]}-${n}-i` });
+        await new Promise((r) => setTimeout(r, 1500));
+        const read = (yield* run("terminal_read", { terminalId, lines: 60 })) as {
+          ok: boolean;
+          content: { data?: { text?: string }; text?: string };
+        };
+        got.push({ ok: read.ok, text: String((read.content?.data ?? read.content)?.text ?? "").trim() });
+        continue;
+      }
       const r = (yield* run("terminal_run", {
         command: s.cmd,
         ...(s.cwd === undefined ? {} : { cwd: s.cwd }),
@@ -197,7 +214,7 @@ export async function world(): Promise<World> {
       else process.env["VYRE_WORKSPACE_IMAGE"] = saved;
       for (const n of (await workspaceNames()).filter((x) => !before.has(x))) {
         await docker(["rm", "-f", n]);
-        await docker(["volume", "rm", "-f", `${n}-home`, `${n}-files`]);
+        await docker(["volume", "rm", "-f", `${n}-home`, `${n}-files`, `${n}-people`]);
       }
     },
   };

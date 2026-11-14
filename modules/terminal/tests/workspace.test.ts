@@ -75,6 +75,7 @@ test("the container profile: non-root, no capability, no new privileges, no Dock
   assert.deepEqual(good.HostConfig.Binds, [
     `${NAME}-home:/home/agent:rw`,
     `${NAME}-files:/home/agent/Vyre:rw`,
+    `${NAME}-people:/people:rw`,
     "vyre-wsproj-prj_a:/home/agent/projects/prj_a:rw",
   ]);
   assert.equal(good.HostConfig.Memory, 1024 * 1024 * 1024);
@@ -481,7 +482,7 @@ test("a session whose tmux died with the sleep is made again, empty, where it wa
   assert.ok(r.dk.box(NAME).tmux.sessions.has("vyre-trm_1"), "the session is there again");
   assert.deepEqual(
     again!.slice(again!.indexOf("-x")),
-    ["-x", "90", "-y", "25", "-c", "/home/agent/projects/p"],
+    ["-x", "90", "-y", "25", "-c", "/home/agent/projects/p", "sh", "-c", "umask 077; exec bash"],
     "at the size and folder it had",
   );
 });

@@ -26,6 +26,12 @@ RUN groupadd --gid 10001 agent \
  && chown -R 10001:10001 /home/agent \
  && chmod 0700 /home/agent
 
+# People who use a shared agent without owning it work as Unix users of their own (modules/terminal/asker.ts): uids 20000 to 20999, named u<uid>, each with a home /people/u<uid> that the person makes
+# themselves (0700, so nobody else, the agent's own user 10001 included, can enter). /people is a volume of its own, sticky and world-writable like /tmp, so a person can make their folder and cannot remove
+# another's; no capability is needed anywhere. The agent's home /home/agent stays 0700 owned by 10001, which is what keeps these users out of it (and out of ~/Vyre and ~/projects under it).
+RUN mkdir -p -m 1777 /people \
+ && for i in $(seq 20000 20999); do echo "u$i:x:$i:$i:person $i:/people/u$i:/bin/bash" >> /etc/passwd; echo "u$i:x:$i:" >> /etc/group; done
+
 # One tmux config for every session: a big scrollback (the terminal tab reads it back), no status bar (the tab has its own chrome), no escape delay.
 COPY tmux.conf /etc/tmux.conf
 

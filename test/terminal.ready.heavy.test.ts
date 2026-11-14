@@ -106,7 +106,7 @@ test(
       else process.env["VYRE_WORKSPACE_IMAGE"] = saved;
       for (const n of (await names()).filter((x) => !before.has(x))) {
         await docker(["rm", "-f", n]);
-        await docker(["volume", "rm", "-f", `${n}-home`, `${n}-files`]);
+        await docker(["volume", "rm", "-f", `${n}-home`, `${n}-files`, `${n}-people`]);
       }
     });
     plainAgent = (await api("agents.create", { name: "Dex", role: "You help.", idempotencyKey: "ready-dex" })).agent

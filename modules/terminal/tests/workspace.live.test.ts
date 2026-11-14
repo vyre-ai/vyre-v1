@@ -236,7 +236,7 @@ test(
     t.after(async () => {
       manager.close();
       await docker(["rm", "-f", BOX], 60_000);
-      await docker(["volume", "rm", "-f", `${BOX}-home`, `${BOX}-files`], 60_000);
+      await docker(["volume", "rm", "-f", `${BOX}-home`, `${BOX}-files`, `${BOX}-people`], 60_000);
       if (PRESET === undefined) await docker(["rmi", "-f", IMAGE], 60_000);
     });
     const SECRET = `sk-live-w6-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;

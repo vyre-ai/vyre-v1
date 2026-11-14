@@ -40,6 +40,8 @@ import {
   SESSION_SELECT,
   insertTab,
   scopeOf,
+  uidOf,
+  burnUid,
 } from "../projections.ts";
 import { classify, QuotedHereDoc, referHandles, UnsurePlace } from "../fill.ts";
 import type { HandleRef } from "../fill.ts";
@@ -215,8 +217,19 @@ export async function askerPlaceFor(
   person: string,
   facts?: Facts,
 ): Promise<AskerPlace | undefined> {
-  if (ctx.call === undefined) return undefined;
-  return hasOwnPlace((await lookup(ctx, agentId, facts)).agent, agentId, person) ? askerPlace(person) : undefined;
+  if (ctx.call === undefined || !person.startsWith("usr_")) return undefined;
+  const got = await lookup(ctx, agentId, facts);
+  // FAIL CLOSED: who the asker is, and whether they own the agent, must be known. A failure to read the agent opens nothing, never the owner's home (and is never remembered as an answer)
+  if (got.failed !== undefined)
+    raise(ctx, "provider.unavailable", "Could not open the computer. Try again.", { reason: "agent_unreadable" });
+  if (!hasOwnPlace(got.agent, agentId, person)) return undefined;
+  // a person who left the Space: their folder is unreachable at once, and removed when the Trash time is over (onPersonGone)
+  if (ctx.db.all("SELECT person FROM terminal_person_gone WHERE person = ?", person).length > 0)
+    raise(ctx, "permission.role_lacks_permission", "This person is no longer in the Space.", { reason: "person_gone" });
+  const uid = uidOf(ctx.db, person, ctx.now());
+  if (uid === null)
+    raise(ctx, "provider.unavailable", "This computer has no room for more people. Ask an admin.", { reason: "no_uid" });
+  return askerPlace(person, uid);
 }
 
 /**
@@ -247,7 +260,7 @@ async function keepOut(
           reason: "files_folder",
         });
     }
-    if (otherFolders(text, place.person).length > 0 || inOtherFolder(text, place.person))
+    if (otherFolders(text, place.uid).length > 0 || inOtherFolder(text, place.uid))
       raise(ctx, "permission.role_lacks_permission", "That is another person's folder. Work in your own.", {
         reason: "other_persons_folder",
       });
@@ -344,20 +357,30 @@ const unexpected = (ctx: TermCtx, what: string, e: unknown): never => {
 /** The machine's host for a session Vyre knows, told where the session lives first: after a restart, a sleep or a lost tmux the host finds it again and remakes it on use. */
 async function hostFor(ctx: TermCtx, x: SessionRow): Promise<TerminalHost> {
   const h = hostOf(ctx);
-  await adoptOn(ctx, h, x).catch((e: unknown) => {
+  // who the session is for is decided here and never swallowed: a session of a person is never remade in the agent's own home because the answer failed
+  const place =
+    x.host === "agent_computer" && x.agentId !== undefined ? await askerPlaceFor(ctx, x.agentId, x.owner) : undefined;
+  await adoptOn(ctx, h, x, undefined, place).catch((e: unknown) => {
     ctx.log.warn("terminal: could not find the session again", {
       reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
     });
   });
   return h;
 }
-const adoptOn = async (ctx: TermCtx, h: TerminalHost, x: SessionRow, facts?: Facts): Promise<void> => {
+const adoptOn = async (
+  ctx: TermCtx,
+  h: TerminalHost,
+  x: SessionRow,
+  facts?: Facts,
+  known?: AskerPlace,
+): Promise<void> => {
   if (!h.adopt) return;
-  // a session of a person who uses the shared agent without owning it is made again in their own folder and on their own tmux server
+  // a session of a person who uses the shared agent without owning it is made again in their own folder, as their own Unix user
   const place =
-    x.host === "agent_computer" && x.agentId !== undefined
-      ? await askerPlaceFor(ctx, x.agentId, x.owner, facts).catch(() => undefined)
-      : undefined;
+    known ??
+    (x.host === "agent_computer" && x.agentId !== undefined
+      ? await askerPlaceFor(ctx, x.agentId, x.owner, facts)
+      : undefined);
   const target: Target = {
     host: x.host,
     ...(x.host === "agent_computer" && x.agentId !== undefined ? { agentId: x.agentId } : {}),
@@ -486,24 +509,39 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
     ...(a.deviceId === undefined ? {} : { deviceId: a.deviceId }),
   };
   // a person who uses a shared agent without owning it works in a folder of their own (asker.ts)
-  const place =
+  let place =
     a.host === "agent_computer" && a.agentId !== undefined ? await askerPlaceFor(ctx, a.agentId, owner) : undefined;
   if (place !== undefined) await keepOut(ctx, place, a.agentId as string, [a.cwd]);
-  let started: { cwd: string; title?: string };
-  try {
-    started = await hostOf(ctx).open({
-      terminalId,
-      target,
-      name,
-      ...(a.cwd === undefined ? {} : { cwd: a.cwd }),
-      cols,
-      rows,
-      folders: rulesOf(ctx.db, owner).folders,
-      ...(place === undefined ? {} : { place }),
-    });
-  } catch (e) {
-    return mapHostError(e);
+  let started: { cwd: string; title?: string } | undefined;
+  for (let tries = 0; started === undefined; tries++) {
+    try {
+      started = await hostOf(ctx).open({
+        terminalId,
+        target,
+        name,
+        ...(a.cwd === undefined ? {} : { cwd: a.cwd }),
+        cols,
+        rows,
+        folders: rulesOf(ctx.db, owner).folders,
+        ...(place === undefined ? {} : { place }),
+      });
+    } catch (e) {
+      // someone made this uid's folder first (a squatter): that uid is never used, the person gets the next
+      if (place !== undefined && tries < 3 && (e as { code?: unknown } | null)?.code === "squatted") {
+        burnUid(ctx.db, place.person, place.uid);
+        place = await askerPlaceFor(ctx, a.agentId as string, owner);
+        continue;
+      }
+      return mapHostError(e);
+    }
   }
+  // where this person's folder was made, so a leaver's cleanup touches only those workspaces
+  if (place !== undefined && a.agentId !== undefined)
+    ctx.db.run(
+      "INSERT INTO terminal_person_places (agent_id, person) VALUES (?, ?) ON CONFLICT (agent_id, person) DO NOTHING",
+      a.agentId,
+      place.person,
+    );
   const row: SessionRow = {
     terminalId,
     name,
@@ -785,9 +823,15 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
   if (a.data === "") raise(ctx, "validation.bad_input", "There is nothing to send.");
+  // an agent's keystrokes get the same friendly words as its commands (a person typing in their own tab is free); the wall is the Unix user of the session, not these words
+  if (ctx.principal.kind === "agent" && x.host === "agent_computer" && x.agentId !== undefined) {
+    const place = await askerPlaceFor(ctx, x.agentId, actorOf(ctx));
+    if (place !== undefined) await keepOut(ctx, place, x.agentId, [a.data]);
+  }
   try {
     await (await hostFor(ctx, x)).input(a.terminalId, a.data);
   } catch (e) {
+    if (e && typeof e === "object" && "error" in e) throw e; // already a shaped error (the computer could not be opened: try again)
     return unexpected(ctx, "take that input", e);
   }
   touch(ctx.db, a.terminalId, ctx.now());
@@ -1478,18 +1522,23 @@ export async function isDangerCall(_ctx: unknown, input: unknown): Promise<boole
 export type InTrash = (agentId: string) => boolean | undefined;
 
 /**
- * A person was removed from the Space or left it (member.removed): their folder in every shared agent's workspace goes with their other data, and their open terminals close. `removeFrom` takes the folder out of
- * one workspace. The agent's own home and the other people's folders are not touched. Their sessions in the agent's own Assistant go with the Assistant (onAgentGone).
+ * A person was removed from the Space or left it (member.removed). Their data waits for the Space's Trash time like every other thing a person leaves (lead, 14 Nov): at once they are unreachable (no call
+ * opens a session or a folder for them: askerPlaceFor), their terminals close and what they have running is stopped where it runs; their folder is removed when the Trash time is over (forgetExpiredPeople),
+ * and not at all if they are back first (onPersonBack). Nothing is woken for this.
  */
-export async function onPersonGone(
+export async function onPersonLeft(
   ctx: TermCtx,
   event: { payload: { personId?: unknown } },
-  agents: () => Promise<string[]>,
-  removeFrom: (agentId: string, place: AskerPlace) => Promise<void>,
+  stopFor: (agentId: string, place: AskerPlace) => Promise<void>,
 ): Promise<string[]> {
   ensure(ctx.db);
   const person = event.payload.personId;
   if (typeof person !== "string" || !person.startsWith("usr_")) return [];
+  ctx.db.run(
+    "INSERT INTO terminal_person_gone (person, gone_at) VALUES (?, ?) ON CONFLICT (person) DO NOTHING",
+    person,
+    ctx.now(),
+  );
   const open = (
     ctx.db.all("SELECT terminal_id FROM terminal_sessions WHERE owner = ? AND closed_at IS NULL", person) as Row[]
   ).map((r) => String(r["terminal_id"]));
@@ -1498,13 +1547,64 @@ export async function onPersonGone(
     ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
     ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
   }
+  const uid = uidOf(ctx.db, person, ctx.now());
+  const stopped: string[] = [];
+  if (uid !== null) {
+    for (const r of ctx.db.all("SELECT agent_id FROM terminal_person_places WHERE person = ?", person) as Row[]) {
+      const agentId = String(r["agent_id"]);
+      try {
+        await stopFor(agentId, askerPlace(person, uid));
+        stopped.push(agentId);
+      } catch {
+        /* asleep or gone: nothing of theirs is running */
+      }
+    }
+  }
+  return stopped;
+}
+
+/** member.joined with an id that left a moment ago: they are back inside the Trash time, so their folder is theirs again, intact. */
+export function onPersonBack(ctx: TermCtx, event: { payload: { personId?: unknown } }): boolean {
+  ensure(ctx.db);
+  const person = event.payload.personId;
+  if (typeof person !== "string") return false;
+  return ctx.db.run("DELETE FROM terminal_person_gone WHERE person = ?", person).changes > 0;
+}
+
+/**
+ * The periodic pass: a leaver's folder is removed from each workspace where it was made, once the Space's Trash time is over. A workspace that is asleep is not woken for it: it is tried again at the next pass
+ * (the folder goes when the workspace is next awake). `removeFrom` answers true when the folder is gone from that workspace.
+ */
+export async function forgetExpiredPeople(
+  ctx: TermCtx,
+  removeFrom: ((agentId: string, place: AskerPlace) => Promise<boolean>) | null,
+): Promise<string[]> {
+  ensure(ctx.db);
+  if (!removeFrom || (ctx.db.all("SELECT 1 FROM terminal_person_gone LIMIT 1") as Row[]).length === 0) return [];
+  const keep = await trashKeepMs(ctx);
+  if (keep === null) return [];
+  const due = (
+    ctx.db.all("SELECT person FROM terminal_person_gone WHERE gone_at <= ?", ctx.now() - keep) as Row[]
+  ).map((r) => String(r["person"]));
   const done: string[] = [];
-  for (const agentId of await agents()) {
-    try {
-      await removeFrom(agentId, askerPlace(person));
-      done.push(agentId);
-    } catch {
-      /* an agent in Trash, or a workspace that will not start: its folder goes with its volumes */
+  for (const person of due) {
+    const uid = uidOf(ctx.db, person, ctx.now());
+    if (uid === null) continue;
+    let left = 0;
+    for (const r of ctx.db.all("SELECT agent_id FROM terminal_person_places WHERE person = ?", person) as Row[]) {
+      const agentId = String(r["agent_id"]);
+      let ok = false;
+      try {
+        ok = await removeFrom(agentId, askerPlace(person, uid));
+      } catch {
+        ok = false;
+      }
+      if (ok) ctx.db.run("DELETE FROM terminal_person_places WHERE agent_id = ? AND person = ?", agentId, person);
+      else left++;
+    }
+    if (left === 0) {
+      ctx.db.run("DELETE FROM terminal_person_gone WHERE person = ?", person);
+      done.push(person);
     }
   }
   return done;

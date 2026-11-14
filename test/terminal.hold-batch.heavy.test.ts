@@ -187,7 +187,7 @@ async function setUp(t: { after: (f: () => Promise<void>) => void }, tag: string
     await d.stop();
     if (box.name !== "") {
       await docker(["rm", "-f", box.name], 60_000);
-      await docker(["volume", "rm", "-f", `${box.name}-home`, `${box.name}-files`], 60_000);
+      await docker(["volume", "rm", "-f", `${box.name}-home`, `${box.name}-files`, `${box.name}-people`], 60_000);
     }
     fs.rmSync(dir, { recursive: true, force: true });
   });
