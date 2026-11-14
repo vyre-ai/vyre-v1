@@ -181,10 +181,9 @@ test("RECORDS TODAY (control): the hourly stale-hold job and a held send in an o
     console.log(
       `OBSERVED control: holds before the stale job ${JSON.stringify(before)}, after ${JSON.stringify(after)}`,
     );
-    // RECORDED 13 Nov 2026, on a booted daemon: running the stale-hold job (it runs at start and every hour) drops a send that was held a moment ago, with the note "Not sent, the chat it was asked in was
-    // closed". The chat is open; the job reads it as the host's system principal, and a private chat answers not_found to that principal (see the comment on callAs in engine/handlers/bridge.ts), which
-    // modules/gate/handlers/stale.ts closedWhy reads as "the chat is gone". Reported to the lead as a defect of its own; it is not P1's. This assertion goes when that is fixed.
-    assert.deepEqual([before, after], [["held"], ["denied"]]);
+    // RECORDED 13 Nov 2026: the stale-hold job dropped a send that was held a moment ago ("the chat was closed"), because it read a private chat as the host's system principal and got not_found.
+    // Fixed in rc.27 (wip/f-stalehold): the chat is open, so the send stays held. This is the control of P1 step 0: the job must leave a held send in an open chat alone.
+    assert.deepEqual([before, after], [["held"], ["held"]]);
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });

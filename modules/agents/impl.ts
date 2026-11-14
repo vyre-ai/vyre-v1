@@ -26,12 +26,21 @@ import type {
   TurnEvent,
 } from "./handlers/crud.ts";
 import { agentOf, nextRun, noteRoutineOutcome, routineBy } from "./projections.ts";
-import { reconcileWakes } from "./routine-wake.ts";
+import { afterResume, reconcileWakes } from "./routine-wake.ts";
 import { noteRun, resumeSelfPaused } from "./routine-guard.ts";
 import { tellPaused, withdrawTold } from "./routine-told.ts";
 import type { AgentsCtx } from "./projections.ts";
 import { setPluginsHost } from "./handlers/plugins.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
+
+/** Routines that came back by themselves: the wake follows the row, the wake's time becomes the row's, and the item of the pause is withdrawn. */
+async function resumed(ctx: AgentsCtx, ids: string[]): Promise<string[]> {
+  for (const id of ids) {
+    await afterResume(ctx, id);
+    await withdrawTold(ctx, id);
+  }
+  return ids;
+}
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
@@ -131,13 +140,13 @@ export const consumers = {
   /** The cause may be gone: a sign-in or key was saved again. Routines that paused themselves start again (a routine that fails again pauses again after three runs). */
   "agents.routine_resume": {
     on: ["vault.item_updated", "vault.item_created"],
-    run: (ctx: AgentsCtx): string[] => resumeSelfPaused(ctx.db, ctx.now(), nextRun),
+    run: async (ctx: AgentsCtx): Promise<string[]> => resumed(ctx, resumeSelfPaused(ctx.db, ctx.now(), nextRun)),
   },
   /** The Vault opened on this computer and the turn it kept waiting ran: the agent works again, so its routines that paused themselves start again (a sign-in saved later does the same through the consumer above). */
   "agents.routine_resume_on_turn": {
     on: ["turn.completed"],
-    run: (ctx: AgentsCtx, event: { payload: { agentId?: string } }): string[] =>
-      event.payload.agentId ? resumeSelfPaused(ctx.db, ctx.now(), nextRun, event.payload.agentId) : [],
+    run: async (ctx: AgentsCtx, event: { payload: { agentId?: string } }): Promise<string[]> =>
+      event.payload.agentId ? resumed(ctx, resumeSelfPaused(ctx.db, ctx.now(), nextRun, event.payload.agentId)) : [],
   },
   /** A person's account exists (claim or join): they get their private assistant, with or without an AI account. */
   "agents.ensure_assistant": {

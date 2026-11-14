@@ -298,3 +298,36 @@ test("an rc.27 tick, a reconcile and a second tick: the time is started and told
   assert.deepEqual(await pending, { started: true, runId: "run_slow" });
   assert.equal(hn.named("agent.routine_run_started").length, 0, "the one that moved the time first tells it");
 });
+
+test("a wake that could not be cancelled keeps its mapping, so the reconcile asks again; a routine wake the scheduler lists whose routine is gone is cancelled", async () => {
+  const hn = harness();
+  const agentId = await agentOf(hn);
+  const r = (await save(hn, agentId)).routine;
+  const run = () => periodic["agents.routines_wake_sync"].run(hn.as(svc));
+  // the cancel fails once while the routine is deleted
+  const was = hn.world.handlers["scheduler.cancel"]!;
+  let fail = true;
+  hn.world.answer("scheduler.cancel", (i: any, o: any) => {
+    if (fail) throw Object.assign(new Error("down"), { error: { code: "internal.unavailable" } });
+    return was(i, o);
+  });
+  await h["agents.routine.delete"]!(hn.ctx, { agentId, routineId: r.routineId });
+  assert.equal(
+    hn.db.all("SELECT 1 FROM agents_routine_wake").length,
+    1,
+    "the mapping stays: the wake can still be found",
+  );
+  assert.equal(wakes(hn)[0]!.cancelled, false);
+  fail = false;
+  await run();
+  assert.equal(wakes(hn)[0]!.cancelled, true, "the reconcile cancelled it");
+  assert.equal(hn.db.all("SELECT 1 FROM agents_routine_wake").length, 0);
+  // a wake nobody maps (the mapping was never written) whose routine is gone
+  const lost = (await save(hn, agentId)).routine;
+  hn.db.run("DELETE FROM agents_routine_wake WHERE routineId = ?", lost.routineId);
+  hn.db.run("DELETE FROM agents_routine WHERE id = ?", lost.routineId);
+  const live = wakes(hn).find((w) => w.owner.id === lost.routineId)!;
+  assert.equal(live.cancelled, false);
+  await run();
+  assert.equal(live.cancelled, true, "found by the scheduler's list and cancelled");
+});

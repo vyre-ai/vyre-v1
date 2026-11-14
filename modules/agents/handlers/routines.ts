@@ -6,7 +6,7 @@
 //   guide.get / builtin_skills.list                 Vyre's own text, rewritten by app updates
 import { readFileSync } from "node:fs";
 import { forgetSelfPause, isSelfPaused, noteRun } from "../routine-guard.ts";
-import { tellMissed, tellPaused } from "../routine-told.ts";
+import { tellMissed, tellPaused, withdrawTold } from "../routine-told.ts";
 import {
   BUILTIN_SKILLS,
   GUIDE_MD,
@@ -50,7 +50,7 @@ import {
   walkFolder,
 } from "../projections.ts";
 import type { AgentRec, AgentsCtx, FolderOut, RoutineRec, SuggestionRec } from "../projections.ts";
-import { applyWake, dropOrphanWake, dropWake } from "../routine-wake.ts";
+import { applyWake, dropOrphanWake, dropWake, mirrorFromWake, wakeNextAt } from "../routine-wake.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 
 type Row = Record<string, unknown>;
@@ -122,7 +122,7 @@ export async function routineSave(
   const now = ctx.now();
   const enabled = input.enabled !== false;
   const cron = watcher ? "" : (input.cron as string).trim();
-  const next = enabled && !watcher ? nextRun(cron, now) : null; // a watcher has no next time: it runs when a message arrives
+  let next = enabled && !watcher ? nextRun(cron, now) : null; // a watcher has no next time: it runs when a message arrives
   let id: string;
   // the wake is built only from the routine ROW the asker has just been checked to own, never from what was sent: someone else's routine, or a routine of another agent, is answered like one that does not exist
   if (input.routineId !== undefined) {
@@ -133,7 +133,10 @@ export async function routineSave(
   const wakeOn = enabled && !watcher && next !== null;
   const routineId = input.routineId ?? mintId("rtn", now);
   // starting follows the wake (the wake first); stopping leads it (the row first, below)
-  if (wakeOn) await applyWake(ctx, { routineId, agentId: agent.id, ownerId: owner, cron, active: true });
+  if (wakeOn) {
+    await applyWake(ctx, { routineId, agentId: agent.id, ownerId: owner, cron, active: true });
+    next = (await wakeNextAt(ctx, routineId)) ?? next; // one source of time: the wake's own answer, never a time of the row's own
+  }
   if (input.routineId !== undefined) {
     // Someone else's routine is answered like one that does not exist.
     const old = routineBy(ctx.db, input.routineId);
@@ -152,6 +155,7 @@ export async function routineSave(
     );
     id = old.id;
     forgetSelfPause(ctx.db, old.id); // a person's own save puts it back in their hands
+    if (enabled) await withdrawTold(ctx, old.id); // and the item of its pause is no longer true
   } else {
     id = routineId;
     ctx.db.run(
@@ -259,6 +263,7 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
   const agent = agentBy(ctx.db, r.agentId);
   if (!agent || agent.paused) {
     markRoutineRan(ctx.db, r.id, now, false); // a paused agent's routine waits for its next time, as it always did
+    await mirrorFromWake(ctx, r.id);
     return { started: false, why: "The agent is paused or gone." };
   }
   const key = `routine:${r.id}:${r.nextRunAt}`;
@@ -289,6 +294,7 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
   // another path (an rc.27 build's tick) may have started this very time while runs.start was answering: the Run is the same by its key, so it is marked and told once, by whoever moved the time first
   if (String(routineBy(ctx.db, r.id)?.nextRunAt) !== input.dueKey) return { started: true, runId: started.runId };
   markRoutineRan(ctx.db, r.id, now);
+  await mirrorFromWake(ctx, r.id); // the wake went on when it made this fire: its time is the routine's next time
   noteRoutineRun(ctx.db, r.id, started.runId, now);
   ctx.emit("agent.routine_run_started", agent.id, {
     agentId: agent.id,

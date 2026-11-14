@@ -103,21 +103,20 @@ test("three failed Runs for one cause: one Needs-you item for the owner and one 
   assert.doesNotMatch(t.chat[0].body, /provider\.|rate_limited|429|acc_123/);
 });
 
-test("a Run that goes well after the pause withdraws the item", async () => {
+test("the item of a pause is withdrawn when the routine comes back, and a Run that goes well afterwards withdraws nothing twice", async () => {
   const hn = harness();
   const t = world(hn);
   const r = await routineOf(hn);
   for (let i = 0; i < 3; i++) await failedRun(hn, r.routineId, "provider.auth_failed", "sign in again");
   assert.equal(t.tasks.length, 1);
-  (consumers["agents.routine_resume"]!.run as (c: Harness["ctx"], e: unknown) => unknown)(hn.as(svc), {});
+  await (consumers["agents.routine_resume"]!.run as (c: Harness["ctx"], e: unknown) => unknown)(hn.as(svc), {});
   assert.equal(isSelfPaused(hn.db, r.routineId), false);
   hn.advance(MIN);
   const ran = await fire(hn, r.routineId);
   assert.equal(ran.started, true);
-  assert.equal(t.withdrawn.length, 0, "a Run that has only started changes nothing");
-  await outcome(hn, "run.succeeded", ran.runId);
-  assert.equal(t.withdrawn.length, 1);
+  assert.equal(t.withdrawn.length, 1, "withdrawn when it came back");
   assert.equal(t.withdrawn[0].taskId, "tsk_1");
+  await outcome(hn, "run.succeeded", ran.runId);
   await outcome(hn, "run.succeeded", ran.runId);
   assert.equal(t.withdrawn.length, 1, "once");
 });
@@ -179,4 +178,59 @@ test("a fire on time says nothing in the chat; one missed time says it in the si
   await fire(hn, r.routineId);
   assert.equal(t.chat.length, 1);
   assert.match(t.chat[0].body, /1 run of "Digest" came due while Vyre's server was off\. It ran once, now\./);
+});
+
+test("a second pause after the owner's resume leaves ONE open item: the first is withdrawn on resume, by the consumer and by a person's own save", async () => {
+  const hn = harness();
+  const t = world(hn);
+  const r = await routineOf(hn);
+  for (let i = 0; i < 3; i++) await failedRun(hn, r.routineId, "provider.auth_failed", "sign in again");
+  assert.equal(t.tasks.length, 1);
+  await (consumers["agents.routine_resume"]!.run as (c: Harness["ctx"], e: unknown) => Promise<string[]>)(
+    hn.as(svc),
+    {},
+  );
+  assert.deepEqual(
+    t.withdrawn.map((w) => w.taskId),
+    ["tsk_1"],
+    "the item went with the resume",
+  );
+  for (let i = 0; i < 3; i++) await failedRun(hn, r.routineId, "provider.auth_failed", "sign in again");
+  assert.equal(t.tasks.length, 2, "the second pause is its own item");
+  // the owner turns it back on by hand: the second item goes too
+  await h["agents.routine.save"]!(hn.ctx, {
+    agentId: r.agentId,
+    routineId: r.routineId,
+    title: "Digest",
+    cron: "* * * * *",
+    prompt: "Say hi.",
+    channelId: CHAN,
+    idempotencyKey: `r${++n}`,
+  });
+  assert.deepEqual(
+    t.withdrawn.map((w) => w.taskId),
+    ["tsk_1", "tsk_2"],
+  );
+});
+
+test("the pause item and its chat line are keyed by routine and pause time: the same pause asked twice is one item and one line", async () => {
+  const hn = harness();
+  const t = world(hn);
+  const r = await routineOf(hn);
+  const { tellPaused } = await import("../routine-told.ts");
+  const p = { routineId: r.routineId, ownerId: r.ownerId, title: "Digest", channelId: CHAN, code: "turn_timeout" };
+  await tellPaused(hn.ctx, { ...p, at: 1234 });
+  await tellPaused(hn.ctx, { ...p, at: 1234 });
+  await tellPaused(hn.ctx, { ...p, at: 5678 });
+  const keys = t.tasks.map((x) => x.idempotencyKey);
+  assert.deepEqual(keys, [
+    `routine-paused:${r.routineId}:1234`,
+    `routine-paused:${r.routineId}:1234`,
+    `routine-paused:${r.routineId}:5678`,
+  ]);
+  assert.deepEqual(
+    t.chat.map((x) => x.idempotencyKey),
+    keys,
+    "the chat line carries the same key, so a repeat is the same line",
+  );
 });

@@ -3,9 +3,14 @@
 // Run (one Run, one event), that a reconcile between the two tries changes nothing, and that the wake and the routine row keep the same next time.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers as agentHandlers, periodic as agentPeriodic } from "../modules/agents/impl.ts";
+import {
+  consumers as agentConsumers,
+  handlers as agentHandlers,
+  periodic as agentPeriodic,
+} from "../modules/agents/impl.ts";
 import { NOW, harness as agentsHarness } from "../modules/agents/fixtures/harness.ts";
 import { routineBy } from "../modules/agents/projections.ts";
+import { noteRun } from "../modules/agents/routine-guard.ts";
 import { harness as runsHarness } from "../modules/runs/fixtures/db.ts";
 import { engine } from "../modules/runs/fixtures/seed.ts";
 import { harness as schedHarness } from "../modules/scheduler-api/fixtures/db.ts";
@@ -15,12 +20,12 @@ import { fireWakes, sweepFires, tickWakes } from "../modules/scheduler-api/impl.
 const svc = { kind: "service" as const, id: "svc_host" };
 const h = agentHandlers as unknown as Record<string, (ctx: any, input: any) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-function world(loseFirstAnswer: boolean) {
+function world(loseFirstAnswer: boolean, skewMs = 0) {
   const runs = runsHarness();
   const hn = agentsHarness();
   let lose = loseFirstAnswer;
   const sched = schedHarness({
-    now: NOW,
+    now: NOW + skewMs,
     calls: {
       "agents.routine.fire": (i) =>
         h["agents.routine.fire"]!(hn.as(svc), i).then((r) => {
@@ -47,7 +52,7 @@ function world(loseFirstAnswer: boolean) {
   hn.world.answer("runs.start", (input) => runs.call("runs.start", input, engine));
   const advance = (ms: number): void => {
     hn.advance(ms);
-    sched.setNow(hn.clock.t);
+    sched.setNow(hn.clock.t + skewMs);
   };
   const pass = async () => {
     await sched.consumer(host, async (ctx) => tickWakes(ctx));
@@ -130,3 +135,61 @@ test("a wake with no routine and no mapping (a crash between making the wake and
   assert.deepEqual(await w.pass(), { started: 0, skipped: 0, failed: 0 }, "nothing fires again");
   assert.equal(w.runCount(), 0);
 });
+
+/** An every-minute routine, 20 minutes, a pass every minute at the same second: how many Runs started and how many fires were skipped. */
+// the two modules read the clock a moment apart (a pass, a call, a restart in between): the test makes that moment long, so a time the row works out for itself cannot match the wake's
+const SKEW = 25_000;
+async function twentyMinutes(
+  w: ReturnType<typeof world>,
+  offsetSeconds: number,
+): Promise<{ runs: number; skipped: number }> {
+  for (let i = 0; i < 20; i++) {
+    w.advance(MINUTE);
+    await w.pass();
+    if (i % 2 === 1) await w.reconcile(); // the 30-second net runs meanwhile
+  }
+  void offsetSeconds;
+  const skipped = (
+    w.sched.db.all("SELECT COUNT(*) AS n FROM scheduler_api_fires WHERE state = 'skipped'")[0] as { n: number }
+  ).n;
+  return { runs: w.runCount(), skipped };
+}
+async function everyMinute(w: ReturnType<typeof world>) {
+  const agentId = (await h["agents.create"]!(w.hn.ctx, { name: "Pinger", role: "Says hi.", idempotencyKey: "c1" }))
+    .agent.agentId;
+  return (
+    await h["agents.routine.save"]!(w.hn.ctx, {
+      agentId,
+      title: "Every minute",
+      cron: "* * * * *",
+      prompt: "Say hi.",
+      idempotencyKey: "r1",
+    })
+  ).routine;
+}
+
+for (const second of [0, 10, 20, 30, 40, 50, 59]) {
+  test(`resumed at second ${second} of a minute, an every-minute routine starts 20 Runs in 20 minutes and no fire is skipped`, async () => {
+    const w = world(false, SKEW);
+    const r = await everyMinute(w);
+    for (let i = 0; i < 3; i++) noteRun(w.hn.db, r.routineId, false, "provider.rate_limited", "limit", w.hn.clock.t); // it pauses itself
+    await w.reconcile(); // the wake is paused with the row
+    w.advance(5 * MINUTE + (second - (new Date(w.hn.clock.t).getUTCSeconds() % 60)) * 1000);
+    assert.equal(Math.floor(w.hn.clock.t / 1000) % 60, second);
+    await agentConsumers["agents.routine_resume"]!.run(w.hn.as(svc), { name: "vault.item_updated", payload: {} });
+    const before = w.runCount();
+    const out = await twentyMinutes(w, second);
+    assert.deepEqual([out.runs - before, out.skipped], [20, 0]);
+  });
+}
+
+for (const second of [0, 5, 30, 59]) {
+  test(`saved at second ${second} of a minute, an every-minute routine starts 20 Runs in 20 minutes and no fire is skipped`, async () => {
+    const w = world(false, SKEW);
+    w.advance(second * 1000 - (Math.floor(w.hn.clock.t / 1000) % 60) * 1000);
+    assert.equal(Math.floor(w.hn.clock.t / 1000) % 60, second);
+    await everyMinute(w);
+    const out = await twentyMinutes(w, second);
+    assert.deepEqual([out.runs, out.skipped], [20, 0]);
+  });
+}

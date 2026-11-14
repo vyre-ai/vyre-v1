@@ -54,15 +54,18 @@ async function readWake(ctx: AgentsCtx, scheduleId: string): Promise<WakeRow | u
 }
 
 /** Brings the routine's wake to what the routine wants. Idempotent: running it twice changes nothing the second time. */
-export async function applyWake(ctx: AgentsCtx, w: WantWake): Promise<void> {
-  if (!ctx.call) return;
+export async function applyWake(ctx: AgentsCtx, w: WantWake): Promise<boolean> {
+  if (!ctx.call) return false;
   ensure(ctx.db);
   const mapped = wakeIdOf(ctx.db, w.routineId);
   const have = mapped ? await readWake(ctx, mapped) : undefined;
   if (mapped && !have) unmapWake(ctx, w.routineId); // its wake is gone: made again below if wanted
   if (!w.active) {
-    if (have?.active) await ctx.call("scheduler.pause", { scheduleId: have.id, reason: "The routine is off" });
-    return;
+    if (have?.active) {
+      await ctx.call("scheduler.pause", { scheduleId: have.id, reason: "The routine is off" });
+      return true;
+    }
+    return false;
   }
   if (!have) {
     const made = (await ctx.call("scheduler.schedule", {
@@ -79,17 +82,63 @@ export async function applyWake(ctx: AgentsCtx, w: WantWake): Promise<void> {
       ...(w.nextAt != null ? { nextAt: w.nextAt } : {}),
     })) as { scheduleId: string };
     mapWake(ctx, w.routineId, made.scheduleId);
-    return;
+    return true;
   }
-  if (have.when.cron !== w.cron || have.when.tz !== "UTC")
+  let changed = false;
+  if (have.when.cron !== w.cron || have.when.tz !== "UTC") {
     await ctx.call("scheduler.reschedule", { scheduleId: have.id, when: { cron: w.cron, tz: "UTC" } });
-  if (!have.active) await ctx.call("scheduler.resume", { scheduleId: have.id });
+    changed = true;
+  }
+  if (!have.active) {
+    await ctx.call("scheduler.resume", { scheduleId: have.id });
+    changed = true;
+  }
+  return changed;
+}
+
+/**
+ * ONE source of time: a routine's next time is the wake's, never the row's own. After the wake is made, rescheduled or resumed, and after a fire, the wake's answer is written into the row.
+ * A time the wake does not give (it is paused) leaves the row as it is. Returns the time written.
+ */
+export async function mirrorFromWake(ctx: AgentsCtx, routineId: string): Promise<number | undefined> {
+  const id = wakeIdOf(ctx.db, routineId);
+  const wake = id ? await readWake(ctx, id) : undefined;
+  if (!wake?.active || wake.nextAt === undefined) return undefined;
+  ctx.db.run("UPDATE agents_routine SET nextRunAt = ?, updatedAt = ? WHERE id = ?", wake.nextAt, ctx.now(), routineId);
+  return wake.nextAt;
+}
+
+/** The wake's own next time, for a row about to be written (a save). */
+export async function wakeNextAt(ctx: AgentsCtx, routineId: string): Promise<number | undefined> {
+  const id = wakeIdOf(ctx.db, routineId);
+  const wake = id ? await readWake(ctx, id) : undefined;
+  return wake?.active ? wake.nextAt : undefined;
+}
+
+/** A routine of its own accord came back (a sign-in was saved): its wake is brought to the row, the wake's time becomes the row's, and the item of its pause is withdrawn. */
+export async function afterResume(ctx: AgentsCtx, routineId: string): Promise<void> {
+  const want = wantOf(ctx, routineId);
+  if (want) {
+    await applyWake(ctx, want);
+    await mirrorFromWake(ctx, routineId);
+  }
 }
 
 /** The routine is deleted: its wake goes. */
 export async function dropWake(ctx: AgentsCtx, routineId: string): Promise<void> {
   const mapped = wakeIdOf(ctx.db, routineId);
-  if (mapped && ctx.call) await ctx.call("scheduler.cancel", { scheduleId: mapped }).catch(() => undefined);
+  if (mapped && ctx.call) {
+    try {
+      await ctx.call("scheduler.cancel", { scheduleId: mapped });
+    } catch (e) {
+      // the mapping stays, so the reconcile asks again: a wake nobody can find is a wake that fires for ever
+      ctx.log.warn("a routine's wake could not be cancelled; the reconcile tries again", {
+        routineId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return;
+    }
+  }
   unmapWake(ctx, routineId);
 }
 
@@ -125,7 +174,8 @@ export async function reconcileWakes(ctx: AgentsCtx): Promise<string[]> {
     const before = wakeIdOf(ctx.db, want.routineId);
     const had = before ? await readWake(ctx, before) : undefined;
     // a routine whose wake is missing is made at its stored next time (the backfill); the host may say it
-    await applyWake(ctx, want);
+    const changed = await applyWake(ctx, want);
+    if (changed && want.active) await mirrorFromWake(ctx, want.routineId);
     const now = wakeIdOf(ctx.db, want.routineId);
     const wake = now ? await readWake(ctx, now) : undefined;
     if (!before || !had || had.active !== want.active || had.when.cron !== want.cron) touched.push(want.routineId);
@@ -155,6 +205,21 @@ export async function reconcileWakes(ctx: AgentsCtx): Promise<string[]> {
       await dropWake(ctx, id);
       touched.push(id);
     }
+  }
+  // a routine wake the scheduler lists whose routine is gone and which has no mapping to find it by: cancelled
+  let cursor: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const got = (await ctx.call("scheduler.list", { ...(cursor ? { cursor } : {}), limit: 200 })) as {
+      schedules?: { id: string; owner: { kind: string; id: string }; active?: boolean }[];
+      next?: string;
+    };
+    for (const sch of got.schedules ?? []) {
+      if (sch.owner.kind !== "agent_routine" || sch.active === false || routineBy(ctx.db, sch.owner.id)) continue;
+      await dropOrphanWake(ctx, sch.owner.id);
+      touched.push(sch.owner.id);
+    }
+    cursor = got.next;
+    if (!cursor) break;
   }
   return touched;
 }

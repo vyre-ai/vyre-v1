@@ -163,6 +163,14 @@ export function fakeFiles(clock: { t: number }) {
         schedule: { id: w.id, when: w.when, active: w.active, ...(w.nextAt !== undefined ? { nextAt: w.nextAt } : {}) },
       };
     },
+    "scheduler.list": (i) => {
+      const own = i["owner"] as { kind: string; id: string } | undefined;
+      return {
+        schedules: [...wakes.values()]
+          .filter((w) => !w.cancelled && (!own || w.owner.id === own.id))
+          .map((w) => ({ id: w.id, owner: { kind: "agent_routine", id: w.owner.id }, active: w.active })),
+      };
+    },
     "scheduler.reschedule": (i) => {
       const w = wakes.get(String(i["scheduleId"]))!;
       w.when = i["when"] as { cron: string; tz: string };
