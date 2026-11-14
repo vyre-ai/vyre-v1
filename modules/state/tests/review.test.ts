@@ -19,7 +19,8 @@ function seeded() {
   h.fx.post(c, STRANGER);
   return { h, c };
 }
-const who = (h: Harness) => h.fx.db.all("SELECT person, type, id, unread, hidden, read_upto FROM state_person ORDER BY person, id");
+const who = (h: Harness) =>
+  h.fx.db.all("SELECT person, type, id, unread, hidden, read_upto FROM state_person ORDER BY person, id");
 
 // ---- 1 private events, and what they carry
 
@@ -50,7 +51,10 @@ test("read_scope makes one event for the whole badge, not one for each thing", a
   const h = harness();
   for (let i = 0; i < 5; i++) h.fx.post(h.fx.make("conversation", `cnv_${i}`, [MAYA]), STRANGER);
   await run("state.read_scope", h.person(MAYA), { scope: "box:main" });
-  assert.deepEqual(h.emitted.map((e) => e.name), ["state.scope_read"]);
+  assert.deepEqual(
+    h.emitted.map((e) => e.name),
+    ["state.scope_read"],
+  );
   assert.equal(h.emitted[0]!.payload["marked"], 5);
   assert.deepEqual(h.emitOpts[0], { vis: "private" });
 });
@@ -77,7 +81,11 @@ test("a write for a person is free only by their own hand; every other door need
       ["state.layout.set", { key: "chats.notes_tab", value: "a" }],
     ] as const) {
       const code = await failure(() => run(method, h.as(principal, { ...o, triage: false }), input));
-      assert.equal(code === "none", free, `${name}: ${method} is ${free ? "free" : "refused"} with the switch off (${code})`);
+      assert.equal(
+        code === "none",
+        free,
+        `${name}: ${method} is ${free ? "free" : "refused"} with the switch off (${code})`,
+      );
       if (!free) {
         const on = await failure(() => run(method, h.as(principal, { ...o, triage: true }), input));
         assert.notEqual(on, "permission.no_grant", `${name}: ${method} passes the gate with the switch on`);
@@ -208,18 +216,28 @@ test("a pin has a place of its own: top, end, right below another, and a move wr
   await pin(2, { after: null }); // c a b
   await pin(3, { after: ids[0] }); // c a d b
   const order = async () =>
-    (await run<{ rows: { thing: { id: string } }[] }>("state.list", h.person(MAYA), { flag: "pinned" })).rows.map((r) => r.thing.id.slice(4));
+    (await run<{ rows: { thing: { id: string } }[] }>("state.list", h.person(MAYA), { flag: "pinned" })).rows.map((r) =>
+      r.thing.id.slice(4),
+    );
   assert.deepEqual(await order(), ["c", "a", "d", "b"]);
-  const before = JSON.stringify(h.fx.db.all("SELECT id, pin_rank FROM state_person WHERE person = ? AND id <> 'cnv_c' ORDER BY id", MAYA));
+  const before = JSON.stringify(
+    h.fx.db.all("SELECT id, pin_rank FROM state_person WHERE person = ? AND id <> 'cnv_c' ORDER BY id", MAYA),
+  );
   await pin(2, { after: ids[1] }); // a d b c: one row moves
   assert.deepEqual(await order(), ["a", "d", "b", "c"]);
-  const after = JSON.stringify(h.fx.db.all("SELECT id, pin_rank FROM state_person WHERE person = ? AND id <> 'cnv_c' ORDER BY id", MAYA));
+  const after = JSON.stringify(
+    h.fx.db.all("SELECT id, pin_rank FROM state_person WHERE person = ? AND id <> 'cnv_c' ORDER BY id", MAYA),
+  );
   assert.equal(after, before, "no other pin was written");
   assert.equal(h.emitted.at(-1)!.payload["changed"] instanceof Array, true);
   assert.deepEqual(h.emitted.at(-1)!.payload["changed"], ["pin"]);
   await pin(0, null);
   assert.deepEqual(await order(), ["d", "b", "c"]);
-  assert.equal(await failure(() => pin(1, { after: ids[0] })), "validation.bad_input", "right below something that is not pinned");
+  assert.equal(
+    await failure(() => pin(1, { after: ids[0] })),
+    "validation.bad_input",
+    "right below something that is not pinned",
+  );
 });
 
 test("pins keep their order for each person and each kind of thing, and many moves between two pins stay in order", async () => {
@@ -231,7 +249,9 @@ test("pins keep their order for each person and each kind of thing, and many mov
   await run("state.set", h.person(MAYA), { thing: b, pin: {} });
   await run("state.set", h.person(MAYA), { thing: x, pin: {} });
   await run("state.set", h.person(JONAS), { thing: b, pin: {} });
-  const rank = (p: string, t: { id: string }) => (h.fx.db.all("SELECT pin_rank FROM state_person WHERE person = ? AND id = ?", p, t.id)[0] as { pin_rank: number }).pin_rank;
+  const rank = (p: string, t: { id: string }) =>
+    (h.fx.db.all("SELECT pin_rank FROM state_person WHERE person = ? AND id = ?", p, t.id)[0] as { pin_rank: number })
+      .pin_rank;
   assert.equal(rank(MAYA, x), 1, "a chat starts its own order");
   assert.equal(rank(JONAS, b), 1, "and so does Jonas");
   // slide c between a and b sixty times: the neighbours get too close to split, the seam renumbers and the order holds
@@ -241,7 +261,13 @@ test("pins keep their order for each person and each kind of thing, and many mov
     await run("state.set", h.person(MAYA), { thing: t, pin: { after: a } });
     mids.push(t);
   }
-  const rows = (await run<{ rows: { thing: { id: string } }[] }>("state.list", h.person(MAYA), { flag: "pinned", type: "conversation", limit: 100 })).rows.map((r) => r.thing.id);
+  const rows = (
+    await run<{ rows: { thing: { id: string } }[] }>("state.list", h.person(MAYA), {
+      flag: "pinned",
+      type: "conversation",
+      limit: 100,
+    })
+  ).rows.map((r) => r.thing.id);
   assert.deepEqual(rows, ["cnv_a", ...Array.from({ length: 60 }, (_, i) => `cnv_m${59 - i}`), "cnv_b"]);
 });
 
@@ -254,7 +280,9 @@ test("list rows carry the thing's whole state, and the `any` list returns everyt
   await run("state.set", h.person(MAYA), { thing: d, mute: { until: MUTE_FOREVER } });
   const e = h.fx.make("conversation", "cnv_three", [MAYA]);
   h.fx.post(e, STRANGER); // nothing set on it
-  const any = await run<{ rows: { thing: { id: string }; state: { starred: number | null; pin: number | null; muted: number | null } }[] }>("state.list", h.person(MAYA), { flag: "any" });
+  const any = await run<{
+    rows: { thing: { id: string }; state: { starred: number | null; pin: number | null; muted: number | null } }[];
+  }>("state.list", h.person(MAYA), { flag: "any" });
   assert.deepEqual(any.rows.map((r) => r.thing.id).sort(), ["cnv_one", "cnv_two"]);
   const one = any.rows.find((r) => r.thing.id === "cnv_one")!;
   assert.equal(one.state.starred !== null && one.state.pin !== null, true);
@@ -264,12 +292,17 @@ test("list rows carry the thing's whole state, and the `any` list returns everyt
 
 test("the layout store keeps small values for registered keys, apart for each person, and refuses the rest", async () => {
   const h = harness();
-  const set = (who: string, key: string, value: unknown) => run<{ value: { value: unknown; version: number } }>("state.layout.set", h.person(who), { key, value });
+  const set = (who: string, key: string, value: unknown) =>
+    run<{ value: { value: unknown; version: number } }>("state.layout.set", h.person(who), { key, value });
   assert.deepEqual((await set(MAYA, "chats.sidebar.folds", { mine: true })).value.value, { mine: true });
   assert.equal((await set(MAYA, "chats.sidebar.folds", { mine: false })).value.version, 2);
   await set(JONAS, "chats.sidebar.folds", { theirs: true });
   const got = await run<{ values: { key: string; value: unknown }[] }>("state.layout.get", h.person(MAYA), {});
-  assert.deepEqual(got.values.map((v) => [v.key, v.value]), [["chats.sidebar.folds", { mine: false }]], "only mine");
+  assert.deepEqual(
+    got.values.map((v) => [v.key, v.value]),
+    [["chats.sidebar.folds", { mine: false }]],
+    "only mine",
+  );
   assert.equal(await failure(() => set(MAYA, "not.a.key", 1)), "validation.bad_input", "an unregistered key");
   assert.equal(await failure(() => set(MAYA, "chats.notes_tab", "x".repeat(500))), "validation.bad_input", "too big");
   const ev = h.emitted.filter((e) => e.name === "state.layout_changed").at(-1)!;

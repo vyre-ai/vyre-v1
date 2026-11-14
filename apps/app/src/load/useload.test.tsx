@@ -277,7 +277,12 @@ test("an answer whose last re-read failed stays ready, with the failure beside i
     };
     const seen: Load<number>[] = [];
     const Probe = probe(() => useLoad<number>({ screen: ["a", "b"] }), seen);
-    await mount(createRoot, <ScreensProvider screens={hooksOf(() => f.q as LiveQuery<unknown>)}><Probe /></ScreensProvider>);
+    await mount(
+      createRoot,
+      <ScreensProvider screens={hooksOf(() => f.q as LiveQuery<unknown>)}>
+        <Probe />
+      </ScreensProvider>,
+    );
     assert.deepEqual(last(seen), { state: "ready", data: 1 });
     stale = { message: "down" };
     await act(async () => listeners.forEach((l) => l()));

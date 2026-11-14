@@ -226,7 +226,11 @@ export interface StateStore {
   canSee(person: string, thing: Thing): boolean;
   /** `trusted`: the caller has already decided the person may open the thing (the module's own guard ran), so the kind is not asked again */
   read(person: string, thing: Thing, req: ReadRequestIn, o?: { trusted?: boolean }): ChangeResult;
-  readScope(person: string, scope: string, before?: number): { marked: number; things: Thing[]; count: { things: number; entries: number } };
+  readScope(
+    person: string,
+    scope: string,
+    before?: number,
+  ): { marked: number; things: Thing[]; count: { things: number; entries: number } };
   set(person: string, thing: Thing, change: SetIn, o?: { trusted?: boolean }): ChangeResult;
   list(person: string, q: ListQuery): { rows: ListRow[]; next?: string };
   counts(person: string, scopes?: readonly string[]): { scope: string; things: number; entries: number }[];
@@ -556,9 +560,12 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
 
   /** the badge a person's row of a thing counts in, as the row itself says */
   const scopeOf = (person: string, t: Thing): [string, string] => {
-    const r = db.all("SELECT scope_type, scope_id FROM state_person WHERE person = ? AND type = ? AND id = ?", person, t.type, t.id)[0] as
-      | Row
-      | undefined;
+    const r = db.all(
+      "SELECT scope_type, scope_id FROM state_person WHERE person = ? AND type = ? AND id = ?",
+      person,
+      t.type,
+      t.id,
+    )[0] as Row | undefined;
     return [String(r?.["scope_type"] ?? ""), String(r?.["scope_id"] ?? "")];
   };
 
@@ -889,12 +896,17 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
     at: num(r["updated_at"]),
   });
   const layoutGet: StateStore["layoutGet"] = (person, keys) => {
-    const rows = db.all("SELECT key, value, version, updated_at FROM state_layout WHERE person = ? ORDER BY key", person) as Row[];
+    const rows = db.all(
+      "SELECT key, value, version, updated_at FROM state_layout WHERE person = ? ORDER BY key",
+      person,
+    ) as Row[];
     return rows.map(layoutRow).filter((v) => !keys || keys.includes(v.key));
   };
   const layoutSet: StateStore["layoutSet"] = (person, key, value) =>
     tx(() => {
-      const have = db.all("SELECT version FROM state_layout WHERE person = ? AND key = ?", person, key)[0] as Row | undefined;
+      const have = db.all("SELECT version FROM state_layout WHERE person = ? AND key = ?", person, key)[0] as
+        | Row
+        | undefined;
       if (value === null) {
         if (!(key in LAYOUT_KEYS)) throw new StateRefusal("bad_input", `${key} is not a layout key.`);
         db.run("DELETE FROM state_layout WHERE person = ? AND key = ?", person, key);
@@ -902,7 +914,11 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
       }
       const why = layoutRefusal(key, value);
       if (why) throw new StateRefusal("bad_input", why);
-      if (!have && num((db.all("SELECT COUNT(*) AS n FROM state_layout WHERE person = ?", person)[0] as Row)["n"]) >= LAYOUT_MAX_KEYS)
+      if (
+        !have &&
+        num((db.all("SELECT COUNT(*) AS n FROM state_layout WHERE person = ?", person)[0] as Row)["n"]) >=
+          LAYOUT_MAX_KEYS
+      )
         throw new StateRefusal("bad_input", "That is more layout settings than one person can keep.");
       const version = num(have?.["version"]) + 1;
       db.run(
