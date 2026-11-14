@@ -499,3 +499,66 @@ test("F52: an agent that turns private leaves the index and is not asked about a
   await indexApply(h.ctx, { entity: "agent", id: "agt_t", op: "upsert", seq: 4 });
   assert.equal(h.rows("SELECT id FROM search_docs WHERE id = 'agt_t'").length, 1, "back in the index");
 });
+
+test("F52: in the gap before a private agent's document is dropped, a search as another member already returns nothing (the query-time visibility filter)", async () => {
+  const h = harness({
+    respond: {
+      "agents.get": (i) => ({
+        agent: { id: i["agentId"], name: "Quillfeather", role: "private helper", kind: "agent" },
+      }),
+    },
+  });
+  await indexApply(h.ctx, { entity: "agent", id: "agt_gap", op: "upsert", seq: 1 });
+  const omar = asPerson(h, { kind: "person", id: "usr_omar" });
+  assert.deepEqual(
+    (await query(omar.ctx, { q: "quillfeather" })).hits.map((x) => x.id),
+    ["agt_gap"],
+    "before it turned private, others find it",
+  );
+  // access has learnt it is private (the kernel now denies the resource to everyone else), the indexer has not consumed the event yet
+  omar.deny("agent:agt_gap");
+  assert.equal(
+    h.rows("SELECT id FROM search_docs WHERE id = 'agt_gap'").length,
+    1,
+    "the document is still in the index in the gap",
+  );
+  assert.deepEqual((await query(omar.ctx, { q: "quillfeather" })).hits, [], "and another member is shown nothing");
+});
+
+test("F52 (pinned): a skipped row's memory expires, so a thing that was only late is indexed later; a delete clears the memory", async () => {
+  let readable = false;
+  const h = harness({
+    respond: {
+      "threads.get": () => (readable ? { thread: { kind: "channel", title: "Harbor", createdAt: 1 } } : notFound()),
+      "chat.messages.list": () => ({ messages: [{ body: "harbor words", enc: 0 }] }),
+    },
+  });
+  const { PRIVATE_FOR_MS } = await import("../handlers/index.ts");
+  await indexApply(h.ctx, { entity: "thread", id: "thr_late", op: "upsert", seq: 1 });
+  readable = true;
+  await indexApply(h.ctx, { entity: "thread", id: "thr_late", op: "upsert", seq: 2 });
+  assert.equal(
+    h.rows("SELECT id FROM search_docs WHERE id = 'thr_late'").length,
+    0,
+    "inside the window it is not asked again",
+  );
+  h.clock.t += PRIVATE_FOR_MS + 1;
+  await indexApply(h.ctx, { entity: "thread", id: "thr_late", op: "upsert", seq: 3 });
+  assert.equal(
+    h.rows("SELECT id FROM search_docs WHERE id = 'thr_late'").length,
+    1,
+    "after the window it is read again and indexed",
+  );
+
+  // a delete clears the memory
+  readable = false;
+  await indexApply(h.ctx, { entity: "thread", id: "thr_del", op: "upsert", seq: 1 });
+  await indexApply(h.ctx, { entity: "thread", id: "thr_del", op: "delete", seq: 2 });
+  readable = true;
+  await indexApply(h.ctx, { entity: "thread", id: "thr_del", op: "upsert", seq: 3 });
+  assert.equal(
+    h.rows("SELECT id FROM search_docs WHERE id = 'thr_del'").length,
+    1,
+    "after a delete it is read again at once",
+  );
+});
