@@ -83,7 +83,16 @@ test("chats sidebar pictures and click-through", async (t) => {
       const agentId = ((await call("agents.list", {})).agents as { agentId: string }[])[0]!.agentId;
       const chats: string[] = [];
       // a realistic mix: most chats are quiet; only one has a message (this Space has no AI account, so it ends in a failed run and carries the red mark), the rest were never written in
-      const titles = ["Pricing page copy", "Renewal checklist", "Launch crew", "Invoice export bug", "Weekly numbers", "Onboarding script", "Vendor comparison", "Q4 plan outline"];
+      const titles = [
+        "Pricing page copy",
+        "Renewal checklist",
+        "Launch crew",
+        "Invoice export bug",
+        "Weekly numbers",
+        "Onboarding script",
+        "Vendor comparison",
+        "Q4 plan outline",
+      ];
       for (const [i, title] of titles.entries()) {
         const c = await call("chat.start", { kind: "chat", agentIds: [agentId], title });
         chats.push(c.thread.threadId as string);
@@ -91,11 +100,28 @@ test("chats sidebar pictures and click-through", async (t) => {
       }
       // a teammate writes to the owner: an unread direct message, and an @mention in a channel
       const roles = (await call("access.roles.list", {})).roles as { id: string; name: string }[];
-      const accept = async (roleName: string, username: string, display: string): Promise<{ personId: string; token: string }> => {
+      const accept = async (
+        roleName: string,
+        username: string,
+        display: string,
+      ): Promise<{ personId: string; token: string }> => {
         const inv = await call("members.invites.create", { role: roles.find((r) => r.name === roleName)!.id });
         const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
         const jr = await ctx.request.post(`${web.origin}/v1/members/accept`, {
-          data: { code, username, displayName: display, password: PASSWORD, deviceName: `${display}'s laptop`, deviceClass: "desktop", keys: { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] } },
+          data: {
+            code,
+            username,
+            displayName: display,
+            password: PASSWORD,
+            deviceName: `${display}'s laptop`,
+            deviceClass: "desktop",
+            keys: {
+              personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk",
+              publicKey: "cHVibGljLWtleQ==",
+              privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk",
+              spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }],
+            },
+          },
         });
         assert.equal(jr.status(), 200, await jr.text());
         return (await jr.json()).data as { personId: string; token: string };
@@ -103,16 +129,29 @@ test("chats sidebar pictures and click-through", async (t) => {
       const maya = await accept("Member", "maya", "Maya Lin");
       const ownerId = (await call("identity.whoami", {})).principal.id as string;
       const callAs = async (bearer: string, cap: string, data: Record<string, unknown>): Promise<Any> => {
-        const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${bearer}` }, data: { idempotencyKey: `sb-m-${cap}-${++n}`, ...data } });
+        const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, {
+          headers: { authorization: `Bearer ${bearer}` },
+          data: { idempotencyKey: `sb-m-${cap}-${++n}`, ...data },
+        });
         return (await r.json()).data;
       };
       const dm = await callAs(maya.token, "chat.start", { kind: "chat", agentIds: [], personId: ownerId });
-      if (dm?.thread?.threadId) await callAs(maya.token, "chat.post", { threadId: dm.thread.threadId, body: "Can you look at the pricing page?" });
+      if (dm?.thread?.threadId)
+        await callAs(maya.token, "chat.post", {
+          threadId: dm.thread.threadId,
+          body: "Can you look at the pricing page?",
+        });
       for (const nm of ["launch", "ops", "design", "support", "finance", "hiring", "release"])
         await call("channels.create", { name: nm, visibility: "public" });
-      const gen = ((await call("channels.list", {})).channels as { name: string; channelId: string; mainThreadId: string }[]).find((c) => c.name === "launch")!;
+      const gen = (
+        (await call("channels.list", {})).channels as { name: string; channelId: string; mainThreadId: string }[]
+      ).find((c) => c.name === "launch")!;
       await callAs(maya.token, "channels.join", { channelId: gen.channelId });
-      await callAs(maya.token, "chat.post", { threadId: gen.mainThreadId, body: "@Olivia the launch checklist is ready", mentions: [{ kind: "person", id: ownerId }] });
+      await callAs(maya.token, "chat.post", {
+        threadId: gen.mainThreadId,
+        body: "@Olivia the launch checklist is ready",
+        mentions: [{ kind: "person", id: ownerId }],
+      });
       await call("stars.toggle", { resource: { type: "thread", id: chats[0]! }, on: true });
       await call("notifications.mute.set", { target: { kind: "thread", id: chats[3]! }, minutes: 600 });
       await call("goals.create", {
@@ -220,7 +259,10 @@ test("chats sidebar pictures and click-through", async (t) => {
         }
         const gtext = await gp.getByTestId("chats-sidebar").innerText();
         assert.ok(gtext.includes("client-room"), "the guest sees their channel");
-        assert.ok(!gtext.includes("Team") && !gtext.includes("Goals") && !gtext.includes("launch\n"), "no Team, no Goals, no public channel");
+        assert.ok(
+          !gtext.includes("Team") && !gtext.includes("Goals") && !gtext.includes("launch\n"),
+          "no Team, no Goals, no public channel",
+        );
         await gctx.close();
       } catch (e) {
         fs.writeFileSync(path.join(out, "guest-picture-failed.txt"), String((e as Error).message));
