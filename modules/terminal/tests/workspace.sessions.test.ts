@@ -244,7 +244,10 @@ const wsOf = async (ctx: TermCtx, input: { agentId: string }): Promise<any> => {
   // eslint-disable-line @typescript-eslint/no-explicit-any
   const out = await h["terminal.workspace"]!(ctx, input);
   assert.deepEqual(contractErrors("terminal.workspace", "out", out), [], "terminal.workspace output");
-  return out;
+  // the take-over switch rides on every answer (off by default: hold.test.ts); the facts below are about the workspace
+  const { takeOver, ...rest } = out;
+  assert.equal(takeOver, false, "take-over is off by default");
+  return rest;
 };
 
 test("terminal.workspace: the state, where it is and whether this person may attach; with no machine one plain line, personal and team worded apart; another person's Assistant says only that it is not theirs", async () => {
