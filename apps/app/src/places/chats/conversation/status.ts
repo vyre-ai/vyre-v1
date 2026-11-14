@@ -485,9 +485,7 @@ export function statusView(b: MessageBlock, opts?: { admin?: boolean }): StatusV
         ...w,
         message: "The engine stopped before it replied.",
         cause:
-          str(d.exit) !== ""
-            ? `It stopped with an error (code ${str(d.exit)}). Try again. ${help}`
-            : `It gave no reason. Try again. ${help}`,
+          str(d.exit) !== "" ? `It stopped with an error. Try again. ${help}` : `It gave no reason. Try again. ${help}`,
       };
     }
   }

@@ -1934,7 +1934,7 @@ export function ErrorRowView({
     ...(e.retryable && e.turnId && !retried
       ? [
           {
-            label: "Retry",
+            label: "Try again",
             testID: "err-retry",
             run: () => {
               setRetried(true);

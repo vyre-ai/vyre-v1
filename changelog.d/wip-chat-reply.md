@@ -2,3 +2,4 @@
 - Your own message that waits for the agent's next step carries its note ("At the next step", Edit, Stop and send) right under the bubble instead of above the composer. A failed send reads "Not sent  Try again".
 - Tables, charts, diagrams and code blocks in a reply wear one frame: a quiet bar that names the block ("Table, 4 rows", "Chart, bar", "Flowchart") with its buttons always shown. Charts fill the column.
 - A question card shows each answer's consequence on the right of its row, marks the agent's pick "Recommended", and offers "Your own answer" as the last row; the Answer button appears once something is typed.
+- A failed reply says "Try again" and no longer prints the engine exit code on the card (it stays under Details).
