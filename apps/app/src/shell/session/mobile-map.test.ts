@@ -153,3 +153,11 @@ test("New project on the phone keeps its request: Records opens on Projects with
   assert.equal(e.tab, "records");
   assert.deepEqual(placeOf(e), { place: "records", hash });
 });
+
+test("an agent's page is a screen of its own on the Chats tab, so the phone draws the Back bar over it, and the screen maps back to the page", () => {
+  const e = entryFor("chats", "screen=chats.agent-page&agentId=agt_1");
+  assert.deepEqual([e.tab, e.screen], ["chats", "agent:agt_1"]);
+  assert.notEqual(e.screen, e.tab, "not the tab's own screen, so it opens on top and has a way back");
+  assert.equal(headerBack(e), false, "the shell's Back bar, not a conversation header");
+  assert.deepEqual(placeOf(e), { place: "chats", hash: "screen=chats.agent-page&agentId=agt_1" });
+});

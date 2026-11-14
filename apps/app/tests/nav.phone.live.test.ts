@@ -114,9 +114,7 @@ test("phone walk at 390 px: a chat, an agent's page and a file each open with a 
     await page.screenshot({ path: path.join(shots, "phone-chat.png") });
     await go(`screen=chats.agent-page&agentId=${assistant.agentId}`);
     say(`agent ${await screen()}`);
-    // known dead end on the phone since rc27 (row C06 on the phone): the agent page draws inside the Chats screen with no Back control; it is recorded, not hidden, and fixed when the phone moves onto the shared history (step 3)
-    const agentBack = await backBtn.isVisible().catch(() => false);
-    say(`agent page Back control: ${agentBack}`);
+    await need("agent page");
     await page.screenshot({ path: path.join(shots, "phone-agent.png") });
     await go(`subject=file:${fileId}`, "/files");
     say(`file ${await screen()}`);
@@ -131,7 +129,7 @@ test("phone walk at 390 px: a chat, an agent's page and a file each open with a 
       say(`back ${i + 1} -> ${seen[seen.length - 1]}`);
     }
     await guard.check("the phone walk");
-    assert.ok(new Set(seen).size >= 2, `Back moved one screen at a time: ${seen.join(" | ")}`);
+    assert.ok(new Set(seen).size >= 3, `Back moved one screen at a time: ${seen.join(" | ")}`);
   } finally {
     await browser.close();
     await web.close();
