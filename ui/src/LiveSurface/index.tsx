@@ -38,6 +38,8 @@ export interface LiveSurfaceProps {
   onPress?(): void;
   /** Overrides the page's own visibility (a collapsed tab or hidden pane that the page cannot see). */
   visible?: boolean;
+  /** A live surface that has had no frame for this long stops looking live: the picture greys and says so. Default 8 s. */
+  staleAfterMs?: number;
   testID?: string;
   /** A terminal draws its own text here. */
   children?: ReactNode;
@@ -47,16 +49,18 @@ export interface LiveSurfaceProps {
 export function createFrameSwapper(
   preload: (f: Frame) => Promise<void>,
   show: (f: Frame) => void,
-): { push(f: Frame): void; current(): Frame | null } {
+): { push(f: Frame): void; current(): Frame | null; reset(): void } {
   let asked = 0;
   let shownAt = 0;
+  let epoch = 0;
   let current: Frame | null = null;
   return {
     push(f) {
       const mine = ++asked;
+      const era = epoch;
       void preload(f).then(
         () => {
-          if (mine < shownAt) return;
+          if (era !== epoch || mine < shownAt) return;
           shownAt = mine;
           current = f;
           show(f);
@@ -65,6 +69,11 @@ export function createFrameSwapper(
       );
     },
     current: () => current,
+    // a new source, hidden, or no longer live: nothing from before may show, and nothing still loading may land
+    reset() {
+      epoch++;
+      current = null;
+    },
   };
 }
 
@@ -116,7 +125,9 @@ function usePageVisible(override: boolean | undefined): boolean {
 
 const preloadImage = (f: Frame): Promise<void> =>
   new Promise((res, rej) => {
-    const Img = (globalThis as unknown as { Image?: new () => { onload: () => void; onerror: () => void; src: string } }).Image;
+    const Img = (
+      globalThis as unknown as { Image?: new () => { onload: () => void; onerror: () => void; src: string } }
+    ).Image;
     if (!Img) return res();
     const i = new Img();
     i.onload = () => res();
@@ -124,12 +135,14 @@ const preloadImage = (f: Frame): Promise<void> =>
     i.src = f.uri;
   });
 
-function Seconds({ since }: { since: number }): ReactElement {
+function Seconds({ since, paused }: { since: number; paused: boolean }): ReactElement {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    if (paused) return undefined;
+    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [paused]);
   return <Text style={st.stage}>{`${Math.max(0, Math.round((now - since) / 1000))} s`}</Text>;
 }
 
@@ -146,6 +159,7 @@ export function LiveSurface({
   onRetry,
   onPress,
   visible,
+  staleAfterMs = 8000,
   testID,
   children,
 }: LiveSurfaceProps): ReactElement {
@@ -153,26 +167,45 @@ export function LiveSurface({
   const [frame, setFrame] = useState<Frame | null>(null);
   const swapper = useRef<ReturnType<typeof createFrameSwapper> | null>(null);
   if (swapper.current === null) swapper.current = createFrameSwapper(preloadImage, setFrame);
-  // the source is held only while the surface is live and shown
+  const [quiet, setQuiet] = useState(false);
+  // the source is held only while the surface is live and shown. When that stops (a new source, hidden, asleep, failed) every frame from before is dropped, loading ones included: a picture of an earlier
+  // moment or another computer must never show as live. A live surface with no frame for `staleAfterMs` greys itself and says so.
   useEffect(() => {
     if (!source || state !== "live" || !shown) return undefined;
-    return source.subscribe((f) => swapper.current?.push(f));
-  }, [source, state, shown]);
-  const picture = state === "live" ? (frame?.uri ?? still?.uri) : still?.uri;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const arm = (): void => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setQuiet(true), staleAfterMs);
+      (timer as { unref?: () => void }).unref?.();
+    };
+    arm();
+    const off = source.subscribe((f) => {
+      setQuiet(false);
+      arm();
+      swapper.current?.push(f);
+    });
+    return () => {
+      off();
+      if (timer) clearTimeout(timer);
+      swapper.current?.reset();
+      setFrame(null);
+      setQuiet(false);
+    };
+  }, [source, state, shown, staleAfterMs]);
+  const live = state === "live" && frame !== null && !quiet;
+  const picture = frame && state === "live" ? frame.uri : still?.uri;
   const body = (
     <View
       testID={testID}
       style={[st.box, { aspectRatio: aspect }]}
       accessibilityLabel={kind === "terminal" ? "Terminal" : kind === "stream" ? "Live view" : "Picture"}
     >
-      {picture ? (
-        <Image source={{ uri: picture }} resizeMode="contain" style={[st.fill, state !== "live" && st.grey]} />
-      ) : null}
+      {picture ? <Image source={{ uri: picture }} resizeMode="contain" style={[st.fill, !live && st.grey]} /> : null}
       {kind === "terminal" ? <View style={st.fill}>{children}</View> : null}
       {state === "starting" ? (
         <View style={st.over}>
           <Text style={st.stage}>{stage ?? "Starting"}</Text>
-          {startedAt !== undefined ? <Seconds since={startedAt} /> : null}
+          {startedAt !== undefined ? <Seconds since={startedAt} paused={!shown} /> : null}
         </View>
       ) : null}
       {state === "asleep" ? (
@@ -192,6 +225,11 @@ export function LiveSurface({
           />
         </View>
       ) : null}
+      {picture && !live && state !== "failed" ? (
+        <View style={st.notLive} pointerEvents="none">
+          <Text style={st.markText}>Not live</Text>
+        </View>
+      ) : null}
       {mode ? (
         <View style={st.mark} pointerEvents="none">
           <Text style={st.markText}>{mode === "control" ? "You are in control" : "You are watching"}</Text>
@@ -199,7 +237,8 @@ export function LiveSurface({
       ) : null}
     </View>
   );
-  if (!onPress) return body;
+  // a failed surface keeps its own Retry: a button around it would hold a button
+  if (!onPress || state === "failed") return body;
   return (
     <Pressable
       accessibilityRole="button"
@@ -237,6 +276,15 @@ const st = StyleSheet.create({
   },
   stage: { fontSize: 13, color: "#fff" },
   play: { fontSize: 22, color: "#fff" },
+  notLive: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
   mark: {
     position: "absolute",
     top: 8,

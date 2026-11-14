@@ -154,3 +154,161 @@ test("with onPress the whole surface is a button; a terminal draws its own text 
     restore();
   }
 });
+
+// 14 Nov 2026 review: a frame of an earlier source or moment stayed on screen as if live (after a source swap while hidden, after asleep and live again). A stale picture shown as live is the worst thing
+// this piece can do: a person watching an agent's computer would see a screen that is not the screen.
+function withImage(run: (load: (uri: string) => void) => Promise<void>): Promise<void> {
+  const g = globalThis as { Image?: unknown };
+  const had = g.Image;
+  g.Image = class {
+    onload: () => void = () => undefined;
+    onerror: () => void = () => undefined;
+    set src(_v: string) {
+      queueMicrotask(() => this.onload());
+    }
+  };
+  return run(() => undefined).finally(() => {
+    g.Image = had;
+  });
+}
+const srcOf = (root: { children?: unknown }): string[] =>
+  [...JSON.stringify(root).matchAll(/"uri":"([^"]+)"|src":"([^"]+)"/g)].map((m) => m[1] ?? m[2] ?? "");
+function pushable() {
+  let on: ((f: { uri: string; width: number; height: number }) => void) | null = null;
+  return {
+    source: {
+      subscribe: (f: (fr: { uri: string; width: number; height: number }) => void) => (
+        (on = f),
+        () => void (on = null)
+      ),
+    },
+    push: (uri: string) => on?.({ uri, width: 10, height: 10 }),
+  };
+}
+const settleFrames = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
+
+test("a new source never shows the old source's frame, and the surface says it is not live", async () => {
+  const restore = installDom();
+  try {
+    await withImage(async () => {
+      const a = pushable();
+      const b = pushable();
+      const tree = createRoot();
+      const draw = (source: typeof a.source): Promise<void> =>
+        act(async () =>
+          tree.render(
+            <LiveSurface
+              kind="picture"
+              aspect={2}
+              state="live"
+              source={source}
+              still={{ uri: "still.png", at: 1 }}
+              testID="ls"
+            />,
+          ),
+        );
+      await draw(a.source);
+      await act(async () => a.push("a-frame.png"));
+      await act(settleFrames);
+      assert.ok(JSON.stringify(tree.container).includes("a-frame.png"), "the live frame shows");
+      assert.ok(!JSON.stringify(tree.container).includes("Not live"));
+      await draw(b.source);
+      await act(settleFrames);
+      const after = JSON.stringify(tree.container);
+      assert.ok(!after.includes("a-frame.png"), "the old source's frame is gone");
+      assert.ok(after.includes("Not live"), "and what is shown says it is not live");
+    });
+  } finally {
+    restore();
+  }
+});
+
+test("hidden, asleep or failed drops the frame; a frame that was still loading never lands afterwards", async () => {
+  const restore = installDom();
+  try {
+    const g = globalThis as { Image?: unknown };
+    const had = g.Image;
+    let release: (() => void) | null = null;
+    g.Image = class {
+      onload: () => void = () => undefined;
+      onerror: () => void = () => undefined;
+      set src(_v: string) {
+        release = () => this.onload();
+      }
+    };
+    const a = pushable();
+    const tree = createRoot();
+    const draw = (visible: boolean, state: "live" | "asleep" = "live"): Promise<void> =>
+      act(async () =>
+        tree.render(<LiveSurface kind="picture" aspect={2} state={state} source={a.source} visible={visible} />),
+      );
+    await draw(true);
+    await act(async () => a.push("slow.png"));
+    await draw(false);
+    await act(async () => release?.());
+    await draw(true);
+    await act(settleFrames);
+    assert.ok(!JSON.stringify(tree.container).includes("slow.png"), "a frame that loaded after hiding did not appear");
+    g.Image = had;
+  } finally {
+    restore();
+  }
+});
+
+test("a live surface with no frame for the bound stops looking live", async () => {
+  const restore = installDom();
+  try {
+    await withImage(async () => {
+      const a = pushable();
+      const tree = createRoot();
+      await act(async () =>
+        tree.render(<LiveSurface kind="picture" aspect={2} state="live" source={a.source} staleAfterMs={40} />),
+      );
+      await act(async () => a.push("f.png"));
+      await act(settleFrames);
+      assert.ok(!JSON.stringify(tree.container).includes("Not live"));
+      await act(async () => new Promise((r) => setTimeout(r, 90)));
+      assert.ok(JSON.stringify(tree.container).includes("Not live"), "no frame for the bound: greyed and marked");
+      await act(async () => a.push("g.png"));
+      await act(settleFrames);
+      assert.ok(!JSON.stringify(tree.container).includes("Not live"), "a new frame makes it live again");
+    });
+  } finally {
+    restore();
+  }
+});
+
+test("a failed surface with onPress keeps its own Retry and does not sit inside an Open button", () => {
+  const html = renderToStaticMarkup(
+    <LiveSurface
+      kind="picture"
+      aspect={2}
+      state="failed"
+      onPress={() => undefined}
+      onRetry={() => undefined}
+      testID="ls"
+    />,
+  );
+  assert.ok(html.includes("Retry"));
+  assert.ok(!html.includes("ls-open"));
+});
+
+test("sixty frames swap without the picture ever being empty", async () => {
+  const restore = installDom();
+  try {
+    await withImage(async () => {
+      const a = pushable();
+      const tree = createRoot();
+      await act(async () => tree.render(<LiveSurface kind="picture" aspect={2} state="live" source={a.source} />));
+      await act(async () => a.push("f0.png"));
+      await act(settleFrames);
+      for (let i = 1; i < 60; i++) {
+        await act(async () => a.push(`f${i}.png`));
+        await act(async () => Promise.resolve());
+        assert.ok(/f\d+\.png/.test(JSON.stringify(tree.container)), `frame ${i}: a picture is on screen`);
+      }
+    });
+  } finally {
+    restore();
+  }
+});
