@@ -215,6 +215,7 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
               owner_id: cur.owner_id,
               holds: cur.holds,
               ...(cur.made_by !== undefined ? { made_by: cur.made_by } : {}),
+              ...(cur.made_for !== undefined ? { made_for: cur.made_for } : {}),
             });
           }
           continue;
@@ -233,7 +234,7 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
               label: 0,
               owner_id: a.owner,
               holds: 0,
-              ...(a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(a.owner) ? { made_by: a.principal.id } : {}),
+              ...(a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(a.owner) ? { made_by: a.principal.id, made_for: a.owner } : {}),
             });
           }
         }
@@ -286,7 +287,7 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
           holds: 0,
           // made for a person by an agent acting for them: the same agent keeps the person's own level on it (kernel authorize, madeForPerson)
           ...(a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(owner) && owner === a.owner
-            ? { made_by: a.principal.id }
+            ? { made_by: a.principal.id, made_for: a.owner }
             : {}),
         });
       }

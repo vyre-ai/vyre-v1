@@ -959,6 +959,7 @@ export function kernelResource(r: ResourceRec): ResourceRow {
     ...(cut && r.parentId !== null ? { home: r.parentId } : {}),
     ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
     ...(typeof r.row?.["madeBy"] === "string" ? { made_by: r.row["madeBy"] } : {}),
+    ...(typeof r.row?.["madeFor"] === "string" ? { made_for: r.row["madeFor"] } : {}),
   };
 }
 

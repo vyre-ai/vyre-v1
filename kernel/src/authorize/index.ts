@@ -103,6 +103,22 @@ function collect(
     if (g.rank > max) max = g.rank;
   }
 }
+/**
+ * The only capabilities at Manage an agent may use on what it made for a person: renaming and removing its own work. Anything else at Manage (sharing, publishing, linking outside, members, who may
+ * reach it) stays with the person: the made-for-me path holds Edit there, and a check made without a capability name (a handler's inner check) holds Edit too. Removal still waits for the person's OK (Gate).
+ */
+const MADE_BY_MANAGE: ReadonlySet<string> = new Set([
+  "sites.delete",
+  "forms.delete",
+  "automations.delete",
+  "channels.archive",
+  "channels.update",
+  "projects.archive",
+]);
+/** The one thing an agent may do to a private root itself (it names the calendar to put an event on): never rename, move or delete the root. */
+const PRIVATE_ROOT_CAPS: ReadonlySet<string> = new Set(["calendar.create_event"]);
+/** Removing what it made takes the person's own permission for removing, not the agent role's (a member's agent has none of its own); the Gate still holds the removal for a yes. */
+const MADE_BY_REMOVE: ReadonlySet<string> = new Set(["records.delete", "files.delete"]);
 /** What an agent never holds as its person's own through having made it: Vault items and folders (their own rules, never the value), and the identities it would speak as. */
 const MADE_FOR_PERSON_NOT: ReadonlySet<string> = new Set([
   "vault_item",
@@ -147,13 +163,15 @@ function evalSubject(
     res.id !== "" &&
     req.actingFor !== undefined &&
     res.made_by === p.id &&
+    res.made_for === req.actingFor &&
+    (rankOf(req.action.level) <= rankOf("edit") || (req.cap !== undefined && MADE_BY_MANAGE.has(req.cap))) &&
     res.owner_id === req.actingFor &&
     !MADE_FOR_PERSON_NOT.has(res.type) &&
     !(req.cap !== undefined && PERSON_ONLY.test(req.cap));
   const viaGrant =
     perm !== null &&
     !s.perms.has(perm) &&
-    !madeForPerson &&
+    !(madeForPerson && req.cap !== undefined && (MADE_BY_REMOVE.has(req.cap) || MADE_BY_MANAGE.has(req.cap))) &&
     !(p.kind === "agent" && req.actingFor !== undefined && snap.agentFollows(req.actingFor, perm));
   if (viaGrant && !GRANT_PERMS.has(perm!)) return "role_lacks_permission";
   if (steps) steps.push({ ok: true, text: `${p.name ?? p.id}: role ${s.roleNames} allows ${perm ?? "this action"}` });
@@ -182,6 +200,10 @@ function evalSubject(
     privateRoot.parent_id === null &&
     (privateRoot.type === "folder" || privateRoot.type === "calendar") &&
     privateRoot.owner_id === req.actingFor &&
+    // inside the root only: making things in it and editing them, never the root itself (its name, where it sits, its settings)
+    (res.id !== privateRoot.id ||
+      rankOf(req.action.level) <= rankOf("use") ||
+      (req.cap !== undefined && PRIVATE_ROOT_CAPS.has(req.cap))) &&
     rankOf(req.action.level) <= rankOf("edit");
   const viaOwner =
     (p.kind === "agent" &&

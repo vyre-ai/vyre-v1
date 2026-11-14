@@ -28,6 +28,7 @@ test("an agent keeps the person's own level on what it made for them, and nobody
       owner_id: "p1",
       holds: 0,
       made_by: AGENT,
+      made_for: "p1",
     });
     snap.putResource({ id: "site_own", type: "site", parent_id: null, label: 0, owner_id: "p1", holds: 0 });
     snap.putResource({
@@ -38,6 +39,7 @@ test("an agent keeps the person's own level on what it made for them, and nobody
       owner_id: "p1",
       holds: 0,
       made_by: "someone_else",
+      made_for: "p1",
     });
     snap.putResource({
       id: "vit_made",
@@ -47,6 +49,7 @@ test("an agent keeps the person's own level on what it made for them, and nobody
       owner_id: "p1",
       holds: 0,
       made_by: AGENT,
+      made_for: "p1",
     });
     const as = (id: string, type: string, level: "view" | "use" | "edit" | "manage", acting = "p1", cap?: string) =>
       authorize(snap, {
@@ -57,8 +60,35 @@ test("an agent keeps the person's own level on what it made for them, and nobody
         ...(cap ? { cap } : {}),
         now: NOW,
       }).effect;
-    for (const level of ["view", "use", "edit", "manage"] as const)
+    for (const level of ["view", "use", "edit"] as const)
       assert.equal(as("site_made", "site", level), "allow", `seed ${seed}: the maker may ${level} what it made for p1`);
+    // Manage only for removing and renaming its own work, by capability name; sharing, publishing and links stay with the person, and a check with no capability name holds Edit
+    for (const cap of ["sites.delete", "forms.delete", "channels.archive", "projects.archive"])
+      assert.equal(as("site_made", "site", "manage", "p1", cap), "allow", `seed ${seed}: ${cap}`);
+    for (const cap of [
+      "files.share",
+      "portal.file_link",
+      "files.agent_access.set",
+      "sites.publish",
+      "forms.publish",
+      "projects.members.set",
+      "chat.share",
+    ])
+      assert.equal(as("site_made", "site", "manage", "p1", cap), "deny", `seed ${seed}: ${cap} is the person's`);
+    assert.equal(as("site_made", "site", "manage"), "deny", `seed ${seed}: a check with no capability holds Edit`);
+    // a transfer ends it: the owner moved to p2, the agent asked by p2 holds nothing of the old stamp
+    snap.putResource({
+      id: "site_moved",
+      type: "site",
+      parent_id: null,
+      label: 0,
+      owner_id: "p2",
+      holds: 0,
+      made_by: AGENT,
+      made_for: "p1",
+    });
+    assert.equal(as("site_moved", "site", "view", "p2"), "deny", `seed ${seed}: after a transfer`);
+    assert.equal(as("site_moved", "site", "view", "p1"), "deny", `seed ${seed}: and not for the old owner`);
     // not what it did not make, not what another agent made, not the same thing for a person it did not make it for
     for (const id of ["site_own", "site_other"]) assert.equal(as(id, "site", "view"), "deny", `seed ${seed}: ${id}`);
     assert.equal(as("site_made", "site", "view", "p2"), "deny", `seed ${seed}: acting for someone else`);
@@ -78,6 +108,7 @@ test("an agent keeps the person's own level on what it made for them, and nobody
       owner_id: "p2",
       holds: 0,
       made_by: AGENT,
+      made_for: "p1",
     });
     assert.equal(as("site_gone", "site", "view", "p1"), "deny", `seed ${seed}: the person is the ceiling`);
   }
@@ -99,6 +130,9 @@ test("an agent works in its person's own private roots (Personal files, Personal
     snap.putResource({ id: "fld_p1_sub", type: "folder", parent_id: "fld_p1", label: 0, owner_id: "p1", holds: 0 });
     snap.putResource({ id: "cld_p1", type: "calendar", parent_id: null, label: 0, owner_id: "p1", holds: 0 });
     snap.putResource({ id: "fld_p2", type: "folder", parent_id: null, label: 0, owner_id: "p2", holds: 0 });
+    const on = (id: string, type: string, level: "view" | "edit" | "manage") =>
+      authorize(snap, { principal: AGENT, actingFor: "p1", action: act(level), resource: { type, id }, now: NOW })
+        .effect;
     const make = (parent: string, type: string, acting = "p1") =>
       authorize(snap, {
         principal: AGENT,
@@ -107,14 +141,23 @@ test("an agent works in its person's own private roots (Personal files, Personal
         resource: { type, id: null, parent },
         now: NOW,
       }).effect;
+    assert.equal(on("fld_p1", "folder", "edit"), "deny", `seed ${seed}: never the root itself`);
+    assert.equal(
+      on("cld_p1", "calendar", "edit"),
+      "deny",
+      `seed ${seed}: nor the calendar itself, with no capability named`,
+    );
+    const asCap = (id: string, type: string, cap: string) =>
+      authorize(snap, { principal: AGENT, actingFor: "p1", action: act("edit"), resource: { type, id }, cap, now: NOW })
+        .effect;
+    assert.equal(asCap("cld_p1", "calendar", "calendar.create_event"), "allow", `seed ${seed}: an event on it`);
+    for (const cap of ["calendar.delete_calendar", "calendar.update_calendar"])
+      assert.equal(asCap("cld_p1", "calendar", cap), "deny", `seed ${seed}: ${cap} stays with the person`);
     assert.equal(make("fld_p1", "folder"), "allow", `seed ${seed}: a folder in the person's Personal files`);
     assert.equal(make("fld_p1_sub", "file"), "allow", `seed ${seed}: a file below it`);
     assert.equal(make("cld_p1", "event"), "allow", `seed ${seed}: an event on the person's Personal calendar`);
     assert.equal(make("fld_p2", "folder", "p1"), "deny", `seed ${seed}: never in another person's`);
     assert.equal(make("fld_p1", "folder", "p2"), "deny", `seed ${seed}: never for another person`);
-    const on = (id: string, type: string, level: "view" | "edit" | "manage") =>
-      authorize(snap, { principal: AGENT, actingFor: "p1", action: act(level), resource: { type, id }, now: NOW })
-        .effect;
     assert.equal(on("fld_p1_sub", "folder", "edit"), "allow", `seed ${seed}: change inside it`);
     assert.equal(
       on("fld_p1_sub", "folder", "manage"),
@@ -136,14 +179,31 @@ test("one agent, two askers: the agent holds a person's level only while it acts
     )
       continue;
     worlds++;
-    // made for p1 and for p2 by the same (shared) agent, each in a private root
-    snap.putResource({ id: "site_p1", type: "site", parent_id: null, label: 0, owner_id: "p1", holds: 0, made_by: AGENT });
-    snap.putResource({ id: "site_p2", type: "site", parent_id: null, label: 0, owner_id: "p2", holds: 0, made_by: AGENT });
+    snap.putResource({
+      id: "site_p1",
+      type: "site",
+      parent_id: null,
+      label: 0,
+      owner_id: "p1",
+      holds: 0,
+      made_by: AGENT,
+      made_for: "p1",
+    });
+    snap.putResource({
+      id: "site_p2",
+      type: "site",
+      parent_id: null,
+      label: 0,
+      owner_id: "p2",
+      holds: 0,
+      made_by: AGENT,
+      made_for: "p2",
+    });
     const may = (acting: string | undefined, id: string) =>
       authorize(snap, {
         principal: AGENT,
         ...(acting ? { actingFor: acting } : {}),
-        action: act("manage"),
+        action: act("edit"),
         resource: { type: "site", id },
         now: NOW,
       }).effect;

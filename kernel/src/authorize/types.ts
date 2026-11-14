@@ -117,6 +117,8 @@ export interface ResourceRow {
    * brings the thing into being. That same agent, acting for that same person, holds the person's own level on it (authorize: madeForPerson), and nobody else gains anything from it.
    */
   made_by?: string | undefined;
+  /** The person it was made for when `made_by` was stamped. The made-for-me level holds only while the owner is still that person (a transfer ends it). */
+  made_for?: string | undefined;
 }
 
 export type Policy =

@@ -240,7 +240,10 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       if (p["space_owned"] === true) row["spaceOwned"] = true;
       else delete row["spaceOwned"];
       // who made it for its owner: set at the first registration, kept by every later one (a move or a label change re-registers without it)
-      if (typeof p["made_by"] === "string" && row["madeBy"] === undefined) row["madeBy"] = p["made_by"];
+      if (typeof p["made_by"] === "string" && row["madeBy"] === undefined) {
+        row["madeBy"] = p["made_by"];
+        if (typeof p["made_for"] === "string") row["madeFor"] = p["made_for"];
+      }
       store.resources.set(id, {
         id,
         type,
