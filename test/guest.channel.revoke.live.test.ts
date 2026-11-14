@@ -10,9 +10,9 @@ for (const kind of ["public", "invite"] as const) {
   test(`a reply guest of a ${kind} channel whose access is removed reads and writes nothing, in the channel or in the reply thread they opened`, async () => {
     const w = await world();
     try {
-      const c = kind === "public" ? w.pub : w.priv,
-        first = kind === "public" ? w.first.pub : w.first.priv;
+      const c = kind === "public" ? w.pub : w.priv;
       const g = await w.invite(c, "reply", `revoke-${kind}@example.com`, `revoke${kind}`);
+      const first = g.fresh;
       const reply = (await g.call("chat.thread", { threadId: c.mainThreadId, messageId: first })).data.thread
         .threadId as string;
       assert.equal(

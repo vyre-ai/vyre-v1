@@ -24,9 +24,9 @@ for (const kind of ["public", "invite"] as const) {
   test(`a reply guest of a ${kind} channel reads and posts in the channel's reply threads, and reaches nothing else that hangs off or sits beside the channel`, async () => {
     const w = await world();
     try {
-      const c = kind === "public" ? w.pub : w.priv,
-        m1 = kind === "public" ? w.first.pub : w.first.priv;
+      const c = kind === "public" ? w.pub : w.priv;
       const g = await w.invite(c, "reply", `scope-${kind}@example.com`, `scope${kind}`);
+      const m1 = g.fresh;
       // a reply thread opened by the owner under a message in the channel, with a line in it, and a reply under that line
       const r1 = (await w.o("chat.thread", { threadId: c.mainThreadId, messageId: m1 })).thread.threadId as string;
       const line = await w.say({ mainThreadId: r1 }, "A side thread.");
