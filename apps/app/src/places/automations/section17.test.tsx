@@ -86,7 +86,13 @@ const pageStory = buildStory({
   test: null,
   trigger: null,
   steps: [
-    { id: "focus-step", app: { id: "vyre:records", name: "Vyre" }, action: "Find the person", template: "Find the person", values: {} },
+    {
+      id: "focus-step",
+      app: { id: "vyre:records", name: "Vyre" },
+      action: "Find the person",
+      template: "Find the person",
+      values: {},
+    },
   ],
 });
 const run = {

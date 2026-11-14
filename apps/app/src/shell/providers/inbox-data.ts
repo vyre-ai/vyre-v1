@@ -34,5 +34,13 @@ export function inboxData(rt: ShellRuntime, openConversation: (id: string) => vo
     openCalendarSettings: () => rt.open({ screen: "settings.page", args: { page: "mail" } }),
     openExternal: (url) => rt.openUrl(url),
   };
-  return { screens: rt.screens, call: rt.call, connection: rt.connection, clock: rt.clock, nav, me: rt.me.id, canBuyNumbers: rt.permissions?.has("comms.numbers") === true };
+  return {
+    screens: rt.screens,
+    call: rt.call,
+    connection: rt.connection,
+    clock: rt.clock,
+    nav,
+    me: rt.me.id,
+    canBuyNumbers: rt.permissions?.has("comms.numbers") === true,
+  };
 }

@@ -126,7 +126,13 @@ export function RecoveryRequests(): ReactElement | null {
     for (const row of (out as { items: unknown[] }).items) {
       if (!row || typeof row !== "object") continue;
       const rec = row as { task?: { id?: unknown; title?: unknown }; reason?: unknown };
-      if (!rec.task || typeof rec.task.id !== "string" || typeof rec.task.title !== "string" || typeof rec.reason !== "string") continue;
+      if (
+        !rec.task ||
+        typeof rec.task.id !== "string" ||
+        typeof rec.task.title !== "string" ||
+        typeof rec.reason !== "string"
+      )
+        continue;
       items.push({ id: rec.task.id, title: rec.task.title, reason: rec.reason, task: rec.task });
     }
     return items;

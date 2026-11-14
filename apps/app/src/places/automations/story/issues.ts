@@ -21,6 +21,7 @@ export function needsFromIssues(
     const w = mine.find((i) => i.severity === "warning");
     if (w) out.push({ kind: "no_access", line: w.message, button: "Ask an admin" });
   }
-  for (const i of mine) if (i.severity === "error") out.push({ kind: "value", line: i.message, button: connectLabel ?? "Fix" });
+  for (const i of mine)
+    if (i.severity === "error") out.push({ kind: "value", line: i.message, button: connectLabel ?? "Fix" });
   return out;
 }

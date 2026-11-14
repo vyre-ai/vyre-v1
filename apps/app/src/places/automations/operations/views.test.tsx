@@ -8,13 +8,7 @@ import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.ts
 import { AnalyticsReport, Bars, busyMenu, RANGES } from "./AnalyticsView.tsx";
 import { TemplateList, startFromTemplate, templateMenu } from "./TemplateGallery.tsx";
 import { choiceMenu, filterLabel, filterMenu } from "./menus.ts";
-import {
-  analyticsOf,
-  countBy,
-  durationWords,
-  rateWords,
-  templatesOf,
-} from "./read.ts";
+import { analyticsOf, countBy, durationWords, rateWords, templatesOf } from "./read.ts";
 import { runLines, shownRuns } from "./StudioViews.tsx";
 import { CohortView } from "../versions/CohortMigration.tsx";
 
@@ -139,9 +133,7 @@ test("analytics: the range menu checks the chosen range and a row menu acts on t
 
 // ---- dependencies ----
 
-
 // ---- events ----
-
 
 // ---- all runs ----
 
@@ -247,7 +239,6 @@ test("templates: Use template makes the draft and opens it", async () => {
 });
 
 // ---- packages ----
-
 
 // ---- the rules for every Studio screen ----
 

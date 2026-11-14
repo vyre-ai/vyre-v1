@@ -11,11 +11,7 @@ import type { Definition } from "./model.ts";
 import { createSampleAutomations, harbor, northwind, LEAD_FOLLOW_UP } from "../sidebar/sample.ts";
 import type { SampleAutomations } from "../sidebar/sample.ts";
 
-const html = (
-  s: SampleAutomations,
-  id = "aut_lead",
-  props: Partial<Parameters<typeof BuilderPage>[0]> = {},
-): string =>
+const html = (s: SampleAutomations, id = "aut_lead", props: Partial<Parameters<typeof BuilderPage>[0]> = {}): string =>
   renderToStaticMarkup(
     <AutomationsDataProvider value={s.data}>
       <BuilderPage automationId={id} {...props} />
@@ -55,7 +51,8 @@ test("the page starts with When, then each step is a sentence with its title and
     "Email the lead a first hello",
   ])
     assert.ok(has(out, t), t);
-  for (const id of LEAD_FOLLOW_UP.nodes.map((n) => n.id)) assert.ok(has(out, `data-testid="sv-step-${id}"`), `step ${id}`);
+  for (const id of LEAD_FOLLOW_UP.nodes.map((n) => n.id))
+    assert.ok(has(out, `data-testid="sv-step-${id}"`), `step ${id}`);
 });
 
 test("a pressed step opens its form beside the page, with its fields", () => {
@@ -64,11 +61,16 @@ test("a pressed step opens its form beside the page, with its fields", () => {
   assert.ok(!has(plain, 'data-testid="inspector"'));
   const open = html(s, "aut_lead", { initialSelected: "mobile" });
   assert.ok(has(open, 'data-testid="inspector"'));
-  assert.ok(has(open, 'data-testid="field-title"') && has(open, 'data-testid="field-path-0"'), "name and the path's condition");
+  assert.ok(
+    has(open, 'data-testid="field-title"') && has(open, 'data-testid="field-path-0"'),
+    "name and the path's condition",
+  );
   assert.ok(has(open, "lead.phone is not empty"));
   assert.ok(has(open, "If this step fails") && has(open, "Stop the run"));
   const ai = html(s, "aut_lead", { initialSelected: "draft" });
-  assert.ok(has(ai, 'data-testid="choose-key"') && has(ai, "Your Claude sign-in") && has(ai, 'data-testid="choose-backup"'));
+  assert.ok(
+    has(ai, 'data-testid="choose-key"') && has(ai, "Your Claude sign-in") && has(ai, 'data-testid="choose-backup"'),
+  );
 });
 
 test("build a three-path Automation: the lanes appear, save writes one version, and a missing condition shows inline", async () => {
@@ -104,7 +106,10 @@ test("build a three-path Automation: the lanes appear, save writes one version, 
   assert.equal(defOf(s, id).nodes.length, 4);
   // the lanes read as If yes and Otherwise under the Paths step
   assert.ok(has(out, "If yes") && has(out, "Otherwise"));
-  assert.ok(has(out, `data-testid="sv-need-${warm.id}"`), "the email with no recipient carries its one line and button");
+  assert.ok(
+    has(out, `data-testid="sv-need-${warm.id}"`),
+    "the email with no recipient carries its one line and button",
+  );
   assert.ok(check(defOf(s, id)).some((i) => i.nodeId === p.id && /needs its condition/.test(i.message)));
   // fix them and the line goes away
   let fixed = updateStep(defOf(s, id), p.id, {

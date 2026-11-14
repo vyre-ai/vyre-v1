@@ -282,8 +282,18 @@ test("edits not yet saved say so plainly, and saving is the one action: until th
 });
 
 test("an Automation with several triggers shows each as its own row: When, then Or, so every one can be opened", () => {
-  const m = story({ ...base, moreTriggers: [{ ...base.trigger, id: "trigger:1", template: "Any form is submitted", values: {} }], steps: [step({ id: "a" })] });
+  const m = story({
+    ...base,
+    moreTriggers: [{ ...base.trigger, id: "trigger:1", template: "Any form is submitted", values: {} }],
+    steps: [step({ id: "a" })],
+  });
   const rows = m.rows.filter((r) => r.kind === "trigger");
-  assert.deepEqual(rows.map((r) => [r.kind === "trigger" && r.label, r.id]), [["When", "t"], ["Or", "trigger:1"]]);
+  assert.deepEqual(
+    rows.map((r) => [r.kind === "trigger" && r.label, r.id]),
+    [
+      ["When", "t"],
+      ["Or", "trigger:1"],
+    ],
+  );
   assert.deepEqual(m.slots, ["trigger:1"], "a step is added after the last trigger, never between two triggers");
 });
