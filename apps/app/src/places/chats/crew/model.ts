@@ -319,3 +319,41 @@ export function mergeStateOf(
   if (coders.every((m) => m.merged === true)) return "merged";
   return members.every((m) => m.state === "done") ? "ready" : "working";
 }
+
+/** The id the crew read gives a subagent a command-line engine started in its turn: the engine's own call id, kept to letters and digits (modules/engine/own-subagents.ts, crew-status.ts). */
+export const subagentId = (callId: string): string => `sub_${callId.replace(/[^A-Za-z0-9]/g, "")}`;
+
+/** The subagents a reply's own blocks name: the calls that started them. */
+export function subagentIdsOf(blocks: ReadonlyArray<{ type: string; data?: unknown }>): string[] {
+  return blocks.flatMap((b) => {
+    const d = (b.data && typeof b.data === "object" ? b.data : {}) as { id?: unknown; name?: unknown };
+    return b.type === "tool_call" && /^(Agent|Task)$/.test(String(d.name)) && typeof d.id === "string"
+      ? [subagentId(d.id)]
+      : [];
+  });
+}
+
+/** The subagents of a chat that no reply shows yet: they work now, or they finished and the reply that carries them is still being written. */
+export function liveSubagents(status: CrewStatusOut | null, shown: ReadonlySet<string>): CrewMember[] {
+  return (status?.members ?? []).filter((m) => m.kind === "subagent" && !shown.has(m.id));
+}
+
+/** The totals of a few rows, for a strip that shows only some of the crew. */
+export function totalsOf(members: readonly CrewMember[]): CrewTotals {
+  const by = (s: MemberState): number => members.filter((m) => m.state === s).length;
+  return {
+    members: members.length,
+    working: by("working"),
+    done: by("done"),
+    needsYou: by("needs_you"),
+    failed: by("failed"),
+    stopped: by("stopped"),
+    tokensIn: 0,
+    tokensOut: 0,
+    costMicros: 0,
+    filesChanged: 0,
+    added: 0,
+    deleted: 0,
+    elapsedMs: Math.max(0, ...members.map((m) => m.elapsedMs)),
+  };
+}

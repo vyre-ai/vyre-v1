@@ -38,11 +38,11 @@ export function seededDir(): string {
 export async function boot(
   dir: string,
   standIn: OpenSession | null,
-  extra: { engineCli?: unknown; now?: () => number; seams?: unknown; realVault?: boolean } = {},
+  extra: { engineCli?: unknown; now?: () => number; seams?: unknown; realVault?: boolean; args?: string[] } = {},
 ): Promise<Daemon> {
   return startDaemon({
     ...(extra.now ? { now: extra.now } : {}),
-    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    config: loadConfig(["--data-dir", dir, "--port", "0", ...(extra.args ?? [])], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     platform: fakePlatform({
       os: "linux",

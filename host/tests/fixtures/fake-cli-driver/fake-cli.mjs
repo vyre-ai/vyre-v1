@@ -18,6 +18,8 @@
 //   rawecho      answers with the whole prompt it was given, turn context included
 //   whereami     "ran-on=<FAKE_WHERE or space> handover=<yes when the turn went on after its computer slept>"
 //   slowwhere    "first part. " at once, then after FAKE_SLOW_MS the same as whereami
+//   twosubagents  Claude Code starting two subagents of its own (Agent calls), whose own lines carry parent_tool_use_id: the first works with a shell command and says words nobody should read as the
+//                 reply, the second reads a file; each returns its answer at a different time, then the engine answers. A turn of about six seconds
 //   /compact ... compacts the way Claude Code does: a compact_boundary line (42000 tokens before, 2500 after), then an empty success result
 // Sessions are kept the way the real CLI keeps them: a file per session id under $HOME/.fake-claude/sessions, with the last line of every prompt it was sent. `--resume <id>` of a session with no file
 // says so in the real CLI's words on stderr and exits 1 before reading anything.
@@ -691,6 +693,68 @@ async function run(raw) {
       result: `first part. ${rest}`,
       session_id: session,
       usage: { input_tokens: 5, output_tokens: 5 },
+    });
+    return;
+  }
+  if (lastLine === "twosubagents") {
+    const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+    const asst = (parent, content) =>
+      out({
+        type: "assistant",
+        parent_tool_use_id: parent,
+        message: {
+          id: `m_${Math.random().toString(36).slice(2, 8)}`,
+          model: "claude-sonnet-fake",
+          content,
+          usage: { input_tokens: 9, output_tokens: 3 },
+        },
+      });
+    const done = (parent, id, text) =>
+      out({
+        type: "user",
+        parent_tool_use_id: parent,
+        message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: text }] },
+      });
+    init();
+    asst(null, [
+      { type: "text", text: "I will start two subagents." },
+      {
+        type: "tool_use",
+        id: "toolu_a",
+        name: "Agent",
+        input: { description: "Test the terminal", prompt: "run echo hello" },
+      },
+      {
+        type: "tool_use",
+        id: "toolu_b",
+        name: "Agent",
+        input: { description: "Test the browser", prompt: "open the page" },
+      },
+    ]);
+    await sleep(1500);
+    asst("toolu_a", [
+      { type: "text", text: "SUBAGENT-CHATTER-A nobody reads this as the reply" },
+      { type: "tool_use", id: "tu_a1", name: "Bash", input: { command: "echo hello" } },
+    ]);
+    asst("toolu_b", [{ type: "tool_use", id: "tu_b1", name: "Read", input: { file_path: "/work/page.html" } }]);
+    await sleep(2500);
+    done("toolu_a", "tu_a1", "hello");
+    done(null, "toolu_a", [{ type: "text", text: "The terminal works. I ran echo and saw hello." }]);
+    await sleep(1500);
+    done("toolu_b", "tu_b1", "<html>");
+    done(null, "toolu_b", "The browser opened the page and it loaded.");
+    out({ type: "stream_event", event: { type: "message_start", message: { id: "m_fin" } } });
+    out({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Both subagents finished." } },
+    });
+    out({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "Both subagents finished.",
+      session_id: session,
+      usage: { input_tokens: 20, output_tokens: 8 },
     });
     return;
   }
