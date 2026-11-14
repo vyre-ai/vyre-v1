@@ -37,7 +37,7 @@ export function workspaceView(
   read: WorkspaceRead,
   rows: readonly TerminalRowLike[],
   projectNames: readonly string[] = [],
-  lastLines: ReadonlyMap<string, string> = new Map(),
+  lastCommands: ReadonlyMap<string, string> = new Map(),
 ): WorkspaceView {
   const mine = rows.filter((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited");
   const sessions: WorkspaceSession[] = mine.map((r) => ({
@@ -47,7 +47,7 @@ export function workspaceView(
     ...(r.cwd ? { cwd: r.cwd } : {}),
     ...(r.heldBy ? { heldBy: r.heldBy } : {}),
     ...(r.ownerId ? { ownerId: r.ownerId } : {}),
-    ...(lastLines.get(r.terminalId) ? { lastLine: lastLines.get(r.terminalId) as string } : {}),
+    ...(lastCommands.get(r.terminalId) ? { lastCommand: lastCommands.get(r.terminalId) as string } : {}),
     owner: r.by ?? { kind: "agent" },
     ...(r.lastActiveAt !== undefined ? { lastActiveAt: r.lastActiveAt } : {}),
   }));
@@ -111,7 +111,7 @@ export function workspaceData(d: {
   const open = async (agentId: string): Promise<string> => {
     try {
       return (
-        (await d.call("terminal.open", { host: "agent_computer", agentId, idempotencyKey: d.newKey() })) as {
+        (await d.call("terminal.open", { host: "agent_computer", agentId, own: true, idempotencyKey: d.newKey() })) as {
           terminal: { terminalId: string };
         }
       ).terminal.terminalId;
@@ -151,11 +151,11 @@ export function workspaceData(d: {
           if (mineRows.length > 0 && mineRows.length <= 12 && read.state === "running") {
             try {
               const st = (await d.call("terminal.status", { terminalIds: mineRows.map((r) => r.terminalId) })) as {
-                rows?: Array<{ terminalId: string; lastLine?: string }>;
+                rows?: Array<{ terminalId: string; lastCommand?: string }>;
               };
               const m = new Map<string, string>();
               for (const x of st.rows ?? [])
-                if (x.lastLine && x.lastLine.trim() !== "") m.set(x.terminalId, x.lastLine.trim().slice(0, 160));
+                if (x.lastCommand && x.lastCommand.trim() !== "") m.set(x.terminalId, x.lastCommand.trim().slice(0, 160));
               const before = JSON.stringify([...(lastSeen.get(agentId) ?? [])]);
               lastSeen.set(agentId, m);
               if (live && mine === seq && JSON.stringify([...m]) !== before)
@@ -188,7 +188,7 @@ export function workspaceData(d: {
       const s = rowsQuery().getSnapshot();
       const has =
         s.status === "ready" && s.data
-          ? s.data.terminals.find((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited")
+          ? s.data.terminals.find((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited" && r.by?.kind === "agent")
           : undefined;
       if (has) return has.terminalId;
       const p = open(agentId).then(

@@ -963,7 +963,7 @@ test("a thread it worked in says how many replies and when the last came", () =>
   assert.ok(has(html(s, "threads"), "5 replies · last 9:34"));
 });
 
-test("with a terminal in the shell the pane has a sixth tab after Files, and without one it has five", () => {
+test("one door: with a terminal in the shell and a Computer tab the pane has no separate Terminal tab (terminals are in Computer)", () => {
   const s = createSample();
   const withTerminal = {
     ...s.data,
@@ -989,7 +989,8 @@ test("with a terminal in the shell the pane has a sixth tab after Files, and wit
       />,
     ),
   );
-  inOrder(out, [">Computer<", ">Chats<", ">Files<", ">Terminal<", ">Knows<", ">Routines<"]);
+  inOrder(out, [">Computer<", ">Chats<", ">Files<", ">Knows<", ">Routines<"]);
+  assert.ok(!has(out, ">Terminal<"), "no old Terminal tab beside Computer");
   assert.ok(!has(html(s, "computer", 760), ">Terminal<"));
 });
 

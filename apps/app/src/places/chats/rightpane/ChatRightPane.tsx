@@ -224,10 +224,10 @@ function PaneView({
   const hasHooks = (hooksQ.status === "ready" && hooksQ.data.hooks.length > 0) || tab === "hooks";
   const baseTabs = useMemo(
     () =>
-      tabsOf(data.terminal !== undefined, hasCrew, hasComputer, hasSkills, hasHooks, longSession)
+      tabsOf(data.terminal !== undefined && !(hasComputer && !noComputers), hasCrew, hasComputer, hasSkills, hasHooks, longSession)
         .filter((t) => !(noComputers && t.key === "computer"))
         .map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })),
-    [facts, noComputers, data.terminal, hasCrew, showComputer, hasSkills, hasHooks, longSession],
+    [facts, noComputers, hasComputer, data.terminal, hasCrew, showComputer, hasSkills, hasHooks, longSession],
   );
   // a long session shows the chat's own pane: Overview, Threads, Files, Kept, then the rest behind More (the agent's profile is one tap away on its page)
   const tabs = useMemo(() => (longSession ? sessionTabs(baseTabs) : baseTabs), [baseTabs, longSession]);
@@ -311,14 +311,14 @@ function PaneView({
             }}
           />
         ) : null}
-        {tab === "computer" ? <ComputerPane deps={deps} {...(window ? { window } : {})} /> : null}
+        {tab === "computer" || (tab === "terminal" && hasComputer && !noComputers) ? <ComputerPane deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}
         {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "files" ? (
           <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} />
         ) : null}
-        {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}
+        {tab === "terminal" && data.terminal && !(hasComputer && !noComputers) ? <TerminalPaneTab data={data.terminal} /> : null}
         {tab === "memory" ? (
           data.memory ? (
             <KnowsTab deps={deps} memory={data.memory} spaceName={data.space.name} {...(window ? { window } : {})} />

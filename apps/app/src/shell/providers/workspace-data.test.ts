@@ -72,7 +72,7 @@ function wire(
     fail?: string;
     ws?: WorkspaceRead;
     projects?: Record<string, string>;
-    status?: Array<{ terminalId: string; lastLine?: string }>;
+    status?: Array<{ terminalId: string; lastCommand?: string }>;
   } = {},
 ) {
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
@@ -167,7 +167,7 @@ test("attach opens the agent's own live session in the terminal tab, and opens o
   const b = wire([]);
   await b.data.attach("agt_dex");
   assert.deepEqual(b.calls, [
-    { cap: "terminal.open", input: { host: "agent_computer", agentId: "agt_dex", idempotencyKey: "k1" } },
+    { cap: "terminal.open", input: { host: "agent_computer", agentId: "agt_dex", own: true, idempotencyKey: "k1" } },
   ]);
   assert.deepEqual(b.opened, ["t_new"]);
 });
@@ -239,12 +239,12 @@ test("a row carries who has the keyboard and what it last printed", () => {
     read(),
     [row({ terminalId: "t_1", name: "main", heldBy: "usr_sara" }), row({ terminalId: "t_2", name: "build" })],
     [],
-    new Map([["t_1", "$ npm test"]]),
+    new Map([["t_1", "npm test"]]),
   );
   assert.deepEqual(
-    v.sessions.map((s) => [s.terminalId, s.heldBy, s.lastLine]),
+    v.sessions.map((s) => [s.terminalId, s.heldBy, s.lastCommand]),
     [
-      ["t_1", "usr_sara", "$ npm test"],
+      ["t_1", "usr_sara", "npm test"],
       ["t_2", undefined, undefined],
     ],
   );
@@ -252,13 +252,13 @@ test("a row carries who has the keyboard and what it last printed", () => {
 
 test("the last line of each terminal comes from terminal.status after the first paint; the same lines do not paint again", async () => {
   const w = wire([row({ terminalId: "t1", name: "main", cwd: "~/portal" })], {
-    status: [{ terminalId: "t1", lastLine: "  ✓ accepts a file (41 ms)  " }],
+    status: [{ terminalId: "t1", lastCommand: "  npm test  " }],
   });
   const seen: Array<string | undefined> = [];
-  const off = w.data.watch("agt_dex", (v) => seen.push(v.sessions[0]?.lastLine));
+  const off = w.data.watch("agt_dex", (v) => seen.push(v.sessions[0]?.lastCommand));
   await flush();
   await flush();
-  assert.deepEqual(seen, [undefined, "✓ accepts a file (41 ms)"], "first paint without it, then the line, trimmed");
+  assert.deepEqual(seen, [undefined, "npm test"], "first paint without it, then the line, trimmed");
   w.ticks[0]!();
   await flush();
   await flush();

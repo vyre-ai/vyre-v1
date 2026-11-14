@@ -93,6 +93,6 @@ test("the folded tabs are a down chevron named More tabs, with no word beside it
 
 test("with the workspace and the Space browser bound, an agent that has a legacy computer gets the Terminal and Browser layout", () => {
   const out = pane({ asleep: true, width: AGENT_PANE_W, tab: "computer" });
-  assert.ok(out.includes(">Terminal<") && out.includes(">Browser<"));
+  assert.ok(out.includes(">Terminals<") && out.includes(">Browser<"));
   assert.ok(!out.includes("Last session"), "not the single-computer tab");
 });

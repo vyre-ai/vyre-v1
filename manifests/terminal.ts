@@ -55,6 +55,8 @@ const terminalRow = t.obj({
   heldBy: t.opt(id.user),
   // the person who opened it: a person's own tab says whose it is
   ownerId: t.opt(id.user),
+  // the chat it was opened from, when it was opened from one (a background job line in that chat reads it)
+  threadId: t.opt(id.thread),
 });
 const captureOut = t.obj({
   text: t.str(),
@@ -122,7 +124,13 @@ export default defineManifest({
       in: { terminalIds: t.arr(id.terminal, { maxItems: 50 }) },
       out: {
         rows: t.arr(
-          t.obj({ terminalId: id.terminal, state: termState, lastLine: t.opt(t.str()), exitCode: t.nullable(t.int()) }),
+          t.obj({
+            terminalId: id.terminal,
+            state: termState,
+            lastLine: t.opt(t.str()),
+            lastCommand: t.opt(t.str()),
+            exitCode: t.nullable(t.int()),
+          }),
         ),
       },
       tool: "terminal",
@@ -146,6 +154,12 @@ export default defineManifest({
           cwd: t.opt(t.str()),
           cols: t.opt(t.int({ minimum: 20, maximum: 500 })),
           rows: t.opt(t.int({ minimum: 5, maximum: 200 })),
+          own: t.opt(
+            t.bool({
+              description:
+                "Open the agent's own terminal in its workspace (named agent, its commands land in it), or return the one already there: nobody presses Attach. A person's call only",
+            }),
+          ),
         },
         out: { terminal: terminalRow },
         perm: "terminal.use",

@@ -103,6 +103,7 @@ export function terminalRow(x: SessionRow) {
     ...(x.runId === undefined ? {} : { runId: x.runId }),
     ...(x.by === undefined ? {} : { by: x.by }),
     ...(x.heldBy === undefined ? {} : { heldBy: x.heldBy }),
+    ...(x.threadId === undefined ? {} : { threadId: x.threadId }),
     ...(x.owner === "" || x.by?.kind !== "person" ? {} : { ownerId: x.owner }),
   };
 }
@@ -503,7 +504,8 @@ const unavailable =
     );
   };
 
-export async function open(ctx: TermCtx, input: Omit<OpenInput, "host"> & { host?: HostKind }) {
+export async function open(ctx: TermCtx, input: Omit<OpenInput, "host"> & { host?: HostKind; own?: boolean }) {
+  if (input.own === true) return openOwn(ctx, input);
   // an agent that names no host opens a tab in its workspace: its own, or its parent's when it is a helper
   let host = input.host;
   let agentId = input.agentId;
@@ -524,6 +526,43 @@ export async function open(ctx: TermCtx, input: Omit<OpenInput, "host"> & { host
       await openSession(
         ctx,
         { ...input, host, ...(agentId === undefined ? {} : { agentId }), ...(name === undefined ? {} : { name }), by },
+        unavailable(ctx),
+      ),
+    ),
+  };
+}
+
+/**
+ * The agent's own terminal, there before anyone asks (14 Nov: no Attach). A person's call: the tab is the one the agent's commands go to (named `agent`, found by terminal.run for the person it acts for), so what the
+ * agent runs shows in it. One per person and workspace: asked again it returns the one that is there.
+ */
+async function openOwn(ctx: TermCtx, input: Omit<OpenInput, "host"> & { own?: boolean }) {
+  ensure(ctx.db);
+  if (ctx.principal.kind === "agent")
+    raise(ctx, "permission.no_grant", "An agent's own terminal opens by itself when it runs a command.");
+  if (input.agentId === undefined) raise(ctx, "validation.bad_input", "Say whose terminal to open.");
+  await needWorkspace(ctx, input.agentId);
+  const found = ctx.db.all(
+    `${SESSION_SELECT} WHERE s.owner = ? AND s.host = 'agent_computer' AND s.name = ? AND s.closed_at IS NULL AND s.agent_id = ? ORDER BY s.created_at DESC LIMIT 1`,
+    actorOf(ctx),
+    AGENT_SESSION,
+    input.agentId,
+  ) as Row[];
+  if (found[0]) return { terminal: terminalRow(fresh(ctx, sessionOf(found[0]))) };
+  return {
+    terminal: terminalRow(
+      await openSession(
+        ctx,
+        {
+          host: "agent_computer",
+          agentId: input.agentId,
+          name: AGENT_SESSION,
+          named: true,
+          by: { kind: "agent" },
+          ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
+          ...(input.cols === undefined ? {} : { cols: input.cols }),
+          ...(input.rows === undefined ? {} : { rows: input.rows }),
+        },
         unavailable(ctx),
       ),
     ),
@@ -634,7 +673,15 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
             x.terminalId,
           );
         const last = h?.lastLine === undefined ? undefined : clean(scopeOf(x), h.lastLine);
-        return { terminalId: x.terminalId, state, ...(last === undefined ? {} : { lastLine: last }), exitCode };
+        const cmd = commandsOf(ctx.db, x.terminalId, 1)[0]?.command;
+        const lastCommand = cmd === undefined ? undefined : clean(scopeOf(x), cmd).trim().slice(0, 200);
+        return {
+          terminalId: x.terminalId,
+          state,
+          ...(last === undefined ? {} : { lastLine: last }),
+          ...(lastCommand ? { lastCommand } : {}),
+          exitCode,
+        };
       })
       .concat(
         kept.map((x) => ({
@@ -650,7 +697,6 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
 export async function read(ctx: TermCtx, input: { terminalId: string; lines?: number; since?: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
-  looked(ctx, x);
   try {
     const r = await (
       await hostFor(ctx, x)
@@ -667,7 +713,6 @@ export async function read(ctx: TermCtx, input: { terminalId: string; lines?: nu
 export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
-  looked(ctx, x);
   let replay: string;
   try {
     replay = clean(scopeOf(x), (await (await hostFor(ctx, x)).read(input.terminalId, { lines: REPLAY_LINES })).text);
@@ -717,11 +762,6 @@ function needKeyboard(ctx: TermCtx, x: SessionRow): void {
   }
   if (ctx.principal.kind === "agent" && x.agentId !== undefined && workspaceHolder(ctx.db, x.agentId, now) !== null)
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
-}
-
-/** The holder looking (reading the screen, attaching) keeps the hold in use, as typing does. */
-function looked(ctx: TermCtx, x: SessionRow): void {
-  if (isHolder(ctx, x.terminalId)) touchHold(ctx.db, x.terminalId, actorOf(ctx), ctx.now());
 }
 
 /** May this caller take the keyboard from another person: the person whose terminal it is, or someone who manages the agent whose computer it is. */
@@ -839,7 +879,6 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
 export async function capture(ctx: TermCtx, input: { terminalId: string; lines?: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
-  looked(ctx, x);
   const host = await hostFor(ctx, x);
   if (!host.capture)
     raise(ctx, "validation.precondition_failed", "This terminal draws lines, not a screen.", { reason: "no_screen" });

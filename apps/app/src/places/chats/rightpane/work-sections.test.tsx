@@ -39,7 +39,7 @@ const ws = (over: Partial<WorkspaceView> = {}): WorkspaceView => ({
   host: "the Space server",
   canAttach: true,
   sessions: [
-    { name: "main", terminalId: "trm_main", state: "running", cwd: "~/portal" },
+    { name: "main", terminalId: "trm_main", state: "running", cwd: "~/portal", owner: { kind: "agent" } },
     { name: "build", terminalId: "trm_build", state: "idle", cwd: "~/portal" },
   ],
   projects: ["Client portal launch"],
@@ -137,6 +137,7 @@ test("mounted: Terminals, then Browser; the agent has no computer to set up, and
     );
     assert.ok(!/Give .* its own computer|Set up its computer/.test(t), "no setup step");
     assert.equal(find(root, "terminal-attach"), null);
+    assert.ok(!/(^|\s)(\+|\.\.\.|\u2026)(\s|$)/.test(t), "no plus or three dots drawn on a head: nothing is drawn that does nothing");
     assert.equal(find(root, "browser-take"), null);
     assert.equal(find(root, "browser-give"), null);
     assert.ok(!t.includes(String.fromCharCode(0x2014)), "no em dash");
@@ -210,7 +211,7 @@ test("mounted: the helpers' and people's terminals are rows too, grouped by whos
     const t = textOf(root);
     const at = (x: string): number => t.indexOf(x);
     assert.ok(at(s.data.agent.name) < at("Tess") && at("Tess") < at("Dana"), "agent, helper, person");
-    assert.ok(t.includes("helper") && t.includes("own tab"));
+    assert.ok(t.includes("helper") && t.includes("terminals"));
     assert.ok(at("main") < at("lint") && at("lint") < at("Dana's tab"));
     await press(find(root, "row-session-lint"));
     assert.deepEqual(k.log, ["ws.open t_h"]);
@@ -524,7 +525,7 @@ test("the words of the pane: a dot and one word, never a chip or a sentence", ()
     [
       ["Mira", undefined, 1],
       ["Tess", "helper", 2],
-      ["Sara", "own tab", 1],
+      ["Sara", "terminals", 1],
     ],
   );
   assert.deepEqual(

@@ -21,7 +21,7 @@ export interface WorkspaceSession {
   /** where it is, as the terminal says it: "~/portal" */ cwd?: string;
   /** the person at its keyboard now, by id */ heldBy?: string;
   /** the person whose own tab it is, by id */ ownerId?: string;
-  /** what it last printed, one line (terminal.status) */ lastLine?: string;
+  /** the last command run in it (terminal.status), never the prompt */ lastCommand?: string;
   owner?: SessionOwner;
   /** left out when the host does not say */ windows?: number;
   /** people attached right now; left out when not known */ attached?: number;
@@ -185,14 +185,15 @@ export function groupSessions(
   for (const s of orderSessions(list)) {
     const o = s.owner;
     const kind = !o || o.kind === "agent" ? "agent" : o.kind;
-    // a person's own tab is named for the person: "You" to themselves, their name to everyone else, never a generic
-    const person =
-      s.ownerId !== undefined
-        ? s.ownerId === who.me
-          ? "You"
-          : (who.nameOf?.(s.ownerId) ?? o?.name ?? "Someone")
+    // a person's terminals are named for the person: "Your terminals" to themselves, "Sara, terminals" to everyone else, never a generic
+    const mine = s.ownerId !== undefined && s.ownerId === who.me;
+    const person = mine
+      ? (who.nameOf?.(s.ownerId as string) ?? "You")
+      : s.ownerId !== undefined
+        ? (who.nameOf?.(s.ownerId) ?? o?.name ?? "Someone")
         : (o?.name ?? "Someone");
-    const name = kind === "agent" ? agentName : kind === "person" ? person : (o?.name ?? "A helper");
+    const yours = mine && person === "You";
+    const name = kind === "agent" ? agentName : kind === "person" ? (yours ? "Your terminals" : person) : (o?.name ?? "A helper");
     const key = `${kind}:${name}`;
     let g = out.find((x) => x.key === key);
     if (!g) {
@@ -200,7 +201,7 @@ export function groupSessions(
         key,
         name,
         kind,
-        ...(kind === "helper" ? { tag: "helper" } : kind === "person" ? { tag: "own tab" } : {}),
+        ...(kind === "helper" ? { tag: "helper" } : kind === "person" ? (yours ? {} : mine ? { tag: "your terminals" } : { tag: "terminals" }) : {}),
         rows: [],
       };
       out.push(g);
@@ -248,6 +249,7 @@ export interface BarIn {
   /** someone else's name, when someone else holds it */ otherHolds?: string;
   asking: boolean;
   hidden: boolean;
+  /** you held it and it went back to the agent by itself (15 quiet minutes) */ lost?: boolean;
   said?: string | null;
   /** seconds the start has taken, for its stage words */ startedMs?: number;
 }
@@ -283,6 +285,7 @@ export function terminalBar(i: BarIn): TermBar {
   if (i.mine)
     return { title: "You have the keyboard", note: `${i.agentName}'s commands wait.`, action: "give", tone: "mine" };
   if (i.otherHolds) return { title: `${i.otherHolds} has the keyboard`, action: "ask", tone: "wait" };
+  if (i.lost) return { title: `The keyboard went back to ${i.agentName} after 15 quiet minutes.`, action: "take", tone: "wait" };
   return {
     title: i.state === "running" ? `${i.agentName} is typing` : "Nobody is typing",
     note: "Press Take over, or Return, to type.",
@@ -290,3 +293,7 @@ export function terminalBar(i: BarIn): TermBar {
     tone: "quiet",
   };
 }
+
+/** A terminal's name as shown: the agent's own is "main" (it is stored as "agent", the name its commands find it by). */
+export const sessionTitle = (s: Pick<WorkspaceSession, "name" | "owner">): string =>
+  s.owner?.kind === "agent" && s.name === "agent" ? "main" : s.name;

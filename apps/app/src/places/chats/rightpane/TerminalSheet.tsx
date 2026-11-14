@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import type { TerminalData } from "../terminal/data.ts";
@@ -13,7 +14,7 @@ import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { TmuxScreen } from "./TmuxScreen.tsx";
 import { Icon, TextButton } from "./parts.tsx";
 import { Dot, GroupHead } from "./WorkParts.tsx";
-import { groupSessions, sessionWords, terminalBar } from "./work-model.ts";
+import { groupSessions, sessionTitle, sessionWords, terminalBar } from "./work-model.ts";
 import type { WorkspaceSession } from "./work-model.ts";
 
 const RAIL = 208;
@@ -39,17 +40,35 @@ export function TerminalSheet({
 }): ReactElement {
   const win = useWindowDimensions();
   const [sel, setSel] = useState(start);
-  const narrow = win.width < 720;
+  const narrow = belowPhone(win.width);
   const current0 = sessions.find((s) => s.terminalId === sel);
   // taking the keyboard: you hold it as soon as the server's answer comes, not at the next refresh of the list; keys pressed in between are kept, in order (the ref is set the instant Take over is pressed)
   const [took, setTook] = useState<string | null>(null);
   const takingRef = useRef(false);
   // handing it back is just as immediate: the list still says you hold it until its next refresh
   const [gave, setGave] = useState<string | null>(null);
+  const [lost, setLost] = useState<string | null>(null);
   const mine =
     gave !== sel &&
     ((current0?.heldBy !== undefined && current0.heldBy === me) ||
       (took === sel && (current0?.heldBy === undefined || current0.heldBy === me)));
+  // the local "I took it" bridges only until the list agrees (or 4 seconds): after that the server's word is the only one, so a hold that expired is seen as lost
+  const heldByMe = current0?.heldBy !== undefined && current0.heldBy === me;
+  useEffect(() => {
+    if (took === null) return undefined;
+    if (heldByMe) {
+      setTook(null);
+      return undefined;
+    }
+    const t = setTimeout(() => setTook(null), 4000);
+    return () => clearTimeout(t);
+  }, [took, heldByMe]);
+  const wasMine = useRef(false);
+  useEffect(() => {
+    if (wasMine.current && !mine && gave !== sel) setLost(sel);
+    if (mine) setLost(null);
+    wasMine.current = mine;
+  }, [mine, gave, sel]);
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const [nudge, setNudge] = useState(false);
@@ -194,6 +213,7 @@ export function TerminalSheet({
     ...(holder !== undefined && !mine ? { otherHolds: hn } : {}),
     asking,
     hidden: hiddenPrompt,
+    lost: lost === sel,
     said,
     startedMs: Date.now() - openedAt.current,
   });
@@ -203,7 +223,7 @@ export function TerminalSheet({
         <View style={[st.head, narrow && st.headNarrow]}>
           <Icon name="terminal" size={16} color="var(--ink-2)" />
           <Text style={st.title} numberOfLines={1}>
-            {current?.name ?? "Terminal"}
+            {current ? sessionTitle(current) : "Terminal"}
           </Text>
           <Text style={st.sub} numberOfLines={1}>
             {owner}
@@ -279,7 +299,7 @@ export function TerminalSheet({
                       >
                         <Dot tone={x.dot} />
                         <Text style={st.tabText} numberOfLines={1}>
-                          {s.name}
+                          {sessionTitle(s)}
                         </Text>
                       </Pressable>
                     );

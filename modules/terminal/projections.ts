@@ -328,6 +328,7 @@ export interface SessionRow {
   /** The person at the keyboard now (terminal_hold), when one is. */
   heldBy?: string;
   heldSeen?: number;
+  threadId?: string;
 }
 
 export function sessionOf(r: Row): SessionRow {
@@ -364,6 +365,8 @@ export function sessionOf(r: Row): SessionRow {
   const u = opt(r["run_id"]);
   if (u !== undefined) out.runId = u;
   if (r["closed_at"] !== null && r["closed_at"] !== undefined) out.closedAt = Number(r["closed_at"]);
+  const th = opt(r["tab_thread"]);
+  if (th !== undefined) out.threadId = th;
   const h = opt(r["hold_person"]);
   if (h !== undefined) {
     out.heldBy = h;
@@ -379,7 +382,7 @@ export function sessionBy(db: Db, terminalId: string): SessionRow | null {
 
 /** A session with its tab: who made it. */
 export const SESSION_SELECT =
-  "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor, h.person_id AS hold_person, h.seen AS hold_seen FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id LEFT JOIN terminal_hold h ON h.terminal_id = s.terminal_id";
+  "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor, h.person_id AS hold_person, h.seen AS hold_seen, t.thread_id AS tab_thread FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id LEFT JOIN terminal_hold h ON h.terminal_id = s.terminal_id";
 
 export function insertTab(db: Db, terminalId: string, by: TabBy, actor: string, threadId?: string): void {
   db.run(

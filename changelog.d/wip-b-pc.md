@@ -7,3 +7,8 @@
 - Typing in the full-screen terminal shows at once: the keys and the screen they made come back in one answer, and keys that did not land are sent again in order instead of being dropped.
 - While a person has taken over the browser, only they see its picture; everyone else sees who is using it. The browser picture in the Computer tab no longer keeps a sleeping browser awake.
 - The full-screen terminal and the Computer tab say what is wrong in each fault, with its one action: a terminal that ended (New tab), a connection that dropped (Reconnecting, the last lines stay), a computer starting, a browser that stopped (Restart).
+- Text typed into a terminal before a program has turned its echo off is echoed, and programs that clear typed-ahead keys when they start (sudo, ssh) drop keys sent before they read. What you type after a password prompt appears is never shown or saved.
+- The agent's own terminal is the first one listed in its Computer tab, already open, and it is where the agent's commands show. Each terminal row shows its folder and the last command, or Idle.
+- One door: the chat pane has no separate Terminal tab beside Computer, and no Attach anywhere; terminals are attached by themselves. A person's terminals read "Your terminals" or "Sara, terminals" instead of "own tab".
+- After a terminal ends, its last screen stays as it was; a failed or empty read never replaces it and the screen is not polled again.
+- A terminal row from the list carries the chat it was opened from (threadId).

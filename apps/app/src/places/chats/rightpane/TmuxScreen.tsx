@@ -16,6 +16,16 @@ export interface Capture {
   hidden: boolean;
 }
 
+/** The screen to draw after an answer: the last good one stays when the answer is not a screen (a failed capture, a terminal that ended), and an identical one changes nothing. */
+export function nextShot(was: Capture | null, r: unknown): Capture | null {
+  const c = r as Partial<Capture> | null | undefined;
+  if (c === null || c === undefined || typeof c !== "object" || typeof c.text !== "string") return was;
+  const n = c as Capture;
+  return was && was.text === n.text && was.hidden === n.hidden && was.cursor?.x === n.cursor?.x && was.cursor?.y === n.cursor?.y
+    ? was
+    : n;
+}
+
 // ---- keys
 
 const NAMED: Readonly<Record<string, string>> = {
@@ -221,15 +231,8 @@ export function TmuxScreen({
   const asked = useRef(0);
   const drawn = useRef(0);
   const apply = (r: Capture): void => {
-    setShot((was) =>
-      was &&
-      was.text === r.text &&
-      was.hidden === r.hidden &&
-      was.cursor?.x === r.cursor?.x &&
-      was.cursor?.y === r.cursor?.y
-        ? was
-        : r,
-    );
+    if (nextShot(null, r) === null) return;
+    setShot((was) => nextShot(was, r));
     onHiddenRef.current?.(r.hidden);
   };
   const latest = useRef({ call, terminalId, show: apply });
@@ -294,6 +297,8 @@ export function TmuxScreen({
           onUnsupported?.();
           return;
         }
+        // the terminal ended: the last screen stays as it was and is not read again
+        if (live && code === "validation.not_found") return;
       }
       busy = false;
       if (live && again) {

@@ -588,9 +588,33 @@ test("while a person has taken over the browser, only they get a picture or a li
       (e) => codeOf(e) === "permission.no_grant",
     );
     void r;
+    // a viewer whose ticket was minted before the take is cut off at the relay
+    // (the ticket was minted by the watcher before Dana took over: see the next test)
     // given back: everyone sees again
     await tool["computers.browser.give_back"]!(dana, { agentId: "agt_named" });
     assert.equal((await tool["computers.browser.preview"]!(w, { agentId: "agt_named" })).state, "live");
+  } finally {
+    off();
+  }
+});
+
+test("the stream relay cuts a viewer whose ticket was minted before another person took the browser over, and lets the holder in", async () => {
+  rig();
+  try {
+    const base = as(DANA, false);
+    const sh = (person: string, manager = true) =>
+      harness({ raw: base.raw, principal: { kind: "person", id: person }, manager, respond }).ctx;
+    const watcher = sh(WATCHER, false);
+    const early = await tool["computers.browser.stream"]!(watcher, { agentId: "agt_named" });
+    const ticket = /ticket=([^&]+)/.exec(early.url)![1]!;
+    await tool["computers.browser.take_over"]!(base.ctx, { agentId: "agt_named" });
+    // the watcher's early ticket is refused now
+    assert.equal(await browserStreamOpen(watcher, { ticket, agentId: "agt_named" }), null, "cut at the door");
+    // the holder's own ticket works
+    const mine = await tool["computers.browser.stream"]!(base.ctx, { agentId: "agt_named" });
+    const t2 = /ticket=([^&]+)/.exec(mine.url)![1]!;
+    const ok = await browserStreamOpen(base.ctx, { ticket: t2, agentId: "agt_named" });
+    assert.ok(ok && ok.personId === DANA);
   } finally {
     off();
   }

@@ -45,7 +45,11 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
       idempotencyKey: "pic-lint",
     });
     await page.getByTestId("row-session-build").waitFor({ timeout: 15_000 });
-    await shoot(page, DIR, "a2-pane-three-terminals");
+    // the agent's own terminal is there by itself, the first group, and shows live while its commands run (the command is run as the owner on the agent's own terminal: the tab its commands land in)
+    await page.getByTestId("row-session-main").waitFor({ timeout: 15_000 });
+    void k.w.owner.call("terminal.run", { host: "agent_computer", agentId: k.agentId, command: "echo running tests; sleep 25", timeoutSec: 60 });
+    await page.getByTestId("row-session-main").getByText("Running").waitFor({ timeout: 15_000 });
+    await shoot(page, DIR, "a2-pane-agent-terminal-and-yours");
     // the terminal full screen: watching, a real prompt, then holding with a command and its answer
     await page.getByTestId("row-session-build").click();
     await page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });
