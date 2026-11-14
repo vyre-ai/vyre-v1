@@ -2000,6 +2000,15 @@ export type AgentsRoutineDeleteIn = {
 export type AgentsRoutineDeleteOut = {
   deleted: boolean;
 };
+export type AgentsRoutineFireIn = {
+  routineId: string;
+  dueKey: string;
+};
+export type AgentsRoutineFireOut = {
+  started: boolean;
+  runId?: string;
+  why?: string;
+};
 export type AgentsRoutineRunNowIn = {
   agentId: string;
   routineId: string;
@@ -5382,6 +5391,8 @@ export type CalendarCreateEventIn = {
 export type CalendarCreateEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5439,6 +5450,8 @@ export type CalendarDuplicateEventIn = {
 export type CalendarDuplicateEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5496,6 +5509,8 @@ export type CalendarGetEventIn = {
 export type CalendarGetEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5590,6 +5605,8 @@ export type CalendarLinkRecordIn = {
 export type CalendarLinkRecordOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5654,6 +5671,8 @@ export type CalendarListEventsIn = {
 export type CalendarListEventsOut = {
   events: Array<{
       id: string;
+      version?: number;
+      updatedAt?: number;
       calendarId: string;
       title: string;
       startsAt: number;
@@ -5700,6 +5719,8 @@ export type CalendarMoveToCalendarIn = {
 export type CalendarMoveToCalendarOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5745,6 +5766,8 @@ export type CalendarRespondIn = {
 export type CalendarRespondOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5788,6 +5811,8 @@ export type CalendarRestoreEventIn = {
 export type CalendarRestoreEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5868,10 +5893,13 @@ export type CalendarUpdateEventIn = {
   joinProvider?: "zoom" | "meet" | "teams" | "none";
   scope?: "this" | "all";
   video?: "meet" | "zoom" | "teams";
+  expectedVersion?: number;
 };
 export type CalendarUpdateEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -6494,6 +6522,7 @@ export type ChannelsMembersAddIn = {
   personIds: Array<string>;
   level?: "view" | "use" | "edit" | "manage";
   mentionedIn?: string;
+  fromStart?: boolean;
 };
 export type ChannelsMembersAddOut = {
   channel: {
@@ -13080,6 +13109,10 @@ export type EngineTurnFinishOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13118,6 +13151,10 @@ export type EngineTurnGetOut = {
         traceId: string;
       };
       nodeId?: string;
+      stoppedBy?: {
+        id: string;
+        kind: "person" | "guest" | "agent" | "system";
+      };
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
@@ -13239,6 +13276,10 @@ export type EngineTurnRecordIn = {
   code?: string;
   message?: string;
   reason?: string;
+  stoppedBy?: {
+    id: string;
+    kind: "person" | "guest" | "agent" | "system";
+  };
   info?: {
     effort?: string;
     account?: {
@@ -13300,6 +13341,10 @@ export type EngineTurnRecordOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13351,6 +13396,10 @@ export type EngineTurnRetryOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13395,6 +13444,10 @@ export type EngineTurnStartOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13445,6 +13498,10 @@ export type EngineTurnsListOut = {
         traceId: string;
       };
       nodeId?: string;
+      stoppedBy?: {
+        id: string;
+        kind: "person" | "guest" | "agent" | "system";
+      };
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
@@ -18270,6 +18327,7 @@ export type GoalsUpdateIn = {
       dependsOn?: Array<string>;
       due?: number;
     }>;
+  expectedUpdatedAt?: number;
 };
 export type GoalsUpdateOut = {
   goal: {
@@ -28978,6 +29036,7 @@ export type NotesClipOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesCreateIn = {
@@ -29045,6 +29104,7 @@ export type NotesCreateOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesDeleteIn = {
@@ -29107,6 +29167,7 @@ export type NotesGetOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesImageIn = {
@@ -29170,6 +29231,7 @@ export type NotesLabelOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesListIn = {
@@ -29227,6 +29289,7 @@ export type NotesListOut = {
       canEdit: boolean;
       createdAt: number;
       updatedAt: number;
+      version: number;
     }>;
   labels: Array<{
       name: string;
@@ -29287,6 +29350,7 @@ export type NotesPinOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesRestoreIn = {
@@ -29340,6 +29404,7 @@ export type NotesRestoreOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesSearchIn = {
@@ -29408,6 +29473,7 @@ export type NotesSetOwnerOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesShareIn = {
@@ -29469,6 +29535,7 @@ export type NotesShareOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesToRecordIn = {
@@ -29526,6 +29593,7 @@ export type NotesToRecordOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
   recordId: string;
 };
@@ -29588,6 +29656,7 @@ export type NotesToTaskOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
   taskId: string;
 };
@@ -29601,6 +29670,7 @@ export type NotesUpdateIn = {
     contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
   }) | null;
   link?: string | null;
+  expectedVersion?: number;
 };
 export type NotesUpdateOut = {
   note: {
@@ -29650,6 +29720,7 @@ export type NotesUpdateOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotificationsAwayClearIn = Record<string, unknown>;
@@ -33582,6 +33653,15 @@ export type RunsStartIn = {
 export type RunsStartOut = {
   runId: string;
 };
+export type RunsStatesIn = {
+  runIds: Array<string>;
+};
+export type RunsStatesOut = {
+  states: Array<{
+      runId: string;
+      status: string;
+    }>;
+};
 export type RunsStatusIn = Record<string, unknown>;
 export type RunsStatusOut = {
   state: "healthy" | "degraded" | "down";
@@ -33696,6 +33776,15 @@ export type RunsWaitForIn = {
 export type RunsWaitForOut = {
   runId: string;
 };
+export type SchedulerCanHoldIn = {
+  person: string;
+  agentId: string;
+  channelId?: string;
+};
+export type SchedulerCanHoldOut = {
+  ok: boolean;
+  reasons: Array<"not_in_space" | "cannot_use_agent" | "cannot_read_channel" | "agent_missing">;
+};
 export type SchedulerCancelIn = {
   scheduleId: string;
 };
@@ -33708,6 +33797,16 @@ export type SchedulerCatchUpIn = {
 export type SchedulerCatchUpOut = {
   ranOnce: number;
   skipped: number;
+};
+export type SchedulerClaimIn = {
+  scheduleId: string;
+  dueKey: string;
+  host: string;
+};
+export type SchedulerClaimOut = {
+  claimed: boolean;
+  fireId?: string;
+  attempt?: number;
 };
 export type SchedulerFireIn = {
   scheduleId: string;
@@ -33723,7 +33822,7 @@ export type SchedulerGetOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
       id: string;
     };
     principal: string;
@@ -33740,11 +33839,14 @@ export type SchedulerGetOut = {
     nextAt?: number;
     lastFiredAt?: number;
     createdAt: number;
+    zone?: string;
+    scope?: "private" | "shared" | "room";
+    person?: string;
   };
 };
 export type SchedulerListIn = {
   owner?: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   active?: boolean;
@@ -33755,7 +33857,7 @@ export type SchedulerListOut = {
   schedules: Array<{
       id: string;
       owner: {
-        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
         id: string;
       };
       principal: string;
@@ -33772,6 +33874,9 @@ export type SchedulerListOut = {
       nextAt?: number;
       lastFiredAt?: number;
       createdAt: number;
+      zone?: string;
+      scope?: "private" | "shared" | "room";
+      person?: string;
     }>;
   next?: string;
   total?: number;
@@ -33783,7 +33888,7 @@ export type SchedulerMissedOut = {
   missed: Array<{
       scheduleId: string;
       owner: {
-        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
         id: string;
       };
       scheduledFor: number;
@@ -33807,7 +33912,7 @@ export type SchedulerPauseOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
       id: string;
     };
     principal: string;
@@ -33824,7 +33929,21 @@ export type SchedulerPauseOut = {
     nextAt?: number;
     lastFiredAt?: number;
     createdAt: number;
+    zone?: string;
+    scope?: "private" | "shared" | "room";
+    person?: string;
   };
+};
+export type SchedulerReportIn = {
+  fireId: string;
+  attempt: number;
+  state: "running" | "waiting" | "done" | "failed" | "stopped" | "skipped";
+  runId?: string;
+  note?: string;
+};
+export type SchedulerReportOut = {
+  ok: boolean;
+  superseded?: boolean;
 };
 export type SchedulerRescheduleIn = {
   scheduleId: string;
@@ -33840,7 +33959,7 @@ export type SchedulerRescheduleOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
       id: string;
     };
     principal: string;
@@ -33857,6 +33976,9 @@ export type SchedulerRescheduleOut = {
     nextAt?: number;
     lastFiredAt?: number;
     createdAt: number;
+    zone?: string;
+    scope?: "private" | "shared" | "room";
+    person?: string;
   };
 };
 export type SchedulerResumeIn = {
@@ -33866,7 +33988,7 @@ export type SchedulerResumeOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
       id: string;
     };
     principal: string;
@@ -33883,6 +34005,9 @@ export type SchedulerResumeOut = {
     nextAt?: number;
     lastFiredAt?: number;
     createdAt: number;
+    zone?: string;
+    scope?: "private" | "shared" | "room";
+    person?: string;
   };
 };
 export type SchedulerRunNowIn = {
@@ -33893,7 +34018,7 @@ export type SchedulerRunNowOut = {
 };
 export type SchedulerScheduleIn = {
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   cap: string;
@@ -33906,6 +34031,20 @@ export type SchedulerScheduleIn = {
   };
   ifMissed?: "skip" | "run_once";
   principal?: string;
+  kind?: "call" | "routine" | "watch" | "goal" | "baton";
+  person?: string;
+  agentId?: string;
+  scope?: "private" | "shared" | "room";
+  roomId?: string;
+  zone?: string;
+  quiet?: {
+    from: string;
+    to: string;
+  };
+  overlap?: "skip" | "coalesce";
+  answerWithinMin?: number;
+  maxAttempts?: number;
+  nextAt?: number;
   idempotencyKey: string;
 };
 export type SchedulerScheduleOut = {
@@ -34975,6 +35114,7 @@ export type SheetsUpdateRowIn = {
     value: unknown;
   };
   values: Record<string, unknown>;
+  expect?: Record<string, unknown>;
   label?: string;
 };
 export type SheetsUpdateRowOut = {
@@ -34986,6 +35126,7 @@ export type SheetsUpsertRowIn = {
   sheet?: string;
   match: Array<string>;
   values: Record<string, unknown>;
+  expect?: Record<string, unknown>;
   label?: string;
 };
 export type SheetsUpsertRowOut = {
@@ -35031,12 +35172,14 @@ export type SitesArtifactPublishIn = {
   port?: number;
   computerId?: string;
   artifactId?: string;
+  expectedUpdatedAt?: number;
   thumb?: string;
   idempotencyKey: string;
 };
 export type SitesArtifactPublishOut = {
   artifactId: string;
   url?: string;
+  updatedAt?: number;
   updated: boolean;
   opened: boolean;
 };
@@ -35847,6 +35990,7 @@ export type SitesUpdateIn = {
   computerId?: string;
   port?: number;
   folderId?: string;
+  expectedUpdatedAt?: number;
 };
 export type SitesUpdateOut = {
   site: {
@@ -45128,6 +45272,7 @@ export type VaultItemUpdateIn = {
   spaceOnly?: boolean;
   injectIntoDeployments?: boolean;
   rotateEveryDays?: number | null;
+  expectedUpdatedAt?: number;
 };
 export type VaultItemUpdateOut = {
   item: {
@@ -46061,6 +46206,7 @@ export interface CapMap {
   "agents.role_line.set": { in: AgentsRoleLineSetIn; out: AgentsRoleLineSetOut };
   "agents.routine.delegate": { in: AgentsRoutineDelegateIn; out: AgentsRoutineDelegateOut };
   "agents.routine.delete": { in: AgentsRoutineDeleteIn; out: AgentsRoutineDeleteOut };
+  "agents.routine.fire": { in: AgentsRoutineFireIn; out: AgentsRoutineFireOut };
   "agents.routine.run_now": { in: AgentsRoutineRunNowIn; out: AgentsRoutineRunNowOut };
   "agents.routine.save": { in: AgentsRoutineSaveIn; out: AgentsRoutineSaveOut };
   "agents.routines.list": { in: AgentsRoutinesListIn; out: AgentsRoutinesListOut };
@@ -47665,20 +47811,24 @@ export interface CapMap {
   "runs.resume": { in: RunsResumeIn; out: RunsResumeOut };
   "runs.retry": { in: RunsRetryIn; out: RunsRetryOut };
   "runs.start": { in: RunsStartIn; out: RunsStartOut };
+  "runs.states": { in: RunsStatesIn; out: RunsStatesOut };
   "runs.status": { in: RunsStatusIn; out: RunsStatusOut };
   "runs.step_io": { in: RunsStepIoIn; out: RunsStepIoOut };
   "runs.steps": { in: RunsStepsIn; out: RunsStepsOut };
   "runs.stop": { in: RunsStopIn; out: RunsStopOut };
   "runs.undo": { in: RunsUndoIn; out: RunsUndoOut };
   "runs.wait_for": { in: RunsWaitForIn; out: RunsWaitForOut };
+  "scheduler.can_hold": { in: SchedulerCanHoldIn; out: SchedulerCanHoldOut };
   "scheduler.cancel": { in: SchedulerCancelIn; out: SchedulerCancelOut };
   "scheduler.catch_up": { in: SchedulerCatchUpIn; out: SchedulerCatchUpOut };
+  "scheduler.claim": { in: SchedulerClaimIn; out: SchedulerClaimOut };
   "scheduler.fire": { in: SchedulerFireIn; out: SchedulerFireOut };
   "scheduler.get": { in: SchedulerGetIn; out: SchedulerGetOut };
   "scheduler.list": { in: SchedulerListIn; out: SchedulerListOut };
   "scheduler.missed": { in: SchedulerMissedIn; out: SchedulerMissedOut };
   "scheduler.next_times": { in: SchedulerNextTimesIn; out: SchedulerNextTimesOut };
   "scheduler.pause": { in: SchedulerPauseIn; out: SchedulerPauseOut };
+  "scheduler.report": { in: SchedulerReportIn; out: SchedulerReportOut };
   "scheduler.reschedule": { in: SchedulerRescheduleIn; out: SchedulerRescheduleOut };
   "scheduler.resume": { in: SchedulerResumeIn; out: SchedulerResumeOut };
   "scheduler.run_now": { in: SchedulerRunNowIn; out: SchedulerRunNowOut };
@@ -48533,7 +48683,7 @@ export type AutomationRunsMigratedPayload = {
 export type AutomationTriggerDroppedPayload = {
   automationId: string;
   eventId: string;
-  reason: "self_trigger" | "depth_limit" | "paused" | "filter_error";
+  reason: "self_trigger" | "depth_limit" | "paused" | "filter_error" | "outsider";
 };
 export type AutomationUpdatedPayload = {
   automationId: string;
@@ -51264,7 +51414,7 @@ export type SandboxDeniedPayload = {
 export type ScheduleCanceledPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   by: string;
@@ -51272,7 +51422,7 @@ export type ScheduleCanceledPayload = {
 export type ScheduleCreatedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   nextAt?: number;
@@ -51280,7 +51430,7 @@ export type ScheduleCreatedPayload = {
 export type ScheduleFiredPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   runId?: string;
@@ -51290,7 +51440,7 @@ export type ScheduleFiredPayload = {
 export type ScheduleMissedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   scheduledFor: number;
@@ -51300,7 +51450,7 @@ export type ScheduleMissedPayload = {
 export type SchedulePausedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   reason: string;
@@ -51308,7 +51458,7 @@ export type SchedulePausedPayload = {
 export type ScheduleResumedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
 };
@@ -52183,6 +52333,7 @@ export type TombstonesReappliedPayload = {
 };
 export type TranscriptsPurgedPayload = {
   removed: number;
+  messageIds?: Array<string>;
 };
 export type TurnBlockPayload = {
   turnId: string;

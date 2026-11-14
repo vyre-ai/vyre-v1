@@ -265,9 +265,14 @@ function PaneView({
               hooks: hasHooks,
             }),
           ]
-        : tabsOf(data.terminal !== undefined && !(hasComputer && !noComputers), hasCrew, hasComputer, hasSkills, hasHooks, longSession).filter(
-            (t) => !(noComputers && t.key === "computer"),
-          )
+        : tabsOf(
+            data.terminal !== undefined && !(hasComputer && !noComputers),
+            hasCrew,
+            hasComputer,
+            hasSkills,
+            hasHooks,
+            longSession,
+          ).filter((t) => !(noComputers && t.key === "computer"))
       ).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })),
     [
       mine,
