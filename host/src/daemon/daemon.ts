@@ -1611,6 +1611,24 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   /** The last log seq the access module has been handed (in order) and folded; the next sync reads the log after it. Set after the boot read, which hands the log over up to it. */
   let accessFedTo = 0;
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
+  /** Is this the folder the server made for this artifact? (see adoptArtifactFolder) */
+  const serverMadeFolder = (folderId: string, siteId: string, resourceOwner: string | null | undefined): boolean => {
+    if (!db) return false;
+    try {
+      const site = db.all("SELECT settings FROM sites_site WHERE id = ? AND kind = 'artifact'", siteId)[0] as
+        | { settings?: string | null }
+        | undefined;
+      if (!site) return false;
+      const kept: unknown = JSON.parse(site.settings ?? "{}");
+      if (kept !== null && typeof kept === "object" && (kept as { serverFolder?: unknown }).serverFolder === folderId)
+        return true;
+      if (typeof resourceOwner !== "string" || !resourceOwner.startsWith("svc_")) return false;
+      const f = db.all("SELECT path FROM files_folder WHERE id = ?", folderId)[0] as { path?: string } | undefined;
+      return new RegExp(`^Deployments/Artifacts/[^/]+ \\(${siteId.slice(-6)}\\)$`).test(f?.path ?? "");
+    } catch {
+      return false;
+    }
+  };
   /**
    * An artifact's files are the artifact's own (F56, 14 Nov 2026): its folder sits under the site in the access tree, not under the Space, so who may read the files is who may read the artifact (the owner, what it is
    * shared with, the Space when its access is the Space's). Without this a member found a private artifact's page by searching its words. Returns true when the folder was moved.
@@ -1624,6 +1642,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const row = access.snap.resource(folderId);
     const into = via ?? log;
     if (!into || !row || !access.snap.resource(siteId)) return false;
+    // only the folder the server itself made for the artifact is adopted: one a caller named (artifact_publish with a folderId) belongs to its owner and stays as it is. The server marks the folder it makes
+    // in the artifact's own record (settings.serverFolder); an artifact made before the mark is recognised by what a person cannot make: a folder owned by the server (a service) at the server's own path for this artifact.
+    if (!serverMadeFolder(folderId, siteId, row.owner_id)) return false;
     let changed = false;
     const person = /^usr_[a-z0-9]+$/.test(ownerId) ? ownerId : null;
     if (row.parent_id !== siteId) {

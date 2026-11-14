@@ -753,10 +753,13 @@ async function artifactPublish(
     row = mustSite(ctx, id);
   }
   let folderId: string | null = folderIn ?? null;
+  // set when the server itself makes the artifact's folder: only such a folder may be moved under the artifact in the access tree (never one a caller named)
+  let madeFolder = false;
   if (html !== undefined || fileId !== undefined || localPath !== undefined) {
     const store = host?.artifacts;
     if (!store) fail(ctx, "validation.precondition_failed", "This server cannot keep artifacts yet.");
-    folderId = isNull(row.target_folder) ? await store.folder(id, title) : str(row.target_folder);
+    madeFolder = isNull(row.target_folder);
+    folderId = madeFolder ? await store.folder(id, title) : str(row.target_folder);
     const put = (name: string, base64: string, mime: string): Promise<void> =>
       store.put(folderId as string, name, base64, mime);
     if (html !== undefined) await put("index.html", Buffer.from(html, "utf8").toString("base64"), "text/html");
@@ -802,6 +805,7 @@ async function artifactPublish(
     kept["thumbAt"] = now;
   }
   if (ctx.thread && kept["chatId"] === undefined) kept["chatId"] = ctx.thread;
+  if (madeFolder && folderId !== null) kept["serverFolder"] = folderId;
   ctx.db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify(kept), id);
   touchActivity(ctx.db, id, "site.published", now);
   const fresh = mustSite(ctx, id);
