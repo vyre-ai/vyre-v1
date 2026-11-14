@@ -83,6 +83,16 @@ export interface ForService {
   near?: string[];
 }
 
+/** The call that tries a key: the connector's health action, else its first GET that takes nothing from the caller. */
+export const probeOf = (def: ConnectorDef): string | undefined =>
+  def.health ??
+  def.actions.find(
+    (a) =>
+      (a.method ?? "GET") === "GET" &&
+      a.url !== undefined &&
+      !/\{input[.}]/.test(JSON.stringify([a.url, a.query, a.headers, a.body])),
+  )?.name;
+
 /** "Fathom", "fathom.video" and "FATHOM" name one thing: lower case, letters and digits only. */
 const squash = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 /** "API key" for api_key, "Webhook secret" for webhook_secret: the connector's own slot name, said as a label. */
@@ -576,9 +586,11 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
           refuse(ctx, "validation.bad_input", `${labelOfSlot(s.name)} is needed.`);
       for (const k of Object.keys(input.secrets))
         if (!def.secrets.some((s) => s.name === k)) refuse(ctx, "validation.bad_input", `${def.title} has no ${k}.`);
-      if (!def.health) return { result: "ok" as const };
+      // the connector's own health call; a connector built in one call (connectors.define) has none, so its first read that needs no input stands in. Only a connector with no such call cannot be tried at all.
+      const probe = probeOf(def);
+      if (!probe) return { result: "ok" as const };
       try {
-        await executeAction(deps, ctx, def, def.health, { input: {}, secrets: input.secrets, persist: false });
+        await executeAction(deps, ctx, def, probe, { input: {}, secrets: input.secrets, persist: false });
       } catch (e) {
         const code = (e as { error?: { code?: string } }).error?.code;
         if (code === "provider.auth_failed") return { result: "rejected" as const };

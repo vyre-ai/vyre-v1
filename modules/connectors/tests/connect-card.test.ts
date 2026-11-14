@@ -112,3 +112,26 @@ test("check_key refuses a missing required field, an unknown field and a draft, 
     "the webhook secret is optional",
   );
 });
+
+test("check_key: a connector built in one call has no health action, so its first read that needs no input tries the key", async () => {
+  const k = kit();
+  const built: ConnectorDef = {
+    ...FATHOM,
+    key: "built",
+    title: "Built app",
+    health: undefined as never,
+    actions: [
+      { name: "get_meeting", url: "https://api.fathom.test/v1/meetings/{input.id}" },
+      { name: "list_meetings", url: "https://api.fathom.test/v1/meetings" },
+    ],
+  };
+  delete (built as { health?: unknown }).health;
+  k.install(built);
+  k.state.reply = () => ({ status: 401 });
+  const bad = await k.hs["connectors.check_key"](k.ctx, { connector: "built", secrets: { api_key: SECRET } });
+  assert.equal(bad.result, "rejected", "a wrong key is caught even with no health action");
+  assert.equal(k.sent[0]!.url, "https://api.fathom.test/v1/meetings", "the call that needs no input");
+  const none: ConnectorDef = { ...built, key: "blind", actions: [built.actions[0]!] };
+  k.install(none);
+  assert.equal((await k.hs["connectors.check_key"](k.ctx, { connector: "blind", secrets: { api_key: SECRET } })).result, "ok");
+});

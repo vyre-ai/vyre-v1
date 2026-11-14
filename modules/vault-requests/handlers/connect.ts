@@ -433,7 +433,7 @@ export async function connectSubmit(
   }
   // a key typed here goes where the person chose; else Mine for the person it was asked for, and for an admin connecting it for the Space the first shared folder an agent can use
   let folderId = !saved ? input.folderId : undefined;
-  if (!saved && !folderId && !decided.own) {
+  if (!saved && !folderId && !decided.askedForMe) {
     const all = [...(await foldersOf(ctx)).values()];
     const principal = row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined;
     folderId = defaultFolder(false, all, await keptUsable(ctx, principal, all));
@@ -457,8 +457,14 @@ export async function connectSubmit(
         },
   );
   const takeBack = async (connectionId?: string): Promise<void> => {
-    if (connectionId) await ctx.call("connections.delete", { connectionId }).catch(() => undefined);
-    if (stored.made) await ctx.call("vault.item.delete", { itemId: stored.itemId }).catch(() => undefined);
+    if (connectionId)
+      await ctx
+        .call("connections.delete", { connectionId, idempotencyKey: `${row.id}:take-back-connection` })
+        .catch(() => undefined);
+    if (stored.made)
+      await ctx
+        .call("vault.item.delete", { itemId: stored.itemId, idempotencyKey: `${row.id}:take-back-key` })
+        .catch(() => undefined);
   };
 
   // 3 Connected: the connection names the item's fields by their handles
@@ -475,6 +481,7 @@ export async function connectSubmit(
   try {
     const made = asRow(
       await ctx.call("connections.create", {
+        idempotencyKey: `${row.id}:connect`,
         connector: svc.key,
         title: svc.title,
         ownerKind: svc.scope === "space" ? "space" : "person",
@@ -495,7 +502,7 @@ export async function connectSubmit(
         stay(why);
         return done(why);
       }
-    } else await ctx.call("connections.mark_working", { connectionId });
+    } else await ctx.call("connections.mark_working", { connectionId, idempotencyKey: `${row.id}:working` });
   } catch (e) {
     await takeBack(connectionId);
     throw e;
@@ -571,7 +578,10 @@ export async function connectDisconnect(ctx: VaultReqCtx, input: { requestId: st
     raise(trace, "permission.no_grant", "This is not yours to disconnect.");
   if (row.state !== "fulfilled" || !row.connection_id)
     raise(trace, "validation.precondition_failed", "This service is not connected through this card.");
-  await ctx.call("connections.delete", { connectionId: row.connection_id });
+  await ctx.call("connections.delete", {
+    connectionId: row.connection_id,
+    idempotencyKey: `${row.id}:disconnect:${ctx.now()}`,
+  });
   ctx.db.run(
     `UPDATE ${TABLE} SET state = ?, phase = ?, connection_id = ?, tested = ? WHERE id = ?`,
     "declined",
