@@ -24,6 +24,7 @@ export type BrowserScreenshotBlockData = {
   stepIndex?: number;
   at: number;
   live?: boolean;
+  person?: string;
 };
 export type ChangesetBlockData = {
   changesetId: string;

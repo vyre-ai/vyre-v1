@@ -17,6 +17,8 @@ export interface LiveCardConfig {
   openComputer(agentId: string): void;
   /** The agent this chat follows: whose computer the card opens. */
   agentId: string;
+  /** Who is looking: a card made in another person's own browser place is not drawn live for anyone else (their place is theirs). */
+  viewer?: string | undefined;
 }
 
 const POLL_MS = 5000;
@@ -36,6 +38,7 @@ export function browserState(row: { running?: boolean; busy?: boolean; takeoverB
 export function LiveCard({
   computerId,
   agentId,
+  person,
   fileId,
   caption,
   id,
@@ -43,6 +46,8 @@ export function LiveCard({
 }: {
   computerId?: string | undefined;
   agentId?: string | undefined;
+  /** The person whose own browser place the card shows; absent for the agent's shared browser. */
+  person?: string | undefined;
   fileId: string;
   caption: string;
   id: string;
@@ -93,7 +98,9 @@ export function LiveCard({
     };
   }, [computerId, agentId]);
   // "Live" only while the computer or browser is really being driven; before the first read and after the work it is not (review, 12 Nov)
-  const driven = state !== null && LIVE.has(state);
+  // someone else's own place is theirs: the card shows its last picture to every other viewer, never a live view of the wrong browser
+  const theirs = person !== undefined && cfg.viewer !== undefined && person !== cfg.viewer;
+  const driven = !theirs && state !== null && LIVE.has(state);
   const frozen = state !== null && !driven;
   const [missing, setMissing] = useState(false);
   // a picture that arrived but cannot be drawn (a bad or cut image) is a picture that could not be had: never a blank box

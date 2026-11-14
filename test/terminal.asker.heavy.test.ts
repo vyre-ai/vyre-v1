@@ -65,7 +65,10 @@ test(
     const [env, hist, file, home, token, ls, cap] = ben.map((x) => x.text);
     const uid = Number((env ?? "").split("|").at(-1));
     const anaUid = Number((ana[0]!.text ?? "").split("|").at(-1));
-    assert.ok(uid >= 20000 && anaUid >= 20000 && uid !== anaUid, `each person is a Unix user of their own: ${anaUid}, ${uid}`);
+    assert.ok(
+      uid >= 20000 && anaUid >= 20000 && uid !== anaUid,
+      `each person is a Unix user of their own: ${anaUid}, ${uid}`,
+    );
     const mine = `/people/u${uid}`;
     assert.equal(
       env,
@@ -115,6 +118,17 @@ test(
     const who = await w.turn(w.ben, "ben-who", [{ cmd: "whoami" }, { cmd: 'echo "$(id -un):$HOME"' }]);
     assert.equal(who[0]!.text, `u${uid}`);
     assert.equal(who[1]!.text, `u${uid}:${mine}`, "a name and a home of his own");
+    // the lookups a tool makes about "who am I" are reads: no hold, an answer for the person's own uid (lead, 14 Nov)
+    const look = await w.turn(w.ben, "ben-lookups", [
+      { cmd: "id -un" },
+      { cmd: 'getent passwd "$(id -u)" | cut -d: -f1,6' },
+      { cmd: "getent passwd " + uid + " | cut -d: -f1" },
+      { cmd: "git -c safe.directory='*' config user.name || echo no-git-name" },
+    ]);
+    assert.equal(look[0]!.text, `u${uid}`);
+    assert.equal(look[1]!.text, `u${uid}:${mine}`, "getent passwd names his home");
+    assert.equal(look[2]!.text, `u${uid}`);
+    assert.ok(look[3]!.text.length > 0, "a git author look-up answers instead of parking");
     const hello = await w.turn(w.ben, "ben-hello", [{ cmd: "tail -1 ~/.bashrc" }]);
     assert.match(hello[0]!.text, /Your files are in Files\. This is your own home on this computer\./);
 
@@ -186,7 +200,11 @@ test(
     // the owner's are in the agent's home itself, nobody's were moved or copied under people/
     const ws = `vyre-ws-${w.agent}`;
     const own = (await docker(["exec", ws, "ls", "/home/agent/.git-credentials"])).out.trim();
-    assert.equal(own.split("\n")[0], "/home/agent/.git-credentials", "the owner's credential is in the agent's home where it always was");
+    assert.equal(
+      own.split("\n")[0],
+      "/home/agent/.git-credentials",
+      "the owner's credential is in the agent's home where it always was",
+    );
     // Ana's is in her own home (the first person on this agent is u20000): hers to read, and the agent's own user cannot even list it
     const hers = await docker(["exec", "--user", "20000:20000", ws, "ls", "/people/u20000/.git-credentials"]);
     assert.match(hers.out, /\/people\/u20000\/\.git-credentials/);
@@ -227,7 +245,11 @@ test(
     const ran = await w.owner.call("agents.routine.run_now", { agentId: w.agent, routineId });
     assert.equal(ran.status, 200, JSON.stringify(ran.data));
     const got = await w.waitFor("routine-ana");
-    assert.match(got[0]!.text, /^\/people\/u2\d{4}$/, "Ana's own place, a Unix user's home, not the agent owner's /home/agent");
+    assert.match(
+      got[0]!.text,
+      /^\/people\/u2\d{4}$/,
+      "Ana's own place, a Unix user's home, not the agent owner's /home/agent",
+    );
   },
 );
 
@@ -258,7 +280,15 @@ test(
     const kept = await docker(["exec", "--user", `${uid}:${uid}`, ws, "cat", `/people/u${uid}/keep.txt`]);
     assert.match(kept.out, /BEN-KEEP/, "the folder is kept inside the Trash time");
     // the pass that removes it, as it runs it: the leaver's own user, an awake workspace, the exit status checked
-    const rm = await docker(["exec", "--user", `${uid}:${uid}`, ws, "sh", "-c", `rm -rf /people/u${uid}; test ! -e /people/u${uid} && echo gone`]);
+    const rm = await docker([
+      "exec",
+      "--user",
+      `${uid}:${uid}`,
+      ws,
+      "sh",
+      "-c",
+      `rm -rf /people/u${uid}; test ! -e /people/u${uid} && echo gone`,
+    ]);
     assert.match(rm.out, /gone/);
     const other = await docker(["exec", ws, "ls", "-d", "/home/agent"]);
     assert.match(other.out, /\/home\/agent/, "the agent's own home is untouched");
@@ -271,24 +301,59 @@ test(
 const RC26 = process.env["VYRE_RC26_WORKSPACE_IMAGE"];
 test(
   "a workspace made by the rc.26 image is made again at the first non-owner call: the owner's home stays, the non-owner is their own Unix user",
-  { skip: skip || (RC26 === undefined ? "needs VYRE_RC26_WORKSPACE_IMAGE (an image built from rc.26)" : false), timeout: 900_000 },
+  {
+    skip: skip || (RC26 === undefined ? "needs VYRE_RC26_WORKSPACE_IMAGE (an image built from rc.26)" : false),
+    timeout: 900_000,
+  },
   async (t) => {
     const w = await world();
     t.after(() => w.close());
     const ws = `vyre-ws-${w.agent}`;
     await docker(["volume", "create", `${ws}-home`]);
     await docker(["volume", "create", `${ws}-files`]);
-    const seed = await docker(["run", "--rm", "-v", `${ws}-home:/h`, "--user", "0", "--entrypoint", "sh", RC26!, "-c", "echo OWNER-BEFORE > /h/owner-note.txt; chown -R 10001:10001 /h"]);
+    const seed = await docker([
+      "run",
+      "--rm",
+      "-v",
+      `${ws}-home:/h`,
+      "--user",
+      "0",
+      "--entrypoint",
+      "sh",
+      RC26!,
+      "-c",
+      "echo OWNER-BEFORE > /h/owner-note.txt; chown -R 10001:10001 /h",
+    ]);
     assert.equal(seed.code, 0, seed.out);
     const made = await docker([
-      "create", "--name", ws, "--hostname", ws, "--label", `vyre.workspace=${w.agent}`, "--label", "vyre.mounts=0000000000000000",
-      "--user", "10001:10001", "-v", `${ws}-home:/home/agent`, "-v", `${ws}-files:/home/agent/Vyre`, RC26!, "sleep", "infinity",
+      "create",
+      "--name",
+      ws,
+      "--hostname",
+      ws,
+      "--label",
+      `vyre.workspace=${w.agent}`,
+      "--label",
+      "vyre.mounts=0000000000000000",
+      "--user",
+      "10001:10001",
+      "-v",
+      `${ws}-home:/home/agent`,
+      "-v",
+      `${ws}-files:/home/agent/Vyre`,
+      RC26!,
+      "sleep",
+      "infinity",
     ]);
     assert.equal(made.code, 0, made.out);
     await docker(["start", ws]);
     await docker(["exec", ws, "sh", "-c", "tmux new-session -d -s old-session"]);
     const owner = await w.turn(w.owner, "up-1", [{ cmd: "cat ~/owner-note.txt; hostname" }]);
-    assert.match(owner[0]!.text, /OWNER-BEFORE\nworkspace/, "the owner's file is where it was; the host name has no id");
+    assert.match(
+      owner[0]!.text,
+      /OWNER-BEFORE\nworkspace/,
+      "the owner's file is where it was; the host name has no id",
+    );
     const ben = await w.turn(w.ben, "up-2", [{ cmd: "whoami; echo $HOME" }]);
     assert.match(ben[0]!.text, /^u2\d{4}\n\/people\/u2\d{4}$/, ben[0]!.text);
     const image = (await docker(["inspect", "-f", "{{.Config.Image}}", ws])).out.trim().split("\n")[0];
@@ -361,7 +426,11 @@ test(
     assert.match(ben[3]!.text, /Permission denied/, "he cannot even list the projects");
     assert.match(ben[4]!.text, /Permission denied/, "the agent's own home stays closed");
     // Files lets every member see this agent's folder, so the mirror is his to read at that level (read only): he lists it and cannot write into it
-    assert.match(ben[5]!.text, /AGENT\.md/, "the Files mirror is read-only visible to him because Files shows him the folder");
+    assert.match(
+      ben[5]!.text,
+      /AGENT\.md/,
+      "the Files mirror is read-only visible to him because Files shows him the folder",
+    );
     assert.match(ben[5]!.text, /Permission denied/, "and he cannot write into it");
     // the owner reads what Ben wrote in the project, in her own place
     const back = await w.turn(w.owner, "acl-3", [{ cmd: `cat ~/projects/${one}/ben.txt` }]);
@@ -379,16 +448,27 @@ test(
     const w = await world();
     t.after(() => w.close());
     await w.turn(w.owner, "lim-1", [
-      { cmd: "(sleep 7777 >/dev/null 2>&1 &); (python3 -m http.server 3999 --bind 127.0.0.1 >/dev/null 2>&1 &); sleep 1; echo up" },
+      {
+        cmd: "(sleep 7777 >/dev/null 2>&1 &); (python3 -m http.server 3999 --bind 127.0.0.1 >/dev/null 2>&1 &); sleep 1; echo up",
+      },
     ]);
     const ben = await w.turn(w.ben, "lim-2", [
       { cmd: "ps -eo user:10,args | grep 'sleep 7777' | grep -v grep | head -1" },
       { cmd: "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3999/" },
       { cmd: "grep CapEff /proc/self/status; unshare -n true 2>&1 | head -1" },
+      // hidepid is a mount option of /proc and needs CAP_SYS_ADMIN, which the runner policy never gives (CapAdd, Privileged, SecurityOpt, PidMode refused)
+      {
+        cmd: `python3 -c "import ctypes,os;l=ctypes.CDLL(None,use_errno=True);r=l.mount(b'proc',b'/proc',b'proc',0x20,b'hidepid=2');print(r,os.strerror(ctypes.get_errno()))"`,
+      },
     ]);
-    assert.match(ben[0]!.text, /sleep 7777/, "the owner's command line is visible (a secret passed as an argument would be)");
+    assert.match(
+      ben[0]!.text,
+      /sleep 7777/,
+      "the owner's command line is visible (a secret passed as an argument would be)",
+    );
     assert.equal(ben[1]!.text, "200", "the owner's loopback port answers another person's turn");
     assert.match(ben[2]!.text, /CapEff:\s+0000000000000000/);
     assert.match(ben[2]!.text, /not permitted/i, "no network or pid namespace can be made by a person");
+    assert.match(ben[3]!.text, /-1 Operation not permitted/, "hidepid on /proc cannot be set: no capability");
   },
 );

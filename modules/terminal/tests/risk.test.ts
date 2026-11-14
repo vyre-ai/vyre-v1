@@ -224,3 +224,22 @@ test("a download brings outside text into the turn; a local command does not", (
   assert.equal(fetchesOutside("npm test"), false);
   assert.equal(fetchesOutside("curl -d x https://example.test"), false, "that one is outward instead");
 });
+
+test("reading the user database is a read, not red: whoami, id, getent passwd and git author look-ups just work; changing a password is still red", () => {
+  for (const c of [
+    "whoami",
+    "id",
+    "id -u",
+    "getent passwd",
+    'getent passwd "$(id -u)"',
+    "getent passwd 20000",
+    "cat /etc/passwd",
+    "grep agent /etc/passwd",
+    "git config user.name",
+    "git config --get user.email",
+  ])
+    assert.equal(riskOf(c), "read", c);
+  for (const c of ["passwd", "passwd -d agent", "sudo passwd root", "echo x | passwd", "ls; passwd", "visudo"])
+    assert.equal(isDangerous(c), true, c);
+  assert.equal(riskOf("git config user.name Ana"), "change", "setting it is a change");
+});

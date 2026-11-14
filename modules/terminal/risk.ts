@@ -33,6 +33,7 @@ const READ = new Set([
   "printenv",
   "hostname",
   "id",
+  "getent",
   "file",
   "stat",
   "tree",
@@ -127,7 +128,8 @@ const DANGER: ReadonlyArray<RegExp> = [
   />\s*\/dev\/(sd|nvme|disk|hd)/,
   /\b(iptables|ufw|nft)\b/,
   /\bcrontab\s+-r\b/,
-  /\bpasswd\b|\bvisudo\b|\buserdel\b|\bdeluser\b/,
+  // `passwd` is red as a command (it changes a password); as a word after getent, cat or grep it only reads the user database
+  /(^|[|;&(`]|\b(sudo|doas|xargs|exec|env|command)\s)\s*passwd\b|\bvisudo\b|\buserdel\b|\bdeluser\b/,
   /\bkill\s+-9\s+(-1|1)\b|\bkillall\b|\bpkill\s+-9\b/,
   /\bsystemctl\s+(stop|disable|mask)\b/,
 ];
@@ -159,7 +161,15 @@ function partRisk(p: string): Risk {
     return GIT_READ.has(sub) &&
       !(sub === "branch" && /\s-[dDmM]\b|\s--(delete|move)\b/.test(p)) &&
       !(sub === "tag" && /\s-[dfa]\b/.test(p)) &&
-      !(sub === "config" && !/--(get|list)\b|-l\b/.test(p))
+      !(
+        sub === "config" &&
+        !/--(get|list)\b|-l\b/.test(p) &&
+        !(
+          /^config$/.test(w[1] ?? "") &&
+          w.slice(2).filter((x) => !x.startsWith("-")).length === 1 &&
+          !/--(unset|add|replace-all|edit|set)|-e\b/.test(p)
+        )
+      )
       ? "read"
       : "change";
   }
