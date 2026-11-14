@@ -501,7 +501,11 @@ test("a terminal the person ended with exit reads as exited in status and gives 
   bindHost({
     ...base,
     async status(ids: string[]) {
-      return ids.map((terminalId) => ({ terminalId, state: gone ? ("exited" as const) : ("idle" as const), exitCode: null }));
+      return ids.map((terminalId) => ({
+        terminalId,
+        state: gone ? ("exited" as const) : ("idle" as const),
+        exitCode: null,
+      }));
     },
   });
   const id = await open(hn);
@@ -510,5 +514,9 @@ test("a terminal the person ended with exit reads as exited in status and gives 
   gone = true;
   const st = await call(hn, "terminal.status", { terminalIds: [id] });
   assert.equal(st.rows[0].state, "exited");
-  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined, "an ended terminal holds nobody");
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
+    undefined,
+    "an ended terminal holds nobody",
+  );
 });

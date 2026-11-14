@@ -96,7 +96,9 @@ export function workspaceData(d: {
   const lastStates = new Map<string, Map<string, TerminalRowLike["state"]>>();
   const withStates = (agentId: string, rows: readonly TerminalRowLike[]): TerminalRowLike[] => {
     const m = lastStates.get(agentId);
-    return rows.map((r) => (m?.has(r.terminalId) ? { ...r, state: m.get(r.terminalId) as TerminalRowLike["state"] } : r));
+    return rows.map((r) =>
+      m?.has(r.terminalId) ? { ...r, state: m.get(r.terminalId) as TerminalRowLike["state"] } : r,
+    );
   };
   const nameOfProject = async (id: string): Promise<string | null> => {
     const known = names.get(id);

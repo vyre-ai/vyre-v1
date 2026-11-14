@@ -12,3 +12,4 @@
 - One door: the chat pane has no separate Terminal tab beside Computer, and no Attach anywhere; terminals are attached by themselves. A person's terminals read "Your terminals" or "Sara, terminals" instead of "own tab".
 - After a terminal ends, its last screen stays as it was; a failed or empty read never replaces it and the screen is not polled again.
 - A terminal row from the list carries the chat it was opened from (threadId).
+- A terminal that ended (you typed exit) is learned by the open sheet at once: the bar says "This terminal ended" with New tab, the keyboard is released, and the last screen stays. A terminal row shows the host's own state (Running while a command runs).
