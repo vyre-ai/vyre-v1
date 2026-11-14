@@ -12,11 +12,14 @@ export interface PopRoom {
   /** the pane's visible top and bottom */
   paneTop: number;
   paneBottom: number;
+  /** the side it is on now: it stays there while it still fits, so a list that shrinks and grows does not jump between sides */
+  prefer?: "above" | "below";
 }
 
 export function popPlacement(r: PopRoom): { side: "above" | "below"; maxHeight?: number } {
   const above = r.anchorTop - r.paneTop - POP_GAP;
   const below = r.paneBottom - r.anchorBottom - POP_GAP;
+  if (r.prefer === "below" && r.height <= below) return { side: "below" };
   if (r.height <= above) return { side: "above" };
   if (r.height <= below) return { side: "below" };
   return above >= below
@@ -34,14 +37,14 @@ const clips = (el: unknown): boolean => {
   return !!cs && /hidden|auto|scroll|clip/.test(`${cs.overflowY} ${cs.overflow}`);
 };
 
-/** The visible top and bottom of the nearest ancestor that clips what is drawn outside it, or of the window when none does. */
+/** The visible top and bottom of the nearest ancestor that clips what is drawn outside it, cut to the window (a pane taller than the window shows only the window), or the window when none does. */
 export function clipBox(node: unknown): { top: number; bottom: number } {
   const g = globalThis as { innerHeight?: number };
   let el = (node as Box | null)?.parentElement as Box | null | undefined;
   while (el) {
     if (clips(el)) {
       const b = el.getBoundingClientRect();
-      return { top: b.top, bottom: b.bottom };
+      return { top: Math.max(b.top, 0), bottom: g.innerHeight ? Math.min(b.bottom, g.innerHeight) : b.bottom };
     }
     el = el.parentElement as Box | null | undefined;
   }

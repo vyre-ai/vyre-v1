@@ -1513,6 +1513,40 @@ export function Composer(props: ComposerProps): ReactElement {
   const compact = props.density === "compact";
   const popLeft = { left: compact ? 6 : 10, bottom: "100%", marginBottom: 8 } as unknown as ViewStyle;
 
+  // the Add menu takes the keyboard when it opens: focus on its first row, arrows move between rows (the browser scrolls the focused row into view), Escape closes it and gives focus back to the + button
+  const plusButtons = (): HTMLElement[] => {
+    const n = plusNode.current as { querySelectorAll?: (q: string) => ArrayLike<HTMLElement> } | null;
+    // a node of a test renderer has no DOM to search: no rows, no keyboard
+    const all = n?.querySelectorAll ? Array.from(n.querySelectorAll("button,[role=button]")) : [];
+    return all.filter((el) => el.getAttribute("aria-disabled") !== "true");
+  };
+  useEffect(() => {
+    if (!plusOpen) return undefined;
+    const t = setTimeout(() => plusButtons()[0]?.focus({ preventScroll: true }), 0);
+    return () => clearTimeout(t);
+  }, [plusOpen]);
+  const onPlusKey = (e: { key: string; preventDefault(): void; stopPropagation?(): void }): void => {
+    const rows = plusButtons();
+    const at = rows.indexOf(
+      (globalThis as { document?: { activeElement?: unknown } }).document?.activeElement as HTMLElement,
+    );
+    const go = (i: number): void => {
+      e.preventDefault();
+      rows[Math.max(0, Math.min(rows.length - 1, i))]?.focus();
+    };
+    if (e.key === "ArrowDown") go(at + 1);
+    else if (e.key === "ArrowUp") go(at <= 0 ? 0 : at - 1);
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(rows.length - 1);
+    else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation?.();
+      setPlusOpen(false);
+      (plusBtn.current as { querySelector?: (q: string) => { focus?: () => void } | null } | null)
+        ?.querySelector?.("button")
+        ?.focus?.();
+    }
+  };
   const plusRows: ReactElement[] = [];
   const plusRow = (id: string, title: string, icon: string, onPress: () => void, trailing?: ReactNode): void => {
     plusRows.push(
@@ -2068,6 +2102,7 @@ export function Composer(props: ComposerProps): ReactElement {
             nodeRef={(n) => {
               plusNode.current = n;
             }}
+            onKeyDown={onPlusKey}
           >
             <View style={styles.scr}>{plusRows}</View>
           </Pop>

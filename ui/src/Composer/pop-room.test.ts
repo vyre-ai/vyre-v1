@@ -38,3 +38,13 @@ test("three window heights, composer at the top and at the foot: the popover nev
     }
   }
 });
+test("a popover that is below stays below while it still fits, so a list that shrinks and grows does not jump sides", () => {
+  const r = { anchorTop: 300, anchorBottom: 350, paneTop: 0, paneBottom: 600 };
+  assert.deepEqual(popPlacement({ ...r, height: 100 }), { side: "above" });
+  assert.deepEqual(popPlacement({ ...r, height: 100, prefer: "below" }), { side: "below" });
+  assert.deepEqual(
+    popPlacement({ ...r, height: 400, prefer: "below" }),
+    { side: "above", maxHeight: 300 - POP_GAP },
+    "no longer fits below: above, limited",
+  );
+});

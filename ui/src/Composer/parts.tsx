@@ -277,9 +277,41 @@ export function Pop({
       anchorBottom: anchor.bottom,
       paneTop: pane.top,
       paneBottom: pane.bottom,
+      ...(place ? { prefer: place.side } : {}),
     });
     setPlace((cur) => (cur && cur.side === next.side && cur.maxHeight === next.maxHeight ? cur : next));
   });
+  // a menu that scrolls fades at the edge that has more behind it, so a half row reads as "more above" and not as a cut
+  const [more, setMore] = useState<{ up: boolean; down: boolean }>({ up: false, down: false });
+  const scrolls = place?.maxHeight !== undefined;
+  useEffect(() => {
+    const n = mine.current as {
+      scrollTop: number;
+      clientHeight: number;
+      scrollHeight: number;
+      addEventListener(t: string, f: () => void): void;
+      removeEventListener(t: string, f: () => void): void;
+    } | null;
+    if (!scrolls || !n?.addEventListener) {
+      setMore((m) => (m.up || m.down ? { up: false, down: false } : m));
+      return undefined;
+    }
+    const look = (): void => {
+      const up = n.scrollTop > 1,
+        down = n.scrollTop + n.clientHeight < n.scrollHeight - 1;
+      setMore((m) => (m.up === up && m.down === down ? m : { up, down }));
+    };
+    look();
+    n.addEventListener("scroll", look);
+    return () => n.removeEventListener("scroll", look);
+  }, [scrolls, place?.maxHeight]);
+  const fade =
+    web && (more.up || more.down)
+      ? (() => {
+          const g = `linear-gradient(to bottom, ${more.up ? "transparent 0, #000 22px" : "#000 0"}, ${more.down ? "#000 calc(100% - 22px), transparent 100%" : "#000 100%"})`;
+          return { maskImage: g, WebkitMaskImage: g } as unknown as ViewStyle;
+        })()
+      : null;
   const below = place?.side === "below";
   const limited =
     place?.maxHeight !== undefined
@@ -289,7 +321,7 @@ export function Pop({
     <View
       testID={testID}
       accessibilityLabel={label}
-      style={[s.pop, POP_SHADOW, style, below ? FLIPPED : null, limited]}
+      style={[s.pop, POP_SHADOW, style, below ? FLIPPED : null, limited, fade]}
       ref={
         ((n: unknown) => {
           mine.current = n;

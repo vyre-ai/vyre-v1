@@ -1,3 +1,4 @@
 - The Attach menu (Upload files, From Files) in a chat is no longer cut off at the top of the pane when the composer sits high: it opens below the composer when there is no room above.
 - The checker for buttons a pointer cannot reach now waits for the launch frame to go, and presses Escape only for a layer its own click opened.
 - A Personal Space opening on Sites (or any page that needs a Team Space), a new tab or a failure no longer sits behind the launch screen for 8 seconds: the launch screen leaves as soon as the shell has drawn it.
+- The Add menu in the composer takes the keyboard when it opens (focus on its first row, arrows move, Escape closes and returns to the + button) and fades at the edge that has more rows behind it when the window is short.
