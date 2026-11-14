@@ -1544,6 +1544,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_rewind",
+      "summary": "Go back in a private chat with an agent to a point: the agent's work folder is put back as it was, the agents stop reading the messages after it, and one line says so. Every message stays; anything already sent stays sent. Off in a chat with other people. Only the person themselves",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_round_decide",
       "summary": "Go with one agent's answer after a message asked several: one quiet line, \"Decided: going with Nova's answer\", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it",
       "toolset": "chats"
@@ -2878,6 +2884,18 @@
       "deferred": false,
       "name": "engine_reviewer_set",
       "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn (\"Asking Reviewer to check this\"), a person gets a Review task",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_rewind_points",
+      "summary": "The points a person can go back to in a private chat with an agent: one per turn of an agent that worked in a folder on this computer for them, newest first, with when, how many files and what they had just asked. Not available in a chat with other people",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_rewind_to",
+      "summary": "Put an agent's work folder back as it was at a point and have the agents stop reading the chat's messages from afterSeq to uptoSeq; the engine's own session starts again. The chat's messages are untouched. A person's own folder only; use chat.rewind, which also leaves the line in the chat",
       "toolset": "chats"
     },
     {

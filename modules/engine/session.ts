@@ -741,7 +741,12 @@ export function buildOpener(h: OpenerHost): SessionOpener {
       : {}),
     ...(dataDir
       ? {
-          prepare: async (spec: { agent: { id: string }; asker: string; threadId: string; turnId?: string }) => {
+          prepare: async (spec: {
+            agent: { id: string };
+            asker: string;
+            threadId: string;
+            turnId?: string | undefined;
+          }) => {
             await prepareWorkFolder(h.call, dataDir, spec, h.sessions?.keep(spec.threadId) ?? "");
             // a checkpoint of the folder as this turn starts, for Rewind; it never stops the turn
             await checkpointTurn({

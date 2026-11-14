@@ -1940,6 +1940,60 @@ export default defineManifest({
         label: "check",
       },
     ),
+    read(
+      "engine.rewind.points",
+      "The points a person can go back to in a private chat with an agent: one per turn of an agent that worked in a folder on this computer for them, newest first, with when, how many files and what they had just asked. Not available in a chat with other people",
+      {
+        in: { ...threadT },
+        out: {
+          available: t.bool(),
+          why: t.opt(t.str()),
+          points: t.arr(
+            t.obj({
+              pointId: t.str({ maxLength: 120 }),
+              agentId: id.agent,
+              at: t.ts(),
+              files: t.int({ minimum: 0 }),
+              after: t.opt(t.str()),
+            }),
+          ),
+        },
+        on: ["thread", "/threadId"],
+        tool: "chats",
+        label: "check",
+      },
+    ),
+    write(
+      "engine.rewind.to",
+      "Put an agent's work folder back as it was at a point and have the agents stop reading the chat's messages from afterSeq to uptoSeq; the engine's own session starts again. The chat's messages are untouched. A person's own folder only; use chat.rewind, which also leaves the line in the chat",
+      {
+        in: {
+          ...threadT,
+          pointId: t.str({ maxLength: 120 }),
+          afterSeq: t.int({ minimum: 0 }),
+          uptoSeq: t.int({ minimum: 0 }),
+        },
+        out: {
+          agentId: id.agent,
+          at: t.ts(),
+          restored: t.int({ minimum: 0 }),
+          removed: t.int({ minimum: 0 }),
+          undoPointId: t.str({ maxLength: 120 }),
+        },
+        on: ["thread", "/threadId"],
+        level: "use",
+        risk: "high",
+        audit: "always",
+        tool: "chats",
+        agent: { planMode: "blocked" },
+        errors: [
+          "validation.bad_input",
+          "validation.not_found",
+          "validation.precondition_failed",
+          "permission.role_lacks_permission",
+        ],
+      },
+    ),
     write(
       "engine.helpers.change_model",
       "Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start",
