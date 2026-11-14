@@ -201,3 +201,30 @@ test("a guest's stop and send reaches only the turns they asked for; a member's 
   w.hold.open();
   await w.engine.idle(THREAD);
 });
+
+test("an agent with no person behind it (a routine's or an Automation's turn) reaches only its own turn, for stop, Stop all and stop and send", async () => {
+  const w = await world();
+  const h = w.h;
+  h.setManager(true); // its role could see the whole Space
+  const routine: EngineCtx = { ...h.ctx, principal: { kind: "agent", id: DOCS } };
+  assert.equal(
+    (await stop(routine, { threadId: THREAD, agentId: INTAKE })).stopped,
+    0,
+    "another agent's turn is out of reach",
+  );
+  assert.equal((await stop(routine, { threadId: THREAD, agentId: BILLING })).stopped, 0, "so is a guest's");
+  await w.runningIs([BILLING, DOCS, INTAKE]);
+  await interrupt(routine, { threadId: THREAD });
+  await w.runningIs([BILLING, INTAKE]);
+  assert.equal(
+    (await stopAll(routine, { threadId: THREAD })).stopped,
+    0,
+    "Stop all from it reaches its own turn only, which has ended",
+  );
+  await w.runningIs([BILLING, INTAKE]);
+  const own: EngineCtx = { ...h.ctx, principal: { kind: "agent", id: INTAKE } };
+  assert.equal((await stopAll(own, { threadId: THREAD })).stopped, 1);
+  await w.runningIs([BILLING]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});

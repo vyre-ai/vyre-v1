@@ -168,12 +168,8 @@ export async function interrupt(
   const engine = await open(ctx, input.threadId);
   let r;
   try {
-    r = await engine.interrupt(
-      input.threadId,
-      input.messageId,
-      stopperOf(ctx),
-      stopReach(ctx, undefined, true).askedBy,
-    );
+    const reach = stopReach(ctx, undefined, true);
+    r = await engine.interrupt(input.threadId, input.messageId, stopperOf(ctx), reach.askedBy, reach.ownOnly);
   } catch (e) {
     if (e instanceof RangeError)
       raise(ctx, "validation.not_found", "There is no such message in this conversation.", {
@@ -222,8 +218,13 @@ function stopReach(
   agentId: string | undefined,
   all: boolean,
   anyAgent = false,
-): { agentId?: string; askedBy?: string } {
+): { agentId?: string; askedBy?: string; none?: true; ownOnly?: string } {
   const self = ctx.principal.kind === "agent" ? ctx.principal.id : undefined;
+  // an agent with no person behind it (a routine's or an Automation's turn) reaches only its own turn, whatever its role could see
+  if (self !== undefined && ctx.actingFor === undefined) {
+    if (!all && agentId !== undefined && agentId !== self) return { none: true };
+    return { agentId: self, ownOnly: self };
+  }
   const target = all ? undefined : (agentId ?? (anyAgent ? undefined : self));
   if (!all && self !== undefined && target === self) return { agentId: self }; // its own turn, whoever asked it
   const guest = ctx.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect !== "allow";
@@ -236,11 +237,12 @@ async function stopWith(
   o: { agentId?: string; all: boolean; reason?: "update"; anyAgent?: boolean },
 ): Promise<{ stopped: number }> {
   const engine = await open(ctx, threadId);
-  const reach = stopReach(ctx, o.agentId, o.all, o.anyAgent === true);
+  const { none, ownOnly, ...reach } = stopReach(ctx, o.agentId, o.all, o.anyAgent === true);
+  if (none) return { stopped: 0 }; // the same answer as nothing running
   const r = await engine.stop(threadId, {
     ...reach,
     ...(o.reason ? {} : { by: stopperOf(ctx) }), // an app stopping its turns for an update is the system's
-    clearQueue: o.all,
+    clearQueue: o.all && ownOnly === undefined, // Stop all from an agent with no person behind it stops that agent only
     ...(o.reason ? { reason: o.reason } : {}),
   });
   const by = actorOf(ctx);

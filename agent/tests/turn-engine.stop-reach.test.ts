@@ -1,7 +1,7 @@
 // A Stop that may reach only the turns one person asked for (a guest's, lead ruling 14 Nov 2026): running, starting, queued and parked turns are all filtered by who asked.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createTurnEngine, scriptedProvider } from "../src/turn-engine/index.ts";
+import { createTurnEngine, scriptedProvider, toolRunnerFrom } from "../src/turn-engine/index.ts";
 import type { DriverEvent, EngineAgent, OpenThread } from "../src/turn-engine/index.ts";
 import { gate, until } from "../src/turn-engine/harness.ts";
 
@@ -137,4 +137,45 @@ test("a stop that does not say who pressed it carries no stopper", async () => {
   await engine.idle("T");
   const e = engine.events("T").find((x) => x.type === "turn.cancelled")!;
   assert.equal("stoppedBy" in e, false);
+});
+
+test("askedBy: a parked turn (waiting on an approval) is released only by the person who asked it", async () => {
+  const p = scriptedProvider({
+    script: (_i, spec) => [
+      { type: "tool_call", id: `c_${spec.agent.id}`, name: "mail_send", input: {} },
+      { type: "done" },
+    ],
+  });
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: p.openSession,
+    callTool: toolRunnerFrom(async (c) => ({
+      kind: "held",
+      result: { ok: false, content: { held: true } },
+      taskId: `tsk_${c.id}`,
+    })),
+  });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("dex")], body: "a" });
+  engine.receive({ threadId: "T", author: person("sam"), mentions: [agent("nova")], body: "b" });
+  await engine.idle("T");
+  assert.deepEqual(
+    engine
+      .waiting("T")
+      .map((w) => w.agentId)
+      .sort(),
+    ["dex", "nova"],
+    "both turns are parked on an approval",
+  );
+  const r = await engine.stop("T", { clearQueue: true, askedBy: "sam" });
+  assert.deepEqual(
+    r.released.map((x) => x.agentId),
+    ["nova"],
+    "Sam's Stop all releases only Sam's parked turn",
+  );
+  assert.deepEqual(
+    engine.waiting("T").map((w) => w.agentId),
+    ["dex"],
+    "Dana's approval is still waiting",
+  );
 });
