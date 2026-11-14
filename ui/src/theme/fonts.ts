@@ -25,6 +25,8 @@ export const SANS_HOSTS = [
   "[role=tooltip]",
   "[role=status]",
   "[data-portal]",
+  // react-native-web draws every Text as div[dir=auto] with its own system stack; it takes the skin's sans like the rows do, so the rail words and the row titles are one face
+  "div[dir=auto]",
   "svg text",
   "svg foreignObject",
   "[data-canvas-labels]",

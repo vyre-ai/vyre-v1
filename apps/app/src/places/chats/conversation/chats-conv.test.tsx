@@ -95,7 +95,7 @@ test("the page reads: header with title and faces, your bubbles, Intake's folded
     'data-testid="conversation-head"',
     'data-testid="conversation-title"',
     'data-testid="participants-button"',
-    "New client: Elena Rivera",
+    "New customer: Elena Park",
     "Intake is on it",
     "Worked 14s · 3 steps",
     "Tuesday has two openings",
@@ -103,7 +103,7 @@ test("the page reads: header with title and faces, your bubbles, Intake's folded
     "Worked 6s · 2 steps",
     'data-testid="composer"',
   ]);
-  assert.ok(has(out, "client-intake.pdf") && has(out, 'data-testid="proposal-b2"'));
+  assert.ok(has(out, "customer-signup.pdf") && has(out, 'data-testid="proposal-b2"'));
   assert.ok(has(out, "Intake will reply") && has(out, "Message Intake…"));
 });
 
@@ -259,7 +259,7 @@ test("mode: making Docs lead turns Intake into a listener; one lead per thread",
 test("streaming: text is on the page up to the last delta, with the work folded and Working in the header", () => {
   const s = createSample("streaming");
   const out = html(s);
-  assert.ok(has(out, 'data-testid="body-m7"') && has(out, "consult fee") && has(out, "retainer is"));
+  assert.ok(has(out, 'data-testid="body-m7"') && has(out, "setup fee") && has(out, "deposit is"));
   assert.ok(
     has(out, "Worked 8s · 2 steps") &&
       has(out, 'data-testid="conversation-live"') &&
@@ -291,14 +291,13 @@ test("an error is one inline row: what, why, next, Details, Copy id; Retry carri
   const s = createSample("errors");
   const out = html(s);
   assert.ok(
-    has(out, "Docs did not read fee-schedule.csv") &&
-      has(out, "Restricted data only goes to a model on your computer."),
+    has(out, "Docs did not read price-list.csv") && has(out, "Restricted data only goes to a model on your computer."),
   );
   // the status card pattern: one primary fix in view; the other next steps, Retry, Details, Copy id and Report sit under its "..." menu
   for (const t of ["Switch to Llama 3.3 on this computer"]) assert.ok(has(out, t), t);
   assert.ok(has(out, 'data-testid="err-more"'), "the More menu is on the card");
   assert.ok(
-    has(out, "Changed 1 file in Rivera matter") && has(out, "Review changes") && has(out, "Rivera engagement letter"),
+    has(out, "Changed 1 file in Harbor project") && has(out, "Review changes") && has(out, "Harbor order form"),
   );
   await act.retryTurn(s.data, "turn_9").catch(() => undefined);
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
@@ -346,11 +345,11 @@ test("cards: a plan waits for approval and a question waits for an answer; both 
   const s = createSample("plan");
   const out = html(s);
   assert.ok(
-    has(out, "Rivera onboarding plan") &&
+    has(out, "Harbor onboarding plan") &&
       has(out, 'data-testid="blk-plan-p1-approve"') &&
-      has(out, "Send the engagement letter"),
+      has(out, "Send the order form"),
   );
-  assert.ok(has(out, "Who signs the engagement letter?") && has(out, "Maya Chen") && has(out, "Omar Haddad"));
+  assert.ok(has(out, "Who signs the order form?") && has(out, "Maya Chen") && has(out, "Omar Haddad"));
   await act.answerBlock(s.data, "q1", "maya");
   await act.approvePlan(s.data, "plan_1");
   await act.setPlanMode(s.data, false);
@@ -434,7 +433,7 @@ test("the AGENT.md proposal is inline: the diff with Allow, Edit and Deny, not a
     "2 changes",
     'data-testid="proposal-b2-why"',
     "## How you work",
-    "4. Offer three consult times using the booking tool.",
+    "4. Offer three demo times using the booking tool.",
     "Skip Thursday mornings.",
     "## You do not",
     "Offer Thursday morning times",
@@ -480,7 +479,7 @@ test("the plan card is on the page: name, open comments", () => {
     .find((m) => m.messageId === "m4")!
     .blocks.find((b) => b.id === "pl1")!;
   assert.ok(isPlanFile(block));
-  inOrder(out, ['data-testid="plancard-pl1"', "Plan · 1 open comment", "client-intake.pdf"]);
+  inOrder(out, ['data-testid="plancard-pl1"', "Plan · 1 open comment", "customer-signup.pdf"]);
   assert.equal(planFileLine(2), "Plan · 2 open comments");
 });
 
@@ -513,7 +512,7 @@ test("find in chat: matches are ignoring case and accents, counted, and stepped"
   assert.equal(matchLine(2, 0, "tuesday"), "1 of 2");
   assert.equal(matchLine(0, 0, "zzz"), "No matches");
   assert.equal(matchLine(0, 0, ""), "");
-  assert.deepEqual(findMatches([{ ...all[0]!, body: "Café Rivera" }], "cafe"), ["m1"]);
+  assert.deepEqual(findMatches([{ ...all[0]!, body: "Café Harbor" }], "cafe"), ["m1"]);
 });
 
 test("the composer's pill names who answers and on what model (Opus); the computer lives in the pane; its placeholder names who answers", () => {
@@ -617,9 +616,9 @@ test("the error row offers Report a problem, which opens the shared report sheet
   const seen: { label?: string }[] = [];
   const off = setReportProblemHandler((c) => seen.push(c));
   const { reportProblem } = await import("../../../../../../ui/src/Menu/index.tsx");
-  reportProblem({ label: reportLabel("Docs did not read fee-schedule.csv", "tr_5e20b4") });
+  reportProblem({ label: reportLabel("Docs did not read price-list.csv", "tr_5e20b4") });
   off();
-  assert.deepEqual(seen, [{ label: "Docs did not read fee-schedule.csv (trace tr_5e20b4)" }]);
+  assert.deepEqual(seen, [{ label: "Docs did not read price-list.csv (trace tr_5e20b4)" }]);
   // Report, Details and Copy id sit under the card's "..." menu (the status card pattern: one primary fix, the rest in More)
   assert.ok(has(html(createSample("errors")), 'data-testid="err-more"'));
 });
@@ -655,12 +654,12 @@ test("the hover bar draws Copy, Edit (yours only), Reply and More while the row 
 test("a conversation opened with a waiting ask (Ask about this) holds that text in its composer, and takes it once", () => {
   const s = createSample("idle");
   const fill = createComposerFill();
-  fill.set("About rivera-engagement-letter.docx: ");
+  fill.set("About harbor-order-form.docx: ");
   const out = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, fill }} />));
-  assert.ok(out.includes("About rivera-engagement-letter.docx: "), "the text is in the composer");
+  assert.ok(out.includes("About harbor-order-form.docx: "), "the text is in the composer");
   assert.equal(fill.take(), undefined, "taken: another conversation does not get it again");
   assert.ok(
-    !html(createSample("idle")).includes("About rivera-engagement-letter.docx: "),
+    !html(createSample("idle")).includes("About harbor-order-form.docx: "),
     "a conversation with nothing waiting starts empty",
   );
 });

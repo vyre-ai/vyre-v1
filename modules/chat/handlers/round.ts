@@ -1,12 +1,35 @@
 // chat.round.decide (chat gap G57): after a message asked several agents and each answered, the person goes with one answer. One quiet line is left in the chat ("Decided: going with Nova's answer"),
 // authored by the person, and no agent is woken by it. The round table card folds because a message of theirs now follows the answers. Only the person who asked decides, only for an agent that answered
 // after their message, and a replay with the same key is the same line.
-import { addAgent, agentsOf, askerOf, ensure, messageBy, raise } from "../projections.ts";
+import { addAgent, agentsOf, askerOf, ensure, messageBy, raise, threadBy } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
 import { postLinkCard } from "./link-card.ts";
 
+function personOnly(ctx: ChatCtx): void {
+  if (ctx.principal.kind !== "person") raise(ctx, "permission.role_lacks_permission", "Only a person presses this.");
+}
+
+type Row = Record<string, unknown>;
+
+/** The Decided line of a round, if one was left: the system line whose card points at the asking message. */
+function decisionOf(
+  ctx: ChatCtx,
+  threadId: string,
+  askId: string,
+): { id: string; blocks: Array<Record<string, unknown>> } | null {
+  const rows = ctx.db.all(
+    "SELECT id, blocks FROM chat_message WHERE thread = ? AND kind = 'system' AND deleted_at IS NULL AND blocks LIKE ? AND blocks LIKE ? ORDER BY threadSeq DESC LIMIT 1",
+    threadId,
+    '%"lead":"Decided"%',
+    `%"target":{"type":"message","id":"${askId}"}%`,
+  ) as Row[];
+  const r = rows[0];
+  return r ? { id: String(r["id"]), blocks: JSON.parse(String(r["blocks"])) as Array<Record<string, unknown>> } : null;
+}
+
 export async function decideRound(ctx: ChatCtx, input: { threadId: string; messageId: string; agentId: string }) {
+  personOnly(ctx);
   ensure(ctx.db);
   const t = load(ctx, input.threadId);
   const m = messageBy(ctx.db, input.messageId);
@@ -14,6 +37,16 @@ export async function decideRound(ctx: ChatCtx, input: { threadId: string; messa
   const asker = askerOf(ctx);
   if (m.author !== asker)
     raise(ctx, "validation.bad_input", "Only the person who asked decides which answer to go with.");
+  // a round the asker has moved past (they wrote again) is over
+  const moved = (
+    ctx.db.all(
+      "SELECT 1 AS x FROM chat_message WHERE thread = ? AND author = ? AND kind = 'text' AND threadSeq > ? AND deleted_at IS NULL LIMIT 1",
+      t.id,
+      asker,
+      m.seq,
+    ) as unknown[]
+  ).length;
+  if (moved > 0) raise(ctx, "validation.bad_input", "That round is over: you have written since.");
   const answered = (
     ctx.db.all(
       "SELECT 1 AS x FROM chat_message WHERE thread = ? AND author = ? AND threadSeq > ? AND kind = 'agent' AND deleted_at IS NULL LIMIT 1",
@@ -26,6 +59,20 @@ export async function decideRound(ctx: ChatCtx, input: { threadId: string; messa
     raise(ctx, "validation.bad_input", "That agent has not answered this message.", { agentId: input.agentId });
   const name = await nameOf(ctx, input.agentId);
   const line = `Going with ${name}'s answer`;
+  // one decision per round: the same choice again is the same line, the other agent's answer replaces it
+  const had = decisionOf(ctx, t.id, m.id);
+  if (had) {
+    const block = had.blocks[0] as { data?: { title?: string } } | undefined;
+    if (block?.data?.title === line) return { messageId: had.id };
+    const next = had.blocks.map((b) => ({ ...b, data: { ...((b["data"] as object) ?? {}), title: line } }));
+    ctx.db.run(
+      "UPDATE chat_message SET body = ?, blocks = ? WHERE id = ?",
+      `Decided: ${line}`,
+      JSON.stringify(next),
+      had.id,
+    );
+    return { messageId: had.id };
+  }
   const card = postLinkCard(
     ctx,
     t.id,
@@ -63,6 +110,8 @@ async function nameOf(ctx: ChatCtx, agentId: string): Promise<string> {
 }
 
 const SHOWN = 400;
+/** The words that mark a discussion seed, so a second press finds the first. */
+const SEED_MARK = "Talk it over, one short turn each";
 
 /** The agents' first plain answers after a message, in the order they came. */
 function answersAfter(ctx: ChatCtx, threadId: string, seq: number): Array<{ agentId: string; text: string }> {
@@ -90,6 +139,7 @@ export async function discussRound(
   ctx: ChatCtx,
   input: { threadId: string; messageId: string; idempotencyKey: string },
 ) {
+  personOnly(ctx);
   ensure(ctx.db);
   const t = load(ctx, input.threadId);
   const m = messageBy(ctx.db, input.messageId);
@@ -110,11 +160,20 @@ export async function discussRound(
     addAgent(ctx, threadId, { agentId: a.agentId, mode: "listen", addedBy: askerOf(ctx) });
     ctx.emit("agent.engaged", threadId, { threadId, agentId: a.agentId, mode: "listen", by: askerOf(ctx) });
   }
+  // one discussion per message: when its seed is already in the thread, this press opens it and starts nothing (no more paid turns)
+  const seeded = (
+    ctx.db.all(
+      "SELECT 1 AS x FROM chat_message WHERE thread = ? AND body LIKE ? AND deleted_at IS NULL LIMIT 1",
+      threadId,
+      `%${SEED_MARK}%`,
+    ) as unknown[]
+  ).length;
+  if (seeded > 0) return { threadId };
   const named = await Promise.all(answers.map(async (a) => ({ ...a, name: await nameOf(ctx, a.agentId) })));
   const [first, next] = [named[0]!, named[1]!];
   const body = [
     ...named.map((a) => `${a.name}: ${a.text}`),
-    `Talk it over, one short turn each. ${first.name}, go first and tag ${next.name}. Whoever speaks last ends on one line that starts "Decided:".`,
+    `${SEED_MARK}. ${first.name}, go first and tag ${next.name}. Whoever speaks last ends on one line that starts "Decided:".`,
   ].join("\n\n");
   await ctx.call(
     "chat.post",
@@ -139,4 +198,73 @@ export async function discussRound(
     `Discussion: ${named.map((a) => a.name).join(" and ")} are talking it over`,
   );
   return { threadId };
+}
+
+/** At most this many agent turns in a discussion: the first and three hand-offs (the engine's hop limit of 4 Nov). */
+const MAX_TURNS = 4;
+
+/**
+ * An agent spoke in a discussion thread (message.received). The "talking it over" line in the chat becomes the outcome: "Decided: ..." when an agent ends on a Decided line, or "They did not settle it" when
+ * the talk ended without one (nobody was handed the next turn, or the cap was reached). Pressing the line still opens the thread. Quiet: it edits the one line, it posts nothing.
+ */
+export function onDiscussionMessage(
+  ctx: ChatCtx,
+  event: {
+    payload: {
+      threadId: string;
+      messageId: string;
+      author: { kind: string; id: string };
+      mentions?: Array<{ kind: string; id: string }>;
+    };
+  },
+): void {
+  const p = event.payload;
+  if (p.author.kind !== "agent") return;
+  ensure(ctx.db);
+  const t = threadBy(ctx.db, p.threadId);
+  if (!t || t.kind !== "thread" || t.parentThreadId === undefined) return;
+  const seeded = (
+    ctx.db.all(
+      "SELECT 1 AS x FROM chat_message WHERE thread = ? AND body LIKE ? AND deleted_at IS NULL LIMIT 1",
+      t.id,
+      `%${SEED_MARK}%`,
+    ) as unknown[]
+  ).length;
+  if (seeded === 0) return;
+  const m = messageBy(ctx.db, p.messageId);
+  if (!m) return;
+  const decided = /^\s*Decided:\s*(.+)$/s.exec(m.body);
+  const turns = (
+    ctx.db.all(
+      "SELECT COUNT(*) AS n FROM chat_message WHERE thread = ? AND kind = 'agent' AND deleted_at IS NULL",
+      t.id,
+    ) as Array<Record<string, unknown>>
+  )[0]?.["n"];
+  const handedOn = (p.mentions ?? []).some((x) => x.kind === "agent");
+  if (!decided && handedOn && Number(turns) < MAX_TURNS) return; // the talk goes on
+  const card = ctx.db.all(
+    "SELECT id, blocks FROM chat_message WHERE thread = ? AND kind = 'system' AND deleted_at IS NULL AND blocks LIKE ? AND blocks LIKE ? LIMIT 1",
+    t.parentThreadId,
+    '%"lead":"Discussion"%',
+    `%"target":{"type":"thread","id":"${t.id}"}%`,
+  ) as Array<Record<string, unknown>>;
+  const row = card[0];
+  if (!row) return;
+  // the cap is said as the cap, so a person knows to ask again; a talk that just stopped is said as that
+  const capped = !decided && handedOn && Number(turns) >= MAX_TURNS;
+  const text = decided
+    ? decided[1]!.trim().replace(/\s+/g, " ").slice(0, 140)
+    : capped
+      ? `They used their ${MAX_TURNS} turns without settling it. Ask again to go on.`
+      : "They did not settle it";
+  const blocks = (JSON.parse(String(row["blocks"])) as Array<Record<string, unknown>>).map((b) => ({
+    ...b,
+    data: { ...((b["data"] as object) ?? {}), lead: decided ? "Decided" : "Discussion ended", title: text },
+  }));
+  ctx.db.run(
+    "UPDATE chat_message SET body = ?, blocks = ? WHERE id = ?",
+    decided ? `Decided: ${text}` : text,
+    JSON.stringify(blocks),
+    String(row["id"]),
+  );
 }

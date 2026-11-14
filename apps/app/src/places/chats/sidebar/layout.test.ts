@@ -222,7 +222,7 @@ test("Needs you shows the first three waiting items, each with its one verb; the
   );
   assert.equal(entry(l.entries, "more", "needs")!.hidden, 1);
   assert.ok(!types(l.entries).includes("head:needs"), "Needs you has no head; the Tasks row is its head");
-  assert.equal(entry(l.entries, "row", "needs")!.h, 44, "a two-line row");
+  assert.equal(entry(l.entries, "row", "needs")!.h, 32, "the same pitch as every row below it");
 });
 
 // ---------------------------------------------------------------- where an item shows, once
@@ -265,13 +265,18 @@ test("Goals: active first, then the quiet ones; finished only under the Goals fi
   assert.equal(sectionsOf([paused, active, done], [], "goals").goals.length, 3);
 });
 
-test("Goals has a head and rows two lines tall; cap 3 with N more", () => {
-  const gs = many(5, "goal", (i) => ({ working: i === 0, title: `g${i}` }));
+test("Goals has a head and rows one line tall, two only where a goal has words under it; cap 3 with N more", () => {
+  const gs = many(5, "goal", (i) => ({ working: i === 0, title: `g${i}`, ...(i === 0 ? { sub: "Planning" } : {}) }));
   const l = buildLayout(input(gs));
   assert.equal(rows(l.entries, "goals").length, 3);
   assert.equal(entry(l.entries, "more", "goals")!.hidden, 2);
   assert.equal(entry(l.entries, "head", "goals")!.label, "Goals");
-  assert.equal(entry(l.entries, "row", "goals")!.h, 44);
+  assert.equal(entry(l.entries, "row", "goals")!.h, 44, "a goal with a line under it");
+  assert.deepEqual(
+    l.entries.filter((e) => e.type === "row" && e.section === "goals").map((e) => e.h),
+    [44, 32, 32],
+    "the others are one line, like every row",
+  );
 });
 
 test("a lived-in Space with no goals shows the Goals head and one quiet line with New goal; an empty Space shows no heading", () => {
@@ -496,6 +501,7 @@ test("the filter menu is Show, then Only, and every choice has a count", () => {
       "only:goals",
       "only:asks",
       "only:archived",
+      "only:imported",
     ],
   );
 });
@@ -677,4 +683,18 @@ test("needsVerb: Allow, Review, Answer, Blocked, Sign", () => {
   assert.deepEqual(needsVerb(need("a", "unblock")), { label: "Blocked", tone: "warn" });
   assert.equal(needsVerb(need("a", "work", true)).label, "Blocked");
   assert.equal(needsVerb(need("a", "signature")).label, "Sign");
+});
+
+test("a section whose answer carried only its first page counts the rows not loaded yet in its head and its N more", () => {
+  const items = many(6, "chat");
+  const l = buildLayout(input(items, { totals: { chats: 60 } }));
+  assert.equal(entry(l.entries, "head", "chats")!.count, 60);
+  assert.equal(rows(l.entries, "chats").length, 6);
+  assert.equal(
+    entry(l.entries, "more", "chats")!.hidden,
+    54,
+    "all six loaded show; the 54 not loaded are behind N more",
+  );
+  const l2 = buildLayout(input(many(8, "chat"), { totals: { chats: 60 } }));
+  assert.equal(entry(l2.entries, "more", "chats")!.hidden, 2 + 52, "two behind the cap plus the 52 not loaded");
 });

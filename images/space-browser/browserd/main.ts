@@ -312,7 +312,10 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       manager.giveBack(checkProfileId(a["profileId"]), typeof a["before"] === "number" ? a["before"] : undefined);
       return {};
     case "screenshot": {
-      const c = await pageOf(checkProfileId(a["profileId"]));
+      // `quiet`: the Computer tab's picture. It looks at a browser that is running and never starts one or counts as use, so a tab left open does not keep the browser awake (14 Nov review).
+      const quietId = a["quiet"] === true ? checkProfileId(a["profileId"]) : null;
+      if (quietId !== null && !manager.get(quietId).chrome?.alive()) return { asleep: true };
+      const c = quietId !== null ? await manager.get(quietId).chrome!.page() : await pageOf(checkProfileId(a["profileId"]));
       try {
         const shot = await c.send<{ data: string }>("Page.captureScreenshot", { format: "png" });
         const png = Buffer.from(shot.data, "base64");

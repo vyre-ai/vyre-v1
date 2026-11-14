@@ -35,6 +35,7 @@ type In = {
 type Out = {
   chapters: Array<{
       startSeq: number;
+      startMsg: string;
       endSeq: number;
       startAt: number;
       count: number;
@@ -71,6 +72,7 @@ type Out = {
         "current": true,
         "endSeq": 1,
         "startAt": 1760000000000,
+        "startMsg": "msg_a1b2c3",
         "startSeq": 1,
         "summary": "example",
         "title": "example"

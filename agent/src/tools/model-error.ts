@@ -3,7 +3,7 @@
 // 13 Nov 2026 (owner): an agent repeats what a failed call hands it, and printed `permission.above_clearance` and `validation.precondition_failed` in its replies. So the error now LEADS with `say`, the plain sentence
 // and what the person can do, then `reply`, the instruction on how to report it; the code is kept as `supportCode`, marked as a reference for support and never for showing.
 import { peopleWords } from "../../../lib/probe.ts";
-import { describeError, plainSentence } from "../../../lib/words/errors.ts";
+import { describeError, plainSentence, sayableName } from "../../../lib/words/errors.ts";
 import type { VyreError } from "../../../packages/contracts/src/types.ts";
 
 // A prefixed id has a digit in its tail (usr_5cf430c0..., agt_01a1a388...); a reason word such as agent_settings or server_error does not, and must reach the model.
@@ -73,7 +73,7 @@ export function modelError(error: VyreError): {
   message: string;
   retryable?: boolean;
   next?: Array<{ label: string }>;
-  details?: { reason?: string; tool?: string };
+  details?: { reason?: string; tool?: string; thing?: string; name?: string };
   supportCode: string;
 } {
   const next = (error.next ?? [])
@@ -82,17 +82,34 @@ export function modelError(error: VyreError): {
   const d = error.details as { reason?: unknown; tool?: unknown } | undefined;
   const reason = typeof d?.reason === "string" && !IS_ID.test(d.reason) ? d.reason : undefined;
   const tool = typeof d?.tool === "string" && /^[a-z][a-z0-9_]*$/.test(d.tool) ? d.tool : undefined;
+  // a thing the caller named that is not there (or not open to them): the kind and the name as they wrote it, said exactly, so the agent can tell the person what it looked for
+  const dn = error.details as { thing?: unknown; name?: unknown } | undefined;
+  const thing = typeof dn?.thing === "string" && /^[A-Za-z][A-Za-z ]{0,30}$/.test(dn.thing) ? dn.thing : undefined;
+  const missingName = thing !== undefined ? sayableName(dn?.name) : null;
   const message = withoutIds(error.message ?? "");
   const words = describeError(error.code, { message });
   const own = AGENT_WORDS[error.code];
   // a plain message the server raised for this very failure wins over the table; the table's next step follows it
   const said = own && words.text === describeError(error.code).text ? own.what : words.text;
-  const say = `${plainSentence(said)} ${own ? own.next : words.next}`;
+  const sentence =
+    thing !== undefined && /not_found$/.test(error.code)
+      ? `There is no ${thing} ${missingName !== null ? `called ${missingName} ` : "by that name "}that I can open.`
+      : plainSentence(said);
+  const say = `${sentence} ${own ? own.next : words.next}`;
   return {
     say,
     reply: REPLY_RULE,
     message,
-    ...(reason || tool ? { details: { ...(reason ? { reason } : {}), ...(tool ? { tool } : {}) } } : {}),
+    ...(reason || tool || thing
+      ? {
+          details: {
+            ...(reason ? { reason } : {}),
+            ...(tool ? { tool } : {}),
+            ...(thing ? { thing } : {}),
+            ...(thing && missingName !== null ? { name: missingName } : {}),
+          },
+        }
+      : {}),
     ...(error.retryable === true ? { retryable: true } : {}),
     ...(next.length ? { next } : {}),
     supportCode: error.code,

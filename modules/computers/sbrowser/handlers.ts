@@ -12,6 +12,7 @@ import type { ProfileRow, SpaceBrowser } from "./port.ts";
 import { currentHold, dropHold, heldBy, setHold, touchHold } from "./hold.ts";
 import { needRoom, roomWaitLine, waitingForRoom, waitingProfiles } from "./room.ts";
 import { signInSites } from "./sites.ts";
+import { fitPngOffLoop } from "../png-fit.ts";
 
 const TICKET_MS = 5 * 60_000;
 
@@ -185,6 +186,13 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const sb = browserOrRaise(ctx);
   const { person, access } = await mayWatch(ctx, input.agentId);
+  // while a person has taken over the browser, only they see it (their page may be a login): everyone else is told who is using it
+  const holder = (await currentHold(ctx, sb, input.agentId).catch(() => null))?.personId;
+  if (holder !== undefined && holder !== person)
+    raise(ctx, "validation.precondition_failed", "Someone is using the browser.", {
+      reason: "browser_held",
+      by: holder,
+    });
   // the browser service wakes for a viewer; the address it gives stays in the Space, and the viewer gets the Space's own relay path with a ticket for this person (host/src/routes/browser-stream.ts)
   // the view wakes the browser: it needs room on the host like any browser that starts
   await needRoom(ctx, sb, input.agentId);
@@ -219,6 +227,37 @@ export async function stream(ctx: CompCtx, input: { agentId: string }) {
 }
 
 /**
+ * One still picture of an agent's browser for the Computer tab (lead, 14 Nov): read only and it never wakes the browser. A browser that is not running answers `asleep` with no picture; a person who may not
+ * watch gets the same refusal as the live view (a browser hidden from them reads as missing). Never an agent: an agent sees its own page through its tools, and cannot ask this for what a hold hides.
+ * The picture is fitted to a small size (256 KB at most) and refreshed by the page at most twice a second.
+ */
+export async function preview(ctx: CompCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  const sb = browserOrRaise(ctx);
+  const { person } = await mayWatch(ctx, input.agentId);
+  const at = ctx.now();
+  // while a person has taken over the browser, nobody else gets a picture of it (their page may be a login or a code): only they do (lead ruling, 14 Nov, until the sign-in hand-off exists)
+  const holder = (await currentHold(ctx, sb, input.agentId).catch(() => null))?.personId;
+  if (holder !== undefined && holder !== person) return { state: "held" as const, at, by: holder };
+  try {
+    // a look that never starts the browser and does not count as use; a service without one is asked only after a check that it runs
+    let shot: { bytes: Uint8Array; width: number; height: number } | { asleep: true };
+    if (sb.preview) shot = await sb.preview(input.agentId);
+    else {
+      const row = (await sb.profiles()).profiles.find((x) => x.profileId === input.agentId);
+      shot = row?.running ? await sb.screenshot(input.agentId) : { asleep: true };
+    }
+    if ("asleep" in shot) return { state: "asleep" as const, at };
+    const png = Buffer.from(shot.bytes).toString("base64");
+    const fit = await fitPngOffLoop(png, { width: shot.width, height: shot.height });
+    if (!fit.ok) return { state: "live" as const, at };
+    return { state: "live" as const, png: fit.shot.base64, width: fit.shot.width, height: fit.shot.height, at };
+  } catch (e) {
+    return refuse(ctx, e);
+  }
+}
+
+/**
  * What the Space's relay asks when a viewer arrives (host/src/routes/browser-stream.ts): spend the ticket, get the browser service's own addresses, and say whether the person may send input. A host call, never
  * a capability: no session can reach it.
  */
@@ -232,6 +271,9 @@ export async function browserStreamOpen(
   const who = await redeemTicket(ctx.db, String(input.ticket), ctx.now());
   if (!who || who.computerId !== String(input.agentId) || (who.kind !== "stream" && who.kind !== "takeover"))
     return null;
+  // a viewer whose ticket was minted before someone took the browser over is cut off at the door
+  const taken = heldBy(ctx, who.computerId);
+  if (taken !== null && taken !== who.personId) return null;
   let target: Awaited<ReturnType<SpaceBrowser["stream"]>>;
   try {
     target = await sb.stream({ profileId: who.computerId, personId: who.personId });
@@ -384,6 +426,7 @@ export const sbrowserHandlers = {
   "computers.browser.timeline": timeline,
   "computers.browser.profiles": profiles,
   "computers.browser.stream": stream,
+  "computers.browser.preview": preview,
   "computers.browser.take_over": takeOver,
   "computers.browser.give_back": giveBack,
 };

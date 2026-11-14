@@ -10,3 +10,4 @@
 - Every sheet now gives focus back to what opened it when it closes.
 - Nothing a person sees changes yet: the shared Status, Page and full-size sheet are ready for the agent computer screens and the Automations builder.
 - A screen whose refresh fails keeps showing its last numbers and now says "Couldn't refresh" with a Retry, instead of showing stale data with no sign.
+- Hover tips now show on the many icon buttons and menu items whose tip never appeared (react-native-web was dropping their title), including the reason a disabled menu item gives.

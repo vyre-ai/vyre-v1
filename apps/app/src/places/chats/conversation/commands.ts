@@ -250,7 +250,7 @@ async function run(
     }
     case "task": {
       const m = lastActionable(rows);
-      if (!m && arg === "") return notice("Nothing to make a task from yet. Say what it is: /task call the court");
+      if (!m && arg === "") return notice("Nothing to make a task from yet. Say what it is: /task call the vendor");
       const taskId = await act.makeTask(
         data,
         thread,

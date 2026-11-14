@@ -51,6 +51,8 @@ export interface ConnectCardProps {
   tested?: string | undefined;
   /** Ask: the host a typed key is tried against, said when the connector is not built in, so Connect is an informed yes. */
   checksWith?: string | undefined;
+  /** One line when a typed key was kept but could not be connected ("Your key is saved in Mine. Couldn't connect."). */
+  notice?: string | undefined;
   usedBy?: string | undefined;
   connectedBy?: string | undefined;
   open: boolean;
@@ -328,6 +330,12 @@ export function ConnectCard(p: ConnectCardProps): ReactElement {
               autoFocus={state === "wrong" && p.focusField === f.name}
             />
           ))}
+          {p.notice && !working ? (
+            <View style={st.line} testID={`${id}-notice`}>
+              <Glyph icon={WARN} native="!" size={14} color="var(--warn)" />
+              <Text accessibilityRole="alert" style={st.lineText}>{p.notice}</Text>
+            </View>
+          ) : null}
           {p.checksWith && !working ? (
             <Text style={st.sub} testID={`${id}-checks`}>{`Checks with ${p.checksWith}`}</Text>
           ) : null}
@@ -355,6 +363,12 @@ export function ConnectCard(p: ConnectCardProps): ReactElement {
       ) : null}
       {state === "have" ? (
         <View style={st.col}>
+          {p.notice && !working ? (
+            <View style={st.line} testID={`${id}-notice`}>
+              <Glyph icon={WARN} native="!" size={14} color="var(--warn)" />
+              <Text accessibilityRole="alert" style={st.lineText}>{p.notice}</Text>
+            </View>
+          ) : null}
           <View style={st.have} testID={`${id}-have`}>
             <Text style={st.haveName}>{`Use your saved ${service} key`}</Text>
             {p.have ? <Text style={st.haveWhere}>{p.have.where}</Text> : null}

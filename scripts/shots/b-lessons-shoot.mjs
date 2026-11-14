@@ -59,6 +59,12 @@ for (const skin of ["paper", "graphite"])
             await page.waitForTimeout(200);
             await page.screenshot({ path: path.join(out, `${base}-open-whole.png`) });
           }
+          const rm = await page.$("[data-testid^='lesson-remove-fct_les_first']");
+          if (rm) {
+            await rm.click();
+            await page.waitForTimeout(300);
+            await page.screenshot({ path: path.join(out, `${base}-open-removed.png`) });
+          }
           await page.keyboard.press("Escape");
           await page.waitForTimeout(200);
           const gone = (await page.$("[data-testid^='lesson-list-msg_L_a']")) === null;
@@ -103,7 +109,7 @@ if (label === "after") {
     ],
     [
       "chat",
-      "Remove closes the list and forgets",
+      "Remove turns the row into Removed. Undo",
       "[data-testid^='lesson-remove-fct_les_looks']",
       "[data-testid^='lesson-mark-msg_L_a']",
     ],
@@ -113,7 +119,6 @@ if (label === "after") {
       "[data-testid^='lesson-list-away-msg_L_a']",
       "[data-testid^='lesson-mark-msg_L_a']",
     ],
-    ["chat", "mark on a message of yours opens its list", "[data-testid='lesson-mark-msg_L_p1']", null],
     ["fresh", "Undo on the Learned line", "[data-testid^='learned-undo-']", null],
     ["fresh", "See on the Learned line", "[data-testid^='learned-see-']", null],
   ];

@@ -4,15 +4,17 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (21)
+## Capabilities (23)
 
 - [terminal.attach](../capabilities/terminal.attach.md): Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands
+- [terminal.capture](../capabilities/terminal.capture.md): The screen of a session as tmux draws it, with its colours (escape sequences), the cursor, how much history there is, and whether a program is reading a hidden prompt (secrets already scrubbed)
 - [terminal.close](../capabilities/terminal.close.md): Close a session and kill its tmux session
 - [terminal.get](../capabilities/terminal.get.md): Read one terminal session: host, state, working folder, last exit code
 - [terminal.give_back](../capabilities/terminal.give_back.md): Hand the keyboard of a terminal back to the agent
 - [terminal.health](../capabilities/terminal.health.md): Health of tmux and the session relay on the host
 - [terminal.input](../capabilities/terminal.input.md): Send keystrokes to a session (a person typing in the terminal tab; output returns as live frames)
 - [terminal.interrupt](../capabilities/terminal.interrupt.md): Send Ctrl-C to a session
+- [terminal.keys](../capabilities/terminal.keys.md): Press keys in a session as a person at a keyboard does: text, a named key (Enter, Tab, Up, C-c, F5 ...) or a paste as one write, raw through tmux; for a person who holds the keyboard. Never stored or logged: what is typed at a hidden prompt does not reach the stored log, other viewers or the agent
 - [terminal.list](../capabilities/terminal.list.md): List terminal sessions you can see, including named leftover scripts
 - [terminal.open](../capabilities/terminal.open.md): Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)
 - [terminal.open_server](../capabilities/terminal.open_server.md): Open a shell on the Space server (needs server.services; locked state with Ask for access otherwise)

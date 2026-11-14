@@ -23,6 +23,7 @@ import { BREAKPOINTS, bandKey, layoutPanels } from "../../../../../ui/src/SidePa
 import { paneWidths } from "../../../../../ui/src/SidePane/index.tsx";
 import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
 import { installTips } from "../../../../../ui/src/Tooltip/tips.ts";
+import { mark } from "../../startup/marks.ts";
 import { NeedsTeamSpace } from "../../../../../ui/src/NeedsTeamSpace/index.tsx";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
@@ -381,6 +382,14 @@ function PlaceFrame({ hub, epoch, children }: { hub: ShellHub; epoch: number; ch
   );
 }
 
+/** A screen the shell draws itself (a place that needs a Team Space, a new tab, a failure) is a usable first screen: without this mark the launch frame waits out its 8 s cap, because only a place module marks it (F55). */
+function ScreenUsable(): null {
+  useEffect(() => {
+    mark("app.usable");
+  }, []);
+  return null;
+}
+
 export function Shell(props: ShellProps): ReactElement {
   const { hub, theme } = props;
   const state = useHubState(hub);
@@ -502,18 +511,22 @@ export function Shell(props: ShellProps): ReactElement {
   if (state.phase === "skeleton") stage = <SpaceSkeleton />;
   else if (state.error !== null) {
     stage = (
-      <States
-        kind="error"
-        message={`Couldn't open ${session.def.name}`}
-        cause={state.error}
-        next="Try again"
-        retryable
-        onRetry={() => hub.retry()}
-      />
+      <>
+        <ScreenUsable />
+        <States
+          kind="error"
+          message={`Couldn't open ${session.def.name}`}
+          cause={state.error}
+          next="Try again"
+          retryable
+          onRetry={() => hub.retry()}
+        />
+      </>
     );
   } else if (activeTab !== undefined && activeTab.isNew === true) {
     stage = (
       <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${activeTab.key}`}>
+        <ScreenUsable />
         {props.renderNewTab !== undefined ? (
           props.renderNewTab(ctx)
         ) : (
@@ -526,11 +539,14 @@ export function Shell(props: ShellProps): ReactElement {
     stage = (
       <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${state.place}`}>
         {blocked !== null ? (
-          <NeedsTeamSpace
-            what={blocked}
-            density={compact ? "compact" : "regular"}
-            onAction={() => props.onSpaceAction?.("add")}
-          />
+          <>
+            <ScreenUsable />
+            <NeedsTeamSpace
+              what={blocked}
+              density={compact ? "compact" : "regular"}
+              onAction={() => props.onSpaceAction?.("add")}
+            />
+          </>
         ) : (
           props.renderPlace(ctx)
         )}

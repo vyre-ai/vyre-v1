@@ -836,7 +836,7 @@ test("15 Nov: an attached item the agent cannot use where it sits is refused; an
   );
 });
 
-test("15 Nov: every requester kind is held to the check, except a company key and a name-only ask; an unreadable answer lets the save through", async () => {
+test("15 Nov: every requester kind is held to the check, except a company key and a name-only ask; an unreadable answer refuses the save", async () => {
   // a person who asked is held to it too (M6): their clearance is what they would use the key with
   const w = world({ folders: [{ id: "vfd_hidden", name: "Finance", scope: "shared" }], unusable: ["vfd_hidden"] });
   const p = await ask(w, "usr_dana", { folderId: undefined, fields: ["api_key"] });
@@ -859,15 +859,20 @@ test("15 Nov: every requester kind is held to the check, except a company key an
     fields: [{ key: "api_key", value: "k" }],
   } as never);
   assert.equal(wo.called("vault.item.put").length, 1);
-  // access.clears unreadable: fails open (vault.item.put and vault.share still enforce access)
+  // access.clears unreadable, or not found for the caller: refused, never let through (nothing is stored yet)
   const wf = world({
-    folders: [{ id: "vfd_hidden", name: "Finance", scope: "shared" }],
-    unusable: ["vfd_hidden"],
-    fail: { "access.clears": "cannot read" },
+    folders: [{ id: "vfd_ok", name: "Finance", scope: "shared" }],
+    fail: { "access.clears": "no such resource" },
+    items: { vit_have: ["api_key"] },
   });
   const f = await askFor(wf, "Fathom_f", "f-1");
-  await fulfilInto(wf, f.request.id, "vfd_hidden");
-  assert.equal(wf.called("vault.item.put").length, 1);
+  await assert.rejects(() => fulfilInto(wf, f.request.id, "vfd_ok"), /restricted/);
+  await assert.rejects(
+    () => handlers["vault.requests.fulfil"](wf.as("usr_owner"), { requestId: f.request.id, itemId: "vit_have" }),
+    /cannot use that key where it is kept/,
+  );
+  assert.deepEqual(wf.called("vault.item.put"), [], "nothing stored");
+  assert.deepEqual(wf.called("vault.share"), []);
 });
 
 test("owner ruling 3 Nov: a key that names a Shared folder, a company key and an outside agent's name-only ask still go to the owners and admins alone", async () => {

@@ -6857,6 +6857,7 @@ export type ChatChaptersIn = {
 export type ChatChaptersOut = {
   chapters: Array<{
       startSeq: number;
+      startMsg: string;
       endSeq: number;
       startAt: number;
       count: number;
@@ -6872,6 +6873,7 @@ export type ChatChaptersWriteIn = {
   account?: {
     ref: string;
     driver: string;
+    kind?: string;
   };
 };
 export type ChatChaptersWriteOut = {
@@ -8395,6 +8397,8 @@ export type ChatsSidebarOut = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -8425,6 +8429,8 @@ export type ChatsSidebarOut = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -8455,6 +8461,8 @@ export type ChatsSidebarOut = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -8485,6 +8493,8 @@ export type ChatsSidebarOut = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -8515,6 +8525,8 @@ export type ChatsSidebarOut = {
           done: number;
           total: number;
         };
+        line?: string;
+        nextCheckinAt?: number;
         quiet?: boolean;
         ended?: boolean;
         archived?: boolean;
@@ -8908,6 +8920,17 @@ export type ComputersBrowserGiveBackOut = {
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
+};
+export type ComputersBrowserPreviewIn = {
+  agentId: string;
+};
+export type ComputersBrowserPreviewOut = {
+  state: "live" | "asleep" | "held";
+  by?: string;
+  png?: string;
+  width?: number;
+  height?: number;
+  at: number;
 };
 export type ComputersBrowserProfilesIn = Record<string, unknown>;
 export type ComputersBrowserProfilesOut = {
@@ -10272,6 +10295,7 @@ export type ConnectorsForServiceOut = {
     site?: string;
     builtin: boolean;
     host?: string;
+    hosts: Array<string>;
     checks: boolean;
   };
   connection?: {
@@ -12781,7 +12805,6 @@ export type EngineRoundGetOut = {
       agents: Array<{
           agentId: string;
           state: "working" | "waiting" | "replied" | "stopped";
-          on?: string;
         }>;
     }>;
 };
@@ -25316,6 +25339,7 @@ export type MemoryCorrectionsRecordOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25388,6 +25412,7 @@ export type MemoryFactAcceptOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25430,6 +25455,7 @@ export type MemoryFactCorrectOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25465,6 +25491,7 @@ export type MemoryFactCorrectOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25505,6 +25532,7 @@ export type MemoryFactGetOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25540,6 +25568,7 @@ export type MemoryFactGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25580,6 +25609,7 @@ export type MemoryFactRejectOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25628,6 +25658,7 @@ export type MemoryFactsListOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25687,6 +25718,7 @@ export type MemoryFactsAsOfOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25732,6 +25764,7 @@ export type MemoryFindBySubjectOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25979,6 +26012,7 @@ export type MemoryLearnedOut = {
           how?: "edit" | "refuse" | "reverse" | "rewrite";
           used: number;
           scope: "you" | "proposed" | "space";
+          sent?: boolean;
         };
         subject?: {
           pageId: string;
@@ -26178,6 +26212,7 @@ export type MemoryPageGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26402,6 +26437,7 @@ export type MemoryProfileAddOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26465,6 +26501,7 @@ export type MemoryProfileGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26503,6 +26540,7 @@ export type MemoryProfileGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26547,6 +26585,7 @@ export type MemoryProfileMoveOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26592,6 +26631,7 @@ export type MemoryProfileSuggestOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26647,6 +26687,7 @@ export type MemoryPromotionApproveOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26709,6 +26750,7 @@ export type MemoryProposeFactOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26770,6 +26812,7 @@ export type MemoryQuestionsListOut = {
             how?: "edit" | "refuse" | "reverse" | "rewrite";
             used: number;
             scope: "you" | "proposed" | "space";
+            sent?: boolean;
           };
           subject?: {
             pageId: string;
@@ -26873,6 +26916,7 @@ export type MemoryRememberOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26915,6 +26959,7 @@ export type MemoryRestoreOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26975,6 +27020,7 @@ export type MemorySearchOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -27073,6 +27119,7 @@ export type MemoryTrashSearchOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -27133,6 +27180,7 @@ export type MemoryUndoOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -27219,6 +27267,7 @@ export type MemoryUsedOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -42409,6 +42458,21 @@ export type TerminalAttachOut = {
   expiresAt: number;
   replay: string;
 };
+export type TerminalCaptureIn = {
+  terminalId: string;
+  lines?: number;
+};
+export type TerminalCaptureOut = {
+  text: string;
+  cols: number;
+  rows: number;
+  cursor: {
+    x: number;
+    y: number;
+  } | null;
+  history: number;
+  hidden: boolean;
+};
 export type TerminalCloseIn = {
   terminalId: string;
 };
@@ -42441,6 +42505,7 @@ export type TerminalGetOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalGiveBackIn = {
@@ -42469,6 +42534,7 @@ export type TerminalGiveBackOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalHealthIn = Record<string, unknown>;
@@ -42489,6 +42555,17 @@ export type TerminalInterruptIn = {
   terminalId: string;
 };
 export type TerminalInterruptOut = {
+  ok: boolean;
+};
+export type TerminalKeysIn = {
+  terminalId: string;
+  keys: Array<{
+      text?: string;
+      key?: string;
+      paste?: string;
+    }>;
+};
+export type TerminalKeysOut = {
   ok: boolean;
 };
 export type TerminalListIn = {
@@ -42522,6 +42599,7 @@ export type TerminalListOut = {
         name?: string;
       };
       heldBy?: string;
+      ownerId?: string;
     }>;
   next?: string;
   total?: number;
@@ -42560,6 +42638,7 @@ export type TerminalOpenOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalOpenServerIn = {
@@ -42592,6 +42671,7 @@ export type TerminalOpenServerOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalReadIn = {
@@ -42630,6 +42710,7 @@ export type TerminalRenameOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalRequestIn = {
@@ -42740,6 +42821,7 @@ export type TerminalTakeOverOut = {
       name?: string;
     };
     heldBy?: string;
+    ownerId?: string;
   };
 };
 export type TerminalWorkspaceIn = {
@@ -44463,6 +44545,7 @@ export type VaultConnectCardAskAdminOut = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;
@@ -44503,6 +44586,7 @@ export type VaultConnectCardDisconnectOut = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;
@@ -44543,6 +44627,7 @@ export type VaultConnectCardGetOut = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;
@@ -44595,6 +44680,7 @@ export type VaultConnectCardReopenOut = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;
@@ -44643,6 +44729,7 @@ export type VaultConnectCardSubmitOut = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;
@@ -44826,6 +44913,12 @@ export type VaultItemDeleteIn = {
   itemId: string;
 };
 export type VaultItemDeleteOut = {
+  ok: boolean;
+};
+export type VaultItemDiscardNewIn = {
+  itemId: string;
+};
+export type VaultItemDiscardNewOut = {
   ok: boolean;
 };
 export type VaultItemGetIn = {
@@ -46211,6 +46304,7 @@ export interface CapMap {
   "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
   "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
+  "computers.browser.preview": { in: ComputersBrowserPreviewIn; out: ComputersBrowserPreviewOut };
   "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
   "computers.browser.sessions": { in: ComputersBrowserSessionsIn; out: ComputersBrowserSessionsOut };
   "computers.browser.sign_out": { in: ComputersBrowserSignOutIn; out: ComputersBrowserSignOutOut };
@@ -47913,12 +48007,14 @@ export interface CapMap {
   "templates.project_starters": { in: TemplatesProjectStartersIn; out: TemplatesProjectStartersOut };
   "templates.save": { in: TemplatesSaveIn; out: TemplatesSaveOut };
   "terminal.attach": { in: TerminalAttachIn; out: TerminalAttachOut };
+  "terminal.capture": { in: TerminalCaptureIn; out: TerminalCaptureOut };
   "terminal.close": { in: TerminalCloseIn; out: TerminalCloseOut };
   "terminal.get": { in: TerminalGetIn; out: TerminalGetOut };
   "terminal.give_back": { in: TerminalGiveBackIn; out: TerminalGiveBackOut };
   "terminal.health": { in: TerminalHealthIn; out: TerminalHealthOut };
   "terminal.input": { in: TerminalInputIn; out: TerminalInputOut };
   "terminal.interrupt": { in: TerminalInterruptIn; out: TerminalInterruptOut };
+  "terminal.keys": { in: TerminalKeysIn; out: TerminalKeysOut };
   "terminal.list": { in: TerminalListIn; out: TerminalListOut };
   "terminal.open": { in: TerminalOpenIn; out: TerminalOpenOut };
   "terminal.open_server": { in: TerminalOpenServerIn; out: TerminalOpenServerOut };
@@ -48015,6 +48111,7 @@ export interface CapMap {
   "vault.import_parse": { in: VaultImportParseIn; out: VaultImportParseOut };
   "vault.inject_env": { in: VaultInjectEnvIn; out: VaultInjectEnvOut };
   "vault.item.delete": { in: VaultItemDeleteIn; out: VaultItemDeleteOut };
+  "vault.item.discard_new": { in: VaultItemDiscardNewIn; out: VaultItemDiscardNewOut };
   "vault.item.get": { in: VaultItemGetIn; out: VaultItemGetOut };
   "vault.item.history": { in: VaultItemHistoryIn; out: VaultItemHistoryOut };
   "vault.item.mark_rotated": { in: VaultItemMarkRotatedIn; out: VaultItemMarkRotatedOut };
