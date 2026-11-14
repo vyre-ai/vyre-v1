@@ -4,7 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
-import { BACK_TO_START_EVENT, LoadFailed, RETRY_LOADS_EVENT, failureOf, isRefused } from "./Loads.tsx";
+import { BACK_TO_CHATS, BACK_TO_START_EVENT, LoadFailed, RETRY_LOADS_EVENT, failureOf, isRefused } from "./Loads.tsx";
+import { CANNOT_READ } from "./retry.ts";
 import { Quiet } from "./Quiet.tsx";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -143,7 +144,7 @@ test("a refused read offers Back to Chats, which sends the one event the place h
   try {
     const refused = await mount(
       createRoot,
-      <LoadFailed what="this chat" failure={{ message: "x", code: "validation.not_found" }} />,
+      <LoadFailed what="this chat" back={BACK_TO_CHATS} failure={{ message: "x", code: "validation.not_found" }} />,
     );
     assert.match(textOf(find(refused, "state-action")), /Back to Chats/);
     await press(find(refused, "state-action"));
@@ -181,6 +182,55 @@ test("a compact failed row is one line: the words and Retry; a refusal says so p
     const rt = textOf(find(refused, "load-failed"));
     assert.match(rt, /You can't open the team/);
     assert.doesNotMatch(rt, /Retry/);
+  } finally {
+    restore();
+  }
+});
+
+// 14 Nov 2026 review: a refusal outside Chats drew a Back to Chats button that nothing heard. The way back comes from the caller; without one no button is drawn.
+test("a refusal with no way back draws no button, in the Inbox, Settings and the Console alike", async () => {
+  const restore = installDom();
+  try {
+    for (const what of ["the Inbox", "settings", "this Console page"]) {
+      const root = await mount(
+        createRoot,
+        <LoadFailed what={what} failure={{ message: "x", code: "validation.not_found" }} />,
+      );
+      assert.match(textOf(find(root, "load-failed")), new RegExp(`You can't open ${what}`));
+      assert.equal(find(root, "state-action"), null, `${what}: no button that does nothing`);
+      assert.equal(find(root, "state-retry"), null);
+    }
+  } finally {
+    restore();
+  }
+});
+
+test("a failure that trying again cannot fix shows its words and no Retry", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(
+      createRoot,
+      <LoadFailed what="the counts" failure={{ message: "This Space cannot read that here.", code: CANNOT_READ }} />,
+    );
+    assert.match(textOf(find(root, "load-failed")), /cannot read that here/);
+    assert.equal(find(root, "state-retry"), null);
+  } finally {
+    restore();
+  }
+});
+
+test("the compact form is one line with the words and Retry, or the refusal with no Retry", async () => {
+  const restore = installDom();
+  try {
+    const failed = await mount(createRoot, <LoadFailed compact what="Recent" failure={{ message: "It broke." }} />);
+    assert.match(textOf(find(failed, "load-failed")), /Couldn't load Recent/);
+    assert.ok(find(failed, "load-failed-retry"));
+    const refused = await mount(
+      createRoot,
+      <LoadFailed compact what="Recent" failure={{ message: "x", code: "permission.denied" }} />,
+    );
+    assert.match(textOf(find(refused, "load-failed")), /You can't open Recent/);
+    assert.equal(find(refused, "load-failed-retry"), null);
   } finally {
     restore();
   }

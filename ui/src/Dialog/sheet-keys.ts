@@ -48,9 +48,8 @@ export function returnFocus(doc: Pick<KeyDocument, "activeElement">): () => void
   };
 }
 
-/** Listens for the chord while the sheet is open; answers how to stop, which also puts focus back where it was. */
+/** Listens for the chord while the sheet is open; answers how to stop. Focus is given back by `returnFocus`, taken when the sheet first renders (before its body can take focus), not here. */
 export function watchSheetKeys(o: { doc: KeyDocument; chord: string; focusClose(): void }): () => void {
-  const back = returnFocus(o.doc);
   const onKey = (e: KeyLike): void => {
     if (!chordMatches(o.chord, e)) return;
     e.preventDefault?.();
@@ -60,6 +59,5 @@ export function watchSheetKeys(o: { doc: KeyDocument; chord: string; focusClose(
   o.doc.addEventListener("keydown", onKey, true);
   return () => {
     o.doc.removeEventListener("keydown", onKey, true);
-    back();
   };
 }

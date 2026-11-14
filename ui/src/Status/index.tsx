@@ -5,6 +5,7 @@
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { menuTrigger, useMenu } from "../Menu/index.tsx";
+import { Tooltip } from "../Tooltip/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 
 export type Tone = "ok" | "quiet" | "warn" | "bad" | "mine";
@@ -45,23 +46,26 @@ function Dot({ tone }: { tone: Tone }): ReactElement {
 }
 
 function ActionButton({ a, id }: { a: StatusAction; id: string }): ReactElement {
+  const off = a.disabled === true;
+  // a disabled action must still be reachable, so it can say why: it is not `disabled` (that takes it out of the pointer and tab order) but aria-disabled, and presses do nothing
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={a.label}
-      accessibilityState={{ disabled: a.disabled === true }}
-      disabled={a.disabled === true}
-      testID={id}
-      onPress={a.onPress}
-      {...(web && a.disabled === true && a.why ? ({ dataSet: { tt: a.why } } as object) : {})}
-      style={({ hovered }: { hovered?: boolean }) => [
-        st.action,
-        hovered === true && st.actionOver,
-        a.disabled === true && st.dim,
-      ]}
-    >
-      <Text style={st.actionText}>{a.label}</Text>
-    </Pressable>
+    <Tooltip text={off && a.why ? a.why : ""}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={a.label}
+        accessibilityState={{ disabled: off }}
+        aria-disabled={off}
+        testID={id}
+        onPress={off ? undefined : a.onPress}
+        style={({ hovered }: { hovered?: boolean }) => [
+          st.action,
+          hovered === true && !off && st.actionOver,
+          off && st.dim,
+        ]}
+      >
+        <Text style={st.actionText}>{a.label}</Text>
+      </Pressable>
+    </Tooltip>
   );
 }
 

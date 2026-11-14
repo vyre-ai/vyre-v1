@@ -79,7 +79,9 @@ function useDetails(call: Call, threadId: string): ChatDetailsRead {
 export function ChatDetails({ threadId, call, nameOf, meId, openProfile }: ChatDetailsProps): ReactElement {
   const read = useDetails(call, threadId);
   if (read.status === "failed")
-    return <LoadFailed what="this chat's details" failure={read.failure} testID="chat-details-failed" />;
+    return (
+      <LoadFailed back={BACK_TO_CHATS} what="this chat's details" failure={read.failure} testID="chat-details-failed" />
+    );
   if (read.status === "loading") return <View testID="chat-details-loading" style={st.loading} />;
   const { thread, channel } = read;
   const people = thread.members.filter((m) => m.kind === "person");

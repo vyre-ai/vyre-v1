@@ -18,6 +18,8 @@ export interface LoadOptions {
   enabled?: boolean;
   keepPrevious?: boolean;
   soft?: boolean;
+  /** False for a screen that reads once and is not meant to refresh: it never says "Couldn't refresh". `soft` reads are never refreshed either. Default true. */
+  refresh?: boolean;
 }
 
 const LOADING: QueryState<never> = { status: "loading" };
@@ -50,7 +52,8 @@ export function useLoad<T>(src: LoadSource, o: LoadOptions = {}): Load<T | null>
   const side =
     (query as { stale?: { subscribe(l: () => void): () => void; getSnapshot(): LoadFailure | null } }).stale ??
     NO_STALE;
-  const stale = useSyncExternalStore(side.subscribe, side.getSnapshot, side.getSnapshot);
+  const staleRaw = useSyncExternalStore(side.subscribe, side.getSnapshot, side.getSnapshot);
+  const stale = o.refresh === false || o.soft === true ? null : staleRaw;
   const held = useRef<{ data: T } | null>(null);
   if (snap.status === "ready") held.current = { data: snap.data };
   const soft = o.soft === true;

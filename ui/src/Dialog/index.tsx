@@ -3,7 +3,7 @@
 // something uses this card, so the radius, padding, veil and buttons are the same everywhere.
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { returnFocus, watchSheetKeys } from "./sheet-keys.ts";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Overlay } from "../Overlay/index.tsx";
@@ -124,12 +124,13 @@ export function Dialog({
       focusClose: () => (closeBtn.current as { focus?: () => void } | null)?.focus?.(),
     });
   }, [captureKeys?.chord]);
-  useEffect(() => {
-    if (!web) return undefined;
-    // closing puts focus back on what opened the sheet
+  // what had focus when the sheet opened: taken while rendering, before the body can autofocus an input or a terminal (an effect would run after it and record the sheet's own field). Every way of
+  // closing (Escape, the Close control, a press outside, an action) unmounts the sheet, so one cleanup gives focus back.
+  const [giveBack] = useState(() => {
     const doc = (globalThis as { document?: Parameters<typeof returnFocus>[0] }).document;
-    return doc ? returnFocus(doc) : undefined;
-  }, []);
+    return web && doc ? returnFocus(doc) : null;
+  });
+  useEffect(() => () => giveBack?.(), [giveBack]);
   useEffect(() => {
     if (!web || captureKeys) return;
     ensureCss();

@@ -8,7 +8,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
-import { LoadFailed, isRefused } from "../../../../../../ui/src/States/Loads.tsx";
+import { BACK_TO_CHATS, LoadFailed, isRefused } from "../../../../../../ui/src/States/Loads.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { askedCall, goalMenuEntries } from "./goal-menu.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
@@ -165,7 +165,7 @@ export function GoalPage({
       <View testID="goal-page-loading" style={st.root}>
         {state.status === "error" ? (
           isRefused(state) ? (
-            <LoadFailed what="this goal" failure={state} testID="goal-refused" />
+            <LoadFailed back={BACK_TO_CHATS} what="this goal" failure={state} testID="goal-refused" />
           ) : (
             <States kind="error" message="This goal is not available" cause={state.message} />
           )

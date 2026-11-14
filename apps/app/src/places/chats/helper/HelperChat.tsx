@@ -23,7 +23,7 @@ import {
 import type { Message } from "./model.ts";
 import type { CrewMember } from "../crew/model.ts";
 import { modelName } from "../../../../../../lib/model-names.ts";
-import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
+import { BACK_TO_CHATS, LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type MessagesOut = CapMap["chat.messages.list"]["out"];
@@ -109,7 +109,8 @@ function HelperView(): ReactElement {
   const winW = useWindowDimensions().width;
   const narrow = isPhoneWidth(winW);
   const failed = failureOf(threadQ, messagesQ);
-  if (failed) return <LoadFailed what="this helper" failure={failed} testID="helper-load-failed" />;
+  if (failed)
+    return <LoadFailed back={BACK_TO_CHATS} what="this helper" failure={failed} testID="helper-load-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <HelperChatLoading />;
   const thread = threadQ.data.thread;
   const messages = byOrder(messagesQ.data.messages);

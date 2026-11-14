@@ -7,6 +7,9 @@ import { Dialog } from "../../../ui/src/Dialog/index.tsx";
 import { useMenu } from "../../../ui/src/Menu/index.tsx";
 import { Switch } from "../../../ui/src/Switch/index.tsx";
 import { Tooltip } from "../../../ui/src/Tooltip/index.tsx";
+import { MoreRow } from "../../../ui/src/MoreRow/index.tsx";
+import { Status } from "../../../ui/src/Status/index.tsx";
+import { useState } from "react";
 import { installTips } from "../../../ui/src/Tooltip/tips.ts";
 
 export const title = "Tooltip placements";
@@ -73,6 +76,11 @@ function Long(): ReactNode {
   );
 }
 
+function More(): ReactNode {
+  const [open, setOpen] = useState(false);
+  return <MoreRow count={5} open={open} onToggle={() => setOpen((v) => !v)} testID="more-row" />;
+}
+
 export default function Mount(): ReactNode {
   const v =
     new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("v") ?? "dialog";
@@ -97,6 +105,16 @@ export default function Mount(): ReactNode {
       </Dialog>,
     );
   if (v === "menu") return wrap(<MenuView />);
+  if (v === "morerow") return wrap(<More />);
+  if (v === "status")
+    return wrap(
+      <Status
+        tone="warn"
+        label="Checking"
+        action={{ label: "It went through", onPress: none, disabled: true, why: "Wait for the check to finish" }}
+        testID="s"
+      />,
+    );
   if (v === "scroll") return wrap(<Long />);
   return wrap(
     <View style={{ alignItems: "flex-end" }}>

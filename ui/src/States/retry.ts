@@ -17,6 +17,8 @@ export function isRefused(f: LoadFailure | undefined): boolean {
   return c.startsWith("permission.") || c === "validation.not_found";
 }
 /** What a refused read says beside "You can't open ...": true whether it was removed or never shared. */
+/** The code of a failure that trying again cannot fix (hooks that cannot answer this read at all): the words are shown and there is no Retry. */
+export const CANNOT_READ = "load.cannot_read";
 export const BACK_LABEL = "Back to Chats";
 export const REFUSED_CAUSE = "It may have been removed, or it is not shared with you.";
 

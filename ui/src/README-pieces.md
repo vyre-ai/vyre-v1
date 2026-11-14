@@ -16,10 +16,12 @@ One piece per job. The ratchet `scripts/lint/one-component.test.ts` (run in the 
 
 **useLoadList / useChange** (`apps/app/src/load`): cursor paging (page 1 live, later pages once, one request per page) and one change at a time with an optional optimistic patch. Mistake: a toggle that calls `call` directly: use `useChange` with `optimistic`, so on, off, on ends on the last press and a failure goes back to what the server last confirmed. Never optimistic for anything the Gate can hold (a send, a grant).
 
-**Switch and Field** (`ui/src/Switch`, `ui/src/Field`): one switch (Space and Enter, disabled, `labelled`); a Row with one or two controls. Mistake: a new switch with its own colours. Ratchet: `Switch`, `Field`, `Select`, `Choice`, `Stepper`.
+**Switch and Field** (`ui/src/Switch`, `ui/src/Field`): one switch (Space and Enter, disabled, `labelled`); a Row with one or two controls. Mistake: a new switch with its own colours, or `title` on a Pressable (see above). Ratchet: `Switch`, `Field`, `Select`, `Choice`, `Stepper`.
 
 **MoreRow** (`ui/src/MoreRow`): the row that opens a capped list in place ("N more" / "Show less"). Props: `count`, `open`, `onToggle`. Mistake: using it for paging: paging stays `useLoadList`. Ratchet: `MoreRow`.
 
 **Group** (`ui/src/Group`, being added by lane b-cmd to the contract's words): a titled block of rows with its own hairlines. Props: `title`, `count`, `action`, `empty`. Mistake: drawing hairlines in each row. Ratchet: `Section`.
+
+**Safe to adopt now / wait (reviewer, 14 Nov):** adopt now: Tooltip, Loadable and useLoad (reads and failures), useLoadList, useChange, Switch, Status, the Sheet's sizes and `bar`, MoreRow. Wait for the review to clear: Page and LiveSurface until their fixes are confirmed; the Sheet's focus return until the browser check passes. Whichever it is, a `title` prop on a Pressable, View or Text never reaches the page (react-native-web drops it): use `dataSet: { tt: text }`, the guard test `scripts/lint/no-title-prop.test.ts` fails otherwise.
 
 Before merging: run `node --import tsx --test scripts/lint/one-component.test.ts`, the lint (`node scripts/lint/run.ts --files <changed>`), and look at a picture of every visible change in both skins.

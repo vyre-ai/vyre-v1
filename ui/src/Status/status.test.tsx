@@ -64,7 +64,17 @@ test("an action and a second action are both drawn, side by side, and a disabled
     />,
   );
   assert.ok(html.indexOf("Send again") >= 0 && html.indexOf("Send again") < html.indexOf("It went through"));
-  assert.match(html, /data-tt="Wait for the check"/);
+  assert.match(
+    html,
+    /title="Wait for the check"/,
+    "the reason reaches the page on a wrapper that still takes pointer and focus",
+  );
+  const tag = html.match(/<div[^>]*data-testid="status-alt"[^>]*>/)![0];
+  assert.ok(
+    !/disabled=""|tabindex="-1"/.test(tag),
+    "a disabled action is still focusable and reachable by the pointer",
+  );
+  assert.match(tag, /aria-disabled="true"/);
 });
 
 test("the actions press, a disabled one does not, and the head is not a button", async () => {

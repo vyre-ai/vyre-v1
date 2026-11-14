@@ -97,7 +97,7 @@ import { openSkills } from "../install/open.ts";
 import type { Act, Route, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 import { viewing } from "../../../shell/noticeslot/viewing.ts";
-import { LoadFailed, onBackToStart } from "../../../../../../ui/src/States/Loads.tsx";
+import { BACK_TO_CHATS, LoadFailed, onBackToStart } from "../../../../../../ui/src/States/Loads.tsx";
 import type { LoadFailure } from "../../../../../../ui/src/States/Loads.tsx";
 
 /** A channel id; the place shows a channel as its main thread. */
@@ -1027,6 +1027,7 @@ export function ChatsMounted({
   } else if (channelOpen !== null && channelFailed?.id === channelOpen)
     main = (
       <LoadFailed
+        back={BACK_TO_CHATS}
         what="this channel"
         failure={channelFailed.failure}
         onRetry={() => setChannelTry((n) => n + 1)}
