@@ -19,11 +19,8 @@ export function pickInFromCatalog(
 ): PickIn {
   const apps = new Map<string, PickApp>();
   const out: PickStep[] = steps.map((s) => {
-    const step: PickStep = {
-      key: s.key,
-      title: s.title,
-      ...(s.preset ? { preset: s.preset as PickStep["preset"] } : {}),
-    };
+    const preset = s.preset as NonNullable<PickStep["preset"]> | undefined;
+    const step: PickStep = preset ? { key: s.key, title: s.title, preset } : { key: s.key, title: s.title };
     const app = appOfStep(step);
     if (app === null) return step;
     if (!apps.has(app)) {
