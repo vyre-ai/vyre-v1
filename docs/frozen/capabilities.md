@@ -202,3 +202,11 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 - `automations.steps.list@1` also answers an optional `checked` (false only when the Space's connected apps could not be read, so an app missing from the list is unknown rather than unconnected; absent otherwise). Additive.
 
 Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
+
+## 14 Nov 2026: three new reads are open to every member, a guest included (lane b-side), for the lead to sign
+
+- What changed: `chats.presence`, `notifications.unseen_by_thread` and `engine.thread_states` were first added at level `view` (the Space's View grant) and are now level `member`, like `chat.recent`, `chats.sidebar` and `channels.list`. They were never released at `view`: no caller outside this branch could have used the old level. Nothing else about the three changed.
+- Who gains: a guest, who holds no View on the Space, is no longer refused (before: 403 permission.no_grant, which the sidebar would have shown as a failed section). Who loses: nobody; a principal that held `view` is a member.
+- What a guest gets from each, proved with a real guest on a booted daemon (test/chats.sidebar.asker.live.test.ts): `chats.presence` answers no people and no agents at work (it composes `devices.presence` and `engine.now`, which refuse a guest, so each half is empty); `notifications.unseen_by_thread` answers only the guest's own unseen mentions, none when they have none, and never a thread they cannot open (the query is scoped to the asker and names only threads a notification was filed for them about); `engine.thread_states` answers only chats whose latest turn the guest asked and may view, and nothing for the owner's private chat.
+- Why refusing was wrong: the sidebar is the first thing a guest sees, and it reads these three on every open; a refusal drew a failed section for the one person who has the fewest things to show.
+- Signed: ______ (lead)
