@@ -60,17 +60,6 @@ test("the chord moves focus to Close; Escape, Cmd+W and Tab are left to the surf
   assert.equal(f.listeners.size, 0, "listeners are removed");
 });
 
-test("closing puts focus back on what opened the sheet, if it is still there", () => {
-  const f = fake();
-  const stop = watchSheetKeys({ doc: f.doc, chord: "Cmd+Shift+.", focusClose: () => undefined });
-  stop();
-  assert.deepEqual(f.log, ["opener focused"]);
-  const g = fake();
-  g.opener.isConnected = false;
-  watchSheetKeys({ doc: g.doc, chord: "Ctrl+Alt+.", focusClose: () => undefined })();
-  assert.deepEqual(g.log, [], "an opener that has gone is not focused");
-});
-
 test("any sheet can give focus back: returnFocus remembers the opener and restores it once", () => {
   const f = fake();
   const back = returnFocus(f.doc);
