@@ -247,3 +247,33 @@ test("an estimated cost says so in the card and the tab", () => {
     detailLines(details(t), me("usr_irfad")).some((l) => l.kind === "note" && /so it is an estimate/.test(l.text)),
   );
 });
+
+test("the lessons a reply used are a section of the Details: one line each, apart from what else the agent knew", () => {
+  const withLesson = {
+    ...details(signin),
+    memory: {
+      facts: [
+        { factId: "fct_l1", text: "Show me your draft text here first.", kind: "lesson" },
+        { factId: "fct_l2", text: "Round money to whole dollars.", kind: "lesson" },
+        { factId: "fct_f1", text: "Files live in one folder per client" },
+      ],
+      quotes: [],
+    },
+  };
+  const lines = detailLines(withLesson, me("usr_irfad"));
+  const labels = lines.filter((l) => l.kind === "label").map((l) => (l.kind === "label" ? [l.text, l.right] : null));
+  assert.ok(
+    labels.some((l) => l?.[0] === "Lessons used" && String(l[1]) === "2"),
+    JSON.stringify(labels),
+  );
+  const item = (key: string) => lines.find((l) => l.key === key);
+  assert.equal(item("lesson-fct_l1")?.kind, "item");
+  assert.equal(item("fact-fct_l1"), undefined, "a lesson is not also listed as a fact");
+  assert.ok(item("fact-fct_f1"), "the other fact stays under What the agent knew");
+  const knew = labels.find((l) => l?.[0] === "What the agent knew");
+  assert.equal(String(knew?.[1]), "1", "its count leaves the lessons out");
+  // a reply that used no lesson has no such section
+  assert.ok(
+    !detailLines(details(signin), me("usr_irfad")).some((l) => l.kind === "label" && l.text === "Lessons used"),
+  );
+});

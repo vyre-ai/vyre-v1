@@ -189,12 +189,22 @@ test("stale keeps the content and adds one quiet line whose Retry asks the sessi
   };
   try {
     const load: Load<{ rows: string[] }> = { state: "ready", data: { rows: ["a"] }, stale: failure };
-    const root = await mount(createRoot, <Loadable load={load} what="the rows">{body}</Loadable>);
+    const root = await mount(
+      createRoot,
+      <Loadable load={load} what="the rows">
+        {body}
+      </Loadable>,
+    );
     assert.match(textOf(root), /rows:a/);
     assert.match(textOf(find(root, "load-stale")), /Couldn't refresh/);
     await press(find(root, "load-stale-retry"));
     assert.deepEqual(sent, [RETRY_LOADS_EVENT]);
-    const fresh = await mount(createRoot, <Loadable load={{ state: "ready", data: { rows: ["a"] } }} what="the rows">{body}</Loadable>);
+    const fresh = await mount(
+      createRoot,
+      <Loadable load={{ state: "ready", data: { rows: ["a"] } }} what="the rows">
+        {body}
+      </Loadable>,
+    );
     assert.equal(find(fresh, "load-stale"), null);
   } finally {
     delete g.dispatchEvent;

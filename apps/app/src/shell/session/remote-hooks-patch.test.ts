@@ -99,7 +99,11 @@ test("an undo from before a real answer does not take back a change made after i
   await settle();
   hooks.patch("things.get", { id: "t1" }, (d) => ({ ...(d as object), n: 1 }));
   old();
-  assert.deepEqual(q.getSnapshot(), { status: "ready", data: { on: false, n: 1 } }, "only the newer change is on screen");
+  assert.deepEqual(
+    q.getSnapshot(),
+    { status: "ready", data: { on: false, n: 1 } },
+    "only the newer change is on screen",
+  );
 });
 
 test("a real answer clears every change shown before it: a later change starts from the real answer", async () => {
@@ -122,7 +126,9 @@ test("a failed re-read keeps the very same snapshot and says so on the side; the
     },
   });
   const q = hooks.capQuery<{ on: boolean }>("things.get", { id: "t1" });
-  const side = (q as unknown as { stale: { subscribe(l: () => void): () => void; getSnapshot(): { message: string } | null } }).stale;
+  const side = (
+    q as unknown as { stale: { subscribe(l: () => void): () => void; getSnapshot(): { message: string } | null } }
+  ).stale;
   let heard = 0;
   q.subscribe(() => undefined);
   side.subscribe(() => heard++);
