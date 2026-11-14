@@ -149,7 +149,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
           "The connector changed while preparing this request. Try again.",
         );
       const resource =
-        name === "connections.complete_auth"
+        name === "connections.complete_auth" || name === "connectors.check_key"
           ? { type: "space", id: ctx.space }
           : name === "connectors.run" || name === "connectors.read"
             ? { type: "connector", id: key! }
@@ -330,6 +330,8 @@ const NAMES = [
   "connectors.export",
   "connectors.remove",
   "connectors.health",
+  "connectors.for_service",
+  "connectors.check_key",
   "connections.list",
   "connections.get",
   "connections.create",

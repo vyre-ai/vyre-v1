@@ -225,3 +225,17 @@ Signed: pending the lead (lane b-pc did not sign it).
 - What a guest gets from each, proved with a real guest on a booted daemon (test/chats.sidebar.asker.live.test.ts): `chats.presence` answers no people and no agents at work (it composes `devices.presence` and `engine.now`, which refuse a guest, so each half is empty); `notifications.unseen_by_thread` answers only the guest's own unseen mentions, none when they have none, and never a thread they cannot open (the query is scoped to the asker and names only threads a notification was filed for them about); `engine.thread_states` answers only chats whose latest turn the guest asked and may view, and nothing for the owner's private chat.
 - Why refusing was wrong: the sidebar is the first thing a guest sees, and it reads these three on every open; a refusal drew a failed section for the one person who has the fewest things to show.
 - Signed: ______ (lead)
+## 14 Nov 2026: engine.round.get added (lane chat-agents)
+
+- What changed: one new read, `engine.round.get@1` (input: threadId, up to 50 messageIds; output: per message, each agent asked with its state working, waiting (with the agent in front), replied or stopped). Read from the engine's queue, never stored. Thread scope like `engine.live_turns`: only people who may read the chat reach it. Snapshot: docs/frozen/snapshots/engine.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: the row under a message that asked more than one agent (who is working, who waits on whom) needs one read that survives a restart; the prototype's round row and the Threads tab (G56, G61) draw from it.
+
+## 14 Nov 2026: chat.round.decide added (lane chat-agents)
+
+- What changed: one new write, `chat.round.decide@1` (input: threadId, messageId, agentId, idempotencyKey; output: the id of the line it leaves). After a message asked several agents and each answered, the person who asked goes with one answer: one quiet "Decided: going with Nova's answer" line (a link card authored by the person), no agent woken. Refused unless the caller is the author of the message and the agent answered after it. Snapshot: docs/frozen/snapshots/chat.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: the round table card's "Go with Nova" (G57); the answer line is the record that the round ended.
+
+## 14 Nov 2026: chat.round.discuss added (lane chat-agents)
+
+- What changed: one new write, `chat.round.discuss@1` (input: threadId, messageId, idempotencyKey; output: the thread). After a message asked several agents and at least two answered, the person who asked lets them talk it over: the inline thread under the message gets one message from the person with the answers and a request for one short turn each, ending on a "Decided:" line; the first agent is tagged and tags the next, so the engine's hand-off limits cap it at four turns. It emits `agent.engaged` for agents it brings into the thread. Snapshot: docs/frozen/snapshots/chat.json.
+- Why: the round table's "Let them discuss" (G57). It adds no new engine rule: the talk is ordinary turns on the asker's account, bounded by the hand-off limits of 4 Nov.

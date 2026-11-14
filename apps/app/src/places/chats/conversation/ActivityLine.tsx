@@ -1,11 +1,11 @@
 // The live line under a reply that is being written: one calm line that says what the agent is really doing ("Thinking", "Reading", "Searching the web", the last of its thinking), changing with a soft
 // crossfade, with a small mark that breathes. Press it for the trail (the steps so far and the thinking); press again to fold it. All of it comes from the host's step and thinking frames over the live
 // link: nothing here is invented, nothing is saved, and the thinking is the person's chat content and is only ever drawn, never logged. Reduced motion stops the shimmer, the fade and the breathing.
-import { createElement, memo, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createElement, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ActivityStore } from "../../../shell/session/turn-streams.ts";
-import { activityLine, elapsedWords, stepLabel, thinkingExcerpt } from "./activity.ts";
+import { calmWord, stepLabel, thinkingExcerpt } from "./activity.ts";
 import { waitFor } from "./dwell.ts";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
@@ -17,7 +17,7 @@ import { RefStreamText } from "./ref-chips.tsx";
 
 const CSS = [
   // The shimmer is a moving mask over text that keeps its own colour: WebKit (the Mac app) does not paint background-clip:text through an inline-block child, which left the words transparent
-  // and the line blank between the mark and the clock. A mask that fails leaves the words plainly visible.
+  // and the line blank between the mark and the words. A mask that fails leaves the words plainly visible.
   "@keyframes vy-shimmer{from{-webkit-mask-position:200% 0;mask-position:200% 0}to{-webkit-mask-position:-200% 0;mask-position:-200% 0}}",
   "@keyframes vy-fade{from{opacity:0}to{opacity:1}}",
   ".vy-shimmer{color:var(--ink-2);-webkit-mask-image:linear-gradient(90deg,rgba(0,0,0,.5) 0%,#000 50%,rgba(0,0,0,.5) 100%);mask-image:linear-gradient(90deg,rgba(0,0,0,.5) 0%,#000 50%,rgba(0,0,0,.5) 100%);-webkit-mask-size:200% 100%;mask-size:200% 100%;animation:vy-shimmer 3.6s linear infinite}",
@@ -58,22 +58,6 @@ export function LiveBody({
   );
 }
 
-/** The seconds since the turn began, in its own element: it ticks without the rest of the line rendering, and it keeps its room so nothing beside it moves. */
-const Elapsed = memo(function Elapsed({ since, done }: { since: number; done: boolean }): ReactElement {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (done) return;
-    const h = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(h);
-  }, [done]);
-  const words = done ? "" : elapsedWords(Math.max(0, Math.round((now - since) / 1000)));
-  return (
-    <Text testID="activity-elapsed" style={st.clock}>
-      {words === "" ? "" : `· ${words}`}
-    </Text>
-  );
-});
-
 /** What the line shows: the newest label, but a label already on screen stays at least DWELL_MS. Changes inside that window collapse into the newest. */
 function useDwelled(target: { label: string; detail: string }, done: boolean): { label: string; detail: string } {
   const [shown, setShown] = useState(target);
@@ -113,7 +97,7 @@ export function ActivityLine({
   const snap = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [open, setOpen] = useState(false);
   const words = useStream(stream ?? NO_STREAM).blocks.length > 0;
-  const line = useDwelled(activityLine(snap), snap.done);
+  const line = useDwelled({ label: calmWord(snap, words), detail: "" }, snap.done);
   const state = snap.done ? "done" : words ? "writing" : "thinking";
   // the mark nods when the line's words change, not on every raw step: at most once per dwell
   const rows: ReactElement[] = [];
@@ -146,12 +130,6 @@ export function ActivityLine({
               )
             : line.label}
         </Text>
-        <Elapsed since={snap.startedAt} done={snap.done} />
-        {line.detail !== "" ? (
-          <Text numberOfLines={1} testID="activity-excerpt" style={st.detail}>
-            {line.detail}
-          </Text>
-        ) : null}
       </Pressable>
       {open ? (
         <View testID="activity-trail" style={st.trail}>
@@ -175,8 +153,6 @@ const st = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24, flexShrink: 1 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },
   label: { flexShrink: 0, fontSize: 13.5, color: "var(--ink-2)" as string },
-  clock: { flexShrink: 0, minWidth: 58, fontSize: 13, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
-  detail: { flexShrink: 1, fontSize: 12.5, fontStyle: "italic", color: "var(--ink-4)" as string },
   trail: { marginLeft: 15, paddingLeft: 10, gap: 3, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
   step: { fontSize: 12.5, color: "var(--ink-3)" as string },
   thought: { fontSize: 12.5, fontStyle: "italic", lineHeight: 18, color: "var(--ink-4)" as string },

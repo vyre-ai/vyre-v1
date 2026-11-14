@@ -110,7 +110,9 @@ for (const skin of ["graphite", "paper"])
     await shot("3-after-esc");
     // press outside closes it; a press in the composer does not
     await run("/usage");
-    await page.waitForSelector("[data-testid=command-card]", { timeout: 8000 }).catch(() => say(tag, "no card for press-outside"));
+    await page
+      .waitForSelector("[data-testid=command-card]", { timeout: 8000 })
+      .catch(() => say(tag, "no card for press-outside"));
     await page.locator("[data-testid=composer-field]").first().click();
     await page.waitForTimeout(300);
     say(tag, "after a press in the composer, card:", await page.locator("[data-testid=command-card]").count());

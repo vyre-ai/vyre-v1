@@ -8,7 +8,8 @@ import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { isLong, sessionItems } from "../session/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
-import { CrewWhileWorking, useCrew } from "../crew/context.tsx";
+import { useCrew } from "../crew/context.tsx";
+import { LiveSubagents } from "../crew/live.tsx";
 import { crewChipOf, liveSubagents, subagentIdsOf, totalsOf } from "../crew/model.ts";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { CrewIsland } from "../crew/island.tsx";
@@ -60,7 +61,8 @@ import { ChatMemoryProvider } from "../memory/thread.tsx";
 import { keepItem, weave } from "../tasks/activity.ts";
 import { useMemoryEntries } from "../memory/menu.tsx";
 import { MessageView } from "./MessageView.tsx";
-import { QueueWaiting } from "./QueueWaiting.tsx";
+import { QueueWatch } from "./QueueWaiting.tsx";
+import { QueueLine } from "./queue-line.tsx";
 import { CatchUpLine } from "./catch-up.tsx";
 import { AsideList } from "./Aside.tsx";
 import type { AsideItem } from "./Aside.tsx";
@@ -116,6 +118,7 @@ import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq } from "./chapters/index.ts";
 import {
   WINDOW,
   beforeCursor,
@@ -777,6 +780,7 @@ function ConversationView(): ReactElement {
     return () => clearInterval(t);
   }, [notYet]);
   // the first message this window sent is on screen from the thread's own messages now: the held copy has done its job
+  const [stillQueued, setStillQueued] = useState<string[] | null>(null); // the sends the engine still holds: the note sits under the last of them
   const loaded = threadQ.status !== "loading" && messagesQ.status !== "loading";
   useEffect(() => {
     if (loaded) releasePending(data.threadId);
@@ -996,6 +1000,7 @@ function ConversationView(): ReactElement {
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
   const queuedIdsNow = queuedIds(timelineMessages, data.me.id, isWorking);
+  const stillQ = stillQueued === null ? queuedIdsNow : queuedIdsNow.filter((id) => stillQueued.includes(id));
   const leadDriver = entryOf(accounts, leadNow?.accountRef)?.provider;
   // only the person whose turn it is steers it; anyone else's message goes in after it (the engine holds to this; a turn picked up mid-way names nobody until its next start)
   const runningFor = liveTurns.find((t) => t.state === "writing" && t.agentId === leadNow?.agentId)?.asker;
@@ -1258,6 +1263,28 @@ function ConversationView(): ReactElement {
       ? `${l.text}|${l.button ?? ""}|${notHereBusy === m.messageId ? "busy" : ""}|${notHereError[m.messageId] ?? ""}`
       : undefined;
   };
+  // the note for a message still waiting for the agent's next step sits under that message (the last of them when several wait)
+  const queueUnder = (m: Message): ReactElement | null => {
+    const id = stillQ[stillQ.length - 1];
+    if (!q || id === undefined || m.messageId !== id) return null;
+    return (
+      <QueueLine
+        note={queueNote(stillQ.length, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}
+        onEdit={() => {
+          const words = timelineMessages.find((x) => x.messageId === id)?.body ?? "";
+          void act.takeBackQueued(data, thread.threadId, id).then((ok) => {
+            if (ok) {
+              setPending((cur) => cur.filter((p) => p.messageId !== id));
+              setSeed((sd) => ({ n: sd.n + 1, value: words }));
+            } else say("It was already read, so it cannot be edited now.");
+          }, fail("Could not take it back."));
+        }}
+        onSendNow={() =>
+          void act.sendQueuedNow(data, thread.threadId, stillQ[0]!).catch(fail("Could not send it now."))
+        }
+      />
+    );
+  };
   const notHereFor = (m: Message): ReactElement | null => {
     const line = notHereLineOf(m);
     if (!line) return null;
@@ -1330,7 +1357,7 @@ function ConversationView(): ReactElement {
     );
   };
   const actions: MessageActions = {
-    belowMine: notHereFor,
+    belowMine: (m) => notHereFor(m) ?? queueUnder(m),
     host,
     copy: (t) => {
       data.copy(t);
@@ -1913,69 +1940,91 @@ function ConversationView(): ReactElement {
             />
           </View>
         )}
-        <View style={st.feedBox} onLayout={(e) => setGutter(gutterFits(e.nativeEvent.layout.width))}>
-          <GutterContext.Provider value={gutter}>
-            <Feed
-              key={jump}
-              followKey={timelineMessages.length}
-              {...(lastStream ? { store: lastStream } : {})}
-              {...(data.head ? { startAway: true, endKey: sentOnPage } : {})}
-              testID="conversation-feed"
-              contentStyle={st.feedContent}
-              onAtEndChange={setAtEnd}
-            >
-              {data.head ?? null}
-              <View style={st.col}>
-                {hasEarlier ? (
-                  <View style={st.earlier}>
-                    <TextButton
-                      label="Show earlier messages"
-                      testID="earlier-button"
-                      onPress={() => {
-                        if (win.hiddenLocal > 0) setShown((n) => n + WINDOW);
-                        else {
-                          const c = beforeCursor(all);
-                          if (c !== null) setCursor(c);
-                        }
-                      }}
-                    />
+        <ChapterLayer
+          call={data.call}
+          threadId={thread.threadId}
+          size={hasEarlier ? Math.max(all.length, CHAPTER_MIN + 1) : all.length}
+          newest={win.rows[win.rows.length - 1]?.threadSeq ?? 0}
+          focusSeq={activeId ? (all.find((m) => m.messageId === activeId)?.threadSeq ?? null) : null}
+          jobs={{ agentIds: thread.agents.map((a) => a.agentId), working: isWorking }}
+          rows={rows}
+          own={ownSeq}
+          clock={{ ...data.clock(), ...(sharedChat ? { zones } : {}) }}
+        >
+          {(laid) => (
+            <View style={st.feedBox} onLayout={(e) => setGutter(gutterFits(e.nativeEvent.layout.width))}>
+              <GutterContext.Provider value={gutter}>
+                <Feed
+                  key={jump}
+                  followKey={timelineMessages.length}
+                  {...(lastStream ? { store: lastStream } : {})}
+                  {...(data.head ? { startAway: true, endKey: sentOnPage } : {})}
+                  testID="conversation-feed"
+                  contentStyle={st.feedContent}
+                  onAtEndChange={setAtEnd}
+                >
+                  {data.head ?? null}
+                  <View style={st.col}>
+                    {hasEarlier ? (
+                      <View style={st.earlier}>
+                        <TextButton
+                          label="Show earlier messages"
+                          testID="earlier-button"
+                          onPress={() => {
+                            if (win.hiddenLocal > 0) setShown((n) => n + WINDOW);
+                            else {
+                              const c = beforeCursor(all);
+                              if (c !== null) setCursor(c);
+                            }
+                          }}
+                        />
+                      </View>
+                    ) : null}
+                    {items.length === 0 && !data.head && thread.kind !== "thread" ? (
+                      <States kind="empty" icon="chat" title="Say something to start" />
+                    ) : null}
+                    {collect(laid.rows, (it, at) => {
+                      const key = it.key;
+                      if (it.kind === "chapter") return <ChapterHead key={key} row={it} onToggle={laid.flip} />;
+                      const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
+                      const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
+                      const under =
+                        it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
+                      const row = (
+                        <MessageView
+                          key={key}
+                          item={it}
+                          actions={rowActions}
+                          meId={data.me.id}
+                          stream={stream}
+                          sending={sending}
+                          below={
+                            it.kind === "me"
+                              ? `${notHereSig(it.message) ?? ""}${stillQ[stillQ.length - 1] === it.message.messageId ? `|queued${stillQ.length}${q}` : ""}`
+                              : undefined
+                          }
+                          mark={markOf(it, matches, activeId, finding)}
+                          replies={under ? { s: under, clock: data.clock() } : undefined}
+                        />
+                      );
+                      // always wrapped on the web, so a row that grows old keeps its state; only the style changes
+                      return Platform.OS === "web" ? (
+                        <View key={key} style={at < laid.rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>
+                          {row}
+                        </View>
+                      ) : (
+                        row
+                      );
+                    })}
+                    {laid.jobs}
+                    {data.tail ?? null}
                   </View>
-                ) : null}
-                {items.length === 0 && !data.head && thread.kind !== "thread" ? (
-                  <States kind="empty" icon="chat" title="Say something to start" />
-                ) : null}
-                {collect(rows, (it, at) => {
-                  const key = it.key;
-                  const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
-                  const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
-                  const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
-                  const row = (
-                    <MessageView
-                      key={key}
-                      item={it}
-                      actions={rowActions}
-                      meId={data.me.id}
-                      stream={stream}
-                      sending={sending}
-                      below={it.kind === "me" ? notHereSig(it.message) : undefined}
-                      mark={markOf(it, matches, activeId, finding)}
-                      replies={under ? { s: under, clock: data.clock() } : undefined}
-                    />
-                  );
-                  // always wrapped on the web, so a row that grows old keeps its state; only the style changes
-                  return Platform.OS === "web" ? (
-                    <View key={key} style={at < rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>
-                      {row}
-                    </View>
-                  ) : (
-                    row
-                  );
-                })}
-                {data.tail ?? null}
-              </View>
-            </Feed>
-          </GutterContext.Provider>
-        </View>
+                </Feed>
+              </GutterContext.Provider>
+              <ChapterRail dots={laid.dots} onJump={laid.jump} />
+            </View>
+          )}
+        </ChapterLayer>
         {/* in its own row under the list, at the right: it never sits over a line of text */}
         {atEnd || data.head ? null : (
           <Pressable
@@ -2052,45 +2101,8 @@ function ConversationView(): ReactElement {
             }}
           />
         ) : null}
+        <QueueWatch ids={queuedIdsNow} call={data.call} threadId={thread.threadId} onChange={setStillQueued} />
         <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
-        <QueueWaiting ids={queuedIdsNow} call={data.call} threadId={thread.threadId}>
-          {(waiting) =>
-            q && waiting.length > 0 ? (
-              <View testID="queue-row" style={st.queueRow}>
-                <Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>
-                  {queueNote(waiting.length, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}
-                </Text>
-                {waiting.length > 0 ? (
-                  <TextButton
-                    link
-                    label="Edit"
-                    testID="queue-edit"
-                    onPress={() => {
-                      const id = waiting[waiting.length - 1]!;
-                      const words = timelineMessages.find((m) => m.messageId === id)?.body ?? "";
-                      void act.takeBackQueued(data, thread.threadId, id).then((ok) => {
-                        if (ok) {
-                          setPending((cur) => cur.filter((p) => p.messageId !== id));
-                          setSeed((s) => ({ n: s.n + 1, value: words }));
-                        } else say("It was already read, so it cannot be edited now.");
-                      }, fail("Could not take it back."));
-                    }}
-                  />
-                ) : null}
-                {waiting.length > 0 ? (
-                  <TextButton
-                    link
-                    label="Stop and send"
-                    testID="queue-send-now"
-                    onPress={() =>
-                      void act.sendQueuedNow(data, thread.threadId, waiting[0]!).catch(fail("Could not send it now."))
-                    }
-                  />
-                ) : null}
-              </View>
-            ) : null
-          }
-        </QueueWaiting>
         {unanswered ? (
           <View testID="no-agent-line" style={st.lineBox}>
             <Pressable
@@ -2158,7 +2170,7 @@ function ConversationView(): ReactElement {
                 onPeople={(x, y) => peopleMenu(x, y)}
               />
             ) : null}
-            <CrewWhileWorking working={isWorking} />
+            <LiveSubagents turns={liveTurns} activityOf={data.activityOf ? (id) => data.activityOf!(id) : undefined} />
             {(() => {
               // while an agent's engine has subagents of its own at work, they are on screen here (no reply carries them yet); when the reply lands, the same rows sit under it
               const shown = new Set(timelineMessages.flatMap((m) => subagentIdsOf(m.blocks)));
@@ -2536,17 +2548,6 @@ const st = StyleSheet.create({
     backgroundColor: "var(--win)" as string,
   },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  queueRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "center",
-    columnGap: 10,
-    rowGap: 2,
-    paddingHorizontal: 24,
-    paddingVertical: 4,
-  },
-  queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: {
     paddingHorizontal: 24,
     paddingVertical: 4,

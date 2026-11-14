@@ -126,6 +126,8 @@ jobs:
         run: node scripts/lint/no-noop-opt-out.ts
       - name: shared-time ratchet (scripts/lint/shared-time.test.ts); a time drawn in a shared place uses ui/Time and the Space's time zone, and the known list may only shrink
         run: node --test --test-reporter=spec scripts/lint/shared-time.test.ts
+      - name: one-component ratchet (scripts/lint/one-component.test.ts); a second copy of a shared piece (Switch, buttons, sections, text boxes, sheets), a second data hook or a hand-made Load more fails, and the known list may only shrink
+        run: node --test --test-reporter=spec scripts/lint/one-component.test.ts
       - name: system-words ratchet (scripts/lint/system-words.test.ts); a string a person reads never says turn, wake-up, principal or capability, and the known list may only shrink
         run: node --test --test-reporter=spec scripts/lint/system-words.test.ts
       - name: rules-of-hooks (enforced); React's rules of hooks over apps/ and ui/ on the syntax tree, no allow comment (a hook after an early return crashed every chat on 3464fa6b6)

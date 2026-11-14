@@ -7,10 +7,10 @@ export type NewItem = Omit<QueueItem, "qseq" | "state">;
 
 export interface QueueStore {
   enqueue(item: NewItem): QueueItem;
-  /** The next queued item, not removed. */
-  peek(threadId: string): QueueItem | null;
-  /** Mark the next queued item running and return it. */
-  dequeue(threadId: string): QueueItem | null;
+  /** The next queued item, not removed. With `accept`, the first queued item it accepts (one turn per agent: a row whose agent is busy is skipped, never reordered). */
+  peek(threadId: string, accept?: (item: QueueItem) => boolean): QueueItem | null;
+  /** Mark the next queued item (the first one `accept` takes) running and return it. */
+  dequeue(threadId: string, accept?: (item: QueueItem) => boolean): QueueItem | null;
   /** Queued steering rows for an agent, oldest first. */
   steerable(threadId: string, agentId: string): QueueItem[];
   setState(threadId: string, qseq: number, state: QueueItem["state"], stopReason?: string): void;
@@ -48,9 +48,9 @@ export function createMemoryQueue(): QueueStore {
       of(item.threadId).push(row);
       return row;
     },
-    peek: (t) => queued(t)[0] ?? null,
-    dequeue(t) {
-      const next = queued(t)[0];
+    peek: (t, accept) => queued(t).find((r) => !accept || accept(r)) ?? null,
+    dequeue(t, accept) {
+      const next = queued(t).find((r) => !accept || accept(r));
       if (!next) return null;
       next.state = "running";
       return next;

@@ -146,7 +146,8 @@ test("a person who speaks to all the agents gets an answer from each, on its own
   );
 });
 
-test("a round to all the agents: each answers, an answer sets off no summary, and the person asking again reaches the lead", () => {
+// 14 Nov 2026 (ARCH 6.2: one turn per agent per thread): the round's turns now run at once, and a plain message while they still work steers them; the person asks again once the round is over, so this waits for it.
+test("a round to all the agents: each answers, an answer sets off no summary, and the person asking again reaches the lead", async () => {
   const p = scriptedProvider({ script: quiet });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
   engine.openThread({ id: "R", kind: "chat", starter: "dana", agents: agents() });
@@ -161,6 +162,7 @@ test("a round to all the agents: each answers, an answer sets off no summary, an
     [],
     "the lead posts no summary of an answer",
   );
+  await engine.idle("R");
   assert.deepEqual(
     engine.receive({ threadId: "R", author: person("dana"), mentions: [], body: "Sum them up" } as never).responders,
     ["intake"],
