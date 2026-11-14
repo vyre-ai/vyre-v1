@@ -195,7 +195,7 @@ export type AccessClearsIn = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  resource: {
+  target: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
     id: string;
   };
@@ -44373,6 +44373,7 @@ export type VaultRequestOut = {
     taskId: string;
     at: number;
     decidedAt?: number;
+    askedYou?: boolean;
   };
 };
 export type VaultRequestsCancelIn = {
@@ -44416,6 +44417,7 @@ export type VaultRequestsFulfilOut = {
     taskId: string;
     at: number;
     decidedAt?: number;
+    askedYou?: boolean;
   };
 };
 export type VaultRequestsGetIn = {
@@ -44439,6 +44441,7 @@ export type VaultRequestsGetOut = {
     taskId: string;
     at: number;
     decidedAt?: number;
+    askedYou?: boolean;
   };
 };
 export type VaultRequestsListIn = {
@@ -44465,6 +44468,7 @@ export type VaultRequestsListOut = {
       taskId: string;
       at: number;
       decidedAt?: number;
+      askedYou?: boolean;
     }>;
   next?: string;
   total?: number;

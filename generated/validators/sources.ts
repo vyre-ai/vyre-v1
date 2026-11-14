@@ -39,14 +39,14 @@ if ("mapping" in o43) d_s_c8efaf20f9(o43["mapping"], p + "/mapping", e);
 
 function d_s_4590eb98ca(v: unknown, p: string, e: string[]): void {
 {
-const x323 = v;
-const g323 = typeOf(x323);
-const b323: string[] = []; lf(x323, p, b323, L0); if (b323.length) e.push(...b323);
-if (g323 === "object") {
-if (g323 === 'object') { const o323 = x323 as Record<string, unknown>;
-if (!("unsure" in o323)) e.push(p + "/unsure" + ': required');
-if ("sure" in o323) lf(o323["sure"], p + "/sure", e, L28);
-if ("unsure" in o323) d_s_6fcc43701b(o323["unsure"], p + "/unsure", e);
+const x321 = v;
+const g321 = typeOf(x321);
+const b321: string[] = []; lf(x321, p, b321, L0); if (b321.length) e.push(...b321);
+if (g321 === "object") {
+if (g321 === 'object') { const o321 = x321 as Record<string, unknown>;
+if (!("unsure" in o321)) e.push(p + "/unsure" + ': required');
+if ("sure" in o321) lf(o321["sure"], p + "/sure", e, L28);
+if ("unsure" in o321) d_s_6fcc43701b(o321["unsure"], p + "/unsure", e);
 }
 }
 }
@@ -54,34 +54,34 @@ if ("unsure" in o323) d_s_6fcc43701b(o323["unsure"], p + "/unsure", e);
 
 function d_s_6fcc43701b(v: unknown, p: string, e: string[]): void {
 {
-const x546 = v;
+const x545 = v;
+const g545 = typeOf(x545);
+const b545: string[] = []; lf(x545, p, b545, L4); if (b545.length) e.push(...b545);
+if (g545 === "array") {
+if (g545 === 'array') { const a545 = x545 as unknown[];
+for (let i545 = 0; i545 < a545.length; i545++) {
+{
+const x546 = a545[i545];
 const g546 = typeOf(x546);
-const b546: string[] = []; lf(x546, p, b546, L4); if (b546.length) e.push(...b546);
-if (g546 === "array") {
-if (g546 === 'array') { const a546 = x546 as unknown[];
-for (let i546 = 0; i546 < a546.length; i546++) {
+const b546: string[] = []; lf(x546, p + '/' + i545, b546, L0); if (b546.length) e.push(...b546);
+if (g546 === "object") {
+if (g546 === 'object') { const o546 = x546 as Record<string, unknown>;
+if (!("recordId" in o546)) e.push(p + '/' + i545 + "/recordId" + ': required');
+if (!("type" in o546)) e.push(p + '/' + i545 + "/type" + ': required');
+if (!("score" in o546)) e.push(p + '/' + i545 + "/score" + ': required');
+if (!("reasons" in o546)) e.push(p + '/' + i545 + "/reasons" + ': required');
+if ("recordId" in o546) lf(o546["recordId"], p + '/' + i545 + "/recordId", e, L28);
+if ("type" in o546) lf(o546["type"], p + '/' + i545 + "/type", e, L32);
+if ("score" in o546) lf(o546["score"], p + '/' + i545 + "/score", e, L65);
+if ("reasons" in o546) {
 {
-const x547 = a546[i546];
+const x547 = o546["reasons"];
 const g547 = typeOf(x547);
-const b547: string[] = []; lf(x547, p + '/' + i546, b547, L0); if (b547.length) e.push(...b547);
-if (g547 === "object") {
-if (g547 === 'object') { const o547 = x547 as Record<string, unknown>;
-if (!("recordId" in o547)) e.push(p + '/' + i546 + "/recordId" + ': required');
-if (!("type" in o547)) e.push(p + '/' + i546 + "/type" + ': required');
-if (!("score" in o547)) e.push(p + '/' + i546 + "/score" + ': required');
-if (!("reasons" in o547)) e.push(p + '/' + i546 + "/reasons" + ': required');
-if ("recordId" in o547) lf(o547["recordId"], p + '/' + i546 + "/recordId", e, L28);
-if ("type" in o547) lf(o547["type"], p + '/' + i546 + "/type", e, L32);
-if ("score" in o547) lf(o547["score"], p + '/' + i546 + "/score", e, L65);
-if ("reasons" in o547) {
-{
-const x548 = o547["reasons"];
-const g548 = typeOf(x548);
-const b548: string[] = []; lf(x548, p + '/' + i546 + "/reasons", b548, L4); if (b548.length) e.push(...b548);
-if (g548 === "array") {
-if (g548 === 'array') { const a548 = x548 as unknown[];
-for (let i548 = 0; i548 < a548.length; i548++) {
-lf(a548[i548], p + '/' + i546 + "/reasons" + '/' + i548, e, L1);
+const b547: string[] = []; lf(x547, p + '/' + i545 + "/reasons", b547, L4); if (b547.length) e.push(...b547);
+if (g547 === "array") {
+if (g547 === 'array') { const a547 = x547 as unknown[];
+for (let i547 = 0; i547 < a547.length; i547++) {
+lf(a547[i547], p + '/' + i545 + "/reasons" + '/' + i547, e, L1);
 }
 }
 }

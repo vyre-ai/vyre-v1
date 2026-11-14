@@ -20,6 +20,7 @@ import {
   agentsCanCallGet,
   agentsCanCallSet,
   recordMarks,
+  clears,
 } from "./share.ts";
 import {
   actorsCreate,
@@ -29,7 +30,6 @@ import {
   actorsRevoke,
   actorsUpdate,
   check,
-  clears,
   providerCheck,
   labelsList,
   labelsSet,

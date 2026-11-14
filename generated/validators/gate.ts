@@ -35,18 +35,18 @@ if ("expiresAt" in o102) lf(o102["expiresAt"], p + "/expiresAt", e, L17);
 
 function d_s_48ce858bab(v: unknown, p: string, e: string[]): void {
 {
-const x345 = v;
-const g345 = typeOf(x345);
-const b345: string[] = []; lf(x345, p, b345, L0); if (b345.length) e.push(...b345);
-if (g345 === "object") {
-if (g345 === 'object') { const o345 = x345 as Record<string, unknown>;
-if (!("automationId" in o345)) e.push(p + "/automationId" + ': required');
-if (!("nodeId" in o345)) e.push(p + "/nodeId" + ': required');
-if (!("defHash" in o345)) e.push(p + "/defHash" + ': required');
-if ("automationId" in o345) lf(o345["automationId"], p + "/automationId", e, L78);
-if ("nodeId" in o345) lf(o345["nodeId"], p + "/nodeId", e, L1);
-if ("defHash" in o345) lf(o345["defHash"], p + "/defHash", e, L1);
-if ("ask" in o345) lf(o345["ask"], p + "/ask", e, L3);
+const x343 = v;
+const g343 = typeOf(x343);
+const b343: string[] = []; lf(x343, p, b343, L0); if (b343.length) e.push(...b343);
+if (g343 === "object") {
+if (g343 === 'object') { const o343 = x343 as Record<string, unknown>;
+if (!("automationId" in o343)) e.push(p + "/automationId" + ': required');
+if (!("nodeId" in o343)) e.push(p + "/nodeId" + ': required');
+if (!("defHash" in o343)) e.push(p + "/defHash" + ': required');
+if ("automationId" in o343) lf(o343["automationId"], p + "/automationId", e, L78);
+if ("nodeId" in o343) lf(o343["nodeId"], p + "/nodeId", e, L1);
+if ("defHash" in o343) lf(o343["defHash"], p + "/defHash", e, L1);
+if ("ask" in o343) lf(o343["ask"], p + "/ask", e, L3);
 }
 }
 }

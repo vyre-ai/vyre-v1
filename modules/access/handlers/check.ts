@@ -55,17 +55,6 @@ export async function check(ctx: AccessCtx, input: CheckIn) {
   };
 }
 
-/**
- * Does the principal's clearance reach what the resource is labelled? The label half of authorize's rule 3 on its own, read from the same snapshot (the effective label: the resource's own and every
- * folder above it, against the clearance of the principal's roles). A thing labelled above a principal's clearance is refused to them whatever it is granted (authorize answers above_clearance), so a
- * caller asks this before it stores or shares a key for an agent. An unknown or suspended principal clears nothing.
- */
-export async function clears(ctx: AccessCtx, input: { principal: Ref; resource: ResourceRef }) {
-  const snap = storeOf(ctx).snapshot();
-  const who = snap.info(input.principal.id);
-  return { clears: !!who && who.p.status === "active" && snap.effectiveLabel(input.resource.id) <= who.clearance };
-}
-
 /** The label rule of a chat turn, asked of a list of resources for the caller: which may not go to this provider. The caller is who the call acts for, so what they cannot see is not told apart from what is allowed. */
 export async function providerCheck(ctx: AccessCtx, input: { resources: ResourceRef[]; provider: string }) {
   const store = storeOf(ctx);

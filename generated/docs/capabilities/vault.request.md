@@ -57,6 +57,7 @@ type Out = {
     taskId: string;
     at: number;
     decidedAt?: number;
+    askedYou?: boolean;
   };
 };
 ```
@@ -88,6 +89,7 @@ type Out = {
   },
   "output": {
     "request": {
+      "askedYou": true,
       "at": 1760000000000,
       "decidedAt": 1760000000000,
       "fields": [

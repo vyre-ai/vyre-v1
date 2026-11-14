@@ -1,6 +1,6 @@
 # access.clears
 
-Whether a principal's clearance reaches what a resource is labelled (its own label and every folder above it). Asked before a key is stored or shared for an agent, because a thing labelled above an agent's clearance is refused to it whatever it is granted. It answers yes or no and shows nothing else
+Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found
 
 | | |
 |---|---|
@@ -29,7 +29,7 @@ type In = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  resource: {
+  target: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
     id: string;
   };
@@ -50,6 +50,7 @@ type Out = {
 - permission.above_clearance
 - permission.no_grant
 - validation.bad_input
+- validation.not_found
 
 ## Example
 
@@ -61,7 +62,7 @@ type Out = {
       "id": "usr_a1b2c3",
       "kind": "person"
     },
-    "resource": {
+    "target": {
       "id": "rec_a1b2c3",
       "type": "space"
     }

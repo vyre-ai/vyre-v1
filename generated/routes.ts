@@ -452,8 +452,7 @@ const routes0: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "dynamic",
-      "ref": "/resource"
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "low",

@@ -834,8 +834,14 @@ export default defineManifest({
     ),
     read(
       "access.clears",
-      "Whether a principal's clearance reaches what a resource is labelled (its own label and every folder above it). Asked before a key is stored or shared for an agent, because a thing labelled above an agent's clearance is refused to it whatever it is granted. It answers yes or no and shows nothing else",
-      { ...V, in: { principal: principalRef, resource: resourceRef }, out: { clears: t.bool() }, tool: "meta" },
+      "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found",
+      {
+        ...V,
+        in: { principal: principalRef, target: resourceRef },
+        out: { clears: t.bool() },
+        tool: "meta",
+        errors: ["validation.not_found"],
+      },
     ),
     read("access.grants.list", "List grants by resource, subject or source (Console Grants)", {
       ...V,

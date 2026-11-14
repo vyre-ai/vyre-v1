@@ -108,11 +108,24 @@ test("a key for an agent is refused in a Restricted folder of any name, before a
       (
         await api("usr_olivia", "access.clears", {
           principal: { kind: "agent", id: agentId },
-          resource: { type: "vault_folder", id: folderId },
+          target: { type: "vault_folder", id: folderId },
         })
       ).data.clears as boolean;
     assert.equal(await clears(hidden), false, "labelled above the agent's clearance, whatever it is called");
     assert.equal(await clears(theirs), true, "a name alone says nothing");
+
+    // a person who may not put a key into the folder (Mia, a member) gets the answer a made-up id gets: nothing tells her the folder is there or how it is labelled
+    const real = await api("usr_mia", "access.clears", {
+      principal: { kind: "agent", id: agentId },
+      target: { type: "vault_folder", id: hidden },
+    });
+    const made = await api("usr_mia", "access.clears", {
+      principal: { kind: "agent", id: agentId },
+      target: { type: "vault_folder", id: "vfd_00000000000000000000000000000000" },
+    });
+    assert.equal(real.status, 404, JSON.stringify(real.data));
+    assert.deepEqual(real.data.error?.code, made.data.error?.code);
+    assert.equal(real.data.clears, undefined);
 
     const th = await api("usr_mia", "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "kr-chat" });
     const threadId = th.data.thread.threadId as string;
