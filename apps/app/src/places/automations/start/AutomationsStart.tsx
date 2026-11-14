@@ -45,29 +45,10 @@ export function popularTemplates(all: readonly TemplateItem[] | null): TemplateI
   return (all ?? []).slice(0, POPULAR_COUNT);
 }
 
-export interface ConnectorOffer {
-  itemId: string;
-  appName: string;
-  text: string;
-}
-
-/** The open offers out of automations.connector_offers. Anything else is none. */
-export function offersOf(out: unknown): ConnectorOffer[] {
-  const rows = (out as { offers?: unknown } | null)?.offers;
-  if (!Array.isArray(rows)) return [];
-  return rows.flatMap((r) => {
-    const o = r as Record<string, unknown> | null;
-    return o && typeof o["itemId"] === "string" && typeof o["appName"] === "string"
-      ? [
-          {
-            itemId: o["itemId"],
-            appName: o["appName"],
-            text: typeof o["text"] === "string" ? o["text"] : `Set up ${o["appName"]} for Automations?`,
-          },
-        ]
-      : [];
-  });
-}
+export { offersOf } from "../first/offers.ts";
+export type { ConnectorOffer } from "../first/offers.ts";
+import type { ConnectorOffer } from "../first/offers.ts";
+import { offersOf } from "../first/offers.ts";
 
 export interface StartViewProps {
   /** True when the person already has Automations: the heading becomes "Pick an automation" and the choices shrink. */

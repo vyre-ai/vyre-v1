@@ -90,6 +90,8 @@ export interface StoryIn {
   proposed: boolean;
   /** An On Automation whose draft differs from what is live. */
   dirty: boolean;
+  /** local: edits are kept on this screen until Save (today). draft: the server holds a draft next to what is live. */
+  saveMode?: "local" | "draft";
   test: { caseName: string; results: Record<string, TestResult | undefined> } | null;
 }
 
@@ -225,10 +227,19 @@ export function story(i: StoryIn): Story {
   const needsYou = rows.filter((r) => r.kind === "step" && r.need).length;
   const hasContent = i.trigger !== null || all.length > 0;
   const hand = i.trigger?.hand === true;
-  const state = i.on ? (i.dirty ? "On, your changes are a draft" : "On") : hasContent ? "Off, saved as a draft" : "Off";
+  const local = i.saveMode === "local";
+  const state = i.on
+    ? i.dirty
+      ? local
+        ? "On, you have unsaved changes"
+        : "On, your changes are a draft"
+      : "On"
+    : hasContent
+      ? "Off, saved as a draft"
+      : "Off";
   let primary: Head["primary"] = null;
   let secondary: Head["secondary"] = null;
-  if (hasContent) {
+  if (hasContent && !(local && i.dirty)) {
     if (!i.on) {
       primary = { label: "Turn on" };
       if (needsYou > 0)
@@ -249,7 +260,15 @@ export function story(i: StoryIn): Story {
       text: `Assistant’s draft, ${all.length} ${all.length === 1 ? "step" : "steps"}. Nothing is on yet.`,
       actions: ["Discard", "Change", "Accept"],
     });
-  if (i.dirty && i.on)
+  if (i.dirty && local)
+    bars.push({
+      kind: "live",
+      text: i.on
+        ? "You have changes that are not saved yet. Saving makes them live."
+        : "You have changes that are not saved yet.",
+      actions: ["Discard", "Save"],
+    });
+  else if (i.dirty && i.on)
     bars.push({
       kind: "live",
       text: "Your changes are saved as a draft, not live. Runs already started finish as they were.",

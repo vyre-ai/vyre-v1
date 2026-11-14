@@ -146,9 +146,13 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
     const s = sentenceOf(title, n.input, ctx);
     // the mark a step wears: an app's own for its own steps (the Drive mark for a Drive step), a Vyre glyph for Vyre's
     const own = appMarkOfStep({ key: n.key, title: "" });
-    const app = known?.app
-      ? { id: own ?? known.app.id, name: known.app.name }
-      : { id: `vyre:${glyphKeyOf(n.key)}`, name: "Vyre" };
+    const connector =
+      n.key === "connector_request" && typeof n.input["connector"] === "string" ? n.input["connector"] : null;
+    const app = connector
+      ? { id: connector, name: human(connector) }
+      : known?.app
+        ? { id: own ?? known.app.id, name: known.app.name }
+        : { id: `vyre:${glyphKeyOf(n.key)}`, name: "Vyre" };
     const needs: Need[] = [];
     if (known?.app && !ctx.canUse(known.app.id)) {
       const w = ctx.noAccess?.(known.app.name) ?? { line: `You cannot use ${known.app.name}.`, button: "Ask an admin" };

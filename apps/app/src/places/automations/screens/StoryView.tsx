@@ -60,31 +60,57 @@ function SentenceText({ sentence }: { sentence: Sentence }): ReactElement {
   );
 }
 
-export function StoryView({ story, on }: { story: Story; on(action: StoryAction, id?: string): void }): ReactElement {
+export function StoryActions({
+  story,
+  on,
+}: {
+  story: Story;
+  on(action: StoryAction, id?: string, e?: unknown): void;
+}): ReactElement {
+  const h = story.head;
+  return (
+    <>
+      <Btn id="sv-ask" label="Ask Vyre" kind="outlined" onPress={() => on("ask")} />
+      {h.test ? <Btn id="sv-test" label="Test" kind="quiet" onPress={() => on("test")} /> : null}
+      {h.secondary ? (
+        <Btn id="sv-secondary" label={h.secondary.label} kind="quiet" onPress={() => on("secondary")} />
+      ) : null}
+      {h.primary ? (
+        <Btn
+          id="sv-primary"
+          label={h.primary.label}
+          kind="primary"
+          disabled={h.primary.disabled === true}
+          onPress={() => on("primary")}
+        />
+      ) : null}
+    </>
+  );
+}
+
+export function StoryView({
+  story,
+  on,
+  headless = false,
+}: {
+  story: Story;
+  on(action: StoryAction, id?: string, e?: unknown): void;
+  /** The page draws the head (title, state, buttons) itself. */
+  headless?: boolean;
+}): ReactElement {
   const h = story.head;
   return (
     <View style={s.page} testID="story">
-      <View style={s.headRow}>
-        <View style={s.grow}>
-          <Text style={s.name}>{h.name}</Text>
-          <Text style={look.quiet}>{h.state}</Text>
+      {headless ? null : (
+        <View style={s.headRow}>
+          <View style={s.grow}>
+            <Text style={s.name}>{h.name}</Text>
+            <Text style={look.quiet}>{h.state}</Text>
+          </View>
+          <StoryActions story={story} on={on} />
         </View>
-        <Btn id="sv-ask" label="Ask Vyre" kind="outlined" onPress={() => on("ask")} />
-        {h.test ? <Btn id="sv-test" label="Test" kind="quiet" onPress={() => on("test")} /> : null}
-        {h.secondary ? (
-          <Btn id="sv-secondary" label={h.secondary.label} kind="quiet" onPress={() => on("secondary")} />
-        ) : null}
-        {h.primary ? (
-          <Btn
-            id="sv-primary"
-            label={h.primary.label}
-            kind="primary"
-            disabled={h.primary.disabled === true}
-            onPress={() => on("primary")}
-          />
-        ) : null}
-      </View>
-      {h.primary?.why ? <Text style={look.quiet}>{h.primary.why}</Text> : null}
+      )}
+      {h.primary?.why ? <Text style={[look.quiet, headless ? s.pad : null]}>{h.primary.why}</Text> : null}
       {/* ui-rows-lint: not a list (the bars above the steps) */}
       {story.bars.map((b) => (
         <View key={b.kind} style={s.bar}>
@@ -165,7 +191,7 @@ export function StoryView({ story, on }: { story: Story; on(action: StoryAction,
                   testID={`sv-slot-${r.id}`}
                   accessibilityRole="button"
                   accessibilityLabel="Add a step here"
-                  onPress={() => on("insert", r.id)}
+                  onPress={(e) => on("insert", r.id, e)}
                   style={s.slot}
                 >
                   <Text style={s.addPlus}>+</Text>
@@ -174,7 +200,7 @@ export function StoryView({ story, on }: { story: Story; on(action: StoryAction,
             </View>
           );
         })}
-        <Pressable testID="sv-add" accessibilityRole="button" onPress={() => on("add")} style={s.add}>
+        <Pressable testID="sv-add" accessibilityRole="button" onPress={(e) => on("add", undefined, e)} style={s.add}>
           <Text style={s.addPlus}>+</Text>
           <Text style={look.quiet}>Add a step</Text>
         </Pressable>
@@ -193,6 +219,7 @@ function splitHead(sentence: Sentence): { head: string; rest: string } {
 
 const s = StyleSheet.create({
   page: { gap: 12, padding: 16, maxWidth: 760, width: "100%", alignSelf: "center" },
+  pad: { paddingHorizontal: 16 },
   headRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   name: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },
   grow: { flex: 1, minWidth: 0, gap: 2 },

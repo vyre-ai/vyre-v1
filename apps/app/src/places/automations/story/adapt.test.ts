@@ -193,3 +193,12 @@ test("a Drive step wears the Drive mark, a chat step the chat glyph, an email st
     ["gdrive", "vyre:chat", "vyre:mail"],
   );
 });
+
+test("a connector step wears its connector's name and mark, not the generic request", () => {
+  const d: DefIn = {
+    triggers: [{ key: "form_submit" }],
+    nodes: [{ id: "a", key: "connector_request", input: { connector: "acme", action: "list_invoices" } }],
+  };
+  const r = fromDefinition(d, ctx({ catalog: { connector_request: { title: "Authenticated request" } } }));
+  assert.deepEqual([r.steps[0]!.app.id, r.steps[0]!.app.name], ["acme", "Acme"]);
+});

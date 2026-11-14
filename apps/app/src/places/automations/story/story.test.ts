@@ -269,3 +269,14 @@ test("a sentence never ends on a preposition: an empty value, or text that stops
   }
   assert.equal(ends("Post in #ops: New request from ", {}), "Post in #ops: New request from \u2026");
 });
+
+test("edits not yet saved say so plainly, and saving is the one action: until the server keeps a draft the bar never claims one", () => {
+  const steps = [step({ id: "a" })];
+  assert.deepEqual(story({ ...base, steps, dirty: true, saveMode: "local" }).bars, [
+    { kind: "live", text: "You have changes that are not saved yet.", actions: ["Discard", "Save"] },
+  ]);
+  const onLive = story({ ...base, steps, on: true, dirty: true, saveMode: "local" });
+  assert.equal(onLive.bars[0]!.text, "You have changes that are not saved yet. Saving makes them live.");
+  assert.equal(onLive.head.state, "On, you have unsaved changes");
+  assert.equal(story({ ...base, steps, dirty: true, saveMode: "local" }).head.primary, null);
+});

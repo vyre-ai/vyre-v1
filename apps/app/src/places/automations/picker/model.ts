@@ -113,7 +113,7 @@ export function appOfStep(s: PickStep): string | null {
   return null;
 }
 
-const stepId = (s: PickStep): string =>
+export const stepId = (s: PickStep): string =>
   s.preset?.connector ? `${s.key}:${s.preset.connector}.${s.preset.action ?? ""}` : s.key;
 
 const usable = (a: PickApp): boolean => a.connected && a.mayUse && !a.company;
