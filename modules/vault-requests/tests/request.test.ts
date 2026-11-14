@@ -666,6 +666,88 @@ test("owner ruling 3 Nov: the person an agent asked for adds their own key from 
   assert.ok(!JSON.stringify(w.events).includes("fth_secret"));
 });
 
+test("14 Nov: an owner whose own Assistant asked them for a key adds it into their own Mine like anyone else, never the first shared folder; for the team only when they say anyone, or attach an item", async () => {
+  // the owner's Space: every shared folder was Restricted, the card sent the first one, and the Assistant was refused its own key (above clearance) three times
+  const shared = [{ id: "vfd_company_keys", name: "Company connections", scope: "shared" as const }];
+  const w = world({ folders: shared });
+  const { request } = await handlers["vault.request"](
+    { ...w.as("agt_spark", "agent", "usr_owner"), thread: "thr_owner" } as never,
+    {
+      name: "Fathom",
+      fields: ["api_key", "webhook_secret"],
+      reason: "Read the meetings",
+      idempotencyKey: "o1",
+    } as never,
+  );
+  w.calls.length = 0;
+  const done = await handlers["vault.requests.fulfil"](w.as("usr_owner"), {
+    requestId: request.id,
+    folderId: "vfd_company_keys",
+    fields: [
+      { key: "api_key", value: "fth_secret" },
+      { key: "webhook_secret", value: "whs_secret" },
+    ],
+  });
+  assert.equal(done.request.state, "fulfilled");
+  assert.deepEqual(
+    w.called("vault.folders.create").map((c) => c.input["scope"]),
+    ["mine"],
+    "their own Mine, made when they have none",
+  );
+  assert.equal(w.called("vault.item.put")[0]!.input["folderId"], "vfd_company", "not the shared folder the card sent");
+  assert.deepEqual(w.called("vault.share"), [], "no Use is shared: their agent reaches their Mine on their turns");
+  assert.ok(!JSON.stringify(w.events).includes("fth_secret") && !JSON.stringify(w.events).includes("whs_secret"));
+
+  // "anyone who asks this agent" is the owner saying it is for the team: it goes where they chose, and is shared
+  const w2 = world({ folders: [{ id: FOLDER, name: "Team", scope: "shared" }] });
+  const r2 = await handlers["vault.request"](
+    { ...w2.as("agt_spark", "agent", "usr_owner"), thread: "thr_owner" } as never,
+    { name: "Fathom", fields: ["api_key"], reason: "Read the meetings", idempotencyKey: "o2" } as never,
+  );
+  w2.calls.length = 0;
+  await handlers["vault.requests.fulfil"](w2.as("usr_owner"), {
+    requestId: r2.request.id,
+    folderId: FOLDER,
+    fields: [{ key: "api_key", value: "fth_secret" }],
+    audience: "anyone",
+  });
+  assert.equal(w2.called("vault.item.put")[0]!.input["folderId"], FOLDER, "the team folder they chose");
+  assert.equal(w2.called("vault.share").length, 1, "and the agent gets Use");
+});
+
+test("14 Nov: a key an agent is to use is never saved into a folder kept for the server alone; the refusal says so before anything is stored", async () => {
+  const w = world({
+    folders: [
+      { id: "vfd_company_keys", name: "Company connections", scope: "shared" },
+      { id: "vfd_signin", name: "Sign-in", scope: "shared" },
+    ],
+  });
+  for (const [n, folderId] of [
+    ["a", "vfd_company_keys"],
+    ["b", "vfd_signin"],
+  ] as const) {
+    const { request } = await handlers["vault.request"](
+      { ...w.as("agt_spark", "agent", "usr_dana"), thread: "thr_dana" } as never,
+      { name: `Fathom_${n}`, fields: ["api_key"], reason: "Read the meetings", idempotencyKey: `s-${n}` } as never,
+    );
+    w.calls.length = 0;
+    await assert.rejects(
+      () =>
+        handlers["vault.requests.fulfil"](w.as("usr_owner"), {
+          requestId: request.id,
+          folderId,
+          fields: [{ key: "api_key", value: "fth_secret" }],
+        }),
+      /only the server uses.*Choose another folder/,
+    );
+    assert.deepEqual(w.called("vault.item.put"), [], "nothing was stored");
+    assert.equal(
+      (await handlers["vault.requests.get"](w.as("usr_owner"), { requestId: request.id })).request.state,
+      "waiting",
+    );
+  }
+});
+
 test("owner ruling 3 Nov: a key that names a Shared folder, a company key and an outside agent's name-only ask still go to the owners and admins alone", async () => {
   const w = world();
   const team = await handlers["vault.request"](

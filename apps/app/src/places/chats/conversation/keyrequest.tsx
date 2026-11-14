@@ -11,6 +11,7 @@ import { Glyph } from "./parts.tsx";
 import { Face } from "../needsyou/parts.tsx";
 import { AUDIENCES, keyWords, requestOf } from "./keyrequest-model.ts";
 import type { KeyAudience, KeyRequest } from "./keyrequest-model.ts";
+import { isServerOnlyFolder } from "../../../../../../lib/company-keys.ts";
 
 type Data = Pick<ConversationData, "call" | "changes">;
 
@@ -70,9 +71,13 @@ export function KeyRequestCard({
 
   const folderFor = async (): Promise<string> => {
     if (req.folderId) return req.folderId;
-    const folders = ((await data.call("vault.folders.list", {})) as { folders: { id: string; scope: string }[] })
-      .folders;
-    const pick = folders.find((f) => f.scope === "shared") ?? folders.find((f) => f.scope === "mine");
+    const folders = (
+      (await data.call("vault.folders.list", {})) as { folders: { id: string; scope: string; name?: string }[] }
+    ).folders;
+    // never a folder kept for the server alone (company keys, the sign-in secret): no agent can use a key kept there
+    const pick =
+      folders.find((f) => f.scope === "shared" && !isServerOnlyFolder(f.name ?? "")) ??
+      folders.find((f) => f.scope === "mine");
     if (pick) return pick.id;
     return (
       (await data.call("vault.folders.create", {

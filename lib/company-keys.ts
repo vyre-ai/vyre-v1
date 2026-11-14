@@ -17,3 +17,8 @@ const handleOfName = (name: string): string =>
   }`;
 /** Is an item of this name a company key? The save event names the item, not its handle. */
 export const isCompanyKeyName = (name: string): boolean => isCompanyKey(handleOfName(name));
+
+/** The shared Vault folders kept for the server alone: company keys, and the sign-in app's secret. Both are labelled Restricted before anything goes in, so no agent can use what is in them. */
+export const COMPANY_FOLDER = "Company connections";
+export const SIGN_IN_FOLDER = "Sign-in";
+export const isServerOnlyFolder = (name: string): boolean => name === COMPANY_FOLDER || name === SIGN_IN_FOLDER;

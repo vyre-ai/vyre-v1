@@ -8,7 +8,7 @@
 // for them reach it (no Use is shared). The owners and admins it went to may still add it for the team. A request that names a Shared or team folder, a company key, or a key an outside agent
 // asked for by name only goes to the owners and admins alone.
 import { agentStanding } from "../../../lib/agent-asker.ts";
-import { isCompanyKey } from "../../../lib/company-keys.ts";
+import { COMPANY_FOLDER, isCompanyKey, isServerOnlyFolder } from "../../../lib/company-keys.ts";
 import { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
 import { TABLE, asRow, idsOf, nid, page, raise, requestById, requestOut, strOf } from "../projections.ts";
 import type { Ref, RequestRow, State, VaultReqCtx } from "../projections.ts";
@@ -99,7 +99,7 @@ async function chatOf(
 
 /** Where a company key lives: the shared folder Connect your company uses, Restricted before anything goes in, so a Member and every agent can neither list, use nor change it. */
 async function companyFolder(ctx: VaultReqCtx): Promise<string | undefined> {
-  const name = "Company connections";
+  const name = COMPANY_FOLDER;
   const have = (
     (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
       | { id?: string; name?: string }[]
@@ -373,14 +373,31 @@ const agentOf = (row: RequestRow): { agentId?: string } =>
   row.requester_kind === "agent" ? { agentId: row.requester_id } : {};
 
 /** A manager decides a request that is still waiting, or the person it was asked for adds their own key (`own`: into their Mine). */
-function decidable(ctx: VaultReqCtx, requestId: string): { row: RequestRow; me: string; own: boolean } {
+function decidable(
+  ctx: VaultReqCtx,
+  requestId: string,
+): { row: RequestRow; me: string; own: boolean; askedForMe: boolean } {
   const { row, asManager } = visible(ctx, requestId);
   const me = personOf(ctx);
-  const own = !asManager && askerDecides(row, me);
+  const askedForMe = askerDecides(row, me);
+  const own = !asManager && askedForMe;
   if ((!asManager && !own) || !me)
     return raise(ctx.trace.traceId, "permission.no_grant", "Only a manager of this Vault can decide this request.");
   if (row.state !== "waiting") return raise(ctx.trace.traceId, "validation.precondition_failed", "Already decided.");
-  return { row, me, own };
+  return { row, me, own, askedForMe };
+}
+
+/** Is this one of the shared folders kept for the server alone (lib/company-keys.ts)? They are Restricted, above every agent's clearance. A list that cannot be read answers no. */
+async function serverOnlyFolder(ctx: VaultReqCtx, folderId: string): Promise<boolean> {
+  try {
+    const folders =
+      (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
+        | { id?: string; name?: string }[]
+        | undefined) ?? [];
+    return folders.some((f) => f.id === folderId && isServerOnlyFolder(String(f.name ?? "")));
+  } catch {
+    return false;
+  }
 }
 
 /** The person's own Mine folder for a key they add for themselves: the one they named when it is theirs, else their first, else a new one. */
@@ -420,7 +437,12 @@ export async function requestsFulfil(
   },
 ) {
   const trace = ctx.trace.traceId;
-  const { row, me, own } = decidable(ctx, input.requestId);
+  const decided = decidable(ctx, input.requestId);
+  const { row, me } = decided;
+  // 14 Nov 2026 (owner's own Space): an owner whose Assistant asked them for a key typed it into the card, and because an owner is also a manager the key went to the first shared folder, which was
+  // Restricted, where no agent is cleared; the Assistant was refused its own key three times. A new key typed by the person the agent asked for is that person's own, in their Mine, whatever else they
+  // are in the Space. It is for the team only when they say so: "anyone who asks this agent", or an item they attach.
+  const own = decided.own || (decided.askedForMe && !input.itemId && input.audience !== "anyone");
   const hasFields = !!input.fields && input.fields.length > 0;
   if (!input.itemId === !hasFields)
     raise(trace, "validation.bad_input", "Attach an item, or give the fields for a new one, not both and not neither.");
@@ -454,6 +476,18 @@ export async function requestsFulfil(
       ? await ownMine(ctx, row, input.folderId)
       : (input.folderId ?? row.folder_id ?? (isCompanyKey(`#${row.name}`) ? await companyFolder(ctx) : undefined));
     if (!folderId) raise(trace, "validation.precondition_failed", "Choose the folder the new item goes in.");
+    // a key an agent is to use never goes into a folder kept for the server alone: nothing there is usable by an agent, shared or not
+    if (
+      !own &&
+      row.requester_kind === "agent" &&
+      !isCompanyKey(`#${row.name}`) &&
+      (await serverOnlyFolder(ctx, folderId))
+    )
+      raise(
+        trace,
+        "validation.precondition_failed",
+        "That folder holds keys only the server uses, so no agent can use a key kept there. Choose another folder.",
+      );
     const made = asRow(
       await ctx.call("vault.item.put", {
         folderId,

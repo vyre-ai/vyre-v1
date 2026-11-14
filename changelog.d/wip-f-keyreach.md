@@ -1,0 +1,3 @@
+- A key you type into an agent's request card is yours, and the agent that asked can use it. Before, when the person asked was also an owner or admin, the key was saved into the first shared Vault folder, which could be one no agent is cleared for, and the agent was refused its own key.
+- A key an agent is to use can no longer be saved into a folder kept for the server alone (company keys, the sign-in secret). The card says so and asks for another folder, before anything is stored.
+- When an agent is refused a key because its folder is restricted, it now says what fixes it (move the key to your own keys or to a folder that is not restricted) and no longer asks you to share it, which never helped.

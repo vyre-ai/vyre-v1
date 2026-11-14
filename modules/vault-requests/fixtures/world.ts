@@ -30,6 +30,8 @@ export interface Script {
   fail: Record<string, string>;
   /** the chat the request's card was drawn in, with the person who asked (read back through tasks.get) */
   card?: { threadId: string; agentId: string; asker: string };
+  /** the Vault folders the caller can list */
+  folders?: { id: string; name: string; scope: "mine" | "shared" }[];
 }
 
 export function world(over: Partial<Script> = {}) {
@@ -87,7 +89,7 @@ export function world(over: Partial<Script> = {}) {
         return { task: { id: i["taskId"], blocks: [{ type: "vault_request", data: script.card }] } };
       }
       case "vault.folders.list":
-        return { folders: [] };
+        return { folders: (script.folders ?? []).filter((f) => i["scope"] === undefined || f.scope === i["scope"]) };
       case "vault.folders.create":
         return { folder: { id: "vfd_company" } };
       case "access.labels.set":
