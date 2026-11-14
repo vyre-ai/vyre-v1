@@ -466,6 +466,8 @@ function ConversationView(): ReactElement {
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
   const [asides, setAsides] = useState<AsideItem[]>([]);
+  const asidesRef = useRef<AsideItem[]>([]);
+  asidesRef.current = asides;
   const [focusId, setFocusId] = useState<string | null>(data.focus ?? null);
   /** Messages read around a marked one that is older than the page holds: shown instead of the newest, until "Jump to latest". */
   const [around, setAround] = useState<Message[] | null>(null);
@@ -528,6 +530,34 @@ function ConversationView(): ReactElement {
   /** The Command card (/usage, /permissions): one at a time, never stored, closed by Escape, its close control, a press outside or the next send. */
   const [card, setCard] = useState<{ n: number; spec: Exclude<CardSpec, { kind: "aside" }> } | null>(null);
   const cardN = useRef(1);
+  /** Close the /btw card the way every command card closes: it leaves, and its side thread is cleaned up. */
+  const closeAsides = useCallback(() => {
+    const open = asidesRef.current;
+    if (open.length === 0) return;
+    asidesRef.current = [];
+    setAsides([]);
+    for (const a of open) void act.dismissAside(data, a.id);
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a press anywhere but the composer, the card or the notice closes the /btw card, as it does a command card
+  const asideOpen = asides.length > 0;
+  useEffect(() => {
+    if (!asideOpen) return undefined;
+    const d = (
+      globalThis as {
+        document?: {
+          addEventListener?: (t: string, f: (e: { target?: unknown }) => void, c?: boolean) => void;
+          removeEventListener?: (t: string, f: (e: { target?: unknown }) => void, c?: boolean) => void;
+        };
+      }
+    ).document;
+    const hear = (e: { target?: unknown }): void => {
+      const t = e.target as { closest?: (q: string) => unknown } | null;
+      if (t?.closest?.('[data-testid="asides"]') != null) return;
+      if (!insideComposer(e.target)) closeAsides();
+    };
+    d?.addEventListener?.("pointerdown", hear, true);
+    return () => d?.removeEventListener?.("pointerdown", hear, true);
+  }, [asideOpen, closeAsides]);
   /** /model: raised to open the composer's own model menu. */
   const [panelAt, setPanelAt] = useState(0);
   const saidRef = useRef<string | null>(null);
@@ -846,7 +876,9 @@ function ConversationView(): ReactElement {
           : undefined,
       );
     } else if (r.kind === "card") {
+      closeAsides();
       if (r.card.kind === "aside") {
+        setCard(null);
         const question = r.card.question;
         void act
           .startAside(data, thread.threadId, question, data.newKey())
@@ -874,6 +906,7 @@ function ConversationView(): ReactElement {
   const submit = (payload: ComposerSend, kind: SendKind): void => {
     // a slash command is not a message: it runs, and nothing is posted (a name that is not a command is an ordinary message)
     setCard(null); // the next send closes the card; a new command opens its own
+    closeAsides();
     if (payload.files.length === 0 && parseSlash(payload.text, pluginNames(data.pluginCommands?.())) !== null) {
       unsay();
       setTyped("");

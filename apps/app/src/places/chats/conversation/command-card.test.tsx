@@ -315,3 +315,42 @@ test("a row in /permissions has Take back: the row goes, a line says so with Und
     restore();
   }
 });
+
+test("/btw shares the card's lifecycle: one card at a time, closed by the next send and by a press outside (not the composer), and as wide as the composer", async () => {
+  const restore = installDom();
+  const l = listeners();
+  try {
+    clearNotices();
+    const { root, calls } = await open({
+      "chat.aside": () => ({ asideThreadId: "ath_1" }),
+      "threads.delete": () => ({}),
+      "engine.my_ai": () => MY_AI,
+      "chat.messages.list": () => ({ messages: [] }),
+    });
+    await command(root, "/btw what is the deadline again?");
+    assert.ok(find(root, "aside-ath_1"), "the side question is open");
+    await command(root, "/usage");
+    assert.equal(find(root, "aside-ath_1"), null, "opening a command card replaces it");
+    assert.ok(find(root, "command-card"));
+    await command(root, "/btw and the venue?");
+    assert.equal(find(root, "command-card"), null, "and it replaces the command card");
+    assert.ok(find(root, "aside-ath_1"));
+    await l.pressAt({ closest: (q: string) => (q.includes("composer") ? {} : null) });
+    assert.ok(find(root, "aside-ath_1"), "a press in the composer leaves it open");
+    await l.pressAt({ closest: () => null });
+    assert.equal(find(root, "aside-ath_1"), null, "a press outside closes it");
+    assert.ok(
+      calls.some((c) => c.cap === "threads.delete"),
+      "and its side thread is cleaned up",
+    );
+    await command(root, "/btw once more");
+    assert.ok(find(root, "aside-ath_1"));
+    await typeInto(find(root, "composer-field"), "hello");
+    await enter(find(root, "composer-field"));
+    assert.equal(find(root, "aside-ath_1"), null, "the next send closes it");
+  } finally {
+    l.restore();
+    clearNotices();
+    restore();
+  }
+});

@@ -2,3 +2,4 @@
 - A slash command's one-line result (and every other short line a chat says, such as "Link copied" or "Archived") now shows in the title bar's notice slot for 6 seconds with Undo or Retry where they apply, closes with Escape, and no longer sits above the message box.
 - "/model" opens the model menu the message box already has, where you would press it, instead of a second list at a fixed spot.
 - Nothing a person sees changes: the shared set gains a Group (titled block with its own hairlines) and a card variant of the shared dialog that sits above the message box with no veil.
+- "/btw" now follows the same rules as the other command cards: one at a time, closed by your next message or a click outside, and as wide as the message box.
