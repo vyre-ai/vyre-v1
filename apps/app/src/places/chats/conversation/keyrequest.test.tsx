@@ -162,6 +162,7 @@ test("15 Nov: a manager answering someone else's ask, with no shared folder the 
     await flush();
     assert.ok(find(root, "keyreq-nowhere-vrq_1"), "says there is nowhere to put it");
     assert.ok(find(root, "keyreq-makefolder-vrq_1"), "and gives the one thing to press");
+    assert.ok(find(root, "keyreq-whocan-vrq_1"), "and says who will be able to use keys kept in a shared folder");
     assert.equal(find(root, "keyreq-audience-anyone-vrq_1"), null);
     assert.ok(!calls.includes("vault.requests.fulfil"));
     // the one control makes a shared folder, and then the card can add the key

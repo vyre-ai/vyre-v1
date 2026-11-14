@@ -486,6 +486,40 @@ const memberAllow = (decisionId: string): KernelDecision => ({
   decisionId,
 });
 
+/**
+ * The one rule for what an agent holds on a thing it just made for the person it acts for (owner ruling, 14 Nov 2026: what an agent makes for me is mine, and that agent can use it at once). Written in the
+ * same commit as the birth (invoke adds the grant to the events of the call that made the thing), so there is no moment when the person owns it and the agent that made it is refused, and no grant for a
+ * thing that was never made. Only the agent that made it, only at its birth, never at a later move, never to another agent. The grant is the person's (`by`), can be removed by them like any grant, and adds no
+ * power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
+ *   record type  Manage, no source (it sets who the type is open to as part of the same work)
+ *   site         Edit, only the site this call created
+ *   vault folder Edit, vault key Use; both carry the source made-by:<agent> so the share list shows who made it
+ * Vault things and sites are skipped, not failed, when the place they are in is labelled above the agent's clearance (`agentClears`): the call still succeeds, the thing is the person's, and the agent gets no
+ * grant, so its next call on it is refused above clearance in the usual words.
+ */
+export function madeForGrant(
+  row: { id: string; type: string; parent_id?: string | null | undefined; owner_id?: string | null | undefined },
+  events: readonly { type: string; payload?: unknown }[],
+  seed: { principal: { kind: string; id: string }; actingFor?: string | undefined },
+  agentClears?: (agentId: string, resourceId: string) => boolean,
+): { level: "manage" | "edit" | "use"; source: boolean } | null {
+  if (seed.principal.kind !== "agent" || !seed.actingFor?.startsWith("usr_")) return null;
+  if (row.type === "record_type") return { level: "manage", source: false };
+  let level: "edit" | "use";
+  if (row.type === "site") {
+    const born = events.some(
+      (e) => e.type === "site.created" && (e.payload as { siteId?: unknown } | undefined)?.siteId === row.id,
+    );
+    if (!born) return null;
+    level = "edit";
+  } else if (row.type === "vault_folder") level = "edit";
+  else if (row.type === "vault_item") level = "use";
+  else return null;
+  if (row.owner_id !== seed.actingFor) return null;
+  if (agentClears && !agentClears(seed.principal.id, row.parent_id ?? row.id)) return null;
+  return { level, source: true };
+}
+
 export function createInvoke(deps: InvokeDeps): Invoke {
   const now = deps.now ?? Date.now;
   const hex = deps.randomHex ?? defaultHex;
@@ -1073,14 +1107,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         events.push(
           envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope,
         );
-        // An agent that makes a record type for the person it acts for holds Manage on it (the person owns it): it needs to set who the type is open to as part of the same work. Only a record type, only
-        // an agent acting for a person. This adds no power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
-        if (
-          row.type === "record_type" &&
-          seed.principal.kind === "agent" &&
-          seed.actingFor !== undefined &&
-          seed.actingFor.startsWith("usr_")
-        ) {
+        // What an agent makes for the person it acts for is that person's, and the agent goes on working on it: one rule for all of it (madeForGrant below).
+        const made = madeForGrant(row, events, seed, deps.agentClears);
+        if (made) {
           const id = `gnt_${hex(16)}`;
           events.push(
             envelope(
@@ -1090,10 +1119,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
                 id,
                 subject_kind: "actor",
                 subject_id: seed.principal.id,
-                resource_type: "record_type",
+                resource_type: row.type,
                 resource_id: row.id,
-                level: "manage",
+                level: made.level,
                 by: seed.actingFor,
+                ...(made.source ? { source: `made-by:${seed.principal.id}` } : {}),
               },
               seed,
               trace,
@@ -1101,44 +1131,6 @@ export function createInvoke(deps: InvokeDeps): Invoke {
             ) as EventEnvelope,
           );
         }
-      }
-    }
-    // What an agent makes in the Vault for the person it acts for is that person's (the Vault records them as the owner), and the agent that made it holds an explicit grant on that one thing so it can use it at
-    // once: Edit on a folder, Use on a key. The grant is the person's (by), carries the source made-by:<agent> so the share list shows who made it, and the person can remove it like any grant. Never to
-    // another agent, and not on a place labelled above the agent's clearance (the label is read from the folder the thing is in). Redundant once the registrar's made_by rule covers vault types.
-    if (
-      deps.resources &&
-      seed.principal.kind === "agent" &&
-      seed.actingFor !== undefined &&
-      seed.actingFor.startsWith("usr_")
-    ) {
-      for (const ev of [...events]) {
-        if (ev.type !== ("resource.created" as EventName)) continue;
-        const row = ev.payload as { id?: string; type?: string; parent_id?: string | null; owner_id?: string };
-        if ((row.type !== "vault_folder" && row.type !== "vault_item") || row.owner_id !== seed.actingFor || !row.id)
-          continue;
-        const above = row.parent_id ?? row.id;
-        if (deps.agentClears && !deps.agentClears(seed.principal.id, above)) continue;
-        const gid = `gnt_${hex(16)}`;
-        events.push(
-          envelope(
-            "grant.created" as EventName,
-            `grant/${gid}`,
-            {
-              id: gid,
-              subject_kind: "actor",
-              subject_id: seed.principal.id,
-              resource_type: row.type,
-              resource_id: row.id,
-              level: row.type === "vault_folder" ? "edit" : "use",
-              by: seed.actingFor,
-              source: `made-by:${seed.principal.id}`,
-            },
-            seed,
-            trace,
-            depth,
-          ) as EventEnvelope,
-        );
       }
     }
     if (deps.principals && events.length) {

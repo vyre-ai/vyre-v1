@@ -284,6 +284,11 @@ export function KeyRequestCard({
               testID: `keyreq-add-${requestId}`,
             }}
           />
+          {nowhere ? (
+            <Text testID={`keyreq-whocan-${requestId}`} style={st.reason}>
+              Every agent in this Space can use keys kept in a shared folder.
+            </Text>
+          ) : null}
         </View>
       )}
       {problem ? (
