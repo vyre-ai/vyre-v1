@@ -16,7 +16,7 @@ import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
 import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { menuTrigger, reportProblem, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
@@ -440,6 +440,8 @@ export function menuFor(
   a: MessageActions,
   onEdit: () => void,
   at: { x: number; y: number } = { x: 0, y: 0 },
+  /** The touch sheet has no second popup to open: it lists what is behind More under the first rows, in the same sheet. */
+  flat = false,
 ): MenuEntry[] {
   const talk = m.kind !== "system" && m.kind !== "quiet";
   const first: MenuEntry[] = [
@@ -496,7 +498,8 @@ export function menuFor(
   const behind = tidy(rest);
   const out: MenuEntry[] = [...first];
   if (how.length > 0) out.push({ separator: true }, ...how);
-  if (behind.length > 0)
+  if (behind.length > 0 && flat) out.push({ separator: true }, ...behind);
+  else if (behind.length > 0)
     out.push({ separator: true }, { label: "More", onSelect: () => a.showMenu(behind, at.x, at.y, "Message") });
   return out;
 }
@@ -677,17 +680,19 @@ function ActionSheet({
 }): ReactElement | null {
   return (
     <Sheet open={open} title="Message" onClose={onClose}>
-      {entries.filter(isItem).map((e) => (
-        <Row
-          key={e.label}
-          id={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`}
-          title={e.label}
-          onPress={() => {
-            onClose();
-            e.onSelect?.();
-          }}
-        />
-      ))}
+      <ScrollView style={{ maxHeight: 460 }}>
+        {entries.filter(isItem).map((e) => (
+          <Row
+            key={e.label}
+            id={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`}
+            title={e.label}
+            onPress={() => {
+              onClose();
+              e.onSelect?.();
+            }}
+          />
+        ))}
+      </ScrollView>
     </Sheet>
   );
 }
@@ -757,7 +762,11 @@ function Mine({
       ]}
     >
       {h.touch || sheet ? (
-        <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} />
+        <ActionSheet
+          open={sheet}
+          entries={menuFor(m, true, actions, startEdit, { x: 0, y: 0 }, true)}
+          onClose={() => setSheet(false)}
+        />
       ) : null}
       {h.touch ? null : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
       <TimeTip item={item}>
@@ -1032,7 +1041,7 @@ function Theirs({
       {h.touch || sheet ? (
         <ActionSheet
           open={sheet}
-          entries={menuFor(m, false, actions, () => undefined)}
+          entries={menuFor(m, false, actions, () => undefined, { x: 0, y: 0 }, true)}
           onClose={() => setSheet(false)}
         />
       ) : null}

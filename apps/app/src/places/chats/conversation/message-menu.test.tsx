@@ -211,3 +211,30 @@ test("message times in a shared place read in the Space zone, hover names both z
   assert.equal(other.time, "9:05 AM");
   assert.match(other.timeTitle ?? "", /Pacific Time/);
 });
+
+test("the touch sheet lists what is behind More in the same sheet (a phone has no second popup to open), for a reply and for your own message", () => {
+  const all = {
+    ...(acts as object),
+    copyLink: () => undefined,
+    regenerate: () => undefined,
+    markUnreadFrom: () => undefined,
+  } as unknown as MessageActions;
+  const sheet = (m: Message, mine: boolean) =>
+    menuFor(m, mine, all, () => undefined, { x: 0, y: 0 }, true).flatMap((e) => ("label" in e ? [e.label] : []));
+  const theirs = sheet(agentMsg(), false);
+  assert.ok(!theirs.includes("More"), "no More row to open: it is already open");
+  for (const l of [
+    "Copy",
+    "Reply in thread",
+    "Make a task",
+    "Pin",
+    "Add reaction",
+    "Copy link",
+    "Retry",
+    "Mark unread from here",
+  ])
+    assert.ok(theirs.includes(l), l);
+  const own = sheet(msg({ author: { kind: "person", id: "me" } }), true);
+  for (const l of ["Copy", "Edit", "Delete", "Copy link"]) assert.ok(own.includes(l), l);
+  assert.equal(own.at(-1), "Delete", "Delete stays last");
+});

@@ -34,6 +34,7 @@ for (const skin of ["graphite", "paper"])
       deviceScaleFactor: 1,
       colorScheme: skin === "graphite" ? "dark" : "light",
       reducedMotion: "reduce",
+      ...(size === "phone" ? { hasTouch: true, isMobile: true } : {}),
     });
     const page = await ctx.newPage();
     const tag = `${skin}-${size}`;
@@ -79,16 +80,42 @@ for (const skin of ["graphite", "paper"])
       .first()
       .fill("")
       .catch(() => undefined);
-    // a message menu: hover the first agent message, press its More
-    const more = page.locator("[data-testid^=act-more-]").first();
-    await page
-      .locator("[data-testid^=body-]")
-      .first()
-      .hover()
-      .catch(() => undefined);
-    await more.click({ timeout: 3000, force: true }).catch(() => console.log(tag, "no message more"));
-    await shot("5-message-menu");
-    await page.keyboard.press("Escape");
+    // a message menu: by hover and More on a desktop; by a long press on a phone (no hover there), then More inside the sheet
+    const body = page.locator("[data-testid^=body-]").first();
+    if (size === "phone") {
+      const press = async (loc) => {
+        await loc.dispatchEvent("touchstart", {}).catch(() => console.log(tag, "no row to press"));
+        await page.waitForTimeout(600);
+      };
+      await press(body);
+      await shot("5-message-menu");
+      // the rest of the list is in the same sheet: scroll it to the end
+      await page.evaluate(() => {
+        const d = document.querySelector("[role=dialog]");
+        d?.querySelectorAll("*").forEach((n) => {
+          if (n.scrollHeight > n.clientHeight + 4) n.scrollTop = n.scrollHeight;
+        });
+      });
+      await shot("5b-message-more");
+      await page.keyboard.press("Escape");
+      await page
+        .getByRole("button", { name: "Done" })
+        .first()
+        .click({ timeout: 2000 })
+        .catch(() => undefined);
+      await press(page.getByText("Book 2pm.").first());
+      await shot("5c-own-message-sheet");
+      await page.keyboard.press("Escape");
+    } else {
+      await body.hover().catch(() => undefined);
+      await page
+        .locator("[data-testid^=act-more-]")
+        .first()
+        .click({ timeout: 3000, force: true })
+        .catch(() => console.log(tag, "no message more"));
+      await shot("5-message-menu");
+      await page.keyboard.press("Escape");
+    }
     // two agents working: the composer's stop offers one per face and Stop everyone
     await go("?busy=1");
     await click("[data-testid=composer-send]");
