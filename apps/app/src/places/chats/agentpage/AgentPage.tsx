@@ -47,7 +47,7 @@ import {
   stripOf,
 } from "./model.ts";
 import type { TabKey } from "./model.ts";
-import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
+import { BACK_TO_CHATS, LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type AgentOut = CapMap["agents.get"]["out"];
 type SummaryOut = CapMap["agents.summary"]["out"];
@@ -159,7 +159,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
 
   const summaryQ = useScreenQuery<SummaryOut>("summary", { agentId });
   const failed = failureOf(agentQ);
-  if (failed) return <LoadFailed what="this agent" failure={failed} testID="agent-page-failed" />;
+  if (failed) return <LoadFailed back={BACK_TO_CHATS} what="this agent" failure={failed} testID="agent-page-failed" />;
   if (agentQ.status === "loading") return <AgentPageLoading />;
   const agent = agentQ.data.agent;
   const summary = summaryQ.status === "ready" ? summaryQ.data : null;

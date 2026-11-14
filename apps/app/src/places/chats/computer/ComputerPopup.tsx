@@ -50,7 +50,7 @@ import { loadMachines } from "../../../machines/api.ts";
 import { machineItem, shellTarget } from "../../../shell/reach/viewer.ts";
 import { Desk, Icon, RailButton, SheetButton } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
-import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
+import { BACK_TO_CHATS, LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type ComputerOut = CapMap["computers.get"]["out"];
 
@@ -212,7 +212,7 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
   }, [close, forwarder, state, sheet]);
 
   const failed = failureOf(q);
-  if (failed) return <LoadFailed what="this computer" failure={failed} testID="popup-failed" />;
+  if (failed) return <LoadFailed back={BACK_TO_CHATS} what="this computer" failure={failed} testID="popup-failed" />;
   if (q.status === "loading") return <ComputerPopupLoading />;
   const c = q.data.computer;
   const view = popupView(c, name, recSecs);

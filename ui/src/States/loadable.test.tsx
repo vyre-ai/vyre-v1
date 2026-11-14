@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
+import { renderToStaticMarkup } from "react-dom/server";
 import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
 import { CANNOT_READ, Loadable } from "./Loadable.tsx";
 import { RETRY_LOADS_EVENT } from "./Loads.tsx";
@@ -189,13 +190,62 @@ test("stale keeps the content and adds one quiet line whose Retry asks the sessi
   };
   try {
     const load: Load<{ rows: string[] }> = { state: "ready", data: { rows: ["a"] }, stale: failure };
-    const root = await mount(createRoot, <Loadable load={load} what="the rows">{body}</Loadable>);
+    const root = await mount(
+      createRoot,
+      <Loadable load={load} what="the rows">
+        {body}
+      </Loadable>,
+    );
     assert.match(textOf(root), /rows:a/);
     assert.match(textOf(find(root, "load-stale")), /Couldn't refresh/);
     await press(find(root, "load-stale-retry"));
     assert.deepEqual(sent, [RETRY_LOADS_EVENT]);
-    const fresh = await mount(createRoot, <Loadable load={{ state: "ready", data: { rows: ["a"] } }} what="the rows">{body}</Loadable>);
+    const fresh = await mount(
+      createRoot,
+      <Loadable load={{ state: "ready", data: { rows: ["a"] } }} what="the rows">
+        {body}
+      </Loadable>,
+    );
     assert.equal(find(fresh, "load-stale"), null);
+  } finally {
+    delete g.dispatchEvent;
+    delete g.CustomEvent;
+    restore();
+  }
+});
+
+// 14 Nov 2026 review (fifth look): the line moved the content down 28 px when it appeared, said nothing when Retry was pressed, and was not announced.
+test("the stale line floats over the content (it moves nothing), is announced politely, and shows Retry working", async () => {
+  const restore = installDom();
+  const g = globalThis as { dispatchEvent?: unknown; CustomEvent?: unknown };
+  let sent = 0;
+  g.dispatchEvent = () => (sent++, true);
+  g.CustomEvent = class {
+    constructor(public type: string) {}
+  };
+  try {
+    const load: Load<{ rows: string[] }> = { state: "ready", data: { rows: ["a"] }, stale: failure };
+    const html = renderToStaticMarkup(
+      <Loadable load={load} what="the rows">
+        {body}
+      </Loadable>,
+    );
+    assert.match(html, /role="status"/, "a polite live region");
+    assert.match(
+      html.slice(html.indexOf("load-stale") - 400, html.indexOf("load-stale") + 100),
+      /position:absolute/,
+      "out of the flow: nothing under it moves",
+    );
+    const root = await mount(
+      createRoot,
+      <Loadable load={load} what="the rows">
+        {body}
+      </Loadable>,
+    );
+    await press(find(root, "load-stale-retry"));
+    assert.match(textOf(find(root, "load-stale")), /Trying again/);
+    assert.equal(find(root, "load-stale-retry"), null, "not pressable twice while it works");
+    assert.equal(sent, 1);
   } finally {
     delete g.dispatchEvent;
     delete g.CustomEvent;
