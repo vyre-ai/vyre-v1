@@ -108,6 +108,7 @@ import type { ReplySummary } from "./replies.ts";
 import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
 import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
 import { RoundRow } from "../thread-replies/RoundRow.tsx";
+import { RoundTable } from "../thread-replies/RoundTable.tsx";
 import type { Clock } from "../rightpane/model.ts";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 import {
@@ -866,6 +867,13 @@ function Mine({
         body={m.body}
         mentions={m.mentions}
         createdAt={m.createdAt}
+        nameOf={actions.nameOf ?? unnamed}
+      />
+      <RoundTable
+        messageId={m.messageId}
+        threadId={m.threadId}
+        body={m.body}
+        mentions={m.mentions}
         nameOf={actions.nameOf ?? unnamed}
       />
       <LearnedLines messageId={m.messageId} />
