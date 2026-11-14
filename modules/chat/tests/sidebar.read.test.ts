@@ -4,6 +4,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../handlers/index.ts";
 import { SIDEBAR_PAGE, chatsSidebar } from "../handlers/sidebar.ts";
+import { ensureFollowTable } from "../handlers/follow.ts";
+import { addMember } from "../projections.ts";
+import { FILTER_CHOICES } from "../../../lib/sidebar.ts";
+const FILTER_IDS = FILTER_CHOICES.map((c) => c.id);
 import { DANA, INTAKE, MAYA, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -26,6 +30,7 @@ const world = (
     failedThreads?: string[];
   } = {},
 ) => ({
+  "identity.whoami": () => ({ permissions: ["chats.private"] }),
   "stars.list": () => ({ stars: o.stars ?? [] }),
   "notifications.unseen_by_thread": () => ({ counts: o.mentions ?? [], capped: false }),
   "tasks.needs_you": () => ({
@@ -340,4 +345,154 @@ test("a goal that is not moving says why in words; a moving one has no line", as
   assert.equal(line("gol_w"), "Needs the Q3 numbers");
   assert.equal(line("gol_a"), undefined);
   assert.deepEqual(contractErrors("chats.sidebar", "out", out), []);
+});
+
+// The review's membership mutants (r-state, 14 Nov): the read is the caller's own, in every filter and on every path a row can take.
+const LEO_CTX = (hn: Harness) => hn.person("usr_leo");
+const leaveThread = (hn: Harness, thread: string, person: string): void => {
+  hn.db.run(
+    "UPDATE chat_thread_member SET deleted_at = ? WHERE thread = ? AND principal = ?",
+    hn.clock.t,
+    thread,
+    person,
+  );
+};
+const everyRow = (out: { [k: string]: { rows?: { key: string }[] } }): string[] =>
+  ["pinned", "chats", "channels", "team", "goals"].flatMap((s) => (out[s]?.rows ?? []).map((r) => r.key));
+
+test("a person removed from a chat sees it nowhere: not in any filter, not pinned, not muted, no unread, no mention", async () => {
+  const o: { stars: unknown[]; mentions: unknown[] } = { stars: [], mentions: [] };
+  const hn = harness({ calls: world(o) });
+  const kept = await agentChat(hn, "kept");
+  const gone = await agentChat(hn, "gone");
+  // an unread message from an agent, a pin, a mute and a mention, all on the chat Dana is then removed from
+  await h["chat.post"]!(hn.agent(), { threadId: gone, body: "while you were out", idempotencyKey: "gone-1" });
+  await h["chat.post"]!(hn.agent(), { threadId: kept, body: "also for you", idempotencyKey: "kept-1" });
+  o.stars = [{ resource: { type: "thread", id: gone }, title: "gone", at: 100 }];
+  o.mentions = [{ threadId: gone, mentions: 4 }];
+  ensureFollowTable(hn.ctx);
+  hn.db.run(
+    'INSERT INTO chat_thread_follow ("thread", "principal", "mode", "at") VALUES (?, ?, ?, ?)',
+    gone,
+    DANA,
+    "mute",
+    1,
+  );
+  addMember(hn.ctx, kept, "usr_leo"); // a chat with a second person in it: nothing doubles (agents, unread)
+  addMember(hn.ctx, gone, "usr_leo");
+  addMember(hn.ctx, gone, "usr_eve");
+  leaveThread(hn, gone, DANA);
+  for (const filter of FILTER_IDS) {
+    const out = await h["chats.sidebar"]!(hn.ctx, { filter });
+    const text = JSON.stringify(out);
+    assert.ok(!text.includes(gone), `${filter}: the chat Dana was removed from is not in the answer`);
+    assert.ok(!text.includes("gone"), `${filter}: nor its title`);
+  }
+  const all = await h["chats.sidebar"]!(hn.ctx, {});
+  assert.deepEqual(
+    everyRow(all).filter((k) => k.startsWith("c:")),
+    [`c:${kept}`],
+  );
+  assert.equal(all.chats.rows[0].unread, 1, "only the unread of the chat she is still in");
+  assert.equal(all.pinned.rows.length, 0, "a pin on a chat she left shows nothing");
+  assert.equal(all.rail, 2 + 0, "the two waiting tasks, and the four mentions of a chat she left do not count");
+  const faces = all.chats.rows[0].faceIds as string[];
+  assert.equal(new Set(faces).size, faces.length, "each face once, however many people are in the chat");
+  const unread = await h["chats.sidebar"]!(hn.ctx, { filter: "unread" });
+  assert.deepEqual(
+    unread.chats.rows.map((r: { key: string }) => r.key),
+    [`c:${kept}`],
+  );
+});
+
+test("a second person's chats are never in Dana's answer, whatever she pinned, muted or was mentioned in", async () => {
+  const o: { stars: unknown[]; mentions: unknown[] } = { stars: [], mentions: [] };
+  const hn = harness({ calls: world(o) });
+  const mine = await agentChat(hn, "mine");
+  const leo = await h["chat.start"]!(LEO_CTX(hn), { kind: "chat", agentIds: [INTAKE], idempotencyKey: "leo-1" });
+  const theirs = leo.thread.threadId as string;
+  await h["chat.post"]!(LEO_CTX(hn), { threadId: theirs, body: "Leo only", idempotencyKey: "leo-2" });
+  addMember(LEO_CTX(hn), theirs, "usr_eve");
+  o.stars = [{ resource: { type: "thread", id: theirs }, title: "Leo only", at: 9 }];
+  o.mentions = [{ threadId: theirs, mentions: 2 }];
+  for (const filter of FILTER_IDS) {
+    const text = JSON.stringify(await h["chats.sidebar"]!(hn.ctx, { filter }));
+    assert.ok(!text.includes(theirs), `${filter}: Leo's chat id is not named to Dana`);
+    assert.ok(!text.includes("Leo only"), `${filter}: nor its title`);
+  }
+  const leos = await h["chats.sidebar"]!(LEO_CTX(hn), {});
+  // (the stand-in stars answer is the same for every caller, so the chat Leo owns shows for him as pinned)
+  assert.deepEqual(
+    everyRow(leos).filter((k) => k.startsWith("c:")),
+    [`c:${theirs}`],
+  );
+  assert.ok(!JSON.stringify(leos).includes(mine));
+});
+
+test("a mute is the asker's own: another person's mute of a chat does not mark it muted for Dana", async () => {
+  const hn = harness({ calls: world() });
+  const a = await agentChat(hn, "a");
+  const b = await agentChat(hn, "b");
+  ensureFollowTable(hn.ctx);
+  hn.db.run(
+    'INSERT INTO chat_thread_follow ("thread", "principal", "mode", "at") VALUES (?, ?, ?, ?)',
+    a,
+    "usr_leo",
+    "mute",
+    1,
+  );
+  hn.db.run(
+    'INSERT INTO chat_thread_follow ("thread", "principal", "mode", "at") VALUES (?, ?, ?, ?)',
+    b,
+    DANA,
+    "mute",
+    1,
+  );
+  const out = await h["chats.sidebar"]!(hn.ctx, {});
+  const row = (id: string) => out.chats.rows.find((r: { key: string }) => r.key === `c:${id}`);
+  assert.equal(row(a)?.muted, false, "Leo's mute is not Dana's");
+  assert.equal(row(b)?.muted, true);
+});
+
+test("without a readable whoami the read fails closed: the caller is treated as a guest", async () => {
+  const w = world();
+  delete (w as Record<string, unknown>)["identity.whoami"];
+  const hn = harness({ calls: w });
+  await agentChat(hn);
+  hn.callLog.length = 0;
+  const out = await h["chats.sidebar"]!(hn.ctx, {});
+  assert.equal(out.goals.total, 0);
+  assert.equal(out.team.total, 0);
+  const asked = hn.callLog.map((c: { cap: string }) => c.cap);
+  for (const cap of ["goals.list", "agents.list", "access.principals.list", "projects.list"])
+    assert.ok(!asked.includes(cap), cap);
+});
+
+test("a paging key that is not one of the caller's chats is no key: the first page again, never the whole list", async () => {
+  const hn = harness({ calls: world() });
+  for (let i = 0; i < SIDEBAR_PAGE + 5; i++) await agentChat(hn, `chat ${i}`);
+  const leo = await h["chat.start"]!(LEO_CTX(hn), { kind: "chat", agentIds: [INTAKE], idempotencyKey: "leo-k" });
+  await h["chat.post"]!(LEO_CTX(hn), { threadId: leo.thread.threadId, body: "Leo", idempotencyKey: "leo-k2" });
+  const first = await h["chats.sidebar"]!(hn.ctx, {});
+  const foreign = await h["chats.sidebar"]!(hn.ctx, { more: { section: "chats", after: `c:${leo.thread.threadId}` } });
+  const missing = await h["chats.sidebar"]!(hn.ctx, { more: { section: "chats", after: "c:thr_nobody" } });
+  const keys = (o: { chats: { rows: { key: string }[] } }) => o.chats.rows.map((r) => r.key);
+  assert.deepEqual(keys(foreign), keys(first));
+  assert.deepEqual(keys(missing), keys(first));
+});
+
+test("a channel with several people in it counts its unread once, and a channel the caller left is not listed", async () => {
+  const hn = harness({ calls: world() });
+  const ch = (await h["channels.create"]!(hn.ctx, { name: "ops", visibility: "invite", idempotencyKey: "ch-1" }))
+    .channel;
+  addMember(hn.ctx, ch.mainThreadId, "usr_leo");
+  addMember(hn.ctx, ch.mainThreadId, "usr_eve");
+  await h["chat.post"]!(hn.person("usr_leo"), { threadId: ch.mainThreadId, body: "one", idempotencyKey: "ch-p1" });
+  await h["chat.post"]!(hn.person("usr_leo"), { threadId: ch.mainThreadId, body: "two", idempotencyKey: "ch-p2" });
+  const mine = await h["chats.sidebar"]!(hn.ctx, {});
+  const row = mine.channels.rows.find((r: { key: string }) => r.key === `ch:${ch.channelId}`);
+  assert.equal(row?.unread, 2, "two messages, counted once however many members");
+  leaveThread(hn, ch.mainThreadId, DANA);
+  const left = await h["chats.sidebar"]!(hn.ctx, {});
+  assert.ok(!JSON.stringify(left).includes(ch.channelId), "a channel she left is nowhere in her answer");
 });

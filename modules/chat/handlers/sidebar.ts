@@ -25,13 +25,25 @@ export async function chatsPresence(ctx: ChatCtx): Promise<{
     }
   };
   const [p, w] = await Promise.all([ask<PresenceOut>("devices.presence"), ask<NowOut>("engine.now")]);
+  // a chat id leaves this read only for a chat the asker is in: the dot of an agent at work stays, the id of someone else's chat does not
+  const asked = (w?.working ?? []).flatMap((x) => (x.threadId ? [x.threadId] : []));
+  const mine = new Set<string>();
+  if (asked.length > 0) {
+    const ids = [...new Set(asked)];
+    for (const r of ctx.db.all(
+      `SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL AND thread IN (${ids.map(() => "?").join(", ")})`,
+      askerOf(ctx),
+      ...ids,
+    ) as Record<string, unknown>[])
+      mine.add(String(r["thread"]));
+  }
   return {
     people: (p?.people ?? []).flatMap((x) =>
       x.state === "online" || x.state === "away" ? [{ personId: x.personId, state: x.state }] : [],
     ),
     working: (w?.working ?? []).map((x) => ({
       agentId: x.agentId,
-      ...(x.threadId ? { threadId: x.threadId } : {}),
+      ...(x.threadId && mine.has(x.threadId) ? { threadId: x.threadId } : {}),
       since: x.since,
     })),
   };
@@ -132,10 +144,10 @@ const safeOf =
     }
   };
 
-/** Can this caller start chats? A guest cannot (their role holds no permission): they get only the chats and channels they are in. This is the app's own rule (it hides Team and the new-chat items when whoami lacks chats.private). A hand-built test context with no whoami is a member. */
+/** Can this caller start chats? A guest cannot (their role holds no permission): they get only the chats and channels they are in. This is the app's own rule (it hides Team and the new-chat items when whoami lacks chats.private). If whoami cannot be read the caller is treated as a guest: the read fails closed, never open. */
 async function canChat(safe: Safe): Promise<boolean> {
   const who = await safe<{ permissions?: string[] }>("identity.whoami", {});
-  return who === null ? true : (who.permissions ?? []).includes("chats.private");
+  return who !== null && (who.permissions ?? []).includes("chats.private");
 }
 
 const VERB: Record<string, "Allow" | "Review" | "Answer" | "Blocked" | "Sign"> = {
@@ -458,13 +470,17 @@ async function wantedChats(
   if (more?.section !== "chats" || more.after === undefined) return limit;
   // where the cursor's chat stands in the newest-first list: how many chats are newer, plus its tie-break
   const id = more.after.startsWith("c:") ? more.after.slice(2) : undefined;
-  if (id === undefined) return 1_000_000;
+  if (id === undefined) return limit;
   ensureLast(ctx.db);
+  // a cursor that is not one of the caller's own chats is no cursor: the read answers the first page (it never walks the whole list for a key the caller does not hold)
   const at = ctx.db.all(
-    "SELECT COALESCE(l.at, t.createdAt) AS at FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id WHERE t.id = ?",
+    `SELECT COALESCE(l.at, t.createdAt) AS at FROM chat_thread t
+       JOIN chat_thread_member me ON me.thread = t.id AND me.principal = ? AND me.deleted_at IS NULL
+       LEFT JOIN chat_thread_last l ON l.thread = t.id WHERE t.id = ? AND t.deleted_at IS NULL`,
+    asker,
     id,
   ) as Record<string, unknown>[];
-  if (at.length === 0) return 1_000_000;
+  if (at.length === 0) return limit;
   const n = ctx.db.all(
     `SELECT COUNT(*) AS n FROM chat_thread t JOIN chat_thread_member me ON me.thread = t.id AND me.principal = ? AND me.deleted_at IS NULL
        LEFT JOIN chat_thread_last l ON l.thread = t.id

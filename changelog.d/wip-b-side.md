@@ -18,3 +18,4 @@
 - All text in the app uses one font family; on computers without Inter the rail words and the list titles were two different fonts.
 - An archived chat and an imported coding session can always be found: the filter menu lists Archived and Imported (Imported in a Personal Space), and each list loads past its first 50 rows. People and agents beyond the first 200 are read as well.
 - Unsent text is kept for each person and each Space on a computer, so two people sharing one browser never see each other's lines or pencils. Signing out of a Space clears the lines kept for it.
+- The Chats sidebar read fails closed: if the Space cannot say who is asking, the caller is treated as a guest. A paging key that is not one of your own chats now gives the first page instead of reading your whole list, and the chat id of an agent's work in a chat you are not in no longer leaves the presence read.
