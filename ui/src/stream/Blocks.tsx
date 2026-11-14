@@ -523,6 +523,18 @@ const aspectOf = (svg: string): number => {
   return vb ? Number(vb[1]) / Number(vb[2]) : 2;
 };
 
+/** What a diagram is called in its header, from the first word of its source: "Flowchart", "Sequence diagram", else "Diagram". */
+export function diagramLabel(source: string): string {
+  const w = (source.trim().split(/[\s\n]/)[0] ?? "").toLowerCase();
+  if (w === "flowchart" || w === "graph") return "Flowchart";
+  if (w === "sequencediagram") return "Sequence diagram";
+  if (w === "classdiagram") return "Class diagram";
+  if (w === "statediagram" || w === "statediagram-v2") return "State diagram";
+  if (w === "erdiagram") return "Entity diagram";
+  if (w === "gantt") return "Timeline";
+  return "Diagram";
+}
+
 export function DiagramBlock({ source, id }: { source: string; id: string }): ReactElement {
   const [s, setS] = useState<{ svg: string } | { error: string } | null>(null);
   const [big, setBig] = useState(false);
@@ -560,7 +572,7 @@ export function DiagramBlock({ source, id }: { source: string; id: string }): Re
   const failed = s !== null && "error" in s;
   return (
     <Frame
-      label="diagram"
+      label={diagramLabel(source)}
       testID={`block-${id}`}
       controls={
         s && "svg" in s ? (
@@ -721,7 +733,7 @@ function svgChart(g: Geo, spec: ChartSpec): ReactNode {
       viewBox: `0 0 ${g.box.w} ${g.box.h}`,
       role: "img",
       "aria-label": spec.title ?? `${spec.type} chart`,
-      style: { width: "auto", height: CHART_MAX, maxWidth: "100%", display: "block" },
+      style: { width: "100%", height: "auto", maxWidth: 640, maxHeight: CHART_MAX * 1.6, display: "block" },
     },
     ...kids,
   );
@@ -768,8 +780,7 @@ export function ChartBlock({
       : null;
   return (
     <Frame
-      quiet
-      label={spec.title ?? ""}
+      label={`Chart \u00b7 ${spec.type}`}
       testID={`block-${id}`}
       controls={
         <>
@@ -783,6 +794,7 @@ export function ChartBlock({
     >
       {!table && web ? (
         <View style={st.chartBody} testID={`chart-${id}`}>
+          {spec.title ? <Text style={st.chartTitle}>{spec.title}</Text> : null}
           {svgChart(g, spec)}
           {legend ? <View style={st.legend}>{legend}</View> : null}
         </View>
@@ -821,8 +833,22 @@ const st = StyleSheet.create({
   grow: { flex: 1 },
   controls: { flexDirection: "row", alignItems: "center", gap: 4 },
   controlsOff: { opacity: 0 },
-  frame: { borderRadius: RADIUS, overflow: "hidden", marginBottom: 12 },
-  head: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 0, paddingVertical: 4, minHeight: 30 },
+  frame: {
+    borderRadius: RADIUS,
+    overflow: "hidden",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    minHeight: 32,
+    backgroundColor: "var(--sunk)" as string,
+  },
   headLabel: { color: "var(--ink-3)" as string, fontSize: 12 },
   small: { height: 24, paddingHorizontal: 8, borderRadius: RADIUS, justifyContent: "center" },
   smallOver: { backgroundColor: "var(--hover)" as string },
@@ -830,14 +856,21 @@ const st = StyleSheet.create({
   smallText: { color: "var(--ink-2)" as string, fontSize: 12 },
   smallTextOn: { color: "var(--accent)" as string },
   pre: {
-    backgroundColor: CODE_TINT,
     borderRadius: RADIUS,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    overflow: "hidden",
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
   },
-  codeHead: { flexDirection: "row", alignItems: "center", marginBottom: 6, marginHorizontal: -6 },
-  lang: { flex: 1, color: "var(--ink-3)" as string, fontSize: 11.5, paddingLeft: 6 },
+  codeHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    minHeight: 32,
+    backgroundColor: "var(--sunk)" as string,
+  },
+  lang: { flex: 1, color: "var(--ink-3)" as string, fontSize: 12 },
   preText: { color: "var(--ink)" as string, fontFamily: MONO, fontSize: 13, lineHeight: 20, padding: 10 },
   callout: {
     borderLeftWidth: 3,
@@ -925,7 +958,8 @@ const st = StyleSheet.create({
   dg: { padding: 12, alignItems: "center" },
   note: { color: "var(--ink-3)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingVertical: 6 },
   error: { color: "var(--danger)" as string, fontSize: 12.5, paddingHorizontal: 12, paddingTop: 8 },
-  chartBody: { paddingVertical: 6, alignItems: "flex-start" },
+  chartBody: { paddingVertical: 10, paddingHorizontal: 12, alignItems: "stretch" },
+  chartTitle: { color: "var(--ink)" as string, fontSize: 13.5, fontWeight: "600", paddingBottom: 4 },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 14, paddingTop: 8 },
   lg: { flexDirection: "row", alignItems: "center", gap: 6 },
   lgDot: { width: 9, height: 9, borderRadius: 2 },

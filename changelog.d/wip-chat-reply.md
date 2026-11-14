@@ -1,1 +1,3 @@
 - A reply being written now shows one calm word under the name (Thinking, Writing or Working) instead of a list of steps and a running clock. The steps are one press away, and a finished reply still folds its work into "Worked 14s, 3 steps".
+- Your own message that waits for the agent's next step carries its note ("At the next step", Edit, Stop and send) right under the bubble instead of above the composer. A failed send reads "Not sent  Try again".
+- Tables, charts, diagrams and code blocks in a reply wear one frame: a quiet bar that names the block ("Table, 4 rows", "Chart, bar", "Flowchart") with its buttons always shown. Charts fill the column.
