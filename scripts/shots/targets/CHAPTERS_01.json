@@ -13,6 +13,13 @@
       "proto": "live,{skin}",
       "waitFor": "[data-testid='context-card']",
       "note": "The Session block, the Kept tab, the context card and a background job line."
+    },
+    {
+      "id": "CHAPTERS_04-two",
+      "route": "/m/CHAPTERS_04",
+      "proto": "live,{skin}",
+      "waitFor": "[data-testid='context-card']",
+      "note": "The job line in a chat with two people names nothing."
     }
   ]
 }
