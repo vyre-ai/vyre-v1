@@ -111,7 +111,8 @@ const KINDS: readonly VersionedKind[] = [
     now: (out) => {
       const a = obj(obj(out)?.["automation"]);
       const version = int(a?.["version"]);
-      return version === undefined ? null : { version };
+      if (version === undefined) return null;
+      return { version, ...(typeof a?.["updatedAt"] === "number" ? { changedAt: a["updatedAt"] as number } : {}) };
     },
   },
 ];
@@ -181,8 +182,8 @@ interface Seen {
   at: number;
 }
 interface Memory {
-  /** The turn this memory is of; a new turn starts a new memory. */
-  turnId: string | undefined;
+  /** The turn this memory is of (its id, else when it began); a new turn starts a new memory. */
+  turnId: string | number | undefined;
   things: Map<string, Seen>;
 }
 
@@ -197,8 +198,9 @@ export class SeenVersions {
   private memory(ctx: ToolCtx): Memory {
     const k = `${ctx.thread.threadId}|${ctx.agentId}`;
     let m = this.memories.get(k);
-    if (!m || (ctx.turnId !== undefined && m.turnId !== ctx.turnId)) {
-      m = { turnId: ctx.turnId, things: new Map() };
+    const turn = ctx.turnId ?? ctx.turnStartedAt;
+    if (!m || (turn !== undefined && m.turnId !== turn)) {
+      m = { turnId: turn, things: new Map() };
       this.memories.delete(k);
       this.memories.set(k, m);
       if (this.memories.size > MAX_TURNS) this.memories.delete(this.memories.keys().next().value as string);
@@ -209,7 +211,7 @@ export class SeenVersions {
   get(ctx: ToolCtx, key: string): number | undefined {
     const s = this.memory(ctx).things.get(key);
     if (!s) return undefined;
-    if (ctx.turnId === undefined && this.now() - s.at > KEEP_MS) return undefined;
+    if (ctx.turnId === undefined && ctx.turnStartedAt === undefined && this.now() - s.at > KEEP_MS) return undefined;
     return s.version;
   }
 

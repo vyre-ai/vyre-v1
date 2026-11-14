@@ -69,6 +69,7 @@ export type ToolRunner = (
 ) => Promise<ToolRunResult>;
 
 import type { HooksPort } from "../tools/hooks.ts";
+import { noteTurnStart } from "../tools/turn-start.ts";
 import { reportWindow } from "../transcript/windows.ts";
 
 const CLI_DRIVERS: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
@@ -1040,6 +1041,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       injected: 0,
       info: { ...(agent?.effort ? { effort: agent.effort } : {}), tools: [], switches: [] },
     };
+    noteTurnStart(st.thread.id, item.agentId, turn.startedAt);
     const info = turn.info!;
     // the provider's dollar figure stands only when every call of the turn reported one
     let usages = 0,

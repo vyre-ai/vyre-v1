@@ -9,6 +9,7 @@ import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { limited, shapeOutput } from "./compact.ts";
 import { fillKey } from "./fill.ts";
+import { turnStartOf } from "./turn-start.ts";
 import { SeenVersions, changedSinceTurn, kindOfWrite, learned } from "./versions.ts";
 import { rejectWords } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
@@ -163,6 +164,11 @@ export function createToolSession(deps: CallDeps): ToolSession {
     input: unknown,
     opts: { approval?: string } = {},
   ): Promise<ToolOutcome> {
+    // a CLI engine's call comes through its long-lived MCP session with no turn of its own: the engine noted when this agent's turn began, so a read and a write of one turn meet the same memory
+    if (ctx.turnStartedAt === undefined) {
+      const began = turnStartOf(ctx.thread.threadId, ctx.agentId);
+      if (began !== undefined) ctx = { ...ctx, turnStartedAt: began };
+    }
     const traceId = ctx.trace?.traceId ?? newTrace();
     const t = deps.catalog.byName(name) ?? (await deps.dynamic?.find(ctx, name));
     if (!t)
