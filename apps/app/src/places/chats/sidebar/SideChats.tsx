@@ -71,31 +71,52 @@ const store = (): { getItem(k: string): string | null; setItem(k: string, v: str
   }
 };
 
+/** The least time between two reads of who is around and what agents do: a busy Space changes every moment, and a dot that is a second old is as good as one that is new. */
+export const PRESENCE_QUIET_MS = 1_000;
+
 function usePresence(): Presence {
   const data = useSidebarData();
   const [p, setP] = useState<Presence>(NO_PRESENCE);
   useEffect(() => {
     let live = true;
+    let last = "";
+    let at = -Infinity;
+    let wait: ReturnType<typeof setTimeout> | null = null;
     const read = (): void => {
+      at = Date.now();
       void Promise.resolve(data.call("chats.presence", {})).then(
         (o) => {
           const r = o as {
             people?: { personId: string; state: "online" | "away" }[];
             working?: { agentId: string }[];
           } | null;
-          if (live)
-            setP({
-              people: new Map((r?.people ?? []).map((x) => [x.personId, x.state])),
-              working: new Set((r?.working ?? []).map((w) => w.agentId)),
-            });
+          // an answer equal to the last draws nothing: the dots hold still and the list is not built again
+          const key = JSON.stringify([r?.people ?? [], (r?.working ?? []).map((w) => w.agentId)]);
+          if (!live || key === last) return;
+          last = key;
+          setP({
+            people: new Map((r?.people ?? []).map((x) => [x.personId, x.state])),
+            working: new Set((r?.working ?? []).map((w) => w.agentId)),
+          });
         },
         () => undefined,
       );
     };
+    // the first read and the first change after a quiet time go at once; changes that follow inside the quiet time are read once, when it is up
+    const changed = (): void => {
+      const left = PRESENCE_QUIET_MS - (Date.now() - at);
+      if (left <= 0) return read();
+      if (wait === null)
+        wait = setTimeout(() => {
+          wait = null;
+          if (live) read();
+        }, left);
+    };
     read();
-    const off = data.changes?.subscribe(read);
+    const off = data.changes?.subscribe(changed);
     return () => {
       live = false;
+      if (wait !== null) clearTimeout(wait);
       off?.();
     };
   }, [data]);

@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { ChatsSidebar, LegacyChatsSidebar, NEW_SIDEBAR } from "./ChatsSidebar.tsx";
+import { PRESENCE_QUIET_MS } from "./SideChats.tsx";
 import type { ChatsSidebarData } from "./data.tsx";
 import type { SideOut, SideRow } from "./side-data.ts";
 
@@ -197,6 +198,42 @@ test("a Personal Space's imported coding sessions are reachable: the Imported fi
     await press(find(root, "row-i:cnv_1"));
     await press(find(root, "row-i:cnv_2"));
     assert.deepEqual(opened, ["imported:cnv_1", "chat:thr_c"]);
+  } finally {
+    restore();
+  }
+});
+
+test("a busy Space: twenty changes inside a second read who is around and what agents do twice (the first, then once when the second is up); an unchanged answer draws nothing new", async () => {
+  const restore = installDom();
+  try {
+    const base = dataFor(EMPTY);
+    let heard: (() => void) | null = null;
+    let reads = 0;
+    const data: ChatsSidebarData = {
+      ...base,
+      call: async (cap) => {
+        if (cap === "chats.presence") reads++;
+        return cap === "chats.presence" ? { people: [{ personId: "usr_a", state: "online" }], working: [] } : {};
+      },
+      changes: {
+        subscribe: (l) => {
+          heard = l;
+          return () => {
+            heard = null;
+          };
+        },
+      },
+    };
+    const root = await mount(createRoot, <ChatsSidebar data={data} window={{ start: 0, end: 50 }} />);
+    await flush();
+    assert.equal(reads, 1, "the first read at once");
+    for (let i = 0; i < 20; i++) heard?.();
+    await flush();
+    assert.equal(reads, 1, "held: still inside the quiet time");
+    await new Promise((r) => setTimeout(r, PRESENCE_QUIET_MS + 50));
+    await flush();
+    assert.equal(reads, 2, "one read for all twenty changes");
+    assert.ok(find(root, "chats-sidebar"));
   } finally {
     restore();
   }
