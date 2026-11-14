@@ -200,14 +200,28 @@ export async function interrupt(
   return { queued: r.queued };
 }
 
+/**
+ * Whose turns a Stop may reach (lead ruling, 14 Nov 2026). A member of the chat may stop any agent's turn in it: a shared brake, and the event records who pressed it. A guest (no View on the Space)
+ * may stop only a turn they asked for, and their Stop all stops only their own turns. An agent may stop its own turn; another agent's turn only when the person it acts for could, so an agent
+ * working for a guest reaches only that guest's turns. An agent that names nobody stops itself.
+ */
+function stopReach(ctx: EngineCtx, agentId: string | undefined, all: boolean): { agentId?: string; askedBy?: string } {
+  const self = ctx.principal.kind === "agent" ? ctx.principal.id : undefined;
+  const target = all ? undefined : (agentId ?? self);
+  if (!all && self !== undefined && target === self) return { agentId: self }; // its own turn, whoever asked it
+  const guest = ctx.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect !== "allow";
+  return { ...(target === undefined ? {} : { agentId: target }), ...(guest ? { askedBy: actorOf(ctx) } : {}) };
+}
+
 async function stopWith(
   ctx: EngineCtx,
   threadId: string,
   o: { agentId?: string; all: boolean; reason?: "update" },
 ): Promise<{ stopped: number }> {
   const engine = await open(ctx, threadId);
+  const reach = stopReach(ctx, o.agentId, o.all);
   const r = await engine.stop(threadId, {
-    ...(o.agentId === undefined ? {} : { agentId: o.agentId }),
+    ...reach,
     clearQueue: o.all,
     ...(o.reason ? { reason: o.reason } : {}),
   });

@@ -1,0 +1,1 @@
+Who can stop whose agent. Any member of a chat can stop any agent's work in it. A guest can stop only the work they asked for, and their Stop everyone stops only their own. An agent can stop its own work, and another agent's only if the person it works for could.

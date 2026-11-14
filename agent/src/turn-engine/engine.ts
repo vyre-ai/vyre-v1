@@ -231,6 +231,8 @@ const MAX_PAIR_PASSES = 2;
 interface Starting {
   agentId: string;
   qseq: number;
+  /** the person whose message this turn answers */
+  from?: string;
   stop?: string;
 }
 interface ThreadState {
@@ -303,6 +305,8 @@ export interface TurnEngine {
       agentId?: string;
       clearQueue?: boolean;
       /** why, in a word the chat turns into a sentence: stop (a person pressed Stop), limit, left, moved */ reason?: string;
+      /** reach only the turns this person asked for (running, starting, queued and parked): a guest's Stop */
+      askedBy?: string;
     },
   ): Promise<StopResult>;
   /** Take a message that is waiting in the queue out of it (it stays in the chat; the agent will not answer it). Returns how many queued rows were cancelled: 0 when it is not waiting, as when its turn has started. */
@@ -866,7 +870,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   /** Start one turn and do not wait for it: when it ends the scheduler is woken (it may be the agent's next queued turn that can start now). */
   function launch(st: ThreadState, item: QueueItem): void {
-    const starting: Starting = { agentId: item.agentId, qseq: item.qseq };
+    const starting: Starting = { agentId: item.agentId, qseq: item.qseq, from: item.from };
     st.starting.set(item.agentId, starting);
     st.launched.add(item.agentId);
     // the chat as it is now is what this turn reads (not what other agents post while it starts): turns taken off the queue in one pass all see the same chat
@@ -1793,9 +1797,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     async stop(threadId, o) {
       const st = need(threadId);
       const only = o?.agentId;
+      // a Stop that may reach only the turns one person asked for (a guest's): every kind of turn is filtered by who asked it
+      const by = o?.askedBy;
+      const mineOnly = (who: string | undefined): boolean => by === undefined || who === by;
       // pressed in the moment between the queue and the run (the account is being read): mark that turn, so it ends cancelled as it starts. The press answers at once (lead, 12 Nov: a Stop under load)
       const early: Starting[] = [...st.starting.values()].filter(
-        (x) => !st.running.has(x.agentId) && (only === undefined || x.agentId === only),
+        (x) => !st.running.has(x.agentId) && (only === undefined || x.agentId === only) && mineOnly(x.from),
       );
       for (const x of early) {
         x.stop = o?.reason ?? "stop";
@@ -1805,17 +1812,29 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       const everything = o?.clearQueue === true;
       // one agent's Stop stops that agent's turn only; without an agent it stops every turn of the chat (agents asked together run together)
-      const hit = [...st.running.values()].filter((r) => !r.cancelled && (only === undefined || r.agentId === only));
-      const dropped = everything
-        ? queue.cancelQueued(threadId)
-        : only !== undefined
-          ? queue.cancelQueued(threadId, only)
-          : [];
+      const hit = [...st.running.values()].filter(
+        (r) => !r.cancelled && (only === undefined || r.agentId === only) && mineOnly(r.asker),
+      );
+      let dropped: QueueItem[] = [];
+      if (by !== undefined) {
+        if (everything || only !== undefined)
+          for (const r of queue.list(threadId))
+            if (r.state === "queued" && r.from === by && (only === undefined || r.agentId === only)) {
+              queue.setState(threadId, r.qseq, "cancelled");
+              dropped.push({ ...r, state: "cancelled" });
+            }
+      } else
+        dropped = everything
+          ? queue.cancelQueued(threadId)
+          : only !== undefined
+            ? queue.cancelQueued(threadId, only)
+            : [];
       const stopped = hit.map((r) => ({ turnId: r.turnId, agentId: r.agentId }));
       const released: StopResult["released"] = [];
       if (everything || only !== undefined) {
         for (const w of waits.open(threadId)) {
           if (only !== undefined && w.agentId !== only) continue;
+          if (!mineOnly(w.asker)) continue;
           waits.remove(w.taskId);
           const row = turnRows.find((t) => t.id === w.turnId);
           if (row && row.state === "waiting") {
