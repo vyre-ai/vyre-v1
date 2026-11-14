@@ -40,7 +40,8 @@ import {
   dropHold,
   holderOf,
   setHold,
-  sweepHolds,
+  workspaceHolder,
+  HOLD_IDLE_MS,
   touchHold,
 } from "../projections.ts";
 import { classify, QuotedHereDoc, referHandles, UnsurePlace } from "../fill.ts";
@@ -51,6 +52,7 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import { NO_PLACE } from "../fleet.ts";
 import type {
   HostKind,
+  KeyPress,
   Lookup,
   Rules,
   SessionRow,
@@ -99,6 +101,7 @@ export function terminalRow(x: SessionRow) {
     ...(x.runId === undefined ? {} : { runId: x.runId }),
     ...(x.by === undefined ? {} : { by: x.by }),
     ...(x.heldBy === undefined ? {} : { heldBy: x.heldBy }),
+    ...(x.owner === "" || x.by?.kind !== "person" ? {} : { ownerId: x.owner }),
   };
 }
 
@@ -107,7 +110,16 @@ function live(ctx: TermCtx, id: string): SessionRow {
   const x = sessionBy(ctx.db, id);
   if (!x || x.closedAt !== undefined)
     raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: id });
-  return x;
+  return fresh(ctx, x);
+}
+
+/** A row as it is now: a hold nobody used for 15 minutes is over and is not shown. */
+function fresh(ctx: TermCtx, x: SessionRow): SessionRow {
+  if (x.heldBy === undefined || (x.heldSeen ?? 0) >= ctx.now() - HOLD_IDLE_MS) return x;
+  const { heldBy: _h, heldSeen: _s, ...rest } = x;
+  void _h;
+  void _s;
+  return rest;
 }
 
 // ---- who may be in a workspace ---------------------------------------------------------------------------------------------------------------------------
@@ -538,13 +550,14 @@ export function list(
   },
 ) {
   ensure(ctx.db);
-  endIdleHolds(ctx);
   const me = actorOf(ctx);
   const all = (
     ctx.db.all(
       `${SESSION_SELECT} WHERE s.closed_at IS NULL ORDER BY s.last_active_at DESC, s.terminal_id DESC`,
     ) as Row[]
-  ).map(sessionOf);
+  )
+    .map(sessionOf)
+    .map((x) => fresh(ctx, x));
   const asAgent = ctx.principal.kind === "agent" ? ctx.principal.id : undefined;
   const mine = all.filter((x) => {
     // an agent lists the tabs of its own workspace, and a helper those it opened itself; never the person's other terminals
@@ -570,10 +583,9 @@ export function list(
 
 export function get(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
-  endIdleHolds(ctx);
   const x = sessionBy(ctx.db, input.terminalId);
   if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
-  return { terminal: terminalRow(x) };
+  return { terminal: terminalRow(fresh(ctx, x)) };
 }
 
 export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
@@ -636,6 +648,7 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
 export async function read(ctx: TermCtx, input: { terminalId: string; lines?: number; since?: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  looked(ctx, x);
   try {
     const r = await (
       await hostFor(ctx, x)
@@ -652,6 +665,7 @@ export async function read(ctx: TermCtx, input: { terminalId: string; lines?: nu
 export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  looked(ctx, x);
   let replay: string;
   try {
     replay = clean(scopeOf(x), (await (await hostFor(ctx, x)).read(input.terminalId, { lines: REPLAY_LINES })).text);
@@ -674,29 +688,38 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
 
 // ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------
 
-/** Ends the holds nobody used for 15 minutes, and tells the people looking that the keyboard went back. */
-function endIdleHolds(ctx: TermCtx): void {
-  for (const id of sweepHolds(ctx.db, ctx.now())) ctx.emit("terminal.given_back", id, { terminalId: id, by: "idle" });
-}
-
 /** What the agent, or anyone else who is not the holder, is told while a person has the keyboard. */
 export const KEYBOARD_HELD =
   "A person has the keyboard on this terminal. Commands wait until they hand it back; if nobody uses it for 15 minutes it comes back to you by itself.";
 
+/** Is the caller the person at this terminal's keyboard? An agent never is, even one acting for the holder. */
+function isHolder(ctx: TermCtx, terminalId: string): boolean {
+  if (ctx.principal.kind === "agent") return false;
+  return holderOf(ctx.db, terminalId, ctx.now()) === actorOf(ctx);
+}
+
 /**
- * A terminal a person holds takes input and commands from that person alone: the agent's run, another person's keys and Ctrl-C are refused with one plain sentence. The holder's own keys keep the hold in use.
- * (A terminal nobody holds takes input as before: the pane and the sheet make the take a deliberate press, the server only guards what is held.)
+ * A terminal a person holds takes input, commands, Ctrl-C, rename, resize and close from that person alone: anyone else, the agent included, is refused with one plain sentence. While a person holds any terminal
+ * of an agent's workspace, that agent's commands wait in every tab of it. The holder's own use keeps the hold in use. (A terminal nobody holds takes input as before: the pane and the sheet make the take a
+ * deliberate press, the server only guards what is held.)
  */
 function needKeyboard(ctx: TermCtx, x: SessionRow): void {
-  endIdleHolds(ctx);
-  const h = holderOf(ctx.db, x.terminalId);
-  if (h === null) return;
-  const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
-  if (me !== undefined && h === me) {
-    touchHold(ctx.db, x.terminalId, me, ctx.now());
-    return;
+  const now = ctx.now();
+  const h = holderOf(ctx.db, x.terminalId, now);
+  if (h !== null) {
+    if (isHolder(ctx, x.terminalId)) {
+      touchHold(ctx.db, x.terminalId, h, now);
+      return;
+    }
+    raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
   }
-  raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
+  if (ctx.principal.kind === "agent" && x.agentId !== undefined && workspaceHolder(ctx.db, x.agentId, now) !== null)
+    raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
+}
+
+/** The holder looking (reading the screen, attaching) keeps the hold in use, as typing does. */
+function looked(ctx: TermCtx, x: SessionRow): void {
+  if (isHolder(ctx, x.terminalId)) touchHold(ctx.db, x.terminalId, actorOf(ctx), ctx.now());
 }
 
 /** May this caller take the keyboard from another person: the person whose terminal it is, or someone who manages the agent whose computer it is. */
@@ -710,12 +733,11 @@ function mayTakeFromOther(ctx: TermCtx, x: SessionRow): boolean {
 
 export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
-  endIdleHolds(ctx);
   if (ctx.principal.kind === "agent")
     raise(ctx, "permission.no_grant", "An agent types in its own terminal; taking the keyboard is for people.");
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   const me = actorOf(ctx);
-  const h = holderOf(ctx.db, x.terminalId);
+  const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h !== null && h !== me && !mayTakeFromOther(ctx, x))
     raise(
       ctx,
@@ -734,9 +756,8 @@ export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
 
 export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
-  endIdleHolds(ctx);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
-  const h = holderOf(ctx.db, x.terminalId);
+  const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h === null) return { terminal: terminalRow(x) };
   const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
   if (h !== me && !mayTakeFromOther(ctx, x))
@@ -760,6 +781,7 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
 export function rename(ctx: TermCtx, input: { terminalId: string; name: string }) {
   ensure(ctx.db);
   const x = live(ctx, input.terminalId);
+  needKeyboard(ctx, x);
   const name = input.name.trim();
   if (name === "" || name.length > 80)
     raise(ctx, "validation.bad_input", "Give the session a name of up to 80 characters.");
@@ -774,6 +796,7 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
   if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
   if (x.closedAt !== undefined) return { closed: true };
   await needAccess(ctx, x);
+  needKeyboard(ctx, fresh(ctx, x));
   // The tmux session is killed when the machine can be reached; if it cannot, the row is still closed so the person is not stuck with a session they cannot see.
   const host = boundHost();
   if (host) {
@@ -786,6 +809,7 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
       });
     }
   }
+  dropHold(ctx.db, x.terminalId);
   ctx.db.run(
     "UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?",
     ctx.now(),
@@ -810,6 +834,55 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
   return { ok: true };
 }
 
+export async function capture(ctx: TermCtx, input: { terminalId: string; lines?: number }) {
+  ensure(ctx.db);
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  looked(ctx, x);
+  const host = await hostFor(ctx, x);
+  if (!host.capture)
+    raise(ctx, "validation.precondition_failed", "This terminal draws lines, not a screen.", { reason: "no_screen" });
+  try {
+    const r = await host.capture(input.terminalId, { lines: input.lines ?? 2000 });
+    // the screen has its colours; a Vault value filled into a command is removed from it as from every other reading
+    return { ...r, text: clean(scopeOf(x), r.text) };
+  } catch (e) {
+    return unexpected(ctx, "draw the screen", e);
+  }
+}
+
+/**
+ * Keys as a person presses them (text, a named key, a paste), raw through the terminal's own keyboard, for whoever holds the keyboard. What is typed here is never stored, audited or logged by Vyre: a program that
+ * reads a hidden prompt does not print it, so no screen, scrollback or viewer has it either (design section 11, point 6).
+ */
+export async function keys(
+  ctx: TermCtx,
+  input: { terminalId: string; keys: Array<{ text?: string; key?: string; paste?: string }> },
+) {
+  ensure(ctx.db);
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needKeyboard(ctx, x);
+  const list: KeyPress[] = [];
+  for (const k of input.keys) {
+    const set = [k.text, k.key, k.paste].filter((v) => v !== undefined).length;
+    if (set !== 1) raise(ctx, "validation.bad_input", "Each key is text, a named key or a paste, one of the three.");
+    list.push(
+      k.text !== undefined ? { text: k.text } : k.key !== undefined ? { key: k.key } : { paste: k.paste as string },
+    );
+  }
+  const host = await hostFor(ctx, x);
+  if (!host.keys)
+    raise(ctx, "validation.precondition_failed", "This terminal takes lines, not keys.", { reason: "no_keys" });
+  try {
+    await host.keys(input.terminalId, list);
+  } catch (e) {
+    if ((e as { code?: unknown } | null)?.code === "bad_input")
+      raise(ctx, "validation.bad_input", "That key is not one a terminal takes.");
+    return unexpected(ctx, "take those keys", e);
+  }
+  touch(ctx.db, input.terminalId, ctx.now());
+  return { ok: true };
+}
+
 export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
@@ -826,6 +899,7 @@ export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
 export async function resize(ctx: TermCtx, a: { terminalId: string; cols: number; rows: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
+  needKeyboard(ctx, x);
   try {
     await (await hostFor(ctx, x)).resize(a.terminalId, a.cols, a.rows);
   } catch (e) {
@@ -1025,6 +1099,9 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
   ) as Row[];
   const hit = found[0];
   if (hit) return needAccess(ctx, sessionOf(hit));
+  // while a person holds any terminal of this workspace, the agent opens no new tab to get around the hold
+  if (ctx.principal.kind === "agent" && agentId !== undefined && workspaceHolder(ctx.db, agentId, ctx.now()) !== null)
+    raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held" });
   const spec: OpenInput = {
     host,
     ...(agentId === undefined ? {} : { agentId }),

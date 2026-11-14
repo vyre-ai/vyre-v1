@@ -9,7 +9,7 @@ const ROW = '[data-testid^="row-session-"]';
 const WIDE = { width: 1440, height: 900 };
 
 test("pictures of every state built", { timeout: 420_000 }, async (t) => {
-  const k = await world(t);
+  const k = await world(t, { tmux: true });
   if (!k) return;
   const page = k.me.page;
   try {
@@ -31,12 +31,36 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
     await page.getByTestId("browser-give").click();
     await page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
     await page.getByTestId("browser-popup-close").click();
-    // the terminal full screen
-    await page.locator(ROW).first().click();
+    // two more terminals, the agent's own and a helper's, so the rail and the groups show
+    await k.w.owner.ok("terminal.open", {
+      host: "agent_computer",
+      agentId: k.agentId,
+      name: "build",
+      idempotencyKey: "pic-build",
+    });
+    await k.w.owner.ok("terminal.open", {
+      host: "agent_computer",
+      agentId: k.agentId,
+      name: "lint",
+      idempotencyKey: "pic-lint",
+    });
+    await page.getByTestId("row-session-build").waitFor({ timeout: 15_000 });
+    await shoot(page, DIR, "a2-pane-three-terminals");
+    // the terminal full screen: watching, a real prompt, then holding with a command and its answer
+    await page.getByTestId("row-session-build").click();
     await page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });
-    await page.getByTestId("terminal-tab").first().waitFor({ timeout: 20_000 });
+    await page.getByTestId("terminal-take").waitFor({ timeout: 20_000 });
     await page.waitForTimeout(800);
-    await shoot(page, DIR, "d-terminal");
+    await shoot(page, DIR, "d-terminal-watching");
+    await page.getByTestId("terminal-take").click();
+    await page.getByTestId("terminal-give").waitFor({ timeout: 10_000 });
+    await page.keyboard.type("whoami");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("git --version");
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(1200);
+    await shoot(page, DIR, "d2-terminal-you-hold");
+    await page.getByTestId("terminal-give").click();
     await page.keyboard.press("Escape");
     // a sleeping browser: the pane, then the sheet starting
     const row = k.browserd.rows.get(k.agentId)!;
@@ -69,7 +93,7 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
     await page.getByTestId("browser-popup-close").click();
     await page.locator(ROW).first().click();
     await page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });
-    await page.getByTestId("terminal-tab").first().waitFor({ timeout: 20_000 });
+    await page.getByTestId("terminal-screen").first().waitFor({ timeout: 20_000 });
     await page.waitForTimeout(500);
     await shoot(page, DIR, "i-phone-terminal");
     await k.guard.check("pictures");

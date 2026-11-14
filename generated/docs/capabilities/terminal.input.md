@@ -45,6 +45,7 @@ type Out = {
 - permission.no_grant
 - validation.bad_input
 - validation.not_found
+- validation.precondition_failed
 
 ## Example
 

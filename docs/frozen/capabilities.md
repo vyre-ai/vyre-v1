@@ -210,6 +210,13 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 - Why: the owner's drawing of an agent's computer (13 Nov, AGENT-COMPUTER-2026-11-13.md B2, B3, section 11 rules 1 and 4): a person takes the keyboard with one deliberate press, the agent is told and waits, and gives it back. The Space browser already worked this way (`computers.browser.take_over`).
 - Snapshots: `docs/frozen/snapshots/terminal.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`. New table `terminal_hold` (`modules/terminal/migrations/0004_hold.sql`, created on first use like the earlier ones).
 
+## 14 Nov 2026: a still picture of an agent's browser, and a real keyboard for a terminal (lane b-pc, lead rulings of 14 Nov)
+
+- `computers.browser.preview` (read, permission computers.watch): one still picture (PNG, at most 256 KB) of an agent's browser for the Computer tab. It never wakes the browser (a browser that is not running answers `asleep` with no picture), it is for whoever may watch the live view, and an agent cannot ask it.
+- `terminal.capture` (read): the screen of a terminal as tmux draws it, with colours (escape sequences), the cursor, the history size and `hidden` (a program is reading a hidden prompt: the pty's echo is off while it keeps line mode). Not an agent tool.
+- `terminal.keys` (write, level use): keys as a person at a keyboard presses them, text, a named key or a paste, raw through tmux send-keys; for the person who holds the keyboard (refused to anyone else while a hold stands). Never stored, audited or logged by Vyre; what is typed at a hidden prompt is not printed by the program, so no screen, scrollback, log pipe or read has it (tested on a real tmux, modules/terminal/tests/keys.heavy.test.ts). Not an agent tool.
+- Both terminal capabilities need a host with tmux; another host answers `validation.precondition_failed` and the app falls back to the line terminal.
+
 Signed: pending the lead (lane b-pc did not sign it).
 
 ## 14 Nov 2026: three new reads are open to every member, a guest included (lane b-side), for the lead to sign
@@ -233,3 +240,12 @@ Signed: pending the lead (lane b-pc did not sign it).
 
 - What changed: one new write, `chat.round.discuss@1` (input: threadId, messageId, idempotencyKey; output: the thread). After a message asked several agents and at least two answered, the person who asked lets them talk it over: the inline thread under the message gets one message from the person with the answers and a request for one short turn each, ending on a "Decided:" line; the first agent is tagged and tags the next, so the engine's hand-off limits cap it at four turns. It emits `agent.engaged` for agents it brings into the thread. Snapshot: docs/frozen/snapshots/chat.json.
 - Why: the round table's "Let them discuss" (G57). It adds no new engine rule: the talk is ordinary turns on the asker's account, bounded by the hand-off limits of 4 Nov.
+
+## 14 Nov 2026: what the keyboard hold and the browser picture changed in existing capabilities (lane b-pc, after review r-agentpc)
+
+- No call emits `terminal.given_back` except `terminal.give_back` (and `terminal.take_over` emits `terminal.taken`). A hold nobody used for 15 minutes is read as over; nothing a read does writes or emits. `terminal.get`, `list`, `input`, `interrupt`, `run`, `keys`, `capture` emit nothing new.
+- New declared error `validation.precondition_failed` on `terminal.input`, `interrupt`, `resize`, `close`, `rename`, `run` (and `terminal.keys`): another person holds the keyboard, or, for the agent, a person holds any terminal of its workspace. While a person holds a terminal the agent's commands wait in every tab of its computer and it opens no new tab.
+- The terminal row gains optional `heldBy` and `ownerId` (the person who opened a person's tab).
+- `computers.browser.preview` answers `state: held` with `by` (no picture) to everyone but the person who has taken the browser over; `computers.browser.stream` answers `validation.precondition_failed` to them (declared), and the stream relay cuts an older ticket of theirs. The preview never starts the browser and does not count as use (browserd `screenshot` with `quiet`).
+- Snapshots: docs/frozen/snapshots/terminal.json and computers.json.
+
