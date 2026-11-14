@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { claimOnEdge, dismissOnboarding, edge } from "../apps/app/tests/real-app-harness.test.ts";
 import { guardCrashes } from "../apps/app/tests/crash-guard.ts";
@@ -58,6 +59,62 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
     d = Object.assign(Object.create(daemon) as typeof daemon, { token });
     await connect(d);
     const agentId = await makeAgent(d, "Dex");
+    // a plain turn with no subagents: no call is refused, in the browser or in the Space's own log (a refusal that is swallowed is still a refusal)
+    const serverRefusals = (): string[] => {
+      daemon.sink.flush();
+      const ro = new DatabaseSync(daemon.paths.logs, { readOnly: true });
+      try {
+        return (ro.prepare("SELECT attrs FROM logs WHERE msg = 'invoke'").all() as Array<{ attrs: string }>)
+          .map((r) => JSON.parse(r.attrs) as { cap?: string; status?: string; actor?: string })
+          .filter((r) => (r.status ?? "ok") !== "ok")
+          .map((r) => `${r.cap} ${r.status} ${r.actor ?? ""}`);
+      } finally {
+        ro.close();
+      }
+    };
+    {
+      const plain = (await call(d, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "w-plain" })).data
+        .thread.threadId as string;
+      assert.equal(
+        (
+          await call(d, "engine.set_model", {
+            threadId: plain,
+            agentId,
+            model: "sonnet",
+            provider: "anthropic",
+            idempotencyKey: "w-plain-model",
+          })
+        ).status,
+        200,
+      );
+      const before = serverRefusals();
+      assert.equal(
+        (
+          await call(d, "chat.post", {
+            threadId: plain,
+            body: "resumecheck",
+            mentions: [{ kind: "agent", id: agentId }],
+            idempotencyKey: "w-plain-post",
+          })
+        ).status,
+        200,
+      );
+      await waitFor(async () => {
+        const ms = (await call(d, "chat.messages.list", { threadId: plain })).data.messages as Array<{
+          author: { kind: string };
+        }>;
+        return ms.some((m) => m.author.kind === "agent") ? true : null;
+      }, 20_000);
+      await new Promise((r) => setTimeout(r, 1500));
+      // What is left is not this lane's: the Space's own service reading a person's private chat or agent (the search indexer, the engine bridge's agent lookup) and being told not_found,
+      // six times a turn (reported as a finding). Every other refusal, the settings, placement, thread and helper-note calls this lane fixed, must be absent.
+      const left = serverRefusals().slice(before.length);
+      assert.deepEqual(
+        left.filter((x) => !/^(agents|threads)\.get validation\.not_found (svc_host)?$/.test(x)),
+        [],
+        "a plain turn refuses nothing but the service's reads of private items",
+      );
+    }
     for (const [skin, size, vp] of [
       ["graphite", "wide", { width: 1440, height: 900 }],
       ["paper", "wide", { width: 1440, height: 900 }],
@@ -135,7 +192,12 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
         { timeout: 8_000 },
       );
       const liveAfterMs = Date.now() - knownAt;
-      assert.ok(liveAfterMs <= 1_800, `both on screen ${liveAfterMs} ms after the server knew them`);
+      assert.ok(liveAfterMs <= 1_000, `both on screen ${liveAfterMs} ms after the server knew them`);
+      await page.waitForFunction(
+        () => /Test the terminal/.test(document.body.innerText) && /Test the browser/.test(document.body.innerText),
+        undefined,
+        { timeout: 5_000 },
+      );
       const names = await page
         .locator(`${T("subagents-live")} ${T("crew-strip")} [data-testid$="-toggle"]`)
         .allInnerTexts();

@@ -35,6 +35,7 @@ export function coalesceLive(
       return t;
     });
   const turns = new Map<string, Waiting>();
+  const urgent = new Map<string, Set<string>>(); // turnId -> the ids of its subagent calls
   const send = (turnId: string, w: Waiting): void => {
     if (w.timer) {
       clearTimeout(w.timer);
@@ -87,6 +88,16 @@ export function coalesceLive(
           if (asker) w.asker = asker;
         } else w.steps.push(step);
       }
+      // a subagent's start, its task line and its end go out at once: a person watching sees the row the moment the engine starts it, not up to a frame later
+      const sid = (e as Step).id;
+      if (e.kind === "step" && !(e as Step).parent && sid) {
+        const set = (urgent.get(e.turnId) ?? urgent.set(e.turnId, new Set()).get(e.turnId))!;
+        if ((e as Step).phase === "call" && /^(Agent|Task)$/.test((e as Step).name ?? "")) set.add(sid);
+        if (set.has(sid)) {
+          send(e.turnId, w);
+          return;
+        }
+      }
       const wait = every - (now() - w.last);
       if (wait <= 0) send(e.turnId, w);
       else
@@ -98,7 +109,10 @@ export function coalesceLive(
     }
     const w = "turnId" in e ? turns.get(e.turnId) : undefined;
     if (w) send(e.turnId, w);
-    if (e.kind === "final" && w) turns.delete(e.turnId);
+    if (e.kind === "final" && w) {
+      turns.delete(e.turnId);
+      urgent.delete(e.turnId);
+    }
     out(e);
   };
 }

@@ -20,6 +20,7 @@ export async function reposOfThread(
   person: string,
   threadId: string,
 ): Promise<string[]> {
+  if (threadId.startsWith("oneshot_")) return []; // a one-shot job belongs to no project
   try {
     const t = (await call("threads.get", { threadId }, person)) as {
       thread?: { scopeType?: string; scopeId?: string };

@@ -182,7 +182,9 @@ test("a running turn's subagents come from its live frames: rows with task, stat
   );
   await flush();
   const members = (seen as CrewStatusOut | null)?.members ?? [];
-  assert.equal(members.length, 2, "the unnamed call is not a row");
+  assert.equal(members.length, 3, "the call whose task line has not come yet is a row at once");
+  assert.equal(members[0]!.title, "Starting");
+  members.shift();
   assert.deepEqual(
     members.map((m) => [m.kind, m.title, m.state]),
     [
@@ -198,7 +200,7 @@ test("a running turn's subagents come from its live frames: rows with task, stat
   // the first returns: Done, and the clock stops
   frame({ kind: "steps", steps: [{ phase: "result", id: "toolu_a", name: "Agent", ok: true }] });
   await flush();
-  const after = (seen as CrewStatusOut | null)?.members ?? [];
+  const after = ((seen as CrewStatusOut | null)?.members ?? []).slice(1);
   assert.deepEqual(
     after.map((m) => m.state),
     ["done", "working"],

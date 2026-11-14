@@ -102,6 +102,8 @@ export async function threadErase(ctx: ChatCtx, input: { threadId: string; idemp
   for (const id of ids) dropThread(ctx, id);
   await trashOwned(ctx, made);
   ctx.emit("thread.erased", `entity/${input.threadId}`, { threadId: input.threadId });
+  // the threads of its family went too (threads under it, helpers): those who keep data by thread hear of each
+  for (const id of ids) if (id !== input.threadId) ctx.emit("thread.erased", `entity/${id}`, { threadId: id });
   return { erased: true };
 }
 
@@ -121,6 +123,8 @@ export async function channelErase(ctx: ChatCtx, input: { channelId: string; ide
   await trashOwned(ctx, made);
   ctx.db.run(`DELETE FROM chat_channel WHERE id = ?`, input.channelId);
   ctx.emit("channel.erased", `entity/${input.channelId}`, { channelId: input.channelId });
+  // and each of its threads, so the modules that keep data by thread drop it too
+  for (const id of seen) ctx.emit("thread.erased", `entity/${id}`, { threadId: id });
   return { erased: true };
 }
 

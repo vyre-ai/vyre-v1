@@ -375,7 +375,7 @@ export default defineManifest({
       idem: "key",
       in: { channelId: id.channel },
       out: { erased: t.bool() },
-      emits: ["channel.erased"],
+      emits: ["channel.erased", "thread.erased"],
       audit: "always",
       risk: "high",
     }),

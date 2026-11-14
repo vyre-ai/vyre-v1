@@ -375,31 +375,29 @@ export function subagentsOfActivity(
   words: (name: string, detail?: string) => string,
   now: number,
 ): CrewMember[] {
-  return (
-    snap.steps
-      // a call whose task line has not arrived yet (it follows the call by up to a frame) is not drawn as an unnamed helper: it shows as soon as the line comes
-      .filter((x) => /^(Agent|Task)$/.test(x.name) && (x.detail ?? "") !== "")
-      .map((x) => {
-        const own = (snap.subs?.[x.id] ?? []).map((y) => words(y.name, y.detail));
-        const startedAt = x.at ?? now;
-        return {
-          kind: "subagent",
-          id: subagentId(x.id),
-          parentThreadId: turn.threadId,
-          title: x.detail && x.detail !== "" ? x.detail : "Helper",
-          agentId: turn.agentId,
-          state: x.state === "live" ? "working" : x.state === "done" ? "done" : "failed",
-          ...(x.state === "live" && own.length > 0 ? { step: own[own.length - 1]! } : {}),
-          ...(own.length > 0 ? { steps: own } : {}),
-          startedAt,
-          ...(x.endedAt !== undefined ? { endedAt: x.endedAt } : {}),
-          elapsedMs: Math.max(0, (x.endedAt ?? now) - startedAt),
-          tokensIn: 0,
-          tokensOut: 0,
-          costMicros: 0,
-        } as CrewMember;
-      })
-  );
+  return snap.steps
+    .filter((x) => /^(Agent|Task)$/.test(x.name))
+    .map((x) => {
+      const own = (snap.subs?.[x.id] ?? []).map((y) => words(y.name, y.detail));
+      const startedAt = x.at ?? now;
+      return {
+        kind: "subagent",
+        id: subagentId(x.id),
+        parentThreadId: turn.threadId,
+        // the task line follows the call by up to a frame: the row is there at once and says "Starting" until it lands
+        title: x.detail && x.detail !== "" ? x.detail : "Starting",
+        agentId: turn.agentId,
+        state: x.state === "live" ? "working" : x.state === "done" ? "done" : "failed",
+        ...(x.state === "live" && own.length > 0 ? { step: own[own.length - 1]! } : {}),
+        ...(own.length > 0 ? { steps: own } : {}),
+        startedAt,
+        ...(x.endedAt !== undefined ? { endedAt: x.endedAt } : {}),
+        elapsedMs: Math.max(0, (x.endedAt ?? now) - startedAt),
+        tokensIn: 0,
+        tokensOut: 0,
+        costMicros: 0,
+      } as CrewMember;
+    });
 }
 
 /** The crew read with the subagents of a running turn added (the live ones win for the same id): the strip, island, chip and pane all see one list. */

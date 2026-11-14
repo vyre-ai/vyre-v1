@@ -147,3 +147,20 @@ test("who sees a subagent: every reader sees that it ran, its task, its state an
     await assert.rejects(read(h, "usr_stranger", readers), Error, `${kind}: a stranger is refused`);
   }
 });
+
+test("the consumer erases on message.deleted and thread.erased, as chat emits them (also for each thread of an erased family)", async () => {
+  const { bridgeConsumers } = await import("../handlers/bridge.ts");
+  const run = bridgeConsumers["engine.own_subagents_erase"].run;
+  const h = harness();
+  noteOwn(h.ctx.db, e, [{ phase: "call", id: "a", name: "Agent" }], 1);
+  hangOwn(h.ctx.db, "trn_1", "msg_1");
+  noteOwn(h.ctx.db, { ...e, threadId: "thr_9", turnId: "trn_9" }, [{ phase: "call", id: "z", name: "Agent" }], 1);
+  assert.deepEqual(
+    await run(h.ctx, { name: "message.deleted", payload: { messageId: "msg_1", threadId: "thr_1" } } as never),
+    { removed: 1 },
+  );
+  assert.deepEqual(await run(h.ctx, { name: "thread.erased", payload: { threadId: "thr_9" } } as never), {
+    removed: 1,
+  });
+  assert.deepEqual(listOwn(h.ctx.db, "thr_9", new Set()), []);
+});

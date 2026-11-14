@@ -77,6 +77,7 @@ export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Pro
   const said = new Set<string>();
 
   async function pinnedToServer(q: AccountQuery): Promise<boolean> {
+    if (q.threadId.startsWith("oneshot_")) return false; // a one-shot job has no chat, so no placement to ask for
     try {
       const p = (await d.call(
         "engine.placement.decide",

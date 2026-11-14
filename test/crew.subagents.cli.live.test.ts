@@ -181,10 +181,7 @@ test(
         process.env["VYRE_CREW_P95"]?.replace("p95", "refused") ?? path.join(dir, "refused.json"),
         JSON.stringify(turnRefused),
       );
-      assert.deepEqual(
-        turnRefused.filter(([k]) => /note_seen|crew\/workspace|crew.workspace/.test(k)),
-        [],
-      );
+      assert.deepEqual(turnRefused, [], "an ordinary turn refuses no call");
 
       // no call refused on every turn: a chat that is not a helper's never asks for helper notes
       const ro = new DatabaseSync(d.paths.logs, { readOnly: true });
