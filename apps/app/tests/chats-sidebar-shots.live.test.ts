@@ -60,6 +60,28 @@ test("chats sidebar pictures and click-through", async (t) => {
       };
       await page.getByTestId("chats-sidebar").waitFor({ timeout: 20_000 });
       await shoot("empty");
+      if (kind === undefined) {
+        // Finish setup: begin the setup, put one step off ("later"), close it: the foot of the sidebar then draws the one entry
+        try {
+          await page.getByText("Your organisation").first().click({ timeout: 8_000 });
+          await page.getByTestId("onboarding").waitFor({ timeout: 8_000 });
+          await page
+            .getByRole("button", { name: /later|skip|not now/i })
+            .first()
+            .click({ timeout: 8_000 });
+          await page
+            .getByTestId("onboarding-close")
+            .or(page.getByTestId("onboarding-x"))
+            .first()
+            .click({ timeout: 8_000 });
+          await page.getByTestId("onboarding").waitFor({ state: "detached", timeout: 8_000 });
+          await page.getByTestId("sidebar-setup").waitFor({ timeout: 8_000 });
+          await shoot("finish-setup");
+        } catch (e) {
+          fs.writeFileSync(path.join(out, "finish-setup-failed.txt"), String((e as Error).message));
+          await page.screenshot({ path: path.join(out, "finish-setup-failed.png") }).catch(() => undefined);
+        }
+      }
       if (kind === "personal") {
         await shoot("personal");
         await ctx.close();
@@ -176,6 +198,15 @@ test("chats sidebar pictures and click-through", async (t) => {
         `Tasks carries what needs the owner: ${sideText.slice(0, 200)}`,
       );
       await shoot("full");
+      try {
+        await page.getByTestId("row-notes").click({ timeout: 8_000 });
+        await page.waitForTimeout(800);
+        await shoot("notes-tab");
+        await page.goBack().catch(() => undefined);
+        await page.waitForTimeout(400);
+      } catch (e) {
+        fs.writeFileSync(path.join(out, "notes-tab-failed.txt"), String((e as Error).message));
+      }
       // menus
       await page.getByTestId("new-menu").click();
       await page.waitForTimeout(200);
