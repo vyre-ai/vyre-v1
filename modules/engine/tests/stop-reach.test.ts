@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { stop, stopAll } from "../handlers/control.ts";
+import { turnGet, turnRecord } from "../handlers/extra/turns.ts";
 import { harness } from "../fixtures/harness.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 import { gate, until } from "../../../agent/src/turn-engine/harness.ts";
@@ -144,6 +145,35 @@ test("an agent acting for a member reaches any turn; naming nobody it stops itse
     "an agent for a guest: Stop all reaches the guest's turns only",
   );
   await w.runningIs([]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("the turn says who stopped it: a person, a guest or an agent, on the engine's event and in the turn's record", async () => {
+  const w = await world();
+  await stop(w.as("usr_sam", false), { threadId: THREAD, agentId: INTAKE });
+  await stop(w.as("usr_gus", true), { threadId: THREAD, agentId: BILLING });
+  await stop(w.as("usr_sam", false, DOCS), { threadId: THREAD, agentId: DOCS });
+  await w.runningIs([]);
+  const who = (a: string) => {
+    const e = w.engine.events(THREAD).find((x) => x.type === "turn.cancelled" && x.agentId === a);
+    return e && e.type === "turn.cancelled" ? e.stoppedBy : undefined;
+  };
+  assert.deepEqual(who(INTAKE), { id: "usr_sam", kind: "person" });
+  assert.deepEqual(who(BILLING), { id: "usr_gus", kind: "guest" });
+  assert.deepEqual(who(DOCS), { id: DOCS, kind: "agent" });
+  // recorded on the turn: engine.turn.record keeps it and engine.turn.get serves it
+  const t = w.engine.turns(THREAD).find((x) => x.agentId === INTAKE)!;
+  await turnRecord(w.h.ctx as never, {
+    threadId: THREAD,
+    turnId: t.id,
+    agentId: INTAKE,
+    phase: "cancelled",
+    qseq: t.qseq,
+    asker: t.asker,
+    stoppedBy: { id: "usr_sam", kind: "person" },
+  });
+  assert.deepEqual(turnGet(w.h.ctx as never, { turnId: t.id }).what.turn.stoppedBy, { id: "usr_sam", kind: "person" });
   w.hold.open();
   await w.engine.idle(THREAD);
 });

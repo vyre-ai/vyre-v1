@@ -44,6 +44,8 @@ const WHERE =
   "CREATE TABLE IF NOT EXISTS engine_turn_where (turn_id TEXT NOT NULL, seq INTEGER NOT NULL, kind TEXT NOT NULL, node_id TEXT, name TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (turn_id, seq))";
 const USING =
   "CREATE TABLE IF NOT EXISTS engine_thread_device (thread_id TEXT NOT NULL, person TEXT NOT NULL, device_id TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (thread_id, person))";
+const STOP =
+  "CREATE TABLE IF NOT EXISTS engine_turn_stop (turn_id TEXT PRIMARY KEY, by_id TEXT NOT NULL, by_kind TEXT NOT NULL)";
 const ONCE =
   "CREATE TABLE IF NOT EXISTS engine_thread_once (thread_id TEXT PRIMARY KEY, by_person TEXT NOT NULL, at INTEGER NOT NULL)";
 const ready = new WeakSet<object>();
@@ -53,6 +55,7 @@ function ensureNodeTable(db: Db): void {
   db.run(WHERE);
   db.run(USING);
   db.run(ONCE);
+  db.run(STOP);
   // a store made before the note column gets it: probed by name, added once
   try {
     db.all("SELECT note FROM engine_turn_where LIMIT 1");
@@ -60,6 +63,24 @@ function ensureNodeTable(db: Db): void {
     db.run(NOTE);
   }
   ready.add(db);
+}
+
+/** Who stopped a turn, kept with the turn so its record can say it. */
+export function setTurnStop(db: Db, turnId: string, by: { id: string; kind: string }): void {
+  ensureNodeTable(db);
+  db.run("DELETE FROM engine_turn_stop WHERE turn_id = ?", turnId);
+  db.run("INSERT INTO engine_turn_stop (turn_id, by_id, by_kind) VALUES (?, ?, ?)", turnId, by.id, by.kind);
+}
+
+export function stopOfTurn(db: Db, turnId: string): { id: string; kind: string } | undefined {
+  ensureNodeTable(db);
+  const r = (
+    db.all("SELECT by_id, by_kind FROM engine_turn_stop WHERE turn_id = ?", turnId) as Array<{
+      by_id?: unknown;
+      by_kind?: unknown;
+    }>
+  )[0];
+  return typeof r?.by_id === "string" && typeof r.by_kind === "string" ? { id: r.by_id, kind: r.by_kind } : undefined;
 }
 
 /** Remember the server a turn ran on, so the turn record can say it. */

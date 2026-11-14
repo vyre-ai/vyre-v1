@@ -36,6 +36,8 @@ export interface TurnOut {
   error?: ErrShape;
   /** The server of the person's the turn ran on, when the chat was pinned to one. */
   nodeId?: string;
+  /** Who stopped it, when it was stopped and that is known. */
+  stoppedBy?: { id: string; kind: "person" | "guest" | "agent" | "system" };
   /** Where the turn ran, in order (its computer, then the server it went on to when the computer slept). */
   ranOn?: Array<{ kind: "computer" | "server" | "space"; name: string; note?: string }>;
 }
@@ -65,6 +67,9 @@ export function turnOf(r: Row): TurnOut {
     costMicros: num(r["cost_micros"]),
     ...(error === undefined ? {} : { error: JSON.parse(error) as ErrShape }),
     ...(nodeId === undefined ? {} : { nodeId }),
+    ...(typeof r["stopped_by"] === "object" && r["stopped_by"] !== null
+      ? { stoppedBy: r["stopped_by"] as NonNullable<TurnOut["stoppedBy"]> }
+      : {}),
     ...(Array.isArray(r["ran_on"]) ? { ranOn: r["ran_on"] as NonNullable<TurnOut["ranOn"]> } : {}),
   };
 }

@@ -505,6 +505,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         state: "cancelled",
         turnId: e.turnId,
         ...(e.type === "turn.cancelled" && e.reason ? { reason: e.reason } : {}),
+        ...(e.type === "turn.cancelled" && e.stoppedBy ? { stoppedBy: e.stoppedBy } : {}),
       },
     };
   };

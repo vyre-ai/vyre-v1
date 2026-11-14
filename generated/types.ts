@@ -13053,6 +13053,10 @@ export type EngineTurnFinishOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13091,6 +13095,10 @@ export type EngineTurnGetOut = {
         traceId: string;
       };
       nodeId?: string;
+      stoppedBy?: {
+        id: string;
+        kind: "person" | "guest" | "agent" | "system";
+      };
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
@@ -13212,6 +13220,10 @@ export type EngineTurnRecordIn = {
   code?: string;
   message?: string;
   reason?: string;
+  stoppedBy?: {
+    id: string;
+    kind: "person" | "guest" | "agent" | "system";
+  };
   info?: {
     effort?: string;
     account?: {
@@ -13273,6 +13285,10 @@ export type EngineTurnRecordOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13324,6 +13340,10 @@ export type EngineTurnRetryOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13368,6 +13388,10 @@ export type EngineTurnStartOut = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -13418,6 +13442,10 @@ export type EngineTurnsListOut = {
         traceId: string;
       };
       nodeId?: string;
+      stoppedBy?: {
+        id: string;
+        kind: "person" | "guest" | "agent" | "system";
+      };
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;

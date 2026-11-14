@@ -62,6 +62,10 @@ type Out = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -122,6 +126,10 @@ type Out = {
       "runId": "run_a1b2c3",
       "startedAt": 1760000000000,
       "state": "queued",
+      "stoppedBy": {
+        "id": "example",
+        "kind": "person"
+      },
       "threadId": "thr_a1b2c3",
       "tokensIn": 1,
       "tokensOut": 1,

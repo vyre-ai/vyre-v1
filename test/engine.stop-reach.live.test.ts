@@ -79,6 +79,19 @@ test("a member stops any agent's turn in the chat; the owner's Stop all stops th
     10_000,
     "Spark stopped",
   );
+  // the chat says who stopped it: the stopped line carries the stopper, and the turn's record serves it
+  const line = await waitFor(
+    async () =>
+      (await messages(h, h.owner, thread))
+        .filter((x) => x.author?.id === spark)
+        .flatMap((x) => x.blocks ?? [])
+        .find((b) => b.type === "turn_status" && b.data?.state === "cancelled" && b.data?.stoppedBy) ?? null,
+    10_000,
+    "Spark's stopped line",
+  );
+  assert.deepEqual(line.data.stoppedBy, { id: m.personId, kind: "person" });
+  const turn = await h.owner.call("engine.turn.get", { turnId: line.data.turnId });
+  assert.deepEqual(turn.what.turn.stoppedBy, { id: m.personId, kind: "person" });
   const all = await h.owner.call("engine.stop_all", { threadId: thread });
   assert.equal(all.stopped, 1);
   await waitFor(async () => ((await working()).length === 0 ? true : null), 10_000, "everything stopped");

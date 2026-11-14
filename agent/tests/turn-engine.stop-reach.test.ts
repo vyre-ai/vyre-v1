@@ -69,3 +69,72 @@ test("askedBy: queued rows and a turn still starting are the asker's alone", asy
   slow.open();
   await engine.idle("T");
 });
+
+test("a stopped turn says who stopped it: the one who pressed Stop, the one whose new message stopped it, or the system", async () => {
+  const hold = gate();
+  const p = scriptedProvider({
+    script: says,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("dex")], body: "a" });
+  engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("nova")], body: "b" });
+  await until(() => p.sessions.length === 2);
+  await engine.stop("T", { agentId: "dex", by: { id: "usr_maya", kind: "person" } });
+  await engine.stop("T", { agentId: "nova", reason: "limit" });
+  hold.open();
+  await engine.idle("T");
+  const by = (id: string) => {
+    const e = engine.events("T").find((x) => x.type === "turn.cancelled" && x.agentId === id);
+    return e && e.type === "turn.cancelled" ? e.stoppedBy : "none";
+  };
+  assert.deepEqual(by("dex"), { id: "usr_maya", kind: "person" });
+  assert.deepEqual(by("nova"), { id: "system", kind: "system" }, "a limit is the system's");
+});
+
+test("stop and send names the person who sent", async () => {
+  const hold = gate();
+  const p = scriptedProvider({
+    script: says,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("dex")], body: "a" });
+  engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("nova")], body: "b" });
+  await until(() => p.sessions.length === 2);
+  const m = engine.receive(
+    { threadId: "T", author: person("sam"), mentions: [agent("dex")], body: "stop, do this" },
+    { interrupt: true },
+  );
+  assert.ok(m.qseqs.length > 0);
+  hold.open();
+  await engine.idle("T");
+  const named = engine.events("T").filter((x) => x.type === "turn.cancelled");
+  assert.equal(named.length, 2, "it stops every turn of the chat");
+  for (const e of named) assert.deepEqual((e as { stoppedBy?: unknown }).stoppedBy, { id: "sam", kind: "person" });
+});
+
+test("a stop that does not say who pressed it carries no stopper", async () => {
+  const hold = gate();
+  const p = scriptedProvider({
+    script: says,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("dex")], body: "a" });
+  await until(() => p.sessions.length === 1);
+  await engine.stop("T", { agentId: "dex" });
+  hold.open();
+  await engine.idle("T");
+  const e = engine.events("T").find((x) => x.type === "turn.cancelled")!;
+  assert.equal("stoppedBy" in e, false);
+});

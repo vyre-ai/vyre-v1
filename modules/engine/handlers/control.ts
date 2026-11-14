@@ -6,7 +6,7 @@
 import { recallPick, rememberPick } from "../last-pick.ts";
 import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
-import type { EngineAgent, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
+import type { EngineAgent, StoppedBy, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { noteHandoff } from "../context.ts";
 import { engineThreadOf } from "../thread-open.ts";
 import type { ThreadGet } from "../thread-open.ts";
@@ -168,7 +168,7 @@ export async function interrupt(
   const engine = await open(ctx, input.threadId);
   let r;
   try {
-    r = await engine.interrupt(input.threadId, input.messageId);
+    r = await engine.interrupt(input.threadId, input.messageId, stopperOf(ctx));
   } catch (e) {
     if (e instanceof RangeError)
       raise(ctx, "validation.not_found", "There is no such message in this conversation.", {
@@ -205,6 +205,13 @@ export async function interrupt(
  * may stop only a turn they asked for, and their Stop all stops only their own turns. An agent may stop its own turn; another agent's turn only when the person it acts for could, so an agent
  * working for a guest reaches only that guest's turns. An agent that names nobody stops itself.
  */
+/** Who presses: an agent, a guest (no View on the Space) or a person. Said on the stopped turn, so the chat can name them. */
+function stopperOf(ctx: EngineCtx): StoppedBy {
+  if (ctx.principal.kind === "agent") return { id: ctx.principal.id, kind: "agent" };
+  const guest = ctx.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect !== "allow";
+  return { id: actorOf(ctx), kind: guest ? "guest" : "person" };
+}
+
 function stopReach(ctx: EngineCtx, agentId: string | undefined, all: boolean): { agentId?: string; askedBy?: string } {
   const self = ctx.principal.kind === "agent" ? ctx.principal.id : undefined;
   const target = all ? undefined : (agentId ?? self);
@@ -222,6 +229,7 @@ async function stopWith(
   const reach = stopReach(ctx, o.agentId, o.all);
   const r = await engine.stop(threadId, {
     ...reach,
+    ...(o.reason ? {} : { by: stopperOf(ctx) }), // an app stopping its turns for an update is the system's
     clearQueue: o.all,
     ...(o.reason ? { reason: o.reason } : {}),
   });
