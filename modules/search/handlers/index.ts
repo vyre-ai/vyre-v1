@@ -339,6 +339,13 @@ export async function indexApply(
     ctx.db.run("DELETE FROM search_failed WHERE entity = ? AND id = ?", entity, id);
     return { indexed: had };
   }
+  // A person's own agents that nobody shared are theirs alone (owner ruling 4 Nov; agents canSee): the kernel denies the service the view, and agents.get would refuse it, so the service does not ask and remembers
+  // nothing: the next change of the agent after it is shared reads it. (Found by F52: the walk's one late refusal was this, for an ordinary agent.)
+  if (entity === "agent" && ctx.authorize({ perm: null, level: "view" }, { type: "agent", id }).effect !== "allow") {
+    removeDoc(ctx.db, ctx.space, entity, id);
+    setSeen(ctx, entity, id, seq);
+    return { indexed: false };
+  }
   const memo = unreadable.get(ctx.space) ?? unreadable.set(ctx.space, new Map()).get(ctx.space)!;
   const key = `${entity}\u0000${id}`;
   if (WATCH_PRIVATE.has(entity) && (memo.get(key) ?? 0) > ctx.now()) {

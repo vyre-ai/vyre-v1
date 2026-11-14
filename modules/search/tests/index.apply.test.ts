@@ -562,3 +562,18 @@ test("F52 (pinned): a skipped row's memory expires, so a thing that was only lat
     "after a delete it is read again at once",
   );
 });
+
+test("F52: an agent the kernel does not let the service see (a person's own, unshared) is not asked about: no refusal; once it is visible it is read", async () => {
+  const h = harness({
+    deny: ["agent:agt_mine"],
+    respond: {
+      "agents.get": (i) => ({ agent: { id: i["agentId"], name: "Harbor helper", role: "reads", kind: "agent" } }),
+    },
+  });
+  await indexApply(h.ctx, { entity: "agent", id: "agt_mine", op: "upsert", seq: 1 });
+  assert.equal(h.calls("agents.get").length, 0, "not asked");
+  assert.equal(h.rows("SELECT id FROM search_docs WHERE id = 'agt_mine'").length, 0);
+  h.allow?.("agent:agt_mine");
+  await indexApply(h.ctx, { entity: "agent", id: "agt_mine", op: "upsert", seq: 2 });
+  assert.equal(h.rows("SELECT id FROM search_docs WHERE id = 'agt_mine'").length, 1, "shared, then read");
+});

@@ -3,6 +3,7 @@
 // reply's saved blocks, not in any live frame their socket gets. The mutant "skip the asker check" is run by hand and must fail this file (see the commit message).
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
 import { bootHour, twoMembers, waitFor } from "./support/member-hour.ts";
 import type { Hour, Person } from "./support/member-hour.ts";
 
@@ -90,6 +91,25 @@ test("the asker reads the whole subagent row; another member of the channel read
   assert.deepEqual(done.map((m) => m.title).sort(), ["Check the harbor invoice", "Read the SECRETLEASE file"]);
   assert.match(done.map((m) => m.answer ?? "").join(" "), /ANSWERSECRET/, "the asker reads the answer");
   assert.ok(mine.length === 2);
+
+  // one source for "who asked": the turn's recorded asker is the person who wrote, and the subagent rows carry exactly it (the chat's askedBy is filled from the same turn asker at post time)
+  const mdb = new DatabaseSync(h.d.paths.modules, { readOnly: true });
+  try {
+    const turnAskers = (
+      mdb.prepare("SELECT DISTINCT asker FROM engine_turns WHERE thread_id = ?").all(threadId) as Array<{
+        asker: string;
+      }>
+    ).map((r) => r.asker);
+    const rowAskers = (
+      mdb.prepare("SELECT DISTINCT asker FROM engine_own_subagent WHERE thread_id = ?").all(threadId) as Array<{
+        asker: string;
+      }>
+    ).map((r) => r.asker);
+    assert.deepEqual(turnAskers, [h.owner.personId], "the turn was asked by the owner");
+    assert.deepEqual(rowAskers, turnAskers, "the rows carry the turn's recorded asker, no other");
+  } finally {
+    mdb.close();
+  }
 
   const theirs = await crew(b);
   assert.deepEqual(

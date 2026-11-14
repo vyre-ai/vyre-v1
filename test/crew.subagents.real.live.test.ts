@@ -106,15 +106,7 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
         return ms.some((m) => m.author.kind === "agent") ? true : null;
       }, 20_000);
       await new Promise((r) => setTimeout(r, 1500));
-      // The one ask the search indexer makes about an agent it cannot open (once per agent per ten minutes, never per turn: modules/search/handlers/index.ts PRIVATE_FOR_MS) can land in this window,
-      // because the index lags the agent's creation by a moment. Anything else, or a second one, is a refusal on every turn.
-      const left = serverRefusals().slice(before.length);
-      assert.deepEqual(
-        left.filter((x) => !/^agents\.get validation\.not_found $/.test(x)),
-        [],
-        "a plain turn refuses no call",
-      );
-      assert.ok(left.length <= 1, `at most one late index ask, got ${left.length}`);
+      assert.deepEqual(serverRefusals().slice(before.length), [], "a plain turn refuses no call");
     }
     for (const [skin, size, vp] of [
       ["graphite", "wide", { width: 1440, height: 900 }],
