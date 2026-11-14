@@ -257,7 +257,10 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
   if (isSelfPaused(ctx.db, r.id)) return { started: false, why: "The routine paused itself." };
   const watcher = (ctx.db.all("SELECT 1 AS x FROM agents_routine_watch WHERE routineId = ?", r.id) as Row[]).length > 0;
   if (watcher) return { started: false, why: "A watcher runs on messages, not on a clock." };
-  if (r.nextRunAt === undefined || String(r.nextRunAt) !== input.dueKey)
+  // the fire carries the wake's own time. Only a row that is AHEAD of it has already started that time (an older build's tick moved it on): nothing starts twice. A row that is behind the wake (an older build edited it)
+  // is not a reason to lose the time: the wake is the clock, and the row takes its time from the wake after the Run starts.
+  const due = Number(input.dueKey);
+  if (!Number.isFinite(due) || (r.nextRunAt !== undefined && r.nextRunAt > due))
     return { started: false, why: "The routine and its schedule do not agree on the time." };
   const now = ctx.now();
   const agent = agentBy(ctx.db, r.agentId);
@@ -266,7 +269,7 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
     await mirrorFromWake(ctx, r.id);
     return { started: false, why: "The agent is paused or gone." };
   }
-  const key = `routine:${r.id}:${r.nextRunAt}`;
+  const key = `routine:${r.id}:${input.dueKey}`;
   let started: { runId: string };
   try {
     started = await call<{ runId: string }>(
@@ -292,7 +295,8 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
     throw e;
   }
   // another path (an rc.27 build's tick) may have started this very time while runs.start was answering: the Run is the same by its key, so it is marked and told once, by whoever moved the time first
-  if (String(routineBy(ctx.db, r.id)?.nextRunAt) !== input.dueKey) return { started: true, runId: started.runId };
+  const moved = routineBy(ctx.db, r.id)?.nextRunAt;
+  if (moved !== undefined && moved > due) return { started: true, runId: started.runId };
   markRoutineRan(ctx.db, r.id, now);
   await mirrorFromWake(ctx, r.id); // the wake went on when it made this fire: its time is the routine's next time
   noteRoutineRun(ctx.db, r.id, started.runId, now);
@@ -303,7 +307,7 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
     ownerId: r.ownerId,
     requestedBy: "schedule",
   });
-  await tellMissed(ctx, { id: r.id, title: r.title, channelId: r.channelId ?? null, cron: r.cron }, r.nextRunAt, now);
+  await tellMissed(ctx, { id: r.id, title: r.title, channelId: r.channelId ?? null, cron: r.cron }, due, now);
   return { started: true, runId: started.runId };
 }
 

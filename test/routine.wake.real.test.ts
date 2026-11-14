@@ -193,3 +193,42 @@ for (const second of [0, 5, 30, 59]) {
     assert.deepEqual([out.runs, out.skipped], [20, 0]);
   });
 }
+
+for (const [name, shift] of [
+  ["behind the wake", -MINUTE],
+  ["a long way behind the wake", -7 * MINUTE],
+] as const) {
+  test(`a routine edited by rc.27 after a rollback, its row ${name}, still starts 20 Runs in 20 minutes on roll-forward and no fire is skipped`, async () => {
+    const w = world(false, SKEW);
+    const r = await everyMinute(w);
+    const wakeAt = (
+      w.sched.db.all("SELECT next_at FROM scheduler_api_schedules WHERE owner_id = ?", r.routineId)[0] as {
+        next_at: number;
+      }
+    ).next_at;
+    // rc.27 edits the row with its own clock and does not know the wake: the row's time is no longer the wake's
+    w.hn.db.run(
+      "UPDATE agents_routine SET nextRunAt = ?, title = 'Edited under rc.27' WHERE id = ?",
+      wakeAt + shift,
+      r.routineId,
+    );
+    await w.reconcile();
+    const out = await twentyMinutes(w, 0);
+    assert.deepEqual([out.runs, out.skipped], [20, 0]);
+  });
+}
+
+test("a routine whose row is AHEAD of its wake (rc.27 started that time): the fire for the earlier time is skipped once, the next time starts, and nothing is started twice", async () => {
+  const w = world(false, SKEW);
+  const r = await everyMinute(w);
+  const wakeAt = (
+    w.sched.db.all("SELECT next_at FROM scheduler_api_schedules WHERE owner_id = ?", r.routineId)[0] as {
+      next_at: number;
+    }
+  ).next_at;
+  w.hn.db.run("UPDATE agents_routine SET nextRunAt = ? WHERE id = ?", wakeAt + MINUTE, r.routineId);
+  const out = await twentyMinutes(w, 0);
+  assert.equal(out.skipped, 1);
+  assert.equal(out.runs, 19);
+  assert.equal(w.hn.named("agent.routine_run_started").length, 19, "told once per Run");
+});
