@@ -1,0 +1,1 @@
+- The Attach menu (Upload files, From Files) in a chat is no longer cut off at the top of the pane when the composer sits high: it opens below the composer when there is no room above.

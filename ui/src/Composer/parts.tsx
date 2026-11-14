@@ -1,7 +1,8 @@
 // Small pieces of the composer (rc.8): the brand mark of a provider, effort bars, the context ring, the working light, the popover frame and its group heads, and the stylesheet
 // the few animations need. Colours are skin tokens, so light and dark (and every skin) repaint with no re-render.
 import { useEscapeLayer } from "../Overlay/escape.ts";
-import { createElement, useEffect, useRef } from "react";
+import { createElement, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { clipTop, popOpensBelow } from "./pop-room.ts";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
@@ -240,6 +241,8 @@ export function WorkingLight(): ReactElement {
 const POP_SHADOW = { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle;
 
 /** The frame every composer popover sits in: raised, rounded, a soft long shadow, arriving with a short rise. */
+const FLIPPED = { bottom: "auto", top: "100%", marginBottom: 0, marginTop: 8 } as unknown as ViewStyle;
+
 export function Pop({
   children,
   style,
@@ -256,12 +259,25 @@ export function Pop({
   nodeRef?: (n: unknown) => void;
 }): ReactElement {
   ensureComposerCss();
+  // every popover of the composer opens upward; with no room above (a composer high in a short pane) it opens below, so its first rows are never cut off by the pane (F32)
+  const mine = useRef<unknown>(null);
+  const [below, setBelow] = useState(false);
+  useLayoutEffect(() => {
+    const n = mine.current as { getBoundingClientRect?: () => { top: number } } | null;
+    if (!n?.getBoundingClientRect || below) return;
+    if (popOpensBelow({ popTop: n.getBoundingClientRect().top, paneTop: clipTop(n) })) setBelow(true);
+  });
   return (
     <View
       testID={testID}
       accessibilityLabel={label}
-      style={[s.pop, POP_SHADOW, style]}
-      {...(nodeRef ? { ref: nodeRef as never } : {})}
+      style={[s.pop, POP_SHADOW, style, below ? FLIPPED : null]}
+      ref={
+        ((n: unknown) => {
+          mine.current = n;
+          nodeRef?.(n);
+        }) as never
+      }
       {...webOnly({
         dataSet: { cmpPop: "1" },
         role: "dialog",
