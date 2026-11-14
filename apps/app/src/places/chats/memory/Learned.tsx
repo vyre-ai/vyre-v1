@@ -191,7 +191,11 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
       {lesson ? null : (
         <>
           <Text style={st.sep}>·</Text>
-          <Text testID={`learned-when-${row.factId}`} {...webProps({ title: learnedExact(row.at) })} style={st.scope}>
+          <Text
+            testID={`learned-when-${row.factId}`}
+            {...webProps({ dataSet: { tt: learnedExact(row.at) } })}
+            style={st.scope}
+          >
             {learnedWhen(row.at, memory.now())}
           </Text>
         </>
