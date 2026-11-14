@@ -104,8 +104,9 @@ function Chat({ part }: { part: string }): ReactNode {
     s.conv.replica.put("messages", rows(part));
     const call = async (cap: string, input: unknown): Promise<unknown> => {
       const i = (input ?? {}) as { messageId?: string };
-      // every reply of this chat is read as having used both lessons, whatever it said
-      if (cap === "memory.used" && String(i.messageId ?? "").startsWith("msg_L_a"))
+      //
+      // the lessons were sent with the first message of the chat only, so only the reply to it carries the mark
+      if (cap === "memory.used" && i.messageId === "msg_L_a0")
         return { messageId: i.messageId, at: T(9, 0), facts: LESSONS, quotes: [] };
       if (cap === "memory.used") return { messageId: i.messageId, facts: [], quotes: [] };
       // the first message of the chat taught a lesson, the one after it another

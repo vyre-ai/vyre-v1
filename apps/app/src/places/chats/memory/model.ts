@@ -35,6 +35,8 @@ export interface LessonInfo {
   how?: LessonHow;
   used: number;
   scope: "you" | "proposed" | "space";
+  /** put in front of the agent at the start of every chat; false when there was no room for it (the newest go first) */
+  sent?: boolean;
 }
 export const isLesson = (f: { kind?: string | undefined }): boolean => f.kind === "lesson";
 
@@ -228,15 +230,18 @@ export const SCOPE_TEXT: Record<LessonInfo["scope"], string> = {
   proposed: "Proposed",
   space: "Space",
 };
+/** What Knows says of whether a lesson is put in front of the agent when a chat starts: the newest go first and only so many fit, so the rest wait, and a person can see which. */
+export const LESSON_SENT = "Kept in mind in every chat";
+export const LESSON_UNSENT = "Not sent: no room left, newer lessons go first. Forget one to make room.";
 export const usedTimes = (n: number): string => `used ${n} ${n === 1 ? "time" : "times"}`;
 export const LESSONS_HEAD = (agent: string): string => `Lessons ${agent} kept from your corrections`;
 export const LESSONS_SWITCH = "Learn from my corrections";
 export const LESSONS_OFF = "Off. Nothing is kept from what you change.";
 export const LESSONS_FOOT =
   "Lessons from a private chat stay private to you. Sharing one puts it in Proposed first, so a person accepts it.";
-/** What the quiet mark on a message's meta row says: "Used a lesson", "Used 3 lessons", "Learned a lesson". No lesson's words are printed in the chat. */
+/** What the quiet mark on a message's meta row says: "Kept in mind: a lesson", "Kept in mind: 3 lessons", "Learned a lesson" (a lesson put in front of the agent was kept in mind, not necessarily used). No lesson's words are printed in the chat. */
 export const lessonMarkLabel = (kind: "used" | "learned", n: number): string =>
-  `${kind === "used" ? "Used" : "Learned"} ${n === 1 ? "a lesson" : `${n} lessons`}`;
+  `${kind === "used" ? "Kept in mind:" : "Learned"} ${n === 1 ? "a lesson" : `${n} lessons`}`;
 
 /** The text of a message for "Remember this": its words, markup left in, trimmed and cut at 400 letters. */
 export function rememberText(body: string): string {

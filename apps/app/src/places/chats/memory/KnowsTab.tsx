@@ -36,6 +36,8 @@ import {
   isLesson,
   knowRowKey,
   usedTimes,
+  LESSON_SENT,
+  LESSON_UNSENT,
 } from "./model.ts";
 import type { ChatFact, KnowsOut, UsedOut } from "./model.ts";
 import { ChipLink, LinkButton, ToolButton, glyphOf, sourceLabel, webProps, ownMenuKeys } from "./parts.tsx";
@@ -613,6 +615,11 @@ function LessonRow({
           {info?.how ? <Text style={st.meta}>{HOW_TEXT[info.how]}</Text> : null}
           <Text style={st.meta}>{`· ${age}`}</Text>
           {info ? <Text style={st.meta}>{`· ${usedTimes(info.used)}`}</Text> : null}
+          {info?.sent !== undefined ? (
+            <Text testID={`lesson-sent-${fact.factId}`} style={st.meta}>
+              {`· ${info.sent ? LESSON_SENT : LESSON_UNSENT}`}
+            </Text>
+          ) : null}
           {info ? (
             <Text testID={`lesson-scope-${fact.factId}`} style={st.chip}>
               {SCOPE_TEXT[info.scope]}

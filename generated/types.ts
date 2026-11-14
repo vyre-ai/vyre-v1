@@ -25016,6 +25016,7 @@ export type MemoryCorrectionsRecordOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25088,6 +25089,7 @@ export type MemoryFactAcceptOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25130,6 +25132,7 @@ export type MemoryFactCorrectOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25165,6 +25168,7 @@ export type MemoryFactCorrectOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25205,6 +25209,7 @@ export type MemoryFactGetOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25240,6 +25245,7 @@ export type MemoryFactGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25280,6 +25286,7 @@ export type MemoryFactRejectOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -25328,6 +25335,7 @@ export type MemoryFactsListOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25387,6 +25395,7 @@ export type MemoryFactsAsOfOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25432,6 +25441,7 @@ export type MemoryFindBySubjectOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -25679,6 +25689,7 @@ export type MemoryLearnedOut = {
           how?: "edit" | "refuse" | "reverse" | "rewrite";
           used: number;
           scope: "you" | "proposed" | "space";
+          sent?: boolean;
         };
         subject?: {
           pageId: string;
@@ -25878,6 +25889,7 @@ export type MemoryPageGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26102,6 +26114,7 @@ export type MemoryProfileAddOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26165,6 +26178,7 @@ export type MemoryProfileGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26203,6 +26217,7 @@ export type MemoryProfileGetOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26247,6 +26262,7 @@ export type MemoryProfileMoveOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26292,6 +26308,7 @@ export type MemoryProfileSuggestOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26347,6 +26364,7 @@ export type MemoryPromotionApproveOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26409,6 +26427,7 @@ export type MemoryProposeFactOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26470,6 +26489,7 @@ export type MemoryQuestionsListOut = {
             how?: "edit" | "refuse" | "reverse" | "rewrite";
             used: number;
             scope: "you" | "proposed" | "space";
+            sent?: boolean;
           };
           subject?: {
             pageId: string;
@@ -26573,6 +26593,7 @@ export type MemoryRememberOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26615,6 +26636,7 @@ export type MemoryRestoreOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26675,6 +26697,7 @@ export type MemorySearchOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26773,6 +26796,7 @@ export type MemoryTrashSearchOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;
@@ -26833,6 +26857,7 @@ export type MemoryUndoOut = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -26919,6 +26944,7 @@ export type MemoryUsedOut = {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
         scope: "you" | "proposed" | "space";
+        sent?: boolean;
       };
       subject?: {
         pageId: string;

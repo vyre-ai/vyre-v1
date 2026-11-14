@@ -155,11 +155,11 @@ function LessonList({
           card.current = r;
         }}
         testID={`lesson-list-${id}`}
-        accessibilityLabel={kind === "used" ? "Lessons this reply used" : "Lessons learned from this message"}
+        accessibilityLabel={kind === "used" ? "Kept in mind" : "Lessons learned from this message"}
         {...webProps({ role: "dialog", tabIndex: -1 })}
         style={[st.card, { left: at.left, top: at.top } as object]}
       >
-        <Text style={st.head}>{kind === "used" ? "Lessons this reply used" : "Lessons learned from this message"}</Text>
+        <Text style={st.head}>{kind === "used" ? "Kept in mind" : "Lessons learned from this message"}</Text>
         {lessons.map((l) => (
           // ui-rows-lint: not a list (a handful of rows of one popover, each with its own two buttons)
           <View key={l.factId} testID={`lesson-row-${l.factId}`} style={st.row}>

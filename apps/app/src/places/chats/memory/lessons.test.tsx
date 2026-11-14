@@ -90,8 +90,8 @@ test("the pure rules: a lesson is a fact of kind lesson, its message is the line
   assert.equal(usedTimes(1), "used 1 time");
   assert.equal(usedTimes(4), "used 4 times");
   assert.equal(LESSONS_HEAD("Mira"), "Lessons Mira kept from your corrections");
-  assert.equal(lessonMarkLabel("used", 1), "Used a lesson");
-  assert.equal(lessonMarkLabel("used", 3), "Used 3 lessons");
+  assert.equal(lessonMarkLabel("used", 1), "Kept in mind: a lesson");
+  assert.equal(lessonMarkLabel("used", 3), "Kept in mind: 3 lessons");
   assert.equal(lessonMarkLabel("learned", 1), "Learned a lesson");
   for (const t of [LESSONS_FOOT, ...Object.values(HOW_TEXT), ...Object.values(SCOPE_TEXT)])
     assert.ok(!/—|§/.test(t), t);
@@ -154,7 +154,7 @@ test("a reply that was given a lesson prints nothing of it under the reply: its 
       </ChatMemoryProvider>,
     ),
   );
-  assert.ok(has(mark, `data-testid="lesson-mark-${MESSAGE_IDS.reply}"`) && has(mark, "Used a lesson"));
+  assert.ok(has(mark, `data-testid="lesson-mark-${MESSAGE_IDS.reply}"`) && has(mark, "Kept in mind: a lesson"));
   assert.ok(!has(mark, "Notes to Sara"), "the mark holds no words of the lesson");
   // a reply that used none has no mark
   const none = clean(
