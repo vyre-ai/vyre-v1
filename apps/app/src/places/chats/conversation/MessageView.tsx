@@ -101,6 +101,8 @@ import {
   statusView,
   terminalAskOf,
   workOf,
+  NOT_SENT,
+  TRY_AGAIN,
 } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 import { MARK } from "./marks.ts";
@@ -196,6 +198,8 @@ export interface MessageActions {
   /** Share this message to a channel or a person: opens the list of places at the point given. */
   share?(messageId: string, x: number, y: number): void;
   /** What the turn behind a reply being written is doing: the live line under it (steps, thinking). */
+  /** The newest agent message holds a question or approval still waiting for the person: a live reply says it waits for them. */
+  heldForYou?: boolean;
   activityOf?(rowId: string): import("../../../shell/session/turn-streams.ts").ActivityStore | undefined;
   /** A person's or agent's name for an id; a plain word where there is none. */
   nameOf?(id: string): string;
@@ -826,9 +830,9 @@ function Mine({
       {!editing && sending === undefined && actions.belowMine ? actions.belowMine(m) : null}
       {sending === "failed" ? (
         <View testID={`failed-${m.messageId}`} accessibilityRole="alert" style={st.failed}>
-          <Text style={st.failedText}>Not sent</Text>
+          <Text style={st.failedText}>{NOT_SENT}</Text>
           <TextButton
-            label="Try again"
+            label={TRY_AGAIN}
             onPress={() => actions.retrySend(m.messageId)}
             testID={`retry-send-${m.messageId}`}
           />
@@ -1153,6 +1157,7 @@ function Theirs({
         <ActivityLine
           store={actions.activityOf(m.messageId)!}
           stream={stream}
+          heldForYou={actions.heldForYou === true}
           {...(actions.faceInThread
             ? { face: <Face name={item.who.name} seedId={item.who.id} kind="agent" size={20} /> }
             : {})}
@@ -1934,7 +1939,7 @@ export function ErrorRowView({
     ...(e.retryable && e.turnId && !retried
       ? [
           {
-            label: "Try again",
+            label: TRY_AGAIN,
             testID: "err-retry",
             run: () => {
               setRetried(true);

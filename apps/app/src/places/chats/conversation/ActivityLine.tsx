@@ -88,8 +88,11 @@ export function ActivityLine({
   store,
   stream,
   face,
+  heldForYou = false,
 }: {
   store: ActivityStore;
+  /** A question or approval is open for this turn: the word says it waits for the person. */
+  heldForYou?: boolean;
   stream?: StreamStore | undefined;
   /** Draws in place of the product mark (a thread shows the agent's own face). */ face?: ReactElement | undefined;
 }): ReactElement {
@@ -97,7 +100,7 @@ export function ActivityLine({
   const snap = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [open, setOpen] = useState(false);
   const words = useStream(stream ?? NO_STREAM).blocks.length > 0;
-  const line = useDwelled({ label: calmWord(snap, words), detail: "" }, snap.done);
+  const line = useDwelled({ label: calmWord(snap, words, heldForYou && !snap.done), detail: "" }, snap.done);
   const state = snap.done ? "done" : words ? "writing" : "thinking";
   // the mark nods when the line's words change, not on every raw step: at most once per dwell
   const rows: ReactElement[] = [];

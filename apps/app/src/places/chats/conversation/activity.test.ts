@@ -140,3 +140,17 @@ test("a turn that sits a minute in one tool call keeps a true word, and one wait
   const parked = snap({ steps: [{ id: "s2", name: "device_wait", state: "live" }] as never });
   assert.equal(calmWord(parked, false), "Waiting");
 });
+
+test("the word is true while a turn is held, setting up, or parked (review, 14 Nov)", () => {
+  const live = (name: string, id = "s") => ({ id, name, state: "live" as const });
+  assert.equal(calmWord(snap({ steps: [live("Bash")] as never }), false, true), "Waiting for you", "held for a person");
+  assert.equal(calmWord(snap({ steps: [live("AskUserQuestion")] as never }), false), "Waiting for you");
+  assert.equal(calmWord(snap({ steps: [live("engine_setup")] as never }), false), "Setting up");
+  assert.equal(calmWord(snap({ steps: [live("device_wait")] as never }), false), "Waiting");
+  assert.equal(
+    calmWord(snap({ steps: [live("device_wait", "a"), live("Bash", "b")] as never }), false),
+    "Working",
+    "one parked step among running ones is still work",
+  );
+  assert.equal(calmWord(snap({ steps: [live("Bash")] as never }), true, true), "Writing", "words coming win");
+});

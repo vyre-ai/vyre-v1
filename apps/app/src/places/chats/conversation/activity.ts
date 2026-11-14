@@ -115,11 +115,13 @@ export function activityLine(s: ActivitySnapshot): ActivityLine {
 export const elapsedWords = (secs: number): string =>
   secs < 3 ? "" : secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, "0")}s`;
 
-/** The one calm word a live reply shows (the prototype's islb): Writing once words are coming, Working while a step runs, else Thinking. Never a step's name, never a count. */
-export function calmWord(s: ActivitySnapshot, writing: boolean): "Thinking" | "Writing" | "Working" | "Waiting" {
+/** The one calm word a live reply shows (the prototype's islb), true to what the turn is doing: Writing once words come, "Waiting for you" while it is held for a person (a question or approval is open for it), "Setting up" while Vyre prepares an engine, "Waiting" while it is parked on its computer, Working for any other running step however long, else Thinking. Never a step's name, never a count. */
+export type CalmWord = "Thinking" | "Writing" | "Working" | "Waiting" | "Waiting for you" | "Setting up";
+export function calmWord(s: ActivitySnapshot, writing: boolean, heldForYou = false): CalmWord {
   if (writing) return "Writing";
   const live = s.steps.filter((x) => x.state === "live");
-  // a turn parked on something outside itself (its computer asleep) says so; any other running step is work, however long it sits
+  if (heldForYou || live.some((x) => /^(askuserquestion|exitplanmode)$/i.test(x.name))) return "Waiting for you";
   if (live.length > 0 && live.every((x) => x.name === "device_wait")) return "Waiting";
+  if (live.some((x) => x.name === "engine_setup" || x.name === "sandbox_start")) return "Setting up";
   return live.length > 0 ? "Working" : "Thinking";
 }

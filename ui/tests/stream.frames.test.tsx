@@ -32,3 +32,17 @@ test("a diagram is named for what it draws", () => {
   assert.equal(diagramLabel("sequenceDiagram\nA->>B: hi"), "Sequence diagram");
   assert.equal(diagramLabel("pie\n"), "Diagram");
 });
+
+test("the diagram frame is fully sandboxed and loads nothing from outside (review, 14 Nov)", async () => {
+  const { diagramFrameProps, DIAGRAM_CSP } = await import("../src/stream/Blocks.tsx");
+  const evil = '<svg viewBox="0 0 10 10"><image href="https://evil.example/x.png"/><script>alert(1)</script></svg>';
+  const p = diagramFrameProps(evil, false);
+  assert.strictEqual(p["sandbox"], "", "an empty sandbox: no scripts, no same-origin, no forms");
+  const doc = String(p["srcDoc"]);
+  assert.ok(doc.includes(`http-equiv="Content-Security-Policy" content="${DIAGRAM_CSP}"`));
+  assert.ok(DIAGRAM_CSP.startsWith("default-src 'none'") && !/https?:|script-src/.test(DIAGRAM_CSP));
+  assert.ok(
+    doc.indexOf("Content-Security-Policy") < doc.indexOf("evil.example"),
+    "the policy is in force before the SVG parses",
+  );
+});

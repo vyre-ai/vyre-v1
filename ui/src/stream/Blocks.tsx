@@ -517,8 +517,26 @@ export function currentTheme(): DiagramTheme {
 }
 
 // The frame's own page says which scheme it is in: a light page inside a dark one gets an opaque white canvas from the browser, which hid a dark diagram on white (looked at, 14 Nov). Its text is the app's sans.
-const frameDoc = (svg: string): string =>
-  `<!doctype html><html style="color-scheme:${currentTheme().dark ? "dark" : "light"}"><body style="margin:0;background:transparent;display:flex;justify-content:center;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">${svg}</body></html>`;
+/** Nothing a diagram's SVG (or a model's text inside it) names loads from outside: no script, image, stylesheet, font or frame; only its own inline style and data pictures. */
+export const DIAGRAM_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:";
+export const frameDoc = (svg: string): string =>
+  `<!doctype html><html style="color-scheme:${currentTheme().dark ? "dark" : "light"}"><head><meta http-equiv="Content-Security-Policy" content="${DIAGRAM_CSP}"></head><body style="margin:0;background:transparent;display:flex;justify-content:center;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">${svg}</body></html>`;
+/** The one iframe a diagram is drawn in: fully sandboxed (no scripts, no same-origin) and under the policy above. */
+export function diagramFrameProps(svg: string, big: boolean): Record<string, unknown> {
+  return {
+    sandbox: "",
+    srcDoc: frameDoc(svg),
+    title: "Diagram",
+    style: {
+      border: 0,
+      width: "100%",
+      aspectRatio: String(aspectOf(svg)),
+      maxHeight: big ? "78vh" : 420,
+      background: "transparent",
+      display: "block",
+    },
+  };
+}
 const aspectOf = (svg: string): number => {
   const vb = /viewBox="[\d.\-]+\s+[\d.\-]+\s+([\d.]+)\s+([\d.]+)"/.exec(svg);
   return vb ? Number(vb[1]) / Number(vb[2]) : 2;
@@ -556,20 +574,7 @@ export function DiagramBlock({ source, id }: { source: string; id: string }): Re
       live = false;
     };
   }, [source]);
-  const frame = (svg: string, big: boolean): ReactNode =>
-    createElement("iframe", {
-      sandbox: "",
-      srcDoc: frameDoc(svg),
-      title: "Diagram",
-      style: {
-        border: 0,
-        width: "100%",
-        aspectRatio: String(aspectOf(svg)),
-        maxHeight: big ? "78vh" : 420,
-        background: "transparent",
-        display: "block",
-      },
-    });
+  const frame = (svg: string, big: boolean): ReactNode => createElement("iframe", diagramFrameProps(svg, big));
   const failed = s !== null && "error" in s;
   return (
     <Frame

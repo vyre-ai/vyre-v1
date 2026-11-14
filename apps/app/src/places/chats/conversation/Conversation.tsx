@@ -1263,13 +1263,14 @@ function ConversationView(): ReactElement {
   };
   // the note for a message still waiting for the agent's next step sits under that message (the last of them when several wait)
   const queueUnder = (m: Message): ReactElement | null => {
-    const id = stillQ[stillQ.length - 1];
-    if (!q || id === undefined || m.messageId !== id) return null;
+    const at = stillQ.indexOf(m.messageId);
+    if (!q || at < 0) return null;
     return (
       <QueueLine
-        note={queueNote(stillQ.length, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}
+        note={queueNote(1, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}
         onEdit={() => {
-          const words = timelineMessages.find((x) => x.messageId === id)?.body ?? "";
+          const id = m.messageId;
+          const words = m.body;
           void act.takeBackQueued(data, thread.threadId, id).then((ok) => {
             if (ok) {
               setPending((cur) => cur.filter((p) => p.messageId !== id));
@@ -1278,7 +1279,7 @@ function ConversationView(): ReactElement {
           }, fail("Could not take it back."));
         }}
         onSendNow={() =>
-          void act.sendQueuedNow(data, thread.threadId, stillQ[0]!).catch(fail("Could not send it now."))
+          void act.sendQueuedNow(data, thread.threadId, m.messageId).catch(fail("Could not send it now."))
         }
       />
     );
@@ -1354,7 +1355,11 @@ function ConversationView(): ReactElement {
       />
     );
   };
+  // a live reply is held for the person when the newest agent message still carries a question or approval waiting for them
+  const lastAgentMsg = [...all].reverse().find((x) => x.author.kind === "agent");
+  const heldForYou = lastAgentMsg?.blocks.some((b) => b.state === "waiting") === true;
   const actions: MessageActions = {
+    heldForYou,
     belowMine: (m) => notHereFor(m) ?? queueUnder(m),
     host,
     copy: (t) => {
@@ -1984,7 +1989,7 @@ function ConversationView(): ReactElement {
                       sending={sending}
                       below={
                         it.kind === "me"
-                          ? `${notHereSig(it.message) ?? ""}${stillQ[stillQ.length - 1] === it.message.messageId ? `|queued${stillQ.length}${q}` : ""}`
+                          ? `${notHereSig(it.message) ?? ""}${stillQ.includes(it.message.messageId) ? `|queued${stillQ.indexOf(it.message.messageId)}${q}` : ""}`
                           : undefined
                       }
                       mark={markOf(it, matches, activeId, finding)}

@@ -1028,3 +1028,7 @@ export function mentionable(
 export function faceDoor(helperThreadIds: readonly string[], id: string): "helper" | "principal" {
   return helperThreadIds.includes(id) ? "helper" : "principal";
 }
+
+/** The words for a send that did not go and a turn that stopped: one wording for the same act. */
+export const NOT_SENT = "Not sent";
+export const TRY_AGAIN = "Try again";

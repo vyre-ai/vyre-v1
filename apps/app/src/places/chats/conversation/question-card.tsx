@@ -9,6 +9,23 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { TextButton } from "./parts.tsx";
 import type { QuestionOption } from "./model.ts";
 
+/** Radio keys: arrows move to the next or previous answer (wrapping), Home and End go to the ends, Space or Enter choose the one focused. Tab is left alone so it leaves the group. */
+export function radioKey(key: string, at: number, n: number): { move: number } | { choose: true } | null {
+  if (n <= 0) return null;
+  if (key === "ArrowDown" || key === "ArrowRight") return { move: (at + 1) % n };
+  if (key === "ArrowUp" || key === "ArrowLeft") return { move: (at - 1 + n) % n };
+  if (key === "Home") return { move: 0 };
+  if (key === "End") return { move: n - 1 };
+  if (key === " " || key === "Enter") return { choose: true };
+  return null;
+}
+
+type KeyEv = {
+  key?: string;
+  preventDefault?: () => void;
+  currentTarget?: { parentElement?: { querySelectorAll?: (q: string) => ArrayLike<{ focus?: () => void }> } };
+};
+
 export function QuestionCard({
   id,
   prompt,
@@ -33,7 +50,7 @@ export function QuestionCard({
       ) : null}
       <View accessibilityRole="radiogroup" style={st.rows}>
         {/* ui-rows-lint: not a list (the answers of one question, each one press) */}
-        {options.map((o) => (
+        {options.map((o, i) => (
           <Row
             key={o.id}
             id={`option-${id}-${o.id}`}
@@ -46,6 +63,18 @@ export function QuestionCard({
               ) : null
             }
             onPress={() => onAnswer(o.id)}
+            domProps={{
+              role: "radio",
+              "aria-checked": false,
+              tabIndex: i === 0 ? 0 : -1,
+              onKeyDown: (e: KeyEv) => {
+                const r = radioKey(e.key ?? "", i, options.length);
+                if (!r) return;
+                e.preventDefault?.();
+                if ("choose" in r) onAnswer(o.id);
+                else e.currentTarget?.parentElement?.querySelectorAll?.('[role="radio"]')[r.move]?.focus?.();
+              },
+            }}
           />
         ))}
         <View style={st.own}>
