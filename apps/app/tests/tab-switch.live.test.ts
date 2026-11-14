@@ -114,8 +114,7 @@ test("switching tabs and places never shows a blank frame", async (t) => {
     await page.getByTestId("rail-files").click();
     await page.getByTestId("files-place").waitFor({ timeout: 15_000 });
     await page.evaluate(SAMPLE);
-    // the Chats landing tab is named New chat now (chat-frame G7)
-    for (const name of ["New chat", "Records", "Files", "New chat"]) {
+    for (const name of ["Chats", "Records", "Files", "Chats"]) {
       await page.getByRole("tab", { name }).click();
       await page.waitForTimeout(400);
     }
