@@ -538,6 +538,14 @@ function ConversationView(): ReactElement {
     setAsides([]);
     for (const a of open) void act.dismissAside(data, a.id);
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a command card belongs to the chat it was asked in: leaving the chat closes it (and cleans up the side question), with the data of the chat that is being left
+  useEffect(
+    () => () => {
+      setCard(null);
+      closeAsides();
+    },
+    [data.threadId], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   // a press anywhere but the composer, the card or the notice closes the /btw card, as it does a command card
   const asideOpen = asides.length > 0;
   useEffect(() => {
