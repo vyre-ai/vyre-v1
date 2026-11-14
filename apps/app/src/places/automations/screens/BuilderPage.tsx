@@ -42,6 +42,8 @@ import { fromDefinition } from "../story/adapt.ts";
 import { needsFromIssues } from "../story/issues.ts";
 import { story as buildStory } from "../story/model.ts";
 import { look } from "./look.ts";
+import { More } from "../canvas/fields.tsx";
+import { LiveEvents } from "../operations/EventsView.tsx";
 import { Packages } from "../operations/PackagesView.tsx";
 import { Dependencies } from "../operations/DependenciesView.tsx";
 import { CohortMigration } from "../versions/CohortMigration.tsx";
@@ -436,7 +438,16 @@ function Body({
         base.current = null;
         undo.current = [];
       }
-    } else if (action === "open" && id) setSel(id === sel ? null : id);
+    } else if (action === "open" && id) {
+      // a step of a kind this version does not know is drawn, never opened: it has no form here, and Save keeps it as it was
+      const node = def.nodes.find((n) => n.id === id);
+      const foreign =
+        node !== undefined &&
+        catalog?.checked === true &&
+        !catalog.all.some((st) => st.key === node.key) &&
+        kindOfKey(node.key) === "plain";
+      if (!foreign) setSel(id === sel ? null : id);
+    }
     else if (action === "need" && id) {
       const step = model.rows.find((r) => r.kind === "step" && r.id === id);
       if (step && step.kind === "step" && step.need?.kind === "no_access") askAdmin();
@@ -512,6 +523,7 @@ function Body({
     const p = pos(e);
     const items: MenuEntry[] = [
       { label: "History", onSelect: () => setTab("history") },
+      { label: "Move running work to this version", onSelect: () => setTab("history") },
       { label: "Make a copy to share", onSelect: () => setPackagesOpen(true) },
       { label: "Import a copy", onSelect: () => setPackagesOpen(true) },
       ...(a.kind === "space"
@@ -664,11 +676,14 @@ function Body({
         <View style={s.pane}>
           <AnalyticsPanel automationId={a.id} />
           {runsBody}
+          <More head="Event log" testID="runs-event-log">
+            <LiveEvents />
+          </More>
         </View>
       ) : null}
       {tab === "settings" ? (
         <View style={s.pane}>
-          <AutomationConfig automationId={a.id} embedded />
+          <AutomationConfig automationId={a.id} embedded readOnly={locked} />
           <Dependencies automationId={a.id} />
           <Pressable testID="settings-copies" accessibilityRole="button" onPress={() => setPackagesOpen(true)}>
             <Text style={look.btnText}>Make a copy to share, or import one</Text>

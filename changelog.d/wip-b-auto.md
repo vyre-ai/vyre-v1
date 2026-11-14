@@ -33,3 +33,5 @@
 - feat: Event log and Automation usage are Console pages (Security, Audit log tab), listed by the server only to a person with audit.read; the old Live Event Explorer and Analytics views are mounted there.
 - test: page-level tests for Undo, Move to Trash, Promote, personal copy, History, the copies panel, the Runs and Settings tabs, and the keyboard surface.
 - fix: Add a step while the step catalogue is loading or failed says so and offers Retry instead of doing nothing.
+- fix: a person who may not change an Automation sees its Settings without Add, Share and follower buttons; the server refuses their update and turn on or off (tested).
+- feat: Event log under the Runs tab; "Move running work to this version" in the ... menu opens History where Apply is; a step kind this version does not know is drawn as "A step this version can't show" and never opened.

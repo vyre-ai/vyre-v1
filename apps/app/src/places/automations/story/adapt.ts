@@ -165,7 +165,7 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
     // a kind this version does not know is shown as its own row, named, and is left exactly as saved
     const foreign = ctx.isKnown ? !ctx.isKnown(n.key) : false;
     const s = foreign
-      ? { template: `A step this version can't edit (${n.key})`, values: {} }
+      ? { template: `A step this version can't show${n.title?.trim() ? `: ${n.title.trim()}` : ""} (${n.key})`, values: {} }
       : n.title?.trim()
         ? { template: title, values: {} }
         : sentenceOf(title, n.input, ctx);

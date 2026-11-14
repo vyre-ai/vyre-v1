@@ -220,6 +220,24 @@ test("delete moves an Automation to Trash; undelete brings it back off", async (
   assert.deepEqual(h.events, [], "restoring what is not in Trash does nothing");
 });
 
+// ---- a person who may only view ----
+
+test("a person with View on a Space Automation is refused every change the page hides from them: update and turn on or off", async () => {
+  const h = harness({ authorize: (who, a) => who.id === bob.id && a.level === "view" });
+  const id = await mk(h);
+  await h.call("automations.promote", { automationId: id, confirm: true }, alice);
+  const tries: [string, Record<string, unknown>][] = [
+    ["automations.update", { automationId: id, name: "Mine now" }],
+    ["automations.set_enabled", { automationId: id, enabled: true }],
+  ];
+  for (const [cap, input] of tries)
+    await assert.rejects(h.call(cap as never, input as never, bob), (e) => {
+      assert.match(String(codeOf(e)), /^permission\./, `${cap} is refused`);
+      return true;
+    });
+  assert.equal((await get(h, id, alice)).name !== "Mine now", true, "nothing changed");
+});
+
 // ---- list ----
 
 test("list: sections, Group, status and search, newest first, with run counts from the runs module", async () => {

@@ -116,3 +116,71 @@ test("while the step catalogue has not answered, Add a step says so; when it fai
   assert.ok(text.includes("The steps could not be read."), text.slice(-300));
   assert.ok(find(root, "menu-item-Retry"), "Retry is offered");
 });
+
+test("a step kind this version does not know is drawn as a plain row, never opened, and Save keeps it exactly as it was", async () => {
+  installDom();
+  const s = createSampleAutomations(northwind);
+  const row = s.replica.rows("automations").find((r) => r["id"] === "aut_digest")!;
+  const def = row["definition"] as { triggers: unknown[]; nodes: { id: string; next?: string[] }[] };
+  const future = { id: "zz", key: "zzz.future_step", title: "Do the thing", input: { x: 1 } };
+  const last = def.nodes[def.nodes.length - 1]!;
+  s.replica.put("automations", [
+    { ...row, definition: { ...def, nodes: [...def.nodes.slice(0, -1), { ...last, next: ["zz"] }, future] } },
+  ]);
+  const data = {
+    ...s.data,
+    call: async (cap: string, i: unknown) => {
+      if (cap === "automations.steps.list")
+        return { steps: [{ key: "post_message", title: "Post a chat message" }], checked: true };
+      if (cap === "automations.triggers.list") return { triggers: [{ key: "manual", title: "By hand" }] };
+      return s.data.call(cap, i);
+    },
+  };
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={data as never}>
+      <BuilderPage automationId="aut_digest" />
+    </AutomationsDataProvider>,
+  );
+  for (let i = 0; i < 4; i++) {
+    await new Promise((r) => setTimeout(r, 150));
+    await flush();
+  }
+  assert.ok(textOf(root).includes("A step this version can't show: Do the thing (zzz.future_step)"));
+  await press(find(root, "sv-step-zz"));
+  await flush();
+  assert.equal(find(root, "inspector"), null, "it has no form here");
+});
+
+test("a person who may not change an Automation: its Settings show who has access, with no Add, Share or follower button; the menu has no Undo or Trash; nothing is ever written", async () => {
+  installDom();
+  const s = createSampleAutomations(northwind);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={{ ...s.data, canSpace: false } as never}>
+      <BuilderPage automationId="aut_lead" initialTab="settings" />
+    </AutomationsDataProvider>,
+  );
+  for (let i = 0; i < 3; i++) await flush();
+  for (const id of ["add-access", "share", "add-follower"]) assert.equal(find(root, id), null, `${id} is not shown`);
+  await press(find(root, "page-menu"));
+  await flush();
+  assert.equal(find(root, "menu-item-Undo last edit"), null);
+  assert.equal(find(root, "menu-item-Move to Trash"), null);
+  await new Promise((r) => setTimeout(r, 1300));
+  assert.equal(
+    s.calls.filter((c) => /^automations\.(update|delete|set_enabled|followers)/.test(c.cap)).length,
+    0,
+    "no write of any kind",
+  );
+});
+
+test("the AI step's account and backup are on its form", () => {
+  const out = renderToStaticMarkup(
+    <AutomationsDataProvider value={createSampleAutomations(northwind).data}>
+      <BuilderPage automationId="aut_lead" initialSelected="draft" />
+    </AutomationsDataProvider>,
+  ).replaceAll("<!-- -->", "");
+  assert.ok(out.includes("Backup"), "the backup key");
+  assert.ok(out.includes("Runs on"), "the key it runs on");
+});

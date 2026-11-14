@@ -269,7 +269,7 @@ test("a step kind this version does not know is its own row, with the kind named
     nodes: [{ id: "f", key: "zzz.future_step", title: "Do the thing", input: { secret: "x" } }],
   };
   const r = fromDefinition(d, ctx({ isKnown: (k) => k !== "zzz.future_step" }));
-  assert.equal(r.steps[0]!.template, "A step this version can't edit (zzz.future_step)");
+  assert.equal(r.steps[0]!.template, "A step this version can't show: Do the thing (zzz.future_step)");
   assert.deepEqual(r.steps[0]!.values, {});
   assert.equal(
     fromDefinition(d, ctx()).steps[0]!.template,
