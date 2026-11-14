@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import type { MenuEntry } from "../../../../../../../ui/src/Menu/index.tsx";
 import { unnamed } from "../../../chats/names.ts";
 import { Avatar } from "../../../../../../../ui/src/Avatar/index.tsx";
-import { ChipText, Choice, Field, Group, Hint, More, Rows, Segmented } from "../fields.tsx";
+import { ChipText, Choice, TextBox, Group, Hint, More, Rows, Segmented } from "../fields.tsx";
 import { useOpenConnect } from "../../../../shell/connect/context.ts";
 import { connectEntries } from "../../../../shell/connect/model.ts";
 import { REMOVED_KEY, cardTitle, updateStep } from "../model.ts";
@@ -108,7 +108,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
           )
         }
       />
-      <Field
+      <TextBox
         label="Address"
         value={show(input["url"])}
         mono
@@ -162,7 +162,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
           />
           {kind === "json" ? (
             <>
-              <Field
+              <TextBox
                 label="JSON body"
                 value={JSON.stringify(input["json"], null, 2)}
                 mono
@@ -189,7 +189,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
             </>
           ) : null}
           {kind === "text" ? (
-            <Field
+            <TextBox
               label="Text body"
               value={show(input["text"])}
               mono
@@ -265,7 +265,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
               />
             ) : null}
             {auth.kind === "basic" ? (
-              <Field
+              <TextBox
                 label="User name"
                 value={auth.username}
                 testID="field-auth-user"
@@ -273,7 +273,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
               />
             ) : null}
             {auth.kind === "header" ? (
-              <Field
+              <TextBox
                 label="Header name"
                 value={auth.header}
                 mono
@@ -311,7 +311,7 @@ export function CodeForm({ def, node, onChange }: Omit<Props, "openMenu">): Reac
   const hosts = hostsOf(input);
   return (
     <>
-      <Field
+      <TextBox
         label="Code"
         value={typeof input["source"] === "string" ? input["source"] : CODE_STARTER}
         mono
@@ -331,7 +331,7 @@ export function CodeForm({ def, node, onChange }: Omit<Props, "openMenu">): Reac
         testID="rows-input"
         onCommit={(rows) => write(withField(input, "input", recordOf(rows, true)))}
       />
-      <Field
+      <TextBox
         label="Hosts it may reach"
         value={hostsText ?? hosts.join("\n")}
         mono
@@ -644,7 +644,7 @@ export function AiForm({
             />
           ) : null}
           <More head="Advanced" testID="ai-shape-advanced">
-            <Field
+            <TextBox
               label="Shape (JSON Schema)"
               value={JSON.stringify(input["outputSchema"] ?? {}, null, 2)}
               mono
@@ -673,7 +673,7 @@ export function AiForm({
               : "A shape with more than simple fields: edit it under Advanced."}
           </Hint>
         </Group>
-        <Field
+        <TextBox
           label="Done means"
           value={doneMeansText(ai)}
           rows={4}
@@ -683,7 +683,7 @@ export function AiForm({
           onCommit={(t) => writeAi(setDoneMeans(ai, t))}
         />
         <More head="More" testID="ai-more">
-          <Field
+          <TextBox
             label="Time limit (minutes)"
             value={ai.timeoutMinutes === undefined ? "" : String(ai.timeoutMinutes)}
             placeholder="None"
@@ -705,7 +705,7 @@ export function AiForm({
               {minutesProblem}
             </Hint>
           ) : null}
-          <Field
+          <TextBox
             label="Nudge after (minutes)"
             value={ai.nudgeMinutes === undefined ? "" : String(ai.nudgeMinutes)}
             placeholder="30"
@@ -754,7 +754,7 @@ export function AiForm({
           { key: "task", label: "Task", hint: "Real work: an agent with its tools, in its own chat" },
         ]}
       />
-      <Field
+      <TextBox
         label="Prompt"
         value={show(input["prompt"])}
         rows={6}
@@ -852,7 +852,7 @@ export function AiForm({
         />
         {answer === "json" ? (
           <>
-            <Field
+            <TextBox
               label="Shape (JSON Schema)"
               value={JSON.stringify(input["outputSchema"], null, 2)}
               mono
@@ -890,7 +890,7 @@ export function AiForm({
             : "With nobody named the answer goes straight on."}
         </Hint>
       </Group>
-      <Field
+      <TextBox
         label="Give up after (minutes)"
         value={ai.timeoutMinutes === undefined ? "" : String(ai.timeoutMinutes)}
         placeholder="5"

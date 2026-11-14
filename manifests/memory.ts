@@ -38,12 +38,7 @@ const factExtras = {
         how: t.opt(lessonHow),
         used: t.int({ minimum: 0, description: "How many of the agent's answers used it" }),
         scope: t.enm("you", "proposed", "space"),
-        sent: t.opt(
-          t.bool({
-            description:
-              "Whether it is put in front of the agent at the start of every chat; the newest go first and only so many fit, the rest are not sent",
-          }),
-        ),
+        sent: t.opt(t.bool()),
       },
       {
         description:

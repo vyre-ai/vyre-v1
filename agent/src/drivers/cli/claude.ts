@@ -16,6 +16,7 @@
 import { testLines } from "./test-lines.ts";
 import { arr, num, obj, parseLine, str } from "./json.ts";
 import { toolDetail } from "./detail.ts";
+import { redact } from "../../transcript/sanitize.ts";
 import { claudeSettings } from "./hooks-config.ts";
 import type { Json } from "./json.ts";
 import type { Effort } from "../../turn-engine/types.ts";
@@ -100,6 +101,8 @@ export function limitsOf(info: Json | null): CliEvent[] {
 export function createClaudeDecoder(): CliDecoder {
   const streamed = new Set<string>();
   const called = new Set<string>();
+  /** The calls that start a subagent (Agent, Task): their result is the subagent's answer, and the lines that carry them as `parent` are the subagent's own work. */
+  const subagents = new Set<string>();
   const perMessage = new Map<string, Tally>();
   let current = "";
   let sawText = false;
@@ -121,9 +124,25 @@ export function createClaudeDecoder(): CliDecoder {
   /** The session id, once per change: the init line and the result line both carry it. */
   const session = (id: string): CliEvent[] => (id !== "" && id !== sid ? ((sid = id), [{ type: "session", id }]) : []);
 
-  function onStream(ev: Json): CliEvent[] {
+  /** What a subagent returned: the text of its call's result, redacted and cut. */
+  function answer(content: unknown): string {
+    const text = (
+      typeof content === "string"
+        ? content
+        : arr(content)
+            .map((p) => str(obj(p)?.["text"]))
+            .join("\n")
+    ).trim();
+    const clean = redact(text).text.trim();
+    return clean.length > 1500 ? `${clean.slice(0, 1499)}…` : clean;
+  }
+
+  /** Lines a subagent wrote carry the id of the call that started it (parent_tool_use_id). Its words and its usage are not the main agent's: only its tool calls are told, tagged with that call. */
+  function onStream(ev: Json, parent: string): CliEvent[] {
     switch (str(ev["type"])) {
       case "message_start": {
+        // a subagent's message is not the one the main text is streaming: `current` stays the main agent's
+        if (parent !== "") return [];
         const m = obj(ev["message"]);
         current = str(m?.["id"]);
         return [];
@@ -132,13 +151,22 @@ export function createClaudeDecoder(): CliDecoder {
         const b = obj(ev["content_block"]);
         if (b && str(b["type"]) === "tool_use" && str(b["id"]) !== "" && !called.has(str(b["id"]))) {
           called.add(str(b["id"]));
-          return [{ type: "tool", phase: "call", id: str(b["id"]), name: str(b["name"]) }];
+          if (/^(Agent|Task)$/.test(str(b["name"]))) subagents.add(str(b["id"]));
+          return [
+            {
+              type: "tool",
+              phase: "call",
+              id: str(b["id"]),
+              name: str(b["name"]),
+              ...(parent !== "" ? { parent } : {}),
+            },
+          ];
         }
         return [];
       }
       case "content_block_delta": {
         const d = obj(ev["delta"]);
-        if (!d) return [];
+        if (!d || parent !== "") return [];
         const t = str(d["type"]);
         if (t === "text_delta" && str(d["text"]) !== "") {
           streamed.add(current);
@@ -156,32 +184,42 @@ export function createClaudeDecoder(): CliDecoder {
     }
   }
 
-  function onAssistant(j: Json): CliEvent[] {
+  function onAssistant(j: Json, parent: string): CliEvent[] {
     const m = obj(j["message"]);
     if (!m) return [];
     const id = str(m["id"]);
-    sawModel(str(m["model"]));
+    if (parent === "") sawModel(str(m["model"]));
     const tally = tallyOf(obj(m["usage"]));
-    if (tally.input > 0) lastContext = tally.input;
-    perMessage.set(id, tally);
+    // the size of the main agent's context is its own: a subagent's request is a different, smaller context
+    if (tally.input > 0 && parent === "") lastContext = tally.input;
+    if (parent === "") perMessage.set(id, tally); // a subagent's usage is not the main reply's
     const out: CliEvent[] = [];
     for (const raw of arr(m["content"])) {
       const b = obj(raw);
       if (!b) continue;
       const t = str(b["type"]);
+      if (parent !== "" && t !== "tool_use") continue;
       if (t === "text" && str(b["text"]) !== "" && !streamed.has(id)) {
         sawText = true;
         out.push({ type: "text", text: words(id, str(b["text"])) });
       } else if (t === "thinking" && str(b["thinking"]) !== "" && !streamed.has(id))
         out.push({ type: "thinking", text: str(b["thinking"]) });
       else if (t === "tool_use" && str(b["id"]) !== "") {
+        if (/^(Agent|Task)$/.test(str(b["name"]))) subagents.add(str(b["id"]));
         if (!called.has(str(b["id"]))) {
           called.add(str(b["id"]));
-          out.push({ type: "tool", phase: "call", id: str(b["id"]), name: str(b["name"]) });
+          out.push({
+            type: "tool",
+            phase: "call",
+            id: str(b["id"]),
+            name: str(b["name"]),
+            ...(parent !== "" ? { parent } : {}),
+          });
         }
         // the whole message carries the call's input (the streamed start does not): what it touches, in safe words only
         const detail = toolDetail(str(b["name"]), b["input"]);
-        if (detail !== "") out.push({ type: "tool", phase: "input", id: str(b["id"]), detail });
+        if (detail !== "")
+          out.push({ type: "tool", phase: "input", id: str(b["id"]), detail, ...(parent !== "" ? { parent } : {}) });
       }
     }
     return out;
@@ -198,11 +236,11 @@ export function createClaudeDecoder(): CliDecoder {
     );
   }
 
-  function onUser(j: Json): CliEvent[] {
+  function onUser(j: Json, parent: string): CliEvent[] {
     const m = obj(j["message"]);
     const out: CliEvent[] = [];
     // With --replay-user-messages the engine echoes each message we wrote when it takes it up: that is when it was read, mid-turn at a step boundary or as the start of the next turn.
-    if (j["isReplay"] === true) out.push({ type: "read" });
+    if (j["isReplay"] === true && parent === "") out.push({ type: "read" });
     for (const raw of arr(m?.["content"])) {
       const b = obj(raw);
       if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "")
@@ -212,6 +250,10 @@ export function createClaudeDecoder(): CliDecoder {
           id: str(b["tool_use_id"]),
           ok: b["is_error"] !== true,
           ...(tail(b["content"]) !== "" ? { output: tail(b["content"]) } : {}),
+          ...(parent !== "" ? { parent } : {}),
+          ...(subagents.has(str(b["tool_use_id"])) && answer(b["content"]) !== ""
+            ? { result: answer(b["content"]) }
+            : {}),
         });
     }
     return out;
@@ -260,6 +302,7 @@ export function createClaudeDecoder(): CliDecoder {
     }
     streamed.clear();
     called.clear();
+    subagents.clear();
     perMessage.clear();
     current = "";
     sawText = false;
@@ -308,12 +351,12 @@ export function createClaudeDecoder(): CliDecoder {
         }
         case "stream_event": {
           const ev = obj(j["event"]);
-          return ev ? onStream(ev) : [];
+          return ev ? onStream(ev, str(j["parent_tool_use_id"])) : [];
         }
         case "assistant":
-          return onAssistant(j);
+          return onAssistant(j, str(j["parent_tool_use_id"]));
         case "user":
-          return onUser(j);
+          return onUser(j, str(j["parent_tool_use_id"]));
         case "result":
           return onResult(j);
         case "rate_limit_event":

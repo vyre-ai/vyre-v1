@@ -150,6 +150,7 @@ test("with a layer drawn over the list, one Escape closes that layer and leaves 
   doc.removeEventListener = (t: string, f: never) => {
     if (t === "keydown") handlers.delete(f);
   };
+  let drop: () => void = () => undefined;
   try {
     const { memory, lessons } = setup();
     const root = await mount(
@@ -161,8 +162,11 @@ test("with a layer drawn over the list, one Escape closes that layer and leaves 
     await flush();
     await press(find(root, "lesson-mark-m1")!);
     await flush();
+    assert.ok(find(root, "lesson-list-m1"), "the list opened");
+    // the list took its place in the shared Escape stack: a keydown listener is installed for it
+    assert.ok(handlers.size > 0, "the open list is a layer of the shared Escape stack (useEscapeLayer)");
     let over = 0;
-    const drop = pushEscapeLayer(() => {
+    drop = pushEscapeLayer(() => {
       over++;
       drop();
     });
@@ -176,10 +180,11 @@ test("with a layer drawn over the list, one Escape closes that layer and leaves 
     };
     await esc();
     assert.equal(over, 1, "the layer over the list took the first Escape");
-    assert.ok(find(root, "lesson-list-m1"), "the list is still open");
+    assert.ok(find(root, "lesson-list-m1"), "the list is still open after the first Escape");
     await esc();
     assert.equal(find(root, "lesson-list-m1"), null, "the second Escape closes the list");
   } finally {
+    drop();
     off();
   }
 });

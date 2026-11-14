@@ -340,6 +340,10 @@ export function cardLine(b: MessageBlock): CardLine {
 export interface QuestionOption {
   id: string;
   label: string;
+  /** What choosing it means, one line, shown on the right of its row. */
+  detail?: string;
+  /** The agent's own pick: its row says "Recommended" in place of the detail. */
+  recommended?: boolean;
 }
 
 /** The options of a question card: single or multi choice, or free text when there are none. */
@@ -349,7 +353,12 @@ export function questionOptions(d: Record<string, unknown>): QuestionOption[] {
   return raw
     .map((o, i) =>
       isRec(o)
-        ? { id: str(o.id) || str(o.key) || String(i), label: str(o.label) || str(o.id) }
+        ? {
+            id: str(o.id) || str(o.key) || String(i),
+            label: str(o.label) || str(o.id),
+            ...(str(o.detail) ? { detail: str(o.detail) } : {}),
+            ...(o.recommended === true ? { recommended: true } : {}),
+          }
         : { id: String(o), label: String(o) },
     )
     .filter((o) => o.label !== "");
@@ -878,7 +887,7 @@ export function postInput(
 export function queueNote(n: number, leadName: string, steers = false, ownTurn = true): string {
   if (n <= 0) return "";
   if (!ownTurn) return "After this: it goes in when this turn ends";
-  if (steers) return "Goes in at the next step";
+  if (steers) return "At the next step";
   return `${n} ${n === 1 ? "message" : "messages"} queued for ${leadName || "the agent"}'s next step`;
 }
 

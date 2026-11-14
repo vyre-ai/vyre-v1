@@ -67,6 +67,13 @@ test("what the agent is told when its own clearance is short names the agent, no
     "not true when the person is below the label too, or an admin gave the agent a higher role",
   );
   assert.match(e.say, /do not ask for access for me/, "never suggests a request that cannot work");
+  // 14 Nov 2026: the owner shared a restricted key with his Assistant because it asked him to, and the share could never work
+  assert.match(e.say, /do not ask the person to share it/, "never suggests a share that cannot work");
+  assert.match(
+    e.say,
+    /move it to their own keys in the Vault, or to a folder that is not restricted/,
+    "says what does work",
+  );
   const r = modelError({ code: "permission.role_lacks_permission", message: "", traceId: "t" } as never);
   assert.match(r.say, /not allowed for me here, or for the person I work for/);
   assert.doesNotMatch(r.say, /Neither/, "true when only the agent lacks it");
@@ -96,7 +103,7 @@ test("the error envelope an agent receives, as one snapshot", () => {
     JSON.stringify(e, null, 1),
     JSON.stringify(
       {
-        say: "That item is above your clearance. An admin decides who may open it. Tell the person it is restricted, do not ask for access for me, and stop.",
+        say: "That item is above your clearance. An admin decides who may open it. Sharing it with me does not change that, so do not ask the person to share it and do not ask for access for me. If it is a key the person meant me to use, it is kept in a restricted folder: they can move it to their own keys in the Vault, or to a folder that is not restricted, and then I can use it. Tell the person that and stop.",
         reply: REPLY_RULE,
         message: "That item is above your clearance.",
         details: { reason: "above_clearance", tool: "vault_use" },

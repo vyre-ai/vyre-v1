@@ -13,6 +13,8 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { RowExtras } from "../sidebar/data.tsx";
 import { useCanSend, useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
+import { useLoad } from "../../../load/useLoad.ts";
+import { Loadable } from "../../../../../../ui/src/States/Loadable.tsx";
 import { ConnectChannel } from "../connect/index.ts";
 import {
   CHANNELS,
@@ -371,11 +373,9 @@ function List(): ReactElement {
   const sel = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [reopen, setReopen] = useState<{ x: number; y: number } | null>(null);
 
-  const q = useScreenQuery<RowsOut | ThreadsOut | CallsOut>(
-    SCREENS.list,
-    QUERY_OF[view],
-    view === "calls" ? callsState(state) : listState(state),
-  );
+  const q = useLoad<RowsOut | ThreadsOut | CallsOut>({
+    screen: [SCREENS.list, QUERY_OF[view], view === "calls" ? callsState(state) : listState(state)],
+  });
   const everyone = useScreenQuery<RowsOut>(SCREENS.list, "rows");
   const boxes = useScreenQuery<BoxesOut>(SCREENS.sidebar, "mailboxes");
 
@@ -388,7 +388,7 @@ function List(): ReactElement {
   }, [all]);
 
   const entries = useMemo<Entry[]>(() => {
-    if (q.status !== "ready") return [];
+    if (q.state !== "ready") return [];
     const d = q.data;
     let out: Entry[] = [];
     if (view === "contact" && "rows" in d) out = d.rows.map((r) => contactEntry(r, mailboxes));
@@ -495,7 +495,7 @@ function List(): ReactElement {
   const showing = showingNames(state, mailboxes);
   const filtered = isFiltering(state) || state.query.trim() !== "";
   // Nothing can send and nothing is here: the page is the Connect choice alone, so the view, filter and dial controls (which would do nothing useful) stay away.
-  const connectOnly = q.status === "ready" && entries.length === 0 && !filtered && canSend === false;
+  const connectOnly = q.state === "ready" && entries.length === 0 && !filtered && canSend === false;
 
   return (
     <View
@@ -578,26 +578,30 @@ function List(): ReactElement {
           Offline, showing your saved copy
         </Text>
       )}
-      {q.status !== "ready" ? (
-        <ListLoading bare />
-      ) : connectOnly ? (
-        <ConnectChannel />
-      ) : entries.length === 0 ? (
-        <States
-          kind="empty"
-          title={filtered ? "Nothing matches these filters." : view === "calls" ? "No calls yet." : "No messages yet."}
-          icon="inbox"
-          {...(filtered
-            ? { action: { label: "Show all", onPress: () => dispatch({ type: "showAll" }) } }
-            : view === "calls"
-              ? {}
-              : { action: { label: "New message", onPress: () => data.nav.compose() } })}
-        />
-      ) : (
-        <View style={styles.listBox} {...({ onKeyDown } as object)}>
-          <VirtualList data={entries} rowHeight={62} keyOf={(e) => e.key} renderItem={renderLine} />
-        </View>
-      )}
+      <Loadable load={q} what="the Inbox" loading={<ListLoading bare />}>
+        {() =>
+          connectOnly ? (
+            <ConnectChannel />
+          ) : entries.length === 0 ? (
+            <States
+              kind="empty"
+              title={
+                filtered ? "Nothing matches these filters." : view === "calls" ? "No calls yet." : "No messages yet."
+              }
+              icon="inbox"
+              {...(filtered
+                ? { action: { label: "Show all", onPress: () => dispatch({ type: "showAll" }) } }
+                : view === "calls"
+                  ? {}
+                  : { action: { label: "New message", onPress: () => data.nav.compose() } })}
+            />
+          ) : (
+            <View style={styles.listBox} {...({ onKeyDown } as object)}>
+              <VirtualList data={entries} rowHeight={62} keyOf={(e) => e.key} renderItem={renderLine} />
+            </View>
+          )
+        }
+      </Loadable>
       {menu.element}
     </View>
   );

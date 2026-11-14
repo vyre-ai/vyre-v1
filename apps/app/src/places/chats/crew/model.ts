@@ -319,3 +319,102 @@ export function mergeStateOf(
   if (coders.every((m) => m.merged === true)) return "merged";
   return members.every((m) => m.state === "done") ? "ready" : "working";
 }
+
+/** The id the crew read gives a subagent a command-line engine started in its turn: the engine's own call id, kept to letters and digits (modules/engine/own-subagents.ts, crew-status.ts). */
+export const subagentId = (callId: string): string => `sub_${callId.replace(/[^A-Za-z0-9]/g, "")}`;
+
+/** The subagents a reply's own blocks name: the calls that started them. */
+export function subagentIdsOf(blocks: ReadonlyArray<{ type: string; data?: unknown }>): string[] {
+  return blocks.flatMap((b) => {
+    const d = (b.data && typeof b.data === "object" ? b.data : {}) as { id?: unknown; name?: unknown };
+    return b.type === "tool_call" && /^(Agent|Task)$/.test(String(d.name)) && typeof d.id === "string"
+      ? [subagentId(d.id)]
+      : [];
+  });
+}
+
+/** The subagents of a chat that no reply shows yet: they work now, or they finished and the reply that carries them is still being written. */
+export function liveSubagents(status: CrewStatusOut | null, shown: ReadonlySet<string>): CrewMember[] {
+  return (status?.members ?? []).filter((m) => m.kind === "subagent" && !shown.has(m.id));
+}
+
+/** The totals of a few rows, for a strip that shows only some of the crew. */
+export function totalsOf(members: readonly CrewMember[]): CrewTotals {
+  const by = (s: MemberState): number => members.filter((m) => m.state === s).length;
+  return {
+    members: members.length,
+    working: by("working"),
+    done: by("done"),
+    needsYou: by("needs_you"),
+    failed: by("failed"),
+    stopped: by("stopped"),
+    tokensIn: 0,
+    tokensOut: 0,
+    costMicros: 0,
+    filesChanged: 0,
+    added: 0,
+    deleted: 0,
+    elapsedMs: Math.max(0, ...members.map((m) => m.elapsedMs)),
+  };
+}
+
+/** The subagents of a running turn, read from its live activity: the Agent calls are rows (task, state, clock), and what each is on is the asker's own live words. No read, no timer. */
+export function subagentsOfActivity(
+  turn: { threadId: string; agentId: string },
+  snap: {
+    steps: ReadonlyArray<{
+      id: string;
+      name: string;
+      state: "live" | "done" | "failed";
+      detail?: string;
+      at?: number;
+      endedAt?: number;
+    }>;
+    subs?: Readonly<Record<string, ReadonlyArray<{ name: string; detail?: string }>>>;
+  },
+  words: (name: string, detail?: string) => string,
+  now: number,
+): CrewMember[] {
+  return (
+    snap.steps
+      // a call whose task line has not arrived yet (it follows the call by up to a frame) is not drawn as an unnamed helper: it shows as soon as the line comes
+      .filter((x) => /^(Agent|Task)$/.test(x.name) && (x.detail ?? "") !== "")
+      .map((x) => {
+        const own = (snap.subs?.[x.id] ?? []).map((y) => words(y.name, y.detail));
+        const startedAt = x.at ?? now;
+        return {
+          kind: "subagent",
+          id: subagentId(x.id),
+          parentThreadId: turn.threadId,
+          title: x.detail && x.detail !== "" ? x.detail : "Helper",
+          agentId: turn.agentId,
+          state: x.state === "live" ? "working" : x.state === "done" ? "done" : "failed",
+          ...(x.state === "live" && own.length > 0 ? { step: own[own.length - 1]! } : {}),
+          ...(own.length > 0 ? { steps: own } : {}),
+          startedAt,
+          ...(x.endedAt !== undefined ? { endedAt: x.endedAt } : {}),
+          elapsedMs: Math.max(0, (x.endedAt ?? now) - startedAt),
+          tokensIn: 0,
+          tokensOut: 0,
+          costMicros: 0,
+        } as CrewMember;
+      })
+  );
+}
+
+/** The crew read with the subagents of a running turn added (the live ones win for the same id): the strip, island, chip and pane all see one list. */
+export function withLive(status: CrewStatusOut | null, live: readonly CrewMember[]): CrewStatusOut | null {
+  if (live.length === 0) return status;
+  const have = new Set(live.map((m) => m.id));
+  const members = [...(status?.members ?? []).filter((m) => !have.has(m.id)), ...live];
+  const t = totalsOf(members);
+  return {
+    members,
+    totals: {
+      ...t,
+      tokensIn: status?.totals.tokensIn ?? 0,
+      tokensOut: status?.totals.tokensOut ?? 0,
+      costMicros: status?.totals.costMicros ?? 0,
+    },
+  } as CrewStatusOut;
+}

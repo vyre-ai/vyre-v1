@@ -40,7 +40,7 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 | `memory_remember` | memory | Remember something, with where it came from; in your own layer it is current at once, a shared layer follows its review rule |
 | `memory_forget` | memory | Forget facts by id: they stop being recalled and stay in history |
 | `vault_use` | vault | Ask for an item by name: returns a handle like #Dana_Lawmatics and the field names, never values |
-| `vault_request` | vault | Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status |
+| `vault_connect` | vault | Is X connected, connect X (Fathom, Slack), or before saying you cannot reach X. The person gets one card; you get connected, waiting or declined. |
 | `automations_list` | automations | List Automations by section (Personal, Shared with me, Space), folder and Group |
 | `automations_create` | automations | Create an Automation; it starts Personal |
 | `artifact_publish` | sites | THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link |

@@ -12,6 +12,7 @@ import type { ViewStyle } from "react-native";
 import { Row, RowWrapContext } from "../../../../../ui/src/Row/index.tsx";
 import { Info, Tip } from "../../../../../ui/src/Tip/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
+import { Switch } from "../../../../../ui/src/Switch/index.tsx";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 
@@ -287,47 +288,7 @@ export function SettingsRow({
 
 // ---------------------------------------------------------------- controls
 
-export function Switch({
-  on,
-  onChange,
-  label,
-  disabled = false,
-  testID,
-}: {
-  on: boolean;
-  onChange(next: boolean): void;
-  label: string;
-  disabled?: boolean;
-  testID?: string;
-}): ReactElement {
-  return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityLabel={label}
-      accessibilityState={{ checked: on, disabled }}
-      aria-checked={on}
-      testID={testID}
-      disabled={disabled}
-      onPress={() => onChange(!on)}
-      {...webOnly({
-        onKeyDown: (e: KeyEventLike) => {
-          if (e.key === " " || e.key === "Enter") {
-            e.preventDefault?.();
-            onChange(!on);
-          }
-        },
-      })}
-      style={[
-        s.sw,
-        { backgroundColor: (on ? "var(--accent)" : "var(--press)") as string },
-        disabled && { opacity: 0.5 },
-        pointer,
-      ]}
-    >
-      <View style={[s.knob, { left: on ? 17 : 2 }]} />
-    </Pressable>
-  );
-}
+export { Switch };
 
 interface ChoiceProps {
   value: string;
@@ -388,7 +349,7 @@ export function Choice({ value, options, onChange, label, testID, mono = false, 
 }
 
 /** A text field that saves when you leave it or press Enter; Escape puts the old value back. A value that breaks `pattern` is not saved and says why. */
-export function Field({
+export function TextBox({
   value,
   onCommit,
   label,
@@ -815,8 +776,6 @@ export const s = StyleSheet.create({
   sub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   control: { flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8, maxWidth: 400 }, // not a percent: the row sizes this box to its content, so 62% of that clipped every menu
   controlFixed: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 8 },
-  sw: { width: 34, height: 20, borderRadius: 10, justifyContent: "center" },
-  knob: { position: "absolute", top: 2, width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff" },
   choice: {
     height: 32,
     flexDirection: "row",

@@ -16,6 +16,7 @@ moment and scrubs it from the output. Never print, store, summarise, encode or s
 
 ## Using and finding
 - `vault_items_list` lists names and metadata, never values. `vault_items_match` finds the item for a site or a service.
+- A service the person names (Fathom, Slack): `vault_connect` with its name; one card does the rest. Everything below is for a plain key by name.
 - If the item you need is not listed for you, `vault_request` with the name and the reason. The managers of the folder get a task.
   Give the `folderId` of the shared folder the key should live in (`vault_folders_list`): its managers decide. With none, the Space owner and admins decide.
   When the person you work for can decide it (their own Space, or they manage the folder), the card in the chat is a secure field they fill right there; ask again if an earlier ask is still open,

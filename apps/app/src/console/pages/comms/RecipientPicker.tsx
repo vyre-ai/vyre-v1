@@ -4,7 +4,7 @@ import { View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Empty, Group } from "../../shell/ui.tsx";
 import { useConsoleData } from "../../shell/data.tsx";
-import { Button, Field, Note, ReadState, Select, useRead } from "../shared.tsx";
+import { Button, TextBox, Note, ReadState, Select, useRead } from "../shared.tsx";
 import { subjectLabel } from "./model.ts";
 export type Recipient = { kind: "person" | "agent" | "group" | "inbox"; id: string; name: string };
 export function RecipientPicker({
@@ -75,7 +75,7 @@ export function RecipientPicker({
           }}
         />
       ) : null}
-      <Field label={`Find ${label.toLowerCase()}`} testID={`${testID}-search`} value={q} onChange={setQ} />
+      <TextBox label={`Find ${label.toLowerCase()}`} testID={`${testID}-search`} value={q} onChange={setQ} />
       {query.data ? (
         <Group>
           {rows.length ? (

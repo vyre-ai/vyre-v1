@@ -16,6 +16,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "access.audience_set": Handler<"access.audience_set", X>;
   "access.automation_senders": Handler<"access.automation_senders", X>;
   "access.check": Handler<"access.check", X>;
+  "access.clears": Handler<"access.clears", X>;
   "access.connector_builder.grant": Handler<"access.connector_builder.grant", X>;
   "access.connector_builder.status": Handler<"access.connector_builder.status", X>;
   "access.deciders": Handler<"access.deciders", X>;
