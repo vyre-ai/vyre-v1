@@ -16,17 +16,12 @@ export function stillWaiting(
   return ids.filter((id) => waiting.has(id));
 }
 
-export function QueueWaiting({
-  ids,
-  call,
-  threadId,
-  children,
-}: {
-  ids: readonly string[];
-  call(cap: string, input: unknown): Promise<unknown>;
-  threadId: string;
-  children: (still: string[]) => ReactNode;
-}): ReactNode {
+/** The ids still waiting, polled while any looks queued. A hook, so a component that cannot call it (a screen with early returns) draws QueueWatch instead. */
+export function useStillWaiting(
+  ids: readonly string[],
+  call: (cap: string, input: unknown) => Promise<unknown>,
+  threadId: string,
+): string[] {
   const [items, setItems] = useState<ReadonlyArray<{ messageId?: string; state: string }> | null>(null);
   const key = ids.join(",");
   useEffect(() => {
@@ -50,5 +45,39 @@ export function QueueWaiting({
       clearInterval(t);
     };
   }, [key, threadId]); // eslint-disable-line react-hooks/exhaustive-deps
-  return children(items === null ? [...ids] : stillWaiting(ids, items));
+  return items === null ? [...ids] : stillWaiting(ids, items);
+}
+
+export function QueueWaiting({
+  ids,
+  call,
+  threadId,
+  children,
+}: {
+  ids: readonly string[];
+  call(cap: string, input: unknown): Promise<unknown>;
+  threadId: string;
+  children: (still: string[]) => ReactNode;
+}): ReactNode {
+  return children(useStillWaiting(ids, call, threadId));
+}
+
+/** Draws nothing; tells its parent which of the ids still wait, so the note can sit under that message. */
+export function QueueWatch({
+  ids,
+  call,
+  threadId,
+  onChange,
+}: {
+  ids: readonly string[];
+  call(cap: string, input: unknown): Promise<unknown>;
+  threadId: string;
+  onChange(still: string[]): void;
+}): null {
+  const still = useStillWaiting(ids, call, threadId);
+  const key = still.join(",");
+  useEffect(() => {
+    onChange(still);
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
 }

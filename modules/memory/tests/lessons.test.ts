@@ -84,6 +84,16 @@ test("the rules: a line that says no, undoes or asks for it another way is a cor
     how: "refuse",
     text: "Don't send it yet. Show me first.",
   });
+  // two sentences read as two: the first gets its full stop when the person wrote none, the second its capital
+  // the owner's case: two lines of one message, no full stop between them
+  assert.deepEqual(correctionOf("Show me your draft text here first\nAnd you are not my automation agent"), {
+    how: "refuse",
+    text: "Show me your draft text here first. And you are not my automation agent.",
+  });
+  assert.deepEqual(correctionOf("Don't send it yet! and ask me first"), {
+    how: "refuse",
+    text: "Don't send it yet! And ask me first.",
+  });
   assert.equal(correctionOf("No."), null, "a bare no says nothing to keep");
   assert.equal(correctionOf("Thanks, that works."), null);
   assert.equal(correctionOf("Can you send it today?"), null);
@@ -141,7 +151,7 @@ test("a correction said in chat makes one lesson, by the rules, in the person's 
   assert.deepEqual(contractErrors("memory.facts.list", "out", list), []);
   assert.equal(list.facts.length, 1);
   assert.equal(list.facts[0]!.text, "Keep notes to Sara to three lines, the number first.");
-  assert.deepEqual(list.facts[0]!.lesson, { how: "refuse", used: 0, scope: "you" });
+  assert.deepEqual(list.facts[0]!.lesson, { how: "refuse", used: 0, scope: "you", sent: true });
   const feed = await learned(h.ctx, { threadId: THREAD });
   assert.equal(feed.items.length, 1);
   assert.equal(feed.items[0]!.fact.kind, "lesson");
@@ -467,4 +477,23 @@ test("a lesson is not part of the profile: About you never lists it and it canno
   const prof = await profileGet(h.ctx, {});
   assert.deepEqual([prof.private.length, prof.public.length], [0, 0]);
   await assert.rejects(() => profileMove(h.ctx, { factId: id, to: "public" }));
+});
+
+test("a lesson never joins text of two messages: each line of the person's makes its own lesson", async () => {
+  const s: Script = {
+    messages: [
+      say(1, "Draft the note for Sara."),
+      say(2, DRAFT, agent),
+      say(3, "Show me your draft text here first"),
+      say(4, "And you are not my automation agent"),
+    ],
+  };
+  const h = harness({ respond: chat(s) });
+  await capture(h.ctx, turn(null));
+  const list = await factsList(h.ctx, { agentId: AGENT, kind: "lesson" });
+  assert.deepEqual(
+    list.facts.map((f) => f.text),
+    ["Show me your draft text here first"],
+    "one lesson, from message 3 alone: message 4 does not follow the agent's work, and nothing of it is added",
+  );
 });

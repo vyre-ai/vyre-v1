@@ -4,6 +4,7 @@ import type { DesktopUpdates } from "../../startup/update/store.ts";
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../client/src/index.ts";
+import { ScreensProvider } from "../../load/screens.tsx";
 
 export interface SpaceTile {
   id: string;
@@ -96,7 +97,11 @@ export interface SettingsData {
 const Ctx = createContext<SettingsData | null>(null);
 
 export function SettingsDataProvider({ value, children }: { value: SettingsData; children: ReactNode }): ReactElement {
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      <ScreensProvider screens={value.screens}>{children}</ScreensProvider>
+    </Ctx.Provider>
+  );
 }
 export function useSettingsData(): SettingsData {
   const v = useContext(Ctx);

@@ -25,7 +25,8 @@ import {
   totalsWords,
 } from "./model.ts";
 import type { GateState, GateView } from "./model.ts";
-import { Btn, IconBtn, Note, Segmented, Skeleton, Switch, TextField, anchorOf, webProps } from "./parts.tsx";
+import { Btn, IconBtn, Note, Segmented, Skeleton, TextField, anchorOf, webProps } from "./parts.tsx";
+import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
 
 export interface ChangesetHeaderProps {
   changesetId: string;

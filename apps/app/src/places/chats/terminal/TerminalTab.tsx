@@ -35,7 +35,7 @@ type Attach =
 /** What ui/Terminal is given for one session: its name and host, whether it still runs, the scrollback attach returned and the live output after it. */
 export function sessionProps(
   row: TerminalRow,
-  o: { replay: string; source?: TerminalSource; starred: boolean; note?: string },
+  o: { replay: string; source?: TerminalSource; starred: boolean; note?: string; readonly?: boolean },
 ): TerminalViewProps {
   return {
     sessionId: row.terminalId,
@@ -47,6 +47,7 @@ export function sessionProps(
     starred: o.starred,
     ...(o.source ? { source: o.source } : {}),
     ...(o.note !== undefined ? { note: o.note } : {}),
+    ...(o.readonly === true ? { readonly: true } : {}),
   };
 }
 
@@ -83,7 +84,16 @@ export function TerminalLoading(): ReactElement {
   );
 }
 
-export function TerminalTab({ data, terminalId }: { data: TerminalData; terminalId: string }): ReactElement {
+export function TerminalTab({
+  data,
+  terminalId,
+  readonly = false,
+}: {
+  data: TerminalData;
+  terminalId: string;
+  /** watching: the screen shows and scrolls but takes no keys (the full-screen terminal until a person takes the keyboard) */
+  readonly?: boolean;
+}): ReactElement {
   const deps = useMemo<SessionDeps>(() => ({ call: data.call, newKey: data.newKey }), [data.call, data.newKey]);
   const q = useLive<GetOut>(data.screens, TAB_SCREEN, "terminal", { terminalId });
   const stars = useLive<StarsOut>(data.screens, STARS_SCREEN, "stars", {});
@@ -287,6 +297,7 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
           source: att.source,
           starred,
           ...(online ? (note !== undefined ? { note } : {}) : { note: "Offline" }),
+          ...(readonly ? { readonly: true } : {}),
         })}
         onInput={(d) => {
           setTyped((l) => lineAfter(l, d));

@@ -58,6 +58,7 @@ import { createCompactor, withCompaction } from "./compact.ts";
 import type { Compactor } from "./compact.ts";
 import { keepEvery, keepsSession, resumeId, saveResumeId } from "./cli-sessions.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
+import { chaptersAfterTurn } from "./chapters-after.ts";
 import { learnAfterTurn, titleAfterTurn } from "./learn.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
@@ -1217,6 +1218,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         roller.ranOn(turn.id, account);
         learnAfterTurn(h, turn, account);
         titleAfterTurn(h, turn, account);
+        chaptersAfterTurn(h, turn, account);
         return meter(h, turn, account);
       },
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),

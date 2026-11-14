@@ -1,6 +1,9 @@
 // Mount for l-chatfmt: one agent reply that uses every chat format: marks, sections, choices, ticks, a table, a chart and a flow chart.
 import { ScrollView, View, useWindowDimensions } from "react-native";
 import { MarkdownBlocks, createIncrementalMarkdown } from "../../../ui/src/stream/index.ts";
+// the real app turns diagrams and formulas on at start (apps/app/index.web.tsx); the mount does the same so its pictures show what a person sees
+import "../../../ui/src/stream/enable-diagrams.ts";
+import "../../../ui/src/stream/enable-math.ts";
 
 export const title = "Rich reply";
 

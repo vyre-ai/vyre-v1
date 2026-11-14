@@ -13,7 +13,7 @@ import { SubjectPicker } from "../objects/pickers.tsx";
 import { useIdentityName, useObjectNames, typeName } from "../objects/names.ts";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Help, Actions, Button, Field, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
+import { Help, Actions, Button, TextBox, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
 type Preview = MembersRemovePreviewOut;
 type Step = MembersRemoveIn["plan"][number];
 export function defaultRemovalPlan(preview: Preview): Step[] {
@@ -71,7 +71,7 @@ export function PersonLifecycle({ personId, refresh }: { personId: string; refre
           </Help>
         ) : (
           <>
-            <Field label="Reason (optional)" value={reason} onChange={setReason} />
+            <TextBox label="Reason (optional)" value={reason} onChange={setReason} />
             <Actions>
               {person.status === "suspended" ? (
                 <Button

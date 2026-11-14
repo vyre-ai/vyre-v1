@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { secretForms } from "../../lib/redact.ts";
 import { fail } from "../../host/src/routes/errors.ts";
+import { CODE_BUILTINS } from "../../lib/builtin-connectors.ts";
 import type { Tx } from "../../kernel/src/store/projection.ts";
 
 export type ErrCode = Parameters<typeof fail>[0];
@@ -206,6 +207,8 @@ export interface ConnectorsCtx {
   /** The caller is one of the server's own jobs (svc_host, svc_engine...), never a service a tenant made. */
   trusted?: boolean;
   /** May the caller manage the Space's connections (connectors.manage)? A Space-owned connection needs it; a person's own does not. Absent only in module tests. */
+  /** The kind of principal that made this call (person, agent ...), when the host says; check_key is a person's act only. */
+  callerKind?: string;
   canManageSpace?(): boolean;
   /** Does the caller see the Space as a whole (View on it)? A guest does not, and so sees only their own connections. Absent only in module tests. */
   canViewSpace?(): boolean;
@@ -410,6 +413,20 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
       b.title,
       b.mode,
       b.scope,
+      def.version,
+      JSON.stringify(def),
+      now,
+      now,
+    );
+  }
+  for (const def of CODE_BUILTINS as readonly ConnectorDef[]) {
+    if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", def.key)) continue;
+    deps.tx.run(
+      "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'live', ?, ?, ?)",
+      def.key,
+      def.title,
+      def.mode,
+      def.scope,
       def.version,
       JSON.stringify(def),
       now,

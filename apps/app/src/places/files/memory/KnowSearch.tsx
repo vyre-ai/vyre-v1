@@ -29,8 +29,8 @@ import { Icon } from "./parts.tsx";
 
 export const EXAMPLE_QUESTIONS: readonly string[] = [
   "How does Ian like to hear from us?",
-  "What do we charge for a first consult?",
-  "When does Maya take consults?",
+  "What do we charge for a first demo?",
+  "When does Maya take demos?",
 ];
 
 type Meaning = { state: "on" | "loading" | "not_set_up" | "degraded" | "off"; model?: string; hint?: string };

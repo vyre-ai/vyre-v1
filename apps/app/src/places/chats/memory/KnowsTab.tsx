@@ -15,7 +15,8 @@ import { Icon } from "../../files/memory/parts.tsx";
 import type { PaneDeps } from "../rightpane/actions.ts";
 import { MAP_LIMIT, learnedWhen, parseMap } from "../rightpane/model.ts";
 import type { MapIndex } from "../rightpane/model.ts";
-import { PaneList, Switch, Tool } from "../rightpane/parts.tsx";
+import { PaneList, Tool } from "../rightpane/parts.tsx";
+import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
 import type { Entry } from "../rightpane/parts.tsx";
 import { usePaneData, useScreenQuery } from "../rightpane/data.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -36,6 +37,8 @@ import {
   isLesson,
   knowRowKey,
   usedTimes,
+  LESSON_SENT,
+  LESSON_UNSENT,
 } from "./model.ts";
 import type { ChatFact, KnowsOut, UsedOut } from "./model.ts";
 import { ChipLink, LinkButton, ToolButton, glyphOf, sourceLabel, webProps, ownMenuKeys } from "./parts.tsx";
@@ -174,7 +177,12 @@ export function KnowsTab({
         say("Saved. The old wording is kept in history.", () =>
           store.write("memory.fact.correct", { factId: r.fact.factId, text: f.text }),
         );
-      else setErr(r.error);
+      else {
+        // the save did not go through: the editor comes back with what was typed, and the reason is said
+        setEdit(f.factId);
+        setDraft(text);
+        setErr(r.error);
+      }
     });
   };
   const forget = (f: ChatFact): void => {
@@ -415,7 +423,7 @@ export function KnowsTab({
           <Switch
             on={learning}
             label={LESSONS_SWITCH}
-            onPress={() => void setLessonSwitch(memory, !learning, say)}
+            onChange={() => void setLessonSwitch(memory, !learning, say)}
             testID="lessons-switch"
           />
         </View>
@@ -613,6 +621,11 @@ function LessonRow({
           {info?.how ? <Text style={st.meta}>{HOW_TEXT[info.how]}</Text> : null}
           <Text style={st.meta}>{`· ${age}`}</Text>
           {info ? <Text style={st.meta}>{`· ${usedTimes(info.used)}`}</Text> : null}
+          {info?.sent !== undefined ? (
+            <Text testID={`lesson-sent-${fact.factId}`} style={st.meta}>
+              {`· ${info.sent ? LESSON_SENT : LESSON_UNSENT}`}
+            </Text>
+          ) : null}
           {info ? (
             <Text testID={`lesson-scope-${fact.factId}`} style={st.chip}>
               {SCOPE_TEXT[info.scope]}

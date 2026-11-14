@@ -12,7 +12,7 @@ import { each } from "../../../shell/sidebar/model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConfigDirectory } from "../../automations/config/data.tsx";
 import { AgentShareSheet } from "./AgentShare.tsx";
-import { Switch } from "../../automations/config/parts.tsx";
+import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
 import { shareRows } from "../../../share/rows.ts";
 import { accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";

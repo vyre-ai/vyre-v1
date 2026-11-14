@@ -173,7 +173,7 @@ export function NumberSheet({
       <Text style={s.body} testID="connect-number-note">
         {busy && !found ? "Checking your Twilio account" : "No number in your Twilio account yet. Find one to buy."}
       </Text>
-      <Field label="Area code" id="connect-area" value={area} onChange={setArea} keyboard="numeric" />
+      <TextBox label="Area code" id="connect-area" value={area} onChange={setArea} keyboard="numeric" />
       <View style={{ gap: 8 }}>{buttons}</View>
       {line ? (
         <Text accessibilityRole="alert" style={s.danger} testID="connect-line">
@@ -501,7 +501,7 @@ function MailboxSheet({
         {chips}
       </View>
       {mine && !waiting ? (
-        <Field
+        <TextBox
           label="Your address (optional)"
           id="connect-address"
           value={address}
@@ -551,7 +551,7 @@ function MailboxSheet({
       ) : null}
       {provider === "imap" ? (
         <>
-          <Field
+          <TextBox
             label="Email address"
             id="connect-address"
             value={address}
@@ -561,20 +561,26 @@ function MailboxSheet({
           />
           <View style={s.row}>
             <View style={{ flex: 1 }}>
-              <Field label="Server" id="connect-host" value={host} onChange={setHost} placeholder="imap.example.com" />
+              <TextBox
+                label="Server"
+                id="connect-host"
+                value={host}
+                onChange={setHost}
+                placeholder="imap.example.com"
+              />
             </View>
             <View style={{ width: 80 }}>
-              <Field label="Port" id="connect-port" value={port} onChange={setPort} keyboard="numeric" />
+              <TextBox label="Port" id="connect-port" value={port} onChange={setPort} keyboard="numeric" />
             </View>
           </View>
-          <Field
+          <TextBox
             label="Username"
             id="connect-username"
             value={username}
             onChange={setUsername}
             placeholder={address || "Same as the address"}
           />
-          <Field
+          <TextBox
             label={provider === "imap" && first !== "imap" ? "App password" : "Password"}
             id="connect-password"
             value={password}
@@ -601,7 +607,7 @@ function MailboxSheet({
   );
 }
 
-function Field({
+function TextBox({
   label,
   id,
   value,

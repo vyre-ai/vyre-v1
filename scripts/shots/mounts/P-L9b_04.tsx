@@ -15,6 +15,7 @@ import { Text, View } from "react-native";
 import { Conversation } from "../../../apps/app/src/places/chats/conversation/Conversation.tsx";
 import { createSample } from "../../../apps/app/src/places/chats/conversation/sample.ts";
 import type { Variant } from "../../../apps/app/src/places/chats/conversation/sample.ts";
+import { NoticeSlot } from "../../../apps/app/src/shell/noticeslot/NoticeSlot.tsx";
 import { OPEN_RUNS, openVerdict, summarizeOpen } from "../../../apps/app/src/places/chats/conversation/model.ts";
 import type { OpenResult } from "../../../apps/app/src/places/chats/conversation/model.ts";
 
@@ -31,6 +32,10 @@ const VARIANTS: readonly Variant[] = [
   "closed",
   "vaultkey",
   "lastpick",
+  "cmd",
+  "cmdslow",
+  "cmdfail",
+  "cmdempty",
 ];
 const isVariant = (v: string | null): v is Variant => VARIANTS.includes(v as Variant);
 
@@ -136,6 +141,12 @@ export default function Mount(): ReactNode {
   if (probe) return <OpenProbe />;
   return (
     <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
+      {/* the title bar's notice slot, so a command's one-line result can be seen where it lives (the cmd variants) */}
+      {v?.startsWith("cmd") ? (
+        <View style={{ height: 36, alignItems: "center", justifyContent: "center" }}>
+          <NoticeSlot />
+        </View>
+      ) : null}
       <Conversation data={sample.data} />
     </View>
   );

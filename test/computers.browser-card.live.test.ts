@@ -319,58 +319,17 @@ test(
       assert.match(await card.innerText(), /Browser · Opened www\.harborquotes\.com\/(pricing|plans)/);
       assert.doesNotMatch(await card.innerText(), /Chrome/);
       await shot("browser-card-chat");
-      // the Computer tab: the Browser section lists the step with its caption; picking it shows its picture
+      // the Computer tab: Browser is one live picture and no list of steps (the steps are in the chat's live card); the picture is the door to the browser large
       if ((await page.getByTestId("pane-agent").count()) === 0) await page.getByTestId("pane-button").click();
       await page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
       await page.getByTestId("tab-computer").click();
-      await page.getByText("Steps", { exact: true }).first().waitFor({ timeout: 20_000 });
-      assert.ok((await page.getByText(steps[0]!.caption, { exact: true }).count()) > 0, "the step's caption is listed");
-      assert.notEqual(steps[0]!.caption, steps[1]!.caption, "two pages, two names");
-      assert.equal(
-        await page.getByText("Browser · just now", { exact: true }).count(),
-        2,
-        "each step says Browser, in one wording for a recent time",
-      );
-      // until the live view has a frame it shows the page and a quiet line, never an empty dark box
-      if (await page.getByTestId("browser-live-waiting").count())
-        assert.match(
-          await page.getByTestId("browser-live-waiting").innerText(),
-          /harborquotes\.com\/(pricing|plans)[\s\S]*Opening…/,
-        );
-      await shot("browser-steps-tab");
-      // the older step (the newest is the live view); its caption is the chat card's too, so the row is picked by its own id
-      await page.getByTestId(`row-step-${steps[0]!.stepId}`).click();
-      await page.getByTestId("browser-step-picture").waitFor({ timeout: 20_000 });
-      // the list below the card moves down with it: the Steps heading never sits on the picture
-      const below = async (): Promise<boolean> => {
-        const card = await page.getByTestId("browser-card").boundingBox(),
-          head = await page.getByText("Steps", { exact: true }).first().boundingBox();
-        return card !== null && head !== null && head.y >= card.y + card.height - 1;
-      };
-      for (let i = 0; i < 50 && !(await below()); i++) await page.waitForTimeout(100);
-      if (!(await below()))
-        console.log(
-          "DBG",
-          JSON.stringify({
-            card: await page.getByTestId("browser-card").boundingBox(),
-            live: await page.getByTestId("browser-live").boundingBox(),
-            head: await page.getByText("Steps", { exact: true }).first().boundingBox(),
-            label: await page.getByText("Browser", { exact: true }).first().boundingBox(),
-            cells: await page.locator("[data-testid=work-list] > div > div > div").evaluateAll((els) =>
-              els.slice(0, 12).map((e) => {
-                const r = e.getBoundingClientRect();
-                return [
-                  Math.round(r.y),
-                  Math.round(r.height),
-                  (e as HTMLElement).style.top,
-                  (e.textContent ?? "").slice(0, 30),
-                ];
-              }),
-            ),
-          }),
-        );
-      assert.ok(await below(), "the Steps list starts below the browser card");
-      await shot("browser-step-picture");
+      await page.getByTestId("browser-head").waitFor({ timeout: 20_000 });
+      await page.getByTestId("browser-picture").waitFor({ timeout: 20_000 });
+      assert.equal(await page.getByText("Steps", { exact: true }).count(), 0, "no steps list in the pane");
+      await shot("browser-pane");
+      await page.getByTestId("browser-picture").click();
+      await page.getByTestId("browser-popup").waitFor({ timeout: 10_000 });
+      await shot("browser-large");
       await ctx.close();
     } finally {
       await browser.close();

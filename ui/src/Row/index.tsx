@@ -156,8 +156,10 @@ function WebRow({
   titleMarks,
   noteLead,
   noteLeadTone = "accent",
+  noteAction,
   tall = false,
   emphasis = false,
+  quiet = false,
   note,
   selected = false,
   hovered = false,
@@ -170,6 +172,7 @@ function WebRow({
   ensureRowCss();
   const filled = accentLit && hovered && !selected;
   const inkOn = filled ? { color: "var(--accent-ink)" } : null;
+  const inkQuiet = quiet && !emphasis && !filled ? { color: "var(--ink-2)" } : null;
   const tid = (suffix: string): string | undefined => (id ? `row-${id}${suffix}` : undefined);
   const { style: extra, ...dom } = (domProps ?? {}) as { style?: Record<string, unknown> } & Record<string, unknown>;
   const wrapTitle = useContext(RowWrapContext);
@@ -186,7 +189,11 @@ function WebRow({
             (dom[name] as ((e: unknown) => void) | undefined)?.(e);
           }
       : null;
-  const titleEl = h("span", { style: { ...(emphasis ? { ...titleBase, ...BOLD } : titleBase), ...inkOn } }, title);
+  const titleEl = h(
+    "span",
+    { style: { ...(emphasis ? { ...titleBase, ...BOLD } : titleBase), ...inkQuiet, ...inkOn } },
+    title,
+  );
   return h(
     "div",
     {
@@ -232,9 +239,7 @@ function WebRow({
               {
                 style: emphasis
                   ? { ...(wrapTitle ? TITLE_IN_LINE_WRAP_S : TITLE_IN_LINE_S), ...BOLD }
-                  : wrapTitle
-                    ? TITLE_IN_LINE_WRAP_S
-                    : TITLE_IN_LINE_S,
+                  : { ...(wrapTitle ? TITLE_IN_LINE_WRAP_S : TITLE_IN_LINE_S), ...inkQuiet },
               },
               title,
             ),
@@ -260,6 +265,30 @@ function WebRow({
               : null,
             noteLead ? " \u00b7 " : null,
             note,
+            noteAction ? " \u00b7 " : null,
+            noteAction
+              ? h(
+                  "span",
+                  {
+                    role: "button",
+                    tabIndex: 0,
+                    "data-testid": noteAction.testID,
+                    "aria-label": noteAction.label,
+                    style: { ...NOTE_LEAD, cursor: "pointer" },
+                    onClick: (e: { stopPropagation(): void }) => {
+                      e.stopPropagation();
+                      noteAction.onPress();
+                    },
+                    onKeyDown: (e: { key: string; preventDefault(): void; stopPropagation(): void }) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      noteAction.onPress();
+                    },
+                  },
+                  noteAction.label,
+                )
+              : null,
           )
         : null,
     ),
@@ -305,8 +334,10 @@ const NativeRow = memo(function NativeRow({
   titleMarks,
   noteLead,
   noteLeadTone = "accent",
+  noteAction,
   tall = false,
   emphasis = false,
+  quiet = false,
   note,
   selected = false,
   hovered = false,
@@ -336,7 +367,10 @@ const NativeRow = memo(function NativeRow({
       <View style={styles.text}>
         {titleSuffix || titleMarks ? (
           <View style={styles.titleLine}>
-            <Text numberOfLines={1} style={[styles.title, styles.titleMain, emphasis && BOLD]}>
+            <Text
+              numberOfLines={1}
+              style={[styles.title, styles.titleMain, emphasis && BOLD, quiet && !emphasis && QUIET]}
+            >
               {title}
             </Text>
             {titleSuffix ? (
@@ -369,6 +403,16 @@ const NativeRow = memo(function NativeRow({
               </>
             ) : null}
             {note}
+            {noteAction ? (
+              <Text
+                accessibilityRole="button"
+                testID={noteAction.testID}
+                onPress={noteAction.onPress}
+                style={NOTE_LEAD}
+              >
+                {` \u00b7 ${noteAction.label}`}
+              </Text>
+            ) : null}
           </Text>
         ) : null}
       </View>
@@ -387,6 +431,7 @@ const HOVER_ACCENT = { backgroundColor: "var(--accent)" };
 const NOTE_LEAD = { color: "var(--accent)", fontWeight: "500" as const };
 const NOTE_LEAD_WARN = { color: "var(--warn)", fontWeight: "500" as const };
 const BOLD = { fontWeight: "600" as const };
+const QUIET = { color: "var(--ink-2)" as string };
 const SELECTED = { backgroundColor: "var(--sel)" };
 
 const styles = StyleSheet.create({

@@ -4,7 +4,7 @@ import { View } from "react-native";
 import type { AccessGrantsListOut, SchemaTypesGetOut, SearchResolveOut } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
-import { Help, Button, Field, Note, ReadState, Select, useRead } from "./shared.tsx";
+import { Help, Button, TextBox, Note, ReadState, Select, useRead } from "./shared.tsx";
 type Conditions = AccessGrantsListOut["grants"][number]["conditions"];
 type SchemaField = SchemaTypesGetOut["type"]["fields"][number];
 export interface PredicateDraft {
@@ -283,13 +283,13 @@ export function GrantConditions({
       />
       {value.window === "custom" ? (
         <View>
-          <Field
+          <TextBox
             label="Access starts in UTC (YYYY-MM-DD HH:mm)"
             testID="grant-window-from"
             value={value.from}
             onChange={(from) => change({ from })}
           />
-          <Field
+          <TextBox
             label="Access ends in UTC (YYYY-MM-DD HH:mm)"
             testID="grant-window-to"
             value={value.to}
@@ -350,7 +350,7 @@ function Predicate({
           onChange={(value) => onChange({ ...rule, value })}
         />
       ) : (
-        <Field
+        <TextBox
           label="Field value"
           testID={`grant-condition-value-${index}`}
           value={rule.value}

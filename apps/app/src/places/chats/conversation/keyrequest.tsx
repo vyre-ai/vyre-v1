@@ -11,8 +11,9 @@ import { Glyph } from "./parts.tsx";
 import { Face } from "../needsyou/parts.tsx";
 import { AUDIENCES, keyWords, requestOf } from "./keyrequest-model.ts";
 import type { KeyAudience, KeyRequest } from "./keyrequest-model.ts";
+import { ConnectCardLive } from "./connectcard.tsx";
 
-type Data = Pick<ConversationData, "call" | "changes">;
+type Data = Pick<ConversationData, "call" | "changes"> & { nameOf?: (id: string) => string };
 
 const NO_FOLDER = "No shared folder is open to this agent yet. Make one, then add the key.";
 
@@ -20,7 +21,35 @@ export function isKeyRequest(type: string): boolean {
   return type === "vault_request";
 }
 
-export function KeyRequestCard({
+/**
+ * The card of a request an agent made: a request for a service (the block names it) is the connect card, one card for the whole of connecting it; a request for a key by name is the secure field below.
+ */
+export function KeyRequestCard(p: {
+  requestId: string;
+  agent: string;
+  agentId: string;
+  data: Data;
+  /** the person the agent asked for, and how to say their name */
+  asker?: string;
+  nameOf?: (id: string) => string;
+  /** The connector the request is for, when it is for a service (the block's own `service`). */
+  service?: string | undefined;
+}): ReactElement | null {
+  return p.service ? (
+    <ConnectCardLive requestId={p.requestId} agent={p.agent} data={p.data} />
+  ) : (
+    <PlainKeyRequestCard
+      requestId={p.requestId}
+      agent={p.agent}
+      agentId={p.agentId}
+      data={p.data}
+      {...(p.asker !== undefined ? { asker: p.asker } : {})}
+      {...(p.nameOf ? { nameOf: p.nameOf } : {})}
+    />
+  );
+}
+
+function PlainKeyRequestCard({
   requestId,
   agent,
   agentId,
@@ -93,6 +122,8 @@ export function KeyRequestCard({
   if (req === undefined || req === null) return null;
   const words = keyWords(req.name);
 
+  // a request the agent took back leaves nothing behind: no "Withdrawn" chip
+  if (req.state === "canceled") return null;
   if (req.state !== "waiting") {
     const ok = req.state === "fulfilled";
     return (
@@ -100,7 +131,7 @@ export function KeyRequestCard({
         testID={`keyreq-done-${requestId}`}
         ok={ok}
         glyph={<Glyph name={ok ? "check" : "x"} size={13} color={ok ? "var(--ok)" : "var(--ink-3)"} />}
-        text={ok ? `Added · ${words}` : req.state === "declined" ? `Declined · ${words}` : `Withdrawn · ${words}`}
+        text={ok ? `Added · ${words}` : `Declined · ${words}`}
       />
     );
   }

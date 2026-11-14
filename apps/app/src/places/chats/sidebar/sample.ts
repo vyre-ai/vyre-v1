@@ -3,6 +3,7 @@
 // threads.mark_read, tasks.act) change the rows, so every control in a mount really works. The real replica is SQLite behind the same surface.
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
+import { sampleSideOut } from "./sample-side.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 // only the modules whose capabilities this sample checks (chat, agents, tasks, import), not the whole validators.ts: loading that took 2.2 s of a cold test run
@@ -319,6 +320,10 @@ export function createSampleSidebar(
       all.filter((x) => x.unread > 0 && !x.archived && !x.deleted && !x.left).sort((a, b) => a.lastAt - b.lastAt)[0]
         ?.threadId ?? null;
     return out;
+  });
+  replica.resolve("chats.sidebar", (_t, input) => {
+    refuse("chats.sidebar", input);
+    return sampleSideOut(space, threads(), new Set(), (input as { filter?: string }).filter ?? "all");
   });
   replica.resolve("channels.list", (_t, input) => {
     refuse("channels.list", input);

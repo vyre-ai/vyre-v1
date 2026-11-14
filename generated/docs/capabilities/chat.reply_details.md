@@ -115,6 +115,7 @@ type Out = {
           factId: string;
           text: string;
           sourceTitle?: string;
+          kind?: string;
         }>;
       quotes: Array<{
           ref: string;
@@ -157,6 +158,7 @@ type Out = {
         "facts": [
           {
             "factId": "example",
+            "kind": "example",
             "sourceTitle": "example",
             "text": "example"
           }

@@ -1,5 +1,5 @@
 // @reads /tools/gen/src/cli.ts
-// F11 acceptance (P-PR_33): 79 modules generate (browser joined in l-chrome2a, machines in l-machines, talk in l-voice21, ci in l-ci-runners, hooks in l-hooks), requires point at existing manifests, every module has its contract test, committed output has no drift.
+// F11 acceptance (P-PR_33): 80 modules generate (browser joined in l-chrome2a, machines in l-machines, talk in l-voice21, ci in l-ci-runners, hooks in l-hooks, state in b-state), requires point at existing manifests, every module has its contract test, committed output has no drift.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
@@ -15,14 +15,14 @@ const hostIds = new Set(
 );
 const modules = all.filter((m) => hostIds.has(m.id));
 
-test("79 module manifests exist and every require names an existing manifest", () => {
-  assert.equal(modules.length, 79);
+test("80 module manifests exist and every require names an existing manifest", () => {
+  assert.equal(modules.length, 80);
   const ids = new Set(all.map((m) => m.id));
   for (const m of all)
     for (const r of Object.keys(m.requires ?? {})) assert.ok(ids.has(r), `${m.id} requires missing manifest ${r}`);
 });
 
-test("each of the 79 modules has a generated contract test, handlers and stub impl", () => {
+test("each of the 80 modules has a generated contract test, handlers and stub impl", () => {
   for (const m of modules) {
     for (const f of [
       `generated/tests/${m.id}.contract.test.ts`,

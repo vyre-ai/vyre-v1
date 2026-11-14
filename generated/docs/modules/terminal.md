@@ -4,14 +4,17 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (19)
+## Capabilities (23)
 
 - [terminal.attach](../capabilities/terminal.attach.md): Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands
+- [terminal.capture](../capabilities/terminal.capture.md): The screen of a session as tmux draws it, with its colours (escape sequences), the cursor, how much history there is, and whether a program is reading a hidden prompt (secrets already scrubbed)
 - [terminal.close](../capabilities/terminal.close.md): Close a session and kill its tmux session
 - [terminal.get](../capabilities/terminal.get.md): Read one terminal session: host, state, working folder, last exit code
+- [terminal.give_back](../capabilities/terminal.give_back.md): Hand the keyboard of a terminal back to the agent
 - [terminal.health](../capabilities/terminal.health.md): Health of tmux and the session relay on the host
 - [terminal.input](../capabilities/terminal.input.md): Send keystrokes to a session (a person typing in the terminal tab; output returns as live frames)
 - [terminal.interrupt](../capabilities/terminal.interrupt.md): Send Ctrl-C to a session
+- [terminal.keys](../capabilities/terminal.keys.md): Press keys in a session as a person at a keyboard does: text, a named key (Enter, Tab, Up, C-c, F5 ...) or a paste as one write, raw through tmux; for a person who holds the keyboard. Never stored or logged: what is typed at a hidden prompt does not reach the stored log, other viewers or the agent
 - [terminal.list](../capabilities/terminal.list.md): List terminal sessions you can see, including named leftover scripts
 - [terminal.open](../capabilities/terminal.open.md): Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)
 - [terminal.open_server](../capabilities/terminal.open_server.md): Open a shell on the Space server (needs server.services; locked state with Ask for access otherwise)
@@ -24,12 +27,15 @@ Requires: nothing.
 - [terminal.rules.set](../capabilities/terminal.rules.set.md): Change your allow, ask and deny rules and the extra folders (a Personal Space terminal is locked to its own folder plus these)
 - [terminal.run](../capabilities/terminal.run.md): Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns
 - [terminal.status](../capabilities/terminal.status.md): Live status of terminals for Home (state and last line read from tmux)
+- [terminal.take_over](../capabilities/terminal.take_over.md): Take the keyboard of a terminal: the agent's commands and everyone else's keys wait until you hand it back. Only the owner of the terminal or an admin can take it from another person
 - [terminal.workspace](../capabilities/terminal.workspace.md): An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line
 
-## Events (5)
+## Events (7)
 
 - [terminal.closed](../events/terminal.closed.md): A terminal session was closed
 - [terminal.command_finished](../events/terminal.command_finished.md): A command finished (exit code and duration only, never the command or output)
+- [terminal.given_back](../events/terminal.given_back.md): The keyboard of a terminal went back to the agent (handed back, or nobody used it for 15 minutes)
 - [terminal.opened](../events/terminal.opened.md): A terminal session was opened
 - [terminal.renamed](../events/terminal.renamed.md): A terminal session was renamed
 - [terminal.rules_changed](../events/terminal.rules_changed.md): A person changed their terminal rules
+- [terminal.taken](../events/terminal.taken.md): A person took the keyboard of a terminal (the agent is told, its commands wait)

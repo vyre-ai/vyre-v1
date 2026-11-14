@@ -47,6 +47,7 @@ type Out = {
     state: "waiting" | "fulfilled" | "declined" | "canceled";
     itemId?: string;
     note?: string;
+    service?: string;
     taskId: string;
     at: number;
     decidedAt?: number;
@@ -89,6 +90,7 @@ type Out = {
         "id": "usr_a1b2c3",
         "kind": "person"
       },
+      "service": "hubspot",
       "state": "waiting",
       "taskId": "tsk_a1b2c3"
     }

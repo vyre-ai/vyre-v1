@@ -522,8 +522,20 @@ export function ShellHost({
       const s = q.getSnapshot();
       if (s.status === "ready") {
         setNeedsYou(s.data.count);
-        hub.count("chats", s.data.count);
       }
+    };
+    const off = q.subscribe(read);
+    read();
+    return off;
+  }, [session, hub]);
+
+  // the rail's one number: what is addressed to this person in Chats (waiting tasks, mentions, new direct messages), the same sum the sidebar's own marks make, read from the sidebar's own answer so the two cannot disagree
+  useEffect(() => {
+    if (!session) return undefined;
+    const q = session.hooks.capQuery<{ rail: number }>("chats.sidebar", {});
+    const read = (): void => {
+      const s = q.getSnapshot();
+      if (s.status === "ready") hub.count("chats", s.data.rail);
     };
     const off = q.subscribe(read);
     read();

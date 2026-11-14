@@ -754,6 +754,8 @@ export interface ComposerProps extends ComposerShellProps {
   renderPanel?: (agent: ComposerAgent, close: () => void, narrow: boolean) => ReactNode;
   /** The model menu opens under the composer instead of over it (the first screen, where the composer sits high). */
   panelBelow?: boolean;
+  /** A count the place raises to open the model menu itself (the /model command): each increase opens it, where the strip's own press would. */
+  openPanelAt?: number;
   /** Where the chat runs, when it is not this computer: "On Northwind" in the pill. */
   runsChip?: string;
   /** The chat's mode; with onMode the chip shows and Shift+Tab cycles it. */
@@ -988,7 +990,7 @@ function AgentStrip({
       accessibilityState={{ expanded: open }}
       testID="composer-strip"
       onPress={onPress}
-      {...webProps({ title: "Model and settings" })}
+      {...webProps({ dataSet: { tt: "Model and settings" } })}
       style={({ hovered }: { hovered?: boolean }) => [styles.setBtn, (hovered === true || open) && HOVER]}
     >
       {body}
@@ -1069,6 +1071,15 @@ export function Composer(props: ComposerProps): ReactElement {
   const [sendError, setSendError] = useState<{ reason: string; mode: SendMode } | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  // the place asked for the menu (/model): the same menu the strip opens, never a second picker
+  const panelAsked = useRef(props.openPanelAt ?? 0);
+  useEffect(() => {
+    const n = props.openPanelAt ?? 0;
+    if (n <= panelAsked.current) return;
+    panelAsked.current = n;
+    setPlusOpen(false);
+    setPanelOpen(true);
+  }, [props.openPanelAt]);
   const [scope, setScope] = useState<HashScope>("All");
   const [attachMode, setAttachMode] = useState(false);
   const [found, setFound] = useState<{ key: string; lists: ComposerLists } | null>(null);
@@ -1824,7 +1835,7 @@ export function Composer(props: ComposerProps): ReactElement {
           accessibilityLabel="Queue"
           testID="composer-send"
           onPress={() => submit("queue")}
-          {...webProps({ title: "Send after this step" })}
+          {...webProps({ dataSet: { tt: "Send after this step" } })}
           style={({ hovered }: { hovered?: boolean }) => [styles.splitBtn, hovered === true && styles.splitHover]}
         >
           <Text style={styles.splitText}>Queue</Text>
@@ -1836,7 +1847,7 @@ export function Composer(props: ComposerProps): ReactElement {
           accessibilityLabel="Interrupt and send now"
           testID="composer-interrupt"
           onPress={() => submit("interrupt")}
-          {...webProps({ title: "Interrupt and send now" })}
+          {...webProps({ dataSet: { tt: "Interrupt and send now" } })}
           style={({ hovered }: { hovered?: boolean }) => [styles.splitBtn, hovered === true && styles.splitHover]}
         >
           <Text style={styles.splitText}>Now</Text>
@@ -1851,7 +1862,7 @@ export function Composer(props: ComposerProps): ReactElement {
         accessibilityLabel="Stop"
         testID="composer-send"
         onPress={() => props.onStop?.()}
-        {...webProps({ title: "Stop" })}
+        {...webProps({ dataSet: { tt: "Stop" } })}
         style={[styles.send, styles.sendStop]}
       >
         <Glyph icon={STOP} native={"■"} size={14} color="var(--ink)" />
@@ -1866,7 +1877,7 @@ export function Composer(props: ComposerProps): ReactElement {
         disabled={!hasContent}
         onPress={() => submit("queue")}
         testID="composer-send"
-        {...webProps({ title: sendTitle })}
+        {...webProps({ dataSet: { tt: sendTitle } })}
         style={[styles.send, !hasContent && styles.sendOff]}
       >
         <Glyph icon={I.up} native={"↑"} size={16} color={hasContent ? "var(--accent-ink)" : "var(--ink-3)"} />
@@ -1903,7 +1914,7 @@ export function Composer(props: ComposerProps): ReactElement {
           setPanelOpen(false);
           setPlusOpen((x) => !x);
         }}
-        {...webProps({ title: "Add" })}
+        {...webProps({ dataSet: { tt: "Add" } })}
         style={({ hovered }: { hovered?: boolean }) => [styles.tool, (hovered === true || plusOpen) && HOVER]}
       >
         <Glyph icon={I.plus} native="+" size={18} color="var(--ink-3)" />

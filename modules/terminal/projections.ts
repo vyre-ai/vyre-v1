@@ -1,5 +1,6 @@
 // @reads /modules/terminal/migrations/0001_init.sql
 // @reads /modules/terminal/migrations/0003_gone.sql
+// @reads /modules/terminal/migrations/0004_hold.sql
 // Durable rows of the terminal module (sessions, commands, rules, attach tickets), the port to the machine a session lives on, the rule matcher and the per-session secret scrubbers.
 // Every statement names a terminal_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -63,6 +64,9 @@ export interface Target {
  * What the executor of a host does for a session (ARCH 6.7: local tools execute where the target lives). The agent computer's agentd, the Space server and a person's device daemon each
  * provide one; `createTmuxHost` (impl.ts) is the implementation all three share, over their own way of running `tmux`. The module never spawns a process itself.
  */
+/** One thing a person does at a keyboard: type text, press a named key, or paste. */
+export type KeyPress = { text: string } | { key: string } | { paste: string };
+
 export interface TerminalHost {
   open(a: {
     terminalId: string;
@@ -92,6 +96,23 @@ export interface TerminalHost {
   status(
     terminalIds: readonly string[],
   ): Promise<Array<{ terminalId: string; state: TermState; lastLine?: string; exitCode: number | null }>>;
+  /**
+   * What the session's screen shows now, with its colours (tmux's own capture, escape sequences kept), the cursor, how much history there is, and whether the program is reading a hidden prompt (the pty's echo is off:
+   * a password, a passphrase). What is typed there is never printed, so no screen, log or viewer ever has it. A host without tmux does not have this.
+   */
+  capture?(
+    terminalId: string,
+    o: { lines: number },
+  ): Promise<{
+    text: string;
+    cols: number;
+    rows: number;
+    cursor: { x: number; y: number } | null;
+    history: number;
+    hidden: boolean;
+  }>;
+  /** Keys as a person presses them: text typed, a named key (Enter, Tab, Up, C-c ...), or a paste as one write. Raw through tmux send-keys, so a program that wants a real keyboard gets one. */
+  keys?(terminalId: string, keys: readonly KeyPress[]): Promise<void>;
   /** Live frames: what the session prints, as it prints it (tmux control mode). Returns the function that stops it. */
   stream?(terminalId: string, onFrame: (text: string) => void): () => void;
   close(terminalId: string): Promise<void>;
@@ -223,6 +244,13 @@ const GONE_SCHEMA = readFileSync(new URL("./migrations/0003_gone.sql", import.me
   .split(";")
   .map((x) => x.trim())
   .filter((x) => x.length > 0);
+const HOLD_SCHEMA = readFileSync(new URL("./migrations/0004_hold.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -243,6 +271,12 @@ export function ensure(db: Db): void {
     db.all("SELECT agent_id FROM terminal_workspace_gone WHERE agent_id = ?", "probe");
   } catch {
     for (const stmt of GONE_SCHEMA) db.run(stmt);
+  }
+  // and before a person could take the keyboard
+  try {
+    db.all("SELECT terminal_id FROM terminal_hold WHERE terminal_id = ?", "probe");
+  } catch {
+    for (const stmt of HOLD_SCHEMA) db.run(stmt);
   }
   ready.add(db);
 }
@@ -291,6 +325,9 @@ export interface SessionRow {
   createdAt: number;
   lastActiveAt: number;
   closedAt?: number;
+  /** The person at the keyboard now (terminal_hold), when one is. */
+  heldBy?: string;
+  heldSeen?: number;
 }
 
 export function sessionOf(r: Row): SessionRow {
@@ -327,6 +364,11 @@ export function sessionOf(r: Row): SessionRow {
   const u = opt(r["run_id"]);
   if (u !== undefined) out.runId = u;
   if (r["closed_at"] !== null && r["closed_at"] !== undefined) out.closedAt = Number(r["closed_at"]);
+  const h = opt(r["hold_person"]);
+  if (h !== undefined) {
+    out.heldBy = h;
+    out.heldSeen = Number(r["hold_seen"]);
+  }
   return out;
 }
 
@@ -337,7 +379,7 @@ export function sessionBy(db: Db, terminalId: string): SessionRow | null {
 
 /** A session with its tab: who made it. */
 export const SESSION_SELECT =
-  "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id";
+  "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor, h.person_id AS hold_person, h.seen AS hold_seen FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id LEFT JOIN terminal_hold h ON h.terminal_id = s.terminal_id";
 
 export function insertTab(db: Db, terminalId: string, by: TabBy, actor: string, threadId?: string): void {
   db.run(
@@ -650,4 +692,56 @@ export const forgetAllSecrets = (): void => {
 export function clean(scope: string, text: string): string {
   const sc = scrubberFor(scope);
   return sc ? sc.scrub(text) : text;
+}
+
+// ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------
+
+/** How long a hold lasts with its holder neither typing nor looking before the keyboard goes back to the agent. */
+export const HOLD_IDLE_MS = 15 * 60_000;
+
+/**
+ * The person at the keyboard of a terminal now, or null. A hold nobody used for HOLD_IDLE_MS is over: it is read as not there (nothing a read does writes or emits; the stale row is replaced by the next
+ * take and removed by the next give back).
+ */
+export function holderOf(db: Db, terminalId: string, now: number): string | null {
+  const r = (
+    db.all(
+      "SELECT person_id FROM terminal_hold WHERE terminal_id = ? AND seen >= ?",
+      terminalId,
+      now - HOLD_IDLE_MS,
+    ) as Row[]
+  )[0];
+  return r ? s(r["person_id"]) : null;
+}
+
+/** Does a person hold any terminal of this agent's workspace now? Who, or null. */
+export function workspaceHolder(db: Db, agentId: string, now: number): string | null {
+  const r = (
+    db.all(
+      "SELECT h.person_id FROM terminal_hold h JOIN terminal_sessions t ON t.terminal_id = h.terminal_id WHERE t.agent_id = ? AND t.closed_at IS NULL AND h.seen >= ? LIMIT 1",
+      agentId,
+      now - HOLD_IDLE_MS,
+    ) as Row[]
+  )[0];
+  return r ? s(r["person_id"]) : null;
+}
+
+export function setHold(db: Db, terminalId: string, personId: string, now: number): void {
+  db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
+  db.run(
+    "INSERT INTO terminal_hold (terminal_id, person_id, since, seen) VALUES (?, ?, ?, ?)",
+    terminalId,
+    personId,
+    now,
+    now,
+  );
+}
+
+export function dropHold(db: Db, terminalId: string): void {
+  db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
+}
+
+/** The holder typed or looked: the hold is in use. */
+export function touchHold(db: Db, terminalId: string, personId: string, now: number): void {
+  db.run("UPDATE terminal_hold SET seen = ? WHERE terminal_id = ? AND person_id = ?", now, terminalId, personId);
 }

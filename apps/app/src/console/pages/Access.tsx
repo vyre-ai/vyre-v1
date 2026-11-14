@@ -4,7 +4,7 @@ import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
-import { Help, Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+import { Help, Actions, Button, TextBox, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 
 type Roles = CapMap["access.roles.list"]["out"];
@@ -40,7 +40,7 @@ export function Roles(): ReactElement {
       {selected ? (
         <Section title={selected.name}>
           <Group>
-            <Field label="Name for a copy" testID="console-role-name" value={name} onChange={setName} />
+            <TextBox label="Name for a copy" testID="console-role-name" value={name} onChange={setName} />
             <Button
               label="Clone role"
               disabled={!name.trim() || action.busy}
@@ -53,7 +53,7 @@ export function Roles(): ReactElement {
                 )
               }
             />
-            <Field
+            <TextBox
               multiline
               label="Permissions (one key per line)"
               testID="console-role-permissions"
