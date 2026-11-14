@@ -526,7 +526,7 @@ const threadOf = (
   };
 };
 
-test("the message menu keeps every item it had (behind More) and adds Remember This, Add to a Page and Forget This", async () => {
+test("the message menu keeps every item it had and puts Remember This at its first level, with, Add to a Page and Forget This", async () => {
   const s = await withWarm();
   const { thread } = threadOf(s);
   const shown: string[][] = [];
@@ -543,21 +543,34 @@ test("the message menu keeps every item it had (behind More) and adds Remember T
   const plain = labels(
     menuFor(msg("m1", "hello"), false, { ...actions, memoryEntries: undefined } as MessageActions, () => undefined),
   );
-  // the message menu is the short list (G14); the memory items sit behind its last entry, More, as a group of their own
+  // the message menu is the short list (G14) and the memory items, part of the owner's memory journey, sit at its first level, two presses from the bar (not behind More)
   assert.deepEqual(plain, ["Copy", "Reply in thread", "Pin", "Add reaction"]);
-  assert.deepEqual(withMemory, ["Copy", "Reply in thread", "Pin", "Add reaction", "-", "More"]);
-  const press = (items: ReturnType<typeof menuFor>, label: string): void =>
-    (items.find((e) => "label" in e && e.label === label) as { onSelect: () => void }).onSelect();
-  shown.length = 0;
-  press(
-    menuFor(msg("m1", "hello"), false, actions, () => undefined, { x: 5, y: 6 }),
-    "More",
-  );
-  assert.deepEqual(shown.at(-1), ["Remember This", "Add to a Page…", "Forget This"]);
+  assert.deepEqual(withMemory, [
+    "Copy",
+    "Reply in thread",
+    "Pin",
+    "Add reaction",
+    "-",
+    "Remember This",
+    "Add to a Page…",
+    "Forget This",
+  ]);
   const mineMenu = menuFor(msg("m1", "hello", "text"), true, actions, () => undefined);
-  assert.deepEqual(labels(mineMenu), ["Copy", "Reply in thread", "Pin", "Add reaction", "-", "More"]);
-  press(mineMenu, "More");
-  assert.deepEqual(shown.at(-1), ["Edit", "-", "Remember This", "Add to a Page…", "Forget This", "-", "Delete"]);
+  assert.deepEqual(labels(mineMenu), [
+    "Copy",
+    "Reply in thread",
+    "Pin",
+    "Add reaction",
+    "-",
+    "Remember This",
+    "Add to a Page…",
+    "Forget This",
+    "-",
+    "More",
+  ]);
+  shown.length = 0;
+  (mineMenu.find((e) => "label" in e && e.label === "More") as { onSelect: () => void }).onSelect();
+  assert.deepEqual(shown.at(-1), ["Edit", "-", "Delete"]);
   assert.deepEqual(
     labels(menuFor(msg("q1", "", "quiet"), false, actions, () => undefined)),
     ["Copy", "Reply in thread", "Pin", "Add reaction"],

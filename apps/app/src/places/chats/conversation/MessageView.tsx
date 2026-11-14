@@ -481,10 +481,6 @@ export function menuFor(
   const keep: MenuEntry[] = [];
   if (a.markUnreadFrom && !m.messageId.startsWith("pending:"))
     keep.push({ label: "Mark unread from here", onSelect: () => a.markUnreadFrom!(m.threadSeq) });
-  if (m.kind !== "quiet" && a.memoryEntries)
-    keep.push(
-      ...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu),
-    );
   const ob = onBehalfOf(m);
   if (ob && a.agentMute && ob.teammate === a.agentMute.me)
     keep.push({
@@ -506,7 +502,14 @@ export function menuFor(
     rest.push(...group);
   }
   const behind = tidy(rest);
+  // what an agent should remember from this message is part of the owner's memory journey: Remember This, Add to a Page and Forget This sit at the first level (two presses from the bar), not behind More
+  const memory: MenuEntry[] =
+    m.kind !== "quiet" && a.memoryEntries
+      ? a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu)
+      : [];
   const out: MenuEntry[] = [...first];
+  // the memory group brings its own leading hairline
+  if (memory.length > 0) out.push(...("separator" in memory[0]! ? [] : [{ separator: true } as MenuEntry]), ...memory);
   if (how.length > 0) out.push({ separator: true }, ...how);
   if (behind.length > 0 && flat) out.push({ separator: true }, ...behind);
   else if (behind.length > 0)

@@ -76,9 +76,8 @@ test("journey 2, Team: @mention an agent in a chat between people; it joins and 
       .first()
       .waitFor({ timeout: 20_000 });
     await me.page.getByTestId(`msg-${reply}`).hover();
-    // Remember This is behind the menu's More
+    // Remember This is at the menu's first level: two presses (act-more, then the item), part of the memory journey
     await me.page.getByTestId(`act-more-${reply}`).click();
-    await me.page.getByTestId("menu-item-More").click();
     await me.page.getByTestId("menu-item-Remember This").click();
     await me.page
       .getByText(/Remembered/)
