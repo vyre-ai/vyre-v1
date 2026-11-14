@@ -346,7 +346,22 @@ export function resetWords(at: number, now: number = Date.now(), zone: string = 
 }
 
 /** Why a turn stopped, in words: never a bare "Stopped." (owner, 4 Nov 2026). */
-export function stoppedWords(reason: string): string {
+export function stoppedWords(
+  reason: string,
+  by?: StoppedBy,
+  who?: { meId: string; nameOf(id: string): string },
+): string {
+  // who pressed Stop, when the server says (a stop it cannot name is absent: the words below stand, as they do for an old turn). A person's own stop is "You stopped this."; another's names them.
+  // A system stop (a time-out, a lost lease, the app closing, a limit, an update) keeps its own words.
+  const named = by !== undefined && by.kind !== "system" && by.id !== "" ? by : undefined;
+  if (named !== undefined && who !== undefined && (reason === "stop" || reason === "")) {
+    const me = named.id === who.meId;
+    return me
+      ? "You stopped this. The steps so far are kept."
+      : `Stopped by ${who.nameOf(named.id)}. The steps so far are kept.`;
+  }
+  if (named !== undefined && who !== undefined && reason === "interrupt" && named.id !== who.meId)
+    return `Stopped because ${who.nameOf(named.id)} sent a new message while it was working. It answers that one next.`;
   switch (reason) {
     case "interrupt":
       return "Stopped because a new message came in while it was working. It answers that one next.";
@@ -370,7 +385,25 @@ export function stoppedWords(reason: string): string {
   }
 }
 
-export function statusView(b: MessageBlock, opts?: { admin?: boolean }): StatusView {
+/** Who stopped a turn, as the server records it (turn_status data.stoppedBy): absent when it cannot say. */
+export interface StoppedBy {
+  id: string;
+  kind: "person" | "guest" | "agent" | "system";
+}
+const stoppedByOf = (v: unknown): StoppedBy | undefined => {
+  const o = v !== null && typeof v === "object" ? (v as Record<string, unknown>) : null;
+  const kind = o?.["kind"];
+  return o !== null &&
+    typeof o["id"] === "string" &&
+    (kind === "person" || kind === "guest" || kind === "agent" || kind === "system")
+    ? { id: o["id"], kind }
+    : undefined;
+};
+
+export function statusView(
+  b: MessageBlock,
+  opts?: { admin?: boolean; meId?: string; nameOf?: (id: string) => string },
+): StatusView {
   const admin = opts?.admin;
   const d = dataOf(b);
   const state = str(d.state);
@@ -402,7 +435,16 @@ export function statusView(b: MessageBlock, opts?: { admin?: boolean }): StatusV
           action: { key: `continue_turn:${str(d.turnId)}`, label: "Continue" },
         }
       : { kind: "note", id: b.id, text: str(d.text) };
-  if (state === "cancelled") return { kind: "note", id: b.id, text: stoppedWords(str(d.reason)) };
+  if (state === "cancelled")
+    return {
+      kind: "note",
+      id: b.id,
+      text: stoppedWords(
+        str(d.reason),
+        stoppedByOf(d.stoppedBy),
+        opts?.meId !== undefined && opts.nameOf ? { meId: opts.meId, nameOf: opts.nameOf } : undefined,
+      ),
+    };
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
   let w = wordsFor(str(d.code));

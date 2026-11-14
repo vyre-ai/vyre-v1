@@ -319,3 +319,22 @@ test("a saved tab keeps its own title and kind: a Notes tab is not a new chat, a
   assert.equal(placeTab("chats", "screen=chats.notes").title, "Chats");
   assert.equal(placeTab("chats").title, "New chat");
 });
+
+test("a place's own tab is named for the screen inside it while shown, and back when it is cleared; a chat's own name is never overwritten (live and restored titles agree)", () => {
+  let s = openTab(EMPTY_TABS, placeTab("chats"));
+  assert.equal(s.tabs[0]!.title, "New chat");
+  s = moveTab(s, "chats", "screen=chats.notes");
+  assert.equal(s.tabs[0]!.title, "Notes", "Notes, as a restored tab reads");
+  assert.equal(readTabs(writeTabs(s))!.tabs[0]!.title, "Notes");
+  s = moveTab(s, "chats", undefined);
+  assert.equal(s.tabs[0]!.title, "New chat", "the landing's name comes back");
+  s = { ...s, tabs: [{ ...s.tabs[0]!, title: "Weekly numbers" }] };
+  s = moveTab(s, "chats", "screen=chats.notes");
+  assert.equal(s.tabs[0]!.title, "Notes");
+  const named = { tabs: [{ key: "chats", title: "Weekly numbers", place: "chats" as const }], active: "chats" };
+  assert.equal(
+    moveTab(named, "chats", "subject=thread:t1").tabs[0]!.title,
+    "Weekly numbers",
+    "a name the tab already has stays",
+  );
+});

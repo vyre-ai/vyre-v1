@@ -579,7 +579,7 @@ export function HoverBar({
 
 /** A phone, or any device whose pointer is a finger, has no hover: the bar is not drawn and a long press opens the same actions as a sheet. */
 const PHONE_BELOW = 560;
-const LONG_PRESS_MS = 450;
+export const LONG_PRESS_MS = 450;
 
 /** A device that cannot hover (a tablet, a phone in a wide window): its pointer is a finger. Read after mount so the first frame matches the server's, and followed live: an iPad that gets a trackpad, or a touch laptop that folds into a tablet, switches without a reload. */
 function useCannotHover(): boolean {
@@ -637,6 +637,8 @@ function useHover(onLong?: () => void): {
     onTouchMove: stop,
     onTouchEnd: stop,
     onTouchCancel: stop,
+    // a long press on a touch screen also asks the browser for its own menu (Android) and its selection handles (iOS): the sheet is the menu, so neither opens
+    onContextMenu: (e: { preventDefault?: () => void }) => e.preventDefault?.(),
   };
   if (touch) {
     return {
@@ -885,8 +887,11 @@ function Mine({
       testID={`msg-${m.messageId}`}
       accessibilityLabel={`You, ${item.time}`}
       {...h.props}
-      {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))}
+      {...(h.touch
+        ? {}
+        : menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message")))}
       style={[
+        h.touch ? st.noSelect : null,
         st.me,
         item.newgroup ? st.gapTop : st.gapIn,
         mark === "match" && st.found,
@@ -1107,7 +1112,9 @@ function Theirs({
   const cards = m.blocks.filter((b) => isCard(b) && !isCrewStart(b));
   const rtStatus = useOptionalShellRuntime();
   const viewerAdmin = rtStatus !== null && allows(rtStatus, GATE.provisionComputer);
-  const statuses = m.blocks.filter(isTurnStatus).map((b) => statusView(b, { admin: viewerAdmin }));
+  const statuses = m.blocks
+    .filter(isTurnStatus)
+    .map((b) => statusView(b, { admin: viewerAdmin, meId, ...(actions.nameOf ? { nameOf: actions.nameOf } : {}) }));
   // a held call has one card, however many ways the turn named it: the approval card
   const parked = new Set(statuses.flatMap((x) => (x.kind === "approval" ? [x.taskId] : [])));
   const errors = [...m.blocks.filter(isErrorBlock), ...statuses.flatMap((x) => (x.kind === "error" ? [x.block] : []))];
@@ -1161,15 +1168,18 @@ function Theirs({
       testID={`msg-${m.messageId}`}
       accessibilityLabel={`${item.who.name}, ${item.time}`}
       {...h.props}
-      {...menuTrigger((x, y) =>
-        actions.showMenu(
-          menuFor(m, false, actions, () => undefined, { x, y }),
-          x,
-          y,
-          "Message",
-        ),
-      )}
+      {...(h.touch
+        ? {}
+        : menuTrigger((x, y) =>
+            actions.showMenu(
+              menuFor(m, false, actions, () => undefined, { x, y }),
+              x,
+              y,
+              "Message",
+            ),
+          ))}
       style={[
+        h.touch ? st.noSelect : null,
         st.msg,
         item.newgroup ? st.gapTop : st.gapIn,
         mark === "match" && st.found,
@@ -2202,6 +2212,8 @@ export function ErrorRowView({
 }
 
 export const st = StyleSheet.create({
+  // on a touch screen the long press is the sheet's: the system's text selection handles and callout stay shut (Copy is the sheet's first row)
+  noSelect: { userSelect: "none", WebkitTouchCallout: "none" } as object,
   sheetQuote: { paddingHorizontal: 16, paddingBottom: 8, fontSize: 13, color: "var(--ink-3)" as string },
   sheetReacts: { flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingBottom: 8 },
   sheetReact: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },

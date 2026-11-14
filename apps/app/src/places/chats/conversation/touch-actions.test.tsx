@@ -8,7 +8,7 @@ import { createRoot } from "test-renderer";
 import { find, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { createSample } from "./sample.ts";
-import { MessageView } from "./MessageView.tsx";
+import { LONG_PRESS_MS, MessageView } from "./MessageView.tsx";
 import { timeline } from "./model.ts";
 import type { Message } from "./model.ts";
 
@@ -182,6 +182,38 @@ test("on your own message the sheet ends with Delete, alone and in the danger co
     await press(find(root, "sheet-act-delete"));
     await press(find(root, "sheet-act-delete"));
     assert.deepEqual(removed, ["m_mine"], "deleted once, after asking");
+  } finally {
+    restore();
+  }
+});
+
+test("only a held press opens the sheet: a touch that ends early, a finger that moves, or a cancelled touch opens nothing; and a long press never also opens the browser's own menu or selection (the row is not selectable on touch)", async () => {
+  const m = media(true);
+  const { root, restore } = await rig(m);
+  try {
+    const row = rowOf(root)!;
+    const hold = async (end: string, wait: number): Promise<void> => {
+      await reactAct(async () => {
+        (row.props["onTouchStart"] as () => void)();
+        await new Promise((r) => setTimeout(r, wait));
+        if (end !== "hold") (row.props[end] as () => void)();
+        // long enough that a timer the end did not clear would have fired by now
+        await new Promise((r) => setTimeout(r, end === "hold" ? 40 : LONG_PRESS_MS + 100));
+      });
+    };
+    const opened = (): boolean => find(root, "sheet-quote") !== null;
+    assert.ok(LONG_PRESS_MS >= 300, "a delay that is not a tap");
+    await hold("onTouchEnd", 100);
+    assert.equal(opened(), false, "a touch shorter than the delay opens none");
+    await hold("onTouchMove", LONG_PRESS_MS - 150);
+    assert.equal(opened(), false, "a finger that moves inside the delay opens none (it is a scroll)");
+    await hold("onTouchCancel", LONG_PRESS_MS - 150);
+    assert.equal(opened(), false);
+    let prevented = 0;
+    (row.props["onContextMenu"] as (e: { preventDefault(): void }) => void)({ preventDefault: () => void prevented++ });
+    assert.equal(prevented, 1, "the browser's own long-press menu is shut: the sheet is the menu");
+    await hold("hold", LONG_PRESS_MS + 100);
+    assert.equal(opened(), true, "a held press opens the sheet");
   } finally {
     restore();
   }
