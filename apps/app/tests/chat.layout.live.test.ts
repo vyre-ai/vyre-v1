@@ -203,7 +203,7 @@ test("chat layout, team Space: long draft, scrolled feed, thread pane beside a l
       .innerText()
       .catch(() => "");
     fs.writeFileSync(path.join(shots, "19-tab-text.txt"), tabs + "\n");
-    // a tab has no title of its own: each of the chats opened above reads as that chat's real title, and "New chat" shows nowhere
+    // a tab has no title of its own: each of the chats opened above reads as that chat's real title, and "New chat" shows only on the landing tab (G7)
     const strip = await page.getByTestId("tab-strip").first().innerText();
     for (const title of [
       "Create a landing page",
@@ -215,7 +215,17 @@ test("chat layout, team Space: long draft, scrolled feed, thread pane beside a l
         strip.includes(title),
         `the tab for "${title}" reads that title; the strip says: ${strip.replaceAll("\n", " | ")}`,
       );
-    assert.ok(!/New chat/.test(strip), `no tab still reads New chat: ${strip.replaceAll("\n", " | ")}`);
+    // design source: gap row G7 in team/v1/CHAT-GAP-2026-11-14.md (accepted by the lead): the Chats landing tab is named "New chat". The only tab that reads "New chat" is the landing tab, the first one; every opened chat's tab reads its own title (asserted above)
+    const tabLines = strip
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const newChatAt = tabLines.flatMap((l, i) => (l === "New chat" ? [i] : []));
+    assert.deepEqual(
+      newChatAt,
+      [0],
+      `the only tab that reads New chat is the first, the Chats landing tab: ${strip.replaceAll("\n", " | ")}`,
+    );
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

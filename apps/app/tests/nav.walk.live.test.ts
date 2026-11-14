@@ -118,6 +118,19 @@ test("navigation walk: every opened thing has a way back on screen, by keyboard 
       await guard.check(`${row} walked`);
     };
 
+    // the browser's Back with nothing of Vyre's own to go back to leaves Vyre (a person who came from a mail or another site goes back there) and never traps
+    {
+      const from = await context.newPage();
+      await from.goto(`${web.origin}/healthz`, { waitUntil: "load" });
+      await from.goto(`${web.origin}/chat`, { waitUntil: "load" });
+      await from.getByTestId("shell").waitFor({ timeout: 30_000 });
+      await from.mouse.click(700, 500); // the first press makes the guards
+      await from.waitForTimeout(500);
+      await from.goBack();
+      await from.waitForURL(/\/healthz$/, { timeout: 10_000 });
+      assert.match(from.url(), /\/healthz$/, "Back from Vyre's first screen lands on the page before it");
+      await from.close();
+    }
     // the landing: nowhere to go back to, and the controls are still there
     await open("/chat");
     assert.ok((await back.isVisible()) && (await fwd.isVisible()), "the arrows are drawn at the landing");
@@ -155,7 +168,15 @@ test("navigation walk: every opened thing has a way back on screen, by keyboard 
         });
         await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });
         await page.waitForTimeout(800);
-        await page.screenshot({ path: path.join(shots, `back-${tag}-${scheme}.png`) });
+        if (tag === "desktop") await page.getByTestId("nav-back").hover();
+        await page.screenshot({ path: path.join(shots, `agent-page-${tag}-${scheme}.png`) });
+        if (tag === "desktop") {
+          await page.goto(`${web.origin}/files#subject=file:${fileId}`, { waitUntil: "load" });
+          await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+          await page.waitForTimeout(800);
+          await page.getByTestId("nav-back").hover();
+          await page.screenshot({ path: path.join(shots, `file-${tag}-${scheme}.png`) });
+        }
       }
     }
     await guard.check("the end of the walk");
