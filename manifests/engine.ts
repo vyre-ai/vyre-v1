@@ -1940,6 +1940,30 @@ export default defineManifest({
         label: "check",
       },
     ),
+    read(
+      "engine.round.get",
+      "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
+      {
+        in: { ...threadT, messageIds: t.arr(id.message, { maxItems: 50 }) },
+        out: {
+          rounds: t.arr(
+            t.obj({
+              messageId: id.message,
+              agents: t.arr(
+                t.obj({
+                  agentId: id.agent,
+                  state: t.enm("working", "waiting", "replied", "stopped"),
+                  on: t.opt(id.agent),
+                }),
+              ),
+            }),
+          ),
+        },
+        on: ["thread", "/threadId"],
+        tool: "chats",
+        label: "check",
+      },
+    ),
     write(
       "engine.helpers.change_model",
       "Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start",
