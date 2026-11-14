@@ -7,7 +7,13 @@ import type { ResourceRow } from "../../kernel/src/authorize/index.ts";
 import { createInvoke, indexCapabilities } from "../src/invoke.ts";
 import type { CommitBatch, CtxSeed, Handler } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
-import { createResourceRegistrar, idFits, KNOWN_TYPES, missingAgentResources } from "../src/gateway/resources.ts";
+import {
+  AUTHORING_CAPS,
+  createResourceRegistrar,
+  idFits,
+  KNOWN_TYPES,
+  missingAgentResources,
+} from "../src/gateway/resources.ts";
 import type { SubjectDef } from "../src/gateway/resources.ts";
 import { createPrincipalRegistrar } from "../src/gateway/principals.ts";
 import { foldEvent } from "../src/daemon/access.ts";
@@ -800,4 +806,34 @@ test("registrar: the made-for-me stamp is written for what an agent authored, an
       ),
     ),
   );
+});
+
+test("the made-for-me stamp is an allow list of authoring calls: a capability not on it never stamps, however it is named, and every name on it is a real capability", () => {
+  const known = new Set(["spc_1", "rt_item"]);
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => known.has(id) });
+  const agent = { kind: "agent", id: "agt_helper" };
+  // a new intake invented tomorrow (none of these names is on the list): the stamp stays off
+  for (const cap of [
+    "mail.pull_everything",
+    "reports.import_all",
+    "sync.anything",
+    "weather.fetch",
+    "records.create_from_feed",
+  ]) {
+    const rows = r.register({
+      cap: { name: cap, resource: { type: "space" } },
+      input: {},
+      space: "spc_1",
+      owner: "usr_dana",
+      principal: agent,
+      events: [ev("record.created", { recordId: REC, type: "rt_item" })],
+    });
+    assert.ok(
+      rows.every((x) => x.made_by === undefined),
+      `${cap}: not on the list, not stamped`,
+    );
+  }
+  const names = new Set(registry.capabilities.map((c) => c.name));
+  for (const cap of AUTHORING_CAPS)
+    assert.ok(names.has(cap), `${cap} is on the authoring list but is not a capability`);
 });

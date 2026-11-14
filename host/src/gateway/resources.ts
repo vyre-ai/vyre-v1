@@ -181,17 +181,45 @@ function insideOf(deps: RegistrarDeps, from: string, home: string): boolean {
 
 /**
  * "Made for me" (owner rule, 14 Nov 2026): the stamp `made_by` / `made_for` says an agent AUTHORED this thing for the person it acts for. The rule: the actor of the creating call is an agent, acting for a person, the
- * thing is the product of that call (the agent made it, nothing arrived), and the call is not an intake of outside data. It never marks what came in from outside or was synced: so it is not written for
- *   - mail received (`mail.received`), a conversation opened by incoming mail (`conversation.created`), a message sent (`message.sent`);
- *   - calendar events pulled from a provider (`calendar.ingest_event`, `calendar.sync_now`) or any call of an intake family (mail, inbox, import, mounts, connector or provider syncs, sources, meetings, telephony);
- *   - files a mount brought in (`mounts.*`), records an import brought in (`import.commit`);
- * and it is written only for the entity births listed in AUTHORED_ENTITY_BIRTHS (a calendar event the agent created), and for registry events whose creating call is not an intake.
+ * thing is the product of that call (the agent made it, nothing arrived), and the creating call is one of the AUTHORING calls below. It is an allow list: a capability not named here never stamps, so a new intake of
+ * outside data (a mail sync, a calendar pull, a mount, an import, a connector or provider sync) cannot start marking what arrives as the agent's by default. Nothing is stamped for mail received, a conversation
+ * opened by incoming mail, a message sent, an event pulled from a provider, a file a mount brought in or a record an import brought in. Add a capability here only when its whole product is something the agent made.
  */
-const INTAKE_CAPS =
-  /^(mail\.|inbox\.|import\.|mounts\.|sources\.|sync\.|connectors\.(sync|run|pull|outbox)|calendar\.(ingest_event|sync_now|pull)|google\.|ms\.|dropbox\.|github\.|zoom\.|telephony\.|meetings\.)/;
+export const AUTHORING_CAPS: ReadonlySet<string> = new Set([
+  "agents.create",
+  "automations.create",
+  "bookings.page_create",
+  "calendar.create_calendar",
+  "calendar.create_event",
+  "calendar.duplicate_event",
+  "channels.create",
+  "chat.start",
+  "connections.create",
+  "email_builder.create",
+  "files.copy",
+  "files.create",
+  "files.folder.create",
+  "folders.create",
+  "forms.create",
+  "goals.create",
+  "projects.create",
+  "projects.from_channel",
+  "records.bulk_upsert",
+  "records.create",
+  "sheets.create",
+  "sites.artifact_publish",
+  "sites.create",
+  "skills.add",
+  "skills.mine.add",
+  "tasks.ask",
+  "tasks.create",
+  "tasks.plan",
+  "vault.folders.create",
+  "vault.item.put",
+]);
 const AUTHORED_ENTITY_BIRTHS: ReadonlySet<string> = new Set(["calendar_event.created"]);
 const madeFor = (a: RegisterArgs): { made_by?: string; made_for?: string } =>
-  a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(a.owner) && !INTAKE_CAPS.test(a.cap.name)
+  a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(a.owner) && AUTHORING_CAPS.has(a.cap.name)
     ? { made_by: a.principal.id, made_for: a.owner }
     : {};
 
