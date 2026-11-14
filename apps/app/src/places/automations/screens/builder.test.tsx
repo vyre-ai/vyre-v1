@@ -82,3 +82,17 @@ test("the step form is one frame: its fields, Test this step, a closed Details; 
     assert.ok(!form.includes(gone), `not on the form: ${gone}`);
   assert.ok(form.includes("Lead · Phone") || form.includes("Lead · Phone"), "the recipient is a named chip");
 });
+
+test("the doors the old canvas had still open: History carries the run migration, Settings carries what this Automation uses and the copy button", () => {
+  const draw = (tab: string): string =>
+    renderToStaticMarkup(
+      <AutomationsDataProvider value={createSampleAutomations(northwind).data}>
+        <BuilderPage automationId="aut_lead" initialTab={tab as never} />
+      </AutomationsDataProvider>,
+    ).replaceAll("<!-- -->", "");
+  const history = draw("history");
+  assert.ok(history.includes("Loading pinned runs") || history.includes("pinned"), "runs pinned to a version can be moved");
+  const settings = draw("settings");
+  assert.ok(settings.includes("This Automation uses"), "dependencies are in Settings");
+  assert.ok(settings.includes('data-testid="settings-copies"'), "copy and import are in Settings");
+});

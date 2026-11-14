@@ -41,6 +41,9 @@ import { fromDefinition } from "../story/adapt.ts";
 import { needsFromIssues } from "../story/issues.ts";
 import { story as buildStory } from "../story/model.ts";
 import { look } from "./look.ts";
+import { Packages } from "../operations/PackagesView.tsx";
+import { Dependencies } from "../operations/DependenciesView.tsx";
+import { CohortMigration } from "../versions/CohortMigration.tsx";
 import { pausedWhy } from "../first/from-list.ts";
 import { Page } from "./Page.tsx";
 import { StoryActions, StoryView } from "./StoryView.tsx";
@@ -142,6 +145,7 @@ function Body({
   const [picker, setPicker] = useState<{ after: string | null; x: number; y: number } | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
   const [promoteOpen, setPromoteOpen] = useState(initialPromote);
+  const [packagesOpen, setPackagesOpen] = useState(false);
   const [serverIssues, setServerIssues] = useState<Issue[]>([]);
   const [catalog, setCatalog] = useState<{
     steps: CatalogStep[];
@@ -455,6 +459,8 @@ function Body({
     const p = pos(e);
     const items: MenuEntry[] = [
       { label: "History", onSelect: () => setTab("history") },
+      { label: "Make a copy to share", onSelect: () => setPackagesOpen(true) },
+      { label: "Import a copy", onSelect: () => setPackagesOpen(true) },
       ...(a.kind === "space"
         ? [
             {
@@ -477,7 +483,11 @@ function Body({
               label: "Undo last edit",
               onSelect: () => {
                 const prev = undo.current.pop();
-                if (prev) setDraft(JSON.stringify(prev) === JSON.stringify(a.definition) ? null : prev);
+                if (prev) {
+                  const same = JSON.stringify(prev) === JSON.stringify(a.definition);
+                  setDraft(same ? null : prev);
+                  if (same) base.current = null;
+                }
               },
             },
             { separator: true } as MenuEntry,
@@ -604,10 +614,15 @@ function Body({
       {tab === "settings" ? (
         <View style={s.pane}>
           <AutomationConfig automationId={a.id} embedded />
+          <Dependencies automationId={a.id} />
+          <Pressable testID="settings-copies" accessibilityRole="button" onPress={() => setPackagesOpen(true)}>
+            <Text style={look.btnText}>Make a copy to share, or import one</Text>
+          </Pressable>
         </View>
       ) : null}
       {tab === "history" ? (
         <View style={s.pane} testID="versions-list">
+          <CohortMigration automationId={a.id} currentVersion={a.version} />
           {versions.length === 0 ? (
             <Text style={look.quiet}>This is the first version.</Text>
           ) : (
@@ -664,6 +679,11 @@ function Body({
           }}
           onClose={() => setConnectOpen(false)}
         />
+      ) : null}
+      {packagesOpen ? (
+        <Overlay label="Copies to share" onClose={() => setPackagesOpen(false)} testID="packages-overlay">
+          <Packages />
+        </Overlay>
       ) : null}
       {promoteOpen ? (
         <Overlay label="Promote to Space" onClose={() => setPromoteOpen(false)} testID="promote-overlay">

@@ -67,3 +67,20 @@ export function enrollmentsPinned(runs: readonly { status?: string }[] | undefin
 export const ANALYTICS_LINE = "Outcomes for this Automation.";
 export const EMPTY_COMPLETED_NEXT =
   "Open an automation and choose Run, or turn one on. Its outcomes show here once it has run.";
+
+export const EVENTS_LINE = "Watch real events and their typed payloads.";
+export const LISTENING = "Listening";
+export const EMPTY_EVENTS = "Listening for events. None have arrived yet.";
+export const EMPTY_EVENTS_NEXT =
+  "Run an automation by hand, change a record or submit a form, and the event shows here within a few seconds.";
+export const SPACE_ANALYTICS_TITLE = "Automation analytics";
+export const SPACE_ANALYTICS_LINE = "The operational home for every Automation in this Space.";
+export const EMPTY_COMPLETED = "No completed Runs yet";
+export const DEPS_LINE = "See what breaks before changing a field, connection, template, sub-Automation or capability.";
+export const EMPTY_DEPENDENCIES = "Nothing is named yet.";
+export const EMPTY_DEPENDENCIES_NEXT =
+  "This fills when an automation calls another automation, or a step picks a connection, mailbox, number or form. Add one of those steps and it shows here.";
+export const PACKAGES_LINE = "Save a copy of an automation's steps without secrets, and import one as your own draft.";
+export const EMPTY_PACKAGES = "No packages yet.";
+export const EMPTY_PACKAGES_NEXT =
+  "Use Export an automation above to save one. It holds the steps only, so you can import it as a draft here or hand it to someone.";
