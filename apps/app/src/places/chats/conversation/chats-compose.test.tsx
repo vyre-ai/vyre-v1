@@ -1211,7 +1211,7 @@ test("/usage hands back a usage card of data: names a person would say, no ids, 
   assert.deepEqual(card.accounts[2]!.limits, { state: "silent" });
   assert.equal(card.accounts[3]!.usable, false);
   assert.equal(card.accounts[3]!.why, "Your Codex sign-in is locked on this server.");
-  assert.deepEqual(card.today, { turns: 1, fresh: 18_000, cached: 13_000, out: 200, costMicros: 0 });
+  assert.deepEqual(card.today, { count: 1, fresh: 18_000, cached: 13_000, out: 200, costMicros: 0 });
   assert.equal(card.month.costMicros, 2_500_000);
   const text = cardLines(card, 1_700_000_000_000 - 3_600_000).join("\n");
   assert.ok(!/claude-sonnet|@|example\.org|\bCF\b|not_readable/.test(text), text);

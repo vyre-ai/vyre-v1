@@ -152,7 +152,7 @@ const Fig = ({ label, u }: { label: string; u: UseFigures }): ReactElement => (
     <Text style={st.quiet}>{label}</Text>
     <Text
       style={st.figTurns}
-    >{`${u.turns} ${u.turns === 1 ? "turn" : "turns"}${u.costMicros > 0 ? `  $${(u.costMicros / 1e6).toFixed(2)}` : ""}`}</Text>
+    >{`${u.count} ${u.count === 1 ? "reply" : "replies"}${u.costMicros > 0 ? `  $${(u.costMicros / 1e6).toFixed(2)}` : ""}`}</Text>
     <View style={st.tri}>
       <Pair k="New" v={compactCount(u.fresh)} />
       <Pair k="Cached" v={compactCount(u.cached)} tip="Reused, so cheaper" />
