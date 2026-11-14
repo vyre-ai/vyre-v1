@@ -131,9 +131,12 @@ export function countFile(rel: string, source: string): Partial<Record<Kind, num
   const add = (k: Kind, n: number): void => {
     if (n > 0) out[k] = (out[k] ?? 0) + n;
   };
+  const counted = new Set<string>();
   const named = (name: string): void => {
     const piece = PIECES.find((p) => p.names.includes(name));
-    if (piece && !rel.startsWith(piece.home)) {
+    // one name is one copy, however many ways it is written: `const StatusDot = memo(function StatusDot` is one
+    if (piece && !rel.startsWith(piece.home) && !counted.has(name)) {
+      counted.add(name);
       add("declared", 1);
       found.get(rel)?.add(name) ?? found.set(rel, new Set([name]));
     }
@@ -361,5 +364,12 @@ test("the timer exception is exact and counts one: a second copy in the same fil
     countFile(file, 'data.call("engine.crew.status"); setInterval(retryLoads, 15000);'),
     { "crew-poll": 1 },
     "a different delay is a different timer",
+  );
+});
+
+test("a copy written as const X = memo(function X) is one copy, not two", () => {
+  assert.deepEqual(
+    countFile("apps/app/src/zz/x.tsx", "export const StatusDot = memo(function StatusDot() { return null; });"),
+    { declared: 1 },
   );
 });
