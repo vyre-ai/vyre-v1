@@ -1,6 +1,7 @@
 // The engine runtime on a booted daemon (P-L2_23): built the first time a handler or the periodic job runs with the module's database, bound so the control handlers reach it, and told
 // to recover the threads a dead host left mid-turn. Everything it needs from outside arrives through `EngineHostSeam` (host/src/seams/engine.ts): a way to call capabilities as a
 // person, and the opener of real sessions. The turn engine itself stays in agent/src/turn-engine and knows nothing about modules.
+import { checkpointTurn } from "./checkpoints.ts";
 import path from "node:path";
 import { wireHooks } from "./hooks-wire.ts";
 import { callHooksOf } from "./hooks-port.ts";
@@ -261,6 +262,12 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     bindStepOpen(null);
     bindModelLister(null);
   }
+}
+
+let dropWarm: ((threadId: string) => Promise<number>) | null = null;
+/** End the warm engine sessions of a chat, so its next turn opens a new one (Rewind: the engine must not carry what was undone in its own memory). */
+export async function dropWarmSessions(threadId: string): Promise<number> {
+  return dropWarm ? dropWarm(threadId).catch(() => 0) : 0;
 }
 
 export function engineHost(): EngineHostSeam | null {
@@ -1122,6 +1129,22 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const engine = createTurnEngine({
       hooks: hooksPort,
       holder: h.holder,
+      // a checkpoint of the agent's work folder as each CLI turn starts, for Rewind (checkpoints.ts)
+      ...(h.dataDir
+        ? {
+            onTurnStart: async (i: { threadId: string; turnId: string; agentId: string; asker: string; messageId: string | null }): Promise<void> => {
+              await checkpointTurn({
+                dataDir: h.dataDir!,
+                person: i.asker,
+                thread: i.threadId,
+                agent: i.agentId,
+                turnId: i.turnId,
+                ...(i.messageId ? { messageId: i.messageId } : {}),
+                now: Date.now(),
+              });
+            },
+          }
+        : {}),
       openSession: withHeldNotes(
         withChatSettings(
           withSpaceKeyTurns(
@@ -1550,6 +1573,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     bridge?.attach(engine);
     h.extend?.(engine);
     completer = (i) => oneShot(openSession, i, now);
+    dropWarm = opener ? (threadId: string) => opener.pool.drop(threadId) : null;
     compactor = createCompactor({
       db: ctx.db,
       call: h.call,

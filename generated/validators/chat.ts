@@ -3627,9 +3627,11 @@ if (g2108 === 'object') { const o2108 = x2108 as Record<string, unknown>;
 if (!("restored" in o2108)) e.push(p + "/restored" + ': required');
 if (!("removed" in o2108)) e.push(p + "/removed" + ': required');
 if (!("at" in o2108)) e.push(p + "/at" + ': required');
+if (!("undid" in o2108)) e.push(p + "/undid" + ': required');
 if ("restored" in o2108) lf(o2108["restored"], p + "/restored", e, L17);
 if ("removed" in o2108) lf(o2108["removed"], p + "/removed", e, L17);
 if ("at" in o2108) lf(o2108["at"], p + "/at", e, L17);
+if ("undid" in o2108) lf(o2108["undid"], p + "/undid", e, L3);
 }
 }
 }

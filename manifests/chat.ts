@@ -1151,7 +1151,7 @@ export default defineManifest({
       "Go back in a private chat with an agent to a point: the agent's work folder is put back as it was, the agents stop reading the messages after it, and one line says so. Every message stays; anything already sent stays sent. Off in a chat with other people. Only the person themselves",
       {
         in: { ...threadT, pointId: t.str({ maxLength: 120 }) },
-        out: { restored: t.int({ minimum: 0 }), removed: t.int({ minimum: 0 }), at: t.ts() },
+        out: { restored: t.int({ minimum: 0 }), removed: t.int({ minimum: 0 }), at: t.ts(), undid: t.bool() },
         on: ["thread", "/threadId"],
         level: "use",
         idem: "key",

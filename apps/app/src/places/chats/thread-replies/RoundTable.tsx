@@ -181,5 +181,5 @@ const st = StyleSheet.create({
     borderColor: "var(--line)" as string,
   },
   talkText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
-  goText: { fontSize: 13, fontWeight: "600", color: "var(--on-accent)" as string },
+  goText: { fontSize: 13, fontWeight: "600", color: "var(--accent-ink)" as string },
 });

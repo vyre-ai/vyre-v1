@@ -3462,6 +3462,8 @@ if ("agentId" in o2876) lf(o2876["agentId"], p + "/points" + '/' + i2875 + "/age
 if ("at" in o2876) lf(o2876["at"], p + "/points" + '/' + i2875 + "/at", e, L17);
 if ("files" in o2876) lf(o2876["files"], p + "/points" + '/' + i2875 + "/files", e, L17);
 if ("after" in o2876) lf(o2876["after"], p + "/points" + '/' + i2875 + "/after", e, L1);
+if ("messageId" in o2876) lf(o2876["messageId"], p + "/points" + '/' + i2875 + "/messageId", e, L88);
+if ("undo" in o2876) lf(o2876["undo"], p + "/points" + '/' + i2875 + "/undo", e, L3);
 }
 }
 }
@@ -3507,11 +3509,13 @@ if (!("at" in o2878)) e.push(p + "/at" + ': required');
 if (!("restored" in o2878)) e.push(p + "/restored" + ': required');
 if (!("removed" in o2878)) e.push(p + "/removed" + ': required');
 if (!("undoPointId" in o2878)) e.push(p + "/undoPointId" + ': required');
+if (!("undid" in o2878)) e.push(p + "/undid" + ': required');
 if ("agentId" in o2878) lf(o2878["agentId"], p + "/agentId", e, L10);
 if ("at" in o2878) lf(o2878["at"], p + "/at", e, L17);
 if ("restored" in o2878) lf(o2878["restored"], p + "/restored", e, L17);
 if ("removed" in o2878) lf(o2878["removed"], p + "/removed", e, L17);
 if ("undoPointId" in o2878) lf(o2878["undoPointId"], p + "/undoPointId", e, L593);
+if ("undid" in o2878) lf(o2878["undid"], p + "/undid", e, L3);
 }
 }
 }

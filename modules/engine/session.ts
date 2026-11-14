@@ -21,7 +21,6 @@ import { cliSandboxCode, enginePath, wallEgress, wallEgressOfRule } from "./sand
 import { CLI_NAME, findProgram, isOwned, ownedDirs } from "./cli-programs.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
 import { sandboxWrap, scratchFolder, workFolder, workParts } from "./sandbox.ts";
-import { checkpointTurn } from "./checkpoints.ts";
 import { ensureWorkspace } from "./handlers/crew.ts";
 import { placeCredentialFiles, takeCredentialFiles } from "./credential-files.ts";
 import type { Placed } from "./credential-files.ts";
@@ -748,15 +747,6 @@ export function buildOpener(h: OpenerHost): SessionOpener {
             turnId?: string | undefined;
           }) => {
             await prepareWorkFolder(h.call, dataDir, spec, h.sessions?.keep(spec.threadId) ?? "");
-            // a checkpoint of the folder as this turn starts, for Rewind; it never stops the turn
-            await checkpointTurn({
-              dataDir,
-              person: spec.asker,
-              thread: spec.threadId,
-              agent: spec.agent.id,
-              turnId: spec.turnId ?? "unknown",
-              now: Date.now(),
-            });
           },
         }
       : {}),
