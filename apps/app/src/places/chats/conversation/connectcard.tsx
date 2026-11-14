@@ -78,7 +78,7 @@ export function ConnectCardLive({
   const submit = async (useSaved: boolean): Promise<void> => {
     setProblem("");
     setEdited(false);
-    const steps = stepsFor(useSaved);
+    const steps = stepsFor(useSaved, card.checks !== false);
     setWork({ steps, step: 0, visible: false });
     const wait = setTimeout(() => setWork((w) => (w ? { ...w, visible: true } : w)), WORK_DELAY_MS);
     try {
@@ -201,6 +201,7 @@ export function ConnectCardLive({
         admin={adminName || undefined}
         askedAt={card.admin?.askedAt ? whenText(card.admin.askedAt, Date.now()) : undefined}
         tested={card.tested}
+        checksWith={card.checksWith}
         usedBy={card.usedBy.length > 0 ? card.usedBy.map(() => agent).join(", ") : undefined}
         connectedBy={card.connectedBy ? named(card.connectedBy) || undefined : undefined}
         open={open}

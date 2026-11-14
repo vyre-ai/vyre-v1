@@ -78,6 +78,9 @@ export interface ForService {
     mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
     fields: { name: string; label: string; optional: boolean }[];
     site?: string;
+    host?: string;
+    builtin: boolean;
+    checks: boolean;
   };
   connection?: { connectionId: string; owner: "mine" | "space"; state: ConnectionState };
   near?: string[];
@@ -526,17 +529,19 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
             .filter((r) => r.state !== "draft")
         : [];
       const defs = rows.map((r) => JSON.parse(r.def) as ConnectorDef);
-      const hit =
-        defs.find((d) => squash(d.key) === want || squash(d.title) === want) ??
-        defs.find((d) => squash(d.title).startsWith(want) || (want.length >= 4 && want.startsWith(squash(d.title))));
-      if (!hit)
+      // the exact name (key or title), never a prefix: "Git" is not GitHub. Several with that name is not a guess either.
+      const exact = defs.filter((d) => squash(d.key) === want || squash(d.title) === want);
+      if (exact.length !== 1)
         return {
           found: false,
-          near: defs
-            .filter((d) => want.length >= 3 && (squash(d.title).includes(want) || want.includes(squash(d.key))))
+          near: (exact.length > 1
+            ? exact
+            : defs.filter((d) => want.length >= 3 && (squash(d.title).includes(want) || want.includes(squash(d.key))))
+          )
             .map((d) => d.title)
             .slice(0, 3),
         };
+      const hit = exact[0]!;
       const me = actorOf(ctx);
       const mine = tx
         .all<ConnectionDb>("SELECT * FROM cn_connections WHERE connector = ? ORDER BY created_at", hit.key)
@@ -560,7 +565,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
             label: labelOfSlot(x.name),
             optional: /\boptional\b/i.test(x.description),
           })),
-          ...(host ? { site: `https://${host.replace(/^api\./, "")}` } : {}),
+          ...(host ? { site: `https://${host.replace(/^api\./, "")}`, host } : {}),
+          builtin: hit.builtin === true,
+          checks: probeOf(hit) !== undefined,
         },
         ...(best
           ? {
@@ -577,6 +584,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     // The typed key is tried against the app first and kept nowhere: it goes in the call, to the health action, and out with the answer's words scrubbed of it.
     "connectors.check_key": async (ctx, input) => {
       ready();
+      // sending a typed key to an app is a person's act, done from their own card; an agent never calls it
+      if (ctx.callerKind !== undefined && ctx.callerKind !== "person")
+        refuse(ctx, "permission.no_grant", "Only the person who types a key can have it tried.");
       const def = defOf(ctx, input.connector);
       const c = tx.get<{ state: string }>("SELECT state FROM cn_connectors WHERE key = ?", input.connector)!;
       if (c.state === "draft")

@@ -45,6 +45,9 @@ type Out = {
         optional: boolean;
       }>;
     site?: string;
+    builtin: boolean;
+    host?: string;
+    checks: boolean;
   };
   connection?: {
     connectionId: string;
@@ -77,6 +80,8 @@ type Out = {
       "state": "pending"
     },
     "connector": {
+      "builtin": true,
+      "checks": true,
       "fields": [
         {
           "label": "example",
@@ -84,6 +89,7 @@ type Out = {
           "optional": true
         }
       ],
+      "host": "example",
       "key": "hubspot",
       "mode": "api",
       "scope": "person",

@@ -49,6 +49,7 @@ import type { ReplyDetailsActions } from "../details/ReplyCard.tsx";
 import { LearnedLines } from "../memory/Learned.tsx";
 import type { MenuMessage, ShowMenu } from "../memory/menu.tsx";
 import { SubjectText, useSubjectBlocks } from "../memory/Subjects.tsx";
+import { ReplyLessonsMark } from "../memory/LessonMark.tsx";
 import { ReplyMemory } from "../memory/Used.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
 import { Fold, Glyph, IconButton, TextButton, anchorOf } from "./parts.tsx";
@@ -251,6 +252,8 @@ export interface MessageViewProps {
   mark?: "match" | "active" | "selected" | undefined;
   /** The thread under this message, when anyone has replied in it: the line that opens it. */
   replies?: { s: ReplySummary; clock: Clock } | undefined;
+  /** A reply has come since this message of yours: a lesson it taught is no longer a line under it but the quiet mark on its row. */
+  answered?: boolean | undefined;
   /** What the quiet line under your own message says now (actions.belowMine draws it): the row draws again when it changes, so Add, a dismiss or someone else adding the person shows at once. */
   below?: string | undefined;
 }
@@ -302,6 +305,7 @@ export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
     a.openWork === b.openWork &&
     a.mark === b.mark &&
     a.below === b.below &&
+    a.answered === b.answered &&
     sameData(a.item, b.item, 6) &&
     sameData(a.actions, b.actions, 5) &&
     sameData(a.replies, b.replies, 3)
@@ -720,6 +724,7 @@ function Mine({
   mark,
   replies,
   meId,
+  answered,
 }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
@@ -869,7 +874,7 @@ function Mine({
         createdAt={m.createdAt}
         nameOf={actions.nameOf ?? unnamed}
       />
-      <LearnedLines messageId={m.messageId} />
+      <LearnedLines messageId={m.messageId} settled={answered === true} />
     </View>
   );
 }
@@ -992,6 +997,9 @@ function Theirs({
     [runCfg],
   );
   const subjects = useSubjectBlocks(blocks);
+  // a reply that used lessons says so by one quiet mark on its meta row: nothing of a lesson is printed in the column
+  const lessonMark =
+    person || stream || m.body === "" ? null : <ReplyLessonsMark messageId={m.messageId} threadId={m.threadId} />;
   // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
   const withCard = (kids: ReactElement): ReactElement =>
     !person && actions.details && !stream && !h.phone && !isSystemLine(m) ? (
@@ -1085,11 +1093,15 @@ function Theirs({
               <Text style={st.time}>{work.summary}</Text>
             </Pressable>
           ) : null}
+          {lessonMark}
         </View>
       ) : (
-        <TimeTip item={item}>
-          <Text style={[gutter ? st.whenLeft : st.whenIn, h.over && st.whenOn]}>{item.time}</Text>
-        </TimeTip>
+        <>
+          <TimeTip item={item}>
+            <Text style={[gutter ? st.whenLeft : st.whenIn, h.over && st.whenOn]}>{item.time}</Text>
+          </TimeTip>
+          {lessonMark ? <View style={st.markIn}>{lessonMark}</View> : null}
+        </>
       )}
       {pokedBy(m, actions.nameOf ?? unnamed) ? (
         <Text testID={`poked-${m.messageId}`} style={st.via}>
@@ -2127,6 +2139,8 @@ export const st = StyleSheet.create({
   by: { flexDirection: "row", alignItems: "center", gap: 8, height: 22 },
   who: { fontSize: NAME_PX, fontWeight: "600", color: "var(--ink)" as string },
   time: { fontSize: META_PX, color: "var(--ink-3)" as string },
+  /** the lesson mark of a reply that continues a run of the same agent's lines: no byline, so the mark has a row of its own */
+  markIn: { alignSelf: "flex-start", height: 22 },
   via: { fontSize: META_PX, color: "var(--ink-3)" as string },
   /** under an agent's message for its person, read by the teammate it went to (lane l-agentdm) */
   muteLine: { marginTop: 4 },

@@ -47,7 +47,9 @@ export function useLoad<T>(src: LoadSource, o: LoadOptions = {}): Load<T | null>
   }, [screens, key, enabled]);
   const snap = useSyncExternalStore(query.subscribe, query.getSnapshot, query.getSnapshot);
   // a failed re-read of an answered query is kept beside the answer by the remote hooks, not in it
-  const side = (query as { stale?: { subscribe(l: () => void): () => void; getSnapshot(): LoadFailure | null } }).stale ?? NO_STALE;
+  const side =
+    (query as { stale?: { subscribe(l: () => void): () => void; getSnapshot(): LoadFailure | null } }).stale ??
+    NO_STALE;
   const stale = useSyncExternalStore(side.subscribe, side.getSnapshot, side.getSnapshot);
   const held = useRef<{ data: T } | null>(null);
   if (snap.status === "ready") held.current = { data: snap.data };
@@ -56,7 +58,8 @@ export function useLoad<T>(src: LoadSource, o: LoadOptions = {}): Load<T | null>
   // one object per answer, so a screen can use it as a dependency
   return useMemo((): Load<T | null> => {
     if (!enabled) return WAITING;
-    if (snap.status === "ready") return stale ? { state: "ready", data: snap.data, stale } : { state: "ready", data: snap.data };
+    if (snap.status === "ready")
+      return stale ? { state: "ready", data: snap.data, stale } : { state: "ready", data: snap.data };
     if (snap.error !== undefined)
       return soft ? { state: "ready", data: null } : { state: "failed", failure: snap.error, retry: retryLoads };
     if (keep && held.current) return { state: "ready", data: held.current.data };
