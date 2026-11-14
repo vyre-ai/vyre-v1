@@ -1258,6 +1258,7 @@ test("each of the commands ends in the kind the table says (a hint or an error i
     plan: "/plan on",
     permissions: "/permissions",
     new: "/new",
+    usage: "/usage",
     context: "/context",
     compact: "/compact",
     fork: "/fork",
@@ -1365,8 +1366,8 @@ test("the / list offers the design's command set under its headings, and Continu
 
 test("names people know from other tools run the command they stand for", () => {
   for (const [said, id] of [
-    ["usage", "context"],
-    ["cost", "context"],
+    ["status", "usage"],
+    ["cost", "usage"],
     ["clear", "new"],
     ["quit", "stop"],
     ["code-review", "review"],
@@ -1394,4 +1395,41 @@ test("/review starts a helper that reviews; /agents, /memory, /skills open the p
   await runSlash("/new", r.env);
   assert.ok(r.opened.includes("thread:thr_fresh"));
   assert.ok(r.calls.some((c) => c.cap === "chat.start"));
+});
+
+test("/usage and /context are two commands: usage opens the usage card, context opens the context card with the meters and Compact (G44)", async () => {
+  const r = rig({
+    "engine.my_ai": () => SAMPLE_MY_AI,
+    "engine.usage.get": () => ({
+      context: { used: 420_000, window: 1_000_000 },
+      session: { pct: 34 },
+      week: { pct: 61 },
+      keepEvery: "",
+    }),
+    "engine.compact": () => ({ line: "Freed 40k of context" }),
+  });
+  await runSlash("/usage", r.env);
+  assert.equal((r.results.at(-1) as { card: { kind: string } }).card.kind, "usage");
+  await runSlash("/context", r.env);
+  const spec = (
+    r.results.at(-1) as {
+      card: {
+        kind: string;
+        read(): Promise<{ meters: { key: string; pct: number }[] }>;
+        compact(k: string, a: boolean): Promise<void>;
+      };
+    }
+  ).card;
+  assert.equal(spec.kind, "context");
+  const d = await spec.read();
+  assert.deepEqual(
+    d.meters.map((m) => [m.key, m.pct]),
+    [
+      ["context", 42],
+      ["session", 34],
+      ["week", 61],
+    ],
+  );
+  await spec.compact("the decisions", true);
+  assert.ok(r.calls.some((c) => c.cap === "engine.compact" && JSON.stringify(c.input).includes("the decisions")));
 });

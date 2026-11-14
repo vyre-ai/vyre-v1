@@ -678,7 +678,7 @@ export function ChatsMounted({
           act({ t: "pane-open" });
         },
         openDetails: (tid: string, mid: string) => replyDetails(tid, mid),
-        openPaneTab: (tab: "crew" | "memory" | "skills" | "hooks") => {
+        openPaneTab: (tab: "crew" | "memory" | "skills" | "hooks" | "kept") => {
           setPaneTab(tab);
           setRightOn(null);
           selectedFor.current = threadId;

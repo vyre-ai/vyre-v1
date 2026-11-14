@@ -37,6 +37,8 @@ import { TerminalPaneTab } from "./TerminalPaneTab.tsx";
 import { HooksTab } from "./HooksTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN, PANE_SCREEN } from "./ThreadsTab.tsx";
 import { CrewTab } from "./CrewTab.tsx";
+import { KeptTab } from "../conversation/chapters/KeptTab.tsx";
+import { SessionBlockMount } from "../conversation/chapters/SessionBlock.tsx";
 import { useCrew } from "../crew/context.tsx";
 import { useSession } from "../session/context.tsx";
 import { SessionOverview } from "../session/Overview.tsx";
@@ -166,6 +168,20 @@ function PaneView({
   const longSession = session?.summary.long === true;
   const [own, setOwn] = useState<TabKey | null>(initialTab ?? null);
   const mine = kind !== undefined && embedded !== true;
+  // the Kept list is the session's own (decisions, kept notes); it has a tab once the chat has a session to read
+  const keptBody =
+    kept ??
+    (mine && session
+      ? ((
+          <KeptTab
+            summary={session.summary}
+            onJump={(id) => session.jump(id)}
+            trail={(by, at) =>
+              `${data.me && by === data.me.id ? "You" : (data.nameOf?.(by) ?? by)}, ${timeWords(at, data.clock())}`
+            }
+          />
+        ) as ReactNode)
+      : undefined);
   const wanted = controlled ?? own ?? (longSession ? "overview" : DEFAULT_TAB);
   // Open on an install card: the Skills tab, with that skill lit
   const [lit, setLit] = useState<string | undefined>(undefined);
@@ -242,7 +258,7 @@ function PaneView({
             ...kindTabs(kind, {
               crew: hasCrew,
               computer: showComputer && !noComputers,
-              kept: kept !== undefined,
+              kept: keptBody !== undefined,
               people: people !== undefined,
               terminal: data.terminal !== undefined,
               skills: hasSkills,
@@ -256,7 +272,7 @@ function PaneView({
     [
       mine,
       kind,
-      kept !== undefined,
+      keptBody !== undefined,
       people !== undefined,
       facts,
       noComputers,
@@ -363,11 +379,16 @@ function PaneView({
           />
         ) : null}
         {tab === "people" ? people : null}
-        {tab === "kept" ? kept : null}
+        {tab === "kept" ? keptBody : null}
         {tab === "computer" ? <ComputerPane deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
         {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}
-        {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}
+        {tab === "crew" ? (
+          <>
+            <CrewTab deps={deps} {...(window ? { window } : {})} />
+            {mine ? <SessionBlockMount call={data.call} threadId={data.threadId} agentId={data.agent.agentId} /> : null}
+          </>
+        ) : null}
         {tab === "files" ? (
           <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} />
         ) : null}

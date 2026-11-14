@@ -7,6 +7,9 @@ import * as act from "./actions.ts";
 import { notice, opens, usageCard } from "./command-result.ts";
 import type { CommandResult, NoticeResult } from "./command-result.ts";
 import { compactChat, setChatMode } from "./brain.tsx";
+import { metersOf } from "./chapters/ContextCard.tsx";
+import { pct } from "./chapters/SessionBlock.tsx";
+import type { Usage } from "./chapters/SessionBlock.tsx";
 import type { ConversationData, PluginCommand } from "./data.tsx";
 import { mentionsIn } from "./model.ts";
 import type { Message, Thread } from "./model.ts";
@@ -28,7 +31,7 @@ export interface CommandEnv {
   /** Send a message as if typed (a plugin's prompt command). */
   send(text: string): void;
   /** Opens the pane beside the chat on one tab (crew, memory, skills, hooks). Left out where the shell has no pane. */
-  openPane?(tab: "crew" | "memory" | "skills" | "hooks"): void;
+  openPane?(tab: "crew" | "memory" | "skills" | "hooks" | "kept"): void;
 }
 
 /** The list the composer offers after "/": ours first, then each plugin's that does not clash with a name already in use. */
@@ -164,7 +167,7 @@ async function run(
     }
     case "btw":
       return { kind: "card", card: { kind: "aside", question: arg } };
-    case "context": {
+    case "usage": {
       // the words come from engine.my_ai (the one place that knows), never from the model
       const lead = thread.agents.find((a) => a.mode === "lead");
       return {
@@ -178,6 +181,37 @@ async function run(
                 ...(lead ? { agentId: lead.agentId } : {}),
               })) as MyAi,
             ),
+        },
+      };
+    }
+    case "context": {
+      const lead = thread.agents.find((a) => a.mode === "lead");
+      return {
+        kind: "card",
+        card: {
+          kind: "context",
+          read: async () => {
+            const o = (await data.call("engine.usage.get", {
+              threadId: thread.threadId,
+              ...(lead ? { agentId: lead.agentId } : {}),
+            })) as {
+              context?: { used: number; window: number } | null;
+              session?: { pct: number } | null;
+              week?: { pct: number } | null;
+              keepEvery?: string;
+            } | null;
+            const usage: Usage = {
+              context: o?.context ? pct(o.context.used, o.context.window) : null,
+              session: o?.session ? Math.min(100, Math.round(o.session.pct)) : null,
+              plan: o?.week ? Math.min(100, Math.round(o.week.pct)) : null,
+              keepEvery: o?.keepEvery ?? "",
+            };
+            return { meters: metersOf(usage), keepEvery: usage.keepEvery };
+          },
+          compact: async (keep, always) => {
+            await compactChat(data, keep, always, lead?.agentId);
+          },
+          ...(env.openPane ? { knows: () => env.openPane?.("memory") } : {}),
         },
       };
     }

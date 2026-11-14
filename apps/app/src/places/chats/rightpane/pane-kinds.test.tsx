@@ -82,3 +82,12 @@ test("a channel's pane has People and Kept only where the shell draws them, and 
   const dm = html("dm");
   assert.ok(dm.includes('data-testid="pane-body-files"') && !dm.includes(">Crew<") && !dm.includes(">Computer<"));
 });
+
+test("the Crew tab of the chat's own pane carries the session block, and Kept is a tab only where the chat has a session to read", () => {
+  const own = html("agent", "crew");
+  assert.ok(own.includes('data-testid="pane-body-crew"'));
+  assert.ok(!html("agent").includes(">Kept<"), "no session context in this mount: no Kept tab");
+  assert.ok(
+    html("agent", "kept", { kept: <div data-testid="kept-body">Kept</div> }).includes('data-testid="kept-body"'),
+  );
+});

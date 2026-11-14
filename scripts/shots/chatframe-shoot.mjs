@@ -39,15 +39,24 @@ for (const skin of ["graphite", "paper"])
     const tag = `${skin}-${size}`;
     const go = async (q = "") => {
       const url = routeUrl(real.origin, `/m/CHATFRAME_01${q}`, skin);
-      await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
-      await page.waitForSelector("[data-testid=composer-field]", { timeout: 20000 }).catch(() => console.log("missing composer", tag));
+      await page
+        .goto(url, { waitUntil: "load", timeout: 60000 })
+        .catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
+      await page
+        .waitForSelector("[data-testid=composer-field]", { timeout: 20000 })
+        .catch(() => console.log("missing composer", tag));
       await page.waitForTimeout(900);
     };
     const shot = async (name) => {
       await page.waitForTimeout(350);
       await page.screenshot({ path: path.join(out, `${name}-${tag}.png`) });
     };
-    const click = (sel) => page.locator(sel).first().click({ timeout: 4000 }).catch((e) => console.log(tag, "no", sel, String(e).slice(0, 60)));
+    const click = (sel) =>
+      page
+        .locator(sel)
+        .first()
+        .click({ timeout: 4000 })
+        .catch((e) => console.log(tag, "no", sel, String(e).slice(0, 60)));
     await go();
     await shot("1-chat-pane-agent");
     await click("[data-testid=more-button]");
@@ -56,17 +65,34 @@ for (const skin of ["graphite", "paper"])
     await click("[data-testid=composer-attach]");
     await shot("3-plus-menu");
     await page.keyboard.press("Escape");
-    await page.locator("[data-testid=composer-field]").first().click().catch(() => undefined);
+    await page
+      .locator("[data-testid=composer-field]")
+      .first()
+      .click()
+      .catch(() => undefined);
     await page.keyboard.type("/");
     await page.waitForTimeout(400);
     await shot("4-slash-list");
     await page.keyboard.press("Escape");
-    await page.locator("[data-testid=composer-field]").first().fill("").catch(() => undefined);
+    await page
+      .locator("[data-testid=composer-field]")
+      .first()
+      .fill("")
+      .catch(() => undefined);
     // a message menu: hover the first agent message, press its More
     const more = page.locator("[data-testid^=act-more-]").first();
-    await page.locator("[data-testid^=body-]").first().hover().catch(() => undefined);
+    await page
+      .locator("[data-testid^=body-]")
+      .first()
+      .hover()
+      .catch(() => undefined);
     await more.click({ timeout: 3000, force: true }).catch(() => console.log(tag, "no message more"));
     await shot("5-message-menu");
+    await page.keyboard.press("Escape");
+    // two agents working: the composer's stop offers one per face and Stop everyone
+    await go("?busy=1");
+    await click("[data-testid=composer-send]");
+    await shot("8-stop-menu");
     await page.keyboard.press("Escape");
     if (size === "w1440") {
       await go("?kind=channel");

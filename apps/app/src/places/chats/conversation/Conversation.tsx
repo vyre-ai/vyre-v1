@@ -409,6 +409,8 @@ function ConversationView(): ReactElement {
   const menuApi = useMemo(() => createMenuApi(data), [data]);
   const [hdr, setHdr] = useState({ starred: false, muted: false, archived: false });
   const [renamingChat, setRenamingChat] = useState(false);
+  // the chapter the chat is in now, drawn in grey after the title (G1); the chapter layer reports it
+  const [chapterNow, setChapterNow] = useState("");
   const moreAt = useRef<{ x: number; y: number }>({ x: 8, y: 48 });
   useEffect(() => {
     let live = true;
@@ -1032,7 +1034,7 @@ function ConversationView(): ReactElement {
           }),
         ),
         { separator: true },
-        { label: "Stop all", danger: true, onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")) },
+        { label: "Stop everyone", danger: true, onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")) },
       ],
       x,
       y,
@@ -1101,6 +1103,7 @@ function ConversationView(): ReactElement {
         plan: () => chooseChatMode(mode === "plan" ? "ask" : "plan"),
         fork: () => void runSlash("/fork", commandEnv()),
         find: () => setFinding(true),
+        ...(data.nav.openPaneTab ? { kept: () => data.nav.openPaneTab?.("kept") } : {}),
         exportMd: () => void runSlash("/export md", commandEnv()),
         mute: (on) => {
           setHdr((h) => ({ ...h, muted: on }));
@@ -1680,6 +1683,11 @@ function ConversationView(): ReactElement {
                 </Text>
               </Pressable>
             )}
+            {chapterNow !== "" ? (
+              <Text numberOfLines={1} testID="conversation-chapter" style={st.chapterNow}>
+                {chapterNow}
+              </Text>
+            ) : null}
             <View style={{ flex: 1 }} />
             {online ? null : (
               <Text testID="conversation-offline" style={st.meta}>
@@ -1866,6 +1874,7 @@ function ConversationView(): ReactElement {
         >
           {(laid) => (
             <View style={st.feedBox} onLayout={(e) => setGutter(gutterFits(e.nativeEvent.layout.width))}>
+              <ChapterNow rows={laid.rows} report={setChapterNow} />
               <GutterContext.Provider value={gutter}>
                 <Feed
                   key={jump}
@@ -2221,11 +2230,13 @@ function ConversationView(): ReactElement {
               onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
               onSubmit={(p) => submit(p, "queue")}
               onInterrupt={(p) => submit(p, "interrupt")}
-              onStop={() =>
+              onStop={(at) => {
+                // two or more working: one stop per face and Stop everyone, where it was pressed (agents run together, e-parallel)
+                if (working.length > 1 && at) return stopMenu(at.x, at.y);
                 void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).catch(
                   fail("Could not stop it."),
-                )
-              }
+                );
+              }}
             />
           </View>
         )}
@@ -2263,6 +2274,18 @@ function ConversationView(): ReactElement {
 }
 
 const ROUTE_STYLE = { flex: 1, minHeight: 0 };
+
+/** Tells the head which chapter the chat is in now (the heading row marked current); draws nothing. */
+function ChapterNow({ rows, report }: { rows: readonly unknown[]; report(title: string): void }): null {
+  const now = (rows as { kind?: string; current?: boolean; title?: string }[]).find(
+    (r) => r.kind === "chapter" && r.current === true,
+  );
+  const title = now?.title ?? "";
+  useEffect(() => {
+    report(title);
+  }, [title, report]);
+  return null;
+}
 
 /**
  * Brings a message the page does not hold into it: reads the window around it, widens the page until the row is mounted, leaves it marked for a few seconds, then lets go.
@@ -2381,6 +2404,7 @@ const st = StyleSheet.create({
   },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
+  chapterNow: { flexShrink: 1, minWidth: 0, maxWidth: 260, fontSize: 12.5, color: "var(--ink-3)" as string },
   title: { flexShrink: 1, minWidth: 40, maxWidth: 320, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   titleBtn: {
     flexShrink: 1,

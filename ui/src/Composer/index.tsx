@@ -257,6 +257,36 @@ function ranked(
   return scored.slice(0, limit).map((s) => s.item);
 }
 
+/** The small icon each command carries in the "/" list (the prototype's own pick); a command without one draws the terminal glyph. */
+const CMD_ICON: Readonly<Record<string, string>> = {
+  btw: I.bulb,
+  stop: I.x,
+  find: I.search,
+  helper: I.people,
+  handoff: I.swap,
+  review: I.check,
+  "security-review": I.lock,
+  agents: I.people,
+  model: I.tune,
+  effort: I.tune,
+  plan: I.plan,
+  permissions: I.lock,
+  new: I.plus,
+  context: I.tune,
+  compact: I.plan,
+  fork: I.fork,
+  export: I.file,
+  search: I.search,
+  task: I.check,
+  remember: I.bulb,
+  memory: I.bulb,
+  pin: I.pin,
+  copy: I.copy,
+  skills: I.skill,
+  hooks: I.bolt,
+  init: I.edit,
+};
+
 /** The groups # searches, in the order they show. */
 export const HASH_GROUPS = ["Records", "Files", "Folders", "Chats", "Automations", "Projects", "Channels"] as const;
 export type HashGroup = (typeof HASH_GROUPS)[number];
@@ -1667,27 +1697,44 @@ export function Composer(props: ComposerProps): ReactElement {
           />,
         );
       } else if (trigger?.ch === "/") {
+        // a command is one line (the prototype's .pi): its own small icon, the name, and what it does in grey at the right; no tile, no second line
+        const isCmd = entry.kind === "Command";
         const icon =
           entry.kind === "Template" || entry.kind === "Snippet"
             ? I.template
-            : entry.group === "Skills"
+            : entry.group === "Skills" || entry.kind === "Skill" || entry.kind === "Plugin"
               ? I.skill
-              : I.cmd;
+              : (CMD_ICON[entry.label] ?? I.cmd);
         const title = entry.kind === "Template" || entry.kind === "Snippet" ? entry.label : `/${entry.label}`;
         listNodes.push(
           <Row
             key={`${entry.group}:${entry.label}`}
             id={`pop-${i}`}
             title={title}
-            {...(entry.note === undefined ? {} : { note: entry.note })}
+            {...(!isCmd && entry.note !== undefined ? { note: entry.note } : {})}
+            {...(isCmd && entry.note !== undefined
+              ? {
+                  trailing: (
+                    <Text numberOfLines={1} style={styles.cmdNote}>
+                      {entry.note}
+                    </Text>
+                  ),
+                }
+              : {})}
             selected={i === active}
             onPress={() => pick(entry)}
             leading={
-              <View style={styles.lead}>
-                <IconTile icon={icon} />
-              </View>
+              isCmd ? (
+                <View style={styles.cmdLead}>
+                  <Glyph icon={icon} native="/" size={15} color="var(--ink-3)" />
+                </View>
+              ) : (
+                <View style={styles.lead}>
+                  <IconTile icon={icon} />
+                </View>
+              )
             }
-            domProps={hover}
+            domProps={isCmd ? { ...hover, style: { minHeight: 34, borderRadius: RADIUS } } : hover}
           />,
         );
       } else {
@@ -1825,7 +1872,10 @@ export function Composer(props: ComposerProps): ReactElement {
       <Pop
         testID="composer-popup"
         label={trigger?.ch === "@" ? "Mention" : trigger?.ch === ":" ? "Emoji" : "Commands"}
-        style={[popLeft, { width: trigger?.ch === "@" ? 300 : 340, maxWidth: "100%" } as ViewStyle]}
+        style={[
+          popLeft,
+          { width: trigger?.ch === "@" ? 300 : trigger?.ch === "/" ? 460 : 340, maxWidth: "100%" } as ViewStyle,
+        ]}
       >
         <View style={styles.scr} accessibilityRole="menu" {...webProps({ role: "listbox" })}>
           {listNodes}
@@ -1870,7 +1920,7 @@ export function Composer(props: ComposerProps): ReactElement {
         accessibilityRole="button"
         accessibilityLabel="Stop"
         testID="composer-send"
-        onPress={() => props.onStop?.()}
+        onPress={(e: unknown) => props.onStop?.(anchorOf(e))}
         {...webProps({ title: "Stop" })}
         style={[styles.send, styles.sendStop]}
       >
@@ -2302,6 +2352,8 @@ const styles = StyleSheet.create({
   splitText: { fontSize: 12.5, fontWeight: "600", color: "var(--accent-ink)" as string },
   splitKbd: { fontSize: 11, color: "var(--accent-ink)" as string, opacity: 0.6 },
   lead: { marginRight: 10 },
+  cmdLead: { width: 20, alignItems: "center", justifyContent: "center" },
+  cmdNote: { fontSize: 12.5, color: "var(--ink-3)" as string, maxWidth: 230, textAlign: "right" },
   rowNote: { fontSize: 11.5, color: "var(--ink-4)" as string },
   scr: { padding: 6, maxHeight: 360, overflow: "scroll" } as object,
   plusPop: { width: 280, maxWidth: "100%" } as object,

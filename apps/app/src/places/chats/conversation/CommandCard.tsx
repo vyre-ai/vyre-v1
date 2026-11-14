@@ -13,6 +13,7 @@ import { Quiet } from "../../../../../../ui/src/States/Quiet.tsx";
 import { Tip } from "../../../../../../ui/src/Tip/index.tsx";
 import { useWhenText } from "../../../../../../ui/src/Time/index.tsx";
 import { COLUMN } from "../../../../../../ui/src/tokens/calm.ts";
+import { ContextCard } from "./chapters/ContextCard.tsx";
 import { SILENT_WORDS, WAITING_WORDS, compactCount } from "./command-result.ts";
 import type {
   CardSpec,
@@ -272,10 +273,51 @@ export function CommandCard(p: CommandCardProps): ReactElement {
     <View testID="command-card-anchor" style={st.anchor} pointerEvents="box-none">
       <View style={st.float} pointerEvents="box-none">
         <View style={st.card}>
-          {p.spec.kind === "usage" ? <UsageCard_ {...p} spec={p.spec} /> : <PermissionsCard_ {...p} spec={p.spec} />}
+          {p.spec.kind === "usage" ? (
+            <UsageCard_ {...p} spec={p.spec} />
+          ) : p.spec.kind === "context" ? (
+            <ContextCardMount_ {...p} spec={p.spec} />
+          ) : (
+            <PermissionsCard_ {...p} spec={p.spec} />
+          )}
         </View>
       </View>
     </View>
+  );
+}
+
+function ContextCardMount_({
+  spec,
+  onClose,
+  onPressOutside,
+}: CommandCardProps & { spec: Extract<Spec, { kind: "context" }> }): ReactElement {
+  const load = useCardLoad(spec.read);
+  return (
+    <Dialog title="Context" anchor="composer" testID="command-card" onClose={onClose} onPressOutside={onPressOutside}>
+      <Loadable
+        load={load}
+        what="the context"
+        isEmpty={() => false}
+        empty={{ title: "Nothing to show yet" }}
+        loading={
+          <View style={st.loading}>
+            <Quiet />
+          </View>
+        }
+      >
+        {(d) => (
+          <ContextCard
+            meters={d.meters}
+            keepEvery={d.keepEvery}
+            onCompact={async (keep, always) => {
+              await spec.compact(keep, always);
+              onClose();
+            }}
+            {...(spec.knows ? { onKnows: spec.knows } : {})}
+          />
+        )}
+      </Loadable>
+    </Dialog>
   );
 }
 

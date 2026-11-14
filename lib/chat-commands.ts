@@ -59,7 +59,8 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "permissions", group: "How it runs", detail: "See what runs without asking", arg: "remove and a number" },
   // This session
   { id: "new", group: "This session", detail: "Start a fresh chat with this agent" },
-  { id: "context", group: "This session", detail: "What this chat runs on, and what is left" },
+  { id: "usage", group: "This session", detail: "What this chat runs on, and what is left" },
+  { id: "context", group: "This session", detail: "How full the context is, and compact it" },
   { id: "compact", group: "This session", detail: "Free up context, keeping what you name", arg: "what to keep" },
   { id: "fork", group: "This session", detail: "Branch this chat into a new one" },
   { id: "export", group: "This session", detail: "Save this chat as Markdown or JSON", arg: "md or json" },
@@ -89,9 +90,8 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
 
 /** Names people already know from other tools, and what they run here. */
 export const CHAT_COMMAND_ALIASES: Readonly<Record<string, string>> = Object.freeze({
-  usage: "context",
-  status: "context",
-  cost: "context",
+  status: "usage",
+  cost: "usage",
   "context-window": "context",
   clear: "new",
   quit: "stop",
@@ -115,6 +115,7 @@ export type ChatCommandId =
   | "plan"
   | "permissions"
   | "new"
+  | "usage"
   | "context"
   | "compact"
   | "fork"
