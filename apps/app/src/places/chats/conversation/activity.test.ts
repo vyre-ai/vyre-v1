@@ -152,5 +152,14 @@ test("the word is true while a turn is held, setting up, or parked (review, 14 N
     "Working",
     "one parked step among running ones is still work",
   );
-  assert.equal(calmWord(snap({ steps: [live("Bash")] as never }), true, true), "Writing", "words coming win");
+  assert.equal(
+    calmWord(snap({ steps: [live("Bash")] as never }), true, true),
+    "Waiting for you",
+    "words streamed, then a question open: it waits",
+  );
+  assert.equal(
+    calmWord(snap({ steps: [live("Bash")] as never }), true, false),
+    "Writing",
+    "words coming, nothing held",
+  );
 });

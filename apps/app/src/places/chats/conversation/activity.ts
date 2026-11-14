@@ -118,9 +118,10 @@ export const elapsedWords = (secs: number): string =>
 /** The one calm word a live reply shows (the prototype's islb), true to what the turn is doing: Writing once words come, "Waiting for you" while it is held for a person (a question or approval is open for it), "Setting up" while Vyre prepares an engine, "Waiting" while it is parked on its computer, Working for any other running step however long, else Thinking. Never a step's name, never a count. */
 export type CalmWord = "Thinking" | "Writing" | "Working" | "Waiting" | "Waiting for you" | "Setting up";
 export function calmWord(s: ActivitySnapshot, writing: boolean, heldForYou = false): CalmWord {
-  if (writing) return "Writing";
   const live = s.steps.filter((x) => x.state === "live");
+  // held for a person beats Writing: an agent that streamed some text and then asked its question is waiting, not writing
   if (heldForYou || live.some((x) => /^(askuserquestion|exitplanmode)$/i.test(x.name))) return "Waiting for you";
+  if (writing) return "Writing";
   if (live.length > 0 && live.every((x) => x.name === "device_wait")) return "Waiting";
   if (live.some((x) => x.name === "engine_setup" || x.name === "sandbox_start")) return "Setting up";
   return live.length > 0 ? "Working" : "Thinking";
