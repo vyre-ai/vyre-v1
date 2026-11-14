@@ -14,12 +14,13 @@ A key typed for an agent was stored in a Restricted folder where the agent is re
 
 ## Who may call it
 - The server (svc_host).
-- A call another capability made (depth above zero and not forwarded for someone: `isSystemCall`). `vault.requests.fulfil` asks this way: it is the server deciding where a key may land, not the caller browsing folders, so the answer is always readable.
+- A call another capability made (depth above zero and not forwarded for someone: `isSystemCall`). Event consumers run at depth above zero (`host/src/daemon/consumers.ts`), so a consumer's call counts as a system call too; only module code reaches it that way, never a person's own call (whether a user automation step can was not checked). `vault.requests.fulfil` asks this way: it is the server deciding where a key may land, not the caller browsing folders, so the answer is always readable.
 - A person (or an agent acting for a person) who holds Edit on the target, through the gateway.
 Anyone else, including a person who cannot see the target, gets `validation.not_found`.
 `vault.requests.fulfil` fails closed on this answer: a no, a not found or an unreadable answer all refuse the store or the attach, before anything is stored.
 
 ## What it must never reveal
+`vault.requests.fulfil` asks it with the server's authority, so it answers the same words for a folder that does not exist, one the caller cannot see, and one the agent cannot use ("That folder is restricted..."); a `not found` from the Vault's own put is turned into those words.
 - Nothing about a target the caller cannot see: a hidden or missing target both answer `validation.not_found`, with the same message, so the call does not say that a folder exists or how it is labelled.
 - It never returns the label, the clearance, the grants, the owner or the steps; only yes or no.
 - The input field is named `target`, not `resource`, on purpose: the gateway runs its own access check on an input named `resource` first, and that check answers "above clearance", which would reveal a hidden folder.
