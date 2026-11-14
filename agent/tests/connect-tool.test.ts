@@ -1,15 +1,16 @@
 // The connect tool as a model meets it (b-connect, 14 Nov 2026): listed from the first turn, a first call written from its description alone is accepted, and what it costs in tokens is measured and held.
 // @reads /generated/mcp-tools.json
+// @reads /docs/frozen/agent-tools.md
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createMcpServer } from "../../../agent/src/mcp/index.ts";
-import type { McpCaller } from "../../../agent/src/mcp/index.ts";
-import { loadGenerated, validatingInvoke } from "../../../agent/src/tools/harness.ts";
-import { slimTool } from "../../../agent/src/drivers/api/slim.ts";
-import { parseDefaultTools } from "../../../agent/src/tools/catalog.ts";
-import { estimateTokens } from "../../../lib/reply-format.ts";
-import { TELL } from "../handlers/connect.ts";
+import { createMcpServer } from "../src/mcp/index.ts";
+import type { McpCaller } from "../src/mcp/index.ts";
+import { loadGenerated, validatingInvoke } from "../src/tools/harness.ts";
+import { slimTool } from "../src/drivers/api/slim.ts";
+import { parseDefaultTools } from "../src/tools/catalog.ts";
+import { estimateTokens } from "../../lib/reply-format.ts";
+import { TELL } from "../../lib/connect-tell.ts";
 
 const g = loadGenerated();
 const driver: McpCaller = {
@@ -23,7 +24,7 @@ const driver: McpCaller = {
   traceId: "a".repeat(32),
 };
 const tool = (
-  JSON.parse(readFileSync(new URL("../../../generated/mcp-tools.json", import.meta.url), "utf8")) as {
+  JSON.parse(readFileSync(new URL("../../generated/mcp-tools.json", import.meta.url), "utf8")) as {
     tools: { name: string; description: string; inputSchema: Record<string, unknown> }[];
   }
 ).tools.find((t) => t.name === "vault_connect")!;
@@ -36,7 +37,7 @@ const shown = (): string => {
 
 test("the tool is in the default list, so a model has it on its first turn", () => {
   const defaults = parseDefaultTools(
-    readFileSync(new URL("../../../docs/frozen/agent-tools.md", import.meta.url), "utf8"),
+    readFileSync(new URL("../../docs/frozen/agent-tools.md", import.meta.url), "utf8"),
   );
   assert.ok(defaults.has("vault_connect"));
 });

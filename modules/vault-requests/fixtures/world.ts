@@ -176,7 +176,7 @@ export function world(over: Partial<Script> = {}) {
       case "connections.create": {
         const made = {
           connectionId: "con_new",
-          owner: i["ownerKind"] === "space" ? "space" : "mine",
+          owner: (i["ownerKind"] === "space" ? "space" : "mine") as "space" | "mine",
           state: "pending",
         };
         script.connections = { ...(script.connections ?? {}), [String(i["connector"])]: made };

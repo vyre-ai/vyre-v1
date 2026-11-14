@@ -18,10 +18,10 @@ const FATHOM: ConnectorDef = {
     { name: "webhook_secret", description: "Optional: the secret Fathom signs its webhooks with" },
   ],
   health: "ping",
-  rate: undefined,
   actions: [{ name: "ping", url: "https://api.fathom.test/v1/ping", output: "/ok" }],
   tests: [],
 };
+delete (FATHOM as { rate?: unknown }).rate; // no rate limit: the checks in a test come back to back
 const SECRET = "fk_live_TYPEDKEY_0001";
 
 test("a service said in words finds its connector, with the fields it needs named as labels", async () => {

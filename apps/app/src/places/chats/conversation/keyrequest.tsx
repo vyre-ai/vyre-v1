@@ -12,14 +12,33 @@ import { Face } from "../needsyou/parts.tsx";
 import { AUDIENCES, keyWords, requestOf } from "./keyrequest-model.ts";
 import type { KeyAudience, KeyRequest } from "./keyrequest-model.ts";
 import { isServerOnlyFolder } from "../../../../../../lib/company-keys.ts";
+import { ConnectCardLive } from "./connectcard.tsx";
 
-type Data = Pick<ConversationData, "call" | "changes">;
+type Data = Pick<ConversationData, "call" | "changes"> & { nameOf?: (id: string) => string };
 
 export function isKeyRequest(type: string): boolean {
   return type === "vault_request";
 }
 
-export function KeyRequestCard({
+/**
+ * The card of a request an agent made: a request for a service (the block names it) is the connect card, one card for the whole of connecting it; a request for a key by name is the secure field below.
+ */
+export function KeyRequestCard(p: {
+  requestId: string;
+  agent: string;
+  agentId: string;
+  data: Data;
+  /** The connector the request is for, when it is for a service (the block's own `service`). */
+  service?: string | undefined;
+}): ReactElement | null {
+  return p.service ? (
+    <ConnectCardLive requestId={p.requestId} agent={p.agent} data={p.data} />
+  ) : (
+    <PlainKeyRequestCard requestId={p.requestId} agent={p.agent} agentId={p.agentId} data={p.data} />
+  );
+}
+
+function PlainKeyRequestCard({
   requestId,
   agent,
   agentId,

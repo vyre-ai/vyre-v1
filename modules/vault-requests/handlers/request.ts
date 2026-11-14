@@ -102,7 +102,8 @@ async function companyFolder(ctx: VaultReqCtx): Promise<string | undefined> {
   const name = COMPANY_FOLDER;
   const have = (
     (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
-      { id?: string; name?: string }[] | undefined) ?? []
+      | { id?: string; name?: string }[]
+      | undefined) ?? []
   ).find((f) => f.name === name);
   const id =
     have?.id ??
@@ -399,7 +400,8 @@ async function serverOnlyFolder(ctx: VaultReqCtx, folderId: string): Promise<boo
   try {
     const folders =
       (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
-        { id?: string; name?: string }[] | undefined) ?? [];
+        | { id?: string; name?: string }[]
+        | undefined) ?? [];
     return folders.some((f) => f.id === folderId && isServerOnlyFolder(String(f.name ?? "")));
   } catch {
     return false;

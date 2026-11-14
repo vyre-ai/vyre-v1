@@ -5,6 +5,8 @@
 // DECISION: the agent is told in one line what to do next and nothing else. The words handle, folder, clearance and role never reach a person from it; the card carries what a person must know.
 // DECISION: the same request answers a second ask for the same service (the same card is updated); a card the person folded with Not now is opened again by the next ask.
 import { isServerOnlyFolder } from "../../../lib/company-keys.ts";
+import { TELL } from "../../../lib/connect-tell.ts";
+import type { ConnectStatus as Status } from "../../../lib/connect-tell.ts";
 import { keptUsable } from "../kept.ts";
 import type { FolderRef } from "../kept.ts";
 import { TABLE, asRow, nid, raise, requestById, strOf } from "../projections.ts";
@@ -25,19 +27,7 @@ interface Service {
   site?: string;
   connection?: { connectionId: string; owner: "mine" | "space"; state: string };
 }
-export type Status = "connected" | "waiting_person" | "waiting_admin" | "declined";
 export type CardState = "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
-
-/** What the model is told, one line each. It names no folder, handle, clearance or role: the card carries those for the person. */
-export const TELL = {
-  connected: (t: string) => `${t} is connected. Say so in one line and carry on with the question.`,
-  waiting_person: (t: string) =>
-    `The person has a card to connect ${t}. Say one short line, nothing more, and wait: you are told when it is done.`,
-  waiting_admin: (t: string) =>
-    `The person cannot connect ${t} themselves and the card offers to ask an admin. Say one short line and wait.`,
-  declined: (t: string) =>
-    `The person chose not to connect ${t} now. Carry on without it and do not ask again unless they do.`,
-} as const;
 
 const squash = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 /** A name the Vault accepts for the item: letters, digits and underscores, starting with a letter. */
@@ -252,7 +242,7 @@ export async function connectService(
     );
   }
   // already connected for this person, and working: nothing to ask
-  if (svc.connection?.state === "active") return { status: "connected" as Status, tell: TELL.connected(svc.title) };
+  if (svc.connection?.state === "active") return { status: "connected", tell: TELL.connected(svc.title) };
 
   const requester = { kind: ctx.principal.kind, id: ctx.principal.id };
   const mine = connectRows(ctx, ctx.principal.id).filter(
@@ -308,7 +298,11 @@ export async function connectService(
 }
 
 /** What the agent is told, from the request as it stands. */
-async function statusOf(ctx: VaultReqCtx, row: RequestRow, svc: Service) {
+async function statusOf(
+  ctx: VaultReqCtx,
+  row: RequestRow,
+  svc: Service,
+): Promise<{ status: Status; requestId: string; tell: string }> {
   const state = (await cardOf(ctx, row.id)).state;
   const status: Status =
     state === "connected"
