@@ -2966,7 +2966,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }
         },
         ensureResource: async (r) => {
-          if ((r.type === "conversation" || r.type === "mail_message" || r.type === "calendar_event") && r.id !== null) {
+          if (
+            (r.type === "conversation" || r.type === "mail_message" || r.type === "calendar_event") &&
+            r.id !== null
+          ) {
             await ensureRow(r.type, r.id);
             return;
           }
@@ -3899,7 +3902,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             let inside: string | null = null;
             try {
               if (type === "calendar_event") {
-                const rows = db!.all(`SELECT "calendarId" AS cal FROM calendar_event WHERE id = ?`, id) as { cal?: unknown }[];
+                const rows = db!.all(`SELECT "calendarId" AS cal FROM calendar_event WHERE id = ?`, id) as {
+                  cal?: unknown;
+                }[];
                 found = rows.length > 0;
                 inside = typeof rows[0]?.cal === "string" ? rows[0].cal : null;
               } else
@@ -3920,7 +3925,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               vis: "space",
               entity: "resource",
               entity_id: id,
-              payload: ((row) => (calendar?.owner_id ? row : spaceOwned(row)))({
+              payload: hostOwned(!calendar?.owner_id, {
                 id,
                 type,
                 parent_id: calendar ? inside : spaceId,
