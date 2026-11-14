@@ -229,7 +229,7 @@ export interface InvokeDeps {
     ): Promise<{ finish(): unknown } | null>;
   };
   /** Can this agent's clearance reach what this resource is labelled (its own label and every folder above it)? Asked once a Vault folder or key an agent made for a person is born (host/src/daemon/daemon.ts). */
-  agentClears?: (agentId: string, resourceId: string) => boolean;
+  madeFor?: MadeForFacts;
   preview?: { read(token: string, cap: string, input: unknown, trace: string): Promise<{ finish(): unknown }> };
   caps: CapIndex;
   validateInput(cap: string, v: number, input: unknown): string[];
@@ -486,6 +486,16 @@ const memberAllow = (decisionId: string): KernelDecision => ({
   decisionId,
 });
 
+/** What the server knows that decides whether an agent needs a grant on a thing it just made (host/src/daemon/daemon.ts, from the access snapshot). */
+export interface MadeForFacts {
+  /** Does the agent's clearance reach the label of this place (its own and every folder above it)? */
+  clears(agentId: string, resourceId: string): boolean;
+  /** Does the agent, acting for this person, already hold this level on the place (through the Space itself, a role or a share)? Then a grant would only list it twice. */
+  holds(agentId: string, personId: string, resourceId: string, level: "edit" | "use"): boolean;
+  /** Is this place inside a person's Mine (a private root)? */
+  inMine(resourceId: string): boolean;
+}
+
 /**
  * The one rule for what an agent holds on a thing it just made for the person it acts for (owner ruling, 14 Nov 2026: what an agent makes for me is mine, and that agent can use it at once). Written in the
  * same commit as the birth (invoke adds the grant to the events of the call that made the thing), so there is no moment when the person owns it and the agent that made it is refused, and no grant for a
@@ -494,14 +504,16 @@ const memberAllow = (decisionId: string): KernelDecision => ({
  *   record type  Manage, no source (it sets who the type is open to as part of the same work)
  *   site         Edit, only the site this call created
  *   vault folder Edit, vault key Use; both carry the source made-by:<agent> so the share list shows who made it
- * Vault things and sites are skipped, not failed, when the place they are in is labelled above the agent's clearance (`agentClears`): the call still succeeds, the thing is the person's, and the agent gets no
+ * Skipped, not failed (the call still succeeds, the thing is the person's), when: the place is labelled above the agent's clearance (`facts.clears`); the thing is inside a person's Mine (the agent reaches it only
+ * while acting for its owner, so a key there needs no grant; the Mine folder itself gets Edit so the agent can put the key in); or the agent already holds that level through the Space or a role (`facts.holds`: a Team Space agent is born with Edit on the
+ * Space, so a grant would show the maker twice in the sharing list). The grant is removed again if the thing changes owner or moves above the agent's clearance (modules/access/consumers.ts). The agent gets no
  * grant, so its next call on it is refused above clearance in the usual words.
  */
 export function madeForGrant(
   row: { id: string; type: string; parent_id?: string | null | undefined; owner_id?: string | null | undefined },
   events: readonly { type: string; payload?: unknown }[],
   seed: { principal: { kind: string; id: string }; actingFor?: string | undefined },
-  agentClears?: (agentId: string, resourceId: string) => boolean,
+  facts?: MadeForFacts,
 ): { level: "manage" | "edit" | "use"; source: boolean } | null {
   if (seed.principal.kind !== "agent" || !seed.actingFor?.startsWith("usr_")) return null;
   if (row.type === "record_type") return { level: "manage", source: false };
@@ -516,7 +528,16 @@ export function madeForGrant(
   else if (row.type === "vault_item") level = "use";
   else return null;
   if (row.owner_id !== seed.actingFor) return null;
-  if (agentClears && !agentClears(seed.principal.id, row.parent_id ?? row.id)) return null;
+  if (row.type === "vault_folder" || row.type === "vault_item") {
+    // a thing inside a person's Mine gets nothing: the agent reaches it while acting for the owner (Use), which is all a key needs. The Mine FOLDER itself (a private root, no parent) does get Edit: the gateway
+    // asks Edit on a folder before the agent may put a key in it, and the kernel gives an agent acting for the owner only Use there. The grant is the person's, and it holds only while the agent acts for them: for
+    // anyone else the call takes the lower of the agent's grants and that person's access, which in someone's Mine is none.
+    if (facts && row.parent_id != null && facts.inMine(row.parent_id)) return null;
+  }
+  const above = row.parent_id ?? row.id;
+  if (facts && !facts.clears(seed.principal.id, above)) return null;
+  if (facts && row.parent_id != null && facts.holds(seed.principal.id, seed.actingFor, row.parent_id, level))
+    return null;
   return { level, source: true };
 }
 
@@ -1108,7 +1129,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope,
         );
         // What an agent makes for the person it acts for is that person's, and the agent goes on working on it: one rule for all of it (madeForGrant below).
-        const made = madeForGrant(row, events, seed, deps.agentClears);
+        const made = madeForGrant(row, events, seed, deps.madeFor);
         if (made) {
           const id = `gnt_${hex(16)}`;
           events.push(

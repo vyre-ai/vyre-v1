@@ -139,7 +139,10 @@ export function harness() {
   // the signed-in person's key, only for them
   setKeyPort({
     async personKey(personId) {
-      return personId === ctx.principal.id && !locked.has(personId) ? keyOfPerson(personId) : null;
+      // the key is held on the node the person unlocked it on: their own call, or a turn an agent runs for them
+      return (personId === ctx.principal.id || personId === ctx.actingFor) && !locked.has(personId)
+        ? keyOfPerson(personId)
+        : null;
     },
   });
 

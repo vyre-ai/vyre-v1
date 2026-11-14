@@ -3219,9 +3219,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           resource: (id) => access.snap.resource(id),
           agentHome: (id) => homeScopeOf(db!, id)?.homeFolder ?? null,
         }),
-        agentClears: (agentId, resourceId) => {
-          const who = access.snap.info(agentId);
-          return !!who && who.p.status === "active" && access.snap.effectiveLabel(resourceId) <= who.clearance;
+        madeFor: {
+          clears: (agentId, resourceId) => {
+            const who = access.snap.info(agentId);
+            return !!who && who.p.status === "active" && access.snap.effectiveLabel(resourceId) <= who.clearance;
+          },
+          holds: (agentId, personId, resourceId, level) => {
+            const at = access.snap.resource(resourceId);
+            return (
+              !!at &&
+              authorize(access.snap, {
+                principal: agentId,
+                actingFor: personId,
+                action: { perm: null, level },
+                resource: { type: at.type, id: resourceId },
+              } as Parameters<typeof authorize>[1]).effect === "allow"
+            );
+          },
+          inMine: (resourceId) => {
+            const chain = access.snap.chain(resourceId);
+            const root = chain?.[chain.length - 1];
+            return !!root && root.type === "vault_folder" && root.parent_id === null;
+          },
         },
         principals: createPrincipalRegistrar({
           exists: (id) => access.snap.info(id) !== null,

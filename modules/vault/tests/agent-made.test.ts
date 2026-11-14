@@ -62,3 +62,31 @@ test("a shared folder and a shared item an agent makes while working for a perso
   );
   assert.equal(ownerOf(h, "vault_folder", String(own["id"])), AGENT);
 });
+
+test("in Mine an agent works only for the person it acts for: it puts a key in their Mine folder, and the same agent for another person, or a person who is not the owner, gets nothing", async () => {
+  const h = harness();
+  h.actAs("agent", AGENT);
+  (h.ctx as { actingFor?: string }).actingFor = MAYA;
+  const folder = out(out(await v.foldersCreate(h.ctx, { name: "Mine", scope: "mine", idempotencyKey: "m1" })).folder);
+  const put = (name: string, folderId: string, key: string) =>
+    v.itemPut(h.ctx, {
+      folderId,
+      name,
+      kind: "api_key",
+      fields: [{ key: "api_key", value: SECRET, secret: true }],
+      idempotencyKey: key,
+    } as Parameters<typeof v.itemPut>[1]);
+  const item = out(out(await put("Fathom", String(folder["id"]), "m2")).item);
+  assert.equal(item["scope"], "mine");
+  assert.equal(ownerOf(h, "vault_meta", String(item["id"])), MAYA, "the owner is the person");
+  // the same agent for another person: that folder is not in their Vault, and nothing can be put there
+  (h.ctx as { actingFor?: string }).actingFor = ROB;
+  assert.equal(await refusedWith(put("Second", String(folder["id"]), "m3")), "validation.not_found");
+  // for nobody: the old refusal stands
+  delete (h.ctx as { actingFor?: string }).actingFor;
+  assert.equal(await refusedWith(put("Third", String(folder["id"]), "m4")), "validation.not_found");
+  // a person who is not the owner sees nothing of it
+  h.actAs("person", ROB);
+  assert.equal(await refusedWith(put("Fourth", String(folder["id"]), "m5")), "validation.not_found");
+  assert.ok(!JSON.stringify(await v.itemsList(h.ctx, {} as never)).includes("Fathom"));
+});

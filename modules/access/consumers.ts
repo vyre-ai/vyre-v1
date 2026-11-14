@@ -14,6 +14,7 @@ import {
   agentLevel,
   asKeptWriter,
   EVERYONE,
+  LABEL_RANK,
   changed,
   kernelResource,
   labelOf,
@@ -113,6 +114,28 @@ function seededGrant(store: AccessStore, p: Record<string, unknown>, at: number)
     // a grant a call made for the thing it made (made-by:<agent>) says so, so the share list can show who made it
     ...(typeof p["source"] === "string" && p["source"].startsWith("made-by:") ? { source: p["source"] } : {}),
   };
+}
+
+/** The made-by grants on a thing (source made-by:<agent>) go when the owner changed, or when the place it now sits in is labelled above the clearance of the agent that holds one. A move between places the owner controls leaves them. */
+export function dropMadeBy(store: AccessStore, resourceId: string, ownerChanged: boolean): void {
+  const grants = [...store.grants.entries()].filter(
+    ([, g]) => g.resource.id === resourceId && g.source?.startsWith("made-by:") === true,
+  );
+  if (grants.length === 0) return;
+  let label = 0;
+  for (let at: string | null = resourceId, hops = 0; at !== null && hops < 64; hops++) {
+    const r = store.resources.get(at);
+    if (!r) break;
+    label = Math.max(label, LABEL_RANK[r.label]);
+    at = r.parentId;
+  }
+  for (const [gid, g] of grants) {
+    const clearance = Math.max(
+      0,
+      ...store.rolesOf(g.subject.id).map((rid) => LABEL_RANK[store.roles.get(rid)?.clearance ?? "public"]),
+    );
+    if (ownerChanged || label > clearance) store.grants.delete(gid);
+  }
 }
 
 /**
@@ -250,6 +273,9 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
         holds: Number(p["holds"]) || 0,
         ...(Object.keys(row).length ? { row } : {}),
       });
+      // a made-by grant (what an agent was given on a thing it made for a person) does not outlive the owner, and does not follow the thing above the agent's clearance
+      if (have && (have.ownerId !== (str(p["owner_id"]) ?? null) || have.parentId !== (str(p["parent_id"]) ?? null)))
+        dropMadeBy(store, id, have.ownerId !== (str(p["owner_id"]) ?? null));
       return true;
     }
     case "grant.created": {
@@ -619,6 +645,7 @@ export const hostCalls = {
         else delete r.row;
       }
       for (const [id] of held) store.grants.delete(id);
+      dropMadeBy(store, r.id, true);
     } else if (held.length > 0) {
       // not theirs, only a grant of theirs: the grant moves to the heir and the owner stays whoever it was (nobody gains ownership of what they did not own)
       const mine = heldBy(input.to);

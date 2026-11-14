@@ -579,7 +579,10 @@ export async function itemPut(
       ? liveFolder(ctx, await companyFolder(ctx, input.idempotencyKey))
       : asked;
   const scope = str(folder, "scope") === "mine" ? "mine" : "shared";
-  if (scope === "mine" && str(folder, "owner") !== ctx.principal.id)
+  // Mine is "you and the agents working for you": an agent acting for the folder's owner may put a key in it (and use it in that person's turns), never in anyone else's Mine
+  const forOwner =
+    ctx.principal.kind === "agent" && ctx.actingFor !== undefined && str(folder, "owner") === ctx.actingFor;
+  if (scope === "mine" && str(folder, "owner") !== ctx.principal.id && !forOwner)
     throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
   if (
     scope === "shared" &&
@@ -589,7 +592,7 @@ export async function itemPut(
     return denied(ctx, "Adding to this folder needs edit access.");
   if (scope === "shared" && NEVER_SHARED.has(input.kind))
     refuse(ctx, "A subscription sign-in is yours alone. Put it in a Mine folder.");
-  if (ctx.principal.kind === "agent" && scope === "mine")
+  if (ctx.principal.kind === "agent" && scope === "mine" && !forOwner)
     return denied(
       ctx,
       "An agent cannot put items in someone's Mine folder. Ask for the key with vault_request; the person pastes it in their own app.",
@@ -601,9 +604,9 @@ export async function itemPut(
 
   const now = ctx.now();
   const id = newId("vit", now);
-  const sealed = await sealFor(ctx, id, scope, ctx.principal.id, fields, 1);
+  const itemOwner = scope === "shared" || forOwner ? makerOwner(ctx) : ctx.principal.id;
+  const sealed = await sealFor(ctx, id, scope, scope === "mine" ? itemOwner : ctx.principal.id, fields, 1);
   storeSealed(ctx, id, sealed);
-  const itemOwner = scope === "shared" ? makerOwner(ctx) : ctx.principal.id;
   ctx.db.run(
     `INSERT INTO vault_meta ("id", "name", "kind", "folderId", "owner", "scope", "fieldKeys", "handle", "spaceOnly", "injectIntoDeployments", "rotateEveryDays", "version", "updated_at", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,

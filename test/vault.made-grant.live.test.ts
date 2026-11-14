@@ -23,7 +23,7 @@ const as =
     return { status: r.status, data: b.data ?? b };
   };
 
-test("an agent makes a shared folder and a key for its person and uses it; it holds an explicit grant made by the person, which she can remove", async () => {
+test("an agent makes a shared folder and a key for its person and uses it; what it makes in Mine is usable in her turns only", async () => {
   const made = { folderId: "" };
   const model = scriptedModel(async function* (input, run) {
     const ask = input.trigger?.body ?? "";
@@ -138,49 +138,20 @@ test("an agent makes a shared folder and a key for its person and uses it; it ho
       (i: { name: string }) => i.name === "Fathom",
     );
     assert.equal(item.owner, "usr_mia");
-    // the explicit grants are the person's, show who made them, and she can take them away
-    const shares = (await api("usr_mia", "access.shares_of", { resource: { type: "vault_folder", id: folder.id } }))
-      .data.shares as Array<{
-      grant: {
-        id: string;
-        subject: { id: string };
-        resource: { id: string };
-        level: string;
-        source?: string;
-        by: string;
-      };
-    }>;
-    const g = shares.find((s) => s.grant.subject.id === maker && s.grant.resource.id === folder.id);
-    assert.ok(g, JSON.stringify(shares));
-    assert.equal(g!.grant.level, "edit");
-    assert.equal(g!.grant.by, "usr_mia");
-    assert.ok(
-      !shares.some(
-        (s) => s.grant.resource.id === folder.id && s.grant.subject.kind === "agent" && s.grant.subject.id !== maker,
-      ),
-      "no other agent",
-    );
+    // In a Team Space every agent is born with Edit on the Space itself, so the maker already holds Edit on its folder and Use on its key: no second, made-by grant is written (the sharing list shows each subject once)
+    const sharesOf = async (type: string, id: string) =>
+      (await api("usr_mia", "access.shares_of", { resource: { type, id } })).data.shares as Array<{
+        grant: { subject: { id: string; kind: string }; resource: { id: string }; source?: string };
+      }>;
+    for (const [type, id] of [
+      ["vault_folder", folder.id],
+      ["vault_item", item.id],
+    ] as const)
+      assert.ok(
+        !(await sharesOf(type, id)).some((x) => x.grant.resource.id === id && x.grant.source?.startsWith("made-by:")),
+        `${type}: no duplicate made-by grant where the Space already gives the level`,
+      );
 
-    // the key too carries a Use grant for the maker alone; no other agent is named on anything the maker made
-    const kshares = (await api("usr_mia", "access.shares_of", { resource: { type: "vault_item", id: item.id } })).data
-      .shares as Array<{
-      grant: { subject: { id: string }; resource: { id: string }; level: string; source?: string };
-    }>;
-    const kg = kshares.find((s) => s.grant.subject.id === maker && s.grant.resource.id === item.id);
-    assert.equal(kg?.grant.level, "use");
-    assert.equal(kg?.grant.source, `made-by:${maker}`);
-    assert.ok(
-      !kshares.some(
-        (s) => s.grant.resource.id === item.id && s.grant.subject.id !== maker && s.grant.subject.kind === "agent",
-      ),
-    );
-    // she can take it away like any grant (the shares list shows it, the grant is hers)
-    const gone = await api("usr_mia", "access.unshare", {
-      resource: { type: "vault_item", id: item.id },
-      subject: { kind: "agent", id: maker },
-    });
-    assert.equal(gone.status, 200, JSON.stringify(gone.data));
-    // NOTE: every agent of a Team Space also holds Edit on the Space itself (a seeded grant of its birth), so a second agent reaches shared things through that, whatever the maker was given here.
     assert.ok(!hostLog(d).includes(SECRET), "the value never reached the log");
   } catch (e) {
     console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e);
