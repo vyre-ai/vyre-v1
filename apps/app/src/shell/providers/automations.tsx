@@ -162,7 +162,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     ])
       .then(([connectionsOut, mailOut, picksOut]) => {
         if (!live) return;
-        const nextAccounts = accountsFromVault(connectionsOut, mailOut);
+        const nextAccounts = accountsFromVault(connectionsOut, mailOut, rt.me.id);
         const nextPicks = picksByApp(picksOut);
         if (!nextAccounts || !nextPicks) {
           setAccounts([]);
