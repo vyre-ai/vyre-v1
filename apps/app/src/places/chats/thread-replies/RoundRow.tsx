@@ -1,11 +1,11 @@
 // The round row under a message that asked several agents (chat gap G56, G51 part a): each agent's face and state within a second of the send, so a tagged agent that waits its turn never looks ignored.
-// Read from engine.round.get once a second while someone has not finished, for a message of the person's own that is under two minutes old. Folds away when every agent has replied.
+// Read from engine.round.get once when the message appears and again whenever the chat's live stream of turn starts and ends moves (no timer), for a message under two minutes old. Folds away when every agent has replied.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Face } from "../needsyou/parts.tsx";
 import { useConversationData } from "../conversation/data.tsx";
-import { asksSeveral, keepReading, stateWords, visibleRound } from "./round-model.ts";
+import { ROUND_WINDOW_MS, asksSeveral, stateWords, visibleRound } from "./round-model.ts";
 import type { RoundAgent } from "./round-model.ts";
 
 function Round({
@@ -27,10 +27,9 @@ function Round({
   const [agents, setAgents] = useState<RoundAgent[]>([]);
   useEffect(() => {
     let gone = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    // one read when the message appears, and one more each time the chat's live stream reports a turn start or end (no timer): the stream is what tells us the round moved
     const read = (): void => {
-      const age = data.clock().now - createdAt;
-      if (age > 120_000) return;
+      if (data.clock().now - createdAt > ROUND_WINDOW_MS) return;
       let next: Promise<unknown>;
       try {
         next = Promise.resolve(data.call("engine.round.get", { threadId, messageIds: [messageId] }));
@@ -40,19 +39,16 @@ function Round({
       void next.then(
         (r) => {
           if (gone) return;
-          const got = (r as { rounds?: { messageId: string; agents: RoundAgent[] }[] }).rounds?.[0]?.agents ?? [];
-          setAgents(got);
-          if (keepReading(data.clock().now - createdAt, got)) timer = setTimeout(read, 1000);
+          setAgents((r as { rounds?: { messageId: string; agents: RoundAgent[] }[] }).rounds?.[0]?.agents ?? []);
         },
-        () => {
-          if (!gone) timer = setTimeout(read, 2000);
-        },
+        () => undefined,
       );
     };
     read();
+    const off = data.live?.subscribe(read);
     return () => {
       gone = true;
-      if (timer !== undefined) clearTimeout(timer);
+      off?.();
     };
   }, [data, threadId, messageId, createdAt]);
   const shown = visibleRound(agents);

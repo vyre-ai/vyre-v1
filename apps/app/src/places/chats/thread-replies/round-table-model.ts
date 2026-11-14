@@ -47,3 +47,20 @@ export function roundAnswers(
   if (after.some((m) => m.author.id === meId && m.threadSeq > first)) return null;
   return out;
 }
+
+/** The ask a message answers: the latest message of the person's own before it that asked several agents (two or more tagged, or words to all of them). */
+export function askBefore(
+  messages: readonly (RoundMessage & { mentions?: readonly { kind: string; id: string }[] })[],
+  afterId: string,
+  meId: string,
+  asks: (m: { body: string; mentions?: readonly { kind: string; id: string }[] | undefined }) => boolean,
+): { messageId: string; agents: readonly string[] | null } | null {
+  const at = messages.find((m) => m.messageId === afterId);
+  if (!at) return null;
+  const ask = messages
+    .filter((m) => m.threadSeq < at.threadSeq && m.author.kind === "person" && m.author.id === meId && asks(m))
+    .sort((a, b) => b.threadSeq - a.threadSeq)[0];
+  if (!ask) return null;
+  const tagged = (ask.mentions ?? []).filter((x) => x.kind === "agent").map((x) => x.id);
+  return { messageId: ask.messageId, agents: tagged.length > 1 ? tagged : null };
+}

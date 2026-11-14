@@ -937,6 +937,15 @@
     "threadId": "thr_a1b2c3",
     "messageId": "msg_a1b2c3"
   },
+  "chat_round_decide": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "chat_round_discuss": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3"
+  },
   "chat_screen_get": {
     "threadId": "thr_a1b2c3"
   },
@@ -1609,6 +1618,12 @@
       "kind": "agent",
       "id": "Quarterly planning"
     }
+  },
+  "engine_round_get": {
+    "threadId": "thr_a1b2c3",
+    "messageIds": [
+      "msg_a1b2c3"
+    ]
   },
   "engine_route_preview": {
     "threadId": "thr_a1b2c3"

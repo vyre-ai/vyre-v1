@@ -475,6 +475,7 @@ export function createClient(transport: Transport) {
       reply_details: call("chat.reply_details", 1),
       round: {
         decide: call("chat.round.decide", 1),
+        discuss: call("chat.round.discuss", 1),
       },
       screen: {
         get: call("chat.screen.get", 1),

@@ -475,6 +475,7 @@ export function stubs(ctx: CallCtx) {
       reply_details: call("chat.reply_details"),
       round: {
         decide: call("chat.round.decide"),
+        discuss: call("chat.round.discuss"),
       },
       screen: {
         get: call("chat.screen.get"),

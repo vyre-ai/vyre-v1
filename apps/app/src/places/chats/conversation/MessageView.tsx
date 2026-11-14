@@ -869,13 +869,6 @@ function Mine({
         createdAt={m.createdAt}
         nameOf={actions.nameOf ?? unnamed}
       />
-      <RoundTable
-        messageId={m.messageId}
-        threadId={m.threadId}
-        body={m.body}
-        mentions={m.mentions}
-        nameOf={actions.nameOf ?? unnamed}
-      />
       <LearnedLines messageId={m.messageId} />
     </View>
   );
@@ -1526,6 +1519,14 @@ function Theirs({
       <Reactions m={m} a={actions} mine={false} meId={meId} />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} /> : null}
       <Replies m={m} replies={replies} actions={actions} mine={false} />
+      <RoundTable
+        messageId={m.messageId}
+        threadId={m.threadId}
+        authorKind={m.author.kind}
+        createdAt={m.createdAt}
+        nameOf={actions.nameOf ?? unnamed}
+        onOpen={(askId) => actions.openThread(askId)}
+      />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? (
         <Text testID={`pinned-${m.messageId}`} style={st.edited}>

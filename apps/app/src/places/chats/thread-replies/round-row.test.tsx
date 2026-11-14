@@ -7,7 +7,7 @@ import { installDom, mount, find, flush, textOf } from "../../../onboarding/test
 import { ConversationDataProvider } from "../conversation/data.tsx";
 import { createSample } from "../conversation/sample.ts";
 import { RoundRow } from "./RoundRow.tsx";
-import { asksSeveral, keepReading, stateWords, visibleRound } from "./round-model.ts";
+import { asksSeveral, stateWords, visibleRound } from "./round-model.ts";
 
 const names: Record<string, string> = { agt_dex: "Dex", agt_nova: "Nova" };
 const nameOf = (id: string): string => names[id] ?? id;
@@ -28,7 +28,7 @@ test("asks several: two tagged agents or words to all, never one agent", () => {
 });
 
 test("the words and the fold: waiting names who is in front, a finished round shows nothing, one agent is no round", () => {
-  assert.equal(stateWords({ agentId: "agt_nova", state: "waiting", on: "agt_dex" }, nameOf), "Next after Dex");
+  assert.equal(stateWords({ agentId: "agt_nova", state: "waiting", on: "agt_dex" }, nameOf), "Waiting on Dex");
   assert.deepEqual(visibleRound([{ agentId: "agt_dex", state: "working" }]), []);
   assert.deepEqual(
     visibleRound([
@@ -37,9 +37,7 @@ test("the words and the fold: waiting names who is in front, a finished round sh
     ]),
     [],
   );
-  assert.equal(keepReading(1000, []), true, "no round seen yet: keep looking");
-  assert.equal(keepReading(200_000, []), false, "an old message is history");
-  assert.equal(keepReading(1000, [{ agentId: "agt_dex", state: "replied" }]), false);
+  assert.equal(stateWords({ agentId: "agt_nova", state: "waiting" }, nameOf), "Waiting");
 });
 
 test("two agents asked: each shows with its state, and the row is gone once both have replied", async () => {
@@ -49,11 +47,23 @@ test("two agents asked: each shows with its state, and the row is gone once both
     { agentId: "agt_dex", state: "working" },
     { agentId: "agt_nova", state: "waiting", on: "agt_dex" },
   ];
+  const listeners = new Set<() => void>();
+  let reads = 0;
   const data = {
     ...s.data,
+    live: {
+      turnsOf: () => [],
+      subscribe: (l: () => void) => {
+        listeners.add(l);
+        return () => listeners.delete(l);
+      },
+      settle: () => undefined,
+      seed: () => undefined,
+      onGap: () => () => undefined,
+    },
     call: (cap: string, input: unknown) =>
       cap === "engine.round.get"
-        ? Promise.resolve({ rounds: [{ messageId: "m1", agents }] })
+        ? (reads++, Promise.resolve({ rounds: [{ messageId: "m1", agents }] }))
         : s.data.call(cap as never, input as never),
   } as typeof s.data;
   const now = data.clock().now;
@@ -75,14 +85,20 @@ test("two agents asked: each shows with its state, and the row is gone once both
   );
   await flush();
   assert.match(textOf(find(root, "round-m1-agt_dex")), /Dex\s+Working/);
-  assert.match(textOf(find(root, "round-m1-agt_nova")), /Nova\s+Next after Dex/);
+  assert.match(textOf(find(root, "round-m1-agt_nova")), /Nova\s+Waiting/);
   agents = [
     { agentId: "agt_dex", state: "replied" },
     { agentId: "agt_nova", state: "replied" },
   ];
+  assert.equal(reads, 1, "one read when the message appears, no timer");
   await act(async () => {
-    await new Promise((r) => setTimeout(r, 1100));
+    await new Promise((r) => setTimeout(r, 1500));
+  });
+  assert.equal(reads, 1, "nothing reads again on its own");
+  await act(async () => {
+    for (const l of listeners) l(); // the live stream says a turn ended
   });
   await flush();
+  assert.equal(reads, 2);
   assert.equal(find(root, "round-m1"), null, "folded away");
 });

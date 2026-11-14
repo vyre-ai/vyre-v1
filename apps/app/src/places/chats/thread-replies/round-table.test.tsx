@@ -28,7 +28,13 @@ const msg = (id: string, seq: number, kind: "person" | "agent", who: string, bod
     pinned: false,
     createdAt: 1_760_000_000_000 + seq,
   }) as unknown as Message;
-const ask = msg("q1", 1, "person", "usr_irfad", "@Dex @Nova which storage?");
+const ask = {
+  ...msg("q1", 1, "person", "usr_irfad", "@Dex @Nova which storage?"),
+  mentions: [
+    { kind: "agent", id: "agt_dex" },
+    { kind: "agent", id: "agt_nova" },
+  ],
+} as unknown as Message;
 const dex = msg("a1", 2, "agent", "agt_dex", "Object storage.");
 const nova = msg("a2", 3, "agent", "agt_nova", "The server disk.");
 
@@ -56,19 +62,28 @@ test("answers: each tagged agent's first reply after the ask, nothing until two 
 test("the card: a tab per agent, a press on a tab shows its answer, Go with calls chat.round.decide for that agent", async () => {
   installDom();
   const s = createSample("channel");
+  const opened: string[] = [];
   s.replica.put("messages", [ask, dex, nova]);
   const root = await mount(
     createRoot,
-    <ConversationDataProvider value={{ ...s.data, threadId: "c1" }}>
+    <ConversationDataProvider
+      value={{
+        ...s.data,
+        threadId: "c1",
+        call: async (cap: string, input: unknown) => {
+          if (!cap.startsWith("chat.round.")) return s.data.call(cap as never, input as never);
+          s.calls.push({ cap, input } as never);
+          return { threadId: "t_disc" } as never;
+        },
+      }}
+    >
       <RoundTable
-        messageId="q1"
+        messageId="a2"
         threadId="c1"
-        body={ask.body}
-        mentions={[
-          { kind: "agent", id: "agt_dex" },
-          { kind: "agent", id: "agt_nova" },
-        ]}
+        authorKind="agent"
+        createdAt={s.data.clock().now}
         nameOf={nameOf}
+        onOpen={(id) => opened.push(id)}
       />
     </ConversationDataProvider>,
   );
@@ -86,6 +101,30 @@ test("the card: a tab per agent, a press on a tab shows its answer, Go with call
     agentId: "agt_nova",
     idempotencyKey: "round-q1-agt_nova",
   });
+  await press(find(root, "round-table-q1-discuss")!);
+  await flush();
+  assert.deepEqual(s.calls.find((c) => c.cap === "chat.round.discuss")?.input, {
+    threadId: "c1",
+    messageId: "q1",
+    idempotencyKey: "discuss-q1",
+  });
+  assert.deepEqual(opened, ["q1"], "the thread under the ask opens beside the chat");
+  // under the first answer there is no card: it sits under the last one
+  const early = await mount(
+    createRoot,
+    <ConversationDataProvider value={{ ...s.data, threadId: "c1" }}>
+      <RoundTable
+        messageId="a1"
+        threadId="c1"
+        authorKind="agent"
+        createdAt={s.data.clock().now}
+        nameOf={nameOf}
+        onOpen={() => undefined}
+      />
+    </ConversationDataProvider>,
+  );
+  await flush();
+  assert.equal(find(early, "round-table-q1"), null);
   await act(async () => {
     s.replica.put("messages", [ask, dex, nova, msg("p2", 4, "person", "usr_irfad", "Decided")]);
   });
