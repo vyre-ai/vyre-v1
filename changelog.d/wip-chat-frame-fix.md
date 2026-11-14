@@ -1,0 +1,1 @@
+- The phone long-press unit test presses the sheet row by its real id (sheet-act-copy).
