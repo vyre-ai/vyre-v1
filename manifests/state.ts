@@ -27,7 +27,9 @@ const stateRow = t.obj({
   alert: t.bool({ description: "Alert me on replies" }),
   muted: t.nullable(t.ts({ description: "Muted until this time; a very large value means for good" })),
   pin: t.nullable(
-    t.num({ description: "Where my pin sits among my pins of this kind of thing (smaller is higher); null when not pinned" }),
+    t.num({
+      description: "Where my pin sits among my pins of this kind of thing (smaller is higher); null when not pinned",
+    }),
   ),
 });
 const count = t.obj({ scope, things: t.int({ minimum: 0 }), entries: t.int({ minimum: 0 }) });
@@ -81,11 +83,15 @@ export default defineManifest({
         vis: "private",
       },
     ),
-    ev("state.scope_read", "A person marked everything in one badge read: one event for the whole badge, with its new count", {
-      p: { person: t.str(), scope, marked: t.int({ minimum: 0 }), count, now: t.ts(), by: t.str() },
-      subject: ["entity", "/scope"],
-      vis: "private",
-    }),
+    ev(
+      "state.scope_read",
+      "A person marked everything in one badge read: one event for the whole badge, with its new count",
+      {
+        p: { person: t.str(), scope, marked: t.int({ minimum: 0 }), count, now: t.ts(), by: t.str() },
+        subject: ["entity", "/scope"],
+        vis: "private",
+      },
+    ),
     ev(
       "state.layout_changed",
       "A person's layout value changed (how they arranged a screen): their other devices take the new value",
@@ -105,22 +111,26 @@ export default defineManifest({
       tool: "meta",
       deferred: true,
     }),
-    read("state.list", "My things by what I did with them: starred, following, done, unread, muted, pinned (in my own order) or any (everything I have set on anything: one read paints a whole screen). Each row carries the thing's whole state", {
-      ...V,
-      in: {
-        flag: t.enm("starred", "following", "done", "unread", "muted", "pinned", "any"),
-        type: t.opt(t.str()),
-        scope: t.opt(scope),
-        cursor: t.opt(t.str()),
-        limit: t.opt(t.int({ minimum: 1, maximum: 500 })),
+    read(
+      "state.list",
+      "My things by what I did with them: starred, following, done, unread, muted, pinned (in my own order) or any (everything I have set on anything: one read paints a whole screen). Each row carries the thing's whole state",
+      {
+        ...V,
+        in: {
+          flag: t.enm("starred", "following", "done", "unread", "muted", "pinned", "any"),
+          type: t.opt(t.str()),
+          scope: t.opt(scope),
+          cursor: t.opt(t.str()),
+          limit: t.opt(t.int({ minimum: 1, maximum: 500 })),
+        },
+        out: {
+          rows: t.arr(listRow),
+          next: t.opt(t.str({ description: "Cursor for the next page; absent on the last page" })),
+        },
+        tool: "meta",
+        deferred: true,
       },
-      out: {
-        rows: t.arr(listRow),
-        next: t.opt(t.str({ description: "Cursor for the next page; absent on the last page" })),
-      },
-      tool: "meta",
-      deferred: true,
-    }),
+    ),
     read(
       "state.counts",
       "My badges: for each scope how many things have something unread (not done, not muted) and how many entries that is",

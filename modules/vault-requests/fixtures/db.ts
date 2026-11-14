@@ -12,6 +12,7 @@ export const ADDED = [
   fileURLToPath(new URL("../migrations/0002_handle_only.sql", import.meta.url)),
   fileURLToPath(new URL("../migrations/0003_asker.sql", import.meta.url)),
   fileURLToPath(new URL("../migrations/0004_thread.sql", import.meta.url)),
+  fileURLToPath(new URL("../migrations/0005_connect.sql", import.meta.url)),
 ];
 type Cell = string | number | null;
 type Row = Record<string, Cell>;

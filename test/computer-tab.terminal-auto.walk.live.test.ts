@@ -33,13 +33,13 @@ test(
       await k.me.page.locator(ROW).first().click();
       await k.me.page.getByTestId("terminal-tab").first().waitFor({ timeout: 20_000 });
       // you watch until you take the keyboard
-    await k.me.page.getByTestId("terminal-take").click();
-    await k.me.page.getByTestId("terminal-give").waitFor({ timeout: 10_000 });
-    await k.me.page.waitForFunction(
-      () => (document.activeElement as HTMLElement | null)?.getAttribute("data-testid") === "terminal-screen",
-      undefined,
-      { timeout: 5_000 },
-    );
+      await k.me.page.getByTestId("terminal-take").click();
+      await k.me.page.getByTestId("terminal-give").waitFor({ timeout: 10_000 });
+      await k.me.page.waitForFunction(
+        () => (document.activeElement as HTMLElement | null)?.getAttribute("data-testid") === "terminal-screen",
+        undefined,
+        { timeout: 5_000 },
+      );
       await k.me.page.keyboard.type("whoami");
       await k.me.page.keyboard.press("Enter");
       await k.me.page.getByTestId("terminal-screen").getByText("whoami").first().waitFor({ timeout: 10_000 });

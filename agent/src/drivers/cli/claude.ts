@@ -106,6 +106,13 @@ export function createClaudeDecoder(): CliDecoder {
   const perMessage = new Map<string, Tally>();
   let current = "";
   let sawText = false;
+  /** The engine's message that wrote the last words of the turn: words of a later message are a new paragraph, never the end of the sentence before (a helper's end comes between two messages with no tool step of the lead's own). */
+  let wroteIn = "";
+  const words = (message: string, text: string): string => {
+    const apart = wroteIn !== "" && message !== wroteIn && !/^\s/.test(text);
+    wroteIn = message;
+    return apart ? `\n\n${text}` : text;
+  };
   let sid = "";
   /** The model the engine says it ran on (the init line, then each message): a chat that picked none runs on the engine's own default, and this is the only place its name is. */
   let model = "";
@@ -134,6 +141,8 @@ export function createClaudeDecoder(): CliDecoder {
   function onStream(ev: Json, parent: string): CliEvent[] {
     switch (str(ev["type"])) {
       case "message_start": {
+        // a subagent's message is not the one the main text is streaming: `current` stays the main agent's
+        if (parent !== "") return [];
         const m = obj(ev["message"]);
         current = str(m?.["id"]);
         return [];
@@ -162,7 +171,7 @@ export function createClaudeDecoder(): CliDecoder {
         if (t === "text_delta" && str(d["text"]) !== "") {
           streamed.add(current);
           sawText = true;
-          return [{ type: "text", text: str(d["text"]) }];
+          return [{ type: "text", text: words(current, str(d["text"])) }];
         }
         if (t === "thinking_delta" && str(d["thinking"]) !== "") {
           streamed.add(current);
@@ -183,7 +192,7 @@ export function createClaudeDecoder(): CliDecoder {
     const tally = tallyOf(obj(m["usage"]));
     // the size of the main agent's context is its own: a subagent's request is a different, smaller context
     if (tally.input > 0 && parent === "") lastContext = tally.input;
-    perMessage.set(id, tally);
+    if (parent === "") perMessage.set(id, tally); // a subagent's usage is not the main reply's
     const out: CliEvent[] = [];
     for (const raw of arr(m["content"])) {
       const b = obj(raw);
@@ -192,7 +201,7 @@ export function createClaudeDecoder(): CliDecoder {
       if (parent !== "" && t !== "tool_use") continue;
       if (t === "text" && str(b["text"]) !== "" && !streamed.has(id)) {
         sawText = true;
-        out.push({ type: "text", text: str(b["text"]) });
+        out.push({ type: "text", text: words(id, str(b["text"])) });
       } else if (t === "thinking" && str(b["thinking"]) !== "" && !streamed.has(id))
         out.push({ type: "thinking", text: str(b["thinking"]) });
       else if (t === "tool_use" && str(b["id"]) !== "") {

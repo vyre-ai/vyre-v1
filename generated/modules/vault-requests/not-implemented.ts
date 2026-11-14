@@ -5,6 +5,13 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "vault.connect": async (ctx) => { throw new VyreErr(notImplemented("vault.connect", ctx.trace)); },
+  "vault.connect_card.ask_admin": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.ask_admin", ctx.trace)); },
+  "vault.connect_card.disconnect": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.disconnect", ctx.trace)); },
+  "vault.connect_card.get": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.get", ctx.trace)); },
+  "vault.connect_card.options": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.options", ctx.trace)); },
+  "vault.connect_card.reopen": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.reopen", ctx.trace)); },
+  "vault.connect_card.submit": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.submit", ctx.trace)); },
   "vault.request": async (ctx) => { throw new VyreErr(notImplemented("vault.request", ctx.trace)); },
   "vault.requests.cancel": async (ctx) => { throw new VyreErr(notImplemented("vault.requests.cancel", ctx.trace)); },
   "vault.requests.decline": async (ctx) => { throw new VyreErr(notImplemented("vault.requests.decline", ctx.trace)); },

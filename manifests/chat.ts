@@ -1142,6 +1142,39 @@ export default defineManifest({
       },
     ),
     write(
+      "chat.round.decide",
+      "Go with one agent's answer after a message asked several: one quiet line, \"Decided: going with Nova's answer\", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it",
+      {
+        in: { ...threadT, messageId: id.message, agentId: id.agent },
+        out: { messageId: id.message },
+        on: ["thread", "/threadId"],
+        level: "use",
+        idem: "key",
+        tool: "chats",
+        offline: "online",
+        risk: "low",
+        agent: { planMode: "blocked" },
+        errors: ["validation.bad_input", "validation.not_found"],
+      },
+    ),
+    write(
+      "chat.round.discuss",
+      'Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts "Decided:". The engine\'s hand-off limits cap it at four turns. Only the person who asked',
+      {
+        in: { ...threadT, messageId: id.message },
+        out: { threadId: id.thread },
+        on: ["thread", "/threadId"],
+        emits: ["agent.engaged"],
+        level: "use",
+        idem: "key",
+        tool: "chats",
+        offline: "online",
+        risk: "low",
+        agent: { planMode: "blocked" },
+        errors: ["validation.bad_input", "validation.not_found"],
+      },
+    ),
+    write(
       "chat.share",
       "Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to",
       {
@@ -1319,6 +1352,31 @@ export default defineManifest({
       },
     ),
     read(
+      "chat.chapters",
+      "The chapters of a long chat: where each starts (a Fresh context line, a gap of 3 hours, or 80 messages), its title and one line of what it settled. Empty for a chat of 40 messages or fewer. Worked out from the messages on every read",
+      {
+        in: threadT,
+        out: {
+          chapters: t.arr(
+            t.obj({
+              startSeq: t.int(),
+              endSeq: t.int(),
+              startAt: t.ts(),
+              count: t.int(),
+              current: t.bool(),
+              title: t.str(),
+              summary: t.str(),
+              by: t.enm("extract", "model", "person"),
+            }),
+          ),
+          wanted: t.int({ description: "Closed chapters that still carry only the plain words of the chat" }),
+        },
+        on: ["thread", "/threadId"],
+        tool: "chats",
+        label: "check",
+      },
+    ),
+    read(
       "chat.catch_up",
       "What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives",
       {
@@ -1359,7 +1417,9 @@ export default defineManifest({
             turn: t.opt(replyTurn),
             memory: t.opt(
               t.obj({
-                facts: t.arr(t.obj({ factId: t.str(), text: t.str(), sourceTitle: t.opt(t.str()) })),
+                facts: t.arr(
+                  t.obj({ factId: t.str(), text: t.str(), sourceTitle: t.opt(t.str()), kind: t.opt(t.str()) }),
+                ),
                 quotes: t.arr(t.obj({ ref: t.str(), text: t.str(), threadTitle: t.opt(t.str()), at: t.ts() })),
               }),
             ),
@@ -1519,6 +1579,20 @@ export default defineManifest({
       },
     ),
     // ---- native blocks, plan mode
+    write(
+      "chat.chapters_write",
+      "Write the title and one line of up to 3 closed chapters that only have the plain words of the chat, on a cheap model of the account that ran the turn. A model that fails leaves the plain words. Never holds a post",
+      {
+        in: {
+          ...threadT,
+          account: t.opt(t.obj({ ref: t.str(), driver: t.str() }, { description: "The account the turn ran on" })),
+        },
+        out: { written: t.int({ minimum: 0 }) },
+        on: ["thread", "/threadId"],
+        level: "use",
+        errors: ["validation.not_found", "permission.no_grant"],
+      },
+    ),
     write(
       "chat.title_make",
       "Name a chat from its first real request: 2 to 5 plain words, on a cheap model of the account that ran the turn or from the request's own words, never from a greeting. Made again once if the first came from a thin request; never after a person renamed the chat",

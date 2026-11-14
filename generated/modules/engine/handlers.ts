@@ -65,6 +65,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.review.mark": Handler<"engine.review.mark", X>;
   "engine.reviewer.get": Handler<"engine.reviewer.get", X>;
   "engine.reviewer.set": Handler<"engine.reviewer.set", X>;
+  "engine.round.get": Handler<"engine.round.get", X>;
   "engine.route.preview": Handler<"engine.route.preview", X>;
   "engine.running_here": Handler<"engine.running_here", X>;
   "engine.runtime.opt_in": Handler<"engine.runtime.opt_in", X>;

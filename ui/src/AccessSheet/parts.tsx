@@ -1557,6 +1557,16 @@ export const st = StyleSheet.create({
     paddingBottom: 4,
   },
   sectText: { color: t("ink-4"), fontSize: 11.5 },
+  blocked: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  blockedText: { color: t("ink-3"), fontSize: 12.5 },
+  blockedAction: { color: t("accent"), fontSize: 12.5 },
   row: {
     flexDirection: "row",
     alignItems: "center",

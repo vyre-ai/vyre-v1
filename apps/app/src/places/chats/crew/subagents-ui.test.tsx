@@ -2,14 +2,15 @@
 // helpers that pick which of them a reply carries and which are still on their own on screen. Rendered with the real components.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { act } from "react";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { CrewPeek } from "./pane.tsx";
 import { HelperPane } from "../session/HelperPane.tsx";
-import { CrewProvider, CrewWhileWorking } from "./context.tsx";
-import { liveSubagents, subagentId, subagentIdsOf, totalsOf } from "./model.ts";
+import { CrewProvider, useCrew } from "./context.tsx";
+import { LiveSubagents } from "./live.tsx";
+import { createTurnStreams } from "../../../shell/session/turn-streams.ts";
+import { liveSubagents, subagentId, subagentIdsOf, totalsOf, withLive } from "./model.ts";
 import type { CrewMember, CrewStatusOut } from "./model.ts";
 
 installDom();
@@ -132,34 +133,87 @@ test("a subagent's peek: its task, its steps, what it returned in full; no Open 
   assert.equal(find(live, "crew-peek-ask"), null);
 });
 
-test("while an agent works the crew is read again every second, so a subagent shows at once; when it stops, no more reads", async () => {
-  let reads = 0;
+test("a running turn's subagents come from its live frames: rows with task, state and clock; what each is on only from the asker's own frames; no read and no timer", async () => {
+  const streams = createTurnStreams();
+  const frame = (delta: Record<string, unknown>) =>
+    streams.onFrame({ t: "turn", turn: "trn_1", delta: { threadId: "thr_0", agentId: "agt_dex", ...delta } });
+  frame({ kind: "start", asker: "usr_a" });
+  // a call whose task line has not come yet is not drawn as an unnamed helper
+  frame({ kind: "steps", steps: [{ phase: "call", id: "toolu_0", name: "Agent" }] });
+  frame({
+    kind: "steps",
+    steps: [
+      { phase: "call", id: "toolu_a", name: "Agent" },
+      { phase: "input", id: "toolu_a", detail: "Test the terminal" },
+    ],
+  });
+  frame({
+    kind: "steps",
+    steps: [
+      { phase: "call", id: "toolu_b", name: "Agent" },
+      { phase: "input", id: "toolu_b", detail: "Test the browser" },
+    ],
+  });
+  frame({
+    kind: "substeps",
+    steps: [
+      { phase: "call", id: "tu_1", name: "Bash", parent: "toolu_a" },
+      { phase: "call", id: "tu_2", name: "Read", parent: "toolu_b" },
+      { phase: "input", id: "tu_2", detail: "page.html", parent: "toolu_b" },
+    ],
+  });
+  const reads: string[] = [];
   const call = async (cap: string): Promise<unknown> => {
-    if (cap === "engine.crew.status") reads += 1;
+    reads.push(cap);
     return { members: [], totals: totalsOf([]) };
   };
-  const tree = (working: boolean) => (
+  let seen: CrewStatusOut | null = null;
+  const Probe = (): null => {
+    seen = useCrew()?.status ?? null;
+    return null;
+  };
+  const turns = streams.turnsOf("thr_0");
+  await mount(
+    createRoot,
     <CrewProvider call={call} threadId="thr_0">
-      <CrewWhileWorking working={working} />
-    </CrewProvider>
+      <LiveSubagents turns={turns} activityOf={(id) => streams.activityOf(id)} />
+      <Probe />
+    </CrewProvider>,
   );
-  const root = createRoot();
-  await act(async () => {
-    root.render(tree(true));
-  });
   await flush();
-  const first = reads;
-  assert.ok(first >= 1, "one read as it starts");
-  await new Promise((r) => setTimeout(r, 2300));
-  assert.ok(reads >= first + 2, `read again each second, not only once (${reads})`);
-  assert.ok(reads <= first + 6, `and not in a loop (${reads})`);
-  await act(async () => {
-    root.render(tree(false));
-  });
+  const members = (seen as CrewStatusOut | null)?.members ?? [];
+  assert.equal(members.length, 2, "the unnamed call is not a row");
+  assert.deepEqual(
+    members.map((m) => [m.kind, m.title, m.state]),
+    [
+      ["subagent", "Test the terminal", "working"],
+      ["subagent", "Test the browser", "working"],
+    ],
+  );
+  assert.deepEqual(
+    members.map((m) => m.step),
+    ["Running a command", "Reading page.html"],
+  );
+  assert.ok(members.every((m) => m.startedAt > 0));
+  // the first returns: Done, and the clock stops
+  frame({ kind: "steps", steps: [{ phase: "result", id: "toolu_a", name: "Agent", ok: true }] });
   await flush();
-  const stopped = reads;
-  await new Promise((r) => setTimeout(r, 1500));
-  assert.equal(reads, stopped, "an idle chat is not polled");
+  const after = (seen as CrewStatusOut | null)?.members ?? [];
+  assert.deepEqual(
+    after.map((m) => m.state),
+    ["done", "working"],
+  );
+  assert.equal(after[0]!.step, undefined);
+  // one read when the chat opens, none for the subagents, no timer
+  const once = reads.length;
+  await new Promise((r) => setTimeout(r, 2500));
+  assert.equal(reads.length, once, "nothing reads again while subagents work");
+});
+
+test("a person who is not the asker gets no substeps frame to show: the rows still say Working", () => {
+  const live = withLive(null, [S({ step: undefined as never, steps: undefined as never })]);
+  assert.equal(live?.members[0]?.step, undefined);
+  assert.equal(live?.totals.working, 1);
 });
 
 test("a subagent's pane asks for no workspace: it has no chat, and the ask is refused on every open (found by the real-app walk)", async () => {

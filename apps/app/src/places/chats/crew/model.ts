@@ -357,3 +357,64 @@ export function totalsOf(members: readonly CrewMember[]): CrewTotals {
     elapsedMs: Math.max(0, ...members.map((m) => m.elapsedMs)),
   };
 }
+
+/** The subagents of a running turn, read from its live activity: the Agent calls are rows (task, state, clock), and what each is on is the asker's own live words. No read, no timer. */
+export function subagentsOfActivity(
+  turn: { threadId: string; agentId: string },
+  snap: {
+    steps: ReadonlyArray<{
+      id: string;
+      name: string;
+      state: "live" | "done" | "failed";
+      detail?: string;
+      at?: number;
+      endedAt?: number;
+    }>;
+    subs?: Readonly<Record<string, ReadonlyArray<{ name: string; detail?: string }>>>;
+  },
+  words: (name: string, detail?: string) => string,
+  now: number,
+): CrewMember[] {
+  return (
+    snap.steps
+      // a call whose task line has not arrived yet (it follows the call by up to a frame) is not drawn as an unnamed helper: it shows as soon as the line comes
+      .filter((x) => /^(Agent|Task)$/.test(x.name) && (x.detail ?? "") !== "")
+      .map((x) => {
+        const own = (snap.subs?.[x.id] ?? []).map((y) => words(y.name, y.detail));
+        const startedAt = x.at ?? now;
+        return {
+          kind: "subagent",
+          id: subagentId(x.id),
+          parentThreadId: turn.threadId,
+          title: x.detail && x.detail !== "" ? x.detail : "Helper",
+          agentId: turn.agentId,
+          state: x.state === "live" ? "working" : x.state === "done" ? "done" : "failed",
+          ...(x.state === "live" && own.length > 0 ? { step: own[own.length - 1]! } : {}),
+          ...(own.length > 0 ? { steps: own } : {}),
+          startedAt,
+          ...(x.endedAt !== undefined ? { endedAt: x.endedAt } : {}),
+          elapsedMs: Math.max(0, (x.endedAt ?? now) - startedAt),
+          tokensIn: 0,
+          tokensOut: 0,
+          costMicros: 0,
+        } as CrewMember;
+      })
+  );
+}
+
+/** The crew read with the subagents of a running turn added (the live ones win for the same id): the strip, island, chip and pane all see one list. */
+export function withLive(status: CrewStatusOut | null, live: readonly CrewMember[]): CrewStatusOut | null {
+  if (live.length === 0) return status;
+  const have = new Set(live.map((m) => m.id));
+  const members = [...(status?.members ?? []).filter((m) => !have.has(m.id)), ...live];
+  const t = totalsOf(members);
+  return {
+    members,
+    totals: {
+      ...t,
+      tokensIn: status?.totals.tokensIn ?? 0,
+      tokensOut: status?.totals.tokensOut ?? 0,
+      costMicros: status?.totals.costMicros ?? 0,
+    },
+  } as CrewStatusOut;
+}

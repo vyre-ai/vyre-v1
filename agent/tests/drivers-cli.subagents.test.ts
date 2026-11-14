@@ -93,3 +93,67 @@ test("a subagent's streamed words are dropped too", () => {
   ]);
   assert.deepEqual(out, [{ type: "text", text: "the answer" }]);
 });
+
+// two parallel subagents whose lines interleave with the main agent's own stream (recorded shape of Claude Code stream-json)
+const parallel = (withUsage: boolean): unknown[] => [
+  { type: "stream_event", parent_tool_use_id: null, event: { type: "message_start", message: { id: "main1" } } },
+  { type: "stream_event", parent_tool_use_id: "toolu_a", event: { type: "message_start", message: { id: "sub_a1" } } },
+  { type: "stream_event", parent_tool_use_id: "toolu_b", event: { type: "message_start", message: { id: "sub_b1" } } },
+  {
+    type: "stream_event",
+    parent_tool_use_id: null,
+    event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Hello" } },
+  },
+  {
+    type: "assistant",
+    parent_tool_use_id: "toolu_a",
+    message: {
+      id: "sub_a1",
+      model: "m",
+      content: [{ type: "text", text: "A chatter" }],
+      usage: { input_tokens: 90_000, output_tokens: 5 },
+    },
+  },
+  {
+    type: "assistant",
+    parent_tool_use_id: "toolu_b",
+    message: {
+      id: "sub_b1",
+      model: "m",
+      content: [{ type: "text", text: "B chatter" }],
+      usage: { input_tokens: 80_000, output_tokens: 5 },
+    },
+  },
+  {
+    type: "assistant",
+    parent_tool_use_id: null,
+    message: {
+      id: "main1",
+      model: "m",
+      content: [{ type: "text", text: "Hello" }],
+      usage: { input_tokens: 100, output_tokens: 2 },
+    },
+  },
+  {
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    result: "Hello",
+    session_id: "s",
+    ...(withUsage ? { usage: { input_tokens: 100, output_tokens: 2 } } : {}),
+  },
+];
+
+test("parallel subagents: the main text streams once, never doubled by a subagent's message_start", () => {
+  const out = feed(parallel(true));
+  assert.deepEqual(
+    out.filter((e) => e.type === "text"),
+    [{ type: "text", text: "Hello" }],
+  );
+});
+
+test("parallel subagents: their usage never counts into the main reply, even when the result line gives none", () => {
+  const out = feed(parallel(false));
+  const u = out.find((e): e is Extract<CliEvent, { type: "usage" }> => e.type === "usage");
+  assert.deepEqual([u?.inputTokens, u?.outputTokens, u?.contextTokens], [100, 2, 100]);
+});

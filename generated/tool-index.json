@@ -50,6 +50,12 @@
     },
     {
       "deferred": false,
+      "name": "access_clears",
+      "summary": "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_deciders",
       "summary": "The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else",
       "toolset": "meta"
@@ -1382,6 +1388,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_chapters",
+      "summary": "The chapters of a long chat: where each starts (a Fresh context line, a gap of 3 hours, or 80 messages), its title and one line of what it settled. Empty for a chat of 40 messages or fewer. Worked out from the messages on every read",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_composer_suggest",
       "summary": "Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates",
       "toolset": "chats"
@@ -1540,6 +1552,18 @@
       "deferred": false,
       "name": "chat_reply_details",
       "summary": "How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_round_decide",
+      "summary": "Go with one agent's answer after a message asked several: one quiet line, \"Decided: going with Nova's answer\", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_round_discuss",
+      "summary": "Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts \"Decided:\". The engine's hand-off limits cap it at four turns. Only the person who asked",
       "toolset": "chats"
     },
     {
@@ -2878,6 +2902,12 @@
       "deferred": false,
       "name": "engine_reviewer_set",
       "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn (\"Asking Reviewer to check this\"), a person gets a Review task",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_round_get",
+      "summary": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
       "toolset": "chats"
     },
     {
@@ -9866,6 +9896,48 @@
     },
     {
       "deferred": false,
+      "name": "vault_connect",
+      "summary": "Is X connected, connect X (Fathom, Slack), or before saying you cannot reach X. The person gets one card; you get connected, waiting or declined.",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_ask_admin",
+      "summary": "Ask an admin to connect the service when this person may not",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_disconnect",
+      "summary": "Disconnect the service; the key stays in the Vault",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_get",
+      "summary": "The connect card of one request: its state, the fields, who can fill it, where the key is kept",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_options",
+      "summary": "Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_reopen",
+      "summary": "Open a card the person folded with Not now",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_submit",
+      "summary": "Try the key, connect the service and keep the key; nothing is kept unless the key works. The values are in this call only",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "vault_export_env",
       "summary": "Export a folder as a .env file: one pull link that expires after 1 hour, 1 day or 7 days; never for Restricted items; the folder owner is notified",
       "toolset": "vault"
@@ -10035,7 +10107,7 @@
     {
       "deferred": false,
       "name": "vault_request",
-      "summary": "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
+      "summary": "Ask for a missing key that is not a service (a key a skill or run needs, by name): creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status. For a service the person names, use vault_connect",
       "toolset": "vault"
     },
     {

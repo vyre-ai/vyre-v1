@@ -151,13 +151,23 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
     });
   }
   // the subagents a command-line engine started in its own turns: one row each, read as the helpers are
+  // a chat with no subagents costs one indexed read here and nothing more
+  const hasOwn =
+    (ctx.db.all("SELECT 1 AS x FROM engine_own_subagent WHERE thread_id = ? LIMIT 1", input.threadId) as Row[]).length >
+    0;
   const liveIds = new Set(
-    (
-      await liveTurns(ctx, { threadId: input.threadId }).catch(() => ({ turns: [] as Array<{ turnId: string }> }))
-    ).turns.map((t) => t.turnId),
+    hasOwn
+      ? (
+          await liveTurns(ctx, { threadId: input.threadId }).catch(() => ({ turns: [] as Array<{ turnId: string }> }))
+        ).turns.map((t) => t.turnId)
+      : [],
   );
+  // Who sees what of a subagent (lead, 14 Nov): everyone who can read the chat sees that it ran, its task, Working or Done and its clock. The words it returned ran with the reach of the person who asked and the agent never
+  // chose to say them to the room: they are that person's alone (the step it is on rides their own live frames).
+  const me = ctx.actingFor ?? ctx.principal.id;
   for (const x of listOwn(ctx.db, input.threadId, liveIds)) {
     const end = x.endedAt;
+    const mine = x.asker === me;
     members.push({
       kind: "subagent",
       id: `sub_${x.callId.replace(/[^A-Za-z0-9]/g, "")}`,
@@ -166,9 +176,7 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
       agentId: x.agentId,
       state:
         x.state === "working" ? "working" : x.state === "done" ? "done" : x.state === "failed" ? "failed" : "stopped",
-      ...(x.step ? { step: x.step } : {}),
-      ...(x.steps.length > 0 ? { steps: x.steps } : {}),
-      ...(x.found ? { found: oneLine(x.found), answer: x.found } : {}),
+      ...(mine && x.found ? { found: oneLine(x.found), answer: x.found } : {}),
       startedAt: x.startedAt,
       ...(end !== undefined ? { endedAt: end } : {}),
       elapsedMs: Math.max(0, (end ?? now) - x.startedAt),

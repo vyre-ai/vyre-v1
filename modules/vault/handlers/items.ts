@@ -8,7 +8,7 @@
 // DECISION: a Mine item cannot be shared; to share it, move it into a Shared folder (that re-encrypts it under the filler). A subscription sign-in (kind ai_subscription) stays Mine for ever.
 // DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import are other packets.
 import { agentStanding } from "../../../lib/agent-asker.ts";
-import { isCompanyKey } from "../../../lib/company-keys.ts";
+import { COMPANY_FOLDER, isCompanyKey } from "../../../lib/company-keys.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   ENC_MINE,
@@ -504,8 +504,8 @@ export function uniqueHandle(ctx: Pick<VaultCtx, "db">, name: string, except?: s
   return h;
 }
 
-/** The folder company keys live in. */
-export const COMPANY_FOLDER = "Company connections";
+/** The folder company keys live in (lib/company-keys.ts holds the list of the server's folder names). */
+export { COMPANY_FOLDER };
 
 /** The Restricted shared folder for company keys: the one there is, else made now (through the host, so it is a resource at once), labelled Restricted before anything goes in. Labelling needs an owner or admin. */
 async function companyFolder(ctx: VaultCtx, idem: string): Promise<string> {

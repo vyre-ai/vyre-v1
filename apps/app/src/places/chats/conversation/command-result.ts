@@ -79,7 +79,7 @@ export interface UsageAccount {
 }
 
 export interface UseFigures {
-  turns: number;
+  count: number;
   fresh: number;
   cached: number;
   out: number;
@@ -200,7 +200,7 @@ export const WAITING_WORDS = "Shows after your next message";
 export const SILENT_WORDS = "Doesn't report its limits";
 
 const figures = (u: MyAi["use"]["today"]): UseFigures => ({
-  turns: u.turns,
+  count: u.turns,
   fresh: u.input,
   cached: u.cachedInput,
   out: u.output,
@@ -298,7 +298,7 @@ export function cardLines(card: CommandCard, now: number): string[] {
     out.push(`${a.name}: ${left}`);
   }
   const use = (label: string, u: UseFigures): string =>
-    `${label}: ${u.turns} ${u.turns === 1 ? "turn" : "turns"}, ${compactCount(u.fresh)} new, ${compactCount(u.cached)} cached, ${compactCount(u.out)} out${u.costMicros > 0 ? `, $${(u.costMicros / 1e6).toFixed(2)}` : ""}`;
+    `${label}: ${u.count} ${u.count === 1 ? "reply" : "replies"}, ${compactCount(u.fresh)} new, ${compactCount(u.cached)} cached, ${compactCount(u.out)} out${u.costMicros > 0 ? `, $${(u.costMicros / 1e6).toFixed(2)}` : ""}`;
   out.push(use("Today", card.today), use("This month", card.month));
   return out;
 }

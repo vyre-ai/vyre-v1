@@ -1,0 +1,81 @@
+{
+ "targets": [
+  {
+   "id": "CONNECTCARD_01-ask",
+   "route": "/m/CONNECTCARD_01?part=ask",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, ask"
+  },
+  {
+   "id": "CONNECTCARD_01-menu",
+   "route": "/m/CONNECTCARD_01?part=menu",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, menu"
+  },
+  {
+   "id": "CONNECTCARD_01-working",
+   "route": "/m/CONNECTCARD_01?part=working",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, working"
+  },
+  {
+   "id": "CONNECTCARD_01-done",
+   "route": "/m/CONNECTCARD_01?part=done",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, done"
+  },
+  {
+   "id": "CONNECTCARD_01-doneopen",
+   "route": "/m/CONNECTCARD_01?part=doneopen",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, doneopen"
+  },
+  {
+   "id": "CONNECTCARD_01-wrong",
+   "route": "/m/CONNECTCARD_01?part=wrong",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, wrong"
+  },
+  {
+   "id": "CONNECTCARD_01-have",
+   "route": "/m/CONNECTCARD_01?part=have",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, have"
+  },
+  {
+   "id": "CONNECTCARD_01-admin",
+   "route": "/m/CONNECTCARD_01?part=admin",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, admin"
+  },
+  {
+   "id": "CONNECTCARD_01-asked",
+   "route": "/m/CONNECTCARD_01?part=asked",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, asked"
+  },
+  {
+   "id": "CONNECTCARD_01-later",
+   "route": "/m/CONNECTCARD_01?part=later",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, later"
+  },
+  {
+   "id": "CONNECTCARD_01-offline",
+   "route": "/m/CONNECTCARD_01?part=offline",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, offline"
+  }
+ ]
+}

@@ -133,8 +133,8 @@ test("/usage opens a card above the composer with its answer laid out; it is not
       "OpenCode Go",
       "Doesn't report its limits",
       "Your use",
-      "1 turn",
-      "39 turns",
+      "1 reply",
+      "39 replies",
       "18k",
       "AI accounts in Settings",
     ])
