@@ -2,6 +2,7 @@
 // source and its first block point back at the message, and a "Task created, assigned to Maya" card lands in the thread linking to the task. Assigned to the person named, else the asker. An agent may do
 // it for the person it acts for (a mention is enough to ask): the task is the asker's own to give, nothing is widened. Replays are one task (the idempotency key rides to tasks.create).
 import { askerOf, ensure, isMember, messageBy, raise } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
 import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
 import { postLinkCard } from "./link-card.ts";
@@ -21,7 +22,7 @@ export async function makeTask(
 ) {
   ensure(ctx.db);
   const t = load(ctx, input.threadId);
-  const m = messageBy(ctx.db, input.messageId);
+  const m = messageAsMe(ctx, input.messageId);
   if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   if (m.kind === "system" || m.kind === "quiet")
     raise(ctx, "validation.bad_input", "A task is made from something someone said, not from a notice.");

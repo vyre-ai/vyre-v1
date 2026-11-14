@@ -9,7 +9,7 @@ function live(ctx: SpacesCtx, table: "spaces_star" | "spaces_follow", person: st
 /** A thing the caller cannot see is "not found", the same answer a made-up id gets: starring or following is no way to learn that it exists. Turning a mark off is always allowed. */
 async function mustSee(ctx: SpacesCtx, person: string, r: ResourceRef): Promise<void> {
   if (ctx.visible && !(await ctx.visible(person, r)))
-    raise(ctx.trace.traceId, "validation.not_found", "That does not exist or is not yours.");
+    raise(ctx.trace.traceId, "permission.not_found", "That does not exist or is not yours.");
 }
 function addFollow(ctx: SpacesCtx, person: string, r: ResourceRef): void {
   if (setMark(ctx, "spaces_follow", person, r, true)) ctx.emit("follow.added", r.id, { person, resource: r });

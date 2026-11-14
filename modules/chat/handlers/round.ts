@@ -1,6 +1,7 @@
 // chat.round.decide (chat gap G57): after a message asked several agents and each answered, the person goes with one answer. One quiet line is left in the chat ("Decided: going with Nova's answer"),
 // authored by the person, and no agent is woken by it. The round table card folds because a message of theirs now follows the answers. Only the person who asked decides, only for an agent that answered
 // after their message, and a replay with the same key is the same line.
+import { messageAsMe } from "./floor.ts";
 import { addAgent, agentsOf, askerOf, ensure, messageBy, raise } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
@@ -9,7 +10,7 @@ import { postLinkCard } from "./link-card.ts";
 export async function decideRound(ctx: ChatCtx, input: { threadId: string; messageId: string; agentId: string }) {
   ensure(ctx.db);
   const t = load(ctx, input.threadId);
-  const m = messageBy(ctx.db, input.messageId);
+  const m = messageAsMe(ctx, input.messageId);
   if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   const asker = askerOf(ctx);
   if (m.author !== asker)
@@ -92,7 +93,7 @@ export async function discussRound(
 ) {
   ensure(ctx.db);
   const t = load(ctx, input.threadId);
-  const m = messageBy(ctx.db, input.messageId);
+  const m = messageAsMe(ctx, input.messageId);
   if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   if (m.author !== askerOf(ctx)) raise(ctx, "validation.bad_input", "Only the person who asked starts the discussion.");
   const answers = answersAfter(ctx, t.id, m.seq);

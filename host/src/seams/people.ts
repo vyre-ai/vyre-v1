@@ -534,15 +534,18 @@ export function createPeopleExtras(
     },
     spaces: {
       directory,
-      // a chat is seen by its own people: starring or following one the person cannot read is "not found" (asked of the chat module as the person; any other kind is as visible as before)
+      // a chat or a channel is seen by its own people: starring or following one the person cannot read is "not found". Any other kind is as visible as before.
       async visible(personId: string, r: { type: string; id: string }) {
-        if (r.type !== "thread" && r.type !== "chat" && r.type !== "channel") return true;
-        try {
-          await d.call("threads.get", { threadId: r.id }, { principal: { kind: "person" as const, id: personId } });
-          return true;
-        } catch {
-          return false;
-        }
+        const type = r.type === "channel" ? "channel" : r.type === "thread" || r.type === "chat" ? "thread" : null;
+        if (type === null) return true;
+        // the chat module answers for its own chats and channels, as the person (a host call: d.call here is not the capability pipeline). A failure of the call is an error, never "not visible".
+        return (
+          (await d.call(
+            "chat.visible_to_me",
+            { type, id: r.id },
+            { principal: { kind: "person" as const, id: personId } },
+          )) === true
+        );
       },
       // the tile's counts come from the modules that own them, asked as the person: tasks (Ready requests waiting on them) and chat (unread messages in their chats); a module that is not live counts nothing
       attention: {

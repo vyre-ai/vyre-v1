@@ -178,3 +178,29 @@ test("an agent acting for the owner grants only from where the whole room reads:
   await h["threads.members.add"]!(hn.agent(INTAKE, DANA), { threadId: id, personId: LEO, fromStart: true });
   assert.equal(await reads(hn.person(LEO), id, "OLDSECRET"), false);
 });
+
+test("chat.visible_to_me (what stars and follows ask): a chat by its thread id, a channel by its channel id; an outsider's chat, an invite channel they are not in and a made-up id are not visible", async () => {
+  const { hostCalls } = await import("../impl.ts");
+  const call = hostCalls["chat.visible_to_me"] as (
+    ctx: Harness["ctx"],
+    i: { type: "thread" | "channel"; id: string },
+  ) => Promise<boolean>;
+  const hn = world();
+  const chat = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread
+    .threadId as string;
+  const open = (await h["channels.create"]!(hn.ctx, { name: "town", visibility: "public", idempotencyKey: key() }))
+    .channel;
+  const closed = (await h["channels.create"]!(hn.ctx, { name: "board", visibility: "invite", idempotencyKey: key() }))
+    .channel;
+  assert.equal(await call(hn.ctx, { type: "thread", id: chat }), true, "mine");
+  assert.equal(
+    await call(hn.ctx, { type: "channel", id: closed.channelId }),
+    true,
+    "a channel I am in, by its channel id",
+  );
+  const maya = hn.person(MAYA);
+  assert.equal(await call(maya, { type: "thread", id: chat }), false, "someone else's chat");
+  assert.equal(await call(maya, { type: "channel", id: closed.channelId }), false, "an invite channel I am not in");
+  assert.equal(await call(maya, { type: "channel", id: open.channelId }), true, "a public channel");
+  assert.equal(await call(maya, { type: "thread", id: "thr_nothing" }), false, "an id that names nothing");
+});

@@ -5,7 +5,9 @@ import { recentWithUnread } from "./handlers/g26.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import { forgetMentions } from "./handlers/pace.ts";
 import { onCardAnswered, onDirectReply, sendDue } from "./handlers/agent-dm.ts";
+import { channelBy, ensure, threadBy } from "./projections.ts";
 import type { ChatCtx } from "./projections.ts";
+import { canSpeak } from "./handlers/post.ts";
 import { ensureHome } from "./handlers/home-channel.ts";
 import { closePlaceholderQuestions } from "./handlers/placeholders.ts";
 import { NOTIFY_EVENTS, notify } from "./handlers/notify.ts";
@@ -173,6 +175,15 @@ export const hostCalls = {
       /* no table yet: nothing to move */
     }
     return 0;
+  },
+  /**
+   * May this person see this chat or channel? (stars and follows ask it, by the id the sidebar sends: a channel id for a channel, a thread id for a chat or a thread). True for a public channel, for a channel they are in, for
+   * a chat they are in; false for anything else, including an id that names nothing.
+   */
+  "chat.visible_to_me": async (ctx: ChatCtx, i: { type: "thread" | "channel"; id: string }): Promise<boolean> => {
+    ensure(ctx.db);
+    const t = threadBy(ctx.db, i.type === "channel" ? (channelBy(ctx.db, i.id)?.mainThread ?? "") : i.id);
+    return t !== null && canSpeak(ctx, t);
   },
   /** What the Space switcher shows as unread on this person's tile: their unread messages across the chats they are in (spaces.attention). */
   "chat.attention": async (ctx: ChatCtx): Promise<number> => {

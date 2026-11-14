@@ -151,7 +151,7 @@ test("a thing the caller cannot see is not found: starring or following it answe
       () => "none",
       (e: { error?: { code?: string } }) => e.error?.code ?? "unknown",
     );
-    assert.equal(failure, "validation.not_found", cap);
+    assert.equal(failure, "permission.not_found", cap);
   }
   assert.deepEqual((await handlers["stars.list"](h.as(MAYA), {})).stars, []);
   assert.equal(

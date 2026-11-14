@@ -4,3 +4,5 @@
 - Starring or following a chat you cannot see answers "not found", the same as for a chat that does not exist.
 - In Add people, "Include earlier messages" is shown only where it works: only a chat's owner can give earlier messages to someone who is already in it, and everyone else is offered it for new people only, worded "Include earlier messages you can read". If a request for it is refused you get a plain message instead of nothing.
 - An assistant adding people for someone hands on only what the room has read since that person came in.
+- A message from before you joined (or before your reading floor) can no longer be shared, replied to, quoted, forked, remembered, made into a task or deleted by someone who is not allowed to read it: it answers "not found" like a message that does not exist.
+- Starring a chat or channel works again by the id the sidebar sends, and one you cannot see answers "not found", the same as an id that does not exist.

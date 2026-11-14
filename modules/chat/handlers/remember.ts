@@ -2,6 +2,7 @@
 // source is the message, so recall in a later chat brings it back with the link; the Learned line under the message is the memory module's own (memory.learned for this message), and a "Remembered
 // for Rivera matter" card in the thread links to the fact. A shared layer keeps its own review rule: when the fact waits for a yes the card says "Proposed to ...", not "Remembered".
 import { agentsOf, askerOf, channelBy, ensure, messageBy, raise, threadBy } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
 import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
 import { postLinkCard } from "./link-card.ts";
@@ -57,7 +58,7 @@ export async function remember(
 ) {
   ensure(ctx.db);
   const t = load(ctx, input.threadId);
-  const m = messageBy(ctx.db, input.messageId);
+  const m = messageAsMe(ctx, input.messageId);
   if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   if (m.kind === "system" || m.kind === "quiet")
     raise(ctx, "validation.bad_input", "Remember something someone said, not a notice.");

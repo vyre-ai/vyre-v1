@@ -16,6 +16,7 @@ import {
   threadBy,
   threadOut,
 } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
 import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import { canSpeak, channelManageDenied, mayGovernChannel, rootOf } from "./post.ts";
@@ -392,10 +393,10 @@ export async function membersAdd(
   if (known) {
     // asked again with earlier messages on, the owner widens a person's reading, never beyond the owner's own floor. A member who is not the owner changes nobody's floor, their own included.
     if (input.fromStart === true) {
-      const current = floorOfPerson(ctx, t.id, input.personId);
+      const current = floorOfPerson(ctx, root.id, input.personId);
       if (current > 0) {
         // widening someone who is already in is the owner's alone: a plain refusal, never a quiet no-op (a client shows it)
-        if (!isOwnerOf(ctx, t.id, asker))
+        if (!isOwnerOf(ctx, root.id, asker))
           raise(
             ctx,
             "permission.no_grant",
@@ -406,7 +407,7 @@ export async function membersAdd(
             "UPDATE chat_thread_member SET fromAt = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
             adderFloor > 0 ? adderFloor : null,
             ctx.now(),
-            t.id,
+            root.id,
             input.personId,
           );
       }
@@ -414,7 +415,7 @@ export async function membersAdd(
     return out(ctx, t.id);
   }
   // added from "Maya is not in this chat. Add" under the message that mentioned them: they read from that message on, and are told about it like any mention (owner, 12 Nov)
-  const mentioned = input.mentionedIn !== undefined ? messageBy(ctx.db, input.mentionedIn) : null;
+  const mentioned = input.mentionedIn !== undefined ? messageAsMe(ctx, input.mentionedIn) : null;
   if (input.mentionedIn !== undefined && (!mentioned || mentioned.thread !== t.id))
     raise(ctx, "validation.bad_input", "That message is not in this chat.", { mentionedIn: input.mentionedIn });
   // only a real mention tells anyone they were mentioned: the message's own chips, never a name in its words, never the adder's say-so

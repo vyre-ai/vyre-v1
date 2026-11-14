@@ -2,7 +2,7 @@
 //   chat.fork    a new private chat that holds a copy of one chat up to a message, with the same agents and a line that links back
 //   chat.search  the words and the meaning of messages across every chat and channel the asker is in, each hit naming its message
 // Both read only what the asker may read. A sealed chat is not the server's to read: fork refuses it, search leaves it out and says how many.
-import { readFloor } from "./floor.ts";
+import { messageAsMe, readFloor } from "./floor.ts";
 import {
   agentsOf,
   askerOf,
@@ -83,7 +83,7 @@ export async function fork(ctx: ChatCtx, input: { threadId: string; messageId?: 
   ensureFork(ctx.db);
   let upTo: MessageRec | null;
   if (input.messageId !== undefined) {
-    upTo = messageBy(ctx.db, input.messageId);
+    upTo = messageAsMe(ctx, input.messageId);
     if (!upTo || upTo.thread !== src.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   } else {
     const r = (

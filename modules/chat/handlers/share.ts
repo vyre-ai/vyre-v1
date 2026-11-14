@@ -1,6 +1,7 @@
 // chat.share (rc.9, "Share this"): a message from one chat goes to another chat (a channel's main thread, or a chat with a person) as a card, and the chat it came from gets a one-line card saying where
 // it went. Both cards link to the other chat. The sharer must be able to read the message and to write in the place it goes: a share widens nothing they could not already do by hand.
 import { askerOf, ensure, messageBy, raise } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
 import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
 import { postLinkCard } from "./link-card.ts";
@@ -20,7 +21,7 @@ export async function share(
 ) {
   ensure(ctx.db);
   const from = load(ctx, input.threadId);
-  const m = messageBy(ctx.db, input.messageId);
+  const m = messageAsMe(ctx, input.messageId);
   if (!m || m.thread !== from.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   if (m.kind === "system" || m.kind === "quiet")
     raise(ctx, "validation.bad_input", "Share something someone said, not a notice.");

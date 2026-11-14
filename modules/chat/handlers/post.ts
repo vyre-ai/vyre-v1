@@ -26,6 +26,7 @@ import {
   refuseUnseenAgents,
   threadBy,
 } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { unarchiveForMention } from "./archive-state.ts";
@@ -438,7 +439,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   }
   let replyTo: MessageRec | null = null;
   if (input.replyTo !== undefined) {
-    replyTo = messageBy(ctx.db, input.replyTo);
+    replyTo = messageAsMe(ctx, input.replyTo);
     if (!replyTo || replyTo.thread !== thread.id)
       raise(ctx, "validation.bad_input", "The message you reply to is not in this chat.");
   }
