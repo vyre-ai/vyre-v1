@@ -25,6 +25,8 @@ test("Personal: a key request is fulfilled, the agent uses the key by its handle
   const model = scriptedModel(async function* (input, run) {
     const ask = input.trigger?.body ?? "";
     if (/connect my fathom/.test(ask)) {
+      // vault_request is found with tool_search, as a model finds it (vault_connect is the listed tool for a service)
+      yield* run("tool_search", { query: "vault request key" });
       const r = yield* run("vault_request", {
         name: "Fathom",
         fields: ["api_key"],

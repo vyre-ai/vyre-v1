@@ -47,6 +47,7 @@ type Out = {
     site?: string;
     builtin: boolean;
     host?: string;
+    hosts: Array<string>;
     checks: boolean;
   };
   connection?: {
@@ -90,6 +91,9 @@ type Out = {
         }
       ],
       "host": "example",
+      "hosts": [
+        "example"
+      ],
       "key": "hubspot",
       "mode": "api",
       "scope": "person",

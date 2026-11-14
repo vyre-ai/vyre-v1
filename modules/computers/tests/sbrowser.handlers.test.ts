@@ -32,6 +32,12 @@ const row = (profileId: string, over: Partial<ProfileRow> = {}): ProfileRow => (
   ...over,
 });
 
+const PNG_1X1 = Uint8Array.from(
+  Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64",
+  ),
+);
 let sessionsNow: () => Array<{ site: string; since: number; lastSeen: number }> = () => [];
 const signedOut: string[] = [];
 function rig() {
@@ -69,8 +75,14 @@ function rig() {
       rows.set(id, { ...r, takeover: false });
       seen.push(`give_back ${id}`);
     },
-    async screenshot() {
-      return { bytes: new Uint8Array(), width: 1, height: 1 };
+    async preview(id) {
+      seen.push(`preview ${id}`);
+      const r = rows.get(id);
+      return r?.running ? { bytes: PNG_1X1, width: 1, height: 1 } : { asleep: true as const };
+    },
+    async screenshot(id) {
+      seen.push(`screenshot ${id}`);
+      return { bytes: PNG_1X1, width: 1, height: 1 };
     },
     async stream(a) {
       seen.push(`stream ${a.profileId}`);
@@ -498,6 +510,76 @@ test("give back tells the browser service when it was decided, so a later takeov
       typeof seen[0]!.before === "number" && seen[0]!.before >= t0 && seen[0]!.before <= Date.now(),
       JSON.stringify(seen),
     );
+  } finally {
+    off();
+  }
+});
+
+test("the preview is one still picture for whoever may watch: it never wakes a sleeping browser, a person who may not watch gets the live view's refusal, and an agent cannot ask", async () => {
+  const r = rig();
+  try {
+    const live = await tool["computers.browser.preview"]!(as(DANA, false).ctx, { agentId: "agt_dex" });
+    assert.equal(live.state, "live");
+    assert.ok(typeof live.png === "string" && live.png.length > 10);
+    assert.deepEqual([live.width, live.height], [1, 1]);
+    assert.deepEqual(r.seen, ["preview agt_dex"]);
+    // asleep: no picture, and the browser service is not asked for one (so nothing starts)
+    r.rows.set("agt_dex", { ...r.rows.get("agt_dex")!, running: false });
+    const asleep = await tool["computers.browser.preview"]!(as(DANA, false).ctx, { agentId: "agt_dex" });
+    assert.equal(asleep.state, "asleep");
+    assert.equal(asleep.png, undefined);
+    assert.deepEqual(r.seen, ["preview agt_dex", "preview agt_dex"], "the look answers asleep and starts nothing: it is the quiet one, never a screenshot");
+    assert.ok(!r.seen.some((x) => x.startsWith("screenshot") || x.startsWith("stream")), "the picture never uses the tool screenshot (which counts as use) or the stream (which wakes it)");
+    // the live view's own rule: another person's Assistant is its person's alone
+    await assert.rejects(
+      () => tool["computers.browser.preview"]!(as(OMAR, true).ctx, { agentId: "agt_dana_ast" }),
+      (e) => codeOf(e) === "permission.no_grant",
+    );
+    await assert.rejects(
+      () => tool["computers.browser.preview"]!(as(OMAR, false).ctx, { agentId: "agt_dex" }),
+      (e) => codeOf(e) === "permission.no_grant" || codeOf(e) === "validation.not_found",
+    );
+    const agent = harness({ principal: { kind: "agent", id: "agt_dex" }, manager: false, respond });
+    await assert.rejects(
+      () => tool["computers.browser.preview"]!(agent.ctx, { agentId: "agt_dex" }),
+      (e) => codeOf(e) === "permission.no_grant",
+      "an agent never asks for a picture of its browser this way",
+    );
+    assert.deepEqual(r.seen, ["preview agt_dex", "preview agt_dex"]);
+  } finally {
+    off();
+  }
+});
+
+test("while a person has taken over the browser, only they get a picture or a live view: another watcher, an admin and the agent get none (preview and stream), and the stream's relay cuts a viewer whose ticket is older", async () => {
+  const r = rig();
+  try {
+    const base = as(DANA, false);
+    const dana = base.ctx;
+    const sh = (person: string, manager = true) => harness({ raw: base.raw, principal: { kind: "person", id: person }, manager, respond }).ctx;
+    await tool["computers.browser.take_over"]!(dana, { agentId: "agt_named" });
+    // the holder sees it
+    const own = await tool["computers.browser.preview"]!(dana, { agentId: "agt_named" });
+    assert.equal(own.state, "live");
+    await tool["computers.browser.stream"]!(dana, { agentId: "agt_named" });
+    // a second person who may watch (a member named on the agent) and an admin: no picture, who has it
+    const w = sh(WATCHER, false);
+    const t0 = await tool["computers.browser.stream"]!(w, { agentId: "agt_named" }).catch((e: unknown) => e);
+    assert.equal(codeOf(t0), "validation.precondition_failed");
+    for (const who of [w, sh(OMAR, true)]) {
+      const p = await tool["computers.browser.preview"]!(who, { agentId: "agt_named" });
+      assert.deepEqual([p.state, p.by, p.png], ["held", DANA, undefined]);
+    }
+    await assert.rejects(
+      () => tool["computers.browser.stream"]!(sh(OMAR, true), { agentId: "agt_named" }),
+      (e) => codeOf(e) === "validation.precondition_failed",
+    );
+    const agent = harness({ raw: base.raw, principal: { kind: "agent", id: "agt_named" }, manager: false, respond });
+    await assert.rejects(() => tool["computers.browser.preview"]!(agent.ctx, { agentId: "agt_named" }), (e) => codeOf(e) === "permission.no_grant");
+    void r;
+    // given back: everyone sees again
+    await tool["computers.browser.give_back"]!(dana, { agentId: "agt_named" });
+    assert.equal((await tool["computers.browser.preview"]!(w, { agentId: "agt_named" })).state, "live");
   } finally {
     off();
   }

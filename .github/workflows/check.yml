@@ -2,12 +2,12 @@ name: check
 # Per push affected-only checks, budget 5 minutes (ARCH-DECISIONS 13). Required checks on main (and for the merge queue): check, golden, contracts. budget only reports, on branch pushes.
 on:
   push:
-    branches-ignore: [main, 'gh-readonly-queue/**', 'wip/**']   # lane branches are tested on the lane box; CI runs on pull requests and integration branches
+    branches-ignore: [main, "gh-readonly-queue/**", "wip/**"] # lane branches are tested on the lane box; CI runs on pull requests and integration branches
   # the merge queue runs the same required checks on each batch (ruling: merge queue on main)
   merge_group:
   # hourly full run on main: l2-heavy (the real-engine golden halves, chat.live, the sandbox and computers proofs) is affected-only on branches, so main gets one complete result an hour
   schedule:
-    - cron: '41 * * * *'
+    - cron: "41 * * * *"
   # the regen bot pushes with GITHUB_TOKEN, which starts no workflows; it dispatches this one on the branch so the required checks attach to the bot's head (scripts/regen-bot.sh)
   workflow_dispatch:
 concurrency:
@@ -167,7 +167,7 @@ jobs:
         with: { node-version: 24 }
       - uses: ./.github/actions/deps
       - name: tools/gen's TypeScript (installed by the contracts gate script)
-        run: '[ -x tools/gen/node_modules/.bin/tsc ] || bash tools/gen/check.sh'
+        run: "[ -x tools/gen/node_modules/.bin/tsc ] || bash tools/gen/check.sh"
       - name: Typecheck ratchets (the count may only fall); the baseline is read from the merge base with main on a push, or with the pull request's target
         run: |
           git fetch -q origin main
@@ -344,7 +344,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { part: lifecycle-control, files: "host/tests/computers.lifecycle.live.test.ts host/tests/computers.control.live.test.ts", tests: 2 }
+          - {
+              part: lifecycle-control,
+              files: "host/tests/computers.lifecycle.live.test.ts host/tests/computers.control.live.test.ts",
+              tests: 2,
+            }
           - { part: home-sync, files: "host/tests/computers.home-sync.live.test.ts", tests: 1 }
           - { part: home-links, files: "host/tests/computers.home-links.live.test.ts", tests: 1 }
           - { part: home-changes, files: "host/tests/computers.home-changes.live.test.ts", tests: 1 }

@@ -15,6 +15,7 @@ export interface ConnectCardData {
   keptIn?: string;
   tested?: string;
   checks?: boolean;
+  notice?: string;
   checksWith?: string;
   connectedBy?: string;
   connectionId?: string;

@@ -27,6 +27,14 @@ export interface Clock {
   /** the Space's zone and the viewer's, for a shared place; left out for a private one (the device's offset is the clock) */ zones?: Zones;
 }
 
+/**
+ * Two different counts, never swapped: `membersIn` is everyone in the chat, people AND agents (what the head's number shows); `peopleIn` is the people alone (what privacy and "shared" rules
+ * count: a chat is shared when two or more PEOPLE read it, never because an agent is in it).
+ */
+export const membersIn = (t: { members: ReadonlyArray<{ kind: string }> }): number => t.members.length;
+export const peopleIn = (t: { members: ReadonlyArray<{ kind: string }> }): number =>
+  t.members.filter((p) => p.kind === "person").length;
+
 /** Resume any chat: the last 50 messages paint first, older ones stream in as the person scrolls up (V1-SPEC speed budgets). */
 export const WINDOW = 50;
 
@@ -1028,3 +1036,7 @@ export function mentionable(
 export function faceDoor(helperThreadIds: readonly string[], id: string): "helper" | "principal" {
   return helperThreadIds.includes(id) ? "helper" : "principal";
 }
+
+/** The words for a send that did not go and a turn that stopped: one wording for the same act. */
+export const NOT_SENT = "Not sent";
+export const TRY_AGAIN = "Try again";

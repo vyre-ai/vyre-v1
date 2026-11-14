@@ -1,5 +1,5 @@
 // The small entry that lingers in the app while setup is unfinished: a progress ring and "Finish setup, 3 of 8". It sits in the title bar (never over the rail, a sidebar or the page), It reopens onboarding at the first step not yet done or skipped,
-// and disappears once every step is done or put off. The count is what is really done: a skipped step moves the entry on, never the number. Hide puts it away for good on this device (the Home checklist still reopens setup).
+// and disappears once every step is done or put off. The count is what is really done: a skipped step moves the entry on, never the number. Hide puts it away for good for this person, on every device (it is kept in their state, not in the browser); the Home checklist still reopens setup.
 // A Space nobody has started setting up has no entry in the bar (no "0 of 9" on day one): setup opens by itself on the first visit, the Chats landing carries it, and the Console has its Setup guide. The entry appears once a step is done or put off.
 import { useState } from "react";
 import type { ReactElement } from "react";
@@ -8,22 +8,6 @@ import { COMPACT_BELOW } from "../shell/spaces/Shell.tsx";
 import { countsOn, stateOn, visibleSteps } from "./device.ts";
 import type { Device } from "./device.ts";
 import type { FlowKind, Progress } from "./flow.ts";
-
-const KEY = "vyre.setup.hidden";
-const read = (flow: FlowKind): boolean => {
-  try {
-    return (globalThis as { localStorage?: Storage }).localStorage?.getItem(`${KEY}.${flow}`) === "1";
-  } catch {
-    return false;
-  }
-};
-const write = (flow: FlowKind): void => {
-  try {
-    (globalThis as { localStorage?: Storage }).localStorage?.setItem(`${KEY}.${flow}`, "1");
-  } catch {
-    /* hidden for this visit only */
-  }
-};
 
 /** Has the person done or put off at least one step of this device's list? Before that the Space is brand new and the bar says nothing. */
 export function startedSetup(flow: FlowKind, progress: Progress, device: Device): boolean {
@@ -51,18 +35,24 @@ export function ResumeChip({
   device,
   onOpen,
   compact,
+  hidden = false,
+  onHide,
 }: {
   flow: FlowKind;
   progress: Progress;
   device: Device;
   onOpen(step: string): void;
   compact?: boolean;
+  /** This person hid it (read from their state by the host). */
+  hidden?: boolean;
+  /** Hide was pressed: the host keeps it in the person's state. */
+  onHide?(): void;
 }): ReactElement | null {
-  const [hidden, setHidden] = useState(() => read(flow));
+  const [pressedHide, setPressedHide] = useState(false);
   const width = useWindowDimensions().width;
   const overBar = compact ?? (width > 0 && width < COMPACT_BELOW);
   const info = resumeInfo(flow, progress, device);
-  if (!info || hidden || !startedSetup(flow, progress, device)) return null;
+  if (!info || hidden || pressedHide || !startedSetup(flow, progress, device)) return null;
   const R = 9,
     C = 2 * Math.PI * R,
     off = C * (1 - info.done / Math.max(info.total, 1));
@@ -103,8 +93,8 @@ export function ResumeChip({
         testID="resume-hide"
         accessibilityRole="button"
         onPress={() => {
-          write(flow);
-          setHidden(true);
+          setPressedHide(true);
+          onHide?.();
         }}
         style={s.hide}
       >

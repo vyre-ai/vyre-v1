@@ -545,6 +545,7 @@ export function stubs(ctx: CallCtx) {
     computers: {
       browser: {
         give_back: call("computers.browser.give_back"),
+        preview: call("computers.browser.preview"),
         profiles: call("computers.browser.profiles"),
         sessions: call("computers.browser.sessions"),
         sign_out: call("computers.browser.sign_out"),
@@ -2896,12 +2897,14 @@ export function stubs(ctx: CallCtx) {
     },
     terminal: {
       attach: call("terminal.attach"),
+      capture: call("terminal.capture"),
       close: call("terminal.close"),
       get: call("terminal.get"),
       give_back: call("terminal.give_back"),
       health: call("terminal.health"),
       input: call("terminal.input"),
       interrupt: call("terminal.interrupt"),
+      keys: call("terminal.keys"),
       list: call("terminal.list"),
       open: call("terminal.open"),
       open_server: call("terminal.open_server"),
@@ -3035,6 +3038,7 @@ export function stubs(ctx: CallCtx) {
       inject_env: call("vault.inject_env"),
       item: {
         delete: call("vault.item.delete"),
+        discard_new: call("vault.item.discard_new"),
         get: call("vault.item.get"),
         history: call("vault.item.history"),
         mark_rotated: call("vault.item.mark_rotated"),

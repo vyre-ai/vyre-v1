@@ -3,6 +3,7 @@
 // it while you hold and hands the keyboard back. Needs the production web export (VYRE_APP_DIST) and Chromium.
 import test from "node:test";
 import assert from "node:assert/strict";
+import os from "node:os";
 import { shoot } from "./support/mail-browser.ts";
 import { world } from "./support/computer-tab-world.ts";
 
@@ -13,7 +14,7 @@ test(
   "the keyboard: watch, nudge, take with Return, type, Esc stays, give back, Esc closes, the chord closes and hands back",
   { timeout: 300_000 },
   async (t) => {
-    const k = await world(t);
+    const k = await world(t, { tmux: true });
     if (!k) return;
     const page = k.me.page;
     const held = async (): Promise<string | undefined> => {
@@ -42,6 +43,24 @@ test(
         );
       });
       await page.keyboard.press("Enter");
+      // a burst typed with no pause straight after Return: every character must arrive, in order
+      const BURST = "echo burst-0123456789-abcdefghij";
+      await page.keyboard.type(BURST, { delay: 0 });
+      await page.keyboard.press("Enter");
+      await page
+        .waitForFunction(
+          () =>
+            /\nburst-0123456789-abcdefghij/.test(
+              (document.querySelector("[data-testid=terminal-screen]") as HTMLElement | null)?.innerText ?? "",
+            ),
+          undefined,
+          { timeout: 10_000 },
+        )
+        .catch(async (e: unknown) => {
+          throw new Error(
+            `${String(e).slice(0, 80)} | screen: ${JSON.stringify(await page.getByTestId("terminal-screen").innerText())} | bar: ${JSON.stringify(await bar.innerText())}`,
+          );
+        });
       await bar.getByText("You have the keyboard").waitFor({ timeout: 10_000 });
       assert.equal(await held(), k.w.owner.id, "the server has the owner at the keyboard");
       const same = await page.evaluate(
@@ -61,7 +80,7 @@ test(
       await page.keyboard.press("Enter");
       await page
         .getByTestId("terminal-screen")
-        .getByText("whoami")
+        .getByText(os.userInfo().username, { exact: true })
         .first()
         .waitFor({ timeout: 10_000 })
         .catch(async (e: unknown) => {

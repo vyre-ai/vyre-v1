@@ -18,7 +18,7 @@ const m: Message = {
   threadSeq: 1,
   author: { kind: "agent", id: "agt_intake" },
   kind: "agent",
-  body: "The Rivera draft is ready for you.",
+  body: "The Harbor draft is ready for you.",
   blocks: [
     {
       id: "blk_ob",
@@ -130,10 +130,10 @@ test("the ask-first card says whom it goes to; a teammate's plain approval runs 
   const held = heldOf([
     {
       type: "table",
-      data: { cap: "", act: "", plain: true, ask: { what: "approve the 10% Rivera discount" }, text: "Renews Monday." },
+      data: { cap: "", act: "", plain: true, ask: { what: "approve the 10% Harbor discount" }, text: "Renews Monday." },
     },
   ]);
-  assert.deepEqual([held.plain, held.what, held.detail], [true, "approve the 10% Rivera discount", "Renews Monday."]);
+  assert.deepEqual([held.plain, held.what, held.detail], [true, "approve the 10% Harbor discount", "Renews Monday."]);
 });
 
 test("the mute line shows once: under the newest message for the reader, until seen, muted, or the reader wrote after it", () => {

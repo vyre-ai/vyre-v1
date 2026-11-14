@@ -144,6 +144,10 @@ export function world(over: Partial<Script> = {}) {
             fieldKeys: (i["fields"] as { key: string }[]).map((f) => f.key),
           },
         };
+      case "vault.item.discard_new":
+        return { ok: true };
+      case "vault.unshare":
+        return { ok: true };
       case "vault.item.delete":
         return { ok: true };
       case "vault.items.list":
@@ -166,6 +170,7 @@ export function world(over: Partial<Script> = {}) {
             mode: "api",
             fields: c.fields,
             ...(c.site ? { site: c.site } : {}),
+            hosts: script.thirdParty ? ["api.example.test", "files.example.test"] : [],
             builtin: script.thirdParty !== true,
             checks: script.noProbe !== true,
             ...(script.thirdParty ? { host: "api.example.test" } : {}),

@@ -19,6 +19,8 @@ export interface SideRow {
   personId?: string;
   agentId?: string;
   progress?: { done: number; total: number };
+  line?: string;
+  nextCheckinAt?: number;
   quiet?: boolean;
   ended?: boolean;
   archived?: boolean;
@@ -81,10 +83,20 @@ const KIND: Record<SideRow["kind"], ItemKind> = {
   agent: "agent",
 };
 
+/** "Next check-in Wed 9:00" for a moving goal: the weekday and time on this device. */
+export function checkinLine(at: number): string {
+  const d = new Date(at);
+  return `Next check-in ${d.toLocaleDateString(undefined, { weekday: "short" })} ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+}
+
+const NO_DRAFTS: ReadonlySet<string> = new Set();
+
 export function itemsOf(
   out: SideOut,
   assistantId: string,
   presence: Presence = NO_PRESENCE,
+  /** Chats this person has unsent text in, on this device (per person and Space). */
+  drafts: ReadonlySet<string> = NO_DRAFTS,
 ): { items: Item[]; refs: Map<string, SideRow> } {
   const names = namesOf(out);
   const refs = new Map<string, SideRow>();
@@ -120,7 +132,7 @@ export function itemsOf(
       unread: r.unread,
       mentions: r.mentions,
       muted: r.muted,
-      draft: false,
+      draft: r.threadId !== undefined && drafts.has(r.threadId),
       working: r.working || (r.agentId !== undefined && presence.working.has(r.agentId)),
       archived: r.archived === true,
       ask: false,
@@ -128,6 +140,9 @@ export function itemsOf(
       lastAt: r.lastAt,
       ...(r.failed ? { failed: r.failedLine ?? "Something went wrong." } : {}),
       ...(r.progress ? { progress: r.progress } : {}),
+      ...(r.kind === "goal" && (r.line ?? (r.nextCheckinAt ? checkinLine(r.nextCheckinAt) : undefined))
+        ? { sub: r.line ?? checkinLine(r.nextCheckinAt!) }
+        : {}),
       ...(r.quiet ? { quiet: true } : {}),
       ...(pres ? { presence: pres } : {}),
       ...(r.private ? { private: true } : {}),

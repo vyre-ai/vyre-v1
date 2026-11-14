@@ -1,12 +1,14 @@
 // Handler table of the terminal module: all 21 capabilities of manifests/terminal.ts.
 import {
   attach,
+  capture,
   close,
   get,
   giveBack,
   health,
   input,
   interrupt,
+  keys,
   list,
   open,
   openServer,
@@ -33,6 +35,8 @@ export const handlers = {
   "terminal.close": close,
   "terminal.input": input,
   "terminal.interrupt": interrupt,
+  "terminal.capture": capture,
+  "terminal.keys": keys,
   "terminal.take_over": takeOver,
   "terminal.give_back": giveBack,
   "terminal.resize": resize,

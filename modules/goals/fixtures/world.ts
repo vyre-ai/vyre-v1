@@ -30,6 +30,7 @@ export interface FakeTask {
   workingNotes: Record<string, string>;
   createdBy: string;
   summary?: string;
+  source?: Obj;
 }
 export interface Caller {
   id: string;
@@ -108,6 +109,7 @@ export function world(
         summary: i.summary,
         ...(i.parentTaskId ? { parentTaskId: i.parentTaskId } : {}),
         assigned: i.assigned,
+        ...(i.source ? { source: i.source as Obj } : {}),
       };
       state.tasks.set(t.id, t);
       return { task: t };

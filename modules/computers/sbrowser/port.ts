@@ -76,6 +76,11 @@ export interface SpaceBrowser {
   /** `before` (ms since the epoch, the host's clock): release only a takeover that began before then, so a release decided on an older reading never undoes a newer takeover. */
   giveBack(profileId: string, o?: { before?: number }): Promise<void>;
   screenshot(profileId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;
+  /**
+   * The Computer tab's picture: a look at a browser that is running. It never starts a browser and does not count as use, so a tab left open does not keep the browser awake (its idle clock keeps running); a
+   * browser that is not running answers asleep. A service without it is asked with screenshot after a check that the browser runs.
+   */
+  preview?(profileId: string): Promise<{ bytes: Uint8Array; width: number; height: number } | { asleep: true }>;
   /** Where the live view of a profile is served from, for a ticket the viewer presents. `ws` is browserd's own WebSocket address on the machine that runs it, for the host's relay, never for a viewer. */
   stream(a: {
     profileId: string;

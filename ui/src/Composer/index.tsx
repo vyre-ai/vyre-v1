@@ -990,7 +990,7 @@ function AgentStrip({
       accessibilityState={{ expanded: open }}
       testID="composer-strip"
       onPress={onPress}
-      {...webProps({ title: "Model and settings" })}
+      {...webProps({ dataSet: { tt: "Model and settings" } })}
       style={({ hovered }: { hovered?: boolean }) => [styles.setBtn, (hovered === true || open) && HOVER]}
     >
       {body}
@@ -1835,7 +1835,7 @@ export function Composer(props: ComposerProps): ReactElement {
           accessibilityLabel="Queue"
           testID="composer-send"
           onPress={() => submit("queue")}
-          {...webProps({ title: "Send after this step" })}
+          {...webProps({ dataSet: { tt: "Send after this step" } })}
           style={({ hovered }: { hovered?: boolean }) => [styles.splitBtn, hovered === true && styles.splitHover]}
         >
           <Text style={styles.splitText}>Queue</Text>
@@ -1847,7 +1847,7 @@ export function Composer(props: ComposerProps): ReactElement {
           accessibilityLabel="Interrupt and send now"
           testID="composer-interrupt"
           onPress={() => submit("interrupt")}
-          {...webProps({ title: "Interrupt and send now" })}
+          {...webProps({ dataSet: { tt: "Interrupt and send now" } })}
           style={({ hovered }: { hovered?: boolean }) => [styles.splitBtn, hovered === true && styles.splitHover]}
         >
           <Text style={styles.splitText}>Now</Text>
@@ -1862,7 +1862,7 @@ export function Composer(props: ComposerProps): ReactElement {
         accessibilityLabel="Stop"
         testID="composer-send"
         onPress={() => props.onStop?.()}
-        {...webProps({ title: "Stop" })}
+        {...webProps({ dataSet: { tt: "Stop" } })}
         style={[styles.send, styles.sendStop]}
       >
         <Glyph icon={STOP} native={"■"} size={14} color="var(--ink)" />
@@ -1877,7 +1877,7 @@ export function Composer(props: ComposerProps): ReactElement {
         disabled={!hasContent}
         onPress={() => submit("queue")}
         testID="composer-send"
-        {...webProps({ title: sendTitle })}
+        {...webProps({ dataSet: { tt: sendTitle } })}
         style={[styles.send, !hasContent && styles.sendOff]}
       >
         <Glyph icon={I.up} native={"↑"} size={16} color={hasContent ? "var(--accent-ink)" : "var(--ink-3)"} />
@@ -1914,7 +1914,7 @@ export function Composer(props: ComposerProps): ReactElement {
           setPanelOpen(false);
           setPlusOpen((x) => !x);
         }}
-        {...webProps({ title: "Add" })}
+        {...webProps({ dataSet: { tt: "Add" } })}
         style={({ hovered }: { hovered?: boolean }) => [styles.tool, (hovered === true || plusOpen) && HOVER]}
       >
         <Glyph icon={I.plus} native="+" size={18} color="var(--ink-3)" />
