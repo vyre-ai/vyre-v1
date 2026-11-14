@@ -3,12 +3,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { pushEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { createMemoryStore } from "./data.tsx";
 import { useThreadMemory } from "./thread.tsx";
 import { useEffect } from "react";
+import { ChatRightPane } from "../rightpane/ChatRightPane.tsx";
+import { renderToStaticMarkup } from "react-dom/server";
 import { LessonMark } from "./LessonMark.tsx";
 import { LESSON_IDS, createChatMemorySample } from "./sample.ts";
 import { ChatMemoryProvider } from "./thread.tsx";
@@ -318,6 +320,53 @@ test("a mark with no lessons draws nothing", async () => {
     );
     await flush();
     assert.equal(find(root, "lesson-mark-m1"), null);
+  } finally {
+    off();
+  }
+});
+
+test("a Knows edit the server refuses comes back open with what was typed, and says why", async () => {
+  const off = installDom();
+  try {
+    const s = createChatMemorySample({ lessons: true });
+    const reads: Array<[string, unknown]> = [
+      ["memory.knows", { threadId: "c1", agentId: "agt_assistant" }],
+      ["memory.facts.list", { status: ["proposed"], layer: "agent", agentId: "agt_assistant" }],
+      ["memory.map.get", { agentId: "agt_assistant" }],
+      ["memory.facts.list", { status: ["current"], agentId: "agt_assistant", kind: "lesson" }],
+      ["memory.facts.list", { status: ["current"], agentId: "agt_assistant" }],
+      ["settings.get", { key: "memory.lessons" }],
+    ];
+    await s.warm(reads);
+    const pane = (
+      <ChatRightPane
+        data={s.pane}
+        open
+        onToggle={() => undefined}
+        tab="memory"
+        paneWidth={340}
+        window={{ start: 0, end: 500 }}
+      />
+    );
+    const id = /data-testid="know-edit-([^"]+)"/.exec(renderToStaticMarkup(pane))?.[1];
+    assert.ok(id, "a fact in Knows that can be edited");
+    const write = s.memory.store.write.bind(s.memory.store);
+    s.memory.store.write = (async (cap: string, input: unknown) => {
+      if (cap === "memory.fact.correct") throw new Error("The server refused the edit.");
+      return write(cap, input);
+    }) as typeof s.memory.store.write;
+    const root = await mount(createRoot, pane);
+    await flush();
+    await press(find(root, `know-edit-${id}`)!);
+    await flush();
+    await typeInto(find(root, `know-input-${id}`), "A new wording the server will refuse");
+    await press(find(root, `know-save-${id}`)!);
+    await flush();
+    await flush();
+    const input = find(root, `know-input-${id}`);
+    assert.ok(input, "the editor is open again");
+    assert.equal(input!.props["value"], "A new wording the server will refuse", "with what was typed");
+    assert.match(textOf(root), /refused the edit/, "and the reason is said");
   } finally {
     off();
   }
