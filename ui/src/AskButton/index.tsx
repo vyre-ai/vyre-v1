@@ -491,7 +491,7 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
             focus === "main" && styles.focus,
           ]}
           {...menuTrigger(openMenu)}
-          {...webProps({ title: `${label}  ⌘J` })}
+          {...webProps({ dataSet: { tt: `${label}  ⌘J` } })}
         >
           {face(current, 20)}
           {compact ? null : <Text style={styles.ask}>Ask</Text>}
@@ -509,7 +509,7 @@ export function AskButton(props: AskButtonProps): ReactElement | null {
           onBlur={() => setFocus(null)}
           style={[styles.chev, chevOver && { backgroundColor: wash }, focus === "chev" && styles.focus]}
           {...menuTrigger(openMenu)}
-          {...webProps({ title: "Change agent" })}
+          {...webProps({ dataSet: { tt: "Change agent" } })}
         >
           <MenuIcon icon={CHEVRON} color="var(--accent)" size={10} />
         </Pressable>

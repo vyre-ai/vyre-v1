@@ -56,7 +56,7 @@ export function RoleLine({
       testID="role-line"
       accessibilityRole={canEdit ? "button" : "text"}
       accessibilityLabel={label}
-      {...webProps({ title: canEdit ? "Edit the role line" : LOCKED_NOTE })}
+      {...webProps({ dataSet: { tt: canEdit ? "Edit the role line" : LOCKED_NOTE } })}
       onPress={() => {
         if (canEdit) {
           setDraft(value);

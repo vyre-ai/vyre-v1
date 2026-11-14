@@ -105,7 +105,7 @@ export function IconButton({
       onHoverOut={() => setOver(false)}
       testID={testID}
       style={[s.ib, over && s.btnOver]}
-      {...webProps({ title: label })}
+      {...webProps({ dataSet: { tt: label } })}
     >
       <Glyph name={glyph} size={glyph === "x" ? 14 : 15} color="var(--ink-3)" />
     </Pressable>

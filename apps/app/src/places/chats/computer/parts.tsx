@@ -99,7 +99,7 @@ export function RailButton({
         onHoverOut={() => setOver(false)}
         onFocus={() => setOver(true)}
         onBlur={() => setOver(false)}
-        {...webProps({ title: tip })}
+        {...webProps({ dataSet: { tt: tip } })}
         style={[s.rb, on && (danger ? s.rbRec : s.rbOn), over && !disabled && s.rbOver, disabled && { opacity: 0.45 }]}
       >
         <Icon name={icon} size={20} {...(icon === "recdot" || icon === "recstop" ? { fill: "#fff" } : {})} />
