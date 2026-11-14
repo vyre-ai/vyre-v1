@@ -486,6 +486,7 @@ export function SideChats({
     </>
   );
   const showing = layout.filter.showing;
+  const footShown = Boolean(out && !layout.empty && (data.nav.openNotes || data.nav.openArtifacts));
   return (
     <View testID="chats-sidebar" style={st.root}>
       {slot?.actionsOutlet ? portalInto(slot.actionsOutlet, head) : <View style={st.top}>{head}</View>}
@@ -497,7 +498,7 @@ export function SideChats({
           </Pressable>
         </View>
       ) : null}
-      <View style={st.list}>
+      <View testID="sidebar-list-fade" style={footShown ? ([st.list, st.fade] as never) : st.list}>
         {failure && !out ? (
           <LoadFailed what="chats" failure={failure} />
         ) : !out ? (
@@ -704,6 +705,11 @@ const st = StyleSheet.create({
     alignItems: "center",
   },
   list: { flex: 1, minHeight: 0 },
+  // a row cut by the foot fades out, as a cut tab does in the tab strip (web only: the mask is ignored elsewhere)
+  fade: {
+    WebkitMaskImage: "linear-gradient(to bottom, #000 calc(100% - 20px), transparent)",
+    maskImage: "linear-gradient(to bottom, #000 calc(100% - 20px), transparent)",
+  } as never,
   foot: { paddingHorizontal: 0, paddingTop: 4, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   setup: { paddingHorizontal: 8, paddingTop: 6, paddingBottom: 4, alignItems: "flex-start" },
   showing: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, height: 26 },

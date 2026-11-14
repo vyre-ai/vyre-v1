@@ -650,6 +650,7 @@ export async function chatsSidebar(
       { kind: "project" },
     );
   }
+  const inTasks = new Set((needsOut?.items ?? []).map((n) => n.task.title));
   for (const g of goalsOut?.goals ?? []) {
     const status = String(g["status"]);
     const pr = (g["progress"] as { tasksDone?: number; tasks?: number } | undefined) ?? {};
@@ -671,8 +672,13 @@ export async function chatsSidebar(
       },
       {
         kind: "goal",
-        ...(goalLine(status, g["statusReason"]) ? { line: goalLine(status, g["statusReason"])! } : {}),
-        ...(g["nextCheckinAt"] ? { nextCheckinAt: Number(g["nextCheckinAt"]) } : {}),
+        // a goal waiting on the person lives in Tasks (its Unblock task is there): its Goals row then says nothing a second time
+        ...(!inTasks.has(`Stuck: ${g["title"]}`) && goalLine(status, g["statusReason"])
+          ? { line: goalLine(status, g["statusReason"])! }
+          : {}),
+        ...(g["nextCheckinAt"] && !inTasks.has(`Stuck: ${g["title"]}`)
+          ? { nextCheckinAt: Number(g["nextCheckinAt"]) }
+          : {}),
         progress: { done: Number(pr.tasksDone ?? 0), total: Number(pr.tasks ?? 0) },
         ...(status !== "active" && !ENDED.has(status) ? { quiet: true } : {}),
         ...(ENDED.has(status) ? { ended: true } : {}),

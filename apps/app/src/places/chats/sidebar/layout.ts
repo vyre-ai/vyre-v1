@@ -143,7 +143,7 @@ export function buildLayout(i: LayoutInput): Layout {
       if (needsFolded) continue;
       const { shown, hidden } = filtered ? { shown: list, hidden: [] } : capList(list, CAPS.needs, null);
       if (fail) push({ key: "e:needs", type: "error", section: s, what: SECTION_WHAT.needs }, H.error);
-      for (const x of shown) push({ key: x.key, type: "row", section: s, item: x, mark: null }, H.two);
+      for (const x of shown) push({ key: x.key, type: "row", section: s, item: x, mark: null }, H.row); // the same pitch as every row below
       if (hidden.length > 0)
         push(
           {
@@ -186,13 +186,15 @@ export function buildLayout(i: LayoutInput): Layout {
       push({ key: `e:${s}`, type: "error", section: s, what: SECTION_WHAT[s] }, H.error);
       if (list.length === 0) continue;
     }
-    const h = s === "goals" ? H.two : H.row;
     const expanded = filtered || i.more.has(s);
     const { shown, hidden } = expanded ? { shown: list, hidden: [] } : capList(list, CAPS[s], i.open);
     const unloaded = Math.max(0, (i.totals?.[s] ?? 0) - list.length);
     for (const x of shown) {
       const d = s === "pinned" ? digits.get(x.key) : undefined;
-      push({ key: x.key, type: "row", section: s, item: x, mark: markOf(x), ...(d ? { digit: d } : {}) }, h);
+      push(
+        { key: x.key, type: "row", section: s, item: x, mark: markOf(x), ...(d ? { digit: d } : {}) },
+        s === "goals" && x.sub ? H.two : H.row,
+      );
     }
     if (hidden.length + unloaded > 0) {
       const a = aggOf(hidden);

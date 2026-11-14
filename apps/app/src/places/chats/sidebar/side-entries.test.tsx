@@ -161,7 +161,7 @@ test("a working chat's face wears the moving ring; a waiting task's face wears t
   assert.match(html, /waiting/);
 });
 
-test("a Needs you row is two lines with its verb; Blocked is amber; Goals rows are two lines; others one", () => {
+test("a Needs you row is one line with its verb; Blocked is amber; a Goals row is two lines only with words under it; others one", () => {
   const task = mk("task", "task", {
     verb: { label: "Blocked", tone: "warn" },
     sub: "Sol needs a key to continue",
@@ -169,9 +169,9 @@ test("a Needs you row is two lines with its verb; Blocked is amber; Goals rows a
   });
   const html = row(task);
   assert.match(html, /Migrate old files/);
-  assert.match(html, /Sol needs a key to continue/);
+  assert.doesNotMatch(html, /Sol needs a key to continue/, "a Tasks row is one line: the title and its verb");
   assert.match(html, /data-testid="row-verb"[^>]*>Blocked</);
-  assert.match(html, /height:44px/);
+  assert.match(html, /height:32px/, "the same pitch as every row");
   const working = mk("chat", "agent", { working: true, sub: "Editing upload.ts", title: "Client portal launch" });
   assert.match(row(working), /Editing upload\.ts/);
   assert.match(row(mk("chat", "agent")), /height:32px/);

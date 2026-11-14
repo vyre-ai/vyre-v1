@@ -222,7 +222,7 @@ test("Needs you shows the first three waiting items, each with its one verb; the
   );
   assert.equal(entry(l.entries, "more", "needs")!.hidden, 1);
   assert.ok(!types(l.entries).includes("head:needs"), "Needs you has no head; the Tasks row is its head");
-  assert.equal(entry(l.entries, "row", "needs")!.h, 44, "a two-line row");
+  assert.equal(entry(l.entries, "row", "needs")!.h, 32, "the same pitch as every row below it");
 });
 
 // ---------------------------------------------------------------- where an item shows, once
@@ -265,13 +265,18 @@ test("Goals: active first, then the quiet ones; finished only under the Goals fi
   assert.equal(sectionsOf([paused, active, done], [], "goals").goals.length, 3);
 });
 
-test("Goals has a head and rows two lines tall; cap 3 with N more", () => {
-  const gs = many(5, "goal", (i) => ({ working: i === 0, title: `g${i}` }));
+test("Goals has a head and rows one line tall, two only where a goal has words under it; cap 3 with N more", () => {
+  const gs = many(5, "goal", (i) => ({ working: i === 0, title: `g${i}`, ...(i === 0 ? { sub: "Planning" } : {}) }));
   const l = buildLayout(input(gs));
   assert.equal(rows(l.entries, "goals").length, 3);
   assert.equal(entry(l.entries, "more", "goals")!.hidden, 2);
   assert.equal(entry(l.entries, "head", "goals")!.label, "Goals");
-  assert.equal(entry(l.entries, "row", "goals")!.h, 44);
+  assert.equal(entry(l.entries, "row", "goals")!.h, 44, "a goal with a line under it");
+  assert.deepEqual(
+    l.entries.filter((e) => e.type === "row" && e.section === "goals").map((e) => e.h),
+    [44, 32, 32],
+    "the others are one line, like every row",
+  );
 });
 
 test("a lived-in Space with no goals shows the Goals head and one quiet line with New goal; an empty Space shows no heading", () => {
