@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, hooks, mcp, members.
 
-## Capabilities (117)
+## Capabilities (118)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -77,6 +77,7 @@ Requires: engine, hooks, mcp, members.
 - [chat.remember](../capabilities/chat.remember.md): Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule
 - [chat.reply_details](../capabilities/chat.reply_details.md): How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only
 - [chat.round.decide](../capabilities/chat.round.decide.md): Go with one agent's answer after a message asked several: one quiet line, "Decided: going with Nova's answer", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it
+- [chat.round.discuss](../capabilities/chat.round.discuss.md): Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts "Decided:". The engine's hand-off limits cap it at four turns. Only the person who asked
 - [chat.screen.get](../capabilities/chat.screen.get.md): The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows
 - [chat.search](../capabilities/chat.search.md): Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it
 - [chat.share](../capabilities/chat.share.md): Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to

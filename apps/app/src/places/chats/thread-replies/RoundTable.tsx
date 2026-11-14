@@ -1,5 +1,5 @@
 // The round table card under a message that asked several agents and was answered by each (chat gap G57): a tab per agent, that agent's answer, and "Go with <name>". Folds away by itself once the
-// person writes anything, the Decided line included. "Let them discuss" waits for the discussion thread and is not drawn until it can work.
+// person writes anything, the Decided line included. "Let them discuss" starts the talk in the thread under the message and opens it.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -18,11 +18,13 @@ function Table({
   threadId,
   agents,
   nameOf,
+  onOpen,
 }: {
   messageId: string;
   threadId: string;
   agents: readonly string[] | null;
   nameOf(id: string): string;
+  onOpen(): void;
 }): ReactElement | null {
   const data = useConversationData();
   const q = useLive<MessagesOut>(data.screens, CONVERSATION_SCREEN, "messages", { threadId });
@@ -46,6 +48,23 @@ function Table({
         }),
       ).then(
         () => setBusy(false),
+        () => setBusy(false),
+      );
+    } catch {
+      setBusy(false);
+    }
+  };
+  const discuss = (): void => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      void Promise.resolve(
+        data.call("chat.round.discuss", { threadId, messageId, idempotencyKey: `discuss-${messageId}` }),
+      ).then(
+        () => {
+          setBusy(false);
+          onOpen();
+        },
         () => setBusy(false),
       );
     } catch {
@@ -82,6 +101,15 @@ function Table({
         >
           <Text style={st.goText}>{`Go with ${first(on.agentId)}`}</Text>
         </Pressable>
+        <Pressable
+          testID={`round-table-${messageId}-discuss`}
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={discuss}
+          style={st.talk}
+        >
+          <Text style={st.talkText}>Let them discuss</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -94,11 +122,18 @@ export function RoundTable(p: {
   body: string;
   mentions?: readonly { kind: string; id: string }[] | undefined;
   nameOf(id: string): string;
+  onOpen(): void;
 }): ReactElement | null {
   if (!asksSeveral(p)) return null;
   const tagged = (p.mentions ?? []).filter((x) => x.kind === "agent").map((x) => x.id);
   return (
-    <Table messageId={p.messageId} threadId={p.threadId} agents={tagged.length > 1 ? tagged : null} nameOf={p.nameOf} />
+    <Table
+      messageId={p.messageId}
+      threadId={p.threadId}
+      agents={tagged.length > 1 ? tagged : null}
+      nameOf={p.nameOf}
+      onOpen={p.onOpen}
+    />
   );
 }
 
@@ -128,5 +163,13 @@ const st = StyleSheet.create({
   answer: { fontSize: 14, lineHeight: 20, color: "var(--ink)" as string },
   foot: { flexDirection: "row", gap: 8 },
   go: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "var(--accent)" as string },
+  talk: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
+  talkText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   goText: { fontSize: 13, fontWeight: "600", color: "var(--on-accent)" as string },
 });

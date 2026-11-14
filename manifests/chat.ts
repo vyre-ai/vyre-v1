@@ -1130,6 +1130,23 @@ export default defineManifest({
       },
     ),
     write(
+      "chat.round.discuss",
+      'Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts "Decided:". The engine\'s hand-off limits cap it at four turns. Only the person who asked',
+      {
+        in: { ...threadT, messageId: id.message },
+        out: { threadId: id.thread },
+        on: ["thread", "/threadId"],
+        emits: ["agent.engaged"],
+        level: "use",
+        idem: "key",
+        tool: "chats",
+        offline: "online",
+        risk: "low",
+        agent: { planMode: "blocked" },
+        errors: ["validation.bad_input", "validation.not_found"],
+      },
+    ),
+    write(
       "chat.share",
       "Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to",
       {

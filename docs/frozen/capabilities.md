@@ -176,3 +176,8 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 
 - What changed: one new write, `chat.round.decide@1` (input: threadId, messageId, agentId, idempotencyKey; output: the id of the line it leaves). After a message asked several agents and each answered, the person who asked goes with one answer: one quiet "Decided: going with Nova's answer" line (a link card authored by the person), no agent woken. Refused unless the caller is the author of the message and the agent answered after it. Snapshot: docs/frozen/snapshots/chat.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
 - Why: the round table card's "Go with Nova" (G57); the answer line is the record that the round ended.
+
+## 14 Nov 2026: chat.round.discuss added (lane chat-agents)
+
+- What changed: one new write, `chat.round.discuss@1` (input: threadId, messageId, idempotencyKey; output: the thread). After a message asked several agents and at least two answered, the person who asked lets them talk it over: the inline thread under the message gets one message from the person with the answers and a request for one short turn each, ending on a "Decided:" line; the first agent is tagged and tags the next, so the engine's hand-off limits cap it at four turns. It emits `agent.engaged` for agents it brings into the thread. Snapshot: docs/frozen/snapshots/chat.json.
+- Why: the round table's "Let them discuss" (G57). It adds no new engine rule: the talk is ordinary turns on the asker's account, bounded by the hand-off limits of 4 Nov.

@@ -875,6 +875,7 @@ function Mine({
         body={m.body}
         mentions={m.mentions}
         nameOf={actions.nameOf ?? unnamed}
+        onOpen={() => actions.openThread(m.messageId)}
       />
       <LearnedLines messageId={m.messageId} />
     </View>

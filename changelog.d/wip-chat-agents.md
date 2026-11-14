@@ -3,3 +3,4 @@
 - Tag two or more agents, or say "both of you", and a slim row under your message shows each agent and what it is doing within a second ("Dex  Working", "Nova  Next after Dex"), so a tagged agent that waits its turn no longer looks ignored. The row folds away when every agent has replied.
 - After a message asked several agents and each answered, "Go with Nova" leaves one quiet line in the chat, "Decided: going with Nova's answer" (a new write, chat.round.decide). No agent is woken by it.
 - When a message asked several agents and each has answered, one card under it shows a tab per agent with that agent's answer and a "Go with <name>" button. It folds away by itself once you write anything.
+- "Let them discuss" on the round table opens the thread under your message and has the agents that answered take a short turn each, ending on one line that starts "Decided:" (a new write, chat.round.discuss). At most four turns.

@@ -56,10 +56,21 @@ test("answers: each tagged agent's first reply after the ask, nothing until two 
 test("the card: a tab per agent, a press on a tab shows its answer, Go with calls chat.round.decide for that agent", async () => {
   installDom();
   const s = createSample("channel");
+  let opened = 0;
   s.replica.put("messages", [ask, dex, nova]);
   const root = await mount(
     createRoot,
-    <ConversationDataProvider value={{ ...s.data, threadId: "c1" }}>
+    <ConversationDataProvider
+      value={{
+        ...s.data,
+        threadId: "c1",
+        call: async (cap: string, input: unknown) => {
+          if (!cap.startsWith("chat.round.")) return s.data.call(cap as never, input as never);
+          s.calls.push({ cap, input } as never);
+          return { threadId: "t_disc" } as never;
+        },
+      }}
+    >
       <RoundTable
         messageId="q1"
         threadId="c1"
@@ -69,6 +80,7 @@ test("the card: a tab per agent, a press on a tab shows its answer, Go with call
           { kind: "agent", id: "agt_nova" },
         ]}
         nameOf={nameOf}
+        onOpen={() => opened++}
       />
     </ConversationDataProvider>,
   );
@@ -86,6 +98,14 @@ test("the card: a tab per agent, a press on a tab shows its answer, Go with call
     agentId: "agt_nova",
     idempotencyKey: "round-q1-agt_nova",
   });
+  await press(find(root, "round-table-q1-discuss")!);
+  await flush();
+  assert.deepEqual(s.calls.find((c) => c.cap === "chat.round.discuss")?.input, {
+    threadId: "c1",
+    messageId: "q1",
+    idempotencyKey: "discuss-q1",
+  });
+  assert.equal(opened, 1, "the thread opens beside the chat");
   await act(async () => {
     s.replica.put("messages", [ask, dex, nova, msg("p2", 4, "person", "usr_irfad", "Decided")]);
   });

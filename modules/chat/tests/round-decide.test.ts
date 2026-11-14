@@ -67,3 +67,52 @@ test("an agent that has not answered, and a message that is not in the chat, are
   );
   assert.deepEqual(lines(hn, t), []);
 });
+
+test("discuss: the thread under the ask gets one message from the person with both answers, tagging the first agent; one answer is too few", async () => {
+  const posted: Array<Record<string, any>> = [];
+  const hn = harness({
+    calls: {
+      "agents.get": () => ({ agent: {} }),
+      "search.resolve": (i: any) => ({ hit: { title: i.itemId === INTAKE ? "Intake Agent" : "Drafter Agent" } }),
+      "chat.thread": () => ({ thread: { threadId: "thr_disc" } }),
+      "chat.post": (i: any) => {
+        posted.push(i);
+        return { message: { messageId: "msg_seed" } };
+      },
+    },
+  });
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE, DRAFTER], idempotencyKey: key() }))
+    .thread.threadId as string;
+  const asked = (
+    await h["chat.post"]!(hn.ctx, {
+      threadId: t,
+      body: "@Intake @Drafter which storage?",
+      mentions: [
+        { kind: "agent", id: INTAKE },
+        { kind: "agent", id: DRAFTER },
+      ],
+      idempotencyKey: key(),
+    })
+  ).message.messageId as string;
+  const a = hn.as({ kind: "agent", id: INTAKE }, DANA);
+  await h["chat.post"]!(a, { threadId: t, body: "Object storage.", idempotencyKey: key() });
+  assert.equal(
+    await failure(() => h["chat.round.discuss"]!(hn.ctx, { threadId: t, messageId: asked, idempotencyKey: key() })),
+    "validation.bad_input",
+    "one answer is not a discussion",
+  );
+  assert.deepEqual(posted, []);
+  await h["chat.post"]!(hn.as({ kind: "agent", id: DRAFTER }, DANA), {
+    threadId: t,
+    body: "The server disk.",
+    idempotencyKey: key(),
+  });
+  const out = await h["chat.round.discuss"]!(hn.ctx, { threadId: t, messageId: asked, idempotencyKey: "disc-1" });
+  assert.deepEqual(out, { threadId: "thr_disc" });
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0]!["threadId"], "thr_disc");
+  assert.deepEqual(posted[0]!["mentions"], [{ kind: "agent", id: INTAKE }]);
+  assert.match(posted[0]!["body"], /Intake: Object storage\./);
+  assert.match(posted[0]!["body"], /Drafter: The server disk\./);
+  assert.match(posted[0]!["body"], /Decided:/);
+});

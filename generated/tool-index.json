@@ -1550,6 +1550,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_round_discuss",
+      "summary": "Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts \"Decided:\". The engine's hand-off limits cap it at four turns. Only the person who asked",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_screen_get",
       "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
       "toolset": "chats"

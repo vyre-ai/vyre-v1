@@ -8,7 +8,7 @@ import { replyDetails } from "./reply-details.ts";
 import { aside, asideKeep } from "./aside.ts";
 import { share } from "./share.ts";
 import { makeTask } from "./make-task.ts";
-import { decideRound } from "./round.ts";
+import { decideRound, discussRound } from "./round.ts";
 import { flowCard } from "./flow-card.ts";
 import { remember } from "./remember.ts";
 import { noted } from "./noted.ts";
@@ -46,6 +46,7 @@ export const handlers = {
   "chat.start": start,
   "chat.make_task": makeTask,
   "chat.round.decide": decideRound,
+  "chat.round.discuss": discussRound,
   "chat.reply_details": replyDetails,
   "chat.share": share,
   "chat.aside": aside,

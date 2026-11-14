@@ -7985,6 +7985,14 @@ export type ChatRoundDecideIn = {
 export type ChatRoundDecideOut = {
   messageId: string;
 };
+export type ChatRoundDiscussIn = {
+  threadId: string;
+  messageId: string;
+  idempotencyKey: string;
+};
+export type ChatRoundDiscussOut = {
+  threadId: string;
+};
 export type ChatScreenGetIn = {
   threadId: string;
   messageId?: string;
@@ -45361,6 +45369,7 @@ export interface CapMap {
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.reply_details": { in: ChatReplyDetailsIn; out: ChatReplyDetailsOut };
   "chat.round.decide": { in: ChatRoundDecideIn; out: ChatRoundDecideOut };
+  "chat.round.discuss": { in: ChatRoundDiscussIn; out: ChatRoundDiscussOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
   "chat.search": { in: ChatSearchIn; out: ChatSearchOut };
   "chat.share": { in: ChatShareIn; out: ChatShareOut };
