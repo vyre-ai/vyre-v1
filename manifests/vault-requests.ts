@@ -22,6 +22,8 @@ const requestRow = t.obj({
   taskId: id.task,
   at: t.ts(),
   decidedAt: t.opt(t.ts()),
+  /** true when the caller is the person the agent asked and may add the key into their own keys (vault.requests.get only) */
+  askedYou: t.opt(t.bool()),
 });
 
 export default defineManifest({

@@ -757,7 +757,7 @@ test("15 Nov: a key an agent is to use is only stored where that agent can use i
       "waiting",
     );
     assert.equal(
-      (w.called("access.clears")[0]!.input["resource"] as { id: string }).id,
+      (w.called("access.clears")[0]!.input["target"] as { id: string }).id,
       folderId,
       "asked of the chosen folder",
     );
@@ -1037,4 +1037,30 @@ test("an agent's key request for Alice is Alice's: Bob asking the same agent lis
     "the agent's own turn for nobody",
   );
   assert.deepEqual(await handlers["vault.requests.cancel"](forAlice, { requestId: id }), { ok: true });
+});
+
+test("15 Nov: a manager answering someone else's ask is refused their own Mine, for a new key and an attached item, before anything is stored; a folder a service made is the server's", async () => {
+  const w = world({
+    folders: [
+      { id: "vfd_mine", name: "Mine", scope: "mine" },
+      { id: "vfd_sealed", name: "Sealed fields", scope: "shared", owner: "svc_host" },
+      { id: "vfd_theirs", name: "Sealed fields", scope: "shared", owner: "usr_dana" },
+    ],
+    items: { vit_have: ["api_key"], vit_mine: ["api_key"] },
+    itemScope: { vit_mine: "mine" },
+  });
+  const a = await askFor(w, "Fathom_a", "mm-a");
+  await assert.rejects(
+    () => fulfilInto(w, a.request.id, "vfd_mine"),
+    /works for someone else.*let the person who asked add it/,
+  );
+  await assert.rejects(
+    () => handlers["vault.requests.fulfil"](w.as("usr_owner"), { requestId: a.request.id, itemId: "vit_mine" }),
+    /works for someone else/,
+  );
+  await assert.rejects(() => fulfilInto(w, a.request.id, "vfd_sealed"), /kept by Vyre for its own use/);
+  assert.deepEqual(w.called("vault.item.put"), [], "nothing was stored");
+  // the same name made by a person is theirs to use
+  await fulfilInto(w, a.request.id, "vfd_theirs");
+  assert.equal(w.called("vault.item.put").length, 1);
 });

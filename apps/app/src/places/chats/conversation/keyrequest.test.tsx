@@ -94,12 +94,19 @@ test("15 Nov: the team choice is offered only when the agent can use a shared fo
         calls.push({ cap, input: i });
         if (cap === "vault.requests.get")
           return {
-            request: { id: "vrq_1", name: "Fathom", fields: ["api_key"], reason: "r", state: "waiting" },
+            request: {
+              id: "vrq_1",
+              name: "Fathom",
+              fields: ["api_key"],
+              reason: "r",
+              state: "waiting",
+              askedYou: true,
+            },
           };
         if (cap === "vault.requests.list") return { requests: [{ id: "vrq_1" }] };
         if (cap === "vault.folders.list")
           return { folders: i["scope"] === "mine" ? [{ id: "vfd_mine" }] : [{ id: "vfd_hidden" }, { id: "vfd_team" }] };
-        if (cap === "access.clears") return { clears: usable.includes((i["resource"] as { id: string }).id) };
+        if (cap === "access.clears") return { clears: usable.includes((i["target"] as { id: string }).id) };
         return {};
       };
       const root = await mount(
@@ -125,6 +132,36 @@ test("15 Nov: the team choice is offered only when the agent can use a shared fo
     assert.equal(some.offered, true);
     assert.equal(some.fulfil["audience"], "anyone");
     assert.equal(some.fulfil["folderId"], "vfd_team", "the first folder the agent can use, not the first folder");
+  } finally {
+    restore();
+  }
+});
+
+test("15 Nov: a manager answering someone else's ask, with no shared folder the agent can use, is told so and cannot add; their own keys are never offered", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { find, flush, installDom, mount } = await import("../../../onboarding/test-dom.ts");
+  const restore = installDom();
+  try {
+    const calls: string[] = [];
+    const call = async (cap: string, input: unknown): Promise<unknown> => {
+      calls.push(cap);
+      const i = input as Record<string, unknown>;
+      if (cap === "vault.requests.get")
+        return { request: { id: "vrq_1", name: "Fathom", fields: ["api_key"], reason: "r", state: "waiting" } };
+      if (cap === "vault.requests.list") return { requests: [{ id: "vrq_1" }] };
+      if (cap === "vault.folders.list")
+        return { folders: i["scope"] === "mine" ? [{ id: "vfd_mine" }] : [{ id: "vfd_hidden" }] };
+      if (cap === "access.clears") return { clears: false };
+      return {};
+    };
+    const root = await mount(
+      createRoot,
+      <KeyRequestCard requestId="vrq_1" agent="Ops" agentId="agt_1" data={{ call } as never} />,
+    );
+    await flush();
+    assert.ok(find(root, "keyreq-nowhere-vrq_1"), "says there is nowhere to put it");
+    assert.equal(find(root, "keyreq-audience-anyone-vrq_1"), null);
+    assert.ok(!calls.includes("vault.requests.fulfil"));
   } finally {
     restore();
   }

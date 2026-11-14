@@ -4,3 +4,5 @@
 - When an agent is refused a key because its folder is restricted, it now says what fixes it (move the key to your own keys or to a folder that is not restricted) and no longer asks you to share it, which never helped.
 - New read call `access.clears`: whether a principal's clearance reaches what a resource is labelled.
 - The names of the folders the server keeps for itself are declared once and used everywhere.
+- Asking whether an agent can use a folder is open only to the server and to people who may put a key into that folder; anyone else gets "not found", the same as for a folder that does not exist.
+- A manager answering someone else's key ask can no longer put the key in their own keys (the agent works for the person who asked and could not use it): it is refused in plain words, and the card says there is no folder to use instead of choosing one. A folder the server made itself (Sealed fields) is never chosen for an agent's key.

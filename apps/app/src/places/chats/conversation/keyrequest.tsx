@@ -14,6 +14,9 @@ import type { KeyAudience, KeyRequest } from "./keyrequest-model.ts";
 
 type Data = Pick<ConversationData, "call" | "changes">;
 
+const NO_FOLDER =
+  "There is no shared folder this agent can use. Make one that is not restricted, or let the person who asked add the key.";
+
 export function isKeyRequest(type: string): boolean {
   return type === "vault_request";
 }
@@ -65,7 +68,7 @@ export function KeyRequestCard({
         for (const f of folders ?? []) {
           const got = (await data.call("access.clears", {
             principal: { kind: "agent", id: agentId },
-            resource: { type: "vault_folder", id: f.id },
+            target: { type: "vault_folder", id: f.id },
           })) as { clears?: boolean };
           if (got.clears === true) {
             found = f.id;
@@ -100,11 +103,15 @@ export function KeyRequestCard({
 
   // a team choice needs a folder the agent can use: when there is none, the choice is not offered
   const anyoneOk = !!req.folderId || !!shared;
+  // nowhere the agent could use the key: not a shared folder it can use, and not the person's own keys (a manager's Mine is not an option)
+  const nowhere = !req.folderId && shared === null && !req.askedYou;
   const choices = AUDIENCES.filter((a) => a.key !== "anyone" || anyoneOk);
   const chosen: KeyAudience = anyoneOk ? audience : "asker";
   const folderFor = async (): Promise<string> => {
     if (req.folderId) return req.folderId;
     if (shared) return shared;
+    // a manager answering someone else's ask has no folder of their own the agent can use: never their Mine
+    if (!req.askedYou) throw new Error(NO_FOLDER);
     const mine = ((await data.call("vault.folders.list", { scope: "mine" })) as { folders?: { id: string }[] })
       .folders?.[0];
     if (mine) return mine.id;
@@ -157,7 +164,7 @@ export function KeyRequestCard({
       testID={`keyreq-${requestId}`}
       label={`${agent} needs the ${words}`}
       onCancel={declining ? () => setDeclining(false) : undefined}
-      {...(canDecide && !declining && ready && !busy ? { onEnter: () => void add() } : {})}
+      {...(canDecide && !declining && ready && !nowhere && !busy ? { onEnter: () => void add() } : {})}
     >
       <CardHead
         title={`${agent} needs the ${words}`}
@@ -221,12 +228,17 @@ export function KeyRequestCard({
               </Pressable>
             ))}
           </View>
+          {nowhere ? (
+            <Text testID={`keyreq-nowhere-${requestId}`} style={st.reason}>
+              {NO_FOLDER}
+            </Text>
+          ) : null}
           <CardActions
             busy={busy}
             secondary={[{ label: "Deny", onPress: () => setDeclining(true), testID: `keyreq-decline-${requestId}` }]}
             primary={{
               label: "Add the key",
-              disabled: !ready,
+              disabled: !ready || nowhere,
               onPress: () => void add(),
               testID: `keyreq-add-${requestId}`,
             }}

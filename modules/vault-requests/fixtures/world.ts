@@ -31,7 +31,7 @@ export interface Script {
   /** the chat the request's card was drawn in, with the person who asked (read back through tasks.get) */
   card?: { threadId: string; agentId: string; asker: string };
   /** the Vault folders the caller can list */
-  folders?: { id: string; name: string; scope: "mine" | "shared" }[];
+  folders?: { id: string; name: string; scope: "mine" | "shared"; owner?: string }[];
   /** the folders and items labelled above the requester's clearance (access.clears answers no for them) */
   unusable?: string[];
   /** where an item sits, for the items vault.item.get returns (default: shared) */
@@ -69,7 +69,7 @@ export function world(over: Partial<Script> = {}) {
         return { people: script.managers[(i["resource"] as { id: string }).id] ?? [] };
       }
       case "access.clears":
-        return { clears: !(script.unusable ?? []).includes((i["resource"] as { id: string }).id) };
+        return { clears: !(script.unusable ?? []).includes((i["target"] as { id: string }).id) };
       case "tasks.create":
         return { task: { id: `tsk_${++task}` } };
       case "tasks.transition":

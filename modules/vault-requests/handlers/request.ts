@@ -350,7 +350,9 @@ export async function requestsList(
 }
 
 export async function requestsGet(ctx: VaultReqCtx, input: { requestId: string }) {
-  return { request: requestOut(visible(ctx, input.requestId).row) };
+  const { row } = visible(ctx, input.requestId);
+  // askedYou: the caller is the person the agent asked and may add the key into their own keys, so the card can tell them from a manager answering someone else's ask
+  return { request: { ...requestOut(row), ...(askerDecides(row, personOf(ctx)) ? { askedYou: true } : {}) } };
 }
 
 /** A card that cannot close is logged; the decision stands. */
@@ -395,7 +397,10 @@ function decidable(
 async function requesterClears(ctx: VaultReqCtx, row: RequestRow, resource: { type: string; id: string }) {
   try {
     const got = asRow(
-      await ctx.call("access.clears", { principal: { kind: row.requester_kind, id: row.requester_id }, resource }),
+      await ctx.call("access.clears", {
+        principal: { kind: row.requester_kind, id: row.requester_id },
+        target: resource,
+      }),
     );
     return got?.["clears"] !== false;
   } catch {
@@ -415,10 +420,30 @@ async function isMineFolder(ctx: VaultReqCtx, folderId: string): Promise<boolean
   }
 }
 
+/**
+ * Is this a shared root folder a service made (the host keeps "Sealed fields" this way: owner svc_host)? The folder row records who made it, so that is the marker, not the name. Such a folder is the
+ * server's, even when it is not labelled Restricted (it must not be, or the people who reveal sealed fields could not), so no key for an agent is kept there. A list that cannot be read answers no.
+ */
+async function serviceMadeFolder(ctx: VaultReqCtx, folderId: string): Promise<boolean> {
+  try {
+    const folders =
+      (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
+        | { id?: string; owner?: string; parentId?: string }[]
+        | undefined) ?? [];
+    return folders.some((f) => f.id === folderId && !f.parentId && String(f.owner ?? "").startsWith("svc_"));
+  } catch {
+    return false;
+  }
+}
+
 const RESTRICTED_FOLDER_WORDS =
   "That folder is restricted, so the agent that asked cannot use a key kept there. Choose another folder, or keep the key in your own keys.";
 const RESTRICTED_ITEM_WORDS =
   "The agent that asked cannot use that key where it is kept, because the folder is restricted. Move it to your own keys, or choose another key.";
+const SERVER_FOLDER_WORDS =
+  "That folder is kept by Vyre for its own use, so the agent that asked cannot use a key kept there. Choose another folder, or keep the key in your own keys.";
+const SOMEONE_ELSES_MINE_WORDS =
+  "That is your own keys, and the agent that asked works for someone else, so it cannot use a key kept there. Choose a shared folder agents can use, or let the person who asked add it.";
 const ANYONE_NEEDS_SHARED_WORDS =
   "A key for anyone who asks this agent has to be kept in a shared folder, and this one is in your own keys. Choose a shared folder, or pick Only the person who asked.";
 
@@ -490,6 +515,8 @@ export async function requestsFulfil(
         raise(trace, "validation.precondition_failed", RESTRICTED_ITEM_WORDS);
       if (!own && input.audience === "anyone" && it?.["scope"] === "mine")
         raise(trace, "validation.precondition_failed", ANYONE_NEEDS_SHARED_WORDS);
+      if (!own && !decided.askedForMe && it?.["scope"] === "mine")
+        raise(trace, "validation.precondition_failed", SOMEONE_ELSES_MINE_WORDS);
     }
     if (own && (it?.["scope"] !== "mine" || it?.["owner"] !== me))
       raise(
@@ -510,8 +537,13 @@ export async function requestsFulfil(
     if (forAgent) {
       if (!(await requesterClears(ctx, row, { type: "vault_folder", id: folderId })))
         raise(trace, "validation.precondition_failed", RESTRICTED_FOLDER_WORDS);
-      if (!own && input.audience === "anyone" && (await isMineFolder(ctx, folderId)))
-        raise(trace, "validation.precondition_failed", ANYONE_NEEDS_SHARED_WORDS);
+      if (await serviceMadeFolder(ctx, folderId)) raise(trace, "validation.precondition_failed", SERVER_FOLDER_WORDS);
+      if (!own && (await isMineFolder(ctx, folderId)))
+        raise(
+          trace,
+          "validation.precondition_failed",
+          input.audience === "anyone" || decided.askedForMe ? ANYONE_NEEDS_SHARED_WORDS : SOMEONE_ELSES_MINE_WORDS,
+        );
     }
     const made = asRow(
       await ctx.call("vault.item.put", {
