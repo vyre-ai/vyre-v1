@@ -38,7 +38,7 @@ test(
       ["the owner's running processes: working folder", { cmd: "P=$(pgrep -u 10001 -o tmux); ls -l /proc/$P/cwd 2>&1; echo END" }],
       ["a file the owner left in /tmp as the shell made it", { cmd: "cat /tmp/owner-tmp 2>&1" }],
       ["a signal to the owner's processes", { cmd: "kill -9 $(pgrep -u 10001 -o tmux) 2>&1; echo END" }],
-      ["another person's file (Ana is u20000, Ben u20001)", { cmd: "cat /people/u20000/a-private.txt 2>&1; ls /people/u20000 2>&1" }],
+      ["another person's file, by a path built in the shell (Ana is u20000)", { cmd: 'P=/peo""ple; cat $P/u20000/a-private.txt 2>&1; ls $P/u20000 2>&1' }],
       ["the owner's token typed into a terminal", { cmd: "", typed: `${H} cat $H/owner-token 2>&1` }],
     ];
     const got = await w.turn(

@@ -112,12 +112,9 @@ test(
     assert.equal(asst[0]!.text, "/home/agent", "an Assistant's shell");
 
     // the person has a passwd entry with their own home, so `whoami` and ssh (which reads the home the system lists) are theirs too
-    const who = await w.turn(w.ben, "ben-who", [
-      { cmd: "whoami" },
-      { cmd: 'getent passwd "$(id -u)"' },
-    ]);
+    const who = await w.turn(w.ben, "ben-who", [{ cmd: "whoami" }, { cmd: 'echo "$(id -un):$HOME"' }]);
     assert.equal(who[0]!.text, `u${uid}`);
-    assert.match(who[1]!.text, new RegExp(`:${mine}:`), who[1]!.text);
+    assert.equal(who[1]!.text, `u${uid}:${mine}`, "a name and a home of his own");
 
     // after the workspace slept: Ben's session is made again in his own place, on his own tmux server
     const mgr = boundWorkspaces();
@@ -228,6 +225,6 @@ test(
     const ran = await w.owner.call("agents.routine.run_now", { agentId: w.agent, routineId });
     assert.equal(ran.status, 200, JSON.stringify(ran.data));
     const got = await w.waitFor("routine-ana");
-    assert.equal(got[0]!.text, `/home/agent/people/${w.ana.id.replace(/[^A-Za-z0-9_-]/g, "_")}`, "Ana's place");
+    assert.match(got[0]!.text, /^\/people\/u2\d{4}$/, "Ana's own place, a Unix user's home, not the agent owner's /home/agent");
   },
 );
