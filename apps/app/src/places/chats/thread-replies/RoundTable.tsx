@@ -5,34 +5,36 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Face } from "../needsyou/parts.tsx";
 import { CONVERSATION_SCREEN } from "../conversation/Conversation.tsx";
-import { useConversationData } from "../conversation/data.tsx";
+import { useConversationData, useOptionalConversationData } from "../conversation/data.tsx";
 import { useLive } from "../mounts/live.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { asksSeveral } from "./round-model.ts";
-import { roundAnswers } from "./round-table-model.ts";
+import { askBefore, roundAnswers } from "./round-table-model.ts";
 
 type MessagesOut = CapMap["chat.messages.list"]["out"];
 
 function Table({
-  messageId,
+  after,
   threadId,
-  agents,
   nameOf,
   onOpen,
 }: {
-  messageId: string;
+  after: string;
   threadId: string;
-  agents: readonly string[] | null;
   nameOf(id: string): string;
-  onOpen(): void;
+  onOpen(messageId: string): void;
 }): ReactElement | null {
   const data = useConversationData();
   const q = useLive<MessagesOut>(data.screens, CONVERSATION_SCREEN, "messages", { threadId });
   const [pick, setPick] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   if (q.status !== "ready") return null;
-  const answers = roundAnswers(q.data.messages as never, messageId, data.me.id, agents);
-  if (answers === null) return null;
+  const ask = askBefore(q.data.messages as never, after, data.me.id, asksSeveral);
+  if (ask === null) return null;
+  const messageId = ask.messageId;
+  const answers = roundAnswers(q.data.messages as never, messageId, data.me.id, ask.agents);
+  // the card sits under the last answer, so it reads after what it sums up
+  if (answers === null || answers[answers.length - 1]!.messageId !== after) return null;
   const on = answers.find((a) => a.agentId === pick) ?? answers[0]!;
   const first = (id: string): string => nameOf(id).split(" ")[0] ?? nameOf(id);
   const decide = (): void => {
@@ -63,7 +65,7 @@ function Table({
       ).then(
         () => {
           setBusy(false);
-          onOpen();
+          onOpen(messageId);
         },
         () => setBusy(false),
       );
@@ -115,26 +117,21 @@ function Table({
   );
 }
 
-/** Draws nothing, and reads nothing, unless the message asked several agents. */
+/** How long after its last answer a round table is still offered; an older round was settled, or left, long ago. */
+const OFFER_MS = 30 * 60_000;
+
+/** Under an agent's message: draws nothing, and reads nothing, unless the message is an agent's and recent. The card shows under the last answer of a round of several agents. */
 export function RoundTable(p: {
   messageId: string;
   threadId: string;
-  body: string;
-  mentions?: readonly { kind: string; id: string }[] | undefined;
+  authorKind: string;
+  createdAt: number;
   nameOf(id: string): string;
-  onOpen(): void;
+  onOpen(messageId: string): void;
 }): ReactElement | null {
-  if (!asksSeveral(p)) return null;
-  const tagged = (p.mentions ?? []).filter((x) => x.kind === "agent").map((x) => x.id);
-  return (
-    <Table
-      messageId={p.messageId}
-      threadId={p.threadId}
-      agents={tagged.length > 1 ? tagged : null}
-      nameOf={p.nameOf}
-      onOpen={p.onOpen}
-    />
-  );
+  const data = useOptionalConversationData();
+  if (data === null || p.authorKind !== "agent" || data.clock().now - p.createdAt > OFFER_MS) return null;
+  return <Table after={p.messageId} threadId={p.threadId} nameOf={p.nameOf} onOpen={p.onOpen} />;
 }
 
 const st = StyleSheet.create({

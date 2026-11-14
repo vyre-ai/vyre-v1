@@ -113,9 +113,8 @@ export async function discussRound(
   const named = await Promise.all(answers.map(async (a) => ({ ...a, name: await nameOf(ctx, a.agentId) })));
   const [first, next] = [named[0]!, named[1]!];
   const body = [
-    `${named.map((a) => a.name).join(" and ")}, you answered on your own. Talk it over here.`,
     ...named.map((a) => `${a.name}: ${a.text}`),
-    `Take one short turn each and read the others first. ${first.name}, go first, then tag ${next.name}. Whoever speaks last ends on one line that starts "Decided:" with the answer you agree on, or "Decided: no agreement" and why.`,
+    `Talk it over, one short turn each. ${first.name}, go first and tag ${next.name}. Whoever speaks last ends on one line that starts "Decided:".`,
   ].join("\n\n");
   await ctx.call(
     "chat.post",
@@ -126,6 +125,18 @@ export async function discussRound(
       idempotencyKey: `${input.idempotencyKey}:discuss`,
     },
     { idempotencyKey: `${input.idempotencyKey}:discuss` },
+  );
+  // one quiet line in the chat, authored by the person: it says where the talk is, opens it, and folds the round table (the person has written since the answers)
+  postLinkCard(
+    ctx,
+    t.id,
+    {
+      icon: "people",
+      lead: "Discussion",
+      title: `${named.map((a) => a.name).join(" and ")} are talking it over`,
+      target: { type: "thread", id: threadId },
+    },
+    `Discussion: ${named.map((a) => a.name).join(" and ")} are talking it over`,
   );
   return { threadId };
 }

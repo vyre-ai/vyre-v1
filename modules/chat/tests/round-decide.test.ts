@@ -115,4 +115,10 @@ test("discuss: the thread under the ask gets one message from the person with bo
   assert.match(posted[0]!["body"], /Intake: Object storage\./);
   assert.match(posted[0]!["body"], /Drafter: The server disk\./);
   assert.match(posted[0]!["body"], /Decided:/);
+  assert.doesNotMatch(posted[0]!["body"], /you answered on your own/, "the seed is short: the answers and one request");
+  assert.deepEqual(
+    hn.rows("SELECT body FROM chat_message WHERE thread = ? AND kind = 'system'", t).map((r) => r["body"]),
+    ["Discussion: Intake and Drafter are talking it over"],
+    "one line in the chat says where the talk is",
+  );
 });
