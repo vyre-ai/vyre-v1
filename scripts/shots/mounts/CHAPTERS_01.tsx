@@ -45,7 +45,7 @@ export default function Mount(): ReactNode {
         threadSeq: i + 1,
         author: person ? p : a,
         kind: person ? "text" : "agent",
-        body: person ? ASKS[(n / 2) % 5]! : SAYS[((n - 1) / 2) % 5]!,
+        body: i === 45 ? "The zebra clause is in the contract." : person ? ASKS[(n / 2) % 5]! : SAYS[((n - 1) / 2) % 5]!,
         blocks: [],
         depth: 0,
         attachments: [],

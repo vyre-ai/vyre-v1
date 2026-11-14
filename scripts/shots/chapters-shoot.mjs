@@ -59,6 +59,24 @@ for (const skin of ["paper", "graphite"])
     console.log(skin, size, errs.length ? `errors: ${errs.join(" | ")}` : "no page errors");
     await ctx.close();
   }
+{
+  const ctx = await browser.newContext({ viewport: SIZES.w1440, deviceScaleFactor: 1, reducedMotion: "reduce" });
+  const page = await ctx.newPage();
+  await page.goto(routeUrl(real.origin, "/m/CHAPTERS_01", "paper"), { waitUntil: "load", timeout: 60000 });
+  await page.waitForSelector("[data-testid='chapter-61']", { timeout: 30000 });
+  await page.waitForTimeout(800);
+  const before = await page.locator("text=zebra clause").count();
+  await page.keyboard.press("Meta+f");
+  await page.waitForSelector("[data-testid='find-input']", { timeout: 10000 });
+  await page.fill("[data-testid='find-input']", "zebra");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(800);
+  const after = await page.locator("text=zebra clause").count();
+  const headOpen = await page.getAttribute("[data-testid='chapter-31']", "aria-expanded");
+  console.log("FIND", JSON.stringify({ before, after, headOpen }));
+  await page.screenshot({ path: path.join(out, "real-paper-w1440-find-folded.png") });
+  await ctx.close();
+}
 for (const skin of ["paper", "graphite"]) {
   const ctx = await browser.newContext({
     viewport: SIZES.w1440,
