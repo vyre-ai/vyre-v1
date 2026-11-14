@@ -107,6 +107,7 @@ import { MARK } from "./marks.ts";
 import type { ReplySummary } from "./replies.ts";
 import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
 import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
+import { RoundRow } from "../thread-replies/RoundRow.tsx";
 import type { Clock } from "../rightpane/model.ts";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 import {
@@ -859,6 +860,14 @@ function Mine({
       <Reactions m={m} a={actions} mine meId={meId} />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} mine /> : null}
       <Replies m={m} replies={replies} actions={actions} mine />
+      <RoundRow
+        messageId={m.messageId}
+        threadId={m.threadId}
+        body={m.body}
+        mentions={m.mentions}
+        createdAt={m.createdAt}
+        nameOf={actions.nameOf ?? unnamed}
+      />
       <LearnedLines messageId={m.messageId} />
     </View>
   );
