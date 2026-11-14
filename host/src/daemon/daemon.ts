@@ -166,7 +166,8 @@ export function createAgentHomeCaller(a: {
 }) {
   return async (agentId: string, cap: string, input: unknown): Promise<unknown> => {
     const owner = a.db.all("SELECT ownerId FROM agents_agent WHERE id = ? AND deletedAt IS NULL", agentId)[0] as
-      { ownerId?: string } | undefined;
+      | { ownerId?: string }
+      | undefined;
     if (!owner?.ownerId) throw new Error("agent has no active owner");
     const r = await a.invoke(cap, input, {
       space: a.spaceId,
@@ -1520,7 +1521,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const wrapsOn = (): boolean => {
     try {
       const r = db?.all(`SELECT value FROM access_policies WHERE key = ? AND scope = 'space'`, WRAP_POLICY)[0] as
-        { value?: string } | undefined;
+        | { value?: string }
+        | undefined;
       return r?.value === undefined || JSON.parse(r.value) !== false;
     } catch {
       return true;
@@ -1758,7 +1760,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
       const agentAccessEvents: { type: string; payload: unknown }[] = [];
       const ownedScan: { seq: number; id: string; type: string; actor: string; payload: unknown }[] = [];
-      for (let after = 0; ;) {
+      for (let after = 0; ; ) {
         const page = await log.read({ after, limit: 5000 });
         for (const e of page) {
           if (
@@ -2130,7 +2132,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           input: boolean;
         } | null;
       const pool = ():
-        { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } | undefined =>
+        | { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number }
+        | undefined =>
         (
           loaded.moduleExports.get("engine") as
             | {
@@ -2613,7 +2616,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           try {
             up = (
               db?.all("SELECT parentThreadId FROM chat_thread WHERE id = ?", cur)[0] as
-                { parentThreadId?: string | null } | undefined
+                | { parentThreadId?: string | null }
+                | undefined
             )?.parentThreadId;
           } catch {
             break;
@@ -2685,7 +2689,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 return (
                   (
                     spaceStore.open().tx.all("SELECT builtin FROM cn_connectors WHERE key = ?", key)[0] as
-                      { builtin?: number } | undefined
+                      | { builtin?: number }
+                      | undefined
                   )?.builtin === 1
                 );
               } catch {
@@ -2699,7 +2704,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                     spaceStore
                       .open()
                       .tx.all("SELECT version FROM cn_connectors WHERE key = ? AND state = 'live'", key)[0] as
-                      { version?: string } | undefined
+                      | { version?: string }
+                      | undefined
                   )?.version ?? null
                 );
               } catch {
@@ -2791,7 +2797,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 madeSince: (threadId, at) => {
                   try {
                     const r = db!.all(`SELECT "createdAt" AS c FROM chat_thread WHERE id = ?`, threadId)[0] as
-                      { c?: number } | undefined;
+                      | { c?: number }
+                      | undefined;
                     return typeof r?.c === "number" && r.c >= at;
                   } catch {
                     return false;
@@ -2822,7 +2829,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                     const rows = threadChain(id).map(
                       (t) =>
                         db?.all("SELECT modePlan FROM chat_thread WHERE id = ?", t)[0] as
-                          { modePlan?: number | null } | undefined,
+                          | { modePlan?: number | null }
+                          | undefined,
                     );
                     if (rows[0] === undefined) return undefined;
                     const codes = rows.filter((r) => r !== undefined).map((r) => r!.modePlan);
@@ -2941,10 +2949,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           try {
             const r = spaceStore
               .open()
-              .tx.get<{ owner_kind: string; owner_id: string }>(
-                "SELECT owner_kind, owner_id FROM cn_connections WHERE connection_id = ?",
-                id,
-              );
+              .tx.get<{
+                owner_kind: string;
+                owner_id: string;
+              }>("SELECT owner_kind, owner_id FROM cn_connections WHERE connection_id = ?", id);
             return !!r && r.owner_kind === "person" && r.owner_id !== person;
           } catch {
             return false;
@@ -3127,7 +3135,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                       return (
                         (
                           db!.all(`SELECT "channelId" FROM projects_project WHERE "projectId" = ?`, projectId)[0] as
-                            { channelId?: string | null } | undefined
+                            | { channelId?: string | null }
+                            | undefined
                         )?.channelId ?? null
                       );
                     } catch {
@@ -3763,7 +3772,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const row = (() => {
           try {
             return db!.all("SELECT value FROM members_policy WHERE key = ?", "github_app")[0] as
-              { value: string } | undefined;
+              | { value: string }
+              | undefined;
           } catch {
             return undefined;
           }
@@ -3971,7 +3981,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       grantOwnPlaces = async (owner) => {
         const root = (
           db!.all("SELECT id FROM files_folder WHERE root_key = ? AND deleted_at IS NULL", `personal:${owner}`)[0] as
-            { id: string } | undefined
+            | { id: string }
+            | undefined
         )?.id;
         if (!root) return;
         for (const agent of db!.all(
@@ -4028,7 +4039,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         let privateOwner: string | undefined;
         if (f.privateRoot) {
           const row = db!.all("SELECT root_key, owner, parent_id FROM files_folder WHERE id = ?", f.id)[0] as
-            { root_key: string; owner: string; parent_id: string | null } | undefined;
+            | { root_key: string; owner: string; parent_id: string | null }
+            | undefined;
           if (!row || row.root_key !== `personal:${row.owner}` || row.parent_id !== null)
             throw new Error("Only a canonical Personal root may stop Space inheritance.");
           privateOwner = row.owner;
@@ -4120,7 +4132,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           v !== undefined &&
           v !== null &&
           !(typeof v === "object" && typeof (v as { sealed?: unknown }).sealed === "string");
-        for (let after = 0; ;) {
+        for (let after = 0; ; ) {
           const page = await spaceLog.read({ after, limit: 2000 });
           for (const e of page) {
             if (!e.type.startsWith("record.") || isErased(e)) continue;
@@ -4535,7 +4547,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setEventsCompact: () => {
           // the sync tables keep field values of their own (sync_changes, sync_rows): blank them too, keeping the rows so device cursors and deletes still work
           const blank = loaded.moduleExports.get("sync")?.["blankErased"] as
-            ((db: unknown, scope: { ids?: readonly string[]; seqs?: readonly number[] }) => void) | undefined;
+            | ((db: unknown, scope: { ids?: readonly string[]; seqs?: readonly number[] }) => void)
+            | undefined;
           const scrub = (scope: { ids?: readonly string[]; seqs?: readonly number[] }): void => {
             try {
               if (db) blank?.(db, scope);
@@ -4562,7 +4575,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           end: (sessionId: string) => {
             db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId);
             const row = db!.all("SELECT person FROM devices_session WHERE id = ?", sessionId)[0] as
-              { person?: string } | undefined;
+              | { person?: string }
+              | undefined;
             endLive({ sessionId, ...(row?.person ? { person: row.person } : {}) }, false);
           },
         }),
@@ -4641,7 +4655,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const hostsOf = (siteId?: string): Hosted[] =>
             (
               sitesExports?.["deployedHosts"] as
-                ((c: { db: unknown }, d: string | null, id?: string) => Hosted[]) | undefined
+                | ((c: { db: unknown }, d: string | null, id?: string) => Hosted[])
+                | undefined
             )?.({ db: db! }, sitesDomain(), siteId) ?? [];
           const containerAddress = (c: string): Promise<string | null> =>
             (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ??
@@ -4718,7 +4733,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             site: (h) =>
               (
                 sitesExports?.["routeByHost"] as
-                  ((c: { db: unknown }, h: string, d: string | null) => HostRow | null) | undefined
+                  | ((c: { db: unknown }, h: string, d: string | null) => HostRow | null)
+                  | undefined
               )?.({ db: db! }, h, sitesDomain()) ?? null,
             ticket: async (id, t) =>
               (
@@ -4776,7 +4792,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             const autos =
               (
                 sitesExports?.["autoDeploySites"] as
-                  ((c: { db: unknown }) => { siteId: string; as: string }[]) | undefined
+                  | ((c: { db: unknown }) => { siteId: string; as: string }[])
+                  | undefined
               )?.({ db: db! }) ?? [];
             for (const a of autos) {
               const r = await invoke(
@@ -4810,7 +4827,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               domainOf: (id) =>
                 (
                   db!.all("SELECT domain FROM sites_domain WHERE site_id = ? ORDER BY created_at", id)[0] as
-                    { domain?: string } | undefined
+                    | { domain?: string }
+                    | undefined
                 )?.domain ?? null,
               hostRoute,
             },
@@ -4821,7 +4839,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             nodeOf: (id) =>
               (
                 db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as
-                  { node_id?: string | null } | undefined
+                  | { node_id?: string | null }
+                  | undefined
               )?.node_id ?? null,
             localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null),
             localLogs: (computerId, slug, lines) =>
@@ -4858,7 +4877,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         configureDomainEdge: () => {
           const computers = loaded.moduleExports.get("computers") as
-            { localComputerAddress?: (id: string) => Promise<string | null> } | undefined;
+            | { localComputerAddress?: (id: string) => Promise<string | null> }
+            | undefined;
           const refresh = loaded.moduleExports.get("sites")?.["refreshDomainRoutes"] as
             | ((c: { db: unknown }, warn: (m: string, a: Record<string, unknown>) => void) => Promise<number>)
             | undefined;
@@ -4875,7 +4895,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             nodeOf: (id) =>
               (
                 db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as
-                  { node_id?: string | null } | undefined
+                  | { node_id?: string | null }
+                  | undefined
               )?.node_id ?? null,
             localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null),
             localLogs: () => Promise.resolve([]),
@@ -5026,7 +5047,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                       return (
                         (
                           db!.all("SELECT folderId FROM agents_agent WHERE id = ?", agentId)[0] as
-                            { folderId?: string | null } | undefined
+                            | { folderId?: string | null }
+                            | undefined
                         )?.folderId ?? null
                       );
                     } catch {
@@ -5038,7 +5060,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                       return (
                         (
                           db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", projectId)[0] as
-                            { folderId?: string | null } | undefined
+                            | { folderId?: string | null }
+                            | undefined
                         )?.folderId ?? null
                       );
                     } catch {
@@ -5051,7 +5074,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                       let at: string | null = folderId;
                       while (at !== null && out.length < 64 && !out.includes(at)) {
                         const row = db!.all("SELECT parent_id FROM files_folder WHERE id = ?", at)[0] as
-                          { parent_id?: string | null } | undefined;
+                          | { parent_id?: string | null }
+                          | undefined;
                         if (row === undefined) return out.length === 0 ? null : out;
                         out.push(at);
                         at = row.parent_id ?? null;
@@ -5066,7 +5090,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                       return (
                         (
                           db!.all("SELECT folder_id FROM files_file WHERE id = ?", fileId)[0] as
-                            { folder_id?: string | null } | undefined
+                            | { folder_id?: string | null }
+                            | undefined
                         )?.folder_id ?? null
                       );
                     } catch {
@@ -5078,7 +5103,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 inTrash: (agentId: string) => {
                   try {
                     const row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as
-                      { deletedAt?: unknown } | undefined;
+                      | { deletedAt?: unknown }
+                      | undefined;
                     return row === undefined || (row.deletedAt !== null && row.deletedAt !== undefined);
                   } catch {
                     return undefined;
@@ -5089,7 +5115,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   let row: { deletedAt?: unknown } | undefined;
                   try {
                     row = db!.all("SELECT deletedAt FROM agents_agent WHERE id = ?", agentId)[0] as
-                      { deletedAt?: unknown } | undefined;
+                      | { deletedAt?: unknown }
+                      | undefined;
                   } catch {
                     row = undefined;
                   }
@@ -5184,7 +5211,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   }): { pass(): Promise<{ failed: number }> } | null => {
                     const folder = (
                       db!.all("SELECT folderId FROM projects_project WHERE projectId = ?", x.projectId)[0] as
-                        { folderId?: string | null } | undefined
+                        | { folderId?: string | null }
+                        | undefined
                     )?.folderId;
                     if (!folder) return null;
                     return comp.createHomeSync!(
@@ -5412,7 +5440,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             headSeq: () => headSeq,
             address: () => {
               const value = db!.all("SELECT mode, address FROM network_config WHERE id = 1")[0] as
-                { mode?: string; address?: string } | undefined;
+                | { mode?: string; address?: string }
+                | undefined;
               // a relay Space's own row holds this computer's loopback address: what people outside reach, an invite above all, is its phone name
               const outside = publicOrigin();
               if (outside?.relay && value?.mode === "relay")
@@ -5428,7 +5457,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             },
             changeAddress: async (mode, host) => {
               const config = db!.all("SELECT relay_address FROM network_config WHERE id = 1")[0] as
-                { relay_address?: string } | undefined;
+                | { relay_address?: string }
+                | undefined;
               const address = mode === "own_domain" ? host : config?.relay_address;
               if (!address)
                 throw fail("validation.precondition_failed", ZERO_TRACE, {
@@ -5798,7 +5828,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // projection (type "record_type"), held by the Space owner, because capabilities on a type (schema.layout.set, views, grants) are authorized against it and a seeded type emits no event
       // that would register it. The set comes from the manifests, so it is folded into the snapshot at every start and not written to the log: a new Space still starts with an empty log.
       const startSchema = loaded.moduleExports.get("schema")?.["startSchema"] as
-        (() => Promise<string[] | void>) | undefined;
+        | (() => Promise<string[] | void>)
+        | undefined;
       if (startSchema) {
         // started, not awaited: boot does not wait for the seed (most starts never touch schema), and every schema call waits for it, so none sees a half-seeded Space
         const seeding = startSchema()
@@ -6085,7 +6116,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
       // the landing page of a portal invitation or sign-in link (P-L8_17): sites is deferred, so the Space host serves it; null while the portal module is not live
       const peekLink = loaded.moduleExports.get("portal")?.["peekLink"] as
-        ((ctx: { db: unknown }, now: number, siteId: string, token: string) => Promise<never>) | undefined;
+        | ((ctx: { db: unknown }, now: number, siteId: string, token: string) => Promise<never>)
+        | undefined;
       if (peekLink)
         portalLinkRoute = createPortalLinkRoute({
           peek: (siteId, token) => peekLink({ db: db! }, now(), siteId, token) as never,
@@ -6129,7 +6161,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             }>)
           | undefined;
         const reserveUpload = formsNs?.["reserveUpload"] as
-          ((ctx: unknown, slug: string) => { formId: string; folderId: string }) | undefined;
+          | ((ctx: unknown, slug: string) => { formId: string; folderId: string })
+          | undefined;
         const recordUpload = formsNs?.["recordUpload"] as
           | ((
               ctx: unknown,
@@ -6408,7 +6441,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       ingressHost: () =>
         (
           db?.all("SELECT address FROM network_config WHERE id = 1 AND mode = 'own_domain'")[0] as
-            { address?: string } | undefined
+            | { address?: string }
+            | undefined
         )?.address ?? null,
       relayReady: (address) =>
         !!db
@@ -6506,7 +6540,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const refreshNetworkCertificate = async (): Promise<void> => {
     if (!db || !network.certificate) return;
     const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as
-      { address?: string; mode?: string } | undefined;
+      | { address?: string; mode?: string }
+      | undefined;
     if (!row?.address || row.mode !== "own_domain" || !/^[a-z0-9.-]+\.[a-z]+$/i.test(row.address)) return;
     const result = await network.certificate(row.address);
     db.run(
@@ -6529,7 +6564,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       try {
         if (!hasSpace || !db || !network.ensureIngress) return;
         const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as
-          { address?: string; mode?: string } | undefined;
+          | { address?: string; mode?: string }
+          | undefined;
         host = row?.mode === "own_domain" ? ingressHostOf(row.address) : null;
         if (!host) return;
         const wrote = await network.ensureIngress(host, { replace });
@@ -6969,7 +7005,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const fp = String(
           (
             db?.all("SELECT fingerprint FROM identity_space WHERE id = ?", space)[0] as
-              { fingerprint?: string } | undefined
+              | { fingerprint?: string }
+              | undefined
           )?.fingerprint ?? "",
         ).replace(/\s/g, "");
         // the Space's name, so the claim page can say what is being set up before anyone has signed in (not a credential; the link is still private). A Space named only by its id sends no name: the page says "Set up your Space" rather than show an id
