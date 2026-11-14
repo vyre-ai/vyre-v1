@@ -228,6 +228,8 @@ export interface InvokeDeps {
       trace: string,
     ): Promise<{ finish(): unknown } | null>;
   };
+  /** Can this agent's clearance reach what this resource is labelled (its own label and every folder above it)? Asked once a Vault folder or key an agent made for a person is born (host/src/daemon/daemon.ts). */
+  agentClears?: (agentId: string, resourceId: string) => boolean;
   preview?: { read(token: string, cap: string, input: unknown, trace: string): Promise<{ finish(): unknown }> };
   caps: CapIndex;
   validateInput(cap: string, v: number, input: unknown): string[];
@@ -1099,6 +1101,44 @@ export function createInvoke(deps: InvokeDeps): Invoke {
             ) as EventEnvelope,
           );
         }
+      }
+    }
+    // What an agent makes in the Vault for the person it acts for is that person's (the Vault records them as the owner), and the agent that made it holds an explicit grant on that one thing so it can use it at
+    // once: Edit on a folder, Use on a key. The grant is the person's (by), carries the source made-by:<agent> so the share list shows who made it, and the person can remove it like any grant. Never to
+    // another agent, and not on a place labelled above the agent's clearance (the label is read from the folder the thing is in). Redundant once the registrar's made_by rule covers vault types.
+    if (
+      deps.resources &&
+      seed.principal.kind === "agent" &&
+      seed.actingFor !== undefined &&
+      seed.actingFor.startsWith("usr_")
+    ) {
+      for (const ev of [...events]) {
+        if (ev.type !== ("resource.created" as EventName)) continue;
+        const row = ev.payload as { id?: string; type?: string; parent_id?: string | null; owner_id?: string };
+        if ((row.type !== "vault_folder" && row.type !== "vault_item") || row.owner_id !== seed.actingFor || !row.id)
+          continue;
+        const above = row.parent_id ?? row.id;
+        if (deps.agentClears && !deps.agentClears(seed.principal.id, above)) continue;
+        const gid = `gnt_${hex(16)}`;
+        events.push(
+          envelope(
+            "grant.created" as EventName,
+            `grant/${gid}`,
+            {
+              id: gid,
+              subject_kind: "actor",
+              subject_id: seed.principal.id,
+              resource_type: row.type,
+              resource_id: row.id,
+              level: row.type === "vault_folder" ? "edit" : "use",
+              by: seed.actingFor,
+              source: `made-by:${seed.principal.id}`,
+            },
+            seed,
+            trace,
+            depth,
+          ) as EventEnvelope,
+        );
       }
     }
     if (deps.principals && events.length) {
