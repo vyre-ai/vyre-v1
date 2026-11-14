@@ -1269,6 +1269,10 @@ function Theirs({
               requestId={String((b.data as { requestId?: unknown }).requestId ?? "")}
               agent={item.who.name}
               agentId={item.who.id}
+              {...(typeof (b.data as { asker?: unknown }).asker === "string"
+                ? { asker: (b.data as { asker: string }).asker }
+                : {})}
+              nameOf={actions.nameOf ?? ((x: string) => x)}
               data={actions.files}
             />
           );

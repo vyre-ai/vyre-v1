@@ -27,6 +27,7 @@ export function createClient(transport: Transport) {
       audience_set: call("access.audience_set", 1),
       automation_senders: call("access.automation_senders", 1),
       check: call("access.check", 1),
+      clears: call("access.clears", 1),
       connector_builder: {
         grant: call("access.connector_builder.grant", 1),
         status: call("access.connector_builder.status", 1),

@@ -27,6 +27,7 @@ export function stubs(ctx: CallCtx) {
       audience_set: call("access.audience_set"),
       automation_senders: call("access.automation_senders"),
       check: call("access.check"),
+      clears: call("access.clears"),
       connector_builder: {
         grant: call("access.connector_builder.grant"),
         status: call("access.connector_builder.status"),

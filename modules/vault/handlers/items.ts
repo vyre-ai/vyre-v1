@@ -8,7 +8,7 @@
 // DECISION: a Mine item cannot be shared; to share it, move it into a Shared folder (that re-encrypts it under the filler). A subscription sign-in (kind ai_subscription) stays Mine for ever.
 // DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import are other packets.
 import { agentStanding } from "../../../lib/agent-asker.ts";
-import { isCompanyKey } from "../../../lib/company-keys.ts";
+import { COMPANY_FOLDER, isCompanyKey } from "../../../lib/company-keys.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   ENC_MINE,
@@ -243,6 +243,15 @@ async function sealFor(
 /** A turn an agent runs for a person: ctx.actingFor comes from the server-side seed, never from input. */
 export const turnFor = (ctx: VaultCtx, r: Row): boolean =>
   ctx.principal.kind === "agent" && ctx.actingFor !== undefined && str(r, "owner") === ctx.actingFor;
+
+/**
+ * Who a new folder or item belongs to: the caller, except an agent working for a person (ctx.actingFor comes from the server-side seed, never from input), which makes it for that person. Anything an
+ * agent adds for someone is theirs (owner ruling, 14 Nov 2026); the agent is recorded as the maker by the registrar (made_by, host/src/gateway/resources.ts) and works with it through the access check.
+ */
+const makerOwner = (ctx: VaultCtx): string =>
+  ctx.principal.kind === "agent" && typeof ctx.actingFor === "string" && ctx.actingFor !== ""
+    ? ctx.actingFor
+    : ctx.principal.id;
 
 /** Is this the caller's own item? An agent's own standing on an item it owns counts for nobody and for no one it is acting for: asked by a person who holds nothing on it, the agent does not hand it over (lib/agent-asker.ts). */
 const ownItem = (ctx: VaultCtx, r: Row): boolean =>
@@ -504,8 +513,8 @@ export function uniqueHandle(ctx: Pick<VaultCtx, "db">, name: string, except?: s
   return h;
 }
 
-/** The folder company keys live in. */
-export const COMPANY_FOLDER = "Company connections";
+/** The folder company keys live in (lib/company-keys.ts holds the list of the server's folder names). */
+export { COMPANY_FOLDER };
 
 /** The Restricted shared folder for company keys: the one there is, else made now (through the host, so it is a resource at once), labelled Restricted before anything goes in. Labelling needs an owner or admin. */
 async function companyFolder(ctx: VaultCtx, idem: string): Promise<string> {
@@ -570,7 +579,10 @@ export async function itemPut(
       ? liveFolder(ctx, await companyFolder(ctx, input.idempotencyKey))
       : asked;
   const scope = str(folder, "scope") === "mine" ? "mine" : "shared";
-  if (scope === "mine" && str(folder, "owner") !== ctx.principal.id)
+  // Mine is "you and the agents working for you": an agent acting for the folder's owner may put a key in it (and use it in that person's turns), never in anyone else's Mine
+  const forOwner =
+    ctx.principal.kind === "agent" && ctx.actingFor !== undefined && str(folder, "owner") === ctx.actingFor;
+  if (scope === "mine" && str(folder, "owner") !== ctx.principal.id && !forOwner)
     throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
   if (
     scope === "shared" &&
@@ -580,7 +592,7 @@ export async function itemPut(
     return denied(ctx, "Adding to this folder needs edit access.");
   if (scope === "shared" && NEVER_SHARED.has(input.kind))
     refuse(ctx, "A subscription sign-in is yours alone. Put it in a Mine folder.");
-  if (ctx.principal.kind === "agent" && scope === "mine")
+  if (ctx.principal.kind === "agent" && scope === "mine" && !forOwner)
     return denied(
       ctx,
       "An agent cannot put items in someone's Mine folder. Ask for the key with vault_request; the person pastes it in their own app.",
@@ -592,7 +604,8 @@ export async function itemPut(
 
   const now = ctx.now();
   const id = newId("vit", now);
-  const sealed = await sealFor(ctx, id, scope, ctx.principal.id, fields, 1);
+  const itemOwner = scope === "shared" || forOwner ? makerOwner(ctx) : ctx.principal.id;
+  const sealed = await sealFor(ctx, id, scope, scope === "mine" ? itemOwner : ctx.principal.id, fields, 1);
   storeSealed(ctx, id, sealed);
   ctx.db.run(
     `INSERT INTO vault_meta ("id", "name", "kind", "folderId", "owner", "scope", "fieldKeys", "handle", "spaceOnly", "injectIntoDeployments", "rotateEveryDays", "version", "updated_at", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -600,7 +613,7 @@ export async function itemPut(
     name,
     input.kind,
     str(folder, "id"),
-    ctx.principal.id,
+    itemOwner,
     scope,
     JSON.stringify(fields.map((f) => f.key)),
     uniqueHandle(ctx, name),
@@ -938,12 +951,13 @@ export async function foldersCreate(
   keyOf(ctx, input);
   const name = nameOf(ctx, input.name);
   if (input.scope !== "mine" && input.scope !== "shared") bad(ctx, "Scope is mine or shared.");
+  const owner = makerOwner(ctx);
   if (input.parentId !== undefined) {
     if (!isId("vfd", input.parentId)) bad(ctx, "Parent folder id is not valid.");
     const parent = liveFolder(ctx, input.parentId);
     if (str(parent, "scope") !== input.scope)
       refuse(ctx, "A folder lives in a folder of the same kind, Mine or Shared.");
-    if (input.scope === "mine" && str(parent, "owner") !== ctx.principal.id)
+    if (input.scope === "mine" && str(parent, "owner") !== owner)
       throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
     if (
       input.scope === "shared" &&
@@ -952,13 +966,14 @@ export async function foldersCreate(
     )
       return denied(ctx, "Adding to this folder needs edit access.");
   }
-  if (ctx.principal.kind === "agent" && input.scope === "mine")
-    return denied(ctx, "An agent cannot make Mine folders for someone.");
+  // an agent may make a Mine folder only for the person it is working for in this call, never for anyone else
+  if (ctx.principal.kind === "agent" && input.scope === "mine" && owner === ctx.principal.id)
+    return denied(ctx, "An agent can make a Mine folder only for the person it is working for.");
   const dup = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).some(
     (f) =>
       live(f) &&
       str(f, "scope") === input.scope &&
-      (input.scope === "shared" || str(f, "owner") === ctx.principal.id) &&
+      (input.scope === "shared" || str(f, "owner") === owner) &&
       (strOrNull(f, "parentId") ?? "") === (input.parentId ?? "") &&
       str(f, "name").toLowerCase() === name.toLowerCase(),
   );
@@ -973,7 +988,7 @@ export async function foldersCreate(
     name,
     input.parentId ?? null,
     input.scope,
-    ctx.principal.id,
+    owner,
     "[]",
     ctx.now(),
   );

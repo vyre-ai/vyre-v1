@@ -20,6 +20,7 @@ import {
   agentsCanCallGet,
   agentsCanCallSet,
   recordMarks,
+  clears,
 } from "./share.ts";
 import {
   actorsCreate,
@@ -82,6 +83,7 @@ export const handlers = {
   "access.actors.set_engineer_mcp": actorsEngineer,
   "access.actors.update": actorsUpdate,
   "access.check": readOnly(check),
+  "access.clears": readOnly(clears),
   "access.provider_check": readOnly(providerCheck),
   "access.grants.list": readOnly(grantsList),
   "access.grants.update": grantsUpdate,

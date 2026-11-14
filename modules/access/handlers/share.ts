@@ -38,7 +38,7 @@ import {
   storeOf,
   decisionSnapshot,
 } from "../projections.ts";
-import { isHostService } from "../../../lib/trust.ts";
+import { isHostService, isSystemCall } from "../../../lib/trust.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
 export type Section = "personal" | "shared" | "space" | "starred" | "following";
@@ -308,6 +308,31 @@ function folderOf(
   const res = store.resources.get(id);
   if (!rec || !res) raise(ctx.trace.traceId, "validation.not_found", "no such folder");
   return { rec, res };
+}
+
+/**
+ * Does this principal's clearance reach what the resource is labelled? The label half of authorize's rule 3 on its own, read from the same snapshot (the effective label: the resource's own and every
+ * folder above it, against the clearance of the principal's roles). A thing labelled above a principal's clearance is refused to them whatever it is granted (authorize answers above_clearance), so a
+ * caller asks this before it stores or shares a key for an agent. An unknown or suspended principal clears nothing.
+ * The input is called `target`, not `resource`, so the gateway does not run its own access check on it first: that check answers "restricted beyond what you can open", which would tell a person
+ * the folder is there and how it is labelled. This handler gives the one answer for "cannot see it" and "does not exist".
+ * WHO MAY ASK: the server, a call another capability made (the Vault request handler), or a person who may put something into the resource (Edit on it). Anyone else, including a person who cannot see the resource at all, gets the answer a made-up id gets
+ * (not found), so the call tells nobody that a hidden folder exists or how it is labelled.
+ */
+export async function clears(ctx: AccessCtx, input: { principal: Ref; target: ResourceRef }) {
+  const store = storeOf(ctx);
+  const res = resourceOf(ctx, store, input.target);
+  // the server, or a call another capability made (vault.requests.fulfil deciding where a key may land: it is the server asking, not the caller browsing folders), answers for any target
+  if (!isSystemCall(ctx as ShareCtx & { depth?: number; forwarded?: boolean })) {
+    const sc = ctx as ShareCtx;
+    // no hideFrom needed: a caller with no level on a hidden target has no Edit either, and gets the same not found
+    const person = ctx.principal.kind === "person" || actingId(sc) !== undefined;
+    if (!person || !atLeast(res.type, callerLevel(sc, store, res), "edit"))
+      raise(ctx.trace.traceId, "validation.not_found", "no such resource");
+  }
+  const snap = store.snapshot();
+  const who = snap.info(input.principal.id);
+  return { clears: !!who && who.p.status === "active" && snap.effectiveLabel(res.id) <= who.clearance };
 }
 
 // ---- my_access ---------------------------------------------------------------------------------------------------------
@@ -1174,6 +1199,19 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
         : g.subject.kind === "role"
           ? "role"
           : "direct";
+    // the maker's grant is always written (it must not depend on what the agent's role gives today), and the list shows each subject once: it is hidden while another grant of that subject already gives the same or more
+    if (
+      g.source?.startsWith("made-by:") &&
+      all.some(
+        (o) =>
+          o !== g &&
+          !o.source?.startsWith("made-by:") &&
+          o.subject.kind === g.subject.kind &&
+          o.subject.id === g.subject.id &&
+          atLeast(res.type, o.level, g.level),
+      )
+    )
+      continue;
     shares.push({ grant: grantView(g), through });
   }
   const mine = callerLevel(ctx, store, res) ?? undefined;

@@ -30,6 +30,12 @@ export interface Script {
   fail: Record<string, string>;
   /** the chat the request's card was drawn in, with the person who asked (read back through tasks.get) */
   card?: { threadId: string; agentId: string; asker: string };
+  /** the Vault folders the caller can list */
+  folders?: { id: string; name: string; scope: "mine" | "shared"; owner?: string }[];
+  /** the folders and items labelled above the requester's clearance (access.clears answers no for them) */
+  unusable?: string[];
+  /** where an item sits, for the items vault.item.get returns (default: shared) */
+  itemScope?: Record<string, "mine" | "shared">;
 }
 
 export function world(over: Partial<Script> = {}) {
@@ -62,6 +68,8 @@ export function world(over: Partial<Script> = {}) {
         if (script.folderUnreadable) throw new Error("no access");
         return { people: script.managers[(i["resource"] as { id: string }).id] ?? [] };
       }
+      case "access.clears":
+        return { clears: !(script.unusable ?? []).includes((i["target"] as { id: string }).id) };
       case "tasks.create":
         return { task: { id: `tsk_${++task}` } };
       case "tasks.transition":
@@ -72,7 +80,7 @@ export function world(over: Partial<Script> = {}) {
         const keys = script.items[String(i["itemId"])];
         if (!keys) throw new Error("no such item");
         return {
-          item: { id: i["itemId"], fieldKeys: keys },
+          item: { id: i["itemId"], fieldKeys: keys, scope: script.itemScope?.[String(i["itemId"])] ?? "shared" },
           fields: keys.map((key) => ({ key, secret: true, hasValue: true })),
         };
       }
@@ -87,7 +95,7 @@ export function world(over: Partial<Script> = {}) {
         return { task: { id: i["taskId"], blocks: [{ type: "vault_request", data: script.card }] } };
       }
       case "vault.folders.list":
-        return { folders: [] };
+        return { folders: (script.folders ?? []).filter((f) => i["scope"] === undefined || f.scope === i["scope"]) };
       case "vault.folders.create":
         return { folder: { id: "vfd_company" } };
       case "access.labels.set":
