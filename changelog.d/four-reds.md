@@ -1,1 +1,0 @@
-- An agent nobody shared with a person is no longer under the Space's access: a Member's Space-wide Edit did not make it theirs to see, open or use, though the access check said none; only its owner and what is shared with it reach it.
