@@ -26,7 +26,7 @@ const browser = await chromium.launch({
   args: ["--no-sandbox"],
   ...(process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {}),
 });
-const SIZES = { w1440: [1440, 900], w900: [900, 800] };
+const SIZES = { w1440: [1440, 900], w900: [900, 800], phone: [390, 844] };
 const fieldText = (pg) =>
   pg.evaluate(() => {
     const e = document.querySelector("[data-testid=composer-field]");
@@ -108,6 +108,15 @@ for (const skin of ["graphite", "paper"])
       await page.evaluate(() => document.activeElement?.getAttribute?.("data-testid")),
     );
     await shot("3-after-esc");
+    // press outside closes it; a press in the composer does not
+    await run("/usage");
+    await page.waitForSelector("[data-testid=command-card]", { timeout: 8000 }).catch(() => say(tag, "no card for press-outside"));
+    await page.locator("[data-testid=composer-field]").first().click();
+    await page.waitForTimeout(300);
+    say(tag, "after a press in the composer, card:", await page.locator("[data-testid=command-card]").count());
+    await page.mouse.click(Math.round(w / 2), 130);
+    await page.waitForTimeout(400);
+    say(tag, "after a press outside, card:", await page.locator("[data-testid=command-card]").count());
     // permissions, take back
     await run("/permissions");
     await page
