@@ -1,0 +1,1 @@
+- The prompt in an agent's terminal now reads `agent@workspace` instead of showing the agent's id, and an error from the computer no longer names it.

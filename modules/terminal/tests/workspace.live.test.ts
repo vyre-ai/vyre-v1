@@ -98,8 +98,69 @@ test(
       [],
       "nothing before the first use",
     );
+    // F33: a workspace made before the change (the container's host name is its name, with the agent's id; its label is the old one) holds a file in its home. The first command after the update makes the
+    // container again, quietly, with the host name `workspace`; the home stays.
+    assert.equal((await docker(["volume", "create", `${NAME}-home`], 30_000)).code, 0);
+    assert.equal(
+      (
+        await docker(
+          [
+            "run",
+            "--rm",
+            "-v",
+            `${NAME}-home:/h`,
+            "--user",
+            "0",
+            "--entrypoint",
+            "sh",
+            IMAGE,
+            "-c",
+            "echo before-update > /h/old.txt; chown 10001:10001 /h/old.txt /h",
+          ],
+          60_000,
+        )
+      ).code,
+      0,
+    );
+    assert.equal(
+      (
+        await docker(
+          [
+            "create",
+            "--name",
+            NAME,
+            "--hostname",
+            NAME,
+            "--label",
+            `vyre.workspace=${AGENT}`,
+            "--label",
+            "vyre.mounts=0000000000000000",
+            "--user",
+            "10001:10001",
+            "-v",
+            `${NAME}-home:/home/agent`,
+            IMAGE,
+            "sleep",
+            "infinity",
+          ],
+          60_000,
+        )
+      ).code,
+      0,
+    );
     const t0 = Date.now();
     const run = await h["terminal.run"]!(agent, { command: "echo hi", idempotencyKey: "idem_live_1" });
+    assert.equal(await inBox("hostname"), "workspace", "no id in the host name, and the old container was made again");
+    assert.equal(await inBox("cat", "/home/agent/old.txt"), "before-update", "its home stayed");
+    const shown = await h["terminal.run"]!(agent, {
+      command: 'echo "$(id -un)@$(hostname)"',
+      idempotencyKey: "idem_live_prompt",
+    });
+    assert.equal(shown.output, "agent@workspace");
+    assert.ok(
+      !/agt_/.test(await inBox("tmux", "capture-pane", "-p", "-t", `vyre-${run.terminalId}`)),
+      "no id anywhere on the terminal's screen",
+    );
     const firstMs = Date.now() - t0;
     assert.deepEqual([run.exitCode, run.output], [0, "hi"]);
     assert.equal(

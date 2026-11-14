@@ -1018,3 +1018,25 @@ test("third look: after a restart, the first use of a workspace removes what a r
     box.exec = exec0;
   }
 });
+
+test("F33: the host name a person reads in the shell prompt is a word, never the container name that carries the agent's id; a workspace made with the old name is made again once", () => {
+  const good = workspaceContainerConfig(AGENT, "vyre/agent-workspace:1", { projects: [] }, {});
+  assert.equal(good.Hostname, "workspace");
+  assert.ok(!good.Hostname.includes(AGENT) && !/agt_/.test(good.Hostname), good.Hostname);
+  assert.equal(good.Hostname === NAME, false, "the container is still found by its name");
+  assert.deepEqual(reviewWorkspaceConfig(good, AGENT), []);
+  assert.deepEqual(reviewWorkspaceConfig({ ...good, Hostname: NAME }, AGENT), ["is not this agent's workspace"]);
+  // the label that tells a quiet workspace to be made again names the new hostname: the old container's label differs
+  assert.notEqual(good.Labels["vyre.mounts"], "7a52e8b0c1d4f3a6");
+});
+
+test("F33: an error that names the container never shows the agent's id to a person", async () => {
+  const r = rig({ docker: { failOn: new Set(["containerCreate"]) } as never });
+  let said = "";
+  try {
+    await r.mgr.exec(AGENT, ["echo", "hi"]);
+  } catch (e) {
+    said = String((e as Error).message);
+  }
+  assert.ok(!/vyre-ws-|agt_/.test(said), said);
+});
