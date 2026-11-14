@@ -28,6 +28,8 @@ export interface AutomationsNav {
   /** Start the connector session for a Vault item the person accepted an offer for. Without it an offer has no Set up button. */
   /** The step picker's last row: starts a session that builds a connector for an app. Without it the row is not drawn. */
   buildConnector?(): void;
+  /** Said beside the door before the press, while the press also allows the assistant to build connectors. */
+  buildConnectorNote?: string;
   setUpConnector?(offer: { itemId: string; appName: string }): Promise<void> | void;
   /** Where this Space's public address is set, for a person who can open it there (never drawn for anyone else). */
   openAddress?(): void;

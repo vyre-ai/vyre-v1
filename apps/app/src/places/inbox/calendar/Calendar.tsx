@@ -2,6 +2,7 @@
 // people and calendar; shaded stripes show when the people you add are busy; "Find a time" lists the next free slots. Drag an event to move it and its bottom edge to resize, both on 15 minute
 // steps; right-click for Open, Edit, Join, Going?, Prepare, Ask, Copy Link, Open Record, Open Conversation, Move to a calendar, Duplicate and Delete (Undo on the line that follows). A click on an event
 // opens it in the event pane beside the calendar (a sheet on a phone), Enter too, and Escape closes it; a double-click edits it; a click on an empty slot starts a new event there.
+import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -1624,7 +1625,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
         ) : null}
         {mode === "month" ? monthBody : timeBody}
         {card}
-        {hovCard}
+        {hovCard ? <Overlay>{hovCard}</Overlay> : null}
         {menu.element}
       </View>
       {/* the event opens where it was pressed: beside the calendar, or in a sheet on a phone */}

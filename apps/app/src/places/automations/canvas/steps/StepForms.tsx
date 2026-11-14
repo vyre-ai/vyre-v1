@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import type { MenuEntry } from "../../../../../../../ui/src/Menu/index.tsx";
+import { unnamed } from "../../../chats/names.ts";
 import { Avatar } from "../../../../../../../ui/src/Avatar/index.tsx";
 import { ChipText, Choice, TextBox, Group, Hint, More, Rows, Segmented } from "../fields.tsx";
 import { useOpenConnect } from "../../../../shell/connect/context.ts";
 import { connectEntries } from "../../../../shell/connect/model.ts";
-import { updateStep } from "../model.ts";
+import { REMOVED_KEY, cardTitle, updateStep } from "../model.ts";
 import type { DefNode, Definition, KeyChoice } from "../model.ts";
 import {
   AUTH_LABEL,
@@ -375,7 +376,7 @@ const nameOf = (
   id: string,
   picks: readonly { assignee: Assignee; name: string }[],
   me: { id: string; name: string },
-): string => (id === me.id ? `${me.name} (you)` : (picks.find((p) => p.assignee.id === id)?.name ?? id));
+): string => (id === me.id ? `${me.name} (you)` : (picks.find((p) => p.assignee.id === id)?.name ?? unnamed(id)));
 
 export function AiForm({
   def,
@@ -406,7 +407,7 @@ export function AiForm({
   const ai = node.ai ?? {};
   const answer = answerKindOf(input);
   const keyName = (id: string | undefined, none: string): string =>
-    id ? (keys.find((k) => k.id === id)?.name ?? id) : none;
+    id ? (keys.find((k) => k.id === id)?.name ?? REMOVED_KEY) : none;
   /** A Space step that names no account runs on the automation's (Settings > AI account), else Automatic. */
   const spaceNone = def.ai?.keyId ? "The automation's AI account" : "Automatic";
   const pickable = kind === "space" ? keys.filter((k) => k.shared !== false) : keys;
@@ -535,7 +536,7 @@ export function AiForm({
   // data the goal can bring in: what started the run, and each other step's output
   const stepTitle = (id: string): string => {
     const n = def.nodes.find((x) => x.id === id);
-    return (n as { title?: string } | undefined)?.title ?? id;
+    return n ? cardTitle(n) : "an earlier step";
   };
   const insertData = (x: number, y: number): void => {
     const add = (ref: string): void =>

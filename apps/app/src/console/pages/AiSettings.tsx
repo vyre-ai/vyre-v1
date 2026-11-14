@@ -8,7 +8,9 @@ import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
-import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { actionWords } from "../../../../../lib/words/actions.ts";
+import { describeError, looksLikeCode } from "../../../../../lib/words/errors.ts";
 import { Choice, Tick } from "./ai-controls.tsx";
 import { reviewSampling } from "./ai-data-values.ts";
 
@@ -118,7 +120,7 @@ function ReviewList({
     <View testID="console-ai-review">
       <Section title="Sampling policy">
         <Group>
-          <TextBox
+          <Field
             label="Percent of turns"
             value={percent}
             onChange={(value) => {
@@ -255,7 +257,11 @@ function ReviewObject({
   ) : tab === "activity" ? (
     <ObjectSection title="Activity" count={what.denials.length + what.fallbacks.length}>
       {what.denials.map((denial, index) => (
-        <Row key={`denial-${index}`} title={`Denied ${denial.cap}`} note={denial.reason} />
+        <Row
+          key={`denial-${index}`}
+          title={`Not allowed: ${actionWords(denial.cap)}`}
+          note={looksLikeCode(denial.reason) ? describeError(`permission.${denial.reason}`).text : denial.reason}
+        />
       ))}
       {what.fallbacks.map((fallback, index) => (
         <Row
@@ -278,7 +284,7 @@ function ReviewObject({
       <Row title="State" note={what.turn.state} />
       <Row title="Usage" note={`${what.turn.tokensIn + what.turn.tokensOut} tokens`} />
       {what.reached?.length ? <Row title="Reached" note={what.reached.join(", ")} /> : null}
-      <TextBox label="Review note" value={reviewNote} onChange={setReviewNote} />
+      <Field label="Review note" value={reviewNote} onChange={setReviewNote} />
     </ObjectSection>
   );
   return (

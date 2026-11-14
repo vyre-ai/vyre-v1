@@ -2,6 +2,7 @@
 // tasks.get, tasks.list, tasks.needs_you, tasks.count_needs_you, tasks.my_work and tasks.history.
 // Durable tables: migrations/0001_tasks_state.sql. Every statement names only tasks_* tables (ctx.db refuses anything else, ARCH B2).
 import { isHostService, isTrustedService } from "../../lib/trust.ts";
+import { agentStanding } from "../../lib/agent-asker.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
 
@@ -87,6 +88,8 @@ export interface Task {
   /** The thread a crew job or a helper does this task in, when that is not the task's own thread. */
   workerThread?: string;
   createdBy: string;
+  /** The person the creating turn acted for, when an agent made the task (empty for a person's own task and for a turn for nobody). Set once. */
+  createdFor?: string;
   createdAt: number;
   updatedAt: number;
   version: number;
@@ -207,7 +210,7 @@ const SELECT = `SELECT c.id AS id, m.kind AS kind, c.title AS title, c.summary A
   m.review_loops AS review_loops, m.snoozed_until AS snoozed_until, m.expires_at AS expires_at, m.decision_id AS decision_id,
   m.payload_hash AS payload_hash, c.handled_by AS handled_by, c.handled_at AS handled_at, c.responsible AS responsible,
   c.created_by AS created_by, c.created_at AS created_at, c.updated_at AS updated_at, m.version AS version,
-  c.key AS key, c.key_no AS key_no, c.priority AS priority, c.labels AS labels, c.start_at AS start_at, c.fields AS fields, c.recur AS recur, c.worker_thread AS worker_thread
+  c.key AS key, c.key_no AS key_no, c.priority AS priority, c.labels AS labels, c.start_at AS start_at, c.fields AS fields, c.recur AS recur, c.worker_thread AS worker_thread, c.created_for AS created_for
   FROM tasks_core c JOIN tasks_meta m ON m.id = c.id`;
 
 type Raw = Record<string, unknown>;
@@ -294,6 +297,8 @@ function rowToTask(r: Raw): Task {
   if (recur) t.recur = recur;
   const worker = str(r.worker_thread);
   if (worker !== undefined) t.workerThread = worker;
+  const createdFor = str(r.created_for);
+  if (createdFor !== undefined) t.createdFor = createdFor;
   return t;
 }
 
@@ -304,8 +309,8 @@ const js = (v: unknown): string => JSON.stringify(v);
 export function saveTask(db: Db, t: Task): void {
   if (t.keyNo === undefined) mintKey(db, t);
   db.run(
-    `INSERT OR REPLACE INTO tasks_core (id, title, summary, state, actions, file_ids, record_id, created_by, created_at, updated_at, handled_by, handled_at, responsible, key, key_no, priority, labels, start_at, fields, recur, worker_thread)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO tasks_core (id, title, summary, state, actions, file_ids, record_id, created_by, created_at, updated_at, handled_by, handled_at, responsible, key, key_no, priority, labels, start_at, fields, recur, worker_thread, created_for)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     t.id,
     t.title,
     nul(t.summary),
@@ -327,6 +332,7 @@ export function saveTask(db: Db, t: Task): void {
     js(t.fields),
     t.recur ? js(t.recur) : null,
     nul(t.workerThread),
+    nul(t.createdFor),
   );
   db.run(
     `INSERT OR REPLACE INTO tasks_meta (id, kind, assigned, reviewer, approver, taken_by, taken_at, snoozed_until, why, blocks, source_kind, source_id,
@@ -543,6 +549,44 @@ export interface Who {
 export function whoIs(ctx: TasksCtx): Who {
   return { id: ctx.principal.id, kind: ctx.principal.kind, ...(ctx.actingFor ? { actingFor: ctx.actingFor } : {}) };
 }
+/**
+ * Is this person on the task by their own right: in a slot, took it, made it, the person it was made for, responsible for its agent, or a follower? (A group or role slot is the kernel's to say.)
+ */
+export function personOn(t: Task, person: string, mode: "read" | "act" = "read"): boolean {
+  if (
+    [t.assigned, t.reviewer, t.approver].some(
+      (a) => a !== undefined && (a.kind === "person" || a.kind === "agent") && a.id === person,
+    )
+  )
+    return true;
+  return (
+    t.takenBy === person ||
+    t.createdBy === person ||
+    t.createdFor === person ||
+    t.responsible === person ||
+    // a follower reads, never acts: directly a follower may not start, move or cancel the task, so through an agent neither
+    (mode === "read" && t.followers.includes(person))
+  );
+}
+/**
+ * Does the agent's own role on this task count in this call? Yes for a person, the server, an agent acting for nobody (a wake, a routine, the baton), and an agent in the task's own thread. For an agent
+ * acting for a person, only when that person is on the task themselves: what an agent holds is its work, and never widens what another person who merely asked it can see (lib/agent-asker.ts).
+ */
+export function roleCounts(ctx: TasksCtx, t: Task, mode: "read" | "act" = "read"): boolean {
+  if (
+    ctx.thread !== undefined &&
+    (ctx.thread === t.threadId || ctx.thread === t.workerThread) &&
+    ctx.principal.kind === "agent"
+  )
+    return true;
+  return agentStanding(ctx, (person) => personOn(t, person, mode));
+}
+/** Who the caller is on THIS task: itself, or, when an agent's own role does not count here, the person it acts for. */
+export function whoOn(ctx: TasksCtx, t: Task, mode: "read" | "act" = "read"): Who {
+  const w = whoIs(ctx);
+  if (roleCounts(ctx, t, mode) || w.actingFor === undefined) return w;
+  return { id: w.actingFor, kind: "person" };
+}
 export const sameAssignee = (a: Assignee | undefined, b: Assignee | undefined): boolean =>
   !!a && !!b && a.kind === b.kind && a.id === b.id;
 
@@ -574,7 +618,7 @@ export function involved(t: Task, who: Who): boolean {
 }
 /** Group and role slots: the caller sees the task when the kernel grants view on it (the grant follows the group or role). */
 export function visibleTo(ctx: TasksCtx, t: Task): boolean {
-  const who = whoIs(ctx);
+  const who = whoOn(ctx, t);
   // only the server itself (a hook such as a Journey advancing a record on a finished task); no other service, and never a tenant's svc_ principal
   if (isHostService(who)) return true;
   if (involved(t, who) || t.createdBy === who.id || t.followers.includes(who.id)) return true;
@@ -587,7 +631,7 @@ export function actionableByMe(ctx: TasksCtx, t: Task): boolean {
   if (!slot) return false;
   const a = t[slot];
   if (!a) return false;
-  const who = whoIs(ctx);
+  const who = whoOn(ctx, t, "act");
   if (a.kind === "group" || a.kind === "role") {
     if (t.takenBy !== undefined && t.takenBy !== who.id && t.takenBy !== who.actingFor) return false;
     return (
@@ -703,7 +747,7 @@ export function isMyTurn(ctx: TasksCtx, t: Task, idx: OpenIndex): boolean {
   const shared = t.assigned.kind === "group" || t.assigned.kind === "role";
   if (shared && t.takenBy === undefined) return true;
   if (t.workingNotes["fixes"] !== undefined) return true;
-  const who = whoIs(ctx);
+  const who = whoOn(ctx, t);
   return (
     t.state === "todo" &&
     t.createdBy !== who.id &&
@@ -724,7 +768,8 @@ export function needsYou(ctx: TasksCtx): NeedsItem[] {
   const items: NeedsItem[] = [];
   for (const t of allTasks(ctx.db, "c.state NOT IN ('done', 'canceled')")) {
     const mine =
-      actionableByMe(ctx, t) || (t.assigned.kind !== "group" && t.assigned.kind !== "role" && involved(t, who));
+      actionableByMe(ctx, t) ||
+      (t.assigned.kind !== "group" && t.assigned.kind !== "role" && involved(t, whoOn(ctx, t)));
     if (!mine) continue;
     if (t.snoozedUntil !== undefined && t.snoozedUntil > now) continue;
     const turn = isMyTurn(ctx, t, idx);
@@ -786,9 +831,10 @@ export function listTasks(ctx: TasksCtx, f: ListFilter): Task[] {
           ? allTasks(ctx.db, "c.created_by = ?", who.id)
           : allTasks(ctx.db);
   return pool.filter((t) => {
-    if (f.scope === "mine" && !(involved(t, who) || actionableByMe(ctx, t))) return false;
-    if (f.scope === "following" && !t.followers.includes(who.id)) return false;
-    if (f.scope === "assigned_by_me" && t.assigned.id === who.id) return false;
+    const w = whoOn(ctx, t);
+    if (f.scope === "mine" && !(involved(t, w) || actionableByMe(ctx, t))) return false;
+    if (f.scope === "following" && !t.followers.includes(w.id)) return false;
+    if (f.scope === "assigned_by_me" && (t.createdBy !== w.id || t.assigned.id === w.id)) return false;
     if (f.scope === "record" && f.recordId === undefined) return false;
     if (f.scope === "run" && f.runId === undefined) return false;
     if (f.states && !f.states.includes(t.state)) return false;
@@ -804,11 +850,11 @@ export function myWork(
   ctx: TasksCtx,
   section: Section,
 ): { tasks: Task[]; counts: { open: number; assignedByMe: number; done: number } } {
-  const who = whoIs(ctx);
-  const all = allTasks(ctx.db).filter((t) => involved(t, who) || t.createdBy === who.id || actionableByMe(ctx, t));
-  const open = all.filter((t) => isOpen(t.state) && (involved(t, who) || actionableByMe(ctx, t)));
-  const byMe = all.filter((t) => isOpen(t.state) && t.createdBy === who.id && !(t.assigned.id === who.id));
-  const done = all.filter((t) => !isOpen(t.state) && (involved(t, who) || t.createdBy === who.id));
+  const on = (t: Task): Who => whoOn(ctx, t);
+  const all = allTasks(ctx.db).filter((t) => involved(t, on(t)) || t.createdBy === on(t).id || actionableByMe(ctx, t));
+  const open = all.filter((t) => isOpen(t.state) && (involved(t, on(t)) || actionableByMe(ctx, t)));
+  const byMe = all.filter((t) => isOpen(t.state) && t.createdBy === on(t).id && !(t.assigned.id === on(t).id));
+  const done = all.filter((t) => !isOpen(t.state) && (involved(t, on(t)) || t.createdBy === on(t).id));
   const counts = { open: open.length, assignedByMe: byMe.length, done: done.length };
   const pick =
     section === "open"

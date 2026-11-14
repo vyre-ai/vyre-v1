@@ -7,7 +7,7 @@ import { shellTarget, useViewer } from "../../../shell/reach/viewer.ts";
 import { useComputersAvailable } from "../../../shell/computers-available.ts";
 import { ImportedSession } from "../imported/ImportedSession.tsx";
 import type { ImportedData } from "../imported/ImportedSession.tsx";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { PhoneProfile } from "./PhoneProfile.tsx";
@@ -69,6 +69,8 @@ import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, workOf } from "./route.ts";
+import { PendingChat } from "../landing/PendingChat.tsx";
+import { firstWords, holdPending } from "../landing/pending.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
@@ -137,6 +139,8 @@ export interface ChatsMountedProps {
   }) => void;
   /** The middle is about to change: the shell keeps a still copy on screen until the next view is ready. */
   onSwitch?: () => void;
+  /** Names the selected tab for the chat that is starting, before the chat has an id. */
+  onTitle?: (title: string) => void;
   /** Closes the tab this page sits in: a page that is finished leaves no stale tab behind. */
   closeSelf?: () => void;
   /** A phone: what opens from the first screen goes on top of its history, so Back returns here. */
@@ -156,6 +160,7 @@ export function ChatsMounted({
   window,
   opened,
   onSwitch,
+  onTitle,
   closeSelf,
   stacked = false,
   openInNewTab,
@@ -312,13 +317,20 @@ export function ChatsMounted({
     const found =
       asking.scopeType === ""
         ? asking.first
-          ? chatOpening(rt, who, asking.first)
+          ? chatOpening(rt, who, asking.first, asking.heading)
           : chatWith(rt, who)
         : askWith(rt, who, asking.scopeType, asking.scopeId, asking.bringFrom, asking.first);
     void found.then((id) => {
       if (!live) return;
       if (id) {
         if (asking.draft) fill.set(asking.draft);
+        if (asking.first)
+          holdPending(id, {
+            title: asking.heading ?? firstWords(asking.first),
+            text: asking.first,
+            files: [],
+            lead: asking.agentId === "assistant" ? rt.assistant.name : nameOf(asking.agentId),
+          });
         act({ t: "chat", threadId: id, pane: true });
       } else {
         setLine("Could not open the Ask. You may not see that yet.");
@@ -335,10 +347,17 @@ export function ChatsMounted({
     asking?.bringFrom,
     asking?.draft,
     asking?.first,
+    asking?.heading,
     rt,
     act,
     fill,
   ]);
+  const titleTab = useRef(onTitle);
+  titleTab.current = onTitle;
+  // before the first paint of the opening message, so the tab is named in the same frame
+  useLayoutEffect(() => {
+    if (asking?.first) titleTab.current?.(asking.heading ?? firstWords(asking.first));
+  }, [asking?.first, asking?.heading]);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
   // right tabs: what was opened from a chat, closable, after the pane's own. Pressing any face or name opens that profile here, person or agent.
   const [rightTabs, setRightTabs] = useState<readonly ProfileTab[]>([]);
@@ -986,6 +1005,8 @@ export function ChatsMounted({
   else if (route.view === "new") {
     main = (
       <Landing
+        key={route.with?.agentId ?? "new"}
+        {...(route.with ? { startWith: { id: route.with.agentId, name: route.with.name } } : {})}
         rt={rt}
         nameOf={nameOf}
         kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")}
@@ -996,10 +1017,23 @@ export function ChatsMounted({
         fill={(t) => fill.set(t)}
         newKey={newKey}
         say={setLine}
+        {...(onTitle ? { title: onTitle } : {})}
         {...(stacked ? { list: <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} /> } : {})}
       />
     );
-  } else if (conv) {
+  }
+  // an Ask or a chat that opens with the person's own first message (Home's Ask, a task, a project, an agent): his words and the working mark are on screen while the thread is found or made
+  else if (asking !== null && asking.first)
+    main = (
+      <PendingChat
+        title={asking.heading ?? firstWords(asking.first)}
+        text={asking.first}
+        files={[]}
+        lead={asking.agentId === "assistant" ? rt.assistant.name : nameOf(asking.agentId)}
+        phase="sending"
+      />
+    );
+  else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
     const live = {
       ...conv,
@@ -1033,7 +1067,8 @@ export function ChatsMounted({
         testID="channel-failed"
       />
     );
-  else main = <ConversationLoading />;
+  else
+    main = <ConversationLoading {...(route.view === "chat" && route.threadId ? { threadId: route.threadId } : {})} />;
 
   /* ---------- the right ---------- */
   const rightTab = rightTabs.find((t) => t.key === rightOn);

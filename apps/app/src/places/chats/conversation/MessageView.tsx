@@ -8,6 +8,7 @@ import { StatusCard, isStatusCard } from "./status-cards.tsx";
 import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
+import { spaceKeyWay } from "./status.ts";
 import { mergeStateOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
@@ -167,6 +168,8 @@ export interface MessageActions {
   /** The rows of Details on a failed turn, read from the turn when it opens. */
   turnDetail?(turnId: string): Promise<[string, string][]>;
   errorNext(key: string, turnId?: string): void;
+  /** True when the reader may set the Space AI key (an owner or admin, in a shell with a Console): "no account" then offers it as an action; otherwise it says to ask an admin. */
+  canSetSpaceKey?: boolean;
   /** True once the person has a working AI account (read after "Connect your AI"). Left out where the chat cannot tell. */
   accountReady?(): Promise<boolean>;
   retrySend(messageId: string): void;
@@ -1891,6 +1894,7 @@ export function ErrorRowView({
     };
   }, [noAccount, asked, ready, resent, actions]);
   const { element: moreMenu, show: showMore } = useMenu();
+  const spaceKey = spaceKeyWay(e.code, actions.canSetSpaceKey === true);
   const steps = [
     ...e.next.map((n) => ({
       label: n.label,
@@ -1900,6 +1904,15 @@ export function ErrorRowView({
         actions.errorNext(n.key, e.turnId);
       },
     })),
+    ...(spaceKey.action
+      ? [
+          {
+            label: spaceKey.action.label,
+            testID: `err-next-${spaceKey.action.key}`,
+            run: () => actions.errorNext(spaceKey.action!.key, e.turnId),
+          },
+        ]
+      : []),
     ...(e.retryable && e.turnId && !retried
       ? [
           {
@@ -1936,7 +1949,9 @@ export function ErrorRowView({
     >
       <UiCard kind="status" tone="error" testID={`error-${block.id}`} label={e.message}>
         <CardHead title={e.message} tone="warn" lead={<Glyph name="alert" size={15} color="var(--warn)" />} />
-        {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
+        {e.cause || spaceKey.line ? (
+          <Text style={st.errCause}>{[e.cause, spaceKey.line].filter(Boolean).join(" ")}</Text>
+        ) : null}
         <CardActions
           {...(fix ? { primary: { label: fix.label, onPress: fix.run, testID: fix.testID } } : {})}
           note={

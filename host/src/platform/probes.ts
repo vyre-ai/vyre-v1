@@ -31,7 +31,12 @@ export const PROBE_NAMES: readonly ProbeName[] = [
 ];
 export type FetchFn = (
   url: string,
-  init?: { method?: string; signal?: AbortSignal; headers?: Record<string, string> },
+  init?: {
+    method?: string;
+    signal?: AbortSignal;
+    headers?: Record<string, string>;
+    redirect?: "error" | "manual" | "follow";
+  },
 ) => Promise<{ ok: boolean; status: number; headers: { get(name: string): string | null }; text(): Promise<string> }>;
 
 const result = (state: ProbeState, detail: string, extra: Omit<ProbeResult, "state" | "detail"> = {}): ProbeResult => ({

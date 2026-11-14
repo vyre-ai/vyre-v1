@@ -1018,6 +1018,38 @@ test("a new goal starts in the Space's time zone, not its creator's; a Space wit
   );
 });
 
+test("a goal's lead or helper agent does not show the goal to a person who may not see it: it sees it for the owner, a helper person, or nobody", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal());
+  for (const agentId of [LEAD, HELPER]) {
+    await assert.rejects(
+      w.call("goals.get", { goalId: goal.id }, { id: agentId, kind: "agent", actingFor: STRANGER }),
+      /does not exist/,
+      `${agentId} acting for a stranger`,
+    );
+    assert.equal(
+      (await w.call("goals.get", { goalId: goal.id }, { id: agentId, kind: "agent", actingFor: OWNER })).goal.id,
+      goal.id,
+      `${agentId} acting for the owner`,
+    );
+    assert.equal(
+      (await w.call("goals.get", { goalId: goal.id }, { id: agentId, kind: "agent", actingFor: ALIZA })).goal.id,
+      goal.id,
+      `${agentId} acting for a helper person`,
+    );
+    assert.equal(
+      (await w.call("goals.get", { goalId: goal.id }, { id: agentId, kind: "agent" })).goal.id,
+      goal.id,
+      `${agentId} acting for nobody`,
+    );
+  }
+  assert.deepEqual(
+    (await w.call("goals.list", { scope: "helping" }, { id: LEAD, kind: "agent", actingFor: STRANGER })).goals,
+    [],
+    "and the list of what it leads is empty for a stranger",
+  );
+});
+
 test("the refusal tells the agent what to do: carry on, mention it once at the next check-in, and do not ask each time", async () => {
   const w = world({ count: 10 });
   const { goal } = await w.call("goals.create", labGoal());

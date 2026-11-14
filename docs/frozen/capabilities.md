@@ -151,14 +151,18 @@ Signed: lead, 12 Nov 2026
 
 Signed: the lead, 13 Nov 2026
 
-## 13 Nov 2026: notifications.unseen_by_thread is added (lane b-side), for the lead to sign
+## 13 Nov 2026: access.connector_builder.status can be asked about one Vault item (lane f-auto2)
 
-- What changed: one new read, `notifications.unseen_by_thread@1` (module notifications, level member, tool meta). Input `{ threadIds?: thread[] (at most 200) }`; output `{ counts: [{ threadId, mentions >= 1 }], capped: bool }`. Additive: no existing capability, event or kind changed. Snapshot: `docs/frozen/snapshots/notifications.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`.
-- Why: the Chats sidebar shows a mention count on a row, and no read carried it (a mention reached only the rail). The read answers the caller's OWN unseen mention notifications (kinds mention and mention.thread) grouped by thread, newest first, at most 500 threads (`capped` true when there were more; the oldest are left out); it never answers for another person, and it names only threads a notification was filed for the caller about. The sidebar's read joins it onto the chats it already lists, so a thread the caller cannot open is never shown.
-- Signed: ______ (lead)
+- What changed: `access.connector_builder.status@1` takes an optional `itemId` and, when it is given, answers an optional `reaches` (true or false) beside `allowed` and `canGrant`. `reaches` is the access check's own answer for "may this assistant, acting for the caller, use that Vault item": false for an item labelled above the clearance of the assistant or of the person it acts for (a company key, anything Restricted): a grant does not lift a clearance (it is per subject), only a role with a higher one does, which an admin may give an agent. True also when only a share to the assistant is missing and the caller may use the item (one approval away). Nothing else in its contract changed. Snapshot: docs/frozen/snapshots/access.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: on rc.26 the Automations first page suggested setting up Google_DWD, and the assistant could not do it (above its clearance, and without the Connector builder role). A suggestion is now shown only when the assistant can finish it, and the Vault row, the first page and the setup press all ask this one question.
+- Also moved, not a contract: `modules/automations/tests/golden-replay/golden.json` holds the new words for a step that is missing an input ("Update a record: choose the record."), and `automations.steps.list` lists Google, Microsoft and GitHub steps only for apps connected on the Space that the caller may use (same input and output, fewer rows).
 
-## 13 Nov 2026: chats.presence is added (lane b-side), for the lead to sign
+Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
 
-- What changed: one new read, `chats.presence@1` (module chat, tool chats, `team: true` like `devices.presence`). Input `{}`; output `{ people: [{ personId, state: online | away }], working: [{ agentId, threadId?, since }] }`. Additive: no existing capability, event or kind changed. Snapshot: `docs/frozen/snapshots/chat.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`.
-- Why: the Chats sidebar draws a presence dot on people and a moving ring on agents that work. Presence changes often, so it is a separate small read and stays out of the sidebar's own answer, which then stays quiet. It composes `devices.presence` and `engine.now`, which already answer as the caller: offline people are left out, a chat is named only when the asker may read it, no title leaves it, and a guest (no team) gets nobody.
-- Signed: ______ (lead)
+## 13 Nov 2026: what a model reads when a tool fails, and `automations.steps.list` gains `all` (lane f-auto2)
+
+- Model-facing error (not a capability contract, but what agents and MCP clients receive): `error.code` is now `error.supportCode`; the object now starts with `say` (a plain sentence and what to do) and `reply` (the rule: tell the person in plain words, no codes unless asked). `message`, `retryable`, `next`, `details` stay. In MCP `structuredContent.error` a `code` twin (the same value as `supportCode`) is kept for machine clients; the text a model reads has only `supportCode`.
+- `automations.steps.list@1` takes an optional `all` (boolean): every step the server can run, including apps not connected for the caller, for the editor of an Automation that already holds such a step. Without it the list is filtered to connected apps (the picker and the Assistant). Additive.
+- `automations.steps.list@1` also answers an optional `checked` (false only when the Space's connected apps could not be read, so an app missing from the list is unknown rather than unconnected; absent otherwise). Additive.
+
+Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.

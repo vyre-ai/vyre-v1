@@ -34,6 +34,7 @@ import { CONNECT_LIMIT } from "../connect/trust-view.ts";
 import { Glyph } from "./icons.tsx";
 import {
   ERROR_MODES,
+  REMOVED_KEY,
   groupOfKey,
   iconOfKey,
   kindOfKey,
@@ -464,7 +465,7 @@ export function Inspector({
                 <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text>
               ) : null}
               <Text testID="plain-language" style={i.hint}>
-                {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? id })}
+                {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}
               </Text>
               {headerMode ? null : (
                 <View accessibilityLabel="Builder mode" testID="inspector-mode" style={i.seg}>

@@ -1,4 +1,5 @@
 // The canvas model (spec 3.7, 2.12): the layout of triggers, steps, Paths, Parallel and Loop; the lane a run took; the local check that mirrors automations.validate; the edits.
+import { rawIdsIn } from "../../../../../../lib/id-shapes.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -540,4 +541,134 @@ test("a web request trigger on a Personal Automation offers Move to Space only i
     "never a door the person cannot use",
   );
   assert.equal(offersMoveToSpace("space", def, first, {}), false);
+});
+
+test("no card's second line is template code: a {{ }} reference reads as the chip it is in the editor (owner, 13 Nov 2026)", () => {
+  const name = (id: string): string => (id === "find" ? "Find the lead" : id);
+  // the Weekly digest he opened: a step whose inputs are plain fields, and one whose text brings in the trigger
+  assert.equal(
+    subtitleOf(
+      {
+        id: "s1",
+        key: "set_fields",
+        input: { type: "{{ trigger.type }}", recordId: "{{ trigger.recordId }}" },
+        next: [],
+      },
+      { step: name },
+    ),
+    "Type ‹Trigger · Type› · Record ‹The record that started this›",
+  );
+  assert.equal(
+    subtitleOf(
+      {
+        id: "s2",
+        key: "post_message",
+        input: {
+          text: "A new {{ trigger.type }} came in from a form. Open record {{ trigger.recordId }} to follow up.",
+        },
+        next: [],
+      },
+      { step: name },
+    ),
+    "Text A new ‹Trigger · Type› came in from a form. Open record ‹The record that started this› to follow up.",
+  );
+  assert.equal(
+    subtitleOf(
+      {
+        id: "s3",
+        key: "post_message",
+        input: { text: "Found {{ steps.find.out.count }} and {{ steps.gone.out }}" },
+        next: [],
+      },
+      { step: name },
+    ),
+    "Text Found ‹Find the lead · Count› and ‹gone›",
+  );
+  // a step's input is named by the plain word a person would use (lib/step-input-labels.ts), never the key and never "Id"
+  const sub = (input: Record<string, unknown>, names = {}): string =>
+    subtitleOf({ id: "s4", key: "set_fields", input, next: [] }, { step: name, ...names });
+  assert.equal(sub({ recordId: "abc", due: "tomorrow" }), "Record abc · Due tomorrow");
+  assert.equal(sub({ url: "https://x.example", json: "{}" }), "Web address https://x.example · Data {}");
+  assert.equal(sub({ q: "invoices", mime: "pdf" }), "Search words invoices · File type pdf");
+  // a card never prints an id value: it names the thing when it knows it, else says what kind of thing it is
+  const recId = "rec_01a1d27b165742ddb20032cbd182aaf9",
+    fldId = "fld_01a1d27b165742ddb20032cbd182aaf9";
+  assert.equal(sub({ folderId: fldId, recordId: recId }), "A folder · A record");
+  assert.equal(
+    sub({ recordId: recId }, { thing: (id: string) => (id === recId ? "Ada Lovelace" : undefined) }),
+    "Record Ada Lovelace",
+  );
+  assert.equal(sub({ agentId: "agt_01a1d27b165742ddb20032cbd182aaf9" }), "An agent");
+  for (const s of [sub({ folderId: fldId, recordId: recId }), sub({ spreadsheetId: fldId })])
+    assert.deepEqual(rawIdsIn(s), [], s);
+  // every kind of step that summarises its inputs, each with a template in every field it reads: none shows braces
+  const tpl = "{{ trigger.recordId }}";
+  const nodes: Definition["nodes"] = [
+    { id: "a", key: "ai", input: { prompt: `Reply about ${tpl}` }, next: [] },
+    { id: "b", key: "http_request", input: { method: "POST", url: `https://x.example/${tpl}` }, next: [] },
+    { id: "c", key: "loop", input: { items: tpl, maxIterations: 5 }, next: [] },
+    { id: "d", key: "stop", input: { message: `Done with ${tpl}` }, next: [] },
+    { id: "e", key: "approval", input: { summary: `Send ${tpl}?`, timeout: "1 day" }, next: [] },
+    { id: "f", key: "wait", input: { note: `Waits for ${tpl}` }, next: [] },
+    {
+      id: "g",
+      key: "send_email",
+      input: { to: tpl, subject: `Hello {{first_name|there}}`, mailboxId: "mbx_main" },
+      next: [],
+    },
+    { id: "h", key: "create_task", input: { title: tpl, notes: tpl }, next: [] },
+    { id: "i", key: "code", input: { source: `// ${tpl}\nreturn 1` }, next: [] },
+    { id: "j", key: "connector_request", input: { connector: "crm", action: tpl }, next: [] },
+  ];
+  for (const n of nodes) {
+    const sub = subtitleOf(n, { step: name });
+    assert.ok(!sub.includes("{{") && !sub.includes("}}"), `${n.key}: "${sub}" shows template code`);
+    assert.ok(!/\bid\b/i.test(sub), `${n.key}: "${sub}" has the word id on a card`);
+  }
+  // the whole layout: every card of a definition built from those steps
+  const def: Definition = {
+    triggers: [{ key: "record_change" }],
+    start: ["a"],
+    nodes: nodes.map((n, i) => ({ ...n, next: i + 1 < nodes.length ? [nodes[i + 1]!.id] : [] })),
+  };
+  for (const c of layout(def).cards)
+    assert.ok(!c.sub.includes("{{") && !/\bid\b/i.test(c.sub), `card ${c.id}: "${c.sub}"`);
+  // acronyms keep their capitals; the word id is never shown
+  assert.equal(
+    subtitleOf(
+      {
+        id: "s5",
+        key: "post_message",
+        input: { text: "{{ trigger.callbackURL }} {{ trigger.AIModel }} {{ steps.find.out.userID }}" },
+        next: [],
+      },
+      { step: name },
+    ),
+    "Text \u2039Trigger \u00b7 Callback URL\u203a \u2039Trigger \u00b7 AI model\u203a \u2039Find the lead \u00b7 User\u203a",
+  );
+  // a reference with no friendly name falls back to the field's words, never "id"
+  assert.equal(
+    subtitleOf(
+      { id: "s4", key: "post_message", input: { text: "{{ trigger.invoiceId }} {{ steps.find.out.id }}" }, next: [] },
+      { step: name },
+    ),
+    "Text \u2039Trigger \u00b7 Invoice\u203a \u2039Find the lead \u00b7 Reference\u203a",
+  );
+});
+
+test("an AI step whose account is gone says so in words, never with the account's id (owner, 13 Nov 2026)", () => {
+  const ai = {
+    id: "a",
+    key: "ai",
+    input: { prompt: "Reply to the lead" },
+    ai: { keyId: "acc_0a1b2c3d4e5f6071", backupKeyId: "acc_ffeeddccbbaa9988" },
+    next: [],
+  } as unknown as Parameters<typeof subtitleOf>[0];
+  assert.equal(subtitleOf(ai), "Reply to the lead. A removed AI account, then A removed AI account");
+  assert.equal(
+    subtitleOf(ai, {
+      key: (id) => (id === "acc_0a1b2c3d4e5f6071" ? "Team account" : (undefined as unknown as string)),
+    }),
+    "Reply to the lead. Team account, then A removed AI account",
+  );
 });

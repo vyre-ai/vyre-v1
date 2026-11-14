@@ -1,5 +1,6 @@
 // The blocks of a reply beyond paragraphs and lists: code with colour, a language label, Copy and Wrap; diagrams in a sandboxed frame with a fallback to the source; math; charts drawn by our own SVG with a table
 // view and Copy as CSV; callouts; collapsibles; images that enlarge; footnotes. Each is a plain component of the skin's colours (CSS variables on web). The big libraries load only when a message uses them (loaders.ts).
+import { Overlay } from "../Overlay/index.tsx";
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { createContext, createElement, useContext, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -365,17 +366,20 @@ export function Lightbox({
   testID?: string;
 }): ReactElement {
   useEscapeLayer(true, onClose);
+  // drawn in the overlay layer: inside a message it would sit in the chat's scroller, and a fixed box there is measured from the scroller's corner, not the window's
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Close"
-      testID={testID ?? "lightbox"}
-      onPress={onClose}
-      style={st.lb}
-      {...webProps({ role: "dialog", "aria-modal": "true" })}
-    >
-      <View style={st.lbBody}>{children}</View>
-    </Pressable>
+    <Overlay>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+        testID={testID ?? "lightbox"}
+        onPress={onClose}
+        style={st.lb}
+        {...webProps({ role: "dialog", "aria-modal": "true" })}
+      >
+        <View style={st.lbBody}>{children}</View>
+      </Pressable>
+    </Overlay>
   );
 }
 

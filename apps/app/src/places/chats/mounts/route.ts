@@ -19,7 +19,13 @@ export type Route =
       /** counts each time the same message is asked for again, so it is marked again */ focusN?: number;
     }
   /** The first screen: a new chat, with what needs you and what is running under the composer. */
-  | { view: "new" }
+  | {
+      view: "new";
+      /** a new chat that starts with this agent (the agent page's Chat button): nothing is made until he sends */ with?: {
+        agentId: string;
+        name: string;
+      };
+    }
   /** Tasks and one task's page: the routes the Tasks lane fills. */
   | { view: "tasks" }
   | { view: "task"; taskId: string }
@@ -54,6 +60,7 @@ export type Route =
       bringFrom: string | null;
       draft?: string;
       first?: string;
+      /** the chat's name, when it is not the first words */ heading?: string;
     };
 
 export type Layer =
@@ -89,7 +96,7 @@ export type Act =
     }
   /** Close the thread beside the chat (Escape, its close button). */
   | { t: "side-close" }
-  | { t: "new" }
+  | { t: "new"; with?: { agentId: string; name: string } }
   | { t: "tasks" }
   | { t: "task"; taskId: string }
   | { t: "goal"; goalId: string }
@@ -111,6 +118,7 @@ export type Act =
       bringFrom?: string;
       draft?: string;
       first?: string;
+      heading?: string;
     }
   | { t: "needs"; taskId?: string }
   | { t: "tasks" }
@@ -155,7 +163,7 @@ export function step(s: Shown, a: Act): Shown {
     case "side-close":
       return { ...s, side: null };
     case "new":
-      return { ...s, route: { view: "new" }, layer: null };
+      return { ...s, route: { view: "new", ...(a.with ? { with: a.with } : {}) }, layer: null };
     case "goal":
       return { ...s, route: { view: "goal", goalId: a.goalId }, pane: false, terminalId: null, layer: null };
     case "project":
@@ -217,6 +225,7 @@ export function step(s: Shown, a: Act): Shown {
           bringFrom: a.bringFrom ?? null,
           ...(a.draft ? { draft: a.draft } : {}),
           ...(a.first ? { first: a.first } : {}),
+          ...(a.heading ? { heading: a.heading } : {}),
         },
         layer: null,
       };
@@ -398,6 +407,7 @@ export function fromHash(hash: string): Shown {
           ...(arg("bring") === "" ? {} : { bringFrom: arg("bring") }),
           ...(arg("draft") === "" ? {} : { draft: arg("draft") }),
           ...(arg("first") === "" ? {} : { first: arg("first") }),
+          ...(arg("heading") === "" ? {} : { heading: arg("heading") }),
         });
       // `with` alone is a chat with that agent: the open chat it leads, else a new one.
       return arg("with") === ""

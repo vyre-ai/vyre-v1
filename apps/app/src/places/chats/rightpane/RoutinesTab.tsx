@@ -2,6 +2,7 @@
 // the last run. Change by Asking fills the chat composer (routines are made by asking the agent); Edit Instructions saves a new version; Rename, Duplicate (paused) and Delete
 // with an inline confirm and Undo. Three sentence starters begin a new one. The row's menu and the ... button give the same entries.
 import { useEffect, useState } from "react";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -62,6 +63,8 @@ export function RoutinesTab({
   const menu = useMenu();
   const [openId, setOpenId] = useState<string | null>(initial?.routineId ?? null);
   const [mode, setMode] = useState<Mode>(initial?.mode ?? "view");
+  // Esc puts away the name or instructions box and keeps the old words, as its Cancel does
+  useEscapeLayer(mode === "rename" || mode === "instructions", () => setMode("view"));
   const [running, setRunning] = useState<readonly string[]>([]);
   const [draft, setDraft] = useState("");
   const agentId = data.agent.agentId;

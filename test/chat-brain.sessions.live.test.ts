@@ -80,7 +80,7 @@ test("API chats apply the agent's deny list and plan mode to their tools, as the
     const r = yield* run("records_create", { type: "contact", fields: { name: text }, idempotencyKey: `rc-${text}` });
     yield {
       type: "text",
-      text: r.ok ? "created" : `refused ${(r.content as { error?: { code?: string } }).error?.code}`,
+      text: r.ok ? "created" : `refused ${(r.content as { error?: { supportCode?: string } }).error?.supportCode}`,
     };
   });
   const d = await boot(seededDir(), model);
