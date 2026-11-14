@@ -206,7 +206,7 @@ export function LockedState(props: LockedStateViewProps): ReactElement {
         disabled={!view.enabled}
         onPress={status === "granted" ? props.onOpen : ask}
         testID="locked-ask"
-        {...webProps({ dataSet: { tt: view.button } })}
+        {...webProps({ title: view.button })}
         style={({ hovered }: { hovered?: boolean }) => [
           styles.button,
           !view.enabled && styles.buttonOff,

@@ -4,7 +4,7 @@ import { View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
-import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
 const stateName = (state: string): string => state[0]!.toUpperCase() + state.slice(1);
 type Review =
   | { kind: "domain"; domain: string }
@@ -112,7 +112,7 @@ export function Network(): ReactElement {
           ) : (
             <ReadState error={status.error} retry={refresh} />
           )}
-          <TextBox label="Own domain" value={domain} onChange={setDomain} testID="infra-network-domain" />
+          <Field label="Own domain" value={domain} onChange={setDomain} testID="infra-network-domain" />
           <Actions>
             <Button
               label="Review domain…"

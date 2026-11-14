@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import { checkFormHtml, checkFormJs, generateFormHtml } from "../../../../../../lib/form-source.ts";
 import type { PreviewField } from "./form-design.ts";
-import { Button, TextBox, s } from "./editor-ui.tsx";
+import { Button, Field, s } from "./editor-ui.tsx";
 
 export interface FormCodeProps {
   html: string;
@@ -29,7 +29,7 @@ export function FormCode({ html, css, js, onHtml, onCss, onJs, asked, disabled }
         input is made from Build, so it stays bound to its record field, and Build never changes your HTML, CSS or
         JavaScript. Questions you leave out still appear after your markup. Save before publishing.
       </Text>
-      <TextBox
+      <Field
         label="HTML"
         value={html}
         onChange={onHtml}
@@ -59,12 +59,12 @@ export function FormCode({ html, css, js, onHtml, onCss, onJs, asked, disabled }
           style={s.text}
         >{`Not placed in your HTML (shown after it): ${unplaced.map((q) => q.title).join(", ")}.`}</Text>
       ) : null}
-      <TextBox label="Custom CSS" value={css} onChange={onCss} multiline disabled={disabled} />
+      <Field label="Custom CSS" value={css} onChange={onCss} multiline disabled={disabled} />
       <Text style={s.text}>
         JavaScript runs on the public page when someone opens the form, in its own sandbox: it can change the page and
         read the answers on it, but it cannot reach this Space's data.
       </Text>
-      <TextBox
+      <Field
         label="JavaScript"
         value={js}
         onChange={onJs}

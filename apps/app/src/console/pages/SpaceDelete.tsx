@@ -8,7 +8,7 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Lead, Section } from "../shell/ui.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
 
 /** The name a person types to delete the Space: its legal name when it has one. */
 export const deleteName = (space: { name: string; legalName?: string }): string =>
@@ -235,7 +235,7 @@ function Delete({ space, onDone }: { space: CapMap["spaces.get"]["out"]["space"]
               />
             )}
           </Group>
-          <TextBox label={`Type ${name} to confirm`} testID="delete-name" value={typed} onChange={setTyped} />
+          <Field label={`Type ${name} to confirm`} testID="delete-name" value={typed} onChange={setTyped} />
           <Note>
             Deletion happens after 14 days and you can cancel until then. Everyone keeps working until the date.
           </Note>

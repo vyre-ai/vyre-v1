@@ -42,7 +42,7 @@ import { TeammatesTab } from "./TeammatesTab.tsx";
 import { useAddSheet } from "../../chats/addsheet/index.ts";
 import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import type { MemberAction, MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
-import { itemLink } from "../../../share/rows.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import { stageWord } from "./overview/model.ts";
 
@@ -593,9 +593,7 @@ function ProjectPeople({
   };
   const act = (action: MemberAction, r: MemberRow, beside?: { x: number; y: number }): void => {
     if (action === "link") {
-      const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator
-        ?.clipboard;
-      void clip?.writeText(itemLink(r.kind === "person" ? "person" : "agent", r.id));
+      copyLinkText(itemLink(r.kind === "person" ? "person" : "agent", r.id));
       return;
     }
     if (action === "remove") {

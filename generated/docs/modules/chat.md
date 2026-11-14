@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, hooks, mcp, members.
 
-## Capabilities (117)
+## Capabilities (116)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -90,7 +90,6 @@ Requires: engine, hooks, mcp, members.
 - [chat.transcript.summarize](../capabilities/chat.transcript.summarize.md): Refresh the rolling summary on a cheap model in the background
 - [chat.transcript.summary](../capabilities/chat.transcript.summary.md): The rolling summary of a thread and the pointer to its transcript, used to hand off to another engine
 - [chat.unpin](../capabilities/chat.unpin.md): Remove the pinned marker from a message
-- [chats.presence](../capabilities/chats.presence.md): Who is around (online or away; offline people are left out) and which agents are working now, with the chat when the asker may read it: the sidebar's dots and rings
 - [threads.add_agent](../capabilities/threads.add_agent.md): Add an agent to a thread as listening (or leading when it is the only agent)
 - [threads.agent.configure](../capabilities/threads.agent.configure.md): Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field
 - [threads.agent.create](../capabilities/threads.agent.create.md): Make an agent for this chat or channel and add it as listening in one step: a name, a one-line brief (use me for) and a model. It belongs to the chat: it is not on the Agents page, and it is removed with the chat or when it is removed from it

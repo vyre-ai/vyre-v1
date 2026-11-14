@@ -1,6 +1,7 @@
 // chat.post and the delivery every message shares (spec 2.5, 3.2, 4.6; ARCH 6.1, 7.2).
 //   One message in a thread or channel, numbered by the thread (gap-free), with its hop depth, its blocks and its mentions. The turn engine reads message.received (ids and counts only, never the
 //   text) and routes to the lead agent or the @mentioned agents; this module does not start turns. People get message.mentioned, message.direct and thread.replied.
+import { agentStanding } from "../../../lib/agent-asker.ts";
 import {
   MAX_BLOCKS,
   MAX_BODY,
@@ -8,6 +9,7 @@ import {
   addAgent,
   agentsOf,
   askerOf,
+  blockBy,
   channelBy,
   encOf,
   ensure,
@@ -109,9 +111,10 @@ function mayEnterChannel(ctx: ChatCtx, root: ThreadRec, thread: ThreadRec, asker
   const channel = root.channelId === undefined ? null : channelBy(ctx.db, root.channelId);
   if (!channel || channel.visibility !== "invite") return true;
   if (isTrustedService(ctx.principal)) return true;
-  // an agent is in when it was added to the channel or its thread, or when the person it acts for is in
+  // an agent is in when it was added to the channel or its thread and it acts for nobody; asked by a person, the person's own place in the channel decides (lib/agent-asker.ts)
   if (
     ctx.principal.kind === "agent" &&
+    agentStanding(ctx, () => false) &&
     (agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) ||
       agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id))
   )
@@ -126,7 +129,8 @@ export function canSpeak(ctx: ChatCtx, thread: ThreadRec): boolean {
   if (root.channelId !== undefined && !mayEnterChannel(ctx, root, thread, asker)) return false;
   if (!isPrivateRoot(root)) return true;
   if (isMember(ctx.db, root.id, asker) || root.starter === asker) return true;
-  if (ctx.principal.kind === "agent")
+  // an agent sitting in the chat works in it for the people in it and for nobody; asked by someone who is not in the chat it brings nothing out of it (lib/agent-asker.ts)
+  if (ctx.principal.kind === "agent" && agentStanding(ctx, () => false))
     return (
       agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) ||
       agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id)
@@ -224,6 +228,28 @@ export function inertCard(data: unknown): unknown {
 }
 
 /**
+ * THE OWNER ASKED, what counts (lead's ruling, 13 Nov). A turn is asked by a person only through their own act:
+ *   counts   a message the person typed; a voice message the person recorded (the app dictates into the composer, so it is typed); a suggestion or canned line the person pressed (typed by the composer);
+ *            an ANSWER the person gave on a question or plan card an agent asked (this function).
+ *   never    a post made by an MCP client or any tool acting with the person's identity (origin is not user or sync); an edit of an old message (the flag is written once, when the message is first received);
+ *            an attachment with no words (it has no words to ask with: nothing in the Gate's request reader matches); anything an agent, an Automation, a module or the server wrote.
+ * A card answer is posted inside the answering call (depth 1), so it is not typed by the depth rule. It counts only when the post is the one the answering handler writes: the person is its author, the call
+ * began at their own press (origin user or sync), the idempotency key names a card of this chat, and that card is answered, by this same person. An agent, an outside agent, a call that names a card nobody
+ * answered, or another person's answer cannot satisfy it; a replayed id returns the stored message and writes no new row.
+ */
+export function answeredCard(
+  ctx: ChatCtx,
+  thread: ThreadRec,
+  author: { kind: string; id: string },
+  key: string | undefined,
+): boolean {
+  if (author.kind !== "person" || ctx.depth === 0 || typeof key !== "string" || !key.startsWith("answer_"))
+    return false;
+  const b = blockBy(ctx.db, key.slice("answer_".length));
+  return b !== null && b.thread === thread.id && b.state === "done" && b.answeredBy === author.id;
+}
+
+/**
  * What a message sets in motion, once it is stored: message.received for the engine and the replicas, then the notices people get.
  * `author` is who the event names (the call's principal); a mention of a person who cannot see the thread notifies nobody (a private chat gains people only by threads.members.add, so a person it does not hold hears nothing).
  * `notify: false` sends message.received only. chat.start declares no message.direct, so the first message of a new direct message cannot notify the other person from there (a contract gap, see the packet comment).
@@ -234,7 +260,15 @@ export function deliver(
   m: MessageRec,
   mentions: Mention[],
   author: { kind: "person" | "agent" | "actor" | "service"; id: string },
-  opts: { notify?: boolean; job?: boolean; poke?: { agentId: string; by: string; outside?: boolean } } = {},
+  opts: {
+    notify?: boolean;
+    job?: boolean;
+    /** A copy of a thread message in the chat it hangs in: not a new message of the person. */
+    copy?: boolean;
+    poke?: { agentId: string; by: string; outside?: boolean };
+    /** The line tells an agent what its person answered on a card of theirs: the person's own act, so it counts as typed (see answeredCard). */
+    answered?: boolean;
+  } = {},
 ): void {
   ctx.emit("message.received", thread.id, {
     messageId: m.id,
@@ -252,9 +286,9 @@ export function deliver(
     ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { actingFor: ctx.actingFor } : {}),
     // a person typed this: not a line a module or the server posted in their name. Only these words can ask for an outward act (chat design, hole 3)
     ...(author.kind === "person" &&
-    ctx.depth === 0 &&
     (ctx.origin === "user" || ctx.origin === "sync") &&
-    opts.poke === undefined
+    opts.poke === undefined &&
+    (ctx.depth === 0 || opts.answered === true)
       ? { typed: true }
       : {}),
     // a poke starts a turn for that agent now (threads.poke); its line is never the person's own typed request
@@ -451,7 +485,14 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   // a person who replies in a thread is in it: its later replies reach them and it counts on their Threads row
   if (author.kind === "person") joinThread(ctx, thread, author.id);
   saveScreen(ctx, thread.id, m.id, input.screen);
-  deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id }, { job });
+  deliver(
+    ctx,
+    thread,
+    m,
+    mentions,
+    { kind: author.kind, id: author.id },
+    { job, answered: answeredCard(ctx, thread, author, input.idempotencyKey) },
+  );
   // "Also post to the chat" from a thread: the same words in the chat the thread hangs in, marked as coming from the thread, so the main chat reads the outcome and not the work. It is a copy, not a message to answer.
   if (input.alsoToChat === true && thread.kind === "thread" && thread.parentThreadId !== undefined) {
     const root = threadBy(ctx.db, thread.parentThreadId);

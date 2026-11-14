@@ -18,7 +18,7 @@ Requires: files.
 - [access.automation_senders](../capabilities/access.automation_senders.md): A person's press gives a Space Automation use of the mailboxes and numbers its send steps name, inside that person's own access, and takes back what no step names any more
 - [access.check](../capabilities/access.check.md): Access checker: can principal P do action A on resource R, with each step in plain words
 - [access.connector_builder.grant](../capabilities/access.connector_builder.grant.md): Give an assistant the Connector builder role (Member permissions plus connectors.manage), making the role if the Space has none. Needs access.manage.
-- [access.connector_builder.status](../capabilities/access.connector_builder.status.md): Does this assistant hold the permission to build connectors, and may the caller give it
+- [access.connector_builder.status](../capabilities/access.connector_builder.status.md): Does this assistant hold the permission to build connectors, may the caller give it, and (when an item is named) may the assistant use that Vault item
 - [access.deciders](../capabilities/access.deciders.md): The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else
 - [access.exceptions.explain](../capabilities/access.exceptions.explain.md): May this person (or the agent acting for them) do what a permission covers, and why, in plain words: the Owner, their own exception, a group exception or their role
 - [access.exceptions.lapse](../capabilities/access.exceptions.lapse.md): The server ends a permission exception whose end has come (the periodic job); audited

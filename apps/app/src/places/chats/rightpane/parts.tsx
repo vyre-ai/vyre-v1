@@ -156,7 +156,7 @@ export function Tool({
       accessibilityRole="button"
       accessibilityLabel={label}
       testID={testID}
-      {...webProps({ dataSet: { tt: label } })}
+      {...webProps({ title: label })}
       onPress={(e) => {
         const ev = e as unknown as {
           currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
@@ -170,6 +170,32 @@ export function Tool({
       style={[s.tool, (over || active) && s.toolOver]}
     >
       <Icon name={icon} size={14} color={over || active ? "var(--ink)" : "var(--ink-3)"} />
+    </Pressable>
+  );
+}
+
+/** The on/off switch of a routine. */
+export function Switch({
+  on,
+  label,
+  onPress,
+  testID,
+}: {
+  on: boolean;
+  label: string;
+  onPress: () => void;
+  testID?: string;
+}): ReactElement {
+  return (
+    <Pressable
+      role="switch"
+      aria-label={label}
+      aria-checked={on}
+      onPress={onPress}
+      testID={testID}
+      style={[s.switchTrack, on && SWITCH_ON]}
+    >
+      <View style={[s.switchKnob, on && s.switchKnobOn]} />
     </Pressable>
   );
 }
@@ -339,12 +365,23 @@ export function PaneList({
 }
 
 // A plain object (not a StyleSheet id) so the painted token is visible in the element's inline style, as ui/Row does.
+const SWITCH_ON = { backgroundColor: "var(--ok)" };
 
 export const s = StyleSheet.create({
   lead: { width: 18, height: 18, marginRight: 6, alignItems: "center", justifyContent: "center" },
   leadFace: { minWidth: 22, marginRight: 10, alignItems: "center", justifyContent: "center" },
   tool: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },
+  switchTrack: {
+    width: 28,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "var(--line-2)" as string,
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  switchKnob: { width: 12, height: 12, borderRadius: 6, backgroundColor: "var(--win)" as string },
+  switchKnobOn: { alignSelf: "flex-end" },
   btn: {
     height: 26,
     paddingHorizontal: 10,

@@ -8,7 +8,7 @@ import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
-import { Actions, Button, TextBox, FormSheet, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, Field, FormSheet, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
 
 type IncidentsOut = CapMap["engine.incidents.list"]["out"];
@@ -128,7 +128,7 @@ export function Incidents(): ReactElement {
               })
           }
         >
-          <TextBox label="Title" value={title} onChange={setTitle} />
+          <Field label="Title" value={title} onChange={setTitle} />
           <Choice
             label="Kind"
             value={kind}
@@ -142,7 +142,7 @@ export function Incidents(): ReactElement {
             ]}
             onChange={(value) => setKind(value as Kind)}
           />
-          <TextBox label="Opening note" value={openingNote} onChange={setOpeningNote} multiline />
+          <Field label="Opening note" value={openingNote} onChange={setOpeningNote} multiline />
         </FormSheet>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}
@@ -216,7 +216,7 @@ function IncidentObject({
           title="Resolved"
           note={current.resolvedAt ? new Date(current.resolvedAt).toLocaleString() : "Not resolved"}
         />
-        <TextBox label="Resolution or note" value={entry} onChange={setEntry} multiline />
+        <Field label="Resolution or note" value={entry} onChange={setEntry} multiline />
         <Button
           label="Add note"
           disabled={busy || !entry.trim()}

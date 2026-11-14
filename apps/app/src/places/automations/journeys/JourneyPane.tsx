@@ -16,8 +16,7 @@ import { useConfigExtras } from "../config/data.tsx";
 import type { ConfigDirectory } from "../config/data.tsx";
 import { Glyph } from "../config/glyphs.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
-import { Group, Hint, Lab, PickButton, SRow } from "../config/parts.tsx";
-import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
+import { Group, Hint, Lab, PickButton, SRow, Switch } from "../config/parts.tsx";
 import { useDesign, useJourney } from "./data.ts";
 import { StageFields } from "./StageFields.tsx";
 import type { Selection } from "./JourneyDesigner.tsx";
@@ -45,6 +44,7 @@ import {
   updateTask,
 } from "./model.ts";
 import type { Journey, Ref, Slot, Stage, StageCounts, Task } from "./model.ts";
+import { REMOVED_KEY } from "../canvas/model.ts";
 
 export interface JourneyPaneProps {
   journeyId: string;
@@ -424,7 +424,7 @@ function TaskPane({
   const agents = agentSeats(t);
   const agentNames = seatNames(t, data.name);
   const keyName = (id: string | undefined): string =>
-    id ? (data.keys.find((k) => k.id === id)?.name ?? data.name(id)) : "None";
+    id ? (data.keys.find((k) => k.id === id)?.name ?? REMOVED_KEY) : "None";
   const commitTitle = (): void => {
     const v = title.trim();
     if (!v || v === t.title) {

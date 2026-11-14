@@ -25,5 +25,4 @@ export const handlers: Handlers<HandlerCtx> = {
   "notifications.rules.get": async () => ({"rules":{"emailBackstop":true,"mutedAgents":["agt_a1b2c3"],"mutedChannels":["chn_a1b2c3"],"mutedRecords":["rec_a1b2c3"],"workingHours":{"days":[1],"from":"09:00","to":"18:00","tz":"Asia/Karachi"}}} as unknown) as never,
   "notifications.rules.set": async () => ({"rules":{"emailBackstop":true,"mutedAgents":["agt_a1b2c3"],"mutedChannels":["chn_a1b2c3"],"mutedRecords":["rec_a1b2c3"],"workingHours":{"days":[1],"from":"09:00","to":"18:00","tz":"Asia/Karachi"}}} as unknown) as never,
   "notifications.send": async () => ({"notificationId":"ntf_a1b2c3","outcome":"interrupt"} as unknown) as never,
-  "notifications.unseen_by_thread": async () => ({"capped":true,"counts":[{"mentions":1,"threadId":"thr_a1b2c3"}]} as unknown) as never,
 };

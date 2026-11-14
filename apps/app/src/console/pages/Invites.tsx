@@ -10,7 +10,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { draftInvites, ownMailbox, sendDrafts } from "../../onboarding/suite.ts";
 import type { SendOutcome } from "../../onboarding/suite.ts";
 import { CopyRow } from "./suite/parts.tsx";
-import { Actions, Button, TextBox, FormSheet, Note, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, Field, FormSheet, Note, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { EMPTY_START, InviteStart, startInput } from "./InviteStart.tsx";
 import type { StartSet } from "./InviteStart.tsx";
 
@@ -134,7 +134,7 @@ export function InviteSheet({
         </>
       ) : (
         <>
-          <TextBox label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} />
+          <Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} />
           <Select
             label="Role"
             value={chosenRole}

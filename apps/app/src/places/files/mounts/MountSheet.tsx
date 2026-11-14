@@ -42,7 +42,7 @@ import {
 } from "./model.ts";
 import type { Accounts, BrowseItem, Draft, MountKind, MountRow, SourceId } from "./model.ts";
 import type { DialogAction } from "../../../../../../ui/src/Dialog/index.tsx";
-import { ErrorLine, TextBox, IconButton, MenuButton, Segmented, Sheet, TextField, anchorOf } from "./parts.tsx";
+import { ErrorLine, Field, IconButton, MenuButton, Segmented, Sheet, TextField, anchorOf } from "./parts.tsx";
 
 export interface MountedInfo {
   mountId: string;
@@ -386,7 +386,7 @@ export function MountSheet({
       ) : null}
       {d.step === 3 && d.picked && source ? (
         <View testID="mount-options">
-          <TextBox label="Name" first>
+          <Field label="Name" first>
             <TextField
               value={d.name !== null ? d.name : defaultName(d)}
               onChange={(v) => upd({ name: v })}
@@ -394,17 +394,17 @@ export function MountSheet({
               onSubmit={mount}
               testID="mount-name"
             />
-          </TextBox>
-          <TextBox label="Who can see it">
+          </Field>
+          <Field label="Who can see it">
             <MenuButton
               value={whoLabel(d.who, data.space.name, data.people)}
               label="Who can see it"
               onPress={whoMenu}
               testID="mount-who"
             />
-          </TextBox>
+          </Field>
           {source.id === "local" ? (
-            <TextBox label="Copy">
+            <Field label="Copy">
               <Segmented
                 label="Copy"
                 testID="mount-copy"
@@ -415,10 +415,10 @@ export function MountSheet({
                   { id: "live_only", label: "Live only" },
                 ]}
               />
-            </TextBox>
+            </Field>
           ) : null}
           {source.id === "github" ? (
-            <TextBox label="Branch">
+            <Field label="Branch">
               {branches ? (
                 <MenuButton
                   value={d.branch}
@@ -440,16 +440,16 @@ export function MountSheet({
                   />
                 </View>
               )}
-            </TextBox>
+            </Field>
           ) : null}
-          <TextBox label="Into">
+          <Field label="Into">
             <MenuButton
               value={data.folders.find((f) => f.id === d.into)?.name ?? "Choose a folder"}
               label="Into"
               onPress={intoMenu}
               testID="mount-into"
             />
-          </TextBox>
+          </Field>
         </View>
       ) : null}
       {error ? <ErrorLine text={error} /> : null}

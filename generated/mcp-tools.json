@@ -6680,6 +6680,10 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "all": {
+            "description": "Every step the server can run, including the apps not connected for the caller: for the editor of an Automation that already holds such a step. The picker leaves them out.",
+            "type": "boolean"
+          },
           "category": {
             "enum": [
               "data",
@@ -11874,21 +11878,6 @@
       },
       "name": "chat_unpin",
       "planMode": "blocked",
-      "toolset": "chats",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "chats.presence",
-      "deferred": false,
-      "description": "Who is around (online or away; offline people are left out) and which agents are working now, with the chat when the asker may read it: the sidebar's dots and rings",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "chats_presence",
-      "planMode": "allowed",
       "toolset": "chats",
       "v": 1
     },
@@ -45520,33 +45509,6 @@
       },
       "name": "notifications_send",
       "planMode": "blocked",
-      "toolset": "meta",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "notifications.unseen_by_thread",
-      "deferred": false,
-      "description": "My unseen mentions per chat or channel, for the sidebar's mention badge; only my own, newest first, at most 500 threads",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "threadIds": {
-            "items": {
-              "examples": [
-                "thr_a1b2c3"
-              ],
-              "pattern": "^thr_[a-z0-9]+$",
-              "type": "string"
-            },
-            "maxItems": 200,
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "name": "notifications_unseen_by_thread",
-      "planMode": "allowed",
       "toolset": "meta",
       "v": 1
     },

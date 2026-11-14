@@ -10,7 +10,7 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Group, Section, StatusLabel } from "../shell/ui.tsx";
 import { Choice } from "./ai-controls.tsx";
-import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
 
 type KeyOut = CapMap["providers.space_key.get"]["out"];
 type Catalog = CapMap["providers.catalog"]["out"];
@@ -102,7 +102,7 @@ export function SpaceKey({
         {!k.mayManage ? null : form ? (
           <Group>
             <Choice label="Provider" value={provider} options={options} onChange={setProvider} />
-            <TextBox label="API key" value={value} onChange={setValue} secure testID="space-key-value" />
+            <Field label="API key" value={value} onChange={setValue} secure testID="space-key-value" />
             {mismatch ? <Note>{mismatch.line}</Note> : null}
             <Actions>
               {mismatch?.suggest ? (

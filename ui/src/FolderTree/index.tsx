@@ -381,7 +381,7 @@ export function FolderTree(props: FolderTreeViewProps): ReactElement {
               accessibilityLabel={`New folder in ${section.label}`}
               onPress={() => props.onNewFolder?.(scope, null)}
               testID={`folders-new-${section.id}`}
-              {...webProps({ dataSet: { tt: "New Folder" } })}
+              {...webProps({ title: "New Folder" })}
               style={({ hovered }: { hovered?: boolean }) => [styles.add, hovered === true && styles.addHover]}
             >
               <Text style={styles.addText}>+</Text>

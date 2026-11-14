@@ -492,9 +492,6 @@ export function createClient(transport: Transport) {
       },
       unpin: call("chat.unpin", 1),
     },
-    chats: {
-      presence: call("chats.presence", 1),
-    },
     ci: {
       cost: {
         month: call("ci.cost.month", 1),
@@ -2102,7 +2099,6 @@ export function createClient(transport: Transport) {
         set: call("notifications.rules.set", 1),
       },
       send: call("notifications.send", 1),
-      unseen_by_thread: call("notifications.unseen_by_thread", 1),
     },
     plugins: {
       agent_template: {

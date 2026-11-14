@@ -44,7 +44,7 @@ function Chip({ item, onPress }: { item: LintItem; onPress: (e: unknown) => void
       onHoverOut={() => setOver(false)}
       testID={`lint-${item.k}`}
       style={[st.chip, over && st.chipOver]}
-      {...webProps({ dataSet: { tt: item.tip || item.label }, ...(many ? { "aria-haspopup": "menu" } : {}) })}
+      {...webProps({ title: item.tip || item.label, ...(many ? { "aria-haspopup": "menu" } : {}) })}
     >
       <Dot color={SEV_COLOR[item.sev]} />
       <Text style={st.chipText} numberOfLines={1}>
@@ -73,7 +73,7 @@ function ProblemsChip({
       onHoverOut={() => setOver(false)}
       testID="lint-problems"
       style={[st.chip, st.probs, over && st.chipOver]}
-      {...webProps({ dataSet: { tt: "Show what to fix" }, "aria-haspopup": "menu" })}
+      {...webProps({ title: "Show what to fix", "aria-haspopup": "menu" })}
     >
       <Dot color={red ? SEV_COLOR.err : SEV_COLOR.warn} />
       <Text style={[st.chipText, st.probsText]} numberOfLines={1}>

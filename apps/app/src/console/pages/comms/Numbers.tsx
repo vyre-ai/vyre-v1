@@ -9,7 +9,7 @@ import { useConsoleData } from "../../shell/data.tsx";
 import { numberRowActions } from "../../objects/row-menus.ts";
 import { createMenuApiB } from "../../../places/chats/menus/actions-b.ts";
 import { Empty, Group, Section } from "../../shell/ui.tsx";
-import { Help, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
+import { Help, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
 import { useCommsRows, CommsList, CommsObject } from "./common.tsx";
 import { RecipientPicker } from "./RecipientPicker.tsx";
 import type { Recipient } from "./RecipientPicker.tsx";
@@ -145,7 +145,7 @@ function BuyNumber({ onBack, onCreated }: { onBack(): void; onCreated(id: string
               setPicked("");
             }}
           />
-          <TextBox label="Area code" testID="number-area-code" value={areaCode} onChange={setAreaCode} />
+          <Field label="Area code" testID="number-area-code" value={areaCode} onChange={setAreaCode} />
           <Button
             label="Search available numbers"
             testID="number-search"
@@ -180,7 +180,7 @@ function BuyNumber({ onBack, onCreated }: { onBack(): void; onCreated(id: string
         {picked ? (
           <>
             <ObjectSection title="Assignment">
-              <TextBox label="Number name" testID="number-title" value={title} onChange={setTitle} />
+              <Field label="Number name" testID="number-title" value={title} onChange={setTitle} />
               <RecipientPicker
                 kinds={["person", "agent", "inbox"]}
                 value={recipient}
@@ -462,7 +462,7 @@ function NumberEditor({ number, refresh }: { number: NumberRow; refresh(): void 
                   }))
                 }
               />
-              <TextBox
+              <Field
                 label={`Start ${index + 1}`}
                 testID={`number-hours-start-${index}`}
                 value={window.start}
@@ -473,7 +473,7 @@ function NumberEditor({ number, refresh }: { number: NumberRow; refresh(): void 
                   }))
                 }
               />
-              <TextBox
+              <Field
                 label={`End ${index + 1}`}
                 testID={`number-hours-end-${index}`}
                 value={window.end}

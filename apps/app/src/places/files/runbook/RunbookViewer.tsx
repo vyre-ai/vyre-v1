@@ -343,7 +343,7 @@ function CodeBlock(p: CodeBlockProps): ReactElement {
             onPress={active ? p.onStop : p.onRun}
             testID={p.block ? `run-${p.block.blockId}` : "run-pending"}
             style={[st.runBtn, (p.block === undefined || p.busy) && st.dim]}
-            {...webProps({ dataSet: { tt: active ? "Stop" : `Run on ${p.where}` } })}
+            {...webProps({ title: active ? "Stop" : `Run on ${p.where}` })}
           >
             <Glyph name={active ? "stop" : "play"} size={10} color={warm ? "var(--accent)" : "var(--ink-3)"} />
             <Text style={[st.runText, warm && st.runTextWarm]}>{active ? "Stop" : "Run"}</Text>

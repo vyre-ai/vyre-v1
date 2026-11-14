@@ -8,7 +8,7 @@ import { ObjectList } from "../objects/ObjectList.tsx";
 import { useObjectNames } from "../objects/names.ts";
 import { useConsoleData } from "../shell/data.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
-import { Help, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Help, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { useIntegrationRows } from "./integration-data.ts";
 import { CONNECTOR_MODES, connectorKeyProblem } from "./integration-model.ts";
 import { IntegrationObject, TestResults } from "./integration-object.tsx";
@@ -82,11 +82,11 @@ export function NewConnector({ onBack, onCreated }: { onBack(): void; onCreated(
         onBack={onBack}
       >
         <ObjectSection title="Connector">
-          <TextBox label="Name" testID="connector-title" value={title} onChange={setTitle} />
-          <TextBox label="Connector key" testID="connector-key" value={key} onChange={setKey} />
+          <Field label="Name" testID="connector-title" value={title} onChange={setTitle} />
+          <Field label="Connector key" testID="connector-key" value={key} onChange={setKey} />
           {key && problem ? <Note>{problem}</Note> : null}
           <Select label="Connection method" value={mode} options={CONNECTOR_MODES} onChange={setMode} />
-          <TextBox label="Documentation URL" testID="connector-docs" value={docs} onChange={setDocs} />
+          <Field label="Documentation URL" testID="connector-docs" value={docs} onChange={setDocs} />
           <Help>Create a draft, test it, then publish.</Help>
           <Button
             label="Create draft"
@@ -191,8 +191,8 @@ export function ConnectorObject({ id, onBack }: { id: string; onBack(): void }):
         {!row.builtin ? (
           <>
             <ObjectSection title="Build draft">
-              <TextBox label="Documentation URL" testID="connector-build-docs" value={docs} onChange={setDocs} />
-              <TextBox label="Build notes" testID="connector-build-notes" value={notes} onChange={setNotes} />
+              <Field label="Documentation URL" testID="connector-build-docs" value={docs} onChange={setDocs} />
+              <Field label="Build notes" testID="connector-build-notes" value={notes} onChange={setNotes} />
               <Help>
                 A build request starts a run. Review the resulting file changes and real tests before publishing.
               </Help>

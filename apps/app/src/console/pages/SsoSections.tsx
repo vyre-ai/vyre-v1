@@ -1,6 +1,7 @@
 // "Sign in with Google" and "Sign in with Microsoft" on the Console sign-in policy page: the firm's own OIDC app. An admin pastes the app's Client ID and Client secret and names the firm's domain
 // (Microsoft also takes the Tenant ID, a GUID). The secret never goes into members.sso.set: it is put in the Vault as a Space-only item and only its handle is saved, and no page, reply or note
 // shows it again (the page learns only "set"). The page shows the redirect address to register at the provider with a Copy button, an On/Off switch, Save, and "Test it" (members.sso.test).
+import { callbackOrigin } from "../../share/rows.ts";
 import { useState } from "react";
 import type { ReactElement } from "react";
 import type { MembersSsoListOut } from "../../../../../generated/types.ts";
@@ -10,7 +11,7 @@ import { ObjectSection } from "../../../../../ui/src/ObjectPage/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Group } from "../shell/ui.tsx";
-import { Actions, Button, TextBox, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, Field, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
 
 export {
   GOOGLE_ISSUER,
@@ -101,13 +102,13 @@ export function SsoProviderView({
       <Note>{`Register this redirect URL in your ${title} app, then paste its Client ID and a secret.`}</Note>
       {editing ? (
         <>
-          <TextBox
+          <Field
             label={`${title} Client ID`}
             value={clientId}
             onChange={setClientId}
             testID={`sso-${kind}-client-id`}
           />
-          <TextBox
+          <Field
             label={
               provider?.clientSecretHandle ? "New Client secret (leave empty to keep the saved one)" : "Client secret"
             }
@@ -116,7 +117,7 @@ export function SsoProviderView({
             secure
             testID={`sso-${kind}-client-secret`}
           />
-          <TextBox
+          <Field
             label="Firm domain (for example firm.com)"
             value={domain}
             onChange={setDomain}
@@ -124,7 +125,7 @@ export function SsoProviderView({
           />
           {kind === "microsoft" ? (
             <>
-              <TextBox label={TENANT_LABEL} value={tenant} onChange={setTenant} testID="sso-microsoft-tenant" />
+              <Field label={TENANT_LABEL} value={tenant} onChange={setTenant} testID="sso-microsoft-tenant" />
               <Note>{TENANT_HINT}</Note>
             </>
           ) : null}
@@ -230,9 +231,7 @@ export function SsoSections(): ReactElement | null {
   const list = useRead<MembersSsoListOut>("members.sso.list", {});
   const gh = useRead<{ github: { callbackUrl: string } }>("members.sign_in_github.get", {});
   if (!list.data) return list.error ? <ReadState error={list.error} retry={list.refresh} /> : null;
-  const callback =
-    gh.data?.github.callbackUrl ??
-    `${(globalThis as { location?: { origin?: string } }).location?.origin ?? ""}/auth/github/callback`;
+  const callback = gh.data?.github.callbackUrl ?? `${callbackOrigin()}/auth/github/callback`;
   return (
     <>
       <SsoSection kind="google" providers={list.data.providers} callback={callback} refresh={list.refresh} />

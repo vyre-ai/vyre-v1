@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useOptionalAutomationsData } from "./data.tsx";
-import { Choice, TextBox, Hint } from "./fields.tsx";
+import { Choice, Field, Hint } from "./fields.tsx";
 import { fieldsOfTrigger, specOf, triggerText, triggerValue, writeTriggerField } from "./form-model.ts";
 import type { TriggerField } from "./form-model.ts";
 import { Glyph } from "./icons.tsx";
@@ -157,7 +157,7 @@ export function SchedulePicker({
         }
       />
       {draft.every === "minutes" ? (
-        <TextBox
+        <Field
           label="Every how many minutes"
           value={String(draft.n)}
           testID="schedule-n"
@@ -166,13 +166,13 @@ export function SchedulePicker({
       ) : null}
       {draft.every === "hours" ? (
         <>
-          <TextBox
+          <Field
             label="Every how many hours"
             value={String(draft.n)}
             testID="schedule-n"
             onCommit={(t) => patch({ n: Number(t.trim()) })}
           />
-          <TextBox
+          <Field
             label="At minute"
             value={String(minute)}
             testID="schedule-minute"
@@ -184,7 +184,7 @@ export function SchedulePicker({
         </>
       ) : null}
       {draft.every === "day" || draft.every === "weekdays" || draft.every === "week" || draft.every === "month" ? (
-        <TextBox
+        <Field
           label="At (24-hour time)"
           value={draft.time}
           placeholder="09:00"
@@ -221,7 +221,7 @@ export function SchedulePicker({
         </View>
       ) : null}
       {draft.every === "month" ? (
-        <TextBox
+        <Field
           label="On day of the month"
           value={String(draft.day)}
           testID="schedule-day-of-month"
@@ -301,7 +301,7 @@ export function SchedulePicker({
       </Pressable>
       {advanced ? (
         <>
-          <TextBox
+          <Field
             label="Custom (cron)"
             value={draft.every === "cron" ? draft.cron : (cron ?? "")}
             mono
@@ -368,7 +368,7 @@ function PickInner({
   const label = field.required ? `${field.label} (required)` : field.label;
   if (picks.state !== "ready" || picks.items.length === 0) {
     return (
-      <TextBox
+      <Field
         label={label}
         value={text}
         placeholder={field.placeholder ?? ""}
@@ -535,7 +535,7 @@ export function TriggerForm({
       );
     return (
       <View key={field.name} style={s.group}>
-        <TextBox
+        <Field
           label={label}
           value={triggerText(field, v)}
           testID={id}

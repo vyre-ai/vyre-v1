@@ -87,7 +87,7 @@ export function Button({
     </Pressable>
   );
 }
-export function TextBox({
+export function Field({
   label,
   value,
   onChange,

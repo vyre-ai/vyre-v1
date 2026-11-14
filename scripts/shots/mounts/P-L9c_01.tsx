@@ -13,8 +13,6 @@ import {
 } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 import type { Channel, InboxState, Scope, View as ViewKind } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 
-const FAILED = { status: "loading", error: { message: "The server did not answer.", code: "internal.error" } } as const;
-
 export const title = "Inbox";
 
 const VIEWS: readonly ViewKind[] = ["contact", "thread", "calls"];
@@ -35,26 +33,6 @@ export default function Mount(): ReactNode {
   const bulk = Math.min(20000, Number(q.get("rows") ?? 0) || 0);
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const sample = useMemo(() => createSampleInbox(space, { bulk }), [space, bulk]);
-  // ?fail=1: the list read never answers and says why, so the shots show the failed state (this mount is not part of the shipped app)
-  const data = useMemo(
-    () =>
-      q.get("fail") === "1"
-        ? {
-            ...sample.data,
-            screens: {
-              ...sample.data.screens,
-              query: (id: string, name: string, state?: Record<string, unknown>) =>
-                id === "inbox.contact-list" && name === "rows"
-                  ? {
-                      subscribe: () => () => undefined,
-                      getSnapshot: () => FAILED,
-                    }
-                  : sample.data.screens.query(id, name, state),
-            },
-          }
-        : sample.data,
-    [q, sample],
-  );
   const initial = useMemo<Partial<InboxState>>(() => {
     const view = VIEWS.find((x) => x === q.get("view"));
     const channels = (q.get("channels") ?? "")
@@ -72,7 +50,7 @@ export default function Mount(): ReactNode {
     return () => clearTimeout(t);
   }, [q]);
   return (
-    <InboxDataProvider value={data as typeof sample.data}>
+    <InboxDataProvider value={sample.data}>
       <InboxStateProvider initial={initial}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
           {phone ? null : (

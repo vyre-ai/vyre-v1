@@ -29,10 +29,11 @@ import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
 import { VoiceRows } from "./VoiceRows.tsx";
-import { Choice, TextBox, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
+import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
 import { useZones } from "../../../../../ui/src/Time/index.tsx";
 import { zoneName, zoneCity } from "../../../../../lib/zones.ts";
 import { useOpenConnect } from "../../shell/connect/context.ts";
+import { refreshZones } from "../../shell/zones/ZonesHost.tsx";
 import { statusNote, useSpaceAi } from "../../ai-signin/SpaceAiStatus.tsx";
 
 export interface PageProps {
@@ -75,7 +76,16 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
     } catch {
       return;
     }
-    void change(tz, zone);
+    // quietly: nobody changed anything, so no "Saved  Undo" line (owner, 13 Nov 2026); a failed write is tried again the next time the page opens
+    void Promise.resolve(data.call("settings.set", { key: tz.key, value: zone }))
+      .then(() => refreshZones())
+      .catch(() => {
+        try {
+          globalThis.localStorage?.removeItem(flag);
+        } catch {
+          /* nothing to undo */
+        }
+      });
   }, [tz?.value]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = (contact?.value ?? {}) as { email?: string; phone?: string };
   const here = data.spaces.find((sp) => sp.current);
@@ -182,7 +192,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
           rowFor(
             name,
             1,
-            <TextBox
+            <Field
               value={str(name) || data.me.name}
               label="Name"
               testID="ctl-profile.display_name"
@@ -195,7 +205,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
           rowFor(
             handle,
             2,
-            <TextBox
+            <Field
               value={str(handle) || data.me.username || ""}
               label="Handle"
               placeholder="Pick a handle"
@@ -213,7 +223,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
           rowFor(
             title,
             3,
-            <TextBox
+            <Field
               value={str(title)}
               label="Title"
               placeholder="Add a title"
@@ -235,7 +245,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
             found={found === "profile.contact"}
             control={
               <View style={{ alignItems: "flex-end", gap: 6 }}>
-                <TextBox
+                <Field
                   value={c.email ?? ""}
                   label="Email"
                   placeholder="Add an email"
@@ -252,7 +262,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
             label="Phone"
             control={
               <View style={{ alignItems: "flex-end", gap: 6 }}>
-                <TextBox
+                <Field
                   value={c.phone ?? ""}
                   label="Phone"
                   placeholder="Add a phone number"

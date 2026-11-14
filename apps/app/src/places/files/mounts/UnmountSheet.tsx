@@ -7,8 +7,7 @@ import { removeMount } from "./actions.ts";
 import { useMountsData } from "./data.tsx";
 import { unmountWords } from "./model.ts";
 import type { MountRow } from "./model.ts";
-import { ErrorLine, TextBox, Sheet } from "./parts.tsx";
-import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
+import { ErrorLine, Field, Sheet, Switch } from "./parts.tsx";
 
 export interface UnmountSheetProps {
   mount: Pick<MountRow, "mountId" | "name" | "kind" | "provider">;
@@ -51,9 +50,9 @@ export function UnmountSheet({ mount, onClose, onRemoved }: UnmountSheetProps): 
     >
       <Text style={st.body}>{words.body}</Text>
       <View>
-        <TextBox label="Keep a copy of the files in Vyre" first>
+        <Field label="Keep a copy of the files in Vyre" first>
           <Switch on={keep} onChange={setKeep} label="Keep a copy of the files in Vyre" testID="unmount-keep" />
-        </TextBox>
+        </Field>
       </View>
       {error ? <ErrorLine text={error} /> : null}
     </Sheet>

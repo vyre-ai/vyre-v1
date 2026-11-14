@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
-import { Button, TextBox, Select, s } from "./editor-ui.tsx";
+import { Button, Field, Select, s } from "./editor-ui.tsx";
 import { FIELD_TITLE, diffText, summaryOf } from "./form-ask.ts";
 import type { SourceChange } from "./form-ask.ts";
 
@@ -41,7 +41,7 @@ export function FormAsk(p: FormAskProps): ReactElement {
           disabled={p.asking !== undefined}
         />
       ) : null}
-      <TextBox
+      <Field
         label="What should change?"
         value={p.instruction}
         onChange={p.onInstruction}

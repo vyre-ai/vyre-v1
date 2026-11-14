@@ -14,7 +14,7 @@ import { ObjectList } from "../objects/ObjectList.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Empty, Group } from "../shell/ui.tsx";
 import { SecuritySheet } from "../../places/settings/SecuritySheet.tsx";
-import { Help, Actions, Button, TextBox, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
+import { Help, Actions, Button, Field, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
 import { SsoSections } from "./SsoSections.tsx";
 type SignIn = MembersSignInPolicyGetOut;
 type GithubApp = MembersSignInGithubGetOut["github"];
@@ -234,8 +234,8 @@ export function GithubAppView({
       <Help>Register this callback at GitHub, then paste the Client ID and a new secret.</Help>
       {editing ? (
         <>
-          <TextBox label="GitHub client ID" value={clientId} onChange={setClientId} testID="github-client-id" />
-          <TextBox
+          <Field label="GitHub client ID" value={clientId} onChange={setClientId} testID="github-client-id" />
+          <Field
             label={github.secretSet ? "New client secret (leave empty to keep the saved one)" : "GitHub client secret"}
             value={secret}
             onChange={setSecret}

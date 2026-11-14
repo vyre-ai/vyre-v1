@@ -359,6 +359,35 @@ export function Picker({
   );
 }
 
+export function Switch({
+  label,
+  on,
+  onChange,
+  testID,
+}: {
+  label: string;
+  on: boolean;
+  onChange(next: boolean): void;
+  testID?: string;
+}): ReactElement {
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: on }}
+      aria-checked={on}
+      testID={testID}
+      onPress={() => onChange(!on)}
+      style={st.switchRow}
+    >
+      <View style={[st.track, on && st.trackOn]}>
+        <View style={[st.knob, on && st.knobOn]} />
+      </View>
+      <Text style={st.switchText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function Notes({
   lines,
 }: {
@@ -1665,6 +1694,8 @@ export const st = StyleSheet.create({
   line: { color: t("ink-2"), fontSize: 12.5, lineHeight: 18 },
   lockRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   note: { color: t("ink-3"), fontSize: 12.5, lineHeight: 18 },
+  switchRow: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start" },
+  switchText: { color: t("ink-2"), fontSize: 12.5 },
   track: {
     width: 30,
     height: 18,

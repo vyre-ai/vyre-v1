@@ -26,5 +26,4 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "notifications.rules.get": Handler<"notifications.rules.get", X>;
   "notifications.rules.set": Handler<"notifications.rules.set", X>;
   "notifications.send": Handler<"notifications.send", X>;
-  "notifications.unseen_by_thread": Handler<"notifications.unseen_by_thread", X>;
 }

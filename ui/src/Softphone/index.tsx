@@ -658,7 +658,7 @@ function IconButton(p: {
         p.onPress(e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0)
       }
       testID={p.testID}
-      {...webProps({ dataSet: { tt: p.label } })}
+      {...webProps({ title: p.label })}
       style={({ hovered }: Hover) => [
         styles.ib,
         hovered === true && styles.ibHover,
@@ -747,7 +747,7 @@ function IdlePill({ number, onOpen }: { number: string; onOpen?: (() => void) | 
       accessibilityLabel={`Softphone, ${number}. Cmd Shift K`}
       onPress={onOpen}
       testID="softphone-pill"
-      {...webProps({ dataSet: { tt: "Softphone  ⌘⇧K" } })}
+      {...webProps({ title: "Softphone  ⌘⇧K" })}
       style={({ hovered }: Hover) => [styles.pill, POP_SHADOW, hovered === true && styles.pillHover]}
     >
       <View style={styles.dot} />
@@ -853,7 +853,7 @@ function Dialer(p: SoftphoneViewProps): ReactElement {
           accessibilityLabel="Close dialer"
           onPress={p.onClose}
           testID="softphone-close"
-          {...webProps({ dataSet: { tt: "Close  Esc" } })}
+          {...webProps({ title: "Close  Esc" })}
           style={({ hovered }: Hover) => [styles.x, hovered === true && styles.ibHover]}
         >
           <Glyph name="x" size={14} color="var(--ink-3)" />
@@ -878,7 +878,7 @@ function Dialer(p: SoftphoneViewProps): ReactElement {
             accessibilityLabel="Delete last digit"
             onPress={() => change(value.slice(0, -1))}
             testID="softphone-backspace"
-            {...webProps({ dataSet: { tt: "Delete" } })}
+            {...webProps({ title: "Delete" })}
             style={({ hovered }: Hover) => [styles.x, hovered === true && styles.ibHover]}
           >
             <Glyph name="back" size={16} color="var(--ink-3)" />
@@ -895,7 +895,7 @@ function Dialer(p: SoftphoneViewProps): ReactElement {
           disabled={!dialable}
           onPress={() => go()}
           testID="softphone-call"
-          {...webProps({ dataSet: { tt: "Call  Enter" } })}
+          {...webProps({ title: "Call  Enter" })}
           style={({ hovered }: Hover) => [
             styles.round,
             styles.roundOk,
@@ -1044,7 +1044,7 @@ export function CallBar(p: SoftphoneViewProps): ReactElement {
         accessibilityLabel={p.connecting === true ? "Cancel call" : "Hang up"}
         onPress={p.onHangup}
         testID="softphone-hangup"
-        {...webProps({ dataSet: { tt: p.connecting === true ? "Cancel  Esc" : "Hang up" } })}
+        {...webProps({ title: p.connecting === true ? "Cancel  Esc" : "Hang up" })}
         style={({ hovered }: Hover) => [styles.hang, hovered === true && styles.btnHover]}
       >
         <Glyph name="hang" size={16} color="#fff" />

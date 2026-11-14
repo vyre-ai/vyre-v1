@@ -1,6 +1,7 @@
 // Connect your company: one screen that leads, a step at a time, for Google Workspace or Microsoft 365. It shows only what to do now, with a link to the right page at the provider, copy buttons and the section of the guide
 // that explains it. A key goes straight from here to the Vault, is checked at once, and the next step waits for the check. company.status holds where this stands, so it resumes wherever it is opened; Assistant runs the same
 // steps through the same capabilities.
+import { callbackOrigin } from "../../../share/rows.ts";
 import { useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 import { createElement } from "react";
@@ -11,7 +12,7 @@ import { MarkdownBlocks, parseChunk } from "../../../../../../ui/src/stream/inde
 import type { StepId } from "../../../../../../lib/company-flow.ts";
 import { useConsoleData } from "../../shell/data.tsx";
 import { Group, Section } from "../../shell/ui.tsx";
-import { Actions, Button, TextBox, Note, ReadState, pickRow, useAction, useRead } from "../shared.tsx";
+import { Actions, Button, Field, Note, ReadState, pickRow, useAction, useRead } from "../shared.tsx";
 import { saveSso } from "../sso-save.ts";
 import { GOOGLE_HANDLE, GOOGLE_LINKS, MICROSOFT_HANDLE, MICROSOFT_LINKS, looksLikeEmail } from "../suite/model.ts";
 import {
@@ -347,19 +348,19 @@ function KeyStep({ s, provider, refresh }: { s: Status; provider: Provider; refr
             testID="company-entra"
           />
           {s.redirect ? <CopyRow label="Redirect URI" value={s.redirect} testID="company-redirect" /> : null}
-          <TextBox
+          <Field
             label="Directory (tenant) ID"
             value={hand.tenantId}
             onChange={(v) => setHand({ ...hand, tenantId: v })}
             testID="company-tenant"
           />
-          <TextBox
+          <Field
             label="Application (client) ID"
             value={hand.clientId}
             onChange={(v) => setHand({ ...hand, clientId: v })}
             testID="company-client"
           />
-          <TextBox
+          <Field
             label="Client secret Value"
             secure
             value={hand.clientSecret}
@@ -409,7 +410,7 @@ function AllowGoogle({ s, refresh }: { s: Status; refresh: () => void }): ReactE
       {s.clientId ? <CopyRow label="Client ID" value={s.clientId} testID="company-client-id" /> : null}
       {wanted.length ? <CopyRow label="Scopes, as one line" value={wanted.join(",")} testID="company-scopes" /> : null}
       <Bullets items={wanted.map((x) => x.slice(x.lastIndexOf("/") + 1))} />
-      <TextBox label="A Workspace admin's address" value={admin} onChange={setAdmin} testID="company-admin-email" />
+      <Field label="A Workspace admin's address" value={admin} onChange={setAdmin} testID="company-admin-email" />
       <Note>Vyre only signs in as this address to check the setup. Nobody's Inbox gets its mail.</Note>
       {problem ? <Note>{problem}</Note> : null}
       {act.note ? <Note>{act.note}</Note> : null}
@@ -456,7 +457,7 @@ function AllowMicrosoft({ s, refresh }: { s: Status; refresh: () => void }): Rea
     <>
       {app.data?.configured !== true && configured ? (
         <>
-          <TextBox label="Your domain, like yourfirm.com" value={domain} onChange={setDomain} testID="company-domain" />
+          <Field label="Your domain, like yourfirm.com" value={domain} onChange={setDomain} testID="company-domain" />
           <Actions>
             <Button label="Continue" disabled={act.busy} testID="company-ms-setup" onPress={() => void set()} />
           </Actions>
@@ -582,13 +583,13 @@ function SignInStep({ s, provider, refresh }: { s: Status; provider: Provider; r
           />
           <OpenLink url={withProject(OAUTH_CLIENT, s.who)} label="Create the client" testID="company-oauth" />
           {s.redirect ? <CopyRow label="Authorized redirect URI" value={s.redirect} testID="company-redirect" /> : null}
-          <TextBox label="Client ID" value={clientId} onChange={setClientId} testID="company-signin-client" />
-          <TextBox label="Client secret" secure value={secret} onChange={setSecret} testID="company-signin-secret" />
+          <Field label="Client ID" value={clientId} onChange={setClientId} testID="company-signin-client" />
+          <Field label="Client secret" secure value={secret} onChange={setSecret} testID="company-signin-secret" />
         </>
       ) : (
         <Para>The app you registered also does sign-in. Say which domain it is for.</Para>
       )}
-      <TextBox
+      <Field
         label="Your domain, like yourfirm.com"
         value={domain || have?.domainHint || ""}
         onChange={setDomain}
@@ -607,9 +608,7 @@ function TryStep({ s, provider, refresh }: { s: Status; provider: Provider; refr
   const [line, setLine] = useState("");
   const go = async (): Promise<void> => {
     const out = (await data.call("identity.sso_link", { provider })) as { start: string };
-    void Linking.openURL(
-      `${s.space ?? (globalThis as { location?: { origin?: string } }).location?.origin ?? ""}${out.start}`,
-    );
+    void Linking.openURL(`${s.space ?? callbackOrigin()}${out.start}`);
     setLine("Finish in the window that opened, then press Done.");
   };
   return (

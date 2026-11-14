@@ -11,7 +11,7 @@ import type {
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Group } from "../shell/ui.tsx";
-import { Button, TextBox, Note, ReadState, Select, useRead } from "../pages/shared.tsx";
+import { Button, Field, Note, ReadState, Select, useRead } from "../pages/shared.tsx";
 import { typeName, useIdentityName, useResourceName } from "./names.ts";
 export type ResourceRef = AccessGrantsListOut["grants"][number]["resource"];
 const RESOURCE_TYPES = [
@@ -106,7 +106,7 @@ export function ResourcePicker({
         }}
       />
       {kind !== "space" ? (
-        <TextBox
+        <Field
           label={`Find ${RESOURCE_TYPES.find((row) => row.key === kind)?.title.toLowerCase() ?? "resource"}`}
           testID={`${testID}-search`}
           value={q}
@@ -300,7 +300,7 @@ export function SubjectPicker({
           }}
         />
       ) : null}
-      <TextBox label={`Find ${typeName(kind).toLowerCase()}`} testID={`${testID}-search`} value={q} onChange={setQ} />
+      <Field label={`Find ${typeName(kind).toLowerCase()}`} testID={`${testID}-search`} value={q} onChange={setQ} />
       {!query.data ? (
         <ReadState error={query.error} retry={query.refresh} />
       ) : (

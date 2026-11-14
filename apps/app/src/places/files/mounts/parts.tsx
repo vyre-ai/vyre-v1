@@ -105,14 +105,14 @@ export function IconButton({
       onHoverOut={() => setOver(false)}
       testID={testID}
       style={[s.ib, over && s.btnOver]}
-      {...webProps({ dataSet: { tt: label } })}
+      {...webProps({ title: label })}
     >
       <Glyph name={glyph} size={glyph === "x" ? 14 : 15} color="var(--ink-3)" />
     </Pressable>
   );
 }
 
-export function TextBox({
+export function Field({
   label,
   children,
   first = false,
@@ -235,6 +235,32 @@ export function Segmented<T extends string>({
     <View role="radiogroup" aria-label={label} style={s.seg} testID={testID}>
       {buttons}
     </View>
+  );
+}
+
+export function Switch({
+  on,
+  onChange,
+  label,
+  testID,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  testID?: string;
+}): ReactElement {
+  return (
+    <Pressable
+      role="switch"
+      aria-checked={on}
+      accessibilityLabel={label}
+      accessibilityState={{ checked: on }}
+      onPress={() => onChange(!on)}
+      testID={testID}
+      style={[s.sw, on && s.swOn]}
+    >
+      <View style={[s.knob, on && s.knobOn]} />
+    </Pressable>
   );
 }
 

@@ -47,7 +47,7 @@ export function NeedsTeamSpace({ what, density, onAction, testID }: NeedsTeamSpa
         onPressIn={() => setDown(true)}
         onPressOut={() => setDown(false)}
         testID="needs-team-space-action"
-        {...webProps({ dataSet: { tt: NEEDS_TEAM_SPACE_ACTION } })}
+        {...webProps({ title: NEEDS_TEAM_SPACE_ACTION })}
         style={({ hovered }: { hovered?: boolean }) => [
           styles.button,
           compact && styles.buttonCompact,

@@ -32,22 +32,3 @@ export function placeNear(
   if (aboveTop >= margin) return { left, top: aboveTop, above: true };
   return { left, top: clamp(below, margin, win.height - card.height - margin), above: false };
 }
-
-/**
- * Where a card goes BESIDE the thing it belongs to (a submenu next to its row): touching the trigger's right edge (or `gap` away) with its top lined up with the trigger's top. With no room on the right it flips
- * to the trigger's left edge; it shifts up only as far as it must to stay inside the window by `margin`.
- */
-export function placeBeside(
-  trigger: Box,
-  card: Size,
-  win: Size,
-  margin: number = ANCHOR_MARGIN,
-  gap = 0,
-): { left: number; top: number; side: "right" | "left" } {
-  const right = trigger.right + gap;
-  const fitsRight = right + card.width <= win.width - margin;
-  const leftSide = trigger.left - gap - card.width;
-  const side = fitsRight || leftSide < margin ? "right" : "left";
-  const left = side === "right" ? clamp(right, margin, win.width - card.width - margin) : leftSide;
-  return { left, top: clamp(trigger.top, margin, win.height - card.height - margin), side };
-}

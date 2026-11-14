@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Help, Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Help, Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice, Tick } from "./ai-controls.tsx";
 import { policyMatches, policyMode, policySelection } from "./ai-data-values.ts";
 import { SpaceKey } from "./SpaceKey.tsx";
@@ -146,7 +146,7 @@ function ModelsEditor({
               setPreview(null);
             }}
           />
-          <TextBox label="Search models" value={search} onChange={setSearch} />
+          <Field label="Search models" value={search} onChange={setSearch} />
           {modelIds
             .filter(
               (id) =>

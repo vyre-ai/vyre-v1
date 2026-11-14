@@ -8,7 +8,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Actions, Button, TextBox, Note, ReadState, Segmented, useAction } from "./shared.tsx";
+import { Actions, Button, Field, Note, ReadState, Segmented, useAction } from "./shared.tsx";
 import { useIntegrationRows } from "./integration-data.ts";
 import { pickFiles } from "../../shell/providers/files-actions.ts";
 import { addLabel, describeFile, parseDncFile } from "./dnc-import-model.ts";
@@ -182,10 +182,10 @@ export function DncPage({ pick = pickFiles }: { pick?: () => Promise<ChosenFile[
           </Actions>
         }
       >
-        <TextBox label="Search the list" testID="dnc-search" value={query} onChange={setQuery} />
+        <Field label="Search the list" testID="dnc-search" value={query} onChange={setQuery} />
         {adding ? (
           <View testID="dnc-add-form">
-            <TextBox label="Emails or phone numbers" testID="dnc-add-text" multiline value={text} onChange={setText} />
+            <Field label="Emails or phone numbers" testID="dnc-add-text" multiline value={text} onChange={setText} />
             <Segmented
               options={ADD_REASONS.map((r) => ({ key: r.key, title: r.title }))}
               value={why}
@@ -265,7 +265,7 @@ export function DncPage({ pick = pickFiles }: { pick?: () => Promise<ChosenFile[
               Remove {list.rows.find((e) => e.id === removing)?.address ?? "this person"}? They can be contacted again.
               Say why.
             </Note>
-            <TextBox label="Reason for removing" testID="dnc-remove-reason" value={reason} onChange={setReason} />
+            <Field label="Reason for removing" testID="dnc-remove-reason" value={reason} onChange={setReason} />
             <Actions>
               <Button label="Cancel" testID="dnc-remove-cancel" onPress={() => setRemoving("")} />
               <Button

@@ -24,7 +24,7 @@ test("every capability in the contract has a real handler", () => {
     .filter((c) => c.module === "notifications")
     .map((c) => c.name)
     .sort();
-  assert.equal(want.length, 22);
+  assert.equal(want.length, 21);
   assert.deepEqual(Object.keys(handlers).sort(), want);
 });
 

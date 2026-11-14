@@ -1,5 +1,0 @@
-{
-  "targets": [
-    { "id": "STATUS_01-all", "route": "/m/STATUS_01", "proto": "status,{skin}", "waitFor": "[data-testid='status-head']", "note": "Every Status state: block, one-line bar, inline" }
-  ]
-}

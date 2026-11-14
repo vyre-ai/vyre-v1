@@ -824,7 +824,15 @@ export default defineManifest({
       "automations.steps.list",
       "The step palette: every step kind with category, input and output schema, effects and Gate act",
       {
-        in: { category: t.opt(t.enm("data", "send", "ai", "control", "wait", "code", "sheet", "sign", "journey")) },
+        in: {
+          category: t.opt(t.enm("data", "send", "ai", "control", "wait", "code", "sheet", "sign", "journey")),
+          all: t.opt(
+            t.bool({
+              description:
+                "Every step the server can run, including the apps not connected for the caller: for the editor of an Automation that already holds such a step. The picker leaves them out.",
+            }),
+          ),
+        },
         out: {
           steps: t.arr(
             t.obj({
@@ -836,6 +844,12 @@ export default defineManifest({
               output: anyJson,
               effects: t.enm("read", "write", "outward"),
               gateAct: t.opt(t.str()),
+            }),
+          ),
+          checked: t.opt(
+            t.bool({
+              description:
+                "False when the Space's connected apps could not be read, so an app missing from the list is unknown, not unconnected.",
             }),
           ),
         },

@@ -654,7 +654,7 @@ function IconButton({
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       style={[styles.iconBtn, over && styles.iconBtnOver]}
-      {...webProps({ dataSet: { tt: label } })}
+      {...webProps({ title: label })}
     >
       <MenuIcon icon={icon} color={over ? "var(--ink)" : "var(--ink-3)"} size={15} />
     </Pressable>

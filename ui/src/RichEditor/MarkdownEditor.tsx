@@ -562,7 +562,7 @@ function FmtButton({
       accessibilityState={{ selected: on }}
       onPress={onPress}
       testID={`md-tool-${id}`}
-      {...webProps({ dataSet: { tt: tooltip(label, keys) } })}
+      {...webProps({ title: tooltip(label, keys) })}
       style={({ hovered }: Hover) => [st.tool, hovered === true && st.toolHover, on && st.toolOn]}
     >
       <MenuIcon icon={FORMAT_ICONS[icon] ?? ""} size={16} color={on ? "var(--accent)" : "var(--ink-2)"} />
@@ -1063,7 +1063,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
               accessibilityLabel="Text style"
               testID="md-tool-style"
               onPress={openStyle}
-              {...webProps({ dataSet: { tt: "Text style" } })}
+              {...webProps({ title: "Text style" })}
               style={({ hovered }: Hover) => [st.styleBtn, hovered === true && st.toolHover]}
             >
               <Text style={st.styleText}>{styleLabel}</Text>
@@ -1092,7 +1092,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
                 accessibilityLabel="More formatting"
                 testID="md-tool-more"
                 onPress={openMore}
-                {...webProps({ dataSet: { tt: "More" } })}
+                {...webProps({ title: "More" })}
                 style={({ hovered }: Hover) => [st.tool, hovered === true && st.toolHover]}
               >
                 <MenuIcon icon={FORMAT_ICONS["more"] ?? ""} size={16} color="var(--ink-2)" />
@@ -1152,7 +1152,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
               "other",
             );
           }}
-          {...webProps({ dataSet: { tt: "Turn into" } })}
+          {...webProps({ title: "Turn into" })}
           style={({ hovered }: Hover) => [st.turn, hovered === true && st.toolHover]}
         >
           <Text style={st.styleText}>Turn into</Text>

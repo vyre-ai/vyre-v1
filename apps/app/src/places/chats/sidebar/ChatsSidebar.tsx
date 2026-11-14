@@ -19,7 +19,7 @@ import { createSidebarApi } from "./actions.ts";
 import { createMenuApi, muteKey } from "../menus/actions.ts";
 import { useAddSheet } from "../addsheet/index.ts";
 import { useShareSheet } from "../../../share/useShareSheet.tsx";
-import { itemLink } from "../../../share/rows.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import {
   agentMenu,
   channelMenu,
@@ -895,7 +895,7 @@ function Sidebar({
       muted: muted("thread", r.threadId),
       mute: (on) => setMute("thread", r.threadId, on),
       addPeople: () => add.open({ threadId: r.threadId, name: r.title }),
-      copyLink: () => copy(chatLink(r.threadId)),
+      copyLink: () => (chatLink(r.threadId) === "" ? void copyLinkText("") : copy(chatLink(r.threadId))),
       notifications: () => notifyMenu("thread", r.threadId, 8, 48),
       moveToProject: () => {
         void menuApi.projects().then(

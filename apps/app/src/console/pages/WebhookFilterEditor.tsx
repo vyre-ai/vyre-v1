@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
-import { Help, Actions, Button, TextBox, Note, Select } from "./shared.tsx";
+import { Help, Actions, Button, Field, Note, Select } from "./shared.tsx";
 import type { FilterCondition, FilterValue } from "./webhook-filters.ts";
 export function WebhookFilterEditor({
   rows,
@@ -50,7 +50,7 @@ export function WebhookFilterEditor({
       />
       {current ? (
         <View>
-          <TextBox
+          <Field
             label="Payload field"
             value={current.field}
             onChange={(field) => {
@@ -97,7 +97,7 @@ export function WebhookFilterEditor({
                   onChange={(text) => changeValue(index, { value: text })}
                 />
               ) : value.kind !== "empty" ? (
-                <TextBox
+                <Field
                   label={`Value ${index + 1}`}
                   value={value.value}
                   onChange={(text) => changeValue(index, { value: text })}

@@ -8,7 +8,7 @@ import { ObjectList } from "../objects/ObjectList.tsx";
 import { useIdentityName } from "../objects/names.ts";
 import { useConsoleData } from "../shell/data.tsx";
 import { Group, Section } from "../shell/ui.tsx";
-import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Help, Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { useIntegrationRows, safeProviderUrl } from "./integration-data.ts";
 import { WebhookFilterEditor } from "./WebhookFilterEditor.tsx";
 import { readWebhookFilter, writeWebhookFilter } from "./webhook-filters.ts";
@@ -319,10 +319,10 @@ function WebhookForm({
   };
   return (
     <View testID="webhook-editor">
-      <TextBox label="Webhook name" value={name} onChange={setName} />
-      <TextBox label="Public HTTPS destination" value={url} onChange={setUrl} />
+      <Field label="Webhook name" value={name} onChange={setName} />
+      <Field label="Public HTTPS destination" value={url} onChange={setUrl} />
       <Help>Use a receiver you control. Events may contain shared work from this Space.</Help>
-      <TextBox label="Find event" value={search} onChange={setSearch} />
+      <Field label="Find event" value={search} onChange={setSearch} />
       <Select
         label="Add event"
         value=""

@@ -8,7 +8,7 @@ import { useConsoleData } from "../../shell/data.tsx";
 import { domainRowActions } from "../../objects/row-menus.ts";
 import { createMenuApiB } from "../../../places/chats/menus/actions-b.ts";
 import { Group, Section } from "../../shell/ui.tsx";
-import { Help, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
+import { Help, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
 import { useCommsRows, CommsList, CommsObject, CopyValue } from "./common.tsx";
 type Domain = CapMap["mail.domain.get"]["out"]["domain"];
 export function DomainsPage({
@@ -100,7 +100,7 @@ function NewDomain({ onBack, onCreated }: { onBack(): void; onCreated(id: string
         onBack={onBack}
       >
         <ObjectSection title="Domain">
-          <TextBox label="Domain" testID="domain-name" value={name} onChange={setName} />
+          <Field label="Domain" testID="domain-name" value={name} onChange={setName} />
           <Select
             label="Sending provider"
             value={provider}

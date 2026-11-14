@@ -4,7 +4,7 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Help, Actions, Button, TextBox, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+import { Help, Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
 import { retentionValue, retentionWords } from "./ai-data-values.ts";
 
@@ -97,7 +97,7 @@ export function Retention(): ReactElement {
             <Row title="Default" note={retentionWords(selected.default)} />
             <Row title="In force" note={retentionWords(currentValue)} />
             <Row title="Tombstones" note={selected.tombstone ? "Reapplied after restore" : "Not used"} />
-            <TextBox
+            <Field
               label="Keep for"
               value={draft}
               onChange={(value) => {

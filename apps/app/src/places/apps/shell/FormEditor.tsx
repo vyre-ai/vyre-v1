@@ -15,7 +15,7 @@ import type { SourceChange } from "./form-ask.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useAppsData } from "./data.tsx";
 import { actionKey, errorMessage, mutate } from "./mutations.ts";
-import { Button, Card, TextBox, Frame, Select, s, useOnline, useRead } from "./editor-ui.tsx";
+import { Button, Card, Field, Frame, Select, s, useOnline, useRead } from "./editor-ui.tsx";
 import type { AppsRoute } from "./routes.ts";
 type Form = CapMap["forms.get"]["out"];
 type Modes = { field: string; mode: "ask" | "show" | "hide"; prefillKey?: string; step?: number }[];
@@ -270,7 +270,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
       </View>
       {selectedField ? (
         <>
-          <TextBox
+          <Field
             label={`Prefill key for ${selectedField}`}
             value={fields.find((f) => f.field === selectedField)?.prefillKey ?? ""}
             disabled={disabled}
@@ -286,7 +286,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
               ]);
             }}
           />
-          <TextBox
+          <Field
             label={`Page number for ${selectedField}`}
             value={String(fields.find((f) => f.field === selectedField)?.step ?? 0)}
             disabled={disabled}
@@ -314,7 +314,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
               onChange={setAnswer}
             />
           ) : (
-            <TextBox
+            <Field
               label="Preview answer"
               value={
                 Array.isArray(answers[selectedField])
@@ -402,7 +402,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
   const content = (
     <>
       <Card title="Form settings">
-        <TextBox label="Form name" value={name} onChange={(v) => change(setName, v)} disabled={disabled} />
+        <Field label="Form name" value={name} onChange={(v) => change(setName, v)} disabled={disabled} />
         {!route.id ? (
           <>
             <Select
@@ -428,8 +428,8 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
             {kind === "booking" ? (
               <>
                 <Text style={s.text}>{`Host: ${d.me?.name ?? "Sign in to select a host"}`}</Text>
-                <TextBox label="Meeting length in minutes" value={minutes} onChange={setMinutes} disabled={disabled} />
-                <TextBox label="Buffer in minutes" value={buffer} onChange={setBuffer} disabled={disabled} />
+                <Field label="Meeting length in minutes" value={minutes} onChange={setMinutes} disabled={disabled} />
+                <Field label="Buffer in minutes" value={buffer} onChange={setBuffer} disabled={disabled} />
               </>
             ) : null}
           </>
@@ -442,7 +442,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
       {route.id ? (
         <>
           <Card title="Consent and finish">
-            <TextBox
+            <Field
               label="Consent statement"
               value={consent}
               onChange={(v) => change(setConsent, v)}
@@ -461,7 +461,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
               onChange={(v) => change(setCaptcha, v)}
               disabled={disabled}
             />
-            <TextBox
+            <Field
               label="Thank-you message"
               value={thankYou}
               onChange={(v) => change(setThankYou, v)}
@@ -538,7 +538,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
               setLinkConfirm(false);
             }}
           />
-          <TextBox
+          <Field
             label="Expires in hours"
             value={expires}
             disabled={disabled}

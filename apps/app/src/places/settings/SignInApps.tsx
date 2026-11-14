@@ -7,7 +7,7 @@ import { Linking } from "react-native";
 import { attemptKey } from "../../shell/providers/files-review.ts";
 import { useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
-import { TextBox, Glyph, Section, SettingsRow, SmallButton } from "./ui.tsx";
+import { Field, Glyph, Section, SettingsRow, SmallButton } from "./ui.tsx";
 
 interface Guide {
   key: "google" | "microsoft";
@@ -200,7 +200,7 @@ export function SignInApps(): ReactElement {
               label={g.idLabel}
               indent
               control={
-                <TextBox
+                <Field
                   value={form.id}
                   label={`${g.label} ${g.idLabel}`}
                   mono
@@ -215,7 +215,7 @@ export function SignInApps(): ReactElement {
               label="Client secret"
               indent
               control={
-                <TextBox
+                <Field
                   value={form.secret}
                   label={`${g.label} client secret`}
                   mono
@@ -232,7 +232,7 @@ export function SignInApps(): ReactElement {
                 label="Tenant (only for a work-only app)"
                 indent
                 control={
-                  <TextBox
+                  <Field
                     value={form.tenant}
                     label={`${g.label} tenant`}
                     mono

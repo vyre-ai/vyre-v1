@@ -1,9 +1,18 @@
 // Add to Automations, as data in and data out: which items offer it, the one opening message (an app name and a handle, never a value), and why it cannot start yet.
+import { isCompanyKey } from "../../../../../../lib/company-keys.ts";
 import type { ItemKind } from "../layout/model.ts";
 
 /** A key, an env block, a login or a loose item can become a connector. A card, a note, a code, an SSH key and an AI account cannot. */
 const OFFERS: ReadonlySet<ItemKind> = new Set<ItemKind>(["api_key", "env", "login", "other"]);
 export const offersAutomations = (kind: ItemKind): boolean => OFFERS.has(kind);
+
+/**
+ * Does this item offer Add to Automations and Sync to Records? Only when an assistant can finish them: the kind can be an app, it is not an AI account's key, it is not a company key (for the server alone;
+ * no assistant may use it), and the assistant is not known to be above-cleared out of it (`reaches` false).
+ */
+export function setupOffered(a: { kind: ItemKind; handle: string; aiKey: boolean | null; reaches?: boolean }): boolean {
+  return offersAutomations(a.kind) && a.aiKey === false && !isCompanyKey(a.handle) && a.reaches !== false;
+}
 
 const SAFE_APP = "this app";
 const SECRET_SHAPE = /(sk|pk|rk|ghp|gho|xox[abprs]|eyJ|AKIA|AIza)[-_A-Za-z0-9]{8,}/;
@@ -46,6 +55,8 @@ export type Gate =
 export interface BuilderStatus {
   allowed: boolean;
   canGrant: boolean;
+  /** Asked about an item: false when the assistant may not use it (a label above its clearance). Absent when no item was named. */
+  reaches?: boolean;
 }
 
 export function gateFor(a: {
@@ -158,4 +169,43 @@ export function blockedNote(u: UsedBy): string | undefined {
   const b = u.steps.find((s) => s.blocked)?.blocked;
   const host = b ? /go to (\S+?)\.(?:\s|$)/.exec(b)?.[1] : undefined;
   return b ? (host ? `Not allowed to go to ${host}` : "A step may no longer use this key") : undefined;
+}
+
+/** Said before any press that also allows the assistant to build connectors (the first-page card says it on the server side with the same words). */
+export const ALLOW_BUILD_LINE = "Your assistant will be allowed to build connectors.";
+
+/** The gate for a setup that needs the assistant to build connectors, as the one function every door asks: the Vault row, the first page's Set up and the Records and picker doors all end here (gateFor). */
+export function builderGateFor(st: BuilderStatus | null): Gate {
+  // a status that could not be read is the same as "the assistant may not, and nobody can say it may": ask_admin
+  return gateFor({
+    online: true,
+    yourLevel: "use",
+    // the AI account is not this gate's question (the Vault row asks it too, and the session itself fails plainly without one): one working account stands in so the builder check is reached
+    accounts: [{ state: "ok" }],
+    builder: st ?? { allowed: false, canGrant: false },
+    asked: false,
+  });
+}
+
+/**
+ * The last check before a setup session starts, for a door that offers it without the Vault's own strip (the Automations first page): the assistant must be able to use the item, and must hold the
+ * Connector builder role, which a person who may give it gives with this press. It decides through gateFor, the Vault row's own function, and throws one plain sentence when the setup cannot be finished.
+ */
+export async function readyToBuild(
+  call: (cap: string, input: unknown) => Promise<unknown>,
+  agentId: string,
+  itemId?: string,
+): Promise<void> {
+  const st = (await call("access.connector_builder.status", {
+    agentId,
+    ...(itemId === undefined ? {} : { itemId }),
+  })) as BuilderStatus | null;
+  if (st?.reaches === false) throw new Error("Your assistant cannot open that Vault item, so it cannot set it up.");
+  const gate = builderGateFor(st);
+  if (gate.state === "ready") return;
+  if (gate.state === "no_builder") {
+    await call("access.connector_builder.grant", { agentId });
+    return;
+  }
+  throw new Error("Your assistant needs permission to build connectors. An admin can allow it.");
 }

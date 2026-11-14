@@ -15,8 +15,7 @@ import { Icon } from "../../files/memory/parts.tsx";
 import type { PaneDeps } from "../rightpane/actions.ts";
 import { MAP_LIMIT, learnedWhen, parseMap } from "../rightpane/model.ts";
 import type { MapIndex } from "../rightpane/model.ts";
-import { PaneList, Tool } from "../rightpane/parts.tsx";
-import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
+import { PaneList, Switch, Tool } from "../rightpane/parts.tsx";
 import type { Entry } from "../rightpane/parts.tsx";
 import { usePaneData, useScreenQuery } from "../rightpane/data.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -416,7 +415,7 @@ export function KnowsTab({
           <Switch
             on={learning}
             label={LESSONS_SWITCH}
-            onChange={() => void setLessonSwitch(memory, !learning, say)}
+            onPress={() => void setLessonSwitch(memory, !learning, say)}
             testID="lessons-switch"
           />
         </View>

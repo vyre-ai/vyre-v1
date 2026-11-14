@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Help, Actions, Button, TextBox, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+import { Help, Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 type Listing = CapMap["files.list"]["out"];
 type File = Listing["files"][number];
 export function templateName(name: string): string {
@@ -87,7 +87,7 @@ function TemplateFolder({ root, onChanged }: { root: string; onChanged(): void }
         label="Manage this folder in Files"
         onPress={() => data.nav.openApp({ screen: "files.list", args: { folderId: folder.id } })}
       />
-      <TextBox label="Find a template file" value={q} onChange={setQ} />
+      <Field label="Find a template file" value={q} onChange={setQ} />
       <Group>
         {folders
           .filter((folder) => folder.name.toLowerCase().includes(q.toLowerCase()))
@@ -164,7 +164,7 @@ function TemplateFolder({ root, onChanged }: { root: string; onChanged(): void }
           }}
         />
       ) : null}
-      <TextBox label="New template folder" value={folderName} onChange={setFolderName} />
+      <Field label="New template folder" value={folderName} onChange={setFolderName} />
       <Button
         label="Create template folder"
         disabled={action.busy || !folderName.trim()}
@@ -250,9 +250,9 @@ export function TemplateText({
           {file.name} · version {file.version}
         </Note>
       ) : (
-        <TextBox label="Template file name" testID="template-file-name" value={name} onChange={setName} />
+        <Field label="Template file name" testID="template-file-name" value={name} onChange={setName} />
       )}
-      <TextBox
+      <Field
         label="Template file content"
         testID="template-file-content"
         multiline

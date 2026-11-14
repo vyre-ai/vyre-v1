@@ -9,7 +9,7 @@ import { useSaved } from "./saved.tsx";
 import { useSettingsData } from "./data.tsx";
 import { controlFor, hoursSummary, labelOf, rowHelp, rowLabel, splitList, summaryOf, timeIn } from "./model.ts";
 import type { Hours, SettingRow } from "./model.ts";
-import { Choice, TextBox, SettingsRow, SmallButton, Stepper, Switch, Value } from "./ui.tsx";
+import { Choice, Field, SettingsRow, SmallButton, Stepper, Switch, Value } from "./ui.tsx";
 
 export const HOURS_PRESETS: readonly { id: string; label: string; value: Hours }[] = [
   { id: "wk95", label: "Mon to Fri, 9:00 AM to 5:30 PM", value: { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" } },
@@ -82,7 +82,7 @@ export function SettingControl({ row }: { row: SettingRow }): ReactElement {
       );
     case "text":
       return (
-        <TextBox
+        <Field
           value={typeof v === "string" ? v : ""}
           label={label}
           testID={`ctl-${row.key}`}
@@ -111,7 +111,7 @@ export function SettingControl({ row }: { row: SettingRow }): ReactElement {
     }
     case "list":
       return (
-        <TextBox
+        <Field
           value={Array.isArray(v) ? v.join(", ") : ""}
           label={label}
           width={240}

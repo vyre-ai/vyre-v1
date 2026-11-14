@@ -70,7 +70,7 @@ export function Btn({
         primary && over && s.btnPriOver,
         disabled && s.dim,
       ]}
-      {...webProps({ dataSet: { tt: disabled && hint ? hint : label }, ...(menu ? { "aria-haspopup": "menu" } : {}) })}
+      {...webProps({ title: disabled && hint ? hint : label, ...(menu ? { "aria-haspopup": "menu" } : {}) })}
     >
       <Text style={[s.btnText, primary && s.btnTextPri, danger && s.btnDanger]}>{label}</Text>
     </Pressable>
@@ -105,7 +105,7 @@ export function IconBtn({
       onHoverOut={() => setOver(false)}
       testID={testID}
       style={[s.ib, over && s.btnOver, disabled && s.dim]}
-      {...webProps({ dataSet: { tt: label }, ...(menu ? { "aria-haspopup": "menu" } : {}) })}
+      {...webProps({ title: label, ...(menu ? { "aria-haspopup": "menu" } : {}) })}
     >
       {children}
     </Pressable>
@@ -280,6 +280,33 @@ export function Select({
       </Pressable>
       {element}
     </>
+  );
+}
+
+export function Switch({
+  on,
+  onChange,
+  label,
+  testID,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  testID?: string;
+}): ReactElement {
+  return (
+    <Pressable
+      role="switch"
+      aria-checked={on}
+      accessibilityLabel={label}
+      accessibilityState={{ checked: on }}
+      onPress={() => onChange(!on)}
+      testID={testID}
+      style={[s.sw, on && s.swOn]}
+      {...webProps({ title: label })}
+    >
+      <View style={[s.knob, on && s.knobOn]} />
+    </Pressable>
   );
 }
 

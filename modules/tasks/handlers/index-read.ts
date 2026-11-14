@@ -10,6 +10,7 @@ import {
   openIndex,
   visibleTo,
   whoIs,
+  whoOn,
 } from "../projections.ts";
 import type { Assignee, Task, TaskKind, TaskState, TasksCtx } from "../projections.ts";
 
@@ -21,7 +22,7 @@ const MAX_DONE = 1_000;
 
 const COLS = `c.id AS id, c.key AS key, m.kind AS kind, c.title AS title, c.state AS state, m.assigned AS assigned, m.reviewer AS reviewer, m.approver AS approver, m.taken_by AS taken_by, m.due AS due, c.start_at AS start_at,
   m.effort AS effort, c.priority AS priority, c.labels AS labels, c.record_id AS record_id, m.parent_task AS parent_task, m.depends_on AS depends_on, m.thread_id AS thread_id, c.worker_thread AS worker_thread,
-  m.source_kind AS source_kind, m.source_id AS source_id, m.snoozed_until AS snoozed_until, m.followers AS followers, c.created_by AS created_by, c.created_at AS created_at, c.updated_at AS updated_at,
+  m.source_kind AS source_kind, m.source_id AS source_id, m.snoozed_until AS snoozed_until, m.followers AS followers, c.created_by AS created_by, c.created_for AS created_for, c.responsible AS responsible, c.created_at AS created_at, c.updated_at AS updated_at,
   (m.working_notes LIKE '%"fixes"%') AS has_fixes, (m.working_notes LIKE '%"plan.parent":"1"%') AS plan_parent`;
 
 const parse = <T>(v: unknown, or: T): T => {
@@ -78,6 +79,10 @@ function asTask(
     fields: {},
     reviewLoops: 0,
     createdBy: String(r["created_by"]),
+    ...(str(r["created_for"]) ? { createdFor: String(r["created_for"]) } : {}),
+    ...(str(r["responsible"]) ? { responsible: String(r["responsible"]) } : {}),
+    ...(str(r["thread_id"]) ? { threadId: String(r["thread_id"]) } : {}),
+    ...(str(r["worker_thread"]) ? { workerThread: String(r["worker_thread"]) } : {}),
     createdAt: Number(r["created_at"]),
     updatedAt: Number(r["updated_at"]),
     version: 0,
@@ -91,7 +96,6 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
     return { rev: now, unchanged: true, rows: [], doneThisWeek: 0, total: 0 };
   const clock = ctx.now();
   const who = whoIs(ctx);
-  const me = (id: string): boolean => id === who.id || id === who.actingFor;
   const scope = input.scope as "mine" | "given" | "everyone";
   const where = ["m.deleted_at IS NULL"];
   const args: unknown[] = [];
@@ -157,15 +161,20 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
     const reviewer = parse<Assignee | null>(r["reviewer"], null),
       approver = parse<Assignee | null>(r["approver"], null);
     const followers = parse<string[]>(r["followers"], []);
+    // an agent's own role on the row counts only when it counts on the task (lib/agent-asker.ts): the row is judged as the person it acts for otherwise
+    const t0 = asTask(r, assigned, reviewer, approver, followers);
+    const wr = whoOn(ctx, t0);
+    const me = (id: string): boolean => id === wr.id || id === wr.actingFor;
     const direct =
       me(assigned.id) ||
       (reviewer !== null && me(reviewer.id)) ||
       (approver !== null && me(approver.id)) ||
       me(String(r["taken_by"] ?? ""));
-    const t = direct && !open ? null : asTask(r, assigned, reviewer, approver, followers);
-    if (scope === "mine" && !direct && !(t !== null && (involved(t, who) || actionableByMe(ctx, t)))) continue;
+    const t = direct && !open ? null : t0;
+    if (scope === "mine" && !direct && !(t !== null && (involved(t, wr) || actionableByMe(ctx, t)))) continue;
     if (snoozedOnly && !(open && num(r["snoozed_until"]) !== undefined && Number(r["snoozed_until"]) > clock)) continue;
-    if (scope === "given" && assigned.id === who.id) continue;
+    if (scope === "given" && (assigned.id === who.id || (wr.id !== who.id && String(r["created_by"]) !== wr.id)))
+      continue;
     if (!direct && !me(String(r["created_by"])) && !followers.some(me) && t !== null && !visibleTo(ctx, t)) continue;
     if (!open) {
       if (Number(r["updated_at"]) >= clock - WEEK && state === "done") doneThisWeek += 1;

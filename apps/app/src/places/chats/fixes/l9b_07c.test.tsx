@@ -80,7 +80,7 @@ test("Memory: MAP.md reads as key rows with its count against 200; proposed fact
   );
 });
 
-test("Routines: the watcher is the second routine, switches are the shared Switch when on, the paused one says so", () => {
+test("Routines: the watcher is the second routine, switches are green when on, the paused one says so", () => {
   const out = pane("routines");
   assert.ok(
     out.indexOf("Morning lead sweep") < out.indexOf("Watch #intake for new clients") &&
@@ -91,12 +91,9 @@ test("Routines: the watcher is the second routine, switches are the shared Switc
       has(out, "on new messages") &&
       has(out, "Paused · Every day at 17:00"),
   );
-  // 13 Nov 2026: the lead ruled one look for every switch, so the routine switches are the shared ui/Switch in its on state (accent), no longer the prototype's green.
   assert.ok(
-    has(tagOf(out, "routine-switch-r3"), 'aria-checked="true"') &&
-      has(tagOf(out, "routine-switch-r3"), "background-color:var(--accent)") &&
-      has(tagOf(out, "routine-switch-r4"), 'aria-checked="true"') &&
-      has(tagOf(out, "routine-switch-r4"), "background-color:var(--accent)"),
+    has(tagOf(out, "routine-switch-r3"), "background-color:var(--ok)") &&
+      has(tagOf(out, "routine-switch-r4"), "background-color:var(--ok)"),
   );
   assert.ok(!has(tagOf(out, "routine-switch-r5"), "background-color:var(--ok)"));
 });

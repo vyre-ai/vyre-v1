@@ -12,8 +12,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useReviewData } from "./data.tsx";
 import { MODEL_CHOICES, formValue, humanKey, parseToml, rawFromForm, setTomlValue, tomlKind } from "./model.ts";
 import type { TomlEntry } from "./model.ts";
-import { PickerButton, TextField, anchorOf } from "./parts.tsx";
-import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
+import { PickerButton, Switch, TextField, anchorOf } from "./parts.tsx";
 import {
   FORM_GROUPS,
   extraEntries,

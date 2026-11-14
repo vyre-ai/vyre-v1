@@ -1224,7 +1224,7 @@ function Stepper({
   );
 }
 
-function Placement({
+export function Placement({
   call,
   m,
   who,
@@ -1402,13 +1402,13 @@ function Placement({
           <Row
             key={id}
             id={`pin-${id}`}
-            title={id}
+            title={who(id)}
             note={m.online ? "Always runs on this machine" : `Waits until ${displayName(m)} is back`}
             tall
             trailing={
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Unpin ${id}`}
+                accessibilityLabel={`Unpin ${who(id)}`}
                 testID={`unpin-${id}`}
                 onPress={() => {
                   void pin(id, false);

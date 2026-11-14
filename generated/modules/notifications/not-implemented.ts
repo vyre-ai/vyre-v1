@@ -26,5 +26,4 @@ export const handlers: Handlers<HandlerCtx> = {
   "notifications.rules.get": async (ctx) => { throw new VyreErr(notImplemented("notifications.rules.get", ctx.trace)); },
   "notifications.rules.set": async (ctx) => { throw new VyreErr(notImplemented("notifications.rules.set", ctx.trace)); },
   "notifications.send": async (ctx) => { throw new VyreErr(notImplemented("notifications.send", ctx.trace)); },
-  "notifications.unseen_by_thread": async (ctx) => { throw new VyreErr(notImplemented("notifications.unseen_by_thread", ctx.trace)); },
 };

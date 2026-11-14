@@ -12,8 +12,6 @@ export interface Shortcut {
   scope: "shell" | "chats" | "settings" | "inbox";
   /** For a digit range (Cmd-1..9) the lowest and highest digit. */
   digits?: readonly [number, number];
-  /** A key of the focused list (a row's P or U), not a shell key: it is in this table so Settings and the help list it, and the list's own handler runs it. */
-  local?: true;
 }
 
 export const KEYBOARD_MAP: readonly Shortcut[] = [
@@ -26,36 +24,6 @@ export const KEYBOARD_MAP: readonly Shortcut[] = [
   { id: "settings.find", combo: "Cmd-F", title: "Find a Settings row", scope: "settings" },
   { id: "unread.next", combo: "Alt-Down", title: "Next unread", scope: "inbox" },
   { id: "report.open", combo: "Cmd-Shift-/", title: "Report a problem", scope: "shell" },
-  // The Chats sidebar (design of 13 Nov): the places on Option-Cmd-1..5, the six things in the "+" menu, hide, next unread, and the keys of a focused row
-  {
-    id: "place.go",
-    combo: "Alt-Cmd-1",
-    title: "Go to a place: Chats, Inbox, Records, Files, Automations",
-    scope: "shell",
-    digits: [1, 5],
-  },
-  { id: "chat.new", combo: "Cmd-N", title: "New chat", scope: "shell" },
-  { id: "chat.newgroup", combo: "Shift-Cmd-N", title: "New group chat", scope: "shell" },
-  { id: "channel.new", combo: "Alt-Cmd-N", title: "New channel", scope: "shell" },
-  { id: "goal.new", combo: "Alt-Cmd-G", title: "New goal", scope: "shell" },
-  { id: "task.new", combo: "Alt-Cmd-T", title: "New task", scope: "shell" },
-  { id: "note.new", combo: "Alt-Cmd-O", title: "New note", scope: "shell" },
-  { id: "sidebar.hide", combo: "Cmd-Shift-\\", title: "Hide or show the sidebar", scope: "shell" },
-  { id: "chats.unread.next", combo: "Alt-Shift-Down", title: "Next unread chat", scope: "chats" },
-  { id: "chats.unread.prev", combo: "Alt-Shift-Up", title: "Previous unread chat", scope: "chats" },
-  { id: "list.filter", combo: "F", title: "Filter the list (list focused)", scope: "chats", local: true },
-  { id: "row.pin", combo: "P", title: "Pin or unpin the row (list focused)", scope: "chats", local: true },
-  { id: "row.read", combo: "U", title: "Mark the row read or unread (list focused)", scope: "chats", local: true },
-  { id: "row.mute", combo: "M", title: "Mute or unmute the row (list focused)", scope: "chats", local: true },
-  { id: "row.archive", combo: "E", title: "Archive the row (list focused)", scope: "chats", local: true },
-  { id: "row.rename", combo: "F2", title: "Rename the row (list focused)", scope: "chats", local: true },
-  {
-    id: "row.link",
-    combo: "Shift-Cmd-C",
-    title: "Copy the link of the row (list focused)",
-    scope: "chats",
-    local: true,
-  },
 ];
 
 export interface KeyLike {
@@ -98,21 +66,10 @@ export function matchShortcut(e: KeyLike, platform: Platform, ctx: { inTerminal?
   const other = platform === "mac" ? e.ctrlKey === true : e.metaKey === true;
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (e.altKey === true && !mod && !e.shiftKey && key === "ArrowDown") return { id: "unread.next" };
-  if (e.altKey === true && !mod && e.shiftKey === true && (key === "ArrowDown" || key === "ArrowUp"))
-    return { id: key === "ArrowDown" ? "chats.unread.next" : "chats.unread.prev" };
   if (!mod || other) return null;
   const shift = e.shiftKey === true,
     alt = e.altKey === true;
-  // Option-Cmd: the physical key decides (on a Mac, Option changes the letter a key types)
-  const letter = /^Key([A-Z])$/.exec(e.code ?? "")?.[1]?.toLowerCase() ?? (key.length === 1 ? key : "");
-  if (alt) {
-    if (shift) return null;
-    const n = /^Digit([1-5])$/.exec(e.code ?? "")?.[1] ?? (/^[1-5]$/.test(key) ? key : null);
-    if (n !== null) return { id: "place.go", arg: Number(n) };
-    const byLetter: Record<string, string> = { n: "channel.new", g: "goal.new", t: "task.new", o: "note.new" };
-    const id = byLetter[letter];
-    return id ? { id } : null;
-  }
+  if (alt) return null;
   const digit = /^Digit([1-9])$/.exec(e.code ?? "")?.[1] ?? (/^[1-9]$/.test(key) ? key : null);
   if (digit !== null) {
     const n = Number(digit);
@@ -120,15 +77,12 @@ export function matchShortcut(e: KeyLike, platform: Platform, ctx: { inTerminal?
     return { id: "agent.jump", arg: n };
   }
   if (shift) {
-    if (key === "n" || letter === "n") return { id: "chat.newgroup" };
-    if (key === "\\" || key === "|" || e.code === "Backslash") return { id: "sidebar.hide" };
     if (key === "k") return { id: "softphone.open" };
     if (key === "/" || key === "?") return { id: "report.open" };
     return null;
   }
   if (key === "k") return ctx.inTerminal ? null : { id: "cmdk.open" };
   if (key === "t") return { id: "tab.new" };
-  if (key === "n") return { id: "chat.new" };
   if (key === "d") return { id: "star.toggle" };
   if (key === "f") return { id: "settings.find" };
   return null;

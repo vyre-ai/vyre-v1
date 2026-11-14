@@ -8,6 +8,7 @@
 // DECISION: the Needs you task is assigned to the person route_owner names, else to the admin role; closing it when the sender is matched is the task module's job.
 import {
   conversationsShowing,
+  holderOf,
   itemsOf,
   newId,
   bad,
@@ -1026,7 +1027,7 @@ export async function followSet(
     ctx.db.all(
       `SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`,
       input.contactId,
-      ctx.principal.id,
+      holderOf(ctx),
     ),
   );
   const had = followOf(ctx, input.contactId);
@@ -1045,7 +1046,7 @@ export async function followSet(
         `INSERT INTO inbox_follow (id, "contactId", "principalId", "alertOnReplies", version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         newId("fol", now),
         input.contactId,
-        ctx.principal.id,
+        holderOf(ctx),
         alert ? 1 : 0,
         1,
         now,
@@ -1066,7 +1067,7 @@ export async function followSet(
     ctx.emit(
       "conversation.follow_changed",
       `record/${input.contactId}`,
-      { contactId: input.contactId, principalId: ctx.principal.id, following: input.follow, alertOnReplies: alert },
+      { contactId: input.contactId, principalId: holderOf(ctx), following: input.follow, alertOnReplies: alert },
       { vis: "participants" },
     );
   }

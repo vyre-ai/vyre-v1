@@ -3,6 +3,7 @@
 // Delete); where it is and what it is about, with its links; who is coming and how each answered. A past meeting shows its close-out (summary, tasks, Open close-out) and the
 // recording or transcript. Edit happens in place; a repeating event asks This Event or All Events on Save. Everything goes through capabilities as the person.
 import { useEffect, useState } from "react";
+import { useEscapeLayer } from "../../../../../../../ui/src/Overlay/escape.ts";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Row } from "../../../../../../../ui/src/Row/index.tsx";
@@ -144,6 +145,10 @@ export function EventPane(p: EventPaneProps): ReactElement {
   const [rev, setRev] = useState(0);
   const [edit, setEdit] = useState<EditDraft | null>(null);
   const [err, setErr] = useState("");
+  useEscapeLayer(edit !== null, () => {
+    setEdit(null);
+    setErr("");
+  });
   const [close, setClose] = useState<Closeout | null>(null);
   const [rec, setRec] = useState<{ fileId?: string; transcript: boolean } | null>(null);
   const [tx, setTx] = useState<string[] | null>(null);

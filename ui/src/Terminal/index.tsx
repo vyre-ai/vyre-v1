@@ -710,7 +710,7 @@ export function Terminal(props: TerminalViewProps): ReactElement {
             testID={`terminal-risk-${props.risk}`}
             accessibilityRole="image"
             accessibilityLabel={RISK_TEXT[props.risk]}
-            {...webProps({ dataSet: { tt: RISK_TEXT[props.risk] } })}
+            {...webProps({ title: RISK_TEXT[props.risk] })}
             style={[styles.riskDot, { backgroundColor: RISK_COLOR[props.risk] }]}
           />
         ) : null}
@@ -726,7 +726,7 @@ export function Terminal(props: TerminalViewProps): ReactElement {
             accessibilityState={{ selected: props.starred === true }}
             onPress={() => props.onStar?.(props.sessionId)}
             testID="terminal-star"
-            {...webProps({ dataSet: { tt: "Star  ⌘D" } })}
+            {...webProps({ title: "Star  ⌘D" })}
             style={({ hovered }: { hovered?: boolean }) => [styles.btn, hovered === true && styles.btnHover]}
           >
             <MenuIcon icon="star" size={14} color={props.starred === true ? "var(--warn)" : "var(--ink-3)"} />
@@ -738,7 +738,7 @@ export function Terminal(props: TerminalViewProps): ReactElement {
             accessibilityLabel="Clear"
             onPress={clear}
             testID="terminal-clear"
-            {...webProps({ dataSet: { tt: "Clear  ⌘K" } })}
+            {...webProps({ title: "Clear  ⌘K" })}
             style={({ hovered }: { hovered?: boolean }) => [
               styles.btn,
               styles.btnWide,

@@ -4,7 +4,6 @@
 // Escape leaves the settings popover, then a sub-view, then the sheet. Enter in the search adds the top match; Backspace on an empty search removes the last chip.
 // Colours are skin tokens (CSS variables on web), so paper and graphite both work.
 
-import { Switch } from "../Switch/index.tsx";
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -65,6 +64,7 @@ import {
   Pill,
   each,
   SettingsPopover,
+  Switch,
   ViewHead,
   itemLabelOf,
   pickHowLabel,
@@ -690,7 +690,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
         ) : null}
         {share && share.notifyPeople === true && picks.length > 0 ? (
           <View style={{ gap: 6 }} testID="as-notify">
-            <Switch labelled label="Notify people" on={notify} onChange={setNotify} testID="as-notify-switch" />
+            <Switch label="Notify people" on={notify} onChange={setNotify} testID="as-notify-switch" />
             {notify ? (
               <TextInput
                 value={message}
@@ -705,7 +705,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
           </View>
         ) : null}
         {showEarlier ? (
-          <Switch labelled label="Include earlier messages" on={earlier} onChange={setEarlier} testID="as-earlier" />
+          <Switch label="Include earlier messages" on={earlier} onChange={setEarlier} testID="as-earlier" />
         ) : null}
         <View style={st.footBtns}>
           {share?.records ? <ExportMore rec={share.records} /> : null}

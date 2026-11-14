@@ -6,3 +6,14 @@ export const MICROSOFT_KEY_HANDLE = "#Microsoft_App";
 const COMPANY_KEY = /^#?(google_dwd|microsoft_app|sso_(google|microsoft|okta)[a-z0-9_]*)(\.[a-z0-9_]+)?$/i;
 
 export const isCompanyKey = (handle: string): boolean => COMPANY_KEY.test(handle);
+
+/** The handle a Vault item of this name gets (the Vault's own rule: runs of other characters become one underscore). */
+const handleOfName = (name: string): string =>
+  `#${
+    name
+      .trim()
+      .replace(/[^A-Za-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "item"
+  }`;
+/** Is an item of this name a company key? The save event names the item, not its handle. */
+export const isCompanyKeyName = (name: string): boolean => isCompanyKey(handleOfName(name));

@@ -58,6 +58,7 @@ function ChatsLinked({
       hash={useHubState(hub).hash}
       opened={opened}
       onSwitch={hub.hold}
+      onTitle={(title) => hub.retitle(hub.session().tabs.state().active, title)}
       closeSelf={() => hub.closeTab()}
       openInNewTab={(h) => hub.go("chats", h, true)}
     />

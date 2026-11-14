@@ -1346,23 +1346,6 @@ export default defineManifest({
         errors: ["validation.not_found", "validation.bad_input"],
       },
     ),
-    // chats.presence: the one small read for the sidebar's presence dots and working rings. It is kept out of the sidebar answer on purpose: it changes often, and that answer and its patches stay quiet.
-    // It is the asker's own view, composed from devices.presence and engine.now, which already answer as the caller: a guest has no team, so gets no one; a chat is named only to someone who may read it.
-    read(
-      "chats.presence",
-      "Who is around (online or away; offline people are left out) and which agents are working now, with the chat when the asker may read it: the sidebar's dots and rings",
-      {
-        in: {},
-        out: {
-          people: t.arr(t.obj({ personId: id.user, state: t.enm("online", "away") })),
-          working: t.arr(t.obj({ agentId: id.agent, threadId: t.opt(id.thread), since: t.ts() })),
-        },
-        perm: null,
-        tool: "chats",
-        label: "filter",
-        team: true,
-      },
-    ),
     read("chat.pins.list", "Pinned messages of a thread", {
       in: threadT,
       out: { messages: t.arr(messageRow) },

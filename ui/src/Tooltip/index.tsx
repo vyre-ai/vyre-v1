@@ -1,43 +1,10 @@
-// ui/Tooltip: the one tooltip on whatever it wraps (see tips.ts: hover or keyboard focus after 350 ms, gone on blur, Escape, scroll and press). The wrapper takes no box of its own (display: contents),
+// ui/Tooltip: the browser's own tooltip on whatever it wraps, for the help that would otherwise be a line of text on the page. The wrapper takes no box of its own (display: contents),
 // so a flex row lays out exactly as it did without it. Off the web it draws the children as they are.
-//   text   one or two lines ("Name" then "Who it is", separated by a new line)
-//   cut    the tip is for a name that may be cut by an ellipsis: it shows only when the text really is cut
-//   open   the caller decides (a list whose cursor is a row, with focus staying in the list): true shows it, false puts it away
-import { createElement, useEffect, useRef } from "react";
+import { createElement } from "react";
 import type { ReactElement } from "react";
 import { Platform } from "react-native";
-import { hideTip, hideTipFor, showTip } from "./tips.ts";
-import type { TipEl } from "./tips.ts";
 
-export function Tooltip({
-  text,
-  children,
-  cut = false,
-  open,
-}: {
-  text: string;
-  children: ReactElement;
-  cut?: boolean;
-  open?: boolean;
-}): ReactElement {
-  const ref = useRef<TipEl | null>(null);
-  // a Tooltip that goes away (a row deleted, a route change) takes its own tip with it
-  useEffect(
-    () => () => {
-      if (ref.current) hideTipFor(ref.current);
-    },
-    [],
-  );
-  useEffect(() => {
-    if (open === undefined || !ref.current) return undefined;
-    if (open) showTip(ref.current, text);
-    else hideTip();
-    return () => hideTip();
-  }, [open, text]);
+export function Tooltip({ text, children }: { text: string; children: ReactElement }): ReactElement {
   if (Platform.OS !== "web" || text === "") return children;
-  return createElement(
-    "div",
-    { ref, title: text, ...(cut ? { "data-tt-cut": "1" } : {}), style: { display: "contents" } },
-    children,
-  );
+  return createElement("div", { title: text, style: { display: "contents" } }, children);
 }

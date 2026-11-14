@@ -7,18 +7,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import {
-  Actions,
-  Button,
-  TextBox,
-  Note,
-  ReadState,
-  Segmented,
-  Select,
-  attempt,
-  useAction,
-  useRead,
-} from "./shared.tsx";
+import { Actions, Button, Field, Note, ReadState, Segmented, Select, attempt, useAction, useRead } from "./shared.tsx";
 
 type Schema = CapMap["schema.describe"]["out"];
 type SchemaOp = CapMap["schema.diff"]["in"]["ops"][number];
@@ -215,18 +204,18 @@ export function SchemaPage(): ReactElement {
             ) : null}
             {mode === "type.create" ? (
               <>
-                <TextBox label="Type key" value={typeKey} onChange={setTypeKey} />
-                <TextBox label="Singular title" value={typeTitle} onChange={setTypeTitle} />
-                <TextBox label="Plural title" value={typePlural} onChange={setTypePlural} />
+                <Field label="Type key" value={typeKey} onChange={setTypeKey} />
+                <Field label="Singular title" value={typeTitle} onChange={setTypeTitle} />
+                <Field label="Plural title" value={typePlural} onChange={setTypePlural} />
               </>
             ) : (
               <>
                 {selected ? <Note>Editing {selected.title}</Note> : <Note>Select a record type first.</Note>}
-                {mode !== "type.drop" ? <TextBox label="Field key" value={fieldKey} onChange={setFieldKey} /> : null}
-                {mode === "field.rename" ? <TextBox label="New field key" value={newKey} onChange={setNewKey} /> : null}
+                {mode !== "type.drop" ? <Field label="Field key" value={fieldKey} onChange={setFieldKey} /> : null}
+                {mode === "field.rename" ? <Field label="New field key" value={newKey} onChange={setNewKey} /> : null}
                 {mode === "field.add" || mode === "field.update" ? (
                   <>
-                    <TextBox label="Field title" value={fieldTitle} onChange={setFieldTitle} />
+                    <Field label="Field title" value={fieldTitle} onChange={setFieldTitle} />
                     <Select
                       label="Field type"
                       value={fieldType}

@@ -12,7 +12,7 @@ import {
   Help,
   Actions,
   Button,
-  TextBox,
+  Field,
   FormSheet,
   Note,
   ReadState,
@@ -309,13 +309,13 @@ export function Backups(): ReactElement {
           />
           {kind === "s3" ? (
             <>
-              <TextBox label="Bucket" value={bucket} onChange={setBucket} />
-              <TextBox label="Region" value={region} onChange={setRegion} />
-              <TextBox label="Credentials Vault item name" value={vaultName} onChange={setVaultName} />
+              <Field label="Bucket" value={bucket} onChange={setBucket} />
+              <Field label="Region" value={region} onChange={setRegion} />
+              <Field label="Credentials Vault item name" value={vaultName} onChange={setVaultName} />
               <Help>Choose an existing Vault item. Credential values stay in the Vault.</Help>
             </>
           ) : null}
-          <TextBox
+          <Field
             label={kind === "s3" ? "Optional bucket prefix" : "Backup directory on this server"}
             testID="backup-path"
             value={path}
@@ -330,7 +330,7 @@ export function Backups(): ReactElement {
               { key: "off", title: "Off" },
             ]}
           />
-          <TextBox label="Schedule" testID="backup-schedule" value={schedule} onChange={setSchedule} />
+          <Field label="Schedule" testID="backup-schedule" value={schedule} onChange={setSchedule} />
         </FormSheet>
       ) : null}
       <Section title="Backups" count={list.data.backups.length}>

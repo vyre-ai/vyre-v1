@@ -126,8 +126,6 @@ jobs:
         run: node scripts/lint/no-noop-opt-out.ts
       - name: shared-time ratchet (scripts/lint/shared-time.test.ts); a time drawn in a shared place uses ui/Time and the Space's time zone, and the known list may only shrink
         run: node --test --test-reporter=spec scripts/lint/shared-time.test.ts
-      - name: one-component ratchet (scripts/lint/one-component.test.ts); a second copy of a shared piece (Switch, buttons, sections, text boxes, sheets), a second data hook or a hand-made Load more fails, and the known list may only shrink
-        run: node --test --test-reporter=spec scripts/lint/one-component.test.ts
       - name: system-words ratchet (scripts/lint/system-words.test.ts); a string a person reads never says turn, wake-up, principal or capability, and the known list may only shrink
         run: node --test --test-reporter=spec scripts/lint/system-words.test.ts
       - name: rules-of-hooks (enforced); React's rules of hooks over apps/ and ui/ on the syntax tree, no allow comment (a hook after an early return crashed every chat on 3464fa6b6)
@@ -407,7 +405,7 @@ jobs:
           VYRE_AGENT_COMPUTER_IMAGE: vyre/agent-computer:ci-${{ github.run_id }}
         run: |
           set -o pipefail
-          for f in test/memory.recall.live.test.ts test/chat-ecosystem.live.test.ts test/cli-skills-connections.live.test.ts test/terminal.workspace.live.test.ts modules/terminal/tests/workspace.live.test.ts modules/terminal/tests/workspace.heal.live.test.ts host/tests/workspace.node.live.test.ts host/tests/onboarding.assistant.live.test.ts host/tests/computers.runner.live.test.ts host/tests/goals.asked-by.cli.live.test.ts; do
+          for f in test/memory.recall.live.test.ts test/chat-ecosystem.live.test.ts test/cli-skills-connections.live.test.ts test/terminal.workspace.live.test.ts modules/terminal/tests/workspace.live.test.ts modules/terminal/tests/workspace.heal.live.test.ts host/tests/workspace.node.live.test.ts host/tests/onboarding.assistant.live.test.ts host/tests/computers.runner.live.test.ts host/tests/goals.asked-by.cli.live.test.ts test/goals.resume.cli.live.test.ts; do
             node scripts/test-run.ts --slow --no-cache --no-skip --jobs 1 --files "$f"
           done
       - name: Agent workspaces and sites at scale on real Docker (100 workspaces, isolation, Trash volumes, 60 sites), none skipped

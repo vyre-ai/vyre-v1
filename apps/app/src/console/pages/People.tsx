@@ -19,7 +19,7 @@ import {
   Help,
   Actions,
   Button,
-  TextBox,
+  Field,
   FormSheet,
   Note,
   ReadState,
@@ -267,7 +267,7 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
               />
             ) : null}
             {bulk.kind === "suspend" ? (
-              <TextBox
+              <Field
                 label="Reason (optional)"
                 value={bulk.value}
                 onChange={(value) => setBulk({ ...bulk, value })}

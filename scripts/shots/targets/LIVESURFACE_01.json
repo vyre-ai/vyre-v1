@@ -1,5 +1,0 @@
-{
-  "targets": [
-    { "id": "LIVESURFACE_01-states", "route": "/m/LIVESURFACE_01", "proto": "livesurface,{skin}", "waitFor": "[aria-label='Picture']", "note": "LiveSurface: starting, live with watching mark, asleep, failed, terminal in control" }
-  ]
-}

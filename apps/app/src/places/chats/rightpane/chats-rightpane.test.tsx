@@ -920,18 +920,10 @@ test("routine rows read like the prototype: short schedule, next day, watchers o
   assert.equal(routineNote(r("0 17 * * *", false), c), "Paused · Every day at 17:00");
 });
 
-test("the routine switch is the shared Switch in its on state, and a watcher has the watch glyph", () => {
-  // 13 Nov 2026: the lead ruled one look for every switch (the shared ui/Switch, accent when on), so this no longer pins the green of the prototype.
+test("the routine switch is green when on (the prototype's), and a watcher has the watch glyph", () => {
   const out = html(createSample(), "routines");
-  assert.ok(
-    has(tagOf(out, "routine-switch-r3"), 'aria-checked="true"') &&
-      has(tagOf(out, "routine-switch-r3"), "background-color:var(--accent)"),
-    "an on switch is the shared one, painted accent",
-  );
-  assert.ok(
-    has(tagOf(out, "routine-switch-r5"), 'aria-checked="false"') &&
-      !has(tagOf(out, "routine-switch-r5"), "background-color:var(--accent)"),
-  );
+  assert.ok(has(tagOf(out, "routine-switch-r3"), "background-color:var(--ok)"), "an on switch paints the ok token");
+  assert.ok(!has(tagOf(out, "routine-switch-r5"), "background-color:var(--ok)"));
 });
 
 test("chats and learned times are clock times today, weekdays this week", () => {

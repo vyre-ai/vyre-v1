@@ -18,7 +18,7 @@ import { createMenuApiB } from "../../places/chats/menus/actions-b.ts";
 import { TextAsk } from "../../places/chats/menus/TextAsk.tsx";
 import { count } from "../shell/format.ts";
 import { Empty, Group, Section } from "../shell/ui.tsx";
-import { Actions, Button, TextBox, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 
 type GroupRow = AccessGroupsListOut["groups"][number];
 type Person = AccessPrincipalsListOut["principals"][number];
@@ -210,7 +210,7 @@ export function Groups({ initialId }: { initialId?: string }): ReactElement {
       {pageError ? <Note>{pageError}</Note> : null}
       {create ? (
         <Section title="Create team">
-          <TextBox label="Team name" value={name} onChange={setName} testID="group-name" />
+          <Field label="Team name" value={name} onChange={setName} testID="group-name" />
           <Actions>
             <Button label="Cancel" onPress={() => setCreate(false)} />
             <Button
@@ -300,7 +300,7 @@ function GroupObject({ groupId, onBack }: { groupId: string; onBack: () => void 
       sheet={
         sheet === "edit" ? (
           <>
-            <TextBox label="Team name" value={name} onChange={setName} testID="group-edit-name" />
+            <Field label="Team name" value={name} onChange={setName} testID="group-edit-name" />
             <Button
               label="Save name"
               testID="group-save-name"
@@ -560,7 +560,7 @@ export function PrincipalPicker({
   if (!list.data)
     return (
       <>
-        <TextBox label="Find a person or agent" value={search} onChange={setSearch} testID="group-principal-search" />
+        <Field label="Find a person or agent" value={search} onChange={setSearch} testID="group-principal-search" />
         <ReadState error={list.error} retry={list.refresh} />
       </>
     );
@@ -572,7 +572,7 @@ export function PrincipalPicker({
   const next = more ? more.next : list.data.next;
   return (
     <>
-      <TextBox label="Find a person or agent" value={search} onChange={setSearch} testID="group-principal-search" />
+      <Field label="Find a person or agent" value={search} onChange={setSearch} testID="group-principal-search" />
       <Group>
         {people.map((person) => (
           <Row

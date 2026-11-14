@@ -177,7 +177,7 @@ export async function doctorCommand(io: CliIo, p: Parsed, o: { alwaysOffline: bo
     platform: io.platform,
     fetch: io.fetch,
     now: io.now,
-    ...(p.flags.has("quick") ? { chainTail: QUICK_CHAIN_TAIL } : {}),
+    ...(p.flags.has("quick") ? { chainTail: QUICK_CHAIN_TAIL } : { artifactAddress: true }),
   });
   io.out(asJson ? `${JSON.stringify(report, null, 2)}\n` : formatDoctor(report));
   return report.ok ? EXIT.OK : EXIT.FAILED;

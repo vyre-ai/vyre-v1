@@ -11,7 +11,7 @@ import {
   Help,
   Actions,
   Button,
-  TextBox,
+  Field,
   FormSheet,
   Note,
   ReadState,
@@ -73,7 +73,7 @@ export function PluginsPage(): ReactElement {
   const optionFields: ReactElement[] = [];
   for (const u of selected?.userConfig ?? [])
     optionFields.push(
-      <TextBox
+      <Field
         key={u.key}
         label={`${u.title}${u.sensitive ? " (a Vault handle such as #Name.field)" : ""}`}
         testID={`opt-${u.key}`}
@@ -196,13 +196,13 @@ export function PluginsPage(): ReactElement {
                 })
             }
           >
-            <TextBox label="Git address or folder" testID="mk-source" value={source} onChange={setSource} />
+            <Field label="Git address or folder" testID="mk-source" value={source} onChange={setSource} />
           </FormSheet>
         ) : null}
       </Section>
       <Section title="Plugins to install" count={browse.data?.total ?? ""}>
         <Group>
-          <TextBox label="Search" value={q} onChange={setQ} />
+          <Field label="Search" value={q} onChange={setQ} />
           <Select
             label="Install into"
             value={target}

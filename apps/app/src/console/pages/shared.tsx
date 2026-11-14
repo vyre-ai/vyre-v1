@@ -200,7 +200,7 @@ export const FOCUS_RING = {
   borderColor: "var(--accent)",
   boxShadow: "0 0 0 3px var(--accent-wash)",
 } as const;
-export function TextBox({
+export function Field({
   label,
   value,
   onChange,

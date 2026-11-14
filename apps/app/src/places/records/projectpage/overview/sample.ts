@@ -1,5 +1,6 @@
 // The stand-in behind the Overview's tests and screenshots: the projects.overview_doc.* capabilities and projects.live_block.query answered from memory, with revisions, Undo, templates, one editable
 // property, and rows a reader may not open. An agent's edit is made by `agentEdits(summary, markdown)`. The values are made up.
+import { unnamed } from "../../../chats/names.ts";
 import type { ProjectPageData } from "../data.tsx";
 import type { OverviewDoc, PageTemplate, Revision, LiveOut } from "./model.ts";
 
@@ -158,6 +159,19 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
           { id: "inv104", title: "INV-104", state: "open", detail: "$4,200" },
           { id: "inv105", title: "INV-105", state: "paid", detail: "$1,150" },
           { id: "inv106", title: "INV-106", state: "overdue", detail: "$900" },
+        ],
+      };
+    // what the server answers for People and agents: the principal's id as the row's title, the project role as its state, person or agent as its detail
+    if (type === "people")
+      return {
+        type: "people",
+        total: 3,
+        hidden: 0,
+        rows: [
+          { id: "usr_ec028017ceefaf270b", title: "usr_ec028017ceefaf270b", state: "lead", detail: "person" },
+          { id: "usr_maya", title: "usr_maya", state: "member", detail: "person" },
+          { id: "agt_docs", title: "agt_docs", state: "member", detail: "agent" },
+          { id: "usr_8923b33eafc2cebd5c", title: "usr_8923b33eafc2cebd5c", state: "member", detail: "person" },
         ],
       };
     if (type === "metric")
@@ -355,7 +369,7 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
   };
   const data: ProjectPageData = {
     call,
-    nameOf: (id) => NAMES[id] ?? id,
+    nameOf: (id) => NAMES[id] ?? unnamed(id),
     me: { id: "usr_irfad", name: "Irfad Imtiaz" },
     now: () => NOW + 3_600_000,
     nav: {

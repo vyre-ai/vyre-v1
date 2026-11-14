@@ -7,6 +7,7 @@
 // DECISION (owner ruling 3 Nov): an agent's ask for a person that names no folder is that person's own key: they may add it from their card into their own Mine, where only they and an agent working
 // for them reach it (no Use is shared). The owners and admins it went to may still add it for the team. A request that names a Shared or team folder, a company key, or a key an outside agent
 // asked for by name only goes to the owners and admins alone.
+import { agentStanding } from "../../../lib/agent-asker.ts";
 import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
 import { TABLE, asRow, idsOf, nid, page, raise, requestById, requestOut, strOf } from "../projections.ts";
@@ -20,6 +21,16 @@ const FIELD = /^[A-Za-z][A-Za-z0-9_]*$/;
 function personOf(ctx: VaultReqCtx): string | null {
   if (ctx.principal.kind === "person") return ctx.principal.id;
   return ctx.actingFor ?? null;
+}
+/**
+ * Is this request the caller's own as its requester? The agent that made it counts only in a turn for nobody, or for the person it was made for (lib/agent-asker.ts): another person who merely asks that
+ * agent does not see, read or withdraw it.
+ */
+function ownRequest(ctx: VaultReqCtx, r: RequestRow): boolean {
+  const ids = new Set([ctx.principal.id, ...(ctx.actingFor ? [ctx.actingFor] : [])]);
+  if (ctx.principal.kind === "agent" && ctx.principal.id === r.requester_id)
+    return agentStanding(ctx, (p) => r.asker_id === p || r.requester_id === p);
+  return ids.has(r.requester_id) || (!!r.asker_id && ids.has(r.asker_id));
 }
 const requesterOf = (ctx: VaultReqCtx): Ref => ({ kind: ctx.principal.kind as Ref["kind"], id: ctx.principal.id });
 
@@ -314,11 +325,7 @@ function askerDecides(row: RequestRow, me: string | null): boolean {
 function visible(ctx: VaultReqCtx, requestId: string): { row: RequestRow; asRequester: boolean; asManager: boolean } {
   const row = requestById(ctx, requestId);
   const me = personOf(ctx);
-  const asRequester =
-    !!row &&
-    (row.requester_id === ctx.principal.id ||
-      (!!ctx.actingFor && row.requester_id === ctx.actingFor) ||
-      (!!me && row.asker_id === me));
+  const asRequester = !!row && (ownRequest(ctx, row) || (!!me && row.asker_id === me));
   const asManager = !!row && !!me && row.requester_id !== me && idsOf(row.managers_json).includes(me);
   if (!row || (!asRequester && !asManager)) return raise(ctx.trace.traceId, "validation.not_found", "No such request.");
   return { row, asRequester, asManager };
@@ -329,10 +336,9 @@ export async function requestsList(
   input: { mine?: boolean; state?: State; cursor?: string; limit?: number },
 ) {
   const me = personOf(ctx);
-  const ownIds = new Set([ctx.principal.id, ...(ctx.actingFor ? [ctx.actingFor] : [])]);
   const all = (ctx.db.all(`SELECT * FROM ${TABLE}`) as RequestRow[])
     .filter((r) => {
-      const mine = ownIds.has(r.requester_id) || (!!r.asker_id && ownIds.has(r.asker_id));
+      const mine = ownRequest(ctx, r);
       const toDecide = (!!me && r.requester_id !== me && idsOf(r.managers_json).includes(me)) || askerDecides(r, me);
       return input.mine === true ? mine : input.mine === false ? toDecide : mine || toDecide;
     })
