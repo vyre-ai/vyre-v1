@@ -4,3 +4,4 @@
 - Their temporary files and the live copy of a terminal they watch now sit in their own folder, and everything of theirs on a shared agent (folder, terminal sessions, browser profile) is removed when they leave the Space (the browser profile after the Trash time, like their Assistant's).
 - The browser answers one new question, which sites your own turns of an agent are signed in to (computers.browser.my_sign_ins).
 - A terminal in a person's own space on a shared agent can no longer be typed into by anyone else, including an owner or admin holding its keyboard, and an agent acting for someone else cannot run commands in it.
+- A person who uses a shared agent without owning it now reads, in their own terminal, that their files are in Files and that this is their own home; they cannot reach the agent's home, its project folders or the Files mirror from it, and use the Files and project tools instead.

@@ -15,6 +15,8 @@ export interface Step {
   cmd: string;
   /** Type this line into a terminal of the agent (terminal_open, terminal_input, terminal_read) instead of running `cmd`: the other way a model drives a shell. */
   typed?: string;
+  /** Call this other tool of the agent (name and input) instead of a terminal command: how a person's work on a project goes through the project and Files tools. */
+  tool?: { name: string; input: Record<string, unknown> };
   cwd?: string;
   session?: string;
 }
@@ -68,6 +70,12 @@ export async function world(): Promise<World> {
     const got: Got[] = [];
     let n = 0;
     for (const s of steps) {
+      if (s.tool !== undefined) {
+        yield* run("tool_search", { query: s.tool.name.replace(/_/g, " ") });
+        const r = (yield* run(s.tool.name, { ...s.tool.input, idempotencyKey: `${m[1]}-${++n}-t` })) as { ok: boolean; content: unknown };
+        got.push({ ok: r.ok, text: JSON.stringify(r.content).slice(0, 3000) });
+        continue;
+      }
       if (s.typed !== undefined) {
         yield* run("tool_search", { query: "terminal open input read" });
         const opened = (yield* run("terminal_open", { name: `typed-${m[1]}-${n}`, idempotencyKey: `${m[1]}-${++n}-o` })) as {

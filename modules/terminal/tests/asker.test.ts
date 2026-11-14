@@ -37,6 +37,7 @@ test("a place is a Unix user's folder with a history file, config and cache fold
     ensure.includes("mkdir -m 700") && ensure.includes(`exit ${SQUATTED}`),
     "made 0700 by the person's own user; a folder of someone else's is refused",
   );
+  assert.ok(ensure.includes("Your files are in Files. This is your own home on this computer."), "the first line a person reads");
   assert.deepEqual(removeCommand(p).slice(-1), [p.home]);
 });
 

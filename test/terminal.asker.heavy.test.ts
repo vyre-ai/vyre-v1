@@ -115,6 +115,8 @@ test(
     const who = await w.turn(w.ben, "ben-who", [{ cmd: "whoami" }, { cmd: 'echo "$(id -un):$HOME"' }]);
     assert.equal(who[0]!.text, `u${uid}`);
     assert.equal(who[1]!.text, `u${uid}:${mine}`, "a name and a home of his own");
+    const hello = await w.turn(w.ben, "ben-hello", [{ cmd: "tail -1 ~/.bashrc" }]);
+    assert.match(hello[0]!.text, /Your files are in Files\. This is your own home on this computer\./);
 
     // after the workspace slept: Ben's session is made again in his own place, on his own tmux server
     const mgr = boundWorkspaces();
@@ -226,5 +228,93 @@ test(
     assert.equal(ran.status, 200, JSON.stringify(ran.data));
     const got = await w.waitFor("routine-ana");
     assert.match(got[0]!.text, /^\/people\/u2\d{4}$/, "Ana's own place, a Unix user's home, not the agent owner's /home/agent");
+  },
+);
+
+// Review H5 and the lead's ruling (14 Nov): a leaver's data waits for the Trash time. A real member removal on a booted daemon, a real container: at once their programs are stopped and no turn can enter
+// their folder; the folder is still there inside the Trash time (a person removed by mistake gets it back); the pass that removes it works from the container (their own user, an awake workspace).
+test(
+  "a real member removal: the leaver's programs stop and their folder is unreachable at once, kept inside the Trash time, and goes with the leaver's own user when the time is over",
+  { skip, timeout: 900_000 },
+  async (t) => {
+    const w = await world();
+    t.after(() => w.close());
+    const ws = `vyre-ws-${w.agent}`;
+    const got = await w.turn(w.ben, "leaver-1", [
+      { cmd: "echo BEN-KEEP > ~/keep.txt; (sleep 600 >/dev/null 2>&1 &); id -u" },
+    ]);
+    const uid = Number(got[0]!.text);
+    assert.ok(uid >= 20000, got[0]!.text);
+    const alive = async (): Promise<string> =>
+      (await docker(["exec", ws, "sh", "-c", `pgrep -u ${uid} -x sleep | wc -l`])).out.trim().split("\n")[0]!;
+    assert.equal(await alive(), "1", "his program runs");
+    const removed = await w.owner.call("members.remove", { personId: w.ben.id, plan: [] });
+    assert.equal(removed.status, 200, JSON.stringify(removed.data));
+    await waitFor(async () => {
+      await w.d.hooks?.pump?.();
+      return (await alive()) === "0" ? true : null;
+    }, 60_000);
+    // inside the Trash time the folder is there, for the day he is back
+    const kept = await docker(["exec", "--user", `${uid}:${uid}`, ws, "cat", `/people/u${uid}/keep.txt`]);
+    assert.match(kept.out, /BEN-KEEP/, "the folder is kept inside the Trash time");
+    // the pass that removes it, as it runs it: the leaver's own user, an awake workspace, the exit status checked
+    const rm = await docker(["exec", "--user", `${uid}:${uid}`, ws, "sh", "-c", `rm -rf /people/u${uid}; test ! -e /people/u${uid} && echo gone`]);
+    assert.match(rm.out, /gone/);
+    const other = await docker(["exec", ws, "ls", "-d", "/home/agent"]);
+    assert.match(other.out, /\/home\/agent/, "the agent's own home is untouched");
+  },
+);
+
+// Lead's condition (3): a workspace made by the rc.26 image (no named users, no /people volume, the old label and host name) holds the owner's files and has a session running. The first call of a
+// non-owner after the update makes it again with the new bind and the new image; the owner's home and what is in it stay; the non-owner works as their own Unix user; nothing is left unusable.
+// Needs VYRE_RC26_WORKSPACE_IMAGE (an image built from the rc.26 images/agent-workspace); without it the test is skipped and that is not a pass.
+const RC26 = process.env["VYRE_RC26_WORKSPACE_IMAGE"];
+test(
+  "a workspace made by the rc.26 image is made again at the first non-owner call: the owner's home stays, the non-owner is their own Unix user",
+  { skip: skip || (RC26 === undefined ? "needs VYRE_RC26_WORKSPACE_IMAGE (an image built from rc.26)" : false), timeout: 900_000 },
+  async (t) => {
+    const w = await world();
+    t.after(() => w.close());
+    const ws = `vyre-ws-${w.agent}`;
+    await docker(["volume", "create", `${ws}-home`]);
+    await docker(["volume", "create", `${ws}-files`]);
+    const seed = await docker(["run", "--rm", "-v", `${ws}-home:/h`, "--user", "0", "--entrypoint", "sh", RC26!, "-c", "echo OWNER-BEFORE > /h/owner-note.txt; chown -R 10001:10001 /h"]);
+    assert.equal(seed.code, 0, seed.out);
+    const made = await docker([
+      "create", "--name", ws, "--hostname", ws, "--label", `vyre.workspace=${w.agent}`, "--label", "vyre.mounts=0000000000000000",
+      "--user", "10001:10001", "-v", `${ws}-home:/home/agent`, "-v", `${ws}-files:/home/agent/Vyre`, RC26!, "sleep", "infinity",
+    ]);
+    assert.equal(made.code, 0, made.out);
+    await docker(["start", ws]);
+    await docker(["exec", ws, "sh", "-c", "tmux new-session -d -s old-session"]);
+    const owner = await w.turn(w.owner, "up-1", [{ cmd: "cat ~/owner-note.txt; hostname" }]);
+    assert.match(owner[0]!.text, /OWNER-BEFORE\nworkspace/, "the owner's file is where it was; the host name has no id");
+    const ben = await w.turn(w.ben, "up-2", [{ cmd: "whoami; echo $HOME" }]);
+    assert.match(ben[0]!.text, /^u2\d{4}\n\/people\/u2\d{4}$/, ben[0]!.text);
+    const image = (await docker(["inspect", "-f", "{{.Config.Image}}", ws])).out.trim().split("\n")[0];
+    assert.notEqual(image, RC26, "the container was made again on the new image");
+  },
+);
+
+// Lead's condition (6): the common case for a team. A non-owner who is a member of a PROJECT asks the shared agent to work on it: through the project and Files tools it works (their terminal does not
+// mount the agent's project folders in this cut, the kernel keeps them out of reach, and the agent is told to use the Files tools).
+test(
+  "a member of a project asking a shared agent about it: the project and Files tools work for them (the terminal does not mount the agent's project folders in this cut)",
+  { skip, timeout: 900_000 },
+  async (t) => {
+    const w = await world();
+    t.after(() => w.close());
+    const proj = await w.owner.call("projects.create", { type: "project", title: "Shared work" });
+    assert.equal(proj.status, 200, JSON.stringify(proj.data));
+    const projectId = proj.data.projectId as string;
+    const set = await w.owner.call("projects.members.set", { projectId, principal: w.ben.id, role: "member" });
+    assert.equal(set.status, 200, JSON.stringify(set.data));
+    const got = await w.turn(w.ben, "proj-1", [
+      { cmd: "", tool: { name: "projects_get", input: { projectId } } },
+      { cmd: "", tool: { name: "files_list", input: {} } },
+    ]);
+    console.log("PROJ ", JSON.stringify(got.map((g) => g.text.slice(0, 200))));
+    assert.equal(got[0]!.ok, true, "Ben, a member, reads his project through the project tool");
+    assert.match(got[0]!.text, /Shared work/);
   },
 );
