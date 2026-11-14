@@ -247,8 +247,6 @@ interface ThreadState {
   inflight: Set<Promise<void>>;
   /** Wakes the worker when something new can start (a message for an agent that is free) while it waits for turns to end. */
   nudge: (() => void) | null;
-  /** Rewind: ranges of the chat's messages the agents no longer read (afterSeq < threadSeq <= upToSeq). The chat still shows them; only what an agent reads as history skips them. */
-  hidden?: Array<{ afterSeq: number; upToSeq: number }>;
 }
 
 /**
@@ -323,8 +321,6 @@ export interface TurnEngine {
   setMode(threadId: string, agentId: string, mode: AgentMode): void;
   /** An agent joined a thread that is already open here (a task's reviewer, an agent added to a chat): it can be woken and mentioned from now on. Nothing changes when it is in already. */
   engage(threadId: string, agent: EngineAgent): void;
-  /** Rewind: from the next turn the agents read no message after `afterSeq` up to `upToSeq`. Kept ranges are the host's to reload when a thread is opened again. */
-  hide(threadId: string, afterSeq: number, upToSeq: number): void;
   /** Who a wake on this thread runs for (and whose account pays) when the thread was opened for someone else: a task thread is worked for the person who asked for the task. */
   setStarter(threadId: string, starter: string): void;
   /** Change the model, engine or paying account an agent runs on in this thread, from its next turn. */
@@ -1197,9 +1193,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         }
         let switchTo: ResolvedAccount | null = null;
         const stoppedTurn = stoppedBefore(st, item);
-        const upTo = st.messages.filter(
-          (m) => m.threadSeq <= seen && !(st.hidden ?? []).some((h) => m.threadSeq > h.afterSeq && m.threadSeq <= h.upToSeq),
-        );
+        const upTo = st.messages.filter((m) => m.threadSeq <= seen);
         const recent = upTo.slice(-(pokeRows.has(`${st.thread.id}:${item.qseq}`) ? POKE_WINDOW : historyWindow));
         const input = {
           threadId: st.thread.id,
@@ -1889,11 +1883,6 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         .map((w) => ({ turnId: w.turnId, agentId: w.agentId, taskId: w.taskId })),
     setStarter(threadId, starter) {
       need(threadId).thread.starter = starter;
-    },
-    hide(threadId, afterSeq, upToSeq) {
-      const st = threads.get(threadId);
-      if (!st) return;
-      (st.hidden ??= []).push({ afterSeq, upToSeq });
     },
     engage(threadId, agent) {
       const st = need(threadId);

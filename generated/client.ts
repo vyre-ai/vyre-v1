@@ -473,7 +473,6 @@ export function createClient(transport: Transport) {
       recent: call("chat.recent", 1),
       remember: call("chat.remember", 1),
       reply_details: call("chat.reply_details", 1),
-      rewind: call("chat.rewind", 1),
       round: {
         decide: call("chat.round.decide", 1),
         discuss: call("chat.round.discuss", 1),
@@ -914,10 +913,6 @@ export function createClient(transport: Transport) {
       reviewer: {
         get: call("engine.reviewer.get", 1),
         set: call("engine.reviewer.set", 1),
-      },
-      rewind: {
-        points: call("engine.rewind.points", 1),
-        to: call("engine.rewind.to", 1),
       },
       round: {
         get: call("engine.round.get", 1),
