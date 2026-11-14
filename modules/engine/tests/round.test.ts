@@ -25,21 +25,26 @@ function put(
   );
 }
 
-test("a message that asked two agents reads working for the first and waiting on it for the second", async () => {
+// Rewritten 14 Nov 2026 (ARCH 6.2 changed: one turn per agent per thread). Two agents asked in one message run together, so both read working; a row waits only behind an earlier turn of its own agent,
+// and then there is no one else to name ("Next after Dex" was true only while agents queued behind each other).
+test("a message that asked two agents reads working for both; a later row of the same agent waits without naming another agent", async () => {
   const h = harness();
   ensure(h.ctx.db);
   put(h, 1, "msg_a", "agt_dex", "running");
-  put(h, 2, "msg_a", "agt_nova", "queued");
+  put(h, 2, "msg_a", "agt_nova", "running");
+  put(h, 3, "msg_c", "agt_nova", "queued");
   const r = await roundGet(h.ctx, { threadId: T, messageIds: ["msg_a"] });
   assert.deepEqual(r.rounds, [
     {
       messageId: "msg_a",
       agents: [
         { agentId: "agt_dex", state: "working" },
-        { agentId: "agt_nova", state: "waiting", on: "agt_dex" },
+        { agentId: "agt_nova", state: "working" },
       ],
     },
   ]);
+  const later = await roundGet(h.ctx, { threadId: T, messageIds: ["msg_c"] });
+  assert.deepEqual(later.rounds, [{ messageId: "msg_c", agents: [{ agentId: "agt_nova", state: "waiting" }] }]);
 });
 
 test("replied, stopped, and a row dropped unrun (no reason) is left out; a message nobody was asked by is absent", async () => {
