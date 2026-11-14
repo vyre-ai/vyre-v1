@@ -500,9 +500,34 @@ test("a channel with several people in it counts its unread once, and a channel 
 test("a goal that waits on the person lives in Tasks, matched by the goal's id: its Goals row carries no second line, and a goal with the same title is not hidden", async () => {
   const w = world({
     goals: [
-      { id: "gol_s", title: "Close onboarding", status: "stuck", statusReason: "The lead did not check in", leadAgentId: INTAKE, updatedAt: 5, nextCheckinAt: 99, progress: { tasksDone: 0, tasks: 2 } },
-      { id: "gol_t", title: "Close onboarding", status: "stuck", statusReason: "Waiting on the legal team", leadAgentId: INTAKE, updatedAt: 4, nextCheckinAt: 98, progress: { tasksDone: 0, tasks: 2 } },
-      { id: "gol_p", title: "Other goal", status: "paused", leadAgentId: INTAKE, updatedAt: 3, progress: { tasksDone: 0, tasks: 2 } },
+      {
+        id: "gol_s",
+        title: "Close onboarding",
+        status: "stuck",
+        statusReason: "The lead did not check in",
+        leadAgentId: INTAKE,
+        updatedAt: 5,
+        nextCheckinAt: 99,
+        progress: { tasksDone: 0, tasks: 2 },
+      },
+      {
+        id: "gol_t",
+        title: "Close onboarding",
+        status: "stuck",
+        statusReason: "Waiting on the legal team",
+        leadAgentId: INTAKE,
+        updatedAt: 4,
+        nextCheckinAt: 98,
+        progress: { tasksDone: 0, tasks: 2 },
+      },
+      {
+        id: "gol_p",
+        title: "Other goal",
+        status: "paused",
+        leadAgentId: INTAKE,
+        updatedAt: 3,
+        progress: { tasksDone: 0, tasks: 2 },
+      },
     ],
   });
   (w as Record<string, unknown>)["tasks.needs_you"] = () => ({
@@ -530,4 +555,33 @@ test("a goal that waits on the person lives in Tasks, matched by the goal's id: 
   assert.equal(row("gol_t").nextCheckinAt, 98);
   assert.equal(row("gol_p").line, "Paused", "a goal not waiting in Tasks keeps its line");
   assert.equal(out.needs.items[0].verb, "Blocked");
+});
+
+test("an Unblock task made before tasks named their goal (no source) still hides its goal's line, by its title", async () => {
+  const w = world({
+    goals: [
+      {
+        id: "gol_o",
+        title: "Close onboarding",
+        status: "stuck",
+        statusReason: "The lead did not check in",
+        leadAgentId: INTAKE,
+        updatedAt: 5,
+        nextCheckinAt: 99,
+        progress: { tasksDone: 0, tasks: 2 },
+      },
+    ],
+  });
+  (w as Record<string, unknown>)["tasks.needs_you"] = () => ({
+    total: 1,
+    items: [
+      { task: { id: "tsk_o", title: "Stuck: Close onboarding", kind: "unblock", blocked: true, createdBy: INTAKE } },
+    ],
+  });
+  const hn = harness({ calls: w });
+  await agentChat(hn);
+  const out = await h["chats.sidebar"]!(hn.ctx, {});
+  const row = out.goals.rows.find((r: { key: string }) => r.key === "g:gol_o");
+  assert.equal(row.line, undefined);
+  assert.equal(row.nextCheckinAt, undefined);
 });

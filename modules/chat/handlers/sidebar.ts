@@ -513,7 +513,8 @@ export async function chatsSidebar(
     src.pins(),
     safe<{ counts?: { threadId: string; mentions: number }[] }>("notifications.unseen_by_thread", {}),
     safe<{
-      items?: { task: {
+      items?: {
+        task: {
           id: string;
           title: string;
           kind: string;
@@ -658,9 +659,15 @@ export async function chatsSidebar(
       { kind: "project" },
     );
   }
-  const inTasks = new Set(
-    (needsOut?.items ?? []).flatMap((n) => (n.task.source?.kind === "goal" ? [n.task.source.id] : [])),
-  );
+  // a goal that waits on the person has its Unblock task in Needs you: matched by the goal's id (the task's source); a task made before this version names no goal, and is matched by its title
+  const waitingIds = new Set<string>();
+  const waitingTitles = new Set<string>();
+  for (const n of needsOut?.items ?? []) {
+    if (n.task.source?.kind === "goal") waitingIds.add(n.task.source.id);
+    else if (n.task.kind === "unblock" && n.task.title.startsWith("Stuck: ")) waitingTitles.add(n.task.title);
+  }
+  const waitsInTasks = (g: Record<string, unknown>): boolean =>
+    waitingIds.has(String(g["id"])) || waitingTitles.has(`Stuck: ${g["title"]}`);
   for (const g of goalsOut?.goals ?? []) {
     const status = String(g["status"]);
     const pr = (g["progress"] as { tasksDone?: number; tasks?: number } | undefined) ?? {};
@@ -683,12 +690,10 @@ export async function chatsSidebar(
       {
         kind: "goal",
         // a goal waiting on the person lives in Tasks (its Unblock task is there): its Goals row then says nothing a second time
-        ...(!inTasks.has(String(g["id"])) && goalLine(status, g["statusReason"])
+        ...(!waitsInTasks(g) && goalLine(status, g["statusReason"])
           ? { line: goalLine(status, g["statusReason"])! }
           : {}),
-        ...(g["nextCheckinAt"] && !inTasks.has(String(g["id"]))
-          ? { nextCheckinAt: Number(g["nextCheckinAt"]) }
-          : {}),
+        ...(g["nextCheckinAt"] && !waitsInTasks(g) ? { nextCheckinAt: Number(g["nextCheckinAt"]) } : {}),
         progress: { done: Number(pr.tasksDone ?? 0), total: Number(pr.tasks ?? 0) },
         ...(status !== "active" && !ENDED.has(status) ? { quiet: true } : {}),
         ...(ENDED.has(status) ? { ended: true } : {}),

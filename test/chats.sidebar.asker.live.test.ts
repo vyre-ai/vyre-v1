@@ -289,3 +289,24 @@ test("a pin and a mute are the caller's own: Aina's pinned chat is first in her 
   assert.equal(muted?.muted, true, "her muted chat says muted");
   assert.ok(!everything(bn).includes(ainaMuted) && !everything(o).includes(ainaMuted));
 });
+
+test("a goal that goes stuck is said once: the real Unblock task is in Tasks and the goal's own row carries no line (real goals, tasks and sidebar reads, no stubs)", async () => {
+  const stuck = await h.owner.call("goals.mark_stuck", {
+    goalId: ownerGoal,
+    reason: "The registrations number has not moved",
+    options: ["Raise the budget", "Move the deadline"],
+  });
+  assert.equal(stuck.goal.status, "stuck");
+  const out = await h.owner.call("chats.sidebar", {});
+  const need = (out.needs.items as { taskId: string; title: string; verb: string }[]).find(
+    (n) => n.title === "Stuck: Owner only goal",
+  );
+  assert.ok(need, "the real Unblock task is in Needs you");
+  const row = (out.goals.rows as Record<string, unknown>[]).find((r) => r["key"] === `g:${ownerGoal}`);
+  assert.ok(row, "the goal is still a row");
+  assert.equal(row!["line"], undefined, "and says nothing a second time");
+  assert.equal(row!["nextCheckinAt"], undefined);
+  // the task made by the real module names its goal
+  const task = await h.owner.call("tasks.get", { taskId: need!.taskId });
+  assert.deepEqual(task.task.source, { kind: "goal", id: ownerGoal });
+});
