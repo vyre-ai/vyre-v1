@@ -1,1 +1,2 @@
 - The Chats sidebar's Chats, Channels and Team heads (Agents in a Personal Space) wear a plus that opens the head's menu, so New agent, New channel and New chat are one press away and not only behind a right-click.
+- The plus on the Chats, Channels and Team heads shows when the pointer is over the head or the head has focus (always on touch), says what it does (New in Chats, New in Channels, Add to Team, New agent in a Personal Space), and opens only what that section makes: New chat; New channel and Browse channels; Invite and New agent.

@@ -12,7 +12,8 @@ import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 import { Glyph } from "./parts.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { aggMarks } from "./layout.ts";
-import type { Item, LayoutEntry, Mark, Shape } from "./layout.ts";
+import type { Item, LayoutEntry, Mark, SectionId, Shape } from "./layout.ts";
+import { plusWords } from "./side-menus.ts";
 
 type Entry<T extends LayoutEntry["type"]> = Extract<LayoutEntry, { type: T }>;
 
@@ -236,7 +237,7 @@ function ensureHoverCss(): void {
   injectCss(
     d,
     "vyre-side-hover",
-    ".vyre-hm{display:none}.vyre-row:hover .vyre-hm,.vyre-row:focus-within .vyre-hm,.vyre-hm[data-on]{display:flex}@media (hover:none){.vyre-hm{display:flex}}",
+    ".vyre-hp{display:none}.vyre-hd:hover .vyre-hp,.vyre-hd:focus-within .vyre-hp,.vyre-hp[data-on]{display:flex}.vyre-hm{display:none}.vyre-row:hover .vyre-hm,.vyre-row:focus-within .vyre-hm,.vyre-hm[data-on]{display:flex}@media (hover:none){.vyre-hm,.vyre-hp{display:flex}}",
   );
   hoverCss = true;
 }
@@ -265,6 +266,8 @@ export interface EntryHandlers {
   fold?: () => void;
   /** The "..." button: the row's menu at a point. */
   more?: (x: number, y: number) => void;
+  /** A section head's "+": its own menu at a point (New chat, New channel, New agent...). Left out where the section has nothing to add. */
+  plus?: (x: number, y: number) => void;
   /** Spread on the row's element: right-click, the Menu key, a long press and the hint keys (useContextMenu.on). */
   dom?: Record<string, unknown>;
 }
@@ -428,23 +431,27 @@ export function HintView({ entry, onPress }: { entry: Entry<"hint">; onPress(): 
   );
 }
 
-/** The sections whose head wears a "+" (the design's section plus: Chats, Channels, Team). It opens the head's own menu where it was pressed, so New agent in Team (Agents in a Personal Space) is one press away without a right-click. */
-const HEAD_PLUS: readonly string[] = ["chats", "channels", "team"];
-
+/** The head's "+" (the design's section plus): drawn for the sections that have things to add (the layout gives `on.plus` only then). It is in a slot hidden at rest and shown while the pointer is over the head, while the head or the plus has focus, while the keyboard cursor is on the head, and always on a touch screen. Its words say what it does. */
 function HeadPlus({
   label,
   section,
+  cursor,
   onPress,
 }: {
   label: string;
-  section: string;
+  section: SectionId;
+  cursor: boolean;
   onPress: (x: number, y: number) => void;
 }): ReactElement {
-  return (
-    <Tooltip text={`More for ${label}`}>
+  ensureHoverCss();
+  const words = plusWords(section, label);
+  return createElement(
+    "div",
+    { className: "vyre-hp", style: { alignItems: "center" }, ...(cursor ? { "data-on": "1" } : {}) },
+    <Tooltip text={words}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${label} menu`}
+        accessibilityLabel={words}
         testID={`head-plus-${section}`}
         onPress={(ev) => {
           const x = ev as unknown as {
@@ -459,7 +466,7 @@ function HeadPlus({
       >
         <Glyph name="plus" size={15} />
       </Pressable>
-    </Tooltip>
+    </Tooltip>,
   );
 }
 
@@ -478,34 +485,36 @@ export function HeadView({
   const h = entry;
   return wrap(
     entry,
-    <View testID={`head-${h.section}`} style={s.head as never} {...(on.dom ?? {})}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${h.label}${h.folded ? `, ${h.count}, folded` : ""}`}
-        accessibilityState={{ expanded: !h.folded }}
-        testID={`toggle-${h.section}`}
-        onPress={on.press}
-        style={[s.headLabel, state.cursor && s.headCursor] as never}
-      >
-        <Glyph name="chev" size={10} color="var(--ink-4)" />
-        <Text style={s.headText as never}>{h.label}</Text>
-        {h.folded ? (
-          <>
-            <Text testID={`count-${h.section}`} style={s.headCount as never}>
-              {h.count}
-            </Text>
-            {marksOf(h.marks, true)}
-          </>
-        ) : null}
-      </Pressable>
-      <View style={s.grow as never} />
-      <View style={s.tools as never}>
-        {on.more && HEAD_PLUS.includes(h.section) ? (
-          <HeadPlus label={h.label} section={h.section} onPress={on.more} />
-        ) : null}
-        {children}
-      </View>
-    </View>,
+    createElement(
+      "div",
+      { className: "vyre-hd", style: { display: "flex", flexDirection: "row", height: "100%" } },
+      <View testID={`head-${h.section}`} style={[s.head, { flex: 1 }] as never} {...(on.dom ?? {})}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${h.label}${h.folded ? `, ${h.count}, folded` : ""}`}
+          accessibilityState={{ expanded: !h.folded }}
+          testID={`toggle-${h.section}`}
+          onPress={on.press}
+          style={[s.headLabel, state.cursor && s.headCursor] as never}
+        >
+          <Glyph name="chev" size={10} color="var(--ink-4)" />
+          <Text style={s.headText as never}>{h.label}</Text>
+          {h.folded ? (
+            <>
+              <Text testID={`count-${h.section}`} style={s.headCount as never}>
+                {h.count}
+              </Text>
+              {marksOf(h.marks, true)}
+            </>
+          ) : null}
+        </Pressable>
+        <View style={s.grow as never} />
+        <View style={s.tools as never}>
+          {on.plus ? <HeadPlus label={h.label} section={h.section} cursor={state.cursor} onPress={on.plus} /> : null}
+          {children}
+        </View>
+      </View>,
+    ),
   );
 }
 

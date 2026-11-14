@@ -457,6 +457,8 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       // The Chats sidebar of the 13 Nov design (c5da6ccd8, "the product shows the new sidebar") has no "all-agents" tool.
       // The door to New agent is now the plus on the Agents head (a Personal Space's Team section), which opens that
       // head's menu; its item "New agent..." opens the same New agent form as before.
+      // the plus shows while the pointer is over the head (and on focus, and always on touch)
+      await page.getByTestId("head-team").hover({ timeout: 10_000 });
       await page.getByTestId("head-plus-team").first().click({ timeout: 10_000 });
       await page
         .getByRole("menuitem", { name: /^New agent/ })
