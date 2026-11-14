@@ -10,3 +10,5 @@
 - Scheduled work now has one table ready for routines and goals to share, with one rule that makes sure each time runs once (nothing you can see changes yet).
 - A repeating task whose holder's profile time zone is misspelled still comes back, on UTC, instead of stopping.
 - Your routines now run from the scheduler's one table of times. They fire at exactly the times they did before, once each; nothing about how you set a routine up changes.
+
+- A routine that cannot run says so once, in plain words (P1 step 4): three failed tries to start it, or three failed Runs in a row for one cause, pause it and make one Needs-you item for its owner ("<routine> paused: <why>") and one line in its chat; a trouble that clears on a retry tells nobody; a Run that goes well withdraws the item. A server that was off across several times starts the routine once and its chat says how many runs came due.

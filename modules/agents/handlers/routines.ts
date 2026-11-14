@@ -5,7 +5,8 @@
 //   template.get / .preview / .apply                the Agent template: add, never remove, never overwrite; changed files become suggestions; try one agent first
 //   guide.get / builtin_skills.list                 Vyre's own text, rewritten by app updates
 import { readFileSync } from "node:fs";
-import { forgetSelfPause, isSelfPaused } from "../routine-guard.ts";
+import { forgetSelfPause, isSelfPaused, noteRun } from "../routine-guard.ts";
+import { tellMissed, tellPaused } from "../routine-told.ts";
 import {
   BUILTIN_SKILLS,
   GUIDE_MD,
@@ -257,12 +258,30 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
     return { started: false, why: "The agent is paused or gone." };
   }
   const key = `routine:${r.id}:${r.nextRunAt}`;
-  const started = await call<{ runId: string }>(
-    ctx,
-    "runs.start",
-    { idempotencyKey: key, kind: "routine", name: r.title, owner: r.ownerId },
-    { idempotencyKey: key },
-  );
+  let started: { runId: string };
+  try {
+    started = await call<{ runId: string }>(
+      ctx,
+      "runs.start",
+      { idempotencyKey: key, kind: "routine", name: r.title, owner: r.ownerId },
+      { idempotencyKey: key },
+    );
+  } catch (e) {
+    // the fire is tried again after its lease (three tries); the third failed try pauses the routine, tells its owner once, and the fire ends failed
+    const message = e instanceof Error ? e.message : String(e);
+    ctx.log.warn("a routine's Run could not be started", { routineId: r.id, error: message });
+    const paused = noteRun(ctx.db, r.id, false, "start_failed", message, now);
+    if (paused)
+      await tellPaused(ctx, {
+        routineId: r.id,
+        ownerId: r.ownerId,
+        title: paused.title,
+        channelId: paused.threadId,
+        code: "start_failed",
+        at: now,
+      });
+    throw e;
+  }
   markRoutineRan(ctx.db, r.id, now);
   noteRoutineRun(ctx.db, r.id, started.runId, now);
   ctx.emit("agent.routine_run_started", agent.id, {
@@ -272,6 +291,7 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
     ownerId: r.ownerId,
     requestedBy: "schedule",
   });
+  await tellMissed(ctx, { id: r.id, title: r.title, channelId: r.channelId ?? null, cron: r.cron }, r.nextRunAt, now);
   return { started: true, runId: started.runId };
 }
 

@@ -25,9 +25,10 @@ import type {
   SettingChangedEvent,
   TurnEvent,
 } from "./handlers/crud.ts";
-import { agentOf, nextRun, noteRoutineOutcome } from "./projections.ts";
+import { agentOf, nextRun, noteRoutineOutcome, routineBy } from "./projections.ts";
 import { reconcileWakes } from "./routine-wake.ts";
 import { noteRun, resumeSelfPaused } from "./routine-guard.ts";
+import { tellPaused, withdrawTold } from "./routine-told.ts";
 import type { AgentsCtx } from "./projections.ts";
 import { setPluginsHost } from "./handlers/plugins.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
@@ -104,39 +105,31 @@ export const consumers = {
       );
       if (event.name === "run.stopped") return ids;
       for (const id of ids) {
-        // three failures in a row for one reason: the routine pauses itself and says so once in its chat
+        // a Run that went well: the Needs-you item of an earlier pause is no longer true
+        if (event.name === "run.succeeded") await withdrawTold(ctx, id);
+        // three failures in a row for one reason: the routine pauses itself; its owner gets one item and its chat one line (routine-told.ts)
+        const at = ctx.now();
+        const code = String(event.payload.code ?? "run.failed");
         const paused = noteRun(
           ctx.db,
           id,
           event.name === "run.succeeded",
-          String(event.payload.code ?? "run.failed"),
+          code,
           String(event.payload.message ?? ""),
-          ctx.now(),
+          at,
         );
         if (!paused) continue;
         ctx.log.warn("a routine paused itself after repeated failed runs", { routineId: id, reason: paused.reason });
-        if (paused.threadId && ctx.call) {
-          try {
-            // a channel's id names its main chat; the chat capabilities take that chat's own id
-            let threadId = paused.threadId;
-            if (threadId.startsWith("chn_"))
-              threadId = String(
-                ((await ctx.call("channels.get", { channelId: threadId })) as { channel?: { mainThreadId?: string } })
-                  .channel?.mainThreadId ?? threadId,
-              );
-            await ctx.call("chat.post", {
-              threadId,
-              body: `Paused "${paused.title}" after ${3} failed runs: ${paused.reason}`,
-              mentions: [],
-              idempotencyKey: `routine-paused:${id}:${ctx.now()}`,
-            });
-          } catch (e) {
-            ctx.log.warn("the routine's pause could not be said in its chat", {
-              routineId: id,
-              error: e instanceof Error ? e.message : String(e),
-            });
-          }
-        }
+        const owner = routineBy(ctx.db, id)?.ownerId;
+        if (owner)
+          await tellPaused(ctx, {
+            routineId: id,
+            ownerId: owner,
+            title: paused.title,
+            channelId: paused.threadId,
+            code,
+            at,
+          });
       }
       return ids;
     },
