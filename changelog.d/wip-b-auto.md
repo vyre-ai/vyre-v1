@@ -33,3 +33,4 @@
 - feat: a trigger can be added by hand: an empty Automation shows one row, Choose what starts this, and Or adds another from the list of what this person can use; a trigger can be removed from its form.
 - feat: doors back after the switch-in: Apply for runs pinned to an older version in History; Make a copy to share and Import a copy in the ... menu and Settings (the Packages panel); This Automation uses in Settings (Dependencies).
 - feat: the head says the version, the failed run count (Runs, 1 failed) and what the Automation sends from; a step nothing leads to is shown after the rest; a step kind this version does not know is its own row, kind named, settings untouched.
+- feat: Event log and Automation usage are Console pages (Security, Audit log tab), listed by the server only to a person with audit.read; the old Live Event Explorer and Analytics views are mounted there.

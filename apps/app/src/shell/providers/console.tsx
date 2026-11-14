@@ -56,6 +56,7 @@ import { SpaceDeletePage } from "../../console/pages/SpaceDelete.tsx";
 import { ExportPage } from "../../console/pages/ExportPage.tsx";
 import { SendRulesPage } from "../../console/pages/SendRules.tsx";
 import { DncPage } from "../../console/pages/Dnc.tsx";
+import { AutomationUsagePage, EventLogPage } from "../../console/pages/AutomationLogs.tsx";
 import { Assistant } from "../../console/Assistant.tsx";
 import { Audit } from "../../console/pages/audit/Audit.tsx";
 import { Overview } from "../../console/pages/overview/Overview.tsx";
@@ -89,6 +90,8 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "export") return <ExportPage />;
   if (id === "sendrules") return <SendRulesPage />;
   if (id === "dnc") return <DncPage />;
+  if (id === "eventlog") return <EventLogPage />;
+  if (id === "autousage") return <AutomationUsagePage />;
   if (id === "network") return <Network />;
   if (id === "speed") return <Speed />;
   if (id === "updates") return <Updates />;
