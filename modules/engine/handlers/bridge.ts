@@ -16,6 +16,7 @@ import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.
 import { ALL_AGENTS, route as routeOf } from "../../../lib/route.ts";
 import { localClock, readPublicTime } from "../../../lib/presence.ts";
 import { hasReads } from "../../../host/src/seams/answer-reads.ts";
+import { chatAudience, othersRead } from "../../../lib/audience.ts";
 import { findProgram } from "../cli-programs.ts";
 import { engineIfBound, sqlMessages, withMessageId, mintId } from "../projections.ts";
 import { setUsing } from "../node-turns.ts";
@@ -169,6 +170,9 @@ export type StreamEvent =
         detail?: string;
         parent?: string;
       }>;
+      /** Who the frame is for when it is split: the asker's frame carries what each step touched, the others' frame the same steps without it (live-coalesce.ts, F51). */
+      asker?: string;
+      audience?: "asker" | "others";
     }
   /** A piece of the thinking the provider sent. It goes only to the person whose turn it is (hole 8), over the live link; it is never logged and never saved. */
   | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
@@ -735,6 +739,14 @@ export function createBridge(o: BridgeOptions): Bridge {
       (async function* () {
         const seg: Segment = { blocks: [], text: "", mentions: 0, t0: (o.now ?? Date.now)(), calls: new Map() };
         let afterBlock = false;
+        // does anyone besides the asker read this chat? Then the saved steps name only what happened, never what it touched (a file's name, the counts of a command's output): F51. A chat nobody
+        // else reads (a private Assistant's) keeps them. A chat that cannot be read counts as shared.
+        const shared = o.callAs
+          ? await chatAudience((cap, inp) => o.callAs!(cap, inp, input.asker), input.threadId).then(
+              (a) => othersRead(a, input.asker),
+              () => true,
+            )
+          : true;
         live.set(input.turnId, seg);
         const subCalls = new Map<string, string>(); // a subagent's own calls: id -> tool name
         for await (const ev of s.send(input)) {
@@ -852,14 +864,15 @@ export function createBridge(o: BridgeOptions): Bridge {
               typeof p.id === "string" && typeof p.detail === "string" && p.detail !== ""
                 ? seg.blocks.find((x) => x.type === "tool_call" && (x.data as { id?: unknown }).id === p.id)
                 : undefined;
-            if (call && /^(Agent|Task)$/.test(String((call.data as { name?: unknown }).name)))
+            if (call && !shared && /^(Agent|Task)$/.test(String((call.data as { name?: unknown }).name)))
               call.data = { ...(call.data as Record<string, unknown>), detail: p.detail };
             // only the file's name is kept with a file step, so a finished helper can say "Edited dark-mode.txt"; the path and the rest of the input stay on the live line
             const nm = String((call?.data as { name?: unknown } | undefined)?.name ?? "");
             if (
               call &&
               /^(Read|Edit|Write|MultiEdit|NotebookEdit|files_read|files_create|files_write)/i.test(nm) &&
-              fileBase(String(p.detail)) !== ""
+              fileBase(String(p.detail)) !== "" &&
+              !shared
             )
               call.data = { ...(call.data as Record<string, unknown>), label: fileBase(String(p.detail)) };
           } else if (ev.type === "block") {
@@ -925,7 +938,7 @@ export function createBridge(o: BridgeOptions): Bridge {
               }
               if (call) data = { ...data, name: call.name, secs: Math.max(0, Math.round((now - call.at) / 1000)) };
               // a test run keeps its counts on its call ("1 passing, 1 failing"): the summary lines themselves are not saved
-              if (said !== "" && testCounts(said) !== "") {
+              if (said !== "" && testCounts(said) !== "" && !shared) {
                 const blk = seg.blocks.find((x) => x.type === "tool_call" && (x.data as { id?: unknown }).id === id);
                 if (blk) blk.data = { ...(blk.data as Record<string, unknown>), ran: testCounts(said) };
               }

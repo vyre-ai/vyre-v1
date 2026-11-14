@@ -39,7 +39,16 @@ export type EngineStreamEvent =
       /** the turn read something: its live text goes to the asker only until the answer is checked (gap 6) */ asker?: string;
       privately?: boolean;
     }
-  | { kind: "steps"; threadId: string; turnId: string; agentId: string; steps: unknown[] }
+  | {
+      kind: "steps";
+      threadId: string;
+      turnId: string;
+      agentId: string;
+      steps: unknown[];
+      /** a split frame: "asker" carries what each step touched and goes to that person only; "others" carries the same steps without it and goes to every other reader */
+      asker?: string;
+      audience?: "asker" | "others";
+    }
   | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
   | {
       kind: "end";
@@ -247,6 +256,15 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     const pub = d.publishTurn?.();
     if (!pub) return;
     const { turnId, kind, ...rest } = e;
+    const split = e.kind === "steps" && e.asker !== undefined && e.audience !== undefined ? e : null;
+    if (split) {
+      // the frame says who it is for; the screen is not told (the person sees one list of steps)
+      const { asker: _a, audience: _u, ...frame } = rest as Record<string, unknown>;
+      pub({ t: "turn", turn: turnId, delta: { kind, ...frame } }, (person) =>
+        split.audience === "asker" ? person === split.asker : person !== split.asker && mayRead(e.threadId, person),
+      );
+      return;
+    }
     // what the model thought may rest on what only the person who asked can read: in a shared chat it goes to them and nobody else (hole 8)
     // so may the text of a turn that read something, until its answer is checked against everyone who reads the chat (gap 6): the checked answer is posted for all
     const onlyAsker = kind === "thinking" || (kind === "delta" && e.privately === true) ? (e.asker ?? "") : null;

@@ -90,3 +90,33 @@ test("thinking gathers too and stays addressed to the person who asked", () => {
     ],
   );
 });
+
+test("what a step touched goes to the asker's frame only; every reader gets the same steps without it", () => {
+  const r = rig();
+  r.push({ kind: "start", threadId: "t", turnId: "u", agentId: "a", asker: "usr_alice" });
+  r.push(r.step("c1"));
+  r.push({
+    kind: "step",
+    threadId: "t",
+    turnId: "u",
+    agentId: "a",
+    phase: "input",
+    id: "c1",
+    detail: "/work/alice/notes.txt",
+  });
+  r.push({ kind: "end", threadId: "t", turnId: "u", agentId: "a", state: "done" });
+  const frames = r.out.filter((e) => e.kind === "steps") as Array<Extract<StreamEvent, { kind: "steps" }>>;
+  const forAsker = frames.filter((f) => f.audience === "asker");
+  const forOthers = frames.filter((f) => f.audience === "others");
+  assert.equal(JSON.stringify(forAsker).includes("notes.txt"), true, "the asker's frame names what the step touched");
+  assert.equal(
+    forAsker.every((f) => f.asker === "usr_alice"),
+    true,
+  );
+  assert.equal(JSON.stringify(forOthers).includes("notes.txt"), false, "the others' frame does not");
+  assert.equal(
+    forOthers.some((f) => f.steps.some((s) => s.id === "c1")),
+    true,
+    "but it says the step happened",
+  );
+});

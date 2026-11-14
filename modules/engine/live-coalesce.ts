@@ -39,7 +39,32 @@ export function coalesceLive(
       w.timer = null;
     }
     w.last = now();
-    if (w.steps.length > 0) out({ kind: "steps", threadId: w.threadId, turnId, agentId: w.agentId, steps: w.steps });
+    if (w.steps.length > 0) {
+      // Everyone who reads the chat is told THAT work happened: the step's name, working or done, whether it went well. What a step touched (a file name, a path, a query, a line of output) goes only to the person
+      // whose turn it is, in a frame of its own that the host sends to them alone; the rest get the same steps without it (F51).
+      const plain = w.steps.map(({ detail: _d, ...rest }) => rest);
+      const touched = w.steps.some((x) => x.detail !== undefined);
+      if (touched && w.asker) {
+        out({
+          kind: "steps",
+          threadId: w.threadId,
+          turnId,
+          agentId: w.agentId,
+          steps: w.steps,
+          asker: w.asker,
+          audience: "asker",
+        });
+        out({
+          kind: "steps",
+          threadId: w.threadId,
+          turnId,
+          agentId: w.agentId,
+          steps: plain,
+          asker: w.asker,
+          audience: "others",
+        });
+      } else out({ kind: "steps", threadId: w.threadId, turnId, agentId: w.agentId, steps: plain });
+    }
     if (w.thinking !== "")
       out({
         kind: "thinking",
@@ -52,7 +77,12 @@ export function coalesceLive(
     w.steps = [];
     w.thinking = "";
   };
+  const askers = new Map<string, string>();
   return (e) => {
+    if (e.kind === "start") {
+      askers.set(e.turnId, e.asker);
+      if (askers.size > 2_000) askers.delete(askers.keys().next().value as string);
+    }
     // a subagent's own lines are for the crew rows (crew-watch.ts reads the raw stream); the live line says "Working with a helper" while its call runs
     if (e.kind === "step" && e.parent) return;
     if (e.kind === "step" || e.kind === "thinking") {
@@ -61,6 +91,7 @@ export function coalesceLive(
         agentId: e.agentId,
         steps: [],
         thinking: "",
+        ...(askers.get(e.turnId) ? { asker: askers.get(e.turnId) as string } : {}),
         timer: null,
         last: 0,
       };
