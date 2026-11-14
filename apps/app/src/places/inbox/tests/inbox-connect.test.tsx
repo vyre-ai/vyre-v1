@@ -162,3 +162,19 @@ test("with the connect door, each tile opens its own sheet in place (Gmail, Outl
     "the old navigation is not used when the door exists",
   );
 });
+
+test("a person who may not buy or connect a number is not shown the Twilio tile at all; one who may is", () => {
+  const { canBuyNumbers: _sampleAdmin, ...sample } = createSampleInbox(none).data;
+  const withFlag = (canBuyNumbers: boolean | undefined) =>
+    renderToStaticMarkup(
+      <InboxDataProvider value={{ ...sample, ...(canBuyNumbers === undefined ? {} : { canBuyNumbers }) }}>
+        <InboxStateProvider initial={{}}>
+          <ConnectChannel />
+        </InboxStateProvider>
+      </InboxDataProvider>,
+    );
+  assert.ok(!withFlag(false).includes('data-testid="connect-twilio"'), "a member: absent, not disabled");
+  assert.ok(!withFlag(undefined).includes('data-testid="connect-twilio"'), "unknown is the same as no");
+  assert.ok(withFlag(true).includes('data-testid="connect-twilio"'));
+  for (const k of ["gmail", "outlook", "imap"]) assert.ok(withFlag(false).includes(`data-testid="connect-${k}"`), k);
+});

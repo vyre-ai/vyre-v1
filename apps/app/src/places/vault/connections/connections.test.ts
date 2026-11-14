@@ -370,3 +370,15 @@ test("an imported remote with no key that answers 401 becomes a sign-in; a confi
   );
   assert.deepEqual(await fileKeys(fx.call, "mine", "x", []), {}, "no keys, no Vault item");
 });
+
+test("a Space account can be removed or reconnected only by an admin; a person's own account by them", () => {
+  const space: Account = { ...ACCOUNTS[0]!, connectionId: "con_s", owner: { kind: "space", id: "spc_1" } };
+  const own: Account = { ...ACCOUNTS[0]!, connectionId: "con_m", owner: { kind: "person", id: "usr_maya" } };
+  const rows = (home: typeof HOME | null) => assemble(home, [space, own], [], "usr_maya", String, String);
+  const manage = (a: ReturnType<typeof rows>, id: string) =>
+    [...a.mine, ...a.space].find((r) => r.id === id)?.canManage;
+  assert.equal(manage(rows({ ...HOME, admin: false }), "con_s"), false, "a member may not manage the Space's account");
+  assert.equal(manage(rows(null), "con_s"), false);
+  assert.equal(manage(rows({ ...HOME, admin: true }), "con_s"), true);
+  assert.equal(manage(rows({ ...HOME, admin: false }), "con_m"), true, "their own account is theirs");
+});

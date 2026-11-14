@@ -65,6 +65,8 @@ export interface InboxData {
   me?: string;
   /** Extras for one line (the line's key). Absent: the line shows only what the list capability returns. */
   extras?(key: string): RowExtras | undefined;
+  /** The person holds comms.numbers (the permission the server checks to buy or import a number): only then is the Twilio tile offered. Absent is no. */
+  canBuyNumbers?: boolean;
   /** Naming and grouping for the Space's numbers. */
   numbers?(): ReadonlyMap<string, NumberInfo>;
   /** The Space's agents by name, so a draft says who drafted it by name. Absent: the contact tab reads the directory itself. */

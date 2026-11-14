@@ -17,6 +17,9 @@ function world(o: { google?: object | null; microsoft?: object | null; putFails?
     o.google === undefined ? { configured: false, redirectUri: "https://space.test/oauth/callback" } : o.google;
   const taken = new Set(o.putFails ?? []);
   const data = {
+    // the admin of a team Space: the way into Connect your company is the answer to "may this person set up the sign-in apps"
+    openCompany: () => undefined,
+    spaces: [{ id: "s", name: "Northwind", addr: "", kind: "team", role: "admin", needsYou: 0, current: true }],
     call: async (cap: string, input: unknown) => {
       calls.push({ cap, input });
       if (cap === "google.user.app_status") {
@@ -155,4 +158,24 @@ test("a refused app says why and keeps the guide open; a provider this server la
   await flush();
   assert.match(textOf(root), /#Nope has no client_id/);
   assert.ok(find(root, "row-signin.google.redirect"));
+});
+
+test("a member of a team Space is not shown a setup only an admin can finish; a Personal Space owner is", async () => {
+  const w = world();
+  const member = {
+    ...w.data,
+    openCompany: undefined,
+    spaces: [{ id: "s", name: "Northwind", addr: "", kind: "team", role: "member", needsYou: 0, current: true }],
+  } as unknown as SettingsData;
+  const root = await mountIt(member);
+  await flush();
+  assert.equal(find(root, "signin-google"), null);
+  assert.ok(!/Google sign-in/.test(textOf(root)));
+  const personal = {
+    ...member,
+    spaces: [{ id: "s", name: "Mine", addr: "", kind: "personal", role: "owner", needsYou: 0, current: true }],
+  } as unknown as SettingsData;
+  const root2 = await mountIt(personal);
+  await flush();
+  assert.match(textOf(root2), /Google sign-in/);
 });

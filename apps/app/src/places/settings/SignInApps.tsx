@@ -5,7 +5,7 @@ import { Fragment, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Linking } from "react-native";
 import { attemptKey } from "../../shell/providers/files-review.ts";
-import { useSettingsData } from "./data.tsx";
+import { useIsPersonal, useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
 import { Field, Glyph, Section, SettingsRow, SmallButton } from "./ui.tsx";
 
@@ -106,8 +106,9 @@ async function fileApp(call: Call, g: Guide, id: string, secret: string, tenant:
   throw new Error("Too many Vault items with that name.");
 }
 
-export function SignInApps(): ReactElement {
+export function SignInApps(): ReactElement | null {
   const data = useSettingsData();
+  const personal = useIsPersonal();
   const saved = useSaved();
   const [status, setStatus] = useState<Record<string, Status | null>>({});
   const [open, setOpen] = useState<string | null>(null);
@@ -120,9 +121,12 @@ export function SignInApps(): ReactElement {
         () => setStatus((st) => ({ ...st, [g.key]: null })),
       );
   };
+  // setting up a sign-in app needs connectors.manage: a team Space shows the way in only to a person who has it (the same answer Settings uses for Connect your company); a Personal Space is its owner's
+  const mayManage = personal || data.openCompany !== undefined;
   useEffect(() => {
-    load();
-  }, [data]);
+    if (mayManage) load();
+  }, [data, mayManage]);
+  if (!mayManage) return null;
   const save = async (g: Guide): Promise<void> => {
     setBusy(true);
     try {
