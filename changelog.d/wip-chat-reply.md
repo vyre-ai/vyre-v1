@@ -5,3 +5,4 @@
 - A failed reply says "Try again" and no longer prints the engine exit code on the card (it stays under Details).
 - Charts fill the frame's width and both bars say "Copy as CSV". A drawn diagram no longer sits on a white canvas in the dark skin and uses the app's sans text.
 - The question that docks above the composer always shows the first answer and "Other" (the rest and a box for words), also when only two answers exist.
+- The question card in the chat itself now has the same rows: a why line, each answer with its consequence or "Recommended" on the right, and "Your own answer" as the last row.

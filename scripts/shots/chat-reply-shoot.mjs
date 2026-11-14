@@ -10,7 +10,10 @@ const { routeUrl } = await import(path.join(REPO, "scripts/shots/lib.mjs"));
 const { exportEnv } = await import(path.join(REPO, "scripts/lib/registry-hash.mjs"));
 const appDir = path.join(REPO, "scripts/shots/app");
 const args = process.argv.slice(2);
-const [id, out] = args.filter((a) => !a.startsWith("--"));
+const [idArg, out] = args.filter((a) => !a.startsWith("--"));
+const id = idArg.split("?")[0];
+const query = idArg.includes("?") ? "?" + idArg.split("?")[1] : "";
+const tag = query ? "-" + query.replace(/[^a-z]/gi, "") : "";
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
   execSync((await import(path.join(REPO, "scripts/shots/expo-cmd.mjs"))).exportCmd(REPO), {
@@ -34,7 +37,7 @@ for (const skin of ["paper", "graphite"])
       reducedMotion: "reduce",
     });
     const page = await ctx.newPage();
-    await page.goto(routeUrl(real.origin, `/m/${id}`, skin), { waitUntil: "load", timeout: 60000 });
+    await page.goto(routeUrl(real.origin, `/m/${id}${query}`, skin), { waitUntil: "load", timeout: 60000 });
     if (args.includes("--live")) {
       if (size === "phone") {
         await ctx.close();
@@ -50,7 +53,7 @@ for (const skin of ["paper", "graphite"])
       }
     } else {
       await page.waitForTimeout(1500);
-      await page.screenshot({ path: path.join(out, `${id}-${skin}-${size}.png`), fullPage: true });
+      await page.screenshot({ path: path.join(out, `${id}${tag}-${skin}-${size}.png`), fullPage: true });
     }
     await ctx.close();
   }
