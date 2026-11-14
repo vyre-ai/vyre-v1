@@ -1,6 +1,6 @@
 # computers.browser.preview
 
-One still picture of an agent's browser for the Computer tab, from the Space; it never wakes the browser (asleep answers no picture). Who may watch the live view may ask; a person never sees a page that a sign-in hides from them
+One still picture of an agent's browser for the Computer tab, from the Space; it never wakes the browser (asleep answers no picture). Who may watch the live view may ask; while a person has taken the browser over, only they get a picture
 
 | | |
 |---|---|

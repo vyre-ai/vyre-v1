@@ -10,6 +10,9 @@ import { bootScreens, browserOrSkip, open, seat, shoot } from "./support/mail-br
 import { standIn } from "./memory-live-kit.ts";
 import { guardCrashes } from "../apps/app/tests/crash-guard.ts";
 
+// taking the keyboard is OFF by default in the product (rc.28); this walk is about it, so it is turned on
+process.env["VYRE_TERMINAL_TAKEOVER"] = "1";
+
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1" && process.env["VYRE_WORKSPACE_IMAGE"] !== undefined;
 const skip: string | false = ON
   ? false

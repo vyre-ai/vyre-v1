@@ -26,5 +26,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "terminal.run": async () => ({"durationMs":1,"exitCode":1,"output":"example","terminalId":"trm_a1b2c3","truncated":true} as unknown) as never,
   "terminal.status": async () => ({"rows":[{"exitCode":1,"lastCommand":"example","lastLine":"example","state":"running","terminalId":"trm_a1b2c3"}]} as unknown) as never,
   "terminal.take_over": async () => ({"terminal":{"agentId":"agt_a1b2c3","by":{"kind":"agent","name":"Ember"},"cols":1,"computerId":"cmt_a1b2c3","createdAt":1760000000000,"cwd":"example","deviceId":"dev_a1b2c3","exitCode":1,"heldBy":"usr_a1b2c3","host":"agent_computer","hostTitle":"Intake's computer","lastActiveAt":1760000000000,"name":"build","named":true,"ownerId":"usr_a1b2c3","rows":1,"runId":"run_a1b2c3","state":"running","terminalId":"trm_a1b2c3","threadId":"thr_a1b2c3"}} as unknown) as never,
-  "terminal.workspace": async () => ({"canAttach":true,"cannotAttach":"example","host":"space","line":"example","nodeId":"example","projects":["prj_a1b2c3"],"state":"running"} as unknown) as never,
+  "terminal.workspace": async () => ({"canAttach":true,"cannotAttach":"example","host":"space","line":"example","nodeId":"example","projects":["prj_a1b2c3"],"state":"running","takeOver":true} as unknown) as never,
 };

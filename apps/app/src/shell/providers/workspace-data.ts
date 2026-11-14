@@ -26,6 +26,7 @@ export interface WorkspaceRead {
   projects?: readonly string[] | undefined;
   canAttach: boolean;
   cannotAttach?: string | undefined;
+  takeOver?: boolean | undefined;
 }
 
 /**
@@ -56,6 +57,7 @@ export function workspaceView(
     state,
     sessions,
     canAttach: read.canAttach && read.state !== "unavailable",
+    ...(read.takeOver === false ? { takeOver: false } : {}),
     // waiting and unavailable say why; running says what keeps it awake past its idle time ("running: tail -f app.log")
     ...(read.state === "waiting" || read.state === "unavailable" || read.state === "running"
       ? read.line

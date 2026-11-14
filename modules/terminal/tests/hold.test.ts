@@ -1,6 +1,9 @@
 // The keyboard of a terminal (13 Nov, AGENT-COMPUTER-2026-11-13.md B2 and B3, section 11 rules 1 and 4): a person takes it with one call and hands it back; while held the agent's commands and everyone
 // else's keys are refused with one plain sentence; a hold nobody uses for 15 minutes ends by itself; only the owner of the terminal or an admin takes it from another person.
 import test from "node:test";
+
+// the hold and the keys are tested with take-over ON; it is OFF by default in the product (see the last tests of this file)
+process.env["VYRE_TERMINAL_TAKEOVER"] = "1";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { bindHost, hideRunLine, rememberSecrets, scopeOfId } from "../projections.ts";
@@ -558,4 +561,34 @@ test("a person watching sees the command an agent ran, never the line that types
   // a person's own printf is left alone
   const own = "$ printf '%s' hello";
   assert.equal(hideRunLine(own), own);
+});
+
+test("take-over OFF (the product's default): a person is refused terminal.take_over, terminal.keys and terminal.give_back with one plain sentence, and nothing is sent", async () => {
+  const { hn } = keyed();
+  const id = await open(hn);
+  const was = process.env["VYRE_TERMINAL_TAKEOVER"];
+  delete process.env["VYRE_TERMINAL_TAKEOVER"];
+  try {
+    for (const [cap, input] of [
+      ["terminal.take_over", { terminalId: id }],
+      ["terminal.keys", { terminalId: id, keys: [{ text: "x" }] }],
+      ["terminal.give_back", { terminalId: id }],
+    ] as const) {
+      let msg = "";
+      const code = await rejects(async () => {
+        try {
+          await h[cap]!(hn.ctx, input);
+        } catch (e) {
+          msg = String((e as { error?: { message?: string } }).error?.message ?? e);
+          throw e;
+        }
+      });
+      assert.equal(code, "permission.no_grant", cap);
+      assert.equal(msg, "Typing here is not available yet.", cap);
+    }
+    assert.equal((await call(hn, "terminal.workspace", { agentId: "agt_intake" })).takeOver, false, "the app is told");
+    assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined, "nothing was taken");
+  } finally {
+    process.env["VYRE_TERMINAL_TAKEOVER"] = was ?? "1";
+  }
 });

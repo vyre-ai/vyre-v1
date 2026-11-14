@@ -42856,6 +42856,7 @@ export type TerminalWorkspaceOut = {
   projects?: Array<string>;
   canAttach: boolean;
   cannotAttach?: string;
+  takeOver?: boolean;
 };
 export type ThreadsAddAgentIn = {
   threadId: string;

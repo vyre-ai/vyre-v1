@@ -108,6 +108,12 @@ export default defineManifest({
           projects: t.opt(t.arr(id.project)),
           canAttach: t.bool(),
           cannotAttach: t.opt(t.str({ description: "Why not, as one sentence" })),
+          takeOver: t.opt(
+            t.bool({
+              description:
+                "Whether a person may take the keyboard of a terminal here (off by default in rc.28: re-sent keys are not idempotent yet). When false the app draws a watching view and no Take over",
+            }),
+          ),
         },
         tool: "terminal",
         label: "check",
@@ -165,7 +171,7 @@ export default defineManifest({
         perm: "terminal.use",
         emits: ["terminal.opened"],
         tool: "terminal",
-        errors: ["permission.needs_team", "provider.unavailable"],
+        errors: ["permission.needs_team", "permission.no_grant", "provider.unavailable"],
         cli: "vyre terminal open",
       },
     ),
@@ -246,7 +252,7 @@ export default defineManifest({
       emits: ["terminal.given_back"],
       idem: "natural",
       offline: "online",
-      errors: ["permission.role_lacks_permission"],
+      errors: ["permission.no_grant", "permission.role_lacks_permission"],
     }),
     read(
       "terminal.capture",
@@ -287,7 +293,7 @@ export default defineManifest({
         offline: "online",
         risk: "medium",
         rate: { n: 3000, perSeconds: 60, scope: "principal" },
-        errors: ["validation.bad_input", "validation.precondition_failed"],
+        errors: ["permission.no_grant", "validation.bad_input", "validation.precondition_failed"],
       },
     ),
     write("terminal.interrupt", "Send Ctrl-C to a session", {
@@ -450,7 +456,7 @@ export default defineManifest({
     }),
     ev(
       "terminal.given_back",
-      "The keyboard of a terminal went back to the agent (handed back, or nobody used it for 15 minutes)",
+      "The keyboard of a terminal was handed back to the agent by the person who held it (a hold that ran out after 15 quiet minutes is read as over and emits nothing)",
       {
         p: { terminalId: id.terminal, by: t.str() },
         subject: ["terminal", "/terminalId"],

@@ -459,6 +459,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
           data={data.terminal}
           agentName={name}
           asleep={wsView?.state === "asleep"}
+          watchOnly={wsView?.takeOver === false}
           sessions={wsView?.sessions ?? []}
           start={termSheet}
           me={data.me?.id}

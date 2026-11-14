@@ -940,6 +940,7 @@ lf(a6610[i6610], p + "/projects" + '/' + i6610, e, L75);
 }
 if ("canAttach" in o6609) lf(o6609["canAttach"], p + "/canAttach", e, L3);
 if ("cannotAttach" in o6609) lf(o6609["cannotAttach"], p + "/cannotAttach", e, L1);
+if ("takeOver" in o6609) lf(o6609["takeOver"], p + "/takeOver", e, L3);
 }
 }
 }

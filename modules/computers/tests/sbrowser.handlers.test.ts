@@ -619,3 +619,35 @@ test("the stream relay cuts a viewer whose ticket was minted before another pers
     off();
   }
 });
+
+test("the browser picture fails closed: when the hold look-up itself fails, preview answers no picture and stream is refused", async () => {
+  const r = rig();
+  try {
+    const base = as(DANA, false);
+    await tool["computers.browser.take_over"]!(base.ctx, { agentId: "agt_named" });
+    const w = harness({ raw: base.raw, principal: { kind: "person", id: WATCHER }, manager: false, respond }).ctx;
+    const broken = {
+      ...w,
+      db: new Proxy(w.db, {
+        get(t, k, rcv) {
+          const v = Reflect.get(t, k, rcv);
+          return k === "all" || k === "get"
+            ? (sql: string, ...a: unknown[]) => {
+                if (/hold/i.test(String(sql))) throw new Error("the hold table is unreadable");
+                return (v as (...x: unknown[]) => unknown).call(t, sql, ...a);
+              }
+            : v;
+        },
+      }),
+    } as typeof w;
+    const p = await tool["computers.browser.preview"]!(broken, { agentId: "agt_named" });
+    assert.deepEqual([p.state, p.png], ["held", undefined], "no picture");
+    await assert.rejects(
+      () => tool["computers.browser.stream"]!(broken, { agentId: "agt_named" }),
+      (e) => codeOf(e) === "validation.precondition_failed",
+    );
+  } finally {
+    void r;
+    off();
+  }
+});

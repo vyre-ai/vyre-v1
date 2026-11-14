@@ -14,3 +14,4 @@
 - A terminal row from the list carries the chat it was opened from (threadId).
 - A terminal that ended (you typed exit) is learned by the open sheet at once: the bar says "This terminal ended" with New tab, the keyboard is released, and the last screen stays. A terminal row shows the host's own state (Running while a command runs).
 - A person watching a terminal where the agent ran a command sees the command and its output, never the line that types it (markers, session id): it reads as the bare command on every screen, read and replay.
+- Typing into an agent's terminal is off in this release (re-sent keys are not safe to repeat yet): the full-screen terminal is a watching view with no Take over; the ended and reconnecting states stay. The browser picture is withheld when the check of who holds the browser fails.

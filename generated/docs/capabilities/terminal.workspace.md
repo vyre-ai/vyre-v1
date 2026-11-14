@@ -40,6 +40,7 @@ type Out = {
   projects?: Array<string>;
   canAttach: boolean;
   cannotAttach?: string;
+  takeOver?: boolean;
 };
 ```
 
@@ -67,7 +68,8 @@ type Out = {
     "projects": [
       "prj_a1b2c3"
     ],
-    "state": "running"
+    "state": "running",
+    "takeOver": true
   }
 }
 ```

@@ -9,6 +9,9 @@ import { shoot } from "./support/mail-browser.ts";
 import { world } from "./support/computer-tab-world.ts";
 import { keyLog, walkDir } from "./support/real-tmux.ts";
 
+// taking the keyboard is OFF by default in the product (rc.28); this walk is about it, so it is turned on
+process.env["VYRE_TERMINAL_TAKEOVER"] = "1";
+
 const DIR = "shots-evidence/b-pc";
 const ROW = '[data-testid^="row-session-"]';
 

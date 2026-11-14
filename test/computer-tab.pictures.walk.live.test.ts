@@ -4,6 +4,9 @@ import test from "node:test";
 import { shoot, SIZES } from "./support/mail-browser.ts";
 import { world } from "./support/computer-tab-world.ts";
 
+// taking the keyboard is OFF by default in the product (rc.28); this walk is about it, so it is turned on
+process.env["VYRE_TERMINAL_TAKEOVER"] = "1";
+
 const DIR = "shots-evidence/b-pc";
 const ROW = '[data-testid^="row-session-"]';
 const WIDE = { width: 1440, height: 900 };

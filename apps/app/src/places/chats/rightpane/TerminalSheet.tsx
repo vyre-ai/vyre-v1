@@ -23,6 +23,7 @@ export function TerminalSheet({
   data,
   agentName,
   asleep,
+  watchOnly = false,
   sessions,
   start,
   me,
@@ -32,6 +33,7 @@ export function TerminalSheet({
   data: TerminalData;
   agentName: string;
   asleep: boolean;
+  /** taking the keyboard is off: a watching view, no Take over and no bar of who is typing */ watchOnly?: boolean;
   sessions: readonly WorkspaceSession[];
   start: string;
   me?: string | undefined;
@@ -166,10 +168,10 @@ export function TerminalSheet({
         return;
       }
       if (mineRef.current || takingRef.current || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "Enter" && current0?.heldBy === undefined && current0?.state !== "exited") {
+      if (!watchOnly && e.key === "Enter" && current0?.heldBy === undefined && current0?.state !== "exited") {
         e.preventDefault();
         take();
-      } else if (e.key.length === 1) {
+      } else if (!watchOnly && e.key.length === 1) {
         setNudge(true);
         setTimeout(() => setNudge(false), 1000);
       }
@@ -232,6 +234,7 @@ export function TerminalSheet({
     asking,
     hidden: hiddenPrompt,
     lost: lost === sel,
+    watchOnly,
     said,
     startedMs: Date.now() - openedAt.current,
   });
@@ -248,51 +251,53 @@ export function TerminalSheet({
           </Text>
           <View style={{ flex: 1 }} />
           {narrow ? <TextButton label="Close" onPress={close} testID="terminal-popup-close" /> : null}
-          <View
-            testID="terminal-popup-bar"
-            style={[
-              st.bar,
-              narrow && st.barFull,
-              bar.tone === "wait" && st.barWait,
-              bar.tone === "bad" && st.barBad,
-              bar.tone === "mine" && st.barMine,
-            ]}
-          >
-            {bar.title ? (
-              <Text style={st.barBold} numberOfLines={1}>
-                {bar.title}
-              </Text>
-            ) : null}
-            {bar.note && (!narrow || bar.action === null) ? (
-              <Text style={[st.barNote, nudge && st.barNudge]} numberOfLines={1}>
-                {nudge ? "Press Take over to type." : bar.note}
-              </Text>
-            ) : null}
-            {bar.action === "take" ? (
-              <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take" />
-            ) : null}
-            {bar.action === "ask" ? (
-              <TextButton
-                label="Take over"
-                primary
-                disabled={busy}
-                onPress={() => setAsking(true)}
-                testID="terminal-take"
-              />
-            ) : null}
-            {bar.action === "confirm" ? (
-              <>
-                <TextButton label="Cancel" onPress={() => setAsking(false)} testID="terminal-take-cancel" />
-                <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take-confirm" />
-              </>
-            ) : null}
-            {bar.action === "newtab" ? (
-              <TextButton label="New tab" primary disabled={busy} onPress={newTab} testID="terminal-newtab" />
-            ) : null}
-            {bar.action === "give" ? (
-              <TextButton label="Give back" primary disabled={busy} onPress={give} testID="terminal-give" />
-            ) : null}
-          </View>
+          {watchOnly && !bar.title && !bar.action ? null : (
+            <View
+              testID="terminal-popup-bar"
+              style={[
+                st.bar,
+                narrow && st.barFull,
+                bar.tone === "wait" && st.barWait,
+                bar.tone === "bad" && st.barBad,
+                bar.tone === "mine" && st.barMine,
+              ]}
+            >
+              {bar.title ? (
+                <Text style={st.barBold} numberOfLines={1}>
+                  {bar.title}
+                </Text>
+              ) : null}
+              {bar.note && (!narrow || bar.action === null) ? (
+                <Text style={[st.barNote, nudge && st.barNudge]} numberOfLines={1}>
+                  {nudge ? "Press Take over to type." : bar.note}
+                </Text>
+              ) : null}
+              {bar.action === "take" ? (
+                <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take" />
+              ) : null}
+              {bar.action === "ask" ? (
+                <TextButton
+                  label="Take over"
+                  primary
+                  disabled={busy}
+                  onPress={() => setAsking(true)}
+                  testID="terminal-take"
+                />
+              ) : null}
+              {bar.action === "confirm" ? (
+                <>
+                  <TextButton label="Cancel" onPress={() => setAsking(false)} testID="terminal-take-cancel" />
+                  <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take-confirm" />
+                </>
+              ) : null}
+              {bar.action === "newtab" ? (
+                <TextButton label="New tab" primary disabled={busy} onPress={newTab} testID="terminal-newtab" />
+              ) : null}
+              {bar.action === "give" ? (
+                <TextButton label="Give back" primary disabled={busy} onPress={give} testID="terminal-give" />
+              ) : null}
+            </View>
+          )}
           {mine && !narrow ? <Text style={st.chord}>{"\u2318\u21E7. closes"}</Text> : null}
           {narrow ? null : <TextButton label="Close" onPress={close} testID="terminal-popup-close" />}
         </View>

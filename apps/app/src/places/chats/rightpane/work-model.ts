@@ -39,6 +39,7 @@ export interface WorkspaceView {
   projects?: readonly string[];
   /** May this person attach? A person for their own Assistant's workspace; an owner or admin for a team agent's. */
   canAttach: boolean;
+  /** false when taking the keyboard is off (rc.28): the terminal sheet only watches; left out when the host does not say */ takeOver?: boolean;
   /** Why not, as one sentence, when canAttach is false. */
   cannotAttach?: string;
 }
@@ -259,6 +260,7 @@ export interface BarIn {
   asking: boolean;
   hidden: boolean;
   /** you held it and it went back to the agent by itself (15 quiet minutes) */ lost?: boolean;
+  /** taking the keyboard is off in this release: the sheet only watches, no bar and no Take over */ watchOnly?: boolean;
   said?: string | null;
   /** seconds the start has taken, for its stage words */ startedMs?: number;
 }
@@ -277,6 +279,7 @@ export function terminalBar(i: BarIn): TermBar {
   // a sleeping computer wakes when its terminal is opened: its stored lines are there and the bar says it is starting
   if (i.asleep && !i.ready)
     return { title: "Starting", note: startStage(i.startedMs ?? 0, 9000), action: null, tone: "wait" };
+  if (i.watchOnly) return { title: "", action: null, tone: "quiet" };
   if (i.asking && i.otherHolds)
     return {
       title: `Take the keyboard from ${i.otherHolds}?`,
