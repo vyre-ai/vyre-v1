@@ -201,8 +201,47 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
     await new Promise((r) => setTimeout(r, 6000));
     await d.hooks?.pump?.();
     await new Promise((r) => setTimeout(r, 2000));
-    const dump: Record<string, unknown> = { toolOut };
+    // the asker's private Assistant brought into the group chat: Bob is in it too
+    const mineList = await api(d, alice.token, "agents.list", {});
+    const assistant = (
+      (mineList.data as { agents?: Array<{ agentId: string; kind?: string; ownerId?: string }> }).agents ?? []
+    ).find((a) => a.kind === "assistant");
+    const assistantTried: Record<string, unknown> = { found: assistant?.agentId ?? null };
+    const before = frames["bob"]!.length;
+    if (assistant) {
+      const add = await api(d, alice.token, "channels.agents.add", {
+        channelId: ch.channel.channelId,
+        agentId: assistant.agentId,
+        idempotencyKey: "sr-assistant-add",
+      });
+      assistantTried["add"] = add.status;
+      if (add.status === 200) {
+        toolOut = [];
+        script = [];
+        await ok(alice.token, "chat.post", {
+          threadId,
+          body: "probe assistant read my notes",
+          mentions: [{ kind: "agent", id: assistant.agentId }],
+        });
+        await new Promise((r) => setTimeout(r, 7000));
+        await d.hooks?.pump?.();
+        await new Promise((r) => setTimeout(r, 2000));
+      } else assistantTried["why"] = JSON.stringify(add.data).slice(0, 200);
+    }
+    const dump: Record<string, unknown> = { toolOut, assistantTried };
+    dump["bob assistant frames"] = frames["bob"]!.slice(before)
+      .filter((f) => f["t"] === "turn")
+      .map((f) => f["delta"]);
     const gt = await api(d, tok["gwen"]!, "threads.get", { threadId });
+    for (const [cap, inp] of [
+      ["channels.get", { channelId: ch.channel.channelId }],
+      ["channels.stream", { channelId: ch.channel.channelId }],
+      ["chat.messages.list", { threadId }],
+      ["threads.get", { threadId }],
+    ] as const) {
+      const g = await api(d, tok["gwen"]!, cap, inp);
+      dump[`guest ${cap}`] = `${g.status} ${JSON.stringify(g.data).slice(0, 6000)}`;
+    }
     dump["guest threads.get"] = `${gt.status} ${JSON.stringify(gt.data).slice(0, 160)}`;
     for (const who of ["bob", "gwen"]) {
       const turn = frames[who]!.filter((f) => f["t"] === "turn");

@@ -45,7 +45,10 @@ export function coalesceLive(
     if (w.steps.length > 0) {
       // Everyone who reads the chat is told THAT work happened: the step's name, working or done, whether it went well. What a step touched (a file name, a path, a query, a line of output) goes only to the person
       // whose turn it is, in a frame of its own that the host sends to them alone; the rest get the same steps without it (F51).
-      const plain = w.steps.map(({ detail: _d, name, ...rest }) => ({ ...rest, ...(name ? { name: stepClass(name), words: stepWords(name) } : {}) }));
+      const plain = w.steps.map(({ detail: _d, name, ...rest }) => ({
+        ...rest,
+        ...(name ? { name: stepClass(name), words: stepWords(name) } : {}),
+      }));
       const touched = w.steps.some((x) => x.detail !== undefined);
       if (touched && w.asker) {
         out({

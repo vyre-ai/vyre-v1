@@ -132,13 +132,24 @@ test("what a step touched goes to the asker's frame only; every reader gets the 
   const r = rig();
   r.push({ kind: "start", threadId: "t", turnId: "u", agentId: "a", asker: "usr_alice" });
   r.push({ kind: "step", threadId: "t", turnId: "u", agentId: "a", phase: "call", id: "c1", name: "vault_use" });
-  r.push({ kind: "step", threadId: "t", turnId: "u", agentId: "a", phase: "input", id: "c1", detail: "/work/alice/notes.txt" });
+  r.push({
+    kind: "step",
+    threadId: "t",
+    turnId: "u",
+    agentId: "a",
+    phase: "input",
+    id: "c1",
+    detail: "/work/alice/notes.txt",
+  });
   r.push({ kind: "end", threadId: "t", turnId: "u", agentId: "a", state: "done" });
   const frames = r.out.filter((e) => e.kind === "steps") as Array<Extract<StreamEvent, { kind: "steps" }>>;
   const forAsker = frames.filter((f) => f.audience === "asker");
-  const forOthers = frames.filter((f) => f.audience === "others");
+  const forOthers = frames.filter((f) => f.audience !== "asker"); // the split frame for the others, and a frame with nothing to split
   assert.equal(JSON.stringify(forAsker).includes("notes.txt"), true, "the asker's frame names what the step touched");
-  assert.equal(forAsker.every((f) => f.asker === "usr_alice"), true);
+  assert.equal(
+    forAsker.every((f) => f.asker === "usr_alice"),
+    true,
+  );
   const others = JSON.stringify(forOthers);
   assert.equal(others.includes("notes.txt"), false, "the others' frame does not");
   assert.equal(others.includes("vault_use"), false, "nor the tool's own name");

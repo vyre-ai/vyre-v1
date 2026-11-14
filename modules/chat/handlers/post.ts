@@ -421,7 +421,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     const prior = messageBy(ctx.db, input.clientId);
     if (prior) {
       if (prior.thread !== thread.id) raise(ctx, "validation.bad_input", "That message id belongs to another chat.");
-      return { message: messageOut(prior, encOf(ctx.db, thread)) };
+      return { message: messageOut(prior, encOf(ctx.db, thread), askerOf(ctx)) };
     }
   }
   let replyTo: MessageRec | null = null;
@@ -524,5 +524,5 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     body.trim() !== ""
   )
     await approveInChat(ctx, thread.id, body);
-  return { message: messageOut(m, encOf(ctx.db, thread)) };
+  return { message: messageOut(m, encOf(ctx.db, thread), askerOf(ctx)) };
 }

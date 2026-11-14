@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintId as mint } from "../../lib/ids.ts";
+import { stepClass, stepWords } from "../../lib/plain-words.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
 
 export interface Db {
@@ -596,7 +597,23 @@ export function messageBy(db: Db, id: string): MessageRec | null {
 }
 
 /** The message row of the contract. */
-export function messageOut(m: MessageRec, enc: number): Record<string, unknown> {
+/**
+ * What an agent's saved steps tell a reader (F51). The person whose turn wrote the message sees them whole; every other reader sees which kind of step ran, how it went and how long it took: never a file's
+ * name (`label`), the counts of a command's output (`ran`), a helper's description (`detail`) or the tool's own name. Applied when the message is served, so turns saved before this rule are covered too.
+ */
+export function stepsFor(blocks: MessageRec["blocks"], mayDetail: boolean): MessageRec["blocks"] {
+  if (mayDetail) return blocks;
+  return blocks.map((b) => {
+    if (b["type"] !== "tool_call" && b["type"] !== "tool_result") return b;
+    const d = (b["data"] ?? {}) as Record<string, unknown>;
+    const name = typeof d["name"] === "string" ? d["name"] : "";
+    const keep: Record<string, unknown> = {};
+    for (const k of ["id", "ok", "secs", "turnSecs"]) if (d[k] !== undefined) keep[k] = d[k];
+    return { ...b, data: { ...keep, ...(name ? { name: stepClass(name), words: stepWords(name) } : {}) } };
+  });
+}
+
+export function messageOut(m: MessageRec, enc: number, viewer?: string): Record<string, unknown> {
   return {
     messageId: m.id,
     threadId: m.thread,
@@ -604,7 +621,7 @@ export function messageOut(m: MessageRec, enc: number): Record<string, unknown> 
     author: refOf(m.author),
     kind: m.kind,
     body: m.body,
-    blocks: m.blocks,
+    blocks: viewer === undefined ? m.blocks : stepsFor(m.blocks, m.paidBy !== undefined && m.paidBy === viewer),
     ...(m.replyTo !== undefined ? { replyTo: m.replyTo } : {}),
     ...(m.via !== undefined ? { via: m.via } : {}),
     ...(m.paidBy !== undefined ? { paidBy: m.paidBy } : {}),
