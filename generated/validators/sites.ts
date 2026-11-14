@@ -427,6 +427,7 @@ if (!("expiresAt" in o5780)) e.push(p + "/expiresAt" + ': required');
 if ("path" in o5780) lf(o5780["path"], p + "/path", e, L1);
 if ("url" in o5780) lf(o5780["url"], p + "/url", e, L1);
 if ("expiresAt" in o5780) lf(o5780["expiresAt"], p + "/expiresAt", e, L17);
+if ("checked" in o5780) lf(o5780["checked"], p + "/checked", e, L3);
 }
 }
 }
