@@ -27,7 +27,12 @@ const KEYS = {
   spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }],
 };
 const PASSWORD = "correct horse battery staple 9";
-type Json = { data?: any; error?: { code?: string } }; // eslint-disable-line @typescript-eslint/no-explicit-any
+type Json = { data?: any; error?: { code?: string; message?: string; details?: any } }; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+// the error of a reply that has one, its words always a string
+const errOf = (r: { body: Json }): { code?: string; message: string; details?: any } =>
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  (r.body.error ?? { message: "" }) as { code?: string; message: string };
 
 test("a refused connector or connection call says which thing was missing and whose role is short", async () => {
   const dialled: { host: string; key: boolean }[] = [];
@@ -158,14 +163,14 @@ test("a refused connector or connection call says which thing was missing and wh
     agentFor = { id: adaAgent, person: ada.id };
     const list = await post("tok-agent", "connectors.list", {});
     assert.equal(list.status, 403, list.text);
-    assert.equal(list.body.error.code, "permission.role_lacks_permission");
-    assert.match(list.body.error.message, /^This agent may not build connectors yet\./);
-    assert.match(list.body.error.message, /press Allow, or give the agent the Connector builder role/);
+    assert.equal(errOf(list).code, "permission.role_lacks_permission");
+    assert.match(errOf(list).message, /^This agent may not build connectors yet\./);
+    assert.match(errOf(list).message, /press Allow, or give the agent the Connector builder role/);
     // a member's agent acts for a member, who may not build connectors either: neither holds it
     agentFor = { id: melAgent, person: mel.id };
     const neither = await post("tok-agent", "connectors.list", {});
     assert.equal(neither.status, 403, neither.text);
-    assert.match(neither.body.error.message, /^Neither this agent nor the person it works for may do this\./);
+    assert.match(errOf(neither).message, /^Neither this agent nor the person it works for may do this\./);
     // once the agent is allowed it lists them
     assert.equal((await post(ada.token, "access.connector_builder.grant", { agentId: adaAgent })).status, 200);
     agentFor = { id: adaAgent, person: ada.id };
@@ -178,15 +183,15 @@ test("a refused connector or connection call says which thing was missing and wh
       ownerKind: "space",
     });
     assert.equal(noConnector.status, 404, noConnector.text);
-    assert.equal(noConnector.body.error.message, "There is no connector called fathom that you can see.");
-    assert.equal(noConnector.body.error.details.thing, "connector");
-    assert.equal(noConnector.body.error.details.name, "fathom");
+    assert.equal(errOf(noConnector).message, "There is no connector called fathom that you can see.");
+    assert.equal(errOf(noConnector).details.thing, "connector");
+    assert.equal(errOf(noConnector).details.name, "fathom");
     const noGet = await post("tok-agent", "connectors.get", { key: "google_ads" });
-    assert.equal(noGet.body.error.message, "There is no connector called google ads that you can see.");
-    assert.equal(noGet.body.error.details.name, "google_ads");
+    assert.equal(errOf(noGet).message, "There is no connector called google ads that you can see.");
+    assert.equal(errOf(noGet).details.name, "google_ads");
     const noConnection = await post("tok-agent", "connections.get", { connectionId: "con_a1b2c3d4e5f6a7b8" });
-    assert.equal(noConnection.body.error.message, "There is no connection by that name that you can see.");
-    assert.equal(noConnection.body.error.details.name, undefined);
+    assert.equal(errOf(noConnection).message, "There is no connection by that name that you can see.");
+    assert.equal(errOf(noConnection).details.name, undefined);
     assert.ok(!noConnection.text.includes("con_a1b2c3d4e5f6a7b8"), "the id is not said back");
 
     // F37: a built-in connector, a key that is not in the Vault: the person who connects is told which key is missing
@@ -197,7 +202,7 @@ test("a refused connector or connection call says which thing was missing and wh
       secrets: { Documenso_Token: "#Nope.token" },
     });
     assert.equal(noKey.status, 403, noKey.text);
-    assert.match(noKey.body.error.message, /^There is no Vault item #Nope that you can use\./);
+    assert.match(errOf(noKey).message, /^There is no Vault item #Nope that you can use\./);
   } finally {
     clearInterval(pump);
     await d.stop();
