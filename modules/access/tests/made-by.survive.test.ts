@@ -77,3 +77,48 @@ test("the sharing list shows the maker once: the made-by row is hidden next to a
   assert.deepEqual(await listed(setup(true, true)), ["gnt_space"], "the Space grant gives the same level: one row");
   assert.deepEqual(await listed(setup(true, false)), ["gnt_made"], "alone it is shown, so the person can remove it");
 });
+
+test("the made-by row is hidden only behind a non-made-by grant of the same agent that gives at least as much: Use through the Space does not hide an Edit, two made-by rows do not hide each other", async () => {
+  const w = setup(true, false);
+  // the agent holds only Use through the Space; the maker's Edit must still be shown
+  w.store.grants.set(
+    "gnt_space_use",
+    grant("gnt_space_use", AGENT, { type: "space", id: "spc_1" }, "use", { subject: { kind: "agent", id: AGENT } }),
+  );
+  w.store.bump();
+  const ids = async () =>
+    (
+      await handlers["access.shares_of"](w.h.as("usr_maya"), { resource: { type: "vault_folder", id: "vfd_made" } })
+    ).shares
+      .filter((s) => s.grant.subject.id === AGENT)
+      .map((s) => s.grant.id)
+      .sort();
+  assert.deepEqual(await ids(), ["gnt_made", "gnt_space_use"], "Edit is not hidden behind Use");
+  // two made-by rows of the same agent (one direct, one on the place above): neither hides the other
+  w.store.grants.delete("gnt_space_use");
+  w.store.grants.set(
+    "gnt_made_above",
+    grant("gnt_made_above", AGENT, { type: "space", id: "spc_1" }, "edit", {
+      subject: { kind: "agent", id: AGENT },
+      source: `made-by:${AGENT}`,
+    }),
+  );
+  w.store.bump();
+  assert.deepEqual(await ids(), ["gnt_made", "gnt_made_above"]);
+});
+
+test("removing the agent from the thing takes the made-by grant too, also while the list hides it behind the Space grant", async () => {
+  const w = setup(true, true);
+  const listed = async () =>
+    (
+      await handlers["access.shares_of"](w.h.as("usr_maya"), { resource: { type: "vault_folder", id: "vfd_made" } })
+    ).shares
+      .filter((s) => s.grant.subject.id === AGENT)
+      .map((s) => s.grant.id);
+  assert.deepEqual(await listed(), ["gnt_space"], "the made-by row is hidden");
+  await handlers["access.unshare"](w.h.as("usr_maya"), {
+    resource: { type: "vault_folder", id: "vfd_made" },
+    subject: { kind: "agent", id: AGENT },
+  } as never);
+  assert.ok(!w.store.grants.has("gnt_made"), "the hidden made-by grant went with it");
+});
