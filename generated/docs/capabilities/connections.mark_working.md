@@ -43,6 +43,7 @@ type Out = {
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant
+- permission.not_found
 - validation.bad_input
 - validation.not_found
 

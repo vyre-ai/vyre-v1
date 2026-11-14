@@ -60,6 +60,7 @@ type Out = {
 - permission.above_clearance
 - permission.needs_approval
 - permission.no_grant
+- permission.not_found
 - validation.bad_input
 - validation.not_found
 
