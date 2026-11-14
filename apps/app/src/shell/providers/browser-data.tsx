@@ -47,6 +47,7 @@ export function browserView(
   return {
     ...base,
     state: r.running ? "open" : "closed",
+    ...(!r.running && r.lastActiveAt !== undefined ? { lastActiveAt: r.lastActiveAt } : {}),
     ...(r.running ? { tabs: r.tabs, ...(r.busy ? { caption: "Working in it now" } : {}) } : {}),
   };
 }

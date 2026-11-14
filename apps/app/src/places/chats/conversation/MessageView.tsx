@@ -9,7 +9,7 @@ import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
 import { spaceKeyWay } from "./status.ts";
-import { mergeStateOf, withTeammates } from "../crew/model.ts";
+import { mergeStateOf, subagentIdsOf, totalsOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
@@ -107,6 +107,8 @@ import { MARK } from "./marks.ts";
 import type { ReplySummary } from "./replies.ts";
 import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
 import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
+import { RoundRow } from "../thread-replies/RoundRow.tsx";
+import { RoundTable } from "../thread-replies/RoundTable.tsx";
 import type { Clock } from "../rightpane/model.ts";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 import {
@@ -826,9 +828,9 @@ function Mine({
       {!editing && sending === undefined && actions.belowMine ? actions.belowMine(m) : null}
       {sending === "failed" ? (
         <View testID={`failed-${m.messageId}`} accessibilityRole="alert" style={st.failed}>
-          <Text style={st.failedText}>Not sent.</Text>
+          <Text style={st.failedText}>Not sent</Text>
           <TextButton
-            label="Retry"
+            label="Try again"
             onPress={() => actions.retrySend(m.messageId)}
             testID={`retry-send-${m.messageId}`}
           />
@@ -859,6 +861,14 @@ function Mine({
       <Reactions m={m} a={actions} mine meId={meId} />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} mine /> : null}
       <Replies m={m} replies={replies} actions={actions} mine />
+      <RoundRow
+        messageId={m.messageId}
+        threadId={m.threadId}
+        body={m.body}
+        mentions={m.mentions}
+        createdAt={m.createdAt}
+        nameOf={actions.nameOf ?? unnamed}
+      />
       <LearnedLines messageId={m.messageId} />
     </View>
   );
@@ -1097,11 +1107,13 @@ function Theirs({
           style={st.via}
         >{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text>
       ) : null}
-      {work && (!work.short || !item.newgroup || workOpen) ? (
+      {work &&
+      (!work.live || !(stream && actions.activityOf?.(m.messageId))) &&
+      (!work.short || !item.newgroup || workOpen) ? (
         <Fold
           testID={`work-${m.messageId}`}
-          label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary}
-          open={work.live || workOpen}
+          label={work.live ? "Working" : work.summary}
+          open={workOpen}
           live={work.live}
           onToggle={() => setWorkOpen((o) => !o)}
         >
@@ -1269,7 +1281,12 @@ function Theirs({
               requestId={String((b.data as { requestId?: unknown }).requestId ?? "")}
               agent={item.who.name}
               agentId={item.who.id}
-              data={actions.files}
+              data={{ ...actions.files, nameOf: actions.nameOf ?? ((x: string) => x) }}
+              service={
+                typeof (b.data as { service?: unknown }).service === "string"
+                  ? String((b.data as { service?: unknown }).service)
+                  : undefined
+              }
             />
           );
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
@@ -1458,6 +1475,22 @@ function Theirs({
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
+      {(() => {
+        // the subagents this reply's engine started in its own turn: one block under the reply, the same rows as the helpers', each opens in the pane, the answer kept
+        const ids = subagentIdsOf(m.blocks);
+        const mine = ids.length === 0 ? [] : (actions.crew?.status?.members ?? []).filter((x) => ids.includes(x.id));
+        if (mine.length === 0) return null;
+        const c = actions.crew!;
+        return (
+          <CrewBlock
+            members={mine}
+            totals={totalsOf(mine)}
+            selectedId={c.selected}
+            onPeek={(x) => c.peek(x.id)}
+            onOpenPane={c.openPane}
+          />
+        );
+      })()}
       {collect(errors, (b) => (
         <ErrorRowView key={b.id} block={b} actions={actions} />
       ))}
@@ -1509,6 +1542,14 @@ function Theirs({
       <Reactions m={m} a={actions} mine={false} meId={meId} />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} /> : null}
       <Replies m={m} replies={replies} actions={actions} mine={false} />
+      <RoundTable
+        messageId={m.messageId}
+        threadId={m.threadId}
+        authorKind={m.author.kind}
+        createdAt={m.createdAt}
+        nameOf={actions.nameOf ?? unnamed}
+        onOpen={(askId) => actions.openThread(askId)}
+      />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? (
         <Text testID={`pinned-${m.messageId}`} style={st.edited}>
@@ -1916,7 +1957,7 @@ export function ErrorRowView({
     ...(e.retryable && e.turnId && !retried
       ? [
           {
-            label: "Retry",
+            label: "Try again",
             testID: "err-retry",
             run: () => {
               setRetried(true);

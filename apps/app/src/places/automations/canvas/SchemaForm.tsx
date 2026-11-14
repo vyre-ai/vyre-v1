@@ -7,7 +7,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useOptionalAutomationsData } from "./data.tsx";
 import { basicFieldEdit } from "../builder/marks.tsx";
 import { presenceOf } from "../values/typed.ts";
-import { Choice, Field, Hint } from "./fields.tsx";
+import { Choice, TextBox, Hint } from "./fields.tsx";
 import { controlText, writeControl } from "./form-model.ts";
 import type { Control } from "./form-model.ts";
 import { Glyph } from "./icons.tsx";
@@ -162,7 +162,7 @@ function One({
     const presence = presenceOf(has, current);
     return (
       <>
-        <Field
+        <TextBox
           label={`${label}${presence === "null" || presence === "empty" ? ` (${presence})` : ""}`}
           value={controlText(control, current)}
           testID={id}
@@ -176,7 +176,7 @@ function One({
   }
   return (
     <>
-      <Field
+      <TextBox
         label={label}
         value={controlText(control, current)}
         testID={id}

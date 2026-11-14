@@ -5,7 +5,7 @@ import { act } from "react";
 import { createRoot } from "test-renderer";
 import { installDom, mount, press, find, flush } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
-import { ChatsSidebar } from "./ChatsSidebar.tsx";
+import { LegacyChatsSidebar as ChatsSidebar } from "./ChatsSidebar.tsx";
 import { buildEntries, openEntry } from "./model.ts";
 import type { Channel, SidebarInput } from "./model.ts";
 import { createSampleSidebar, northwind } from "./sample.ts";

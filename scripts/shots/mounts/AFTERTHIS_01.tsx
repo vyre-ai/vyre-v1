@@ -1,6 +1,6 @@
 // Mount for the chat's "After this" line (lane l-engine21), over the Northwind sample conversation with Intake working. ?part=
 //   other  (default) Maya's turn is the one running, you sent a message: it waits, and the line under the thread says "After this: it goes in when this turn ends"
-//   own    your own turn is running (the engine takes the message at its next step): the line says "Goes in at the next step"
+//   own    your own turn is running (the engine takes the message at its next step): the line says "At the next step"
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
