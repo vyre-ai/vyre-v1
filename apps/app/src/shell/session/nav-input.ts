@@ -85,11 +85,15 @@ export function startNavInput(hub: ShellHub, doc: Doc, o: NavInputOptions = {}):
     if (m.id === "nav.back") hub.back();
     else hub.forward();
   };
+  // A real browser fires mouseup and then auxclick for the back and forward buttons: the step is taken on mouseup only, and auxclick only keeps the browser from taking its own.
   const onMouse = (e: { button: number; preventDefault(): void }): void => {
     if (e.button !== 3 && e.button !== 4) return;
     e.preventDefault();
     if (e.button === 3) hub.back();
     else hub.forward();
+  };
+  const onAux = (e: { button: number; preventDefault(): void }): void => {
+    if (e.button === 3 || e.button === 4) e.preventDefault();
   };
   const swipe = swipeTracker();
   const onWheel = (e: { deltaX: number; deltaY: number; ctrlKey?: boolean; target?: unknown }): void => {
@@ -102,13 +106,13 @@ export function startNavInput(hub: ShellHub, doc: Doc, o: NavInputOptions = {}):
   doc.addEventListener("keydown", onKey as (e: never) => void, true);
   if (o.desktop === true) {
     doc.addEventListener("mouseup", onMouse as (e: never) => void, true);
-    doc.addEventListener("auxclick", onMouse as (e: never) => void, true);
+    doc.addEventListener("auxclick", onAux as (e: never) => void, true);
     if (platform === "mac") doc.addEventListener("wheel", onWheel as (e: never) => void, { passive: true } as never);
   }
   return () => {
     doc.removeEventListener("keydown", onKey as (e: never) => void, true);
     doc.removeEventListener("mouseup", onMouse as (e: never) => void, true);
-    doc.removeEventListener("auxclick", onMouse as (e: never) => void, true);
+    doc.removeEventListener("auxclick", onAux as (e: never) => void, true);
     doc.removeEventListener("wheel", onWheel as (e: never) => void);
   };
 }

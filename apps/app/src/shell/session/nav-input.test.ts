@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { matchShortcut } from "../keyboard/map.ts";
-import { SWIPE_DISTANCE, scrollsSideways, swipeTracker } from "./nav-input.ts";
+import { SWIPE_DISTANCE, scrollsSideways, startNavInput, swipeTracker } from "./nav-input.ts";
+import type { ShellHub } from "../spaces/hub.ts";
 
 test("Cmd-[ and Cmd-] are Back and Forward on a Mac; Alt-Left, Alt-Right and Ctrl-[ elsewhere; a terminal and a Mac Alt-Left keep their own meaning", () => {
   assert.equal(matchShortcut({ key: "[", metaKey: true }, "mac")?.id, "nav.back");
@@ -39,4 +40,21 @@ test("something that can still scroll sideways under the pointer takes the swipe
     false,
     "at its left edge, Back is the swipe's",
   );
+});
+
+test("the mouse's back button is one step: a real browser fires mousedown, mouseup and auxclick", () => {
+  const on = new Map<string, (e: never) => void>();
+  const doc = {
+    addEventListener: (t: string, f: (e: never) => void) => on.set(t, f),
+    removeEventListener: (t: string) => on.delete(t),
+  };
+  let backs = 0;
+  const hub = { back: () => (backs++, true), forward: () => true } as unknown as ShellHub;
+  const stop = startNavInput(hub, doc, { desktop: true, platform: "other" });
+  let prevented = 0;
+  for (const t of ["mousedown", "mouseup", "auxclick"])
+    on.get(t)?.({ button: 3, preventDefault: () => prevented++ } as never);
+  assert.equal(backs, 1, "one step per press");
+  assert.ok(prevented >= 2, "the browser's own Back is kept off");
+  stop();
 });

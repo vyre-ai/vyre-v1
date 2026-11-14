@@ -54,6 +54,7 @@ function fakeWindow(url: string): BridgeWindow & {
     press(type: string) {
       fire(type, {});
     },
+    setTimeout: (f: () => void, ms: number) => setTimeout(f, ms),
     settle: () => new Promise<void>((r) => setTimeout(r, 5)),
   };
   function fire(t: string, e: object): void {
@@ -105,6 +106,8 @@ test("Back with nowhere to go leaves the person where they are", async () => {
   win.history.go(-1);
   await win.settle();
   assert.equal(hub.state().hash, "");
+  // nothing of Vyre's own to go back to: the browser is let go (here, nowhere to leave to in the fake), then the middle entry comes back, so the person is never trapped on a guard
+  await new Promise((r) => setTimeout(r, 330));
   assert.equal((win.history.state as { vyre: string }).vyre, "here");
   stop();
 });

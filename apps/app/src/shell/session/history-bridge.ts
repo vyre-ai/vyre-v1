@@ -16,6 +16,7 @@ export interface BridgeWindow {
     replaceState(state: unknown, title: string, url: string): void;
     go(delta: number): void;
   };
+  setTimeout?(f: () => void, ms: number): unknown;
   addEventListener(type: string, fn: (e: never) => void, capture?: boolean): void;
   removeEventListener(type: string, fn: (e: never) => void, capture?: boolean): void;
 }
@@ -67,8 +68,14 @@ export function startHistoryBridge(hub: ShellHub, win: BridgeWindow): () => void
     }
     if (mark === "back" || mark === "fwd") {
       returning = true;
-      if (mark === "back") hub.back();
-      else hub.forward();
+      const moved = mark === "back" ? hub.back({ up: false }) : hub.forward();
+      if (!moved && mark === "back") {
+        // Nothing of Vyre's own to go back to (the person came from a mail or another site): the browser's Back leaves, it is never trapped. If there is nowhere to leave to, the
+        // middle entry comes back.
+        win.history.go(-1);
+        win.setTimeout?.(() => win.history.go(1), 250);
+        return;
+      }
       // the middle entry again, with the address of what is on screen now
       win.history.go(mark === "back" ? 1 : -1);
       return;

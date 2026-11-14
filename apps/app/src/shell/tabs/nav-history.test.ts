@@ -123,3 +123,67 @@ test("the history is kept when tabs are saved and read, and is capped", () => {
   assert.deepEqual(active(read).back, active(s).back);
   assert.equal(backTarget(read)?.kind, "step");
 });
+
+test("switching places is undone by Back: records, files, chats, then Back, Back, Forward, Forward (the standing e2e 6d)", () => {
+  const c = createTabsController({ deviceId: "d", personId: "p", spaceId: "s", storage: null, start: "records" });
+  c.openPlace("files");
+  c.openPlace("chats");
+  const at = () => c.state().active;
+  assert.equal(at(), "chats");
+  assert.equal(c.back({ up: false }), true);
+  assert.equal(at(), "files");
+  assert.equal(c.back({ up: false }), true);
+  assert.equal(at(), "records");
+  assert.equal(c.back({ up: false }), false, "nothing of Vyre's own left: the browser may leave");
+  assert.equal(c.forward(), true);
+  assert.equal(at(), "files");
+  assert.equal(c.forward(), true);
+  assert.equal(at(), "chats");
+});
+
+test("three tabs with steps in each: Back in the middle one steps that tab only", () => {
+  const c = createTabsController({ deviceId: "d", personId: "p", spaceId: "s", storage: null, start: "chats" });
+  c.move("chats", "subject=thread:a1", "A1");
+  c.move("chats", "subject=thread:a2", "A2");
+  c.openPlace("records", "subject=record:r1&type=Matter", "R1");
+  c.move("records", "subject=record:r2&type=Matter", "R2");
+  c.openPlace("files", "subject=file:f1", "F1");
+  c.select("records:subject=record:r2");
+  assert.equal(c.back({ up: false }), true);
+  const t = c.state().tabs.find((x) => x.key === c.state().active)!;
+  assert.equal(t.hash, "subject=record:r1&type=Matter", "the middle tab went back one step");
+  assert.equal(
+    c.state().tabs.find((x) => x.place === "chats")!.hash,
+    "subject=thread:a2",
+    "the other tabs did not move",
+  );
+  assert.equal(c.state().tabs.find((x) => x.place === "files")!.hash, "subject=file:f1");
+});
+
+test("a place's own tab is named for the screen it shows: Notes, not Chats", () => {
+  let s = start();
+  s = moveTab(s, "chats", "screen=chats.notes", "Notes");
+  assert.equal(active(s).title, "Notes");
+  s = moveTab(s, "chats", undefined);
+  assert.equal(active(s).title, "Chats");
+});
+
+test("selecting a tab is undone first, then the tab's own steps (no ping-pong between two tabs)", () => {
+  const c = createTabsController({ deviceId: "d", personId: "p", spaceId: "s", storage: null, start: "chats" });
+  c.move("chats", "subject=thread:a1", "A1");
+  c.move("chats", "subject=thread:a2", "A2");
+  c.openPlace("files");
+  c.openPlace("chats"); // back to the chats tab by the rail: the person was at A2
+  const at = () => c.state().tabs.find((t) => t.key === c.state().active)!;
+  assert.equal(at().place, "chats");
+  assert.equal(c.back({ up: false }), true);
+  assert.equal(at().place, "files", "Back undoes the selection first");
+  assert.equal(c.back({ up: false }), true);
+  assert.equal(at().hash, "subject=thread:a2", "then the chats tab, where the person had been");
+  assert.equal(c.back({ up: false }), true);
+  assert.equal(at().hash, "subject=thread:a1", "then that tab's own step");
+  assert.equal(c.forward(), true);
+  assert.equal(c.forward(), true);
+  assert.equal(c.forward(), true);
+  assert.equal(at().place, "chats");
+});

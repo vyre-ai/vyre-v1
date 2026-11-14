@@ -114,7 +114,8 @@ export interface ShellHub {
   /** Navigate: open a place (or an item in it) as a tab and show it. */
   go(place: PlaceId, hash?: string, background?: boolean, link?: boolean): void;
   /** Back in the tab on screen: a step it took, the tab it was opened from, or one level up. False when there is nowhere to go. */
-  back(): boolean;
+  /** `up: false` leaves out the one-level-up step: what the browser's own Back may take (it leaves Vyre when there is nothing else). */
+  back(o?: { up?: boolean }): boolean;
   /** Forward in the tab on screen, after Back. */
   forward(): boolean;
   /** The person went somewhere inside the place on screen: the selected tab follows, no tab opens (tabs/store.ts moveTab). */
@@ -423,6 +424,16 @@ export function createShellHub(options: HubOptions): ShellHub {
       const place = gone ? "chats" : livePlace(requested);
       if (gone) hash = undefined;
       const s = open();
+      // A press that opens something inside the place on screen is one step in this tab, not a tab of its own (Back returns to where the person was). A link, a tab made on purpose
+      // (Cmd-press, Open in new tab) and an item in another place are not steps: they open or select a tab.
+      if (!background && !link && hash !== undefined && hash !== "" && !gone) {
+        const now = s.tabs.state();
+        const cur = now.tabs.find((x) => x.key === now.active);
+        if (cur !== undefined && cur.isNew !== true && cur.place === place && (cur.hash ?? "") !== hash) {
+          hub.move(place, hash);
+          return;
+        }
+      }
       if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.();
       // an address with no item (hash "") asks for the place's landing: its own tab shows it. A place asked for with no hash at all (the rail) goes to the tab the place has.
       if (!background && hash === "") s.tabs.land(place);
@@ -437,8 +448,8 @@ export function createShellHub(options: HubOptions): ShellHub {
       }
       emit();
     },
-    back() {
-      return backTarget(open().tabs.state()) !== null && step((tabs) => tabs.back());
+    back(o) {
+      return backTarget(open().tabs.state(), o) !== null && step((tabs) => tabs.back(o));
     },
     forward() {
       return forwardTarget(open().tabs.state()) !== null && step((tabs) => tabs.forward());
