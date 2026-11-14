@@ -5,6 +5,7 @@ import { handlers } from "../impl.ts";
 import { boundaries, extractOf } from "../handlers/chapters.ts";
 import type { Msg } from "../handlers/chapters.ts";
 import { DANA, MAYA, harness } from "../fixtures/harness.ts";
+import { insertMessage } from "../projections.ts";
 
 type Fn = (ctx: any, input: any) => Promise<any>;
 const h = handlers as unknown as Record<string, Fn>;
@@ -429,4 +430,46 @@ test("a reader who joined in the middle of a chapter never gets its model headin
   assert.equal(w.written, 0);
   assert.equal(prompts.length, before, "nothing is sent from messages he cannot read");
   assert.ok(prompts.slice(before).every((p) => !p.includes("Hidden budget")));
+});
+
+test("V6: the prompt handed to engine.complete holds nothing from before the asker's floor, even when the asker is the first person to speak in the chapter", async () => {
+  const prompts: string[] = [];
+  const hn = harness({
+    calls: { ...lister, "engine.complete": (i) => (prompts.push(String(i["prompt"])), { text: "Plan\nSettled it" }) },
+  });
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() }))
+    .thread.threadId as string;
+  const leo = hn.person("usr_leo");
+  // the chapter opens with the agent talking alone: nothing but agent words before Leo comes in
+  for (let i = 1; i <= 10; i++) {
+    hn.advance(10_000);
+    insertMessage(hn.ctx, t, { author: "agt_x", kind: "agent", body: `Hidden budget line ${i}` });
+  }
+  hn.advance(10_000);
+  hn.raw.run(
+    "INSERT INTO chat_thread_member (id, thread, principal, role, fromAt, version, updated_at) VALUES (?, ?, ?, 'member', ?, 0, ?)",
+    "mem_leo2",
+    t,
+    "usr_leo",
+    hn.clock.t,
+    hn.clock.t,
+  );
+  for (let i = 1; i <= 50; i++) {
+    hn.advance(10_000);
+    await h["chat.post"]!(leo, { threadId: t, body: `Leo plan ${i}`, idempotencyKey: key() });
+  }
+  hn.advance(4 * HOUR);
+  for (let i = 1; i <= 5; i++) {
+    hn.advance(10_000);
+    await h["chat.post"]!(leo, { threadId: t, body: `Later ${i}`, idempotencyKey: key() });
+  }
+  const w = await h["chat.chapters_write"]!(leo, {
+    threadId: t,
+    account: { ref: "leo", driver: "claude", kind: "api_key" },
+  });
+  assert.equal(w.written, 0);
+  assert.ok(
+    prompts.every((p) => !p.includes("Hidden budget")),
+    "no hidden text is sent on the asker's key",
+  );
 });
