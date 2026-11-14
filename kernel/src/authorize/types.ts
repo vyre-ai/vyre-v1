@@ -119,6 +119,8 @@ export interface ResourceRow {
   made_by?: string | undefined;
   /** The person it was made for when `made_by` was stamped. The made-for-me level holds only while the owner is still that person (a transfer ends it). */
   made_for?: string | undefined;
+  /** A calendar connected to an outside provider (Google, Outlook): the made-for-me private-root rule does not reach it. */
+  outside?: boolean | undefined;
 }
 
 export type Policy =

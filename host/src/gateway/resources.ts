@@ -285,6 +285,10 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
           label: 0,
           owner_id: owner,
           holds: 0,
+          // a calendar connected to an outside provider is flagged: the private-root rule of made-for-me does not reach it
+          ...(s.type === "calendar" && typeof pointer(ev.payload, "/provider") === "string" && pointer(ev.payload, "/provider") !== "local"
+            ? { outside: true }
+            : {}),
           // made for a person by an agent acting for them: the same agent keeps the person's own level on it (kernel authorize, madeForPerson)
           ...(a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(owner) && owner === a.owner
             ? { made_by: a.principal.id, made_for: a.owner }

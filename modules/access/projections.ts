@@ -960,6 +960,7 @@ export function kernelResource(r: ResourceRec): ResourceRow {
     ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
     ...(typeof r.row?.["madeBy"] === "string" ? { made_by: r.row["madeBy"] } : {}),
     ...(typeof r.row?.["madeFor"] === "string" ? { made_for: r.row["madeFor"] } : {}),
+    ...(r.row?.["outside"] === true ? { outside: true } : {}),
   };
 }
 

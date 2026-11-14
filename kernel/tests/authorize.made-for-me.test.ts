@@ -57,7 +57,7 @@ test("an agent keeps the person's own level on what it made for them, and nobody
         actingFor: acting,
         action: act(level),
         resource: { type, id },
-        ...(cap ? { cap } : {}),
+        cap: cap ?? "sites.get",
         now: NOW,
       }).effect;
     for (const level of ["view", "use", "edit"] as const)
@@ -75,7 +75,10 @@ test("an agent keeps the person's own level on what it made for them, and nobody
       "chat.share",
     ])
       assert.equal(as("site_made", "site", "manage", "p1", cap), "deny", `seed ${seed}: ${cap} is the person's`);
-    assert.equal(as("site_made", "site", "manage"), "deny", `seed ${seed}: a check with no capability holds Edit`);
+    const bare = (level: "view" | "edit" | "manage") =>
+      authorize(snap, { principal: AGENT, actingFor: "p1", action: act(level), resource: { type: "site", id: "site_made" }, now: NOW }).effect;
+    for (const level of ["view", "edit", "manage"] as const)
+      assert.equal(bare(level), "deny", `seed ${seed}: a check that names no capability grants nothing (${level})`);
     // a transfer ends it: the owner moved to p2, the agent asked by p2 holds nothing of the old stamp
     snap.putResource({
       id: "site_moved",
@@ -129,6 +132,7 @@ test("an agent works in its person's own private roots (Personal files, Personal
     snap.putResource({ id: "fld_p1", type: "folder", parent_id: null, label: 0, owner_id: "p1", holds: 0 });
     snap.putResource({ id: "fld_p1_sub", type: "folder", parent_id: "fld_p1", label: 0, owner_id: "p1", holds: 0 });
     snap.putResource({ id: "cld_p1", type: "calendar", parent_id: null, label: 0, owner_id: "p1", holds: 0 });
+    snap.putResource({ id: "cld_google", type: "calendar", parent_id: null, label: 0, owner_id: "p1", holds: 0, outside: true });
     snap.putResource({ id: "fld_p2", type: "folder", parent_id: null, label: 0, owner_id: "p2", holds: 0 });
     const on = (id: string, type: string, level: "view" | "edit" | "manage") =>
       authorize(snap, { principal: AGENT, actingFor: "p1", action: act(level), resource: { type, id }, now: NOW })
@@ -153,6 +157,7 @@ test("an agent works in its person's own private roots (Personal files, Personal
     assert.equal(asCap("cld_p1", "calendar", "calendar.create_event"), "allow", `seed ${seed}: an event on it`);
     for (const cap of ["calendar.delete_calendar", "calendar.update_calendar"])
       assert.equal(asCap("cld_p1", "calendar", cap), "deny", `seed ${seed}: ${cap} stays with the person`);
+    assert.equal(asCap("cld_google", "calendar", "calendar.create_event"), "deny", `seed ${seed}: a connected outside calendar is not a private root`);
     assert.equal(make("fld_p1", "folder"), "allow", `seed ${seed}: a folder in the person's Personal files`);
     assert.equal(make("fld_p1_sub", "file"), "allow", `seed ${seed}: a file below it`);
     assert.equal(make("cld_p1", "event"), "allow", `seed ${seed}: an event on the person's Personal calendar`);
@@ -205,6 +210,7 @@ test("one agent, two askers: the agent holds a person's level only while it acts
         ...(acting ? { actingFor: acting } : {}),
         action: act("edit"),
         resource: { type: "site", id },
+        cap: "sites.update",
         now: NOW,
       }).effect;
     assert.equal(may("p1", "site_p1"), "allow", `seed ${seed}: asked by p1, p1's thing`);

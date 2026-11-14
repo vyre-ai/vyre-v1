@@ -162,6 +162,8 @@ function evalSubject(
     p.kind === "agent" &&
     res.id !== "" &&
     req.actingFor !== undefined &&
+    // a check that names no capability (a handler's inner check) grants nothing on this path: it fails closed
+    req.cap !== undefined &&
     res.made_by === p.id &&
     res.made_for === req.actingFor &&
     (rankOf(req.action.level) <= rankOf("edit") || (req.cap !== undefined && MADE_BY_MANAGE.has(req.cap))) &&
@@ -200,6 +202,8 @@ function evalSubject(
     privateRoot.parent_id === null &&
     (privateRoot.type === "folder" || privateRoot.type === "calendar") &&
     privateRoot.owner_id === req.actingFor &&
+    // a calendar connected to Google or Outlook is not a private root for this rule: writing to it reaches an outside service, an outward act with its own gate
+    privateRoot.outside !== true &&
     // inside the root only: making things in it and editing them, never the root itself (its name, where it sits, its settings)
     (res.id !== privateRoot.id ||
       rankOf(req.action.level) <= rankOf("use") ||

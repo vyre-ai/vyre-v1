@@ -239,6 +239,7 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       const row: Record<string, unknown> = { ...(have?.row ?? {}) };
       if (p["space_owned"] === true) row["spaceOwned"] = true;
       else delete row["spaceOwned"];
+      if (p["outside"] === true) row["outside"] = true;
       // who made it for its owner: set at the first registration, kept by every later one (a move or a label change re-registers without it)
       if (typeof p["made_by"] === "string" && row["madeBy"] === undefined) {
         row["madeBy"] = p["made_by"];

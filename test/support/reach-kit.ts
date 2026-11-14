@@ -41,7 +41,12 @@ export interface Reach {
   /** the person's own Assistant calls a tool for them */
   act(who: Who, tool: string, input: Record<string, unknown>): Promise<ToolOut>;
   /** the person's own Assistant makes calls one after another in one turn; each is a row, kept under its key */
-  chain(who: Who, steps: readonly Step[], seed?: Record<string, ToolOut>): Promise<Record<string, ToolOut>>;
+  chain(
+    who: Who,
+    steps: readonly Step[],
+    seed?: Record<string, ToolOut>,
+    agent?: string,
+  ): Promise<Record<string, ToolOut>>;
   assistant(who: Who): string;
   /** a Personal Space: one person and no one else to look */
   personal?: boolean;
@@ -94,7 +99,10 @@ function scripted(): { pending: Map<string, Pending>; results: Map<string, ToolO
             const r = await Promise.race([
               s2.p,
               new Promise<{ ok: boolean; content: unknown }>((res) =>
-                setTimeout(() => res({ ok: false, content: "NO ANSWER in 8 s (held for approval, or stuck)" }), Number(process.env["REACH_WAIT"] ?? 8000)),
+                setTimeout(
+                  () => res({ ok: false, content: "NO ANSWER in 8 s (held for approval, or stuck)" }),
+                  Number(process.env["REACH_WAIT"] ?? 8000),
+                ),
               ),
             ]);
             if (typeof r.content === "string" && r.content.startsWith("NO ANSWER")) {
@@ -202,16 +210,16 @@ export async function bootReach(): Promise<Reach> {
         }
       );
     },
-    async chain(who, steps, seed) {
+    async chain(who, steps, seed, agent) {
       const id = uniq("job");
       const job: Pending = { steps: steps.filter((s) => s.tool !== ""), out: { ...(seed ?? {}) } };
       pending.set(id, job);
-      const thread = (await must(who, "chat.start", { kind: "chat", agentIds: [assistants.get(who)!] })).thread
+      const thread = (await must(who, "chat.start", { kind: "chat", agentIds: [agent ?? assistants.get(who)!] })).thread
         .threadId as string;
       await must(who, "chat.post", {
         threadId: thread,
         body: `REACH-ACT ${id}`,
-        mentions: [{ kind: "agent", id: assistants.get(who)! }],
+        mentions: [{ kind: "agent", id: agent ?? assistants.get(who)! }],
       });
       void seen;
       await waitFor(
