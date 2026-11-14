@@ -1062,6 +1062,7 @@ export default defineManifest({
         level: "manage",
         audit: "always",
         emits: ["project.archived"],
+        gate: { act: "delete", when: "actor.kind == 'agent'" },
         tool: "records",
         errors: ["validation.not_found", "permission.no_grant"],
       },

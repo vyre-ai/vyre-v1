@@ -8,6 +8,7 @@ import {
   handlers as table,
   indexApply,
   indexDropFolder,
+  notePrivate,
   setLister,
   DEFAULT_SOURCES,
 } from "./handlers/index.ts";
@@ -90,6 +91,8 @@ export const WATCHED: Readonly<
   "message.edited": { entity: "thread", idKey: "threadId" },
   "message.deleted": { entity: "thread", idKey: "threadId" },
   "agent.created": { entity: "agent", idKey: "agentId" },
+  // an agent that became private leaves the index; one that stopped being so is read again
+  "agent.privacy_set": { entity: "agent", idKey: "agentId" },
   "agent.config_changed": { entity: "agent", idKey: "agentId" },
   "agent.restored": { entity: "agent", idKey: "agentId" },
   "agent.deleted": { entity: "agent", idKey: "agentId", remove: true },
@@ -145,6 +148,7 @@ export const consumers = {
     on: Object.keys(WATCHED),
     run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
       const e = indexEventOf(event);
+      notePrivate(ctx.space, e);
       if (e.type === "folder.deleted") {
         const folderId = typeof e.payload["folderId"] === "string" ? e.payload["folderId"] : e.entityId;
         if (folderId) indexDropFolder(ctx, folderId, e.seq);

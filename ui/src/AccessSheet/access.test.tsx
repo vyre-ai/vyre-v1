@@ -1533,3 +1533,47 @@ test("F35: a sheet whose agents can use the item has no such line", async () => 
     assert.equal(find(root, "as-agents-blocked"), null);
   });
 });
+
+/* ---------- an agent's reach on what it made for the person ---------- */
+
+test('a row for the agent that made this reads its name with one quiet line, "Made this for you", and keeps the level and remove control of any row', () => {
+  const html = ssr(
+    <AccessSheet
+      {...share({
+        itemType: "rtype",
+        itemName: "Clients",
+        resourceType: "record_type",
+        resourceId: "rt1",
+        shares: [
+          {
+            subjectKind: "agent",
+            subjectId: "agt_dex",
+            name: "Dex",
+            level: "edit",
+            via: "grant",
+            fromFolderId: null,
+            madeBy: true,
+          },
+          {
+            subjectKind: "agent",
+            subjectId: "agt_docs",
+            name: "Docs",
+            level: "view",
+            via: "grant",
+            fromFolderId: null,
+          },
+        ],
+        directory: sharePeople,
+      })}
+    />,
+  );
+  assert.match(html, /Dex/);
+  assert.equal((html.match(/Made this for you/g) ?? []).length, 1, "the line is on the made row alone");
+  assert.match(html, /aria-label="Level for Dex[^"]*"/, "the level control is the row's own");
+  assert.match(html, /aria-label="Remove Dex"/, "and so is remove");
+  assert.doesNotMatch(
+    html,
+    /Made this for you[\s\S]*Docs[\s\S]*Made this for you/,
+    "an ordinary agent row keeps its own line",
+  );
+});

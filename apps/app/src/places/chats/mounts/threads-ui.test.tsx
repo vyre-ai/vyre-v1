@@ -65,8 +65,8 @@ test("the line under a message: faces, how many replies, when the last came; pre
   );
   const line = find(root, "replies-msg_a");
   assert.match(textOf(line), /3 replies/);
-  assert.match(textOf(line), /Last reply 14:05/);
-  assert.equal(line!.props["aria-label"], "Open the thread: 3 replies, 1 new, Last reply 14:05");
+  assert.match(textOf(line), /Last reply 2:05 PM/);
+  assert.equal(line!.props["aria-label"], "Open the thread: 3 replies, 1 new, Last reply 2:05 PM");
   await press(line);
   assert.equal(opened, 1);
 });

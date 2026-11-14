@@ -39,20 +39,29 @@ test("journey 4, Personal: an assistant's answer becomes a task for yourself and
     const me = await seat(s, w.owner, "Owner");
     await open(me, s, hash(dm));
     await me.page.getByTestId(`msg-${reply}`).hover();
-    // two actions: open the bar (hover), press Make task; the bar carries it in a chat with one person too
+    // three actions: open the bar (hover), press More, choose Make a task; the bar carries it in a chat with one person too
     await shootHere(me.page, dir, "bar-showing");
     await me.page.getByTestId(`msg-${reply}`).hover();
-    await me.page.getByTestId(`act-make-${reply}`).click();
+    await me.page.getByTestId(`act-more-${reply}`).click();
+    await me.page.getByTestId("menu-item-Make a task").click();
     await me.page
       .getByText(/Task created/)
       .first()
       .waitFor({ timeout: 20_000 });
     await me.page.getByTestId(`msg-${reply}`).hover();
-    await me.page.getByTestId(`act-remember-${reply}`).click();
+    await me.page.getByTestId(`act-more-${reply}`).click();
+    await me.page.getByTestId("menu-item-Remember This").click();
     await me.page
       .getByText(/Remembered/)
       .first()
       .waitFor({ timeout: 20_000 });
+    // a narrow window with a mouse keeps the right-click menu (the bar is not drawn there, a context click opens the same menu)
+    const full = me.page.viewportSize() ?? { width: 1280, height: 900 };
+    await me.page.setViewportSize({ width: 390, height: 844 });
+    await me.page.getByTestId(`msg-${reply}`).click({ button: "right" });
+    await me.page.getByTestId("menu-item-Make a task").waitFor({ timeout: 5_000 });
+    await me.page.keyboard.press("Escape");
+    await me.page.setViewportSize(full);
     await shoot(me.page, dir, "both-cards", {
       restore: async () => {
         await open(me, s, hash(dm));

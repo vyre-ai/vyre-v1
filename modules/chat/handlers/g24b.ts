@@ -29,7 +29,7 @@ import {
 } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
-import { mayGovernChannel, rootOf, seesSpace } from "./post.ts";
+import { mayGovernChannel, mayViewChannel, rootOf, seesSpace } from "./post.ts";
 import { mentions } from "./pace.ts";
 import { convergeHome, grantsOf, joinThreads, leaveThreads, revokeGrants } from "./owned.ts";
 
@@ -166,6 +166,8 @@ export async function channelsList(
     const mine = isMember(ctx.db, ch.mainThread, asker);
     // a guest (no View on the Space) lists only the channels they were added to
     if (!mine && !whole) continue;
+    // and only while that access lasts: a guest whose access was removed is still a member row of the chat, and sees the channel no more
+    if (!whole && !mayViewChannel(ctx, ch.id)) continue;
     // Console asks with `governance`: an admin sees that an invite-only channel exists (name, members, archived), marked restricted, and still cannot open it
     if (ch.visibility === "invite" && !mine) {
       if (input.governance !== true || !mayGovernChannel(ctx, ch.id)) continue;
@@ -296,7 +298,7 @@ export async function channelsUnarchive(ctx: ChatCtx, input: { channelId: string
 
 export async function channelsMembersAdd(
   ctx: ChatCtx,
-  input: { channelId: string; personIds: string[]; level?: string; mentionedIn?: string },
+  input: { channelId: string; personIds: string[]; level?: string; mentionedIn?: string; fromStart?: boolean },
 ) {
   const ch = loadLive(ctx, input.channelId);
   // added from "Maya is not in this chat. Add" under a message in this channel (or a reply thread under it): the message must be here and mention each of them (review M2, M3)
@@ -321,6 +323,14 @@ export async function channelsMembersAdd(
   for (const personId of ids) {
     if (isMember(ctx.db, ch.mainThread, personId)) continue;
     addMember(ctx, ch.mainThread, personId);
+    // fromStart false: they read from the moment they came in (the read floor: handlers/floor.ts), never what was said before
+    if (input.fromStart === false)
+      ctx.db.run(
+        "UPDATE chat_thread_member SET fromAt = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
+        ctx.now(),
+        ch.mainThread,
+        personId,
+      );
     await joinThreads(ctx, ch.mainThread, personId);
     ctx.emit("channel.member_added", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId, by });
     // no second "mentioned you": a channel is not private, so chat.post already told everyone its chips name (post.ts deliver), member or not

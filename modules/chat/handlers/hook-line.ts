@@ -9,6 +9,7 @@ import {
   threadBy,
   raise,
 } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
 import type { ChatCtx } from "../projections.ts";
 import { canSpeak } from "./post.ts";
 
@@ -60,7 +61,7 @@ export function hookLineResolve(
 ): { ok: boolean } {
   const t = threadBy(ctx.db, input.threadId);
   if (!t || !canSpeak(ctx, t)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours.");
-  const m = messageBy(ctx.db, input.messageId);
+  const m = messageAsMe(ctx, input.messageId);
   const b = m && m.thread === t.id ? m.blocks.find((x) => x["type"] === "hook") : undefined;
   if (!m || !b) raise(ctx, "validation.not_found", "That line is not in this chat.");
   patchBlockInMessage(ctx.db, m.id, String(b["id"]), (x) => ({

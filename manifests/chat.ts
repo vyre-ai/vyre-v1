@@ -405,7 +405,7 @@ export default defineManifest({
       idem: "key",
       in: { channelId: id.channel },
       out: { erased: t.bool() },
-      emits: ["channel.erased"],
+      emits: ["channel.erased", "thread.erased"],
       audit: "always",
       risk: "high",
     }),
@@ -1150,6 +1150,7 @@ export default defineManifest({
         in: { ...threadT, messageId: id.message, agentId: id.agent },
         out: { messageId: id.message },
         on: ["thread", "/threadId"],
+        emits: ["message.edited"],
         level: "use",
         idem: "key",
 
@@ -1166,7 +1167,15 @@ export default defineManifest({
         in: { ...threadT, messageId: id.message },
         out: { threadId: id.thread },
         on: ["thread", "/threadId"],
-        emits: ["agent.engaged"],
+        emits: [
+          "agent.engaged",
+          "message.received",
+          "message.direct",
+          "message.mentioned",
+          "thread.replied",
+          "thread.unarchived",
+          "thread.updated",
+        ],
         level: "use",
         idem: "key",
 
@@ -1589,7 +1598,10 @@ export default defineManifest({
         in: {
           ...threadT,
           account: t.opt(
-            t.obj({ ref: t.str(), driver: t.str(), kind: t.opt(t.str()) }, { description: "The account the turn ran on" }),
+            t.obj(
+              { ref: t.str(), driver: t.str(), kind: t.opt(t.str()) },
+              { description: "The account the turn ran on" },
+            ),
           ),
         },
         out: { written: t.int({ minimum: 0 }) },
@@ -2299,6 +2311,8 @@ export default defineManifest({
       on: ["channel", "/channelId"],
       level: "manage",
       emits: ["channel.archived"],
+      // an agent's archive waits for the person's OK like its other deletes; the server's own archive (a project or Journey channel when its record completes) is not an agent's
+      gate: { act: "delete", when: "actor.kind == 'agent'" },
       tool: "chats",
     }),
     write("channels.unarchive", "Bring an archived channel back", {
@@ -2336,6 +2350,12 @@ export default defineManifest({
           personIds: t.arr(id.user, { minItems: 1 }),
           level: t.opt(level),
           mentionedIn: t.opt(id.message),
+          fromStart: t.opt(
+            t.bool({
+              description:
+                "Read the channel from its first message (the default). False: they read from now on, as a guest invited into a channel does",
+            }),
+          ),
         },
         out: { channel: channelRow },
         on: ["channel", "/channelId"],
@@ -2437,7 +2457,7 @@ export default defineManifest({
       retention: "audit",
     }),
     ev("transcripts.purged", "Chat transcripts past their retention were removed (a count)", {
-      p: { removed: t.int({ minimum: 0 }) },
+      p: { removed: t.int({ minimum: 0 }), messageIds: t.opt(t.arr(id.message)) },
       subject: ["entity", "/removed"],
       retention: "audit",
     }),

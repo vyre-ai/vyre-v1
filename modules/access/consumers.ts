@@ -16,6 +16,7 @@ import {
   EVERYONE,
   LABEL_RANK,
   changed,
+  clearMadeBy,
   kernelResource,
   labelOf,
   loadStore,
@@ -265,6 +266,12 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       const row: Record<string, unknown> = { ...(have?.row ?? {}) };
       if (p["space_owned"] === true) row["spaceOwned"] = true;
       else delete row["spaceOwned"];
+      if (p["outside"] === true) row["outside"] = true;
+      // who made it for its owner: set at the first registration, kept by every later one (a move or a label change re-registers without it)
+      if (typeof p["made_by"] === "string" && row["madeBy"] === undefined) {
+        row["madeBy"] = p["made_by"];
+        if (typeof p["made_for"] === "string") row["madeFor"] = p["made_for"];
+      }
       store.resources.set(id, {
         id,
         type,
@@ -289,6 +296,8 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
     }
     case "grant.revoked": {
       const id = str(p["grantId"]);
+      // the maker's reach taken away (access.unshare on the row "made this for you"): the thing is no longer stamped as made by that agent; idempotent
+      if (id?.startsWith("gnt_made")) return clearMadeBy(store, str(rec(rec(p)["resource"])["id"]) ?? "");
       if (!id || !store.grants.delete(id)) return false;
       return true;
     }
@@ -332,6 +341,15 @@ function apply(
       const id = str(rec(e.payload)["id"]) ?? "",
         have = store.resources.get(id);
       // a mark only (hostOwnedMarks: a registration in the Space owner's name from before the mark): set the mark on a resource that exists, never make one
+      // a calendar connected to an outside service that was registered before the flag existed: set it, change nothing else (idempotent)
+      if (rec(e.payload)["outside_only"] === true) {
+        if (have && have.row?.["outside"] !== true) {
+          store.resources.set(id, { ...have, row: { ...(have.row ?? {}), outside: true } });
+          changed = true;
+          touched.add(id);
+        }
+        continue;
+      }
       if (rec(e.payload)["mark_only"] === true) {
         if (have && have.row?.["spaceOwned"] !== true) {
           store.resources.set(id, { ...have, row: { ...(have.row ?? {}), spaceOwned: true } });

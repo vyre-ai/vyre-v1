@@ -648,3 +648,47 @@ test("sharing with notify tells each person just added, once, with the line; wit
   const me = (await w.call("notes.get", { noteId: a.noteId })).note;
   assert.deepEqual([me.mine, me.canEdit], [false, true], "the previous owner keeps Edit");
 });
+
+// 14 Nov 2026 (F50): two writers on one note. A note counts its saves; a save made on an older version is refused instead of replacing the later change.
+test("a note carries a version that counts its saves, and a stale expectedVersion is refused", async () => {
+  const w = world();
+  const a = (await w.call("notes.create", { body: "original" })).note;
+  assert.equal(a.version, 1);
+  const ann = (await w.call("notes.update", { noteId: a.noteId, body: "Ann", expectedVersion: 1 })).note;
+  assert.equal(ann.version, 2);
+  assert.equal(
+    await failed(w.call("notes.update", { noteId: a.noteId, body: "Bob", expectedVersion: 1 })),
+    "validation.version_conflict",
+  );
+  assert.equal((await w.call("notes.get", { noteId: a.noteId })).note.body, "Ann", "the later change stays");
+  const bob = (await w.call("notes.update", { noteId: a.noteId, body: "Bob", expectedVersion: 2 })).note;
+  assert.equal(bob.version, 3);
+});
+
+test("an update with no expectedVersion still saves (a person's own edit keeps working) and counts a version", async () => {
+  const w = world();
+  const a = (await w.call("notes.create", { body: "original" })).note;
+  assert.equal((await w.call("notes.update", { noteId: a.noteId, body: "one" })).note.version, 2);
+  assert.equal((await w.call("notes.update", { noteId: a.noteId, body: "two" })).note.version, 3);
+});
+
+test("two saves at once on one note: the second is not written over the first, and a pin and a label made together both stay", async () => {
+  const w = world();
+  const a = (await w.call("notes.create", { body: "original" })).note;
+  const both = await Promise.allSettled([
+    w.call("notes.pin", { noteId: a.noteId, pinned: true }),
+    w.call("notes.label", { noteId: a.noteId, add: ["Lab 8"] }),
+  ]);
+  assert.deepEqual(
+    both.map((r) => r.status),
+    ["fulfilled", "fulfilled"],
+  );
+  const now = (await w.call("notes.get", { noteId: a.noteId })).note;
+  assert.equal(now.pinned, true);
+  assert.deepEqual(now.labels, ["Lab 8"]);
+  const two = await Promise.allSettled([
+    w.call("notes.update", { noteId: a.noteId, body: "Ann", expectedVersion: now.version }),
+    w.call("notes.update", { noteId: a.noteId, body: "Bob", expectedVersion: now.version }),
+  ]);
+  assert.equal(two.filter((r) => r.status === "fulfilled").length, 1, "exactly one lands");
+});

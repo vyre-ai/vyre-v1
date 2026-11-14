@@ -29,11 +29,10 @@ export function KeyRequestCard(p: {
   agent: string;
   agentId: string;
   data: Data;
-  /** the person the agent asked for, and how to say their name */
-  asker?: string;
-  nameOf?: (id: string) => string;
   /** The connector the request is for, when it is for a service (the block's own `service`). */
   service?: string | undefined;
+  /** The person the agent asked for (the block's own `asker`): the plain card says their name. */
+  asker?: string | undefined;
 }): ReactElement | null {
   return p.service ? (
     <ConnectCardLive requestId={p.requestId} agent={p.agent} data={p.data} />
@@ -42,9 +41,9 @@ export function KeyRequestCard(p: {
       requestId={p.requestId}
       agent={p.agent}
       agentId={p.agentId}
+      {...(p.asker ? { asker: p.asker } : {})}
+      {...(p.data.nameOf ? { nameOf: p.data.nameOf } : {})}
       data={p.data}
-      {...(p.asker !== undefined ? { asker: p.asker } : {})}
-      {...(p.nameOf ? { nameOf: p.nameOf } : {})}
     />
   );
 }

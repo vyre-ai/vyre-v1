@@ -142,17 +142,19 @@ test("a running turn's subagents come from its live frames: rows with task, stat
   frame({ kind: "steps", steps: [{ phase: "call", id: "toolu_0", name: "Agent" }] });
   frame({
     kind: "steps",
-    steps: [
-      { phase: "call", id: "toolu_a", name: "Agent" },
-      { phase: "input", id: "toolu_a", detail: "Test the terminal" },
-    ],
+    steps: [{ phase: "call", id: "toolu_a", name: "Agent" }],
+  });
+  frame({
+    kind: "substeps",
+    steps: [{ phase: "input", id: "toolu_a", parent: "toolu_a", title: true, detail: "Test the terminal" }],
   });
   frame({
     kind: "steps",
-    steps: [
-      { phase: "call", id: "toolu_b", name: "Agent" },
-      { phase: "input", id: "toolu_b", detail: "Test the browser" },
-    ],
+    steps: [{ phase: "call", id: "toolu_b", name: "Agent" }],
+  });
+  frame({
+    kind: "substeps",
+    steps: [{ phase: "input", id: "toolu_b", parent: "toolu_b", title: true, detail: "Test the browser" }],
   });
   frame({
     kind: "substeps",
@@ -176,13 +178,15 @@ test("a running turn's subagents come from its live frames: rows with task, stat
   await mount(
     createRoot,
     <CrewProvider call={call} threadId="thr_0">
-      <LiveSubagents turns={turns} activityOf={(id) => streams.activityOf(id)} />
+      <LiveSubagents me="usr_a" turns={turns} activityOf={(id) => streams.activityOf(id)} />
       <Probe />
     </CrewProvider>,
   );
   await flush();
   const members = (seen as CrewStatusOut | null)?.members ?? [];
-  assert.equal(members.length, 2, "the unnamed call is not a row");
+  assert.equal(members.length, 3, "the call whose task line has not come yet is a row at once");
+  assert.equal(members[0]!.title, "Starting");
+  members.shift();
   assert.deepEqual(
     members.map((m) => [m.kind, m.title, m.state]),
     [
@@ -198,7 +202,7 @@ test("a running turn's subagents come from its live frames: rows with task, stat
   // the first returns: Done, and the clock stops
   frame({ kind: "steps", steps: [{ phase: "result", id: "toolu_a", name: "Agent", ok: true }] });
   await flush();
-  const after = (seen as CrewStatusOut | null)?.members ?? [];
+  const after = ((seen as CrewStatusOut | null)?.members ?? []).slice(1);
   assert.deepEqual(
     after.map((m) => m.state),
     ["done", "working"],
@@ -237,4 +241,48 @@ test("a subagent's pane asks for no workspace: it has no chat, and the ask is re
   await mount(createRoot, pane({ ...S({ id: "thr_h" }), kind: "helper" } as CrewMember));
   await flush();
   assert.ok(asked.includes("engine.crew.workspace"), "a helper's pane still asks");
+});
+
+test("F51: a reader who is not the asker gets plain helper rows from the live frames: states and clocks, no task line, no steps; even if such frames reached them", async () => {
+  const streams = createTurnStreams();
+  const frame = (delta: Record<string, unknown>) =>
+    streams.onFrame({ t: "turn", turn: "trn_9", delta: { threadId: "thr_0", agentId: "agt_dex", ...delta } });
+  frame({ kind: "start", asker: "usr_a" });
+  frame({
+    kind: "steps",
+    steps: [
+      { phase: "call", id: "toolu_a", name: "Agent" },
+      { phase: "call", id: "toolu_b", name: "Agent" },
+    ],
+  });
+  frame({
+    kind: "substeps",
+    steps: [
+      { phase: "input", id: "toolu_a", parent: "toolu_a", title: true, detail: "Read the secret lease" },
+      { phase: "call", id: "t1", name: "Read", parent: "toolu_a" },
+    ],
+  });
+  let seen: CrewStatusOut | null = null;
+  const Probe = (): null => {
+    seen = useCrew()?.status ?? null;
+    return null;
+  };
+  await mount(
+    createRoot,
+    <CrewProvider call={async () => ({ members: [], totals: totalsOf([]) })} threadId="thr_0">
+      <LiveSubagents me="usr_b" turns={streams.turnsOf("thr_0")} activityOf={(id) => streams.activityOf(id)} />
+      <Probe />
+    </CrewProvider>,
+  );
+  await flush();
+  const rows = (seen as CrewStatusOut | null)?.members ?? [];
+  assert.deepEqual(
+    rows.map((m) => [m.title, m.state]),
+    [
+      ["Helper 1", "working"],
+      ["Helper 2", "working"],
+    ],
+  );
+  assert.doesNotMatch(JSON.stringify(rows), /secret lease|Reading/);
+  assert.ok(rows.every((m) => m.step === undefined && m.steps === undefined));
 });

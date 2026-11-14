@@ -131,12 +131,12 @@ test("the footer under the ask: nothing for an empty thread, then the reply coun
   await flush();
   const one = textOf(find(root, "replies-c2"));
   assert.match(one, /1 reply/);
-  assert.match(one, /Last reply 9:40/);
+  assert.match(one, /Last reply 9:40 AM/);
   await act(async () => {
     s.replica.put("threads", [threadRow({ replyCount: 3, lastMessageAt: at(9, 55) })]);
   });
   await flush();
-  assert.match(textOf(find(root, "replies-c2")), /3 replies.*Last reply 9:55/s, "the line follows the thread live");
+  assert.match(textOf(find(root, "replies-c2")), /3 replies.*Last reply 9:55 AM/s, "the line follows the thread live");
 });
 
 test("when the agent has finished the footer says Done with its one-line outcome, then the reply count", async () => {
@@ -676,7 +676,7 @@ test("pure: the footer words, the timer and the also-sent lookup", () => {
     "and left out otherwise",
   );
   const f = footerOf(sums.get("m1"), [], SAMPLE_NOW, clock)!;
-  assert.deepEqual([f.writing, f.head, f.count, f.when], [false, null, "2 replies", "Last reply 9:40"]);
+  assert.deepEqual([f.writing, f.head, f.count, f.when], [false, null, "2 replies", "Last reply 9:40 AM"]);
   const w = footerOf(
     sums.get("m2"),
     [

@@ -16,7 +16,7 @@ import {
   retire,
   upgradeStarterAgentMd,
 } from "./handlers/crud.ts";
-import { ROUTINES_DUE_EVERY_MS, onMessageReceived, runDueRoutines } from "./handlers/routines.ts";
+import { onMessageReceived } from "./handlers/routines.ts";
 import { memoryGuideConsumers } from "./memory-guide.ts";
 import type {
   FileVersionEvent,
@@ -25,11 +25,22 @@ import type {
   SettingChangedEvent,
   TurnEvent,
 } from "./handlers/crud.ts";
-import { agentOf, nextRun, noteRoutineOutcome } from "./projections.ts";
+import { agentOf, nextRun, noteRoutineOutcome, routineBy } from "./projections.ts";
+import { afterResume, reconcileWakes } from "./routine-wake.ts";
 import { noteRun, resumeSelfPaused } from "./routine-guard.ts";
+import { tellPaused, withdrawTold } from "./routine-told.ts";
 import type { AgentsCtx } from "./projections.ts";
 import { setPluginsHost } from "./handlers/plugins.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
+
+/** Routines that came back by themselves: the wake follows the row, the wake's time becomes the row's, and the item of the pause is withdrawn. */
+async function resumed(ctx: AgentsCtx, ids: string[]): Promise<string[]> {
+  for (const id of ids) {
+    await afterResume(ctx, id);
+    await withdrawTold(ctx, id);
+  }
+  return ids;
+}
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
@@ -58,11 +69,11 @@ export const periodic = {
     immediate: true,
     run: (ctx: AgentsCtx): Promise<string[]> => upgradeStarterAgentMd(ctx),
   },
-  /** The schedule of routines: every 10 seconds, each routine whose time has come starts once (handlers/routines.ts runDueRoutines). Runs only where the scheduled-work lease is held. */
-  "agents.routines_due": {
-    everyMs: ROUTINES_DUE_EVERY_MS,
+  /** The wake table's net: every routine's wake is brought to what the routine row wants (a routine saved before the table gets one at its stored next time, exactly), and a wake whose routine is gone is cancelled. */
+  "agents.routines_wake_sync": {
+    everyMs: 30_000,
     immediate: true,
-    run: (ctx: AgentsCtx): Promise<string[]> => runDueRoutines(ctx),
+    run: (ctx: AgentsCtx): Promise<string[]> => reconcileWakes(ctx),
   },
 };
 
@@ -97,39 +108,31 @@ export const consumers = {
       );
       if (event.name === "run.stopped") return ids;
       for (const id of ids) {
-        // three failures in a row for one reason: the routine pauses itself and says so once in its chat
+        // a Run that went well: the Needs-you item of an earlier pause is no longer true
+        if (event.name === "run.succeeded") await withdrawTold(ctx, id);
+        // three failures in a row for one reason: the routine pauses itself; its owner gets one item and its chat one line (routine-told.ts)
+        const at = ctx.now();
+        const code = String(event.payload.code ?? "run.failed");
         const paused = noteRun(
           ctx.db,
           id,
           event.name === "run.succeeded",
-          String(event.payload.code ?? "run.failed"),
+          code,
           String(event.payload.message ?? ""),
-          ctx.now(),
+          at,
         );
         if (!paused) continue;
         ctx.log.warn("a routine paused itself after repeated failed runs", { routineId: id, reason: paused.reason });
-        if (paused.threadId && ctx.call) {
-          try {
-            // a channel's id names its main chat; the chat capabilities take that chat's own id
-            let threadId = paused.threadId;
-            if (threadId.startsWith("chn_"))
-              threadId = String(
-                ((await ctx.call("channels.get", { channelId: threadId })) as { channel?: { mainThreadId?: string } })
-                  .channel?.mainThreadId ?? threadId,
-              );
-            await ctx.call("chat.post", {
-              threadId,
-              body: `Paused "${paused.title}" after ${3} failed runs: ${paused.reason}`,
-              mentions: [],
-              idempotencyKey: `routine-paused:${id}:${ctx.now()}`,
-            });
-          } catch (e) {
-            ctx.log.warn("the routine's pause could not be said in its chat", {
-              routineId: id,
-              error: e instanceof Error ? e.message : String(e),
-            });
-          }
-        }
+        const owner = routineBy(ctx.db, id)?.ownerId;
+        if (owner)
+          await tellPaused(ctx, {
+            routineId: id,
+            ownerId: owner,
+            title: paused.title,
+            channelId: paused.threadId,
+            code,
+            at,
+          });
       }
       return ids;
     },
@@ -137,13 +140,13 @@ export const consumers = {
   /** The cause may be gone: a sign-in or key was saved again. Routines that paused themselves start again (a routine that fails again pauses again after three runs). */
   "agents.routine_resume": {
     on: ["vault.item_updated", "vault.item_created"],
-    run: (ctx: AgentsCtx): string[] => resumeSelfPaused(ctx.db, ctx.now(), nextRun),
+    run: async (ctx: AgentsCtx): Promise<string[]> => resumed(ctx, resumeSelfPaused(ctx.db, ctx.now(), nextRun)),
   },
   /** The Vault opened on this computer and the turn it kept waiting ran: the agent works again, so its routines that paused themselves start again (a sign-in saved later does the same through the consumer above). */
   "agents.routine_resume_on_turn": {
     on: ["turn.completed"],
-    run: (ctx: AgentsCtx, event: { payload: { agentId?: string } }): string[] =>
-      event.payload.agentId ? resumeSelfPaused(ctx.db, ctx.now(), nextRun, event.payload.agentId) : [],
+    run: async (ctx: AgentsCtx, event: { payload: { agentId?: string } }): Promise<string[]> =>
+      event.payload.agentId ? resumed(ctx, resumeSelfPaused(ctx.db, ctx.now(), nextRun, event.payload.agentId)) : [],
   },
   /** A person's account exists (claim or join): they get their private assistant, with or without an AI account. */
   "agents.ensure_assistant": {

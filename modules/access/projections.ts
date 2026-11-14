@@ -1006,6 +1006,9 @@ export function kernelResource(r: ResourceRec): ResourceRow {
     holds: r.holds,
     ...(cut && r.parentId !== null ? { home: r.parentId } : {}),
     ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
+    ...(typeof r.row?.["madeBy"] === "string" ? { made_by: r.row["madeBy"] } : {}),
+    ...(typeof r.row?.["madeFor"] === "string" ? { made_for: r.row["madeFor"] } : {}),
+    ...(r.row?.["outside"] === true ? { outside: true } : {}),
   };
 }
 
@@ -1356,6 +1359,17 @@ export function groupView(g: GroupRec): GroupRec {
  */
 export function agentLevel(resourceType: string, level: Level): Level {
   return resourceType === "agent" && level === "view" ? "use" : level;
+}
+
+/** Clear the made-by stamp of a resource: the agent has only what its role and the person's grants give it from now on. Idempotent. */
+export function clearMadeBy(store: AccessStore, id: string): boolean {
+  const res = store.resources.get(id);
+  if (!res?.row || res.row["madeBy"] === undefined) return false;
+  const { madeBy: _b, madeFor: _f, ...rest } = res.row;
+  void _b;
+  void _f;
+  store.resources.set(id, { ...res, row: rest });
+  return true;
 }
 
 export function grantView(g: GrantRec): GrantRec {

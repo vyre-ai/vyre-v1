@@ -52,6 +52,13 @@ const calendarRow = t.obj({
 });
 const eventRow = t.obj({
   id: cevId,
+  version: t.opt(
+    t.int({
+      minimum: 0,
+      description: "Counts the changes to the event; send it back as expectedVersion on calendar.update_event",
+    }),
+  ),
+  updatedAt: t.opt(t.ts()),
   calendarId: calId,
   title: t.str(),
   startsAt: t.ts(),
@@ -95,7 +102,8 @@ const eventFields = {
   fromBookingPage: t.opt(id.form),
   video: t.opt(video),
 };
-const sendGate = { act: "send", when: "actor.kind != 'person' && input.attendees != null" };
+// An agent's event waits for the person when it invites someone or when the calendar is connected to an outside service (host/src/daemon/gate-hook.ts calendar.writes_outside): an outward act in the person's name. Vyre's own Personal calendar is the person's own and nothing waits. (The expression language has no null test, so `input.attendees != null` could not be read and held every event.)
+const sendGate = { act: "send", when: "calendar.writes_outside(input)" };
 const healthOut = { state: t.enm("healthy", "degraded", "down"), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 
 const manifest = defineManifest({
@@ -283,7 +291,14 @@ const manifest = defineManifest({
         scope: t.opt(t.enm("this", "all")),
         // Add a video call: Meet, Teams or Zoom, made through the connection and written into the event
         video: t.opt(t.enm("meet", "zoom", "teams")),
+        expectedVersion: t.opt(
+          t.int({
+            minimum: 0,
+            description: "The version you read; an event changed since then is not replaced, and the change is refused",
+          }),
+        ),
       },
+      errors: ["validation.version_conflict"],
       out: {
         event: eventRow,
         changed: t.opt(t.int()),

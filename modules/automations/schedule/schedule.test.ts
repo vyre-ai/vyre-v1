@@ -89,16 +89,17 @@ test("next five runs in a named time zone, and a preset stores the same cron", (
   assert.deepEqual(nextOccurrences("* * * * *", "Nowhere/Land", after), { error: "bad_timezone" });
 });
 
-test("daylight saving: spring-forward skips a missing local time, fall-back fires the first pass only", () => {
+// 13 Nov 2026, lead's decision (P1 contract, Q2): a local time that does not exist on the spring-forward day fires at the first moment after the gap. It used to be skipped that day. See docs/frozen/capabilities.md.
+test("daylight saving: spring-forward fires a missing local time when the gap ends, fall-back fires the first pass only", () => {
   const spring = nextOccurrences("30 2 * * *", "America/New_York", utc(2026, 3, 7, 8, 0), 5);
   assert.ok(!("error" in spring));
   if ("error" in spring) return;
   assert.deepEqual(spring.times, [
+    utc(2026, 3, 8, 7, 0), // 02:30 does not exist on 8 March: it fires at 03:00 EDT, when the gap ends
     utc(2026, 3, 9, 6, 30),
     utc(2026, 3, 10, 6, 30),
     utc(2026, 3, 11, 6, 30),
     utc(2026, 3, 12, 6, 30),
-    utc(2026, 3, 13, 6, 30),
   ]);
   const across = nextOccurrences("0 9 * * *", "America/New_York", utc(2026, 3, 7, 12, 0), 5);
   assert.ok(!("error" in across));

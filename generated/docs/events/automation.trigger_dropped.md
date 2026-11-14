@@ -1,6 +1,6 @@
 # automation.trigger_dropped
 
-A trigger event was ignored: self-trigger, chain depth 8 or paused
+A trigger event was ignored: self-trigger, chain depth 8, paused, or the message was from a guest (not run)
 
 | | |
 |---|---|
@@ -20,6 +20,6 @@ A trigger event was ignored: self-trigger, chain depth 8 or paused
 type Payload = {
   automationId: string;
   eventId: string;
-  reason: "self_trigger" | "depth_limit" | "paused" | "filter_error";
+  reason: "self_trigger" | "depth_limit" | "paused" | "filter_error" | "outsider";
 };
 ```

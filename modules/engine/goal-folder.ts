@@ -676,6 +676,7 @@ export function createGoalOf(
   const cache = new Map<string, string | null>();
   return async (threadId, asker) => {
     if (cache.has(threadId)) return cache.get(threadId) ?? null;
+    if (threadId.startsWith("oneshot_")) return null; // a one-shot job belongs to no goal
     let goal: string | null = null;
     const th = ((await p.read("threads.get", { threadId }, asker).catch(() => null)) as { thread?: Obj } | null)
       ?.thread;

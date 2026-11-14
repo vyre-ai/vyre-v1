@@ -42,6 +42,7 @@ const clean = (h: string): string =>
 
 function view(me: string): { html: string; muted: string[]; menu: string[] } {
   const muted: string[] = [];
+  const behind: string[] = [];
   const actions = {
     nameOf,
     agentMute: { me, offerFor: "msg_dm1", mute: (p: string) => muted.push(p) },
@@ -51,15 +52,17 @@ function view(me: string): { html: string; muted: string[]; menu: string[] } {
     react: () => undefined,
     remove: () => undefined,
     openAgent: () => undefined,
-    showMenu: () => undefined,
+    showMenu: (items: readonly { label?: string }[]) =>
+      void behind.push(...items.flatMap((e) => (e.label ? [e.label] : []))),
   };
   const items = timeline([m], { meId: me, nameOf, kindOf, clock });
   const html = clean(
     items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={actions as never} meId={me} />)).join(""),
   );
-  const menu = menuFor(m, false, actions as never, () => undefined).flatMap((e) =>
-    "label" in e && typeof e.label === "string" ? [e.label] : [],
-  );
+  const first = menuFor(m, false, actions as never, () => undefined);
+  // the mute entry sits behind the menu's last row, More (G14): press it and read what the menu was handed
+  (first.find((e) => "label" in e && e.label === "More") as { onSelect(): void } | undefined)?.onSelect();
+  const menu = [...first.flatMap((e) => ("label" in e && typeof e.label === "string" ? [e.label] : [])), ...behind];
   return { html, muted, menu };
 }
 
@@ -99,7 +102,7 @@ test("Maya reads it as Dana’s Assistant, wearing Dana's face, with a quiet lin
   assert.ok(!/Intake/.test(maya.html), "never the agent's own name");
   assert.match(maya.html, /Mute agent messages from Dana for today/);
   assert.ok(!/on behalf|on_behalf/.test(maya.html), "the block is not drawn as a card");
-  assert.ok(maya.menu.includes("Mute Agent Messages From Dana for Today"), maya.menu.join(", "));
+  assert.ok(maya.menu.includes("Mute agent messages from Dana for today"), maya.menu.join(", "));
 });
 
 test("Dana sees the same credit and no mute; a message with no block is the agent's own", () => {

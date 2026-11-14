@@ -42,6 +42,7 @@ export type {
   DriverEvent,
   EngineAgent,
   EngineEvent,
+  StoppedBy,
   EngineSession,
   IncomingMessage,
   OpenSession,

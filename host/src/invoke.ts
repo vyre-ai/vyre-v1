@@ -1167,7 +1167,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         events,
       })) {
         events.push(
-          envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope,
+          envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth, {
+            vis: deps.resources.visOf?.(row) ?? "space",
+          }) as EventEnvelope,
         );
         // What an agent makes for the person it acts for is that person's, and the agent goes on working on it: one rule for all of it (madeForGrant below).
         const made = madeForGrant(row, events, seed, deps.madeFor);

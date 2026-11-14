@@ -203,19 +203,25 @@ test("chat layout, team Space: long draft, scrolled feed, thread pane beside a l
       .innerText()
       .catch(() => "");
     fs.writeFileSync(path.join(shots, "19-tab-text.txt"), tabs + "\n");
-    // a tab has no title of its own: each of the chats opened above reads as that chat's real title, and "New chat" shows nowhere
+    // a tab has no title of its own: each of the chats opened above reads as that chat's real title (a whole line of the strip, not a piece of it); "New chat" is only the landing tab, the first line
     const strip = await page.getByTestId("tab-strip").first().innerText();
+    const lines = strip
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l !== "");
+    const said = `the strip says: ${lines.join(" | ")}`;
     for (const title of [
       "Create a landing page",
       "Set up the onboarding goal",
       "Write the reminder emails",
       "Go through the retainer letters",
     ])
-      assert.ok(
-        strip.includes(title),
-        `the tab for "${title}" reads that title; the strip says: ${strip.replaceAll("\n", " | ")}`,
-      );
-    assert.ok(!/New chat/.test(strip), `no tab still reads New chat: ${strip.replaceAll("\n", " | ")}`);
+      assert.ok(lines.includes(title), `a tab line equals "${title}"; ${said}`);
+    assert.deepEqual(
+      lines.flatMap((l, i) => (l === "New chat" ? [i] : [])),
+      [0],
+      `the only tab reading New chat is the first, the landing tab; ${said}`,
+    );
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

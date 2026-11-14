@@ -7,8 +7,8 @@
 // Sealed bodies (enc2 envelopes) are not text the server holds, so they never match. The answer carries the exact stored words, the author, the time and a link that opens the chat at that moment.
 import { askerOf, ensure, membersOf, refOf, threadBy } from "../projections.ts";
 import type { ChatCtx, ThreadRec } from "../projections.ts";
-import { ensureTranscript, seenRows } from "./g24d.ts";
-import { rootOf } from "./post.ts";
+import { ensureTranscript, seenRows, stepRow } from "./g24d.ts";
+import { rootOf, startsAlone } from "./post.ts";
 import { readFloor } from "./floor.ts";
 
 type Row = Record<string, unknown>;
@@ -131,7 +131,7 @@ export function termsOf(q: string): string[] {
 export function mayRecall(ctx: Pick<ChatCtx, "db" | "principal" | "actingFor">, t: ThreadRec): boolean {
   const asker = askerOf(ctx);
   const root = rootOf(ctx, t);
-  if (root.starter === asker || t.starter === asker) return true;
+  if (startsAlone(root) && (root.starter === asker || t.starter === asker)) return true;
   if (membersOf(ctx.db, root.id).includes(asker)) return true;
   return membersOf(ctx.db, t.id).includes(asker);
 }
@@ -245,7 +245,7 @@ export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<
   const own = seenRows(ctx);
   for (let off = 0; off < SCAN_CAP; off += BATCH) {
     const rows = ctx.db.all(
-      `SELECT r.* FROM chat_transcript_row r WHERE (${twhere}) AND ${own.sql}${input.threadId ? " AND r.thread = ?" : ""} ORDER BY r.at DESC, r.idx DESC LIMIT ? OFFSET ?`,
+      `SELECT r.* FROM chat_transcript_row r WHERE r.kind <> 'tool_call' AND (${twhere}) AND ${own.sql}${input.threadId ? " AND r.thread = ?" : ""} ORDER BY r.at DESC, r.idx DESC LIMIT ? OFFSET ?`,
       ...args,
       ...own.args,
       ...(input.threadId ? [input.threadId] : []),
@@ -324,7 +324,7 @@ function byRef(ctx: ChatCtx, ref: string, open: (id: string) => ThreadRec | null
     )[0];
     const t = r ? open(String(r["thread"])) : null;
     if (!r || !t || Number(r["at"] ?? 0) < readFloor(ctx, t)) return [];
-    const text = jsonText(r["content"]);
+    const text = jsonText(stepRow(r)["content"]);
     const kind = String(r["kind"]);
     const isStep = String(r["role"]) === "tool" || kind === "tool_call" || kind === "tool_result";
     return [

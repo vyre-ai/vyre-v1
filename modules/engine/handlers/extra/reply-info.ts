@@ -191,9 +191,9 @@ export function turnOfMessage(ctx: EngineCtx, input: { threadId: string; message
   const info = parse<TurnInfo>(link["info"]);
   const cost = parse<TurnCost>(link["cost"]);
   const asker = str(t["asker"]);
+  const mine = asker === actorOf(ctx);
   const full =
-    asker === actorOf(ctx) ||
-    ctx.authorize({ perm: "ai.spend", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
+    mine || ctx.authorize({ perm: "ai.spend", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
   const q = rows(
     ctx,
     "SELECT enqueued_at FROM engine_thread_queue WHERE thread_id = ? AND qseq = ?",
@@ -239,9 +239,9 @@ export function turnOfMessage(ctx: EngineCtx, input: { threadId: string; message
         ...(info?.reasoningTokens !== undefined ? { reasoning: info.reasoningTokens } : {}),
       },
       ...(full && cost ? { cost } : {}),
-      tools: traces.map((x) => toolOut(x, full)),
-      // a file name is what a tool was asked to touch: the same rule as the arguments
-      files: full ? { read: named(READS), written: named(WRITES) } : { read: [], written: [] },
+      tools: traces.map((x) => toolOut(x, mine)),
+      // a file name is what a tool was asked to touch: the asker only, never a manager of AI spend (F51); the account and the cost stay with the managers
+      files: mine ? { read: named(READS), written: named(WRITES) } : { read: [], written: [] },
       skills: [...new Set(traces.filter((x) => x.name === "Skill" && x.detail).map((x) => x.detail as string))],
       switches: (info?.switches ?? []).map((s) => ({
         at: s.at,

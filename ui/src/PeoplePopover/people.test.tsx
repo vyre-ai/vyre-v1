@@ -243,3 +243,30 @@ test("a Lead presses the role text to change the role (the same menu as Change r
     restore();
   }
 });
+
+test("a viewer who may not add or open: no footer is drawn, a row opens nothing, and the keyboard offers neither", async () => {
+  const restore = installDom();
+  try {
+    const { p, log } = props({ perms: { message: false, changeRole: false, remove: false, add: false, open: false } });
+    const root = await mount(createRoot, <PeoplePopover {...p} />);
+    for (const r of rows) assert.ok(find(root, `people-row-${r.id}`) !== null, `${r.name} is still named`);
+    assert.equal(find(root, "people-footer"), null, "no Add people and agents when the viewer cannot add");
+    await press(find(root, "people-row-agt_ember"));
+    assert.deepEqual(log, [], "pressing a row opens nothing the viewer cannot open");
+  } finally {
+    restore();
+  }
+});
+
+test("a viewer without the flags keeps everything: the footer is drawn and a row opens", async () => {
+  const restore = installDom();
+  try {
+    const { p, log } = props();
+    const root = await mount(createRoot, <PeoplePopover {...p} />);
+    assert.ok(find(root, "people-footer") !== null);
+    await press(find(root, "people-row-usr_sara"));
+    assert.deepEqual(log, ["open:usr_sara"]);
+  } finally {
+    restore();
+  }
+});

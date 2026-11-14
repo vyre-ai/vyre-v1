@@ -214,7 +214,8 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
         /* the test state is best effort */
       }
       try {
-        noteOwn(o.db, { ...e, asker: askers.get(e.turnId) ?? askerOfTurn(e.turnId) ?? "" }, [e], o.now());
+        // the asker is the one the engine recorded for the turn (engine_turns.asker): the one source, which the chat's own askedBy is filled from
+        noteOwn(o.db, { ...e, asker: askerOfTurn(e.turnId) ?? askers.get(e.turnId) ?? "" }, [e], o.now());
       } catch (err) {
         warn("a subagent step was not kept", {
           threadId: e.threadId,

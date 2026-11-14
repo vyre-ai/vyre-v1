@@ -655,6 +655,17 @@ export default defineManifest({
         errors: ["permission.no_grant"],
       },
     ),
+    write(
+      "agents.routine.fire",
+      "System: a routine's time has come (its wake made the fire): start its Run under its owner with the routine's key, only if the routine still exists, is on, is not paused and still agrees with the fire. Says why when it starts nothing",
+      {
+        in: { routineId: t.id("rtn"), dueKey: t.str({ examples: ["1793696460000"] }) },
+        out: { started: t.bool(), runId: t.opt(id.run), why: t.opt(t.str()) },
+        emits: ["agent.routine_run_started"],
+        idem: "none",
+        errors: ["permission.no_grant"],
+      },
+    ),
     write("agents.routine.delete", "Delete a routine", {
       in: { ...target, routineId: t.id("rtn") },
       out: { deleted: t.bool() },

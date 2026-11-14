@@ -1101,15 +1101,17 @@ export function AccessList({
               id={`as-acc-${row.subjectId}`}
               title={row.name}
               note={
-                rec
-                  ? inheritedRow
-                    ? `From ${p.folderName ?? "its type"}`
-                    : rowSub({ ...row, via: "grant" })
-                  : row.subjectKind === "person" &&
-                      row.via === "grant" &&
-                      redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") !== null
-                    ? (redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") as string)
-                    : rowSub(row, p.folderName)
+                row.madeBy === true
+                  ? rowSub(row)
+                  : rec
+                    ? inheritedRow
+                      ? `From ${p.folderName ?? "its type"}`
+                      : rowSub({ ...row, via: "grant" })
+                    : row.subjectKind === "person" &&
+                        row.via === "grant" &&
+                        redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") !== null
+                      ? (redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") as string)
+                      : rowSub(row, p.folderName)
               }
               leadWidth={36}
               lead={<SubjectFace row={row} />}

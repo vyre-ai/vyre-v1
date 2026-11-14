@@ -1,0 +1,15 @@
+- A repeating task held by someone in a time zone with daylight saving now keeps its time of day across a clock change: a task due at 09:00 that repeats stays at 09:00, where it used to move by an hour for the next one. Tasks that repeat now are not rescheduled; only the next occurrence made after an update follows the new rule.
+- A schedule set for a time that daylight saving skips (02:30 on the night clocks go forward) now runs when the gap ends instead of missing that day. This covers Automation schedules, goal check-ins and quiet hours.
+- A time that happens twice when clocks go back runs once, at its first pass, in every time zone (London and Sydney used to run at the second).
+- A repeating task keeps its time of day across a daylight saving change: 09:00 stays 09:00 for the person who holds it.
+- Home's Routines today shows each routine at its right time for people outside UTC.
+- "Needs you" and "Due today" now begin at midnight on the two days a year the clocks change; for a moment after the change they began an hour off.
+- The Automation schedule picker's list of next runs follows the same daylight saving rules as the scheduler.
+- A deadline typed at a time a spring clock change skips (2:30 AM on the night clocks go forward) now means the moment the change ends, in every time zone. A time zone saved as a fixed offset such as +05:00 keeps working as before everywhere.
+- Handing a routine to a colleague is now refused, with the reason, when they are not in the Space, cannot use the agent or cannot read the channel it posts to. Before, it went to anyone.
+- Scheduled work now has one table ready for routines and goals to share, with one rule that makes sure each time runs once (nothing you can see changes yet).
+- A repeating task whose holder's profile time zone is misspelled still comes back, on UTC, instead of stopping.
+- Your routines now run from the scheduler's one table of times. They fire at exactly the times they did before, once each; nothing about how you set a routine up changes.
+
+- A routine that cannot run says so once, in plain words (P1 step 4): three failed tries to start it, or three failed Runs in a row for one cause, pause it and make one Needs-you item for its owner ("<routine> paused: <why>") and one line in its chat; a trouble that clears on a retry tells nobody; a Run that goes well withdraws the item. A server that was off across several times starts the routine once and its chat says how many runs came due.
+- The routine tick that ran every ten seconds is gone: the scheduler's wake table is the only clock for a routine (P1 step 4). Revert this one commit to bring the old tick back.

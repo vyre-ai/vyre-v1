@@ -372,10 +372,22 @@ export function idleLine(mode: "add" | "share", type?: ShareItemType, name?: str
   return mode === "add" ? "Pick who to add. You will see what they get before you confirm." : "";
 }
 
-/** Whether the "Include earlier messages" switch shows: a person, not a guest, is picked. */
-export function showsEarlier(picks: readonly AccessPick[]): boolean {
-  return picks.some((p) => p.kind === "person");
+/**
+ * Whether the "Include earlier messages" switch shows: a person, not a guest, is picked. When the server's rule is known (rule), a person who is not the chat's owner is offered it only for someone who is not in yet:
+ * widening a member who is already in is the owner's alone, and a switch that does nothing is never shown.
+ */
+export function showsEarlier(
+  picks: readonly AccessPick[],
+  rule?: { owner: boolean; members: readonly string[] },
+): boolean {
+  const people = picks.filter((p) => p.kind === "person");
+  if (rule === undefined || rule.owner) return people.length > 0;
+  return people.some((p) => !rule.members.includes(p.id));
 }
+
+/** What the switch says: the owner gives everything earlier; anyone else gives what they can read themselves. */
+export const earlierLabel = (rule?: { owner: boolean }): string =>
+  rule === undefined || rule.owner ? "Include earlier messages" : "Include earlier messages you can read";
 
 /* ---------- the main button ---------- */
 
@@ -942,7 +954,16 @@ export function sheetRows<R extends AccessRowLike>(
   };
 }
 
-export function rowSub(row: { subjectKind: ShareSubjectKind; via: string }, folderName?: string): string {
+/** Does a grant's `source` say an agent made the thing for the person? The access projection's row ("made_by") and the Vault's explicit maker's grant ("made-by:<agent>") are both the same fact: one check. */
+export const isMadeBySource = (source: string | undefined): boolean =>
+  source === "made_by" || (source !== undefined && source.startsWith("made-by:"));
+
+export function rowSub(
+  row: { subjectKind: ShareSubjectKind; via: string; madeBy?: boolean | undefined },
+  folderName?: string,
+): string {
+  // an agent that made this for the person: the one quiet line, nothing else (owner, 14 Nov 2026)
+  if (row.madeBy === true) return "Made this for you";
   // never "Not in a folder" above "From the folder": with no folder named, what is inherited comes from the Space
   if (row.via === "folder") return folderName ? `From the folder ${folderName}` : "From the Space";
   if (row.via === "space") return "From the Space";
@@ -1058,10 +1079,13 @@ export function accessView(i: AccessViewInput): AccessView {
   const everyone = merged.find(isEveryoneRow) ?? null;
   const people = merged
     .filter(
-      (r) => (r.subjectKind === "person" || r.subjectKind === "group" || r.subjectKind === "role") && !isEveryoneRow(r),
+      (r) =>
+        // an agent that made this for the person is listed among the people who can open it, with its own line ("Made this for you"); other agent shares have their own section on an agent
+        (r.subjectKind === "person" || r.subjectKind === "group" || r.subjectKind === "role" || r.madeBy === true) &&
+        !isEveryoneRow(r),
     )
     .sort(byAccess);
-  const agentRows = merged.filter((r) => r.subjectKind === "agent").sort(byAccess);
+  const agentRows = merged.filter((r) => r.subjectKind === "agent" && r.madeBy !== true).sort(byAccess);
   const specific = agentRows.filter((r) => r.via === "grant");
   const inherited = agentRows.some((r) => r.via !== "grant");
   const count = 1 + people.length + specific.length + (everyone ? 1 : 0);

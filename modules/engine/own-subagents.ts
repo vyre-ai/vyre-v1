@@ -13,6 +13,8 @@ interface Step {
   detail?: string;
   parent?: string;
   result?: string;
+  /** the task line of the subagent `parent` names */
+  title?: boolean;
 }
 
 /** The names a CLI engine gives the call that starts a subagent. */
@@ -31,7 +33,7 @@ export function noteOwn(
   for (const raw of list) {
     const s = raw as Step;
     const id = typeof s.id === "string" ? s.id : "";
-    if (id === "" || (typeof s.parent === "string" && s.parent !== "")) continue;
+    if (id === "" || (typeof s.parent === "string" && s.parent !== "" && s.title !== true)) continue;
     if (s.phase === "call") {
       if (typeof s.name !== "string" || !SUBAGENT_CALL.test(s.name)) continue;
       ensure(db);
@@ -83,9 +85,10 @@ export function hangOwn(db: Db, turnId: string, messageId: string): void {
 }
 
 /** A message, or a whole chat, was removed: the subagents that hung under it go with it. */
-export function eraseOwn(db: Db, o: { messageId?: string; threadId?: string }): number {
+export function eraseOwn(db: Db, o: { messageId?: string; messageIds?: readonly string[]; threadId?: string }): number {
   ensure(db);
   const before = (db.all("SELECT COUNT(*) AS n FROM engine_own_subagent") as Row[])[0]?.["n"] as number;
+  for (const id of o.messageIds ?? []) db.run("DELETE FROM engine_own_subagent WHERE message_id = ?", id);
   if (o.messageId) db.run("DELETE FROM engine_own_subagent WHERE message_id = ?", o.messageId);
   if (o.threadId) db.run("DELETE FROM engine_own_subagent WHERE thread_id = ?", o.threadId);
   return before - Number((db.all("SELECT COUNT(*) AS n FROM engine_own_subagent") as Row[])[0]?.["n"]);
