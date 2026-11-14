@@ -2966,6 +2966,11 @@ export function stubs(ctx: CallCtx) {
       status: call("updates.status"),
     },
     vault: {
+      assistant_grant: {
+        give: call("vault.assistant_grant.give"),
+        list: call("vault.assistant_grant.list"),
+        revoke: call("vault.assistant_grant.revoke"),
+      },
       export_env: call("vault.export_env"),
       exports: {
         list: call("vault.exports.list"),

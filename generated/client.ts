@@ -2966,6 +2966,11 @@ export function createClient(transport: Transport) {
       status: call("updates.status", 1),
     },
     vault: {
+      assistant_grant: {
+        give: call("vault.assistant_grant.give", 1),
+        list: call("vault.assistant_grant.list", 1),
+        revoke: call("vault.assistant_grant.revoke", 1),
+      },
       export_env: call("vault.export_env", 1),
       exports: {
         list: call("vault.exports.list", 1),

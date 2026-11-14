@@ -62,6 +62,7 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
   // a Save as a note offer is answered by the person it was offered to (l-learn2): Save makes their own private note, so no agent answers it for them; an agent offers with chat.note_offer.make
   // whether other agents may hand work to an agent is a person's decision with Manage on it (l-share2), never an agent's own
   // handing an item or a note to another owner is the owner's own act (l-share2); a Talk key and a Talk session are a person's own voice set-up (l-voice21)
+  // letting the Assistant use a Vault key inside one Automation, and taking that back, is a person's own press (b-skill, AUTOMATIONS-2026-11-13 2.8); an agent never gives itself a key
   // the quiet "Merged" line is left by the person who merged, from the merge record (l-crews), never by an agent
   assert.deepEqual([...optedOut].sort(), [
     "access.agents_can_call.set",
@@ -106,6 +107,8 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
     "threads.delete",
     "threads.leave",
     "threads.restore",
+    "vault.assistant_grant.give",
+    "vault.assistant_grant.revoke",
   ]); // plugins.connection.checked: the host's record of what a connection last did (l-connections), never an agent's
   const pre = reg.capabilities.filter((c) => c.caller === "anonymous" || c.caller === "pending").map((c) => c.name);
   assert.ok(pre.length >= 10);

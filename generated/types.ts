@@ -43803,6 +43803,51 @@ export type UpdatesStatusOut = {
   available?: string;
   lastResult?: "ok" | "failed" | "rolled_back";
 };
+export type VaultAssistantGrantGiveIn = {
+  itemId: string;
+  automationId: string;
+  automationName?: string;
+  agentId: string;
+  threadId?: string;
+};
+export type VaultAssistantGrantGiveOut = {
+  grant?: {
+    id: string;
+    itemId: string;
+    automationId: string;
+    automationName?: string;
+    agentId: string;
+    giver: string;
+    threadId?: string;
+    createdAt: number;
+  };
+  already?: boolean;
+};
+export type VaultAssistantGrantListIn = {
+  itemId?: string;
+  automationId?: string;
+};
+export type VaultAssistantGrantListOut = {
+  grants: Array<{
+      id: string;
+      itemId: string;
+      automationId: string;
+      automationName?: string;
+      agentId: string;
+      giver: string;
+      threadId?: string;
+      createdAt: number;
+    }>;
+};
+export type VaultAssistantGrantRevokeIn = {
+  grantId?: string;
+  itemId?: string;
+  automationId?: string;
+  why?: string;
+};
+export type VaultAssistantGrantRevokeOut = {
+  revoked: number;
+};
 export type VaultExportEnvIn = {
   folderId: string;
   expiresIn: "1h" | "1d" | "7d";
@@ -47105,6 +47150,9 @@ export interface CapMap {
   "updates.history": { in: UpdatesHistoryIn; out: UpdatesHistoryOut };
   "updates.rollback": { in: UpdatesRollbackIn; out: UpdatesRollbackOut };
   "updates.status": { in: UpdatesStatusIn; out: UpdatesStatusOut };
+  "vault.assistant_grant.give": { in: VaultAssistantGrantGiveIn; out: VaultAssistantGrantGiveOut };
+  "vault.assistant_grant.list": { in: VaultAssistantGrantListIn; out: VaultAssistantGrantListOut };
+  "vault.assistant_grant.revoke": { in: VaultAssistantGrantRevokeIn; out: VaultAssistantGrantRevokeOut };
   "vault.export_env": { in: VaultExportEnvIn; out: VaultExportEnvOut };
   "vault.exports.list": { in: VaultExportsListIn; out: VaultExportsListOut };
   "vault.exports.revoke": { in: VaultExportsRevokeIn; out: VaultExportsRevokeOut };

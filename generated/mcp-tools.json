@@ -68206,6 +68206,28 @@
     },
     {
       "blocks": [],
+      "cap": "vault.assistant_grant.list",
+      "deferred": false,
+      "description": "The grants that let the Assistant use an item, or work in an Automation, that you may see",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "vault_assistant_grant_list",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "vault.export_env",
       "deferred": false,
       "description": "Export a folder as a .env file: one pull link that expires after 1 hour, 1 day or 7 days; never for Restricted items; the folder owner is notified",

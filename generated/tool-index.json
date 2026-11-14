@@ -9794,6 +9794,12 @@
     },
     {
       "deferred": false,
+      "name": "vault_assistant_grant_list",
+      "summary": "The grants that let the Assistant use an item, or work in an Automation, that you may see",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "vault_export_env",
       "summary": "Export a folder as a .env file: one pull link that expires after 1 hour, 1 day or 7 days; never for Restricted items; the folder owner is notified",
       "toolset": "vault"

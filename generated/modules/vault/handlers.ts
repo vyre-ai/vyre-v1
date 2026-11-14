@@ -24,6 +24,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "providers.subscription_start": Handler<"providers.subscription_start", X>;
   "providers.test": Handler<"providers.test", X>;
   "providers.uses.set": Handler<"providers.uses.set", X>;
+  "vault.assistant_grant.give": Handler<"vault.assistant_grant.give", X>;
+  "vault.assistant_grant.list": Handler<"vault.assistant_grant.list", X>;
+  "vault.assistant_grant.revoke": Handler<"vault.assistant_grant.revoke", X>;
   "vault.export_env": Handler<"vault.export_env", X>;
   "vault.exports.list": Handler<"vault.exports.list", X>;
   "vault.exports.revoke": Handler<"vault.exports.revoke", X>;

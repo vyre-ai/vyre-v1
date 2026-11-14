@@ -8,6 +8,7 @@
 // DECISION: a Mine item cannot be shared; to share it, move it into a Shared folder (that re-encrypts it under the filler). A subscription sign-in (kind ai_subscription) stays Mine for ever.
 // DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import are other packets.
 import { isCompanyKey } from "../../../lib/company-keys.ts";
+import { revokeForItem } from "./assistant-grant.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   ENC_MINE,
@@ -797,6 +798,7 @@ export async function itemDelete(ctx: VaultCtx, input: { itemId: string }) {
   patchMeta(ctx, str(r, "id"), { deleted_at: ctx.now() });
   ctx.db.run(`UPDATE vault_item_x SET "deletedBy" = ? WHERE "itemId" = ?`, ctx.principal.id, str(r, "id"));
   record(ctx, str(r, "id"), "deleted");
+  await revokeForItem(ctx, str(r, "id")); // what the Assistant was let do with a deleted key ends with it
   ctx.emit("vault.item_deleted", `vault_item/${str(r, "id")}`, { itemId: str(r, "id") }, { vis: "participants" });
   return { ok: true };
 }

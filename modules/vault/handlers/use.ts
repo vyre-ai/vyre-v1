@@ -20,6 +20,7 @@ import {
   wrapKeyFromPersonKey,
 } from "./crypto.ts";
 import { filler, live, openFields, reachable, turnFor, visible } from "./items.ts";
+import { assistantScope, scopeVerdict } from "./assistant-grant.ts";
 import { aliasTarget } from "./signins.ts";
 import {
   atLeast,
@@ -310,6 +311,7 @@ export async function use(ctx: VaultCtx, input: { item: string; fields?: string[
   if (typeof input.item !== "string" || input.item.trim() === "") bad(ctx, "Name the item to use.");
   if (input.purpose !== undefined && typeof input.purpose !== "string") bad(ctx, "The purpose is text.");
   const r = itemBy(ctx, input.item, true);
+  await assistantScope(ctx, r);
   const have = keysOf(r);
   const wanted = input.fields ?? have;
   if (!Array.isArray(wanted) || wanted.some((f) => typeof f !== "string" || !FIELD_KEY.test(f)))
@@ -351,6 +353,7 @@ export async function fill(
   const kind = t["kind"] as string,
     ref = t["ref"] as string;
   const r = itemBy(ctx, h.name);
+  await assistantScope(ctx, r);
   if (isCompanyKey(str(r, "handle")) && ctx.principal.kind !== "person")
     return denied(ctx, "This key is for the server alone. Agents and automations never get it, not even by handle.");
   const f = pick(ctx, r, await openFields(ctx, r), h.field);
@@ -413,9 +416,11 @@ export async function injectEnv(ctx: VaultCtx, input: { folderId: string; purpos
   ensure(ctx);
   if (input.purpose !== undefined && typeof input.purpose !== "string") bad(ctx, "The purpose is text.");
   const f = folderAt(ctx, input.folderId, "use");
-  const items = folderItems(ctx, str(f, "id")).filter(
+  const items: Row[] = [];
+  for (const r of folderItems(ctx, str(f, "id")).filter(
     (r) => ctx.principal.kind === "person" || !isCompanyKey(str(r, "handle")),
-  );
+  ))
+    if ((await scopeVerdict(ctx, r)) === null) items.push(r); // an item the Assistant may use only in one Automation stays out of every other environment
   const handles: string[] = [],
     keys: string[] = [],
     owner = new Map<string, string>();

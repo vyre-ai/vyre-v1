@@ -66,11 +66,20 @@ export function harness() {
   const labels = new Map<string, string>(); // `${type}/${id}` -> the label access.labels.set was asked for
   const filler = new Filler(FILLER_KEY);
   setFiller(filler);
+  /** the Automation each scripted Run belongs to (what runs.get answers as its subject) */
+  const runs = new Map<string, string>();
 
   const ctx: VaultCtx = {
     space: "spc_vault",
     principal: { kind: "person", id: MAYA },
     trace: { traceId: TRACE },
+    origin: "user",
+    mayAll(people, action, resource) {
+      return people.every((p) => {
+        const have = levels.get(`${p}|${resource.id}`);
+        return have !== undefined && LADDER.indexOf(have) >= LADDER.indexOf(action.level);
+      });
+    },
     depth: 1, // a call another capability made: the system halves refuse a direct call (P-SEC_10)
     now: () => clock,
     db: memoryDb(),
@@ -104,6 +113,11 @@ export function harness() {
           },
         };
       if (cap === "access.unshare") return { revoked: 1 };
+      if (cap === "runs.get") {
+        const automation = runs.get(String(body["runId"]));
+        if (automation === undefined) throw new Error("no such run");
+        return { run: { id: body["runId"], subject: { type: "automation", id: automation } } };
+      }
       // a folder shared with the whole Space (lib/space-folder.ts): recorded so a test can see who it went to
       if (cap === "vault.share") return { granted: true };
       if (cap === "engine.usage.query") return usage(body);
@@ -153,6 +167,9 @@ export function harness() {
     grant(principal: string, resourceId: string, level: Level) {
       levels.set(`${principal}|${resourceId}`, level);
     },
+    revokeLevel(principal: string, resourceId: string) {
+      levels.delete(`${principal}|${resourceId}`);
+    },
     allow(principal: string, perm: string) {
       perms.add(`${principal}|${perm}`);
     },
@@ -168,6 +185,10 @@ export function harness() {
       rows: Array<{ key: string; turns: number; tokensIn: number; tokensOut: number }>,
     ) {
       usageRows.set(`${by}:${itemId}`, rows);
+    },
+    /** a scripted Run of an Automation, for the scope of an Assistant grant */
+    setRun(runId: string, automationId: string) {
+      runs.set(runId, automationId);
     },
     actAs(kind: "person" | "agent" | "service", id: string) {
       ctx.principal = { kind, id };

@@ -6,6 +6,7 @@ import * as u from "./handlers/use.ts";
 import * as pr from "./handlers/providers.ts";
 import * as mh from "./handlers/mine-host.ts";
 import * as g from "./handlers/g20.ts";
+import * as ag from "./handlers/assistant-grant.ts";
 import * as sk from "./handlers/space-key.ts";
 import { textCheck } from "./handlers/text-check.ts";
 import { Filler, setFiller, setKeyPort } from "./handlers/crypto.ts";
@@ -41,6 +42,9 @@ export const handlers: Record<string, Handler> = {
   "vault.folders.list": (ctx, i) => h.foldersList(ctx, i),
   "vault.folders.create": (ctx, i) => h.foldersCreate(ctx, i),
   "vault.service_health": (ctx) => h.serviceHealth(ctx),
+  "vault.assistant_grant.give": (ctx, i) => ag.give(ctx, i),
+  "vault.assistant_grant.revoke": (ctx, i) => ag.revoke(ctx, i),
+  "vault.assistant_grant.list": (ctx, i) => ag.list(ctx, i),
   "vault.use": (ctx, i) => u.use(ctx, i),
   "vault.fill": (ctx, i) => u.fill(ctx, i),
   "vault.inject_env": (ctx, i) => u.injectEnv(ctx, i),

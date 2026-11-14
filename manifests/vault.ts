@@ -549,6 +549,86 @@ export default defineManifest({
       team: true,
     }),
 
+    // ---- the Assistant may use an item inside one Automation (AUTOMATIONS-2026-11-13 2.8): a person's own press, never an agent's, scoped, revocable, visible in History
+    write(
+      "vault.assistant_grant.give",
+      "Let the Assistant use one Vault item inside one Automation (its runs and its build thread), for you only. Needs Use on the item; a company key is never given",
+      {
+        level: "use",
+        in: {
+          itemId: id.vaultItem,
+          automationId: t.str({ examples: ["aut_a1b2c3"] }),
+          automationName: t.opt(t.str()),
+          agentId: t.str({ examples: ["agt_a1b2c3"] }),
+          threadId: t.opt(t.str({ description: "The Ask Vyre thread the Automation is built in" })),
+        },
+        out: {
+          grant: t.opt(
+            t.obj({
+              id: t.str(),
+              itemId: t.str(),
+              automationId: t.str(),
+              automationName: t.opt(t.str()),
+              agentId: t.str(),
+              giver: t.str(),
+              threadId: t.opt(t.str()),
+              createdAt: t.int(),
+            }),
+          ),
+          already: t.opt(
+            t.bool({ description: "A Mine item: the owner's Assistant already uses it, nothing was needed" }),
+          ),
+        },
+        on: ["vault_item", "/itemId"],
+        audit: "always",
+        offline: "online",
+        team: true,
+        agent: false,
+      },
+    ),
+    write(
+      "vault.assistant_grant.revoke",
+      "Take back what the Assistant was let do with a Vault item: one grant, every grant of an Automation or of an item",
+      {
+        ...V,
+        in: {
+          grantId: t.opt(t.str()),
+          itemId: t.opt(t.str()),
+          automationId: t.opt(t.str()),
+          why: t.opt(t.str()),
+        },
+        out: { revoked: t.int({ minimum: 0 }) },
+        audit: "always",
+        offline: "online",
+        team: true,
+        agent: false,
+      },
+    ),
+    read(
+      "vault.assistant_grant.list",
+      "The grants that let the Assistant use an item, or work in an Automation, that you may see",
+      {
+        ...V,
+        in: { itemId: t.opt(t.str()), automationId: t.opt(t.str()) },
+        out: {
+          grants: t.arr(
+            t.obj({
+              id: t.str(),
+              itemId: t.str(),
+              automationId: t.str(),
+              automationName: t.opt(t.str()),
+              agentId: t.str(),
+              giver: t.str(),
+              threadId: t.opt(t.str()),
+              createdAt: t.int(),
+            }),
+          ),
+        },
+        tool: "vault",
+        team: true,
+      },
+    ),
+
     // ---- use by handle
     write(
       "vault.use",

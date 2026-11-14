@@ -16,6 +16,17 @@ export const LADDER: readonly Level[] = ["use", "view", "edit", "manage"];
 /** The part of the host Ctx (packages/contracts/src/ctx.ts) the vault handlers use; the host Ctx satisfies it. */
 export interface VaultCtx {
   depth?: number;
+  /** where the call began ("user", "mcp", "sync", ...) */
+  origin?: string;
+  /** the Run this call belongs to, and the chat thread it is made in */
+  run?: string;
+  thread?: string;
+  /** May every one of these people do this on this resource? Their own grants, never the caller's. Absent on a hand-built test ctx. */
+  mayAll?(
+    people: readonly string[],
+    action: { perm: string | null; level: Level },
+    resource: { type: string; id: string },
+  ): boolean;
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string;

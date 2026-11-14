@@ -3073,6 +3073,38 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 }) as Handler;
               // leaving a chat or a channel, or being taken out of one, or an agent taken out: what the membership gave (grants tagged chat:<thread>, written when the person or agent came in) is taken
               // back as the host, because the person leaving may not be the one who gave them. The call itself was authorized; only access.unshare with a chat: source is widened (modules/chat/handlers/owned.ts).
+              // letting the Assistant use one Vault item for one person (vault.assistant_grant.give, revoke): the capability checked that the person holds Use and that this is their own hand; the share
+              // it makes to the agent, and the one it takes back, run as the host, and only a Use share of a Vault item to an agent that carries through-agent:<that person>
+              if (h && (cap === "vault.assistant_grant.give" || cap === "vault.assistant_grant.revoke"))
+                return ((ctx, input) =>
+                  h(
+                    {
+                      ...ctx,
+                      call: (name: string, callInput: unknown, opts?: unknown) => {
+                        const i = (callInput ?? {}) as {
+                          source?: unknown;
+                          level?: unknown;
+                          subject?: { kind?: unknown };
+                          resource?: { type?: unknown };
+                        };
+                        const mine =
+                          (name === "access.share" || name === "access.unshare") &&
+                          typeof i.source === "string" &&
+                          /^through-agent:usr_[a-z0-9]+$/.test(i.source) &&
+                          i.subject?.kind === "agent" &&
+                          i.resource?.type === "vault_item" &&
+                          (name === "access.unshare" || i.level === "use");
+                        return mine
+                          ? system(name, callInput, ctx.trace)
+                          : (ctx.call as (n: string, i: unknown, o?: unknown) => Promise<unknown>)(
+                              name,
+                              callInput,
+                              opts,
+                            );
+                      },
+                    } as typeof ctx,
+                    input,
+                  )) as Handler;
               if (h && (CHAT_LEAVES.has(cap) || CHAT_GIVES.has(cap))) {
                 const leaves = CHAT_LEAVES.has(cap);
                 return ((ctx, input) =>

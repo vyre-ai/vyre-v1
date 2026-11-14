@@ -1,3 +1,4 @@
 - Automations: a sentence such as "when a form is submitted, send me a Slack message and add the lead in HubSpot" is split into its trigger and each action in the order said, with every app named in full beside what you wrote, before the Assistant builds anything.
 - Automations: the data the Assistant's app-building cards carry is now defined in one place, so the screens and the server agree on it.
 - Automations: what waits for you (a key to add, a value to choose, a send to approve, a build that waits for a first submission) is defined as one list for Home and the Inbox, and an edit to an Automation that is On is defined as a draft next to what is live.
+- Vault: a person can let the Assistant use one key inside one Automation (its runs and the chat where it is built), for themselves only; it ends when they lose access to the key, the key is deleted, or they take it back, and it shows in the key's history.

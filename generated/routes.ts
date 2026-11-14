@@ -38949,6 +38949,61 @@ const routes7: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/vault/assistant_grant/give",
+    "cap": "vault.assistant_grant.give",
+    "v": 1,
+    "module": "vault",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "vault_item",
+      "id": "/itemId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/vault/assistant_grant/list",
+    "cap": "vault.assistant_grant.list",
+    "v": 1,
+    "module": "vault",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/vault/assistant_grant/revoke",
+    "cap": "vault.assistant_grant.revoke",
+    "v": 1,
+    "module": "vault",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/vault/export_env",
     "cap": "vault.export_env",
     "v": 1,

@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (55)
+## Capabilities (58)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
@@ -25,6 +25,9 @@ Requires: access.
 - [providers.subscription_start](../capabilities/providers.subscription_start.md): Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider's own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.
 - [providers.test](../capabilities/providers.test.md): Test a provider connection and list the models it offers
 - [providers.uses.set](../capabilities/providers.uses.set.md): An owner or admin makes a shared provider a Space AI account: what it may pay for (team chats, automations, goals, agent work) and an optional monthly spend cap. The engine picks the cheapest Space account that fits a turn and is not capped
+- [vault.assistant_grant.give](../capabilities/vault.assistant_grant.give.md): Let the Assistant use one Vault item inside one Automation (its runs and its build thread), for you only. Needs Use on the item; a company key is never given
+- [vault.assistant_grant.list](../capabilities/vault.assistant_grant.list.md): The grants that let the Assistant use an item, or work in an Automation, that you may see
+- [vault.assistant_grant.revoke](../capabilities/vault.assistant_grant.revoke.md): Take back what the Assistant was let do with a Vault item: one grant, every grant of an Automation or of an item
 - [vault.export_env](../capabilities/vault.export_env.md): Export a folder as a .env file: one pull link that expires after 1 hour, 1 day or 7 days; never for Restricted items; the folder owner is notified
 - [vault.exports.list](../capabilities/vault.exports.list.md): Export pull links that are still open
 - [vault.exports.revoke](../capabilities/vault.exports.revoke.md): Close an export pull link early
