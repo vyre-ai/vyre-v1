@@ -1073,8 +1073,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         );
         // An agent that makes a record type for the person it acts for holds Manage on it (the person owns it): it needs to set who the type is open to as part of the same work. Only a record type, only
         // an agent acting for a person. This adds no power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
+        // The same for a site or artifact an agent makes for the person (F56, 14 Nov 2026): what an agent makes for a person is the person's, and the agent goes on working on it, also when it is private. The agent
+        // gets Edit on that one thing at its birth; a grant is listed in its sharing and the person can remove it. Only the agent that made it, and only at birth, never at a later move.
+        const bornHere =
+          row.type === "site" &&
+          events.some((e) => e.type === ("site.created" as EventName) && (e.payload as { siteId?: unknown }).siteId === row.id);
         if (
-          row.type === "record_type" &&
+          (row.type === "record_type" || bornHere) &&
           seed.principal.kind === "agent" &&
           seed.actingFor !== undefined &&
           seed.actingFor.startsWith("usr_")
@@ -1088,9 +1093,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
                 id,
                 subject_kind: "actor",
                 subject_id: seed.principal.id,
-                resource_type: "record_type",
+                resource_type: row.type,
                 resource_id: row.id,
-                level: "manage",
+                level: row.type === "site" ? "edit" : "manage",
                 by: seed.actingFor,
               },
               seed,

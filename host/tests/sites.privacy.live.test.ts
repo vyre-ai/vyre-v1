@@ -72,6 +72,8 @@ const boot = (dir: string): Promise<Daemon> =>
       if (t === OWNER)
         return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "grant-live" };
       if (t === NOAH) return { space: "spc_core", principal: { kind: "person", id: "usr_noah" }, device: "grant-live" };
+      if (t === "tok-agent-noah")
+        return { space: "spc_core", principal: { kind: "agent", id: "agt_scout" }, actingFor: "usr_noah" };
       if (t === "tok-agent-olivia")
         return { space: "spc_core", principal: { kind: "agent", id: "agt_scout" }, actingFor: "usr_olivia" };
       if (t === AGENT)
@@ -179,7 +181,7 @@ const names = async (d: Daemon, who: string, name: string): Promise<{ list: bool
   return { list: l.text.includes(name), search: q.text.includes(name) };
 };
 
-test("what an agent makes for a person is theirs: private, the person opens and edits it, another member has none, and it stays so after a restart", async () => {
+test("what an agent makes for a person is theirs: private, the person opens and edits it, the agent that made it goes on working on it, another member has none, and it stays so after a restart", async () => {
   const dir = seededDir();
   let d = await boot(dir);
   const AG = "tok-agent-olivia";
@@ -208,7 +210,10 @@ test("what an agent makes for a person is theirs: private, the person opens and 
         200,
         `${when}: the person edits it`,
       );
-      // not asserted: the agent itself. A private site's agent has no access of its own (the same as a site born private on rc.27: the agent's update answers 403), which is the lead's ruling to make.
+      const a = await raw(d, "/v1/sites/update", { siteId: id, name: "Agent made" }, AG);
+      assert.equal(a.status, 200, `${when}: the agent that made it keeps working on it: ${a.text.slice(0, 200)}`);
+      const other = await raw(d, "/v1/sites/update", { siteId: id, name: "Agent made" }, "tok-agent-noah");
+      assert.notEqual(other.status, 200, `${when}: an agent working for another member got in`);
       assert.notEqual(
         (await raw(d, "/v1/sites/get", { siteId: id }, NOAH)).status,
         200,
@@ -226,6 +231,7 @@ test("what an agent makes for a person is theirs: private, the person opens and 
     await new Promise((r) => setTimeout(r, 2000));
     assert.equal((await raw(d, "/v1/sites/get", { siteId: id })).status, 200, "after restart: the person opens it");
     assert.equal(await reachOf(d, id, NOAH), "none");
+    assert.equal((await raw(d, "/v1/sites/update", { siteId: id, name: "Agent made" }, AG)).status, 200, "after restart: the agent can update");
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });
@@ -299,6 +305,23 @@ test("a calendar born personal is private: a second member has no reach and does
       false,
       "a second member sees it listed",
     );
+  } finally {
+    await d.stop();
+  }
+});
+
+test("an artifact an agent publishes for a person: the agent can publish again and update it, the person too, another member's agent cannot", async () => {
+  const d = await boot(seededDir());
+  try {
+    const AG = "tok-agent-olivia";
+    const a = await raw(d, "/v1/sites/artifact_publish", { title: "Mine", html: "<p>one</p>", idempotencyKey: "k1" }, AG);
+    assert.equal(a.status, 200, a.text);
+    const id = (JSON.parse(a.text) as { data: { artifactId: string } }).data.artifactId;
+    assert.equal((await raw(d, "/v1/sites/artifact_publish", { title: "Mine", html: "<p>two</p>", artifactId: id, idempotencyKey: "k2" }, AG)).status, 200);
+    assert.equal((await raw(d, "/v1/sites/update", { siteId: id, name: "Mine" }, AG)).status, 200, "the agent updates what it made");
+    assert.equal((await raw(d, "/v1/sites/update", { siteId: id, name: "Mine" })).status, 200, "the person does too");
+    assert.notEqual((await raw(d, "/v1/sites/update", { siteId: id, name: "Mine" }, "tok-agent-noah")).status, 200, "an agent working for another member cannot");
+    assert.equal(await reachOf(d, id, NOAH), "none");
   } finally {
     await d.stop();
   }
