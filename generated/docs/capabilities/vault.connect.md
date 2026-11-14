@@ -35,7 +35,7 @@ type In = {
 
 ```ts
 type Out = {
-  status: "connected" | "waiting_person" | "waiting_admin" | "declined";
+  status: "connected" | "waiting_person" | "waiting_admin" | "declined" | "no_connector";
   requestId?: string;
   tell: string;
 };

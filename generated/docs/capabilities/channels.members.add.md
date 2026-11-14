@@ -29,6 +29,7 @@ type In = {
   personIds: Array<string>;
   level?: "view" | "use" | "edit" | "manage";
   mentionedIn?: string;
+  fromStart?: boolean;
 };
 ```
 
@@ -87,6 +88,7 @@ type Out = {
   "name": "example",
   "input": {
     "channelId": "chn_a1b2c3",
+    "fromStart": true,
     "level": "view",
     "mentionedIn": "msg_a1b2c3",
     "personIds": [

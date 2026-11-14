@@ -343,6 +343,7 @@ export default defineManifest({
     // ---- people and other principals
     read("access.principals.list", "List principals (people, agents, outside actors, services) with roles and groups", {
       ...V,
+      level: "member",
       in: {
         kind: t.opt(t.enm("person", "agent", "actor", "service")),
         status: t.opt(t.enm("invited", "active", "suspended", "removed")),

@@ -7,6 +7,7 @@ import { mintId } from "../../../lib/ids.ts";
 import { evalExpr } from "./expr.ts";
 import type { AccessSnapshot, GrantRec, SubjectInfo } from "./snapshot.ts";
 import { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
+import { GUEST_TYPES, guestMay } from "./guest-caps.ts";
 import { LEVEL_BY_RANK, rankOf } from "./types.ts";
 import type { Decision, Expr, Obligation, ReasonCode, Req, ResourceRow, Scope, Step } from "./types.ts";
 
@@ -192,6 +193,12 @@ function evalSubject(
     if (!carried) return "role_lacks_permission";
   }
   const clearance = s.clearance;
+  // a guest holds a thread or a channel only through a live grant (owning a reply thread they opened is not one: when the grant is gone nothing there is theirs, not even to read), and only at what guest-caps.ts
+  // lets their level do, whichever door the grant came through (a flag read, nothing more, for everyone else)
+  if (s.guest && GUEST_TYPES.has(res.type)) {
+    if (matched === 0) return sawExpired ? "expired" : "no_grant";
+    if (!guestMay(req.cap)) return "role_lacks_permission";
+  }
   const ownerOk = isOwner && label <= clearance;
   if (matched === 0 && !ownerOk) return sawExpired ? "expired" : "no_grant";
   if (steps)

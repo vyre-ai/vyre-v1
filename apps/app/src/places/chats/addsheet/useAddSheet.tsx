@@ -611,7 +611,14 @@ export function useAddSheet(
         where="chat"
         rows={rows}
         meId={deps.me.id}
-        perms={{ message: false, changeRole: false, remove: false, agentControls: true }}
+        perms={{
+          message: false,
+          changeRole: false,
+          remove: false,
+          agentControls: deps.mayChat !== false,
+          add: deps.mayChat !== false,
+          open: deps.mayChat !== false,
+        }}
         anchor={{ x: surface.x, y: surface.y }}
         onOpen={(r) => {
           const go = surface.onOpenAgent;

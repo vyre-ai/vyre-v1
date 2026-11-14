@@ -1,5 +1,5 @@
-// Learn from every correction, in the chat (owner approval 3 Nov 2026): the quiet "Learned: ..." line under the message that taught a lesson (only-you, Undo, See), "Used a lesson" under the reply that
-// followed it, the lesson list in the Knows tab (Edit, Where it came from, Share with the Space, Make it an instruction, Forget, and the switch), and the writes behind each. Rendered from the Brooks
+// Learn from every correction, in the chat (owner approval 3 Nov 2026): the quiet "Learned a lesson" line under the message that taught one (Undo, See), the quiet mark on the meta row of the reply that
+// used one (no lesson's words are printed in the column, owner 14 Nov 2026), the lesson list in the Knows tab (Edit, Where it came from, Share with the Space, Make it an instruction, Forget, and the switch), and the writes behind each. Rendered from the Brooks
 // weekly update sample with the Assistant's lessons added; every write goes through the store and the next read shows it.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -16,13 +16,15 @@ import {
   LESSONS_HEAD,
   SCOPE_TEXT,
   isLesson,
-  lessonUsedLine,
+  lessonMarkLabel,
   messageOf,
   usedTimes,
 } from "./model.ts";
 import { ASSISTANT, LESSON_IDS, MESSAGE_IDS, createChatMemorySample } from "./sample.ts";
 import type { ChatMemorySample } from "./sample.ts";
 import { ChatMemoryProvider } from "./thread.tsx";
+import { LearnedLines } from "./Learned.tsx";
+import { ReplyLessonsMark } from "./LessonMark.tsx";
 import { ReplyMemory } from "./Used.tsx";
 
 installComposerForTests(Composer);
@@ -30,6 +32,8 @@ installComposerForTests(Composer);
 const clean = (s: string): string =>
   s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const has = (s: string, n: string): boolean => s.includes(n);
+/** The markup without what is only spoken or in a tooltip: what is printed in the column. */
+const visible = (s: string): string => s.replace(/ (?:aria-label|title)="[^"]*"/g, "");
 const KNOWS_READS = (): Array<[string, unknown]> => [
   ["memory.knows", { threadId: "c1", agentId: ASSISTANT }],
   ["memory.facts.list", { status: ["proposed"], layer: "agent", agentId: ASSISTANT }],
@@ -86,24 +90,31 @@ test("the pure rules: a lesson is a fact of kind lesson, its message is the line
   assert.equal(usedTimes(1), "used 1 time");
   assert.equal(usedTimes(4), "used 4 times");
   assert.equal(LESSONS_HEAD("Mira"), "Lessons Mira kept from your corrections");
-  assert.equal(lessonUsedLine("Notes to Sara"), "Used a lesson: Notes to Sara");
+  assert.equal(lessonMarkLabel("used", 1), "Used a lesson");
+  assert.equal(lessonMarkLabel("used", 3), "Used 3 lessons");
+  assert.equal(lessonMarkLabel("learned", 1), "Learned a lesson");
   for (const t of [LESSONS_FOOT, ...Object.values(HOW_TEXT), ...Object.values(SCOPE_TEXT)])
     assert.ok(!/—|§/.test(t), t);
 });
 
-test("the message that taught a lesson has 'Learned: <lesson> · Only you · Undo · See'", async () => {
+test("the message that taught a lesson has one quiet line 'Learned a lesson · Undo · See', and none of the lesson's words", async () => {
   const s = await withWarm();
   const out = chat(s);
   assert.ok(has(out, `data-testid="learned-line-${LESSON_IDS.sara}"`));
   for (const needle of [
-    "Learned:",
-    "Notes to Sara: three lines, the number first.",
-    `data-testid="learned-scope-${LESSON_IDS.sara}"`,
-    "Only you",
+    "Learned a lesson",
     `data-testid="learned-undo-${LESSON_IDS.sara}"`,
     `data-testid="learned-see-${LESSON_IDS.sara}"`,
   ])
     assert.ok(has(out, needle), needle);
+  // only what a sighted person reads: a button's spoken label may name the lesson, the line itself does not
+  assert.ok(
+    !visible(out).includes("Notes to Sara: three lines, the number first."),
+    "the lesson's words open on See, not in the chat",
+  );
+  for (const gone of ["Only you", `learned-scope-${LESSON_IDS.sara}`, `learned-when-${LESSON_IDS.sara}`])
+    assert.ok(!has(out, gone), `${gone} is not on the line`);
+  assert.ok(!has(out, `Learned: Notes to Sara`), "the line does not say what was learned");
   assert.ok(
     !has(out, `data-testid="learned-edit-btn-${LESSON_IDS.sara}"`),
     "a lesson is edited in Knows, so the line says See",
@@ -120,7 +131,7 @@ test("Undo on the line forgets the lesson; it becomes 'Moved to Trash. Restore' 
   assert.ok(has(out, "Round money in notes to whole dollars."), "the other lesson stays");
 });
 
-test("a reply that was given a lesson says so on a line of its own, whatever its words; the count of memories leaves it out", async () => {
+test("a reply that was given a lesson prints nothing of it under the reply: its mark is on the meta row, and the count of memories leaves it out", async () => {
   const s = await withWarm();
   const out = clean(
     renderToStaticMarkup(
@@ -129,13 +140,63 @@ test("a reply that was given a lesson says so on a line of its own, whatever its
       </ChatMemoryProvider>,
     ),
   );
-  assert.ok(has(out, `data-testid="mused-lesson-${LESSON_IDS.sara}"`));
-  assert.ok(has(out, "Used a lesson") && has(out, "Notes to Sara: three lines, the number first."));
+  assert.ok(!has(out, "mused-lesson-") && !has(out, "Used a lesson"), "no line under the reply");
+  assert.ok(!has(out, "Notes to Sara: three lines, the number first."), "no lesson text in the column");
   // the sample's reply recalled one exact quote; the lesson is not counted beside it
   assert.ok(
     has(out, "Used 1 memory") && !has(out, "Used 2 memories"),
     `the lesson is not one of the counted memories: ${out.match(/Used \d+ memor[a-z]*/)?.[0]}`,
   );
+  const mark = clean(
+    renderToStaticMarkup(
+      <ChatMemoryProvider memory={s.memory} threadId="c1">
+        <ReplyLessonsMark messageId={MESSAGE_IDS.reply} threadId="c1" />
+      </ChatMemoryProvider>,
+    ),
+  );
+  assert.ok(has(mark, `data-testid="lesson-mark-${MESSAGE_IDS.reply}"`) && has(mark, "Used a lesson"));
+  assert.ok(!has(mark, "Notes to Sara"), "the mark holds no words of the lesson");
+  // a reply that used none has no mark
+  const none = clean(
+    renderToStaticMarkup(
+      <ChatMemoryProvider memory={s.memory} threadId="c1">
+        <ReplyLessonsMark messageId={MESSAGE_IDS.ask} threadId="c1" />
+      </ChatMemoryProvider>,
+    ),
+  );
+  assert.equal(none, "");
+});
+
+test("the whole conversation prints no lesson words and no 'Used a lesson' line, only the mark on the reply's row", async () => {
+  const s = await withWarm();
+  const out = chat(s);
+  assert.ok(!has(out, "Used a lesson: ") && !has(out, "mused-lesson-"));
+  assert.ok(!visible(out).includes("Notes to Sara: three lines, the number first."), "no lesson words in the column");
+  assert.ok(
+    has(out, `data-testid="lesson-mark-${MESSAGE_IDS.reply}"`),
+    "the reply that used a lesson carries the mark",
+  );
+});
+
+test("a message that taught a lesson: the line while no reply has come, the mark on its row once one has", async () => {
+  const s = await withWarm();
+  const html = (settled: boolean): string =>
+    clean(
+      renderToStaticMarkup(
+        <ChatMemoryProvider memory={s.memory} threadId="c1">
+          <LearnedLines messageId={MESSAGE_IDS.held} settled={settled} />
+        </ChatMemoryProvider>,
+      ),
+    );
+  // the thread's read of what was learned lands once the provider has mounted
+  await s.warm(KNOWS_READS());
+  const fresh = html(false);
+  assert.ok(has(fresh, `data-testid="learned-line-${LESSON_IDS.sara}"`) && has(fresh, "Learned a lesson"));
+  assert.ok(!has(fresh, `data-testid="lesson-mark-${MESSAGE_IDS.held}"`));
+  const folded = html(true);
+  assert.ok(!has(folded, `data-testid="learned-line-${LESSON_IDS.sara}"`), "the line folds away");
+  assert.ok(has(folded, `data-testid="lesson-mark-${MESSAGE_IDS.held}"`), "into the mark of the message's row");
+  assert.ok(!visible(folded).includes("Notes to Sara"), "the mark holds no words of the lesson");
 });
 
 test("Knows: the lessons the agent kept, each with how it was caught, when, how often it was used and who may read it, and the switch", async () => {

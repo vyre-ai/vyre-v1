@@ -51,8 +51,14 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
     // phone width: the chat, then its pane's Computer tab, then both sheets
     await page.setViewportSize(SIZES.phone);
     await page.waitForTimeout(800);
-    await page.getByTestId("pane-button").click().catch(() => undefined);
-    await page.getByTestId("tab-computer").click({ timeout: 15_000 }).catch(() => undefined);
+    await page
+      .getByTestId("pane-button")
+      .click()
+      .catch(() => undefined);
+    await page
+      .getByTestId("tab-computer")
+      .click({ timeout: 15_000 })
+      .catch(() => undefined);
     await page.getByTestId("browser-picture").waitFor({ timeout: 15_000 });
     await page.waitForTimeout(800);
     await shoot(page, DIR, "g-phone-pane");

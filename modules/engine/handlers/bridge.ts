@@ -231,6 +231,8 @@ export interface BridgeEvent {
   subject?: string;
   payload: Record<string, unknown>;
   /** the device the message was sent from */ device?: string;
+  /** the person who wrote it has no standing in the Space (a guest): the host says so from the kernel's snapshot when it hands the event over */
+  outsider?: boolean;
 }
 
 export interface Bridge {
@@ -349,6 +351,32 @@ export function createBridge(o: BridgeOptions): Bridge {
   const homeOf = new Map<string, string>(); // thread id -> the chat it answers for, where agents reply in a thread under the asking message
   const helperOf = new Map<string, string>(); // a helper's own thread id -> the chat that started it, where the person is (gate blocker, 12 Nov)
   const pokedBy = new Map<string, string>(); // `${thread}:${agent}` -> the person who poked it: the reply says so
+
+  // A guest's words are for the people of the channel: no agent turn starts for someone with no standing in the Space. The host says who that is with each event (BridgeEvent.outsider, read from the kernel's
+  // snapshot): the bridge asks nobody, so nothing a guest does (a flood of calls that the rate limit refuses, say) can make it read them as a member.
+  const GUEST_LINE = "Agents answer members of this Space";
+  /** The one quiet line under a guest's first mention of an agent in a chat: the same id for the same guest in the same chat, so a replay or a second mention says it once. */
+  const sayGuestLine = async (threadId: string, agentId: string, guestId: string): Promise<void> => {
+    const sum = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`guest-line|${threadId}|${guestId}`));
+    const clientId =
+      BRIDGE_PREFIX +
+      [...new Uint8Array(sum)]
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")
+        .slice(0, 24);
+    try {
+      await o.postAs(agentId, {
+        actingFor: guestId,
+        threadId,
+        body: "",
+        mentions: [],
+        clientId,
+        blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: GUEST_LINE } }],
+      });
+    } catch (e) {
+      warn("could not say that agents answer members", { threadId, error: String(e) });
+    }
+  };
 
   const askerMention = (threadId: string, agentId: string, turnId?: string): AgentPost["mentions"] => {
     const who = askerFor(threadId, turnId);
@@ -1150,6 +1178,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     ctx: EngineCtx,
     p: Record<string, unknown>,
     device?: string,
+    outsider?: boolean,
   ): Promise<{ skipped?: string; receivedAs?: string[] }> {
     const messageId = str(p["messageId"]);
     /** where the message lives; the turn runs here too, unless the chat sends agents to reply in a thread under it (below) */
@@ -1170,6 +1199,14 @@ export function createBridge(o: BridgeOptions): Bridge {
       } catch {
         /* where it was sent from is a hint, never a reason to drop the message */
       }
+    }
+    // a guest's mention is delivered to the channel as a plain mention and starts no turn, with one quiet line the first time
+    if (sender.kind === "person" && typeof sender.id === "string" && outsider === true) {
+      const named = (Array.isArray(p["mentions"]) ? (p["mentions"] as Array<{ kind?: string; id?: string }>) : []).find(
+        (m) => m.kind === "agent" && typeof m.id === "string",
+      );
+      if (named?.id) await sayGuestLine(threadId, named.id, sender.id);
+      return { skipped: "guest" };
     }
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.get(messageId)) return { skipped: "known" }; // the engine stored it: its own reply echoing back, or a replay
@@ -1540,7 +1577,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       dirty.add(threadId);
     },
     onEvent: (ctx, event) =>
-      event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload, event.device),
+      event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload, event.device, event.outsider),
     liveTurns(threadId) {
       const out: Array<{ turnId: string; agentId: string; text: string; step?: string }> = [];
       // a turn whose text is the asker's alone for now shows no text to whoever opens the chat mid-turn: its answer arrives checked

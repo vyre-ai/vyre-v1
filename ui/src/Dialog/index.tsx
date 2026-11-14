@@ -1,7 +1,7 @@
 // ui/Dialog: the one dialog. A veil over the window, a centred card with a title, the caller's content and a row of actions (the quiet ones left of the primary one). It draws in the
 // Overlay layer so nothing in the app covers it, Escape and a press on the veil close it, and the first field inside takes focus. Every sheet that asks the person
 // something uses this card, so the radius, padding, veil and buttons are the same everywhere.
-import { useEscapeLayer } from "../Overlay/escape.ts";
+import { loudLayers, useEscapeLayer, watchEscapeLayers } from "../Overlay/escape.ts";
 import { returnFocus, watchSheetKeys } from "./sheet-keys.ts";
 import { useEffect, useRef } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -125,6 +125,16 @@ export function Dialog({
   const wide = width ?? SIZE_PX[size];
   // a sheet whose surface holds the keyboard does not take Escape: it reaches the surface
   useEscapeLayer(captureKeys === undefined, onClose);
+  // an anchored card gives way when a sheet, menu or full-screen view opens above it (its own layer is the one just added)
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (anchor === undefined) return undefined;
+    const mine = loudLayers();
+    return watchEscapeLayers(() => {
+      if (loudLayers() > mine) closeRef.current();
+    });
+  }, [anchor]);
   const outside = useRef(onPressOutside);
   outside.current = onPressOutside;
   useEffect(() => {

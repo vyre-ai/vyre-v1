@@ -520,6 +520,8 @@ export async function storeKey(
     audience?: KeyAudience;
     /** the person chose a shared folder for it on the connect card: not their own Mine */
     shared?: boolean;
+    /** one per try: a retry after a refused connect must not replay the earlier try's key */
+    attempt?: string;
   },
 ): Promise<Stored> {
   const trace = ctx.trace.traceId;
@@ -590,7 +592,7 @@ export async function storeKey(
         name: row.name,
         kind: "api_key",
         fields: (input.fields ?? []).map((f) => ({ key: f.key, value: f.value, secret: true })),
-        idempotencyKey: `${row.id}:put`,
+        idempotencyKey: `${row.id}:put${input.attempt ? `:${input.attempt}` : ""}`,
       }),
     );
     itemId = strOf(asRow(made?.["item"])?.["id"]);
@@ -615,7 +617,7 @@ export async function storeKey(
         resource: { type: "vault_item", id: itemId },
         subject: { kind: row.requester_kind, id: row.requester_id },
         level: "use",
-        idempotencyKey: `${row.id}:use`,
+        idempotencyKey: `${row.id}:use${input.attempt ? `:${input.attempt}` : ""}`,
       });
     } catch (e) {
       // a Mine item is private to its owner: an agent acting for that person already works as them, so there is nothing to share. Any other refusal stands.
@@ -635,7 +637,7 @@ export async function storeKey(
         subject: { kind: "agent", id: row.requester_id },
         level: "use",
         source,
-        idempotencyKey: `${row.id}:through`,
+        idempotencyKey: `${row.id}:through${input.attempt ? `:${input.attempt}` : ""}`,
       });
   }
 

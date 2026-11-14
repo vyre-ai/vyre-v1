@@ -319,7 +319,11 @@ function stepsFor(r: InviteRow, guest?: { level: "view" | "reply" }): JoinStep[]
   const keys = [`role:${r.role}`, `group:${EVERYONE}`, "home"];
   for (const g of listOf(r.groups)) if (g !== EVERYONE) keys.push(`group:${g}`);
   for (const p of listOf(r.projects)) keys.push(`project:${p}`);
-  for (const c of listOf(r.channels)) keys.push(`channel:${c}`);
+  // a guest-role invite that names channels gives the guest what a guest of one chat gets: the chat AND the access to it (a channel the guest is in but cannot open would be listed and lead to a refusal)
+  for (const c of listOf(r.channels)) {
+    keys.push(`channel:${c}`);
+    if (r.role === GUEST_ROLE) keys.push(`grant:channel:${c}:view`);
+  }
   for (const a of listOf(r.agents)) keys.push(`agent:${a}`);
   // their own mail and calendar, when the company is connected (Google Workspace or Microsoft 365): matched by the address they were invited at
   keys.push("company");
@@ -342,7 +346,12 @@ async function runStep(ctx: MembersCtx, personId: string, step: JoinStep, invite
       role: "member",
       idempotencyKey: `join:${personId}:project:${arg}`,
     });
-  else if (kind === "channel") await ctx.call("channels.members.add", { channelId: arg, personIds: [personId] });
+  else if (kind === "channel") {
+    // a guest reads a channel from the moment they accept: what was said before they came was said to the people there (an "include earlier messages" choice for the inviter is a later option)
+    const inv = inviteId ? inviteById(ctx, inviteId) : undefined;
+    const guest = inviteId !== undefined && (guestOf(ctx, inviteId) !== undefined || inv?.role === GUEST_ROLE);
+    await ctx.call("channels.members.add", { channelId: arg, personIds: [personId], ...(guest ? { fromStart: false } : {}) });
+  }
   // the agent is the inviter's to give: the grant is their act, tagged with the invite (the joiner could give nothing, and the host never gives on its own)
   else if (kind === "agent") {
     const inv = inviteId ? inviteById(ctx, inviteId) : undefined;

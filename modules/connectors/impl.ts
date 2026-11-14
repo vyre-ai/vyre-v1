@@ -213,6 +213,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       ...(ctx.log ? { log: ctx.log } : {}),
       ...(ctx.schedule ? { schedule: (at, cap, input) => ctx.schedule!(at, cap, input) } : {}),
       ...((ctx.actingFor ?? ctx.principal?.id) ? { actor: ctx.actingFor ?? ctx.principal!.id } : {}),
+      callerKind: ctx.principal?.kind,
       trusted: isTrustedService(ctx.principal),
       canManageSpace: () =>
         ctx.authorize({ perm: "connectors.manage", level: "edit" }, { type: "space", id: ctx.space }).effect ===

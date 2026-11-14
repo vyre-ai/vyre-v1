@@ -27,7 +27,7 @@ const SECRET = "fk_live_TYPEDKEY_0001";
 test("a service said in words finds its connector, with the fields it needs named as labels", async () => {
   const k = kit();
   k.install(FATHOM);
-  for (const said of ["Fathom", "fathom", " FATHOM ", "fath"]) {
+  for (const said of ["Fathom", "fathom", " FATHOM "]) {
     const r = await k.hs["connectors.for_service"](k.ctx, { service: said });
     assert.equal(r.found, true, said);
     assert.equal(r.connector?.title, "Fathom");
@@ -38,6 +38,8 @@ test("a service said in words finds its connector, with the fields it needs name
     assert.equal(r.connector?.site, "https://fathom.test");
     assert.equal(r.connection, undefined);
   }
+  const prefix = await k.hs["connectors.for_service"](k.ctx, { service: "fath" });
+  assert.equal(prefix.found, false, "a prefix is never a match");
   const none = await k.hs["connectors.for_service"](k.ctx, { service: "Zendesk" });
   assert.deepEqual(none, { found: false, near: [] }, "the answer names what was asked, with nothing close");
 });
@@ -137,4 +139,38 @@ test("check_key: a connector built in one call has no health action, so its firs
     (await k.hs["connectors.check_key"](k.ctx, { connector: "blind", secrets: { api_key: SECRET } })).result,
     "ok",
   );
+});
+
+test("two connectors of one name are not guessed between, and a short name never matches a longer one", async () => {
+  const k = kit();
+  k.install({ ...FATHOM, key: "git", title: "Git" });
+  k.install({ ...FATHOM, key: "github", title: "GitHub" });
+  const r = await k.hs["connectors.for_service"](k.ctx, { service: "GitHub" });
+  assert.equal(r.connector?.key, "github");
+  assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Gi" })).found, false);
+  k.install({ ...FATHOM, key: "git2", title: "git" });
+  const two = await k.hs["connectors.for_service"](k.ctx, { service: "git" });
+  assert.deepEqual([two.found, two.near], [false, ["Git", "git"]]);
+});
+
+test("check_key is a person's act: an agent caller is refused and nothing is sent", async () => {
+  const k = kit();
+  k.install(FATHOM);
+  const agent = { ...k.mk("usr_dana"), callerKind: "agent" };
+  await assert.rejects(k.hs["connectors.check_key"](agent, { connector: "fathom", secrets: { api_key: SECRET } }));
+  assert.equal(k.sent.length, 0);
+  const person = { ...k.mk("usr_dana"), callerKind: "person" };
+  k.state.reply = () => ({ status: 200, body: { ok: true } });
+  assert.equal(
+    (await k.hs["connectors.check_key"](person, { connector: "fathom", secrets: { api_key: SECRET } })).result,
+    "ok",
+  );
+});
+
+test("a draft connector can be neither found nor tried", async () => {
+  const k = kit();
+  k.install({ ...FATHOM, key: "drafty", title: "Drafty" }, "draft");
+  assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Drafty" })).found, false);
+  await assert.rejects(k.hs["connectors.check_key"](k.ctx, { connector: "drafty", secrets: { api_key: SECRET } }));
+  assert.equal(k.sent.length, 0);
 });

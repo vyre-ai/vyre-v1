@@ -1418,7 +1418,9 @@ export default defineManifest({
             turn: t.opt(replyTurn),
             memory: t.opt(
               t.obj({
-                facts: t.arr(t.obj({ factId: t.str(), text: t.str(), sourceTitle: t.opt(t.str()) })),
+                facts: t.arr(
+                  t.obj({ factId: t.str(), text: t.str(), sourceTitle: t.opt(t.str()), kind: t.opt(t.str()) }),
+                ),
                 quotes: t.arr(t.obj({ ref: t.str(), text: t.str(), threadTitle: t.opt(t.str()), at: t.ts() })),
               }),
             ),
@@ -2332,6 +2334,7 @@ export default defineManifest({
           personIds: t.arr(id.user, { minItems: 1 }),
           level: t.opt(level),
           mentionedIn: t.opt(id.message),
+          fromStart: t.opt(t.bool({ description: "Read the channel from its first message (the default). False: they read from now on, as a guest invited into a channel does" })),
         },
         out: { channel: channelRow },
         on: ["channel", "/channelId"],
