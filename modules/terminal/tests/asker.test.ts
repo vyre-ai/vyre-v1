@@ -5,6 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   askerPlace,
+  grantCommand,
   ensureCommand,
   inOtherFolder,
   namesMirror,
@@ -306,7 +307,7 @@ test("F30: FAIL CLOSED at every terminal door: if the agent's facts cannot be re
 
 test("F30: a turn in a person's own place cannot set the variables that point the shell elsewhere", async () => {
   const w = setup({ ownerId: "usr_maya", kind: "agent" });
-  for (const k of ["HOME", "HISTFILE", "XDG_CONFIG_HOME", "TMUX_TMPDIR", "GIT_SSH_COMMAND", "SSH_AUTH_SOCK", "PATH"]) {
+  for (const k of ["HOME", "HISTFILE", "XDG_CONFIG_HOME", "TMUX_TMPDIR", "GIT_SSH_COMMAND", "SSH_AUTH_SOCK", "PATH", "BASH_ENV", "PROMPT_COMMAND"]) {
     let r: unknown = "allowed";
     try {
       await h["terminal.run"]!(w.turn("usr_ben"), { command: "echo hi", env: { [k]: "/home/agent" }, idempotencyKey: idem() });
@@ -318,4 +319,17 @@ test("F30: a turn in a person's own place cannot set the variables that point th
   // an ordinary variable is fine, and the owner is not bound
   await h["terminal.run"]!(w.turn("usr_ben"), { command: "echo hi", env: { MODE: "x" }, idempotencyKey: idem() });
   await h["terminal.run"]!(w.turn("usr_maya"), { command: "echo hi", env: { HOME: "/home/agent" }, idempotencyKey: idem() });
+});
+
+test("what reaches a person in the agent's home is a list of file-system grants: the projects they are on at their level, the Files mirror only when Files shows it, and nothing else", () => {
+  const p = askerPlace("usr_ben", 20001, true);
+  const c = grantCommand(p, [
+    { id: "prj_a", write: true },
+    { id: "prj_b", write: false },
+  ]);
+  assert.deepEqual(c.slice(4), ["20001", "1", "prj_a:rw", "prj_b:r"]);
+  const none = grantCommand(askerPlace("usr_cy", 20002, false), []);
+  assert.deepEqual(none.slice(4), ["20002", "0"]);
+  const script = c[2] ?? "";
+  assert.ok(script.includes("chmod 700") && script.includes('--x'), "closed to everyone, then opened by name, execute-only on the way");
 });

@@ -5020,6 +5020,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                       agentId,
                     ) as Array<{ projectId?: string }>
                   ).map((r) => String(r.projectId)),
+                // what a person who uses the agent without owning it reaches of its project folders: the projects of the agent they are on, writing as Lead or Member
+                projectAccessOf: (agentId: string, person: string) => {
+                  try {
+                    const mine = db!.all(
+                      "SELECT projectId, role FROM projects_member WHERE principal = ? AND kind = 'person'",
+                      person,
+                    ) as Array<{ projectId?: string; role?: string }>;
+                    const agents = new Set(
+                      (
+                        db!.all(
+                          "SELECT projectId FROM projects_member WHERE principal = ? AND kind = 'agent'",
+                          agentId,
+                        ) as Array<{ projectId?: string }>
+                      ).map((r) => String(r.projectId)),
+                    );
+                    return mine
+                      .filter((r) => agents.has(String(r.projectId)))
+                      .map((r) => ({ id: String(r.projectId), write: r.role === "lead" || r.role === "member" }));
+                  } catch {
+                    return [];
+                  }
+                },
                 // the Space these workspaces are this daemon's for: another daemon on the same Docker (a device daemon beside a Personal Space one) never sleeps, removes or releases them, nor this one its
                 owner: spaceId,
                 ownsAgent: (agentId: string) => {

@@ -130,6 +130,11 @@ export interface WorkspacesConfig {
   };
   /** The projects an agent is on, so their shared folders are mounted. */
   projectsOf?(agentId: string): Promise<readonly string[]> | readonly string[];
+  /** The projects of this agent a person is on and whether they may write there: what a person who uses the agent without owning it reaches under ~/projects. */
+  projectAccessOf?(
+    agentId: string,
+    person: string,
+  ): Promise<ReadonlyArray<{ id: string; write: boolean }>> | ReadonlyArray<{ id: string; write: boolean }>;
   log?(level: "info" | "warn", msg: string, attrs?: Record<string, unknown>): void;
 }
 

@@ -16,7 +16,7 @@ import { NOT_FETCHED_REASON, createDockerApi, fetchableImage } from "../../sandb
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp, DockerResponse } from "../../sandbox/src/docker.ts";
 import { createTmuxHost, HISTORY_ENV } from "./impl.ts";
-import { ensureCommand, SQUATTED } from "./asker.ts";
+import { ensureCommand, grantCommand, SQUATTED } from "./asker.ts";
 import type { AskerPlace } from "./asker.ts";
 import type { TmuxHost } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
@@ -127,6 +127,8 @@ export interface WorkspaceOptions {
   home?: WorkspaceHome;
   /** The projects the agent is on, read when the workspace wakes: a change recreates the container (volumes stay), so the new project's folder is there. */
   projectsOf?: (agentId: string) => Promise<readonly string[]> | readonly string[];
+  /** The projects of this agent a person is on, and whether they may write there (their role): what a person who uses the agent without owning it may reach under ~/projects. */
+  projectAccessOf?: (agentId: string, person: string) => Promise<ReadonlyArray<{ id: string; write: boolean }>> | ReadonlyArray<{ id: string; write: boolean }>;
   /** Behind the runner (a Team server) each workspace gets a network of its own, so one cannot reach another. */
   runner?: boolean;
   /**
@@ -240,6 +242,8 @@ export interface WorkspaceManager {
   filesChanged(change?: { folderIds?: readonly string[]; fileId?: string; by?: string }): void;
   /** A person's open tab read the workspace's screen: it counts as attached for a short while (making room passes it over). */
   viewed(agentId: string): void;
+  /** The projects of this agent a person is on and whether they may write there (the daemon's own tables): what they reach under ~/projects when they use the agent without owning it. */
+  projectAccess(agentId: string, person: string): Promise<ReadonlyArray<{ id: string; write: boolean }>>;
   /** The line a workspace put to sleep at the 12-hour ceiling owes its next command, once (then null). */
   takeNote(agentId: string): string | null;
   /** The agent came back from Trash: its workspace may be made again (over the volumes it kept). */
@@ -446,7 +450,7 @@ const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r
 export const NOT_PRIVATE =
   "This workspace is on a server whose link to the Space is not private (no TLS), so no Vault value is sent to it. Connect the server over https, or run the command without the value.";
 /** What a workspace session runs: a bash with a private umask (files the agent makes outside its own folder, in /tmp, are not readable by the other people of the computer). */
-export const SESSION_SHELL: readonly string[] = ["sh", "-c", "umask 077; exec bash"];
+export const SESSION_SHELL: readonly string[] = ["sh", "-c", "umask 007; exec bash"];
 
 // the message reaches a person (the chat, the Terminal tab): Docker names a container in its own errors, and that name carries the agent's id
 const wsError = (message: string, code = "unavailable"): Error =>
@@ -1865,6 +1869,9 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     },
     awake: (agentId) =>
       AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false),
+    async projectAccess(agentId, person) {
+      return (await o.projectAccessOf?.(agentId, person)) ?? [];
+    },
     viewed(agentId) {
       viewedAt.set(agentId, now());
     },
@@ -2206,7 +2213,11 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   async function ensurePlace(agentId: string, place: AskerPlace): Promise<void> {
     const r = await m.exec(agentId, ensureCommand(place), { user: place.uid });
     if (r.code === SQUATTED) throw wsError("That folder was made by someone else.", "squatted");
+    // what of the agent's home reaches them: the projects they are on and, when Files shows it to them, the mirror (as the agent's own user: it owns those folders)
     if (r.code !== 0) throw wsError(`The folder of this person could not be made (${r.stderr.trim().slice(0, 120)}).`, "unavailable");
+    const projects = await m.projectAccess(agentId, place.person);
+    const g = await m.exec(agentId, grantCommand(place, projects));
+    if (g.code !== 0) throw wsError(`What this person may reach could not be set (${g.stderr.trim().slice(0, 120)}).`, "unavailable");
   }
 
   /** The tmux host of a workspace, or of one person's tmux server in it (a person who uses the shared agent without owning it, asker.ts). */

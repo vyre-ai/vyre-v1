@@ -18,13 +18,16 @@ export interface AskerPlace {
   home: string;
   /** What their shell starts with. */
   env: Readonly<Record<string, string>>;
+  /** May they read what Files shows them of the agent's folder (the mirror `~/Vyre`)? Decided from Files' own view rule when the place is made. */
+  files: boolean;
 }
 
-export function askerPlace(person: string, uid: number): AskerPlace {
+export function askerPlace(person: string, uid: number, files = false): AskerPlace {
   const home = `${PEOPLE_DIR}/u${uid}`;
   return {
     person,
     uid,
+    files,
     home,
     env: {
       HOME: home,
@@ -56,6 +59,27 @@ export function ensureCommand(p: AskerPlace): string[] {
     "sh",
     p.home,
     String(p.uid),
+  ];
+}
+
+/**
+ * What reaches a person in the agent's own home, by the file system (POSIX ACLs; run as the agent's own user 10001, which owns every folder named here, so no capability is needed): the person's uid may pass
+ * through /home/agent and /home/agent/projects (execute only: it cannot list them), the project folders of the projects they are on are theirs at the level the project gives (members read and write, others
+ * read), and the Files mirror is theirs to read when Files lets them view the agent's folder. Every other project folder and the mirror are closed to everyone but the agent (0700) and then opened by name for
+ * who may. Run again at each session the person opens, so a change in who is on a project is applied then. A person's new files in a folder the agent also uses carry the group's rights: sessions run with umask 007.
+ */
+export function grantCommand(p: AskerPlace, projects: ReadonlyArray<{ id: string; write: boolean }>): string[] {
+  return [
+    "sh",
+    "-c",
+    'u="$1"; files="$2"; shift 2; H=/home/agent; setfacl -m "u:$u:--x" "$H" "$H/projects" 2>/dev/null; ' +
+      'for d in "$H"/projects/* "$H/Vyre"; do [ -d "$d" ] && { chmod 700 "$d"; setfacl -R -x "u:$u" "$d" 2>/dev/null; setfacl -R -d -x "u:$u" "$d" 2>/dev/null; }; done; ' +
+      '[ "$files" = 1 ] && [ -d "$H/Vyre" ] && { setfacl -R -m "u:$u:rX" "$H/Vyre"; setfacl -R -d -m "u:$u:rX" "$H/Vyre"; }; ' +
+      'for p in "$@"; do id="${p%%:*}"; m="${p##*:}"; d="$H/projects/$id"; [ -d "$d" ] || continue; perm=rX; [ "$m" = rw ] && perm=rwX; setfacl -R -m "u:$u:$perm" "$d"; setfacl -R -d -m "u:$u:$perm" "$d"; setfacl -R -d -m u:10001:rwX "$d"; done; true',
+    "sh",
+    String(p.uid),
+    p.files ? "1" : "0",
+    ...projects.map((x) => `${x.id}:${x.write ? "rw" : "r"}`),
   ];
 }
 

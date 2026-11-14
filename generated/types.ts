@@ -190,6 +190,19 @@ export type AccessCheckOut = {
     decisionId: string;
   };
 };
+export type AccessClearsIn = {
+  principal: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
+  target: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
+    id: string;
+  };
+};
+export type AccessClearsOut = {
+  clears: boolean;
+};
 export type AccessConnectorBuilderGrantIn = {
   agentId: string;
 };
@@ -6838,6 +6851,32 @@ export type ChatCatchUpOut = {
       text: string;
     }>;
 };
+export type ChatChaptersIn = {
+  threadId: string;
+};
+export type ChatChaptersOut = {
+  chapters: Array<{
+      startSeq: number;
+      endSeq: number;
+      startAt: number;
+      count: number;
+      current: boolean;
+      title: string;
+      summary: string;
+      by: "extract" | "model" | "person";
+    }>;
+  wanted: number;
+};
+export type ChatChaptersWriteIn = {
+  threadId: string;
+  account?: {
+    ref: string;
+    driver: string;
+  };
+};
+export type ChatChaptersWriteOut = {
+  written: number;
+};
 export type ChatComposerSuggestIn = {
   symbol: "@" | "#" | "/";
   q: string;
@@ -7975,6 +8014,23 @@ export type ChatReplyDetailsOut = {
         secs?: number;
       }>;
   };
+};
+export type ChatRoundDecideIn = {
+  threadId: string;
+  messageId: string;
+  agentId: string;
+  idempotencyKey: string;
+};
+export type ChatRoundDecideOut = {
+  messageId: string;
+};
+export type ChatRoundDiscussIn = {
+  threadId: string;
+  messageId: string;
+  idempotencyKey: string;
+};
+export type ChatRoundDiscussOut = {
+  threadId: string;
 };
 export type ChatScreenGetIn = {
   threadId: string;
@@ -10154,6 +10210,14 @@ export type ConnectorsBuildOut = {
   runId: string;
   draftId: string;
 };
+export type ConnectorsCheckKeyIn = {
+  connector: string;
+  secrets: Record<string, string>;
+};
+export type ConnectorsCheckKeyOut = {
+  result: "ok" | "rejected" | "unreachable";
+  tested?: string;
+};
 export type ConnectorsDefineIn = {
   key: string;
   title?: string;
@@ -10201,6 +10265,30 @@ export type ConnectorsExportIn = {
 };
 export type ConnectorsExportOut = {
   folderId: string;
+};
+export type ConnectorsForServiceIn = {
+  service: string;
+};
+export type ConnectorsForServiceOut = {
+  found: boolean;
+  connector?: {
+    key: string;
+    title: string;
+    scope: "person" | "space";
+    mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    site?: string;
+  };
+  connection?: {
+    connectionId: string;
+    owner: "mine" | "space";
+    state: "pending" | "active" | "paused" | "needs_reconnect" | "failing";
+  };
+  near?: Array<string>;
 };
 export type ConnectorsGetIn = {
   key: string;
@@ -12691,6 +12779,20 @@ export type EngineReviewerSetOut = {
     kind: "agent" | "person";
     id: string;
   }) | null;
+};
+export type EngineRoundGetIn = {
+  threadId: string;
+  messageIds: Array<string>;
+};
+export type EngineRoundGetOut = {
+  rounds: Array<{
+      messageId: string;
+      agents: Array<{
+          agentId: string;
+          state: "working" | "waiting" | "replied" | "stopped";
+          on?: string;
+        }>;
+    }>;
 };
 export type EngineRoutePreviewIn = {
   threadId: string;
@@ -44329,6 +44431,227 @@ export type UpdatesStatusOut = {
   available?: string;
   lastResult?: "ok" | "failed" | "rolled_back";
 };
+export type VaultConnectIn = {
+  service: string;
+  reason?: string;
+  idempotencyKey: string;
+};
+export type VaultConnectOut = {
+  status: "connected" | "waiting_person" | "waiting_admin" | "declined";
+  requestId?: string;
+  tell: string;
+};
+export type VaultConnectCardAskAdminIn = {
+  requestId: string;
+  admin?: string;
+};
+export type VaultConnectCardAskAdminOut = {
+  card: {
+    requestId: string;
+    state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
+    service: {
+      key: string;
+      title: string;
+      site?: string;
+    };
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    agentId?: string;
+    mayFill: boolean;
+    admin?: {
+      id: string;
+      askedAt?: number;
+    };
+    have?: {
+      itemId: string;
+      name: string;
+      keptIn: string;
+    };
+    keptIn?: string;
+    tested?: string;
+    connectedBy?: string;
+    connectionId?: string;
+    usedBy: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+  };
+};
+export type VaultConnectCardDisconnectIn = {
+  requestId: string;
+};
+export type VaultConnectCardDisconnectOut = {
+  card: {
+    requestId: string;
+    state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
+    service: {
+      key: string;
+      title: string;
+      site?: string;
+    };
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    agentId?: string;
+    mayFill: boolean;
+    admin?: {
+      id: string;
+      askedAt?: number;
+    };
+    have?: {
+      itemId: string;
+      name: string;
+      keptIn: string;
+    };
+    keptIn?: string;
+    tested?: string;
+    connectedBy?: string;
+    connectionId?: string;
+    usedBy: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+  };
+};
+export type VaultConnectCardGetIn = {
+  requestId: string;
+};
+export type VaultConnectCardGetOut = {
+  card: {
+    requestId: string;
+    state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
+    service: {
+      key: string;
+      title: string;
+      site?: string;
+    };
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    agentId?: string;
+    mayFill: boolean;
+    admin?: {
+      id: string;
+      askedAt?: number;
+    };
+    have?: {
+      itemId: string;
+      name: string;
+      keptIn: string;
+    };
+    keptIn?: string;
+    tested?: string;
+    connectedBy?: string;
+    connectionId?: string;
+    usedBy: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+  };
+};
+export type VaultConnectCardOptionsIn = {
+  requestId: string;
+};
+export type VaultConnectCardOptionsOut = {
+  folders: Array<{
+      id: string;
+      name: string;
+      scope: "mine" | "shared";
+      usable: boolean;
+    }>;
+  default?: string;
+};
+export type VaultConnectCardReopenIn = {
+  requestId: string;
+};
+export type VaultConnectCardReopenOut = {
+  card: {
+    requestId: string;
+    state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
+    service: {
+      key: string;
+      title: string;
+      site?: string;
+    };
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    agentId?: string;
+    mayFill: boolean;
+    admin?: {
+      id: string;
+      askedAt?: number;
+    };
+    have?: {
+      itemId: string;
+      name: string;
+      keptIn: string;
+    };
+    keptIn?: string;
+    tested?: string;
+    connectedBy?: string;
+    connectionId?: string;
+    usedBy: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+  };
+};
+export type VaultConnectCardSubmitIn = {
+  requestId: string;
+  fields?: Array<{
+      key: string;
+      value: string;
+    }>;
+  useSaved?: boolean;
+  folderId?: string;
+  audience?: "asker" | "anyone";
+};
+export type VaultConnectCardSubmitOut = {
+  result: "connected" | "wrong" | "offline";
+  card: {
+    requestId: string;
+    state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
+    service: {
+      key: string;
+      title: string;
+      site?: string;
+    };
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    agentId?: string;
+    mayFill: boolean;
+    admin?: {
+      id: string;
+      askedAt?: number;
+    };
+    have?: {
+      itemId: string;
+      name: string;
+      keptIn: string;
+    };
+    keptIn?: string;
+    tested?: string;
+    connectedBy?: string;
+    connectionId?: string;
+    usedBy: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+  };
+};
 export type VaultExportEnvIn = {
   folderId: string;
   expiresIn: "1h" | "1d" | "7d";
@@ -44856,9 +45179,11 @@ export type VaultRequestOut = {
     state: "waiting" | "fulfilled" | "declined" | "canceled";
     itemId?: string;
     note?: string;
+    service?: string;
     taskId: string;
     at: number;
     decidedAt?: number;
+    askedYou?: boolean;
   };
 };
 export type VaultRequestsCancelIn = {
@@ -44899,9 +45224,11 @@ export type VaultRequestsFulfilOut = {
     state: "waiting" | "fulfilled" | "declined" | "canceled";
     itemId?: string;
     note?: string;
+    service?: string;
     taskId: string;
     at: number;
     decidedAt?: number;
+    askedYou?: boolean;
   };
 };
 export type VaultRequestsGetIn = {
@@ -44922,9 +45249,11 @@ export type VaultRequestsGetOut = {
     state: "waiting" | "fulfilled" | "declined" | "canceled";
     itemId?: string;
     note?: string;
+    service?: string;
     taskId: string;
     at: number;
     decidedAt?: number;
+    askedYou?: boolean;
   };
 };
 export type VaultRequestsListIn = {
@@ -44948,9 +45277,11 @@ export type VaultRequestsListOut = {
       state: "waiting" | "fulfilled" | "declined" | "canceled";
       itemId?: string;
       note?: string;
+      service?: string;
       taskId: string;
       at: number;
       decidedAt?: number;
+      askedYou?: boolean;
     }>;
   next?: string;
   total?: number;
@@ -45528,6 +45859,7 @@ export interface CapMap {
   "access.audience_set": { in: AccessAudienceSetIn; out: AccessAudienceSetOut };
   "access.automation_senders": { in: AccessAutomationSendersIn; out: AccessAutomationSendersOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
+  "access.clears": { in: AccessClearsIn; out: AccessClearsOut };
   "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
   "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
   "access.deciders": { in: AccessDecidersIn; out: AccessDecidersOut };
@@ -45794,6 +46126,8 @@ export interface CapMap {
   "chat.ask_suggest": { in: ChatAskSuggestIn; out: ChatAskSuggestOut };
   "chat.asks_of": { in: ChatAsksOfIn; out: ChatAsksOfOut };
   "chat.catch_up": { in: ChatCatchUpIn; out: ChatCatchUpOut };
+  "chat.chapters": { in: ChatChaptersIn; out: ChatChaptersOut };
+  "chat.chapters_write": { in: ChatChaptersWriteIn; out: ChatChaptersWriteOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
   "chat.crew_line": { in: ChatCrewLineIn; out: ChatCrewLineOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
@@ -45836,6 +46170,8 @@ export interface CapMap {
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.reply_details": { in: ChatReplyDetailsIn; out: ChatReplyDetailsOut };
+  "chat.round.decide": { in: ChatRoundDecideIn; out: ChatRoundDecideOut };
+  "chat.round.discuss": { in: ChatRoundDiscussIn; out: ChatRoundDiscussOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
   "chat.search": { in: ChatSearchIn; out: ChatSearchOut };
   "chat.share": { in: ChatShareIn; out: ChatShareOut };
@@ -45964,9 +46300,11 @@ export interface CapMap {
   "connections.test": { in: ConnectionsTestIn; out: ConnectionsTestOut };
   "connections.update": { in: ConnectionsUpdateIn; out: ConnectionsUpdateOut };
   "connectors.build": { in: ConnectorsBuildIn; out: ConnectorsBuildOut };
+  "connectors.check_key": { in: ConnectorsCheckKeyIn; out: ConnectorsCheckKeyOut };
   "connectors.define": { in: ConnectorsDefineIn; out: ConnectorsDefineOut };
   "connectors.diff": { in: ConnectorsDiffIn; out: ConnectorsDiffOut };
   "connectors.export": { in: ConnectorsExportIn; out: ConnectorsExportOut };
+  "connectors.for_service": { in: ConnectorsForServiceIn; out: ConnectorsForServiceOut };
   "connectors.get": { in: ConnectorsGetIn; out: ConnectorsGetOut };
   "connectors.health": { in: ConnectorsHealthIn; out: ConnectorsHealthOut };
   "connectors.init": { in: ConnectorsInitIn; out: ConnectorsInitOut };
@@ -46146,6 +46484,7 @@ export interface CapMap {
   "engine.review.mark": { in: EngineReviewMarkIn; out: EngineReviewMarkOut };
   "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
   "engine.reviewer.set": { in: EngineReviewerSetIn; out: EngineReviewerSetOut };
+  "engine.round.get": { in: EngineRoundGetIn; out: EngineRoundGetOut };
   "engine.route.preview": { in: EngineRoutePreviewIn; out: EngineRoutePreviewOut };
   "engine.running_here": { in: EngineRunningHereIn; out: EngineRunningHereOut };
   "engine.runtime.opt_in": { in: EngineRuntimeOptInIn; out: EngineRuntimeOptInOut };
@@ -47655,6 +47994,13 @@ export interface CapMap {
   "updates.history": { in: UpdatesHistoryIn; out: UpdatesHistoryOut };
   "updates.rollback": { in: UpdatesRollbackIn; out: UpdatesRollbackOut };
   "updates.status": { in: UpdatesStatusIn; out: UpdatesStatusOut };
+  "vault.connect": { in: VaultConnectIn; out: VaultConnectOut };
+  "vault.connect_card.ask_admin": { in: VaultConnectCardAskAdminIn; out: VaultConnectCardAskAdminOut };
+  "vault.connect_card.disconnect": { in: VaultConnectCardDisconnectIn; out: VaultConnectCardDisconnectOut };
+  "vault.connect_card.get": { in: VaultConnectCardGetIn; out: VaultConnectCardGetOut };
+  "vault.connect_card.options": { in: VaultConnectCardOptionsIn; out: VaultConnectCardOptionsOut };
+  "vault.connect_card.reopen": { in: VaultConnectCardReopenIn; out: VaultConnectCardReopenOut };
+  "vault.connect_card.submit": { in: VaultConnectCardSubmitIn; out: VaultConnectCardSubmitOut };
   "vault.export_env": { in: VaultExportEnvIn; out: VaultExportEnvOut };
   "vault.exports.list": { in: VaultExportsListIn; out: VaultExportsListOut };
   "vault.exports.revoke": { in: VaultExportsRevokeIn; out: VaultExportsRevokeOut };
@@ -51890,6 +52236,7 @@ export type VaultRequestDeclinedPayload = {
   forRun?: string;
   note?: string;
   name?: string;
+  service?: string;
   threadId?: string;
   agentId?: string;
   asker?: string;

@@ -235,7 +235,10 @@ export async function askerPlaceFor(
   const uid = uidOf(ctx.db, person, ctx.now());
   if (uid === null)
     raise(ctx, "provider.unavailable", "This computer has no room for more people. Ask an admin.", { reason: "no_uid" });
-  return askerPlace(person, uid);
+  // may they read what Files shows them of the agent's folder (the mirror): Files' own view rule, as them
+  const folder = got.agent?.folderId;
+  const files = folder !== undefined && ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: folder }).effect === "allow";
+  return askerPlace(person, uid, files);
 }
 
 /**
@@ -799,7 +802,7 @@ function endIdleHolds(ctx: TermCtx): void {
  * nothing of anyone else's). Fails closed: if who owns the agent cannot be read, nothing is typed.
  */
 /** The variables a person's place sets or that point the shell, tmux, ssh or git at another place. */
-const PLACE_ENV = /^(HOME|HISTFILE|HISTSIZE|XDG_.*|TMPDIR|TMUX.*|GIT_SSH.*|GIT_CONFIG.*|SSH_.*|GNUPGHOME|PATH|LD_.*|SHELL|USER|LOGNAME)$/;
+const PLACE_ENV = /^(HOME|HISTFILE|HISTSIZE|XDG_.*|TMPDIR|TMUX.*|GIT_SSH.*|GIT_CONFIG.*|SSH_.*|GNUPGHOME|PATH|LD_.*|SHELL|USER|LOGNAME|BASH_ENV|ENV|PROMPT_COMMAND|BASH_FUNC_.*|IFS|CDPATH)$/;
 export const OTHERS_PLACE = "That terminal is in someone else's own space on this computer. Only they can type in it.";
 async function needOwnPlace(ctx: TermCtx, x: SessionRow): Promise<void> {
   if (x.host !== "agent_computer" || x.agentId === undefined) return;

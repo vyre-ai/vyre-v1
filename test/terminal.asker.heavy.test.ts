@@ -318,3 +318,77 @@ test(
     assert.match(got[0]!.text, /Shared work/);
   },
 );
+
+// Review blocker 1 (14 Nov): a person reaches, in their own place, the projects they are on (at the level the project gives) and what Files lets them see, and nothing else. The grants are file-system ACLs on
+// the agent's own folders, so they hold for any command. Ben is on project one, not on project two.
+test(
+  "a non-owner on one project and not on another reaches the first (read and write) and not the second, and the agent's own home stays closed",
+  { skip, timeout: 900_000 },
+  async (t) => {
+    const w = await world();
+    t.after(() => w.close());
+    const mk = async (title: string): Promise<string> => {
+      const r = await w.owner.call("projects.create", { type: "project", title });
+      assert.equal(r.status, 200, JSON.stringify(r.data));
+      const id = r.data.projectId as string;
+      const a = await w.owner.call("projects.members.set", { projectId: id, principal: w.agent, role: "member" });
+      assert.equal(a.status, 200, JSON.stringify(a.data));
+      return id;
+    };
+    const one = await mk("Project one");
+    const two = await mk("Project two");
+    const set = await w.owner.call("projects.members.set", { projectId: one, principal: w.ben.id, role: "member" });
+    assert.equal(set.status, 200, JSON.stringify(set.data));
+    // the agent's owner (in the agent's own home) puts a file in each project's folder, as the shell makes it
+    const made = await w.turn(w.owner, "acl-1", [
+      { cmd: `echo ONE-DATA > ~/projects/${one}/f.txt; echo TWO-DATA > ~/projects/${two}/f.txt; echo ok` },
+    ]);
+    assert.equal(made[0]!.text, "ok", made[0]!.text);
+    const H = 'H=/home/ag""ent;';
+    const ben = await w.turn(w.ben, "acl-2", [
+      { cmd: `${H} cat $H/projects/${one}/f.txt 2>&1` },
+      { cmd: `${H} echo BEN-WROTE > $H/projects/${one}/ben.txt 2>&1; cat $H/projects/${one}/ben.txt 2>&1` },
+      { cmd: `${H} cat $H/projects/${two}/f.txt 2>&1` },
+      { cmd: `${H} ls $H/projects 2>&1` },
+      { cmd: `${H} ls -A $H 2>&1` },
+      { cmd: `${H} ls $H/Vyre 2>&1; echo X > $H/Vyre/ben-wrote 2>&1; echo END` },
+    ]);
+    console.log("ACL ", JSON.stringify(ben.map((b) => (b.text || b.error || "").slice(0, 300))));
+    assert.match(ben[0]!.text, /ONE-DATA/, "he reads the project he is on");
+    assert.match(ben[1]!.text, /BEN-WROTE/, "and writes there");
+    assert.match(ben[2]!.text, /Permission denied/, "the project he is not on is refused by the kernel");
+    assert.doesNotMatch(ben[2]!.text, /TWO-DATA/);
+    assert.match(ben[3]!.text, /Permission denied/, "he cannot even list the projects");
+    assert.match(ben[4]!.text, /Permission denied/, "the agent's own home stays closed");
+    // Files lets every member see this agent's folder, so the mirror is his to read at that level (read only): he lists it and cannot write into it
+    assert.match(ben[5]!.text, /AGENT\.md/, "the Files mirror is read-only visible to him because Files shows him the folder");
+    assert.match(ben[5]!.text, /Permission denied/, "and he cannot write into it");
+    // the owner reads what Ben wrote in the project, in her own place
+    const back = await w.turn(w.owner, "acl-3", [{ cmd: `cat ~/projects/${one}/ben.txt` }]);
+    assert.match(back[0]!.text, /BEN-WROTE/);
+  },
+);
+
+// Review blockers 3 and 4: what one container still shares, measured so the words stay true. A Unix user cannot hide the process list (hidepid needs to remount /proc: CAP_SYS_ADMIN, which every workspace
+// drops and the runner's policy refuses) nor loopback (netfilter or a network namespace per person needs CAP_NET_ADMIN or CAP_SYS_ADMIN, same). This test asserts the limits are as stated, so the changelog and
+// the place never claim more: if a later change closes them, this fails and the words change with it.
+test(
+  "KNOWN LIMITS: in one container a non-owner still sees the owner's command lines and reaches the owner's loopback ports; and cannot close either (no capability)",
+  { skip, timeout: 900_000 },
+  async (t) => {
+    const w = await world();
+    t.after(() => w.close());
+    await w.turn(w.owner, "lim-1", [
+      { cmd: "(sleep 7777 >/dev/null 2>&1 &); (python3 -m http.server 3999 --bind 127.0.0.1 >/dev/null 2>&1 &); sleep 1; echo up" },
+    ]);
+    const ben = await w.turn(w.ben, "lim-2", [
+      { cmd: "ps -eo user:10,args | grep 'sleep 7777' | grep -v grep | head -1" },
+      { cmd: "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3999/" },
+      { cmd: "grep CapEff /proc/self/status; unshare -n true 2>&1 | head -1" },
+    ]);
+    assert.match(ben[0]!.text, /sleep 7777/, "the owner's command line is visible (a secret passed as an argument would be)");
+    assert.equal(ben[1]!.text, "200", "the owner's loopback port answers another person's turn");
+    assert.match(ben[2]!.text, /CapEff:\s+0000000000000000/);
+    assert.match(ben[2]!.text, /not permitted/i, "no network or pid namespace can be made by a person");
+  },
+);
