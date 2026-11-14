@@ -1070,3 +1070,38 @@ test("the refusal tells the agent what to do: carry on, mention it once at the n
     /Carry on without it and mention it once at your next check-in/,
   );
 });
+
+test("a goal keeps only helpers, records and a project its saver may use; their own and the Space's are fine; a later save leaves what it already holds alone (F47 audit)", async () => {
+  const w = world({ count: 120 });
+  w.state.theirs.add("rec_olivia_private");
+  w.state.theirs.add("prj_theirs");
+  w.state.theirs.add("agt_theirs");
+  const words = /You cannot use the (record|project|agent) it names\. Pick another, or ask for access to it\./;
+  const refused = async (over: Record<string, unknown>) =>
+    w.call("goals.create", labGoal(over)).then(
+      () => null,
+      (e: any) => e, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+  for (const over of [
+    { recordIds: ["rec_olivia_private"] },
+    { projectId: "prj_theirs" },
+    { helpers: [{ kind: "agent", id: "agt_theirs" }] },
+  ]) {
+    const e = await refused(over);
+    assert.ok(e, `accepted ${JSON.stringify(over)}`);
+    assert.match(String(e.message ?? e.error?.message), words);
+  }
+  const { goal } = await w.call("goals.create", labGoal({ recordIds: ["rec_shared"], projectId: "prj_lab8" }));
+  const e = await w.call("goals.update", { goalId: goal.id, recordIds: ["rec_shared", "rec_olivia_private"] }).then(
+    () => null,
+    (x: any) => x, // eslint-disable-line @typescript-eslint/no-explicit-any
+  );
+  assert.ok(
+    e && words.test(String(e.message ?? e.error?.message)),
+    "a record of someone else's was added by an update",
+  );
+  // what the goal already holds is not asked again, even when the person since lost the right
+  w.state.theirs.add("rec_shared");
+  const kept = await w.call("goals.update", { goalId: goal.id, title: "Renamed", recordIds: ["rec_shared"] });
+  assert.equal(kept.goal.title, "Renamed");
+});

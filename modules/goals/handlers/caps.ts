@@ -42,6 +42,7 @@ import {
   when,
 } from "../projections.ts";
 import { ownerAsked } from "../../../lib/owner-asked.ts";
+import { cannotUse } from "../../../lib/may-use.ts";
 import type { Finish, Goal, GoalsCtx, Permission, Retro, Who } from "../projections.ts";
 import {
   addPlan,
@@ -183,6 +184,22 @@ function saveDraftPlan(ctx: GoalsCtx, g: Goal, plan: PlanChild[]): void {
   );
 }
 
+/** A goal keeps only helpers, records and a project its saver may use (F47 audit): what a later save leaves as it was is not asked again. A trusted service saves for a person elsewhere, and is not asked. */
+function mustUseNamed(ctx: GoalsCtx, input: In, was?: Goal): void {
+  if (isSystem(ctx)) return;
+  const refuse = (kind: "agent" | "record" | "project", id: string, field: string): void => {
+    const words = cannotUse(ctx, kind, id);
+    if (words) raise(ctx, "validation.precondition_failed", words, { reason: "not_yours", field });
+  };
+  for (const h of (input.helpers ?? []) as Who[])
+    if (h.kind === "agent" && !was?.helpers.some((x) => x.kind === "agent" && x.id === h.id))
+      refuse("agent", h.id, "helpers");
+  for (const r of (input.recordIds ?? []) as string[])
+    if (!was?.recordIds.includes(r)) refuse("record", r, "recordIds");
+  if (input.projectId !== undefined && input.projectId !== was?.projectId)
+    refuse("project", input.projectId, "projectId");
+}
+
 export async function create(ctx: GoalsCtx, input: In) {
   ensure(ctx.db);
   const owner: string = input.owner ?? (me(ctx).startsWith("usr_") ? me(ctx) : "");
@@ -194,6 +211,7 @@ export async function create(ctx: GoalsCtx, input: In) {
   if (owner !== me(ctx) && !isSystem(ctx) && !isAdmin(ctx))
     raise(ctx, "validation.precondition_failed", "You can only make a goal for yourself.", { reason: "not_owner" });
   checkFinish(ctx, input.finish as Finish);
+  mustUseNamed(ctx, input);
   if (input.deadline <= ctx.now())
     raise(ctx, "validation.precondition_failed", "The deadline has passed.", { reason: "deadline_past" });
   const agent = await tryCall<{ agent?: { runtime?: string } }>(ctx, "agents.get", { agentId: input.leadAgentId });
@@ -517,6 +535,7 @@ export async function update(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
   const asked = await mustControl(ctx, g);
   if (asked) await checkAskedFields(ctx, g, input);
+  mustUseNamed(ctx, input, g);
   const fields: string[] = [];
   const set = <K extends keyof Goal>(k: K, v: Goal[K] | undefined, name = String(k)): void => {
     if (v !== undefined) {

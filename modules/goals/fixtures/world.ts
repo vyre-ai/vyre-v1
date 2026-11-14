@@ -59,6 +59,8 @@ export function world(
   const db = scopedDb("goals", raw, "0123456789abcdef0123456789abcdef") as Db;
   const state = {
     now: T0,
+    /** things that belong to someone else: the caller may not use them (an id here is a private record, project or agent of another person) */
+    theirs: new Set<string>(),
     count: o.count ?? 0,
     watch: { value: "Registrations: 212", changes: 3 } as { value?: string; changes: number; error?: string },
     failRead: o.failRead as string | undefined,
@@ -263,9 +265,15 @@ export function world(
         if (k) keyed.set(k, out);
         return out;
       },
+      // answers like the product: the Space's admin may manage; a member may view and use what the Space holds but manage nothing; a thing that belongs to someone else (state.theirs) is not the caller's to use
       authorize: (action, resource) => ({
-        effect:
-          resource.type === "space" && action.perm === "policy.manage" && who.id === "usr_admin" ? "allow" : "deny",
+        effect: state.theirs.has(resource.id ?? "")
+          ? "deny"
+          : action.level === "manage" || action.perm === "policy.manage"
+            ? who.id === "usr_admin"
+              ? "allow"
+              : "deny"
+            : "allow",
       }),
     };
   }

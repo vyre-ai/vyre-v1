@@ -4,6 +4,7 @@
 // DECISION: the first reading is the baseline, never a change. A change is a different reading after whitespace is collapsed; the alert keeps what it was and what it is now.
 // DECISION: the alert goes to a chat (one per watch, made on the first change) with the person and whoever they asked to tell; the words hold both readings, so a client with no card for it still shows them.
 import { clean, newId, raise } from "../projections.ts";
+import { cannotUse } from "../../../lib/may-use.ts";
 import type { AutoCtx } from "../projections.ts";
 
 type Obj = Record<string, unknown>;
@@ -174,21 +175,15 @@ export async function save(ctx: AutoCtx, input: SaveIn): Promise<{ watch: WatchO
   const tell = [...new Set((input.tell ?? []).filter((p) => p !== person))].slice(0, 20);
   // a watch names an agent, a computer and chats; the saver may name only what they may use (the same sentence as an Automation step, F47 audit 14 Nov 2026). What a later save leaves unchanged is not asked again.
   const before = input.watchId ? mine(ctx, input.watchId, person) : undefined;
-  const mustUse = (type: "agent" | "computer" | "thread", word: string, id: string | undefined, was: unknown): void => {
+  const mustUse = (type: "agent" | "computer" | "thread", id: string | undefined, was: unknown): void => {
     if (!id || id === was) return;
-    const level = type === "agent" ? "view" : type === "computer" ? "view" : "use";
-    if (typeof ctx.authorize !== "function" || ctx.authorize({ perm: null, level }, { type, id }).effect !== "allow")
-      raise(
-        ctx,
-        "validation.precondition_failed",
-        `You cannot use the ${word} it names. Pick another, or ask for access to it.`,
-        { reason: "account_not_yours", field: type },
-      );
+    const words = cannotUse(ctx, type, id);
+    if (words) raise(ctx, "validation.precondition_failed", words, { reason: "account_not_yours", field: type });
   };
-  mustUse("agent", "agent", input.agentId, before?.["agent_id"]);
-  mustUse("computer", "computer", input.computerId, before?.["computer_id"]);
+  mustUse("agent", input.agentId, before?.["agent_id"]);
+  mustUse("computer", input.computerId, before?.["computer_id"]);
   const was = new Set(json<string[]>(before?.["tell_threads_json"], []));
-  for (const th of new Set(input.tellThreads ?? [])) if (!was.has(th)) mustUse("thread", "chat", th, undefined);
+  for (const th of new Set(input.tellThreads ?? [])) if (!was.has(th)) mustUse("thread", th, undefined);
   const baseline = input.value === undefined ? undefined : normalize(input.value).slice(0, READING_MAX);
   const prior = input.watchId
     ? mine(ctx, input.watchId, person)
