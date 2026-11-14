@@ -27,3 +27,4 @@
 - A goal waiting on you is matched to its Tasks row by the goal itself, not by title, so a second goal with the same name keeps its line. The Unblock task a stuck goal makes now says which goal it is about.
 - A stuck goal made before this version still shows once: its Unblock task names no goal, so it is matched to the goal by its title.
 - Hide on the Finish setup entry is kept in your own state on the Space, not in the browser: it stays hidden on every device you sign in on, and the next person on the same computer does not inherit it. The old browser-wide setting is deleted when the app opens, not moved.
+- The Notes or Artifacts tab you used last is kept in your own state on the Space: the sidebar's foot row opens on it on every device you sign in on, and the next person on the same computer starts on Notes. The old browser-wide setting is deleted, not moved.

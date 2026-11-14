@@ -18,7 +18,7 @@ import { matchShortcut } from "../../../shell/keyboard/map.ts";
 import { detectPlatform } from "../../../shell/keyboard/useShellKeys.ts";
 import { importedRows } from "../imported/model.ts";
 import type { ImportedRow } from "../imported/model.ts";
-import { lastNotesTab } from "../notes/notes-tab.ts";
+import { lastNotesTab, loadNotesTab, retireOldNotesTabKey } from "../notes/notes-tab.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { askedCall } from "../goals/goal-menu.ts";
 import { useAddSheet } from "../addsheet/index.ts";
@@ -148,6 +148,11 @@ export function SideChats({
   const port = useMemo(() => deviceSideState(data.space.name, store()), [data.space.name]);
   const [, tick] = useState(0);
   useEffect(() => port.subscribe(() => tick((n) => n + 1)), [port]);
+  // the Notes tab this person used last: read with the sidebar's own read, held for the foot row's press (the old browser-wide key is deleted)
+  useEffect(() => {
+    retireOldNotesTabKey();
+    void loadNotesTab(data.call as never);
+  }, [data]);
   const [draftTick, setDraftTick] = useState(0);
   useEffect(() => subscribeDrafts(() => setDraftTick((n) => n + 1)), []);
   const meId = data.me?.id;

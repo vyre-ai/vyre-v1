@@ -229,9 +229,42 @@ test("chats sidebar pictures and click-through", async (t) => {
         await page.getByTestId("row-notes").click({ timeout: 8_000 });
         await page.waitForTimeout(800);
         await shoot("notes-tab");
-        await page.goBack().catch(() => undefined);
-        await page.waitForTimeout(400);
+        // the tab used last is the person's own state on the Space: Artifacts here is Artifacts after a reload, and on a second device that signs in as the same person
+        await page.getByTestId("notes-artifacts-tabs-artifacts").click({ timeout: 8_000 });
+        await page.waitForTimeout(800);
+        await page.goto(`${web.origin}/`, { waitUntil: "load" });
+        await page.getByTestId("row-notes").waitFor({ timeout: 20_000 });
+        await page.waitForTimeout(1200);
+        await page.getByTestId("row-notes").click({ timeout: 8_000 });
+        await page.getByTestId("notes-artifacts-tabs-artifacts").waitFor({ timeout: 8_000 });
+        assert.equal(
+          await page.getByTestId("notes-artifacts-tabs-artifacts").getAttribute("aria-selected"),
+          "true",
+          "the foot row opens on the tab used last, after a reload",
+        );
+        const tabs0 = JSON.parse(await page.evaluate(() => localStorage.getItem("vyre.session.v1")!)) as Any;
+        for (const k of Object.keys(tabs0.sessions ?? {})) tabs0.sessions[k].token = "signed-out";
+        const tctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+        await tctx.addInitScript((v: string) => localStorage.setItem("vyre.session.v1", v), JSON.stringify(tabs0));
+        const tdev = await tctx.newPage();
+        await tdev.goto(`${web.origin}/`, { waitUntil: "load" });
+        await tdev.getByTestId("si-user").fill("olivia");
+        await tdev.getByTestId("si-password").fill(PASSWORD);
+        await tdev.getByRole("button", { name: "Sign in" }).click();
+        await tdev.getByTestId("row-notes").waitFor({ timeout: 25_000 });
+        await tdev.waitForTimeout(1500);
+        await tdev.getByTestId("row-notes").click({ timeout: 8_000 });
+        await tdev.getByTestId("notes-artifacts-tabs-artifacts").waitFor({ timeout: 8_000 });
+        assert.equal(
+          await tdev.getByTestId("notes-artifacts-tabs-artifacts").getAttribute("aria-selected"),
+          "true",
+          "a second device of the same person opens on Artifacts too",
+        );
+        await tctx.close();
+        await page.goto(`${web.origin}/`, { waitUntil: "load" });
+        await page.waitForTimeout(600);
       } catch (e) {
+        if (e instanceof assert.AssertionError) throw e;
         fs.writeFileSync(path.join(out, "notes-tab-failed.txt"), String((e as Error).message));
       }
       // menus

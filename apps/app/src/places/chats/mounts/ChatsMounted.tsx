@@ -77,6 +77,7 @@ import { ArtifactsPage } from "./ArtifactsPage.tsx";
 import { ArtifactView } from "./ArtifactView.tsx";
 import { NotesPage } from "../notes/NotesPage.tsx";
 import { NotesArtifactsFrame } from "./NotesArtifactsFrame.tsx";
+import { rememberNotesTab } from "../notes/notes-tab.ts";
 import type { NotesInitial } from "../notes/NotesPage.tsx";
 import { AgentForm } from "../agentform/AgentForm.tsx";
 import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
@@ -983,7 +984,11 @@ export function ChatsMounted({
     );
   else if (route.view === "artifacts")
     main = (
-      <NotesArtifactsFrame tab="artifacts" onTab={() => act({ t: "notes" })}>
+      <NotesArtifactsFrame
+        tab="artifacts"
+        onTab={() => act({ t: "notes" })}
+        remember={(t) => rememberNotesTab(t, rt.call)}
+      >
         <ArtifactsPage rt={rt} />
       </NotesArtifactsFrame>
     );
@@ -1011,7 +1016,11 @@ export function ChatsMounted({
     main = route.noteId ? (
       page
     ) : (
-      <NotesArtifactsFrame tab="notes" onTab={() => act({ t: "artifacts" })}>
+      <NotesArtifactsFrame
+        tab="notes"
+        onTab={() => act({ t: "artifacts" })}
+        remember={(t) => rememberNotesTab(t, rt.call)}
+      >
         {page}
       </NotesArtifactsFrame>
     );

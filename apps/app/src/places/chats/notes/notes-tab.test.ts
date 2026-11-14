@@ -1,24 +1,91 @@
+// The Notes tab used last is the person's own state on the Space: Notes the first time and when the read fails, the same on every device of one person, never inherited by another person on the browser; the old browser key is deleted.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { lastNotesTab, rememberNotesTab } from "./notes-tab.ts";
+import {
+  NOTES_TAB_KEY,
+  forgetNotesTab,
+  lastNotesTab,
+  loadNotesTab,
+  rememberNotesTab,
+  retireOldNotesTabKey,
+} from "./notes-tab.ts";
 
-test("the page opens on the tab used last; Notes the first time, and when storage is absent or broken", () => {
-  const m = new Map<string, string>();
-  const st = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
-  assert.equal(lastNotesTab(st), "notes");
-  rememberNotesTab("artifacts", st);
-  assert.equal(lastNotesTab(st), "artifacts");
-  rememberNotesTab("notes", st);
-  assert.equal(lastNotesTab(st), "notes");
-  assert.equal(lastNotesTab(null), "notes");
-  rememberNotesTab("artifacts", null);
+/** The Space's per-person layout store, as the state module answers it. */
+function space() {
+  const rows = new Map<string, unknown>();
+  const as =
+    (person: string) =>
+    async (cap: string, input: Record<string, unknown>): Promise<unknown> => {
+      if (cap === "state.layout.set") {
+        rows.set(`${person}|${String(input["key"])}`, input["value"]);
+        return {};
+      }
+      if (cap === "state.layout.get")
+        return {
+          values: ((input["keys"] as string[]) ?? []).flatMap((k) =>
+            rows.has(`${person}|${k}`) ? [{ key: k, value: rows.get(`${person}|${k}`) }] : [],
+          ),
+        };
+      throw new Error(`${cap} is not asked`);
+    };
+  return { as, rows };
+}
+
+test("Notes the first time, and when the read fails", async () => {
+  forgetNotesTab();
+  assert.equal(lastNotesTab(), "notes");
   assert.equal(
-    lastNotesTab({
-      getItem: () => {
-        throw new Error("blocked");
-      },
-      setItem: () => undefined,
-    }),
+    await loadNotesTab((async () => {
+      throw new Error("offline");
+    }) as never),
     "notes",
   );
+});
+
+test("one person on two devices: the tab used on the laptop is the tab the phone opens on", async () => {
+  const sp = space();
+  forgetNotesTab();
+  rememberNotesTab("artifacts", sp.as("usr_ana") as never);
+  await Promise.resolve();
+  assert.equal(sp.rows.get(`usr_ana|${NOTES_TAB_KEY}`), "artifacts");
+  forgetNotesTab(); // the phone has held nothing yet
+  assert.equal(await loadNotesTab(sp.as("usr_ana") as never), "artifacts");
+  assert.equal(lastNotesTab(), "artifacts");
+});
+
+test("two people on one browser: the next person starts on Notes, not on the first person's tab", async () => {
+  const sp = space();
+  forgetNotesTab();
+  rememberNotesTab("artifacts", sp.as("usr_ana") as never);
+  await Promise.resolve();
+  assert.equal(lastNotesTab(), "artifacts", "Ana's page holds her tab");
+  assert.equal(
+    await loadNotesTab(sp.as("usr_ben") as never),
+    "notes",
+    "Ben has none: his sidebar's read replaces what Ana's left",
+  );
+  assert.equal(lastNotesTab(), "notes");
+});
+
+test("remembering without a call only holds the tab for this page", () => {
+  forgetNotesTab();
+  rememberNotesTab("artifacts");
+  assert.equal(lastNotesTab(), "artifacts");
+  forgetNotesTab();
+});
+
+test("the old browser-wide key is deleted, never moved", async () => {
+  const m = new Map<string, string>([["vyre.notes_tab.v1", "artifacts"]]);
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    removeItem: (k: string) => void m.delete(k),
+    getItem: (k: string) => m.get(k) ?? null,
+  };
+  try {
+    forgetNotesTab();
+    retireOldNotesTabKey();
+    assert.equal(m.size, 0);
+    assert.equal(lastNotesTab(), "notes", "its value is not anyone's tab");
+  } finally {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
 });

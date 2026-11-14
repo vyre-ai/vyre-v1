@@ -10,13 +10,16 @@ import type { NotesTab } from "../notes/notes-tab.ts";
 export function NotesArtifactsFrame({
   tab,
   onTab,
+  remember,
   children,
 }: {
   tab: NotesTab;
   onTab(t: NotesTab): void;
+  /** Keep the tab in the person's state (the page owns the call). */
+  remember?: ((t: NotesTab) => void) | undefined;
   children: ReactNode;
 }): ReactElement {
-  useEffect(() => rememberNotesTab(tab), [tab]);
+  useEffect(() => (remember ? remember(tab) : rememberNotesTab(tab)), [tab]);
   return (
     <View testID="notes-artifacts" style={{ flex: 1, minHeight: 0 }}>
       <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 4 }}>
