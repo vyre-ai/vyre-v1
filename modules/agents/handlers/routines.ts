@@ -7,6 +7,7 @@
 import { skillTextFor } from "../../../lib/connect-switch.ts";
 import { readFileSync } from "node:fs";
 import { forgetSelfPause, isSelfPaused, noteRun } from "../routine-guard.ts";
+import { cannotUse } from "../../../lib/may-use.ts";
 import { tellMissed, tellPaused, withdrawTold } from "../routine-told.ts";
 import {
   BUILTIN_SKILLS,
@@ -119,7 +120,14 @@ export async function routineSave(
     raise(ctx, "validation.bad_input", `The routine needs a prompt of up to ${MAX_PROMPT} characters.`);
   if (input.channelId !== undefined && !input.channelId.startsWith("chn_"))
     raise(ctx, "validation.bad_input", "That is not a channel.", { channelId: input.channelId });
+  // the channel a routine posts into: its owner may use it, or the schedule would put words where they cannot (F47 audit, 14 Nov 2026)
+  // asked only when the channel is new or changed: a person who lost the channel since can still pause or edit the routine, and no longer posts there once they save a different one (r-auto2, 14 Nov 2026)
   const owner = askerOf(ctx);
+  const saved = input.routineId === undefined ? undefined : routineBy(ctx.db, input.routineId);
+  const sameChannel =
+    saved !== undefined && saved !== null && saved.ownerId === owner && saved.channelId === (input.channelId ?? null);
+  const channelWords = input.channelId === undefined || sameChannel ? null : cannotUse(ctx, "channel", input.channelId);
+  if (channelWords) raise(ctx, "permission.no_grant", channelWords, { channelId: input.channelId });
   const now = ctx.now();
   const enabled = input.enabled !== false;
   const cron = watcher ? "" : (input.cron as string).trim();

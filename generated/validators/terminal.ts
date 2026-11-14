@@ -940,64 +940,50 @@ if ("cannotAttach" in o6627) lf(o6627["cannotAttach"], p + "/cannotAttach", e, L
 }
 }
 
-function e690_payload(v: unknown, p: string, e: string[]): void {
+function e691_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7541 = v;
-const g7541 = typeOf(x7541);
-const b7541: string[] = []; lf(x7541, p, b7541, L0); if (b7541.length) e.push(...b7541);
-if (g7541 === "object") {
-if (g7541 === 'object') { const o7541 = x7541 as Record<string, unknown>;
-if (!("terminalId" in o7541)) e.push(p + "/terminalId" + ': required');
-if (!("exitCode" in o7541)) e.push(p + "/exitCode" + ': required');
-if (!("durationMs" in o7541)) e.push(p + "/durationMs" + ': required');
-if (!("by" in o7541)) e.push(p + "/by" + ': required');
-if ("terminalId" in o7541) lf(o7541["terminalId"], p + "/terminalId", e, L66);
-if ("exitCode" in o7541) {
+const x7542 = v;
+const g7542 = typeOf(x7542);
+const b7542: string[] = []; lf(x7542, p, b7542, L0); if (b7542.length) e.push(...b7542);
+if (g7542 === "object") {
+if (g7542 === 'object') { const o7542 = x7542 as Record<string, unknown>;
+if (!("terminalId" in o7542)) e.push(p + "/terminalId" + ': required');
+if (!("exitCode" in o7542)) e.push(p + "/exitCode" + ': required');
+if (!("durationMs" in o7542)) e.push(p + "/durationMs" + ': required');
+if (!("by" in o7542)) e.push(p + "/by" + ': required');
+if ("terminalId" in o7542) lf(o7542["terminalId"], p + "/terminalId", e, L66);
+if ("exitCode" in o7542) {
 {
-const x7542 = o7541["exitCode"];
-const t7542_0: string[] = [];
-lf(x7542, p + "/exitCode", t7542_0, L2);
-const t7542_1: string[] = [];
-lf(x7542, p + "/exitCode", t7542_1, L70);
-if (![t7542_0, t7542_1].some((x) => x.length === 0)) e.push(p + "/exitCode" + ': matches none of anyOf');
+const x7543 = o7542["exitCode"];
+const t7543_0: string[] = [];
+lf(x7543, p + "/exitCode", t7543_0, L2);
+const t7543_1: string[] = [];
+lf(x7543, p + "/exitCode", t7543_1, L70);
+if (![t7543_0, t7543_1].some((x) => x.length === 0)) e.push(p + "/exitCode" + ': matches none of anyOf');
 }
 }
-if ("durationMs" in o7541) lf(o7541["durationMs"], p + "/durationMs", e, L2);
-if ("by" in o7541) lf(o7541["by"], p + "/by", e, L1);
-if ("runId" in o7541) lf(o7541["runId"], p + "/runId", e, L34);
+if ("durationMs" in o7542) lf(o7542["durationMs"], p + "/durationMs", e, L2);
+if ("by" in o7542) lf(o7542["by"], p + "/by", e, L1);
+if ("runId" in o7542) lf(o7542["runId"], p + "/runId", e, L34);
 }
 }
 }
 }
 
-function e692_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7543 = v;
-const g7543 = typeOf(x7543);
-const b7543: string[] = []; lf(x7543, p, b7543, L0); if (b7543.length) e.push(...b7543);
-if (g7543 === "object") {
-if (g7543 === 'object') { const o7543 = x7543 as Record<string, unknown>;
-if (!("terminalId" in o7543)) e.push(p + "/terminalId" + ': required');
-if (!("host" in o7543)) e.push(p + "/host" + ': required');
-if (!("by" in o7543)) e.push(p + "/by" + ': required');
-if ("terminalId" in o7543) lf(o7543["terminalId"], p + "/terminalId", e, L66);
-if ("host" in o7543) lf(o7543["host"], p + "/host", e, L1);
-if ("agentId" in o7543) lf(o7543["agentId"], p + "/agentId", e, L10);
-if ("by" in o7543) lf(o7543["by"], p + "/by", e, L1);
-}
-}
-}
-}
-
-function e694_payload(v: unknown, p: string, e: string[]): void {
+function e693_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7544 = v;
 const g7544 = typeOf(x7544);
 const b7544: string[] = []; lf(x7544, p, b7544, L0); if (b7544.length) e.push(...b7544);
 if (g7544 === "object") {
 if (g7544 === 'object') { const o7544 = x7544 as Record<string, unknown>;
-if (!("personId" in o7544)) e.push(p + "/personId" + ': required');
-if ("personId" in o7544) lf(o7544["personId"], p + "/personId", e, L16);
+if (!("terminalId" in o7544)) e.push(p + "/terminalId" + ': required');
+if (!("host" in o7544)) e.push(p + "/host" + ': required');
+if (!("by" in o7544)) e.push(p + "/by" + ': required');
+if ("terminalId" in o7544) lf(o7544["terminalId"], p + "/terminalId", e, L66);
+if ("host" in o7544) lf(o7544["host"], p + "/host", e, L1);
+if ("agentId" in o7544) lf(o7544["agentId"], p + "/agentId", e, L10);
+if ("by" in o7544) lf(o7544["by"], p + "/by", e, L1);
 }
 }
 }
@@ -1010,11 +996,25 @@ const g7545 = typeOf(x7545);
 const b7545: string[] = []; lf(x7545, p, b7545, L0); if (b7545.length) e.push(...b7545);
 if (g7545 === "object") {
 if (g7545 === 'object') { const o7545 = x7545 as Record<string, unknown>;
-if (!("terminalId" in o7545)) e.push(p + "/terminalId" + ': required');
-if (!("by" in o7545)) e.push(p + "/by" + ': required');
-if ("terminalId" in o7545) lf(o7545["terminalId"], p + "/terminalId", e, L66);
-if ("by" in o7545) lf(o7545["by"], p + "/by", e, L1);
-if ("from" in o7545) lf(o7545["from"], p + "/from", e, L1);
+if (!("personId" in o7545)) e.push(p + "/personId" + ': required');
+if ("personId" in o7545) lf(o7545["personId"], p + "/personId", e, L16);
+}
+}
+}
+}
+
+function e696_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7546 = v;
+const g7546 = typeOf(x7546);
+const b7546: string[] = []; lf(x7546, p, b7546, L0); if (b7546.length) e.push(...b7546);
+if (g7546 === "object") {
+if (g7546 === 'object') { const o7546 = x7546 as Record<string, unknown>;
+if (!("terminalId" in o7546)) e.push(p + "/terminalId" + ': required');
+if (!("by" in o7546)) e.push(p + "/by" + ': required');
+if ("terminalId" in o7546) lf(o7546["terminalId"], p + "/terminalId", e, L66);
+if ("by" in o7546) lf(o7546["by"], p + "/by", e, L1);
+if ("from" in o7546) lf(o7546["from"], p + "/from", e, L1);
 }
 }
 }
@@ -1048,12 +1048,12 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 
 export const eventValidators: Record<string, Check> = {
   "terminal.closed": d_s_711f785f5c,
-  "terminal.command_finished": e690_payload,
+  "terminal.command_finished": e691_payload,
   "terminal.given_back": d_s_711f785f5c,
-  "terminal.opened": e692_payload,
+  "terminal.opened": e693_payload,
   "terminal.renamed": d_s_2842806102,
-  "terminal.rules_changed": e694_payload,
-  "terminal.taken": e695_payload,
+  "terminal.rules_changed": e695_payload,
+  "terminal.taken": e696_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

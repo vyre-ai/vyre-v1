@@ -36,6 +36,7 @@ import {
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
+import { accountUseIssues } from "../account-use.ts";
 import { guardKeySteps, recordStepHosts, usableKeyIds } from "../key-steps.ts";
 import { blockedKeySteps } from "../key-run.ts";
 import { hookBase } from "../key-ref-port.ts";
@@ -842,7 +843,8 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const keyBlocked = Array.isArray(def?.nodes)
     ? (await blockedKeySteps(ctx, def.nodes)).map((b) => issue("error", b.line, b.nodeId))
     : [];
-  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked];
+  const useBlocked = Array.isArray(def?.nodes) ? await accountUseIssues(ctx, def) : [];
+  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked, ...useBlocked];
   return { ok: !hasErrors(issues), issues };
 }
 export async function triggersList(): Promise<unknown> {

@@ -511,20 +511,6 @@ if ("total" in o6840) lf(o6840["total"], p + "/total", e, L2);
 }
 }
 
-function e742_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7592 = v;
-const g7592 = typeOf(x7592);
-const b7592: string[] = []; lf(x7592, p, b7592, L0); if (b7592.length) e.push(...b7592);
-if (g7592 === "object") {
-if (g7592 === 'object') { const o7592 = x7592 as Record<string, unknown>;
-if (!("requestId" in o7592)) e.push(p + "/requestId" + ': required');
-if ("requestId" in o7592) lf(o7592["requestId"], p + "/requestId", e, L440);
-}
-}
-}
-}
-
 function e743_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7593 = v;
@@ -534,13 +520,6 @@ if (g7593 === "object") {
 if (g7593 === 'object') { const o7593 = x7593 as Record<string, unknown>;
 if (!("requestId" in o7593)) e.push(p + "/requestId" + ': required');
 if ("requestId" in o7593) lf(o7593["requestId"], p + "/requestId", e, L440);
-if ("forRun" in o7593) lf(o7593["forRun"], p + "/forRun", e, L34);
-if ("note" in o7593) lf(o7593["note"], p + "/note", e, L1);
-if ("name" in o7593) lf(o7593["name"], p + "/name", e, L1);
-if ("service" in o7593) lf(o7593["service"], p + "/service", e, L1);
-if ("threadId" in o7593) lf(o7593["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o7593) lf(o7593["agentId"], p + "/agentId", e, L10);
-if ("asker" in o7593) lf(o7593["asker"], p + "/asker", e, L1);
 }
 }
 }
@@ -554,12 +533,11 @@ const b7594: string[] = []; lf(x7594, p, b7594, L0); if (b7594.length) e.push(..
 if (g7594 === "object") {
 if (g7594 === 'object') { const o7594 = x7594 as Record<string, unknown>;
 if (!("requestId" in o7594)) e.push(p + "/requestId" + ': required');
-if (!("itemId" in o7594)) e.push(p + "/itemId" + ': required');
 if ("requestId" in o7594) lf(o7594["requestId"], p + "/requestId", e, L440);
-if ("itemId" in o7594) lf(o7594["itemId"], p + "/itemId", e, L98);
-if ("handle" in o7594) lf(o7594["handle"], p + "/handle", e, L7);
 if ("forRun" in o7594) lf(o7594["forRun"], p + "/forRun", e, L34);
+if ("note" in o7594) lf(o7594["note"], p + "/note", e, L1);
 if ("name" in o7594) lf(o7594["name"], p + "/name", e, L1);
+if ("service" in o7594) lf(o7594["service"], p + "/service", e, L1);
 if ("threadId" in o7594) lf(o7594["threadId"], p + "/threadId", e, L13);
 if ("agentId" in o7594) lf(o7594["agentId"], p + "/agentId", e, L10);
 if ("asker" in o7594) lf(o7594["asker"], p + "/asker", e, L1);
@@ -576,29 +554,51 @@ const b7595: string[] = []; lf(x7595, p, b7595, L0); if (b7595.length) e.push(..
 if (g7595 === "object") {
 if (g7595 === 'object') { const o7595 = x7595 as Record<string, unknown>;
 if (!("requestId" in o7595)) e.push(p + "/requestId" + ': required');
-if (!("name" in o7595)) e.push(p + "/name" + ': required');
-if (!("fields" in o7595)) e.push(p + "/fields" + ': required');
-if (!("requester" in o7595)) e.push(p + "/requester" + ': required');
-if (!("taskId" in o7595)) e.push(p + "/taskId" + ': required');
+if (!("itemId" in o7595)) e.push(p + "/itemId" + ': required');
 if ("requestId" in o7595) lf(o7595["requestId"], p + "/requestId", e, L440);
-if ("name" in o7595) lf(o7595["name"], p + "/name", e, L1);
-if ("fields" in o7595) {
-{
-const x7596 = o7595["fields"];
-const g7596 = typeOf(x7596);
-const b7596: string[] = []; lf(x7596, p + "/fields", b7596, L4); if (b7596.length) e.push(...b7596);
-if (g7596 === "array") {
-if (g7596 === 'array') { const a7596 = x7596 as unknown[];
-for (let i7596 = 0; i7596 < a7596.length; i7596++) {
-lf(a7596[i7596], p + "/fields" + '/' + i7596, e, L29);
-}
-}
-}
-}
-}
-if ("requester" in o7595) d_s_6c1eb10d98(o7595["requester"], p + "/requester", e);
+if ("itemId" in o7595) lf(o7595["itemId"], p + "/itemId", e, L98);
+if ("handle" in o7595) lf(o7595["handle"], p + "/handle", e, L7);
 if ("forRun" in o7595) lf(o7595["forRun"], p + "/forRun", e, L34);
-if ("taskId" in o7595) lf(o7595["taskId"], p + "/taskId", e, L61);
+if ("name" in o7595) lf(o7595["name"], p + "/name", e, L1);
+if ("threadId" in o7595) lf(o7595["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o7595) lf(o7595["agentId"], p + "/agentId", e, L10);
+if ("asker" in o7595) lf(o7595["asker"], p + "/asker", e, L1);
+}
+}
+}
+}
+
+function e746_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7596 = v;
+const g7596 = typeOf(x7596);
+const b7596: string[] = []; lf(x7596, p, b7596, L0); if (b7596.length) e.push(...b7596);
+if (g7596 === "object") {
+if (g7596 === 'object') { const o7596 = x7596 as Record<string, unknown>;
+if (!("requestId" in o7596)) e.push(p + "/requestId" + ': required');
+if (!("name" in o7596)) e.push(p + "/name" + ': required');
+if (!("fields" in o7596)) e.push(p + "/fields" + ': required');
+if (!("requester" in o7596)) e.push(p + "/requester" + ': required');
+if (!("taskId" in o7596)) e.push(p + "/taskId" + ': required');
+if ("requestId" in o7596) lf(o7596["requestId"], p + "/requestId", e, L440);
+if ("name" in o7596) lf(o7596["name"], p + "/name", e, L1);
+if ("fields" in o7596) {
+{
+const x7597 = o7596["fields"];
+const g7597 = typeOf(x7597);
+const b7597: string[] = []; lf(x7597, p + "/fields", b7597, L4); if (b7597.length) e.push(...b7597);
+if (g7597 === "array") {
+if (g7597 === 'array') { const a7597 = x7597 as unknown[];
+for (let i7597 = 0; i7597 < a7597.length; i7597++) {
+lf(a7597[i7597], p + "/fields" + '/' + i7597, e, L29);
+}
+}
+}
+}
+}
+if ("requester" in o7596) d_s_6c1eb10d98(o7596["requester"], p + "/requester", e);
+if ("forRun" in o7596) lf(o7596["forRun"], p + "/forRun", e, L34);
+if ("taskId" in o7596) lf(o7596["taskId"], p + "/taskId", e, L61);
 }
 }
 }
@@ -621,10 +621,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "vault.request_canceled": e742_payload,
-  "vault.request_declined": e743_payload,
-  "vault.request_fulfilled": e744_payload,
-  "vault.requested": e745_payload,
+  "vault.request_canceled": e743_payload,
+  "vault.request_declined": e744_payload,
+  "vault.request_fulfilled": e745_payload,
+  "vault.requested": e746_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

@@ -46,8 +46,9 @@ Requires: nothing.
 - [sites.tables](../capabilities/sites.tables.md): List site tables of a site
 - [sites.update](../capabilities/sites.update.md): Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again
 
-## Events (12)
+## Events (13)
 
+- [site.access_changed](../events/site.access_changed.md): Who may reach a site was changed (public, password, the Space, or private)
 - [site.build_failed](../events/site.build_failed.md): A build failed
 - [site.created](../events/site.created.md): A site was created
 - [site.deployed](../events/site.deployed.md): A deployment reached staging or a preview

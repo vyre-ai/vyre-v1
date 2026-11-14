@@ -1,0 +1,423 @@
+// F47 (14 Nov 2026): a step may name only a mailbox, number or connection its saver may use. Real daemon, two people. A member's private mailbox cannot be named by someone else (the save says so, in words that
+// name the step, and nothing is stored), a shared inbox every member may use still can, and the person's own works; a stored step that names a thing its owner may no longer use fails its Run in words.
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { bootCore } from "../../fixtures/seed/core/index.ts";
+import { fakePlatform } from "../src/platform/index.ts";
+import type { FetchFn } from "../src/platform/probes.ts";
+import { loadConfig } from "../src/daemon/config.ts";
+import { startDaemon } from "../src/daemon/daemon.ts";
+import type { Daemon } from "../src/daemon/daemon.ts";
+
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
+const OWNER = "tok-usr_olivia";
+const NOAH = "tok-usr_noah";
+const AGENT = "tok-agent";
+const TO = "held@gate.test";
+
+function seededDir(): string {
+  const core = bootCore();
+  core.store.appendBatch([
+    {
+      id: "evt_f47_num",
+      type: "resource.created",
+      sv: 1,
+      trace_id: "1".repeat(32),
+      actor: "svc_seed",
+      vis: "space",
+      entity: "resource",
+      entity_id: "num_privatenum0001",
+      payload: {
+        id: "num_privatenum0001",
+        type: "number",
+        parent_id: null,
+        label: 0,
+        owner_id: "usr_olivia",
+        holds: 0,
+      },
+    } as never,
+    {
+      id: "evt_f47_box",
+      type: "resource.created",
+      sv: 1,
+      trace_id: "1".repeat(32),
+      actor: "svc_seed",
+      vis: "space",
+      entity: "resource",
+      entity_id: "mbx_privatebox0001",
+      payload: {
+        id: "mbx_privatebox0001",
+        type: "mailbox",
+        parent_id: null,
+        label: 0,
+        owner_id: "usr_olivia",
+        holds: 0,
+      },
+    } as never,
+  ]);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-grant-"));
+  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
+  fs.copyFileSync(core.file, path.join(dir, "events.db"));
+  core.close();
+  return dir;
+}
+
+const boot = (dir: string): Promise<Daemon> =>
+  startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+    platform: fakePlatform({
+      os: "linux",
+      hostname: "grant-live",
+      free: 80e9,
+      commands: {
+        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
+      },
+    }),
+    fetch: caddyFetch,
+    session: (h) => {
+      const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+      if (t === OWNER)
+        return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "grant-live" };
+      if (t === NOAH) return { space: "spc_core", principal: { kind: "person", id: "usr_noah" }, device: "grant-live" };
+      if (t === AGENT)
+        return { space: "spc_core", principal: { kind: "agent", id: "agt_scout" }, actingFor: "usr_noah" };
+      return null;
+    },
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
+  });
+
+const post = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<Record<string, unknown>> => {
+  const r = await fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
+  const text = await r.text();
+  assert.equal(r.status, 200, `${p}: ${text}`);
+  return (JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {};
+};
+async function until<T>(what: string, ms: number, look: () => Promise<T | undefined>): Promise<T> {
+  const end = Date.now() + ms;
+  for (;;) {
+    const v = await look();
+    if (v !== undefined) return v;
+    assert.ok(Date.now() < end, `gave up waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 150));
+  }
+}
+
+async function mailbox(d: Daemon, name: string, share = true): Promise<string> {
+  await post(d, "/v1/contacts/suppression/add", { channel: "email", addresses: [TO], reason: "manual" });
+  const box = await post(d, "/v1/mail/mailbox/create", {
+    idempotencyKey: `${name}-mbx`,
+    kind: "service",
+    address: `${name}@example.com`,
+    title: name,
+    provider: "inbound_only",
+  });
+  const mailboxId = String((box["mailbox"] as { id?: string } | undefined)?.id);
+  // Turn on checks that the mailbox can send: this one sends through the Space domain, so the Space has a verified one. The recipient is suppressed, so nothing reaches a provider
+  d.db!.run(
+    `INSERT OR IGNORE INTO mail_domain (id, name, provider, spf, dkim, dmarc, verified, "isDefault", version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    "dom_gate",
+    "example.com",
+    "resend",
+    "pass",
+    "pass",
+    "pass",
+    1,
+    1,
+    1,
+  );
+  if (share)
+    await post(d, "/v1/access/share", {
+      idempotencyKey: `${name}-noah`,
+      resource: { type: "mailbox", id: mailboxId },
+      subject: { kind: "person", id: "usr_noah" },
+      level: "use",
+    });
+  return mailboxId;
+}
+const sendStep = (mailboxId: string, to: string = TO) => ({
+  triggers: [{ key: "manual" }],
+  nodes: [{ id: "letter", key: "send_email", input: { mailboxId, to: [to], subject: "Hello", body: "Body." } }],
+});
+
+/** "sent" when the run finishes with no hold, "held" when it waits on the Gate. */
+async function outcome(d: Daemon, id: string, key: string, who = NOAH): Promise<"sent" | "held"> {
+  const runId = String((await post(d, "/v1/automations/run", { automationId: id, idempotencyKey: key }, who))["runId"]);
+  return until("the run to send or hold", 15_000, async () => {
+    const run = (await post(d, "/v1/runs/get", { runId }, who))["run"] as { status?: string };
+    if (run.status === "succeeded") return "sent" as const;
+    if (run.status === "waiting") {
+      const holds = (await post(d, "/v1/gate/holds/list", { states: ["held"], runId }, who))["holds"] as unknown[];
+      return holds.length > 0 ? ("held" as const) : undefined;
+    }
+    if (run.status === "failed" || run.status === "stopped")
+      assert.fail(`the run ${run.status}: ${JSON.stringify(await post(d, "/v1/runs/steps", { runId }, who))}`);
+    return undefined;
+  });
+}
+
+const raw = async (d: Daemon, p: string, body: unknown, token: string): Promise<{ status: number; text: string }> => {
+  const r = await fetch(`${d.url}${p}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
+  return { status: r.status, text: await r.text() };
+};
+
+const named = async (
+  d: Daemon,
+  body: unknown,
+  token: string,
+): Promise<{ status: number; text: string; id?: string }> => {
+  const r = await raw(d, "/v1/automations/create", body, token);
+  const id = (JSON.parse(r.text) as { data?: { automation?: { id?: string } } }).data?.automation?.id;
+  return id === undefined ? r : { ...r, id };
+};
+
+test("a private mailbox cannot be named by another person; a shared inbox and their own can; a stored step stops in words", async () => {
+  const d = await boot(seededDir());
+  try {
+    const shared = await mailbox(d, "shared-inbox", false);
+    d.db!.run(
+      `INSERT INTO mail_mailbox (id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at) VALUES (?, 'personal', ?, ?, 'usr_olivia', NULL, 'inbound_only', 'private', 'syncing', NULL, NULL, 0, 1, 1, NULL)`,
+      "mbx_privatebox0001",
+      "olivia@example.com",
+      "olivia",
+    );
+    // another person's private mailbox: refused at save, nothing stored
+    const refused = await named(
+      d,
+      { name: "Steal", idempotencyKey: "steal", definition: sendStep("mbx_privatebox0001", "real@person.test") },
+      NOAH,
+    );
+    assert.equal(refused.status, 422, refused.text);
+    assert.match(refused.text, /Send an email: you cannot use the mailbox it names/);
+    assert.equal(refused.text.includes("mbx_privatebox0001"), false, "no id in the words");
+    assert.equal((await raw(d, "/v1/automations/list", {}, NOAH)).text.includes("Steal"), false, "nothing was stored");
+    // the validate banner says it too
+    const banner = await raw(d, "/v1/automations/validate", { definition: sendStep("mbx_privatebox0001") }, NOAH);
+    assert.match(banner.text, /you cannot use the mailbox it names/);
+    // a shared inbox every member may use still saves, and so does the owner's own private mailbox
+    assert.equal(
+      (await named(d, { name: "Shared", idempotencyKey: "sh", definition: sendStep(shared) }, NOAH)).status,
+      200,
+    );
+    assert.equal(
+      (await named(d, { name: "Own", idempotencyKey: "own", definition: sendStep("mbx_privatebox0001") }, OWNER))
+        .status,
+      200,
+    );
+    // an Automation that already holds the id (saved by its owner) and is run by someone without use stops at the send, in words, and sends nothing
+    const own = await named(
+      d,
+      { name: "Own2", idempotencyKey: "own2", definition: sendStep("mbx_privatebox0001", "real@person.test") },
+      OWNER,
+    );
+    const before = (d.db!.all(`SELECT COUNT(*) AS n FROM mail_message`) as { n: number }[])[0]!.n;
+    const run = await raw(d, "/v1/automations/run", { automationId: own.id, idempotencyKey: "rr" }, NOAH);
+    assert.match(run.text, /runs only as its owner/, "a Personal automation is run by its owner alone");
+    await new Promise((r) => setTimeout(r, 3000));
+    assert.equal(
+      (d.db!.all(`SELECT COUNT(*) AS n FROM mail_message`) as { n: number }[])[0]!.n,
+      before,
+      "nothing was sent",
+    );
+  } finally {
+    await d.stop();
+  }
+});
+
+test("a real private number of someone else cannot be named by a member; its owner can", async () => {
+  const d = await boot(seededDir());
+  try {
+    await mailbox(d, "setup", false);
+    d.db!.run(
+      `INSERT INTO telephony_number ("id", "e164", "title", "capabilities", "assigneeKind", "assigneeId", "route", "hours", "recording", "a2p", "state", "twilioSid", "version", "updated_at") VALUES (?, ?, ?, ?, 'person', 'usr_olivia', '{}', '{}', 0, 'none', 'active', 'PN_fixture', 1, 1)`,
+      "num_privatenum0001",
+      "+15550100",
+      "Olivia",
+      '["sms"]',
+    );
+    const smsStep = {
+      triggers: [{ key: "manual" }],
+      nodes: [{ id: "t", key: "send_sms", input: { numberId: "num_privatenum0001", to: "+15550111", body: "Hi" } }],
+    };
+    const refused = await raw(
+      d,
+      "/v1/automations/create",
+      { name: "Text", idempotencyKey: "t1", definition: smsStep },
+      NOAH,
+    );
+    assert.equal(refused.status, 422, refused.text);
+    assert.match(refused.text, /Send a text message: you cannot use the number it names/);
+    assert.equal(
+      (await raw(d, "/v1/automations/create", { name: "Text", idempotencyKey: "t2", definition: smsStep }, OWNER))
+        .status,
+      200,
+    );
+  } finally {
+    await d.stop();
+  }
+});
+
+test("a templated id cannot be checked when it is saved, so the run refuses it in the same words, naming the step (mailbox and number)", async () => {
+  const d = await boot(seededDir());
+  try {
+    await mailbox(d, "setup", false);
+    d.db!.run(
+      `INSERT INTO mail_mailbox (id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at) VALUES (?, 'personal', ?, ?, 'usr_olivia', NULL, 'inbound_only', 'private', 'connected', NULL, NULL, 0, 1, 1, NULL)`,
+      "mbx_tmplprivate01",
+      "olivia2@example.com",
+      "olivia2",
+    );
+    const def = (key: string, input: Record<string, unknown>, title: string) => ({
+      triggers: [{ key: "manual" }],
+      nodes: [{ id: "s", key, input, title }],
+    });
+    const mail = await named(
+      d,
+      {
+        name: "Templated mail",
+        idempotencyKey: "tm",
+        definition: def(
+          "send_email",
+          { mailboxId: "{{trigger.input.box}}", to: [TO], subject: "Hello", body: "Body." },
+          "x",
+        ),
+      },
+      NOAH,
+    );
+    assert.equal(mail.status, 200, `a templated id saves (it cannot be known yet): ${mail.text}`);
+    const before = (d.db!.all(`SELECT COUNT(*) AS n FROM mail_message`) as { n: number }[])[0]!.n;
+    const started = await raw(
+      d,
+      "/v1/automations/run",
+      { automationId: mail.id, payload: { box: "mbx_tmplprivate01" }, idempotencyKey: "tmr" },
+      NOAH,
+    );
+    assert.equal(started.status, 200, started.text);
+    const runId = String((JSON.parse(started.text) as { data: { runId: string } }).data.runId);
+    let last = "";
+    const steps = await until(`the templated step to be refused (last: ${"${last}"})`, 15_000, async () => {
+      const t = (await raw(d, "/v1/runs/steps", { runId }, NOAH)).text;
+      last = t.slice(0, 600) + (await raw(d, "/v1/runs/get", { runId }, NOAH)).text.slice(0, 300);
+      return /can no longer use the mailbox it names/.test(t) ? t : undefined;
+    }).catch((e: Error) => assert.fail(`${e.message} LAST: ${last}`));
+    assert.match(steps, /Send an email: the person this automation runs as can no longer use the mailbox it names/);
+    assert.equal(steps.includes("mbx_tmplprivate01"), false, "no id in the words");
+    assert.equal(
+      (d.db!.all(`SELECT COUNT(*) AS n FROM mail_message`) as { n: number }[])[0]!.n,
+      before,
+      "nothing was sent",
+    );
+    d.db!.run(
+      `INSERT INTO telephony_number ("id", "e164", "title", "capabilities", "assigneeKind", "assigneeId", "route", "hours", "recording", "a2p", "state", "twilioSid", "version", "updated_at") VALUES (?, ?, ?, ?, 'person', 'usr_olivia', '{}', '{}', 0, 'none', 'active', 'PN_fixture', 1, 1)`,
+      "num_tmplprivate01",
+      "+15550102",
+      "Olivia",
+      '["sms"]',
+    );
+    const sms = await named(
+      d,
+      {
+        name: "Templated text",
+        idempotencyKey: "tt",
+        definition: {
+          triggers: [{ key: "manual" }],
+          nodes: [
+            { id: "s", key: "send_sms", input: { numberId: "{{trigger.input.num}}", to: "+15550111", body: "Hi" } },
+          ],
+        },
+      },
+      NOAH,
+    );
+    assert.equal(sms.status, 200, sms.text);
+    const sr = String(
+      (
+        JSON.parse(
+          (
+            await raw(
+              d,
+              "/v1/automations/run",
+              { automationId: sms.id, payload: { num: "num_tmplprivate01" }, idempotencyKey: "ttr" },
+              NOAH,
+            )
+          ).text,
+        ) as { data: { runId: string } }
+      ).data.runId,
+    );
+    const smsSteps = await until("the templated text step to be refused", 15_000, async () => {
+      const t = (await raw(d, "/v1/runs/steps", { runId: sr }, NOAH)).text;
+      return /can no longer use the number it names|"state":"failed"/.test(t) ? t : undefined;
+    });
+    assert.match(
+      smsSteps,
+      /Send a text message: the person this automation runs as can no longer use the number it names/,
+    );
+    assert.equal(smsSteps.includes("num_tmplprivate01"), false, "no id in the words");
+  } finally {
+    await d.stop();
+  }
+});
+
+test("a Space automation acts only on what its promoter handed to it, and the preview says so: their own private mailbox is listed and used; another person's is never saved", async () => {
+  const d = await boot(seededDir());
+  try {
+    await mailbox(d, "setup", false);
+    d.db!.run(
+      `INSERT INTO mail_mailbox (id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at) VALUES (?, 'personal', ?, ?, 'usr_olivia', NULL, 'inbound_only', 'private', 'syncing', NULL, NULL, 0, 1, 1, NULL)`,
+      "mbx_privatebox0001",
+      "olivia@example.com",
+      "olivia",
+    );
+    const own = await named(
+      d,
+      { name: "Svc probe", idempotencyKey: "svc1", definition: sendStep("mbx_privatebox0001", "real@person.test") },
+      OWNER,
+    );
+    assert.equal(own.status, 200, own.text);
+    // the promote preview names the access the Automation itself receives, and from where
+    const promoted = await raw(d, "/v1/automations/promote", { automationId: own.id, confirm: true }, OWNER);
+    assert.equal(promoted.status, 200, promoted.text);
+    assert.match(
+      promoted.text,
+      /"resource":"mailbox\/mbx_privatebox0001","level":"use","via":"owner_access"/,
+      "the grant is listed in the preview",
+    );
+    // it runs as its own service and uses exactly that grant: the step is not refused for the mailbox (it stops only at the provider, which this test has no key for)
+    const run = await raw(d, "/v1/automations/run", { automationId: own.id, idempotencyKey: "svr" }, OWNER);
+    const runId = (JSON.parse(run.text) as { data: { runId: string } }).data.runId;
+    const steps = await until("the step to finish", 15_000, async () => {
+      const t = (await raw(d, "/v1/runs/steps", { runId }, OWNER)).text;
+      return /"state":"(failed|succeeded)"/.test(t) ? t : undefined;
+    });
+    assert.equal(/can no longer use the mailbox|cannot use the mailbox/.test(steps), false, steps);
+    // another member cannot hand it Olivia's mailbox by editing the Space automation
+    const edit = await raw(
+      d,
+      "/v1/automations/update",
+      { automationId: own.id, definition: sendStep("mbx_privatebox0001", "other@person.test") },
+      NOAH,
+    );
+    assert.notEqual(edit.status, 200, "a member rewrote a Space automation to send from someone's private mailbox");
+  } finally {
+    await d.stop();
+  }
+});

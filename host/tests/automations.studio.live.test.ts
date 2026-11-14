@@ -95,6 +95,14 @@ const idOf = (made: Record<string, unknown>): string => String((made["automation
 test("export carries the definition only, and import makes a Personal Draft that lists what to connect", async () => {
   const d = await boot(seededDir());
   try {
+    // a step may name only a connection its saver may use (F47): a real one of the person's own
+    const conn = await ok(d, "/v1/connections/create", {
+      idempotencyKey: "pkg-conn",
+      connector: "stripe",
+      title: "Stripe",
+      ownerKind: "space",
+    });
+    const sourceId = String((conn["connection"] as { connectionId?: string }).connectionId);
     const made = await ok(d, "/v1/automations/create", {
       idempotencyKey: "pkg-src",
       name: "pkg-src",
@@ -104,7 +112,7 @@ test("export carries the definition only, and import makes a Personal Draft that
           {
             id: "ask",
             key: "connector_request",
-            input: { connector: "stripe", action: "ping", connectionId: "con_source1" },
+            input: { connector: "stripe", action: "ping", connectionId: sourceId },
           },
         ],
       },
@@ -116,7 +124,7 @@ test("export carries the definition only, and import makes a Personal Draft that
       pkg.requires.connections.map((c) => c.slot),
       ["con_slot1"],
     );
-    assert.doesNotMatch(JSON.stringify(exported), /con_source1/);
+    assert.equal(JSON.stringify(exported).includes(sourceId), false);
     const listed = await ok(d, "/v1/automations/packages/list", {});
     assert.deepEqual(
       (listed["packages"] as { id: string }[]).map((p) => p.id),

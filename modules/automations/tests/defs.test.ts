@@ -1,7 +1,7 @@
 // Definitions (spec 2.12, 3.7): graph validation against the step and trigger catalogue, version pinning, and Promote with its access diff.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
+import { harness, codeOf, reasonOf, fixtureMayUse } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, bob, create, goodDefinition, node } from "../fixtures/seed.ts";
 import { loadRunPlan } from "../impl.ts";
@@ -649,7 +649,11 @@ const promotable = (): Record<string, unknown> =>
   });
 
 test("Promote shows what the Space Automation will hold, and which subscription keys must be replaced", async () => {
-  const h = harness({ authorize: (_who, a, r) => a.level === "edit" && r.id === "rec_abc" });
+  // the creator may use the mailbox and connection while saving (F47); the preview then asks what the Space Automation would newly hold, so the use is switched off for it
+  let savingNow = true;
+  const h = harness({
+    authorize: (_who, a, r) => (a.level === "edit" && r.id === "rec_abc") || (savingNow && fixtureMayUse(_who, r)),
+  });
   // the Vault as the creator sees it: the subscription promote must replace, and the key the send step uses
   h.callee("vault.items.list", (i) => ({
     items:
@@ -658,6 +662,7 @@ test("Promote shows what the Space Automation will hold, and which subscription 
         : [sub, { id: "vit_resend", kind: "api_key", handle: "#Resend_Key", name: "Resend", yourLevel: "use" }],
   }));
   const id = (await h.call("automations.create", promotable(), alice)).automation.id as string;
+  savingNow = false;
   const p = await h.call("automations.preview_promote", { automationId: id }, alice);
   assert.equal(p.ready, false);
   assert.deepEqual(p.diff.vaultNames, ["#Resend_Key"]);
@@ -677,7 +682,7 @@ test("Promote shows what the Space Automation will hold, and which subscription 
 });
 
 test("Promote refuses until the subscription keys are replaced, then makes a Space Automation owned by the named person", async () => {
-  const h = harness({ authorize: () => false });
+  const h = harness({ authorize: (who, _a, r) => fixtureMayUse(who, r) });
   // the Vault as the creator sees it: the subscription promote must replace, and the key the send step uses
   h.callee("vault.items.list", (i) => ({
     items:
@@ -762,7 +767,7 @@ test("a promoted Automation runs as its own Service principal with only the vaul
 });
 
 test("a Personal copy of a Space Automation runs with only the copier's access", async () => {
-  const h = harness({ authorize: (who, a) => who.id === bob.id && a.level === "view" });
+  const h = harness({ authorize: (who, a, r) => (who.id === bob.id && a.level === "view") || fixtureMayUse(who, r) });
   const id = (await h.call("automations.create", create(), alice)).automation.id as string;
   await h.call("automations.promote", { automationId: id, confirm: true }, alice);
   const r = await h.call("automations.make_personal_copy", { automationId: id }, bob);
@@ -852,7 +857,7 @@ test("a Space automation's AI account: Automatic needs a Space account kept for 
 });
 
 test("an agent's press on a live Space automation clears whom it runs as, and its accountable owner is told, once (review 12 Nov, pass 2)", async () => {
-  const h = harness({ authorize: () => false });
+  const h = harness({ authorize: (who, _a, r) => fixtureMayUse(who, r) });
   // the Vault as the creator sees it, as in the Promote tests above: the subscription, and the key the send step uses (a step may only name a key its saver can use)
   h.callee("vault.items.list", (i) => ({
     items:

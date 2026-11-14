@@ -2055,26 +2055,6 @@ if ("sha" in o7392) lf(o7392["sha"], p + "/sha", e, L1);
 }
 }
 
-function e766_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7617 = v;
-const g7617 = typeOf(x7617);
-const b7617: string[] = []; lf(x7617, p, b7617, L0); if (b7617.length) e.push(...b7617);
-if (g7617 === "object") {
-if (g7617 === 'object') { const o7617 = x7617 as Record<string, unknown>;
-if (!("repo" in o7617)) e.push(p + "/repo" + ': required');
-if (!("name" in o7617)) e.push(p + "/name" + ': required');
-if (!("conclusion" in o7617)) e.push(p + "/conclusion" + ': required');
-if (!("sha" in o7617)) e.push(p + "/sha" + ': required');
-if ("repo" in o7617) lf(o7617["repo"], p + "/repo", e, L96);
-if ("name" in o7617) lf(o7617["name"], p + "/name", e, L1);
-if ("conclusion" in o7617) lf(o7617["conclusion"], p + "/conclusion", e, L1);
-if ("sha" in o7617) lf(o7617["sha"], p + "/sha", e, L1);
-}
-}
-}
-}
-
 function e767_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7618 = v;
@@ -2083,31 +2063,13 @@ const b7618: string[] = []; lf(x7618, p, b7618, L0); if (b7618.length) e.push(..
 if (g7618 === "object") {
 if (g7618 === 'object') { const o7618 = x7618 as Record<string, unknown>;
 if (!("repo" in o7618)) e.push(p + "/repo" + ': required');
-if (!("jobId" in o7618)) e.push(p + "/jobId" + ': required');
-if (!("runId" in o7618)) e.push(p + "/runId" + ': required');
 if (!("name" in o7618)) e.push(p + "/name" + ': required');
-if (!("labels" in o7618)) e.push(p + "/labels" + ': required');
 if (!("conclusion" in o7618)) e.push(p + "/conclusion" + ': required');
+if (!("sha" in o7618)) e.push(p + "/sha" + ': required');
 if ("repo" in o7618) lf(o7618["repo"], p + "/repo", e, L96);
-if ("jobId" in o7618) lf(o7618["jobId"], p + "/jobId", e, L2);
-if ("runId" in o7618) lf(o7618["runId"], p + "/runId", e, L2);
 if ("name" in o7618) lf(o7618["name"], p + "/name", e, L1);
-if ("labels" in o7618) {
-{
-const x7619 = o7618["labels"];
-const g7619 = typeOf(x7619);
-const b7619: string[] = []; lf(x7619, p + "/labels", b7619, L4); if (b7619.length) e.push(...b7619);
-if (g7619 === "array") {
-if (g7619 === 'array') { const a7619 = x7619 as unknown[];
-for (let i7619 = 0; i7619 < a7619.length; i7619++) {
-lf(a7619[i7619], p + "/labels" + '/' + i7619, e, L1);
-}
-}
-}
-}
-}
 if ("conclusion" in o7618) lf(o7618["conclusion"], p + "/conclusion", e, L1);
-if ("runnerName" in o7618) lf(o7618["runnerName"], p + "/runnerName", e, L1);
+if ("sha" in o7618) lf(o7618["sha"], p + "/sha", e, L1);
 }
 }
 }
@@ -2115,36 +2077,74 @@ if ("runnerName" in o7618) lf(o7618["runnerName"], p + "/runnerName", e, L1);
 
 function e768_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7620 = v;
-const g7620 = typeOf(x7620);
-const b7620: string[] = []; lf(x7620, p, b7620, L0); if (b7620.length) e.push(...b7620);
-if (g7620 === "object") {
-if (g7620 === 'object') { const o7620 = x7620 as Record<string, unknown>;
-if (!("repo" in o7620)) e.push(p + "/repo" + ': required');
-if (!("jobId" in o7620)) e.push(p + "/jobId" + ': required');
-if (!("runId" in o7620)) e.push(p + "/runId" + ': required');
-if (!("name" in o7620)) e.push(p + "/name" + ': required');
-if (!("labels" in o7620)) e.push(p + "/labels" + ': required');
-if (!("fork" in o7620)) e.push(p + "/fork" + ': required');
-if ("repo" in o7620) lf(o7620["repo"], p + "/repo", e, L96);
-if ("jobId" in o7620) lf(o7620["jobId"], p + "/jobId", e, L2);
-if ("runId" in o7620) lf(o7620["runId"], p + "/runId", e, L2);
-if ("name" in o7620) lf(o7620["name"], p + "/name", e, L1);
-if ("labels" in o7620) {
+const x7619 = v;
+const g7619 = typeOf(x7619);
+const b7619: string[] = []; lf(x7619, p, b7619, L0); if (b7619.length) e.push(...b7619);
+if (g7619 === "object") {
+if (g7619 === 'object') { const o7619 = x7619 as Record<string, unknown>;
+if (!("repo" in o7619)) e.push(p + "/repo" + ': required');
+if (!("jobId" in o7619)) e.push(p + "/jobId" + ': required');
+if (!("runId" in o7619)) e.push(p + "/runId" + ': required');
+if (!("name" in o7619)) e.push(p + "/name" + ': required');
+if (!("labels" in o7619)) e.push(p + "/labels" + ': required');
+if (!("conclusion" in o7619)) e.push(p + "/conclusion" + ': required');
+if ("repo" in o7619) lf(o7619["repo"], p + "/repo", e, L96);
+if ("jobId" in o7619) lf(o7619["jobId"], p + "/jobId", e, L2);
+if ("runId" in o7619) lf(o7619["runId"], p + "/runId", e, L2);
+if ("name" in o7619) lf(o7619["name"], p + "/name", e, L1);
+if ("labels" in o7619) {
 {
-const x7621 = o7620["labels"];
+const x7620 = o7619["labels"];
+const g7620 = typeOf(x7620);
+const b7620: string[] = []; lf(x7620, p + "/labels", b7620, L4); if (b7620.length) e.push(...b7620);
+if (g7620 === "array") {
+if (g7620 === 'array') { const a7620 = x7620 as unknown[];
+for (let i7620 = 0; i7620 < a7620.length; i7620++) {
+lf(a7620[i7620], p + "/labels" + '/' + i7620, e, L1);
+}
+}
+}
+}
+}
+if ("conclusion" in o7619) lf(o7619["conclusion"], p + "/conclusion", e, L1);
+if ("runnerName" in o7619) lf(o7619["runnerName"], p + "/runnerName", e, L1);
+}
+}
+}
+}
+
+function e769_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7621 = v;
 const g7621 = typeOf(x7621);
-const b7621: string[] = []; lf(x7621, p + "/labels", b7621, L4); if (b7621.length) e.push(...b7621);
-if (g7621 === "array") {
-if (g7621 === 'array') { const a7621 = x7621 as unknown[];
-for (let i7621 = 0; i7621 < a7621.length; i7621++) {
-lf(a7621[i7621], p + "/labels" + '/' + i7621, e, L1);
+const b7621: string[] = []; lf(x7621, p, b7621, L0); if (b7621.length) e.push(...b7621);
+if (g7621 === "object") {
+if (g7621 === 'object') { const o7621 = x7621 as Record<string, unknown>;
+if (!("repo" in o7621)) e.push(p + "/repo" + ': required');
+if (!("jobId" in o7621)) e.push(p + "/jobId" + ': required');
+if (!("runId" in o7621)) e.push(p + "/runId" + ': required');
+if (!("name" in o7621)) e.push(p + "/name" + ': required');
+if (!("labels" in o7621)) e.push(p + "/labels" + ': required');
+if (!("fork" in o7621)) e.push(p + "/fork" + ': required');
+if ("repo" in o7621) lf(o7621["repo"], p + "/repo", e, L96);
+if ("jobId" in o7621) lf(o7621["jobId"], p + "/jobId", e, L2);
+if ("runId" in o7621) lf(o7621["runId"], p + "/runId", e, L2);
+if ("name" in o7621) lf(o7621["name"], p + "/name", e, L1);
+if ("labels" in o7621) {
+{
+const x7622 = o7621["labels"];
+const g7622 = typeOf(x7622);
+const b7622: string[] = []; lf(x7622, p + "/labels", b7622, L4); if (b7622.length) e.push(...b7622);
+if (g7622 === "array") {
+if (g7622 === 'array') { const a7622 = x7622 as unknown[];
+for (let i7622 = 0; i7622 < a7622.length; i7622++) {
+lf(a7622[i7622], p + "/labels" + '/' + i7622, e, L1);
 }
 }
 }
 }
 }
-if ("fork" in o7620) lf(o7620["fork"], p + "/fork", e, L611);
+if ("fork" in o7621) lf(o7621["fork"], p + "/fork", e, L611);
 }
 }
 }
@@ -2209,9 +2209,9 @@ export const eventValidators: Record<string, Check> = {
   "pull_request.merged": d_s_7f6588b65b,
   "pull_request.opened": d_s_8887548e27,
   "repo.pushed": e525_payload,
-  "workflow.completed": e766_payload,
-  "workflow_job.completed": e767_payload,
-  "workflow_job.queued": e768_payload,
+  "workflow.completed": e767_payload,
+  "workflow_job.completed": e768_payload,
+  "workflow_job.queued": e769_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

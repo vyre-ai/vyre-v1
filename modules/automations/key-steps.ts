@@ -6,6 +6,7 @@ import { hostOfUrl } from "../../lib/key-target.ts";
 import { allowKeyHost, keyHostApproved } from "./key-hosts.ts";
 import type { KeyHostDb } from "./key-hosts.ts";
 import { keyRefResolver, keyUsableBy } from "./key-ref-port.ts";
+import { guardAccounts } from "./account-use.ts";
 import { allAutomations, raise } from "./projections.ts";
 import type { AutoCtx, Definition } from "./projections.ts";
 
@@ -88,6 +89,7 @@ export async function guardKeySteps(ctx: AutoCtx, before: Definition | undefined
       );
   });
   if (isTrustedService(ctx.principal)) return;
+  await guardAccounts(ctx, before, after);
   const conns = await connectionHandles(ctx);
   const changed: { index: number; node: Node; handles: Set<string> }[] = [];
   nodes.forEach((n, index) => {
