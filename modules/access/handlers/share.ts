@@ -37,7 +37,7 @@ import {
   raise,
   storeOf,
 } from "../projections.ts";
-import { isHostService } from "../../../lib/trust.ts";
+import { isHostService, isSystemCall } from "../../../lib/trust.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
 export type Section = "personal" | "shared" | "space" | "starred" | "following";
@@ -315,15 +315,16 @@ function folderOf(
  * caller asks this before it stores or shares a key for an agent. An unknown or suspended principal clears nothing.
  * The input is called `target`, not `resource`, so the gateway does not run its own access check on it first: that check answers "restricted beyond what you can open", which would tell a person
  * the folder is there and how it is labelled. This handler gives the one answer for "cannot see it" and "does not exist".
- * WHO MAY ASK: the server, or a person who may put something into the resource (Edit on it). Anyone else, including a person who cannot see the resource at all, gets the answer a made-up id gets
+ * WHO MAY ASK: the server, a call another capability made (the Vault request handler), or a person who may put something into the resource (Edit on it). Anyone else, including a person who cannot see the resource at all, gets the answer a made-up id gets
  * (not found), so the call tells nobody that a hidden folder exists or how it is labelled.
  */
 export async function clears(ctx: AccessCtx, input: { principal: Ref; target: ResourceRef }) {
   const store = storeOf(ctx);
   const res = resourceOf(ctx, store, input.target);
-  if (!isHostService(ctx.principal)) {
+  // the server, or a call another capability made (vault.requests.fulfil deciding where a key may land: it is the server asking, not the caller browsing folders), answers for any target
+  if (!isSystemCall(ctx as ShareCtx & { depth?: number; forwarded?: boolean })) {
     const sc = ctx as ShareCtx;
-    hideFrom(sc, store, res);
+    // no hideFrom needed: a caller with no level on a hidden target has no Edit either, and gets the same not found
     const person = ctx.principal.kind === "person" || actingId(sc) !== undefined;
     if (!person || !atLeast(res.type, callerLevel(sc, store, res), "edit"))
       raise(ctx.trace.traceId, "validation.not_found", "no such resource");
