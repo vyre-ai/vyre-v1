@@ -52676,7 +52676,8 @@
                   "agent_routine",
                   "gate",
                   "task",
-                  "system"
+                  "system",
+                  "goal"
                 ],
                 "type": "string"
               }
