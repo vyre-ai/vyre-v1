@@ -51619,6 +51619,10 @@ export type SigninSucceededPayload = {
   method: "password" | "github" | "sso" | "pair" | "recovery";
   deviceId: string;
 };
+export type SiteAccessChangedPayload = {
+  siteId: string;
+  access: "public" | "password" | "space" | "private";
+};
 export type SiteBuildFailedPayload = {
   siteId: string;
   deploymentId: string;
@@ -53254,6 +53258,7 @@ export interface EventMap {
   "signature.viewed": SignatureViewedPayload;
   "signin.failed": SigninFailedPayload;
   "signin.succeeded": SigninSucceededPayload;
+  "site.access_changed": SiteAccessChangedPayload;
   "site.build_failed": SiteBuildFailedPayload;
   "site.created": SiteCreatedPayload;
   "site.deployed": SiteDeployedPayload;

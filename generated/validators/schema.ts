@@ -1563,17 +1563,17 @@ if ("changeId" in o7424) lf(o7424["changeId"], p + "/changeId", e, L382);
 }
 }
 
-function e751_payload(v: unknown, p: string, e: string[]): void {
+function e752_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7602 = v;
-const g7602 = typeOf(x7602);
-const b7602: string[] = []; lf(x7602, p, b7602, L0); if (b7602.length) e.push(...b7602);
-if (g7602 === "object") {
-if (g7602 === 'object') { const o7602 = x7602 as Record<string, unknown>;
-if (!("viewId" in o7602)) e.push(p + "/viewId" + ': required');
-if (!("type" in o7602)) e.push(p + "/type" + ': required');
-if ("viewId" in o7602) lf(o7602["viewId"], p + "/viewId", e, L307);
-if ("type" in o7602) lf(o7602["type"], p + "/type", e, L32);
+const x7603 = v;
+const g7603 = typeOf(x7603);
+const b7603: string[] = []; lf(x7603, p, b7603, L0); if (b7603.length) e.push(...b7603);
+if (g7603 === "object") {
+if (g7603 === 'object') { const o7603 = x7603 as Record<string, unknown>;
+if (!("viewId" in o7603)) e.push(p + "/viewId" + ': required');
+if (!("type" in o7603)) e.push(p + "/type" + ': required');
+if ("viewId" in o7603) lf(o7603["viewId"], p + "/viewId", e, L307);
+if ("type" in o7603) lf(o7603["type"], p + "/type", e, L32);
 }
 }
 }
@@ -1611,7 +1611,7 @@ export const eventValidators: Record<string, Check> = {
   "schema.field_restored": d_s_e9169018ef,
   "schema.label_changed": e557_payload,
   "schema.type_dropped": e558_payload,
-  "view.deleted": e751_payload,
+  "view.deleted": e752_payload,
   "view.published": d_s_8b95056de4,
   "view.saved": d_s_8b95056de4,
 };

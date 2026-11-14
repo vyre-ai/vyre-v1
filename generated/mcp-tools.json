@@ -69680,32 +69680,6 @@
     },
     {
       "blocks": [],
-      "cap": "vault.item.discard_new",
-      "deferred": false,
-      "description": "Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "itemId": {
-            "examples": [
-              "vit_a1b2c3"
-            ],
-            "pattern": "^vit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "itemId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_item_discard_new",
-      "planMode": "blocked",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "vault.item.get",
       "deferred": false,
       "description": "One item: metadata and field keys, never values",
@@ -70296,7 +70270,7 @@
       "blocks": [],
       "cap": "vault.request",
       "deferred": false,
-      "description": "Ask for a missing key that is not a service (a key a skill or run needs, by name): creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status. For a service the person names, use vault_connect",
+      "description": "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
       "effects": "write",
       "inputSchema": {
         "properties": {

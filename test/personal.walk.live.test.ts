@@ -577,7 +577,8 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
         .getByText(/^hello from the walk/)
         .first()
         .click({ timeout: 15_000 });
-      const tab = page.getByTestId("tab-terminal").or(page.getByTestId("tab-terminal-selected")).first();
+      // one door (owner, 14 Nov): there is no Terminal tab; the Computer tab is where terminals are, and where a Space with no machine to run one says so
+      const tab = page.getByTestId("tab-computer").or(page.getByTestId("tab-computer-selected")).first();
       // Chats opens on the new-chat landing: the pane belongs to a chat, so open the one the walk had earlier
       const earlier = page.locator('[data-testid^="row-c:"]').first();
       await earlier.click({ timeout: 15_000 });
@@ -585,9 +586,12 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
         await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
       await tab.waitFor({ timeout: 15_000 });
       await tab.click({ timeout: 10_000 });
-      await page.getByTestId("pane-body-terminal").waitFor({ timeout: 15_000 });
-      await page.getByTestId("terminal-pane-open").click({ timeout: 10_000 });
-      await page.getByText(/No computer to open a terminal on/).waitFor({ timeout: 15_000 }); // a plain line, not a dead button
+      await page.getByTestId("pane-body-computer").waitFor({ timeout: 15_000 });
+      // a plain line, not a dead button: no Open terminal, and the line says what would give this Space a machine
+      await page
+        .getByText(/runs commands on this computer for now|No computer to open a terminal on/)
+        .waitFor({ timeout: 15_000 });
+      assert.equal(await page.getByText("Open terminal", { exact: true }).count(), 0, "no dead button");
     });
   } finally {
     if (failures.length) {

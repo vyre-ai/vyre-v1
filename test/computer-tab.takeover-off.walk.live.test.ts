@@ -34,13 +34,13 @@ test(
       assert.equal(await page.getByText("Press Take over to type.").count(), 0);
       await shoot(page, DIR, "b-sheet-watching");
       // at phone width the sheet is a watching view too
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.waitForTimeout(800);
-    assert.equal(await page.getByTestId("terminal-take").count(), 0, "no Take over at phone width");
-    await shoot(page, DIR, "d-phone-sheet-watching");
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.waitForTimeout(500);
-    // the ended state stays: its terminal is closed from outside
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(800);
+      assert.equal(await page.getByTestId("terminal-take").count(), 0, "no Take over at phone width");
+      await shoot(page, DIR, "d-phone-sheet-watching");
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.waitForTimeout(500);
+      // the ended state stays: its terminal is closed from outside
       const rows = (await k.w.owner.ok("terminal.list", { host: "agent_computer" })) as {
         terminals: Array<{ terminalId: string; agentId?: string; state: string }>;
       };
