@@ -1,33 +1,47 @@
 name: a37-probe
-# Proof run: the same shard step the real checks use, on a runner hosted at Agent37 (label a37). Lives only on this branch.
+# Capacity probe for the Agent37-hosted runners (label a37). Lives only on this branch and never merges.
+# It runs the same select -> run-shard path as check.yml (scripts/ci-select.ts --matrix --no-perf, then .github/actions/run-shard on every entry), on label a37 only.
+# Safe for a public repository: it triggers on push to this one branch of vyre-ai/vyre-v1 (never pull_request or pull_request_target, so a fork cannot start it), reads only, and the job guard below
+# refuses any other repository.
+# SAMPLE: run every Nth entry of the whole-suite matrix (the same entries every time), so one, two and three runners can each finish the same work in under an hour.
 on:
   push:
     branches: ['wip/a37-probe']
+concurrency:
+  group: a37-probe
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  SAMPLE: '4'
 jobs:
-  fast:
+  select:
+    if: github.repository == 'vyre-ai/vyre-v1' && github.event_name == 'push'
     runs-on: [self-hosted, linux, a37]
-    timeout-minutes: 20
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.sel.outputs.matrix }}
+      count: ${{ steps.sel.outputs.count }}
     steps:
       - uses: actions/checkout@v4
-      - id: pick
-        shell: bash
-        run: echo "files=$(git ls-files 'host/src/*.test.ts' 'scripts/*.test.ts' | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
-      - uses: ./.github/actions/run-shard
-        with:
-          files: ${{ steps.pick.outputs.files }}
-          slow: 'false'
-          runner: v1
-  slow:
-    needs: fast
+      - name: Select the whole suite as check.yml would (no base, no perf), keep every SAMPLEth entry
+        id: sel
+        run: |
+          node scripts/ci-select.ts "" --matrix --no-perf > select.json
+          node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync("select.json","utf8"));const n=Number(process.env.SAMPLE)||1;const all=r.matrix.include;const inc=all.filter((_,i)=>i%n===0);console.log("select: "+(r.all?"all":r.files.length+" files")+", "+all.length+" matrix entries, running "+inc.length);fs.appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify({include:inc})+"\ncount="+inc.length+"\n")'
+  shards:
+    name: ${{ matrix.name }}
+    needs: select
+    if: needs.select.outputs.count != '0'
     runs-on: [self-hosted, linux, a37]
-    timeout-minutes: 30
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
-      - id: pick
-        shell: bash
-        run: echo "files=$(git ls-files 'host/tests/*.live.test.ts' | head -40 | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
       - uses: ./.github/actions/run-shard
         with:
-          files: ${{ steps.pick.outputs.files }}
-          slow: 'true'
-          runner: v1
+          files: ${{ matrix.files }}
+          slow: ${{ matrix.slow }}
+          runner: ${{ matrix.runner }}
