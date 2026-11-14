@@ -24,6 +24,7 @@ export default function Mount(): ReactNode {
         terminals: [
           {
             terminalId: "term_1",
+            threadId: "c1",
             name: "full-test-suite",
             agentId: "agt_intake",
             state: "running",
@@ -34,6 +35,24 @@ export default function Mount(): ReactNode {
         ],
       },
     };
+    // the agent has run a command in this chat: a shell tool step, which is what makes the job line watch the live rows
+    s.replica.put("messages", [
+      {
+        id: "sh1",
+        messageId: "sh1",
+        threadId: "c1",
+        threadSeq: 900,
+        author: { kind: "agent", id: "agt_intake" },
+        kind: "agent",
+        body: "Running the full test suite in the background.",
+        blocks: [{ type: "tool_call", v: 1, id: "tc1", state: "done", data: { name: "bash", detail: "npm test" } }],
+        depth: 0,
+        attachments: [],
+        reactions: [],
+        pinned: false,
+        createdAt: Date.UTC(2025, 9, 24, 12, 5),
+      },
+    ]);
     const base = s.data;
     return {
       ...s,

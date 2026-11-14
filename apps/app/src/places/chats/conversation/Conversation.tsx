@@ -118,7 +118,7 @@ import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
-import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq } from "./chapters/index.ts";
+import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq, usedTerminal } from "./chapters/index.ts";
 import {
   WINDOW,
   beforeCursor,
@@ -1946,7 +1946,12 @@ function ConversationView(): ReactElement {
           size={hasEarlier ? Math.max(all.length, CHAPTER_MIN + 1) : all.length}
           newest={win.rows[win.rows.length - 1]?.threadSeq ?? 0}
           focusSeq={activeId ? (all.find((m) => m.messageId === activeId)?.threadSeq ?? null) : null}
-          jobs={{ agentIds: thread.agents.map((a) => a.agentId), screens: data.screens, shared: sharedChat }}
+          jobs={{
+            agentIds: thread.agents.map((a) => a.agentId),
+            screens: data.screens,
+            watch: isWorking || usedTerminal(timelineMessages),
+            shared: sharedChat,
+          }}
           rows={rows}
           own={ownSeq}
           clock={{ ...data.clock(), ...(sharedChat ? { zones } : {}) }}

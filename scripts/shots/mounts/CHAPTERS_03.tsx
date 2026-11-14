@@ -40,7 +40,11 @@ export default function Mount(): ReactNode {
     const base = s.data;
     return {
       ...s,
-      data: { ...base, call: async (cap: string, input: unknown) => (cap === "chat.chapters" ? { chapters, wanted: 0 } : base.call(cap, input)) },
+      data: {
+        ...base,
+        call: async (cap: string, input: unknown) =>
+          cap === "chat.chapters" ? { chapters, wanted: 0 } : base.call(cap, input),
+      },
     };
   }, []);
   return <Conversation data={sample.data} />;

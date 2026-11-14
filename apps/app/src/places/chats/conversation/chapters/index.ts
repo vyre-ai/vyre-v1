@@ -10,3 +10,4 @@ export { NO_USAGE, SessionBlock, SessionBlockMount, sessionRows, useUsage } from
 export { KeptList, useKept } from "./KeptList.tsx";
 export { useCurrentChapter } from "./current-chapter.ts";
 export type { TerminalFeed } from "./jobs.ts";
+export { usedTerminal } from "./jobs.ts";

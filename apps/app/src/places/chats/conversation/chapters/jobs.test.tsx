@@ -6,7 +6,7 @@ import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, textOf } from "../../../../../../../ui/src/testing/dom.ts";
 import { ChapterLayer } from "./ChapterLayer.tsx";
 import { JobLines } from "./JobLines.tsx";
-import { finishedWords, jobsOf, runningWords, settle, titleOf } from "./jobs.ts";
+import { finishedWords, jobsOf, usedTerminal, runningWords, settle, titleOf } from "./jobs.ts";
 import type { Term } from "./jobs.ts";
 import { ownSeq } from "./model.ts";
 
@@ -16,6 +16,7 @@ const MIN = 60_000;
 const T = (o: Partial<Term> & { terminalId: string }): Term => ({
   name: "tests",
   agentId: "agt_a",
+  threadId: "thr_1",
   state: "running",
   exitCode: null,
   createdAt: 0,
@@ -200,4 +201,56 @@ test("in a chat read by two people the line says only that work runs in the back
   const alone = await mount(createRoot, el(false));
   await flush();
   assert.match(textOf(find(alone, "job-done-t1")) + textOf(find(alone, "job-running-t1")), /Unit tests/);
+});
+
+test("one agent, two chats, one job: the line shows in the chat that started it and not in the other; a row that names no chat shows nowhere", () => {
+  const rows = [T({ terminalId: "t1", threadId: "thr_1" }), T({ terminalId: "t2", threadId: undefined })];
+  assert.deepEqual(
+    jobsOf(rows, mine, "thr_1").map((j) => j.id),
+    ["t1"],
+  );
+  assert.deepEqual(
+    jobsOf(rows, mine, "thr_2").map((j) => j.id),
+    [],
+  );
+});
+
+test("a counting screens stub: no agent, or an agent that never ran a command, costs zero queries and zero subscriptions", async () => {
+  let queries = 0;
+  let subs = 0;
+  const idle = { status: "idle" };
+  const screens = {
+    query: (): unknown => (queries++, { subscribe: () => (subs++, () => undefined), getSnapshot: () => idle }),
+  };
+  const el = (agentIds: string[], watch: boolean) => (
+    <ChapterLayer
+      call={async () => ({})}
+      threadId="thr_1"
+      size={5}
+      newest={5}
+      focusSeq={null}
+      jobs={{ agentIds, screens, watch }}
+      rows={[]}
+      own={ownSeq}
+      clock={{ now: 0, offsetMin: 0 }}
+    >
+      {(laid) => laid.jobs}
+    </ChapterLayer>
+  );
+  await mount(createRoot, el([], true));
+  await mount(createRoot, el(["agt_a"], false));
+  await flush();
+  assert.equal(queries, 0);
+  assert.equal(subs, 0);
+  await mount(createRoot, el(["agt_a"], true));
+  await flush();
+  assert.equal(queries >= 1, true, "it watches once an agent has run a command");
+});
+
+test("usedTerminal sees a terminal card or a shell tool in the recent messages, and nothing else", () => {
+  const m = (type: string, name?: string) => ({ blocks: [{ type, data: name ? { name } : {} }] });
+  assert.equal(usedTerminal([]), false);
+  assert.equal(usedTerminal([m("tool_call", "read_file")]), false);
+  assert.equal(usedTerminal([m("tool_call", "bash")]), true);
+  assert.equal(usedTerminal([m("terminal")]), true);
 });

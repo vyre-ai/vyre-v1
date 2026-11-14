@@ -13,10 +13,14 @@ export interface Screens {
 export function JobsLine(p: {
   screens: Screens | undefined;
   agentIds: readonly string[];
+  threadId?: string;
+  watch?: boolean;
   shared?: boolean;
 }): ReactElement {
   // a build without the screen, or a query that fails, draws nothing and makes no call
   const feed = useMemo(() => {
+    // nothing to watch yet: no query and no subscription in a chat where no agent has run a command
+    if (p.watch === false || p.agentIds.length === 0) return undefined;
     try {
       return p.screens?.query("chats.terminal-list", "terminals", { host: "agent_computer" }) as
         | TerminalFeed
@@ -24,7 +28,7 @@ export function JobsLine(p: {
     } catch {
       return undefined;
     }
-  }, [p.screens]);
-  const j = useJobs({ feed, agentIds: p.agentIds, now: Date.now });
+  }, [p.screens, p.watch, p.agentIds.length]);
+  const j = useJobs({ feed, agentIds: p.agentIds, ...(p.threadId ? { threadId: p.threadId } : {}), now: Date.now });
   return <JobLines running={j.running} finished={j.finished} now={Date.now()} plain={p.shared === true} />;
 }

@@ -17,6 +17,8 @@ export interface Term {
   terminalId: string;
   name: string;
   agentId?: string | undefined;
+  /** The chat the command was started in, when the terminal row says. A row without it matches no chat: another chat's job is never shown here. */
+  threadId?: string | undefined;
   state: "running" | "idle" | "exited";
   exitCode: number | null;
   createdAt: number;
@@ -43,9 +45,15 @@ export const titleOf = (name: string): string => {
 };
 
 /** Running jobs of the agents in the chat, oldest first. A shell sitting at its prompt is not a job. */
-export function jobsOf(terms: readonly Term[], agentIds: ReadonlySet<string>): Job[] {
+export function jobsOf(terms: readonly Term[], agentIds: ReadonlySet<string>, threadId?: string): Job[] {
   return terms
-    .filter((t) => t.state === "running" && t.agentId !== undefined && agentIds.has(t.agentId))
+    .filter(
+      (t) =>
+        t.state === "running" &&
+        t.agentId !== undefined &&
+        agentIds.has(t.agentId) &&
+        (threadId === undefined || t.threadId === threadId),
+    )
     .map((t) => ({ id: t.terminalId, title: titleOf(t.name), startedAt: t.createdAt }))
     .sort((a, b) => a.startedAt - b.startedAt);
 }
@@ -70,8 +78,9 @@ export function settle(
   terms: readonly Term[],
   agentIds: ReadonlySet<string>,
   now: number,
+  threadId?: string,
 ): { running: Job[]; finished: Finished[] } {
-  const running = jobsOf(terms, agentIds);
+  const running = jobsOf(terms, agentIds, threadId);
   const live = new Set(running.map((j) => j.id));
   const finished: Finished[] = [];
   for (const j of before) {
@@ -93,7 +102,12 @@ export const MAX_FINISHED = 5;
 /** The words "2 min" are redrawn this often while a job runs: a clock on this computer, never a read. */
 export const JOB_CLOCK_MS = 30_000;
 
-export function useJobs(o: { feed: TerminalFeed | undefined; agentIds: readonly string[]; now: () => number }): {
+export function useJobs(o: {
+  feed: TerminalFeed | undefined;
+  agentIds: readonly string[];
+  threadId?: string | undefined;
+  now: () => number;
+}): {
   running: Job[];
   finished: Finished[];
   tick: number;
@@ -105,14 +119,14 @@ export function useJobs(o: { feed: TerminalFeed | undefined; agentIds: readonly 
   const before = useRef<Job[]>([]);
   const [finished, setFinished] = useState<Finished[]>([]);
   const [tick, setTick] = useState(0);
-  const running = jobsOf(rows, new Set(ids === "" ? [] : ids.split(",")));
+  const running = jobsOf(rows, new Set(ids === "" ? [] : ids.split(",")), o.threadId);
   const key = running.map((j) => j.id).join(",");
   useEffect(() => {
     before.current = [];
     setFinished([]);
   }, [ids]);
   useEffect(() => {
-    const next = settle(before.current, rows, new Set(ids === "" ? [] : ids.split(",")), o.now());
+    const next = settle(before.current, rows, new Set(ids === "" ? [] : ids.split(",")), o.now(), o.threadId);
     before.current = next.running;
     if (next.finished.length > 0) setFinished((cur) => [...cur, ...next.finished].slice(-MAX_FINISHED));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the set of running jobs changes
@@ -125,4 +139,20 @@ export function useJobs(o: { feed: TerminalFeed | undefined; agentIds: readonly 
     return () => clearInterval(t);
   }, [live]);
   return { running, finished, tick };
+}
+
+const TERMINAL_TOOL = /terminal|shell|bash|exec/i;
+/** Has an agent in these messages used a terminal? The job line watches the live rows only then (or while an agent works): a chat that never ran a command asks for nothing. */
+export function usedTerminal(
+  messages: ReadonlyArray<{ blocks: ReadonlyArray<{ type: string; data?: unknown }> }>,
+): boolean {
+  for (let i = messages.length - 1, n = 0; i >= 0 && n < 40; i--, n++)
+    for (const b of messages[i]!.blocks) {
+      if (b.type === "terminal") return true;
+      if (b.type === "tool_call" || b.type === "tool_result") {
+        const name = (b.data as { name?: unknown } | null | undefined)?.name;
+        if (typeof name === "string" && TERMINAL_TOOL.test(name)) return true;
+      }
+    }
+  return false;
 }

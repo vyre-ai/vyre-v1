@@ -29,7 +29,7 @@ export function ChapterLayer<R extends { kind: string }>(p: {
   /** The sequence number of a message that has to be on screen, if any. */
   focusSeq: number | null;
   /** Where background jobs are read from: the agents in the chat, and whether one is working now. */
-  jobs?: { agentIds: readonly string[]; screens: Screens | undefined; shared?: boolean };
+  jobs?: { agentIds: readonly string[]; screens: Screens | undefined; watch?: boolean; shared?: boolean };
   rows: readonly R[];
   own: (r: R) => number | null;
   clock: Clock;
@@ -48,7 +48,13 @@ export function ChapterLayer<R extends { kind: string }>(p: {
         rows: withChapters(p.rows, p.own, chapters, s.flipped, p.clock, s.reveal),
         dots: railOf(chapters),
         jobs: p.jobs ? (
-          <JobsLine screens={p.jobs.screens} agentIds={p.jobs.agentIds} shared={p.jobs.shared === true} />
+          <JobsLine
+            screens={p.jobs.screens}
+            agentIds={p.jobs.agentIds}
+            threadId={p.threadId}
+            watch={p.jobs.watch !== false}
+            shared={p.jobs.shared === true}
+          />
         ) : null,
         flip: s.flip,
         jump: s.jump,
