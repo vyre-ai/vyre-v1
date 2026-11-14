@@ -31,6 +31,8 @@ export interface HeaderMenuDo {
   archive(): void;
   unarchive(): void;
   stopAll(): void;
+  /** The chat's own housekeeping (Star, Mute, Add people, Copy link, Leave or Delete): a closing "More" row, so a chat opened from search, a link or a notification, with no sidebar row on screen, still reaches them. */
+  more?: (() => void) | undefined;
   /** Entries only some chats have (a channel's "Agents reply in threads", "Connect an outside agent"), placed before the closing group. */
   extra?: readonly MenuEntry[] | undefined;
 }
@@ -48,6 +50,7 @@ export function chatHeaderEntries(f: HeaderMenuFacts, d: HeaderMenuDo): MenuEntr
     sep,
     f.withPeople && !f.withAgent ? item(f.muted ? "Unmute" : "Mute", () => d.mute(!f.muted)) : null,
     f.archivable ? (f.archived ? item("Unarchive", d.unarchive) : item("Archive", d.archive)) : null,
+    d.more ? item("More", d.more) : null,
     f.withAgent && f.working ? item("Stop everyone", d.stopAll, { danger: true }) : null,
   ]);
 }

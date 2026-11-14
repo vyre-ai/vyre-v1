@@ -29,6 +29,7 @@ export const COMMAND_KINDS: Readonly<Record<ChatCommandId, CommandKind>> = Objec
   btw: "card",
   model: "menu",
   effort: "menu",
+  voice: "opens",
   helper: "opens",
   handoff: "opens",
   review: "opens",

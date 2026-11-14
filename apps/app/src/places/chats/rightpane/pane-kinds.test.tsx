@@ -91,3 +91,23 @@ test("the Crew tab of the chat's own pane carries the session block, and Kept is
     html("agent", "kept", { kept: <div data-testid="kept-body">Kept</div> }).includes('data-testid="kept-body"'),
   );
 });
+
+test("a command that asks for a tab the pane lacks lands on the right place, never silently on the first tab: Crew without teammates is Threads, Skills is drawn when asked for", () => {
+  const sample = (crew: boolean, tab: TabKey): string =>
+    clean(
+      renderToStaticMarkup(
+        <ChatRightPane
+          data={createSample("northwind", crew ? { crew: true } : {}).data}
+          open
+          onToggle={() => undefined}
+          window={ALL}
+          paneWidth={900}
+          kind="agent"
+          tab={tab}
+        />,
+      ),
+    );
+  assert.ok(sample(false, "crew").includes('data-testid="pane-body-threads"'), "no teammates: Threads");
+  assert.ok(sample(true, "crew").includes('data-testid="pane-body-crew"'));
+  assert.ok(sample(false, "skills").includes('data-testid="pane-body-skills"'), "Skills opens even with no skills yet");
+});

@@ -1,6 +1,6 @@
 // The slash commands of a chat, run. The list itself is lib/chat-commands.ts (one list for the composer menu, the server's table and this code); a plugin adds its own on top and never replaces a
 // name that is already taken. Every command here does something real or says why it could not: nothing is picked and then dropped.
-import { CHAT_COMMANDS, chatCommand, parseSlash } from "../../../../../../lib/chat-commands.ts";
+import { CHAT_COMMANDS, CHAT_COMMAND_ALIASES, chatCommand, parseSlash } from "../../../../../../lib/chat-commands.ts";
 import type { MyAi } from "../../../../../../lib/usage-text.ts";
 import type { ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import * as act from "./actions.ts";
@@ -31,12 +31,18 @@ export interface CommandEnv {
   /** Send a message as if typed (a plugin's prompt command). */
   send(text: string): void;
   /** Opens the pane beside the chat on one tab (crew, memory, skills, hooks). Left out where the shell has no pane. */
+  /** Starts the composer's mic (/voice). Left out where there is no composer to talk into. */
+  startTalk?(): void;
   openPane?(tab: "crew" | "memory" | "skills" | "hooks" | "kept"): void;
 }
 
+/** Commands that open a tab only the pane of a chat with an agent has (Crew or Threads, Knows, Skills, Hooks): not offered in a channel or a chat with one other person, whose pane has no such tab. */
+export const AGENT_PANE_COMMANDS: ReadonlySet<string> = new Set(["agents", "memory", "skills", "hooks"]);
+export const hasAgentPane = (t: Pick<Thread, "kind" | "agents">): boolean => t.kind === "chat" && t.agents.length > 0;
+
 /** The list the composer offers after "/": ours first, then each plugin's that does not clash with a name already in use. */
-export function commandItems(plugins: readonly PluginCommand[] = []): ListItem[] {
-  const out: ListItem[] = CHAT_COMMANDS.map((c) => ({
+export function commandItems(plugins: readonly PluginCommand[] = [], hasAgentPane = true): ListItem[] {
+  const out: ListItem[] = CHAT_COMMANDS.filter((c) => hasAgentPane || !AGENT_PANE_COMMANDS.has(c.id)).map((c) => ({
     t: c.id,
     s: c.detail,
     kind: "Command",
@@ -45,6 +51,19 @@ export function commandItems(plugins: readonly PluginCommand[] = []): ListItem[]
     ...(c.arg !== undefined ? { arg: c.arg } : {}),
   }));
   const taken = new Set(CHAT_COMMANDS.map((c) => c.id));
+  // the names people type by habit (/status, /cost, /clear ...): found while typed, showing the word they typed and the command it runs; never in the list at rest
+  for (const [alias, id] of Object.entries(CHAT_COMMAND_ALIASES)) {
+    if (!hasAgentPane && AGENT_PANE_COMMANDS.has(id)) continue;
+    if (taken.has(alias) || plugins.some((p) => p.name.replace(/^\//, "").toLowerCase() === alias)) continue;
+    out.push({
+      t: alias,
+      s: `Same as /${id}`,
+      kind: "Command",
+      group: chatCommand(id)?.group ?? "Commands",
+      body: alias,
+      typedOnly: true,
+    });
+  }
   for (const p of plugins) {
     const name = p.name.replace(/^\//, "").toLowerCase();
     if (name === "" || taken.has(name)) continue;
@@ -118,6 +137,8 @@ async function run(
   const def = chatCommand(id);
   if (def?.argRequired && arg === "")
     return notice(`/${id} needs ${def.arg ?? "a few words"}. For example: /${id} ${exampleFor(id)}`);
+  if (AGENT_PANE_COMMANDS.has(id) && !hasAgentPane(thread))
+    return notice(`/${id} is for a chat with an agent. This chat's pane has no tab for it.`);
   switch (id) {
     case "plan": {
       const was = thread.planMode === true;
@@ -328,6 +349,10 @@ async function run(
       env.openPane(id === "agents" ? "crew" : id);
       return opens();
     }
+    case "voice":
+      if (!env.startTalk) return notice("Talking needs a microphone, and this view has none");
+      env.startTalk();
+      return opens();
     case "effort":
       return { kind: "menu", menu: "model" };
     case "new": {

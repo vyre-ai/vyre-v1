@@ -53,6 +53,7 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "security-review", group: "Bring in help", detail: "A helper reviews it for security" },
   { id: "agents", group: "Bring in help", detail: "Who is working in this chat" },
   // How it runs
+  { id: "voice", group: "How it runs", detail: "Talk instead of type" },
   { id: "model", group: "How it runs", detail: "Choose the model this chat answers with" },
   { id: "effort", group: "How it runs", detail: "How hard it thinks" },
   { id: "plan", group: "How it runs", detail: "Plan first: turn plan mode on or off", arg: "on or off" },
@@ -110,6 +111,7 @@ export type ChatCommandId =
   | "review"
   | "security-review"
   | "agents"
+  | "voice"
   | "model"
   | "effort"
   | "plan"

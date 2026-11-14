@@ -127,6 +127,8 @@ export type ListItem =
       arg?: string;
       /** Other words it is found by, past its name: a connected folder's provider ("Google Drive", "SharePoint"), so typing the provider finds it. */
       find?: string;
+      /** Found only while typed (a nickname such as /status for /usage): not in the list at rest. */
+      typedOnly?: boolean;
       /** In the @ menu: the group it is listed under (the place knows who is in the chat). Without it an agent is under Agents and a person under People. */
       group?: string;
     };
@@ -227,6 +229,7 @@ function ranked(
 ): PopupItem[] {
   const scored: { at: number; q: number; item: PopupItem }[] = [];
   (items ?? []).forEach((x, at) => {
+    if (query === "" && typeof x !== "string" && x.typedOnly === true) return;
     const label = nameOf(x).replace(/^[#/]/, "");
     const find = typeof x === "string" ? undefined : x.find;
     const q = Math.max(quality(query, prepare(label)), find ? quality(query, prepare(find)) : 0);
@@ -793,6 +796,8 @@ export interface ComposerProps extends ComposerShellProps {
   panelBelow?: boolean;
   /** A count the place raises to open the model menu itself (the /model command): each increase opens it, where the strip's own press would. */
   openPanelAt?: number;
+  /** The place asked for the mic (/voice): the same press the mic button takes, once per ask. */
+  talkAt?: number;
   /** Where the chat runs, when it is not this computer: "On Northwind" in the pill. */
   runsChip?: string;
   /** The chat's mode; with onMode the chip shows and Shift+Tab cycles it. */
@@ -1277,6 +1282,14 @@ export function Composer(props: ComposerProps): ReactElement {
     },
     focus: () => input.current?.focus?.(),
   });
+  // /voice: the same press the mic button takes, once per ask
+  const talkAsked = useRef(props.talkAt ?? 0);
+  useEffect(() => {
+    const n = props.talkAt ?? 0;
+    if (n <= talkAsked.current) return;
+    talkAsked.current = n;
+    if (talk.port?.on === true) talk.tapped();
+  }, [props.talkAt]);
 
   const submit = useCallback(
     (mode: SendMode) => {

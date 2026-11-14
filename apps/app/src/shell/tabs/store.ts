@@ -65,7 +65,8 @@ const OWN_TAB: Readonly<Record<string, string>> = {
 export const NEW_CHAT = "New chat";
 
 /** What a place's own tab says: its name, except Chats, whose own tab is the landing, the new chat (G7, prototype scene "new"). */
-export const placeTabTitle = (place: PlaceId): string => (place === "chats" ? NEW_CHAT : PLACE_TITLE[place]);
+export const placeTabTitle = (place: PlaceId, hash?: string): string =>
+  place === "chats" && (hash === undefined || hash === "") ? NEW_CHAT : PLACE_TITLE[place];
 
 /** The name a tab starts with when its screen has one of its own; the place's name otherwise. */
 export function screenTitle(hash: string | undefined): string | undefined {
@@ -142,7 +143,7 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
     title:
       own || (cur.key === tab.key && title === NEW_CHAT && cur.title !== NEW_CHAT)
         ? cur.title
-        : (title ?? placeTabTitle(place)),
+        : (title ?? placeTabTitle(place, hash)),
     place,
     ...(hash === undefined || hash === "" ? {} : { hash }),
     ...(cur.pinned === true ? { pinned: true } : {}),
@@ -258,7 +259,7 @@ export function reorderTabs(state: TabsState, keys: readonly string[]): TabsStat
 export function placeTab(place: PlaceId, hash?: string, title?: string): TabEntry {
   return {
     key: tabKey(place, hash),
-    title: title ?? placeTabTitle(place),
+    title: title ?? placeTabTitle(place, hash),
     place,
     ...(hash === undefined || hash === "" ? {} : { hash }),
   };
@@ -395,7 +396,7 @@ export function readTabs(raw: string | null): TabsState | null {
           ? hashText === undefined
             ? PLACE_TITLE.chats
             : title
-          : hashText !== undefined && title === PLACE_TITLE[where]
+          : hashText !== undefined && (title === PLACE_TITLE[where] || (where === "chats" && title === NEW_CHAT))
             ? (screenTitle(hashText) ?? title)
             : title,
       place: where,
@@ -404,7 +405,9 @@ export function readTabs(raw: string | null): TabsState | null {
       ...(pinned === true ? { pinned: true } : {}),
       ...(typeof at === "number" ? { at } : {}),
       // a chat saved while its name read as blank carries the placeholder title: tab lists saved before the mark held are marked now, so they collapse to one like the rest
-      ...((empty === true || (title === NEW_CHAT && pinned !== true && isNew !== true)) && hashText !== undefined
+      ...((empty === true ||
+        (title === NEW_CHAT && pinned !== true && isNew !== true && screenTitle(hashText) === NEW_CHAT)) &&
+      hashText !== undefined
         ? { empty: true as const }
         : {}),
     });

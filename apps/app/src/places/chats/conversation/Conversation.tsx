@@ -161,6 +161,7 @@ import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/Stat
 import { refusalIsPending } from "../../../shell/session/just-made.ts";
 import { copyLinkText, itemLink, messageLink } from "../../../share/rows.ts";
 import { createMenuApi } from "../menus/actions.ts";
+import { chatMenu } from "../menus/chat.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { chatHeaderEntries, isArchivedIn } from "./chat-header-menu.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
@@ -411,6 +412,7 @@ function ConversationView(): ReactElement {
   const [renamingChat, setRenamingChat] = useState(false);
   // the chapter the chat is in now, drawn in grey after the title (G1); the chapter layer reports it
   const [chapterNow, setChapterNow] = useState("");
+  const [talkAt, setTalkAt] = useState(0);
   const moreAt = useRef<{ x: number; y: number }>({ x: 8, y: 48 });
   useEffect(() => {
     let live = true;
@@ -907,6 +909,7 @@ function ConversationView(): ReactElement {
     openSearch: (q) => data.nav.openSearch?.(q),
     openAdd: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
     ...(data.nav.openPaneTab ? { openPane: data.nav.openPaneTab } : {}),
+    startTalk: () => setTalkAt((n) => n + 1),
     send: (text) =>
       submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
   });
@@ -1077,6 +1080,84 @@ function ConversationView(): ReactElement {
   // the count is everyone who is here, people and agents, as the "Who's here" list names them (G2)
   const hereCount = new Set([...thread.members.map((m) => m.id), ...thread.agents.map((a) => a.agentId)]).size;
   const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: openFace });
+  /** Star, Mute, Add people, Copy link, Leave or Delete: what the sidebar row's menu carries, from the same builder, for the open chat (G4: the head menu's "More"). */
+  const housekeeping = (): MenuEntry[] => {
+    const setMute = (on: boolean): void => {
+      setHdr((h) => ({ ...h, muted: on }));
+      void menuApi.setMute("thread", data.threadId, on).catch(() => {
+        setHdr((h) => ({ ...h, muted: !on }));
+        say("That did not go through.");
+      });
+    };
+    const copyLink = (): void => {
+      const link = itemLink("chat", data.threadId);
+      if (link === "") copyLinkText("");
+      else {
+        data.copy(link);
+        say("Link copied");
+      }
+    };
+    if (thread.kind !== "chat")
+      return [
+        { label: hdr.muted ? "Unmute" : "Mute", onSelect: () => setMute(!hdr.muted) },
+        { label: "Copy link", onSelect: copyLink },
+      ];
+    return chatMenu(
+      {
+        starred: hdr.starred,
+        unread: false,
+        local: false,
+        archived: hdr.archived,
+        withPeople: thread.agents.length === 0,
+        muted: hdr.muted,
+      },
+      {
+        open: () => undefined,
+        rename: () => setRenamingChat(true),
+        star: (on) => {
+          setHdr((h) => ({ ...h, starred: on }));
+          void Promise.resolve(
+            data.call("stars.toggle", { resource: { type: "thread", id: data.threadId }, on }),
+          ).catch(() => {
+            setHdr((h) => ({ ...h, starred: !on }));
+            say("That did not go through.");
+          });
+        },
+        markRead: () => undefined,
+        markUnread: () => undefined,
+        mute: setMute,
+        archive: () => undefined,
+        unarchive: () => undefined,
+        leave: () =>
+          void Promise.resolve(data.call("threads.leave", { threadId: data.threadId })).then(
+            () => say("You left this chat."),
+            fail("Could not leave."),
+          ),
+        remove: () =>
+          menu.show(
+            [
+              { head: "Delete this chat? It is hidden for you and can be restored for a while." },
+              {
+                label: "Delete chat",
+                danger: true,
+                onSelect: () =>
+                  void Promise.resolve(data.call("threads.delete", { threadId: data.threadId })).then(
+                    () => say("Chat deleted."),
+                    fail("Could not delete."),
+                  ),
+              },
+              { label: "Cancel" },
+            ],
+            moreAt.current.x,
+            moreAt.current.y,
+            "other",
+          ),
+        addPeople: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
+        copyLink,
+      },
+      { open: false, read: false },
+    ).filter((e) => !("label" in e && (e.label === "Archive" || e.label === "Unarchive")));
+  };
   const moreEntries = (): MenuEntry[] => {
     const switchEntry: MenuEntry[] =
       hasSwitch(thread) && repliesSwitch.on !== null
@@ -1123,6 +1204,7 @@ function ConversationView(): ReactElement {
             say("Back in your list.");
           }, fail("Could not unarchive.")),
         stopAll: () => void act.stopAll(data).catch(fail("Could not stop.")),
+        more: () => menu.show(housekeeping(), moreAt.current.x, moreAt.current.y, "other", { label: "Chat" }),
         extra: [...switchEntry, ...connectEntries(thread, data.nav)],
       },
     );
@@ -1558,7 +1640,7 @@ function ConversationView(): ReactElement {
       .map((x) => noteFor(x, "agent"))
       .filter((x) => mentionable(x, data.me.guest === true, inThread)),
     people: (data.lists.people ?? []).map((x) => noteFor(x, "person")),
-    commands: commandItems(data.pluginCommands?.()),
+    commands: commandItems(data.pluginCommands?.(), thread.kind === "chat" && thread.agents.length > 0),
   };
   const mode: ChatMode = modeOver ?? modeOf(thread);
   const chooseChatMode = (m: ChatMode): void => {
@@ -2195,6 +2277,7 @@ function ConversationView(): ReactElement {
               suggest={composerSuggest(data)}
               preview={(item) => previewOf(data, item)}
               openPanelAt={panelAt}
+              talkAt={talkAt}
               renderPanel={(agent, close, narrowPanel) => (
                 <ChatBrain
                   data={data}

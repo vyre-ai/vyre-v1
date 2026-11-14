@@ -205,3 +205,35 @@ test("the folder Move picker opens with a search box and the path, and never off
   );
   assert.ok(html.includes("Move to Top of Files"), "the one action names where it moves to");
 });
+
+test("the head menu never offers what the chat cannot use: no Archive for a channel, no Stop everyone with nobody working or no agent, no Mute in a chat with an agent; More closes it where the chat can say it", () => {
+  const d = { plan() {}, fork() {}, find() {}, exportMd() {}, mute() {}, archive() {}, unarchive() {}, stopAll() {} };
+  const base = {
+    withAgent: true,
+    withPeople: false,
+    planOn: false,
+    muted: false,
+    archived: false,
+    working: false,
+    archivable: true,
+  };
+  const has = (f: object, l: string, extra: object = {}): boolean =>
+    labels(chatHeaderEntries({ ...base, ...f }, { ...d, ...extra })).includes(l);
+  assert.equal(has({ archivable: false }, "Archive"), false, "a channel is archived in its own place");
+  assert.equal(has({ archivable: false, archived: true }, "Unarchive"), false);
+  assert.equal(has({ working: false }, "Stop everyone"), false, "nobody working");
+  assert.equal(
+    has({ withAgent: false, withPeople: true, working: true }, "Stop everyone"),
+    false,
+    "no agent in the chat",
+  );
+  assert.equal(
+    has({ withAgent: true, withPeople: true }, "Mute"),
+    false,
+    "an agent chat with people has no Mute in the head",
+  );
+  assert.equal(has({ withAgent: false, withPeople: true }, "Mute"), true);
+  assert.equal(has({}, "More"), false, "More only where the chat can say what is behind it");
+  const entries = labels(chatHeaderEntries({ ...base, working: true }, { ...d, more: () => undefined }));
+  assert.deepEqual(entries.slice(-3), ["Archive", "More", "Stop everyone"], "More closes the list, before the red row");
+});

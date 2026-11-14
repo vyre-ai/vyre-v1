@@ -92,6 +92,7 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
     openSearch: (q) => void flags.search.push(q),
     send: (t) => void flags.sent.push(t),
     openPane: (tab) => void opened.push(`pane:${tab}`),
+    startTalk: () => undefined,
   };
   return {
     s,
@@ -112,7 +113,8 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
 /* ---------- the one list ---------- */
 
 test("the menu after / is the one list from lib/chat-commands, in order, and every entry that takes words says what they are", () => {
-  const items = commandItems();
+  // the nicknames (/status, /clear ...) are found while typed and are not part of the list at rest
+  const items = commandItems().filter((i) => typeof i === "string" || i.typedOnly !== true);
   assert.deepEqual(
     items.map((i) => (typeof i === "string" ? i : i.t)),
     CHAT_COMMANDS.map((c) => c.id),
@@ -134,7 +136,9 @@ test("plugin commands come after ours and never replace one of ours", () => {
     { name: "plan", description: "A clashing plan" },
     { name: "Summarise", description: "Summarise" },
   ];
-  const names = commandItems(plugins).map((i) => (typeof i === "string" ? i : i.t));
+  const names = commandItems(plugins)
+    .filter((i) => typeof i === "string" || i.typedOnly !== true)
+    .map((i) => (typeof i === "string" ? i : i.t));
   assert.deepEqual(names.slice(CHAT_COMMANDS.length), ["review-pr", "summarise"]);
   assert.equal(names.filter((n) => n === "plan").length, 1);
 });
@@ -1255,6 +1259,7 @@ test("each of the commands ends in the kind the table says (a hint or an error i
     agents: "/agents",
     model: "/model",
     effort: "/effort",
+    voice: "/voice",
     plan: "/plan on",
     permissions: "/permissions",
     new: "/new",
@@ -1432,4 +1437,40 @@ test("/usage and /context are two commands: usage opens the usage card, context 
   );
   await spec.compact("the decisions", true);
   assert.ok(r.calls.some((c) => c.cap === "engine.compact" && JSON.stringify(c.input).includes("the decisions")));
+});
+
+test("typing /us finds /usage; the nicknames /status and /cost are found while typed, show the word typed and the command they run, and are not in the list at rest", () => {
+  const lists: ComposerLists = { commands: commandItems() };
+  const at = (query: string): PopupItem[] =>
+    popupFor({ ch: "/", start: 0, end: 1 + query.length, query }, lists, true).filter(
+      (e): e is PopupItem => "group" in e,
+    );
+  assert.ok(
+    at("us").some((e) => e.label === "usage"),
+    "/us finds /usage",
+  );
+  const sta = at("sta");
+  assert.ok(
+    sta.some((e) => e.label === "status" && e.note === "Same as /usage"),
+    JSON.stringify(sta.map((e) => e.label)),
+  );
+  assert.ok(at("cos").some((e) => e.label === "cost" && e.note === "Same as /usage"));
+  assert.ok(!at("").some((e) => e.label === "status" || e.label === "cost"), "never in the list at rest");
+  assert.equal(parseSlash("/status")?.id, "usage");
+});
+
+test("/voice starts the mic; /agents, /memory, /skills and /hooks are not offered in a channel or a chat with one other person, and say why if typed", async () => {
+  const r = rig();
+  let talked = 0;
+  r.env.startTalk = () => void talked++;
+  await runSlash("/voice", r.env);
+  assert.equal(talked, 1);
+  const names = (agents: boolean): string[] => commandItems([], agents).map((i) => (typeof i === "string" ? i : i.t));
+  for (const id of ["agents", "memory", "skills", "hooks", "usage"]) assert.ok(names(true).includes(id), id);
+  for (const id of ["agents", "memory", "skills", "hooks"])
+    assert.ok(!names(false).includes(id), `${id} is not in a chat with no agent pane`);
+  assert.ok(names(false).includes("usage") && names(false).includes("find"));
+  const dm = { ...r.env, thread: { ...r.env.thread, kind: "chat", agents: [] } } as never;
+  await runSlash("/skills", dm);
+  assert.match(r.said.at(-1) ?? "", /is for a chat with an agent/);
 });

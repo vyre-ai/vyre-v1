@@ -261,7 +261,7 @@ function PaneView({
               kept: keptBody !== undefined,
               people: people !== undefined,
               terminal: data.terminal !== undefined,
-              skills: hasSkills,
+              skills: hasSkills || wanted === "skills",
               hooks: hasHooks,
             }),
           ]
@@ -282,14 +282,17 @@ function PaneView({
       hasSkills,
       hasHooks,
       longSession,
+      wanted,
     ],
   );
   // a long session shows the chat's own pane: Overview, Threads, Files, Kept, then the rest behind More (the agent's profile is one tap away on its page)
   const tabs = useMemo(() => (longSession && !mine ? sessionTabs(baseTabs) : baseTabs), [baseTabs, longSession, mine]);
   // a tab that the chat does not have (Crew once the helpers are gone, About in the chat's own pane) gives way to the first one it does
+  // /agents asks for Crew; with nobody else working the right place is Threads, where the agents of the chat are listed
+  const asked: TabKey = mine && wanted === "crew" && !tabs.some((t) => t.key === "crew") ? "threads" : wanted;
   const tab: TabKey = mine
-    ? tabs.some((t) => t.key === wanted)
-      ? wanted
+    ? tabs.some((t) => t.key === asked)
+      ? asked
       : (tabs[0]?.key ?? DEFAULT_TAB)
     : wanted === "computer" && !showComputer
       ? "about"

@@ -285,3 +285,37 @@ test("the controller's move keeps a pinned tab pinned and never opens a hidden p
   const moved = moveTab(pinned, "inbox", "subject=conversation:c1");
   assert.deepEqual([moved.tabs.length, moved.tabs[0]?.pinned, moved.tabs[0]?.key], [1, true, "inbox"]);
 });
+
+test("a saved tab keeps its own title and kind: a Notes tab is not a new chat, and only a chat saved blank is marked empty; the landing is the one New chat", () => {
+  const tab = (key: string, title: string, place: string, hash?: string) => ({
+    key,
+    title,
+    place,
+    ...(hash ? { hash } : {}),
+  });
+  const raw = JSON.stringify({
+    v: 1,
+    active: "chats",
+    tabs: [
+      tab("chats", "New chat", "chats"),
+      tab("chats:screen=chats.notes", "New chat", "chats", "screen=chats.notes"),
+      tab("chats:subject=thread:t1", "New chat", "chats", "subject=thread:t1"),
+      tab("files", "Files", "files"),
+      tab("records", "Records", "records"),
+    ],
+  });
+  const got = readTabs(raw)!;
+  const by = (place: "chats" | "files" | "records", hash?: string) =>
+    got.tabs.find((t) => t.key === tabKey(place, hash))!;
+  assert.equal(by("chats").title, "New chat");
+  assert.equal(by("chats").empty, undefined, "the landing is not an empty chat");
+  assert.equal(by("chats", "screen=chats.notes").title, "Notes");
+  assert.equal(by("chats", "screen=chats.notes").empty, undefined, "a Notes tab is never folded away");
+  assert.equal(by("chats", "subject=thread:t1").title, "New chat");
+  assert.equal(by("chats", "subject=thread:t1").empty, true, "a chat saved blank is marked");
+  assert.equal(by("files").title, "Files");
+  assert.equal(by("records").title, "Records");
+  // a place opened on a screen is named for the place, not "New chat"
+  assert.equal(placeTab("chats", "screen=chats.notes").title, "Chats");
+  assert.equal(placeTab("chats").title, "New chat");
+});
