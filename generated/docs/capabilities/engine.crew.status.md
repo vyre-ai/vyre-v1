@@ -34,7 +34,7 @@ type In = {
 ```ts
 type Out = {
   members: Array<{
-      kind: "helper" | "teammate";
+      kind: "helper" | "teammate" | "subagent";
       id: string;
       jobId?: string;
       parentThreadId: string;
@@ -44,7 +44,9 @@ type Out = {
       state: "working" | "done" | "needs_you" | "failed" | "stopped";
       holdTaskId?: string;
       step?: string;
+      steps?: Array<string>;
       found?: string;
+      answer?: string;
       startedAt: number;
       endedAt?: number;
       elapsedMs: number;
@@ -112,6 +114,7 @@ type Out = {
         "accountLabel": "example",
         "added": 1,
         "agentId": "agt_a1b2c3",
+        "answer": "example",
         "branch": "example",
         "costMicros": 1,
         "deleted": 1,
@@ -127,7 +130,7 @@ type Out = {
         ],
         "found": "example",
         "holdTaskId": "tsk_a1b2c3",
-        "id": "thr_a1b2c3",
+        "id": "example",
         "jobId": "example",
         "kind": "helper",
         "merged": true,
@@ -138,6 +141,9 @@ type Out = {
         "startedAt": 1760000000000,
         "state": "working",
         "step": "example",
+        "steps": [
+          "example"
+        ],
         "tests": {
           "failed": 1,
           "failing": "example",

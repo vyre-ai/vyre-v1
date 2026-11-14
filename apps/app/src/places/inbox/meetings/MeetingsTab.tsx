@@ -214,7 +214,7 @@ function LinkText({ label, onPress, testID }: { label: string; onPress: () => vo
   );
 }
 
-function Field({
+function TextBox({
   value,
   onChange,
   label,
@@ -355,7 +355,7 @@ function ItemCard({ item, api }: { item: Item; api: ItemApi }): ReactElement {
     body = (
       <View style={st.itemBody}>
         {editing ? (
-          <Field
+          <TextBox
             value={val("title", item.title)}
             onChange={set("title")}
             label="Task"
@@ -386,7 +386,7 @@ function ItemCard({ item, api }: { item: Item; api: ItemApi }): ReactElement {
             <Text style={st.itemMeta}>{taskMeta(item, api.nameOf, api.offsetMin)}</Text>
           ) : null}
           {editing ? (
-            <Field
+            <TextBox
               value={val("due", isoDay(item.due, api.offsetMin))}
               onChange={set("due")}
               label="Due date, 2026-11-07"
@@ -418,7 +418,7 @@ function ItemCard({ item, api }: { item: Item; api: ItemApi }): ReactElement {
             </>
           ) : null}
           {editing ? (
-            <Field value={val(`ch:${ch.field}`, ch.to)} onChange={set(`ch:${ch.field}`)} label={ch.title} />
+            <TextBox value={val(`ch:${ch.field}`, ch.to)} onChange={set(`ch:${ch.field}`)} label={ch.title} />
           ) : (
             <Text style={st.changeTo} numberOfLines={2}>
               {ch.to}
@@ -432,7 +432,7 @@ function ItemCard({ item, api }: { item: Item; api: ItemApi }): ReactElement {
         <Text style={st.itemTitle}>{item.title}</Text>
         {lines}
         {editing ? (
-          <Field
+          <TextBox
             value={val("note", item.note ?? "")}
             onChange={set("note")}
             label="Meeting note"
@@ -457,7 +457,7 @@ function ItemCard({ item, api }: { item: Item; api: ItemApi }): ReactElement {
           )}
         </Text>
         {editing ? (
-          <Field
+          <TextBox
             value={val("title", item.subject ?? item.title)}
             onChange={set("title")}
             label="Subject"
@@ -467,7 +467,7 @@ function ItemCard({ item, api }: { item: Item; api: ItemApi }): ReactElement {
           <Text style={st.itemTitle}>{item.subject ?? item.title}</Text>
         )}
         {editing ? (
-          <Field
+          <TextBox
             value={val("text", item.text ?? "")}
             onChange={set("text")}
             label="Email"
@@ -485,12 +485,12 @@ function ItemCard({ item, api }: { item: Item; api: ItemApi }): ReactElement {
     body = (
       <View style={st.itemBody}>
         {editing ? (
-          <Field value={val("title", item.title)} onChange={set("title")} label="Title" onEnter={save} />
+          <TextBox value={val("title", item.title)} onChange={set("title")} label="Title" onEnter={save} />
         ) : (
           <Text style={st.itemTitle}>{item.title}</Text>
         )}
         {editing ? (
-          <Field
+          <TextBox
             value={val("startsAt", isoMinute(item.startsAt, api.offsetMin))}
             onChange={set("startsAt")}
             label="Starts, 2026-11-07 15:00"

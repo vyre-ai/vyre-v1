@@ -12,6 +12,7 @@ import {
   createResourceRegistrar,
   idFits,
   KNOWN_TYPES,
+  lateEventPlace,
   missingAgentResources,
 } from "../src/gateway/resources.ts";
 import type { SubjectDef } from "../src/gateway/resources.ts";
@@ -836,4 +837,41 @@ test("the made-for-me stamp is an allow list of authoring calls: a capability no
   const names = new Set(registry.capabilities.map((c) => c.name));
   for (const cap of AUTHORING_CAPS)
     assert.ok(names.has(cap), `${cap} is on the authoring list but is not a capability`);
+});
+
+test("registrar: a calendar event is a resource inside its calendar, owned by the person the call acts for", () => {
+  const known = new Set(["spc_1", "cld_personal"]);
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => known.has(id) });
+  const rows = r.register({
+    cap: { name: "calendar.create_event", resource: { type: "calendar", id: "/calendarId" } },
+    input: { calendarId: "cld_personal" },
+    space: "spc_1",
+    owner: "usr_dana",
+    principal: { kind: "person", id: "usr_dana" },
+    events: [ev("calendar_event.created", { eventId: "cev_abc123", calendarId: "cld_personal" })],
+  });
+  assert.deepEqual(rows, [
+    { id: "cev_abc123", type: "calendar_event", parent_id: "cld_personal", label: 0, owner_id: "usr_dana", holds: 0 },
+  ]);
+});
+
+test("an event already in the store is registered inside its calendar and owned by the calendar's owner, never under the Space or in the Space owner's name; only an event whose calendar is unknown falls back", () => {
+  const mine = lateEventPlace({
+    calendar: { id: "cld_noah", owner_id: "usr_noah" },
+    spaceId: "spc_1",
+    spaceOwner: "usr_olivia",
+  });
+  assert.deepEqual(mine, { parent_id: "cld_noah", owner_id: "usr_noah", hostOwned: false });
+  const shared = lateEventPlace({
+    calendar: { id: "cld_team", owner_id: null },
+    spaceId: "spc_1",
+    spaceOwner: "usr_olivia",
+  });
+  assert.deepEqual(
+    shared,
+    { parent_id: "cld_team", owner_id: "usr_olivia", hostOwned: true },
+    "a Space calendar's event is the Space owner's, with the host mark",
+  );
+  const gone = lateEventPlace({ calendar: undefined, spaceId: "spc_1", spaceOwner: "usr_olivia" });
+  assert.deepEqual(gone, { parent_id: "spc_1", owner_id: "usr_olivia", hostOwned: true });
 });

@@ -373,7 +373,8 @@ test("an engine failure never stands alone: a missing sign-in, an engine that ca
   const unusable = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable" })));
   assert.match(unusable.cause ?? "", /not installed here|not signed in here|not connected/);
   const crash = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", exit: "137" })));
-  assert.match(crash.cause ?? "", /stopped with an error \(code 137\)/);
+  assert.match(crash.cause ?? "", /stopped with an error\. Try again/);
+  assert.ok(!/137/.test(crash.cause ?? ""), "the exit code is for Details, not the card (G41)");
   const bare = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error" })));
   assert.ok((bare.cause ?? "").length > 0, "no reason: still says what to do, and Details holds the code");
   assert.ok(!/^The engine stopped with an error before it replied\.$/.test(crash.message));

@@ -13,7 +13,7 @@ import { Switch } from "../../places/settings/ui.tsx";
 import { LogoTile } from "../../places/vault/layout/parts.tsx";
 import { IconTile } from "./CiRunners.tsx";
 import type { CiSettings } from "./CiRunners.tsx";
-import { Actions, Button, Field, FormSheet, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, TextBox, FormSheet, Note, ReadState, useAction, useRead } from "./shared.tsx";
 
 type Sign = CapMap["members.sign_in_github.get"]["out"]["github"];
 type App = CapMap["github.app.get"]["out"];
@@ -414,8 +414,8 @@ function KeysSheet({ sign, onClose, onDone }: { sign: Sign; onClose: () => void;
       <Text
         style={{ fontSize: 13, color: "var(--ink-3)" as string }}
       >{`Register ${sign.callbackUrl} as the callback at GitHub, then paste the client id and a new secret. The secret goes to Vault.`}</Text>
-      <Field label="Client id" value={clientId} onChange={setClientId} testID="gh-field-id" />
-      <Field
+      <TextBox label="Client id" value={clientId} onChange={setClientId} testID="gh-field-id" />
+      <TextBox
         label={sign.secretSet ? "New client secret (leave empty to keep the saved one)" : "Client secret"}
         value={secret}
         onChange={setSecret}
@@ -481,8 +481,8 @@ function CreateSheet({
       <Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>
         GitHub shows the app Vyre is asking for. Check it, then confirm.
       </Text>
-      <Field label="GitHub organization" value={org} onChange={setOrg} testID="gh-field-org" />
-      <Field label="App name" value={name} onChange={setName} testID="gh-field-name" />
+      <TextBox label="GitHub organization" value={org} onChange={setOrg} testID="gh-field-org" />
+      <TextBox label="App name" value={name} onChange={setName} testID="gh-field-name" />
       <Group>
         <Row id="gh-create-callback" title="Sign-in callback" note={callback} />
         <Row

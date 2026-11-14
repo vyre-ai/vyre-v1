@@ -223,6 +223,20 @@ const madeFor = (a: RegisterArgs): { made_by?: string; made_for?: string } =>
     ? { made_by: a.principal.id, made_for: a.owner }
     : {};
 
+/**
+ * Where a calendar event already in the store is registered the first time a call names it: inside its calendar, owned by that calendar's owner (a private Personal calendar's events are that person's alone and
+ * nobody else reaches them through the Space), and only when the calendar is unknown (a row whose calendar is gone) under the Space and the Space owner's name with the host mark.
+ */
+export function lateEventPlace(a: {
+  calendar: Pick<ResourceRow, "id" | "owner_id"> | undefined;
+  spaceId: string;
+  spaceOwner: string;
+}): { parent_id: string; owner_id: string; hostOwned: boolean } {
+  return a.calendar?.owner_id
+    ? { parent_id: a.calendar.id, owner_id: a.calendar.owner_id, hostOwned: false }
+    : { parent_id: a.calendar ? a.calendar.id : a.spaceId, owner_id: a.spaceOwner, hostOwned: true };
+}
+
 export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar {
   const subjects = new Map<string, SubjectDef["subject"]>();
   for (const e of deps.events) if (e.subject.type !== "entity" && !ENDS.test(e.name)) subjects.set(e.name, e.subject);

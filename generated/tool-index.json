@@ -50,6 +50,12 @@
     },
     {
       "deferred": false,
+      "name": "access_clears",
+      "summary": "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_deciders",
       "summary": "The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else",
       "toolset": "meta"
@@ -1382,6 +1388,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_chapters",
+      "summary": "The chapters of a long chat: where each starts (a Fresh context line, a gap of 3 hours, or 80 messages), its title and one line of what it settled. Empty for a chat of 40 messages or fewer. Worked out from the messages on every read",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_composer_suggest",
       "summary": "Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates",
       "toolset": "chats"
@@ -1544,6 +1556,18 @@
     },
     {
       "deferred": false,
+      "name": "chat_round_decide",
+      "summary": "Go with one agent's answer after a message asked several: one quiet line, \"Decided: going with Nova's answer\", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_round_discuss",
+      "summary": "Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts \"Decided:\". The engine's hand-off limits cap it at four turns. Only the person who asked",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_screen_get",
       "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
       "toolset": "chats"
@@ -1576,6 +1600,18 @@
       "deferred": false,
       "name": "chat_unpin",
       "summary": "Remove the pinned marker from a message",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chats_presence",
+      "summary": "Who is around (online or away; offline people are left out) and which agents are working now, with the chat when the asker may read it: the sidebar's dots and rings",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chats_sidebar",
+      "summary": "The Chats sidebar in one answer: what needs me, my goals, pinned, chats, channels and team, each with its first rows, its total and its marks, plus the one number for the rail",
       "toolset": "chats"
     },
     {
@@ -2870,6 +2906,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_round_get",
+      "summary": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_route_preview",
       "summary": "Who will answer a draft message (\"Intake will reply\" or \"No agent will reply, type @ to ask one\"); same route() the client runs locally",
       "toolset": "chats"
@@ -2945,6 +2987,12 @@
       "name": "engine_subscription_share_set",
       "summary": "Let the Space run work on my subscription (server runs for my chats, routines and personal automations); off kills my sandbox",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "engine_thread_states",
+      "summary": "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      "toolset": "chats"
     },
     {
       "deferred": false,
@@ -6692,6 +6740,12 @@
     },
     {
       "deferred": false,
+      "name": "notifications_unseen_by_thread",
+      "summary": "My unseen mentions per chat or channel, for the sidebar's mention badge; only my own, newest first, at most 500 threads",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "offer_note",
       "summary": "Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon",
       "toolset": "chats"
@@ -8701,6 +8755,54 @@
       "toolset": "meta"
     },
     {
+      "deferred": true,
+      "name": "state_counts",
+      "summary": "My badges: for each scope how many things have something unread (not done, not muted) and how many entries that is",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_get",
+      "summary": "My state on up to 500 things: how far I read, unread, done, starred, followed, muted",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_layout_get",
+      "summary": "How I arranged my screens: my layout values (all, or the named keys). A small value for each registered key, mine alone",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_layout_set",
+      "summary": "Set one layout value, or clear it with null. Only registered keys, each with a small size limit; it is never a place for content",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_list",
+      "summary": "My things by what I did with them: starred, following, done, unread, muted, pinned (in my own order) or any (everything I have set on anything: one read paints a whole screen). Each row carries the thing's whole state",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_read",
+      "summary": "Mark a thing read up to a position, mark it unread, or mark it unread from a position. Give exactly one of upto, unread, fromPos",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_read_scope",
+      "summary": "Mark everything in one badge read, or only what arrived before a time",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_set",
+      "summary": "Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, mute it, or pin it (`pin: {}` puts it last among my pins of this kind, `{ after: null }` first, `{ after: thing }` right below that pin; `pin: null` takes it off). Give at least one",
+      "toolset": "meta"
+    },
+    {
       "deferred": false,
       "name": "steps_test",
       "summary": "Run one step in test mode with sample data: reads run for real, writes and sends are stubbed",
@@ -9794,6 +9896,48 @@
     },
     {
       "deferred": false,
+      "name": "vault_connect",
+      "summary": "Is X connected, connect X (Fathom, Slack), or before saying you cannot reach X. The person gets one card; you get connected, waiting or declined.",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_ask_admin",
+      "summary": "Ask an admin to connect the service when this person may not",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_disconnect",
+      "summary": "Disconnect the service; the key stays in the Vault",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_get",
+      "summary": "The connect card of one request: its state, the fields, who can fill it, where the key is kept",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_options",
+      "summary": "Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_reopen",
+      "summary": "Open a card the person folded with Not now",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_connect_card_submit",
+      "summary": "Try the key, connect the service and keep the key; nothing is kept unless the key works. The values are in this call only",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "vault_export_env",
       "summary": "Export a folder as a .env file: one pull link that expires after 1 hour, 1 day or 7 days; never for Restricted items; the folder owner is notified",
       "toolset": "vault"
@@ -9963,7 +10107,7 @@
     {
       "deferred": false,
       "name": "vault_request",
-      "summary": "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
+      "summary": "Ask for a missing key that is not a service (a key a skill or run needs, by name): creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status. For a service the person names, use vault_connect",
       "toolset": "vault"
     },
     {

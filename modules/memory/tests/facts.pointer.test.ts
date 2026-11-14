@@ -175,3 +175,28 @@ test("another agent's layer and another person's layer stay out of the block", a
     ["Quokka is the Studio mascot"],
   );
 });
+
+test("lessons: the three newest of the agent's lessons for this person ride the first message of a chat whatever it says, once, and are not put in front of the agent again in that chat", async () => {
+  const h = harness();
+  for (let i = 1; i <= 5; i++)
+    seedFact(h, {
+      id: `fct_les${i}`,
+      layer: "person",
+      owner: "usr_dana",
+      agentId: "agt_intake",
+      kind: "lesson",
+      validFrom: NOW - i * DAY,
+      text: `Lesson ${i}: show me the draft first, and keep notes to three lines with the number first.`,
+    } as never);
+  const first = await pointer(h.ctx, { ...base, threadId: "thr_a", text: "Please run a few commands in the terminal" });
+  assert.deepEqual(
+    first.lines.map((l) => l.ref),
+    ["fct_les1", "fct_les2", "fct_les3"],
+    "three, newest first, though the message is about something else",
+  );
+  assert.ok(first.tokens > 0 && first.tokens <= 150, `about ${first.tokens} tokens for the three`);
+  const second = await pointer(h.ctx, { ...base, threadId: "thr_a", text: "Now check the disk" });
+  assert.deepEqual([second.lines.length, second.tokens, second.skipped], [0, 0, "duplicate"], "not again in this chat");
+  const other = await pointer(h.ctx, { ...base, threadId: "thr_b", text: "Run it again please" });
+  assert.equal(other.lines.length, 3, "a new chat gets them again");
+});

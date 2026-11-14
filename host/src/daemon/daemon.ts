@@ -189,6 +189,7 @@ import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
 import { createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
+import { SIGN_IN_FOLDER } from "../../../lib/company-keys.ts";
 import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
@@ -313,7 +314,7 @@ import {
   touchesAccess,
 } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
-import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
+import { createResourceRegistrar, lateEventPlace, missingAgentResources } from "../gateway/resources.ts";
 import {
   createPrincipalRegistrar,
   lowAgentUpgradeEvents,
@@ -323,6 +324,7 @@ import {
 } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
+import { bindStateKinds } from "../seams/state.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
 import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
@@ -2170,6 +2172,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return true;
         },
       };
+      // the kinds of thing that carry per-person state (modules export `stateKinds`): registered before the scheduler's first state.verify
+      bindStateKinds(db!, loaded.moduleExports);
       boundPorts = bindSpacePorts(loaded.moduleExports, portDeps);
       closers.push(() => unbindSpacePorts(loaded.moduleExports, portDeps));
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
@@ -3723,7 +3727,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               return r.output;
             };
             const NAME = "GitHub sign-in client secret",
-              FOLDER = "Sign-in",
+              FOLDER = SIGN_IN_FOLDER,
               field = { key: "client_secret", value: secret, secret: true };
             // Owner and Admin only: a Member's role carries Edit over the whole Space, so the folder and the item are labelled Restricted (above a Member's, a Developer's and every agent's clearance) before and after the value goes in
             const restrict = (type: "vault_folder" | "vault_item", id: string): Promise<unknown> =>
@@ -3931,6 +3935,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             }
             if (!found) return;
             const calendar = inside === null ? undefined : access.snap.resource(inside);
+            const place = lateEventPlace({
+              calendar,
+              spaceId,
+              spaceOwner: access.owner() ?? cfg.owner ?? "usr_owner",
+            });
             const r = await spaceLog.appendResult({
               id: `evt_res_${id}`,
               type: "resource.created",
@@ -3940,12 +3949,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               vis: "space",
               entity: "resource",
               entity_id: id,
-              payload: hostOwned(!calendar?.owner_id, {
+              payload: hostOwned(place.hostOwned, {
                 id,
                 type,
-                parent_id: calendar ? inside : spaceId,
+                parent_id: place.parent_id,
                 label: 0,
-                owner_id: calendar?.owner_id ?? access.owner() ?? cfg.owner ?? "usr_owner",
+                owner_id: place.owner_id /* the calendar's owner, else access.owner() (lateEventPlace) */,
                 holds: 0,
               }),
             });

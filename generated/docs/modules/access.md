@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (75)
+## Capabilities (76)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -17,6 +17,7 @@ Requires: files.
 - [access.audience_set](../capabilities/access.audience_set.md): Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record
 - [access.automation_senders](../capabilities/access.automation_senders.md): A person's press gives a Space Automation use of the mailboxes and numbers its send steps name, inside that person's own access, and takes back what no step names any more
 - [access.check](../capabilities/access.check.md): Access checker: can principal P do action A on resource R, with each step in plain words
+- [access.clears](../capabilities/access.clears.md): Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found
 - [access.connector_builder.grant](../capabilities/access.connector_builder.grant.md): Give an assistant the Connector builder role (Member permissions plus connectors.manage), making the role if the Space has none. Needs access.manage.
 - [access.connector_builder.status](../capabilities/access.connector_builder.status.md): Does this assistant hold the permission to build connectors, may the caller give it, and (when an item is named) may the assistant use that Vault item
 - [access.deciders](../capabilities/access.deciders.md): The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else

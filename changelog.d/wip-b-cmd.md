@@ -1,0 +1,8 @@
+- Slash commands now know what they hand back (a line, a card or a menu): "/usage" and "/permissions" give their answer as data with plain names and times, "Plan mode" and "Pin" can be undone, and a command that fails offers to run again.
+- A slash command's one-line result (and every other short line a chat says, such as "Link copied" or "Archived") now shows in the title bar's notice slot for 6 seconds with Undo or Retry where they apply, closes with Escape, and no longer sits above the message box.
+- "/model" opens the model menu the message box already has, where you would press it, instead of a second list at a fixed spot.
+- Nothing a person sees changes: the shared set gains a Group (titled block with its own hairlines) and a card variant of the shared dialog that sits above the message box with no veil.
+- "/btw" now follows the same rules as the other command cards: one at a time, closed by your next message or a click outside, and as wide as the message box.
+- The usage card counts your use in "replies", not "turns".
+- A command card closes when you open another chat, and "Take back" in /permissions is a real button that cannot take a rule back twice.
+- A command card closes when a menu or sheet opens above it, its controls show a focus ring, and Undo or Retry on a line fires once.

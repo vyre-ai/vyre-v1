@@ -86,6 +86,20 @@ const connectionRow = t.obj({
   }),
 });
 
+const serviceRow = t.obj({
+  key: id.connector,
+  title: t.str(),
+  scope: t.enm("person", "space"),
+  mode,
+  fields: t.arr(t.obj({ name: t.str(), label: t.str(), optional: t.bool() })),
+  site: t.opt(t.str({ description: "The app's own page, where its keys are found" })),
+  builtin: t.bool(),
+  /** The host a key is tried against: the connector's first declared host */
+  host: t.opt(t.str()),
+  /** A call exists that tries a key (its health call, else its first read that needs no input) */
+  checks: t.bool(),
+});
+
 const syncedTypeRow = t.obj({
   syncTypeId,
   type: id.recordType,
@@ -645,6 +659,44 @@ export default defineManifest({
         tool: "automations",
         // a key goes only to a host a person approved for it: an agent binding a key to domains nobody approved waits for a person who may use the key
         gate: { act: "send", when: "automations.bind_hosts_unapproved(input)" },
+      },
+    ),
+    // b-connect (14 Nov 2026): the two reads the connect card stands on. The first names the connector for a service a person said in words and says whether they already have it; the second tries a
+    // key the person typed against the app BEFORE anything is stored, and answers ok, rejected or unreachable. Neither keeps a value, and the answer never repeats one.
+    read(
+      "connectors.for_service",
+      "Find the connector for a service named in words (Fathom, Slack), the fields it needs, and whether the caller already has it connected",
+      {
+        level: "member",
+        in: { service: t.str({ examples: ["Fathom"] }) },
+        out: {
+          found: t.bool(),
+          connector: t.opt(serviceRow),
+          connection: t.opt(
+            t.obj({
+              connectionId: id.connection,
+              owner: t.enm("mine", "space"),
+              state: t.enm("pending", "active", "paused", "needs_reconnect", "failing"),
+            }),
+          ),
+          near: t.opt(t.arr(t.str(), { description: "Names of the connectors that came closest, when none matched" })),
+        },
+      },
+    ),
+    write(
+      "connectors.check_key",
+      "Try the key a person typed against the app before it is stored; answers ok, rejected or unreachable and never repeats the key",
+      {
+        level: "member",
+        in: { connector: id.connector, secrets: t.rec(t.str()) },
+        out: {
+          result: t.enm("ok", "rejected", "unreachable"),
+          tested: t.opt(t.str({ description: "What the check read, in a few words" })),
+        },
+        audit: "none",
+        // the connector's call can end in a refused key; with no connection behind it nothing is marked, but the framework's path is shared with connections.test
+        emits: ["connection.needs_reconnect"],
+        errors: ["validation.not_found", "validation.precondition_failed"],
       },
     ),
     write("connections.update", "Rename a connection or change its scopes", {

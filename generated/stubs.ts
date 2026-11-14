@@ -27,6 +27,7 @@ export function stubs(ctx: CallCtx) {
       audience_set: call("access.audience_set"),
       automation_senders: call("access.automation_senders"),
       check: call("access.check"),
+      clears: call("access.clears"),
       connector_builder: {
         grant: call("access.connector_builder.grant"),
         status: call("access.connector_builder.status"),
@@ -411,6 +412,8 @@ export function stubs(ctx: CallCtx) {
       ask_suggest: call("chat.ask_suggest"),
       asks_of: call("chat.asks_of"),
       catch_up: call("chat.catch_up"),
+      chapters: call("chat.chapters"),
+      chapters_write: call("chat.chapters_write"),
       composer: {
         suggest: call("chat.composer.suggest"),
       },
@@ -473,6 +476,10 @@ export function stubs(ctx: CallCtx) {
       recent: call("chat.recent"),
       remember: call("chat.remember"),
       reply_details: call("chat.reply_details"),
+      round: {
+        decide: call("chat.round.decide"),
+        discuss: call("chat.round.discuss"),
+      },
       screen: {
         get: call("chat.screen.get"),
       },
@@ -491,6 +498,10 @@ export function stubs(ctx: CallCtx) {
         summary: call("chat.transcript.summary"),
       },
       unpin: call("chat.unpin"),
+    },
+    chats: {
+      presence: call("chats.presence"),
+      sidebar: call("chats.sidebar"),
     },
     ci: {
       cost: {
@@ -644,9 +655,11 @@ export function stubs(ctx: CallCtx) {
     },
     connectors: {
       build: call("connectors.build"),
+      check_key: call("connectors.check_key"),
       define: call("connectors.define"),
       diff: call("connectors.diff"),
       export: call("connectors.export"),
+      for_service: call("connectors.for_service"),
       get: call("connectors.get"),
       health: call("connectors.health"),
       init: call("connectors.init"),
@@ -910,6 +923,9 @@ export function stubs(ctx: CallCtx) {
         get: call("engine.reviewer.get"),
         set: call("engine.reviewer.set"),
       },
+      round: {
+        get: call("engine.round.get"),
+      },
       route: {
         preview: call("engine.route.preview"),
       },
@@ -935,6 +951,7 @@ export function stubs(ctx: CallCtx) {
         set: call("engine.subscription_share.set"),
       },
       switch: call("engine.switch"),
+      thread_states: call("engine.thread_states"),
       time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),
@@ -2099,6 +2116,7 @@ export function stubs(ctx: CallCtx) {
         set: call("notifications.rules.set"),
       },
       send: call("notifications.send"),
+      unseen_by_thread: call("notifications.unseen_by_thread"),
     },
     plugins: {
       agent_template: {
@@ -2636,6 +2654,25 @@ export function stubs(ctx: CallCtx) {
       list: call("stars.list"),
       toggle: call("stars.toggle"),
     },
+    state: {
+      arrive: call("state.arrive"),
+      counts: call("state.counts"),
+      forget: call("state.forget"),
+      gain: call("state.gain"),
+      get: call("state.get"),
+      layout: {
+        get: call("state.layout.get"),
+        set: call("state.layout.set"),
+      },
+      list: call("state.list"),
+      lose: call("state.lose"),
+      merge: call("state.merge"),
+      read: call("state.read"),
+      read_scope: call("state.read_scope"),
+      retract: call("state.retract"),
+      set: call("state.set"),
+      verify: call("state.verify"),
+    },
     steps: {
       support: call("steps.support"),
       test: call("steps.test"),
@@ -2861,6 +2898,7 @@ export function stubs(ctx: CallCtx) {
       attach: call("terminal.attach"),
       close: call("terminal.close"),
       get: call("terminal.get"),
+      give_back: call("terminal.give_back"),
       health: call("terminal.health"),
       input: call("terminal.input"),
       interrupt: call("terminal.interrupt"),
@@ -2878,6 +2916,7 @@ export function stubs(ctx: CallCtx) {
       },
       run: call("terminal.run"),
       status: call("terminal.status"),
+      take_over: call("terminal.take_over"),
       workspace: call("terminal.workspace"),
     },
     threads: {
@@ -2968,6 +3007,15 @@ export function stubs(ctx: CallCtx) {
       status: call("updates.status"),
     },
     vault: {
+      connect: call("vault.connect"),
+      connect_card: {
+        ask_admin: call("vault.connect_card.ask_admin"),
+        disconnect: call("vault.connect_card.disconnect"),
+        get: call("vault.connect_card.get"),
+        options: call("vault.connect_card.options"),
+        reopen: call("vault.connect_card.reopen"),
+        submit: call("vault.connect_card.submit"),
+      },
       export_env: call("vault.export_env"),
       exports: {
         list: call("vault.exports.list"),

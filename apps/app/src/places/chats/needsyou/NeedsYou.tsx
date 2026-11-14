@@ -726,7 +726,13 @@ function Detail({
         </View>
       ) : null}
       {keyReq && providing ? (
-        <KeyRequestCard requestId={keyReq.requestId} agent={who} agentId={t.createdBy} data={{ call: data.call }} />
+        <KeyRequestCard
+          requestId={keyReq.requestId}
+          agent={who}
+          agentId={t.createdBy}
+          data={{ call: data.call, nameOf: data.nameOf }}
+          service={keyReq.service}
+        />
       ) : null}
       {replacing && fix === "replace_key" ? (
         <ReplaceKeySheet

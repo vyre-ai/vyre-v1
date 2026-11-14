@@ -10,6 +10,8 @@ export interface TerminalRowLike {
   host: string;
   agentId?: string | undefined;
   state: "running" | "idle" | "exited";
+  cwd?: string | undefined;
+  heldBy?: string | undefined;
   lastActiveAt?: number | undefined;
   by?: { kind: "agent" | "helper" | "person"; name?: string | undefined } | undefined;
 }
@@ -34,10 +36,16 @@ export function workspaceView(
   read: WorkspaceRead,
   rows: readonly TerminalRowLike[],
   projectNames: readonly string[] = [],
+  lastLines: ReadonlyMap<string, string> = new Map(),
 ): WorkspaceView {
   const mine = rows.filter((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited");
   const sessions: WorkspaceSession[] = mine.map((r) => ({
     name: r.name,
+    terminalId: r.terminalId,
+    state: r.state,
+    ...(r.cwd ? { cwd: r.cwd } : {}),
+    ...(r.heldBy ? { heldBy: r.heldBy } : {}),
+    ...(lastLines.get(r.terminalId) ? { lastLine: lastLines.get(r.terminalId) as string } : {}),
     owner: r.by ?? { kind: "agent" },
     ...(r.lastActiveAt !== undefined ? { lastActiveAt: r.lastActiveAt } : {}),
   }));
@@ -80,6 +88,8 @@ export function workspaceData(d: {
       return () => clearInterval(t);
     });
   const names = new Map<string, string>();
+  const ensuring = new Map<string, Promise<string>>();
+  const lastSeen = new Map<string, Map<string, string>>();
   const nameOfProject = async (id: string): Promise<string | null> => {
     const known = names.get(id);
     if (known !== undefined) return known;
@@ -128,9 +138,29 @@ export function workspaceData(d: {
           const projects = (await Promise.all((read.projects ?? []).map(nameOfProject))).filter(
             (x): x is string => x !== null,
           );
+          // what each terminal last printed, for the row's one live line: read for a few rows, never blocking the first paint (it comes with the next answer)
+          const mineRows = rows.filter(
+            (r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited",
+          );
           if (live && mine === seq) {
             shown = true;
-            on(workspaceView(agentId, read, rows, projects));
+            on(workspaceView(agentId, read, rows, projects, lastSeen.get(agentId)));
+          }
+          if (mineRows.length > 0 && mineRows.length <= 12 && read.state === "running") {
+            try {
+              const st = (await d.call("terminal.status", { terminalIds: mineRows.map((r) => r.terminalId) })) as {
+                rows?: Array<{ terminalId: string; lastLine?: string }>;
+              };
+              const m = new Map<string, string>();
+              for (const x of st.rows ?? [])
+                if (x.lastLine && x.lastLine.trim() !== "") m.set(x.terminalId, x.lastLine.trim().slice(0, 160));
+              const before = JSON.stringify([...(lastSeen.get(agentId) ?? [])]);
+              lastSeen.set(agentId, m);
+              if (live && mine === seq && JSON.stringify([...m]) !== before)
+                on(workspaceView(agentId, read, rows, projects, m));
+            } catch {
+              /* the rows keep what they had */
+            }
           }
         })().catch((e: unknown) => {
           // never a placeholder that does not fill: until a first answer comes, the refusal is the line (the next poll replaces it)
@@ -148,6 +178,32 @@ export function workspaceData(d: {
     },
     async wake(agentId) {
       await open(agentId);
+    },
+    // the agent's computer has a terminal open before anyone asks: one open at a time per agent, and only while the agent has none (a second pane or a second call finds the first one's)
+    async ensure(agentId) {
+      const pending = ensuring.get(agentId);
+      if (pending) return pending;
+      const s = rowsQuery().getSnapshot();
+      const has =
+        s.status === "ready" && s.data
+          ? s.data.terminals.find((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited")
+          : undefined;
+      if (has) return has.terminalId;
+      const p = open(agentId).then(
+        (id) => {
+          ensuring.delete(agentId);
+          return id;
+        },
+        (e: unknown) => {
+          ensuring.delete(agentId);
+          throw e;
+        },
+      );
+      ensuring.set(agentId, p);
+      return p;
+    },
+    open(terminalId) {
+      d.openTerminal(terminalId);
     },
     async attach(agentId) {
       const s = rowsQuery().getSnapshot();

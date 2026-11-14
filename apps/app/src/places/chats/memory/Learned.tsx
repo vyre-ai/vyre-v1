@@ -8,19 +8,37 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { each } from "../../files/memory/model.ts";
 import { correctFact, restoreLearned, undoLearned } from "./actions.ts";
-import { LAYER_SCOPE, learnedExact, learnedWhen, SCOPE_TEXT } from "./model.ts";
+import { LAYER_SCOPE, learnedExact, learnedWhen } from "./model.ts";
 import type { LearnedRow } from "./model.ts";
+import { LessonMark } from "./LessonMark.tsx";
 import { LinkButton, webProps, ownMenu } from "./parts.tsx";
 import { useThreadMemory } from "./thread.tsx";
 
-export function LearnedLines({ messageId }: { messageId: string }): ReactElement | null {
+/**
+ * What a message taught. A lesson is one quiet line, "Learned a lesson · Undo · See", with none of its words (they open on See); once the next reply has come (`settled`) the line folds into the quiet
+ * mark of the message's row (LessonMark.tsx). Any other fact keeps its line with its words.
+ */
+export function LearnedLines({
+  messageId,
+  settled = false,
+}: {
+  messageId: string;
+  /** a reply has come since this message: its lessons fold into the mark */ settled?: boolean;
+}): ReactElement | null {
   const thread = useThreadMemory();
   if (!thread) return null;
   const rows = thread.learnedFrom(messageId);
   if (rows.length === 0) return null;
+  const folded = settled ? rows.filter((r) => r.lesson !== undefined && r.current) : [];
+  const shown = rows.filter((r) => !folded.includes(r));
   return (
-    <View testID={`learned-${messageId}`}>
-      {each(rows, (r) => (
+    <View testID={`learned-${messageId}`} style={folded.length > 0 && shown.length === 0 ? st.markOnly : undefined}>
+      {folded.length > 0 ? (
+        <View style={st.markRow}>
+          <LessonMark id={messageId} kind="learned" lessons={folded.map((r) => ({ factId: r.factId, text: r.text }))} />
+        </View>
+      ) : null}
+      {each(shown, (r) => (
         <LearnedLine key={r.factId} row={r} />
       ))}
     </View>
@@ -119,8 +137,8 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
     );
   }
   const lesson = row.lesson;
-  // every line says who can read it: a lesson its own scope, any other fact its layer
-  const scopeWords = lesson ? SCOPE_TEXT[lesson.scope] : row.layer ? LAYER_SCOPE[row.layer] : undefined;
+  // every line says who can read it: any other fact its layer (a lesson is only ever its person's own, and its line says nothing but that one was learned)
+  const scopeWords = lesson ? undefined : row.layer ? LAYER_SCOPE[row.layer] : undefined;
   const items = (x: number, y: number): void =>
     menu.show(
       [
@@ -146,16 +164,22 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
   return (
     <View
       testID={`learned-line-${row.factId}`}
-      accessibilityLabel={`Learned: ${row.text}`}
+      accessibilityLabel={lesson ? "Learned a lesson" : `Learned: ${row.text}`}
       {...webProps({ tabIndex: 0 })}
       {...ownMenu(items)}
       style={st.line}
     >
       <View style={st.dot} />
-      <Text style={st.text}>
-        <Text style={st.bold}>Learned:</Text>
-        {` ${row.subjectTitle ? `${row.subjectTitle}: ` : ""}${row.text}`}
-      </Text>
+      {lesson ? (
+        <Text style={st.text}>
+          <Text style={st.bold}>Learned a lesson</Text>
+        </Text>
+      ) : (
+        <Text style={st.text}>
+          <Text style={st.bold}>Learned:</Text>
+          {` ${row.subjectTitle ? `${row.subjectTitle}: ` : ""}${row.text}`}
+        </Text>
+      )}
       {scopeWords ? (
         <>
           <Text style={st.sep}>·</Text>
@@ -164,10 +188,14 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
           </Text>
         </>
       ) : null}
-      <Text style={st.sep}>·</Text>
-      <Text testID={`learned-when-${row.factId}`} {...webProps({ title: learnedExact(row.at) })} style={st.scope}>
-        {learnedWhen(row.at, memory.now())}
-      </Text>
+      {lesson ? null : (
+        <>
+          <Text style={st.sep}>·</Text>
+          <Text testID={`learned-when-${row.factId}`} {...webProps({ title: learnedExact(row.at) })} style={st.scope}>
+            {learnedWhen(row.at, memory.now())}
+          </Text>
+        </>
+      )}
       <Text style={st.sep}>·</Text>
       <LinkButton label="Undo" testID={`learned-undo-${row.factId}`} a11y={`Undo: ${row.text}`} onPress={undo} />
       <Text style={st.sep}>·</Text>
@@ -200,6 +228,8 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
 }
 
 const st = StyleSheet.create({
+  markOnly: { alignSelf: "flex-end" },
+  markRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 2 },
   line: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 8, marginBottom: 2 },
   dot: { width: 5, height: 5, borderRadius: 3, marginRight: 2, backgroundColor: "var(--ok)" as string },
   dotOff: { backgroundColor: "var(--ink-4)" as string },

@@ -22,6 +22,7 @@ const LIVE = [
   "members",
   "settings",
   "spaces",
+  "state",
   "talk",
   "vault",
   "vault-requests",

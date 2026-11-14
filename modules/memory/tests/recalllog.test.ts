@@ -23,7 +23,16 @@ test("the record holds ids only; memory.used returns the facts and quotes read a
     respond: {
       "chat.history.search": (i) => ({ hits: i["ref"] === "msg_9" ? [quote] : [] }),
       "search.resolve": () => ({}),
-      "chat.message.get": () => ({ message: { createdAt: 100 } }),
+      "chat.message.get": (i) => ({
+        message:
+          i["messageId"] === "msg_reply"
+            ? { threadSeq: 2, author: { kind: "agent", id: "agt_i" }, createdAt: 100 }
+            : { threadSeq: 1, author: { kind: "person", id: "usr_dana" }, createdAt: 50 },
+      }),
+      "chat.messages.list": () => ({
+        messages: [{ messageId: "msg_a", threadSeq: 1, author: { kind: "person", id: "usr_dana" } }],
+        hasMore: false,
+      }),
     },
   });
   seedFact(h, { id: "fct_1", layer: "person", owner: "usr_dana", text: "Dana prefers short answers." } as never);
@@ -66,4 +75,41 @@ test("the record holds ids only; memory.used returns the facts and quotes read a
     1,
     "removed facts stay readable as history to their owner",
   );
+});
+
+test("a later reply does not inherit the recall of an earlier message: only the message that caused the reply counts", async () => {
+  const msgs: Record<
+    string,
+    { messageId: string; threadSeq: number; author: { kind: string; id: string }; createdAt: number; replyTo?: string }
+  > = {
+    msg_q1: { messageId: "msg_q1", threadSeq: 1, author: { kind: "person", id: "usr_dana" }, createdAt: 10 },
+    msg_r1: { messageId: "msg_r1", threadSeq: 2, author: { kind: "agent", id: "agt_i" }, createdAt: 20 },
+    msg_q2: { messageId: "msg_q2", threadSeq: 3, author: { kind: "person", id: "usr_dana" }, createdAt: 30 },
+    msg_r2: { messageId: "msg_r2", threadSeq: 4, author: { kind: "agent", id: "agt_i" }, createdAt: 40 },
+  };
+  const h = harness({
+    respond: {
+      "chat.message.get": (i) => ({ message: msgs[String(i["messageId"])] }),
+      "chat.messages.list": (i) => ({
+        messages: Object.values(msgs).filter((m) => m.threadSeq < Number(i["before"])),
+        hasMore: false,
+      }),
+    },
+  });
+  seedFact(h, { id: "fct_l", layer: "person", owner: "usr_dana", text: "Show me drafts first." } as never);
+  h.clock.t = 10;
+  // the lesson was put in front of the agent for the first message only
+  await recallRecord(h.ctx, {
+    threadId: "thr_x",
+    messageId: "msg_q1",
+    agentId: "agt_i",
+    lines: [{ kind: "fact", ref: "fct_l" }],
+  });
+  assert.equal(
+    (await used(h.ctx, { threadId: "thr_x", messageId: "msg_r1" })).facts.length,
+    1,
+    "the reply to that message used it",
+  );
+  const later = await used(h.ctx, { threadId: "thr_x", messageId: "msg_r2" });
+  assert.deepEqual(later.facts, [], "the reply to the second message was not given it, so it is not shown as used");
 });

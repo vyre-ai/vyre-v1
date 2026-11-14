@@ -10,7 +10,8 @@ import { Face, IconButton } from "../canvas/parts.tsx";
 import { each } from "../runs/each.ts";
 import { useConfigExtras } from "./data.tsx";
 import type { DirEntry } from "./data.tsx";
-import { Group, Lab, PickButton, SRow, Switch } from "./parts.tsx";
+import { Group, Lab, PickButton, SRow } from "./parts.tsx";
+import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
 import {
   ESCALATE_AFTER_HOURS,
   FAILURES_IN_A_ROW,

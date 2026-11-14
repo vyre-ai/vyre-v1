@@ -754,6 +754,8 @@ export interface ComposerProps extends ComposerShellProps {
   renderPanel?: (agent: ComposerAgent, close: () => void, narrow: boolean) => ReactNode;
   /** The model menu opens under the composer instead of over it (the first screen, where the composer sits high). */
   panelBelow?: boolean;
+  /** A count the place raises to open the model menu itself (the /model command): each increase opens it, where the strip's own press would. */
+  openPanelAt?: number;
   /** Where the chat runs, when it is not this computer: "On Northwind" in the pill. */
   runsChip?: string;
   /** The chat's mode; with onMode the chip shows and Shift+Tab cycles it. */
@@ -1069,6 +1071,15 @@ export function Composer(props: ComposerProps): ReactElement {
   const [sendError, setSendError] = useState<{ reason: string; mode: SendMode } | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  // the place asked for the menu (/model): the same menu the strip opens, never a second picker
+  const panelAsked = useRef(props.openPanelAt ?? 0);
+  useEffect(() => {
+    const n = props.openPanelAt ?? 0;
+    if (n <= panelAsked.current) return;
+    panelAsked.current = n;
+    setPlusOpen(false);
+    setPanelOpen(true);
+  }, [props.openPanelAt]);
   const [scope, setScope] = useState<HashScope>("All");
   const [attachMode, setAttachMode] = useState(false);
   const [found, setFound] = useState<{ key: string; lists: ComposerLists } | null>(null);

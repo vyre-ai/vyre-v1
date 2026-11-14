@@ -47,7 +47,7 @@ export interface ReplyDetails {
   at: number;
   turn?: ReplyTurn;
   memory?: {
-    facts: Array<{ factId: string; text: string; sourceTitle?: string }>;
+    facts: Array<{ factId: string; text: string; sourceTitle?: string; kind?: string }>;
     quotes: Array<{ ref: string; text: string; threadTitle?: string; at: number }>;
   };
   steps: Array<{ name: string; ok?: boolean; secs?: number }>;
@@ -443,14 +443,21 @@ export function detailLines(d: ReplyDetails, c: DetailsContext): Line[] {
 /** What the agent knew (it was "Show what the agent knew here" in the menu): what recall put in front of it for this reply, as the reader may see it. */
 function knew(d: ReplyDetails, out: Line[]): void {
   const m = d.memory;
-  const n = m ? m.facts.length + m.quotes.length : 0;
+  // the lessons the agent was given for this reply come first, under their own heading: one line each (the chat itself prints none of them)
+  const lessons = m ? m.facts.filter((f) => f.kind === "lesson") : [];
+  if (lessons.length > 0) {
+    out.push(label("lessons", "Lessons used", lessons.length));
+    for (const f of lessons) out.push({ kind: "item", key: `lesson-${f.factId}`, title: f.text, icon: "bubble" });
+  }
+  const facts = m ? m.facts.filter((f) => f.kind !== "lesson") : [];
+  const n = m ? facts.length + m.quotes.length : 0;
   out.push(label("knew", "What the agent knew", m ? n : undefined));
   if (!m) {
     out.push({ kind: "note", key: "knew-none", text: "Not recorded." });
     return;
   }
   if (n === 0) out.push({ kind: "note", key: "knew-none", text: "Nothing from memory." });
-  for (const f of m.facts)
+  for (const f of facts)
     out.push({
       kind: "item",
       key: `fact-${f.factId}`,

@@ -6,6 +6,7 @@
 // REFRESH_MS when someone reads it, so a picker opening does not reach the provider each time.
 import { readFileSync } from "node:fs";
 import { fail } from "../../../host/src/routes/errors.ts";
+import { SPACE_KEY_FOLDER } from "../../../lib/company-keys.ts";
 import {
   bad,
   denied,
@@ -28,7 +29,7 @@ import { keepSpaceKey, useSpaceAccount } from "./space-accounts.ts";
 
 /** How long a model list is trusted before the next read asks the provider again. */
 export const REFRESH_MS = 15 * 60_000;
-const FOLDER = "Space AI key";
+const FOLDER = SPACE_KEY_FOLDER;
 const ROW = "space";
 
 const sql = readFileSync(new URL("../migrations/0005_space_key.sql", import.meta.url), "utf8");
