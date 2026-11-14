@@ -80,6 +80,29 @@ test("the reply's details carry its turn and what the agent knew, both asked as 
   ]);
 });
 
+test("a lesson the agent was given is marked as one in the details, so the Details can list it under its own heading", async () => {
+  const { hn, thread, reply } = await chatWithReply({
+    "engine.turn.of_message": () => ({ turn: TURN }),
+    "memory.used": () => ({
+      messageId: "msg_x",
+      facts: [
+        { factId: "fct_l", text: "Show me drafts first.", kind: "lesson", layer: "person" },
+        { factId: "fct_f", text: "Files live in one folder per client", kind: "decision", layer: "project" },
+      ],
+      quotes: [],
+    }),
+  });
+  const out = await h["chat.reply_details"]!(hn.ctx, { threadId: thread, messageId: reply });
+  assert.deepEqual(contractErrors("chat.reply_details", "out", out), []);
+  assert.deepEqual(
+    out.details.memory.facts.map((f: { factId: string; kind?: string }) => [f.factId, f.kind]),
+    [
+      ["fct_l", "lesson"],
+      ["fct_f", undefined],
+    ],
+  );
+});
+
 test("with no recorded turn the reply's own steps remain, and nothing is invented", async () => {
   const notFound = () => {
     throw { error: { code: "validation.not_found" } };

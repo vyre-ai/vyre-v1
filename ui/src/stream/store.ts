@@ -3,6 +3,7 @@
 import { createCoalescer, frameScheduler } from "./coalesce.ts";
 import type { CoalescerStats, FrameScheduler } from "./coalesce.ts";
 import { createIncrementalMarkdown } from "./markdown.ts";
+import { createToolFilter } from "./plain-tools.ts";
 import type { Block, MarkdownStats } from "./markdown.ts";
 
 export interface StreamSnapshot {
@@ -39,6 +40,8 @@ export interface StreamStore {
 
 export function createStreamStore(scheduler: FrameScheduler = frameScheduler): StreamStore {
   const md = createIncrementalMarkdown();
+  // a tool's own name (mcp__server__tool) reads in plain words as it is drawn, never flashing raw
+  const tools = createToolFilter();
   const listeners = new Set<() => void>();
   let version = 0;
   let done = false;
@@ -62,16 +65,20 @@ export function createStreamStore(scheduler: FrameScheduler = frameScheduler): S
   return {
     push(delta) {
       if (done) return;
-      coalescer.push(delta);
+      const safe = tools.push(delta);
+      if (safe !== "") coalescer.push(safe);
     },
     end() {
       if (done) return;
+      const rest = tools.flush();
+      if (rest !== "") coalescer.push(rest);
       coalescer.flush();
       md.finish();
       done = true;
       publish();
     },
     reset() {
+      tools.flush();
       coalescer.cancel();
       md.reset();
       done = false;
