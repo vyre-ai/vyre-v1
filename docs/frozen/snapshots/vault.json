@@ -34,6 +34,7 @@
     "vault.import_parse@1": "2b7e260e5b940d3858f87c20ad6ad592e18062d400894f99f247b7c30dd581c9",
     "vault.inject_env@1": "dd521efa9293ed8f4823fe09cab6a8f67dcf011b186be02d10171b9b7d5359c4",
     "vault.item.delete@1": "f00d64faa3e6803f6c504e023c284d82758c64abd4b2779d5e8630655ec96b14",
+    "vault.item.discard_new@1": "47625d5d7844e2c1d6674bd322bc249fbae8e2f1055a583a9a93331b756a01ee",
     "vault.item.get@1": "6eb063d786b923970d22b98c5f58a09465eb32e50cd5deeef3caec5946f73b2d",
     "vault.item.history@1": "a1ff010e34b02406ac41cfc5f063f1eac7c4f195d3ab6563f1a42d5bb70c4173",
     "vault.item.mark_rotated@1": "bfd5552018f8445749c31d7ee08078690af25c1825f4fe21065fe0c1533fcc8c",
