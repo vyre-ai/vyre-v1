@@ -85,6 +85,7 @@ function collect(
   for (let j = 0; j < list.length; j++) {
     const g = list[j]!;
     if (g.rank < need || !s.keys.has(g.key)) continue;
+    // NOTE: kernel/src/authorize/scope.ts (scopeFor, aclIds) has no matching skip; it is not called in production (reviewer's note, 15 Nov 2026), so keep this rule in step if it ever is.
     // an agent's reach across the whole Space is its own Space grant (made with the agent, and taken away by unsharing it), never its role's: a Member agent whose own grant is gone holds only what is shared with it
     if (noRoleKeys && g.key.startsWith("role:")) continue;
     if (g.exp <= now) {

@@ -92,3 +92,36 @@ test("a person in the Member role still holds the role's Space grant", () => {
     "allow",
   );
 });
+
+test("an agent without its own Space grant still reaches a folder shared with the Member role, and nothing wider", () => {
+  const s = world(false);
+  s.putResource({
+    id: "fld_shared",
+    type: "folder",
+    parent_id: "fld_agents",
+    label: 0,
+    owner_id: "usr_boss",
+    holds: 0,
+  });
+  s.putGrant({
+    id: "g_role_folder",
+    subject_kind: "role",
+    subject_id: "rol_member",
+    resource_type: "folder",
+    resource_id: "fld_shared",
+    level: "edit",
+  });
+  assert.equal(view(s, "agt_other", "fld_shared").effect, "allow", "the folder shared with the role");
+  assert.equal(view(s, "agt_other", "fld_scout").effect, "deny", "another agent's folder");
+  assert.equal(
+    authorize(s, {
+      principal: "agt_other",
+      actingFor: "usr_boss",
+      action: { perm: "records.read", level: "view" },
+      resource: { type: "space", id: "spc" },
+      now: NOW,
+    }).effect,
+    "deny",
+    "the Space",
+  );
+});
