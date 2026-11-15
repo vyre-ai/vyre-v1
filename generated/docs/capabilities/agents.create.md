@@ -46,6 +46,7 @@ type In = {
   };
   projectId?: string;
   threadId?: string;
+  sharing?: "me" | "everyone";
   idempotencyKey: string;
 };
 ```
@@ -128,6 +129,7 @@ type Out = {
     "ownerId": "usr_a1b2c3",
     "projectId": "example",
     "role": "example",
+    "sharing": "me",
     "templateKey": "example",
     "threadId": "thr_a1b2c3",
     "tools": {

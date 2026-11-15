@@ -404,6 +404,7 @@ export async function channelsCreate(
     raise(ctx, "validation.bad_input", "That record already has a channel.", { recordId: input.recordId });
   const memberIds = uniqueIds(ctx, input.memberIds, "usr_", "a person");
   const agentIds = uniqueIds(ctx, input.agentIds, "agt_", "an agent");
+  await refuseUnseenAgents(ctx, agentIds);
   const topic = input.topic?.trim() || undefined;
   if (topic !== undefined && topic.length > 250)
     raise(ctx, "validation.bad_input", "A topic can be at most 250 characters.");

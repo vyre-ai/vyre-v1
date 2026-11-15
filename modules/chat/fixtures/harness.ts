@@ -55,6 +55,8 @@ export function harness(o: HarnessOptions = {}) {
     // a chat's own agent, and its folder, follow the chat's audience (owned.ts followHome) and the sweep reads who a chat gave it to: a test that does not care gets a quiet answer
     "access.audience_set": (i) => ({ audience: i["audience"] }),
     "access.grants.list": () => ({ grants: [] }),
+    // who may see an agent: a test that does not care lets every person see every agent (a context with no access function asks this instead, and refuses when it does not answer yes)
+    "access.check": () => ({ decision: { effect: "allow" } }),
     ...(o.calls ?? {}),
   };
   const db = scopedDb("chat", raw, TRACE);

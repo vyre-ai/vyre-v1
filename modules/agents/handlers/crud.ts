@@ -358,6 +358,7 @@ type CreateInput = {
   limits?: Limits;
   projectId?: string;
   threadId?: string;
+  sharing?: "me" | "everyone";
   idempotencyKey?: string;
 };
 
@@ -455,6 +456,16 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
   };
   insertAgent(ctx.db, rec);
   const priv = isPrivateAgent(rec);
+  // An agent a person makes in the open Space is the team's: the birth carries the sharing and the gateway writes the one Everyone use grant with it. Never an Assistant or an outside agent (its person's),
+  // a teammate or a chat's agent (the project's and the chat's own rules reach them), one an agent made for its person, or one made with `sharing: "me"`; a Personal Space has no team to share with.
+  const shared =
+    kind === "agent" &&
+    runtime === "vyre" &&
+    ctx.principal.kind === "person" &&
+    input.projectId === undefined &&
+    input.threadId === undefined &&
+    input.sharing !== "me" &&
+    (await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {})).kind !== "personal";
   ctx.emit("agent.created", id, {
     agentId: id,
     name,
@@ -462,6 +473,10 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
     folderId: tree.folderId,
     templateVersion: rec.templateVersion,
     ...(priv ? { private: true } : {}),
+    // said every time for an ordinary agent, true or false: an agent born before this build carries no `shared` at all, which is how the one-time start-up pass tells old from new
+    ...(kind === "agent" && runtime === "vyre" ? { shared } : {}),
+    // a project's teammate is born under the project in access (a chat's agent keeps the Space: its chat decides who asks it)
+    ...(kind === "teammate" && input.projectId?.startsWith("prj_") ? { projectId: input.projectId } : {}),
   });
   // access names a private agent as its person to everyone else ("Irfad Imtiaz (Agent)"); this is what tells it
   if (priv) {

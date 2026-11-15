@@ -8,7 +8,7 @@ import { evalExpr } from "./expr.ts";
 import type { AccessSnapshot, GrantRec, SubjectInfo } from "./snapshot.ts";
 import { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
 import { GUEST_TYPES, guestMay } from "./guest-caps.ts";
-import { LEVEL_BY_RANK, rankOf } from "./types.ts";
+import { LEVEL_BY_RANK, LEVEL_RANK, rankOf } from "./types.ts";
 import type { Decision, Expr, Obligation, ReasonCode, Req, ResourceRow, Scope, Step } from "./types.ts";
 
 export { AccessSnapshot, ELEVATED_ROLES } from "./snapshot.ts";
@@ -78,7 +78,8 @@ function collect(
   req: Req,
   res: ResourceRow,
   label: number,
-  noRoleKeys = false,
+  roleBelow = 0,
+  noEveryone = false,
 ): void {
   const now = req.now,
     fields = req.fields;
@@ -87,7 +88,10 @@ function collect(
     if (g.rank < need || !s.keys.has(g.key)) continue;
     // NOTE: kernel/src/authorize/scope.ts (scopeFor, aclIds) has no matching skip; it is not called in production (reviewer's note, 15 Nov 2026), so keep this rule in step if it ever is.
     // an agent's reach across the whole Space is its own Space grant (made with the agent, and taken away by unsharing it), never its role's: a Member agent whose own grant is gone holds only what is shared with it
-    if (noRoleKeys && g.key.startsWith("role:")) continue;
+    // a role's Space-wide grant below Manage does not reach an agent, nor anything inside one: an agent is reached by its owner, by a grant naming it (a person, a group, Everyone, a role) and by the Space's managers
+    if (g.rank < roleBelow && g.key.startsWith("role:")) continue;
+    // Everyone is the team: a guest is in that group to be addressed, and still reaches an agent only by a grant that names them (or the chat door, in a chat the agent is in)
+    if (noEveryone && g.key === "group:grp_everyone") continue;
     if (g.exp <= now) {
       sawExpired = true;
       continue;
@@ -243,9 +247,23 @@ function evalSubject(
   sawExpired = false;
   max = 0;
   const reach = req.action.direct === true ? Math.min(1, chain.length) : chain.length;
+  // at a Space node: an agent asking holds only its own Space grant (every role grant skipped); anyone asking about an agent (or what is inside one) holds no role grant below Manage
+  // an agent that lives under something other than the Space (a project's teammate) inherits exactly what that place gives: only an agent directly under the Space is cut off from the role
+  const aboutAgent = chain.some((r, i) => r.type === "agent" && chain[i + 1]?.type === "space");
   for (let i = 0; i < reach; i++) {
     const l = snap.grantsOn(chain[i]!.id);
-    if (l) collect(l, s, need, req, res, label, p.kind === "agent" && chain[i]!.type === "space");
+    if (!l) continue;
+    const atSpace = chain[i]!.type === "space";
+    collect(
+      l,
+      s,
+      need,
+      req,
+      res,
+      label,
+      atSpace && p.kind === "agent" ? LEVEL_RANK.manage + 1 : atSpace && aboutAgent ? LEVEL_RANK.manage : 0,
+      s.guest && chain.some((r) => r.type === "agent"),
+    );
   }
   const tw = req.action.direct === true ? undefined : snap.typeWide(res.type);
   if (tw) collect(tw, s, need, req, res, label);
@@ -411,6 +429,10 @@ export function providerMax(
   if (provider !== OUTSIDE_PROVIDER) return p.defaultMax ?? Infinity;
   return Math.min(...Object.values(p.allow), p.defaultMax ?? Infinity);
 }
+
+/** May this principal share something with Everyone? Only one who manages access: the one rule access.share (assertEveryone) and an agent's birth share both ask. */
+export const mayShareWithEveryone = (snap: AccessSnapshot, who: string): boolean =>
+  snap.info(who)?.perms.has("access.manage") === true;
 
 export function authorize(snap: AccessSnapshot, req: Req): Decision {
   const steps: Step[] | null = req.explain ? [] : null;

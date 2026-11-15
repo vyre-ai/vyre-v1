@@ -114,7 +114,9 @@ function seededGrant(store: AccessStore, p: Record<string, unknown>, at: number)
     by: str(p["by"]) ?? "svc_host",
     createdAt: at,
     // a grant a call made for the thing it made (made-by:<agent>) says so, so the share list can show who made it
-    ...(typeof p["source"] === "string" && p["source"].startsWith("made-by:") ? { source: p["source"] } : {}),
+    ...(typeof p["source"] === "string" && (p["source"].startsWith("made-by:") || p["source"].startsWith("birth:"))
+      ? { source: p["source"] }
+      : {}),
   };
 }
 

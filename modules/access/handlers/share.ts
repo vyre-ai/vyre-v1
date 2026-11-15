@@ -6,7 +6,7 @@
 // Project roles reuse the 0.6 idea in kernel/gateway/project-members.js@dbd2dfb: a team role is a grant tagged with source 'project:<id>' and
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
-import { MADE_FOR_PERSON_NOT, authorize, evalExpr } from "../../../kernel/src/authorize/index.ts";
+import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
 import type { ResourceType } from "../../../packages/contracts/src/types.ts";
@@ -769,7 +769,7 @@ function assertEveryone(
   const roles = store.rolesOf(person);
   if (roles.length > 0 && roles.every((r) => r === "rol_guest")) refuse();
   if (grant && rank(res.type, level) <= rank(res.type, grant.level)) return;
-  if (!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage")) refuse();
+  if (!mayShareWithEveryone(store.snapshot(), ctx.principal.id)) refuse();
 }
 
 /**

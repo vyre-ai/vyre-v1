@@ -72,6 +72,17 @@ export function rootOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec): ThreadRec {
   return cur;
 }
 
+/**
+ * The door rule of a chat (owner, 15 Nov 2026): an agent that belongs to this chat (the channel's agents, a chat's participants, the agents of the thread a reply hangs under) is reachable there by whoever may post
+ * there, guests at their level included; the turn runs for the asker. Outside the chat nothing changes: the agent is not theirs to start a chat with, open or list. One helper for every door in the chat module.
+ */
+export function mayAskInChat(ctx: Pick<ChatCtx, "db">, agentId: string, threadId: string): boolean {
+  const t = threadBy(ctx.db, threadId);
+  if (!t) return false;
+  const root = rootOf(ctx, t);
+  return [t.id, root.id].some((th) => agentsOf(ctx.db, th).some((a) => a.agentId === agentId));
+}
+
 const isPrivateRoot = (root: ThreadRec): boolean => root.kind === "chat" || root.kind === "ask";
 
 /**
@@ -444,6 +455,8 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   await refuseUnseenAgents(
     ctx,
     mentions.filter((m) => m.kind === "agent").map((m) => m.id),
+    // a guest holds no view on any agent: what they name outside the chat stays a plain mention (no turn), as it always was
+    (agentId) => mayAskInChat(ctx, agentId, thread.id) || !seesSpace(ctx),
   );
   if (input.via !== undefined && author.kind !== "agent")
     raise(ctx, "validation.bad_input", "Only an agent posts on a routine.");

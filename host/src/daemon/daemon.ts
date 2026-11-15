@@ -20,7 +20,7 @@ import { createUnsubscribeRoute } from "../routes/unsubscribe.ts";
 import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { authorize, sharedThrough } from "../../../kernel/src/authorize/index.ts";
+import { authorize, mayShareWithEveryone, sharedThrough } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { LogClient } from "../../../kernel/src/log/index.ts";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
@@ -326,6 +326,7 @@ import {
   createPrincipalRegistrar,
   lowAgentUpgradeEvents,
   missingAgentHomeEvents,
+  oldAgentShareEvents,
   missingAgentPrincipalEvents,
   ownPlaceGrant,
 } from "../gateway/principals.ts";
@@ -2025,6 +2026,39 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             });
           }
         }
+        // A project's teammate lives in its project in the access tree (15 Nov 2026): the teammates made before this build sit under the Space, and are moved at every start (a row already under its project is left).
+        try {
+          for (const t of db!.all(
+            `SELECT "id", "projectId" FROM agents_agent WHERE "kind" = 'teammate' AND "projectId" LIKE 'prj\\_%' ESCAPE '\\' AND "deletedAt" IS NULL`,
+          ) as { id: string; projectId: string }[]) {
+            const row = access.snap.resource(t.id);
+            if (!row || row.parent_id === t.projectId || !access.snap.resource(t.projectId)) continue;
+            const moved = await appendRepair({
+              id: `evt_res_teammate_${t.id.slice(-12)}_${t.projectId.slice(-12)}`,
+              type: "resource.created",
+              sv: 1,
+              trace_id: "c0".repeat(16),
+              actor: "svc_host",
+              vis: "space",
+              entity: "resource",
+              entity_id: t.id,
+              payload: {
+                id: t.id,
+                type: row.type,
+                parent_id: t.projectId,
+                label: row.label,
+                owner_id: row.owner_id,
+                holds: row.holds,
+              },
+            });
+            if (!moved.duplicate) {
+              access.fold(moved.event);
+              accessPending.push(toAccessEvent(moved.event));
+            }
+          }
+        } catch {
+          // no agents table yet: nothing to move
+        }
         // An inbox a person set to private (or to chosen people) before the setting was enforced is registered under the Space, so every member still reaches it (F48, 14 Nov 2026). Close it from the
         // event that set it, at every start: an inbox already closed is left as it is, so this is safe to repeat and moves no data.
         const lastPrivacy = new Map<string, { privacy: string; at: string }>();
@@ -3178,6 +3212,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         membership: (principal, actingFor) =>
           isMemberOrGuest(access.snap, principal) &&
           (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        privateAgentWords: (agentId) => {
+          try {
+            const r = db!.all(
+              `SELECT "kind", "runtime" FROM agents_agent WHERE "id" = ? AND "deletedAt" IS NULL`,
+              agentId,
+            )[0] as { kind?: string; runtime?: string } | undefined;
+            return r && (r.kind === "assistant" || r.runtime === "outside")
+              ? "That agent is private to the person it belongs to. Only they can open it, chat with it or @mention it."
+              : null;
+          } catch {
+            return null;
+          }
+        },
         // an agent cut off from the Space (made in a private chat) that this caller may not view: it reads as not found (invoke.ts)
         hidden: (resource, principal, actingFor) => {
           if (resource.type !== "agent" || resource.id === null) return false;
@@ -3522,6 +3569,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         principals: createPrincipalRegistrar({
           exists: (id) => access.snap.info(id) !== null,
+          mayShareAll: (person) => mayShareWithEveryone(access.snap, person),
           levelOf: (person, space) => {
             const may = (level: "edit" | "view"): boolean =>
               authorize(access.snap, {
@@ -3817,6 +3865,82 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       await syncAccess();
       await healAgents();
+      // Once per Space, at the first start on the build that writes an agent's sharing with its birth (15 Nov 2026): the agents an admin or owner made before it stay shared with Everyone, as every member could use them
+      // until then; a member's become their own. It runs here, after the access log is folded and the snapshot is current: who may share with Everyone and which agents already hold a grant are read from the snapshot, so an agent with ANY
+      // grant is left exactly as it is. The marker says it ran, so an admin who narrows an agent later is never overruled by a start.
+      if (cfg.spaceKind !== "personal" && log && !chainBroken) {
+        try {
+          db!.run(`CREATE TABLE IF NOT EXISTS host_passes ("key" TEXT PRIMARY KEY, "at" INTEGER)`);
+          const done = db!.all(`SELECT 1 FROM host_passes WHERE "key" = 'agent-birth-share'`).length > 0;
+          if (!done) {
+            // a Space with no agents table yet, or with no ordinary agents, has nothing to carry over, ever: the marker is written, so a later start never runs the pass on agents made after this one
+            const hasTable =
+              db!.all(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'agents_agent'`).length > 0;
+            const old = hasTable
+              ? (db!.all(
+                  `SELECT "id", "ownerId" FROM agents_agent WHERE "kind" = 'agent' AND "runtime" = 'vyre' AND "deletedAt" IS NULL`,
+                ) as { id: string; ownerId: string }[])
+              : [];
+            // only an agent born before this build: its agent.created says nothing of `shared` (an agent born on this build says true or false, and is never touched)
+            const bornOnThisBuild = new Set(
+              agentAccessEvents
+                .filter(
+                  (e) =>
+                    e.type === "agent.created" &&
+                    e.payload !== null &&
+                    typeof e.payload === "object" &&
+                    "shared" in (e.payload as object),
+                )
+                .map((e) => String((e.payload as { agentId?: unknown }).agentId)),
+            );
+            const events = oldAgentShareEvents({
+              agents: old
+                .filter((r) => !bornOnThisBuild.has(r.id))
+                .map((r) => ({
+                  id: r.id,
+                  ownerId: r.ownerId,
+                  underSpace: access.snap.resource(r.id)?.parent_id === spaceId,
+                  // the maker's own grant on it (and the agent's on itself) is how every agent is born: only a grant to someone else counts
+                  hasGrant: (access.snap.grantsOn(r.id) ?? []).some(
+                    (g) =>
+                      ![`actor:${r.ownerId}`, `person:${r.ownerId}`, `actor:${r.id}`, `agent:${r.id}`].includes(g.key),
+                  ),
+                })),
+              mayShareAll: (person) => mayShareWithEveryone(access.snap, person),
+            });
+            let wrote = 0;
+            for (const e of events) {
+              const r = await log.appendResult({
+                id: `evt_agent_birthshare_${e.id}`,
+                type: e.type,
+                sv: 1,
+                trace_id: "c0".repeat(16),
+                actor: "svc_host",
+                vis: "space",
+                entity: e.entity,
+                entity_id: e.id,
+                payload: e.payload,
+              });
+              if (r.ok && !r.duplicate) {
+                access.fold(r.event);
+                accessPending.push(toAccessEvent(r.event));
+                wrote++;
+              }
+            }
+            if (wrote > 0) await syncAccess(true);
+            db!.run(`INSERT OR IGNORE INTO host_passes ("key", "at") VALUES ('agent-birth-share', ?)`, now());
+          }
+        } catch (e) {
+          // a busy or damaged database: the marker is NOT written, so the next start tries again, and the failure is said
+          sink.log({
+            space: spaceId,
+            level: 40,
+            msg: "access.agent_birth_share_failed",
+            place: "boot",
+            attrs: { error: e instanceof Error ? e.message : String(e) },
+          });
+        }
+      }
       const personalRuns = new Map<string, Promise<void>>();
       ensurePersonalCalendar = (person) => {
         if (!person || loaded.serving.get("calendar") !== "live") return Promise.resolve();

@@ -92,6 +92,17 @@ export function coreEvents(): NewEvent[] {
       }),
     );
     out.push(ev("principal.role_set", "principal", a.id, { holder: a.id, role: "member" }));
+    // a real agent is a resource of the access tree from its birth (parent the Space, owner its person): the seed makes them with no birth, so the row is written here
+    out.push(
+      ev("resource.created", "resource", a.id, {
+        id: a.id,
+        type: "agent",
+        parent_id: CORE_SPACE,
+        label: 0,
+        owner_id: a.owner,
+        holds: 0,
+      }),
+    );
   }
   for (const g of GROUPS) {
     out.push(ev("group.created", "group", g.id, { id: g.id, name: g.name }));
@@ -161,6 +172,19 @@ export function coreEvents(): NewEvent[] {
         resource_type: "space",
         resource_id: CORE_SPACE,
         level: "edit",
+        by: "usr_olivia",
+      }),
+    );
+  // the Space's agents are the team's: shared with Everyone at use, as an agent the owner makes is born (the seed makes them with no maker, so the share is written here once)
+  for (const a of AGENTS)
+    out.push(
+      ev("grant.created", "grant", `gr_all_${a.id}`, {
+        id: `gr_all_${a.id}`,
+        subject_kind: "group",
+        subject_id: "grp_everyone",
+        resource_type: "agent",
+        resource_id: a.id,
+        level: "use",
         by: "usr_olivia",
       }),
     );

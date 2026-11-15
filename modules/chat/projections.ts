@@ -36,6 +36,11 @@ export interface ChatCtx {
   db: Db;
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call?(cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<unknown>;
+  /** the Space's access answer for the caller (the gateway always supplies it; a context without one refuses what it would have to ask about) */
+  authorize?(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ): { effect: string; reason?: string };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
 
@@ -70,11 +75,18 @@ export function refOf(id: string): { kind: Principal["kind"]; id: string } {
  * A person can only bring in, ask or @mention an agent they may see: the agents module answers "not found" for one they may not (a person's private assistant is one), and so does this.
  * Agents act for themselves (an agent posting is not a person choosing who to talk to), and a host with no agents module to ask keeps the old behaviour.
  */
-export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): Promise<void> {
+export async function refuseUnseenAgents(
+  ctx: ChatCtx,
+  ids: readonly string[],
+  /** the door rule of a chat: an agent that is a member of THIS chat may be asked in it by whoever may post there, whether or not the asker could use it anywhere else (mayAskInChat) */
+  inChat?: (agentId: string) => boolean,
+): Promise<void> {
   if (!ctx.call || ctx.principal.kind !== "person") return;
-  for (const agentId of new Set(ids)) {
+  /** The agents module's answer: "private" for another person's Assistant or outside agent, "gone" for an agent it does not know, else the agent is there. A refusal that is not "not found" is no reason to refuse. */
+  const moduleSays = async (agentId: string): Promise<{ kind: "ok" | "gone" | "private"; message?: string }> => {
     try {
-      await ctx.call("agents.get", { agentId });
+      await ctx.call!("agents.get", { agentId });
+      return { kind: "ok" };
     } catch (e) {
       const x = e as {
         code?: string;
@@ -84,19 +96,52 @@ export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): 
       };
       const code = x.code ?? x.error?.code;
       // someone else's private agent (their assistant, an outside agent they connected) is refused in the agents module's own plain words
-      const priv = (x.details ?? x.error?.details)?.reason === "private";
+      if ((x.details ?? x.error?.details)?.reason === "private")
+        return {
+          kind: "private",
+          message: x.error?.message ?? x.message ?? "That agent is private to the person it belongs to.",
+        };
       // Only "not found" refuses here. A permission refusal from agents.get is NOT a reason to refuse the chat: a member who may talk to a Space agent often may not read its settings,
       // and treating that as "does not exist" stopped ordinary chats with agents (12 Nov, CI on 664e3b157: ten live files). Who may reach a chat's own agent is decided by access.
-      if (code === "validation.not_found")
-        raise(
-          ctx,
-          "validation.not_found",
-          priv
-            ? (x.error?.message ?? x.message ?? "That agent is private to the person it belongs to.")
-            : "That agent does not exist.",
-          { agentId, ...(priv ? { reason: "private" } : {}) },
-        );
+      return code === "validation.not_found" ? { kind: "gone" } : { kind: "ok" };
     }
+  };
+  const refuse = (agentId: string, said: { kind: string; message?: string }): never =>
+    raise(ctx, "validation.not_found", said.kind === "private" ? (said.message ?? "") : "That agent does not exist.", {
+      agentId,
+      ...(said.kind === "private" ? { reason: "private" } : {}),
+    });
+  for (const agentId of new Set(ids)) {
+    const here = inChat?.(agentId) === true;
+    if (!here) {
+      // access first, and it must be a yes (fail closed): a context with no access function asks access.check for the same view, and one that cannot be answered refuses. Access saying there is no such agent
+      // is nothing to reach, and the agents module answers for it below.
+      const seen = { perm: null, level: "view" as const };
+      let effect: string | undefined, reason: string | undefined;
+      try {
+        const said = ctx.authorize
+          ? ctx.authorize(seen, { type: "agent", id: agentId })
+          : (
+              (await ctx.call("access.check", {
+                principal: { kind: ctx.principal.kind, id: askerOf(ctx) },
+                action: { level: seen.level },
+                resource: { type: "agent", id: agentId },
+              })) as { decision?: { effect?: string; reason?: string } }
+            ).decision;
+        effect = said?.effect;
+        reason = (said as { reason?: string } | undefined)?.reason;
+      } catch {
+        effect = undefined;
+      }
+      if (effect !== "allow" && reason !== "not_found") {
+        // not theirs: the same sentence as an agent that is not there, except another person's own Assistant or outside agent, which says whose it is
+        const priv = await moduleSays(agentId);
+        refuse(agentId, priv.kind === "private" ? priv : { kind: "gone" });
+      }
+    }
+    const said = await moduleSays(agentId);
+    // an agent of this chat is asked here whatever the asker could use elsewhere, except one that is its person's alone
+    if (said.kind === "private" || (said.kind === "gone" && !here)) refuse(agentId, said);
   }
 }
 

@@ -7,6 +7,7 @@
 //   channels.stream_prefs.*          what I hide (People, Agents, Runs) in one channel
 // The access level of each capability was checked on the channel before these run. Read cursors belong to threads.mark_read (table chat_thread_read, made here if it is not there yet).
 import { readFloor } from "./floor.ts";
+import { refuseUnseenAgents } from "../projections.ts";
 import {
   MAX_NAME,
   askerOf,
@@ -356,6 +357,8 @@ export async function channelsAgentsAdd(ctx: ChatCtx, input: { channelId: string
   const ch = loadLive(ctx, input.channelId);
   if (!input.agentId.startsWith("agt_"))
     raise(ctx, "validation.bad_input", "That is not an agent.", { id: input.agentId });
+  // whoever adds an agent to a chat must be able to use it themselves: one they cannot see reads as one that does not exist
+  await refuseUnseenAgents(ctx, [input.agentId]);
   if (
     agentsOf(ctx.db, ch.mainThread).length >= 20 &&
     !agentsOf(ctx.db, ch.mainThread).some((a) => a.agentId === input.agentId)
