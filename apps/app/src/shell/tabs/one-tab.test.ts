@@ -67,11 +67,11 @@ test("an item is one tab by what it shows: two chats are two tabs, the same chat
   assert.deepEqual(keys(s), ["chats:thr_1", "chats:thr_2"]);
   assert.equal(s.active, "chats:thr_1");
   const plus: TabEntry = { key: "new:1", title: "New tab", place: "chats", isNew: true };
-  assert.deepEqual(
-    keys(openTab(state([plus], "new:1"), placeTab("chats"))),
-    ["new:1", "chats"],
-    "a + tab is not a Chats tab",
-  );
+  // Changed 15 Nov 2026 (team/v1/TABS-2026-11-15.md, D5): a + tab is still never taken FOR the Chats tab (Chats gets its own real tab, key "chats"), and the untouched + tab
+  // the person opened it from no longer stays behind as an empty tab.
+  const opened = openTab(state([plus], "new:1"), placeTab("chats"));
+  assert.deepEqual(keys(opened), ["chats"], "Chats gets its own tab, and the empty + tab does not stay behind");
+  assert.equal(opened.tabs[0]!.isNew, undefined, "a + tab is not a Chats tab");
 });
 
 test("saved duplicates close on load, keeping the one used last; different chats never count as duplicates", () => {
