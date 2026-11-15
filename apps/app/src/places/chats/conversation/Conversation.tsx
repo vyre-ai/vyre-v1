@@ -1487,9 +1487,33 @@ function ConversationView(): ReactElement {
   // a live reply is held for the person when the newest agent message still carries a question or approval waiting for them
   const lastAgentMsg = [...all].reverse().find((x) => x.author.kind === "agent");
   const heldForYou = lastAgentMsg?.blocks.some((b) => b.state === "waiting") === true;
+  // "No agent will reply. @mention one": once, under your newest message that nobody will answer (not in the column, not under every message); it goes when an agent is mentioned or answers
+  const unansweredNow =
+    isClosed(thread) || isWorking
+      ? null
+      : unansweredOwn(thread, win.rows, data.me.id, data.directory, (id) => replies.has(id));
+  const noAgentUnder = (m: Message): ReactElement | null =>
+    unansweredNow && unansweredNow.messageId === m.messageId && !notHereFor(m) ? (
+      <View testID="no-agent-line" style={st.lineBox}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="No agent will reply. Ask an agent about your message"
+          accessibilityHint="Opens the list of this channel's agents"
+          testID="no-agent-ask"
+          onPress={(e) => {
+            const box = (
+              e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }
+            ).currentTarget?.getBoundingClientRect?.();
+            openAskPicker(m.messageId, box?.left ?? 16, box?.top ?? 0);
+          }}
+        >
+          <Text style={[st.lineText, st.quietLine]}>No agent will reply. @mention one</Text>
+        </Pressable>
+      </View>
+    ) : null;
   const actions: MessageActions = {
     heldForYou,
-    belowMine: (m) => notHereFor(m) ?? queueUnder(m),
+    belowMine: (m) => notHereFor(m) ?? queueUnder(m) ?? noAgentUnder(m),
     host,
     copy: (t) => {
       data.copy(t);

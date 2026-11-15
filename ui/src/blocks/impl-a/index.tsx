@@ -5,7 +5,7 @@
 // hover; colours are skin tokens, so a skin switch repaints with no re-render.
 
 import { isRawId } from "../../../../lib/id-shapes.ts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
@@ -112,11 +112,14 @@ function Btn({
   onPress,
   primary = false,
   quiet = false,
+  muted = false,
   danger = false,
   disabled = false,
   pressed,
 }: {
   id: string;
+  /** Plain grey words, no fill: a way out beside a primary button (Decline). */
+  muted?: boolean;
   label: string;
   onPress: () => void;
   primary?: boolean;
@@ -136,7 +139,7 @@ function Btn({
       style={({ hovered }: { hovered?: boolean }) => [
         styles.btn,
         primary && styles.btnPrimary,
-        quiet && styles.btnQuiet,
+        (quiet || muted) && styles.btnQuiet,
         hovered === true && !primary && HOVER,
         disabled && styles.disabled,
       ]}
@@ -146,6 +149,7 @@ function Btn({
           styles.btnText,
           primary && styles.btnTextPrimary,
           quiet && styles.btnTextQuiet,
+          muted && styles.btnTextMuted,
           danger && styles.btnTextDanger,
         ]}
       >
@@ -161,7 +165,10 @@ function Head({
   right,
   onPress,
   testID,
+  lead,
 }: {
+  /** A small mark before the title. */
+  lead?: ReactNode;
   title: string;
   tag?: string | undefined;
   right?: ReactNode;
@@ -170,6 +177,7 @@ function Head({
 }): ReactElement {
   const inner = (
     <>
+      {lead ?? null}
       <Text numberOfLines={1} style={styles.headTitle}>
         {title}
       </Text>
@@ -579,6 +587,32 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
 
 /* ---------- plan ---------- */
 
+/** The plan's small book mark beside "Plan" (the prototype's `book` glyph). Web only, like the app's other glyphs. */
+function PlanMark(): ReactElement | null {
+  if (Platform.OS !== "web") return null;
+  const d = ["M3.500 2.500h9v11h-9z", "M5.500 6h5M5.500 8.500h5M5.500 11h3"];
+  return createElement(
+    "svg",
+    {
+      viewBox: "0 0 16 16",
+      width: 15,
+      height: 15,
+      "aria-hidden": true,
+      "data-testid": "plan-mark",
+      style: {
+        display: "block",
+        flex: "none",
+        stroke: "var(--ink-3)",
+        strokeWidth: 1.4,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        fill: "none",
+      },
+    },
+    ...d.map((p) => createElement("path", { key: p, d: p })),
+  );
+}
+
 export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
   const d = planData(block.data);
   const [state, setState] = useState(d.state);
@@ -591,11 +625,19 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
     setState("rejected");
     void perform(host, "plan", "reject", block);
   }, [host, block]);
-  // "Change it": the plan goes back into the composer as an editable draft, and the plan itself is declined so nothing runs while it is being changed
-  const change = useCallback(() => {
-    if (host.draft) host.draft(planDraft(d.steps));
-    reject();
-  }, [host, d.steps, reject]);
+  // "Change it": the plan is declined first, and only when that went through does it come back in the composer as a draft. When the decline fails the plan is still waiting for the person, no draft is left beside it, and the card says so.
+  const [problem, setProblem] = useState<string | null>(null);
+  const change = useCallback(async () => {
+    setProblem(null);
+    try {
+      await perform(host, "plan", "reject", block);
+    } catch {
+      setProblem("Could not change the plan. It is still waiting for you.");
+      return;
+    }
+    setState("rejected");
+    host.draft?.(planDraft(d.steps));
+  }, [host, block, d.steps]);
   const run = useCallback((key: string) => (key === "approve" ? approve() : reject()), [approve, reject]);
   const menu = useCallback(
     () =>
@@ -620,6 +662,7 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
       <Head
         testID={`blk-plan-${block.id}`}
         title="Plan"
+        lead={<PlanMark />}
         tag={running ? planCount(steps) : undefined}
         onPress={d.hasDoc ? () => void openTab(host, "plan", block.data) : undefined}
       />
@@ -641,11 +684,12 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
           </View>
         ))}
       </View>
+      {problem ? <StatusLine tone="bad" testID={`blk-plan-${block.id}-problem`} text={problem} /> : null}
       {waiting ? (
         <View style={styles.acts}>
           <Btn id={`blk-plan-${block.id}-approve`} label="Approve" primary onPress={approve} />
-          <Btn id={`blk-plan-${block.id}-edit`} label="Change it" onPress={change} />
-          <Btn id={`blk-plan-${block.id}-reject`} label="Decline" quiet onPress={reject} />
+          <Btn id={`blk-plan-${block.id}-edit`} label="Change it" onPress={() => void change()} />
+          <Btn id={`blk-plan-${block.id}-reject`} label="Decline" muted onPress={reject} />
         </View>
       ) : state === "rejected" ? (
         <StatusLine tone="bad" testID={`blk-plan-${block.id}-state`} text="Plan declined" />
@@ -1054,6 +1098,7 @@ const styles = StyleSheet.create({
   btnText: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   btnTextPrimary: { color: "var(--accent-ink)" as string },
   btnTextQuiet: { color: "var(--accent)" as string },
+  btnTextMuted: { color: "var(--ink-3)" as string },
   btnTextDanger: { color: "var(--danger)" as string },
   disabled: { opacity: 0.45 },
   status: { marginTop: 6, fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },

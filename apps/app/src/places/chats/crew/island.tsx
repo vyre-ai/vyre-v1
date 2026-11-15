@@ -5,6 +5,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { useCalmWord } from "../conversation/ActivityLine.tsx";
+import { usesComputer } from "../conversation/activity.ts";
+import { Glyph } from "../conversation/parts.tsx";
 import { counts, faceSeed, islandText, nameOf } from "./model.ts";
 import type { ActivityStore } from "../../../shell/session/turn-streams.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
@@ -78,7 +80,8 @@ export function WorkIsland({
   faces: ReadonlyArray<{ id: string; name: string; seed: string }>;
   onPress: () => void;
 }): ReactElement | null {
-  const { label, writing } = useCalmWord(store, stream, held);
+  const { label, writing, snap } = useCalmWord(store, stream, held);
+  const computer = usesComputer(snap);
   if (faces.length === 0) return null;
   return (
     <View style={st.wrap}>
@@ -99,6 +102,11 @@ export function WorkIsland({
             <Avatar key={f.id} name={f.name} seedId={f.seed} kind="agent" size={20} />
           ))}
         </View>
+        {computer ? (
+          <View testID="work-island-computer" accessibilityLabel="Using its computer">
+            <Glyph name="monitor" size={15} color="var(--ink-3)" />
+          </View>
+        ) : null}
       </Pressable>
     </View>
   );

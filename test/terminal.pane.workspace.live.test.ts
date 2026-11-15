@@ -74,7 +74,8 @@ test(
       // a long build, typed in the tab: 6,000 lines, more than the 5,000 the live view used to keep up with
       await me.page.getByTestId("terminal-screen").click();
       await me.page.keyboard.type(
-        "for i in $(seq 1 6000); do echo build step $i; [ $((i % 200)) -eq 0 ] && sleep 0.4; done; echo BUILD DONE",
+        // one line that fits the 120 columns beside the prompt (a longer one wraps on the screen and the words are split across two rows)
+        "for i in $(seq 1 6000); do echo build step $i; [ $((i%200)) -eq 0 ]&&sleep 0.4;done; echo BUILD DONE",
       );
       await me.page.getByText("echo BUILD DONE", { exact: false }).first().waitFor({ timeout: 120_000 });
       await me.page.keyboard.press("Enter");

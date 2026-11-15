@@ -75,3 +75,34 @@ test("in a chat two agents at work show one island; an open question hides it", 
   await flush();
   assert.equal(find(b, "work-island"), null, "a question is waiting: its own island is there, this one steps aside");
 });
+
+test("the computer glyph shows only while the working agent is using its computer", async () => {
+  installDom();
+  const on = await mount(
+    createRoot,
+    <WorkIsland
+      store={store([{ id: "s", name: "Bash", state: "live" }])}
+      faces={[{ id: "a", name: "Aria", seed: "a" }]}
+      onPress={() => undefined}
+    />,
+  );
+  assert.ok(find(on, "work-island-computer"));
+  const off = await mount(
+    createRoot,
+    <WorkIsland
+      store={store([{ id: "s", name: "Read", state: "live" }])}
+      faces={[{ id: "a", name: "Aria", seed: "a" }]}
+      onPress={() => undefined}
+    />,
+  );
+  assert.equal(find(off, "work-island-computer"), null);
+  const done = await mount(
+    createRoot,
+    <WorkIsland
+      store={store([{ id: "s", name: "Bash", state: "done" }])}
+      faces={[{ id: "a", name: "Aria", seed: "a" }]}
+      onPress={() => undefined}
+    />,
+  );
+  assert.equal(find(done, "work-island-computer"), null, "a finished command is not using it now");
+});

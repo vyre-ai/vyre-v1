@@ -3,7 +3,7 @@ import { onDiscussionMessage } from "./handlers/round.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { recentWithUnread } from "./handlers/g26.ts";
-import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
+import { onAgentDeleted, onKeyboardTaken, onPersonLeft } from "./handlers/departures.ts";
 import { forgetMentions } from "./handlers/pace.ts";
 import { onCardAnswered, onDirectReply, sendDue } from "./handlers/agent-dm.ts";
 import { channelBy, ensure, threadBy } from "./projections.ts";
@@ -49,6 +49,11 @@ export const consumers = {
   "chat.person_left": {
     on: ["member.removed"],
     run: (ctx: ChatCtx, event: Parameters<typeof onPersonLeft>[1]) => onPersonLeft(ctx, event),
+  },
+  /** A manager took or gave back the keyboard of an agent's terminal: its owner reads one quiet line in their chat with it. */
+  "chat.keyboard_lines": {
+    on: ["terminal.taken", "terminal.given_back"],
+    run: (ctx: ChatCtx, event: Parameters<typeof onKeyboardTaken>[1]) => onKeyboardTaken(ctx, event),
   },
   /** An agent was deleted: it comes off the chats it was in, and each gets one line. */
   "chat.agent_deleted": {
