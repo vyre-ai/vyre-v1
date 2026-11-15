@@ -44,7 +44,6 @@ test("a task opens in the Tasks place from a link, and its title, status, assign
     await page.getByTestId("claim-password").fill("fixture password 123");
     await page.getByTestId("claim-confirm").fill("fixture password 123");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });

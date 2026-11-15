@@ -7316,6 +7316,12 @@
     },
     {
       "deferred": false,
+      "name": "providers_local_signins",
+      "summary": "Which Claude Code and Codex sign-ins are on the computer this Space runs on: yes or no for each, never a path or an account name. The AI card shows its \"on this computer\" rows only for a yes.",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "providers_own_people",
       "summary": "Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)",
       "toolset": "vault"

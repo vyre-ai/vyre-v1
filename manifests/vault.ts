@@ -905,6 +905,11 @@ export default defineManifest({
         errors: ["validation.duplicate", "provider.auth_failed", "provider.unavailable"],
       },
     ),
+    read(
+      "providers.local_signins",
+      'Which Claude Code and Codex sign-ins are on the computer this Space runs on: yes or no for each, never a path or an account name. The AI card shows its "on this computer" rows only for a yes.',
+      { ...V, in: {}, out: { claudeCode: t.bool(), codex: t.bool() }, tool: "vault" },
+    ),
     write(
       "providers.subscription_start",
       "Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider's own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.",

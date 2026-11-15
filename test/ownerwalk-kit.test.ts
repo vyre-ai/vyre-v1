@@ -255,9 +255,7 @@ export async function bootWalk(
       await jp.getByTestId("password").fill(PASSWORD);
       await jp.getByTestId("confirm").fill(PASSWORD);
       await jp.getByTestId("next").click();
-      await jp.getByTestId("device").fill(`${first}'s browser`);
-      await jp.getByTestId("next").click();
-      await jp.getByTestId("ai-none").click();
+      // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
       await jp.getByTestId("next").click();
       await dismissOnboarding(jp);
       const s = await jp.evaluate(
@@ -292,7 +290,6 @@ export async function bootWalk(
   await page.getByTestId("claim-password").fill(PASSWORD);
   await page.getByTestId("claim-confirm").fill(PASSWORD);
   await page.getByTestId("claim-next").click();
-  await page.getByTestId("claim-saved").click();
   await page.getByTestId("claim-create").click();
   await dismissOnboarding(page);
   await page.getByTestId("shell").waitFor({ timeout: 30_000 });

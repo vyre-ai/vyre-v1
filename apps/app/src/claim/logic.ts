@@ -1,5 +1,5 @@
 // The owner-claim screen's rules with no rendering (ruling 71): what the details need before Continue, the claim link in the address, and how a refused claim reads to the person.
-import { cleanUsername, meter, strength, usernameOk } from "../join/logic.ts";
+import { cleanUsername, groupFingerprint, meter, strength, usernameOk } from "../join/logic.ts";
 
 export { cleanUsername, meter, strength, usernameOk };
 
@@ -8,6 +8,8 @@ export interface Details {
   username: string;
   password: string;
   confirm: string;
+  /** the Space's name, asked on the owner's card when the link carried none */
+  spaceName?: string;
 }
 
 export const PASSWORD_MIN = 8;
@@ -65,7 +67,7 @@ export const isDeadLink = (f: ClaimFailure): boolean => f === "used" || f === "e
 /** The Space fingerprint in the claim link (`#fp=<hex>`), grouped in fours for comparing against what the owner was shown, or null. */
 export function fingerprintOf(hash: string): string | null {
   const m = /(?:^|[#&])fp=([0-9a-fA-F]{8,128})(?:&|$)/.exec(hash);
-  return m?.[1] ? (m[1].toLowerCase().match(/.{1,4}/g) ?? []).join(" ") : null;
+  return m?.[1] ? groupFingerprint(m[1]) : null;
 }
 
 /** The Space id in the claim link (`#fp=<hex>&s=<spaceId>`), which the client needs to make the Space key, or null. */

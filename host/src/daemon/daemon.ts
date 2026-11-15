@@ -231,7 +231,7 @@ import type { DocumentFetch } from "../seams/document-pin.ts";
 import { createConnectorsHost } from "../seams/connectors.ts";
 import { createProviderSignin } from "../seams/provider-signin.ts";
 import type { SigninProvider } from "../seams/provider-signin.ts";
-import { readLocalSignin } from "../seams/local-signin.ts";
+import { localSigninsPresent, readLocalSignin } from "../seams/local-signin.ts";
 import { createSigninRefresh } from "../seams/signin-refresh.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
@@ -6117,7 +6117,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureVault: (d) => ({
           signin: createProviderSignin({
             fetch: d.fetch,
-            ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}),
+            ...(cfg.spaceKind === "personal"
+              ? { localSignin: (p: SigninProvider) => readLocalSignin(p), localPresent: () => localSigninsPresent() }
+              : {}),
           }),
           refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) },
           sinks: {

@@ -49,6 +49,26 @@ export function ConnectAiCard({
   const [changing, setChanging] = useState(false);
   const [replacing, setReplacing] = useState<AccountRow | null>(null);
   const [note, setNote] = useState("");
+  // which sign-ins are on this computer (providers.local_signins: yes or no each): an "on this computer" row shows only for a yes, first and with the primary look; none at all while it is not known (prototype scene personal-3-ai)
+  const [present, setPresent] = useState<{ claudeCode: boolean; codex: boolean } | null>(null);
+  useEffect(() => {
+    if (!local) return undefined;
+    let off = false;
+    void Promise.resolve(
+      (call as unknown as (cap: string, input: unknown) => Promise<unknown>)("providers.local_signins", {}),
+    ).then(
+      (r) => {
+        const o = r as { claudeCode?: unknown; codex?: unknown };
+        if (!off) setPresent({ claudeCode: o.claudeCode === true, codex: o.codex === true });
+      },
+      () => {
+        if (!off) setPresent({ claudeCode: false, codex: false });
+      },
+    );
+    return () => {
+      off = true;
+    };
+  }, [call, local]);
   const [fresh, setFresh] = useState(0); // bumped when the accounts changed under the list (a switch removed one), so the list reads them again
   useEffect(() => {
     if (!connected) return undefined;
@@ -349,8 +369,8 @@ export function ConnectAiCard({
       ) : (
         <View style={s.col}>
           {/* ui-rows-lint: not a list (sign-in choices are buttons, not list rows) */}
-          {local
-            ? LOCAL_SIGNINS.map((o) => {
+          {local && present
+            ? LOCAL_SIGNINS.filter((o) => (o.key === "claude-code" ? present.claudeCode : present.codex)).map((o) => {
                 const note = localNote(o.key, mac);
                 return (
                   <View key={`local-${o.key}`} style={s.local}>
@@ -374,10 +394,10 @@ export function ConnectAiCard({
                           ),
                         )
                       }
-                      style={[s.signin, busy && s.busyDim]}
+                      style={[s.signin, s.localPrimary, busy && s.busyDim]}
                     >
                       <Mark k={o.key} size={18} />
-                      <Text style={s.tileText}>{o.button}</Text>
+                      <Text style={s.localPrimaryText}>{o.button}</Text>
                     </Pressable>
                     {note ? (
                       <Text testID={`ai-local-note-${o.key}`} style={s.dim}>
@@ -470,6 +490,8 @@ const s = StyleSheet.create({
     justifyContent: "flex-start",
     backgroundColor: "var(--win)" as string,
   },
+  localPrimary: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+  localPrimaryText: { fontSize: 14, fontWeight: "500", color: "var(--accent-ink)" as string },
   tileOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   tileText: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
   input: CARD.input,

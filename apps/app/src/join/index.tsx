@@ -1,7 +1,6 @@
 // The join place's screens (generated registry: join.accept, join.sign-in, join.checklist). The shell binds `ui:JoinAccept`, `ui:JoinSignIn` and
 // `ui:JoinChecklist` to these by name; anonymous callers reach them at /join/<code> and the sign-in page.
 export { AcceptInvite } from "./AcceptInvite.tsx";
-export { ConnectAI } from "./ConnectAI.tsx";
 export { SignIn } from "./SignIn.tsx";
 export { Checklist } from "./Checklist.tsx";
 export { JoinFlow, makeRecoveryCode } from "./JoinFlow.tsx";

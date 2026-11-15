@@ -296,6 +296,8 @@ export function Sheets({
     ).document;
     const onKey = (e: KeyboardEvent): void => {
       if (shellKey(e)?.type === "sidebar") {
+        // Cmd-B is Bold in a text editor: an editor that took it has already said so
+        if (e.defaultPrevented) return;
         e.preventDefault();
         toggleSidebar(slot, api);
         return;

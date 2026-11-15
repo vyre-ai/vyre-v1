@@ -42,7 +42,8 @@ export const KEYBOARD_MAP: readonly Shortcut[] = [
   { id: "goal.new", combo: "Alt-Cmd-G", title: "New goal", scope: "shell" },
   { id: "task.new", combo: "Alt-Cmd-T", title: "New task", scope: "shell" },
   { id: "note.new", combo: "Alt-Cmd-O", title: "New note", scope: "shell" },
-  { id: "sidebar.hide", combo: "Cmd-Shift-\\", title: "Hide or show the sidebar", scope: "shell" },
+  { id: "sidebar.hide", combo: "Cmd-Shift-\\", title: "Hide or show the sidebar (also Cmd-B)", scope: "shell" },
+  { id: "pane.toggle", combo: "Cmd-\\", title: "Hide or show the pane beside the chat", scope: "chats" },
   { id: "chats.unread.next", combo: "Alt-Shift-Down", title: "Next unread chat", scope: "chats" },
   { id: "chats.unread.prev", combo: "Alt-Shift-Up", title: "Previous unread chat", scope: "chats" },
   { id: "list.filter", combo: "F", title: "Filter the list (list focused)", scope: "chats", local: true },
@@ -137,6 +138,8 @@ export function matchShortcut(e: KeyLike, platform: Platform, ctx: { inTerminal?
     if (key === "/" || key === "?") return { id: "report.open" };
     return null;
   }
+  if (key === "b") return { id: "sidebar.hide" };
+  if (key === "\\" || e.code === "Backslash") return { id: "pane.toggle" };
   if (key === "k") return ctx.inTerminal ? null : { id: "cmdk.open" };
   if (key === "t") return { id: "tab.new" };
   if (key === "n") return { id: "chat.new" };

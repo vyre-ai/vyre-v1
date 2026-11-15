@@ -33,15 +33,16 @@ const open = async (seen: boolean) => {
   return { ...f, root, restore };
 };
 
-test("onboarding opens over the shell on a first claim, and Finish later removes it and marks it seen", async () => {
+test("onboarding opens over the shell on a first claim, and Not now removes it and marks it seen", async () => {
   const t = await open(false);
   try {
     assert.ok(find(t.root, "onboarding"), "opened by itself");
     assert.ok(find(t.root, "shell-body"), "the shell is mounted under it");
     const seenBefore = t.calls.filter((c) => c === "spaces.onboarding.seen").length;
+    // the first screen is the one-card Connect your AI (prototype scene personal-3-ai); Not now goes to the chat
     await press(find(t.root, "onboarding-close"));
     await flush();
-    assert.equal(find(t.root, "onboarding"), null, "Finish later removes it");
+    assert.equal(find(t.root, "onboarding"), null, "Not now removes it");
     assert.equal(find(t.root, "onboarding-rail"), null, "no rail left over the shell");
     assert.ok(find(t.root, "shell-body"));
     assert.ok(t.calls.filter((c) => c === "spaces.onboarding.seen").length > seenBefore, "closing marks it seen");

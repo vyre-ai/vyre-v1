@@ -3,6 +3,7 @@
 import { stepsOf } from "./flow.ts";
 import type { FlowKind, Progress, StepDef, StepState } from "./flow.ts";
 import { stateOf } from "./flow.ts";
+import { phoneCanReach } from "../shell/session/reach.ts";
 
 export type Device = "mac" | "win" | "web" | "phone";
 
@@ -26,8 +27,43 @@ export function detectDevice(width?: number): Device {
   return "web";
 }
 
-export const visibleSteps = (flow: FlowKind, device: Device): readonly StepDef[] =>
-  stepsOf(flow).filter((s) => !HIDDEN[device].includes(s.card));
+/** What is true here and now, so a step that cannot be done is not shown (rows, count and chip all read one list): each fact is true unless it says otherwise. */
+export interface RowFacts {
+  /** an AI account exists: a routine needs one, so a first-win row waits for it */ ai?: boolean;
+  /** this browser can install the extension (a desktop Chrome or Edge) */ chrome?: boolean;
+  /** a phone can open this Space's address, so pairing can start */ phone?: boolean;
+  /** a mailbox of the person's is connected, so a member's own mail, calendar and files are there */ company?: boolean;
+  /** the Space has no name yet; once it has one (typed on the owner's first card) the "name your Space" row is done and not shown */ unnamed?: boolean;
+}
+const NEEDS: Readonly<Record<string, keyof RowFacts>> = {
+  first_win: "ai",
+  team_win: "ai",
+  chrome: "chrome",
+  phone: "phone",
+  own_data: "company",
+  org: "unnamed",
+};
+
+/** The one list of steps a person sees on this device in this state: the device's own steps, minus the ones whose fact is false. */
+export const visibleSteps = (flow: FlowKind, device: Device, facts: RowFacts = {}): readonly StepDef[] =>
+  stepsOf(flow).filter((s) => !HIDDEN[device].includes(s.card) && facts[NEEDS[s.card] as keyof RowFacts] !== false);
+
+/** What the page itself can tell: the AI step is done, the browser can install the extension, a phone can open this address; `company` and `unnamed` come from the caller, which reads them. */
+export function rowFacts(
+  progress: Readonly<Record<string, string>>,
+  device: string,
+  more: Pick<RowFacts, "company" | "unnamed"> = {},
+): RowFacts {
+  const g = globalThis as { navigator?: { userAgent?: string }; location?: { origin?: string } };
+  const ua = g.navigator?.userAgent ?? "";
+  return {
+    ai: progress["ai"] === "done",
+    chrome: device === "mac" || device === "win" || (device === "web" && /Chrome\//.test(ua) && !/Mobile/.test(ua)),
+    phone: g.location?.origin ? phoneCanReach(g.location.origin) : true,
+    ...(more.company === undefined ? {} : { company: more.company }),
+    ...(more.unnamed === undefined ? {} : { unnamed: more.unnamed }),
+  };
+}
 
 /** A step's state on this device: "Your phone" is done on the phone itself. */
 export function stateOn(progress: Progress, step: StepDef, device: Device): StepState {
@@ -38,8 +74,9 @@ export function countsOn(
   flow: FlowKind,
   progress: Progress,
   device: Device,
+  facts: RowFacts = {},
 ): { done: number; later: number; total: number } {
-  const steps = visibleSteps(flow, device);
+  const steps = visibleSteps(flow, device, facts);
   return {
     done: steps.filter((s) => stateOn(progress, s, device) === "done").length,
     later: steps.filter((s) => stateOn(progress, s, device) === "later").length,

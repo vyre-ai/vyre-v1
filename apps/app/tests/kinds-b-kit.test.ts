@@ -19,7 +19,6 @@ export async function claimOwner(
   await page.getByTestId("claim-password").fill(PASSWORD);
   await page.getByTestId("claim-confirm").fill(PASSWORD);
   await page.getByTestId("claim-next").click();
-  await page.getByTestId("claim-saved").click();
   await page.getByTestId("claim-create").click();
   await dismissOnboarding(page);
   await page.getByTestId("shell").waitFor({ timeout: 30_000 });
@@ -58,9 +57,7 @@ export async function joinMaya(browser: Browser, origin: string, call: Call): Pr
   await maya.getByTestId("password").fill(PASSWORD);
   await maya.getByTestId("confirm").fill(PASSWORD);
   await maya.getByTestId("next").click();
-  await maya.getByTestId("device").fill("Maya's browser");
-  await maya.getByTestId("next").click();
-  await maya.getByTestId("ai-none").click();
+  // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
   await maya.getByTestId("next").click();
   await dismissOnboarding(maya);
   const mayaId = await maya.evaluate(
@@ -84,9 +81,7 @@ export async function joinGuest(browser: Browser, origin: string, link: string):
   await guest.getByTestId("password").fill(PASSWORD);
   await guest.getByTestId("confirm").fill(PASSWORD);
   await guest.getByTestId("next").click();
-  await guest.getByTestId("device").fill("Gus's browser");
-  await guest.getByTestId("next").click();
-  await guest.getByTestId("ai-none").click();
+  // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
   await guest.getByTestId("next").click();
   await dismissOnboarding(guest);
   return guest;

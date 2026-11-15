@@ -4,7 +4,8 @@
 //   run                                                            the terminal_run tool: one command, run in a session, output scrubbed of every Vault value filled into it
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
-import { createHmac, randomBytes } from "node:crypto";
+import { randomHex } from "../../../kernel/src/log/hash.ts";
+import { hmac } from "../../../kernel/src/seal/wire.ts";
 import { STOPPED_LINE } from "../stop-line.ts";
 import { hasOwnPlace } from "../../../lib/asker-place.ts";
 import { askerPlace, inOtherFolder, namesMirror, otherFolders, ownersHomeRefs, projectsNamed } from "../asker.ts";
@@ -1276,9 +1277,8 @@ const MAX_KEYS_CHARS = 100_000;
  * A keyed hash (HMAC, a secret made when the process starts and never written anywhere) of each batch's text, per live lease, in memory only: a repeat of a batch number with other keys is refused in plain words
  * instead of being answered as if it were the first. Nothing of it reaches a file; after a restart a lease is new anyway.
  */
-const TYPED_SECRET = randomBytes(32);
-const typedHash = (keys: unknown): string =>
-  createHmac("sha256", TYPED_SECRET).update(JSON.stringify(keys)).digest("hex");
+const TYPED_SECRET = randomHex(32);
+const typedHash = (keys: unknown): string => hmac(TYPED_SECRET, JSON.stringify(keys));
 const BATCH_KEEP_MS = 10 * 60_000;
 /** A batch that has been "being sent" this long was lost with the process that was sending it: it is answered as not known to have arrived, and never sent again. */
 const SENDING_STALE_MS = 15_000;
