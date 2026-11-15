@@ -151,9 +151,11 @@ test("a message that tags nobody, sent while several agents work, reaches every 
   const inner = scriptedModel(async function* (input: any, run: any) {
     const who = who_(input);
     turns.set(who, (turns.get(who) ?? 0) + 1);
-    await sleep(500);
+    // the agents work for 5 s, not 1 s: on a busy runner the post and its delivery took longer than one second, the turns had ended, and nothing was injected (CI, 16 Nov 2026).
+    // What is asserted is unchanged: both working agents get the message and no new turn starts.
+    await sleep(2500);
     yield* run("engine.pool.status", {}); // a step boundary: the steering message is read here
-    await sleep(500);
+    await sleep(2500);
     yield { type: "text", text: `${who} done` };
   });
   const model: OpenSession = async (spec) => {
