@@ -644,10 +644,7 @@ export async function pruneSpace(dataDir: string, cap = SPACE_CAP): Promise<numb
  * The one periodic sweep (engine.checkpoint_sweep, hourly): every store loses the points past their age (a chat nobody touches included: all of its points expire and its store goes), over-size stores
  * are cut, and the Space's total is held under its cap. This is the only place that walks every store; a turn touches its own store alone.
  */
-export async function sweep(
-  dataDir: string,
-  now: number,
-): Promise<{ pointsDropped: number; storesDropped: number }> {
+export async function sweep(dataDir: string, now: number): Promise<{ pointsDropped: number; storesDropped: number }> {
   let pointsDropped = 0;
   let storesDropped = 0;
   try {

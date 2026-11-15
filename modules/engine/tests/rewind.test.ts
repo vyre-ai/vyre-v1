@@ -75,25 +75,42 @@ test("points name the message a turn answered; going back restores the folder, f
     const went = await rewindIn(s.ctx, { threadId: T, pointId: listed.points[0]!.pointId }, s.data);
     assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "one");
     assert.equal(fs.existsSync(path.join(dir, "b.txt")), false);
-    assert.deepEqual([went.afterSeq, went.uptoSeq, went.undid], [0, 3, false], "the range is the engine's: from the point's own message to the newest");
+    assert.deepEqual(
+      [went.afterSeq, went.uptoSeq, went.undid],
+      [0, 3, false],
+      "the range is the engine's: from the point's own message to the newest",
+    );
     const rows1 = s.h.rows("SELECT kind, state FROM engine_rewind WHERE thread_id = ?", T);
     assert.deepEqual(rows1, [{ kind: "rewind", state: "done" }]);
     const l1 = await pointsIn(s.ctx, { threadId: T }, s.data);
-    assert.deepEqual(l1.active.map((a) => [a.afterSeq, a.uptoSeq, a.undoPointId]), [[0, 3, went.undoPointId]]);
+    assert.deepEqual(
+      l1.active.map((a) => [a.afterSeq, a.uptoSeq, a.undoPointId]),
+      [[0, 3, went.undoPointId]],
+    );
     // work done between the rewind and its Undo
     fs.writeFileSync(path.join(dir, "c.txt"), "between");
     const undone = await rewindIn(s.ctx, { threadId: T, pointId: went.undoPointId }, s.data);
     assert.equal(undone.undid, true);
     assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "two");
-    assert.equal(fs.existsSync(path.join(dir, "c.txt")), false, "going back to before the rewind removes what was made since");
+    assert.equal(
+      fs.existsSync(path.join(dir, "c.txt")),
+      false,
+      "going back to before the rewind removes what was made since",
+    );
     // the Undo is a row of its own, and its point is listed, so the work done between the rewind and the Undo can be reached again
-    assert.deepEqual(s.h.rows("SELECT kind, state FROM engine_rewind WHERE thread_id = ?", T), [{ kind: "undo", state: "done" }]);
+    assert.deepEqual(s.h.rows("SELECT kind, state FROM engine_rewind WHERE thread_id = ?", T), [
+      { kind: "undo", state: "done" },
+    ]);
     const l2 = await pointsIn(s.ctx, { threadId: T }, s.data);
     assert.deepEqual(l2.active, [], "nothing is folded after Undo");
     const redo = l2.points.find((p) => p.undo === true);
     assert.ok(redo, "the Undo's own point is offered");
     const back = await rewindIn(s.ctx, { threadId: T, pointId: redo!.pointId }, s.data);
-    assert.equal(fs.readFileSync(path.join(dir, "c.txt"), "utf8"), "between", "the work done between a rewind and its Undo is reachable again");
+    assert.equal(
+      fs.readFileSync(path.join(dir, "c.txt"), "utf8"),
+      "between",
+      "the work done between a rewind and its Undo is reachable again",
+    );
     assert.equal(back.undid, false, "going back to the Undo's point folds the range again");
     assert.equal((await pointsIn(s.ctx, { threadId: T }, s.data)).active.length, 1);
   } finally {
@@ -106,7 +123,10 @@ test("outside a chat with an agent it is off; a made-up point is not found; an a
   const solo = setup();
   try {
     assert.equal((await pointsIn(chan.ctx, { threadId: T }, chan.data)).why, "not_a_chat");
-    await assert.rejects(rewindIn(solo.ctx, { threadId: T, pointId: `${AGENT}.${"a".repeat(40)}` }, solo.data), /not in this chat/);
+    await assert.rejects(
+      rewindIn(solo.ctx, { threadId: T, pointId: `${AGENT}.${"a".repeat(40)}` }, solo.data),
+      /not in this chat/,
+    );
     await assert.rejects(rewindIn(solo.ctx, { threadId: T, pointId: "../../etc" }, solo.data), /not in this chat/);
     const asAgent = { ...solo.ctx, principal: { kind: "agent" as const, id: AGENT } };
     await assert.rejects(pointsIn(asAgent, { threadId: T }, solo.data), /Only a person/);
@@ -160,7 +180,16 @@ test("item 3: not while the agent works (and the files are untouched); a point f
     assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "two");
     assert.deepEqual(s.h.rows("SELECT * FROM engine_rewind"), [], "nothing was written for a refused rewind");
     // a point that lost the race to the turn's start is the folder "during" the turn
-    const r = await checkpointTurn({ dataDir: s.data, person: DANA, thread: T, agent: AGENT, turnId: "trn_slow", messageId: "msg_ask1", now: BASE + 2_000, waitMs: 0 });
+    const r = await checkpointTurn({
+      dataDir: s.data,
+      person: DANA,
+      thread: T,
+      agent: AGENT,
+      turnId: "trn_slow",
+      messageId: "msg_ask1",
+      now: BASE + 2_000,
+      waitMs: 0,
+    });
     assert.equal(r.background, true);
     let late: Awaited<ReturnType<typeof pointsIn>>["points"] = [];
     for (let i = 0; i < 100 && !late.some((p) => p.during); i++) {
@@ -189,7 +218,8 @@ test("item 4: a turn in a crew, task or one-shot thread, or on the person's own 
   assert.equal(pointWanted("chat", undefined), false, "an unknown placement fails closed: no point");
   assert.equal(pointWanted("chat", ""), false);
   assert.equal(pointWanted("chat", "device"), false, "the folder it works in is not on this server");
-  for (const kind of ["crew", "task", "helper", "channel", "oneshot"]) assert.equal(pointWanted(kind, "host"), false, kind);
+  for (const kind of ["crew", "task", "helper", "channel", "oneshot"])
+    assert.equal(pointWanted(kind, "host"), false, kind);
   const s = setup({ placement: "device" });
   try {
     const l = await pointsIn(s.ctx, { threadId: T }, s.data);
@@ -290,7 +320,11 @@ test("item 8: the row is written before the files are put back; a rewind cut sho
       }),
       /host stopped/,
     );
-    assert.deepEqual(s.h.rows("SELECT state FROM engine_rewind"), [{ state: "going back" }], "the row was there before the files moved");
+    assert.deepEqual(
+      s.h.rows("SELECT state FROM engine_rewind"),
+      [{ state: "going back" }],
+      "the row was there before the files moved",
+    );
     const after = await pointsIn(s.ctx, { threadId: T }, s.data);
     assert.equal(after.active.length, 1);
     assert.equal(after.active[0]!.interrupted, true);
@@ -308,19 +342,33 @@ test("item 1: secrets are never stored in a point, by name or by content; a dele
   const s = setup();
   try {
     const dir = workFolder(s.data, DANA, T, AGENT);
-    const secrets = ["credentials.json", "service-account.json", "token.json", "secrets.yaml", ".aws/credentials", "deploy.p8", "a.kdbx", "my-service-account-prod.json"];
+    const secrets = [
+      "credentials.json",
+      "service-account.json",
+      "token.json",
+      "secrets.yaml",
+      ".aws/credentials",
+      "deploy.p8",
+      "a.kdbx",
+      "my-service-account-prod.json",
+    ];
     for (const f of secrets) {
       fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
       fs.writeFileSync(path.join(dir, f), "x");
     }
-    fs.writeFileSync(path.join(dir, "notes.txt"), "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----\n");
-    fs.writeFileSync(path.join(dir, "conf.txt"), 'aws_secret_access_key = abcd\n');
+    fs.writeFileSync(
+      path.join(dir, "notes.txt"),
+      "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----\n",
+    );
+    fs.writeFileSync(path.join(dir, "conf.txt"), "aws_secret_access_key = abcd\n");
     fs.writeFileSync(path.join(dir, "app.ts"), "export const x = 1;\n");
     await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
     const gitDir = storeOf(s.data, dir);
     const p = (await points({ gitDir, workDir: dir }))[0]!;
     const { execFileSync } = await import("node:child_process");
-    const tree = execFileSync("git", ["--git-dir", gitDir, "ls-tree", "-r", "--name-only", p.sha], { encoding: "utf8" }).split("\n").filter(Boolean);
+    const tree = execFileSync("git", ["--git-dir", gitDir, "ls-tree", "-r", "--name-only", p.sha], { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean);
     assert.deepEqual(tree, ["app.ts"], `stored: ${tree.join(", ")}`);
     // a secret deleted since is not brought back; a normal file is
     for (const f of ["credentials.json", "notes.txt", "app.ts"]) fs.rmSync(path.join(dir, f));
@@ -354,7 +402,8 @@ test("1a: a browser profile's stores are secrets whatever the content sniff says
   const { isSecretPath } = await import("../../../lib/secret-files.ts");
   const names = ["Cookies", "Login Data", "cookies.sqlite", "logins.json", "key4.db", "Web Data", "Local State"];
   for (const n of names) assert.equal(isSecretPath(`profile/${n}`), true, n);
-  for (const d of ["User Data", ".mozilla", "google-chrome", "chromium"]) assert.equal(isSecretPath(`x/${d}/Default/Preferences`), true, d);
+  for (const d of ["User Data", ".mozilla", "google-chrome", "chromium"])
+    assert.equal(isSecretPath(`x/${d}/Default/Preferences`), true, d);
   assert.equal(isSecretPath("src/cookies-banner.tsx"), false);
   const s = setup();
   try {
@@ -367,7 +416,9 @@ test("1a: a browser profile's stores are secrets whatever the content sniff says
     const gitDir = storeOf(s.data, dir);
     const p = (await points({ gitDir, workDir: dir }))[0]!;
     const { execFileSync } = await import("node:child_process");
-    const tree = execFileSync("git", ["--git-dir", gitDir, "ls-tree", "-r", "--name-only", p.sha], { encoding: "utf8" }).split("\n").filter(Boolean);
+    const tree = execFileSync("git", ["--git-dir", gitDir, "ls-tree", "-r", "--name-only", p.sha], { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean);
     assert.deepEqual(tree, ["app.ts"]);
   } finally {
     done(s);
@@ -377,7 +428,9 @@ test("1a: a browser profile's stores are secrets whatever the content sniff says
 /** Every object of a store, loose and packed, as one buffer to search. */
 async function allObjects(gitDir: string): Promise<Buffer> {
   const { execFileSync } = await import("node:child_process");
-  return execFileSync("git", ["--git-dir", gitDir, "cat-file", "--batch-all-objects", "--batch"], { maxBuffer: 1 << 28 });
+  return execFileSync("git", ["--git-dir", gitDir, "cat-file", "--batch-all-objects", "--batch"], {
+    maxBuffer: 1 << 28,
+  });
 }
 
 test("1b: a secret's bytes are never in the store's objects, loose or packed, not even as an unreferenced blob (they are kept out BEFORE the add)", async () => {
@@ -438,7 +491,11 @@ test("3: the restore's own guard: a point made by the OLD code that holds a secr
     const gitDir = storeOf(s.data, dir);
     const { execFileSync } = await import("node:child_process");
     const g = (args: string[], env: Record<string, string> = {}, input?: string): string =>
-      execFileSync("git", ["--git-dir", gitDir, ...args], { encoding: "utf8", env: { ...process.env, ...env }, ...(input ? { input } : {}) }).trim();
+      execFileSync("git", ["--git-dir", gitDir, ...args], {
+        encoding: "utf8",
+        env: { ...process.env, ...env },
+        ...(input ? { input } : {}),
+      }).trim();
     // a point as the code before the fix made it: the tree holds credentials.json and a.txt
     const blobSecret = g(["hash-object", "-w", "--stdin"], {}, "OLD-POINT-SECRET");
     const blobA = g(["hash-object", "-w", "--stdin"], {}, "one");
@@ -452,7 +509,11 @@ test("3: the restore's own guard: a point made by the OLD code that holds a secr
     const old = l.points.find((p) => p.pointId.endsWith(commit))!;
     assert.ok(old, "the hand-built point is listed");
     await rewindIn(s.ctx, { threadId: T, pointId: old.pointId }, s.data);
-    assert.equal(fs.existsSync(path.join(dir, "credentials.json")), false, "the secret in the old point was not brought back");
+    assert.equal(
+      fs.existsSync(path.join(dir, "credentials.json")),
+      false,
+      "the secret in the old point was not brought back",
+    );
     assert.equal(fs.readFileSync(path.join(dir, "token.json"), "utf8"), "keep", "a secret on disk was not removed");
     assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "one");
   } finally {
