@@ -102,8 +102,10 @@ test("chat walker findings: send follows, the Worked line, the plan card in orde
       });
     await go(long);
     await page.waitForTimeout(2000);
-    await page.evaluate(`document.querySelector("[data-testid=conversation-feed]").scrollTop = 150`);
-    await page.waitForTimeout(500);
+    // as a person's wheel does: the pointer over the feed, a long pull upward, then a moment for the feed to settle
+    await page.mouse.move(700, 450);
+    await page.mouse.wheel(0, -4000);
+    await page.waitForTimeout(1200);
     assert.equal((await feed()).jump, 1, "scrolled up by the person: Jump to latest shows");
     await shot("01-scrolled-up");
     const field = page.getByTestId("composer-field").first();
