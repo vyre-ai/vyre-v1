@@ -77,6 +77,9 @@ export interface HeldCardProps {
   state: "waiting" | "sent" | "dropped";
   /** The line an answered card reads: "Sent to Aliza · 04:38". */
   doneLine?: string | undefined;
+  /** The words of the two answers. Left out: Allow and Deny, the approval vocabulary. A message held for you says Send and Don't send (prototype, G42). */
+  sendWord?: string;
+  dropWord?: string;
   /** Whether Edit is offered. */
   editable: boolean;
   /** The To line is editable too (a send in Chrome: the page's own field). */
@@ -425,10 +428,10 @@ export function HeldCard(p: HeldCardProps): ReactElement {
                   },
                 ]
               : []),
-            { label: "Deny", onPress: () => setDenying(true), testID: `${p.testID}-drop` },
+            { label: p.dropWord ?? "Deny", onPress: () => setDenying(true), testID: `${p.testID}-drop` },
           ]}
           primary={{
-            label: "Allow",
+            label: p.sendWord ?? "Allow",
             icon: <Glyph name="check" size={13} color="var(--accent-ink)" />,
             onPress: () => run(p.onSend, () => setDone("sent")),
             testID: `${p.testID}-send`,
