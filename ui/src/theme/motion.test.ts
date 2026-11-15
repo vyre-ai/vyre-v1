@@ -38,17 +38,20 @@ function node(scroll = 0): Record<string, unknown> & { kids: unknown[] } {
   return n;
 }
 
-test("a still copy goes over the view, stays until told, then fades once and leaves", async () => {
+// Changed 15 Nov 2026 (team/v1/TABS-2026-11-15.md): the copy used to fade out over 140 ms, which drew the old view and the new one on top of each other. It now leaves in one frame.
+test("a still copy goes over the view, stays until told, then leaves at once: the old view is never drawn over the new one", async () => {
   const live = node();
   const swap = holdView(live, live);
   assert.ok(swap);
   const copy = live.kids[0] as ReturnType<typeof node>;
   assert.equal((copy.attrs as Record<string, string>)["data-swap"], "1");
   assert.equal((copy.style as { opacity: string }).opacity, "1", "held until the next view is ready");
+  assert.equal(copy.removed, false);
   swap.fade();
-  assert.equal((copy.style as { opacity: string }).opacity, "0");
-  await new Promise((r) => setTimeout(r, MOTION.swap + 60));
-  assert.equal(copy.removed, true);
+  assert.equal(copy.removed, true, "gone in the same frame, not after a fade");
+  assert.equal((copy.style as { opacity: string }).opacity, "1", "it was never half shown");
+  swap.fade();
+  assert.equal(copy.removed, true, "a second call does nothing");
   assert.equal(holdView(null, null), null);
 });
 
