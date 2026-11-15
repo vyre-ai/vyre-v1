@@ -13,25 +13,17 @@ test("the Computer tab as Ada and as Bea on the same shared agent", { timeout: 4
   if (!k) return;
   try {
     const bea = await k.s.world.join("bea");
-    // a channel of both with the agent: its right pane has the agent's Computer tab for each of them
-    const ch = await k.w.owner.ok("channels.create", { name: "desk", visibility: "invite", memberIds: [bea.id], agentIds: [k.agentId] });
-    const channelId = ch.channel.mainThreadId as string;
     // Ada has a terminal of her own on the agent's computer, and Bea has one of hers
     await k.w.owner.ok("terminal.open", { host: "agent_computer", agentId: k.agentId, name: "ada-notes", idempotencyKey: "ada-term" });
     await bea.ok("terminal.open", { host: "agent_computer", agentId: k.agentId, name: "bea-notes", idempotencyKey: "bea-term" });
     const beaSeat = await seat(k.s, bea, "Bea");
+    const agentPage = `/chat#screen=chats.agent-page&agentId=${k.agentId}&tab=computer`;
     const tab = async (who: typeof k.me | typeof beaSeat): Promise<void> => {
-      await open(who, k.s, "/chat");
-      await who.page.getByTestId("chats-place").waitFor({ timeout: 20_000 });
-      await who.page.getByText("desk", { exact: true }).first().click();
-      await who.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
-      if ((await who.page.getByTestId("chats-right-pane").count()) === 0) await who.page.getByTestId("pane-button").click();
-      await who.page.getByTestId("chats-right-pane").waitFor({ timeout: 20_000 });
-      await who.page.getByTestId("tab-computer").or(who.page.getByTestId("tab-computer-selected")).first().click();
-      await who.page.getByTestId("terminals-head").waitFor({ timeout: 20_000 });
+      await open(who, k.s, agentPage);
+      await who.page.getByTestId("agent-page").waitFor({ timeout: 30_000 });
+      await who.page.getByTestId("terminals-head").waitFor({ timeout: 30_000 });
       await who.page.waitForTimeout(1500);
     };
-    void channelId;
     for (const [who, name] of [
       [k.me, "ada"],
       [beaSeat, "bea"],
