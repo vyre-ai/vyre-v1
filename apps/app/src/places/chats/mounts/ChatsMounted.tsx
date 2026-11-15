@@ -924,6 +924,16 @@ export function ChatsMounted({
   const agentQ = useLive<AgentOut>(rt.screens, "chats.agent-page", "agent", agentId !== "" ? { agentId } : null);
   const agentRow = agentQ.status === "ready" && agentId !== "" ? agentQ.data.agent : null;
   const agentComputer = computerOf(agentId);
+  // a terminal row on the agent's page opens the same full-screen terminal as beside a chat
+  const agentTerminal = useMemo(
+    () =>
+      terminalData(rt, go, {
+        agent: { agentId, name: agentId === rt.assistant.id ? rt.assistant.name : (agentRow?.name ?? nameOf(agentId)) },
+        nameOf,
+        newKey,
+      }),
+    [rt, go, agentId, agentRow, nameOf],
+  );
   const agentPage = useMemo(
     () =>
       agentPageData(rt, go, {
@@ -935,8 +945,9 @@ export function ChatsMounted({
         canEdit: agentRow !== null && agentRow.ownerId === rt.me.id,
         nameOf,
         fill,
+        terminal: agentTerminal,
       }),
-    [rt, go, agentId, agentRow, agentComputer, nameOf, fill],
+    [rt, go, agentId, agentRow, agentComputer, nameOf, fill, agentTerminal],
   );
 
   /* ---------- the middle ---------- */

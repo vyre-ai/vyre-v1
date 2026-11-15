@@ -9,7 +9,7 @@ import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { Icon, TextButton } from "./parts.tsx";
 import { browserHead, startStage } from "./work-model.ts";
 import type { BrowserData, BrowserView } from "./work-model.ts";
-import { Dot } from "./WorkParts.tsx";
+import { Dot, SHEET_INSET, SheetScrim, sheetFrame } from "./WorkParts.tsx";
 
 const RATIO = 1.6;
 
@@ -62,14 +62,22 @@ export function BrowserSheet({
       .finally(() => setBusy(false));
   };
   // the frame keeps its 8:5 shape and fits the window under the header and the bar
-  const maxH = Math.max(160, win.height - 150);
-  const width = Math.min(win.width - 32, maxH * RATIO);
+  const wide = win.width >= 900;
+  const maxH = Math.max(160, win.height - (wide ? 190 : 150));
+  const width = Math.min(win.width - (wide ? 2 * SHEET_INSET + 32 : 32), maxH * RATIO);
   const bar = barOf(view, name, mine, Date.now() - t0.current);
   // while someone else has taken the browser over, nobody but them gets a picture of it (the server refuses it too)
   const live = view.state === "open" || (view.state === "takeover" && mine);
   return (
     <Overlay>
-      <View testID="browser-popup" role="dialog" aria-modal accessibilityLabel={`${name}'s browser`} style={st.veil}>
+      <SheetScrim windowWidth={win.width} />
+      <View
+        testID="browser-popup"
+        role="dialog"
+        aria-modal
+        accessibilityLabel={`${name}'s browser`}
+        style={[st.veil, sheetFrame(win.width) as never]}
+      >
         <View style={st.head}>
           <Icon name="globe" size={16} color="var(--ink-2)" />
           <Text style={st.title} numberOfLines={1}>{`${name}'s browser`}</Text>

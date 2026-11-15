@@ -10,6 +10,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.alerts.set": async (ctx) => { throw new VyreErr(notImplemented("automations.alerts.set", ctx.trace)); },
   "automations.analytics": async (ctx) => { throw new VyreErr(notImplemented("automations.analytics", ctx.trace)); },
   "automations.code_reach": async (ctx) => { throw new VyreErr(notImplemented("automations.code_reach", ctx.trace)); },
+  "automations.connect_options": async (ctx) => { throw new VyreErr(notImplemented("automations.connect_options", ctx.trace)); },
   "automations.connector_card": async (ctx) => { throw new VyreErr(notImplemented("automations.connector_card", ctx.trace)); },
   "automations.connector_levels": async (ctx) => { throw new VyreErr(notImplemented("automations.connector_levels", ctx.trace)); },
   "automations.connector_offer.accept": async (ctx) => { throw new VyreErr(notImplemented("automations.connector_offer.accept", ctx.trace)); },

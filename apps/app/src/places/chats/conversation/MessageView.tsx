@@ -178,6 +178,10 @@ export interface MessageActions {
   errorNext(key: string, turnId?: string): void;
   /** True when the reader may set the Space AI key (an owner or admin, in a shell with a Console): "no account" then offers it as an action; otherwise it says to ask an admin. */
   canSetSpaceKey?: boolean;
+  /** True in a Personal Space: no line about a Space AI key or an admin. */
+  noSpaceKey?: boolean;
+  /** The Space's change stream: a card that waits for an AI account asks again when something changed. */
+  changes?: import("./use-follow.ts").Changes;
   /** True once the person has a working AI account (read after "Connect your AI"). Left out where the chat cannot tell. */
   accountReady?(): Promise<boolean>;
   retrySend(messageId: string): void;
@@ -1717,7 +1721,7 @@ function Theirs({
         );
       })()}
       {collect(errors, (b) => (
-        <ErrorRowView key={b.id} block={b} actions={actions} />
+        <ErrorRowView key={b.id} block={b} actions={actions} at={m.createdAt} />
       ))}
       {collect(m.blocks.some(isApprovalUp) ? statuses.filter((x) => x.kind !== "note") : statuses, (x) =>
         x.kind === "note" ? (
@@ -2113,12 +2117,18 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
 
 /* ---------- errors: what, why, next ---------- */
 
+/** A message waiting for an AI account is sent again by itself only while it is fresh: an old failure in the history is never re-run by opening the chat. */
+const AUTO_RESEND_MS = 30 * 60_000;
+
 export function ErrorRowView({
   block,
   actions,
+  at,
 }: {
   block: Message["blocks"][number];
   actions: MessageActions;
+  /** When the message the card sits under was sent. */
+  at?: number;
 }): ReactElement {
   const e = errorRow(block);
   const [open, setOpen] = useState(false);
@@ -2138,36 +2148,33 @@ export function ErrorRowView({
     };
   }, [open, detail, e.turnId, actions]);
   // A reply that could not start for lack of an AI account: once the person has used "Connect your AI" and an account works, a quiet line offers to send it again (one retry of that turn, the message is not posted twice).
-  const noAccount = e.code === "no_account" && e.turnId !== "" && actions.accountReady !== undefined;
-  const [asked, setAsked] = useState(false);
-  const [ready, setReady] = useState(false);
+  // The account may be added any way at all (this card's button, the Vault, "Not now" and later): the card asks the Space every few seconds, and the moment an account works it sends the waiting message again by
+  // itself, once, and gives way to one quiet line. If that send still cannot be answered, the new reply's own card says why.
+  const noAccount =
+    e.code === "no_account" &&
+    e.turnId !== "" &&
+    actions.accountReady !== undefined &&
+    (at === undefined || Date.now() - at < AUTO_RESEND_MS);
   const [resent, setResent] = useState(false);
-  useEffect(() => {
-    if (!noAccount || !asked || ready || resent) return;
-    let live = true;
-    const check = (): void => {
-      void actions.accountReady!().then(
-        (ok) => {
-          if (live && ok) setReady(true);
-        },
-        () => undefined,
-      );
-    };
-    check();
-    const timer = setInterval(check, 2500);
-    return () => {
-      live = false;
-      clearInterval(timer);
-    };
-  }, [noAccount, asked, ready, resent, actions]);
+  const sentAgain = useRef(false);
+  useFollow(
+    actions.changes,
+    () =>
+      actions.accountReady!().then((ok) => {
+        if (!ok || sentAgain.current) return;
+        sentAgain.current = true;
+        setResent(true);
+        actions.retryTurn(e.turnId);
+      }),
+    noAccount && !resent,
+  );
   const { element: moreMenu, show: showMore } = useMenu();
-  const spaceKey = spaceKeyWay(e.code, actions.canSetSpaceKey === true);
+  const spaceKey = actions.noSpaceKey === true ? { line: "" } : spaceKeyWay(e.code, actions.canSetSpaceKey === true);
   const steps = [
     ...e.next.map((n) => ({
       label: n.label,
       testID: `err-next-${n.key}`,
       run: () => {
-        if (n.key === "connect_ai") setAsked(true);
         actions.errorNext(n.key, e.turnId);
       },
     })),
@@ -2193,6 +2200,12 @@ export function ErrorRowView({
         ]
       : []),
   ];
+  if (resent)
+    return (
+      <Text testID="err-resent" style={st.errCause}>
+        Your AI is connected. Sending your message again.
+      </Text>
+    );
   const [fix, ...otherSteps] = steps;
   const more: MenuEntry[] = [
     ...otherSteps.map((s) => ({ label: s.label, onSelect: s.run })),
@@ -2236,20 +2249,6 @@ export function ErrorRowView({
           }
         />
         {moreMenu}
-        {noAccount && ready && !resent ? (
-          <View testID="err-connected" style={st.errActions}>
-            <Text style={st.errCause}>Connected. Send it again?</Text>
-            <TextButton
-              link
-              label="Retry"
-              testID="err-connected-retry"
-              onPress={() => {
-                setResent(true);
-                actions.retryTurn(e.turnId);
-              }}
-            />
-          </View>
-        ) : null}
         {open ? (
           <View testID="err-steps" style={st.errSteps}>
             {collect(detail ?? e.steps, ([k, v]) => (

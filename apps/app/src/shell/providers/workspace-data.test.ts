@@ -57,6 +57,34 @@ test("asleep, waiting (with the line), not made yet (asleep: Attach makes it) an
   assert.match(gone.line ?? "", /Install Docker/);
 });
 
+test("one rule for every word: a computer is never Asleep while one of its terminals runs a command or a person holds its keyboard", () => {
+  // the read is the host's; a host that keeps no container, or a read that lags a terminal that just opened, says asleep beside a terminal that is running
+  const runningRow = row({ terminalId: "t1", name: "agent", state: "running", by: { kind: "agent" } });
+  const asleepRead = read({ state: "asleep" });
+  const v = workspaceView("agt_dex", asleepRead, [runningRow]);
+  assert.equal(v.state, "running");
+  assert.equal(terminalsHead(v).word, "Running");
+  const held = workspaceView("agt_dex", asleepRead, [
+    row({ terminalId: "t2", name: "agent", state: "idle", heldBy: "usr_me", by: { kind: "agent" } }),
+  ]);
+  assert.equal(terminalsHead(held).word, "Ready");
+  // an idle terminal in a computer that sleeps is Asleep, as the server says; a terminal that ended is not a running computer
+  assert.equal(
+    workspaceView("agt_dex", asleepRead, [row({ terminalId: "t3", name: "agent", state: "idle" })]).state,
+    "asleep",
+  );
+  assert.equal(
+    workspaceView("agt_dex", asleepRead, [row({ terminalId: "t4", name: "x", state: "exited" })]).state,
+    "asleep",
+  );
+  // someone else's terminal is not drawn and does not wake the words of this person's computer view
+  assert.equal(
+    workspaceView("agt_dex", asleepRead, [row({ terminalId: "t5", name: "o", state: "running", elsewhere: true })])
+      .state,
+    "asleep",
+  );
+});
+
 test("who may attach is the server's answer, with its sentence", () => {
   const v = workspaceView(
     "agt_dex",
@@ -156,6 +184,26 @@ test("watch reads terminal.workspace and the agent's rows now, on a change of th
   assert.equal(w.ticks.length, 0);
 });
 
+test("refresh reads the workspace again at once, for the agent whose terminal drew, and for no other", async () => {
+  const w = wire([row({ terminalId: "t1", name: "main", state: "idle" })], {});
+  const seen: string[] = [];
+  const off = w.data.watch("agt_dex", (v) => seen.push(v.state));
+  await flush();
+  assert.deepEqual(seen, ["running"]);
+  // the computer woke (a terminal drew): the next read is now, not at the next poll
+  w.set(read({ state: "asleep" }));
+  w.data.refresh?.("agt_dex");
+  await flush();
+  assert.deepEqual(seen, ["running", "asleep"]);
+  w.data.refresh?.("agt_other");
+  await flush();
+  assert.equal(seen.length, 2);
+  off();
+  w.data.refresh?.("agt_dex");
+  await flush();
+  assert.equal(seen.length, 2, "a stopped watch is not read");
+});
+
 test("attach opens the agent's own live session in the terminal tab, and opens one first (waking the workspace) when there is none", async () => {
   const a = wire([
     row({ terminalId: "t_helper", name: "tests", by: { kind: "helper", name: "Tess" } }),
@@ -198,7 +246,7 @@ test("owner walk: a workspace nothing can run is 'Not running' with the line, an
     {
       state: "unavailable",
       canAttach: false,
-      line: "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.",
+      line: "No computer is set up for agents yet. An admin of this Space can add one in Console > Computers.",
       cannotAttach: "There is no workspace to attach to.",
     } as never,
     [],

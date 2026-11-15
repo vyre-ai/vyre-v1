@@ -1,0 +1,1 @@
+A table in a rendered Markdown file, note or page now grows to the width of the pane while the text keeps its reading width, and its header row stays in view as it scrolls. Edit mode in the file viewer scrolls again (wheel, trackpad, keys, scrollbar, phone), and a table in Edit is a monospace block that scrolls sideways.

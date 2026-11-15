@@ -83,6 +83,7 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
       openFile: (fileId) => rt.open({ subject: { type: "file", id: fileId } }),
       openFolder: (folderId) => rt.open({ subject: { type: "folder", id: folderId } }),
       openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }),
+      takeNote: () => rt.open({ screen: "chats.notes", args: { take: "1" } }),
       ...(acts?.share ? { shareFolder: (folderId: string) => acts.share?.(folderId) } : {}),
       ...(acts?.shareFile ? { shareFile: (fileId: string, name: string) => acts.shareFile?.(fileId, name) } : {}),
       renameEntry: (kind, id, current) => acts?.rename(kind, id, current),

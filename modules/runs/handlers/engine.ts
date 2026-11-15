@@ -1108,7 +1108,11 @@ export async function drive(
 
     let result: StepResult;
     try {
-      const stubbed = sandbox && (step.effects === "write" || step.effects === "outward");
+      // a host's plan (steps with a catalogue key) is answered by the step runner even in a sandbox: it gives the sample but first refuses an empty required input, as the real call would (a stopped test is not a success)
+      const stubbed =
+        sandbox &&
+        (step.effects === "write" || step.effects === "outward") &&
+        (step.key === undefined || step.id in recorded);
       if (stubbed) result = { output: step.id in recorded ? recorded[step.id] : step.sample };
       else
         result = await exec(step, {

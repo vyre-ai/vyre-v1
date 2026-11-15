@@ -43,7 +43,7 @@ for (const scene of ["no-host", "asleep"] as const)
         assert.match(card, /Not running/);
         assert.match(
           card,
-          /This Space can't run agent workspaces yet\. That needs Docker on the Space's server, or another server with Docker added in Console > Computers\./,
+          /No computer is set up for agents yet\. An admin of this Space can add one in Console > Computers\./,
         );
         assert.equal(await me.page.getByTestId("terminal-attach").count(), 0, "no Attach that cannot work");
         assert.equal(

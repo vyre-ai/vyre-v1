@@ -38,6 +38,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.drive.share_file": async (ctx) => { throw new VyreErr(notImplemented("google.drive.share_file", ctx.trace)); },
   "google.drive.stop_watch": async (ctx) => { throw new VyreErr(notImplemented("google.drive.stop_watch", ctx.trace)); },
   "google.drive.trash_file": async (ctx) => { throw new VyreErr(notImplemented("google.drive.trash_file", ctx.trace)); },
+  "google.drive.update_file": async (ctx) => { throw new VyreErr(notImplemented("google.drive.update_file", ctx.trace)); },
   "google.drive.upload_file": async (ctx) => { throw new VyreErr(notImplemented("google.drive.upload_file", ctx.trace)); },
   "google.drive.watch_changes": async (ctx) => { throw new VyreErr(notImplemented("google.drive.watch_changes", ctx.trace)); },
   "google.dwd.check_key": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.check_key", ctx.trace)); },

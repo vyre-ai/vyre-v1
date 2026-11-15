@@ -199,6 +199,8 @@ export function TalkHost({ rt, children }: { rt: ShellRuntime | null; children: 
       rt && web
         ? {
             on: !off,
+            // the mic is drawn only once a voice key covers this person (owner, 16 Nov 2026); until what covers them is known it is not drawn, so it never flashes
+            ready: status !== undefined && status !== null && status.source !== "none",
             session: async () => (await rt.call("talk.session", {})) as CapMap["talk.session"]["out"],
             setup: async (only) => {
               await refresh();

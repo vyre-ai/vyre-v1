@@ -128,7 +128,13 @@ test("migration and module state: two tables, nothing else; the first sync of a 
   // the next sync is queued on the scheduler
   assert.deepEqual(
     w.scheduled.map((s) => [s.cap, s.input, s.at]),
-    [["mounts.sync_now", { mountId }, NOW + SYNC_INTERVAL_MS]],
+    [
+      [
+        "mounts.sync_now",
+        { mountId, auto: true, idempotencyKey: `pass:${mountId}:${NOW + SYNC_INTERVAL_MS}` },
+        NOW + SYNC_INTERVAL_MS,
+      ],
+    ],
   );
   assert.equal(w.mountRow(mountId)["next_sync_at"], NOW + SYNC_INTERVAL_MS);
 
@@ -339,7 +345,11 @@ test("what changes in Vyre goes out: new folders first, then files, then deletes
   assert.deepEqual([lastSynced(w)["pushed"], lastSynced(w)["pulled"]], [5, 0]);
   const done = await view(w, mountId);
   assert.deepEqual([done["pendingChanges"], done["lagSeconds"], done["state"]], [0, 0, "idle"]);
-  assert.ok(!w.items(mountId).some((r) => r["name"] === "Budget"), "the deleted item is forgotten once Drive has it");
+  const tomb = w.items(mountId).find((r) => r["name"] === "Budget");
+  assert.ok(
+    tomb !== undefined && tomb["deleted"] === 1 && tomb["trashed_at"] !== null && tomb["dirty"] === 0,
+    "the deleted item stays as a tombstone once Drive has it in its Trash, so a restore from Vyre's Trash can take it back out",
+  );
   assert.equal(itemFor(w, mountId, "d.txt")["remote_id"], "up3", "Drive's id replaces the placeholder");
   assert.equal(itemFor(w, mountId, "d.txt")["parent_key"], itemFor(w, mountId, "Drafts")["item_key"]);
 
@@ -698,7 +708,7 @@ test("update, pause, resume and remove: options, events, Trash or keep, and the 
   assert.equal(w.named("mount.resumed").length, 1);
   assert.equal((await view(w, mountId))["state"], "idle");
   assert.deepEqual(
-    w.scheduled.map((s) => [s.cap, s.input]),
+    w.scheduled.map((s) => [s.cap, { mountId: (s.input as { mountId: string }).mountId }]),
     [["mounts.sync_now", { mountId }]],
   );
 

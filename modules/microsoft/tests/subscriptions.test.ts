@@ -803,7 +803,7 @@ test("the handler map covers exactly the capabilities the microsoft manifest dec
     .map((c) => c.name)
     .sort();
   assert.deepEqual(Object.keys(handlers).sort(), declared);
-  assert.equal(declared.length, 72);
+  assert.equal(declared.length, 74);
 });
 
 test("verify asks for a fresh token, so a permission consented a moment ago is seen at once", async () => {

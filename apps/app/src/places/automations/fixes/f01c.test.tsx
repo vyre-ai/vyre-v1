@@ -130,7 +130,7 @@ test("a person without the Design Journeys role still reads the Fields tab; the 
 test("list: a Journey is a row in the one list; the open Journey is the selected row and the other is not", () => {
   const s = nw();
   const out = page(s, <AutomationsList selectedId="jrn_onboard" query="" onChoose={() => undefined} />);
-  const row = (id: string): string => out.match(new RegExp(`<[^>]*data-testid="row-al-${id}"[^>]*>`))?.[0] ?? "";
+  const row = (id: string): string => out.match(new RegExp(`<[^>]*data-testid="row-auto-${id}"[^>]*>`))?.[0] ?? "";
   assert.ok(row("jrn_onboard") !== "", "the Journey is a row");
   assert.match(
     row("jrn_onboard"),

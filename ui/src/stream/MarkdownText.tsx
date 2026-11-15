@@ -14,9 +14,18 @@ export interface MarkdownTextProps {
   /** Draws plain words its own way (a note turns the file names in it into links). */
   renderText?: RenderText;
   testID?: string;
+  /** A rendered document: text keeps this width, a table grows to the pane (see MarkdownBlocks). */
+  readingWidth?: number;
 }
 
-export function MarkdownText({ text, onLink, renderLink, renderCode, renderText }: MarkdownTextProps): ReactElement {
+export function MarkdownText({
+  text,
+  onLink,
+  renderLink,
+  renderCode,
+  renderText,
+  readingWidth,
+}: MarkdownTextProps): ReactElement {
   const blocks = useMemo(() => {
     const md = createIncrementalMarkdown();
     // front matter (a SKILL.md header) is shown as the YAML it is
@@ -31,6 +40,7 @@ export function MarkdownText({ text, onLink, renderLink, renderCode, renderText 
       {...(renderLink ? { renderLink } : {})}
       {...(renderCode ? { renderCode } : {})}
       {...(renderText ? { renderText } : {})}
+      {...(readingWidth !== undefined ? { readingWidth } : {})}
     />
   );
 }

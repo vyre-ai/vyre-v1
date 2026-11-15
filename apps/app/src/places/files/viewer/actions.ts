@@ -52,3 +52,45 @@ export async function saveText(
   })) as { n?: number; file?: { version?: number } } | undefined;
   return out?.n ?? out?.file?.version ?? baseVersion + 1;
 }
+
+/** A comment on a place of a page: an area (a point when the box is tiny) with the page it is on, and the selected words when there were some. */
+export async function commentOnPage(
+  d: FilesViewerData,
+  fileId: string,
+  at: { page: number; box: Anchor; quote?: string },
+  text: string,
+): Promise<void> {
+  await d.call("files.comments.add", {
+    fileId,
+    anchor: {
+      kind: "area",
+      page: at.page,
+      box: { x: at.box.x, y: at.box.y, w: at.box.w, h: at.box.h },
+      ...(at.quote ? { quote: at.quote.slice(0, 500) } : {}),
+    },
+    text,
+    idempotencyKey: key("pagepin", fileId, d.clock().now),
+  });
+}
+
+/** The most a capability takes as base64 in one call; over it the bytes go to a one-time upload address first (files.upload_url) and the call names the blob. */
+const DIRECT_LIMIT = 192 * 1024;
+
+const toB64 = (b: Uint8Array): string => {
+  let s = "";
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+
+/** The `content` of files.create and files.write for these bytes: inline when small, else an uploaded blob. */
+export async function contentFor(
+  d: FilesViewerData,
+  bytes: Uint8Array,
+  mime: string,
+): Promise<{ base64: string } | { blobId: string }> {
+  if (bytes.length <= DIRECT_LIMIT) return { base64: toB64(bytes) };
+  if (!d.putBlob) throw new Error("This file is too large to save here.");
+  const slot = (await d.call("files.upload_url", { size: bytes.length, mime })) as { url: string; blobId: string };
+  await d.putBlob(slot.url, bytes);
+  return { blobId: slot.blobId };
+}

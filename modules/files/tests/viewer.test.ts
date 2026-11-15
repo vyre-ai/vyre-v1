@@ -152,6 +152,33 @@ test("viewer_data: a Google-native file reads from its export snapshot; what the
 
 // ---- comments ---------------------------------------------------------------------------------------------------------
 
+test("comments: a comment on a passage is anchored by the quoted words alone (the viewer sends no offsets); a blank quote is refused", async () => {
+  const { ctx } = world();
+  const f = await make(ctx, "plan.md", "markdown", { text: "# Plan\n\nShip the release." });
+  const c = (
+    await call(ctx, "files.comments.add", {
+      fileId: f,
+      anchor: { kind: "range", quote: "Ship the release" },
+      text: "Which date?",
+      idempotencyKey: "q1",
+    })
+  ).comment;
+  assert.deepEqual(c.anchor, { kind: "range", quote: "Ship the release" });
+  await assert.rejects(
+    call(ctx, "files.comments.add", {
+      fileId: f,
+      anchor: { kind: "range", quote: "  " },
+      text: "x",
+      idempotencyKey: "q2",
+    }),
+    /anchor is not valid/,
+  );
+  await assert.rejects(
+    call(ctx, "files.comments.add", { fileId: f, anchor: { kind: "range", from: 3 }, text: "x", idempotencyKey: "q3" }),
+    /anchor is not valid/,
+  );
+});
+
 test("comments: add keeps the anchor, mentions and author; area comments are numbered pins that are never reused; list is oldest first and hides resolved ones unless asked", async () => {
   const { ctx, events } = world();
   const f = await make(ctx, "pic.png", "image", { base64: "iVBORw0=" });
@@ -856,4 +883,28 @@ test("F20: a Drive CSV of a few thousand rows, not fetched yet, opens through th
   assert.ok(String(v.text).includes("client 4000,4000"), "the last row is there");
   const r = await call(ctx, "sheets.read_rows", { fileId: id });
   assert.equal(r.total, 4000);
+});
+
+test("viewer_data: a connected file the provider will not let this person change is view only before they type, and the connected line carries what is true of it there", async () => {
+  const { ctx, placeholder } = await drive(async (c, fileId) => {
+    await call(c, "files.write", { fileId, content: { text: CSV }, reason: "Fetched from Google Drive" });
+    return {
+      mounted: true,
+      fetched: true,
+      source: { cached: true, provider: "Google Drive", viewOnly: true, notSent: { reason: "Waiting." } },
+    };
+  });
+  const id = await placeholder("locked.csv", "text/csv");
+  const v = await call(ctx, "files.viewer_data", { fileId: id });
+  assert.equal(v.canEdit, false, "view only, before any edit");
+  assert.deepEqual(v.connected, { provider: "Google Drive", viewOnly: true, notSent: { reason: "Waiting." } });
+  // a file the provider says nothing against stays editable, and one outside any mount has no connected line
+  const open = await drive(async (c, fileId) => {
+    await call(c, "files.write", { fileId, content: { text: CSV }, reason: "Fetched" });
+    return { mounted: true, fetched: true, source: { cached: true, provider: "Google Drive" } };
+  });
+  const free = await open.placeholder("mine.csv", "text/csv");
+  const fv = await call(open.ctx, "files.viewer_data", { fileId: free });
+  assert.equal(fv.canEdit, true);
+  assert.deepEqual(fv.connected, { provider: "Google Drive" });
 });

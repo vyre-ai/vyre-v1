@@ -50,6 +50,7 @@ type Out = {
       email?: string;
     };
   };
+  renamedTo?: string;
 };
 ```
 
@@ -86,7 +87,8 @@ type Out = {
       "parentId": "example",
       "size": 1,
       "webUrl": "example"
-    }
+    },
+    "renamedTo": "example"
   }
 }
 ```

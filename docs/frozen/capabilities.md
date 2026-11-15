@@ -505,6 +505,7 @@ New capabilities, all on the `automations` tool:
 - `automations.proposal.discard`: a person who may change the Automation, or the Assistant that proposed it; an empty Automation that proposing made goes to Trash with it.
 - `automations.get` answers two optional fields: `draft` and `proposal`, and takes an optional `version` (an integer): the definition of that version, so a run's page shows what the run RAN.
 - `automations.home`: what the Automations first page shows in one read (what needs the person, at most one suggestion, the Today line, the counts). A new read; nothing an older client sends changes meaning.
+- `automations.connect_options`: what Connect an app lists for the person (the Vault items they may use whose app their Assistant can set up). A new read.
 
 All additions; nothing an older client sends changes meaning.
 
@@ -543,6 +544,12 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11-15.md) and the lane's fourth round; the limits that remain are the ones written above.
 
 
+## 16 Nov 2026: Getting Started shows only for a new account (lane w-first)
+
+- `spaces.onboarding.flow` answers one more field, `fresh` (true during the person's first 7 days in the Space, from their first sign-in; true when the Space cannot tell). Nothing is removed or renamed; a client that ignores it behaves as before. The chip and rows of Getting Started draw only while `fresh` is true, so a person who has used a Space for weeks never sees it appear after an update.
+- Proof: modules/spaces/tests/switcher.test.ts (made today, day six, 30 days, unknown age).
+
+Signed: lead, 16 Nov 2026 02:19 PKT, after reading the manifest diff: one optional, additive output field. To watch: the age is taken from the person's earliest session, so a person whose old sessions were all removed may read as new again.
 ## 16 Nov 2026: a goal says what holds its check-ins back, and a failed turn says when a usage limit lifts (finding F26, lane f-goalwake, brought onto the line by the lead)
 
 - What changed, all additive: the goal row (every `goals.*` answer that carries a goal) gains an optional `blocked` (`cause`: person, limit, transient or other; `what`, `fix` and `short` in words; `since`; `until` when it goes on by itself; `missed`; `code`), present only while something holds the check-ins back. `engine.turn.record` and the event `turn.failed` gain an optional `resetsAt` (when the provider said a usage limit lifts). No input, output or error was removed or made required.
