@@ -50,7 +50,9 @@ test("every other first call reaches the capability as the tool's own input", as
     for (const key of k.sent.lacks ?? []) assert.equal(key in input, false, `${label}: no ${key}`);
     passed++;
   }
-  t.diagnostic(`naive variants: ${passed} of ${Object.keys(cases).length} reach the capability as the tool's own input`);
+  t.diagnostic(
+    `naive variants: ${passed} of ${Object.keys(cases).length} reach the capability as the tool's own input`,
+  );
 });
 
 test("a write to a path nothing is at says what to call, in one plain sentence", async () => {
@@ -66,7 +68,12 @@ test("a write to a path nothing is at says what to call, in one plain sentence",
   });
   s.preload("thr_current1", ["files_write"]);
   const out = await s.call(
-    { space: "spc_1", agentId: "agt_intake", asker: "usr_dana", thread: { threadId: "thr_current1", kind: "chat", planMode: false } },
+    {
+      space: "spc_1",
+      agentId: "agt_intake",
+      asker: "usr_dana",
+      thread: { threadId: "thr_current1", kind: "chat", planMode: false },
+    },
     "files_write",
     // the fake finds a path with a dot in its last part, so a path with none is "nothing there"
     { path: "Reports/missing", content: { text: "x" } },

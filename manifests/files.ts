@@ -877,7 +877,7 @@ export default defineManifest({
     ),
     create(
       "files.create",
-      "Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person's own files. A name already taken becomes \"name (2)\" for an agent. A direct write holds at most 256 KB: split larger content into several files",
+      'Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person\'s own files. A name already taken becomes "name (2)" for an agent. A direct write holds at most 256 KB: split larger content into several files',
       {
         in: {
           folderId: id.folder,

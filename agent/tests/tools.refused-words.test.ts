@@ -157,7 +157,11 @@ test("the shapes a model is most often refused for each say the input, what to c
     assert.ok(!words.includes(SECRET), `${sh.shape}: no value comes back`);
     assert.ok(!/\bundefined\b|\[object|validation\.|supportCode/.test(words), `${sh.shape}: nothing internal`);
     const second = await s.call({ ...c, callId: "toolu_b" }, sh.tool, write({ ...sh.bad, ...sh.fix }));
-    assert.equal(second.kind, "result", `${sh.shape}: the second call is accepted: ${JSON.stringify(second)}`.slice(0, 600));
+    assert.equal(
+      second.kind,
+      "result",
+      `${sh.shape}: the second call is accepted: ${JSON.stringify(second)}`.slice(0, 600),
+    );
     ok++;
   }
   t.diagnostic(`refused shapes: ${ok} of ${SHAPES.length} say what to change and the second call is right`);

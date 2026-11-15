@@ -83,7 +83,10 @@ export async function placeInput(cap: string, input: unknown, run: Run, mayMake:
     while (segs.length > 0 && ROOT_WORDS.test(segs[0] as string)) segs.shift();
     const root = (await run("files.resolve", { path: "Personal" })) as { folderId?: string } | null;
     if (typeof root?.folderId !== "string")
-      return { input: o, said: "The person's own files could not be found. Name the folder with its id (files_list shows folders)." };
+      return {
+        input: o,
+        said: "The person's own files could not be found. Name the folder with its id (files_list shows folders).",
+      };
     let at: string = root.folderId;
     let walked = "Personal";
     for (const seg of segs) {

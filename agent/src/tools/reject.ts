@@ -98,9 +98,13 @@ function ruleWords(name: string, rule: string, prop: Prop | undefined, key: stri
       ? `${name} is too long: at most ${prop.maxLength} characters`
       : `${name} is too long`;
   if (rule === "below minimum")
-    return prop?.minimum !== undefined ? `${name} must be at least ${prop.minimum}` : `${name} is below its smallest value`;
+    return prop?.minimum !== undefined
+      ? `${name} must be at least ${prop.minimum}`
+      : `${name} is below its smallest value`;
   if (rule === "above maximum")
-    return prop?.maximum !== undefined ? `${name} must be at most ${prop.maximum}` : `${name} is above its largest value`;
+    return prop?.maximum !== undefined
+      ? `${name} must be at most ${prop.maximum}`
+      : `${name} is above its largest value`;
   if (rule === "too few items")
     return `${name} needs at least ${prop?.minItems ?? 1} item${(prop?.minItems ?? 1) === 1 ? "" : "s"}${eg()}`;
   if (rule === "too many items")
@@ -179,7 +183,17 @@ export function rejectWords(
       }
       continue;
     }
-    said.add(ruleWords(leaf(path), rule, propAt(s, path), path.split("/").filter((x) => x !== "").pop() ?? ""));
+    said.add(
+      ruleWords(
+        leaf(path),
+        rule,
+        propAt(s, path),
+        path
+          .split("/")
+          .filter((x) => x !== "")
+          .pop() ?? "",
+      ),
+    );
     if (said.size === 4) break;
   }
   const strangerWords = [...strangers.entries()]

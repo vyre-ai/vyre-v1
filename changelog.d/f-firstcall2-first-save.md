@@ -4,3 +4,5 @@
 - A call to a tool with an input the tool does not have is no longer let through to do less than it was asked: the agent is told in one sentence which name is not an input and which names the tool takes. Before, such a call could create an empty file and say it worked.
 - When a call is refused, the sentence an agent reads now names the input, says what to change and gives a value to copy; a limit on a text or a list (for example 100,000 characters for a note) is said, both before the call and in the refusal.
 - Every tool's first call is measured: all 1,730 tools accept the call a model writes from the tool's inputs, and the other first calls for files are checked in their own list.
+- A task an agent makes with nobody named is for the person it works for, and a search that takes a chat as a filter is never narrowed to the chat the agent is in.
+- The first call to the agent's own browser after it went to sleep wakes it inside the call and loads the page; the first terminal command in a new chat runs; the first publish of a page from a chat works however the page is passed. Each is a test on a booted daemon.

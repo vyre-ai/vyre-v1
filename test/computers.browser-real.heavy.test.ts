@@ -151,7 +151,11 @@ test(
       );
       assert.doesNotMatch(said[0]!, /"ok":false/, `chrome_open: ${said[0]}`);
       assert.match(said[1]!, /Harbor Quotes pricing/, `chrome_snapshot reads the page: ${said[1]}`);
-      assert.doesNotMatch(said[2]!, /"ok":false|not available|call it once more/, `chrome_open after a sleep: ${said[2]}`);
+      assert.doesNotMatch(
+        said[2]!,
+        /"ok":false|not available|call it once more/,
+        `chrome_open after a sleep: ${said[2]}`,
+      );
       assert.match(said[2]!, /Harbor Quotes/, `the first open after a sleep reaches the page: ${said[2]}`);
       console.log(`browser: first open after a sleep ${wakeMs} ms`);
       // the step keeps a real picture of the page, and the chat's card points at it

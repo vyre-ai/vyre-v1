@@ -56,16 +56,15 @@ export function statesLimits(v: unknown): unknown {
   if (typeof min === "number" && min > 1) says.push(`Min ${min} characters.`);
   const already = typeof p["description"] === "string" ? (p["description"] as string) : "";
   const add = says.filter((x) => !already.includes(x));
-  if (add.length > 0) out["description"] = `${already}${already === "" || /[.!?]$/.test(already) ? " " : ". "}${add.join(" ")}`.trim();
+  if (add.length > 0)
+    out["description"] = `${already}${already === "" || /[.!?]$/.test(already) ? " " : ". "}${add.join(" ")}`.trim();
   return out;
 }
 
-export function modelSchema(
-  schema: unknown,
-  cap?: string,
-): { schema: unknown; keyed: boolean; thread: boolean } {
+export function modelSchema(schema: unknown, cap?: string): { schema: unknown; keyed: boolean; thread: boolean } {
   const raw = statesLimits(withoutPlaceholderExamples(schema)) as Obj | null;
-  if (raw === null || typeof raw !== "object" || raw.properties === undefined) return { schema: raw, keyed: false, thread: false };
+  if (raw === null || typeof raw !== "object" || raw.properties === undefined)
+    return { schema: raw, keyed: false, thread: false };
   // version inputs the tool layer fills for the model are not shown to it (agent/src/tools/versions.ts)
   const hide = cap === undefined ? undefined : HIDDEN_FROM_MODEL[cap];
   let props: Record<string, unknown> = { ...raw.properties };

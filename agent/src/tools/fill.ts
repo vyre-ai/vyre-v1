@@ -140,7 +140,11 @@ export function fillInput(t: ToolDef, input: unknown, ctx: ToolCtx): Filled {
     }
   }
   // a page written as `content`, `page`, `code` or `body`, for the tool that publishes a page: it is the page's html when no source is given
-  if (t.cap === "sites.artifact_publish" && "html" in props && !["html", "fileId", "folderId", "path", "port"].some((k) => k in out)) {
+  if (
+    t.cap === "sites.artifact_publish" &&
+    "html" in props &&
+    !["html", "fileId", "folderId", "path", "port"].some((k) => k in out)
+  ) {
     for (const w of ["content", "page", "code", "body", "text", "markup"]) {
       if (typeof out[w] === "string" && !(w in props)) {
         out["html"] = out[w];

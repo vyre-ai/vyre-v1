@@ -119,11 +119,21 @@ test("every tool's first call passes: no key, no unknown input, no id shape unsh
     walk(tool.name, schema, "");
     if (JSON.stringify(schema).includes('"idempotencyKey"')) failures.push(`${tool.name}: the key is shown`);
     const out = await s.call(
-      { space: "spc_1", agentId: "agt_intake", asker: "usr_dana", thread: { threadId: "thr_current1", kind: "chat", planMode: false }, turnId: `trn_all_${tool.name}`, callId: "toolu_1" },
+      {
+        space: "spc_1",
+        agentId: "agt_intake",
+        asker: "usr_dana",
+        thread: { threadId: "thr_current1", kind: "chat", planMode: false },
+        turnId: `trn_all_${tool.name}`,
+        callId: "toolu_1",
+      },
       tool.name,
       golden[tool.name] ?? {},
     );
-    if (out.kind === "error" && (out.error.code === "validation.bad_input" || out.error.code === "validation.not_found"))
+    if (
+      out.kind === "error" &&
+      (out.error.code === "validation.bad_input" || out.error.code === "validation.not_found")
+    )
       failures.push(`${tool.name}: its first call is refused: ${String(out.error.message).slice(0, 200)}`);
     else pass++;
   }
