@@ -2,6 +2,7 @@
 // to recover the threads a dead host left mid-turn. Everything it needs from outside arrives through `EngineHostSeam` (host/src/seams/engine.ts): a way to call capabilities as a
 // person, and the opener of real sessions. The turn engine itself stays in agent/src/turn-engine and knows nothing about modules.
 import { checkpointTurn, pointWanted } from "./checkpoints.ts";
+import { turnMayStart } from "./rewind-gate.ts";
 import path from "node:path";
 import { wireHooks } from "./hooks-wire.ts";
 import { callHooksOf } from "./hooks-port.ts";
@@ -1144,6 +1145,13 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
               messageId: string | null;
               threadKind: string;
             }): Promise<void> => {
+              // while a rewind is putting this agent's folder back in this chat, its turn waits here (rewind-gate.ts), then says so plainly if the wait ran out
+              if ((await turnMayStart(i.threadId, i.agentId)) === "timeout")
+                noteLine(i.agentId, i.asker, i.threadId, {
+                  state: "going_back",
+                  text: "Going back is taking long, so this turn started without waiting for it.",
+                  threadId: i.threadId,
+                });
               // a point only where a rewind can be offered: a chat with an agent (not a crew, task, helper or one-shot thread), and a turn that runs on this server. A turn on the person's own computer takes none
               // (the folder it works in is not here): the card says so.
               if (!pointWanted(i.threadKind, await placementNow(i.threadId, i.agentId, i.asker))) return;

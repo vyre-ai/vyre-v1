@@ -351,7 +351,9 @@ Signed: lead, 15 Nov 2026 (written 14 Nov 2026; shipped in rc.28, main 2576811cc
 - `engine.rewind.points` gains `ownComputer` (an agent of the chat works on the person's own computer, which takes no point), `during` on a point (finished after the agent began) and `interrupted` on an `active` entry (a rewind cut short, listed with Undo). `chat.rewind` answers `failedPaths` and `during`.
 - New migration `0019_rewind_state.sql` (`engine_rewind.kind`, `.state`): a rewind is written as "going back" before the files move; an Undo is its own row.
 - New periodic `engine.checkpoint_sweep` (hourly). `engine.checkpoints_erased` no longer fires on `agent.deleted` (Trash keeps an agent's points; the sweep removes them after 14 days).
-- A point is only taken for a chat with an agent that runs on this server; never stores a secret (`lib/secret-files.ts`); the store is mode 700.
+- A point is only taken for a chat with an agent that runs on this server (an unknown placement takes none); secrets are kept out BEFORE the add (`lib/secret-files.ts`, browser stores included), so no object of the store holds one; the store is mode 700. A restore leaves alone any path that holds a secret now and names it. Turn starts of an agent wait while a rewind of that agent is going back.
+- The server's pre-update archive (`vyre-pre-<version>-<time>.tar.gz`, `stage_copy` in `scripts/install/linux/vyre-server`) leaves the Space's `checkpoints/` out (the work folders stay in, as on rc.28). After an update is rolled back from that archive, the points are simply gone.
+- The product has no permanent delete for an agent (`agents.delete` is Trash only), so nothing erases an agent's points when it is deleted: they expire after 14 days (hourly sweep).
 
 ## 15 Nov 2026: Rewind in a chat with other people, and the folded range in the read (lane b-chat2), for the lead to sign
 

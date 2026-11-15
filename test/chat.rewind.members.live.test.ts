@@ -70,7 +70,23 @@ test(
     const hers = (await aina.call("engine.rewind.points", { threadId })) as Any;
     assert.equal(hers.points.length, 0, "she has no points of her own: nothing of hers to go back to");
     const ownersFirst = mine.points.find((p: Any) => /owner-one/.test(p.after ?? ""))!; // may read "During" on a cold folder: a point finished after the agent began
-    assert.ok(ownersFirst, JSON.stringify(mine.points));
+    // Aina's own turn cannot run on this rig (provider.unavailable: she has no sign-in of her own), so there is no point that began at her message to try on the owner's folder; that door is tested in modules/engine/tests/rewind.test.ts item 2.
+    // the direct call with a range is impossible: the engine ignores any range a caller sends, and the owner's own call with a range of 0..99 folds only from the point's own message
+    const planted = await h.owner.attempt("engine.rewind.to", {
+      threadId,
+      pointId: mine.points.find((p: Any) => /owner-two/.test(p.after ?? ""))!.pointId,
+      afterSeq: 0,
+      uptoSeq: 1,
+    });
+    assert.equal(planted.ok, true);
+    const rangeNow = ((await h.owner.call("engine.rewind.points", { threadId })) as Any).active[0];
+    assert.equal(
+      rangeNow.afterSeq,
+      4,
+      "the range starts at that point's own message (seq 5), not where the caller said",
+    );
+    assert.ok(rangeNow.uptoSeq >= 6, "and runs to the newest message, not to the caller's 1");
+    await h.owner.call("chat.rewind", { threadId, pointId: rangeNow.undoPointId, idempotencyKey: "rwm-undo-first" });
     // Aina tries the owner's point, through the chat and straight to the engine: refused, nothing folded, nothing written
     for (const cap of ["chat.rewind", "engine.rewind.to"]) {
       const r = await aina.attempt(cap, {

@@ -22,7 +22,7 @@ export const SHARED =
   "Everyone here sees that you went back, and the agents stop reading everyone's messages after that point. Only your own messages can be gone back to.";
 /** Behind "What is not kept": exactly what is left alone, and what the agent forgets. */
 export const NOT_KEPT =
-  "Left exactly as they are now, neither removed nor put back: files your project's .gitignore lists, node_modules, logs, secret files (credentials, tokens, keys, certificates) and a project that is its own git repository. This agent forgets what it was doing; other agents in this chat do not. A point is saved first, so you can come back. The last 30 points are kept for 14 days.";
+  "Left exactly as they are now, neither removed nor put back: files your project's .gitignore lists, node_modules, logs, secret files (credentials, tokens, keys, certificates) and a project that is its own git repository. This agent forgets what it was doing; other agents in this chat do not. A point is saved first, so you can come back. At most 30 points are kept (that one included), and a point older than 14 days is removed within the hour.";
 export const NONE =
   "No points yet. A point is saved each time an agent that works in a folder on the Space's computer starts work on one of your messages.";
 /** Said once when an agent of this chat works on the person's own computer. */

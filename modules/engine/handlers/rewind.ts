@@ -5,6 +5,7 @@
 // computers and servers, files outside the work folder. Off in a chat with other people: it is one person's own agent's folder. A person reaches only their own folders (the store is derived from who is calling).
 import { points, restore, snapshot, storeOf } from "../checkpoints.ts";
 import { liveTurns } from "./bridge.ts";
+import { holdTurns } from "../rewind-gate.ts";
 import { forgetSessions } from "../cli-sessions.ts";
 import { boundEngine, ensure, raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -267,109 +268,125 @@ export async function rewindIn(
   const [, agentId, sha] = m as unknown as [string, string, string];
   if (!dataDir) raise(ctx, "validation.precondition_failed", "This computer has no folders to go back in.");
   const busy = deps.busy ?? ((t: string, a: string) => turnRunning(ctx, t, a));
-  if (await busy(input.threadId, agentId)) {
-    let name = "the agent";
-    try {
-      name = String(((await ctx.call("agents.get", { agentId })) as { agent?: { name?: string } }).agent?.name || name);
-    } catch {
-      /* the plain word stands */
-    }
-    raise(ctx, "validation.precondition_failed", `Stop ${name} first, then go back.`);
-  }
-  const dir = workFolder(dataDir!, who, input.threadId, agentId);
-  const gitDir = storeOf(dataDir!, dir);
-  const all = await points({ gitDir, workDir: dir, limit: 500 });
-  // a turn's point, or the one a rewind or an Undo took first (so either can itself be undone)
-  const point = all.find((p) => p.sha === sha && (/^(turn|during) /.test(p.label) || p.label === "Before going back"));
-  if (!point) raise(ctx, "validation.not_found", "That point is not in this chat.");
-  const rows = rowsOf(ctx, input.threadId);
-  const undone = rows.filter((r) => r.undo_sha === sha);
-  let after: number;
-  let upto: number;
-  if (undone.length > 0) {
-    // going back to the point a rewind or an Undo took first: the other way round, over the same range
-    after = undone[0]!.after_seq;
-    upto = undone[0]!.upto_seq;
-  } else {
-    const msgId = /^(?:turn|during) \S+ (\S+)$/.exec(point!.label)?.[1];
-    if (!msgId) raise(ctx, "validation.not_found", "That point is not in this chat.");
-    const msg = (
-      (await ctx.call("chat.message.get", { threadId: input.threadId, messageId: msgId })) as {
-        message?: { threadSeq: number; author: { id: string }; threadId?: string };
-      }
-    ).message;
-    if (!msg) raise(ctx, "validation.not_found", "That point is not in this chat.");
-    if (msg!.author.id !== who)
-      raise(ctx, "validation.precondition_failed", "You can only go back to your own message.");
-    const list = (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 5 })) as {
-      messages: Array<{ threadSeq: number }>;
-    };
-    after = Math.max(0, msg!.threadSeq - 1);
-    upto = Math.max(after, ...list.messages.map((x) => x.threadSeq));
-  }
-  const undoing = undone.length > 0 && undone[0]!.kind === "rewind"; // going back to a rewind's own point undoes it
-  const newKind = undone.length > 0 ? (undone[0]!.kind === "rewind" ? "undo" : "rewind") : "rewind";
-  void undoing;
-  // 1. the point of now, so this can be undone; 2. the row, "going back"; 3. the files
-  const undoPoint = await snapshot({ gitDir, workDir: dir, label: "Before going back", now: ctx.now() });
-  const rowId = Number(
-    (
-      ctx.db.run(
-        "INSERT INTO engine_rewind (thread_id, after_seq, upto_seq, by_person, at, undo_sha, kind, state) VALUES (?, ?, ?, ?, ?, ?, ?, 'going back')",
-        input.threadId,
-        after,
-        upto,
-        who,
-        ctx.now(),
-        undoPoint.sha,
-        newKind,
-      ) as unknown as { lastInsertRowid?: number | bigint }
-    )?.lastInsertRowid ?? 0,
-  );
-  await deps.beforeRestore?.();
-  const r = await restore({
-    gitDir,
-    workDir: dir,
-    sha,
-    now: ctx.now(),
-    already: undoPoint,
-    ...(deps.rm ? { rm: deps.rm } : {}),
-  });
-  // 4. the chat: the old row goes, the messages are folded (a rewind) or read again (an Undo), and the new row is finished
+  // turn starts of this agent in this chat wait from here until the rewind is over (rewind-gate.ts); then "is it busy" is read, and read again after the point of now is taken
+  const release = holdTurns(input.threadId, agentId);
   try {
-    for (const u of undone) ctx.db.run("DELETE FROM engine_rewind WHERE rowid = ?", u.rowid);
-    try {
-      if (newKind === "rewind") boundEngine(ctx).hide(input.threadId, after, upto);
-      else boundEngine(ctx).unhide(input.threadId, after, upto);
-    } catch {
-      /* the thread is not open here: the range is read when it is */
-    }
-    ctx.db.run(
-      rowId > 0
-        ? "UPDATE engine_rewind SET state = 'done' WHERE rowid = ?"
-        : "UPDATE engine_rewind SET state = 'done' WHERE thread_id = ? AND undo_sha = ? AND state = 'going back'",
-      ...(rowId > 0 ? [rowId] : [input.threadId, undoPoint.sha]),
-    );
-    forgetSessions(ctx.db, input.threadId, agentId);
-    await dropWarmSessions(input.threadId); // the engine's own memory of what was undone goes with its session
-  } catch {
-    raise(
-      ctx,
-      "validation.precondition_failed",
-      "The files were put back, but the chat could not be updated. Press Undo on the line that says so to bring them back.",
-    );
+    return await go(release);
+  } finally {
+    release();
   }
-  return {
-    agentId,
-    at: point!.at,
-    restored: r.restored,
-    removed: r.removed,
-    failed: r.failed,
-    failedPaths: r.failedPaths,
-    undoPointId: `${agentId}.${undoPoint.sha}`,
-    undid: newKind === "undo",
-    during: point!.during === true,
-    afterSeq: after,
-    uptoSeq: upto,
-  };
+  async function go(_release: () => void) {
+    const stop = async (): Promise<never> => {
+      let name = "the agent";
+      try {
+        name = String(
+          ((await ctx.call("agents.get", { agentId })) as { agent?: { name?: string } }).agent?.name || name,
+        );
+      } catch {
+        /* the plain word stands */
+      }
+      return raise(ctx, "validation.precondition_failed", `Stop ${name} first, then go back.`);
+    };
+    if (await busy(input.threadId, agentId)) await stop();
+    const dir = workFolder(dataDir!, who, input.threadId, agentId);
+    const gitDir = storeOf(dataDir!, dir);
+    const all = await points({ gitDir, workDir: dir, limit: 500 });
+    // a turn's point, or the one a rewind or an Undo took first (so either can itself be undone)
+    const point = all.find(
+      (p) => p.sha === sha && (/^(turn|during) /.test(p.label) || p.label === "Before going back"),
+    );
+    if (!point) raise(ctx, "validation.not_found", "That point is not in this chat.");
+    const rows = rowsOf(ctx, input.threadId);
+    const undone = rows.filter((r) => r.undo_sha === sha);
+    let after: number;
+    let upto: number;
+    if (undone.length > 0) {
+      // going back to the point a rewind or an Undo took first: the other way round, over the same range
+      after = undone[0]!.after_seq;
+      upto = undone[0]!.upto_seq;
+    } else {
+      const msgId = /^(?:turn|during) \S+ (\S+)$/.exec(point!.label)?.[1];
+      if (!msgId) raise(ctx, "validation.not_found", "That point is not in this chat.");
+      const msg = (
+        (await ctx.call("chat.message.get", { threadId: input.threadId, messageId: msgId })) as {
+          message?: { threadSeq: number; author: { id: string }; threadId?: string };
+        }
+      ).message;
+      if (!msg) raise(ctx, "validation.not_found", "That point is not in this chat.");
+      if (msg!.author.id !== who)
+        raise(ctx, "validation.precondition_failed", "You can only go back to your own message.");
+      const list = (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 5 })) as {
+        messages: Array<{ threadSeq: number }>;
+      };
+      after = Math.max(0, msg!.threadSeq - 1);
+      upto = Math.max(after, ...list.messages.map((x) => x.threadSeq));
+    }
+    const undoing = undone.length > 0 && undone[0]!.kind === "rewind"; // going back to a rewind's own point undoes it
+    const newKind = undone.length > 0 ? (undone[0]!.kind === "rewind" ? "undo" : "rewind") : "rewind";
+    void undoing;
+    // 1. the point of now, so this can be undone; 2. the row, "going back"; 3. the files
+    const undoPoint = await snapshot({ gitDir, workDir: dir, label: "Before going back", now: ctx.now() });
+    // read again: a turn that started in the gap between the first look and now (it was queued behind this rewind) is running, and would write while the files move
+    if (await busy(input.threadId, agentId)) await stop();
+    const rowId = Number(
+      (
+        ctx.db.run(
+          "INSERT INTO engine_rewind (thread_id, after_seq, upto_seq, by_person, at, undo_sha, kind, state) VALUES (?, ?, ?, ?, ?, ?, ?, 'going back')",
+          input.threadId,
+          after,
+          upto,
+          who,
+          ctx.now(),
+          undoPoint.sha,
+          newKind,
+        ) as unknown as { lastInsertRowid?: number | bigint }
+      )?.lastInsertRowid ?? 0,
+    );
+    await deps.beforeRestore?.();
+    const r = await restore({
+      gitDir,
+      workDir: dir,
+      sha,
+      now: ctx.now(),
+      already: undoPoint,
+      ...(deps.rm ? { rm: deps.rm } : {}),
+    });
+    // 4. the chat: the old row goes, the messages are folded (a rewind) or read again (an Undo), and the new row is finished
+    try {
+      for (const u of undone) ctx.db.run("DELETE FROM engine_rewind WHERE rowid = ?", u.rowid);
+      try {
+        if (newKind === "rewind") boundEngine(ctx).hide(input.threadId, after, upto);
+        else boundEngine(ctx).unhide(input.threadId, after, upto);
+      } catch {
+        /* the thread is not open here: the range is read when it is */
+      }
+      ctx.db.run(
+        rowId > 0
+          ? "UPDATE engine_rewind SET state = 'done' WHERE rowid = ?"
+          : "UPDATE engine_rewind SET state = 'done' WHERE thread_id = ? AND undo_sha = ? AND state = 'going back'",
+        ...(rowId > 0 ? [rowId] : [input.threadId, undoPoint.sha]),
+      );
+      forgetSessions(ctx.db, input.threadId, agentId);
+      await dropWarmSessions(input.threadId); // the engine's own memory of what was undone goes with its session
+    } catch {
+      raise(
+        ctx,
+        "validation.precondition_failed",
+        "The files were put back, but the chat could not be updated. Press Undo on the line that says so to bring them back.",
+      );
+    }
+    return {
+      agentId,
+      at: point!.at,
+      restored: r.restored,
+      removed: r.removed,
+      failed: r.failed,
+      failedPaths: r.failedPaths,
+      undoPointId: `${agentId}.${undoPoint.sha}`,
+      undid: newKind === "undo",
+      during: point!.during === true,
+      afterSeq: after,
+      uptoSeq: upto,
+    };
+  }
 }

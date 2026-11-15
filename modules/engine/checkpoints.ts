@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
-import { SECRET_CONTENT_ERE, isSecretPath } from "../../lib/secret-files.ts";
+import { SECRET_CONTENT_ERE, isSecretPath, looksSecretContent } from "../../lib/secret-files.ts";
 import { git, GitError } from "./crew-git.ts";
 import { layoutRoots, segmentOf, workFolder } from "./sandbox.ts";
 
@@ -122,7 +122,71 @@ const refName = (at: number, files: number, n: number): string =>
   `${REF}/${String(at).padStart(15, "0")}-${files}-${String(n).padStart(4, "0")}`;
 let counter = 0;
 
-/** Paths of the index that are secrets, by name. */
+/** The most a file is read for a content check, and the most bytes read for it in one look at a folder. */
+const SNIFF_FILE = 262_144;
+const SNIFF_TOTAL = 64 * 1024 ** 2;
+
+/** True when a file on disk holds a secret's shape: a text file of up to 256 KB (a binary file is not read). */
+export async function holdsSecret(abs: string): Promise<boolean> {
+  try {
+    const st = await fs.promises.lstat(abs);
+    if (!st.isFile() || st.size > SNIFF_FILE) return false;
+    const buf = await fs.promises.readFile(abs);
+    if (buf.subarray(0, 8000).includes(0)) return false;
+    return looksSecretContent(buf.toString("utf8"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The secrets of a folder as it is on disk, BEFORE anything is added: by name or folder (lib/secret-files.ts) and, in a text file of any name, by the shape of what is inside. A folder is one entry ending in "/".
+ * They go into the store's exclude file, so git never reads them: their bytes are never in the store's objects, not even for a moment.
+ */
+export async function secretPaths(workDir: string): Promise<string[]> {
+  const out: string[] = [];
+  let sniffed = 0;
+  const stack = [""];
+  while (stack.length > 0) {
+    const rel = stack.pop()!;
+    let es: fs.Dirent[] = [];
+    try {
+      es = await fs.promises.readdir(path.join(workDir, rel), { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of es) {
+      const r = rel === "" ? e.name : `${rel}/${e.name}`;
+      if (e.isDirectory()) {
+        if (e.name === ".git" || e.name === "node_modules") continue;
+        if (isSecretPath(`${r}/_`)) out.push(`${r}/`);
+        else stack.push(r);
+        continue;
+      }
+      if (isSecretPath(r)) out.push(r);
+      else if (e.isFile() && sniffed < SNIFF_TOTAL) {
+        try {
+          const size = (await fs.promises.lstat(path.join(workDir, r))).size;
+          if (size > SNIFF_FILE) continue;
+          sniffed += size;
+          if (await holdsSecret(path.join(workDir, r))) out.push(r);
+        } catch {
+          /* gone while looking */
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** A path as one line of an exclude file: anchored at the folder's top, with the characters git reads as patterns escaped. */
+const excludeLine = (p: string): string =>
+  `/${p
+    .replace(/[\\*?[\]]/g, (c) => `\\${c}`)
+    .replace(/^([#!])/, "\\$1")
+    .replace(/ $/, "\\ ")}`;
+
+/** Paths of the index that are secrets, by name. A second line of defence: the exclude file should have kept every one out already. */
 async function namedSecrets(gitDir: string, workDir: string): Promise<string[]> {
   const listed = await run(gitDir, workDir, ["ls-files", "--cached", "-z"], "The folder could not be listed");
   return listed.split("\0").filter((f) => f !== "" && isSecretPath(f));
@@ -148,7 +212,7 @@ async function unstage(gitDir: string, workDir: string, files: readonly string[]
     await run(
       gitDir,
       workDir,
-      ["rm", "--cached", "-q", "-f", "--ignore-unmatch", "--", ...files.slice(i, i + 100)],
+      ["--literal-pathspecs", "rm", "-r", "--cached", "-q", "-f", "--ignore-unmatch", "--", ...files.slice(i, i + 100)],
       "A secret could not be left out",
     );
 }
@@ -165,6 +229,12 @@ export function snapshot(o: {
 }): Promise<Point> {
   return inOrder(o.gitDir, async () => {
     await ready(o.gitDir, o.workDir);
+    // secrets are found on disk and excluded BEFORE the add: git never reads their bytes, so no object of the store holds them
+    const secrets = await secretPaths(o.workDir);
+    const keep = secrets.map(excludeLine);
+    fs.writeFileSync(path.join(o.gitDir, "info", "exclude"), `${[...EXCLUDES, ...keep].join("\n")}\n`, { mode: 0o600 });
+    // a path tracked from an earlier point that is a secret now would still be re-read by add: it leaves the index first
+    if (fs.existsSync(path.join(o.gitDir, "index"))) await unstage(o.gitDir, o.workDir, secrets);
     await run(o.gitDir, o.workDir, ["add", "-A", "--ignore-errors"], "The folder could not be read");
     await unstage(o.gitDir, o.workDir, await namedSecrets(o.gitDir, o.workDir));
     await unstage(o.gitDir, o.workDir, await contentSecrets(o.gitDir, o.workDir));
@@ -234,6 +304,13 @@ export interface Restored {
 }
 
 const SHOW_FAILED = 5;
+const isLink = (p: string): boolean => {
+  try {
+    return fs.lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Put the folder back as it was at `sha`, one of this store's points. Takes a point of the present first. Only files of the work folder are touched. A file that is a secret (lib/secret-files.ts), or that
@@ -280,10 +357,20 @@ export async function restore(o: {
     let restored = 0;
     let removed = 0;
     const failedPaths: string[] = [];
-    const fail = (file: string): void => void failedPaths.push(file);
+    const fail = (file: string, why = ""): void => void failedPaths.push(why === "" ? file : `${file} (${why})`);
+    // a path on disk NOW that is a secret, by name or by what it holds, is left exactly as it is, whatever the point says: it is named, with the reason
+    const secretNow = async (file: string): Promise<boolean> => {
+      const abs = path.join(base, file);
+      if (!fs.existsSync(abs) && !isLink(abs)) return false;
+      return isSecretPath(file) || (await holdsSecret(abs));
+    };
     // removals first (a path that is not in the point), so a folder that is about to become a file or a link is empty of them
     // never stops half way: a path that cannot be put back is counted and named, and the rest goes on, so the folder and what the caller does next (hiding messages) never disagree about whether it happened
     for (const c of changes.filter((x) => x.status === "D")) {
+      if (await secretNow(c.file)) {
+        fail(c.file, "left as it is: it holds a secret");
+        continue;
+      }
       try {
         if (removeIn(base, c.file, o.rm ?? ((p) => fs.rmSync(p, { recursive: true, force: true })))) removed++;
       } catch {
@@ -291,6 +378,10 @@ export async function restore(o: {
       }
     }
     for (const c of changes.filter((x) => x.status !== "D")) {
+      if (await secretNow(c.file)) {
+        fail(c.file, "left as it is: it holds a secret");
+        continue;
+      }
       try {
         await writeIn(o.gitDir, o.workDir, base, c.file, c.mode, c.blob);
         restored++;
@@ -553,7 +644,10 @@ export async function pruneSpace(dataDir: string, cap = SPACE_CAP): Promise<numb
  * The one periodic sweep (engine.checkpoint_sweep, hourly): every store loses the points past their age (a chat nobody touches included: all of its points expire and its store goes), over-size stores
  * are cut, and the Space's total is held under its cap. This is the only place that walks every store; a turn touches its own store alone.
  */
-export async function sweep(dataDir: string, now: number): Promise<{ pointsDropped: number; storesDropped: number }> {
+export async function sweep(
+  dataDir: string,
+  now: number,
+): Promise<{ pointsDropped: number; storesDropped: number }> {
   let pointsDropped = 0;
   let storesDropped = 0;
   try {
@@ -671,5 +765,6 @@ export async function checkpointTurn(o: {
 
 /** Whether a turn takes a point: only a chat with an agent, and only when it runs on this server (a turn on the person's own computer works in a folder that is not here, so a point of the server's would be empty and restore nothing). */
 export function pointWanted(threadKind: string, placement: string | undefined): boolean {
-  return threadKind === "chat" && placement !== "device";
+  // an unknown placement (the read failed, or answered nothing) fails closed: no point
+  return threadKind === "chat" && placement === "host";
 }

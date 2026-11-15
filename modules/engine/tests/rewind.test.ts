@@ -186,7 +186,8 @@ test("item 3: not while the agent works (and the files are untouched); a point f
 
 test("item 4: a turn in a crew, task or one-shot thread, or on the person's own computer, takes no point; the card is told once", async () => {
   assert.equal(pointWanted("chat", "host"), true);
-  assert.equal(pointWanted("chat", undefined), true);
+  assert.equal(pointWanted("chat", undefined), false, "an unknown placement fails closed: no point");
+  assert.equal(pointWanted("chat", ""), false);
   assert.equal(pointWanted("chat", "device"), false, "the folder it works in is not on this server");
   for (const kind of ["crew", "task", "helper", "channel", "oneshot"]) assert.equal(pointWanted(kind, "host"), false, kind);
   const s = setup({ placement: "device" });
@@ -246,20 +247,28 @@ test("item 6: the sweep drops points older than 14 days in a chat nobody touches
   }
 });
 
-test("item 6: a snapshot and a prune of one store never run together (one lock per store)", async () => {
+test("item 6/8: a prune of a store waits for a snapshot of the same store that is being written (one lock per store); without the lock it finishes first", async () => {
   const s = setup();
   try {
     const dir = workFolder(s.data, DANA, T, AGENT);
     fs.writeFileSync(path.join(dir, "a.txt"), "1");
     const gitDir = storeOf(s.data, dir);
     const { prune } = await import("../checkpoints.ts");
-    const work: Promise<unknown>[] = [];
-    for (let i = 0; i < 6; i++) {
-      work.push(snapshot({ gitDir, workDir: dir, label: `turn t${i} m`, now: BASE + i }));
-      work.push(prune({ gitDir, workDir: dir, now: BASE + 100, keep: 3 }));
-    }
-    await Promise.all(work); // an unlocked gc against a write would fail one of them
-    assert.ok((await points({ gitDir, workDir: dir })).length >= 1);
+    let snapshotDone = 0;
+    let pruneDone = 0;
+    const snap = snapshot({
+      gitDir,
+      workDir: dir,
+      // evaluated inside the store's lock, just before the point is committed: a slow snapshot
+      label: () => {
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
+        return "turn t m";
+      },
+      now: BASE,
+    }).then(() => void (snapshotDone = performance.now()));
+    const pr = prune({ gitDir, workDir: dir, now: BASE + 1, keep: 3 }).then(() => void (pruneDone = performance.now()));
+    await Promise.all([snap, pr]);
+    assert.ok(pruneDone >= snapshotDone, "the prune (and its gc) ran only after the snapshot finished");
   } finally {
     done(s);
   }
@@ -336,6 +345,160 @@ test("item 1: secrets are never stored in a point, by name or by content; a dele
     };
     walk(gitDir);
     assert.deepEqual(loose, [], "no file of the store is readable by group or others");
+  } finally {
+    done(s);
+  }
+});
+
+test("1a: a browser profile's stores are secrets whatever the content sniff says: Cookies, Login Data, cookies.sqlite, logins.json, key4.db, Web Data, Local State; a whole profile folder is one secret", async () => {
+  const { isSecretPath } = await import("../../../lib/secret-files.ts");
+  const names = ["Cookies", "Login Data", "cookies.sqlite", "logins.json", "key4.db", "Web Data", "Local State"];
+  for (const n of names) assert.equal(isSecretPath(`profile/${n}`), true, n);
+  for (const d of ["User Data", ".mozilla", "google-chrome", "chromium"]) assert.equal(isSecretPath(`x/${d}/Default/Preferences`), true, d);
+  assert.equal(isSecretPath("src/cookies-banner.tsx"), false);
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    for (const n of names) fs.writeFileSync(path.join(dir, n), Buffer.from([0, 1, 2, 3, 0, 5]));
+    fs.mkdirSync(path.join(dir, "User Data", "Default"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "User Data", "Default", "History"), "visits");
+    fs.writeFileSync(path.join(dir, "app.ts"), "ok");
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    const gitDir = storeOf(s.data, dir);
+    const p = (await points({ gitDir, workDir: dir }))[0]!;
+    const { execFileSync } = await import("node:child_process");
+    const tree = execFileSync("git", ["--git-dir", gitDir, "ls-tree", "-r", "--name-only", p.sha], { encoding: "utf8" }).split("\n").filter(Boolean);
+    assert.deepEqual(tree, ["app.ts"]);
+  } finally {
+    done(s);
+  }
+});
+
+/** Every object of a store, loose and packed, as one buffer to search. */
+async function allObjects(gitDir: string): Promise<Buffer> {
+  const { execFileSync } = await import("node:child_process");
+  return execFileSync("git", ["--git-dir", gitDir, "cat-file", "--batch-all-objects", "--batch"], { maxBuffer: 1 << 28 });
+}
+
+test("1b: a secret's bytes are never in the store's objects, loose or packed, not even as an unreferenced blob (they are kept out BEFORE the add)", async () => {
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    const key = "-----BEGIN RSA PRIVATE KEY-----\nTOPSECRETKEYBYTES\n-----END RSA PRIVATE KEY-----\n";
+    fs.writeFileSync(path.join(dir, "credentials.json"), "NAMEDSECRETBYTES");
+    fs.writeFileSync(path.join(dir, "plain-name.txt"), key);
+    fs.mkdirSync(path.join(dir, "User Data"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "User Data", "Cookies"), "COOKIEBYTES");
+    fs.writeFileSync(path.join(dir, "app.ts"), "export const ok = 1;\n");
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    // a file that was clean, was kept in a point, and becomes a secret afterwards must not be re-read
+    fs.writeFileSync(path.join(dir, "later.txt"), "clean");
+    await turn(s, DANA, "trn_2", "msg_ask1", BASE + 2_000);
+    fs.writeFileSync(path.join(dir, "later.txt"), key.replace("TOPSECRETKEYBYTES", "LATERSECRETBYTES"));
+    await turn(s, DANA, "trn_3", "msg_ask1", BASE + 3_000);
+    const gitDir = storeOf(s.data, dir);
+    const { execFileSync } = await import("node:child_process");
+    execFileSync("git", ["--git-dir", gitDir, "gc", "--quiet"]); // packed as well as loose
+    const bytes = await allObjects(gitDir);
+    for (const secret of ["NAMEDSECRETBYTES", "TOPSECRETKEYBYTES", "COOKIEBYTES", "LATERSECRETBYTES"])
+      assert.equal(bytes.includes(Buffer.from(secret)), false, `${secret} is in the store's objects`);
+    assert.equal(bytes.includes(Buffer.from("export const ok")), true, "ordinary files are kept");
+  } finally {
+    done(s);
+  }
+});
+
+test("2: a file that holds a secret NOW is left exactly as it is by a restore, and named with the reason, though it was clean at the point", async () => {
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    fs.writeFileSync(path.join(dir, "later.txt"), "clean");
+    fs.writeFileSync(path.join(dir, "a.txt"), "one");
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    const key = "-----BEGIN RSA PRIVATE KEY-----\nNOWSECRET\n-----END RSA PRIVATE KEY-----\n";
+    fs.writeFileSync(path.join(dir, "later.txt"), key);
+    fs.writeFileSync(path.join(dir, "a.txt"), "two");
+    const l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    const r = await rewindIn(s.ctx, { threadId: T, pointId: l.points[0]!.pointId }, s.data);
+    assert.equal(fs.readFileSync(path.join(dir, "later.txt"), "utf8"), key, "the key is still there");
+    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "one", "the rest went back");
+    assert.equal(r.failed, 1);
+    assert.deepEqual(r.failedPaths, ["later.txt (left as it is: it holds a secret)"]);
+  } finally {
+    done(s);
+  }
+});
+
+test("3: the restore's own guard: a point made by the OLD code that holds a secret never brings it back, and never removes or overwrites one on disk", async () => {
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    fs.writeFileSync(path.join(dir, "a.txt"), "one");
+    await turn(s, DANA, "trn_0", "msg_ask1", BASE + 500);
+    const gitDir = storeOf(s.data, dir);
+    const { execFileSync } = await import("node:child_process");
+    const g = (args: string[], env: Record<string, string> = {}, input?: string): string =>
+      execFileSync("git", ["--git-dir", gitDir, ...args], { encoding: "utf8", env: { ...process.env, ...env }, ...(input ? { input } : {}) }).trim();
+    // a point as the code before the fix made it: the tree holds credentials.json and a.txt
+    const blobSecret = g(["hash-object", "-w", "--stdin"], {}, "OLD-POINT-SECRET");
+    const blobA = g(["hash-object", "-w", "--stdin"], {}, "one");
+    const tree = g(["mktree"], {}, `100644 blob ${blobSecret}\tcredentials.json\n100644 blob ${blobA}\ta.txt\n`);
+    const commit = g(["-c", "user.name=x", "-c", "user.email=x@x", "commit-tree", tree, "-m", "turn trn_old msg_ask1"]);
+    g(["update-ref", `refs/points/${String(BASE + 600).padStart(15, "0")}-2-0001`, commit]);
+    // credentials.json was deleted since; a.txt changed; token.json (not in the point) exists
+    fs.writeFileSync(path.join(dir, "a.txt"), "two");
+    fs.writeFileSync(path.join(dir, "token.json"), "keep");
+    const l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    const old = l.points.find((p) => p.pointId.endsWith(commit))!;
+    assert.ok(old, "the hand-built point is listed");
+    await rewindIn(s.ctx, { threadId: T, pointId: old.pointId }, s.data);
+    assert.equal(fs.existsSync(path.join(dir, "credentials.json")), false, "the secret in the old point was not brought back");
+    assert.equal(fs.readFileSync(path.join(dir, "token.json"), "utf8"), "keep", "a secret on disk was not removed");
+    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "one");
+  } finally {
+    done(s);
+  }
+});
+
+test("4: when the placement cannot be read or answers nothing, no point is taken (fail closed) and the card is not told it is the person's own computer", async () => {
+  const { pointWanted } = await import("../checkpoints.ts");
+  for (const p of [undefined, "", "unknown", "device"]) assert.equal(pointWanted("chat", p), false, String(p));
+  assert.equal(pointWanted("chat", "host"), true);
+});
+
+test("7: while a rewind holds an agent, that agent's turn start waits until the rewind is over (and says so if its limit passes); a queued turn that started in the gap refuses the rewind", async () => {
+  const { holdTurns, turnMayStart } = await import("../rewind-gate.ts");
+  assert.equal(await turnMayStart(T, AGENT), "free");
+  const release = holdTurns(T, AGENT);
+  let started = false;
+  const start = turnMayStart(T, AGENT, 5_000).then((r) => {
+    started = true;
+    return r;
+  });
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(started, false, "the turn start is held while the rewind is going back");
+  release();
+  assert.equal(await start, "waited");
+  const stuck = holdTurns(T, AGENT);
+  assert.equal(await turnMayStart(T, AGENT, 50), "timeout", "a stuck rewind never holds a chat for long");
+  stuck();
+  // a turn that began between the first look and the point of now: the second look refuses, and the files are untouched
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    fs.writeFileSync(path.join(dir, "a.txt"), "one");
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    fs.writeFileSync(path.join(dir, "a.txt"), "two");
+    const l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    let looks = 0;
+    await assert.rejects(
+      rewindIn(s.ctx, { threadId: T, pointId: l.points[0]!.pointId }, s.data, { busy: () => ++looks >= 2 }),
+      /Stop Dex first, then go back\./,
+    );
+    assert.equal(looks, 2, "it looked again after the point of now was taken");
+    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "two", "nothing was put back");
+    assert.deepEqual(s.h.rows("SELECT * FROM engine_rewind"), [], "no row was written");
+    assert.equal(await turnMayStart(T, AGENT), "free", "the hold is released after a refusal");
   } finally {
     done(s);
   }

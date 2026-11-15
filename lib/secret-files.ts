@@ -7,20 +7,51 @@
 /** The words in a file's name that make it a secret: `credentials.json`, `secrets.yaml`, `token.json`, `.env`, `id_rsa`, `deploy.p8`. A word is cut by `.`, `_` or `-` or the ends of the name. */
 const SECRET_WORD =
   /(^|[._-])(env|secret|secrets|credential|credentials|token|tokens|id_rsa|id_ed25519|id_ecdsa|id_dsa|key|keys|pem|p8|p12|pfx|npmrc|netrc|pgpass|htpasswd|pypirc|kdbx|keystore|jks|ppk|gpg|asc|kubeconfig|dockercfg|serviceaccount|service-account)([._-]|$)/i;
+/** A browser profile's stores (cookies, saved logins, the key that seals them) are binary or sqlite files whose names carry no secret word. Matched on the whole file name, any case. */
+const BROWSER_STORES = new Set([
+  "cookies",
+  "cookies-journal",
+  "login data",
+  "login data-journal",
+  "login data for account",
+  "web data",
+  "web data-journal",
+  "local state",
+  "cookies.sqlite",
+  "cookies.sqlite-wal",
+  "logins.json",
+  "key4.db",
+  "key3.db",
+  "cert9.db",
+  "signons.sqlite",
+]);
 /** A service account key file is named for the account: `service-account-prod.json`, `serviceAccount.json`. */
 const SERVICE_ACCOUNT = /service[-_ ]?account/i;
 /** Folders whose whole contents are a person's own secrets. */
-const SECRET_DIRS = new Set([".aws", ".ssh", ".gnupg", ".kube", ".azure", ".config/gcloud"]);
+const SECRET_DIRS = new Set([
+  ".aws",
+  ".ssh",
+  ".gnupg",
+  ".kube",
+  ".azure",
+  ".config/gcloud",
+  ".mozilla",
+  "user data",
+  "google-chrome",
+  "chromium",
+  ".config/google-chrome",
+  ".config/chromium",
+]);
 
 /** True when the path (relative to a folder, `/` separated) names a secret. */
 export function isSecretPath(rel: string): boolean {
   const parts = rel.split("/").filter((x) => x !== "" && x !== ".");
   if (parts.length === 0) return false;
   const base = parts[parts.length - 1]!;
-  if (SECRET_WORD.test(base) || SERVICE_ACCOUNT.test(base)) return true;
+  if (SECRET_WORD.test(base) || SERVICE_ACCOUNT.test(base) || BROWSER_STORES.has(base.toLowerCase())) return true;
   for (let i = 0; i < parts.length - 1; i++) {
-    if (SECRET_DIRS.has(parts[i]!)) return true;
-    if (i + 1 < parts.length - 1 && SECRET_DIRS.has(`${parts[i]}/${parts[i + 1]}`)) return true;
+    if (SECRET_DIRS.has(parts[i]!.toLowerCase())) return true;
+    if (i + 1 < parts.length - 1 && SECRET_DIRS.has(`${parts[i]}/${parts[i + 1]}`.toLowerCase())) return true;
   }
   return false;
 }

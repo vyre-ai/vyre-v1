@@ -233,7 +233,7 @@ export const consumers = keptWhileStopping({
   },
   /** What a chat, an agent or a person owned goes, and so do the points of their work folders: a point is a copy of their files (checkpoints.ts erase). */
   "engine.checkpoints_erased": {
-    // an agent moved to Trash (agent.deleted) keeps its points: it can come back. They go with the agent when it is gone for good, or after 14 days (the sweep).
+    // an agent moved to Trash (agent.deleted) keeps its points: it can come back. The product has no permanent delete for an agent (agents.delete is Trash only; no purge capability or expiry exists), so there is no event to erase on: a trashed agent cannot be told from a missing one by the agents module's reads, so nothing erases its points early: the hourly sweep drops every point after 14 days, which is when its Trash would have to have been emptied for the agent to matter.
     on: ["thread.erased", "member.removed"],
     run: async (
       _ctx: EngineCtx,
