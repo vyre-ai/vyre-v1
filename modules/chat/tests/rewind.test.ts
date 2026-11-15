@@ -50,7 +50,7 @@ test("going back asks the engine for the point, hides from before the person's m
   assert.match(String(line!["blocks"]), /3 files put back\. Messages stay\. Anything already sent stays sent\./);
 });
 
-test("an agent cannot go back for the person; a chat with another person in it refuses; an unknown point is not found", async () => {
+test("an agent cannot go back for the person; an unknown point is not found", async () => {
   const { hn, t } = await world();
   assert.equal(
     await failure(() =>
@@ -68,12 +68,42 @@ test("an agent cannot go back for the person; a chat with another person in it r
     ),
     "validation.not_found",
   );
-  await h["threads.members.add"]!(hn.ctx, { threadId: t, personId: MAYA });
-  assert.equal(
-    await failure(() =>
-      h["chat.rewind"]!(hn.ctx, { threadId: t, pointId: `${INTAKE}.${"a".repeat(40)}`, idempotencyKey: key() }),
-    ),
-    "validation.precondition_failed",
-  );
   assert.equal(lines(hn, t).length, 0, "no line when nothing went back");
+});
+
+test("in a chat with other people a person goes back to their own message, never to another's; the line says who", async () => {
+  const pointOf = (messageId: string) => ({
+    available: true,
+    points: [{ pointId: `${INTAKE}.${"c".repeat(40)}`, at: Date.now(), files: 1, after: "x", messageId }],
+  });
+  let mid = "";
+  const hn = harness({
+    calls: {
+      "agents.get": () => ({ agent: {} }),
+      "engine.rewind.points": () => pointOf(mid),
+      "engine.rewind.to": () => ({ restored: 1, removed: 0, failed: 0, undid: false }),
+    },
+  });
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread
+    .threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId: t, personId: MAYA });
+  const mine = await h["chat.post"]!(hn.ctx, { threadId: t, body: "my ask", idempotencyKey: key() });
+  const maya = await h["chat.post"]!(hn.as({ kind: "person", id: MAYA }, DANA), {
+    threadId: t,
+    body: "her ask",
+    idempotencyKey: key(),
+  });
+  const pointId = `${INTAKE}.${"c".repeat(40)}`;
+  mid = maya.message.messageId;
+  assert.equal(
+    await failure(() => h["chat.rewind"]!(hn.ctx, { threadId: t, pointId, idempotencyKey: key() })),
+    "validation.precondition_failed",
+    "another member's turn is not mine to go back to",
+  );
+  assert.equal(lines(hn, t).length, 0);
+  mid = mine.message.messageId;
+  const out = await h["chat.rewind"]!(hn.ctx, { threadId: t, pointId, idempotencyKey: key() });
+  assert.equal(out.restored, 1);
+  const [line] = lines(hn, t);
+  assert.match(String(line!["blocks"]), /"by":"usr_/, "the line names who went back");
 });

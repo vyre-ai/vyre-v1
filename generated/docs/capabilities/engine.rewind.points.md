@@ -1,6 +1,6 @@
 # engine.rewind.points
 
-The points a person can go back to in a private chat with an agent: one per turn of an agent that worked in a folder on this computer for them, newest first, with when, how many files and what they had just asked. Not available in a chat with other people
+The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it
 
 | | |
 |---|---|
@@ -44,6 +44,13 @@ type Out = {
       messageId?: string;
       undo?: boolean;
     }>;
+  active: Array<{
+      afterSeq: number;
+      uptoSeq: number;
+      by: string;
+      at: number;
+      undoPointId?: string;
+    }>;
 };
 ```
 
@@ -64,6 +71,15 @@ type Out = {
     "threadId": "thr_a1b2c3"
   },
   "output": {
+    "active": [
+      {
+        "afterSeq": 1,
+        "at": 1760000000000,
+        "by": "example",
+        "undoPointId": "example",
+        "uptoSeq": 1
+      }
+    ],
     "available": true,
     "points": [
       {

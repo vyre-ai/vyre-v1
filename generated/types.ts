@@ -12852,6 +12852,13 @@ export type EngineRewindPointsOut = {
       messageId?: string;
       undo?: boolean;
     }>;
+  active: Array<{
+      afterSeq: number;
+      uptoSeq: number;
+      by: string;
+      at: number;
+      undoPointId?: string;
+    }>;
 };
 export type EngineRewindToIn = {
   threadId: string;

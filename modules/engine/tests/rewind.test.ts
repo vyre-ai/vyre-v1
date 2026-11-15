@@ -86,8 +86,14 @@ test("points list a turn each, named by what the person had just asked; going ba
       withUndo.points.some((p) => p.undo === true && p.pointId === done.undoPointId),
       "the undo point is offered",
     );
+    assert.deepEqual(
+      withUndo.active.map((a) => [a.afterSeq, a.uptoSeq, a.by, a.undoPointId]),
+      [[4, 9, DANA, done.undoPointId]],
+      "the rewind in force is listed with its range and the point that undoes it",
+    );
     const undone = await rewindIn(s.ctx, { threadId: T, pointId: done.undoPointId, afterSeq: 4, uptoSeq: 9 }, s.data);
     assert.equal(undone.undid, true);
+    assert.deepEqual((await pointsIn(s.ctx, { threadId: T }, s.data)).active, [], "after Undo nothing is folded");
     assert.deepEqual(
       s.h.rows("SELECT after_seq FROM engine_rewind WHERE thread_id = ?", T),
       [],
@@ -103,21 +109,13 @@ test("points list a turn each, named by what the person had just asked; going ba
   }
 });
 
-test("off in a chat with other people and outside a chat with an agent; a point of someone else's folder is not found; an agent cannot go back", async () => {
+test("outside a chat with an agent it is off; a point of someone else's folder is not found; an agent cannot go back", async () => {
   const group = setup({ members: [DANA, "usr_maya"] });
+  assert.equal((await pointsIn(group.ctx, { threadId: T }, group.data)).available, true, "a chat with other people goes back too, through each person's own points");
   const chan = setup({ kind: "channel" });
   const solo = setup();
   try {
-    assert.deepEqual(await pointsIn(group.ctx, { threadId: T }, group.data), {
-      available: false,
-      why: "group",
-      points: [],
-    });
     assert.equal((await pointsIn(chan.ctx, { threadId: T }, chan.data)).why, "not_a_chat");
-    await assert.rejects(
-      rewindIn(group.ctx, { threadId: T, pointId: `${AGENT}.${"a".repeat(40)}`, afterSeq: 0, uptoSeq: 1 }, group.data),
-      /off in a chat/,
-    );
     await assert.rejects(
       rewindIn(solo.ctx, { threadId: T, pointId: `${AGENT}.${"a".repeat(40)}`, afterSeq: 0, uptoSeq: 1 }, solo.data),
       /not in this chat/,

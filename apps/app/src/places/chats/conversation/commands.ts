@@ -34,10 +34,12 @@ export interface CommandEnv {
   /** Starts the composer's mic (/voice). Left out where there is no composer to talk into. */
   startTalk?(): void;
   openPane?(tab: "crew" | "memory" | "skills" | "hooks" | "kept"): void;
+  /** Opens the "Go back to" card above the composer (Rewind). Left out where the chat has no agent to go back with. */
+  openRewind?(): void;
 }
 
 /** Commands that open a tab only the pane of a chat with an agent has (Crew or Threads, Knows, Skills, Hooks): not offered in a channel or a chat with one other person, whose pane has no such tab. */
-export const AGENT_PANE_COMMANDS: ReadonlySet<string> = new Set(["agents", "memory", "skills", "hooks"]);
+export const AGENT_PANE_COMMANDS: ReadonlySet<string> = new Set(["agents", "memory", "skills", "hooks", "rewind"]);
 export const hasAgentPane = (t: Pick<Thread, "kind" | "agents">): boolean => t.kind === "chat" && t.agents.length > 0;
 
 /** The list the composer offers after "/": ours first, then each plugin's that does not clash with a name already in use. */
@@ -277,6 +279,11 @@ async function run(
           await act.setPinned(data, m.messageId, was);
         },
       });
+    }
+    case "rewind": {
+      if (!env.openRewind) return notice("Going back needs a chat with an agent");
+      env.openRewind();
+      return opens();
     }
     case "fork": {
       const m = lastActionable(rows);

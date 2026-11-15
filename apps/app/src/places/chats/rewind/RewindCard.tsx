@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useConversationData } from "../conversation/data.tsx";
-import { KEPT_FOR, LEAVES, NONE, NOT_KEPT, UNDOES, UNDO_NOTE, pointLine, whyOff } from "./model.ts";
+import { KEPT_FOR, LEAVES, SHARED, NONE, NOT_KEPT, UNDOES, UNDO_NOTE, pointLine, whyOff } from "./model.ts";
 import type { RewindPoint } from "./model.ts";
 
 type Read =
@@ -17,9 +17,18 @@ export function RewindCard({
   onClose,
   clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
   start,
+  messageId,
+  onDone,
+  shared = false,
 }: {
+  /** A chat with other people: the agents stop reading everyone's messages after the point, and the chat says who went back. */
+  shared?: boolean;
   threadId: string;
   onClose(): void;
+  /** Called once the chat has gone back (the screen reads the folded messages again). Without it the card just closes. */
+  onDone?(): void;
+  /** Rewind to here: the point of the turn this message began is selected first. */
+  messageId?: string | undefined;
   clock?(ms: number): string;
   /** Rewind to here: the point nearest this time is selected first. */
   start?: number | undefined;
@@ -38,10 +47,12 @@ export function RewindCard({
           const out = r as { available: boolean; why?: string; points: RewindPoint[] };
           if (!out.available) return setRead({ state: "off", why: out.why });
           setRead({ state: "ready", points: out.points });
+          const own = messageId !== undefined ? out.points.find((p) => p.messageId === messageId) : undefined;
           const near =
-            start !== undefined
+            own ??
+            (start !== undefined
               ? [...out.points].sort((a, b) => Math.abs(a.at - start) - Math.abs(b.at - start))[0]
-              : out.points[0];
+              : out.points[0]);
           if (near) setPick(near.pointId);
         },
         () => !gone && setRead({ state: "off" }),
@@ -52,16 +63,19 @@ export function RewindCard({
     return () => {
       gone = true;
     };
-  }, [data, threadId, start]);
+  }, [data, threadId, start, messageId]);
   const go = (): void => {
     if (busy || pick === null) return;
     setBusy(true);
     setFailed(false);
     try {
       void Promise.resolve(
-        data.call("chat.rewind", { threadId, pointId: pick, idempotencyKey: `rewind-${threadId}-${pick}` }),
+        data.call("chat.rewind", { threadId, pointId: pick, idempotencyKey: data.newKey() }),
       ).then(
-        () => onClose(),
+        () => {
+          onDone?.();
+          onClose();
+        },
         () => {
           setBusy(false);
           setFailed(true);
@@ -108,6 +122,11 @@ export function RewindCard({
       <Text testID="rewind-undoes" style={st.note}>
         {UNDOES}
       </Text>
+      {shared ? (
+        <Text testID="rewind-shared" style={st.note}>
+          {SHARED}
+        </Text>
+      ) : null}
       <Text testID="rewind-leaves" style={st.note}>
         {LEAVES}
       </Text>

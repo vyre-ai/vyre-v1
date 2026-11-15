@@ -1974,7 +1974,7 @@ export default defineManifest({
     ),
     read(
       "engine.rewind.points",
-      "The points a person can go back to in a private chat with an agent: one per turn of an agent that worked in a folder on this computer for them, newest first, with when, how many files and what they had just asked. Not available in a chat with other people",
+      "The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
       {
         in: { ...threadT },
         out: {
@@ -1989,6 +1989,15 @@ export default defineManifest({
               after: t.opt(t.str()),
               messageId: t.opt(id.message),
               undo: t.opt(t.bool()),
+            }),
+          ),
+          active: t.arr(
+            t.obj({
+              afterSeq: t.int({ minimum: 0 }),
+              uptoSeq: t.int({ minimum: 0 }),
+              by: t.str({ maxLength: 120 }),
+              at: t.ts(),
+              undoPointId: t.opt(t.str({ maxLength: 120 })),
             }),
           ),
         },

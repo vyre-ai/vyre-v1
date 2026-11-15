@@ -11736,7 +11736,7 @@
       "blocks": [],
       "cap": "chat.rewind",
       "deferred": false,
-      "description": "Go back in a private chat with an agent to a point: the agent's work folder is put back as it was, the agents stop reading the messages after it, and one line says so. Every message stays; anything already sent stays sent. Off in a chat with other people. Only the person themselves",
+      "description": "Go back in a chat with an agent to a point: the agent's work folder is put back, the agents stop reading the messages after it, one line says so. Messages stay; anything sent stays sent. Your own message only; only the person",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -19542,7 +19542,7 @@
       "blocks": [],
       "cap": "engine.rewind.points",
       "deferred": false,
-      "description": "The points a person can go back to in a private chat with an agent: one per turn of an agent that worked in a folder on this computer for them, newest first, with when, how many files and what they had just asked. Not available in a chat with other people",
+      "description": "The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
       "effects": "read",
       "inputSchema": {
         "properties": {

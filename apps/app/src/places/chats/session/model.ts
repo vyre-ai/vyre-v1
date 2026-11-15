@@ -186,6 +186,8 @@ export function isQuiet(
 export type SessionItem =
   | Item
   | { kind: "hour"; key: string; label: string }
+  /** Rewind: the messages after the point a person went back to, folded into one line. Not destroyed: the row opens to one line each, and Undo (only for the person who went back) brings them back. */
+  | { kind: "folded"; key: string; lines: AwayLine[]; who: string; mine: boolean; undo?: () => void }
   | { kind: "jump"; key: string; messageId: string; label: string; sub: string; time: string }
   | {
       kind: "away";
@@ -472,4 +474,41 @@ export function sessionTabs<T extends { key: string; title: string }>(tabs: read
   return [...head, ...tabs.filter((t) => !FIRST.includes(t.key))].map((t) =>
     RENAME[t.key] ? { ...t, title: RENAME[t.key]! } : t,
   );
+}
+
+/** The words of a folded row: who went back and how many messages are folded away. */
+export const foldedWords = (row: { lines: readonly unknown[]; who: string; mine: boolean }): string =>
+  `${row.mine ? "You went back" : `${row.who} went back`}. ${row.lines.length === 1 ? "1 message" : `${row.lines.length} messages`} folded away`;
+
+/** One folded row for each rewind in force, put where the folded messages were: before the first shown item that comes after them (or at the end). `hidden` are the messages taken out of the timeline. */
+export function withFolded(
+  rows: readonly SessionItem[],
+  hidden: ReadonlyArray<{
+    afterSeq: number;
+    uptoSeq: number;
+    who: string;
+    mine: boolean;
+    undo?: () => void;
+    lines: AwayLine[];
+  }>,
+): SessionItem[] {
+  const out = [...rows];
+  for (const h of hidden) {
+    if (h.lines.length === 0) continue;
+    const at = out.findIndex((it) => {
+      const m = messageOf(it);
+      return m !== null && m.threadSeq > h.uptoSeq;
+    });
+    const row: SessionItem = {
+      kind: "folded",
+      key: `folded-${h.afterSeq}-${h.uptoSeq}`,
+      lines: h.lines,
+      who: h.who,
+      mine: h.mine,
+      ...(h.undo ? { undo: h.undo } : {}),
+    };
+    if (at < 0) out.push(row);
+    else out.splice(at, 0, row);
+  }
+  return out;
 }

@@ -5,6 +5,8 @@ export interface RewindPoint {
   at: number;
   files: number;
   after?: string | undefined;
+  /** The message that began the turn this point was taken for. */
+  messageId?: string | undefined;
   /** The point a rewind took just before it: going back to it undoes the rewind. */
   undo?: boolean | undefined;
 }
@@ -12,6 +14,9 @@ export interface RewindPoint {
 export const UNDOES = "Puts the agent's files back as they were, and the agents stop reading what came after.";
 export const LEAVES =
   "Messages stay. Anything already sent stays sent: email, messages, posts, records and tasks. Other computers are not touched.";
+/** Said in a chat with other people. */
+export const SHARED =
+  "Everyone in this chat sees that you went back, and the agents stop reading everyone's messages after that point. Only your own messages can be gone back to.";
 export const UNDO_NOTE = "A point of now is saved first, so you can come back.";
 export const OFF_GROUP = "Going back is off in a chat with other people.";
 export const NONE =
@@ -33,4 +38,13 @@ export function pointLine(p: RewindPoint, time: (ms: number) => string): { when:
 
 export function whyOff(why: string | undefined): string {
   return why === "group" ? OFF_GROUP : "Only a chat with an agent goes back.";
+}
+
+/** A rewind in force (engine.rewind.points `active`): the messages after `afterSeq` up to `uptoSeq` are folded away. `undoPointId` is there only for the person who went back. */
+export interface ActiveRewind {
+  afterSeq: number;
+  uptoSeq: number;
+  by: string;
+  at: number;
+  undoPointId?: string | undefined;
 }

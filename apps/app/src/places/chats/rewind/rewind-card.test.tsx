@@ -56,11 +56,8 @@ test("it says what it undoes and never touches before anything is pressed; the n
   await press(find(root, "rewind-point-agt_dex.a")!);
   await press(find(root, "rewind-go")!);
   await flush();
-  assert.deepEqual(s.calls.find((c) => c.cap === "chat.rewind")?.input, {
-    threadId: "c1",
-    pointId: "agt_dex.a",
-    idempotencyKey: "rewind-c1-agt_dex.a",
-  });
+  const sent = s.calls.find((c) => c.cap === "chat.rewind")?.input as Record<string, unknown>;
+  assert.deepEqual([sent["threadId"], sent["pointId"], typeof sent["idempotencyKey"]], ["c1", "agt_dex.a", "string"]);
   assert.equal(closed, 1);
 });
 

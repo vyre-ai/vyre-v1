@@ -25,6 +25,33 @@ export interface RewindPoint {
 
 const MAX_POINTS = 30;
 
+/** A rewind of this chat that has not been undone: the messages after `afterSeq` up to `uptoSeq` are folded away for everyone. `undoPointId` is given only to the person who went back (the point lives in their folder). */
+export interface ActiveRewind {
+  afterSeq: number;
+  uptoSeq: number;
+  by: string;
+  at: number;
+  undoPointId?: string;
+}
+
+function activeIn(ctx: EngineCtx, threadId: string, who: string): ActiveRewind[] {
+  try {
+    const rows = ctx.db.all(
+      "SELECT after_seq, upto_seq, by_person, at, undo_sha FROM engine_rewind WHERE thread_id = ? AND undo_sha IS NOT NULL ORDER BY at",
+      threadId,
+    ) as Array<Record<string, unknown>>;
+    return rows.map((r) => ({
+      afterSeq: Number(r["after_seq"]),
+      uptoSeq: Number(r["upto_seq"]),
+      by: String(r["by_person"]),
+      at: Number(r["at"]),
+      ...(String(r["by_person"]) === who ? { undoPointId: `*.${String(r["undo_sha"])}` } : {}), // the agent is filled in from the points below
+    }));
+  } catch {
+    return [];
+  }
+}
+
 const POINT = /^(agt_[A-Za-z0-9_]+)\.([0-9a-f]{40})$/;
 
 interface ThreadOut {
@@ -47,15 +74,13 @@ function undoable(ctx: EngineCtx, threadId: string): Set<string> {
   }
 }
 
-/** A private chat: a chat of this person and their agents, no channel, nobody else in it. */
+/** A chat with agents that is not a channel (one person's, or a few people's). Each person goes back only through their own points: the work folder and the points are per person. */
 async function privateChat(
   ctx: EngineCtx,
   threadId: string,
-): Promise<{ ok: true; agents: string[] } | { ok: false; why: "group" | "not_a_chat" }> {
+): Promise<{ ok: true; agents: string[] } | { ok: false; why: "not_a_chat" }> {
   const t = ((await ctx.call("threads.get", { threadId })) as ThreadOut).thread;
   if (!t || t.kind !== "chat" || t.channelId !== undefined) return { ok: false, why: "not_a_chat" };
-  const people = (t.members ?? []).filter((m) => m.id.startsWith("usr_"));
-  if (people.length > 1) return { ok: false, why: "group" };
   return { ok: true, agents: (t.agents ?? []).map((a) => a.agentId) };
 }
 
@@ -73,12 +98,13 @@ export async function pointsIn(
   ctx: EngineCtx,
   input: { threadId: string },
   dataDir: string | undefined,
-): Promise<{ available: boolean; why?: string; points: RewindPoint[] }> {
+): Promise<{ available: boolean; why?: string; points: RewindPoint[]; active: ActiveRewind[] }> {
   ensure(ctx.db);
   const who = person(ctx);
   const chat = await privateChat(ctx, input.threadId);
-  if (!chat.ok) return { available: false, why: chat.why, points: [] };
-  if (!dataDir) return { available: false, why: "no_folder", points: [] };
+  if (!chat.ok) return { available: false, why: chat.why, points: [], active: [] };
+  const active = activeIn(ctx, input.threadId, who);
+  if (!dataDir) return { available: false, why: "no_folder", points: [], active };
   // what they said, to name each point by it
   const said = new Map<string, string>();
   try {
@@ -114,7 +140,14 @@ export async function pointsIn(
       });
     }
   }
-  return { available: true, points: out.sort((a, b) => b.at - a.at).slice(0, MAX_POINTS) };
+  for (const a of active)
+    if (a.undoPointId !== undefined) {
+      const sha = a.undoPointId.slice(2);
+      const hit = out.find((p) => p.undo === true && p.pointId.endsWith(`.${sha}`));
+      if (hit) a.undoPointId = hit.pointId;
+      else delete a.undoPointId; // the point is gone (kept 14 days): it cannot be undone any more
+    }
+  return { available: true, points: out.sort((a, b) => b.at - a.at).slice(0, MAX_POINTS), active };
 }
 
 export async function rewind(
@@ -144,7 +177,7 @@ export async function rewindIn(
     raise(
       ctx,
       "validation.precondition_failed",
-      chat.why === "group" ? "Going back is off in a chat with other people." : "Only a chat with an agent goes back.",
+      "Only a chat with an agent goes back.",
     );
   const m = POINT.exec(input.pointId);
   if (!m || !chat.agents.includes(m[1]!)) raise(ctx, "validation.not_found", "That point is not in this chat.");

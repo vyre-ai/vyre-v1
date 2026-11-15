@@ -1,6 +1,6 @@
 # chat.rewind
 
-Go back in a private chat with an agent to a point: the agent's work folder is put back as it was, the agents stop reading the messages after it, and one line says so. Every message stays; anything already sent stays sent. Off in a chat with other people. Only the person themselves
+Go back in a chat with an agent to a point: the agent's work folder is put back, the agents stop reading the messages after it, one line says so. Messages stay; anything sent stays sent. Your own message only; only the person
 
 | | |
 |---|---|
