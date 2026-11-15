@@ -538,7 +538,8 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
       model: turn.model ?? defaultModelLabel(account),
       ...(account?.itemId ? { itemId: account.itemId } : {}),
     },
-    turn.asker,
+    // the usage is the payer's (the account's owner, or whoever the Space's key is counted against), not the person the turn ran for (F75)
+    turn.paidBy ?? turn.asker,
   );
 }
 

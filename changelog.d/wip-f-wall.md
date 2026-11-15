@@ -11,3 +11,4 @@
 - A browser card posted in a person's own browser place is drawn live only for that person; everyone else in the chat sees its last picture.
 - Project folders are opened to a person by an access list per project (their role: edit for Lead and Member, read otherwise), not by a group, because a container user cannot be added to a group while it runs. The person's own Files folder is not yet mirrored into their terminal.
 - A command that only names a folder like ~/.ssh or ~/.config/rsync is no longer taken for a message sent to the outside, so an agent that keeps a sign-in there is not held up for a yes.
+- In a chat with other people, each person's message now runs for that person: the agent works in that person's own folder for the chat, and as that person's own user on a shared agent's computer, even when another person's account or a key of the Space pays for the turn. Who pays is still counted where it was.
