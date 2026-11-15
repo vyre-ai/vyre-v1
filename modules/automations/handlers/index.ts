@@ -45,6 +45,7 @@ import { keyHostsAllow, keyHostsList, keyHostsPending, keyHostsPendingBind, keyH
 import { vaultUsage } from "./vault-usage.ts";
 import { allLevels } from "../connector-level.ts";
 import type { LevelDb } from "../connector-level.ts";
+import { propose, proposalAccept, proposalDiscard } from "./propose.ts";
 import type { AutoCtx } from "../projections.ts";
 
 /** Which connector actions were tried against the real app: the picker marks the ones that were not. */
@@ -130,6 +131,9 @@ export const handlers = {
   "automations.draft.save": draftSave,
   "automations.draft.discard": draftDiscard,
   "automations.make_live": makeLive,
+  "automations.draft.propose": propose,
+  "automations.proposal.accept": proposalAccept,
+  "automations.proposal.discard": proposalDiscard,
   "automations.triggers.list": triggersList,
   "automations.undelete": undelete,
   "automations.update": update,

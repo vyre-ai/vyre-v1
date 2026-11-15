@@ -184,7 +184,17 @@ const draftRow = t.obj({
   by: t.str(),
   at: t.int(),
 });
+const proposalRow = t.obj({
+  definition,
+  summary: t.str(),
+  by: t.str(),
+  for: t.str(),
+  baseVersion: t.int(),
+  at: t.int(),
+  steps: t.int(),
+});
 const withDraft = { automation: row, draft: t.opt(draftRow) };
+const withProposal = { automation: row, draft: t.opt(draftRow), proposal: t.opt(proposalRow) };
 const jsonSchema = t.rec();
 const httpMethod = t.enm("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE");
 const connectorLevel = t.enm("draft");
@@ -601,7 +611,7 @@ export default defineManifest({
       "Read an Automation with its definition, alerts and followers, and whether the caller may change it (a Space one: owners, admins and people given Edit on it)",
       {
         in: target,
-        out: { automation: row, canEdit: t.opt(t.bool()), draft: t.opt(draftRow) },
+        out: { automation: row, canEdit: t.opt(t.bool()), draft: t.opt(draftRow), proposal: t.opt(proposalRow) },
         on: ["automation", "/automationId"],
         tool: "automations",
         label: "check",
@@ -687,6 +697,46 @@ export default defineManifest({
       tool: "automations",
       errors: ["validation.version_conflict", "validation.precondition_failed"],
     }),
+    write(
+      "automations.draft.propose",
+      "An Assistant puts steps on the page as a proposal for a person to accept: nothing is saved as the definition, made live or turned on. With no automationId an empty Automation that is off is made first",
+      {
+        in: {
+          automationId: t.opt(id.automation),
+          name: t.opt(t.str()),
+          definition,
+          summary: t.str(),
+        },
+        out: { ...withProposal, ok: t.bool(), issues: t.arr(t.any()) },
+        perm: "automations.personal",
+        emits: ["automation.created", "automation.updated"],
+        tool: "automations",
+        errors: ["validation.bad_input", "validation.precondition_failed"],
+      },
+    ),
+    write(
+      "automations.proposal.accept",
+      "A person takes the Assistant's proposal: an off Automation saves it, an on one keeps it as their draft until Make live. An agent is refused",
+      {
+        in: target,
+        out: withProposal,
+        on: ["automation", "/automationId"],
+        emits: ["automation.updated", "automation.runs_as_changed"],
+        tool: "automations",
+        errors: ["validation.version_conflict", "validation.precondition_failed", "validation.bad_input"],
+      },
+    ),
+    write(
+      "automations.proposal.discard",
+      "Throw the Assistant's proposal away; an empty Automation that proposing made goes to Trash with it",
+      {
+        in: target,
+        out: { automation: row, draft: t.opt(draftRow), proposal: t.opt(proposalRow), removed: t.opt(t.bool()) },
+        on: ["automation", "/automationId"],
+        emits: ["automation.updated", "automation.deleted"],
+        tool: "automations",
+      },
+    ),
     read("automations.test_events", "Real past starts of an Automation's trigger that a test can be tried on", {
       in: { ...target, trigger: t.opt(t.str()) },
       out: {

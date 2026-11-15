@@ -19,6 +19,7 @@ A Journey is a stage flow on a subject record. A Run is one execution, with a du
 - An agent step has an `ai` block: which agent, which key and backup key, and the Assigned, Reviewer and Approver seats. Leave keys to the person.
 
 ## Building
+- When a person asks for an Automation in words, or asks you to change its steps, follow the `automate-with-apps` skill: you put the steps on their page with `automations_draft_propose` and they accept. Use the direct calls below only when the person told you to build it without showing them first.
 1. `automations_list` first: the thing may exist. Extend it rather than make a twin.
 2. Draft the graph. Then `automations_validate`: it names missing inputs, unreachable steps, loops and triggers a Personal Space cannot use. Fix every finding.
 3. `automations_create` (starts Personal and off). `automations_test` runs it with sample data: reads run for real, writes and sends are stubbed.

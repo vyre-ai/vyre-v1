@@ -227,64 +227,64 @@ if ("messageId" in o377) lf(o377["messageId"], p + "/messageId", e, L92);
 
 function d_s_5404bc664a(v: unknown, p: string, e: string[]): void {
 {
-const x397 = v;
-const g397 = typeOf(x397);
-const b397: string[] = []; lf(x397, p, b397, L4); if (b397.length) e.push(...b397);
-if (g397 === "array") {
-if (g397 === 'array') { const a397 = x397 as unknown[];
-for (let i397 = 0; i397 < a397.length; i397++) {
-{
-const x398 = a397[i397];
+const x398 = v;
 const g398 = typeOf(x398);
-const b398: string[] = []; lf(x398, p + '/' + i397, b398, L0); if (b398.length) e.push(...b398);
-if (g398 === "object") {
-if (g398 === 'object') { const o398 = x398 as Record<string, unknown>;
-if (!("threadId" in o398)) e.push(p + '/' + i397 + "/threadId" + ': required');
-if (!("kind" in o398)) e.push(p + '/' + i397 + "/kind" + ': required');
-if (!("title" in o398)) e.push(p + '/' + i397 + "/title" + ': required');
-if (!("agents" in o398)) e.push(p + '/' + i397 + "/agents" + ': required');
-if (!("unread" in o398)) e.push(p + '/' + i397 + "/unread" + ': required');
-if (!("working" in o398)) e.push(p + '/' + i397 + "/working" + ': required');
-if (!("starred" in o398)) e.push(p + '/' + i397 + "/starred" + ': required');
-if (!("lastAt" in o398)) e.push(p + '/' + i397 + "/lastAt" + ': required');
-if ("threadId" in o398) lf(o398["threadId"], p + '/' + i397 + "/threadId", e, L13);
-if ("kind" in o398) lf(o398["kind"], p + '/' + i397 + "/kind", e, L207);
-if ("title" in o398) lf(o398["title"], p + '/' + i397 + "/title", e, L1);
-if ("agents" in o398) {
+const b398: string[] = []; lf(x398, p, b398, L4); if (b398.length) e.push(...b398);
+if (g398 === "array") {
+if (g398 === 'array') { const a398 = x398 as unknown[];
+for (let i398 = 0; i398 < a398.length; i398++) {
 {
-const x399 = o398["agents"];
+const x399 = a398[i398];
 const g399 = typeOf(x399);
-const b399: string[] = []; lf(x399, p + '/' + i397 + "/agents", b399, L4); if (b399.length) e.push(...b399);
-if (g399 === "array") {
-if (g399 === 'array') { const a399 = x399 as unknown[];
-for (let i399 = 0; i399 < a399.length; i399++) {
-lf(a399[i399], p + '/' + i397 + "/agents" + '/' + i399, e, L10);
-}
-}
-}
-}
-}
-if ("unread" in o398) lf(o398["unread"], p + '/' + i397 + "/unread", e, L2);
-if ("repliesUnread" in o398) lf(o398["repliesUnread"], p + '/' + i397 + "/repliesUnread", e, L12);
-if ("working" in o398) lf(o398["working"], p + '/' + i397 + "/working", e, L3);
-if ("starred" in o398) lf(o398["starred"], p + '/' + i397 + "/starred", e, L3);
-if ("lastAt" in o398) lf(o398["lastAt"], p + '/' + i397 + "/lastAt", e, L17);
-if ("preview" in o398) lf(o398["preview"], p + '/' + i397 + "/preview", e, L1);
-if ("people" in o398) {
+const b399: string[] = []; lf(x399, p + '/' + i398, b399, L0); if (b399.length) e.push(...b399);
+if (g399 === "object") {
+if (g399 === 'object') { const o399 = x399 as Record<string, unknown>;
+if (!("threadId" in o399)) e.push(p + '/' + i398 + "/threadId" + ': required');
+if (!("kind" in o399)) e.push(p + '/' + i398 + "/kind" + ': required');
+if (!("title" in o399)) e.push(p + '/' + i398 + "/title" + ': required');
+if (!("agents" in o399)) e.push(p + '/' + i398 + "/agents" + ': required');
+if (!("unread" in o399)) e.push(p + '/' + i398 + "/unread" + ': required');
+if (!("working" in o399)) e.push(p + '/' + i398 + "/working" + ': required');
+if (!("starred" in o399)) e.push(p + '/' + i398 + "/starred" + ': required');
+if (!("lastAt" in o399)) e.push(p + '/' + i398 + "/lastAt" + ': required');
+if ("threadId" in o399) lf(o399["threadId"], p + '/' + i398 + "/threadId", e, L13);
+if ("kind" in o399) lf(o399["kind"], p + '/' + i398 + "/kind", e, L207);
+if ("title" in o399) lf(o399["title"], p + '/' + i398 + "/title", e, L1);
+if ("agents" in o399) {
 {
-const x400 = o398["people"];
+const x400 = o399["agents"];
 const g400 = typeOf(x400);
-const b400: string[] = []; lf(x400, p + '/' + i397 + "/people", b400, L4); if (b400.length) e.push(...b400);
+const b400: string[] = []; lf(x400, p + '/' + i398 + "/agents", b400, L4); if (b400.length) e.push(...b400);
 if (g400 === "array") {
 if (g400 === 'array') { const a400 = x400 as unknown[];
 for (let i400 = 0; i400 < a400.length; i400++) {
-lf(a400[i400], p + '/' + i397 + "/people" + '/' + i400, e, L16);
+lf(a400[i400], p + '/' + i398 + "/agents" + '/' + i400, e, L10);
 }
 }
 }
 }
 }
-if ("goalId" in o398) lf(o398["goalId"], p + '/' + i397 + "/goalId", e, L1);
+if ("unread" in o399) lf(o399["unread"], p + '/' + i398 + "/unread", e, L2);
+if ("repliesUnread" in o399) lf(o399["repliesUnread"], p + '/' + i398 + "/repliesUnread", e, L12);
+if ("working" in o399) lf(o399["working"], p + '/' + i398 + "/working", e, L3);
+if ("starred" in o399) lf(o399["starred"], p + '/' + i398 + "/starred", e, L3);
+if ("lastAt" in o399) lf(o399["lastAt"], p + '/' + i398 + "/lastAt", e, L17);
+if ("preview" in o399) lf(o399["preview"], p + '/' + i398 + "/preview", e, L1);
+if ("people" in o399) {
+{
+const x401 = o399["people"];
+const g401 = typeOf(x401);
+const b401: string[] = []; lf(x401, p + '/' + i398 + "/people", b401, L4); if (b401.length) e.push(...b401);
+if (g401 === "array") {
+if (g401 === 'array') { const a401 = x401 as unknown[];
+for (let i401 = 0; i401 < a401.length; i401++) {
+lf(a401[i401], p + '/' + i398 + "/people" + '/' + i401, e, L16);
+}
+}
+}
+}
+}
+if ("goalId" in o399) lf(o399["goalId"], p + '/' + i398 + "/goalId", e, L1);
 }
 }
 }
@@ -296,23 +296,23 @@ if ("goalId" in o398) lf(o398["goalId"], p + '/' + i397 + "/goalId", e, L1);
 
 function d_s_95b73dc67d(v: unknown, p: string, e: string[]): void {
 {
-const x768 = v;
-const g768 = typeOf(x768);
-const b768: string[] = []; lf(x768, p, b768, L4); if (b768.length) e.push(...b768);
-if (g768 === "array") {
-if (g768 === 'array') { const a768 = x768 as unknown[];
-for (let i768 = 0; i768 < a768.length; i768++) {
-{
-const x769 = a768[i768];
+const x769 = v;
 const g769 = typeOf(x769);
-const b769: string[] = []; lf(x769, p + '/' + i768, b769, L0); if (b769.length) e.push(...b769);
-if (g769 === "object") {
-if (g769 === 'object') { const o769 = x769 as Record<string, unknown>;
-if (!("type" in o769)) e.push(p + '/' + i768 + "/type" + ': required');
-if (!("id" in o769)) e.push(p + '/' + i768 + "/id" + ': required');
-if ("type" in o769) lf(o769["type"], p + '/' + i768 + "/type", e, L1);
-if ("id" in o769) lf(o769["id"], p + '/' + i768 + "/id", e, L1);
-if ("title" in o769) lf(o769["title"], p + '/' + i768 + "/title", e, L1);
+const b769: string[] = []; lf(x769, p, b769, L4); if (b769.length) e.push(...b769);
+if (g769 === "array") {
+if (g769 === 'array') { const a769 = x769 as unknown[];
+for (let i769 = 0; i769 < a769.length; i769++) {
+{
+const x770 = a769[i769];
+const g770 = typeOf(x770);
+const b770: string[] = []; lf(x770, p + '/' + i769, b770, L0); if (b770.length) e.push(...b770);
+if (g770 === "object") {
+if (g770 === 'object') { const o770 = x770 as Record<string, unknown>;
+if (!("type" in o770)) e.push(p + '/' + i769 + "/type" + ': required');
+if (!("id" in o770)) e.push(p + '/' + i769 + "/id" + ': required');
+if ("type" in o770) lf(o770["type"], p + '/' + i769 + "/type", e, L1);
+if ("id" in o770) lf(o770["id"], p + '/' + i769 + "/id", e, L1);
+if ("title" in o770) lf(o770["title"], p + '/' + i769 + "/title", e, L1);
 }
 }
 }
@@ -324,25 +324,25 @@ if ("title" in o769) lf(o769["title"], p + '/' + i768 + "/title", e, L1);
 
 function d_s_aad8a88d49(v: unknown, p: string, e: string[]): void {
 {
-const x862 = v;
-const g862 = typeOf(x862);
-const b862: string[] = []; lf(x862, p, b862, L4); if (b862.length) e.push(...b862);
-if (g862 === "array") {
-if (g862 === 'array') { const a862 = x862 as unknown[];
-for (let i862 = 0; i862 < a862.length; i862++) {
-{
-const x863 = a862[i862];
+const x863 = v;
 const g863 = typeOf(x863);
-const b863: string[] = []; lf(x863, p + '/' + i862, b863, L0); if (b863.length) e.push(...b863);
-if (g863 === "object") {
-if (g863 === 'object') { const o863 = x863 as Record<string, unknown>;
-if (!("stepId" in o863)) e.push(p + '/' + i862 + "/stepId" + ': required');
-if (!("text" in o863)) e.push(p + '/' + i862 + "/text" + ': required');
-if (!("state" in o863)) e.push(p + '/' + i862 + "/state" + ': required');
-if ("stepId" in o863) lf(o863["stepId"], p + '/' + i862 + "/stepId", e, L117);
-if ("text" in o863) lf(o863["text"], p + '/' + i862 + "/text", e, L1);
-if ("state" in o863) lf(o863["state"], p + '/' + i862 + "/state", e, L341);
-if ("detail" in o863) lf(o863["detail"], p + '/' + i862 + "/detail", e, L1);
+const b863: string[] = []; lf(x863, p, b863, L4); if (b863.length) e.push(...b863);
+if (g863 === "array") {
+if (g863 === 'array') { const a863 = x863 as unknown[];
+for (let i863 = 0; i863 < a863.length; i863++) {
+{
+const x864 = a863[i863];
+const g864 = typeOf(x864);
+const b864: string[] = []; lf(x864, p + '/' + i863, b864, L0); if (b864.length) e.push(...b864);
+if (g864 === "object") {
+if (g864 === 'object') { const o864 = x864 as Record<string, unknown>;
+if (!("stepId" in o864)) e.push(p + '/' + i863 + "/stepId" + ': required');
+if (!("text" in o864)) e.push(p + '/' + i863 + "/text" + ': required');
+if (!("state" in o864)) e.push(p + '/' + i863 + "/state" + ': required');
+if ("stepId" in o864) lf(o864["stepId"], p + '/' + i863 + "/stepId", e, L117);
+if ("text" in o864) lf(o864["text"], p + '/' + i863 + "/text", e, L1);
+if ("state" in o864) lf(o864["state"], p + '/' + i863 + "/state", e, L341);
+if ("detail" in o864) lf(o864["detail"], p + '/' + i863 + "/detail", e, L1);
 }
 }
 }
@@ -354,15 +354,15 @@ if ("detail" in o863) lf(o863["detail"], p + '/' + i862 + "/detail", e, L1);
 
 function d_s_c0c421f88f(v: unknown, p: string, e: string[]): void {
 {
-const x927 = v;
-const g927 = typeOf(x927);
-const b927: string[] = []; lf(x927, p, b927, L0); if (b927.length) e.push(...b927);
-if (g927 === "object") {
-if (g927 === 'object') { const o927 = x927 as Record<string, unknown>;
-if (!("threadId" in o927)) e.push(p + "/threadId" + ': required');
-if (!("blockId" in o927)) e.push(p + "/blockId" + ': required');
-if ("threadId" in o927) lf(o927["threadId"], p + "/threadId", e, L13);
-if ("blockId" in o927) lf(o927["blockId"], p + "/blockId", e, L129);
+const x928 = v;
+const g928 = typeOf(x928);
+const b928: string[] = []; lf(x928, p, b928, L0); if (b928.length) e.push(...b928);
+if (g928 === "object") {
+if (g928 === 'object') { const o928 = x928 as Record<string, unknown>;
+if (!("threadId" in o928)) e.push(p + "/threadId" + ': required');
+if (!("blockId" in o928)) e.push(p + "/blockId" + ': required');
+if ("threadId" in o928) lf(o928["threadId"], p + "/threadId", e, L13);
+if ("blockId" in o928) lf(o928["blockId"], p + "/blockId", e, L129);
 }
 }
 }
@@ -370,13 +370,13 @@ if ("blockId" in o927) lf(o927["blockId"], p + "/blockId", e, L129);
 
 function d_s_c142c7dfda(v: unknown, p: string, e: string[]): void {
 {
-const x930 = v;
-const g930 = typeOf(x930);
-const b930: string[] = []; lf(x930, p, b930, L0); if (b930.length) e.push(...b930);
-if (g930 === "object") {
-if (g930 === 'object') { const o930 = x930 as Record<string, unknown>;
-if (!("channel" in o930)) e.push(p + "/channel" + ': required');
-if ("channel" in o930) d_s_f592e897f5(o930["channel"], p + "/channel", e);
+const x931 = v;
+const g931 = typeOf(x931);
+const b931: string[] = []; lf(x931, p, b931, L0); if (b931.length) e.push(...b931);
+if (g931 === "object") {
+if (g931 === 'object') { const o931 = x931 as Record<string, unknown>;
+if (!("channel" in o931)) e.push(p + "/channel" + ': required');
+if ("channel" in o931) d_s_f592e897f5(o931["channel"], p + "/channel", e);
 }
 }
 }
@@ -384,70 +384,70 @@ if ("channel" in o930) d_s_f592e897f5(o930["channel"], p + "/channel", e);
 
 function d_s_c1faba3335(v: unknown, p: string, e: string[]): void {
 {
-const x941 = v;
-const g941 = typeOf(x941);
-const b941: string[] = []; lf(x941, p, b941, L0); if (b941.length) e.push(...b941);
-if (g941 === "object") {
-if (g941 === 'object') { const o941 = x941 as Record<string, unknown>;
-if (!("place" in o941)) e.push(p + "/place" + ': required');
-if ("place" in o941) lf(o941["place"], p + "/place", e, L1);
-if ("title" in o941) lf(o941["title"], p + "/title", e, L1);
-if ("open" in o941) d_s_95b73dc67d(o941["open"], p + "/open", e);
-if ("selection" in o941) d_s_95b73dc67d(o941["selection"], p + "/selection", e);
-if ("filters" in o941) {
-{
-const x942 = o941["filters"];
+const x942 = v;
 const g942 = typeOf(x942);
-const b942: string[] = []; lf(x942, p + "/filters", b942, L0); if (b942.length) e.push(...b942);
+const b942: string[] = []; lf(x942, p, b942, L0); if (b942.length) e.push(...b942);
 if (g942 === "object") {
 if (g942 === 'object') { const o942 = x942 as Record<string, unknown>;
-}
-}
-}
-}
-if ("rows" in o941) {
+if (!("place" in o942)) e.push(p + "/place" + ': required');
+if ("place" in o942) lf(o942["place"], p + "/place", e, L1);
+if ("title" in o942) lf(o942["title"], p + "/title", e, L1);
+if ("open" in o942) d_s_95b73dc67d(o942["open"], p + "/open", e);
+if ("selection" in o942) d_s_95b73dc67d(o942["selection"], p + "/selection", e);
+if ("filters" in o942) {
 {
-const x943 = o941["rows"];
+const x943 = o942["filters"];
 const g943 = typeOf(x943);
-const b943: string[] = []; lf(x943, p + "/rows", b943, L0); if (b943.length) e.push(...b943);
+const b943: string[] = []; lf(x943, p + "/filters", b943, L0); if (b943.length) e.push(...b943);
 if (g943 === "object") {
 if (g943 === 'object') { const o943 = x943 as Record<string, unknown>;
-if (!("shown" in o943)) e.push(p + "/rows" + "/shown" + ': required');
-if ("shown" in o943) lf(o943["shown"], p + "/rows" + "/shown", e, L17);
-if ("total" in o943) lf(o943["total"], p + "/rows" + "/total", e, L17);
-if ("sample" in o943) {
+}
+}
+}
+}
+if ("rows" in o942) {
 {
-const x944 = o943["sample"];
+const x944 = o942["rows"];
 const g944 = typeOf(x944);
-const b944: string[] = []; lf(x944, p + "/rows" + "/sample", b944, L4); if (b944.length) e.push(...b944);
-if (g944 === "array") {
-if (g944 === 'array') { const a944 = x944 as unknown[];
-for (let i944 = 0; i944 < a944.length; i944++) {
-lf(a944[i944], p + "/rows" + "/sample" + '/' + i944, e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-if ("actions" in o941) {
+const b944: string[] = []; lf(x944, p + "/rows", b944, L0); if (b944.length) e.push(...b944);
+if (g944 === "object") {
+if (g944 === 'object') { const o944 = x944 as Record<string, unknown>;
+if (!("shown" in o944)) e.push(p + "/rows" + "/shown" + ': required');
+if ("shown" in o944) lf(o944["shown"], p + "/rows" + "/shown", e, L17);
+if ("total" in o944) lf(o944["total"], p + "/rows" + "/total", e, L17);
+if ("sample" in o944) {
 {
-const x945 = o941["actions"];
+const x945 = o944["sample"];
 const g945 = typeOf(x945);
-const b945: string[] = []; lf(x945, p + "/actions", b945, L4); if (b945.length) e.push(...b945);
+const b945: string[] = []; lf(x945, p + "/rows" + "/sample", b945, L4); if (b945.length) e.push(...b945);
 if (g945 === "array") {
 if (g945 === 'array') { const a945 = x945 as unknown[];
 for (let i945 = 0; i945 < a945.length; i945++) {
-lf(a945[i945], p + "/actions" + '/' + i945, e, L1);
+lf(a945[i945], p + "/rows" + "/sample" + '/' + i945, e, L1);
 }
 }
 }
 }
 }
-if ("focus" in o941) lf(o941["focus"], p + "/focus", e, L1);
+}
+}
+}
+}
+if ("actions" in o942) {
+{
+const x946 = o942["actions"];
+const g946 = typeOf(x946);
+const b946: string[] = []; lf(x946, p + "/actions", b946, L4); if (b946.length) e.push(...b946);
+if (g946 === "array") {
+if (g946 === 'array') { const a946 = x946 as unknown[];
+for (let i946 = 0; i946 < a946.length; i946++) {
+lf(a946[i946], p + "/actions" + '/' + i946, e, L1);
+}
+}
+}
+}
+}
+if ("focus" in o942) lf(o942["focus"], p + "/focus", e, L1);
 }
 }
 }
@@ -455,34 +455,34 @@ if ("focus" in o941) lf(o941["focus"], p + "/focus", e, L1);
 
 function d_s_c3a796a599(v: unknown, p: string, e: string[]): void {
 {
-const x951 = v;
-const g951 = typeOf(x951);
-const b951: string[] = []; lf(x951, p, b951, L4); if (b951.length) e.push(...b951);
-if (g951 === "array") {
-if (g951 === 'array') { const a951 = x951 as unknown[];
-for (let i951 = 0; i951 < a951.length; i951++) {
-{
-const x952 = a951[i951];
+const x952 = v;
 const g952 = typeOf(x952);
-const b952: string[] = []; lf(x952, p + '/' + i951, b952, L0); if (b952.length) e.push(...b952);
-if (g952 === "object") {
-if (g952 === 'object') { const o952 = x952 as Record<string, unknown>;
-if (!("agentId" in o952)) e.push(p + '/' + i951 + "/agentId" + ': required');
-if (!("mode" in o952)) e.push(p + '/' + i951 + "/mode" + ': required');
-if ("agentId" in o952) lf(o952["agentId"], p + '/' + i951 + "/agentId", e, L10);
-if ("mode" in o952) lf(o952["mode"], p + '/' + i951 + "/mode", e, L384);
-if ("model" in o952) lf(o952["model"], p + '/' + i951 + "/model", e, L1);
-if ("provider" in o952) lf(o952["provider"], p + '/' + i951 + "/provider", e, L1);
-if ("effort" in o952) lf(o952["effort"], p + '/' + i951 + "/effort", e, L385);
-if ("accountRef" in o952) lf(o952["accountRef"], p + '/' + i951 + "/accountRef", e, L1);
-if ("watches" in o952) lf(o952["watches"], p + '/' + i951 + "/watches", e, L3);
-if ("when" in o952) lf(o952["when"], p + '/' + i951 + "/when", e, L386);
-if ("topics" in o952) lf(o952["topics"], p + '/' + i951 + "/topics", e, L1);
-if ("hoursFrom" in o952) lf(o952["hoursFrom"], p + '/' + i951 + "/hoursFrom", e, L387);
-if ("hoursTo" in o952) lf(o952["hoursTo"], p + '/' + i951 + "/hoursTo", e, L387);
-if ("style" in o952) lf(o952["style"], p + '/' + i951 + "/style", e, L388);
-if ("quiet" in o952) lf(o952["quiet"], p + '/' + i951 + "/quiet", e, L3);
-if ("owned" in o952) lf(o952["owned"], p + '/' + i951 + "/owned", e, L3);
+const b952: string[] = []; lf(x952, p, b952, L4); if (b952.length) e.push(...b952);
+if (g952 === "array") {
+if (g952 === 'array') { const a952 = x952 as unknown[];
+for (let i952 = 0; i952 < a952.length; i952++) {
+{
+const x953 = a952[i952];
+const g953 = typeOf(x953);
+const b953: string[] = []; lf(x953, p + '/' + i952, b953, L0); if (b953.length) e.push(...b953);
+if (g953 === "object") {
+if (g953 === 'object') { const o953 = x953 as Record<string, unknown>;
+if (!("agentId" in o953)) e.push(p + '/' + i952 + "/agentId" + ': required');
+if (!("mode" in o953)) e.push(p + '/' + i952 + "/mode" + ': required');
+if ("agentId" in o953) lf(o953["agentId"], p + '/' + i952 + "/agentId", e, L10);
+if ("mode" in o953) lf(o953["mode"], p + '/' + i952 + "/mode", e, L384);
+if ("model" in o953) lf(o953["model"], p + '/' + i952 + "/model", e, L1);
+if ("provider" in o953) lf(o953["provider"], p + '/' + i952 + "/provider", e, L1);
+if ("effort" in o953) lf(o953["effort"], p + '/' + i952 + "/effort", e, L385);
+if ("accountRef" in o953) lf(o953["accountRef"], p + '/' + i952 + "/accountRef", e, L1);
+if ("watches" in o953) lf(o953["watches"], p + '/' + i952 + "/watches", e, L3);
+if ("when" in o953) lf(o953["when"], p + '/' + i952 + "/when", e, L386);
+if ("topics" in o953) lf(o953["topics"], p + '/' + i952 + "/topics", e, L1);
+if ("hoursFrom" in o953) lf(o953["hoursFrom"], p + '/' + i952 + "/hoursFrom", e, L387);
+if ("hoursTo" in o953) lf(o953["hoursTo"], p + '/' + i952 + "/hoursTo", e, L387);
+if ("style" in o953) lf(o953["style"], p + '/' + i952 + "/style", e, L388);
+if ("quiet" in o953) lf(o953["quiet"], p + '/' + i952 + "/quiet", e, L3);
+if ("owned" in o953) lf(o953["owned"], p + '/' + i952 + "/owned", e, L3);
 }
 }
 }
@@ -494,17 +494,17 @@ if ("owned" in o952) lf(o952["owned"], p + '/' + i951 + "/owned", e, L3);
 
 function d_s_c6ddba1711(v: unknown, p: string, e: string[]): void {
 {
-const x969 = v;
-const g969 = typeOf(x969);
-const b969: string[] = []; lf(x969, p, b969, L0); if (b969.length) e.push(...b969);
-if (g969 === "object") {
-if (g969 === 'object') { const o969 = x969 as Record<string, unknown>;
-if (!("personId" in o969)) e.push(p + "/personId" + ': required');
-if (!("by" in o969)) e.push(p + "/by" + ': required');
-if ("channelId" in o969) lf(o969["channelId"], p + "/channelId", e, L220);
-if ("threadId" in o969) lf(o969["threadId"], p + "/threadId", e, L13);
-if ("personId" in o969) lf(o969["personId"], p + "/personId", e, L16);
-if ("by" in o969) lf(o969["by"], p + "/by", e, L1);
+const x970 = v;
+const g970 = typeOf(x970);
+const b970: string[] = []; lf(x970, p, b970, L0); if (b970.length) e.push(...b970);
+if (g970 === "object") {
+if (g970 === 'object') { const o970 = x970 as Record<string, unknown>;
+if (!("personId" in o970)) e.push(p + "/personId" + ': required');
+if (!("by" in o970)) e.push(p + "/by" + ': required');
+if ("channelId" in o970) lf(o970["channelId"], p + "/channelId", e, L220);
+if ("threadId" in o970) lf(o970["threadId"], p + "/threadId", e, L13);
+if ("personId" in o970) lf(o970["personId"], p + "/personId", e, L16);
+if ("by" in o970) lf(o970["by"], p + "/by", e, L1);
 }
 }
 }
@@ -512,30 +512,30 @@ if ("by" in o969) lf(o969["by"], p + "/by", e, L1);
 
 function d_s_cf70e9ce10(v: unknown, p: string, e: string[]): void {
 {
-const x1005 = v;
-const g1005 = typeOf(x1005);
-const b1005: string[] = []; lf(x1005, p, b1005, L4); if (b1005.length) e.push(...b1005);
-if (g1005 === "array") {
-if (g1005 === 'array') { const a1005 = x1005 as unknown[];
-for (let i1005 = 0; i1005 < a1005.length; i1005++) {
-{
-const x1006 = a1005[i1005];
+const x1006 = v;
 const g1006 = typeOf(x1006);
-const b1006: string[] = []; lf(x1006, p + '/' + i1005, b1006, L0); if (b1006.length) e.push(...b1006);
-if (g1006 === "object") {
-if (g1006 === 'object') { const o1006 = x1006 as Record<string, unknown>;
-if (!("emoji" in o1006)) e.push(p + '/' + i1005 + "/emoji" + ': required');
-if (!("by" in o1006)) e.push(p + '/' + i1005 + "/by" + ': required');
-if ("emoji" in o1006) lf(o1006["emoji"], p + '/' + i1005 + "/emoji", e, L1);
-if ("by" in o1006) {
+const b1006: string[] = []; lf(x1006, p, b1006, L4); if (b1006.length) e.push(...b1006);
+if (g1006 === "array") {
+if (g1006 === 'array') { const a1006 = x1006 as unknown[];
+for (let i1006 = 0; i1006 < a1006.length; i1006++) {
 {
-const x1007 = o1006["by"];
+const x1007 = a1006[i1006];
 const g1007 = typeOf(x1007);
-const b1007: string[] = []; lf(x1007, p + '/' + i1005 + "/by", b1007, L4); if (b1007.length) e.push(...b1007);
-if (g1007 === "array") {
-if (g1007 === 'array') { const a1007 = x1007 as unknown[];
-for (let i1007 = 0; i1007 < a1007.length; i1007++) {
-lf(a1007[i1007], p + '/' + i1005 + "/by" + '/' + i1007, e, L1);
+const b1007: string[] = []; lf(x1007, p + '/' + i1006, b1007, L0); if (b1007.length) e.push(...b1007);
+if (g1007 === "object") {
+if (g1007 === 'object') { const o1007 = x1007 as Record<string, unknown>;
+if (!("emoji" in o1007)) e.push(p + '/' + i1006 + "/emoji" + ': required');
+if (!("by" in o1007)) e.push(p + '/' + i1006 + "/by" + ': required');
+if ("emoji" in o1007) lf(o1007["emoji"], p + '/' + i1006 + "/emoji", e, L1);
+if ("by" in o1007) {
+{
+const x1008 = o1007["by"];
+const g1008 = typeOf(x1008);
+const b1008: string[] = []; lf(x1008, p + '/' + i1006 + "/by", b1008, L4); if (b1008.length) e.push(...b1008);
+if (g1008 === "array") {
+if (g1008 === 'array') { const a1008 = x1008 as unknown[];
+for (let i1008 = 0; i1008 < a1008.length; i1008++) {
+lf(a1008[i1008], p + '/' + i1006 + "/by" + '/' + i1008, e, L1);
 }
 }
 }
@@ -552,13 +552,13 @@ lf(a1007[i1007], p + '/' + i1005 + "/by" + '/' + i1007, e, L1);
 
 function d_s_d0d3a2f28e(v: unknown, p: string, e: string[]): void {
 {
-const x1012 = v;
-const g1012 = typeOf(x1012);
-const b1012: string[] = []; lf(x1012, p, b1012, L0); if (b1012.length) e.push(...b1012);
-if (g1012 === "object") {
-if (g1012 === 'object') { const o1012 = x1012 as Record<string, unknown>;
-if (!("message" in o1012)) e.push(p + "/message" + ': required');
-if ("message" in o1012) d_s_337d7679ac(o1012["message"], p + "/message", e);
+const x1013 = v;
+const g1013 = typeOf(x1013);
+const b1013: string[] = []; lf(x1013, p, b1013, L0); if (b1013.length) e.push(...b1013);
+if (g1013 === "object") {
+if (g1013 === 'object') { const o1013 = x1013 as Record<string, unknown>;
+if (!("message" in o1013)) e.push(p + "/message" + ': required');
+if ("message" in o1013) d_s_337d7679ac(o1013["message"], p + "/message", e);
 }
 }
 }
@@ -566,15 +566,15 @@ if ("message" in o1012) d_s_337d7679ac(o1012["message"], p + "/message", e);
 
 function d_s_d57a803e55(v: unknown, p: string, e: string[]): void {
 {
-const x1030 = v;
-const g1030 = typeOf(x1030);
-const b1030: string[] = []; lf(x1030, p, b1030, L0); if (b1030.length) e.push(...b1030);
-if (g1030 === "object") {
-if (g1030 === 'object') { const o1030 = x1030 as Record<string, unknown>;
-if (!("planId" in o1030)) e.push(p + "/planId" + ': required');
-if (!("blockId" in o1030)) e.push(p + "/blockId" + ': required');
-if ("planId" in o1030) lf(o1030["planId"], p + "/planId", e, L416);
-if ("blockId" in o1030) lf(o1030["blockId"], p + "/blockId", e, L129);
+const x1031 = v;
+const g1031 = typeOf(x1031);
+const b1031: string[] = []; lf(x1031, p, b1031, L0); if (b1031.length) e.push(...b1031);
+if (g1031 === "object") {
+if (g1031 === 'object') { const o1031 = x1031 as Record<string, unknown>;
+if (!("planId" in o1031)) e.push(p + "/planId" + ': required');
+if (!("blockId" in o1031)) e.push(p + "/blockId" + ': required');
+if ("planId" in o1031) lf(o1031["planId"], p + "/planId", e, L416);
+if ("blockId" in o1031) lf(o1031["blockId"], p + "/blockId", e, L129);
 }
 }
 }
@@ -582,85 +582,85 @@ if ("blockId" in o1030) lf(o1030["blockId"], p + "/blockId", e, L129);
 
 function d_s_da8e7f1be8(v: unknown, p: string, e: string[]): void {
 {
-const x1065 = v;
-const g1065 = typeOf(x1065);
-const b1065: string[] = []; lf(x1065, p, b1065, L0); if (b1065.length) e.push(...b1065);
-if (g1065 === "object") {
-if (g1065 === 'object') { const o1065 = x1065 as Record<string, unknown>;
-if (!("threadId" in o1065)) e.push(p + "/threadId" + ': required');
-if (!("kind" in o1065)) e.push(p + "/kind" + ': required');
-if (!("listed" in o1065)) e.push(p + "/listed" + ': required');
-if (!("planMode" in o1065)) e.push(p + "/planMode" + ': required');
-if (!("members" in o1065)) e.push(p + "/members" + ': required');
-if (!("agents" in o1065)) e.push(p + "/agents" + ': required');
-if (!("createdAt" in o1065)) e.push(p + "/createdAt" + ': required');
-if ("threadId" in o1065) lf(o1065["threadId"], p + "/threadId", e, L13);
-if ("kind" in o1065) lf(o1065["kind"], p + "/kind", e, L207);
-if ("title" in o1065) lf(o1065["title"], p + "/title", e, L1);
-if ("starter" in o1065) lf(o1065["starter"], p + "/starter", e, L1);
-if ("channelId" in o1065) lf(o1065["channelId"], p + "/channelId", e, L220);
-if ("parentThreadId" in o1065) lf(o1065["parentThreadId"], p + "/parentThreadId", e, L13);
-if ("parentMessageId" in o1065) lf(o1065["parentMessageId"], p + "/parentMessageId", e, L92);
-if ("recordId" in o1065) lf(o1065["recordId"], p + "/recordId", e, L28);
-if ("folderId" in o1065) lf(o1065["folderId"], p + "/folderId", e, L47);
-if ("scopeType" in o1065) lf(o1065["scopeType"], p + "/scopeType", e, L1);
-if ("scopeId" in o1065) lf(o1065["scopeId"], p + "/scopeId", e, L1);
-if ("listed" in o1065) lf(o1065["listed"], p + "/listed", e, L3);
-if ("planMode" in o1065) lf(o1065["planMode"], p + "/planMode", e, L3);
-if ("mode" in o1065) lf(o1065["mode"], p + "/mode", e, L434);
-if ("agentRepliesInThreads" in o1065) lf(o1065["agentRepliesInThreads"], p + "/agentRepliesInThreads", e, L3);
-if ("members" in o1065) d_s_39a2155802(o1065["members"], p + "/members", e);
-if ("agents" in o1065) d_s_c3a796a599(o1065["agents"], p + "/agents", e);
-if ("createdAt" in o1065) lf(o1065["createdAt"], p + "/createdAt", e, L17);
-if ("closedAt" in o1065) lf(o1065["closedAt"], p + "/closedAt", e, L17);
-if ("joinedAt" in o1065) {
-{
-const x1066 = o1065["joinedAt"];
+const x1066 = v;
 const g1066 = typeOf(x1066);
-const b1066: string[] = []; lf(x1066, p + "/joinedAt", b1066, L0); if (b1066.length) e.push(...b1066);
+const b1066: string[] = []; lf(x1066, p, b1066, L0); if (b1066.length) e.push(...b1066);
 if (g1066 === "object") {
 if (g1066 === 'object') { const o1066 = x1066 as Record<string, unknown>;
-}
-}
-}
-}
-if ("sharedAt" in o1065) lf(o1065["sharedAt"], p + "/sharedAt", e, L17);
-if ("replyCount" in o1065) lf(o1065["replyCount"], p + "/replyCount", e, L17);
-if ("lastMessageAt" in o1065) lf(o1065["lastMessageAt"], p + "/lastMessageAt", e, L17);
-if ("path" in o1065) {
+if (!("threadId" in o1066)) e.push(p + "/threadId" + ': required');
+if (!("kind" in o1066)) e.push(p + "/kind" + ': required');
+if (!("listed" in o1066)) e.push(p + "/listed" + ': required');
+if (!("planMode" in o1066)) e.push(p + "/planMode" + ': required');
+if (!("members" in o1066)) e.push(p + "/members" + ': required');
+if (!("agents" in o1066)) e.push(p + "/agents" + ': required');
+if (!("createdAt" in o1066)) e.push(p + "/createdAt" + ': required');
+if ("threadId" in o1066) lf(o1066["threadId"], p + "/threadId", e, L13);
+if ("kind" in o1066) lf(o1066["kind"], p + "/kind", e, L207);
+if ("title" in o1066) lf(o1066["title"], p + "/title", e, L1);
+if ("starter" in o1066) lf(o1066["starter"], p + "/starter", e, L1);
+if ("channelId" in o1066) lf(o1066["channelId"], p + "/channelId", e, L220);
+if ("parentThreadId" in o1066) lf(o1066["parentThreadId"], p + "/parentThreadId", e, L13);
+if ("parentMessageId" in o1066) lf(o1066["parentMessageId"], p + "/parentMessageId", e, L92);
+if ("recordId" in o1066) lf(o1066["recordId"], p + "/recordId", e, L28);
+if ("folderId" in o1066) lf(o1066["folderId"], p + "/folderId", e, L47);
+if ("scopeType" in o1066) lf(o1066["scopeType"], p + "/scopeType", e, L1);
+if ("scopeId" in o1066) lf(o1066["scopeId"], p + "/scopeId", e, L1);
+if ("listed" in o1066) lf(o1066["listed"], p + "/listed", e, L3);
+if ("planMode" in o1066) lf(o1066["planMode"], p + "/planMode", e, L3);
+if ("mode" in o1066) lf(o1066["mode"], p + "/mode", e, L434);
+if ("agentRepliesInThreads" in o1066) lf(o1066["agentRepliesInThreads"], p + "/agentRepliesInThreads", e, L3);
+if ("members" in o1066) d_s_39a2155802(o1066["members"], p + "/members", e);
+if ("agents" in o1066) d_s_c3a796a599(o1066["agents"], p + "/agents", e);
+if ("createdAt" in o1066) lf(o1066["createdAt"], p + "/createdAt", e, L17);
+if ("closedAt" in o1066) lf(o1066["closedAt"], p + "/closedAt", e, L17);
+if ("joinedAt" in o1066) {
 {
-const x1067 = o1065["path"];
+const x1067 = o1066["joinedAt"];
 const g1067 = typeOf(x1067);
-const b1067: string[] = []; lf(x1067, p + "/path", b1067, L4); if (b1067.length) e.push(...b1067);
-if (g1067 === "array") {
-if (g1067 === 'array') { const a1067 = x1067 as unknown[];
-for (let i1067 = 0; i1067 < a1067.length; i1067++) {
-d_s_2a7bd8f420(a1067[i1067], p + "/path" + '/' + i1067, e);
+const b1067: string[] = []; lf(x1067, p + "/joinedAt", b1067, L0); if (b1067.length) e.push(...b1067);
+if (g1067 === "object") {
+if (g1067 === 'object') { const o1067 = x1067 as Record<string, unknown>;
 }
 }
 }
 }
-}
-if ("unread" in o1065) lf(o1065["unread"], p + "/unread", e, L17);
-if ("following" in o1065) lf(o1065["following"], p + "/following", e, L3);
-if ("muted" in o1065) lf(o1065["muted"], p + "/muted", e, L3);
-if ("repliers" in o1065) {
+if ("sharedAt" in o1066) lf(o1066["sharedAt"], p + "/sharedAt", e, L17);
+if ("replyCount" in o1066) lf(o1066["replyCount"], p + "/replyCount", e, L17);
+if ("lastMessageAt" in o1066) lf(o1066["lastMessageAt"], p + "/lastMessageAt", e, L17);
+if ("path" in o1066) {
 {
-const x1068 = o1065["repliers"];
+const x1068 = o1066["path"];
 const g1068 = typeOf(x1068);
-const b1068: string[] = []; lf(x1068, p + "/repliers", b1068, L4); if (b1068.length) e.push(...b1068);
+const b1068: string[] = []; lf(x1068, p + "/path", b1068, L4); if (b1068.length) e.push(...b1068);
 if (g1068 === "array") {
 if (g1068 === 'array') { const a1068 = x1068 as unknown[];
-if (a1068.length > 3) e.push(p + "/repliers" + ': too many items');
 for (let i1068 = 0; i1068 < a1068.length; i1068++) {
-d_s_6c1eb10d98(a1068[i1068], p + "/repliers" + '/' + i1068, e);
+d_s_2a7bd8f420(a1068[i1068], p + "/path" + '/' + i1068, e);
 }
 }
 }
 }
 }
-if ("parentTitle" in o1065) lf(o1065["parentTitle"], p + "/parentTitle", e, L1);
-if ("preview" in o1065) lf(o1065["preview"], p + "/preview", e, L1);
+if ("unread" in o1066) lf(o1066["unread"], p + "/unread", e, L17);
+if ("following" in o1066) lf(o1066["following"], p + "/following", e, L3);
+if ("muted" in o1066) lf(o1066["muted"], p + "/muted", e, L3);
+if ("repliers" in o1066) {
+{
+const x1069 = o1066["repliers"];
+const g1069 = typeOf(x1069);
+const b1069: string[] = []; lf(x1069, p + "/repliers", b1069, L4); if (b1069.length) e.push(...b1069);
+if (g1069 === "array") {
+if (g1069 === 'array') { const a1069 = x1069 as unknown[];
+if (a1069.length > 3) e.push(p + "/repliers" + ': too many items');
+for (let i1069 = 0; i1069 < a1069.length; i1069++) {
+d_s_6c1eb10d98(a1069[i1069], p + "/repliers" + '/' + i1069, e);
+}
+}
+}
+}
+}
+if ("parentTitle" in o1066) lf(o1066["parentTitle"], p + "/parentTitle", e, L1);
+if ("preview" in o1066) lf(o1066["preview"], p + "/preview", e, L1);
 }
 }
 }
@@ -668,13 +668,13 @@ if ("preview" in o1065) lf(o1065["preview"], p + "/preview", e, L1);
 
 function d_s_db6b0a2a5b(v: unknown, p: string, e: string[]): void {
 {
-const x1072 = v;
-const g1072 = typeOf(x1072);
-const b1072: string[] = []; lf(x1072, p, b1072, L4); if (b1072.length) e.push(...b1072);
-if (g1072 === "array") {
-if (g1072 === 'array') { const a1072 = x1072 as unknown[];
-for (let i1072 = 0; i1072 < a1072.length; i1072++) {
-d_s_337d7679ac(a1072[i1072], p + '/' + i1072, e);
+const x1073 = v;
+const g1073 = typeOf(x1073);
+const b1073: string[] = []; lf(x1073, p, b1073, L4); if (b1073.length) e.push(...b1073);
+if (g1073 === "array") {
+if (g1073 === 'array') { const a1073 = x1073 as unknown[];
+for (let i1073 = 0; i1073 < a1073.length; i1073++) {
+d_s_337d7679ac(a1073[i1073], p + '/' + i1073, e);
 }
 }
 }
@@ -683,15 +683,15 @@ d_s_337d7679ac(a1072[i1072], p + '/' + i1072, e);
 
 function d_s_dbaf158797(v: unknown, p: string, e: string[]): void {
 {
-const x1076 = v;
-const g1076 = typeOf(x1076);
-const b1076: string[] = []; lf(x1076, p, b1076, L0); if (b1076.length) e.push(...b1076);
-if (g1076 === "object") {
-if (g1076 === 'object') { const o1076 = x1076 as Record<string, unknown>;
-if (!("channelId" in o1076)) e.push(p + "/channelId" + ': required');
-if (!("agentId" in o1076)) e.push(p + "/agentId" + ': required');
-if ("channelId" in o1076) lf(o1076["channelId"], p + "/channelId", e, L220);
-if ("agentId" in o1076) lf(o1076["agentId"], p + "/agentId", e, L10);
+const x1077 = v;
+const g1077 = typeOf(x1077);
+const b1077: string[] = []; lf(x1077, p, b1077, L0); if (b1077.length) e.push(...b1077);
+if (g1077 === "object") {
+if (g1077 === 'object') { const o1077 = x1077 as Record<string, unknown>;
+if (!("channelId" in o1077)) e.push(p + "/channelId" + ': required');
+if (!("agentId" in o1077)) e.push(p + "/agentId" + ': required');
+if ("channelId" in o1077) lf(o1077["channelId"], p + "/channelId", e, L220);
+if ("agentId" in o1077) lf(o1077["agentId"], p + "/agentId", e, L10);
 }
 }
 }
@@ -699,98 +699,98 @@ if ("agentId" in o1076) lf(o1076["agentId"], p + "/agentId", e, L10);
 
 function d_s_e6cbebfd43(v: unknown, p: string, e: string[]): void {
 {
-const x1145 = v;
-const g1145 = typeOf(x1145);
-const b1145: string[] = []; lf(x1145, p, b1145, L0); if (b1145.length) e.push(...b1145);
-if (g1145 === "object") {
-if (g1145 === 'object') { const o1145 = x1145 as Record<string, unknown>;
-if (!("total" in o1145)) e.push(p + "/total" + ': required');
-if (!("rows" in o1145)) e.push(p + "/rows" + ': required');
-if ("total" in o1145) lf(o1145["total"], p + "/total", e, L17);
-if ("rows" in o1145) {
-{
-const x1146 = o1145["rows"];
+const x1146 = v;
 const g1146 = typeOf(x1146);
-const b1146: string[] = []; lf(x1146, p + "/rows", b1146, L4); if (b1146.length) e.push(...b1146);
-if (g1146 === "array") {
-if (g1146 === 'array') { const a1146 = x1146 as unknown[];
-for (let i1146 = 0; i1146 < a1146.length; i1146++) {
+const b1146: string[] = []; lf(x1146, p, b1146, L0); if (b1146.length) e.push(...b1146);
+if (g1146 === "object") {
+if (g1146 === 'object') { const o1146 = x1146 as Record<string, unknown>;
+if (!("total" in o1146)) e.push(p + "/total" + ': required');
+if (!("rows" in o1146)) e.push(p + "/rows" + ': required');
+if ("total" in o1146) lf(o1146["total"], p + "/total", e, L17);
+if ("rows" in o1146) {
 {
-const x1147 = a1146[i1146];
+const x1147 = o1146["rows"];
 const g1147 = typeOf(x1147);
-const b1147: string[] = []; lf(x1147, p + "/rows" + '/' + i1146, b1147, L0); if (b1147.length) e.push(...b1147);
-if (g1147 === "object") {
-if (g1147 === 'object') { const o1147 = x1147 as Record<string, unknown>;
-if (!("key" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/key" + ': required');
-if (!("kind" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/kind" + ': required');
-if (!("title" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/title" + ': required');
-if (!("faceIds" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/faceIds" + ': required');
-if (!("unread" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/unread" + ': required');
-if (!("mentions" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/mentions" + ': required');
-if (!("failed" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/failed" + ': required');
-if (!("working" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/working" + ': required');
-if (!("muted" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/muted" + ': required');
-if (!("pinned" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/pinned" + ': required');
-if (!("lastAt" in o1147)) e.push(p + "/rows" + '/' + i1146 + "/lastAt" + ': required');
-if ("key" in o1147) lf(o1147["key"], p + "/rows" + '/' + i1146 + "/key", e, L1);
-if ("kind" in o1147) lf(o1147["kind"], p + "/rows" + '/' + i1146 + "/kind", e, L456);
-if ("title" in o1147) lf(o1147["title"], p + "/rows" + '/' + i1146 + "/title", e, L1);
-if ("faceIds" in o1147) {
+const b1147: string[] = []; lf(x1147, p + "/rows", b1147, L4); if (b1147.length) e.push(...b1147);
+if (g1147 === "array") {
+if (g1147 === 'array') { const a1147 = x1147 as unknown[];
+for (let i1147 = 0; i1147 < a1147.length; i1147++) {
 {
-const x1148 = o1147["faceIds"];
+const x1148 = a1147[i1147];
 const g1148 = typeOf(x1148);
-const b1148: string[] = []; lf(x1148, p + "/rows" + '/' + i1146 + "/faceIds", b1148, L4); if (b1148.length) e.push(...b1148);
-if (g1148 === "array") {
-if (g1148 === 'array') { const a1148 = x1148 as unknown[];
-for (let i1148 = 0; i1148 < a1148.length; i1148++) {
-lf(a1148[i1148], p + "/rows" + '/' + i1146 + "/faceIds" + '/' + i1148, e, L1);
-}
-}
-}
-}
-}
-if ("unread" in o1147) lf(o1147["unread"], p + "/rows" + '/' + i1146 + "/unread", e, L17);
-if ("mentions" in o1147) lf(o1147["mentions"], p + "/rows" + '/' + i1146 + "/mentions", e, L17);
-if ("failed" in o1147) lf(o1147["failed"], p + "/rows" + '/' + i1146 + "/failed", e, L3);
-if ("failedLine" in o1147) lf(o1147["failedLine"], p + "/rows" + '/' + i1146 + "/failedLine", e, L1);
-if ("working" in o1147) lf(o1147["working"], p + "/rows" + '/' + i1146 + "/working", e, L3);
-if ("muted" in o1147) lf(o1147["muted"], p + "/rows" + '/' + i1146 + "/muted", e, L3);
-if ("pinned" in o1147) {
+const b1148: string[] = []; lf(x1148, p + "/rows" + '/' + i1147, b1148, L0); if (b1148.length) e.push(...b1148);
+if (g1148 === "object") {
+if (g1148 === 'object') { const o1148 = x1148 as Record<string, unknown>;
+if (!("key" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/key" + ': required');
+if (!("kind" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/kind" + ': required');
+if (!("title" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/title" + ': required');
+if (!("faceIds" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/faceIds" + ': required');
+if (!("unread" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/unread" + ': required');
+if (!("mentions" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/mentions" + ': required');
+if (!("failed" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/failed" + ': required');
+if (!("working" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/working" + ': required');
+if (!("muted" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/muted" + ': required');
+if (!("pinned" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/pinned" + ': required');
+if (!("lastAt" in o1148)) e.push(p + "/rows" + '/' + i1147 + "/lastAt" + ': required');
+if ("key" in o1148) lf(o1148["key"], p + "/rows" + '/' + i1147 + "/key", e, L1);
+if ("kind" in o1148) lf(o1148["kind"], p + "/rows" + '/' + i1147 + "/kind", e, L456);
+if ("title" in o1148) lf(o1148["title"], p + "/rows" + '/' + i1147 + "/title", e, L1);
+if ("faceIds" in o1148) {
 {
-const x1149 = o1147["pinned"];
-const t1149_0: string[] = [];
-lf(x1149, p + "/rows" + '/' + i1146 + "/pinned", t1149_0, L17);
-const t1149_1: string[] = [];
-lf(x1149, p + "/rows" + '/' + i1146 + "/pinned", t1149_1, L84);
-if (![t1149_0, t1149_1].some((x) => x.length === 0)) e.push(p + "/rows" + '/' + i1146 + "/pinned" + ': matches none of anyOf');
+const x1149 = o1148["faceIds"];
+const g1149 = typeOf(x1149);
+const b1149: string[] = []; lf(x1149, p + "/rows" + '/' + i1147 + "/faceIds", b1149, L4); if (b1149.length) e.push(...b1149);
+if (g1149 === "array") {
+if (g1149 === 'array') { const a1149 = x1149 as unknown[];
+for (let i1149 = 0; i1149 < a1149.length; i1149++) {
+lf(a1149[i1149], p + "/rows" + '/' + i1147 + "/faceIds" + '/' + i1149, e, L1);
 }
 }
-if ("lastAt" in o1147) lf(o1147["lastAt"], p + "/rows" + '/' + i1146 + "/lastAt", e, L17);
-if ("threadId" in o1147) lf(o1147["threadId"], p + "/rows" + '/' + i1146 + "/threadId", e, L13);
-if ("personId" in o1147) lf(o1147["personId"], p + "/rows" + '/' + i1146 + "/personId", e, L1);
-if ("agentId" in o1147) lf(o1147["agentId"], p + "/rows" + '/' + i1146 + "/agentId", e, L1);
-if ("progress" in o1147) {
+}
+}
+}
+if ("unread" in o1148) lf(o1148["unread"], p + "/rows" + '/' + i1147 + "/unread", e, L17);
+if ("mentions" in o1148) lf(o1148["mentions"], p + "/rows" + '/' + i1147 + "/mentions", e, L17);
+if ("failed" in o1148) lf(o1148["failed"], p + "/rows" + '/' + i1147 + "/failed", e, L3);
+if ("failedLine" in o1148) lf(o1148["failedLine"], p + "/rows" + '/' + i1147 + "/failedLine", e, L1);
+if ("working" in o1148) lf(o1148["working"], p + "/rows" + '/' + i1147 + "/working", e, L3);
+if ("muted" in o1148) lf(o1148["muted"], p + "/rows" + '/' + i1147 + "/muted", e, L3);
+if ("pinned" in o1148) {
 {
-const x1150 = o1147["progress"];
-const g1150 = typeOf(x1150);
-const b1150: string[] = []; lf(x1150, p + "/rows" + '/' + i1146 + "/progress", b1150, L0); if (b1150.length) e.push(...b1150);
-if (g1150 === "object") {
-if (g1150 === 'object') { const o1150 = x1150 as Record<string, unknown>;
-if (!("done" in o1150)) e.push(p + "/rows" + '/' + i1146 + "/progress" + "/done" + ': required');
-if (!("total" in o1150)) e.push(p + "/rows" + '/' + i1146 + "/progress" + "/total" + ': required');
-if ("done" in o1150) lf(o1150["done"], p + "/rows" + '/' + i1146 + "/progress" + "/done", e, L17);
-if ("total" in o1150) lf(o1150["total"], p + "/rows" + '/' + i1146 + "/progress" + "/total", e, L17);
+const x1150 = o1148["pinned"];
+const t1150_0: string[] = [];
+lf(x1150, p + "/rows" + '/' + i1147 + "/pinned", t1150_0, L17);
+const t1150_1: string[] = [];
+lf(x1150, p + "/rows" + '/' + i1147 + "/pinned", t1150_1, L84);
+if (![t1150_0, t1150_1].some((x) => x.length === 0)) e.push(p + "/rows" + '/' + i1147 + "/pinned" + ': matches none of anyOf');
+}
+}
+if ("lastAt" in o1148) lf(o1148["lastAt"], p + "/rows" + '/' + i1147 + "/lastAt", e, L17);
+if ("threadId" in o1148) lf(o1148["threadId"], p + "/rows" + '/' + i1147 + "/threadId", e, L13);
+if ("personId" in o1148) lf(o1148["personId"], p + "/rows" + '/' + i1147 + "/personId", e, L1);
+if ("agentId" in o1148) lf(o1148["agentId"], p + "/rows" + '/' + i1147 + "/agentId", e, L1);
+if ("progress" in o1148) {
+{
+const x1151 = o1148["progress"];
+const g1151 = typeOf(x1151);
+const b1151: string[] = []; lf(x1151, p + "/rows" + '/' + i1147 + "/progress", b1151, L0); if (b1151.length) e.push(...b1151);
+if (g1151 === "object") {
+if (g1151 === 'object') { const o1151 = x1151 as Record<string, unknown>;
+if (!("done" in o1151)) e.push(p + "/rows" + '/' + i1147 + "/progress" + "/done" + ': required');
+if (!("total" in o1151)) e.push(p + "/rows" + '/' + i1147 + "/progress" + "/total" + ': required');
+if ("done" in o1151) lf(o1151["done"], p + "/rows" + '/' + i1147 + "/progress" + "/done", e, L17);
+if ("total" in o1151) lf(o1151["total"], p + "/rows" + '/' + i1147 + "/progress" + "/total", e, L17);
 }
 }
 }
 }
-if ("line" in o1147) lf(o1147["line"], p + "/rows" + '/' + i1146 + "/line", e, L1);
-if ("nextCheckinAt" in o1147) lf(o1147["nextCheckinAt"], p + "/rows" + '/' + i1146 + "/nextCheckinAt", e, L17);
-if ("quiet" in o1147) lf(o1147["quiet"], p + "/rows" + '/' + i1146 + "/quiet", e, L3);
-if ("ended" in o1147) lf(o1147["ended"], p + "/rows" + '/' + i1146 + "/ended", e, L3);
-if ("archived" in o1147) lf(o1147["archived"], p + "/rows" + '/' + i1146 + "/archived", e, L3);
-if ("private" in o1147) lf(o1147["private"], p + "/rows" + '/' + i1146 + "/private", e, L3);
-if ("withPeople" in o1147) lf(o1147["withPeople"], p + "/rows" + '/' + i1146 + "/withPeople", e, L3);
+if ("line" in o1148) lf(o1148["line"], p + "/rows" + '/' + i1147 + "/line", e, L1);
+if ("nextCheckinAt" in o1148) lf(o1148["nextCheckinAt"], p + "/rows" + '/' + i1147 + "/nextCheckinAt", e, L17);
+if ("quiet" in o1148) lf(o1148["quiet"], p + "/rows" + '/' + i1147 + "/quiet", e, L3);
+if ("ended" in o1148) lf(o1148["ended"], p + "/rows" + '/' + i1147 + "/ended", e, L3);
+if ("archived" in o1148) lf(o1148["archived"], p + "/rows" + '/' + i1147 + "/archived", e, L3);
+if ("private" in o1148) lf(o1148["private"], p + "/rows" + '/' + i1147 + "/private", e, L3);
+if ("withPeople" in o1148) lf(o1148["withPeople"], p + "/rows" + '/' + i1147 + "/withPeople", e, L3);
 }
 }
 }
@@ -799,7 +799,7 @@ if ("withPeople" in o1147) lf(o1147["withPeople"], p + "/rows" + '/' + i1146 + "
 }
 }
 }
-if ("next" in o1145) lf(o1145["next"], p + "/next", e, L1);
+if ("next" in o1146) lf(o1146["next"], p + "/next", e, L1);
 }
 }
 }
@@ -807,28 +807,28 @@ if ("next" in o1145) lf(o1145["next"], p + "/next", e, L1);
 
 function d_s_ed21e8fac6(v: unknown, p: string, e: string[]): void {
 {
-const x1181 = v;
-const g1181 = typeOf(x1181);
-const b1181: string[] = []; lf(x1181, p, b1181, L0); if (b1181.length) e.push(...b1181);
-if (g1181 === "object") {
-if (g1181 === 'object') { const o1181 = x1181 as Record<string, unknown>;
-if (!("threads" in o1181)) e.push(p + "/threads" + ': required');
-if ("threads" in o1181) {
-{
-const x1182 = o1181["threads"];
+const x1182 = v;
 const g1182 = typeOf(x1182);
-const b1182: string[] = []; lf(x1182, p + "/threads", b1182, L4); if (b1182.length) e.push(...b1182);
-if (g1182 === "array") {
-if (g1182 === 'array') { const a1182 = x1182 as unknown[];
-for (let i1182 = 0; i1182 < a1182.length; i1182++) {
-d_s_da8e7f1be8(a1182[i1182], p + "/threads" + '/' + i1182, e);
+const b1182: string[] = []; lf(x1182, p, b1182, L0); if (b1182.length) e.push(...b1182);
+if (g1182 === "object") {
+if (g1182 === 'object') { const o1182 = x1182 as Record<string, unknown>;
+if (!("threads" in o1182)) e.push(p + "/threads" + ': required');
+if ("threads" in o1182) {
+{
+const x1183 = o1182["threads"];
+const g1183 = typeOf(x1183);
+const b1183: string[] = []; lf(x1183, p + "/threads", b1183, L4); if (b1183.length) e.push(...b1183);
+if (g1183 === "array") {
+if (g1183 === 'array') { const a1183 = x1183 as unknown[];
+for (let i1183 = 0; i1183 < a1183.length; i1183++) {
+d_s_da8e7f1be8(a1183[i1183], p + "/threads" + '/' + i1183, e);
 }
 }
 }
 }
 }
-if ("next" in o1181) lf(o1181["next"], p + "/next", e, L1);
-if ("total" in o1181) lf(o1181["total"], p + "/total", e, L2);
+if ("next" in o1182) lf(o1182["next"], p + "/next", e, L1);
+if ("total" in o1182) lf(o1182["total"], p + "/total", e, L2);
 }
 }
 }
@@ -836,33 +836,33 @@ if ("total" in o1181) lf(o1181["total"], p + "/total", e, L2);
 
 function d_s_f592e897f5(v: unknown, p: string, e: string[]): void {
 {
-const x1230 = v;
-const g1230 = typeOf(x1230);
-const b1230: string[] = []; lf(x1230, p, b1230, L0); if (b1230.length) e.push(...b1230);
-if (g1230 === "object") {
-if (g1230 === 'object') { const o1230 = x1230 as Record<string, unknown>;
-if (!("channelId" in o1230)) e.push(p + "/channelId" + ': required');
-if (!("mainThreadId" in o1230)) e.push(p + "/mainThreadId" + ': required');
-if (!("name" in o1230)) e.push(p + "/name" + ': required');
-if (!("visibility" in o1230)) e.push(p + "/visibility" + ': required');
-if (!("archived" in o1230)) e.push(p + "/archived" + ': required');
-if (!("members" in o1230)) e.push(p + "/members" + ': required');
-if (!("agents" in o1230)) e.push(p + "/agents" + ': required');
-if (!("unread" in o1230)) e.push(p + "/unread" + ': required');
-if (!("createdAt" in o1230)) e.push(p + "/createdAt" + ': required');
-if ("channelId" in o1230) lf(o1230["channelId"], p + "/channelId", e, L220);
-if ("mainThreadId" in o1230) lf(o1230["mainThreadId"], p + "/mainThreadId", e, L13);
-if ("name" in o1230) lf(o1230["name"], p + "/name", e, L1);
-if ("topic" in o1230) lf(o1230["topic"], p + "/topic", e, L1);
-if ("visibility" in o1230) lf(o1230["visibility"], p + "/visibility", e, L476);
-if ("folderId" in o1230) lf(o1230["folderId"], p + "/folderId", e, L47);
-if ("recordId" in o1230) lf(o1230["recordId"], p + "/recordId", e, L28);
-if ("archived" in o1230) lf(o1230["archived"], p + "/archived", e, L3);
-if ("members" in o1230) d_s_39a2155802(o1230["members"], p + "/members", e);
-if ("agents" in o1230) d_s_c3a796a599(o1230["agents"], p + "/agents", e);
-if ("unread" in o1230) lf(o1230["unread"], p + "/unread", e, L2);
-if ("createdAt" in o1230) lf(o1230["createdAt"], p + "/createdAt", e, L17);
-if ("restricted" in o1230) lf(o1230["restricted"], p + "/restricted", e, L3);
+const x1231 = v;
+const g1231 = typeOf(x1231);
+const b1231: string[] = []; lf(x1231, p, b1231, L0); if (b1231.length) e.push(...b1231);
+if (g1231 === "object") {
+if (g1231 === 'object') { const o1231 = x1231 as Record<string, unknown>;
+if (!("channelId" in o1231)) e.push(p + "/channelId" + ': required');
+if (!("mainThreadId" in o1231)) e.push(p + "/mainThreadId" + ': required');
+if (!("name" in o1231)) e.push(p + "/name" + ': required');
+if (!("visibility" in o1231)) e.push(p + "/visibility" + ': required');
+if (!("archived" in o1231)) e.push(p + "/archived" + ': required');
+if (!("members" in o1231)) e.push(p + "/members" + ': required');
+if (!("agents" in o1231)) e.push(p + "/agents" + ': required');
+if (!("unread" in o1231)) e.push(p + "/unread" + ': required');
+if (!("createdAt" in o1231)) e.push(p + "/createdAt" + ': required');
+if ("channelId" in o1231) lf(o1231["channelId"], p + "/channelId", e, L220);
+if ("mainThreadId" in o1231) lf(o1231["mainThreadId"], p + "/mainThreadId", e, L13);
+if ("name" in o1231) lf(o1231["name"], p + "/name", e, L1);
+if ("topic" in o1231) lf(o1231["topic"], p + "/topic", e, L1);
+if ("visibility" in o1231) lf(o1231["visibility"], p + "/visibility", e, L476);
+if ("folderId" in o1231) lf(o1231["folderId"], p + "/folderId", e, L47);
+if ("recordId" in o1231) lf(o1231["recordId"], p + "/recordId", e, L28);
+if ("archived" in o1231) lf(o1231["archived"], p + "/archived", e, L3);
+if ("members" in o1231) d_s_39a2155802(o1231["members"], p + "/members", e);
+if ("agents" in o1231) d_s_c3a796a599(o1231["agents"], p + "/agents", e);
+if ("unread" in o1231) lf(o1231["unread"], p + "/unread", e, L2);
+if ("createdAt" in o1231) lf(o1231["createdAt"], p + "/createdAt", e, L17);
+if ("restricted" in o1231) lf(o1231["restricted"], p + "/restricted", e, L3);
 }
 }
 }
@@ -870,50 +870,15 @@ if ("restricted" in o1230) lf(o1230["restricted"], p + "/restricted", e, L3);
 
 function d_s_f86fc4b1fa(v: unknown, p: string, e: string[]): void {
 {
-const x1238 = v;
-const g1238 = typeOf(x1238);
-const b1238: string[] = []; lf(x1238, p, b1238, L0); if (b1238.length) e.push(...b1238);
-if (g1238 === "object") {
-if (g1238 === 'object') { const o1238 = x1238 as Record<string, unknown>;
-if (!("person" in o1238)) e.push(p + "/person" + ': required');
-if (!("threadId" in o1238)) e.push(p + "/threadId" + ': required');
-if ("person" in o1238) lf(o1238["person"], p + "/person", e, L16);
-if ("threadId" in o1238) lf(o1238["threadId"], p + "/threadId", e, L13);
-}
-}
-}
-}
-
-function c255_in(v: unknown, p: string, e: string[]): void {
-{
-const x1971 = v;
-const g1971 = typeOf(x1971);
-const b1971: string[] = []; lf(x1971, p, b1971, L0); if (b1971.length) e.push(...b1971);
-if (g1971 === "object") {
-if (g1971 === 'object') { const o1971 = x1971 as Record<string, unknown>;
-if (!("channelId" in o1971)) e.push(p + "/channelId" + ': required');
-if (!("agentId" in o1971)) e.push(p + "/agentId" + ': required');
-if (!("watches" in o1971)) e.push(p + "/watches" + ': required');
-if ("channelId" in o1971) lf(o1971["channelId"], p + "/channelId", e, L220);
-if ("agentId" in o1971) lf(o1971["agentId"], p + "/agentId", e, L10);
-if ("watches" in o1971) lf(o1971["watches"], p + "/watches", e, L3);
-}
-}
-}
-}
-
-function c256_in(v: unknown, p: string, e: string[]): void {
-{
-const x1972 = v;
-const g1972 = typeOf(x1972);
-const b1972: string[] = []; lf(x1972, p, b1972, L0); if (b1972.length) e.push(...b1972);
-if (g1972 === "object") {
-if (g1972 === 'object') { const o1972 = x1972 as Record<string, unknown>;
-if (!("channelId" in o1972)) e.push(p + "/channelId" + ': required');
-if (!("agentId" in o1972)) e.push(p + "/agentId" + ': required');
-if ("channelId" in o1972) lf(o1972["channelId"], p + "/channelId", e, L220);
-if ("agentId" in o1972) lf(o1972["agentId"], p + "/agentId", e, L10);
-if ("mode" in o1972) lf(o1972["mode"], p + "/mode", e, L384);
+const x1239 = v;
+const g1239 = typeOf(x1239);
+const b1239: string[] = []; lf(x1239, p, b1239, L0); if (b1239.length) e.push(...b1239);
+if (g1239 === "object") {
+if (g1239 === 'object') { const o1239 = x1239 as Record<string, unknown>;
+if (!("person" in o1239)) e.push(p + "/person" + ': required');
+if (!("threadId" in o1239)) e.push(p + "/threadId" + ': required');
+if ("person" in o1239) lf(o1239["person"], p + "/person", e, L16);
+if ("threadId" in o1239) lf(o1239["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -921,13 +886,17 @@ if ("mode" in o1972) lf(o1972["mode"], p + "/mode", e, L384);
 
 function c258_in(v: unknown, p: string, e: string[]): void {
 {
-const x1973 = v;
-const g1973 = typeOf(x1973);
-const b1973: string[] = []; lf(x1973, p, b1973, L0); if (b1973.length) e.push(...b1973);
-if (g1973 === "object") {
-if (g1973 === 'object') { const o1973 = x1973 as Record<string, unknown>;
-if (!("channelId" in o1973)) e.push(p + "/channelId" + ': required');
-if ("channelId" in o1973) lf(o1973["channelId"], p + "/channelId", e, L220);
+const x1979 = v;
+const g1979 = typeOf(x1979);
+const b1979: string[] = []; lf(x1979, p, b1979, L0); if (b1979.length) e.push(...b1979);
+if (g1979 === "object") {
+if (g1979 === 'object') { const o1979 = x1979 as Record<string, unknown>;
+if (!("channelId" in o1979)) e.push(p + "/channelId" + ': required');
+if (!("agentId" in o1979)) e.push(p + "/agentId" + ': required');
+if (!("watches" in o1979)) e.push(p + "/watches" + ': required');
+if ("channelId" in o1979) lf(o1979["channelId"], p + "/channelId", e, L220);
+if ("agentId" in o1979) lf(o1979["agentId"], p + "/agentId", e, L10);
+if ("watches" in o1979) lf(o1979["watches"], p + "/watches", e, L3);
 }
 }
 }
@@ -935,79 +904,16 @@ if ("channelId" in o1973) lf(o1973["channelId"], p + "/channelId", e, L220);
 
 function c259_in(v: unknown, p: string, e: string[]): void {
 {
-const x1974 = v;
-const g1974 = typeOf(x1974);
-const b1974: string[] = []; lf(x1974, p, b1974, L0); if (b1974.length) e.push(...b1974);
-if (g1974 === "object") {
-if (g1974 === 'object') { const o1974 = x1974 as Record<string, unknown>;
-if (!("name" in o1974)) e.push(p + "/name" + ': required');
-if (!("visibility" in o1974)) e.push(p + "/visibility" + ': required');
-if (!("idempotencyKey" in o1974)) e.push(p + "/idempotencyKey" + ': required');
-if ("name" in o1974) lf(o1974["name"], p + "/name", e, L1);
-if ("visibility" in o1974) lf(o1974["visibility"], p + "/visibility", e, L476);
-if ("topic" in o1974) lf(o1974["topic"], p + "/topic", e, L1);
-if ("memberIds" in o1974) {
-{
-const x1975 = o1974["memberIds"];
-const g1975 = typeOf(x1975);
-const b1975: string[] = []; lf(x1975, p + "/memberIds", b1975, L4); if (b1975.length) e.push(...b1975);
-if (g1975 === "array") {
-if (g1975 === 'array') { const a1975 = x1975 as unknown[];
-for (let i1975 = 0; i1975 < a1975.length; i1975++) {
-lf(a1975[i1975], p + "/memberIds" + '/' + i1975, e, L16);
-}
-}
-}
-}
-}
-if ("agentIds" in o1974) {
-{
-const x1976 = o1974["agentIds"];
-const g1976 = typeOf(x1976);
-const b1976: string[] = []; lf(x1976, p + "/agentIds", b1976, L4); if (b1976.length) e.push(...b1976);
-if (g1976 === "array") {
-if (g1976 === 'array') { const a1976 = x1976 as unknown[];
-for (let i1976 = 0; i1976 < a1976.length; i1976++) {
-lf(a1976[i1976], p + "/agentIds" + '/' + i1976, e, L10);
-}
-}
-}
-}
-}
-if ("leadAgentId" in o1974) lf(o1974["leadAgentId"], p + "/leadAgentId", e, L10);
-if ("folderId" in o1974) lf(o1974["folderId"], p + "/folderId", e, L47);
-if ("recordId" in o1974) lf(o1974["recordId"], p + "/recordId", e, L28);
-if ("idempotencyKey" in o1974) lf(o1974["idempotencyKey"], p + "/idempotencyKey", e, L54);
-}
-}
-}
-}
-
-function c260_in(v: unknown, p: string, e: string[]): void {
-{
-const x1977 = v;
-const g1977 = typeOf(x1977);
-const b1977: string[] = []; lf(x1977, p, b1977, L0); if (b1977.length) e.push(...b1977);
-if (g1977 === "object") {
-if (g1977 === 'object') { const o1977 = x1977 as Record<string, unknown>;
-if (!("channelId" in o1977)) e.push(p + "/channelId" + ': required');
-if (!("idempotencyKey" in o1977)) e.push(p + "/idempotencyKey" + ': required');
-if ("channelId" in o1977) lf(o1977["channelId"], p + "/channelId", e, L220);
-if ("idempotencyKey" in o1977) lf(o1977["idempotencyKey"], p + "/idempotencyKey", e, L54);
-}
-}
-}
-}
-
-function c260_out(v: unknown, p: string, e: string[]): void {
-{
-const x1978 = v;
-const g1978 = typeOf(x1978);
-const b1978: string[] = []; lf(x1978, p, b1978, L0); if (b1978.length) e.push(...b1978);
-if (g1978 === "object") {
-if (g1978 === 'object') { const o1978 = x1978 as Record<string, unknown>;
-if (!("erased" in o1978)) e.push(p + "/erased" + ': required');
-if ("erased" in o1978) lf(o1978["erased"], p + "/erased", e, L3);
+const x1980 = v;
+const g1980 = typeOf(x1980);
+const b1980: string[] = []; lf(x1980, p, b1980, L0); if (b1980.length) e.push(...b1980);
+if (g1980 === "object") {
+if (g1980 === 'object') { const o1980 = x1980 as Record<string, unknown>;
+if (!("channelId" in o1980)) e.push(p + "/channelId" + ': required');
+if (!("agentId" in o1980)) e.push(p + "/agentId" + ': required');
+if ("channelId" in o1980) lf(o1980["channelId"], p + "/channelId", e, L220);
+if ("agentId" in o1980) lf(o1980["agentId"], p + "/agentId", e, L10);
+if ("mode" in o1980) lf(o1980["mode"], p + "/mode", e, L384);
 }
 }
 }
@@ -1015,13 +921,13 @@ if ("erased" in o1978) lf(o1978["erased"], p + "/erased", e, L3);
 
 function c261_in(v: unknown, p: string, e: string[]): void {
 {
-const x1979 = v;
-const g1979 = typeOf(x1979);
-const b1979: string[] = []; lf(x1979, p, b1979, L0); if (b1979.length) e.push(...b1979);
-if (g1979 === "object") {
-if (g1979 === 'object') { const o1979 = x1979 as Record<string, unknown>;
-if (!("channelId" in o1979)) e.push(p + "/channelId" + ': required');
-if ("channelId" in o1979) lf(o1979["channelId"], p + "/channelId", e, L220);
+const x1981 = v;
+const g1981 = typeOf(x1981);
+const b1981: string[] = []; lf(x1981, p, b1981, L0); if (b1981.length) e.push(...b1981);
+if (g1981 === "object") {
+if (g1981 === 'object') { const o1981 = x1981 as Record<string, unknown>;
+if (!("channelId" in o1981)) e.push(p + "/channelId" + ': required');
+if ("channelId" in o1981) lf(o1981["channelId"], p + "/channelId", e, L220);
 }
 }
 }
@@ -1029,48 +935,49 @@ if ("channelId" in o1979) lf(o1979["channelId"], p + "/channelId", e, L220);
 
 function c262_in(v: unknown, p: string, e: string[]): void {
 {
-const x1980 = v;
-const g1980 = typeOf(x1980);
-const b1980: string[] = []; lf(x1980, p, b1980, L0); if (b1980.length) e.push(...b1980);
-if (g1980 === "object") {
-}
-}
-}
-
-function c262_out(v: unknown, p: string, e: string[]): void {
+const x1982 = v;
+const g1982 = typeOf(x1982);
+const b1982: string[] = []; lf(x1982, p, b1982, L0); if (b1982.length) e.push(...b1982);
+if (g1982 === "object") {
+if (g1982 === 'object') { const o1982 = x1982 as Record<string, unknown>;
+if (!("name" in o1982)) e.push(p + "/name" + ': required');
+if (!("visibility" in o1982)) e.push(p + "/visibility" + ': required');
+if (!("idempotencyKey" in o1982)) e.push(p + "/idempotencyKey" + ': required');
+if ("name" in o1982) lf(o1982["name"], p + "/name", e, L1);
+if ("visibility" in o1982) lf(o1982["visibility"], p + "/visibility", e, L476);
+if ("topic" in o1982) lf(o1982["topic"], p + "/topic", e, L1);
+if ("memberIds" in o1982) {
 {
-const x1981 = v;
-const g1981 = typeOf(x1981);
-const b1981: string[] = []; lf(x1981, p, b1981, L0); if (b1981.length) e.push(...b1981);
-if (g1981 === "object") {
-if (g1981 === 'object') { const o1981 = x1981 as Record<string, unknown>;
-if (!("channel" in o1981)) e.push(p + "/channel" + ': required');
-if ("channel" in o1981) {
-{
-const x1982 = o1981["channel"];
-const t1982_0: string[] = [];
-{
-const x1983 = x1982;
+const x1983 = o1982["memberIds"];
 const g1983 = typeOf(x1983);
-const b1983: string[] = []; lf(x1983, p + "/channel", b1983, L0); if (b1983.length) t1982_0.push(...b1983);
-if (g1983 === "object") {
-if (g1983 === 'object') { const o1983 = x1983 as Record<string, unknown>;
-if (!("channelId" in o1983)) t1982_0.push(p + "/channel" + "/channelId" + ': required');
-if (!("name" in o1983)) t1982_0.push(p + "/channel" + "/name" + ': required');
-if (!("mainThreadId" in o1983)) t1982_0.push(p + "/channel" + "/mainThreadId" + ': required');
-if (!("legacy" in o1983)) t1982_0.push(p + "/channel" + "/legacy" + ': required');
-if ("channelId" in o1983) lf(o1983["channelId"], p + "/channel" + "/channelId", t1982_0, L220);
-if ("name" in o1983) lf(o1983["name"], p + "/channel" + "/name", t1982_0, L1);
-if ("mainThreadId" in o1983) lf(o1983["mainThreadId"], p + "/channel" + "/mainThreadId", t1982_0, L13);
-if ("legacy" in o1983) lf(o1983["legacy"], p + "/channel" + "/legacy", t1982_0, L3);
+const b1983: string[] = []; lf(x1983, p + "/memberIds", b1983, L4); if (b1983.length) e.push(...b1983);
+if (g1983 === "array") {
+if (g1983 === 'array') { const a1983 = x1983 as unknown[];
+for (let i1983 = 0; i1983 < a1983.length; i1983++) {
+lf(a1983[i1983], p + "/memberIds" + '/' + i1983, e, L16);
 }
 }
 }
-const t1982_1: string[] = [];
-lf(x1982, p + "/channel", t1982_1, L84);
-if (![t1982_0, t1982_1].some((x) => x.length === 0)) e.push(p + "/channel" + ': matches none of anyOf');
 }
 }
+if ("agentIds" in o1982) {
+{
+const x1984 = o1982["agentIds"];
+const g1984 = typeOf(x1984);
+const b1984: string[] = []; lf(x1984, p + "/agentIds", b1984, L4); if (b1984.length) e.push(...b1984);
+if (g1984 === "array") {
+if (g1984 === 'array') { const a1984 = x1984 as unknown[];
+for (let i1984 = 0; i1984 < a1984.length; i1984++) {
+lf(a1984[i1984], p + "/agentIds" + '/' + i1984, e, L10);
+}
+}
+}
+}
+}
+if ("leadAgentId" in o1982) lf(o1982["leadAgentId"], p + "/leadAgentId", e, L10);
+if ("folderId" in o1982) lf(o1982["folderId"], p + "/folderId", e, L47);
+if ("recordId" in o1982) lf(o1982["recordId"], p + "/recordId", e, L28);
+if ("idempotencyKey" in o1982) lf(o1982["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -1078,13 +985,15 @@ if (![t1982_0, t1982_1].some((x) => x.length === 0)) e.push(p + "/channel" + ': 
 
 function c263_in(v: unknown, p: string, e: string[]): void {
 {
-const x1984 = v;
-const g1984 = typeOf(x1984);
-const b1984: string[] = []; lf(x1984, p, b1984, L0); if (b1984.length) e.push(...b1984);
-if (g1984 === "object") {
-if (g1984 === 'object') { const o1984 = x1984 as Record<string, unknown>;
-if (!("personId" in o1984)) e.push(p + "/personId" + ': required');
-if ("personId" in o1984) lf(o1984["personId"], p + "/personId", e, L16);
+const x1985 = v;
+const g1985 = typeOf(x1985);
+const b1985: string[] = []; lf(x1985, p, b1985, L0); if (b1985.length) e.push(...b1985);
+if (g1985 === "object") {
+if (g1985 === 'object') { const o1985 = x1985 as Record<string, unknown>;
+if (!("channelId" in o1985)) e.push(p + "/channelId" + ': required');
+if (!("idempotencyKey" in o1985)) e.push(p + "/idempotencyKey" + ': required');
+if ("channelId" in o1985) lf(o1985["channelId"], p + "/channelId", e, L220);
+if ("idempotencyKey" in o1985) lf(o1985["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -1092,24 +1001,13 @@ if ("personId" in o1984) lf(o1984["personId"], p + "/personId", e, L16);
 
 function c263_out(v: unknown, p: string, e: string[]): void {
 {
-const x1985 = v;
-const g1985 = typeOf(x1985);
-const b1985: string[] = []; lf(x1985, p, b1985, L0); if (b1985.length) e.push(...b1985);
-if (g1985 === "object") {
-if (g1985 === 'object') { const o1985 = x1985 as Record<string, unknown>;
-if (!("channelId" in o1985)) e.push(p + "/channelId" + ': required');
-if (!("added" in o1985)) e.push(p + "/added" + ': required');
-if ("channelId" in o1985) {
-{
-const x1986 = o1985["channelId"];
-const t1986_0: string[] = [];
-lf(x1986, p + "/channelId", t1986_0, L220);
-const t1986_1: string[] = [];
-lf(x1986, p + "/channelId", t1986_1, L84);
-if (![t1986_0, t1986_1].some((x) => x.length === 0)) e.push(p + "/channelId" + ': matches none of anyOf');
-}
-}
-if ("added" in o1985) lf(o1985["added"], p + "/added", e, L3);
+const x1986 = v;
+const g1986 = typeOf(x1986);
+const b1986: string[] = []; lf(x1986, p, b1986, L0); if (b1986.length) e.push(...b1986);
+if (g1986 === "object") {
+if (g1986 === 'object') { const o1986 = x1986 as Record<string, unknown>;
+if (!("erased" in o1986)) e.push(p + "/erased" + ': required');
+if ("erased" in o1986) lf(o1986["erased"], p + "/erased", e, L3);
 }
 }
 }
@@ -1135,10 +1033,6 @@ const x1988 = v;
 const g1988 = typeOf(x1988);
 const b1988: string[] = []; lf(x1988, p, b1988, L0); if (b1988.length) e.push(...b1988);
 if (g1988 === "object") {
-if (g1988 === 'object') { const o1988 = x1988 as Record<string, unknown>;
-if (!("channelId" in o1988)) e.push(p + "/channelId" + ': required');
-if ("channelId" in o1988) lf(o1988["channelId"], p + "/channelId", e, L220);
-}
 }
 }
 }
@@ -1150,8 +1044,33 @@ const g1989 = typeOf(x1989);
 const b1989: string[] = []; lf(x1989, p, b1989, L0); if (b1989.length) e.push(...b1989);
 if (g1989 === "object") {
 if (g1989 === 'object') { const o1989 = x1989 as Record<string, unknown>;
-if (!("ok" in o1989)) e.push(p + "/ok" + ': required');
-if ("ok" in o1989) lf(o1989["ok"], p + "/ok", e, L3);
+if (!("channel" in o1989)) e.push(p + "/channel" + ': required');
+if ("channel" in o1989) {
+{
+const x1990 = o1989["channel"];
+const t1990_0: string[] = [];
+{
+const x1991 = x1990;
+const g1991 = typeOf(x1991);
+const b1991: string[] = []; lf(x1991, p + "/channel", b1991, L0); if (b1991.length) t1990_0.push(...b1991);
+if (g1991 === "object") {
+if (g1991 === 'object') { const o1991 = x1991 as Record<string, unknown>;
+if (!("channelId" in o1991)) t1990_0.push(p + "/channel" + "/channelId" + ': required');
+if (!("name" in o1991)) t1990_0.push(p + "/channel" + "/name" + ': required');
+if (!("mainThreadId" in o1991)) t1990_0.push(p + "/channel" + "/mainThreadId" + ': required');
+if (!("legacy" in o1991)) t1990_0.push(p + "/channel" + "/legacy" + ': required');
+if ("channelId" in o1991) lf(o1991["channelId"], p + "/channel" + "/channelId", t1990_0, L220);
+if ("name" in o1991) lf(o1991["name"], p + "/channel" + "/name", t1990_0, L1);
+if ("mainThreadId" in o1991) lf(o1991["mainThreadId"], p + "/channel" + "/mainThreadId", t1990_0, L13);
+if ("legacy" in o1991) lf(o1991["legacy"], p + "/channel" + "/legacy", t1990_0, L3);
+}
+}
+}
+const t1990_1: string[] = [];
+lf(x1990, p + "/channel", t1990_1, L84);
+if (![t1990_0, t1990_1].some((x) => x.length === 0)) e.push(p + "/channel" + ': matches none of anyOf');
+}
+}
 }
 }
 }
@@ -1159,16 +1078,13 @@ if ("ok" in o1989) lf(o1989["ok"], p + "/ok", e, L3);
 
 function c266_in(v: unknown, p: string, e: string[]): void {
 {
-const x1990 = v;
-const g1990 = typeOf(x1990);
-const b1990: string[] = []; lf(x1990, p, b1990, L0); if (b1990.length) e.push(...b1990);
-if (g1990 === "object") {
-if (g1990 === 'object') { const o1990 = x1990 as Record<string, unknown>;
-if ("section" in o1990) lf(o1990["section"], p + "/section", e, L512);
-if ("folderId" in o1990) lf(o1990["folderId"], p + "/folderId", e, L47);
-if ("cursor" in o1990) lf(o1990["cursor"], p + "/cursor", e, L1);
-if ("limit" in o1990) lf(o1990["limit"], p + "/limit", e, L121);
-if ("governance" in o1990) lf(o1990["governance"], p + "/governance", e, L3);
+const x1992 = v;
+const g1992 = typeOf(x1992);
+const b1992: string[] = []; lf(x1992, p, b1992, L0); if (b1992.length) e.push(...b1992);
+if (g1992 === "object") {
+if (g1992 === 'object') { const o1992 = x1992 as Record<string, unknown>;
+if (!("personId" in o1992)) e.push(p + "/personId" + ': required');
+if ("personId" in o1992) lf(o1992["personId"], p + "/personId", e, L16);
 }
 }
 }
@@ -1176,28 +1092,24 @@ if ("governance" in o1990) lf(o1990["governance"], p + "/governance", e, L3);
 
 function c266_out(v: unknown, p: string, e: string[]): void {
 {
-const x1991 = v;
-const g1991 = typeOf(x1991);
-const b1991: string[] = []; lf(x1991, p, b1991, L0); if (b1991.length) e.push(...b1991);
-if (g1991 === "object") {
-if (g1991 === 'object') { const o1991 = x1991 as Record<string, unknown>;
-if (!("channels" in o1991)) e.push(p + "/channels" + ': required');
-if ("channels" in o1991) {
+const x1993 = v;
+const g1993 = typeOf(x1993);
+const b1993: string[] = []; lf(x1993, p, b1993, L0); if (b1993.length) e.push(...b1993);
+if (g1993 === "object") {
+if (g1993 === 'object') { const o1993 = x1993 as Record<string, unknown>;
+if (!("channelId" in o1993)) e.push(p + "/channelId" + ': required');
+if (!("added" in o1993)) e.push(p + "/added" + ': required');
+if ("channelId" in o1993) {
 {
-const x1992 = o1991["channels"];
-const g1992 = typeOf(x1992);
-const b1992: string[] = []; lf(x1992, p + "/channels", b1992, L4); if (b1992.length) e.push(...b1992);
-if (g1992 === "array") {
-if (g1992 === 'array') { const a1992 = x1992 as unknown[];
-for (let i1992 = 0; i1992 < a1992.length; i1992++) {
-d_s_f592e897f5(a1992[i1992], p + "/channels" + '/' + i1992, e);
+const x1994 = o1993["channelId"];
+const t1994_0: string[] = [];
+lf(x1994, p + "/channelId", t1994_0, L220);
+const t1994_1: string[] = [];
+lf(x1994, p + "/channelId", t1994_1, L84);
+if (![t1994_0, t1994_1].some((x) => x.length === 0)) e.push(p + "/channelId" + ': matches none of anyOf');
 }
 }
-}
-}
-}
-if ("next" in o1991) lf(o1991["next"], p + "/next", e, L1);
-if ("total" in o1991) lf(o1991["total"], p + "/total", e, L2);
+if ("added" in o1993) lf(o1993["added"], p + "/added", e, L3);
 }
 }
 }
@@ -1205,54 +1117,19 @@ if ("total" in o1991) lf(o1991["total"], p + "/total", e, L2);
 
 function c267_in(v: unknown, p: string, e: string[]): void {
 {
-const x1993 = v;
-const g1993 = typeOf(x1993);
-const b1993: string[] = []; lf(x1993, p, b1993, L0); if (b1993.length) e.push(...b1993);
-if (g1993 === "object") {
-if (g1993 === 'object') { const o1993 = x1993 as Record<string, unknown>;
-if (!("channelId" in o1993)) e.push(p + "/channelId" + ': required');
-if (!("personIds" in o1993)) e.push(p + "/personIds" + ': required');
-if ("channelId" in o1993) lf(o1993["channelId"], p + "/channelId", e, L220);
-if ("personIds" in o1993) {
-{
-const x1994 = o1993["personIds"];
-const g1994 = typeOf(x1994);
-const b1994: string[] = []; lf(x1994, p + "/personIds", b1994, L4); if (b1994.length) e.push(...b1994);
-if (g1994 === "array") {
-if (g1994 === 'array') { const a1994 = x1994 as unknown[];
-if (a1994.length < 1) e.push(p + "/personIds" + ': too few items');
-for (let i1994 = 0; i1994 < a1994.length; i1994++) {
-lf(a1994[i1994], p + "/personIds" + '/' + i1994, e, L16);
-}
-}
-}
-}
-}
-if ("level" in o1993) lf(o1993["level"], p + "/level", e, L51);
-if ("mentionedIn" in o1993) lf(o1993["mentionedIn"], p + "/mentionedIn", e, L92);
-if ("fromStart" in o1993) lf(o1993["fromStart"], p + "/fromStart", e, L3);
-}
-}
-}
-}
-
-function c268_in(v: unknown, p: string, e: string[]): void {
-{
 const x1995 = v;
 const g1995 = typeOf(x1995);
 const b1995: string[] = []; lf(x1995, p, b1995, L0); if (b1995.length) e.push(...b1995);
 if (g1995 === "object") {
 if (g1995 === 'object') { const o1995 = x1995 as Record<string, unknown>;
 if (!("channelId" in o1995)) e.push(p + "/channelId" + ': required');
-if (!("personId" in o1995)) e.push(p + "/personId" + ': required');
 if ("channelId" in o1995) lf(o1995["channelId"], p + "/channelId", e, L220);
-if ("personId" in o1995) lf(o1995["personId"], p + "/personId", e, L16);
 }
 }
 }
 }
 
-function c269_in(v: unknown, p: string, e: string[]): void {
+function c268_in(v: unknown, p: string, e: string[]): void {
 {
 const x1996 = v;
 const g1996 = typeOf(x1996);
@@ -1261,36 +1138,37 @@ if (g1996 === "object") {
 if (g1996 === 'object') { const o1996 = x1996 as Record<string, unknown>;
 if (!("channelId" in o1996)) e.push(p + "/channelId" + ': required');
 if ("channelId" in o1996) lf(o1996["channelId"], p + "/channelId", e, L220);
-if ("before" in o1996) lf(o1996["before"], p + "/before", e, L2);
-if ("limit" in o1996) lf(o1996["limit"], p + "/limit", e, L567);
-if ("show" in o1996) {
+}
+}
+}
+}
+
+function c268_out(v: unknown, p: string, e: string[]): void {
 {
-const x1997 = o1996["show"];
+const x1997 = v;
 const g1997 = typeOf(x1997);
-const b1997: string[] = []; lf(x1997, p + "/show", b1997, L4); if (b1997.length) e.push(...b1997);
-if (g1997 === "array") {
-if (g1997 === 'array') { const a1997 = x1997 as unknown[];
-for (let i1997 = 0; i1997 < a1997.length; i1997++) {
-lf(a1997[i1997], p + "/show" + '/' + i1997, e, L568);
+const b1997: string[] = []; lf(x1997, p, b1997, L0); if (b1997.length) e.push(...b1997);
+if (g1997 === "object") {
+if (g1997 === 'object') { const o1997 = x1997 as Record<string, unknown>;
+if (!("ok" in o1997)) e.push(p + "/ok" + ': required');
+if ("ok" in o1997) lf(o1997["ok"], p + "/ok", e, L3);
 }
 }
 }
 }
-}
-if ("expand" in o1996) {
+
+function c269_in(v: unknown, p: string, e: string[]): void {
 {
-const x1998 = o1996["expand"];
+const x1998 = v;
 const g1998 = typeOf(x1998);
-const b1998: string[] = []; lf(x1998, p + "/expand", b1998, L4); if (b1998.length) e.push(...b1998);
-if (g1998 === "array") {
-if (g1998 === 'array') { const a1998 = x1998 as unknown[];
-for (let i1998 = 0; i1998 < a1998.length; i1998++) {
-lf(a1998[i1998], p + "/expand" + '/' + i1998, e, L1);
-}
-}
-}
-}
-}
+const b1998: string[] = []; lf(x1998, p, b1998, L0); if (b1998.length) e.push(...b1998);
+if (g1998 === "object") {
+if (g1998 === 'object') { const o1998 = x1998 as Record<string, unknown>;
+if ("section" in o1998) lf(o1998["section"], p + "/section", e, L512);
+if ("folderId" in o1998) lf(o1998["folderId"], p + "/folderId", e, L47);
+if ("cursor" in o1998) lf(o1998["cursor"], p + "/cursor", e, L1);
+if ("limit" in o1998) lf(o1998["limit"], p + "/limit", e, L121);
+if ("governance" in o1998) lf(o1998["governance"], p + "/governance", e, L3);
 }
 }
 }
@@ -1303,93 +1181,23 @@ const g1999 = typeOf(x1999);
 const b1999: string[] = []; lf(x1999, p, b1999, L0); if (b1999.length) e.push(...b1999);
 if (g1999 === "object") {
 if (g1999 === 'object') { const o1999 = x1999 as Record<string, unknown>;
-if (!("items" in o1999)) e.push(p + "/items" + ': required');
-if (!("counts" in o1999)) e.push(p + "/counts" + ': required');
-if (!("hidden" in o1999)) e.push(p + "/hidden" + ': required');
-if (!("hasMore" in o1999)) e.push(p + "/hasMore" + ': required');
-if ("items" in o1999) {
+if (!("channels" in o1999)) e.push(p + "/channels" + ': required');
+if ("channels" in o1999) {
 {
-const x2000 = o1999["items"];
+const x2000 = o1999["channels"];
 const g2000 = typeOf(x2000);
-const b2000: string[] = []; lf(x2000, p + "/items", b2000, L4); if (b2000.length) e.push(...b2000);
+const b2000: string[] = []; lf(x2000, p + "/channels", b2000, L4); if (b2000.length) e.push(...b2000);
 if (g2000 === "array") {
 if (g2000 === 'array') { const a2000 = x2000 as unknown[];
 for (let i2000 = 0; i2000 < a2000.length; i2000++) {
-{
-const x2001 = a2000[i2000];
-const g2001 = typeOf(x2001);
-const b2001: string[] = []; lf(x2001, p + "/items" + '/' + i2000, b2001, L0); if (b2001.length) e.push(...b2001);
-if (g2001 === "object") {
-if (g2001 === 'object') { const o2001 = x2001 as Record<string, unknown>;
-if (!("kind" in o2001)) e.push(p + "/items" + '/' + i2000 + "/kind" + ': required');
-if (!("at" in o2001)) e.push(p + "/items" + '/' + i2000 + "/at" + ': required');
-if ("kind" in o2001) lf(o2001["kind"], p + "/items" + '/' + i2000 + "/kind", e, L569);
-if ("at" in o2001) lf(o2001["at"], p + "/items" + '/' + i2000 + "/at", e, L17);
-if ("messageId" in o2001) lf(o2001["messageId"], p + "/items" + '/' + i2000 + "/messageId", e, L92);
-if ("authorKind" in o2001) lf(o2001["authorKind"], p + "/items" + '/' + i2000 + "/authorKind", e, L570);
-if ("runId" in o2001) lf(o2001["runId"], p + "/items" + '/' + i2000 + "/runId", e, L34);
-if ("runKind" in o2001) lf(o2001["runKind"], p + "/items" + '/' + i2000 + "/runKind", e, L1);
-if ("name" in o2001) lf(o2001["name"], p + "/items" + '/' + i2000 + "/name", e, L1);
-if ("status" in o2001) lf(o2001["status"], p + "/items" + '/' + i2000 + "/status", e, L460);
-if ("result" in o2001) lf(o2001["result"], p + "/items" + '/' + i2000 + "/result", e, L1);
-if ("durationMs" in o2001) lf(o2001["durationMs"], p + "/items" + '/' + i2000 + "/durationMs", e, L17);
-if ("groupKey" in o2001) lf(o2001["groupKey"], p + "/items" + '/' + i2000 + "/groupKey", e, L1);
-if ("count" in o2001) lf(o2001["count"], p + "/items" + '/' + i2000 + "/count", e, L571);
-if ("anyFailed" in o2001) lf(o2001["anyFailed"], p + "/items" + '/' + i2000 + "/anyFailed", e, L3);
-if ("runIds" in o2001) {
-{
-const x2002 = o2001["runIds"];
-const g2002 = typeOf(x2002);
-const b2002: string[] = []; lf(x2002, p + "/items" + '/' + i2000 + "/runIds", b2002, L4); if (b2002.length) e.push(...b2002);
-if (g2002 === "array") {
-if (g2002 === 'array') { const a2002 = x2002 as unknown[];
-for (let i2002 = 0; i2002 < a2002.length; i2002++) {
-lf(a2002[i2002], p + "/items" + '/' + i2000 + "/runIds" + '/' + i2002, e, L34);
+d_s_f592e897f5(a2000[i2000], p + "/channels" + '/' + i2000, e);
 }
 }
 }
 }
 }
-}
-}
-}
-}
-}
-}
-}
-}
-if ("counts" in o1999) {
-{
-const x2003 = o1999["counts"];
-const g2003 = typeOf(x2003);
-const b2003: string[] = []; lf(x2003, p + "/counts", b2003, L0); if (b2003.length) e.push(...b2003);
-if (g2003 === "object") {
-if (g2003 === 'object') { const o2003 = x2003 as Record<string, unknown>;
-if (!("people" in o2003)) e.push(p + "/counts" + "/people" + ': required');
-if (!("agents" in o2003)) e.push(p + "/counts" + "/agents" + ': required');
-if (!("runs" in o2003)) e.push(p + "/counts" + "/runs" + ': required');
-if ("people" in o2003) lf(o2003["people"], p + "/counts" + "/people", e, L17);
-if ("agents" in o2003) lf(o2003["agents"], p + "/counts" + "/agents", e, L17);
-if ("runs" in o2003) lf(o2003["runs"], p + "/counts" + "/runs", e, L17);
-}
-}
-}
-}
-if ("hidden" in o1999) {
-{
-const x2004 = o1999["hidden"];
-const g2004 = typeOf(x2004);
-const b2004: string[] = []; lf(x2004, p + "/hidden", b2004, L4); if (b2004.length) e.push(...b2004);
-if (g2004 === "array") {
-if (g2004 === 'array') { const a2004 = x2004 as unknown[];
-for (let i2004 = 0; i2004 < a2004.length; i2004++) {
-lf(a2004[i2004], p + "/hidden" + '/' + i2004, e, L568);
-}
-}
-}
-}
-}
-if ("hasMore" in o1999) lf(o1999["hasMore"], p + "/hasMore", e, L3);
+if ("next" in o1999) lf(o1999["next"], p + "/next", e, L1);
+if ("total" in o1999) lf(o1999["total"], p + "/total", e, L2);
 }
 }
 }
@@ -1397,40 +1205,32 @@ if ("hasMore" in o1999) lf(o1999["hasMore"], p + "/hasMore", e, L3);
 
 function c270_in(v: unknown, p: string, e: string[]): void {
 {
-const x2005 = v;
-const g2005 = typeOf(x2005);
-const b2005: string[] = []; lf(x2005, p, b2005, L0); if (b2005.length) e.push(...b2005);
-if (g2005 === "object") {
-if (g2005 === 'object') { const o2005 = x2005 as Record<string, unknown>;
-if (!("channelId" in o2005)) e.push(p + "/channelId" + ': required');
-if ("channelId" in o2005) lf(o2005["channelId"], p + "/channelId", e, L220);
-}
-}
-}
-}
-
-function c270_out(v: unknown, p: string, e: string[]): void {
+const x2001 = v;
+const g2001 = typeOf(x2001);
+const b2001: string[] = []; lf(x2001, p, b2001, L0); if (b2001.length) e.push(...b2001);
+if (g2001 === "object") {
+if (g2001 === 'object') { const o2001 = x2001 as Record<string, unknown>;
+if (!("channelId" in o2001)) e.push(p + "/channelId" + ': required');
+if (!("personIds" in o2001)) e.push(p + "/personIds" + ': required');
+if ("channelId" in o2001) lf(o2001["channelId"], p + "/channelId", e, L220);
+if ("personIds" in o2001) {
 {
-const x2006 = v;
-const g2006 = typeOf(x2006);
-const b2006: string[] = []; lf(x2006, p, b2006, L0); if (b2006.length) e.push(...b2006);
-if (g2006 === "object") {
-if (g2006 === 'object') { const o2006 = x2006 as Record<string, unknown>;
-if (!("hide" in o2006)) e.push(p + "/hide" + ': required');
-if ("hide" in o2006) {
-{
-const x2007 = o2006["hide"];
-const g2007 = typeOf(x2007);
-const b2007: string[] = []; lf(x2007, p + "/hide", b2007, L4); if (b2007.length) e.push(...b2007);
-if (g2007 === "array") {
-if (g2007 === 'array') { const a2007 = x2007 as unknown[];
-for (let i2007 = 0; i2007 < a2007.length; i2007++) {
-lf(a2007[i2007], p + "/hide" + '/' + i2007, e, L568);
+const x2002 = o2001["personIds"];
+const g2002 = typeOf(x2002);
+const b2002: string[] = []; lf(x2002, p + "/personIds", b2002, L4); if (b2002.length) e.push(...b2002);
+if (g2002 === "array") {
+if (g2002 === 'array') { const a2002 = x2002 as unknown[];
+if (a2002.length < 1) e.push(p + "/personIds" + ': too few items');
+for (let i2002 = 0; i2002 < a2002.length; i2002++) {
+lf(a2002[i2002], p + "/personIds" + '/' + i2002, e, L16);
 }
 }
 }
 }
 }
+if ("level" in o2001) lf(o2001["level"], p + "/level", e, L51);
+if ("mentionedIn" in o2001) lf(o2001["mentionedIn"], p + "/mentionedIn", e, L92);
+if ("fromStart" in o2001) lf(o2001["fromStart"], p + "/fromStart", e, L3);
 }
 }
 }
@@ -1438,55 +1238,15 @@ lf(a2007[i2007], p + "/hide" + '/' + i2007, e, L568);
 
 function c271_in(v: unknown, p: string, e: string[]): void {
 {
-const x2008 = v;
-const g2008 = typeOf(x2008);
-const b2008: string[] = []; lf(x2008, p, b2008, L0); if (b2008.length) e.push(...b2008);
-if (g2008 === "object") {
-if (g2008 === 'object') { const o2008 = x2008 as Record<string, unknown>;
-if (!("channelId" in o2008)) e.push(p + "/channelId" + ': required');
-if (!("hide" in o2008)) e.push(p + "/hide" + ': required');
-if ("channelId" in o2008) lf(o2008["channelId"], p + "/channelId", e, L220);
-if ("hide" in o2008) {
-{
-const x2009 = o2008["hide"];
-const g2009 = typeOf(x2009);
-const b2009: string[] = []; lf(x2009, p + "/hide", b2009, L4); if (b2009.length) e.push(...b2009);
-if (g2009 === "array") {
-if (g2009 === 'array') { const a2009 = x2009 as unknown[];
-for (let i2009 = 0; i2009 < a2009.length; i2009++) {
-lf(a2009[i2009], p + "/hide" + '/' + i2009, e, L568);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-
-function c271_out(v: unknown, p: string, e: string[]): void {
-{
-const x2010 = v;
-const g2010 = typeOf(x2010);
-const b2010: string[] = []; lf(x2010, p, b2010, L0); if (b2010.length) e.push(...b2010);
-if (g2010 === "object") {
-if (g2010 === 'object') { const o2010 = x2010 as Record<string, unknown>;
-if (!("hide" in o2010)) e.push(p + "/hide" + ': required');
-if ("hide" in o2010) {
-{
-const x2011 = o2010["hide"];
-const g2011 = typeOf(x2011);
-const b2011: string[] = []; lf(x2011, p + "/hide", b2011, L4); if (b2011.length) e.push(...b2011);
-if (g2011 === "array") {
-if (g2011 === 'array') { const a2011 = x2011 as unknown[];
-for (let i2011 = 0; i2011 < a2011.length; i2011++) {
-lf(a2011[i2011], p + "/hide" + '/' + i2011, e, L568);
-}
-}
-}
-}
-}
+const x2003 = v;
+const g2003 = typeOf(x2003);
+const b2003: string[] = []; lf(x2003, p, b2003, L0); if (b2003.length) e.push(...b2003);
+if (g2003 === "object") {
+if (g2003 === 'object') { const o2003 = x2003 as Record<string, unknown>;
+if (!("channelId" in o2003)) e.push(p + "/channelId" + ': required');
+if (!("personId" in o2003)) e.push(p + "/personId" + ': required');
+if ("channelId" in o2003) lf(o2003["channelId"], p + "/channelId", e, L220);
+if ("personId" in o2003) lf(o2003["personId"], p + "/personId", e, L16);
 }
 }
 }
@@ -1494,13 +1254,142 @@ lf(a2011[i2011], p + "/hide" + '/' + i2011, e, L568);
 
 function c272_in(v: unknown, p: string, e: string[]): void {
 {
-const x2012 = v;
+const x2004 = v;
+const g2004 = typeOf(x2004);
+const b2004: string[] = []; lf(x2004, p, b2004, L0); if (b2004.length) e.push(...b2004);
+if (g2004 === "object") {
+if (g2004 === 'object') { const o2004 = x2004 as Record<string, unknown>;
+if (!("channelId" in o2004)) e.push(p + "/channelId" + ': required');
+if ("channelId" in o2004) lf(o2004["channelId"], p + "/channelId", e, L220);
+if ("before" in o2004) lf(o2004["before"], p + "/before", e, L2);
+if ("limit" in o2004) lf(o2004["limit"], p + "/limit", e, L567);
+if ("show" in o2004) {
+{
+const x2005 = o2004["show"];
+const g2005 = typeOf(x2005);
+const b2005: string[] = []; lf(x2005, p + "/show", b2005, L4); if (b2005.length) e.push(...b2005);
+if (g2005 === "array") {
+if (g2005 === 'array') { const a2005 = x2005 as unknown[];
+for (let i2005 = 0; i2005 < a2005.length; i2005++) {
+lf(a2005[i2005], p + "/show" + '/' + i2005, e, L568);
+}
+}
+}
+}
+}
+if ("expand" in o2004) {
+{
+const x2006 = o2004["expand"];
+const g2006 = typeOf(x2006);
+const b2006: string[] = []; lf(x2006, p + "/expand", b2006, L4); if (b2006.length) e.push(...b2006);
+if (g2006 === "array") {
+if (g2006 === 'array') { const a2006 = x2006 as unknown[];
+for (let i2006 = 0; i2006 < a2006.length; i2006++) {
+lf(a2006[i2006], p + "/expand" + '/' + i2006, e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
+}
+
+function c272_out(v: unknown, p: string, e: string[]): void {
+{
+const x2007 = v;
+const g2007 = typeOf(x2007);
+const b2007: string[] = []; lf(x2007, p, b2007, L0); if (b2007.length) e.push(...b2007);
+if (g2007 === "object") {
+if (g2007 === 'object') { const o2007 = x2007 as Record<string, unknown>;
+if (!("items" in o2007)) e.push(p + "/items" + ': required');
+if (!("counts" in o2007)) e.push(p + "/counts" + ': required');
+if (!("hidden" in o2007)) e.push(p + "/hidden" + ': required');
+if (!("hasMore" in o2007)) e.push(p + "/hasMore" + ': required');
+if ("items" in o2007) {
+{
+const x2008 = o2007["items"];
+const g2008 = typeOf(x2008);
+const b2008: string[] = []; lf(x2008, p + "/items", b2008, L4); if (b2008.length) e.push(...b2008);
+if (g2008 === "array") {
+if (g2008 === 'array') { const a2008 = x2008 as unknown[];
+for (let i2008 = 0; i2008 < a2008.length; i2008++) {
+{
+const x2009 = a2008[i2008];
+const g2009 = typeOf(x2009);
+const b2009: string[] = []; lf(x2009, p + "/items" + '/' + i2008, b2009, L0); if (b2009.length) e.push(...b2009);
+if (g2009 === "object") {
+if (g2009 === 'object') { const o2009 = x2009 as Record<string, unknown>;
+if (!("kind" in o2009)) e.push(p + "/items" + '/' + i2008 + "/kind" + ': required');
+if (!("at" in o2009)) e.push(p + "/items" + '/' + i2008 + "/at" + ': required');
+if ("kind" in o2009) lf(o2009["kind"], p + "/items" + '/' + i2008 + "/kind", e, L569);
+if ("at" in o2009) lf(o2009["at"], p + "/items" + '/' + i2008 + "/at", e, L17);
+if ("messageId" in o2009) lf(o2009["messageId"], p + "/items" + '/' + i2008 + "/messageId", e, L92);
+if ("authorKind" in o2009) lf(o2009["authorKind"], p + "/items" + '/' + i2008 + "/authorKind", e, L570);
+if ("runId" in o2009) lf(o2009["runId"], p + "/items" + '/' + i2008 + "/runId", e, L34);
+if ("runKind" in o2009) lf(o2009["runKind"], p + "/items" + '/' + i2008 + "/runKind", e, L1);
+if ("name" in o2009) lf(o2009["name"], p + "/items" + '/' + i2008 + "/name", e, L1);
+if ("status" in o2009) lf(o2009["status"], p + "/items" + '/' + i2008 + "/status", e, L460);
+if ("result" in o2009) lf(o2009["result"], p + "/items" + '/' + i2008 + "/result", e, L1);
+if ("durationMs" in o2009) lf(o2009["durationMs"], p + "/items" + '/' + i2008 + "/durationMs", e, L17);
+if ("groupKey" in o2009) lf(o2009["groupKey"], p + "/items" + '/' + i2008 + "/groupKey", e, L1);
+if ("count" in o2009) lf(o2009["count"], p + "/items" + '/' + i2008 + "/count", e, L571);
+if ("anyFailed" in o2009) lf(o2009["anyFailed"], p + "/items" + '/' + i2008 + "/anyFailed", e, L3);
+if ("runIds" in o2009) {
+{
+const x2010 = o2009["runIds"];
+const g2010 = typeOf(x2010);
+const b2010: string[] = []; lf(x2010, p + "/items" + '/' + i2008 + "/runIds", b2010, L4); if (b2010.length) e.push(...b2010);
+if (g2010 === "array") {
+if (g2010 === 'array') { const a2010 = x2010 as unknown[];
+for (let i2010 = 0; i2010 < a2010.length; i2010++) {
+lf(a2010[i2010], p + "/items" + '/' + i2008 + "/runIds" + '/' + i2010, e, L34);
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+if ("counts" in o2007) {
+{
+const x2011 = o2007["counts"];
+const g2011 = typeOf(x2011);
+const b2011: string[] = []; lf(x2011, p + "/counts", b2011, L0); if (b2011.length) e.push(...b2011);
+if (g2011 === "object") {
+if (g2011 === 'object') { const o2011 = x2011 as Record<string, unknown>;
+if (!("people" in o2011)) e.push(p + "/counts" + "/people" + ': required');
+if (!("agents" in o2011)) e.push(p + "/counts" + "/agents" + ': required');
+if (!("runs" in o2011)) e.push(p + "/counts" + "/runs" + ': required');
+if ("people" in o2011) lf(o2011["people"], p + "/counts" + "/people", e, L17);
+if ("agents" in o2011) lf(o2011["agents"], p + "/counts" + "/agents", e, L17);
+if ("runs" in o2011) lf(o2011["runs"], p + "/counts" + "/runs", e, L17);
+}
+}
+}
+}
+if ("hidden" in o2007) {
+{
+const x2012 = o2007["hidden"];
 const g2012 = typeOf(x2012);
-const b2012: string[] = []; lf(x2012, p, b2012, L0); if (b2012.length) e.push(...b2012);
-if (g2012 === "object") {
-if (g2012 === 'object') { const o2012 = x2012 as Record<string, unknown>;
-if (!("channelId" in o2012)) e.push(p + "/channelId" + ': required');
-if ("channelId" in o2012) lf(o2012["channelId"], p + "/channelId", e, L220);
+const b2012: string[] = []; lf(x2012, p + "/hidden", b2012, L4); if (b2012.length) e.push(...b2012);
+if (g2012 === "array") {
+if (g2012 === 'array') { const a2012 = x2012 as unknown[];
+for (let i2012 = 0; i2012 < a2012.length; i2012++) {
+lf(a2012[i2012], p + "/hidden" + '/' + i2012, e, L568);
+}
+}
+}
+}
+}
+if ("hasMore" in o2007) lf(o2007["hasMore"], p + "/hasMore", e, L3);
 }
 }
 }
@@ -1515,9 +1404,33 @@ if (g2013 === "object") {
 if (g2013 === 'object') { const o2013 = x2013 as Record<string, unknown>;
 if (!("channelId" in o2013)) e.push(p + "/channelId" + ': required');
 if ("channelId" in o2013) lf(o2013["channelId"], p + "/channelId", e, L220);
-if ("name" in o2013) lf(o2013["name"], p + "/name", e, L1);
-if ("topic" in o2013) lf(o2013["topic"], p + "/topic", e, L1);
-if ("visibility" in o2013) lf(o2013["visibility"], p + "/visibility", e, L476);
+}
+}
+}
+}
+
+function c273_out(v: unknown, p: string, e: string[]): void {
+{
+const x2014 = v;
+const g2014 = typeOf(x2014);
+const b2014: string[] = []; lf(x2014, p, b2014, L0); if (b2014.length) e.push(...b2014);
+if (g2014 === "object") {
+if (g2014 === 'object') { const o2014 = x2014 as Record<string, unknown>;
+if (!("hide" in o2014)) e.push(p + "/hide" + ': required');
+if ("hide" in o2014) {
+{
+const x2015 = o2014["hide"];
+const g2015 = typeOf(x2015);
+const b2015: string[] = []; lf(x2015, p + "/hide", b2015, L4); if (b2015.length) e.push(...b2015);
+if (g2015 === "array") {
+if (g2015 === 'array') { const a2015 = x2015 as unknown[];
+for (let i2015 = 0; i2015 < a2015.length; i2015++) {
+lf(a2015[i2015], p + "/hide" + '/' + i2015, e, L568);
+}
+}
+}
+}
+}
 }
 }
 }
@@ -1525,14 +1438,28 @@ if ("visibility" in o2013) lf(o2013["visibility"], p + "/visibility", e, L476);
 
 function c274_in(v: unknown, p: string, e: string[]): void {
 {
-const x2014 = v;
-const g2014 = typeOf(x2014);
-const b2014: string[] = []; lf(x2014, p, b2014, L0); if (b2014.length) e.push(...b2014);
-if (g2014 === "object") {
-if (g2014 === 'object') { const o2014 = x2014 as Record<string, unknown>;
-if (!("personId" in o2014)) e.push(p + "/personId" + ': required');
-if ("personId" in o2014) lf(o2014["personId"], p + "/personId", e, L16);
-if ("undo" in o2014) lf(o2014["undo"], p + "/undo", e, L3);
+const x2016 = v;
+const g2016 = typeOf(x2016);
+const b2016: string[] = []; lf(x2016, p, b2016, L0); if (b2016.length) e.push(...b2016);
+if (g2016 === "object") {
+if (g2016 === 'object') { const o2016 = x2016 as Record<string, unknown>;
+if (!("channelId" in o2016)) e.push(p + "/channelId" + ': required');
+if (!("hide" in o2016)) e.push(p + "/hide" + ': required');
+if ("channelId" in o2016) lf(o2016["channelId"], p + "/channelId", e, L220);
+if ("hide" in o2016) {
+{
+const x2017 = o2016["hide"];
+const g2017 = typeOf(x2017);
+const b2017: string[] = []; lf(x2017, p + "/hide", b2017, L4); if (b2017.length) e.push(...b2017);
+if (g2017 === "array") {
+if (g2017 === 'array') { const a2017 = x2017 as unknown[];
+for (let i2017 = 0; i2017 < a2017.length; i2017++) {
+lf(a2017[i2017], p + "/hide" + '/' + i2017, e, L568);
+}
+}
+}
+}
+}
 }
 }
 }
@@ -1540,20 +1467,24 @@ if ("undo" in o2014) lf(o2014["undo"], p + "/undo", e, L3);
 
 function c274_out(v: unknown, p: string, e: string[]): void {
 {
-const x2015 = v;
-const g2015 = typeOf(x2015);
-const b2015: string[] = []; lf(x2015, p, b2015, L0); if (b2015.length) e.push(...b2015);
-if (g2015 === "object") {
-if (g2015 === 'object') { const o2015 = x2015 as Record<string, unknown>;
-if (!("until" in o2015)) e.push(p + "/until" + ': required');
-if ("until" in o2015) {
+const x2018 = v;
+const g2018 = typeOf(x2018);
+const b2018: string[] = []; lf(x2018, p, b2018, L0); if (b2018.length) e.push(...b2018);
+if (g2018 === "object") {
+if (g2018 === 'object') { const o2018 = x2018 as Record<string, unknown>;
+if (!("hide" in o2018)) e.push(p + "/hide" + ': required');
+if ("hide" in o2018) {
 {
-const x2016 = o2015["until"];
-const t2016_0: string[] = [];
-lf(x2016, p + "/until", t2016_0, L17);
-const t2016_1: string[] = [];
-lf(x2016, p + "/until", t2016_1, L84);
-if (![t2016_0, t2016_1].some((x) => x.length === 0)) e.push(p + "/until" + ': matches none of anyOf');
+const x2019 = o2018["hide"];
+const g2019 = typeOf(x2019);
+const b2019: string[] = []; lf(x2019, p + "/hide", b2019, L4); if (b2019.length) e.push(...b2019);
+if (g2019 === "array") {
+if (g2019 === 'array') { const a2019 = x2019 as unknown[];
+for (let i2019 = 0; i2019 < a2019.length; i2019++) {
+lf(a2019[i2019], p + "/hide" + '/' + i2019, e, L568);
+}
+}
+}
 }
 }
 }
@@ -1563,30 +1494,13 @@ if (![t2016_0, t2016_1].some((x) => x.length === 0)) e.push(p + "/until" + ': ma
 
 function c275_in(v: unknown, p: string, e: string[]): void {
 {
-const x2017 = v;
-const g2017 = typeOf(x2017);
-const b2017: string[] = []; lf(x2017, p, b2017, L0); if (b2017.length) e.push(...b2017);
-if (g2017 === "object") {
-if (g2017 === 'object') { const o2017 = x2017 as Record<string, unknown>;
-if (!("threadId" in o2017)) e.push(p + "/threadId" + ': required');
-if (!("blockId" in o2017)) e.push(p + "/blockId" + ': required');
-if (!("answer" in o2017)) e.push(p + "/answer" + ': required');
-if ("threadId" in o2017) lf(o2017["threadId"], p + "/threadId", e, L13);
-if ("blockId" in o2017) lf(o2017["blockId"], p + "/blockId", e, L129);
-}
-}
-}
-}
-
-function c275_out(v: unknown, p: string, e: string[]): void {
-{
-const x2018 = v;
-const g2018 = typeOf(x2018);
-const b2018: string[] = []; lf(x2018, p, b2018, L0); if (b2018.length) e.push(...b2018);
-if (g2018 === "object") {
-if (g2018 === 'object') { const o2018 = x2018 as Record<string, unknown>;
-if (!("ok" in o2018)) e.push(p + "/ok" + ': required');
-if ("ok" in o2018) lf(o2018["ok"], p + "/ok", e, L3);
+const x2020 = v;
+const g2020 = typeOf(x2020);
+const b2020: string[] = []; lf(x2020, p, b2020, L0); if (b2020.length) e.push(...b2020);
+if (g2020 === "object") {
+if (g2020 === 'object') { const o2020 = x2020 as Record<string, unknown>;
+if (!("channelId" in o2020)) e.push(p + "/channelId" + ': required');
+if ("channelId" in o2020) lf(o2020["channelId"], p + "/channelId", e, L220);
 }
 }
 }
@@ -1594,71 +1508,16 @@ if ("ok" in o2018) lf(o2018["ok"], p + "/ok", e, L3);
 
 function c276_in(v: unknown, p: string, e: string[]): void {
 {
-const x2019 = v;
-const g2019 = typeOf(x2019);
-const b2019: string[] = []; lf(x2019, p, b2019, L0); if (b2019.length) e.push(...b2019);
-if (g2019 === "object") {
-if (g2019 === 'object') { const o2019 = x2019 as Record<string, unknown>;
-if (!("threadId" in o2019)) e.push(p + "/threadId" + ': required');
-if (!("planId" in o2019)) e.push(p + "/planId" + ': required');
-if ("threadId" in o2019) lf(o2019["threadId"], p + "/threadId", e, L13);
-if ("planId" in o2019) lf(o2019["planId"], p + "/planId", e, L416);
-if ("edits" in o2019) {
-{
-const x2020 = o2019["edits"];
-const g2020 = typeOf(x2020);
-const b2020: string[] = []; lf(x2020, p + "/edits", b2020, L4); if (b2020.length) e.push(...b2020);
-if (g2020 === "array") {
-if (g2020 === 'array') { const a2020 = x2020 as unknown[];
-for (let i2020 = 0; i2020 < a2020.length; i2020++) {
-{
-const x2021 = a2020[i2020];
+const x2021 = v;
 const g2021 = typeOf(x2021);
-const b2021: string[] = []; lf(x2021, p + "/edits" + '/' + i2020, b2021, L0); if (b2021.length) e.push(...b2021);
+const b2021: string[] = []; lf(x2021, p, b2021, L0); if (b2021.length) e.push(...b2021);
 if (g2021 === "object") {
 if (g2021 === 'object') { const o2021 = x2021 as Record<string, unknown>;
-if (!("stepId" in o2021)) e.push(p + "/edits" + '/' + i2020 + "/stepId" + ': required');
-if ("stepId" in o2021) lf(o2021["stepId"], p + "/edits" + '/' + i2020 + "/stepId", e, L117);
-if ("text" in o2021) lf(o2021["text"], p + "/edits" + '/' + i2020 + "/text", e, L1);
-if ("remove" in o2021) lf(o2021["remove"], p + "/edits" + '/' + i2020 + "/remove", e, L3);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-
-function c276_out(v: unknown, p: string, e: string[]): void {
-{
-const x2022 = v;
-const g2022 = typeOf(x2022);
-const b2022: string[] = []; lf(x2022, p, b2022, L0); if (b2022.length) e.push(...b2022);
-if (g2022 === "object") {
-if (g2022 === 'object') { const o2022 = x2022 as Record<string, unknown>;
-if (!("plan" in o2022)) e.push(p + "/plan" + ': required');
-if ("plan" in o2022) {
-{
-const x2023 = o2022["plan"];
-const g2023 = typeOf(x2023);
-const b2023: string[] = []; lf(x2023, p + "/plan", b2023, L0); if (b2023.length) e.push(...b2023);
-if (g2023 === "object") {
-if (g2023 === 'object') { const o2023 = x2023 as Record<string, unknown>;
-if (!("planId" in o2023)) e.push(p + "/plan" + "/planId" + ': required');
-if (!("state" in o2023)) e.push(p + "/plan" + "/state" + ': required');
-if (!("steps" in o2023)) e.push(p + "/plan" + "/steps" + ': required');
-if ("planId" in o2023) lf(o2023["planId"], p + "/plan" + "/planId", e, L416);
-if ("state" in o2023) lf(o2023["state"], p + "/plan" + "/state", e, L1);
-if ("steps" in o2023) d_s_aad8a88d49(o2023["steps"], p + "/plan" + "/steps", e);
-}
-}
-}
-}
+if (!("channelId" in o2021)) e.push(p + "/channelId" + ': required');
+if ("channelId" in o2021) lf(o2021["channelId"], p + "/channelId", e, L220);
+if ("name" in o2021) lf(o2021["name"], p + "/name", e, L1);
+if ("topic" in o2021) lf(o2021["topic"], p + "/topic", e, L1);
+if ("visibility" in o2021) lf(o2021["visibility"], p + "/visibility", e, L476);
 }
 }
 }
@@ -1666,17 +1525,14 @@ if ("steps" in o2023) d_s_aad8a88d49(o2023["steps"], p + "/plan" + "/steps", e);
 
 function c277_in(v: unknown, p: string, e: string[]): void {
 {
-const x2024 = v;
-const g2024 = typeOf(x2024);
-const b2024: string[] = []; lf(x2024, p, b2024, L0); if (b2024.length) e.push(...b2024);
-if (g2024 === "object") {
-if (g2024 === 'object') { const o2024 = x2024 as Record<string, unknown>;
-if (!("threadId" in o2024)) e.push(p + "/threadId" + ': required');
-if (!("question" in o2024)) e.push(p + "/question" + ': required');
-if (!("idempotencyKey" in o2024)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o2024) lf(o2024["threadId"], p + "/threadId", e, L13);
-if ("question" in o2024) lf(o2024["question"], p + "/question", e, L1);
-if ("idempotencyKey" in o2024) lf(o2024["idempotencyKey"], p + "/idempotencyKey", e, L54);
+const x2022 = v;
+const g2022 = typeOf(x2022);
+const b2022: string[] = []; lf(x2022, p, b2022, L0); if (b2022.length) e.push(...b2022);
+if (g2022 === "object") {
+if (g2022 === 'object') { const o2022 = x2022 as Record<string, unknown>;
+if (!("personId" in o2022)) e.push(p + "/personId" + ': required');
+if ("personId" in o2022) lf(o2022["personId"], p + "/personId", e, L16);
+if ("undo" in o2022) lf(o2022["undo"], p + "/undo", e, L3);
 }
 }
 }
@@ -1684,15 +1540,22 @@ if ("idempotencyKey" in o2024) lf(o2024["idempotencyKey"], p + "/idempotencyKey"
 
 function c277_out(v: unknown, p: string, e: string[]): void {
 {
-const x2025 = v;
-const g2025 = typeOf(x2025);
-const b2025: string[] = []; lf(x2025, p, b2025, L0); if (b2025.length) e.push(...b2025);
-if (g2025 === "object") {
-if (g2025 === 'object') { const o2025 = x2025 as Record<string, unknown>;
-if (!("asideThreadId" in o2025)) e.push(p + "/asideThreadId" + ': required');
-if (!("messageId" in o2025)) e.push(p + "/messageId" + ': required');
-if ("asideThreadId" in o2025) lf(o2025["asideThreadId"], p + "/asideThreadId", e, L13);
-if ("messageId" in o2025) lf(o2025["messageId"], p + "/messageId", e, L92);
+const x2023 = v;
+const g2023 = typeOf(x2023);
+const b2023: string[] = []; lf(x2023, p, b2023, L0); if (b2023.length) e.push(...b2023);
+if (g2023 === "object") {
+if (g2023 === 'object') { const o2023 = x2023 as Record<string, unknown>;
+if (!("until" in o2023)) e.push(p + "/until" + ': required');
+if ("until" in o2023) {
+{
+const x2024 = o2023["until"];
+const t2024_0: string[] = [];
+lf(x2024, p + "/until", t2024_0, L17);
+const t2024_1: string[] = [];
+lf(x2024, p + "/until", t2024_1, L84);
+if (![t2024_0, t2024_1].some((x) => x.length === 0)) e.push(p + "/until" + ': matches none of anyOf');
+}
+}
 }
 }
 }
@@ -1700,15 +1563,16 @@ if ("messageId" in o2025) lf(o2025["messageId"], p + "/messageId", e, L92);
 
 function c278_in(v: unknown, p: string, e: string[]): void {
 {
-const x2026 = v;
-const g2026 = typeOf(x2026);
-const b2026: string[] = []; lf(x2026, p, b2026, L0); if (b2026.length) e.push(...b2026);
-if (g2026 === "object") {
-if (g2026 === 'object') { const o2026 = x2026 as Record<string, unknown>;
-if (!("asideThreadId" in o2026)) e.push(p + "/asideThreadId" + ': required');
-if (!("idempotencyKey" in o2026)) e.push(p + "/idempotencyKey" + ': required');
-if ("asideThreadId" in o2026) lf(o2026["asideThreadId"], p + "/asideThreadId", e, L13);
-if ("idempotencyKey" in o2026) lf(o2026["idempotencyKey"], p + "/idempotencyKey", e, L54);
+const x2025 = v;
+const g2025 = typeOf(x2025);
+const b2025: string[] = []; lf(x2025, p, b2025, L0); if (b2025.length) e.push(...b2025);
+if (g2025 === "object") {
+if (g2025 === 'object') { const o2025 = x2025 as Record<string, unknown>;
+if (!("threadId" in o2025)) e.push(p + "/threadId" + ': required');
+if (!("blockId" in o2025)) e.push(p + "/blockId" + ': required');
+if (!("answer" in o2025)) e.push(p + "/answer" + ': required');
+if ("threadId" in o2025) lf(o2025["threadId"], p + "/threadId", e, L13);
+if ("blockId" in o2025) lf(o2025["blockId"], p + "/blockId", e, L129);
 }
 }
 }
@@ -1716,13 +1580,13 @@ if ("idempotencyKey" in o2026) lf(o2026["idempotencyKey"], p + "/idempotencyKey"
 
 function c278_out(v: unknown, p: string, e: string[]): void {
 {
-const x2027 = v;
-const g2027 = typeOf(x2027);
-const b2027: string[] = []; lf(x2027, p, b2027, L0); if (b2027.length) e.push(...b2027);
-if (g2027 === "object") {
-if (g2027 === 'object') { const o2027 = x2027 as Record<string, unknown>;
-if (!("messageId" in o2027)) e.push(p + "/messageId" + ': required');
-if ("messageId" in o2027) lf(o2027["messageId"], p + "/messageId", e, L92);
+const x2026 = v;
+const g2026 = typeOf(x2026);
+const b2026: string[] = []; lf(x2026, p, b2026, L0); if (b2026.length) e.push(...b2026);
+if (g2026 === "object") {
+if (g2026 === 'object') { const o2026 = x2026 as Record<string, unknown>;
+if (!("ok" in o2026)) e.push(p + "/ok" + ': required');
+if ("ok" in o2026) lf(o2026["ok"], p + "/ok", e, L3);
 }
 }
 }
@@ -1730,13 +1594,41 @@ if ("messageId" in o2027) lf(o2027["messageId"], p + "/messageId", e, L92);
 
 function c279_in(v: unknown, p: string, e: string[]): void {
 {
-const x2028 = v;
+const x2027 = v;
+const g2027 = typeOf(x2027);
+const b2027: string[] = []; lf(x2027, p, b2027, L0); if (b2027.length) e.push(...b2027);
+if (g2027 === "object") {
+if (g2027 === 'object') { const o2027 = x2027 as Record<string, unknown>;
+if (!("threadId" in o2027)) e.push(p + "/threadId" + ': required');
+if (!("planId" in o2027)) e.push(p + "/planId" + ': required');
+if ("threadId" in o2027) lf(o2027["threadId"], p + "/threadId", e, L13);
+if ("planId" in o2027) lf(o2027["planId"], p + "/planId", e, L416);
+if ("edits" in o2027) {
+{
+const x2028 = o2027["edits"];
 const g2028 = typeOf(x2028);
-const b2028: string[] = []; lf(x2028, p, b2028, L0); if (b2028.length) e.push(...b2028);
-if (g2028 === "object") {
-if (g2028 === 'object') { const o2028 = x2028 as Record<string, unknown>;
-if (!("threadId" in o2028)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2028) lf(o2028["threadId"], p + "/threadId", e, L13);
+const b2028: string[] = []; lf(x2028, p + "/edits", b2028, L4); if (b2028.length) e.push(...b2028);
+if (g2028 === "array") {
+if (g2028 === 'array') { const a2028 = x2028 as unknown[];
+for (let i2028 = 0; i2028 < a2028.length; i2028++) {
+{
+const x2029 = a2028[i2028];
+const g2029 = typeOf(x2029);
+const b2029: string[] = []; lf(x2029, p + "/edits" + '/' + i2028, b2029, L0); if (b2029.length) e.push(...b2029);
+if (g2029 === "object") {
+if (g2029 === 'object') { const o2029 = x2029 as Record<string, unknown>;
+if (!("stepId" in o2029)) e.push(p + "/edits" + '/' + i2028 + "/stepId" + ': required');
+if ("stepId" in o2029) lf(o2029["stepId"], p + "/edits" + '/' + i2028 + "/stepId", e, L117);
+if ("text" in o2029) lf(o2029["text"], p + "/edits" + '/' + i2028 + "/text", e, L1);
+if ("remove" in o2029) lf(o2029["remove"], p + "/edits" + '/' + i2028 + "/remove", e, L3);
+}
+}
+}
+}
+}
+}
+}
+}
 }
 }
 }
@@ -1744,20 +1636,27 @@ if ("threadId" in o2028) lf(o2028["threadId"], p + "/threadId", e, L13);
 
 function c279_out(v: unknown, p: string, e: string[]): void {
 {
-const x2029 = v;
-const g2029 = typeOf(x2029);
-const b2029: string[] = []; lf(x2029, p, b2029, L0); if (b2029.length) e.push(...b2029);
-if (g2029 === "object") {
-if (g2029 === 'object') { const o2029 = x2029 as Record<string, unknown>;
-if (!("level" in o2029)) e.push(p + "/level" + ': required');
-if ("level" in o2029) {
+const x2030 = v;
+const g2030 = typeOf(x2030);
+const b2030: string[] = []; lf(x2030, p, b2030, L0); if (b2030.length) e.push(...b2030);
+if (g2030 === "object") {
+if (g2030 === 'object') { const o2030 = x2030 as Record<string, unknown>;
+if (!("plan" in o2030)) e.push(p + "/plan" + ': required');
+if ("plan" in o2030) {
 {
-const x2030 = o2029["level"];
-const t2030_0: string[] = [];
-lf(x2030, p + "/level", t2030_0, L51);
-const t2030_1: string[] = [];
-lf(x2030, p + "/level", t2030_1, L84);
-if (![t2030_0, t2030_1].some((x) => x.length === 0)) e.push(p + "/level" + ': matches none of anyOf');
+const x2031 = o2030["plan"];
+const g2031 = typeOf(x2031);
+const b2031: string[] = []; lf(x2031, p + "/plan", b2031, L0); if (b2031.length) e.push(...b2031);
+if (g2031 === "object") {
+if (g2031 === 'object') { const o2031 = x2031 as Record<string, unknown>;
+if (!("planId" in o2031)) e.push(p + "/plan" + "/planId" + ': required');
+if (!("state" in o2031)) e.push(p + "/plan" + "/state" + ': required');
+if (!("steps" in o2031)) e.push(p + "/plan" + "/steps" + ': required');
+if ("planId" in o2031) lf(o2031["planId"], p + "/plan" + "/planId", e, L416);
+if ("state" in o2031) lf(o2031["state"], p + "/plan" + "/state", e, L1);
+if ("steps" in o2031) d_s_aad8a88d49(o2031["steps"], p + "/plan" + "/steps", e);
+}
+}
 }
 }
 }
@@ -1767,15 +1666,17 @@ if (![t2030_0, t2030_1].some((x) => x.length === 0)) e.push(p + "/level" + ': ma
 
 function c280_in(v: unknown, p: string, e: string[]): void {
 {
-const x2031 = v;
-const g2031 = typeOf(x2031);
-const b2031: string[] = []; lf(x2031, p, b2031, L0); if (b2031.length) e.push(...b2031);
-if (g2031 === "object") {
-if (g2031 === 'object') { const o2031 = x2031 as Record<string, unknown>;
-if (!("scopeType" in o2031)) e.push(p + "/scopeType" + ': required');
-if (!("scopeId" in o2031)) e.push(p + "/scopeId" + ': required');
-if ("scopeType" in o2031) lf(o2031["scopeType"], p + "/scopeType", e, L1);
-if ("scopeId" in o2031) lf(o2031["scopeId"], p + "/scopeId", e, L1);
+const x2032 = v;
+const g2032 = typeOf(x2032);
+const b2032: string[] = []; lf(x2032, p, b2032, L0); if (b2032.length) e.push(...b2032);
+if (g2032 === "object") {
+if (g2032 === 'object') { const o2032 = x2032 as Record<string, unknown>;
+if (!("threadId" in o2032)) e.push(p + "/threadId" + ': required');
+if (!("question" in o2032)) e.push(p + "/question" + ': required');
+if (!("idempotencyKey" in o2032)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o2032) lf(o2032["threadId"], p + "/threadId", e, L13);
+if ("question" in o2032) lf(o2032["question"], p + "/question", e, L1);
+if ("idempotencyKey" in o2032) lf(o2032["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -1783,24 +1684,15 @@ if ("scopeId" in o2031) lf(o2031["scopeId"], p + "/scopeId", e, L1);
 
 function c280_out(v: unknown, p: string, e: string[]): void {
 {
-const x2032 = v;
-const g2032 = typeOf(x2032);
-const b2032: string[] = []; lf(x2032, p, b2032, L0); if (b2032.length) e.push(...b2032);
-if (g2032 === "object") {
-if (g2032 === 'object') { const o2032 = x2032 as Record<string, unknown>;
-if (!("agentId" in o2032)) e.push(p + "/agentId" + ': required');
-if (!("reason" in o2032)) e.push(p + "/reason" + ': required');
-if ("agentId" in o2032) {
-{
-const x2033 = o2032["agentId"];
-const t2033_0: string[] = [];
-lf(x2033, p + "/agentId", t2033_0, L10);
-const t2033_1: string[] = [];
-lf(x2033, p + "/agentId", t2033_1, L84);
-if (![t2033_0, t2033_1].some((x) => x.length === 0)) e.push(p + "/agentId" + ': matches none of anyOf');
-}
-}
-if ("reason" in o2032) lf(o2032["reason"], p + "/reason", e, L572);
+const x2033 = v;
+const g2033 = typeOf(x2033);
+const b2033: string[] = []; lf(x2033, p, b2033, L0); if (b2033.length) e.push(...b2033);
+if (g2033 === "object") {
+if (g2033 === 'object') { const o2033 = x2033 as Record<string, unknown>;
+if (!("asideThreadId" in o2033)) e.push(p + "/asideThreadId" + ': required');
+if (!("messageId" in o2033)) e.push(p + "/messageId" + ': required');
+if ("asideThreadId" in o2033) lf(o2033["asideThreadId"], p + "/asideThreadId", e, L13);
+if ("messageId" in o2033) lf(o2033["messageId"], p + "/messageId", e, L92);
 }
 }
 }
@@ -1813,12 +1705,24 @@ const g2034 = typeOf(x2034);
 const b2034: string[] = []; lf(x2034, p, b2034, L0); if (b2034.length) e.push(...b2034);
 if (g2034 === "object") {
 if (g2034 === 'object') { const o2034 = x2034 as Record<string, unknown>;
-if (!("resourceType" in o2034)) e.push(p + "/resourceType" + ': required');
-if (!("resourceId" in o2034)) e.push(p + "/resourceId" + ': required');
-if ("resourceType" in o2034) lf(o2034["resourceType"], p + "/resourceType", e, L1);
-if ("resourceId" in o2034) lf(o2034["resourceId"], p + "/resourceId", e, L1);
-if ("cursor" in o2034) lf(o2034["cursor"], p + "/cursor", e, L1);
-if ("limit" in o2034) lf(o2034["limit"], p + "/limit", e, L121);
+if (!("asideThreadId" in o2034)) e.push(p + "/asideThreadId" + ': required');
+if (!("idempotencyKey" in o2034)) e.push(p + "/idempotencyKey" + ': required');
+if ("asideThreadId" in o2034) lf(o2034["asideThreadId"], p + "/asideThreadId", e, L13);
+if ("idempotencyKey" in o2034) lf(o2034["idempotencyKey"], p + "/idempotencyKey", e, L54);
+}
+}
+}
+}
+
+function c281_out(v: unknown, p: string, e: string[]): void {
+{
+const x2035 = v;
+const g2035 = typeOf(x2035);
+const b2035: string[] = []; lf(x2035, p, b2035, L0); if (b2035.length) e.push(...b2035);
+if (g2035 === "object") {
+if (g2035 === 'object') { const o2035 = x2035 as Record<string, unknown>;
+if (!("messageId" in o2035)) e.push(p + "/messageId" + ': required');
+if ("messageId" in o2035) lf(o2035["messageId"], p + "/messageId", e, L92);
 }
 }
 }
@@ -1826,13 +1730,13 @@ if ("limit" in o2034) lf(o2034["limit"], p + "/limit", e, L121);
 
 function c282_in(v: unknown, p: string, e: string[]): void {
 {
-const x2035 = v;
-const g2035 = typeOf(x2035);
-const b2035: string[] = []; lf(x2035, p, b2035, L0); if (b2035.length) e.push(...b2035);
-if (g2035 === "object") {
-if (g2035 === 'object') { const o2035 = x2035 as Record<string, unknown>;
-if (!("threadId" in o2035)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2035) lf(o2035["threadId"], p + "/threadId", e, L13);
+const x2036 = v;
+const g2036 = typeOf(x2036);
+const b2036: string[] = []; lf(x2036, p, b2036, L0); if (b2036.length) e.push(...b2036);
+if (g2036 === "object") {
+if (g2036 === 'object') { const o2036 = x2036 as Record<string, unknown>;
+if (!("threadId" in o2036)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2036) lf(o2036["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -1840,126 +1744,20 @@ if ("threadId" in o2035) lf(o2035["threadId"], p + "/threadId", e, L13);
 
 function c282_out(v: unknown, p: string, e: string[]): void {
 {
-const x2036 = v;
-const g2036 = typeOf(x2036);
-const b2036: string[] = []; lf(x2036, p, b2036, L0); if (b2036.length) e.push(...b2036);
-if (g2036 === "object") {
-if (g2036 === 'object') { const o2036 = x2036 as Record<string, unknown>;
-if (!("unread" in o2036)) e.push(p + "/unread" + ': required');
-if (!("since" in o2036)) e.push(p + "/since" + ': required');
-if (!("top" in o2036)) e.push(p + "/top" + ': required');
-if (!("people" in o2036)) e.push(p + "/people" + ': required');
-if (!("tasks" in o2036)) e.push(p + "/tasks" + ': required');
-if (!("decisions" in o2036)) e.push(p + "/decisions" + ': required');
-if (!("at" in o2036)) e.push(p + "/at" + ': required');
-if ("unread" in o2036) lf(o2036["unread"], p + "/unread", e, L2);
-if ("since" in o2036) lf(o2036["since"], p + "/since", e, L2);
-if ("top" in o2036) lf(o2036["top"], p + "/top", e, L2);
-if ("firstMessageId" in o2036) lf(o2036["firstMessageId"], p + "/firstMessageId", e, L92);
-if ("people" in o2036) {
-{
-const x2037 = o2036["people"];
+const x2037 = v;
 const g2037 = typeOf(x2037);
-const b2037: string[] = []; lf(x2037, p + "/people", b2037, L4); if (b2037.length) e.push(...b2037);
-if (g2037 === "array") {
-if (g2037 === 'array') { const a2037 = x2037 as unknown[];
-for (let i2037 = 0; i2037 < a2037.length; i2037++) {
+const b2037: string[] = []; lf(x2037, p, b2037, L0); if (b2037.length) e.push(...b2037);
+if (g2037 === "object") {
+if (g2037 === 'object') { const o2037 = x2037 as Record<string, unknown>;
+if (!("level" in o2037)) e.push(p + "/level" + ': required');
+if ("level" in o2037) {
 {
-const x2038 = a2037[i2037];
-const g2038 = typeOf(x2038);
-const b2038: string[] = []; lf(x2038, p + "/people" + '/' + i2037, b2038, L0); if (b2038.length) e.push(...b2038);
-if (g2038 === "object") {
-if (g2038 === 'object') { const o2038 = x2038 as Record<string, unknown>;
-if (!("id" in o2038)) e.push(p + "/people" + '/' + i2037 + "/id" + ': required');
-if (!("count" in o2038)) e.push(p + "/people" + '/' + i2037 + "/count" + ': required');
-if ("id" in o2038) lf(o2038["id"], p + "/people" + '/' + i2037 + "/id", e, L1);
-if ("count" in o2038) lf(o2038["count"], p + "/people" + '/' + i2037 + "/count", e, L2);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("tasks" in o2036) {
-{
-const x2039 = o2036["tasks"];
-const g2039 = typeOf(x2039);
-const b2039: string[] = []; lf(x2039, p + "/tasks", b2039, L4); if (b2039.length) e.push(...b2039);
-if (g2039 === "array") {
-if (g2039 === 'array') { const a2039 = x2039 as unknown[];
-for (let i2039 = 0; i2039 < a2039.length; i2039++) {
-{
-const x2040 = a2039[i2039];
-const g2040 = typeOf(x2040);
-const b2040: string[] = []; lf(x2040, p + "/tasks" + '/' + i2039, b2040, L0); if (b2040.length) e.push(...b2040);
-if (g2040 === "object") {
-if (g2040 === 'object') { const o2040 = x2040 as Record<string, unknown>;
-if (!("messageId" in o2040)) e.push(p + "/tasks" + '/' + i2039 + "/messageId" + ': required');
-if (!("title" in o2040)) e.push(p + "/tasks" + '/' + i2039 + "/title" + ': required');
-if ("messageId" in o2040) lf(o2040["messageId"], p + "/tasks" + '/' + i2039 + "/messageId", e, L92);
-if ("title" in o2040) lf(o2040["title"], p + "/tasks" + '/' + i2039 + "/title", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("decisions" in o2036) {
-{
-const x2041 = o2036["decisions"];
-const g2041 = typeOf(x2041);
-const b2041: string[] = []; lf(x2041, p + "/decisions", b2041, L4); if (b2041.length) e.push(...b2041);
-if (g2041 === "array") {
-if (g2041 === 'array') { const a2041 = x2041 as unknown[];
-for (let i2041 = 0; i2041 < a2041.length; i2041++) {
-{
-const x2042 = a2041[i2041];
-const g2042 = typeOf(x2042);
-const b2042: string[] = []; lf(x2042, p + "/decisions" + '/' + i2041, b2042, L0); if (b2042.length) e.push(...b2042);
-if (g2042 === "object") {
-if (g2042 === 'object') { const o2042 = x2042 as Record<string, unknown>;
-if (!("messageId" in o2042)) e.push(p + "/decisions" + '/' + i2041 + "/messageId" + ': required');
-if (!("text" in o2042)) e.push(p + "/decisions" + '/' + i2041 + "/text" + ': required');
-if ("messageId" in o2042) lf(o2042["messageId"], p + "/decisions" + '/' + i2041 + "/messageId", e, L92);
-if ("text" in o2042) lf(o2042["text"], p + "/decisions" + '/' + i2041 + "/text", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("at" in o2036) {
-{
-const x2043 = o2036["at"];
-const g2043 = typeOf(x2043);
-const b2043: string[] = []; lf(x2043, p + "/at", b2043, L4); if (b2043.length) e.push(...b2043);
-if (g2043 === "array") {
-if (g2043 === 'array') { const a2043 = x2043 as unknown[];
-for (let i2043 = 0; i2043 < a2043.length; i2043++) {
-{
-const x2044 = a2043[i2043];
-const g2044 = typeOf(x2044);
-const b2044: string[] = []; lf(x2044, p + "/at" + '/' + i2043, b2044, L0); if (b2044.length) e.push(...b2044);
-if (g2044 === "object") {
-if (g2044 === 'object') { const o2044 = x2044 as Record<string, unknown>;
-if (!("messageId" in o2044)) e.push(p + "/at" + '/' + i2043 + "/messageId" + ': required');
-if (!("author" in o2044)) e.push(p + "/at" + '/' + i2043 + "/author" + ': required');
-if (!("text" in o2044)) e.push(p + "/at" + '/' + i2043 + "/text" + ': required');
-if ("messageId" in o2044) lf(o2044["messageId"], p + "/at" + '/' + i2043 + "/messageId", e, L92);
-if ("author" in o2044) lf(o2044["author"], p + "/at" + '/' + i2043 + "/author", e, L1);
-if ("text" in o2044) lf(o2044["text"], p + "/at" + '/' + i2043 + "/text", e, L1);
-}
-}
-}
-}
-}
-}
+const x2038 = o2037["level"];
+const t2038_0: string[] = [];
+lf(x2038, p + "/level", t2038_0, L51);
+const t2038_1: string[] = [];
+lf(x2038, p + "/level", t2038_1, L84);
+if (![t2038_0, t2038_1].some((x) => x.length === 0)) e.push(p + "/level" + ': matches none of anyOf');
 }
 }
 }
@@ -1969,13 +1767,15 @@ if ("text" in o2044) lf(o2044["text"], p + "/at" + '/' + i2043 + "/text", e, L1)
 
 function c283_in(v: unknown, p: string, e: string[]): void {
 {
-const x2045 = v;
-const g2045 = typeOf(x2045);
-const b2045: string[] = []; lf(x2045, p, b2045, L0); if (b2045.length) e.push(...b2045);
-if (g2045 === "object") {
-if (g2045 === 'object') { const o2045 = x2045 as Record<string, unknown>;
-if (!("threadId" in o2045)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2045) lf(o2045["threadId"], p + "/threadId", e, L13);
+const x2039 = v;
+const g2039 = typeOf(x2039);
+const b2039: string[] = []; lf(x2039, p, b2039, L0); if (b2039.length) e.push(...b2039);
+if (g2039 === "object") {
+if (g2039 === 'object') { const o2039 = x2039 as Record<string, unknown>;
+if (!("scopeType" in o2039)) e.push(p + "/scopeType" + ': required');
+if (!("scopeId" in o2039)) e.push(p + "/scopeId" + ': required');
+if ("scopeType" in o2039) lf(o2039["scopeType"], p + "/scopeType", e, L1);
+if ("scopeId" in o2039) lf(o2039["scopeId"], p + "/scopeId", e, L1);
 }
 }
 }
@@ -1983,54 +1783,24 @@ if ("threadId" in o2045) lf(o2045["threadId"], p + "/threadId", e, L13);
 
 function c283_out(v: unknown, p: string, e: string[]): void {
 {
-const x2046 = v;
-const g2046 = typeOf(x2046);
-const b2046: string[] = []; lf(x2046, p, b2046, L0); if (b2046.length) e.push(...b2046);
-if (g2046 === "object") {
-if (g2046 === 'object') { const o2046 = x2046 as Record<string, unknown>;
-if (!("chapters" in o2046)) e.push(p + "/chapters" + ': required');
-if (!("wanted" in o2046)) e.push(p + "/wanted" + ': required');
-if ("chapters" in o2046) {
+const x2040 = v;
+const g2040 = typeOf(x2040);
+const b2040: string[] = []; lf(x2040, p, b2040, L0); if (b2040.length) e.push(...b2040);
+if (g2040 === "object") {
+if (g2040 === 'object') { const o2040 = x2040 as Record<string, unknown>;
+if (!("agentId" in o2040)) e.push(p + "/agentId" + ': required');
+if (!("reason" in o2040)) e.push(p + "/reason" + ': required');
+if ("agentId" in o2040) {
 {
-const x2047 = o2046["chapters"];
-const g2047 = typeOf(x2047);
-const b2047: string[] = []; lf(x2047, p + "/chapters", b2047, L4); if (b2047.length) e.push(...b2047);
-if (g2047 === "array") {
-if (g2047 === 'array') { const a2047 = x2047 as unknown[];
-for (let i2047 = 0; i2047 < a2047.length; i2047++) {
-{
-const x2048 = a2047[i2047];
-const g2048 = typeOf(x2048);
-const b2048: string[] = []; lf(x2048, p + "/chapters" + '/' + i2047, b2048, L0); if (b2048.length) e.push(...b2048);
-if (g2048 === "object") {
-if (g2048 === 'object') { const o2048 = x2048 as Record<string, unknown>;
-if (!("startSeq" in o2048)) e.push(p + "/chapters" + '/' + i2047 + "/startSeq" + ': required');
-if (!("startMsg" in o2048)) e.push(p + "/chapters" + '/' + i2047 + "/startMsg" + ': required');
-if (!("endSeq" in o2048)) e.push(p + "/chapters" + '/' + i2047 + "/endSeq" + ': required');
-if (!("startAt" in o2048)) e.push(p + "/chapters" + '/' + i2047 + "/startAt" + ': required');
-if (!("count" in o2048)) e.push(p + "/chapters" + '/' + i2047 + "/count" + ': required');
-if (!("current" in o2048)) e.push(p + "/chapters" + '/' + i2047 + "/current" + ': required');
-if (!("title" in o2048)) e.push(p + "/chapters" + '/' + i2047 + "/title" + ': required');
-if (!("summary" in o2048)) e.push(p + "/chapters" + '/' + i2047 + "/summary" + ': required');
-if (!("by" in o2048)) e.push(p + "/chapters" + '/' + i2047 + "/by" + ': required');
-if ("startSeq" in o2048) lf(o2048["startSeq"], p + "/chapters" + '/' + i2047 + "/startSeq", e, L2);
-if ("startMsg" in o2048) lf(o2048["startMsg"], p + "/chapters" + '/' + i2047 + "/startMsg", e, L92);
-if ("endSeq" in o2048) lf(o2048["endSeq"], p + "/chapters" + '/' + i2047 + "/endSeq", e, L2);
-if ("startAt" in o2048) lf(o2048["startAt"], p + "/chapters" + '/' + i2047 + "/startAt", e, L17);
-if ("count" in o2048) lf(o2048["count"], p + "/chapters" + '/' + i2047 + "/count", e, L2);
-if ("current" in o2048) lf(o2048["current"], p + "/chapters" + '/' + i2047 + "/current", e, L3);
-if ("title" in o2048) lf(o2048["title"], p + "/chapters" + '/' + i2047 + "/title", e, L1);
-if ("summary" in o2048) lf(o2048["summary"], p + "/chapters" + '/' + i2047 + "/summary", e, L1);
-if ("by" in o2048) lf(o2048["by"], p + "/chapters" + '/' + i2047 + "/by", e, L573);
+const x2041 = o2040["agentId"];
+const t2041_0: string[] = [];
+lf(x2041, p + "/agentId", t2041_0, L10);
+const t2041_1: string[] = [];
+lf(x2041, p + "/agentId", t2041_1, L84);
+if (![t2041_0, t2041_1].some((x) => x.length === 0)) e.push(p + "/agentId" + ': matches none of anyOf');
 }
 }
-}
-}
-}
-}
-}
-}
-if ("wanted" in o2046) lf(o2046["wanted"], p + "/wanted", e, L2);
+if ("reason" in o2040) lf(o2040["reason"], p + "/reason", e, L572);
 }
 }
 }
@@ -2038,43 +1808,17 @@ if ("wanted" in o2046) lf(o2046["wanted"], p + "/wanted", e, L2);
 
 function c284_in(v: unknown, p: string, e: string[]): void {
 {
-const x2049 = v;
-const g2049 = typeOf(x2049);
-const b2049: string[] = []; lf(x2049, p, b2049, L0); if (b2049.length) e.push(...b2049);
-if (g2049 === "object") {
-if (g2049 === 'object') { const o2049 = x2049 as Record<string, unknown>;
-if (!("threadId" in o2049)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2049) lf(o2049["threadId"], p + "/threadId", e, L13);
-if ("account" in o2049) {
-{
-const x2050 = o2049["account"];
-const g2050 = typeOf(x2050);
-const b2050: string[] = []; lf(x2050, p + "/account", b2050, L0); if (b2050.length) e.push(...b2050);
-if (g2050 === "object") {
-if (g2050 === 'object') { const o2050 = x2050 as Record<string, unknown>;
-if (!("ref" in o2050)) e.push(p + "/account" + "/ref" + ': required');
-if (!("driver" in o2050)) e.push(p + "/account" + "/driver" + ': required');
-if ("ref" in o2050) lf(o2050["ref"], p + "/account" + "/ref", e, L1);
-if ("driver" in o2050) lf(o2050["driver"], p + "/account" + "/driver", e, L1);
-if ("kind" in o2050) lf(o2050["kind"], p + "/account" + "/kind", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-
-function c284_out(v: unknown, p: string, e: string[]): void {
-{
-const x2051 = v;
-const g2051 = typeOf(x2051);
-const b2051: string[] = []; lf(x2051, p, b2051, L0); if (b2051.length) e.push(...b2051);
-if (g2051 === "object") {
-if (g2051 === 'object') { const o2051 = x2051 as Record<string, unknown>;
-if (!("written" in o2051)) e.push(p + "/written" + ': required');
-if ("written" in o2051) lf(o2051["written"], p + "/written", e, L17);
+const x2042 = v;
+const g2042 = typeOf(x2042);
+const b2042: string[] = []; lf(x2042, p, b2042, L0); if (b2042.length) e.push(...b2042);
+if (g2042 === "object") {
+if (g2042 === 'object') { const o2042 = x2042 as Record<string, unknown>;
+if (!("resourceType" in o2042)) e.push(p + "/resourceType" + ': required');
+if (!("resourceId" in o2042)) e.push(p + "/resourceId" + ': required');
+if ("resourceType" in o2042) lf(o2042["resourceType"], p + "/resourceType", e, L1);
+if ("resourceId" in o2042) lf(o2042["resourceId"], p + "/resourceId", e, L1);
+if ("cursor" in o2042) lf(o2042["cursor"], p + "/cursor", e, L1);
+if ("limit" in o2042) lf(o2042["limit"], p + "/limit", e, L121);
 }
 }
 }
@@ -2082,16 +1826,13 @@ if ("written" in o2051) lf(o2051["written"], p + "/written", e, L17);
 
 function c285_in(v: unknown, p: string, e: string[]): void {
 {
-const x2052 = v;
-const g2052 = typeOf(x2052);
-const b2052: string[] = []; lf(x2052, p, b2052, L0); if (b2052.length) e.push(...b2052);
-if (g2052 === "object") {
-if (g2052 === 'object') { const o2052 = x2052 as Record<string, unknown>;
-if (!("symbol" in o2052)) e.push(p + "/symbol" + ': required');
-if (!("q" in o2052)) e.push(p + "/q" + ': required');
-if ("symbol" in o2052) lf(o2052["symbol"], p + "/symbol", e, L574);
-if ("q" in o2052) lf(o2052["q"], p + "/q", e, L1);
-if ("threadId" in o2052) lf(o2052["threadId"], p + "/threadId", e, L13);
+const x2043 = v;
+const g2043 = typeOf(x2043);
+const b2043: string[] = []; lf(x2043, p, b2043, L0); if (b2043.length) e.push(...b2043);
+if (g2043 === "object") {
+if (g2043 === 'object') { const o2043 = x2043 as Record<string, unknown>;
+if (!("threadId" in o2043)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2043) lf(o2043["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -2099,35 +1840,120 @@ if ("threadId" in o2052) lf(o2052["threadId"], p + "/threadId", e, L13);
 
 function c285_out(v: unknown, p: string, e: string[]): void {
 {
-const x2053 = v;
-const g2053 = typeOf(x2053);
-const b2053: string[] = []; lf(x2053, p, b2053, L0); if (b2053.length) e.push(...b2053);
-if (g2053 === "object") {
-if (g2053 === 'object') { const o2053 = x2053 as Record<string, unknown>;
-if (!("items" in o2053)) e.push(p + "/items" + ': required');
-if ("items" in o2053) {
+const x2044 = v;
+const g2044 = typeOf(x2044);
+const b2044: string[] = []; lf(x2044, p, b2044, L0); if (b2044.length) e.push(...b2044);
+if (g2044 === "object") {
+if (g2044 === 'object') { const o2044 = x2044 as Record<string, unknown>;
+if (!("unread" in o2044)) e.push(p + "/unread" + ': required');
+if (!("since" in o2044)) e.push(p + "/since" + ': required');
+if (!("top" in o2044)) e.push(p + "/top" + ': required');
+if (!("people" in o2044)) e.push(p + "/people" + ': required');
+if (!("tasks" in o2044)) e.push(p + "/tasks" + ': required');
+if (!("decisions" in o2044)) e.push(p + "/decisions" + ': required');
+if (!("at" in o2044)) e.push(p + "/at" + ': required');
+if ("unread" in o2044) lf(o2044["unread"], p + "/unread", e, L2);
+if ("since" in o2044) lf(o2044["since"], p + "/since", e, L2);
+if ("top" in o2044) lf(o2044["top"], p + "/top", e, L2);
+if ("firstMessageId" in o2044) lf(o2044["firstMessageId"], p + "/firstMessageId", e, L92);
+if ("people" in o2044) {
 {
-const x2054 = o2053["items"];
-const g2054 = typeOf(x2054);
-const b2054: string[] = []; lf(x2054, p + "/items", b2054, L4); if (b2054.length) e.push(...b2054);
-if (g2054 === "array") {
-if (g2054 === 'array') { const a2054 = x2054 as unknown[];
-for (let i2054 = 0; i2054 < a2054.length; i2054++) {
+const x2045 = o2044["people"];
+const g2045 = typeOf(x2045);
+const b2045: string[] = []; lf(x2045, p + "/people", b2045, L4); if (b2045.length) e.push(...b2045);
+if (g2045 === "array") {
+if (g2045 === 'array') { const a2045 = x2045 as unknown[];
+for (let i2045 = 0; i2045 < a2045.length; i2045++) {
 {
-const x2055 = a2054[i2054];
-const g2055 = typeOf(x2055);
-const b2055: string[] = []; lf(x2055, p + "/items" + '/' + i2054, b2055, L0); if (b2055.length) e.push(...b2055);
-if (g2055 === "object") {
-if (g2055 === 'object') { const o2055 = x2055 as Record<string, unknown>;
-if (!("group" in o2055)) e.push(p + "/items" + '/' + i2054 + "/group" + ': required');
-if (!("kind" in o2055)) e.push(p + "/items" + '/' + i2054 + "/kind" + ': required');
-if (!("id" in o2055)) e.push(p + "/items" + '/' + i2054 + "/id" + ': required');
-if (!("title" in o2055)) e.push(p + "/items" + '/' + i2054 + "/title" + ': required');
-if ("group" in o2055) lf(o2055["group"], p + "/items" + '/' + i2054 + "/group", e, L1);
-if ("kind" in o2055) lf(o2055["kind"], p + "/items" + '/' + i2054 + "/kind", e, L1);
-if ("id" in o2055) lf(o2055["id"], p + "/items" + '/' + i2054 + "/id", e, L1);
-if ("title" in o2055) lf(o2055["title"], p + "/items" + '/' + i2054 + "/title", e, L1);
-if ("detail" in o2055) lf(o2055["detail"], p + "/items" + '/' + i2054 + "/detail", e, L1);
+const x2046 = a2045[i2045];
+const g2046 = typeOf(x2046);
+const b2046: string[] = []; lf(x2046, p + "/people" + '/' + i2045, b2046, L0); if (b2046.length) e.push(...b2046);
+if (g2046 === "object") {
+if (g2046 === 'object') { const o2046 = x2046 as Record<string, unknown>;
+if (!("id" in o2046)) e.push(p + "/people" + '/' + i2045 + "/id" + ': required');
+if (!("count" in o2046)) e.push(p + "/people" + '/' + i2045 + "/count" + ': required');
+if ("id" in o2046) lf(o2046["id"], p + "/people" + '/' + i2045 + "/id", e, L1);
+if ("count" in o2046) lf(o2046["count"], p + "/people" + '/' + i2045 + "/count", e, L2);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("tasks" in o2044) {
+{
+const x2047 = o2044["tasks"];
+const g2047 = typeOf(x2047);
+const b2047: string[] = []; lf(x2047, p + "/tasks", b2047, L4); if (b2047.length) e.push(...b2047);
+if (g2047 === "array") {
+if (g2047 === 'array') { const a2047 = x2047 as unknown[];
+for (let i2047 = 0; i2047 < a2047.length; i2047++) {
+{
+const x2048 = a2047[i2047];
+const g2048 = typeOf(x2048);
+const b2048: string[] = []; lf(x2048, p + "/tasks" + '/' + i2047, b2048, L0); if (b2048.length) e.push(...b2048);
+if (g2048 === "object") {
+if (g2048 === 'object') { const o2048 = x2048 as Record<string, unknown>;
+if (!("messageId" in o2048)) e.push(p + "/tasks" + '/' + i2047 + "/messageId" + ': required');
+if (!("title" in o2048)) e.push(p + "/tasks" + '/' + i2047 + "/title" + ': required');
+if ("messageId" in o2048) lf(o2048["messageId"], p + "/tasks" + '/' + i2047 + "/messageId", e, L92);
+if ("title" in o2048) lf(o2048["title"], p + "/tasks" + '/' + i2047 + "/title", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("decisions" in o2044) {
+{
+const x2049 = o2044["decisions"];
+const g2049 = typeOf(x2049);
+const b2049: string[] = []; lf(x2049, p + "/decisions", b2049, L4); if (b2049.length) e.push(...b2049);
+if (g2049 === "array") {
+if (g2049 === 'array') { const a2049 = x2049 as unknown[];
+for (let i2049 = 0; i2049 < a2049.length; i2049++) {
+{
+const x2050 = a2049[i2049];
+const g2050 = typeOf(x2050);
+const b2050: string[] = []; lf(x2050, p + "/decisions" + '/' + i2049, b2050, L0); if (b2050.length) e.push(...b2050);
+if (g2050 === "object") {
+if (g2050 === 'object') { const o2050 = x2050 as Record<string, unknown>;
+if (!("messageId" in o2050)) e.push(p + "/decisions" + '/' + i2049 + "/messageId" + ': required');
+if (!("text" in o2050)) e.push(p + "/decisions" + '/' + i2049 + "/text" + ': required');
+if ("messageId" in o2050) lf(o2050["messageId"], p + "/decisions" + '/' + i2049 + "/messageId", e, L92);
+if ("text" in o2050) lf(o2050["text"], p + "/decisions" + '/' + i2049 + "/text", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("at" in o2044) {
+{
+const x2051 = o2044["at"];
+const g2051 = typeOf(x2051);
+const b2051: string[] = []; lf(x2051, p + "/at", b2051, L4); if (b2051.length) e.push(...b2051);
+if (g2051 === "array") {
+if (g2051 === 'array') { const a2051 = x2051 as unknown[];
+for (let i2051 = 0; i2051 < a2051.length; i2051++) {
+{
+const x2052 = a2051[i2051];
+const g2052 = typeOf(x2052);
+const b2052: string[] = []; lf(x2052, p + "/at" + '/' + i2051, b2052, L0); if (b2052.length) e.push(...b2052);
+if (g2052 === "object") {
+if (g2052 === 'object') { const o2052 = x2052 as Record<string, unknown>;
+if (!("messageId" in o2052)) e.push(p + "/at" + '/' + i2051 + "/messageId" + ': required');
+if (!("author" in o2052)) e.push(p + "/at" + '/' + i2051 + "/author" + ': required');
+if (!("text" in o2052)) e.push(p + "/at" + '/' + i2051 + "/text" + ': required');
+if ("messageId" in o2052) lf(o2052["messageId"], p + "/at" + '/' + i2051 + "/messageId", e, L92);
+if ("author" in o2052) lf(o2052["author"], p + "/at" + '/' + i2051 + "/author", e, L1);
+if ("text" in o2052) lf(o2052["text"], p + "/at" + '/' + i2051 + "/text", e, L1);
 }
 }
 }
@@ -2143,15 +1969,13 @@ if ("detail" in o2055) lf(o2055["detail"], p + "/items" + '/' + i2054 + "/detail
 
 function c286_in(v: unknown, p: string, e: string[]): void {
 {
-const x2056 = v;
-const g2056 = typeOf(x2056);
-const b2056: string[] = []; lf(x2056, p, b2056, L0); if (b2056.length) e.push(...b2056);
-if (g2056 === "object") {
-if (g2056 === 'object') { const o2056 = x2056 as Record<string, unknown>;
-if (!("threadId" in o2056)) e.push(p + "/threadId" + ': required');
-if (!("jobId" in o2056)) e.push(p + "/jobId" + ': required');
-if ("threadId" in o2056) lf(o2056["threadId"], p + "/threadId", e, L13);
-if ("jobId" in o2056) lf(o2056["jobId"], p + "/jobId", e, L1);
+const x2053 = v;
+const g2053 = typeOf(x2053);
+const b2053: string[] = []; lf(x2053, p, b2053, L0); if (b2053.length) e.push(...b2053);
+if (g2053 === "object") {
+if (g2053 === 'object') { const o2053 = x2053 as Record<string, unknown>;
+if (!("threadId" in o2053)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2053) lf(o2053["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -2159,13 +1983,84 @@ if ("jobId" in o2056) lf(o2056["jobId"], p + "/jobId", e, L1);
 
 function c286_out(v: unknown, p: string, e: string[]): void {
 {
+const x2054 = v;
+const g2054 = typeOf(x2054);
+const b2054: string[] = []; lf(x2054, p, b2054, L0); if (b2054.length) e.push(...b2054);
+if (g2054 === "object") {
+if (g2054 === 'object') { const o2054 = x2054 as Record<string, unknown>;
+if (!("chapters" in o2054)) e.push(p + "/chapters" + ': required');
+if (!("wanted" in o2054)) e.push(p + "/wanted" + ': required');
+if ("chapters" in o2054) {
+{
+const x2055 = o2054["chapters"];
+const g2055 = typeOf(x2055);
+const b2055: string[] = []; lf(x2055, p + "/chapters", b2055, L4); if (b2055.length) e.push(...b2055);
+if (g2055 === "array") {
+if (g2055 === 'array') { const a2055 = x2055 as unknown[];
+for (let i2055 = 0; i2055 < a2055.length; i2055++) {
+{
+const x2056 = a2055[i2055];
+const g2056 = typeOf(x2056);
+const b2056: string[] = []; lf(x2056, p + "/chapters" + '/' + i2055, b2056, L0); if (b2056.length) e.push(...b2056);
+if (g2056 === "object") {
+if (g2056 === 'object') { const o2056 = x2056 as Record<string, unknown>;
+if (!("startSeq" in o2056)) e.push(p + "/chapters" + '/' + i2055 + "/startSeq" + ': required');
+if (!("startMsg" in o2056)) e.push(p + "/chapters" + '/' + i2055 + "/startMsg" + ': required');
+if (!("endSeq" in o2056)) e.push(p + "/chapters" + '/' + i2055 + "/endSeq" + ': required');
+if (!("startAt" in o2056)) e.push(p + "/chapters" + '/' + i2055 + "/startAt" + ': required');
+if (!("count" in o2056)) e.push(p + "/chapters" + '/' + i2055 + "/count" + ': required');
+if (!("current" in o2056)) e.push(p + "/chapters" + '/' + i2055 + "/current" + ': required');
+if (!("title" in o2056)) e.push(p + "/chapters" + '/' + i2055 + "/title" + ': required');
+if (!("summary" in o2056)) e.push(p + "/chapters" + '/' + i2055 + "/summary" + ': required');
+if (!("by" in o2056)) e.push(p + "/chapters" + '/' + i2055 + "/by" + ': required');
+if ("startSeq" in o2056) lf(o2056["startSeq"], p + "/chapters" + '/' + i2055 + "/startSeq", e, L2);
+if ("startMsg" in o2056) lf(o2056["startMsg"], p + "/chapters" + '/' + i2055 + "/startMsg", e, L92);
+if ("endSeq" in o2056) lf(o2056["endSeq"], p + "/chapters" + '/' + i2055 + "/endSeq", e, L2);
+if ("startAt" in o2056) lf(o2056["startAt"], p + "/chapters" + '/' + i2055 + "/startAt", e, L17);
+if ("count" in o2056) lf(o2056["count"], p + "/chapters" + '/' + i2055 + "/count", e, L2);
+if ("current" in o2056) lf(o2056["current"], p + "/chapters" + '/' + i2055 + "/current", e, L3);
+if ("title" in o2056) lf(o2056["title"], p + "/chapters" + '/' + i2055 + "/title", e, L1);
+if ("summary" in o2056) lf(o2056["summary"], p + "/chapters" + '/' + i2055 + "/summary", e, L1);
+if ("by" in o2056) lf(o2056["by"], p + "/chapters" + '/' + i2055 + "/by", e, L573);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("wanted" in o2054) lf(o2054["wanted"], p + "/wanted", e, L2);
+}
+}
+}
+}
+
+function c287_in(v: unknown, p: string, e: string[]): void {
+{
 const x2057 = v;
 const g2057 = typeOf(x2057);
 const b2057: string[] = []; lf(x2057, p, b2057, L0); if (b2057.length) e.push(...b2057);
 if (g2057 === "object") {
 if (g2057 === 'object') { const o2057 = x2057 as Record<string, unknown>;
-if (!("messageId" in o2057)) e.push(p + "/messageId" + ': required');
-if ("messageId" in o2057) lf(o2057["messageId"], p + "/messageId", e, L92);
+if (!("threadId" in o2057)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2057) lf(o2057["threadId"], p + "/threadId", e, L13);
+if ("account" in o2057) {
+{
+const x2058 = o2057["account"];
+const g2058 = typeOf(x2058);
+const b2058: string[] = []; lf(x2058, p + "/account", b2058, L0); if (b2058.length) e.push(...b2058);
+if (g2058 === "object") {
+if (g2058 === 'object') { const o2058 = x2058 as Record<string, unknown>;
+if (!("ref" in o2058)) e.push(p + "/account" + "/ref" + ': required');
+if (!("driver" in o2058)) e.push(p + "/account" + "/driver" + ': required');
+if ("ref" in o2058) lf(o2058["ref"], p + "/account" + "/ref", e, L1);
+if ("driver" in o2058) lf(o2058["driver"], p + "/account" + "/driver", e, L1);
+if ("kind" in o2058) lf(o2058["kind"], p + "/account" + "/kind", e, L1);
+}
+}
+}
+}
 }
 }
 }
@@ -2173,13 +2068,13 @@ if ("messageId" in o2057) lf(o2057["messageId"], p + "/messageId", e, L92);
 
 function c287_out(v: unknown, p: string, e: string[]): void {
 {
-const x2058 = v;
-const g2058 = typeOf(x2058);
-const b2058: string[] = []; lf(x2058, p, b2058, L0); if (b2058.length) e.push(...b2058);
-if (g2058 === "object") {
-if (g2058 === 'object') { const o2058 = x2058 as Record<string, unknown>;
-if (!("deleted" in o2058)) e.push(p + "/deleted" + ': required');
-if ("deleted" in o2058) lf(o2058["deleted"], p + "/deleted", e, L3);
+const x2059 = v;
+const g2059 = typeOf(x2059);
+const b2059: string[] = []; lf(x2059, p, b2059, L0); if (b2059.length) e.push(...b2059);
+if (g2059 === "object") {
+if (g2059 === 'object') { const o2059 = x2059 as Record<string, unknown>;
+if (!("written" in o2059)) e.push(p + "/written" + ': required');
+if ("written" in o2059) lf(o2059["written"], p + "/written", e, L17);
 }
 }
 }
@@ -2187,17 +2082,60 @@ if ("deleted" in o2058) lf(o2058["deleted"], p + "/deleted", e, L3);
 
 function c288_in(v: unknown, p: string, e: string[]): void {
 {
-const x2059 = v;
-const g2059 = typeOf(x2059);
-const b2059: string[] = []; lf(x2059, p, b2059, L0); if (b2059.length) e.push(...b2059);
-if (g2059 === "object") {
-if (g2059 === 'object') { const o2059 = x2059 as Record<string, unknown>;
-if (!("messageId" in o2059)) e.push(p + "/messageId" + ': required');
-if (!("threadId" in o2059)) e.push(p + "/threadId" + ': required');
-if (!("body" in o2059)) e.push(p + "/body" + ': required');
-if ("messageId" in o2059) lf(o2059["messageId"], p + "/messageId", e, L92);
-if ("threadId" in o2059) lf(o2059["threadId"], p + "/threadId", e, L13);
-if ("body" in o2059) lf(o2059["body"], p + "/body", e, L1);
+const x2060 = v;
+const g2060 = typeOf(x2060);
+const b2060: string[] = []; lf(x2060, p, b2060, L0); if (b2060.length) e.push(...b2060);
+if (g2060 === "object") {
+if (g2060 === 'object') { const o2060 = x2060 as Record<string, unknown>;
+if (!("symbol" in o2060)) e.push(p + "/symbol" + ': required');
+if (!("q" in o2060)) e.push(p + "/q" + ': required');
+if ("symbol" in o2060) lf(o2060["symbol"], p + "/symbol", e, L574);
+if ("q" in o2060) lf(o2060["q"], p + "/q", e, L1);
+if ("threadId" in o2060) lf(o2060["threadId"], p + "/threadId", e, L13);
+}
+}
+}
+}
+
+function c288_out(v: unknown, p: string, e: string[]): void {
+{
+const x2061 = v;
+const g2061 = typeOf(x2061);
+const b2061: string[] = []; lf(x2061, p, b2061, L0); if (b2061.length) e.push(...b2061);
+if (g2061 === "object") {
+if (g2061 === 'object') { const o2061 = x2061 as Record<string, unknown>;
+if (!("items" in o2061)) e.push(p + "/items" + ': required');
+if ("items" in o2061) {
+{
+const x2062 = o2061["items"];
+const g2062 = typeOf(x2062);
+const b2062: string[] = []; lf(x2062, p + "/items", b2062, L4); if (b2062.length) e.push(...b2062);
+if (g2062 === "array") {
+if (g2062 === 'array') { const a2062 = x2062 as unknown[];
+for (let i2062 = 0; i2062 < a2062.length; i2062++) {
+{
+const x2063 = a2062[i2062];
+const g2063 = typeOf(x2063);
+const b2063: string[] = []; lf(x2063, p + "/items" + '/' + i2062, b2063, L0); if (b2063.length) e.push(...b2063);
+if (g2063 === "object") {
+if (g2063 === 'object') { const o2063 = x2063 as Record<string, unknown>;
+if (!("group" in o2063)) e.push(p + "/items" + '/' + i2062 + "/group" + ': required');
+if (!("kind" in o2063)) e.push(p + "/items" + '/' + i2062 + "/kind" + ': required');
+if (!("id" in o2063)) e.push(p + "/items" + '/' + i2062 + "/id" + ': required');
+if (!("title" in o2063)) e.push(p + "/items" + '/' + i2062 + "/title" + ': required');
+if ("group" in o2063) lf(o2063["group"], p + "/items" + '/' + i2062 + "/group", e, L1);
+if ("kind" in o2063) lf(o2063["kind"], p + "/items" + '/' + i2062 + "/kind", e, L1);
+if ("id" in o2063) lf(o2063["id"], p + "/items" + '/' + i2062 + "/id", e, L1);
+if ("title" in o2063) lf(o2063["title"], p + "/items" + '/' + i2062 + "/title", e, L1);
+if ("detail" in o2063) lf(o2063["detail"], p + "/items" + '/' + i2062 + "/detail", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
 }
 }
 }
@@ -2205,17 +2143,15 @@ if ("body" in o2059) lf(o2059["body"], p + "/body", e, L1);
 
 function c289_in(v: unknown, p: string, e: string[]): void {
 {
-const x2060 = v;
-const g2060 = typeOf(x2060);
-const b2060: string[] = []; lf(x2060, p, b2060, L0); if (b2060.length) e.push(...b2060);
-if (g2060 === "object") {
-if (g2060 === 'object') { const o2060 = x2060 as Record<string, unknown>;
-if (!("threadId" in o2060)) e.push(p + "/threadId" + ': required');
-if (!("automationId" in o2060)) e.push(p + "/automationId" + ': required');
-if (!("idempotencyKey" in o2060)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o2060) lf(o2060["threadId"], p + "/threadId", e, L13);
-if ("automationId" in o2060) lf(o2060["automationId"], p + "/automationId", e, L78);
-if ("idempotencyKey" in o2060) lf(o2060["idempotencyKey"], p + "/idempotencyKey", e, L54);
+const x2064 = v;
+const g2064 = typeOf(x2064);
+const b2064: string[] = []; lf(x2064, p, b2064, L0); if (b2064.length) e.push(...b2064);
+if (g2064 === "object") {
+if (g2064 === 'object') { const o2064 = x2064 as Record<string, unknown>;
+if (!("threadId" in o2064)) e.push(p + "/threadId" + ': required');
+if (!("jobId" in o2064)) e.push(p + "/jobId" + ': required');
+if ("threadId" in o2064) lf(o2064["threadId"], p + "/threadId", e, L13);
+if ("jobId" in o2064) lf(o2064["jobId"], p + "/jobId", e, L1);
 }
 }
 }
@@ -2223,31 +2159,13 @@ if ("idempotencyKey" in o2060) lf(o2060["idempotencyKey"], p + "/idempotencyKey"
 
 function c289_out(v: unknown, p: string, e: string[]): void {
 {
-const x2061 = v;
-const g2061 = typeOf(x2061);
-const b2061: string[] = []; lf(x2061, p, b2061, L0); if (b2061.length) e.push(...b2061);
-if (g2061 === "object") {
-if (g2061 === 'object') { const o2061 = x2061 as Record<string, unknown>;
-if (!("messageId" in o2061)) e.push(p + "/messageId" + ': required');
-if ("messageId" in o2061) lf(o2061["messageId"], p + "/messageId", e, L92);
-}
-}
-}
-}
-
-function c290_in(v: unknown, p: string, e: string[]): void {
-{
-const x2062 = v;
-const g2062 = typeOf(x2062);
-const b2062: string[] = []; lf(x2062, p, b2062, L0); if (b2062.length) e.push(...b2062);
-if (g2062 === "object") {
-if (g2062 === 'object') { const o2062 = x2062 as Record<string, unknown>;
-if (!("threadId" in o2062)) e.push(p + "/threadId" + ': required');
-if (!("idempotencyKey" in o2062)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o2062) lf(o2062["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o2062) lf(o2062["messageId"], p + "/messageId", e, L92);
-if ("title" in o2062) lf(o2062["title"], p + "/title", e, L1);
-if ("idempotencyKey" in o2062) lf(o2062["idempotencyKey"], p + "/idempotencyKey", e, L54);
+const x2065 = v;
+const g2065 = typeOf(x2065);
+const b2065: string[] = []; lf(x2065, p, b2065, L0); if (b2065.length) e.push(...b2065);
+if (g2065 === "object") {
+if (g2065 === 'object') { const o2065 = x2065 as Record<string, unknown>;
+if (!("messageId" in o2065)) e.push(p + "/messageId" + ': required');
+if ("messageId" in o2065) lf(o2065["messageId"], p + "/messageId", e, L92);
 }
 }
 }
@@ -2255,15 +2173,13 @@ if ("idempotencyKey" in o2062) lf(o2062["idempotencyKey"], p + "/idempotencyKey"
 
 function c290_out(v: unknown, p: string, e: string[]): void {
 {
-const x2063 = v;
-const g2063 = typeOf(x2063);
-const b2063: string[] = []; lf(x2063, p, b2063, L0); if (b2063.length) e.push(...b2063);
-if (g2063 === "object") {
-if (g2063 === 'object') { const o2063 = x2063 as Record<string, unknown>;
-if (!("thread" in o2063)) e.push(p + "/thread" + ': required');
-if (!("copied" in o2063)) e.push(p + "/copied" + ': required');
-if ("thread" in o2063) d_s_da8e7f1be8(o2063["thread"], p + "/thread", e);
-if ("copied" in o2063) lf(o2063["copied"], p + "/copied", e, L17);
+const x2066 = v;
+const g2066 = typeOf(x2066);
+const b2066: string[] = []; lf(x2066, p, b2066, L0); if (b2066.length) e.push(...b2066);
+if (g2066 === "object") {
+if (g2066 === 'object') { const o2066 = x2066 as Record<string, unknown>;
+if (!("deleted" in o2066)) e.push(p + "/deleted" + ': required');
+if ("deleted" in o2066) lf(o2066["deleted"], p + "/deleted", e, L3);
 }
 }
 }
@@ -2271,33 +2187,17 @@ if ("copied" in o2063) lf(o2063["copied"], p + "/copied", e, L17);
 
 function c291_in(v: unknown, p: string, e: string[]): void {
 {
-const x2064 = v;
-const g2064 = typeOf(x2064);
-const b2064: string[] = []; lf(x2064, p, b2064, L0); if (b2064.length) e.push(...b2064);
-if (g2064 === "object") {
-if (g2064 === 'object') { const o2064 = x2064 as Record<string, unknown>;
-if (!("threadId" in o2064)) e.push(p + "/threadId" + ': required');
-if (!("toAgentId" in o2064)) e.push(p + "/toAgentId" + ': required');
-if (!("note" in o2064)) e.push(p + "/note" + ': required');
-if ("threadId" in o2064) lf(o2064["threadId"], p + "/threadId", e, L13);
-if ("toAgentId" in o2064) lf(o2064["toAgentId"], p + "/toAgentId", e, L10);
-if ("note" in o2064) lf(o2064["note"], p + "/note", e, L1);
-}
-}
-}
-}
-
-function c291_out(v: unknown, p: string, e: string[]): void {
-{
-const x2065 = v;
-const g2065 = typeOf(x2065);
-const b2065: string[] = []; lf(x2065, p, b2065, L0); if (b2065.length) e.push(...b2065);
-if (g2065 === "object") {
-if (g2065 === 'object') { const o2065 = x2065 as Record<string, unknown>;
-if (!("thread" in o2065)) e.push(p + "/thread" + ': required');
-if (!("depth" in o2065)) e.push(p + "/depth" + ': required');
-if ("thread" in o2065) d_s_da8e7f1be8(o2065["thread"], p + "/thread", e);
-if ("depth" in o2065) lf(o2065["depth"], p + "/depth", e, L2);
+const x2067 = v;
+const g2067 = typeOf(x2067);
+const b2067: string[] = []; lf(x2067, p, b2067, L0); if (b2067.length) e.push(...b2067);
+if (g2067 === "object") {
+if (g2067 === 'object') { const o2067 = x2067 as Record<string, unknown>;
+if (!("messageId" in o2067)) e.push(p + "/messageId" + ': required');
+if (!("threadId" in o2067)) e.push(p + "/threadId" + ': required');
+if (!("body" in o2067)) e.push(p + "/body" + ': required');
+if ("messageId" in o2067) lf(o2067["messageId"], p + "/messageId", e, L92);
+if ("threadId" in o2067) lf(o2067["threadId"], p + "/threadId", e, L13);
+if ("body" in o2067) lf(o2067["body"], p + "/body", e, L1);
 }
 }
 }
@@ -2305,44 +2205,17 @@ if ("depth" in o2065) lf(o2065["depth"], p + "/depth", e, L2);
 
 function c292_in(v: unknown, p: string, e: string[]): void {
 {
-const x2066 = v;
-const g2066 = typeOf(x2066);
-const b2066: string[] = []; lf(x2066, p, b2066, L0); if (b2066.length) e.push(...b2066);
-if (g2066 === "object") {
-if (g2066 === 'object') { const o2066 = x2066 as Record<string, unknown>;
-if (!("threadId" in o2066)) e.push(p + "/threadId" + ': required');
-if (!("body" in o2066)) e.push(p + "/body" + ': required');
-if ("threadId" in o2066) lf(o2066["threadId"], p + "/threadId", e, L13);
-if ("body" in o2066) lf(o2066["body"], p + "/body", e, L547);
-if ("kind" in o2066) lf(o2066["kind"], p + "/kind", e, L575);
-if ("needsPerson" in o2066) lf(o2066["needsPerson"], p + "/needsPerson", e, L3);
-if ("options" in o2066) {
-{
-const x2067 = o2066["options"];
-const g2067 = typeOf(x2067);
-const b2067: string[] = []; lf(x2067, p + "/options", b2067, L4); if (b2067.length) e.push(...b2067);
-if (g2067 === "array") {
-if (g2067 === 'array') { const a2067 = x2067 as unknown[];
-if (a2067.length > 20) e.push(p + "/options" + ': too many items');
-for (let i2067 = 0; i2067 < a2067.length; i2067++) {
-{
-const x2068 = a2067[i2067];
+const x2068 = v;
 const g2068 = typeOf(x2068);
-const b2068: string[] = []; lf(x2068, p + "/options" + '/' + i2067, b2068, L0); if (b2068.length) e.push(...b2068);
+const b2068: string[] = []; lf(x2068, p, b2068, L0); if (b2068.length) e.push(...b2068);
 if (g2068 === "object") {
 if (g2068 === 'object') { const o2068 = x2068 as Record<string, unknown>;
-if (!("key" in o2068)) e.push(p + "/options" + '/' + i2067 + "/key" + ': required');
-if (!("label" in o2068)) e.push(p + "/options" + '/' + i2067 + "/label" + ': required');
-if ("key" in o2068) lf(o2068["key"], p + "/options" + '/' + i2067 + "/key", e, L1);
-if ("label" in o2068) lf(o2068["label"], p + "/options" + '/' + i2067 + "/label", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
+if (!("threadId" in o2068)) e.push(p + "/threadId" + ': required');
+if (!("automationId" in o2068)) e.push(p + "/automationId" + ': required');
+if (!("idempotencyKey" in o2068)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o2068) lf(o2068["threadId"], p + "/threadId", e, L13);
+if ("automationId" in o2068) lf(o2068["automationId"], p + "/automationId", e, L78);
+if ("idempotencyKey" in o2068) lf(o2068["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -2370,7 +2243,11 @@ const b2070: string[] = []; lf(x2070, p, b2070, L0); if (b2070.length) e.push(..
 if (g2070 === "object") {
 if (g2070 === 'object') { const o2070 = x2070 as Record<string, unknown>;
 if (!("threadId" in o2070)) e.push(p + "/threadId" + ': required');
+if (!("idempotencyKey" in o2070)) e.push(p + "/idempotencyKey" + ': required');
 if ("threadId" in o2070) lf(o2070["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o2070) lf(o2070["messageId"], p + "/messageId", e, L92);
+if ("title" in o2070) lf(o2070["title"], p + "/title", e, L1);
+if ("idempotencyKey" in o2070) lf(o2070["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -2383,8 +2260,10 @@ const g2071 = typeOf(x2071);
 const b2071: string[] = []; lf(x2071, p, b2071, L0); if (b2071.length) e.push(...b2071);
 if (g2071 === "object") {
 if (g2071 === 'object') { const o2071 = x2071 as Record<string, unknown>;
-if (!("marked" in o2071)) e.push(p + "/marked" + ': required');
-if ("marked" in o2071) lf(o2071["marked"], p + "/marked", e, L2);
+if (!("thread" in o2071)) e.push(p + "/thread" + ': required');
+if (!("copied" in o2071)) e.push(p + "/copied" + ': required');
+if ("thread" in o2071) d_s_da8e7f1be8(o2071["thread"], p + "/thread", e);
+if ("copied" in o2071) lf(o2071["copied"], p + "/copied", e, L17);
 }
 }
 }
@@ -2398,7 +2277,11 @@ const b2072: string[] = []; lf(x2072, p, b2072, L0); if (b2072.length) e.push(..
 if (g2072 === "object") {
 if (g2072 === 'object') { const o2072 = x2072 as Record<string, unknown>;
 if (!("threadId" in o2072)) e.push(p + "/threadId" + ': required');
+if (!("toAgentId" in o2072)) e.push(p + "/toAgentId" + ': required');
+if (!("note" in o2072)) e.push(p + "/note" + ': required');
 if ("threadId" in o2072) lf(o2072["threadId"], p + "/threadId", e, L13);
+if ("toAgentId" in o2072) lf(o2072["toAgentId"], p + "/toAgentId", e, L10);
+if ("note" in o2072) lf(o2072["note"], p + "/note", e, L1);
 }
 }
 }
@@ -2411,42 +2294,10 @@ const g2073 = typeOf(x2073);
 const b2073: string[] = []; lf(x2073, p, b2073, L0); if (b2073.length) e.push(...b2073);
 if (g2073 === "object") {
 if (g2073 === 'object') { const o2073 = x2073 as Record<string, unknown>;
-if (!("notes" in o2073)) e.push(p + "/notes" + ': required');
-if ("notes" in o2073) {
-{
-const x2074 = o2073["notes"];
-const g2074 = typeOf(x2074);
-const b2074: string[] = []; lf(x2074, p + "/notes", b2074, L4); if (b2074.length) e.push(...b2074);
-if (g2074 === "array") {
-if (g2074 === 'array') { const a2074 = x2074 as unknown[];
-for (let i2074 = 0; i2074 < a2074.length; i2074++) {
-{
-const x2075 = a2074[i2074];
-const g2075 = typeOf(x2075);
-const b2075: string[] = []; lf(x2075, p + "/notes" + '/' + i2074, b2075, L0); if (b2075.length) e.push(...b2075);
-if (g2075 === "object") {
-if (g2075 === 'object') { const o2075 = x2075 as Record<string, unknown>;
-if (!("messageId" in o2075)) e.push(p + "/notes" + '/' + i2074 + "/messageId" + ': required');
-if (!("authorId" in o2075)) e.push(p + "/notes" + '/' + i2074 + "/authorId" + ': required');
-if (!("who" in o2075)) e.push(p + "/notes" + '/' + i2074 + "/who" + ': required');
-if (!("body" in o2075)) e.push(p + "/notes" + '/' + i2074 + "/body" + ': required');
-if ("messageId" in o2075) lf(o2075["messageId"], p + "/notes" + '/' + i2074 + "/messageId", e, L92);
-if ("authorId" in o2075) lf(o2075["authorId"], p + "/notes" + '/' + i2074 + "/authorId", e, L1);
-if ("who" in o2075) lf(o2075["who"], p + "/notes" + '/' + i2074 + "/who", e, L576);
-if ("body" in o2075) lf(o2075["body"], p + "/notes" + '/' + i2074 + "/body", e, L1);
-if ("kind" in o2075) lf(o2075["kind"], p + "/notes" + '/' + i2074 + "/kind", e, L1);
-if ("state" in o2075) lf(o2075["state"], p + "/notes" + '/' + i2074 + "/state", e, L1);
-if ("seenAt" in o2075) lf(o2075["seenAt"], p + "/notes" + '/' + i2074 + "/seenAt", e, L17);
-if ("restart" in o2075) lf(o2075["restart"], p + "/notes" + '/' + i2074 + "/restart", e, L3);
-if ("model" in o2075) lf(o2075["model"], p + "/notes" + '/' + i2074 + "/model", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
+if (!("thread" in o2073)) e.push(p + "/thread" + ': required');
+if (!("depth" in o2073)) e.push(p + "/depth" + ': required');
+if ("thread" in o2073) d_s_da8e7f1be8(o2073["thread"], p + "/thread", e);
+if ("depth" in o2073) lf(o2073["depth"], p + "/depth", e, L2);
 }
 }
 }
@@ -2454,18 +2305,44 @@ if ("model" in o2075) lf(o2075["model"], p + "/notes" + '/' + i2074 + "/model", 
 
 function c295_in(v: unknown, p: string, e: string[]): void {
 {
-const x2076 = v;
+const x2074 = v;
+const g2074 = typeOf(x2074);
+const b2074: string[] = []; lf(x2074, p, b2074, L0); if (b2074.length) e.push(...b2074);
+if (g2074 === "object") {
+if (g2074 === 'object') { const o2074 = x2074 as Record<string, unknown>;
+if (!("threadId" in o2074)) e.push(p + "/threadId" + ': required');
+if (!("body" in o2074)) e.push(p + "/body" + ': required');
+if ("threadId" in o2074) lf(o2074["threadId"], p + "/threadId", e, L13);
+if ("body" in o2074) lf(o2074["body"], p + "/body", e, L547);
+if ("kind" in o2074) lf(o2074["kind"], p + "/kind", e, L575);
+if ("needsPerson" in o2074) lf(o2074["needsPerson"], p + "/needsPerson", e, L3);
+if ("options" in o2074) {
+{
+const x2075 = o2074["options"];
+const g2075 = typeOf(x2075);
+const b2075: string[] = []; lf(x2075, p + "/options", b2075, L4); if (b2075.length) e.push(...b2075);
+if (g2075 === "array") {
+if (g2075 === 'array') { const a2075 = x2075 as unknown[];
+if (a2075.length > 20) e.push(p + "/options" + ': too many items');
+for (let i2075 = 0; i2075 < a2075.length; i2075++) {
+{
+const x2076 = a2075[i2075];
 const g2076 = typeOf(x2076);
-const b2076: string[] = []; lf(x2076, p, b2076, L0); if (b2076.length) e.push(...b2076);
+const b2076: string[] = []; lf(x2076, p + "/options" + '/' + i2075, b2076, L0); if (b2076.length) e.push(...b2076);
 if (g2076 === "object") {
 if (g2076 === 'object') { const o2076 = x2076 as Record<string, unknown>;
-if (!("threadId" in o2076)) e.push(p + "/threadId" + ': required');
-if (!("helperId" in o2076)) e.push(p + "/helperId" + ': required');
-if ("threadId" in o2076) lf(o2076["threadId"], p + "/threadId", e, L13);
-if ("helperId" in o2076) lf(o2076["helperId"], p + "/helperId", e, L13);
-if ("model" in o2076) lf(o2076["model"], p + "/model", e, L1);
-if ("account" in o2076) lf(o2076["account"], p + "/account", e, L1);
-if ("provider" in o2076) lf(o2076["provider"], p + "/provider", e, L1);
+if (!("key" in o2076)) e.push(p + "/options" + '/' + i2075 + "/key" + ': required');
+if (!("label" in o2076)) e.push(p + "/options" + '/' + i2075 + "/label" + ': required');
+if ("key" in o2076) lf(o2076["key"], p + "/options" + '/' + i2075 + "/key", e, L1);
+if ("label" in o2076) lf(o2076["label"], p + "/options" + '/' + i2075 + "/label", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
 }
 }
 }
@@ -2479,12 +2356,7 @@ const b2077: string[] = []; lf(x2077, p, b2077, L0); if (b2077.length) e.push(..
 if (g2077 === "object") {
 if (g2077 === 'object') { const o2077 = x2077 as Record<string, unknown>;
 if (!("messageId" in o2077)) e.push(p + "/messageId" + ': required');
-if (!("model" in o2077)) e.push(p + "/model" + ': required');
-if (!("account" in o2077)) e.push(p + "/account" + ': required');
 if ("messageId" in o2077) lf(o2077["messageId"], p + "/messageId", e, L92);
-if ("model" in o2077) lf(o2077["model"], p + "/model", e, L1);
-if ("account" in o2077) lf(o2077["account"], p + "/account", e, L1);
-if ("fellBackFrom" in o2077) lf(o2077["fellBackFrom"], p + "/fellBackFrom", e, L1);
 }
 }
 }
@@ -2498,19 +2370,7 @@ const b2078: string[] = []; lf(x2078, p, b2078, L0); if (b2078.length) e.push(..
 if (g2078 === "object") {
 if (g2078 === 'object') { const o2078 = x2078 as Record<string, unknown>;
 if (!("threadId" in o2078)) e.push(p + "/threadId" + ': required');
-if (!("title" in o2078)) e.push(p + "/title" + ': required');
-if (!("instruction" in o2078)) e.push(p + "/instruction" + ': required');
 if ("threadId" in o2078) lf(o2078["threadId"], p + "/threadId", e, L13);
-if ("title" in o2078) lf(o2078["title"], p + "/title", e, L1);
-if ("instruction" in o2078) lf(o2078["instruction"], p + "/instruction", e, L1);
-if ("agentId" in o2078) lf(o2078["agentId"], p + "/agentId", e, L10);
-if ("model" in o2078) lf(o2078["model"], p + "/model", e, L1);
-if ("provider" in o2078) lf(o2078["provider"], p + "/provider", e, L1);
-if ("effort" in o2078) lf(o2078["effort"], p + "/effort", e, L385);
-if ("account" in o2078) lf(o2078["account"], p + "/account", e, L1);
-if ("why" in o2078) lf(o2078["why"], p + "/why", e, L1);
-if ("crew" in o2078) lf(o2078["crew"], p + "/crew", e, L3);
-if ("taskId" in o2078) lf(o2078["taskId"], p + "/taskId", e, L61);
 }
 }
 }
@@ -2523,10 +2383,8 @@ const g2079 = typeOf(x2079);
 const b2079: string[] = []; lf(x2079, p, b2079, L0); if (b2079.length) e.push(...b2079);
 if (g2079 === "object") {
 if (g2079 === 'object') { const o2079 = x2079 as Record<string, unknown>;
-if (!("helper" in o2079)) e.push(p + "/helper" + ': required');
-if (!("blockId" in o2079)) e.push(p + "/blockId" + ': required');
-if ("helper" in o2079) d_s_da8e7f1be8(o2079["helper"], p + "/helper", e);
-if ("blockId" in o2079) lf(o2079["blockId"], p + "/blockId", e, L129);
+if (!("marked" in o2079)) e.push(p + "/marked" + ': required');
+if ("marked" in o2079) lf(o2079["marked"], p + "/marked", e, L2);
 }
 }
 }
@@ -2540,11 +2398,7 @@ const b2080: string[] = []; lf(x2080, p, b2080, L0); if (b2080.length) e.push(..
 if (g2080 === "object") {
 if (g2080 === 'object') { const o2080 = x2080 as Record<string, unknown>;
 if (!("threadId" in o2080)) e.push(p + "/threadId" + ': required');
-if (!("body" in o2080)) e.push(p + "/body" + ': required');
-if (!("idempotencyKey" in o2080)) e.push(p + "/idempotencyKey" + ': required');
 if ("threadId" in o2080) lf(o2080["threadId"], p + "/threadId", e, L13);
-if ("body" in o2080) lf(o2080["body"], p + "/body", e, L547);
-if ("idempotencyKey" in o2080) lf(o2080["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -2557,8 +2411,42 @@ const g2081 = typeOf(x2081);
 const b2081: string[] = []; lf(x2081, p, b2081, L0); if (b2081.length) e.push(...b2081);
 if (g2081 === "object") {
 if (g2081 === 'object') { const o2081 = x2081 as Record<string, unknown>;
-if (!("messageId" in o2081)) e.push(p + "/messageId" + ': required');
-if ("messageId" in o2081) lf(o2081["messageId"], p + "/messageId", e, L92);
+if (!("notes" in o2081)) e.push(p + "/notes" + ': required');
+if ("notes" in o2081) {
+{
+const x2082 = o2081["notes"];
+const g2082 = typeOf(x2082);
+const b2082: string[] = []; lf(x2082, p + "/notes", b2082, L4); if (b2082.length) e.push(...b2082);
+if (g2082 === "array") {
+if (g2082 === 'array') { const a2082 = x2082 as unknown[];
+for (let i2082 = 0; i2082 < a2082.length; i2082++) {
+{
+const x2083 = a2082[i2082];
+const g2083 = typeOf(x2083);
+const b2083: string[] = []; lf(x2083, p + "/notes" + '/' + i2082, b2083, L0); if (b2083.length) e.push(...b2083);
+if (g2083 === "object") {
+if (g2083 === 'object') { const o2083 = x2083 as Record<string, unknown>;
+if (!("messageId" in o2083)) e.push(p + "/notes" + '/' + i2082 + "/messageId" + ': required');
+if (!("authorId" in o2083)) e.push(p + "/notes" + '/' + i2082 + "/authorId" + ': required');
+if (!("who" in o2083)) e.push(p + "/notes" + '/' + i2082 + "/who" + ': required');
+if (!("body" in o2083)) e.push(p + "/notes" + '/' + i2082 + "/body" + ': required');
+if ("messageId" in o2083) lf(o2083["messageId"], p + "/notes" + '/' + i2082 + "/messageId", e, L92);
+if ("authorId" in o2083) lf(o2083["authorId"], p + "/notes" + '/' + i2082 + "/authorId", e, L1);
+if ("who" in o2083) lf(o2083["who"], p + "/notes" + '/' + i2082 + "/who", e, L576);
+if ("body" in o2083) lf(o2083["body"], p + "/notes" + '/' + i2082 + "/body", e, L1);
+if ("kind" in o2083) lf(o2083["kind"], p + "/notes" + '/' + i2082 + "/kind", e, L1);
+if ("state" in o2083) lf(o2083["state"], p + "/notes" + '/' + i2082 + "/state", e, L1);
+if ("seenAt" in o2083) lf(o2083["seenAt"], p + "/notes" + '/' + i2082 + "/seenAt", e, L17);
+if ("restart" in o2083) lf(o2083["restart"], p + "/notes" + '/' + i2082 + "/restart", e, L3);
+if ("model" in o2083) lf(o2083["model"], p + "/notes" + '/' + i2082 + "/model", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
 }
 }
 }
@@ -2566,13 +2454,18 @@ if ("messageId" in o2081) lf(o2081["messageId"], p + "/messageId", e, L92);
 
 function c298_in(v: unknown, p: string, e: string[]): void {
 {
-const x2082 = v;
-const g2082 = typeOf(x2082);
-const b2082: string[] = []; lf(x2082, p, b2082, L0); if (b2082.length) e.push(...b2082);
-if (g2082 === "object") {
-if (g2082 === 'object') { const o2082 = x2082 as Record<string, unknown>;
-if (!("threadId" in o2082)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2082) lf(o2082["threadId"], p + "/threadId", e, L13);
+const x2084 = v;
+const g2084 = typeOf(x2084);
+const b2084: string[] = []; lf(x2084, p, b2084, L0); if (b2084.length) e.push(...b2084);
+if (g2084 === "object") {
+if (g2084 === 'object') { const o2084 = x2084 as Record<string, unknown>;
+if (!("threadId" in o2084)) e.push(p + "/threadId" + ': required');
+if (!("helperId" in o2084)) e.push(p + "/helperId" + ': required');
+if ("threadId" in o2084) lf(o2084["threadId"], p + "/threadId", e, L13);
+if ("helperId" in o2084) lf(o2084["helperId"], p + "/helperId", e, L13);
+if ("model" in o2084) lf(o2084["model"], p + "/model", e, L1);
+if ("account" in o2084) lf(o2084["account"], p + "/account", e, L1);
+if ("provider" in o2084) lf(o2084["provider"], p + "/provider", e, L1);
 }
 }
 }
@@ -2580,56 +2473,18 @@ if ("threadId" in o2082) lf(o2082["threadId"], p + "/threadId", e, L13);
 
 function c298_out(v: unknown, p: string, e: string[]): void {
 {
-const x2083 = v;
-const g2083 = typeOf(x2083);
-const b2083: string[] = []; lf(x2083, p, b2083, L0); if (b2083.length) e.push(...b2083);
-if (g2083 === "object") {
-if (g2083 === 'object') { const o2083 = x2083 as Record<string, unknown>;
-if (!("helpers" in o2083)) e.push(p + "/helpers" + ': required');
-if ("helpers" in o2083) {
-{
-const x2084 = o2083["helpers"];
-const g2084 = typeOf(x2084);
-const b2084: string[] = []; lf(x2084, p + "/helpers", b2084, L4); if (b2084.length) e.push(...b2084);
-if (g2084 === "array") {
-if (g2084 === 'array') { const a2084 = x2084 as unknown[];
-for (let i2084 = 0; i2084 < a2084.length; i2084++) {
-{
-const x2085 = a2084[i2084];
+const x2085 = v;
 const g2085 = typeOf(x2085);
-const b2085: string[] = []; lf(x2085, p + "/helpers" + '/' + i2084, b2085, L0); if (b2085.length) e.push(...b2085);
+const b2085: string[] = []; lf(x2085, p, b2085, L0); if (b2085.length) e.push(...b2085);
 if (g2085 === "object") {
 if (g2085 === 'object') { const o2085 = x2085 as Record<string, unknown>;
-if (!("threadId" in o2085)) e.push(p + "/helpers" + '/' + i2084 + "/threadId" + ': required');
-if (!("title" in o2085)) e.push(p + "/helpers" + '/' + i2084 + "/title" + ': required');
-if (!("status" in o2085)) e.push(p + "/helpers" + '/' + i2084 + "/status" + ': required');
-if (!("agentId" in o2085)) e.push(p + "/helpers" + '/' + i2084 + "/agentId" + ': required');
-if (!("startedAt" in o2085)) e.push(p + "/helpers" + '/' + i2084 + "/startedAt" + ': required');
-if ("threadId" in o2085) lf(o2085["threadId"], p + "/helpers" + '/' + i2084 + "/threadId", e, L13);
-if ("title" in o2085) lf(o2085["title"], p + "/helpers" + '/' + i2084 + "/title", e, L1);
-if ("status" in o2085) lf(o2085["status"], p + "/helpers" + '/' + i2084 + "/status", e, L577);
-if ("agentId" in o2085) lf(o2085["agentId"], p + "/helpers" + '/' + i2084 + "/agentId", e, L10);
-if ("model" in o2085) lf(o2085["model"], p + "/helpers" + '/' + i2084 + "/model", e, L1);
-if ("pick" in o2085) {
-{
-const x2086 = o2085["pick"];
-const g2086 = typeOf(x2086);
-const b2086: string[] = []; lf(x2086, p + "/helpers" + '/' + i2084 + "/pick", b2086, L0); if (b2086.length) e.push(...b2086);
-if (g2086 === "object") {
-if (g2086 === 'object') { const o2086 = x2086 as Record<string, unknown>;
-}
-}
-}
-}
-if ("startedAt" in o2085) lf(o2085["startedAt"], p + "/helpers" + '/' + i2084 + "/startedAt", e, L17);
-}
-}
-}
-}
-}
-}
-}
-}
+if (!("messageId" in o2085)) e.push(p + "/messageId" + ': required');
+if (!("model" in o2085)) e.push(p + "/model" + ': required');
+if (!("account" in o2085)) e.push(p + "/account" + ': required');
+if ("messageId" in o2085) lf(o2085["messageId"], p + "/messageId", e, L92);
+if ("model" in o2085) lf(o2085["model"], p + "/model", e, L1);
+if ("account" in o2085) lf(o2085["account"], p + "/account", e, L1);
+if ("fellBackFrom" in o2085) lf(o2085["fellBackFrom"], p + "/fellBackFrom", e, L1);
 }
 }
 }
@@ -2637,16 +2492,25 @@ if ("startedAt" in o2085) lf(o2085["startedAt"], p + "/helpers" + '/' + i2084 + 
 
 function c299_in(v: unknown, p: string, e: string[]): void {
 {
-const x2087 = v;
-const g2087 = typeOf(x2087);
-const b2087: string[] = []; lf(x2087, p, b2087, L0); if (b2087.length) e.push(...b2087);
-if (g2087 === "object") {
-if (g2087 === 'object') { const o2087 = x2087 as Record<string, unknown>;
-if (!("threadId" in o2087)) e.push(p + "/threadId" + ': required');
-if (!("before" in o2087)) e.push(p + "/before" + ': required');
-if ("threadId" in o2087) lf(o2087["threadId"], p + "/threadId", e, L13);
-if ("before" in o2087) lf(o2087["before"], p + "/before", e, L12);
-if ("limit" in o2087) lf(o2087["limit"], p + "/limit", e, L578);
+const x2086 = v;
+const g2086 = typeOf(x2086);
+const b2086: string[] = []; lf(x2086, p, b2086, L0); if (b2086.length) e.push(...b2086);
+if (g2086 === "object") {
+if (g2086 === 'object') { const o2086 = x2086 as Record<string, unknown>;
+if (!("threadId" in o2086)) e.push(p + "/threadId" + ': required');
+if (!("title" in o2086)) e.push(p + "/title" + ': required');
+if (!("instruction" in o2086)) e.push(p + "/instruction" + ': required');
+if ("threadId" in o2086) lf(o2086["threadId"], p + "/threadId", e, L13);
+if ("title" in o2086) lf(o2086["title"], p + "/title", e, L1);
+if ("instruction" in o2086) lf(o2086["instruction"], p + "/instruction", e, L1);
+if ("agentId" in o2086) lf(o2086["agentId"], p + "/agentId", e, L10);
+if ("model" in o2086) lf(o2086["model"], p + "/model", e, L1);
+if ("provider" in o2086) lf(o2086["provider"], p + "/provider", e, L1);
+if ("effort" in o2086) lf(o2086["effort"], p + "/effort", e, L385);
+if ("account" in o2086) lf(o2086["account"], p + "/account", e, L1);
+if ("why" in o2086) lf(o2086["why"], p + "/why", e, L1);
+if ("crew" in o2086) lf(o2086["crew"], p + "/crew", e, L3);
+if ("taskId" in o2086) lf(o2086["taskId"], p + "/taskId", e, L61);
 }
 }
 }
@@ -2654,16 +2518,15 @@ if ("limit" in o2087) lf(o2087["limit"], p + "/limit", e, L578);
 
 function c299_out(v: unknown, p: string, e: string[]): void {
 {
-const x2088 = v;
-const g2088 = typeOf(x2088);
-const b2088: string[] = []; lf(x2088, p, b2088, L0); if (b2088.length) e.push(...b2088);
-if (g2088 === "object") {
-if (g2088 === 'object') { const o2088 = x2088 as Record<string, unknown>;
-if (!("messages" in o2088)) e.push(p + "/messages" + ': required');
-if (!("hasMore" in o2088)) e.push(p + "/hasMore" + ': required');
-if ("messages" in o2088) d_s_db6b0a2a5b(o2088["messages"], p + "/messages", e);
-if ("hasMore" in o2088) lf(o2088["hasMore"], p + "/hasMore", e, L3);
-if ("next" in o2088) lf(o2088["next"], p + "/next", e, L2);
+const x2087 = v;
+const g2087 = typeOf(x2087);
+const b2087: string[] = []; lf(x2087, p, b2087, L0); if (b2087.length) e.push(...b2087);
+if (g2087 === "object") {
+if (g2087 === 'object') { const o2087 = x2087 as Record<string, unknown>;
+if (!("helper" in o2087)) e.push(p + "/helper" + ': required');
+if (!("blockId" in o2087)) e.push(p + "/blockId" + ': required');
+if ("helper" in o2087) d_s_da8e7f1be8(o2087["helper"], p + "/helper", e);
+if ("blockId" in o2087) lf(o2087["blockId"], p + "/blockId", e, L129);
 }
 }
 }
@@ -2671,17 +2534,17 @@ if ("next" in o2088) lf(o2088["next"], p + "/next", e, L2);
 
 function c300_in(v: unknown, p: string, e: string[]): void {
 {
-const x2089 = v;
-const g2089 = typeOf(x2089);
-const b2089: string[] = []; lf(x2089, p, b2089, L0); if (b2089.length) e.push(...b2089);
-if (g2089 === "object") {
-if (g2089 === 'object') { const o2089 = x2089 as Record<string, unknown>;
-if ("q" in o2089) lf(o2089["q"], p + "/q", e, L1);
-if ("ref" in o2089) lf(o2089["ref"], p + "/ref", e, L1);
-if ("threadId" in o2089) lf(o2089["threadId"], p + "/threadId", e, L13);
-if ("excludeThreadId" in o2089) lf(o2089["excludeThreadId"], p + "/excludeThreadId", e, L13);
-if ("limit" in o2089) lf(o2089["limit"], p + "/limit", e, L395);
-if ("minCoverage" in o2089) lf(o2089["minCoverage"], p + "/minCoverage", e, L65);
+const x2088 = v;
+const g2088 = typeOf(x2088);
+const b2088: string[] = []; lf(x2088, p, b2088, L0); if (b2088.length) e.push(...b2088);
+if (g2088 === "object") {
+if (g2088 === 'object') { const o2088 = x2088 as Record<string, unknown>;
+if (!("threadId" in o2088)) e.push(p + "/threadId" + ': required');
+if (!("body" in o2088)) e.push(p + "/body" + ': required');
+if (!("idempotencyKey" in o2088)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o2088) lf(o2088["threadId"], p + "/threadId", e, L13);
+if ("body" in o2088) lf(o2088["body"], p + "/body", e, L547);
+if ("idempotencyKey" in o2088) lf(o2088["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -2689,59 +2552,13 @@ if ("minCoverage" in o2089) lf(o2089["minCoverage"], p + "/minCoverage", e, L65)
 
 function c300_out(v: unknown, p: string, e: string[]): void {
 {
-const x2090 = v;
-const g2090 = typeOf(x2090);
-const b2090: string[] = []; lf(x2090, p, b2090, L0); if (b2090.length) e.push(...b2090);
-if (g2090 === "object") {
-if (g2090 === 'object') { const o2090 = x2090 as Record<string, unknown>;
-if (!("hits" in o2090)) e.push(p + "/hits" + ': required');
-if ("hits" in o2090) {
-{
-const x2091 = o2090["hits"];
-const g2091 = typeOf(x2091);
-const b2091: string[] = []; lf(x2091, p + "/hits", b2091, L4); if (b2091.length) e.push(...b2091);
-if (g2091 === "array") {
-if (g2091 === 'array') { const a2091 = x2091 as unknown[];
-for (let i2091 = 0; i2091 < a2091.length; i2091++) {
-{
-const x2092 = a2091[i2091];
-const g2092 = typeOf(x2092);
-const b2092: string[] = []; lf(x2092, p + "/hits" + '/' + i2091, b2092, L0); if (b2092.length) e.push(...b2092);
-if (g2092 === "object") {
-if (g2092 === 'object') { const o2092 = x2092 as Record<string, unknown>;
-if (!("source" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/source" + ': required');
-if (!("ref" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/ref" + ': required');
-if (!("threadId" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/threadId" + ': required');
-if (!("threadKind" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/threadKind" + ': required');
-if (!("seq" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/seq" + ': required');
-if (!("role" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/role" + ': required');
-if (!("author" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/author" + ': required');
-if (!("text" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/text" + ': required');
-if (!("at" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/at" + ': required');
-if (!("link" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/link" + ': required');
-if (!("score" in o2092)) e.push(p + "/hits" + '/' + i2091 + "/score" + ': required');
-if ("source" in o2092) lf(o2092["source"], p + "/hits" + '/' + i2091 + "/source", e, L399);
-if ("ref" in o2092) lf(o2092["ref"], p + "/hits" + '/' + i2091 + "/ref", e, L1);
-if ("messageId" in o2092) lf(o2092["messageId"], p + "/hits" + '/' + i2091 + "/messageId", e, L92);
-if ("threadId" in o2092) lf(o2092["threadId"], p + "/hits" + '/' + i2091 + "/threadId", e, L13);
-if ("threadTitle" in o2092) lf(o2092["threadTitle"], p + "/hits" + '/' + i2091 + "/threadTitle", e, L1);
-if ("threadKind" in o2092) lf(o2092["threadKind"], p + "/hits" + '/' + i2091 + "/threadKind", e, L1);
-if ("seq" in o2092) lf(o2092["seq"], p + "/hits" + '/' + i2091 + "/seq", e, L2);
-if ("role" in o2092) lf(o2092["role"], p + "/hits" + '/' + i2091 + "/role", e, L1);
-if ("author" in o2092) d_s_6c1eb10d98(o2092["author"], p + "/hits" + '/' + i2091 + "/author", e);
-if ("text" in o2092) lf(o2092["text"], p + "/hits" + '/' + i2091 + "/text", e, L1);
-if ("truncated" in o2092) lf(o2092["truncated"], p + "/hits" + '/' + i2091 + "/truncated", e, L3);
-if ("at" in o2092) lf(o2092["at"], p + "/hits" + '/' + i2091 + "/at", e, L17);
-if ("link" in o2092) lf(o2092["link"], p + "/hits" + '/' + i2091 + "/link", e, L1);
-if ("score" in o2092) lf(o2092["score"], p + "/hits" + '/' + i2091 + "/score", e, L86);
-}
-}
-}
-}
-}
-}
-}
-}
+const x2089 = v;
+const g2089 = typeOf(x2089);
+const b2089: string[] = []; lf(x2089, p, b2089, L0); if (b2089.length) e.push(...b2089);
+if (g2089 === "object") {
+if (g2089 === 'object') { const o2089 = x2089 as Record<string, unknown>;
+if (!("messageId" in o2089)) e.push(p + "/messageId" + ': required');
+if ("messageId" in o2089) lf(o2089["messageId"], p + "/messageId", e, L92);
 }
 }
 }
@@ -2749,26 +2566,13 @@ if ("score" in o2092) lf(o2092["score"], p + "/hits" + '/' + i2091 + "/score", e
 
 function c301_in(v: unknown, p: string, e: string[]): void {
 {
-const x2093 = v;
-const g2093 = typeOf(x2093);
-const b2093: string[] = []; lf(x2093, p, b2093, L0); if (b2093.length) e.push(...b2093);
-if (g2093 === "object") {
-if (g2093 === 'object') { const o2093 = x2093 as Record<string, unknown>;
-if (!("threadId" in o2093)) e.push(p + "/threadId" + ': required');
-if (!("body" in o2093)) e.push(p + "/body" + ': required');
-if (!("kind" in o2093)) e.push(p + "/kind" + ': required');
-if ("threadId" in o2093) lf(o2093["threadId"], p + "/threadId", e, L13);
-if ("body" in o2093) lf(o2093["body"], p + "/body", e, L579);
-if ("kind" in o2093) lf(o2093["kind"], p + "/kind", e, L580);
-if ("hookId" in o2093) lf(o2093["hookId"], p + "/hookId", e, L1);
-if ("scope" in o2093) lf(o2093["scope"], p + "/scope", e, L1);
-if ("by" in o2093) lf(o2093["by"], p + "/by", e, L1);
-if ("byKind" in o2093) lf(o2093["byKind"], p + "/byKind", e, L438);
-if ("reason" in o2093) lf(o2093["reason"], p + "/reason", e, L491);
-if ("tool" in o2093) lf(o2093["tool"], p + "/tool", e, L581);
-if ("subject" in o2093) lf(o2093["subject"], p + "/subject", e, L284);
-if ("agentId" in o2093) lf(o2093["agentId"], p + "/agentId", e, L10);
-if ("next" in o2093) d_s_7d8a982423(o2093["next"], p + "/next", e);
+const x2090 = v;
+const g2090 = typeOf(x2090);
+const b2090: string[] = []; lf(x2090, p, b2090, L0); if (b2090.length) e.push(...b2090);
+if (g2090 === "object") {
+if (g2090 === 'object') { const o2090 = x2090 as Record<string, unknown>;
+if (!("threadId" in o2090)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2090) lf(o2090["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -2776,13 +2580,56 @@ if ("next" in o2093) d_s_7d8a982423(o2093["next"], p + "/next", e);
 
 function c301_out(v: unknown, p: string, e: string[]): void {
 {
-const x2094 = v;
+const x2091 = v;
+const g2091 = typeOf(x2091);
+const b2091: string[] = []; lf(x2091, p, b2091, L0); if (b2091.length) e.push(...b2091);
+if (g2091 === "object") {
+if (g2091 === 'object') { const o2091 = x2091 as Record<string, unknown>;
+if (!("helpers" in o2091)) e.push(p + "/helpers" + ': required');
+if ("helpers" in o2091) {
+{
+const x2092 = o2091["helpers"];
+const g2092 = typeOf(x2092);
+const b2092: string[] = []; lf(x2092, p + "/helpers", b2092, L4); if (b2092.length) e.push(...b2092);
+if (g2092 === "array") {
+if (g2092 === 'array') { const a2092 = x2092 as unknown[];
+for (let i2092 = 0; i2092 < a2092.length; i2092++) {
+{
+const x2093 = a2092[i2092];
+const g2093 = typeOf(x2093);
+const b2093: string[] = []; lf(x2093, p + "/helpers" + '/' + i2092, b2093, L0); if (b2093.length) e.push(...b2093);
+if (g2093 === "object") {
+if (g2093 === 'object') { const o2093 = x2093 as Record<string, unknown>;
+if (!("threadId" in o2093)) e.push(p + "/helpers" + '/' + i2092 + "/threadId" + ': required');
+if (!("title" in o2093)) e.push(p + "/helpers" + '/' + i2092 + "/title" + ': required');
+if (!("status" in o2093)) e.push(p + "/helpers" + '/' + i2092 + "/status" + ': required');
+if (!("agentId" in o2093)) e.push(p + "/helpers" + '/' + i2092 + "/agentId" + ': required');
+if (!("startedAt" in o2093)) e.push(p + "/helpers" + '/' + i2092 + "/startedAt" + ': required');
+if ("threadId" in o2093) lf(o2093["threadId"], p + "/helpers" + '/' + i2092 + "/threadId", e, L13);
+if ("title" in o2093) lf(o2093["title"], p + "/helpers" + '/' + i2092 + "/title", e, L1);
+if ("status" in o2093) lf(o2093["status"], p + "/helpers" + '/' + i2092 + "/status", e, L577);
+if ("agentId" in o2093) lf(o2093["agentId"], p + "/helpers" + '/' + i2092 + "/agentId", e, L10);
+if ("model" in o2093) lf(o2093["model"], p + "/helpers" + '/' + i2092 + "/model", e, L1);
+if ("pick" in o2093) {
+{
+const x2094 = o2093["pick"];
 const g2094 = typeOf(x2094);
-const b2094: string[] = []; lf(x2094, p, b2094, L0); if (b2094.length) e.push(...b2094);
+const b2094: string[] = []; lf(x2094, p + "/helpers" + '/' + i2092 + "/pick", b2094, L0); if (b2094.length) e.push(...b2094);
 if (g2094 === "object") {
 if (g2094 === 'object') { const o2094 = x2094 as Record<string, unknown>;
-if (!("messageId" in o2094)) e.push(p + "/messageId" + ': required');
-if ("messageId" in o2094) lf(o2094["messageId"], p + "/messageId", e, L92);
+}
+}
+}
+}
+if ("startedAt" in o2093) lf(o2093["startedAt"], p + "/helpers" + '/' + i2092 + "/startedAt", e, L17);
+}
+}
+}
+}
+}
+}
+}
+}
 }
 }
 }
@@ -2796,14 +2643,10 @@ const b2095: string[] = []; lf(x2095, p, b2095, L0); if (b2095.length) e.push(..
 if (g2095 === "object") {
 if (g2095 === 'object') { const o2095 = x2095 as Record<string, unknown>;
 if (!("threadId" in o2095)) e.push(p + "/threadId" + ': required');
-if (!("messageId" in o2095)) e.push(p + "/messageId" + ': required');
-if (!("resolution" in o2095)) e.push(p + "/resolution" + ': required');
-if (!("by" in o2095)) e.push(p + "/by" + ': required');
+if (!("before" in o2095)) e.push(p + "/before" + ': required');
 if ("threadId" in o2095) lf(o2095["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o2095) lf(o2095["messageId"], p + "/messageId", e, L92);
-if ("resolution" in o2095) lf(o2095["resolution"], p + "/resolution", e, L582);
-if ("by" in o2095) lf(o2095["by"], p + "/by", e, L1);
-if ("what" in o2095) lf(o2095["what"], p + "/what", e, L284);
+if ("before" in o2095) lf(o2095["before"], p + "/before", e, L12);
+if ("limit" in o2095) lf(o2095["limit"], p + "/limit", e, L578);
 }
 }
 }
@@ -2816,8 +2659,11 @@ const g2096 = typeOf(x2096);
 const b2096: string[] = []; lf(x2096, p, b2096, L0); if (b2096.length) e.push(...b2096);
 if (g2096 === "object") {
 if (g2096 === 'object') { const o2096 = x2096 as Record<string, unknown>;
-if (!("ok" in o2096)) e.push(p + "/ok" + ': required');
-if ("ok" in o2096) lf(o2096["ok"], p + "/ok", e, L3);
+if (!("messages" in o2096)) e.push(p + "/messages" + ': required');
+if (!("hasMore" in o2096)) e.push(p + "/hasMore" + ': required');
+if ("messages" in o2096) d_s_db6b0a2a5b(o2096["messages"], p + "/messages", e);
+if ("hasMore" in o2096) lf(o2096["hasMore"], p + "/hasMore", e, L3);
+if ("next" in o2096) lf(o2096["next"], p + "/next", e, L2);
 }
 }
 }
@@ -2830,14 +2676,12 @@ const g2097 = typeOf(x2097);
 const b2097: string[] = []; lf(x2097, p, b2097, L0); if (b2097.length) e.push(...b2097);
 if (g2097 === "object") {
 if (g2097 === 'object') { const o2097 = x2097 as Record<string, unknown>;
-if (!("threadId" in o2097)) e.push(p + "/threadId" + ': required');
-if (!("messageId" in o2097)) e.push(p + "/messageId" + ': required');
-if (!("idempotencyKey" in o2097)) e.push(p + "/idempotencyKey" + ': required');
+if ("q" in o2097) lf(o2097["q"], p + "/q", e, L1);
+if ("ref" in o2097) lf(o2097["ref"], p + "/ref", e, L1);
 if ("threadId" in o2097) lf(o2097["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o2097) lf(o2097["messageId"], p + "/messageId", e, L92);
-if ("title" in o2097) lf(o2097["title"], p + "/title", e, L1);
-if ("assigneeId" in o2097) lf(o2097["assigneeId"], p + "/assigneeId", e, L1);
-if ("idempotencyKey" in o2097) lf(o2097["idempotencyKey"], p + "/idempotencyKey", e, L54);
+if ("excludeThreadId" in o2097) lf(o2097["excludeThreadId"], p + "/excludeThreadId", e, L13);
+if ("limit" in o2097) lf(o2097["limit"], p + "/limit", e, L395);
+if ("minCoverage" in o2097) lf(o2097["minCoverage"], p + "/minCoverage", e, L65);
 }
 }
 }
@@ -2850,10 +2694,95 @@ const g2098 = typeOf(x2098);
 const b2098: string[] = []; lf(x2098, p, b2098, L0); if (b2098.length) e.push(...b2098);
 if (g2098 === "object") {
 if (g2098 === 'object') { const o2098 = x2098 as Record<string, unknown>;
-if (!("taskId" in o2098)) e.push(p + "/taskId" + ': required');
-if (!("messageId" in o2098)) e.push(p + "/messageId" + ': required');
-if ("taskId" in o2098) lf(o2098["taskId"], p + "/taskId", e, L61);
-if ("messageId" in o2098) lf(o2098["messageId"], p + "/messageId", e, L92);
+if (!("hits" in o2098)) e.push(p + "/hits" + ': required');
+if ("hits" in o2098) {
+{
+const x2099 = o2098["hits"];
+const g2099 = typeOf(x2099);
+const b2099: string[] = []; lf(x2099, p + "/hits", b2099, L4); if (b2099.length) e.push(...b2099);
+if (g2099 === "array") {
+if (g2099 === 'array') { const a2099 = x2099 as unknown[];
+for (let i2099 = 0; i2099 < a2099.length; i2099++) {
+{
+const x2100 = a2099[i2099];
+const g2100 = typeOf(x2100);
+const b2100: string[] = []; lf(x2100, p + "/hits" + '/' + i2099, b2100, L0); if (b2100.length) e.push(...b2100);
+if (g2100 === "object") {
+if (g2100 === 'object') { const o2100 = x2100 as Record<string, unknown>;
+if (!("source" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/source" + ': required');
+if (!("ref" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/ref" + ': required');
+if (!("threadId" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/threadId" + ': required');
+if (!("threadKind" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/threadKind" + ': required');
+if (!("seq" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/seq" + ': required');
+if (!("role" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/role" + ': required');
+if (!("author" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/author" + ': required');
+if (!("text" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/text" + ': required');
+if (!("at" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/at" + ': required');
+if (!("link" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/link" + ': required');
+if (!("score" in o2100)) e.push(p + "/hits" + '/' + i2099 + "/score" + ': required');
+if ("source" in o2100) lf(o2100["source"], p + "/hits" + '/' + i2099 + "/source", e, L399);
+if ("ref" in o2100) lf(o2100["ref"], p + "/hits" + '/' + i2099 + "/ref", e, L1);
+if ("messageId" in o2100) lf(o2100["messageId"], p + "/hits" + '/' + i2099 + "/messageId", e, L92);
+if ("threadId" in o2100) lf(o2100["threadId"], p + "/hits" + '/' + i2099 + "/threadId", e, L13);
+if ("threadTitle" in o2100) lf(o2100["threadTitle"], p + "/hits" + '/' + i2099 + "/threadTitle", e, L1);
+if ("threadKind" in o2100) lf(o2100["threadKind"], p + "/hits" + '/' + i2099 + "/threadKind", e, L1);
+if ("seq" in o2100) lf(o2100["seq"], p + "/hits" + '/' + i2099 + "/seq", e, L2);
+if ("role" in o2100) lf(o2100["role"], p + "/hits" + '/' + i2099 + "/role", e, L1);
+if ("author" in o2100) d_s_6c1eb10d98(o2100["author"], p + "/hits" + '/' + i2099 + "/author", e);
+if ("text" in o2100) lf(o2100["text"], p + "/hits" + '/' + i2099 + "/text", e, L1);
+if ("truncated" in o2100) lf(o2100["truncated"], p + "/hits" + '/' + i2099 + "/truncated", e, L3);
+if ("at" in o2100) lf(o2100["at"], p + "/hits" + '/' + i2099 + "/at", e, L17);
+if ("link" in o2100) lf(o2100["link"], p + "/hits" + '/' + i2099 + "/link", e, L1);
+if ("score" in o2100) lf(o2100["score"], p + "/hits" + '/' + i2099 + "/score", e, L86);
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+
+function c304_in(v: unknown, p: string, e: string[]): void {
+{
+const x2101 = v;
+const g2101 = typeOf(x2101);
+const b2101: string[] = []; lf(x2101, p, b2101, L0); if (b2101.length) e.push(...b2101);
+if (g2101 === "object") {
+if (g2101 === 'object') { const o2101 = x2101 as Record<string, unknown>;
+if (!("threadId" in o2101)) e.push(p + "/threadId" + ': required');
+if (!("body" in o2101)) e.push(p + "/body" + ': required');
+if (!("kind" in o2101)) e.push(p + "/kind" + ': required');
+if ("threadId" in o2101) lf(o2101["threadId"], p + "/threadId", e, L13);
+if ("body" in o2101) lf(o2101["body"], p + "/body", e, L579);
+if ("kind" in o2101) lf(o2101["kind"], p + "/kind", e, L580);
+if ("hookId" in o2101) lf(o2101["hookId"], p + "/hookId", e, L1);
+if ("scope" in o2101) lf(o2101["scope"], p + "/scope", e, L1);
+if ("by" in o2101) lf(o2101["by"], p + "/by", e, L1);
+if ("byKind" in o2101) lf(o2101["byKind"], p + "/byKind", e, L438);
+if ("reason" in o2101) lf(o2101["reason"], p + "/reason", e, L491);
+if ("tool" in o2101) lf(o2101["tool"], p + "/tool", e, L581);
+if ("subject" in o2101) lf(o2101["subject"], p + "/subject", e, L284);
+if ("agentId" in o2101) lf(o2101["agentId"], p + "/agentId", e, L10);
+if ("next" in o2101) d_s_7d8a982423(o2101["next"], p + "/next", e);
+}
+}
+}
+}
+
+function c304_out(v: unknown, p: string, e: string[]): void {
+{
+const x2102 = v;
+const g2102 = typeOf(x2102);
+const b2102: string[] = []; lf(x2102, p, b2102, L0); if (b2102.length) e.push(...b2102);
+if (g2102 === "object") {
+if (g2102 === 'object') { const o2102 = x2102 as Record<string, unknown>;
+if (!("messageId" in o2102)) e.push(p + "/messageId" + ': required');
+if ("messageId" in o2102) lf(o2102["messageId"], p + "/messageId", e, L92);
 }
 }
 }
@@ -2861,51 +2790,20 @@ if ("messageId" in o2098) lf(o2098["messageId"], p + "/messageId", e, L92);
 
 function c305_in(v: unknown, p: string, e: string[]): void {
 {
-const x2099 = v;
-const g2099 = typeOf(x2099);
-const b2099: string[] = []; lf(x2099, p, b2099, L0); if (b2099.length) e.push(...b2099);
-if (g2099 === "object") {
-if (g2099 === 'object') { const o2099 = x2099 as Record<string, unknown>;
-if (!("to" in o2099)) e.push(p + "/to" + ': required');
-if (!("body" in o2099)) e.push(p + "/body" + ': required');
-if (!("idempotencyKey" in o2099)) e.push(p + "/idempotencyKey" + ': required');
-if ("to" in o2099) lf(o2099["to"], p + "/to", e, L1);
-if ("body" in o2099) lf(o2099["body"], p + "/body", e, L108);
-if ("timing" in o2099) lf(o2099["timing"], p + "/timing", e, L583);
-if ("at" in o2099) lf(o2099["at"], p + "/at", e, L17);
-if ("urgent" in o2099) lf(o2099["urgent"], p + "/urgent", e, L3);
-if ("card" in o2099) {
-{
-const x2100 = o2099["card"];
-const g2100 = typeOf(x2100);
-const b2100: string[] = []; lf(x2100, p + "/card", b2100, L0); if (b2100.length) e.push(...b2100);
-if (g2100 === "object") {
-if (g2100 === 'object') { const o2100 = x2100 as Record<string, unknown>;
-if (!("kind" in o2100)) e.push(p + "/card" + "/kind" + ': required');
-if (!("title" in o2100)) e.push(p + "/card" + "/title" + ': required');
-if ("kind" in o2100) lf(o2100["kind"], p + "/card" + "/kind", e, L584);
-if ("title" in o2100) lf(o2100["title"], p + "/card" + "/title", e, L62);
-if ("detail" in o2100) lf(o2100["detail"], p + "/card" + "/detail", e, L585);
-if ("fields" in o2100) {
-{
-const x2101 = o2100["fields"];
-const g2101 = typeOf(x2101);
-const b2101: string[] = []; lf(x2101, p + "/card" + "/fields", b2101, L4); if (b2101.length) e.push(...b2101);
-if (g2101 === "array") {
-if (g2101 === 'array') { const a2101 = x2101 as unknown[];
-if (a2101.length > 10) e.push(p + "/card" + "/fields" + ': too many items');
-for (let i2101 = 0; i2101 < a2101.length; i2101++) {
-lf(a2101[i2101], p + "/card" + "/fields" + '/' + i2101, e, L29);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-if ("idempotencyKey" in o2099) lf(o2099["idempotencyKey"], p + "/idempotencyKey", e, L54);
+const x2103 = v;
+const g2103 = typeOf(x2103);
+const b2103: string[] = []; lf(x2103, p, b2103, L0); if (b2103.length) e.push(...b2103);
+if (g2103 === "object") {
+if (g2103 === 'object') { const o2103 = x2103 as Record<string, unknown>;
+if (!("threadId" in o2103)) e.push(p + "/threadId" + ': required');
+if (!("messageId" in o2103)) e.push(p + "/messageId" + ': required');
+if (!("resolution" in o2103)) e.push(p + "/resolution" + ': required');
+if (!("by" in o2103)) e.push(p + "/by" + ': required');
+if ("threadId" in o2103) lf(o2103["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o2103) lf(o2103["messageId"], p + "/messageId", e, L92);
+if ("resolution" in o2103) lf(o2103["resolution"], p + "/resolution", e, L582);
+if ("by" in o2103) lf(o2103["by"], p + "/by", e, L1);
+if ("what" in o2103) lf(o2103["what"], p + "/what", e, L284);
 }
 }
 }
@@ -2913,23 +2811,13 @@ if ("idempotencyKey" in o2099) lf(o2099["idempotencyKey"], p + "/idempotencyKey"
 
 function c305_out(v: unknown, p: string, e: string[]): void {
 {
-const x2102 = v;
-const g2102 = typeOf(x2102);
-const b2102: string[] = []; lf(x2102, p, b2102, L0); if (b2102.length) e.push(...b2102);
-if (g2102 === "object") {
-if (g2102 === 'object') { const o2102 = x2102 as Record<string, unknown>;
-if (!("state" in o2102)) e.push(p + "/state" + ': required');
-if (!("threadId" in o2102)) e.push(p + "/threadId" + ': required');
-if (!("when" in o2102)) e.push(p + "/when" + ': required');
-if (!("as" in o2102)) e.push(p + "/as" + ': required');
-if ("state" in o2102) lf(o2102["state"], p + "/state", e, L586);
-if ("threadId" in o2102) lf(o2102["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o2102) lf(o2102["messageId"], p + "/messageId", e, L92);
-if ("dueAt" in o2102) lf(o2102["dueAt"], p + "/dueAt", e, L17);
-if ("when" in o2102) lf(o2102["when"], p + "/when", e, L1);
-if ("as" in o2102) lf(o2102["as"], p + "/as", e, L587);
-if ("taskId" in o2102) lf(o2102["taskId"], p + "/taskId", e, L61);
-if ("requestId" in o2102) lf(o2102["requestId"], p + "/requestId", e, L1);
+const x2104 = v;
+const g2104 = typeOf(x2104);
+const b2104: string[] = []; lf(x2104, p, b2104, L0); if (b2104.length) e.push(...b2104);
+if (g2104 === "object") {
+if (g2104 === 'object') { const o2104 = x2104 as Record<string, unknown>;
+if (!("ok" in o2104)) e.push(p + "/ok" + ': required');
+if ("ok" in o2104) lf(o2104["ok"], p + "/ok", e, L3);
 }
 }
 }
@@ -2937,16 +2825,19 @@ if ("requestId" in o2102) lf(o2102["requestId"], p + "/requestId", e, L1);
 
 function c306_in(v: unknown, p: string, e: string[]): void {
 {
-const x2103 = v;
-const g2103 = typeOf(x2103);
-const b2103: string[] = []; lf(x2103, p, b2103, L0); if (b2103.length) e.push(...b2103);
-if (g2103 === "object") {
-if (g2103 === 'object') { const o2103 = x2103 as Record<string, unknown>;
-if (!("threadId" in o2103)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2103) lf(o2103["threadId"], p + "/threadId", e, L13);
-if ("before" in o2103) lf(o2103["before"], p + "/before", e, L2);
-if ("after" in o2103) lf(o2103["after"], p + "/after", e, L2);
-if ("limit" in o2103) lf(o2103["limit"], p + "/limit", e, L567);
+const x2105 = v;
+const g2105 = typeOf(x2105);
+const b2105: string[] = []; lf(x2105, p, b2105, L0); if (b2105.length) e.push(...b2105);
+if (g2105 === "object") {
+if (g2105 === 'object') { const o2105 = x2105 as Record<string, unknown>;
+if (!("threadId" in o2105)) e.push(p + "/threadId" + ': required');
+if (!("messageId" in o2105)) e.push(p + "/messageId" + ': required');
+if (!("idempotencyKey" in o2105)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o2105) lf(o2105["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o2105) lf(o2105["messageId"], p + "/messageId", e, L92);
+if ("title" in o2105) lf(o2105["title"], p + "/title", e, L1);
+if ("assigneeId" in o2105) lf(o2105["assigneeId"], p + "/assigneeId", e, L1);
+if ("idempotencyKey" in o2105) lf(o2105["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -2954,48 +2845,15 @@ if ("limit" in o2103) lf(o2103["limit"], p + "/limit", e, L567);
 
 function c306_out(v: unknown, p: string, e: string[]): void {
 {
-const x2104 = v;
-const g2104 = typeOf(x2104);
-const b2104: string[] = []; lf(x2104, p, b2104, L0); if (b2104.length) e.push(...b2104);
-if (g2104 === "object") {
-if (g2104 === 'object') { const o2104 = x2104 as Record<string, unknown>;
-if (!("messages" in o2104)) e.push(p + "/messages" + ': required');
-if (!("hasMore" in o2104)) e.push(p + "/hasMore" + ': required');
-if ("messages" in o2104) d_s_db6b0a2a5b(o2104["messages"], p + "/messages", e);
-if ("hasMore" in o2104) lf(o2104["hasMore"], p + "/hasMore", e, L3);
-}
-}
-}
-}
-
-function c307_in(v: unknown, p: string, e: string[]): void {
-{
-const x2105 = v;
-const g2105 = typeOf(x2105);
-const b2105: string[] = []; lf(x2105, p, b2105, L0); if (b2105.length) e.push(...b2105);
-if (g2105 === "object") {
-if (g2105 === 'object') { const o2105 = x2105 as Record<string, unknown>;
-if (!("threadId" in o2105)) e.push(p + "/threadId" + ': required');
-if (!("blockId" in o2105)) e.push(p + "/blockId" + ': required');
-if (!("decision" in o2105)) e.push(p + "/decision" + ': required');
-if ("threadId" in o2105) lf(o2105["threadId"], p + "/threadId", e, L13);
-if ("blockId" in o2105) lf(o2105["blockId"], p + "/blockId", e, L129);
-if ("decision" in o2105) lf(o2105["decision"], p + "/decision", e, L588);
-}
-}
-}
-}
-
-function c307_out(v: unknown, p: string, e: string[]): void {
-{
 const x2106 = v;
 const g2106 = typeOf(x2106);
 const b2106: string[] = []; lf(x2106, p, b2106, L0); if (b2106.length) e.push(...b2106);
 if (g2106 === "object") {
 if (g2106 === 'object') { const o2106 = x2106 as Record<string, unknown>;
-if (!("state" in o2106)) e.push(p + "/state" + ': required');
-if ("state" in o2106) lf(o2106["state"], p + "/state", e, L589);
-if ("noteId" in o2106) lf(o2106["noteId"], p + "/noteId", e, L1);
+if (!("taskId" in o2106)) e.push(p + "/taskId" + ': required');
+if (!("messageId" in o2106)) e.push(p + "/messageId" + ': required');
+if ("taskId" in o2106) lf(o2106["taskId"], p + "/taskId", e, L61);
+if ("messageId" in o2106) lf(o2106["messageId"], p + "/messageId", e, L92);
 }
 }
 }
@@ -3008,15 +2866,46 @@ const g2107 = typeOf(x2107);
 const b2107: string[] = []; lf(x2107, p, b2107, L0); if (b2107.length) e.push(...b2107);
 if (g2107 === "object") {
 if (g2107 === 'object') { const o2107 = x2107 as Record<string, unknown>;
-if (!("threadId" in o2107)) e.push(p + "/threadId" + ': required');
-if (!("title" in o2107)) e.push(p + "/title" + ': required');
+if (!("to" in o2107)) e.push(p + "/to" + ': required');
 if (!("body" in o2107)) e.push(p + "/body" + ': required');
-if (!("topic" in o2107)) e.push(p + "/topic" + ': required');
-if ("threadId" in o2107) lf(o2107["threadId"], p + "/threadId", e, L13);
-if ("title" in o2107) lf(o2107["title"], p + "/title", e, L284);
+if (!("idempotencyKey" in o2107)) e.push(p + "/idempotencyKey" + ': required');
+if ("to" in o2107) lf(o2107["to"], p + "/to", e, L1);
 if ("body" in o2107) lf(o2107["body"], p + "/body", e, L108);
-if ("topic" in o2107) lf(o2107["topic"], p + "/topic", e, L1);
-if ("messageId" in o2107) lf(o2107["messageId"], p + "/messageId", e, L92);
+if ("timing" in o2107) lf(o2107["timing"], p + "/timing", e, L583);
+if ("at" in o2107) lf(o2107["at"], p + "/at", e, L17);
+if ("urgent" in o2107) lf(o2107["urgent"], p + "/urgent", e, L3);
+if ("card" in o2107) {
+{
+const x2108 = o2107["card"];
+const g2108 = typeOf(x2108);
+const b2108: string[] = []; lf(x2108, p + "/card", b2108, L0); if (b2108.length) e.push(...b2108);
+if (g2108 === "object") {
+if (g2108 === 'object') { const o2108 = x2108 as Record<string, unknown>;
+if (!("kind" in o2108)) e.push(p + "/card" + "/kind" + ': required');
+if (!("title" in o2108)) e.push(p + "/card" + "/title" + ': required');
+if ("kind" in o2108) lf(o2108["kind"], p + "/card" + "/kind", e, L584);
+if ("title" in o2108) lf(o2108["title"], p + "/card" + "/title", e, L62);
+if ("detail" in o2108) lf(o2108["detail"], p + "/card" + "/detail", e, L585);
+if ("fields" in o2108) {
+{
+const x2109 = o2108["fields"];
+const g2109 = typeOf(x2109);
+const b2109: string[] = []; lf(x2109, p + "/card" + "/fields", b2109, L4); if (b2109.length) e.push(...b2109);
+if (g2109 === "array") {
+if (g2109 === 'array') { const a2109 = x2109 as unknown[];
+if (a2109.length > 10) e.push(p + "/card" + "/fields" + ': too many items');
+for (let i2109 = 0; i2109 < a2109.length; i2109++) {
+lf(a2109[i2109], p + "/card" + "/fields" + '/' + i2109, e, L29);
+}
+}
+}
+}
+}
+}
+}
+}
+}
+if ("idempotencyKey" in o2107) lf(o2107["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -3024,16 +2913,23 @@ if ("messageId" in o2107) lf(o2107["messageId"], p + "/messageId", e, L92);
 
 function c308_out(v: unknown, p: string, e: string[]): void {
 {
-const x2108 = v;
-const g2108 = typeOf(x2108);
-const b2108: string[] = []; lf(x2108, p, b2108, L0); if (b2108.length) e.push(...b2108);
-if (g2108 === "object") {
-if (g2108 === 'object') { const o2108 = x2108 as Record<string, unknown>;
-if (!("offered" in o2108)) e.push(p + "/offered" + ': required');
-if ("offered" in o2108) lf(o2108["offered"], p + "/offered", e, L3);
-if ("why" in o2108) lf(o2108["why"], p + "/why", e, L590);
-if ("blockId" in o2108) lf(o2108["blockId"], p + "/blockId", e, L129);
-if ("messageId" in o2108) lf(o2108["messageId"], p + "/messageId", e, L92);
+const x2110 = v;
+const g2110 = typeOf(x2110);
+const b2110: string[] = []; lf(x2110, p, b2110, L0); if (b2110.length) e.push(...b2110);
+if (g2110 === "object") {
+if (g2110 === 'object') { const o2110 = x2110 as Record<string, unknown>;
+if (!("state" in o2110)) e.push(p + "/state" + ': required');
+if (!("threadId" in o2110)) e.push(p + "/threadId" + ': required');
+if (!("when" in o2110)) e.push(p + "/when" + ': required');
+if (!("as" in o2110)) e.push(p + "/as" + ': required');
+if ("state" in o2110) lf(o2110["state"], p + "/state", e, L586);
+if ("threadId" in o2110) lf(o2110["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o2110) lf(o2110["messageId"], p + "/messageId", e, L92);
+if ("dueAt" in o2110) lf(o2110["dueAt"], p + "/dueAt", e, L17);
+if ("when" in o2110) lf(o2110["when"], p + "/when", e, L1);
+if ("as" in o2110) lf(o2110["as"], p + "/as", e, L587);
+if ("taskId" in o2110) lf(o2110["taskId"], p + "/taskId", e, L61);
+if ("requestId" in o2110) lf(o2110["requestId"], p + "/requestId", e, L1);
 }
 }
 }
@@ -3041,38 +2937,16 @@ if ("messageId" in o2108) lf(o2108["messageId"], p + "/messageId", e, L92);
 
 function c309_in(v: unknown, p: string, e: string[]): void {
 {
-const x2109 = v;
-const g2109 = typeOf(x2109);
-const b2109: string[] = []; lf(x2109, p, b2109, L0); if (b2109.length) e.push(...b2109);
-if (g2109 === "object") {
-if (g2109 === 'object') { const o2109 = x2109 as Record<string, unknown>;
-if (!("threadId" in o2109)) e.push(p + "/threadId" + ': required');
-if (!("factId" in o2109)) e.push(p + "/factId" + ': required');
-if (!("kind" in o2109)) e.push(p + "/kind" + ': required');
-if (!("text" in o2109)) e.push(p + "/text" + ': required');
-if ("threadId" in o2109) lf(o2109["threadId"], p + "/threadId", e, L13);
-if ("factId" in o2109) lf(o2109["factId"], p + "/factId", e, L111);
-if ("kind" in o2109) lf(o2109["kind"], p + "/kind", e, L1);
-if ("text" in o2109) lf(o2109["text"], p + "/text", e, L1);
-if ("replaces" in o2109) lf(o2109["replaces"], p + "/replaces", e, L111);
-if ("disputed" in o2109) lf(o2109["disputed"], p + "/disputed", e, L3);
-if ("question" in o2109) {
-{
-const x2110 = o2109["question"];
-const g2110 = typeOf(x2110);
-const b2110: string[] = []; lf(x2110, p + "/question", b2110, L0); if (b2110.length) e.push(...b2110);
-if (g2110 === "object") {
-if (g2110 === 'object') { const o2110 = x2110 as Record<string, unknown>;
-if (!("questionId" in o2110)) e.push(p + "/question" + "/questionId" + ': required');
-if (!("a" in o2110)) e.push(p + "/question" + "/a" + ': required');
-if (!("b" in o2110)) e.push(p + "/question" + "/b" + ': required');
-if ("questionId" in o2110) lf(o2110["questionId"], p + "/question" + "/questionId", e, L1);
-if ("a" in o2110) d_s_28c6895a5d(o2110["a"], p + "/question" + "/a", e);
-if ("b" in o2110) d_s_28c6895a5d(o2110["b"], p + "/question" + "/b", e);
-}
-}
-}
-}
+const x2111 = v;
+const g2111 = typeOf(x2111);
+const b2111: string[] = []; lf(x2111, p, b2111, L0); if (b2111.length) e.push(...b2111);
+if (g2111 === "object") {
+if (g2111 === 'object') { const o2111 = x2111 as Record<string, unknown>;
+if (!("threadId" in o2111)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2111) lf(o2111["threadId"], p + "/threadId", e, L13);
+if ("before" in o2111) lf(o2111["before"], p + "/before", e, L2);
+if ("after" in o2111) lf(o2111["after"], p + "/after", e, L2);
+if ("limit" in o2111) lf(o2111["limit"], p + "/limit", e, L567);
 }
 }
 }
@@ -3080,13 +2954,15 @@ if ("b" in o2110) d_s_28c6895a5d(o2110["b"], p + "/question" + "/b", e);
 
 function c309_out(v: unknown, p: string, e: string[]): void {
 {
-const x2111 = v;
-const g2111 = typeOf(x2111);
-const b2111: string[] = []; lf(x2111, p, b2111, L0); if (b2111.length) e.push(...b2111);
-if (g2111 === "object") {
-if (g2111 === 'object') { const o2111 = x2111 as Record<string, unknown>;
-if (!("posted" in o2111)) e.push(p + "/posted" + ': required');
-if ("posted" in o2111) lf(o2111["posted"], p + "/posted", e, L3);
+const x2112 = v;
+const g2112 = typeOf(x2112);
+const b2112: string[] = []; lf(x2112, p, b2112, L0); if (b2112.length) e.push(...b2112);
+if (g2112 === "object") {
+if (g2112 === 'object') { const o2112 = x2112 as Record<string, unknown>;
+if (!("messages" in o2112)) e.push(p + "/messages" + ': required');
+if (!("hasMore" in o2112)) e.push(p + "/hasMore" + ': required');
+if ("messages" in o2112) d_s_db6b0a2a5b(o2112["messages"], p + "/messages", e);
+if ("hasMore" in o2112) lf(o2112["hasMore"], p + "/hasMore", e, L3);
 }
 }
 }
@@ -3094,13 +2970,32 @@ if ("posted" in o2111) lf(o2111["posted"], p + "/posted", e, L3);
 
 function c310_in(v: unknown, p: string, e: string[]): void {
 {
-const x2112 = v;
-const g2112 = typeOf(x2112);
-const b2112: string[] = []; lf(x2112, p, b2112, L0); if (b2112.length) e.push(...b2112);
-if (g2112 === "object") {
-if (g2112 === 'object') { const o2112 = x2112 as Record<string, unknown>;
-if (!("threadId" in o2112)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2112) lf(o2112["threadId"], p + "/threadId", e, L13);
+const x2113 = v;
+const g2113 = typeOf(x2113);
+const b2113: string[] = []; lf(x2113, p, b2113, L0); if (b2113.length) e.push(...b2113);
+if (g2113 === "object") {
+if (g2113 === 'object') { const o2113 = x2113 as Record<string, unknown>;
+if (!("threadId" in o2113)) e.push(p + "/threadId" + ': required');
+if (!("blockId" in o2113)) e.push(p + "/blockId" + ': required');
+if (!("decision" in o2113)) e.push(p + "/decision" + ': required');
+if ("threadId" in o2113) lf(o2113["threadId"], p + "/threadId", e, L13);
+if ("blockId" in o2113) lf(o2113["blockId"], p + "/blockId", e, L129);
+if ("decision" in o2113) lf(o2113["decision"], p + "/decision", e, L588);
+}
+}
+}
+}
+
+function c310_out(v: unknown, p: string, e: string[]): void {
+{
+const x2114 = v;
+const g2114 = typeOf(x2114);
+const b2114: string[] = []; lf(x2114, p, b2114, L0); if (b2114.length) e.push(...b2114);
+if (g2114 === "object") {
+if (g2114 === 'object') { const o2114 = x2114 as Record<string, unknown>;
+if (!("state" in o2114)) e.push(p + "/state" + ': required');
+if ("state" in o2114) lf(o2114["state"], p + "/state", e, L589);
+if ("noteId" in o2114) lf(o2114["noteId"], p + "/noteId", e, L1);
 }
 }
 }
@@ -3108,18 +3003,20 @@ if ("threadId" in o2112) lf(o2112["threadId"], p + "/threadId", e, L13);
 
 function c311_in(v: unknown, p: string, e: string[]): void {
 {
-const x2113 = v;
-const g2113 = typeOf(x2113);
-const b2113: string[] = []; lf(x2113, p, b2113, L0); if (b2113.length) e.push(...b2113);
-if (g2113 === "object") {
-if (g2113 === 'object') { const o2113 = x2113 as Record<string, unknown>;
-if (!("threadId" in o2113)) e.push(p + "/threadId" + ': required');
-if (!("targetType" in o2113)) e.push(p + "/targetType" + ': required');
-if (!("targetId" in o2113)) e.push(p + "/targetId" + ': required');
-if ("threadId" in o2113) lf(o2113["threadId"], p + "/threadId", e, L13);
-if ("targetType" in o2113) lf(o2113["targetType"], p + "/targetType", e, L1);
-if ("targetId" in o2113) lf(o2113["targetId"], p + "/targetId", e, L1);
-if ("title" in o2113) lf(o2113["title"], p + "/title", e, L1);
+const x2115 = v;
+const g2115 = typeOf(x2115);
+const b2115: string[] = []; lf(x2115, p, b2115, L0); if (b2115.length) e.push(...b2115);
+if (g2115 === "object") {
+if (g2115 === 'object') { const o2115 = x2115 as Record<string, unknown>;
+if (!("threadId" in o2115)) e.push(p + "/threadId" + ': required');
+if (!("title" in o2115)) e.push(p + "/title" + ': required');
+if (!("body" in o2115)) e.push(p + "/body" + ': required');
+if (!("topic" in o2115)) e.push(p + "/topic" + ': required');
+if ("threadId" in o2115) lf(o2115["threadId"], p + "/threadId", e, L13);
+if ("title" in o2115) lf(o2115["title"], p + "/title", e, L284);
+if ("body" in o2115) lf(o2115["body"], p + "/body", e, L108);
+if ("topic" in o2115) lf(o2115["topic"], p + "/topic", e, L1);
+if ("messageId" in o2115) lf(o2115["messageId"], p + "/messageId", e, L92);
 }
 }
 }
@@ -3127,14 +3024,16 @@ if ("title" in o2113) lf(o2113["title"], p + "/title", e, L1);
 
 function c311_out(v: unknown, p: string, e: string[]): void {
 {
-const x2114 = v;
-const g2114 = typeOf(x2114);
-const b2114: string[] = []; lf(x2114, p, b2114, L0); if (b2114.length) e.push(...b2114);
-if (g2114 === "object") {
-if (g2114 === 'object') { const o2114 = x2114 as Record<string, unknown>;
-if (!("opened" in o2114)) e.push(p + "/opened" + ': required');
-if ("opened" in o2114) lf(o2114["opened"], p + "/opened", e, L3);
-if ("reason" in o2114) lf(o2114["reason"], p + "/reason", e, L591);
+const x2116 = v;
+const g2116 = typeOf(x2116);
+const b2116: string[] = []; lf(x2116, p, b2116, L0); if (b2116.length) e.push(...b2116);
+if (g2116 === "object") {
+if (g2116 === 'object') { const o2116 = x2116 as Record<string, unknown>;
+if (!("offered" in o2116)) e.push(p + "/offered" + ': required');
+if ("offered" in o2116) lf(o2116["offered"], p + "/offered", e, L3);
+if ("why" in o2116) lf(o2116["why"], p + "/why", e, L590);
+if ("blockId" in o2116) lf(o2116["blockId"], p + "/blockId", e, L129);
+if ("messageId" in o2116) lf(o2116["messageId"], p + "/messageId", e, L92);
 }
 }
 }
@@ -3142,14 +3041,38 @@ if ("reason" in o2114) lf(o2114["reason"], p + "/reason", e, L591);
 
 function c312_in(v: unknown, p: string, e: string[]): void {
 {
-const x2115 = v;
-const g2115 = typeOf(x2115);
-const b2115: string[] = []; lf(x2115, p, b2115, L0); if (b2115.length) e.push(...b2115);
-if (g2115 === "object") {
-if (g2115 === 'object') { const o2115 = x2115 as Record<string, unknown>;
-if (!("personId" in o2115)) e.push(p + "/personId" + ': required');
-if ("personId" in o2115) lf(o2115["personId"], p + "/personId", e, L16);
-if ("threadId" in o2115) lf(o2115["threadId"], p + "/threadId", e, L13);
+const x2117 = v;
+const g2117 = typeOf(x2117);
+const b2117: string[] = []; lf(x2117, p, b2117, L0); if (b2117.length) e.push(...b2117);
+if (g2117 === "object") {
+if (g2117 === 'object') { const o2117 = x2117 as Record<string, unknown>;
+if (!("threadId" in o2117)) e.push(p + "/threadId" + ': required');
+if (!("factId" in o2117)) e.push(p + "/factId" + ': required');
+if (!("kind" in o2117)) e.push(p + "/kind" + ': required');
+if (!("text" in o2117)) e.push(p + "/text" + ': required');
+if ("threadId" in o2117) lf(o2117["threadId"], p + "/threadId", e, L13);
+if ("factId" in o2117) lf(o2117["factId"], p + "/factId", e, L111);
+if ("kind" in o2117) lf(o2117["kind"], p + "/kind", e, L1);
+if ("text" in o2117) lf(o2117["text"], p + "/text", e, L1);
+if ("replaces" in o2117) lf(o2117["replaces"], p + "/replaces", e, L111);
+if ("disputed" in o2117) lf(o2117["disputed"], p + "/disputed", e, L3);
+if ("question" in o2117) {
+{
+const x2118 = o2117["question"];
+const g2118 = typeOf(x2118);
+const b2118: string[] = []; lf(x2118, p + "/question", b2118, L0); if (b2118.length) e.push(...b2118);
+if (g2118 === "object") {
+if (g2118 === 'object') { const o2118 = x2118 as Record<string, unknown>;
+if (!("questionId" in o2118)) e.push(p + "/question" + "/questionId" + ': required');
+if (!("a" in o2118)) e.push(p + "/question" + "/a" + ': required');
+if (!("b" in o2118)) e.push(p + "/question" + "/b" + ': required');
+if ("questionId" in o2118) lf(o2118["questionId"], p + "/question" + "/questionId", e, L1);
+if ("a" in o2118) d_s_28c6895a5d(o2118["a"], p + "/question" + "/a", e);
+if ("b" in o2118) d_s_28c6895a5d(o2118["b"], p + "/question" + "/b", e);
+}
+}
+}
+}
 }
 }
 }
@@ -3157,16 +3080,13 @@ if ("threadId" in o2115) lf(o2115["threadId"], p + "/threadId", e, L13);
 
 function c312_out(v: unknown, p: string, e: string[]): void {
 {
-const x2116 = v;
-const g2116 = typeOf(x2116);
-const b2116: string[] = []; lf(x2116, p, b2116, L0); if (b2116.length) e.push(...b2116);
-if (g2116 === "object") {
-if (g2116 === 'object') { const o2116 = x2116 as Record<string, unknown>;
-if (!("replies" in o2116)) e.push(p + "/replies" + ': required');
-if (!("samples" in o2116)) e.push(p + "/samples" + ': required');
-if ("replies" in o2116) lf(o2116["replies"], p + "/replies", e, L592);
-if ("samples" in o2116) lf(o2116["samples"], p + "/samples", e, L17);
-if ("notifies" in o2116) lf(o2116["notifies"], p + "/notifies", e, L593);
+const x2119 = v;
+const g2119 = typeOf(x2119);
+const b2119: string[] = []; lf(x2119, p, b2119, L0); if (b2119.length) e.push(...b2119);
+if (g2119 === "object") {
+if (g2119 === 'object') { const o2119 = x2119 as Record<string, unknown>;
+if (!("posted" in o2119)) e.push(p + "/posted" + ': required');
+if ("posted" in o2119) lf(o2119["posted"], p + "/posted", e, L3);
 }
 }
 }
@@ -3174,80 +3094,32 @@ if ("notifies" in o2116) lf(o2116["notifies"], p + "/notifies", e, L593);
 
 function c313_in(v: unknown, p: string, e: string[]): void {
 {
-const x2117 = v;
-const g2117 = typeOf(x2117);
-const b2117: string[] = []; lf(x2117, p, b2117, L0); if (b2117.length) e.push(...b2117);
-if (g2117 === "object") {
-if (g2117 === 'object') { const o2117 = x2117 as Record<string, unknown>;
-if ("personIds" in o2117) {
-{
-const x2118 = o2117["personIds"];
-const g2118 = typeOf(x2118);
-const b2118: string[] = []; lf(x2118, p + "/personIds", b2118, L4); if (b2118.length) e.push(...b2118);
-if (g2118 === "array") {
-if (g2118 === 'array') { const a2118 = x2118 as unknown[];
-if (a2118.length > 50) e.push(p + "/personIds" + ': too many items');
-for (let i2118 = 0; i2118 < a2118.length; i2118++) {
-lf(a2118[i2118], p + "/personIds" + '/' + i2118, e, L16);
-}
-}
-}
-}
-}
-if ("q" in o2117) lf(o2117["q"], p + "/q", e, L1);
+const x2120 = v;
+const g2120 = typeOf(x2120);
+const b2120: string[] = []; lf(x2120, p, b2120, L0); if (b2120.length) e.push(...b2120);
+if (g2120 === "object") {
+if (g2120 === 'object') { const o2120 = x2120 as Record<string, unknown>;
+if (!("threadId" in o2120)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2120) lf(o2120["threadId"], p + "/threadId", e, L13);
 }
 }
 }
 }
 
-function c313_out(v: unknown, p: string, e: string[]): void {
+function c314_in(v: unknown, p: string, e: string[]): void {
 {
-const x2119 = v;
-const g2119 = typeOf(x2119);
-const b2119: string[] = []; lf(x2119, p, b2119, L0); if (b2119.length) e.push(...b2119);
-if (g2119 === "object") {
-if (g2119 === 'object') { const o2119 = x2119 as Record<string, unknown>;
-if (!("people" in o2119)) e.push(p + "/people" + ': required');
-if (!("how" in o2119)) e.push(p + "/how" + ': required');
-if ("people" in o2119) {
-{
-const x2120 = o2119["people"];
-const g2120 = typeOf(x2120);
-const b2120: string[] = []; lf(x2120, p + "/people", b2120, L4); if (b2120.length) e.push(...b2120);
-if (g2120 === "array") {
-if (g2120 === 'array') { const a2120 = x2120 as unknown[];
-for (let i2120 = 0; i2120 < a2120.length; i2120++) {
-{
-const x2121 = a2120[i2120];
+const x2121 = v;
 const g2121 = typeOf(x2121);
-const b2121: string[] = []; lf(x2121, p + "/people" + '/' + i2120, b2121, L0); if (b2121.length) e.push(...b2121);
+const b2121: string[] = []; lf(x2121, p, b2121, L0); if (b2121.length) e.push(...b2121);
 if (g2121 === "object") {
 if (g2121 === 'object') { const o2121 = x2121 as Record<string, unknown>;
-if (!("handle" in o2121)) e.push(p + "/people" + '/' + i2120 + "/handle" + ': required');
-if (!("name" in o2121)) e.push(p + "/people" + '/' + i2120 + "/name" + ': required');
-if (!("state" in o2121)) e.push(p + "/people" + '/' + i2120 + "/state" + ': required');
-if (!("inHours" in o2121)) e.push(p + "/people" + '/' + i2120 + "/inHours" + ': required');
-if (!("wouldGo" in o2121)) e.push(p + "/people" + '/' + i2120 + "/wouldGo" + ': required');
-if ("handle" in o2121) lf(o2121["handle"], p + "/people" + '/' + i2120 + "/handle", e, L1);
-if ("name" in o2121) lf(o2121["name"], p + "/people" + '/' + i2120 + "/name", e, L1);
-if ("state" in o2121) lf(o2121["state"], p + "/people" + '/' + i2120 + "/state", e, L594);
-if ("lastSeenAt" in o2121) lf(o2121["lastSeenAt"], p + "/people" + '/' + i2120 + "/lastSeenAt", e, L17);
-if ("awayUntil" in o2121) lf(o2121["awayUntil"], p + "/people" + '/' + i2120 + "/awayUntil", e, L17);
-if ("timezone" in o2121) lf(o2121["timezone"], p + "/people" + '/' + i2120 + "/timezone", e, L1);
-if ("localTime" in o2121) lf(o2121["localTime"], p + "/people" + '/' + i2120 + "/localTime", e, L1);
-if ("hours" in o2121) lf(o2121["hours"], p + "/people" + '/' + i2120 + "/hours", e, L1);
-if ("inHours" in o2121) lf(o2121["inHours"], p + "/people" + '/' + i2120 + "/inHours", e, L3);
-if ("mutedUntil" in o2121) lf(o2121["mutedUntil"], p + "/people" + '/' + i2120 + "/mutedUntil", e, L17);
-if ("wouldGo" in o2121) lf(o2121["wouldGo"], p + "/people" + '/' + i2120 + "/wouldGo", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("how" in o2119) lf(o2119["how"], p + "/how", e, L1);
+if (!("threadId" in o2121)) e.push(p + "/threadId" + ': required');
+if (!("targetType" in o2121)) e.push(p + "/targetType" + ': required');
+if (!("targetId" in o2121)) e.push(p + "/targetId" + ': required');
+if ("threadId" in o2121) lf(o2121["threadId"], p + "/threadId", e, L13);
+if ("targetType" in o2121) lf(o2121["targetType"], p + "/targetType", e, L1);
+if ("targetId" in o2121) lf(o2121["targetId"], p + "/targetId", e, L1);
+if ("title" in o2121) lf(o2121["title"], p + "/title", e, L1);
 }
 }
 }
@@ -3260,8 +3132,9 @@ const g2122 = typeOf(x2122);
 const b2122: string[] = []; lf(x2122, p, b2122, L0); if (b2122.length) e.push(...b2122);
 if (g2122 === "object") {
 if (g2122 === 'object') { const o2122 = x2122 as Record<string, unknown>;
-if (!("pinned" in o2122)) e.push(p + "/pinned" + ': required');
-if ("pinned" in o2122) lf(o2122["pinned"], p + "/pinned", e, L3);
+if (!("opened" in o2122)) e.push(p + "/opened" + ': required');
+if ("opened" in o2122) lf(o2122["opened"], p + "/opened", e, L3);
+if ("reason" in o2122) lf(o2122["reason"], p + "/reason", e, L591);
 }
 }
 }
@@ -3274,7 +3147,8 @@ const g2123 = typeOf(x2123);
 const b2123: string[] = []; lf(x2123, p, b2123, L0); if (b2123.length) e.push(...b2123);
 if (g2123 === "object") {
 if (g2123 === 'object') { const o2123 = x2123 as Record<string, unknown>;
-if (!("threadId" in o2123)) e.push(p + "/threadId" + ': required');
+if (!("personId" in o2123)) e.push(p + "/personId" + ': required');
+if ("personId" in o2123) lf(o2123["personId"], p + "/personId", e, L16);
 if ("threadId" in o2123) lf(o2123["threadId"], p + "/threadId", e, L13);
 }
 }
@@ -3288,8 +3162,11 @@ const g2124 = typeOf(x2124);
 const b2124: string[] = []; lf(x2124, p, b2124, L0); if (b2124.length) e.push(...b2124);
 if (g2124 === "object") {
 if (g2124 === 'object') { const o2124 = x2124 as Record<string, unknown>;
-if (!("messages" in o2124)) e.push(p + "/messages" + ': required');
-if ("messages" in o2124) d_s_db6b0a2a5b(o2124["messages"], p + "/messages", e);
+if (!("replies" in o2124)) e.push(p + "/replies" + ': required');
+if (!("samples" in o2124)) e.push(p + "/samples" + ': required');
+if ("replies" in o2124) lf(o2124["replies"], p + "/replies", e, L592);
+if ("samples" in o2124) lf(o2124["samples"], p + "/samples", e, L17);
+if ("notifies" in o2124) lf(o2124["notifies"], p + "/notifies", e, L593);
 }
 }
 }
@@ -3302,55 +3179,75 @@ const g2125 = typeOf(x2125);
 const b2125: string[] = []; lf(x2125, p, b2125, L0); if (b2125.length) e.push(...b2125);
 if (g2125 === "object") {
 if (g2125 === 'object') { const o2125 = x2125 as Record<string, unknown>;
-if (!("threadId" in o2125)) e.push(p + "/threadId" + ': required');
-if (!("title" in o2125)) e.push(p + "/title" + ': required');
-if (!("steps" in o2125)) e.push(p + "/steps" + ': required');
-if ("threadId" in o2125) lf(o2125["threadId"], p + "/threadId", e, L13);
-if ("title" in o2125) lf(o2125["title"], p + "/title", e, L1);
-if ("steps" in o2125) {
+if ("personIds" in o2125) {
 {
-const x2126 = o2125["steps"];
+const x2126 = o2125["personIds"];
 const g2126 = typeOf(x2126);
-const b2126: string[] = []; lf(x2126, p + "/steps", b2126, L4); if (b2126.length) e.push(...b2126);
+const b2126: string[] = []; lf(x2126, p + "/personIds", b2126, L4); if (b2126.length) e.push(...b2126);
 if (g2126 === "array") {
 if (g2126 === 'array') { const a2126 = x2126 as unknown[];
-if (a2126.length < 1) e.push(p + "/steps" + ': too few items');
+if (a2126.length > 50) e.push(p + "/personIds" + ': too many items');
 for (let i2126 = 0; i2126 < a2126.length; i2126++) {
-{
-const x2127 = a2126[i2126];
-const g2127 = typeOf(x2127);
-const b2127: string[] = []; lf(x2127, p + "/steps" + '/' + i2126, b2127, L0); if (b2127.length) e.push(...b2127);
-if (g2127 === "object") {
-if (g2127 === 'object') { const o2127 = x2127 as Record<string, unknown>;
-if (!("text" in o2127)) e.push(p + "/steps" + '/' + i2126 + "/text" + ': required');
-if ("text" in o2127) lf(o2127["text"], p + "/steps" + '/' + i2126 + "/text", e, L1);
-if ("detail" in o2127) lf(o2127["detail"], p + "/steps" + '/' + i2126 + "/detail", e, L1);
+lf(a2126[i2126], p + "/personIds" + '/' + i2126, e, L16);
 }
 }
 }
 }
 }
-}
-}
-}
-if ("docFileId" in o2125) lf(o2125["docFileId"], p + "/docFileId", e, L35);
+if ("q" in o2125) lf(o2125["q"], p + "/q", e, L1);
 }
 }
 }
 }
 
-function c317_in(v: unknown, p: string, e: string[]): void {
+function c316_out(v: unknown, p: string, e: string[]): void {
 {
-const x2128 = v;
+const x2127 = v;
+const g2127 = typeOf(x2127);
+const b2127: string[] = []; lf(x2127, p, b2127, L0); if (b2127.length) e.push(...b2127);
+if (g2127 === "object") {
+if (g2127 === 'object') { const o2127 = x2127 as Record<string, unknown>;
+if (!("people" in o2127)) e.push(p + "/people" + ': required');
+if (!("how" in o2127)) e.push(p + "/how" + ': required');
+if ("people" in o2127) {
+{
+const x2128 = o2127["people"];
 const g2128 = typeOf(x2128);
-const b2128: string[] = []; lf(x2128, p, b2128, L0); if (b2128.length) e.push(...b2128);
-if (g2128 === "object") {
-if (g2128 === 'object') { const o2128 = x2128 as Record<string, unknown>;
-if (!("threadId" in o2128)) e.push(p + "/threadId" + ': required');
-if (!("planId" in o2128)) e.push(p + "/planId" + ': required');
-if ("threadId" in o2128) lf(o2128["threadId"], p + "/threadId", e, L13);
-if ("planId" in o2128) lf(o2128["planId"], p + "/planId", e, L416);
-if ("note" in o2128) lf(o2128["note"], p + "/note", e, L1);
+const b2128: string[] = []; lf(x2128, p + "/people", b2128, L4); if (b2128.length) e.push(...b2128);
+if (g2128 === "array") {
+if (g2128 === 'array') { const a2128 = x2128 as unknown[];
+for (let i2128 = 0; i2128 < a2128.length; i2128++) {
+{
+const x2129 = a2128[i2128];
+const g2129 = typeOf(x2129);
+const b2129: string[] = []; lf(x2129, p + "/people" + '/' + i2128, b2129, L0); if (b2129.length) e.push(...b2129);
+if (g2129 === "object") {
+if (g2129 === 'object') { const o2129 = x2129 as Record<string, unknown>;
+if (!("handle" in o2129)) e.push(p + "/people" + '/' + i2128 + "/handle" + ': required');
+if (!("name" in o2129)) e.push(p + "/people" + '/' + i2128 + "/name" + ': required');
+if (!("state" in o2129)) e.push(p + "/people" + '/' + i2128 + "/state" + ': required');
+if (!("inHours" in o2129)) e.push(p + "/people" + '/' + i2128 + "/inHours" + ': required');
+if (!("wouldGo" in o2129)) e.push(p + "/people" + '/' + i2128 + "/wouldGo" + ': required');
+if ("handle" in o2129) lf(o2129["handle"], p + "/people" + '/' + i2128 + "/handle", e, L1);
+if ("name" in o2129) lf(o2129["name"], p + "/people" + '/' + i2128 + "/name", e, L1);
+if ("state" in o2129) lf(o2129["state"], p + "/people" + '/' + i2128 + "/state", e, L594);
+if ("lastSeenAt" in o2129) lf(o2129["lastSeenAt"], p + "/people" + '/' + i2128 + "/lastSeenAt", e, L17);
+if ("awayUntil" in o2129) lf(o2129["awayUntil"], p + "/people" + '/' + i2128 + "/awayUntil", e, L17);
+if ("timezone" in o2129) lf(o2129["timezone"], p + "/people" + '/' + i2128 + "/timezone", e, L1);
+if ("localTime" in o2129) lf(o2129["localTime"], p + "/people" + '/' + i2128 + "/localTime", e, L1);
+if ("hours" in o2129) lf(o2129["hours"], p + "/people" + '/' + i2128 + "/hours", e, L1);
+if ("inHours" in o2129) lf(o2129["inHours"], p + "/people" + '/' + i2128 + "/inHours", e, L3);
+if ("mutedUntil" in o2129) lf(o2129["mutedUntil"], p + "/people" + '/' + i2128 + "/mutedUntil", e, L17);
+if ("wouldGo" in o2129) lf(o2129["wouldGo"], p + "/people" + '/' + i2128 + "/wouldGo", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("how" in o2127) lf(o2127["how"], p + "/how", e, L1);
 }
 }
 }
@@ -3358,13 +3255,13 @@ if ("note" in o2128) lf(o2128["note"], p + "/note", e, L1);
 
 function c317_out(v: unknown, p: string, e: string[]): void {
 {
-const x2129 = v;
-const g2129 = typeOf(x2129);
-const b2129: string[] = []; lf(x2129, p, b2129, L0); if (b2129.length) e.push(...b2129);
-if (g2129 === "object") {
-if (g2129 === 'object') { const o2129 = x2129 as Record<string, unknown>;
-if (!("ok" in o2129)) e.push(p + "/ok" + ': required');
-if ("ok" in o2129) lf(o2129["ok"], p + "/ok", e, L3);
+const x2130 = v;
+const g2130 = typeOf(x2130);
+const b2130: string[] = []; lf(x2130, p, b2130, L0); if (b2130.length) e.push(...b2130);
+if (g2130 === "object") {
+if (g2130 === 'object') { const o2130 = x2130 as Record<string, unknown>;
+if (!("pinned" in o2130)) e.push(p + "/pinned" + ': required');
+if ("pinned" in o2130) lf(o2130["pinned"], p + "/pinned", e, L3);
 }
 }
 }
@@ -3372,17 +3269,13 @@ if ("ok" in o2129) lf(o2129["ok"], p + "/ok", e, L3);
 
 function c318_in(v: unknown, p: string, e: string[]): void {
 {
-const x2130 = v;
-const g2130 = typeOf(x2130);
-const b2130: string[] = []; lf(x2130, p, b2130, L0); if (b2130.length) e.push(...b2130);
-if (g2130 === "object") {
-if (g2130 === 'object') { const o2130 = x2130 as Record<string, unknown>;
-if (!("threadId" in o2130)) e.push(p + "/threadId" + ': required');
-if (!("planId" in o2130)) e.push(p + "/planId" + ': required');
-if (!("stepId" in o2130)) e.push(p + "/stepId" + ': required');
-if ("threadId" in o2130) lf(o2130["threadId"], p + "/threadId", e, L13);
-if ("planId" in o2130) lf(o2130["planId"], p + "/planId", e, L416);
-if ("stepId" in o2130) lf(o2130["stepId"], p + "/stepId", e, L117);
+const x2131 = v;
+const g2131 = typeOf(x2131);
+const b2131: string[] = []; lf(x2131, p, b2131, L0); if (b2131.length) e.push(...b2131);
+if (g2131 === "object") {
+if (g2131 === 'object') { const o2131 = x2131 as Record<string, unknown>;
+if (!("threadId" in o2131)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2131) lf(o2131["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -3390,27 +3283,13 @@ if ("stepId" in o2130) lf(o2130["stepId"], p + "/stepId", e, L117);
 
 function c318_out(v: unknown, p: string, e: string[]): void {
 {
-const x2131 = v;
-const g2131 = typeOf(x2131);
-const b2131: string[] = []; lf(x2131, p, b2131, L0); if (b2131.length) e.push(...b2131);
-if (g2131 === "object") {
-if (g2131 === 'object') { const o2131 = x2131 as Record<string, unknown>;
-if (!("plan" in o2131)) e.push(p + "/plan" + ': required');
-if ("plan" in o2131) {
-{
-const x2132 = o2131["plan"];
+const x2132 = v;
 const g2132 = typeOf(x2132);
-const b2132: string[] = []; lf(x2132, p + "/plan", b2132, L0); if (b2132.length) e.push(...b2132);
+const b2132: string[] = []; lf(x2132, p, b2132, L0); if (b2132.length) e.push(...b2132);
 if (g2132 === "object") {
 if (g2132 === 'object') { const o2132 = x2132 as Record<string, unknown>;
-if (!("planId" in o2132)) e.push(p + "/plan" + "/planId" + ': required');
-if (!("steps" in o2132)) e.push(p + "/plan" + "/steps" + ': required');
-if ("planId" in o2132) lf(o2132["planId"], p + "/plan" + "/planId", e, L416);
-if ("steps" in o2132) d_s_aad8a88d49(o2132["steps"], p + "/plan" + "/steps", e);
-}
-}
-}
-}
+if (!("messages" in o2132)) e.push(p + "/messages" + ': required');
+if ("messages" in o2132) d_s_db6b0a2a5b(o2132["messages"], p + "/messages", e);
 }
 }
 }
@@ -3424,29 +3303,28 @@ const b2133: string[] = []; lf(x2133, p, b2133, L0); if (b2133.length) e.push(..
 if (g2133 === "object") {
 if (g2133 === 'object') { const o2133 = x2133 as Record<string, unknown>;
 if (!("threadId" in o2133)) e.push(p + "/threadId" + ': required');
-if (!("body" in o2133)) e.push(p + "/body" + ': required');
-if (!("idempotencyKey" in o2133)) e.push(p + "/idempotencyKey" + ': required');
+if (!("title" in o2133)) e.push(p + "/title" + ': required');
+if (!("steps" in o2133)) e.push(p + "/steps" + ': required');
 if ("threadId" in o2133) lf(o2133["threadId"], p + "/threadId", e, L13);
-if ("body" in o2133) lf(o2133["body"], p + "/body", e, L1);
-if ("blocks" in o2133) {
+if ("title" in o2133) lf(o2133["title"], p + "/title", e, L1);
+if ("steps" in o2133) {
 {
-const x2134 = o2133["blocks"];
+const x2134 = o2133["steps"];
 const g2134 = typeOf(x2134);
-const b2134: string[] = []; lf(x2134, p + "/blocks", b2134, L4); if (b2134.length) e.push(...b2134);
+const b2134: string[] = []; lf(x2134, p + "/steps", b2134, L4); if (b2134.length) e.push(...b2134);
 if (g2134 === "array") {
 if (g2134 === 'array') { const a2134 = x2134 as unknown[];
+if (a2134.length < 1) e.push(p + "/steps" + ': too few items');
 for (let i2134 = 0; i2134 < a2134.length; i2134++) {
 {
 const x2135 = a2134[i2134];
 const g2135 = typeOf(x2135);
-const b2135: string[] = []; lf(x2135, p + "/blocks" + '/' + i2134, b2135, L0); if (b2135.length) e.push(...b2135);
+const b2135: string[] = []; lf(x2135, p + "/steps" + '/' + i2134, b2135, L0); if (b2135.length) e.push(...b2135);
 if (g2135 === "object") {
 if (g2135 === 'object') { const o2135 = x2135 as Record<string, unknown>;
-if (!("type" in o2135)) e.push(p + "/blocks" + '/' + i2134 + "/type" + ': required');
-if (!("v" in o2135)) e.push(p + "/blocks" + '/' + i2134 + "/v" + ': required');
-if (!("data" in o2135)) e.push(p + "/blocks" + '/' + i2134 + "/data" + ': required');
-if ("type" in o2135) lf(o2135["type"], p + "/blocks" + '/' + i2134 + "/type", e, L1);
-if ("v" in o2135) lf(o2135["v"], p + "/blocks" + '/' + i2134 + "/v", e, L12);
+if (!("text" in o2135)) e.push(p + "/steps" + '/' + i2134 + "/text" + ': required');
+if ("text" in o2135) lf(o2135["text"], p + "/steps" + '/' + i2134 + "/text", e, L1);
+if ("detail" in o2135) lf(o2135["detail"], p + "/steps" + '/' + i2134 + "/detail", e, L1);
 }
 }
 }
@@ -3455,39 +3333,7 @@ if ("v" in o2135) lf(o2135["v"], p + "/blocks" + '/' + i2134 + "/v", e, L12);
 }
 }
 }
-if ("attachments" in o2133) {
-{
-const x2136 = o2133["attachments"];
-const g2136 = typeOf(x2136);
-const b2136: string[] = []; lf(x2136, p + "/attachments", b2136, L4); if (b2136.length) e.push(...b2136);
-if (g2136 === "array") {
-if (g2136 === 'array') { const a2136 = x2136 as unknown[];
-for (let i2136 = 0; i2136 < a2136.length; i2136++) {
-lf(a2136[i2136], p + "/attachments" + '/' + i2136, e, L35);
-}
-}
-}
-}
-}
-if ("replyTo" in o2133) lf(o2133["replyTo"], p + "/replyTo", e, L92);
-if ("mentions" in o2133) d_s_fe17a01e9e(o2133["mentions"], p + "/mentions", e);
-if ("via" in o2133) {
-{
-const x2137 = o2133["via"];
-const g2137 = typeOf(x2137);
-const b2137: string[] = []; lf(x2137, p + "/via", b2137, L0); if (b2137.length) e.push(...b2137);
-if (g2137 === "object") {
-if (g2137 === 'object') { const o2137 = x2137 as Record<string, unknown>;
-if (!("routineOwner" in o2137)) e.push(p + "/via" + "/routineOwner" + ': required');
-if ("routineOwner" in o2137) lf(o2137["routineOwner"], p + "/via" + "/routineOwner", e, L16);
-}
-}
-}
-}
-if ("clientId" in o2133) lf(o2133["clientId"], p + "/clientId", e, L92);
-if ("screen" in o2133) d_s_c1faba3335(o2133["screen"], p + "/screen", e);
-if ("alsoToChat" in o2133) lf(o2133["alsoToChat"], p + "/alsoToChat", e, L3);
-if ("idempotencyKey" in o2133) lf(o2133["idempotencyKey"], p + "/idempotencyKey", e, L54);
+if ("docFileId" in o2133) lf(o2133["docFileId"], p + "/docFileId", e, L35);
 }
 }
 }
@@ -3495,36 +3341,48 @@ if ("idempotencyKey" in o2133) lf(o2133["idempotencyKey"], p + "/idempotencyKey"
 
 function c320_in(v: unknown, p: string, e: string[]): void {
 {
+const x2136 = v;
+const g2136 = typeOf(x2136);
+const b2136: string[] = []; lf(x2136, p, b2136, L0); if (b2136.length) e.push(...b2136);
+if (g2136 === "object") {
+if (g2136 === 'object') { const o2136 = x2136 as Record<string, unknown>;
+if (!("threadId" in o2136)) e.push(p + "/threadId" + ': required');
+if (!("planId" in o2136)) e.push(p + "/planId" + ': required');
+if ("threadId" in o2136) lf(o2136["threadId"], p + "/threadId", e, L13);
+if ("planId" in o2136) lf(o2136["planId"], p + "/planId", e, L416);
+if ("note" in o2136) lf(o2136["note"], p + "/note", e, L1);
+}
+}
+}
+}
+
+function c320_out(v: unknown, p: string, e: string[]): void {
+{
+const x2137 = v;
+const g2137 = typeOf(x2137);
+const b2137: string[] = []; lf(x2137, p, b2137, L0); if (b2137.length) e.push(...b2137);
+if (g2137 === "object") {
+if (g2137 === 'object') { const o2137 = x2137 as Record<string, unknown>;
+if (!("ok" in o2137)) e.push(p + "/ok" + ': required');
+if ("ok" in o2137) lf(o2137["ok"], p + "/ok", e, L3);
+}
+}
+}
+}
+
+function c321_in(v: unknown, p: string, e: string[]): void {
+{
 const x2138 = v;
 const g2138 = typeOf(x2138);
 const b2138: string[] = []; lf(x2138, p, b2138, L0); if (b2138.length) e.push(...b2138);
 if (g2138 === "object") {
 if (g2138 === 'object') { const o2138 = x2138 as Record<string, unknown>;
 if (!("threadId" in o2138)) e.push(p + "/threadId" + ': required');
-if (!("prompt" in o2138)) e.push(p + "/prompt" + ': required');
-if (!("mode" in o2138)) e.push(p + "/mode" + ': required');
+if (!("planId" in o2138)) e.push(p + "/planId" + ': required');
+if (!("stepId" in o2138)) e.push(p + "/stepId" + ': required');
 if ("threadId" in o2138) lf(o2138["threadId"], p + "/threadId", e, L13);
-if ("prompt" in o2138) lf(o2138["prompt"], p + "/prompt", e, L1);
-if ("mode" in o2138) lf(o2138["mode"], p + "/mode", e, L595);
-if ("options" in o2138) d_s_1d32907513(o2138["options"], p + "/options", e);
-if ("allowOther" in o2138) lf(o2138["allowOther"], p + "/allowOther", e, L3);
-if ("card" in o2138) {
-{
-const x2139 = o2138["card"];
-const g2139 = typeOf(x2139);
-const b2139: string[] = []; lf(x2139, p + "/card", b2139, L0); if (b2139.length) e.push(...b2139);
-if (g2139 === "object") {
-if (g2139 === 'object') { const o2139 = x2139 as Record<string, unknown>;
-if (!("kind" in o2139)) e.push(p + "/card" + "/kind" + ': required');
-if (!("command" in o2139)) e.push(p + "/card" + "/command" + ': required');
-if ("kind" in o2139) lf(o2139["kind"], p + "/card" + "/kind", e, L596);
-if ("command" in o2139) lf(o2139["command"], p + "/card" + "/command", e, L1);
-if ("host" in o2139) lf(o2139["host"], p + "/card" + "/host", e, L405);
-if ("risk" in o2139) lf(o2139["risk"], p + "/card" + "/risk", e, L597);
-}
-}
-}
-}
+if ("planId" in o2138) lf(o2138["planId"], p + "/planId", e, L416);
+if ("stepId" in o2138) lf(o2138["stepId"], p + "/stepId", e, L117);
 }
 }
 }
@@ -3532,13 +3390,27 @@ if ("risk" in o2139) lf(o2139["risk"], p + "/card" + "/risk", e, L597);
 
 function c321_out(v: unknown, p: string, e: string[]): void {
 {
-const x2140 = v;
+const x2139 = v;
+const g2139 = typeOf(x2139);
+const b2139: string[] = []; lf(x2139, p, b2139, L0); if (b2139.length) e.push(...b2139);
+if (g2139 === "object") {
+if (g2139 === 'object') { const o2139 = x2139 as Record<string, unknown>;
+if (!("plan" in o2139)) e.push(p + "/plan" + ': required');
+if ("plan" in o2139) {
+{
+const x2140 = o2139["plan"];
 const g2140 = typeOf(x2140);
-const b2140: string[] = []; lf(x2140, p, b2140, L0); if (b2140.length) e.push(...b2140);
+const b2140: string[] = []; lf(x2140, p + "/plan", b2140, L0); if (b2140.length) e.push(...b2140);
 if (g2140 === "object") {
 if (g2140 === 'object') { const o2140 = x2140 as Record<string, unknown>;
-if (!("withdrawn" in o2140)) e.push(p + "/withdrawn" + ': required');
-if ("withdrawn" in o2140) lf(o2140["withdrawn"], p + "/withdrawn", e, L3);
+if (!("planId" in o2140)) e.push(p + "/plan" + "/planId" + ': required');
+if (!("steps" in o2140)) e.push(p + "/plan" + "/steps" + ': required');
+if ("planId" in o2140) lf(o2140["planId"], p + "/plan" + "/planId", e, L416);
+if ("steps" in o2140) d_s_aad8a88d49(o2140["steps"], p + "/plan" + "/steps", e);
+}
+}
+}
+}
 }
 }
 }
@@ -3551,27 +3423,71 @@ const g2141 = typeOf(x2141);
 const b2141: string[] = []; lf(x2141, p, b2141, L0); if (b2141.length) e.push(...b2141);
 if (g2141 === "object") {
 if (g2141 === 'object') { const o2141 = x2141 as Record<string, unknown>;
-if (!("messageId" in o2141)) e.push(p + "/messageId" + ': required');
 if (!("threadId" in o2141)) e.push(p + "/threadId" + ': required');
-if (!("emoji" in o2141)) e.push(p + "/emoji" + ': required');
-if ("messageId" in o2141) lf(o2141["messageId"], p + "/messageId", e, L92);
+if (!("body" in o2141)) e.push(p + "/body" + ': required');
+if (!("idempotencyKey" in o2141)) e.push(p + "/idempotencyKey" + ': required');
 if ("threadId" in o2141) lf(o2141["threadId"], p + "/threadId", e, L13);
-if ("emoji" in o2141) lf(o2141["emoji"], p + "/emoji", e, L1);
-if ("remove" in o2141) lf(o2141["remove"], p + "/remove", e, L3);
-}
-}
-}
-}
-
-function c322_out(v: unknown, p: string, e: string[]): void {
+if ("body" in o2141) lf(o2141["body"], p + "/body", e, L1);
+if ("blocks" in o2141) {
 {
-const x2142 = v;
+const x2142 = o2141["blocks"];
 const g2142 = typeOf(x2142);
-const b2142: string[] = []; lf(x2142, p, b2142, L0); if (b2142.length) e.push(...b2142);
-if (g2142 === "object") {
-if (g2142 === 'object') { const o2142 = x2142 as Record<string, unknown>;
-if (!("reactions" in o2142)) e.push(p + "/reactions" + ': required');
-if ("reactions" in o2142) d_s_cf70e9ce10(o2142["reactions"], p + "/reactions", e);
+const b2142: string[] = []; lf(x2142, p + "/blocks", b2142, L4); if (b2142.length) e.push(...b2142);
+if (g2142 === "array") {
+if (g2142 === 'array') { const a2142 = x2142 as unknown[];
+for (let i2142 = 0; i2142 < a2142.length; i2142++) {
+{
+const x2143 = a2142[i2142];
+const g2143 = typeOf(x2143);
+const b2143: string[] = []; lf(x2143, p + "/blocks" + '/' + i2142, b2143, L0); if (b2143.length) e.push(...b2143);
+if (g2143 === "object") {
+if (g2143 === 'object') { const o2143 = x2143 as Record<string, unknown>;
+if (!("type" in o2143)) e.push(p + "/blocks" + '/' + i2142 + "/type" + ': required');
+if (!("v" in o2143)) e.push(p + "/blocks" + '/' + i2142 + "/v" + ': required');
+if (!("data" in o2143)) e.push(p + "/blocks" + '/' + i2142 + "/data" + ': required');
+if ("type" in o2143) lf(o2143["type"], p + "/blocks" + '/' + i2142 + "/type", e, L1);
+if ("v" in o2143) lf(o2143["v"], p + "/blocks" + '/' + i2142 + "/v", e, L12);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("attachments" in o2141) {
+{
+const x2144 = o2141["attachments"];
+const g2144 = typeOf(x2144);
+const b2144: string[] = []; lf(x2144, p + "/attachments", b2144, L4); if (b2144.length) e.push(...b2144);
+if (g2144 === "array") {
+if (g2144 === 'array') { const a2144 = x2144 as unknown[];
+for (let i2144 = 0; i2144 < a2144.length; i2144++) {
+lf(a2144[i2144], p + "/attachments" + '/' + i2144, e, L35);
+}
+}
+}
+}
+}
+if ("replyTo" in o2141) lf(o2141["replyTo"], p + "/replyTo", e, L92);
+if ("mentions" in o2141) d_s_fe17a01e9e(o2141["mentions"], p + "/mentions", e);
+if ("via" in o2141) {
+{
+const x2145 = o2141["via"];
+const g2145 = typeOf(x2145);
+const b2145: string[] = []; lf(x2145, p + "/via", b2145, L0); if (b2145.length) e.push(...b2145);
+if (g2145 === "object") {
+if (g2145 === 'object') { const o2145 = x2145 as Record<string, unknown>;
+if (!("routineOwner" in o2145)) e.push(p + "/via" + "/routineOwner" + ': required');
+if ("routineOwner" in o2145) lf(o2145["routineOwner"], p + "/via" + "/routineOwner", e, L16);
+}
+}
+}
+}
+if ("clientId" in o2141) lf(o2141["clientId"], p + "/clientId", e, L92);
+if ("screen" in o2141) d_s_c1faba3335(o2141["screen"], p + "/screen", e);
+if ("alsoToChat" in o2141) lf(o2141["alsoToChat"], p + "/alsoToChat", e, L3);
+if ("idempotencyKey" in o2141) lf(o2141["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -3579,39 +3495,36 @@ if ("reactions" in o2142) d_s_cf70e9ce10(o2142["reactions"], p + "/reactions", e
 
 function c323_in(v: unknown, p: string, e: string[]): void {
 {
-const x2143 = v;
-const g2143 = typeOf(x2143);
-const b2143: string[] = []; lf(x2143, p, b2143, L0); if (b2143.length) e.push(...b2143);
-if (g2143 === "object") {
-if (g2143 === 'object') { const o2143 = x2143 as Record<string, unknown>;
-if (!("threadId" in o2143)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2143) lf(o2143["threadId"], p + "/threadId", e, L13);
-}
-}
-}
-}
-
-function c323_out(v: unknown, p: string, e: string[]): void {
+const x2146 = v;
+const g2146 = typeOf(x2146);
+const b2146: string[] = []; lf(x2146, p, b2146, L0); if (b2146.length) e.push(...b2146);
+if (g2146 === "object") {
+if (g2146 === 'object') { const o2146 = x2146 as Record<string, unknown>;
+if (!("threadId" in o2146)) e.push(p + "/threadId" + ': required');
+if (!("prompt" in o2146)) e.push(p + "/prompt" + ': required');
+if (!("mode" in o2146)) e.push(p + "/mode" + ': required');
+if ("threadId" in o2146) lf(o2146["threadId"], p + "/threadId", e, L13);
+if ("prompt" in o2146) lf(o2146["prompt"], p + "/prompt", e, L1);
+if ("mode" in o2146) lf(o2146["mode"], p + "/mode", e, L595);
+if ("options" in o2146) d_s_1d32907513(o2146["options"], p + "/options", e);
+if ("allowOther" in o2146) lf(o2146["allowOther"], p + "/allowOther", e, L3);
+if ("card" in o2146) {
 {
-const x2144 = v;
-const g2144 = typeOf(x2144);
-const b2144: string[] = []; lf(x2144, p, b2144, L0); if (b2144.length) e.push(...b2144);
-if (g2144 === "object") {
-if (g2144 === 'object') { const o2144 = x2144 as Record<string, unknown>;
-if ("fromAt" in o2144) lf(o2144["fromAt"], p + "/fromAt", e, L17);
+const x2147 = o2146["card"];
+const g2147 = typeOf(x2147);
+const b2147: string[] = []; lf(x2147, p + "/card", b2147, L0); if (b2147.length) e.push(...b2147);
+if (g2147 === "object") {
+if (g2147 === 'object') { const o2147 = x2147 as Record<string, unknown>;
+if (!("kind" in o2147)) e.push(p + "/card" + "/kind" + ': required');
+if (!("command" in o2147)) e.push(p + "/card" + "/command" + ': required');
+if ("kind" in o2147) lf(o2147["kind"], p + "/card" + "/kind", e, L596);
+if ("command" in o2147) lf(o2147["command"], p + "/card" + "/command", e, L1);
+if ("host" in o2147) lf(o2147["host"], p + "/card" + "/host", e, L405);
+if ("risk" in o2147) lf(o2147["risk"], p + "/card" + "/risk", e, L597);
 }
 }
 }
 }
-
-function c324_in(v: unknown, p: string, e: string[]): void {
-{
-const x2145 = v;
-const g2145 = typeOf(x2145);
-const b2145: string[] = []; lf(x2145, p, b2145, L0); if (b2145.length) e.push(...b2145);
-if (g2145 === "object") {
-if (g2145 === 'object') { const o2145 = x2145 as Record<string, unknown>;
-if ("filter" in o2145) lf(o2145["filter"], p + "/filter", e, L598);
 }
 }
 }
@@ -3619,33 +3532,13 @@ if ("filter" in o2145) lf(o2145["filter"], p + "/filter", e, L598);
 
 function c324_out(v: unknown, p: string, e: string[]): void {
 {
-const x2146 = v;
-const g2146 = typeOf(x2146);
-const b2146: string[] = []; lf(x2146, p, b2146, L0); if (b2146.length) e.push(...b2146);
-if (g2146 === "object") {
-if (g2146 === 'object') { const o2146 = x2146 as Record<string, unknown>;
-if (!("starred" in o2146)) e.push(p + "/starred" + ': required');
-if (!("today" in o2146)) e.push(p + "/today" + ': required');
-if (!("yesterday" in o2146)) e.push(p + "/yesterday" + ': required');
-if (!("earlier" in o2146)) e.push(p + "/earlier" + ': required');
-if (!("archived" in o2146)) e.push(p + "/archived" + ': required');
-if (!("nextUnread" in o2146)) e.push(p + "/nextUnread" + ': required');
-if ("starred" in o2146) d_s_5404bc664a(o2146["starred"], p + "/starred", e);
-if ("today" in o2146) d_s_5404bc664a(o2146["today"], p + "/today", e);
-if ("yesterday" in o2146) d_s_5404bc664a(o2146["yesterday"], p + "/yesterday", e);
-if ("earlier" in o2146) d_s_5404bc664a(o2146["earlier"], p + "/earlier", e);
-if ("archived" in o2146) d_s_5404bc664a(o2146["archived"], p + "/archived", e);
-if ("nextUnread" in o2146) {
-{
-const x2147 = o2146["nextUnread"];
-const t2147_0: string[] = [];
-lf(x2147, p + "/nextUnread", t2147_0, L13);
-const t2147_1: string[] = [];
-lf(x2147, p + "/nextUnread", t2147_1, L84);
-if (![t2147_0, t2147_1].some((x) => x.length === 0)) e.push(p + "/nextUnread" + ': matches none of anyOf');
-}
-}
-if ("threadsUnread" in o2146) lf(o2146["threadsUnread"], p + "/threadsUnread", e, L17);
+const x2148 = v;
+const g2148 = typeOf(x2148);
+const b2148: string[] = []; lf(x2148, p, b2148, L0); if (b2148.length) e.push(...b2148);
+if (g2148 === "object") {
+if (g2148 === 'object') { const o2148 = x2148 as Record<string, unknown>;
+if (!("withdrawn" in o2148)) e.push(p + "/withdrawn" + ': required');
+if ("withdrawn" in o2148) lf(o2148["withdrawn"], p + "/withdrawn", e, L3);
 }
 }
 }
@@ -3653,18 +3546,18 @@ if ("threadsUnread" in o2146) lf(o2146["threadsUnread"], p + "/threadsUnread", e
 
 function c325_in(v: unknown, p: string, e: string[]): void {
 {
-const x2148 = v;
-const g2148 = typeOf(x2148);
-const b2148: string[] = []; lf(x2148, p, b2148, L0); if (b2148.length) e.push(...b2148);
-if (g2148 === "object") {
-if (g2148 === 'object') { const o2148 = x2148 as Record<string, unknown>;
-if (!("threadId" in o2148)) e.push(p + "/threadId" + ': required');
-if (!("messageId" in o2148)) e.push(p + "/messageId" + ': required');
-if (!("idempotencyKey" in o2148)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o2148) lf(o2148["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o2148) lf(o2148["messageId"], p + "/messageId", e, L92);
-if ("text" in o2148) lf(o2148["text"], p + "/text", e, L1);
-if ("idempotencyKey" in o2148) lf(o2148["idempotencyKey"], p + "/idempotencyKey", e, L54);
+const x2149 = v;
+const g2149 = typeOf(x2149);
+const b2149: string[] = []; lf(x2149, p, b2149, L0); if (b2149.length) e.push(...b2149);
+if (g2149 === "object") {
+if (g2149 === 'object') { const o2149 = x2149 as Record<string, unknown>;
+if (!("messageId" in o2149)) e.push(p + "/messageId" + ': required');
+if (!("threadId" in o2149)) e.push(p + "/threadId" + ': required');
+if (!("emoji" in o2149)) e.push(p + "/emoji" + ': required');
+if ("messageId" in o2149) lf(o2149["messageId"], p + "/messageId", e, L92);
+if ("threadId" in o2149) lf(o2149["threadId"], p + "/threadId", e, L13);
+if ("emoji" in o2149) lf(o2149["emoji"], p + "/emoji", e, L1);
+if ("remove" in o2149) lf(o2149["remove"], p + "/remove", e, L3);
 }
 }
 }
@@ -3672,21 +3565,27 @@ if ("idempotencyKey" in o2148) lf(o2148["idempotencyKey"], p + "/idempotencyKey"
 
 function c325_out(v: unknown, p: string, e: string[]): void {
 {
-const x2149 = v;
-const g2149 = typeOf(x2149);
-const b2149: string[] = []; lf(x2149, p, b2149, L0); if (b2149.length) e.push(...b2149);
-if (g2149 === "object") {
-if (g2149 === 'object') { const o2149 = x2149 as Record<string, unknown>;
-if (!("factId" in o2149)) e.push(p + "/factId" + ': required');
-if (!("layer" in o2149)) e.push(p + "/layer" + ': required');
-if (!("merged" in o2149)) e.push(p + "/merged" + ': required');
-if (!("by" in o2149)) e.push(p + "/by" + ': required');
-if ("factId" in o2149) lf(o2149["factId"], p + "/factId", e, L111);
-if ("layer" in o2149) lf(o2149["layer"], p + "/layer", e, L599);
-if ("merged" in o2149) lf(o2149["merged"], p + "/merged", e, L3);
-if ("projectId" in o2149) lf(o2149["projectId"], p + "/projectId", e, L75);
-if ("projectTitle" in o2149) lf(o2149["projectTitle"], p + "/projectTitle", e, L1);
-if ("by" in o2149) lf(o2149["by"], p + "/by", e, L1);
+const x2150 = v;
+const g2150 = typeOf(x2150);
+const b2150: string[] = []; lf(x2150, p, b2150, L0); if (b2150.length) e.push(...b2150);
+if (g2150 === "object") {
+if (g2150 === 'object') { const o2150 = x2150 as Record<string, unknown>;
+if (!("reactions" in o2150)) e.push(p + "/reactions" + ': required');
+if ("reactions" in o2150) d_s_cf70e9ce10(o2150["reactions"], p + "/reactions", e);
+}
+}
+}
+}
+
+function c326_in(v: unknown, p: string, e: string[]): void {
+{
+const x2151 = v;
+const g2151 = typeOf(x2151);
+const b2151: string[] = []; lf(x2151, p, b2151, L0); if (b2151.length) e.push(...b2151);
+if (g2151 === "object") {
+if (g2151 === 'object') { const o2151 = x2151 as Record<string, unknown>;
+if (!("threadId" in o2151)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2151) lf(o2151["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -3694,129 +3593,12 @@ if ("by" in o2149) lf(o2149["by"], p + "/by", e, L1);
 
 function c326_out(v: unknown, p: string, e: string[]): void {
 {
-const x2150 = v;
-const g2150 = typeOf(x2150);
-const b2150: string[] = []; lf(x2150, p, b2150, L0); if (b2150.length) e.push(...b2150);
-if (g2150 === "object") {
-if (g2150 === 'object') { const o2150 = x2150 as Record<string, unknown>;
-if (!("details" in o2150)) e.push(p + "/details" + ': required');
-if ("details" in o2150) {
-{
-const x2151 = o2150["details"];
-const g2151 = typeOf(x2151);
-const b2151: string[] = []; lf(x2151, p + "/details", b2151, L0); if (b2151.length) e.push(...b2151);
-if (g2151 === "object") {
-if (g2151 === 'object') { const o2151 = x2151 as Record<string, unknown>;
-if (!("messageId" in o2151)) e.push(p + "/details" + "/messageId" + ': required');
-if (!("threadId" in o2151)) e.push(p + "/details" + "/threadId" + ': required');
-if (!("agentId" in o2151)) e.push(p + "/details" + "/agentId" + ': required');
-if (!("at" in o2151)) e.push(p + "/details" + "/at" + ': required');
-if (!("steps" in o2151)) e.push(p + "/details" + "/steps" + ': required');
-if ("messageId" in o2151) lf(o2151["messageId"], p + "/details" + "/messageId", e, L92);
-if ("threadId" in o2151) lf(o2151["threadId"], p + "/details" + "/threadId", e, L13);
-if ("agentId" in o2151) lf(o2151["agentId"], p + "/details" + "/agentId", e, L10);
-if ("at" in o2151) lf(o2151["at"], p + "/details" + "/at", e, L17);
-if ("turn" in o2151) d_s_70058de0c7(o2151["turn"], p + "/details" + "/turn", e);
-if ("memory" in o2151) {
-{
-const x2152 = o2151["memory"];
+const x2152 = v;
 const g2152 = typeOf(x2152);
-const b2152: string[] = []; lf(x2152, p + "/details" + "/memory", b2152, L0); if (b2152.length) e.push(...b2152);
+const b2152: string[] = []; lf(x2152, p, b2152, L0); if (b2152.length) e.push(...b2152);
 if (g2152 === "object") {
 if (g2152 === 'object') { const o2152 = x2152 as Record<string, unknown>;
-if (!("facts" in o2152)) e.push(p + "/details" + "/memory" + "/facts" + ': required');
-if (!("quotes" in o2152)) e.push(p + "/details" + "/memory" + "/quotes" + ': required');
-if ("facts" in o2152) {
-{
-const x2153 = o2152["facts"];
-const g2153 = typeOf(x2153);
-const b2153: string[] = []; lf(x2153, p + "/details" + "/memory" + "/facts", b2153, L4); if (b2153.length) e.push(...b2153);
-if (g2153 === "array") {
-if (g2153 === 'array') { const a2153 = x2153 as unknown[];
-for (let i2153 = 0; i2153 < a2153.length; i2153++) {
-{
-const x2154 = a2153[i2153];
-const g2154 = typeOf(x2154);
-const b2154: string[] = []; lf(x2154, p + "/details" + "/memory" + "/facts" + '/' + i2153, b2154, L0); if (b2154.length) e.push(...b2154);
-if (g2154 === "object") {
-if (g2154 === 'object') { const o2154 = x2154 as Record<string, unknown>;
-if (!("factId" in o2154)) e.push(p + "/details" + "/memory" + "/facts" + '/' + i2153 + "/factId" + ': required');
-if (!("text" in o2154)) e.push(p + "/details" + "/memory" + "/facts" + '/' + i2153 + "/text" + ': required');
-if ("factId" in o2154) lf(o2154["factId"], p + "/details" + "/memory" + "/facts" + '/' + i2153 + "/factId", e, L1);
-if ("text" in o2154) lf(o2154["text"], p + "/details" + "/memory" + "/facts" + '/' + i2153 + "/text", e, L1);
-if ("sourceTitle" in o2154) lf(o2154["sourceTitle"], p + "/details" + "/memory" + "/facts" + '/' + i2153 + "/sourceTitle", e, L1);
-if ("kind" in o2154) lf(o2154["kind"], p + "/details" + "/memory" + "/facts" + '/' + i2153 + "/kind", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("quotes" in o2152) {
-{
-const x2155 = o2152["quotes"];
-const g2155 = typeOf(x2155);
-const b2155: string[] = []; lf(x2155, p + "/details" + "/memory" + "/quotes", b2155, L4); if (b2155.length) e.push(...b2155);
-if (g2155 === "array") {
-if (g2155 === 'array') { const a2155 = x2155 as unknown[];
-for (let i2155 = 0; i2155 < a2155.length; i2155++) {
-{
-const x2156 = a2155[i2155];
-const g2156 = typeOf(x2156);
-const b2156: string[] = []; lf(x2156, p + "/details" + "/memory" + "/quotes" + '/' + i2155, b2156, L0); if (b2156.length) e.push(...b2156);
-if (g2156 === "object") {
-if (g2156 === 'object') { const o2156 = x2156 as Record<string, unknown>;
-if (!("ref" in o2156)) e.push(p + "/details" + "/memory" + "/quotes" + '/' + i2155 + "/ref" + ': required');
-if (!("text" in o2156)) e.push(p + "/details" + "/memory" + "/quotes" + '/' + i2155 + "/text" + ': required');
-if (!("at" in o2156)) e.push(p + "/details" + "/memory" + "/quotes" + '/' + i2155 + "/at" + ': required');
-if ("ref" in o2156) lf(o2156["ref"], p + "/details" + "/memory" + "/quotes" + '/' + i2155 + "/ref", e, L1);
-if ("text" in o2156) lf(o2156["text"], p + "/details" + "/memory" + "/quotes" + '/' + i2155 + "/text", e, L1);
-if ("threadTitle" in o2156) lf(o2156["threadTitle"], p + "/details" + "/memory" + "/quotes" + '/' + i2155 + "/threadTitle", e, L1);
-if ("at" in o2156) lf(o2156["at"], p + "/details" + "/memory" + "/quotes" + '/' + i2155 + "/at", e, L17);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-if ("steps" in o2151) {
-{
-const x2157 = o2151["steps"];
-const g2157 = typeOf(x2157);
-const b2157: string[] = []; lf(x2157, p + "/details" + "/steps", b2157, L4); if (b2157.length) e.push(...b2157);
-if (g2157 === "array") {
-if (g2157 === 'array') { const a2157 = x2157 as unknown[];
-for (let i2157 = 0; i2157 < a2157.length; i2157++) {
-{
-const x2158 = a2157[i2157];
-const g2158 = typeOf(x2158);
-const b2158: string[] = []; lf(x2158, p + "/details" + "/steps" + '/' + i2157, b2158, L0); if (b2158.length) e.push(...b2158);
-if (g2158 === "object") {
-if (g2158 === 'object') { const o2158 = x2158 as Record<string, unknown>;
-if (!("name" in o2158)) e.push(p + "/details" + "/steps" + '/' + i2157 + "/name" + ': required');
-if ("name" in o2158) lf(o2158["name"], p + "/details" + "/steps" + '/' + i2157 + "/name", e, L1);
-if ("ok" in o2158) lf(o2158["ok"], p + "/details" + "/steps" + '/' + i2157 + "/ok", e, L3);
-if ("secs" in o2158) lf(o2158["secs"], p + "/details" + "/steps" + '/' + i2157 + "/secs", e, L2);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
+if ("fromAt" in o2152) lf(o2152["fromAt"], p + "/fromAt", e, L17);
 }
 }
 }
@@ -3824,19 +3606,12 @@ if ("secs" in o2158) lf(o2158["secs"], p + "/details" + "/steps" + '/' + i2157 +
 
 function c327_in(v: unknown, p: string, e: string[]): void {
 {
-const x2159 = v;
-const g2159 = typeOf(x2159);
-const b2159: string[] = []; lf(x2159, p, b2159, L0); if (b2159.length) e.push(...b2159);
-if (g2159 === "object") {
-if (g2159 === 'object') { const o2159 = x2159 as Record<string, unknown>;
-if (!("threadId" in o2159)) e.push(p + "/threadId" + ': required');
-if (!("messageId" in o2159)) e.push(p + "/messageId" + ': required');
-if (!("agentId" in o2159)) e.push(p + "/agentId" + ': required');
-if (!("idempotencyKey" in o2159)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o2159) lf(o2159["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o2159) lf(o2159["messageId"], p + "/messageId", e, L92);
-if ("agentId" in o2159) lf(o2159["agentId"], p + "/agentId", e, L10);
-if ("idempotencyKey" in o2159) lf(o2159["idempotencyKey"], p + "/idempotencyKey", e, L54);
+const x2153 = v;
+const g2153 = typeOf(x2153);
+const b2153: string[] = []; lf(x2153, p, b2153, L0); if (b2153.length) e.push(...b2153);
+if (g2153 === "object") {
+if (g2153 === 'object') { const o2153 = x2153 as Record<string, unknown>;
+if ("filter" in o2153) lf(o2153["filter"], p + "/filter", e, L598);
 }
 }
 }
@@ -3844,13 +3619,33 @@ if ("idempotencyKey" in o2159) lf(o2159["idempotencyKey"], p + "/idempotencyKey"
 
 function c327_out(v: unknown, p: string, e: string[]): void {
 {
-const x2160 = v;
-const g2160 = typeOf(x2160);
-const b2160: string[] = []; lf(x2160, p, b2160, L0); if (b2160.length) e.push(...b2160);
-if (g2160 === "object") {
-if (g2160 === 'object') { const o2160 = x2160 as Record<string, unknown>;
-if (!("messageId" in o2160)) e.push(p + "/messageId" + ': required');
-if ("messageId" in o2160) lf(o2160["messageId"], p + "/messageId", e, L92);
+const x2154 = v;
+const g2154 = typeOf(x2154);
+const b2154: string[] = []; lf(x2154, p, b2154, L0); if (b2154.length) e.push(...b2154);
+if (g2154 === "object") {
+if (g2154 === 'object') { const o2154 = x2154 as Record<string, unknown>;
+if (!("starred" in o2154)) e.push(p + "/starred" + ': required');
+if (!("today" in o2154)) e.push(p + "/today" + ': required');
+if (!("yesterday" in o2154)) e.push(p + "/yesterday" + ': required');
+if (!("earlier" in o2154)) e.push(p + "/earlier" + ': required');
+if (!("archived" in o2154)) e.push(p + "/archived" + ': required');
+if (!("nextUnread" in o2154)) e.push(p + "/nextUnread" + ': required');
+if ("starred" in o2154) d_s_5404bc664a(o2154["starred"], p + "/starred", e);
+if ("today" in o2154) d_s_5404bc664a(o2154["today"], p + "/today", e);
+if ("yesterday" in o2154) d_s_5404bc664a(o2154["yesterday"], p + "/yesterday", e);
+if ("earlier" in o2154) d_s_5404bc664a(o2154["earlier"], p + "/earlier", e);
+if ("archived" in o2154) d_s_5404bc664a(o2154["archived"], p + "/archived", e);
+if ("nextUnread" in o2154) {
+{
+const x2155 = o2154["nextUnread"];
+const t2155_0: string[] = [];
+lf(x2155, p + "/nextUnread", t2155_0, L13);
+const t2155_1: string[] = [];
+lf(x2155, p + "/nextUnread", t2155_1, L84);
+if (![t2155_0, t2155_1].some((x) => x.length === 0)) e.push(p + "/nextUnread" + ': matches none of anyOf');
+}
+}
+if ("threadsUnread" in o2154) lf(o2154["threadsUnread"], p + "/threadsUnread", e, L17);
 }
 }
 }
@@ -3858,17 +3653,18 @@ if ("messageId" in o2160) lf(o2160["messageId"], p + "/messageId", e, L92);
 
 function c328_in(v: unknown, p: string, e: string[]): void {
 {
-const x2161 = v;
-const g2161 = typeOf(x2161);
-const b2161: string[] = []; lf(x2161, p, b2161, L0); if (b2161.length) e.push(...b2161);
-if (g2161 === "object") {
-if (g2161 === 'object') { const o2161 = x2161 as Record<string, unknown>;
-if (!("threadId" in o2161)) e.push(p + "/threadId" + ': required');
-if (!("messageId" in o2161)) e.push(p + "/messageId" + ': required');
-if (!("idempotencyKey" in o2161)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o2161) lf(o2161["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o2161) lf(o2161["messageId"], p + "/messageId", e, L92);
-if ("idempotencyKey" in o2161) lf(o2161["idempotencyKey"], p + "/idempotencyKey", e, L54);
+const x2156 = v;
+const g2156 = typeOf(x2156);
+const b2156: string[] = []; lf(x2156, p, b2156, L0); if (b2156.length) e.push(...b2156);
+if (g2156 === "object") {
+if (g2156 === 'object') { const o2156 = x2156 as Record<string, unknown>;
+if (!("threadId" in o2156)) e.push(p + "/threadId" + ': required');
+if (!("messageId" in o2156)) e.push(p + "/messageId" + ': required');
+if (!("idempotencyKey" in o2156)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o2156) lf(o2156["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o2156) lf(o2156["messageId"], p + "/messageId", e, L92);
+if ("text" in o2156) lf(o2156["text"], p + "/text", e, L1);
+if ("idempotencyKey" in o2156) lf(o2156["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -3876,13 +3672,21 @@ if ("idempotencyKey" in o2161) lf(o2161["idempotencyKey"], p + "/idempotencyKey"
 
 function c328_out(v: unknown, p: string, e: string[]): void {
 {
-const x2162 = v;
-const g2162 = typeOf(x2162);
-const b2162: string[] = []; lf(x2162, p, b2162, L0); if (b2162.length) e.push(...b2162);
-if (g2162 === "object") {
-if (g2162 === 'object') { const o2162 = x2162 as Record<string, unknown>;
-if (!("threadId" in o2162)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2162) lf(o2162["threadId"], p + "/threadId", e, L13);
+const x2157 = v;
+const g2157 = typeOf(x2157);
+const b2157: string[] = []; lf(x2157, p, b2157, L0); if (b2157.length) e.push(...b2157);
+if (g2157 === "object") {
+if (g2157 === 'object') { const o2157 = x2157 as Record<string, unknown>;
+if (!("factId" in o2157)) e.push(p + "/factId" + ': required');
+if (!("layer" in o2157)) e.push(p + "/layer" + ': required');
+if (!("merged" in o2157)) e.push(p + "/merged" + ': required');
+if (!("by" in o2157)) e.push(p + "/by" + ': required');
+if ("factId" in o2157) lf(o2157["factId"], p + "/factId", e, L111);
+if ("layer" in o2157) lf(o2157["layer"], p + "/layer", e, L599);
+if ("merged" in o2157) lf(o2157["merged"], p + "/merged", e, L3);
+if ("projectId" in o2157) lf(o2157["projectId"], p + "/projectId", e, L75);
+if ("projectTitle" in o2157) lf(o2157["projectTitle"], p + "/projectTitle", e, L1);
+if ("by" in o2157) lf(o2157["by"], p + "/by", e, L1);
 }
 }
 }
@@ -3890,23 +3694,129 @@ if ("threadId" in o2162) lf(o2162["threadId"], p + "/threadId", e, L13);
 
 function c329_out(v: unknown, p: string, e: string[]): void {
 {
-const x2163 = v;
-const g2163 = typeOf(x2163);
-const b2163: string[] = []; lf(x2163, p, b2163, L0); if (b2163.length) e.push(...b2163);
-if (g2163 === "object") {
-if (g2163 === 'object') { const o2163 = x2163 as Record<string, unknown>;
-if (!("screen" in o2163)) e.push(p + "/screen" + ': required');
-if ("screen" in o2163) {
+const x2158 = v;
+const g2158 = typeOf(x2158);
+const b2158: string[] = []; lf(x2158, p, b2158, L0); if (b2158.length) e.push(...b2158);
+if (g2158 === "object") {
+if (g2158 === 'object') { const o2158 = x2158 as Record<string, unknown>;
+if (!("details" in o2158)) e.push(p + "/details" + ': required');
+if ("details" in o2158) {
 {
-const x2164 = o2163["screen"];
-const t2164_0: string[] = [];
-d_s_c1faba3335(x2164, p + "/screen", t2164_0);
-const t2164_1: string[] = [];
-lf(x2164, p + "/screen", t2164_1, L84);
-if (![t2164_0, t2164_1].some((x) => x.length === 0)) e.push(p + "/screen" + ': matches none of anyOf');
+const x2159 = o2158["details"];
+const g2159 = typeOf(x2159);
+const b2159: string[] = []; lf(x2159, p + "/details", b2159, L0); if (b2159.length) e.push(...b2159);
+if (g2159 === "object") {
+if (g2159 === 'object') { const o2159 = x2159 as Record<string, unknown>;
+if (!("messageId" in o2159)) e.push(p + "/details" + "/messageId" + ': required');
+if (!("threadId" in o2159)) e.push(p + "/details" + "/threadId" + ': required');
+if (!("agentId" in o2159)) e.push(p + "/details" + "/agentId" + ': required');
+if (!("at" in o2159)) e.push(p + "/details" + "/at" + ': required');
+if (!("steps" in o2159)) e.push(p + "/details" + "/steps" + ': required');
+if ("messageId" in o2159) lf(o2159["messageId"], p + "/details" + "/messageId", e, L92);
+if ("threadId" in o2159) lf(o2159["threadId"], p + "/details" + "/threadId", e, L13);
+if ("agentId" in o2159) lf(o2159["agentId"], p + "/details" + "/agentId", e, L10);
+if ("at" in o2159) lf(o2159["at"], p + "/details" + "/at", e, L17);
+if ("turn" in o2159) d_s_70058de0c7(o2159["turn"], p + "/details" + "/turn", e);
+if ("memory" in o2159) {
+{
+const x2160 = o2159["memory"];
+const g2160 = typeOf(x2160);
+const b2160: string[] = []; lf(x2160, p + "/details" + "/memory", b2160, L0); if (b2160.length) e.push(...b2160);
+if (g2160 === "object") {
+if (g2160 === 'object') { const o2160 = x2160 as Record<string, unknown>;
+if (!("facts" in o2160)) e.push(p + "/details" + "/memory" + "/facts" + ': required');
+if (!("quotes" in o2160)) e.push(p + "/details" + "/memory" + "/quotes" + ': required');
+if ("facts" in o2160) {
+{
+const x2161 = o2160["facts"];
+const g2161 = typeOf(x2161);
+const b2161: string[] = []; lf(x2161, p + "/details" + "/memory" + "/facts", b2161, L4); if (b2161.length) e.push(...b2161);
+if (g2161 === "array") {
+if (g2161 === 'array') { const a2161 = x2161 as unknown[];
+for (let i2161 = 0; i2161 < a2161.length; i2161++) {
+{
+const x2162 = a2161[i2161];
+const g2162 = typeOf(x2162);
+const b2162: string[] = []; lf(x2162, p + "/details" + "/memory" + "/facts" + '/' + i2161, b2162, L0); if (b2162.length) e.push(...b2162);
+if (g2162 === "object") {
+if (g2162 === 'object') { const o2162 = x2162 as Record<string, unknown>;
+if (!("factId" in o2162)) e.push(p + "/details" + "/memory" + "/facts" + '/' + i2161 + "/factId" + ': required');
+if (!("text" in o2162)) e.push(p + "/details" + "/memory" + "/facts" + '/' + i2161 + "/text" + ': required');
+if ("factId" in o2162) lf(o2162["factId"], p + "/details" + "/memory" + "/facts" + '/' + i2161 + "/factId", e, L1);
+if ("text" in o2162) lf(o2162["text"], p + "/details" + "/memory" + "/facts" + '/' + i2161 + "/text", e, L1);
+if ("sourceTitle" in o2162) lf(o2162["sourceTitle"], p + "/details" + "/memory" + "/facts" + '/' + i2161 + "/sourceTitle", e, L1);
+if ("kind" in o2162) lf(o2162["kind"], p + "/details" + "/memory" + "/facts" + '/' + i2161 + "/kind", e, L1);
 }
 }
-if ("messageId" in o2163) lf(o2163["messageId"], p + "/messageId", e, L92);
+}
+}
+}
+}
+}
+}
+if ("quotes" in o2160) {
+{
+const x2163 = o2160["quotes"];
+const g2163 = typeOf(x2163);
+const b2163: string[] = []; lf(x2163, p + "/details" + "/memory" + "/quotes", b2163, L4); if (b2163.length) e.push(...b2163);
+if (g2163 === "array") {
+if (g2163 === 'array') { const a2163 = x2163 as unknown[];
+for (let i2163 = 0; i2163 < a2163.length; i2163++) {
+{
+const x2164 = a2163[i2163];
+const g2164 = typeOf(x2164);
+const b2164: string[] = []; lf(x2164, p + "/details" + "/memory" + "/quotes" + '/' + i2163, b2164, L0); if (b2164.length) e.push(...b2164);
+if (g2164 === "object") {
+if (g2164 === 'object') { const o2164 = x2164 as Record<string, unknown>;
+if (!("ref" in o2164)) e.push(p + "/details" + "/memory" + "/quotes" + '/' + i2163 + "/ref" + ': required');
+if (!("text" in o2164)) e.push(p + "/details" + "/memory" + "/quotes" + '/' + i2163 + "/text" + ': required');
+if (!("at" in o2164)) e.push(p + "/details" + "/memory" + "/quotes" + '/' + i2163 + "/at" + ': required');
+if ("ref" in o2164) lf(o2164["ref"], p + "/details" + "/memory" + "/quotes" + '/' + i2163 + "/ref", e, L1);
+if ("text" in o2164) lf(o2164["text"], p + "/details" + "/memory" + "/quotes" + '/' + i2163 + "/text", e, L1);
+if ("threadTitle" in o2164) lf(o2164["threadTitle"], p + "/details" + "/memory" + "/quotes" + '/' + i2163 + "/threadTitle", e, L1);
+if ("at" in o2164) lf(o2164["at"], p + "/details" + "/memory" + "/quotes" + '/' + i2163 + "/at", e, L17);
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+if ("steps" in o2159) {
+{
+const x2165 = o2159["steps"];
+const g2165 = typeOf(x2165);
+const b2165: string[] = []; lf(x2165, p + "/details" + "/steps", b2165, L4); if (b2165.length) e.push(...b2165);
+if (g2165 === "array") {
+if (g2165 === 'array') { const a2165 = x2165 as unknown[];
+for (let i2165 = 0; i2165 < a2165.length; i2165++) {
+{
+const x2166 = a2165[i2165];
+const g2166 = typeOf(x2166);
+const b2166: string[] = []; lf(x2166, p + "/details" + "/steps" + '/' + i2165, b2166, L0); if (b2166.length) e.push(...b2166);
+if (g2166 === "object") {
+if (g2166 === 'object') { const o2166 = x2166 as Record<string, unknown>;
+if (!("name" in o2166)) e.push(p + "/details" + "/steps" + '/' + i2165 + "/name" + ': required');
+if ("name" in o2166) lf(o2166["name"], p + "/details" + "/steps" + '/' + i2165 + "/name", e, L1);
+if ("ok" in o2166) lf(o2166["ok"], p + "/details" + "/steps" + '/' + i2165 + "/ok", e, L3);
+if ("secs" in o2166) lf(o2166["secs"], p + "/details" + "/steps" + '/' + i2165 + "/secs", e, L2);
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
 }
 }
 }
@@ -3914,16 +3824,19 @@ if ("messageId" in o2163) lf(o2163["messageId"], p + "/messageId", e, L92);
 
 function c330_in(v: unknown, p: string, e: string[]): void {
 {
-const x2165 = v;
-const g2165 = typeOf(x2165);
-const b2165: string[] = []; lf(x2165, p, b2165, L0); if (b2165.length) e.push(...b2165);
-if (g2165 === "object") {
-if (g2165 === 'object') { const o2165 = x2165 as Record<string, unknown>;
-if (!("q" in o2165)) e.push(p + "/q" + ': required');
-if ("q" in o2165) lf(o2165["q"], p + "/q", e, L1);
-if ("mode" in o2165) lf(o2165["mode"], p + "/mode", e, L600);
-if ("threadId" in o2165) lf(o2165["threadId"], p + "/threadId", e, L13);
-if ("limit" in o2165) lf(o2165["limit"], p + "/limit", e, L601);
+const x2167 = v;
+const g2167 = typeOf(x2167);
+const b2167: string[] = []; lf(x2167, p, b2167, L0); if (b2167.length) e.push(...b2167);
+if (g2167 === "object") {
+if (g2167 === 'object') { const o2167 = x2167 as Record<string, unknown>;
+if (!("threadId" in o2167)) e.push(p + "/threadId" + ': required');
+if (!("messageId" in o2167)) e.push(p + "/messageId" + ': required');
+if (!("agentId" in o2167)) e.push(p + "/agentId" + ': required');
+if (!("idempotencyKey" in o2167)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o2167) lf(o2167["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o2167) lf(o2167["messageId"], p + "/messageId", e, L92);
+if ("agentId" in o2167) lf(o2167["agentId"], p + "/agentId", e, L10);
+if ("idempotencyKey" in o2167) lf(o2167["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -3931,102 +3844,13 @@ if ("limit" in o2165) lf(o2165["limit"], p + "/limit", e, L601);
 
 function c330_out(v: unknown, p: string, e: string[]): void {
 {
-const x2166 = v;
-const g2166 = typeOf(x2166);
-const b2166: string[] = []; lf(x2166, p, b2166, L0); if (b2166.length) e.push(...b2166);
-if (g2166 === "object") {
-if (g2166 === 'object') { const o2166 = x2166 as Record<string, unknown>;
-if (!("hits" in o2166)) e.push(p + "/hits" + ': required');
-if (!("meaning" in o2166)) e.push(p + "/meaning" + ': required');
-if (!("sealedChats" in o2166)) e.push(p + "/sealedChats" + ': required');
-if (!("tookMs" in o2166)) e.push(p + "/tookMs" + ': required');
-if ("hits" in o2166) {
-{
-const x2167 = o2166["hits"];
-const g2167 = typeOf(x2167);
-const b2167: string[] = []; lf(x2167, p + "/hits", b2167, L4); if (b2167.length) e.push(...b2167);
-if (g2167 === "array") {
-if (g2167 === 'array') { const a2167 = x2167 as unknown[];
-for (let i2167 = 0; i2167 < a2167.length; i2167++) {
-{
-const x2168 = a2167[i2167];
+const x2168 = v;
 const g2168 = typeOf(x2168);
-const b2168: string[] = []; lf(x2168, p + "/hits" + '/' + i2167, b2168, L0); if (b2168.length) e.push(...b2168);
+const b2168: string[] = []; lf(x2168, p, b2168, L0); if (b2168.length) e.push(...b2168);
 if (g2168 === "object") {
 if (g2168 === 'object') { const o2168 = x2168 as Record<string, unknown>;
-if (!("messageId" in o2168)) e.push(p + "/hits" + '/' + i2167 + "/messageId" + ': required');
-if (!("threadId" in o2168)) e.push(p + "/hits" + '/' + i2167 + "/threadId" + ': required');
-if (!("threadSeq" in o2168)) e.push(p + "/hits" + '/' + i2167 + "/threadSeq" + ': required');
-if (!("author" in o2168)) e.push(p + "/hits" + '/' + i2167 + "/author" + ': required');
-if (!("snippet" in o2168)) e.push(p + "/hits" + '/' + i2167 + "/snippet" + ': required');
-if (!("at" in o2168)) e.push(p + "/hits" + '/' + i2167 + "/at" + ': required');
-if (!("score" in o2168)) e.push(p + "/hits" + '/' + i2167 + "/score" + ': required');
-if (!("found" in o2168)) e.push(p + "/hits" + '/' + i2167 + "/found" + ': required');
-if (!("thread" in o2168)) e.push(p + "/hits" + '/' + i2167 + "/thread" + ': required');
-if ("messageId" in o2168) lf(o2168["messageId"], p + "/hits" + '/' + i2167 + "/messageId", e, L92);
-if ("threadId" in o2168) lf(o2168["threadId"], p + "/hits" + '/' + i2167 + "/threadId", e, L13);
-if ("threadSeq" in o2168) lf(o2168["threadSeq"], p + "/hits" + '/' + i2167 + "/threadSeq", e, L17);
-if ("author" in o2168) d_s_6c1eb10d98(o2168["author"], p + "/hits" + '/' + i2167 + "/author", e);
-if ("snippet" in o2168) lf(o2168["snippet"], p + "/hits" + '/' + i2167 + "/snippet", e, L1);
-if ("at" in o2168) lf(o2168["at"], p + "/hits" + '/' + i2167 + "/at", e, L17);
-if ("score" in o2168) lf(o2168["score"], p + "/hits" + '/' + i2167 + "/score", e, L86);
-if ("found" in o2168) lf(o2168["found"], p + "/hits" + '/' + i2167 + "/found", e, L602);
-if ("thread" in o2168) {
-{
-const x2169 = o2168["thread"];
-const g2169 = typeOf(x2169);
-const b2169: string[] = []; lf(x2169, p + "/hits" + '/' + i2167 + "/thread", b2169, L0); if (b2169.length) e.push(...b2169);
-if (g2169 === "object") {
-if (g2169 === 'object') { const o2169 = x2169 as Record<string, unknown>;
-if (!("kind" in o2169)) e.push(p + "/hits" + '/' + i2167 + "/thread" + "/kind" + ': required');
-if (!("agentIds" in o2169)) e.push(p + "/hits" + '/' + i2167 + "/thread" + "/agentIds" + ': required');
-if (!("memberIds" in o2169)) e.push(p + "/hits" + '/' + i2167 + "/thread" + "/memberIds" + ': required');
-if ("kind" in o2169) lf(o2169["kind"], p + "/hits" + '/' + i2167 + "/thread" + "/kind", e, L207);
-if ("title" in o2169) lf(o2169["title"], p + "/hits" + '/' + i2167 + "/thread" + "/title", e, L1);
-if ("channelName" in o2169) lf(o2169["channelName"], p + "/hits" + '/' + i2167 + "/thread" + "/channelName", e, L1);
-if ("agentIds" in o2169) {
-{
-const x2170 = o2169["agentIds"];
-const g2170 = typeOf(x2170);
-const b2170: string[] = []; lf(x2170, p + "/hits" + '/' + i2167 + "/thread" + "/agentIds", b2170, L4); if (b2170.length) e.push(...b2170);
-if (g2170 === "array") {
-if (g2170 === 'array') { const a2170 = x2170 as unknown[];
-for (let i2170 = 0; i2170 < a2170.length; i2170++) {
-lf(a2170[i2170], p + "/hits" + '/' + i2167 + "/thread" + "/agentIds" + '/' + i2170, e, L10);
-}
-}
-}
-}
-}
-if ("memberIds" in o2169) {
-{
-const x2171 = o2169["memberIds"];
-const g2171 = typeOf(x2171);
-const b2171: string[] = []; lf(x2171, p + "/hits" + '/' + i2167 + "/thread" + "/memberIds", b2171, L4); if (b2171.length) e.push(...b2171);
-if (g2171 === "array") {
-if (g2171 === 'array') { const a2171 = x2171 as unknown[];
-for (let i2171 = 0; i2171 < a2171.length; i2171++) {
-lf(a2171[i2171], p + "/hits" + '/' + i2167 + "/thread" + "/memberIds" + '/' + i2171, e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-if ("meaning" in o2166) lf(o2166["meaning"], p + "/meaning", e, L3);
-if ("sealedChats" in o2166) lf(o2166["sealedChats"], p + "/sealedChats", e, L17);
-if ("tookMs" in o2166) lf(o2166["tookMs"], p + "/tookMs", e, L17);
+if (!("messageId" in o2168)) e.push(p + "/messageId" + ': required');
+if ("messageId" in o2168) lf(o2168["messageId"], p + "/messageId", e, L92);
 }
 }
 }
@@ -4034,20 +3858,17 @@ if ("tookMs" in o2166) lf(o2166["tookMs"], p + "/tookMs", e, L17);
 
 function c331_in(v: unknown, p: string, e: string[]): void {
 {
-const x2172 = v;
-const g2172 = typeOf(x2172);
-const b2172: string[] = []; lf(x2172, p, b2172, L0); if (b2172.length) e.push(...b2172);
-if (g2172 === "object") {
-if (g2172 === 'object') { const o2172 = x2172 as Record<string, unknown>;
-if (!("threadId" in o2172)) e.push(p + "/threadId" + ': required');
-if (!("messageId" in o2172)) e.push(p + "/messageId" + ': required');
-if (!("toThreadId" in o2172)) e.push(p + "/toThreadId" + ': required');
-if (!("idempotencyKey" in o2172)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o2172) lf(o2172["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o2172) lf(o2172["messageId"], p + "/messageId", e, L92);
-if ("toThreadId" in o2172) lf(o2172["toThreadId"], p + "/toThreadId", e, L13);
-if ("to" in o2172) lf(o2172["to"], p + "/to", e, L1);
-if ("idempotencyKey" in o2172) lf(o2172["idempotencyKey"], p + "/idempotencyKey", e, L54);
+const x2169 = v;
+const g2169 = typeOf(x2169);
+const b2169: string[] = []; lf(x2169, p, b2169, L0); if (b2169.length) e.push(...b2169);
+if (g2169 === "object") {
+if (g2169 === 'object') { const o2169 = x2169 as Record<string, unknown>;
+if (!("threadId" in o2169)) e.push(p + "/threadId" + ': required');
+if (!("messageId" in o2169)) e.push(p + "/messageId" + ': required');
+if (!("idempotencyKey" in o2169)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o2169) lf(o2169["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o2169) lf(o2169["messageId"], p + "/messageId", e, L92);
+if ("idempotencyKey" in o2169) lf(o2169["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -4055,56 +3876,157 @@ if ("idempotencyKey" in o2172) lf(o2172["idempotencyKey"], p + "/idempotencyKey"
 
 function c331_out(v: unknown, p: string, e: string[]): void {
 {
-const x2173 = v;
-const g2173 = typeOf(x2173);
-const b2173: string[] = []; lf(x2173, p, b2173, L0); if (b2173.length) e.push(...b2173);
-if (g2173 === "object") {
-if (g2173 === 'object') { const o2173 = x2173 as Record<string, unknown>;
-if (!("messageId" in o2173)) e.push(p + "/messageId" + ': required');
-if (!("toThreadId" in o2173)) e.push(p + "/toThreadId" + ': required');
-if ("messageId" in o2173) lf(o2173["messageId"], p + "/messageId", e, L92);
-if ("toThreadId" in o2173) lf(o2173["toThreadId"], p + "/toThreadId", e, L13);
+const x2170 = v;
+const g2170 = typeOf(x2170);
+const b2170: string[] = []; lf(x2170, p, b2170, L0); if (b2170.length) e.push(...b2170);
+if (g2170 === "object") {
+if (g2170 === 'object') { const o2170 = x2170 as Record<string, unknown>;
+if (!("threadId" in o2170)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2170) lf(o2170["threadId"], p + "/threadId", e, L13);
 }
 }
 }
 }
 
-function c332_in(v: unknown, p: string, e: string[]): void {
+function c332_out(v: unknown, p: string, e: string[]): void {
+{
+const x2171 = v;
+const g2171 = typeOf(x2171);
+const b2171: string[] = []; lf(x2171, p, b2171, L0); if (b2171.length) e.push(...b2171);
+if (g2171 === "object") {
+if (g2171 === 'object') { const o2171 = x2171 as Record<string, unknown>;
+if (!("screen" in o2171)) e.push(p + "/screen" + ': required');
+if ("screen" in o2171) {
+{
+const x2172 = o2171["screen"];
+const t2172_0: string[] = [];
+d_s_c1faba3335(x2172, p + "/screen", t2172_0);
+const t2172_1: string[] = [];
+lf(x2172, p + "/screen", t2172_1, L84);
+if (![t2172_0, t2172_1].some((x) => x.length === 0)) e.push(p + "/screen" + ': matches none of anyOf');
+}
+}
+if ("messageId" in o2171) lf(o2171["messageId"], p + "/messageId", e, L92);
+}
+}
+}
+}
+
+function c333_in(v: unknown, p: string, e: string[]): void {
+{
+const x2173 = v;
+const g2173 = typeOf(x2173);
+const b2173: string[] = []; lf(x2173, p, b2173, L0); if (b2173.length) e.push(...b2173);
+if (g2173 === "object") {
+if (g2173 === 'object') { const o2173 = x2173 as Record<string, unknown>;
+if (!("q" in o2173)) e.push(p + "/q" + ': required');
+if ("q" in o2173) lf(o2173["q"], p + "/q", e, L1);
+if ("mode" in o2173) lf(o2173["mode"], p + "/mode", e, L600);
+if ("threadId" in o2173) lf(o2173["threadId"], p + "/threadId", e, L13);
+if ("limit" in o2173) lf(o2173["limit"], p + "/limit", e, L601);
+}
+}
+}
+}
+
+function c333_out(v: unknown, p: string, e: string[]): void {
 {
 const x2174 = v;
 const g2174 = typeOf(x2174);
 const b2174: string[] = []; lf(x2174, p, b2174, L0); if (b2174.length) e.push(...b2174);
 if (g2174 === "object") {
 if (g2174 === 'object') { const o2174 = x2174 as Record<string, unknown>;
-if (!("kind" in o2174)) e.push(p + "/kind" + ': required');
-if (!("agentIds" in o2174)) e.push(p + "/agentIds" + ': required');
-if (!("idempotencyKey" in o2174)) e.push(p + "/idempotencyKey" + ': required');
-if ("kind" in o2174) lf(o2174["kind"], p + "/kind", e, L603);
-if ("agentIds" in o2174) {
+if (!("hits" in o2174)) e.push(p + "/hits" + ': required');
+if (!("meaning" in o2174)) e.push(p + "/meaning" + ': required');
+if (!("sealedChats" in o2174)) e.push(p + "/sealedChats" + ': required');
+if (!("tookMs" in o2174)) e.push(p + "/tookMs" + ': required');
+if ("hits" in o2174) {
 {
-const x2175 = o2174["agentIds"];
+const x2175 = o2174["hits"];
 const g2175 = typeOf(x2175);
-const b2175: string[] = []; lf(x2175, p + "/agentIds", b2175, L4); if (b2175.length) e.push(...b2175);
+const b2175: string[] = []; lf(x2175, p + "/hits", b2175, L4); if (b2175.length) e.push(...b2175);
 if (g2175 === "array") {
 if (g2175 === 'array') { const a2175 = x2175 as unknown[];
 for (let i2175 = 0; i2175 < a2175.length; i2175++) {
-lf(a2175[i2175], p + "/agentIds" + '/' + i2175, e, L10);
+{
+const x2176 = a2175[i2175];
+const g2176 = typeOf(x2176);
+const b2176: string[] = []; lf(x2176, p + "/hits" + '/' + i2175, b2176, L0); if (b2176.length) e.push(...b2176);
+if (g2176 === "object") {
+if (g2176 === 'object') { const o2176 = x2176 as Record<string, unknown>;
+if (!("messageId" in o2176)) e.push(p + "/hits" + '/' + i2175 + "/messageId" + ': required');
+if (!("threadId" in o2176)) e.push(p + "/hits" + '/' + i2175 + "/threadId" + ': required');
+if (!("threadSeq" in o2176)) e.push(p + "/hits" + '/' + i2175 + "/threadSeq" + ': required');
+if (!("author" in o2176)) e.push(p + "/hits" + '/' + i2175 + "/author" + ': required');
+if (!("snippet" in o2176)) e.push(p + "/hits" + '/' + i2175 + "/snippet" + ': required');
+if (!("at" in o2176)) e.push(p + "/hits" + '/' + i2175 + "/at" + ': required');
+if (!("score" in o2176)) e.push(p + "/hits" + '/' + i2175 + "/score" + ': required');
+if (!("found" in o2176)) e.push(p + "/hits" + '/' + i2175 + "/found" + ': required');
+if (!("thread" in o2176)) e.push(p + "/hits" + '/' + i2175 + "/thread" + ': required');
+if ("messageId" in o2176) lf(o2176["messageId"], p + "/hits" + '/' + i2175 + "/messageId", e, L92);
+if ("threadId" in o2176) lf(o2176["threadId"], p + "/hits" + '/' + i2175 + "/threadId", e, L13);
+if ("threadSeq" in o2176) lf(o2176["threadSeq"], p + "/hits" + '/' + i2175 + "/threadSeq", e, L17);
+if ("author" in o2176) d_s_6c1eb10d98(o2176["author"], p + "/hits" + '/' + i2175 + "/author", e);
+if ("snippet" in o2176) lf(o2176["snippet"], p + "/hits" + '/' + i2175 + "/snippet", e, L1);
+if ("at" in o2176) lf(o2176["at"], p + "/hits" + '/' + i2175 + "/at", e, L17);
+if ("score" in o2176) lf(o2176["score"], p + "/hits" + '/' + i2175 + "/score", e, L86);
+if ("found" in o2176) lf(o2176["found"], p + "/hits" + '/' + i2175 + "/found", e, L602);
+if ("thread" in o2176) {
+{
+const x2177 = o2176["thread"];
+const g2177 = typeOf(x2177);
+const b2177: string[] = []; lf(x2177, p + "/hits" + '/' + i2175 + "/thread", b2177, L0); if (b2177.length) e.push(...b2177);
+if (g2177 === "object") {
+if (g2177 === 'object') { const o2177 = x2177 as Record<string, unknown>;
+if (!("kind" in o2177)) e.push(p + "/hits" + '/' + i2175 + "/thread" + "/kind" + ': required');
+if (!("agentIds" in o2177)) e.push(p + "/hits" + '/' + i2175 + "/thread" + "/agentIds" + ': required');
+if (!("memberIds" in o2177)) e.push(p + "/hits" + '/' + i2175 + "/thread" + "/memberIds" + ': required');
+if ("kind" in o2177) lf(o2177["kind"], p + "/hits" + '/' + i2175 + "/thread" + "/kind", e, L207);
+if ("title" in o2177) lf(o2177["title"], p + "/hits" + '/' + i2175 + "/thread" + "/title", e, L1);
+if ("channelName" in o2177) lf(o2177["channelName"], p + "/hits" + '/' + i2175 + "/thread" + "/channelName", e, L1);
+if ("agentIds" in o2177) {
+{
+const x2178 = o2177["agentIds"];
+const g2178 = typeOf(x2178);
+const b2178: string[] = []; lf(x2178, p + "/hits" + '/' + i2175 + "/thread" + "/agentIds", b2178, L4); if (b2178.length) e.push(...b2178);
+if (g2178 === "array") {
+if (g2178 === 'array') { const a2178 = x2178 as unknown[];
+for (let i2178 = 0; i2178 < a2178.length; i2178++) {
+lf(a2178[i2178], p + "/hits" + '/' + i2175 + "/thread" + "/agentIds" + '/' + i2178, e, L10);
 }
 }
 }
 }
 }
-if ("personId" in o2174) lf(o2174["personId"], p + "/personId", e, L16);
-if ("title" in o2174) lf(o2174["title"], p + "/title", e, L1);
-if ("scopeType" in o2174) lf(o2174["scopeType"], p + "/scopeType", e, L1);
-if ("scopeId" in o2174) lf(o2174["scopeId"], p + "/scopeId", e, L1);
-if ("folderId" in o2174) lf(o2174["folderId"], p + "/folderId", e, L47);
-if ("recordId" in o2174) lf(o2174["recordId"], p + "/recordId", e, L28);
-if ("model" in o2174) lf(o2174["model"], p + "/model", e, L1);
-if ("provider" in o2174) lf(o2174["provider"], p + "/provider", e, L1);
-if ("effort" in o2174) lf(o2174["effort"], p + "/effort", e, L385);
-if ("first" in o2174) lf(o2174["first"], p + "/first", e, L1);
-if ("idempotencyKey" in o2174) lf(o2174["idempotencyKey"], p + "/idempotencyKey", e, L54);
+if ("memberIds" in o2177) {
+{
+const x2179 = o2177["memberIds"];
+const g2179 = typeOf(x2179);
+const b2179: string[] = []; lf(x2179, p + "/hits" + '/' + i2175 + "/thread" + "/memberIds", b2179, L4); if (b2179.length) e.push(...b2179);
+if (g2179 === "array") {
+if (g2179 === 'array') { const a2179 = x2179 as unknown[];
+for (let i2179 = 0; i2179 < a2179.length; i2179++) {
+lf(a2179[i2179], p + "/hits" + '/' + i2175 + "/thread" + "/memberIds" + '/' + i2179, e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+if ("meaning" in o2174) lf(o2174["meaning"], p + "/meaning", e, L3);
+if ("sealedChats" in o2174) lf(o2174["sealedChats"], p + "/sealedChats", e, L17);
+if ("tookMs" in o2174) lf(o2174["tookMs"], p + "/tookMs", e, L17);
 }
 }
 }
@@ -4112,31 +4034,20 @@ if ("idempotencyKey" in o2174) lf(o2174["idempotencyKey"], p + "/idempotencyKey"
 
 function c334_in(v: unknown, p: string, e: string[]): void {
 {
-const x2176 = v;
-const g2176 = typeOf(x2176);
-const b2176: string[] = []; lf(x2176, p, b2176, L0); if (b2176.length) e.push(...b2176);
-if (g2176 === "object") {
-if (g2176 === 'object') { const o2176 = x2176 as Record<string, unknown>;
-if (!("threadId" in o2176)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2176) lf(o2176["threadId"], p + "/threadId", e, L13);
-if ("account" in o2176) {
-{
-const x2177 = o2176["account"];
-const g2177 = typeOf(x2177);
-const b2177: string[] = []; lf(x2177, p + "/account", b2177, L0); if (b2177.length) e.push(...b2177);
-if (g2177 === "object") {
-if (g2177 === 'object') { const o2177 = x2177 as Record<string, unknown>;
-if (!("ref" in o2177)) e.push(p + "/account" + "/ref" + ': required');
-if (!("driver" in o2177)) e.push(p + "/account" + "/driver" + ': required');
-if ("ref" in o2177) lf(o2177["ref"], p + "/account" + "/ref", e, L1);
-if ("driver" in o2177) lf(o2177["driver"], p + "/account" + "/driver", e, L1);
-if ("kind" in o2177) lf(o2177["kind"], p + "/account" + "/kind", e, L1);
-if ("payer" in o2177) lf(o2177["payer"], p + "/account" + "/payer", e, L1);
-if ("spaceKey" in o2177) lf(o2177["spaceKey"], p + "/account" + "/spaceKey", e, L3);
-}
-}
-}
-}
+const x2180 = v;
+const g2180 = typeOf(x2180);
+const b2180: string[] = []; lf(x2180, p, b2180, L0); if (b2180.length) e.push(...b2180);
+if (g2180 === "object") {
+if (g2180 === 'object') { const o2180 = x2180 as Record<string, unknown>;
+if (!("threadId" in o2180)) e.push(p + "/threadId" + ': required');
+if (!("messageId" in o2180)) e.push(p + "/messageId" + ': required');
+if (!("toThreadId" in o2180)) e.push(p + "/toThreadId" + ': required');
+if (!("idempotencyKey" in o2180)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o2180) lf(o2180["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o2180) lf(o2180["messageId"], p + "/messageId", e, L92);
+if ("toThreadId" in o2180) lf(o2180["toThreadId"], p + "/toThreadId", e, L13);
+if ("to" in o2180) lf(o2180["to"], p + "/to", e, L1);
+if ("idempotencyKey" in o2180) lf(o2180["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -4144,15 +4055,15 @@ if ("spaceKey" in o2177) lf(o2177["spaceKey"], p + "/account" + "/spaceKey", e, 
 
 function c334_out(v: unknown, p: string, e: string[]): void {
 {
-const x2178 = v;
-const g2178 = typeOf(x2178);
-const b2178: string[] = []; lf(x2178, p, b2178, L0); if (b2178.length) e.push(...b2178);
-if (g2178 === "object") {
-if (g2178 === 'object') { const o2178 = x2178 as Record<string, unknown>;
-if (!("made" in o2178)) e.push(p + "/made" + ': required');
-if ("made" in o2178) lf(o2178["made"], p + "/made", e, L3);
-if ("title" in o2178) lf(o2178["title"], p + "/title", e, L1);
-if ("why" in o2178) lf(o2178["why"], p + "/why", e, L604);
+const x2181 = v;
+const g2181 = typeOf(x2181);
+const b2181: string[] = []; lf(x2181, p, b2181, L0); if (b2181.length) e.push(...b2181);
+if (g2181 === "object") {
+if (g2181 === 'object') { const o2181 = x2181 as Record<string, unknown>;
+if (!("messageId" in o2181)) e.push(p + "/messageId" + ': required');
+if (!("toThreadId" in o2181)) e.push(p + "/toThreadId" + ': required');
+if ("messageId" in o2181) lf(o2181["messageId"], p + "/messageId", e, L92);
+if ("toThreadId" in o2181) lf(o2181["toThreadId"], p + "/toThreadId", e, L13);
 }
 }
 }
@@ -4160,122 +4071,40 @@ if ("why" in o2178) lf(o2178["why"], p + "/why", e, L604);
 
 function c335_in(v: unknown, p: string, e: string[]): void {
 {
-const x2179 = v;
-const g2179 = typeOf(x2179);
-const b2179: string[] = []; lf(x2179, p, b2179, L0); if (b2179.length) e.push(...b2179);
-if (g2179 === "object") {
-if (g2179 === 'object') { const o2179 = x2179 as Record<string, unknown>;
-if (!("threadId" in o2179)) e.push(p + "/threadId" + ': required');
-if (!("turnId" in o2179)) e.push(p + "/turnId" + ': required');
-if (!("rows" in o2179)) e.push(p + "/rows" + ': required');
-if ("threadId" in o2179) lf(o2179["threadId"], p + "/threadId", e, L13);
-if ("turnId" in o2179) lf(o2179["turnId"], p + "/turnId", e, L176);
-if ("rows" in o2179) {
-{
-const x2180 = o2179["rows"];
-const g2180 = typeOf(x2180);
-const b2180: string[] = []; lf(x2180, p + "/rows", b2180, L4); if (b2180.length) e.push(...b2180);
-if (g2180 === "array") {
-if (g2180 === 'array') { const a2180 = x2180 as unknown[];
-for (let i2180 = 0; i2180 < a2180.length; i2180++) {
-{
-const x2181 = a2180[i2180];
-const g2181 = typeOf(x2181);
-const b2181: string[] = []; lf(x2181, p + "/rows" + '/' + i2180, b2181, L0); if (b2181.length) e.push(...b2181);
-if (g2181 === "object") {
-if (g2181 === 'object') { const o2181 = x2181 as Record<string, unknown>;
-if (!("role" in o2181)) e.push(p + "/rows" + '/' + i2180 + "/role" + ': required');
-if (!("kind" in o2181)) e.push(p + "/rows" + '/' + i2180 + "/kind" + ': required');
-if (!("content" in o2181)) e.push(p + "/rows" + '/' + i2180 + "/content" + ': required');
-if ("role" in o2181) lf(o2181["role"], p + "/rows" + '/' + i2180 + "/role", e, L1);
-if ("kind" in o2181) lf(o2181["kind"], p + "/rows" + '/' + i2180 + "/kind", e, L1);
-if ("toolName" in o2181) lf(o2181["toolName"], p + "/rows" + '/' + i2180 + "/toolName", e, L1);
-if ("toolCallId" in o2181) lf(o2181["toolCallId"], p + "/rows" + '/' + i2180 + "/toolCallId", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-
-function c335_out(v: unknown, p: string, e: string[]): void {
-{
 const x2182 = v;
 const g2182 = typeOf(x2182);
 const b2182: string[] = []; lf(x2182, p, b2182, L0); if (b2182.length) e.push(...b2182);
 if (g2182 === "object") {
 if (g2182 === 'object') { const o2182 = x2182 as Record<string, unknown>;
-if (!("appended" in o2182)) e.push(p + "/appended" + ': required');
-if ("appended" in o2182) lf(o2182["appended"], p + "/appended", e, L2);
-}
-}
-}
-}
-
-function c336_in(v: unknown, p: string, e: string[]): void {
+if (!("kind" in o2182)) e.push(p + "/kind" + ': required');
+if (!("agentIds" in o2182)) e.push(p + "/agentIds" + ': required');
+if (!("idempotencyKey" in o2182)) e.push(p + "/idempotencyKey" + ': required');
+if ("kind" in o2182) lf(o2182["kind"], p + "/kind", e, L603);
+if ("agentIds" in o2182) {
 {
-const x2183 = v;
+const x2183 = o2182["agentIds"];
 const g2183 = typeOf(x2183);
-const b2183: string[] = []; lf(x2183, p, b2183, L0); if (b2183.length) e.push(...b2183);
-if (g2183 === "object") {
-if (g2183 === 'object') { const o2183 = x2183 as Record<string, unknown>;
-if (!("threadId" in o2183)) e.push(p + "/threadId" + ': required');
-if (!("turnId" in o2183)) e.push(p + "/turnId" + ': required');
-if ("threadId" in o2183) lf(o2183["threadId"], p + "/threadId", e, L13);
-if ("turnId" in o2183) lf(o2183["turnId"], p + "/turnId", e, L176);
-}
-}
-}
-}
-
-function c336_out(v: unknown, p: string, e: string[]): void {
-{
-const x2184 = v;
-const g2184 = typeOf(x2184);
-const b2184: string[] = []; lf(x2184, p, b2184, L0); if (b2184.length) e.push(...b2184);
-if (g2184 === "object") {
-if (g2184 === 'object') { const o2184 = x2184 as Record<string, unknown>;
-if (!("turnId" in o2184)) e.push(p + "/turnId" + ': required');
-if (!("rows" in o2184)) e.push(p + "/rows" + ': required');
-if ("turnId" in o2184) lf(o2184["turnId"], p + "/turnId", e, L176);
-if ("rows" in o2184) {
-{
-const x2185 = o2184["rows"];
-const g2185 = typeOf(x2185);
-const b2185: string[] = []; lf(x2185, p + "/rows", b2185, L4); if (b2185.length) e.push(...b2185);
-if (g2185 === "array") {
-if (g2185 === 'array') { const a2185 = x2185 as unknown[];
-for (let i2185 = 0; i2185 < a2185.length; i2185++) {
-{
-const x2186 = a2185[i2185];
-const g2186 = typeOf(x2186);
-const b2186: string[] = []; lf(x2186, p + "/rows" + '/' + i2185, b2186, L0); if (b2186.length) e.push(...b2186);
-if (g2186 === "object") {
-if (g2186 === 'object') { const o2186 = x2186 as Record<string, unknown>;
-if (!("idx" in o2186)) e.push(p + "/rows" + '/' + i2185 + "/idx" + ': required');
-if (!("role" in o2186)) e.push(p + "/rows" + '/' + i2185 + "/role" + ': required');
-if (!("kind" in o2186)) e.push(p + "/rows" + '/' + i2185 + "/kind" + ': required');
-if (!("content" in o2186)) e.push(p + "/rows" + '/' + i2185 + "/content" + ': required');
-if (!("at" in o2186)) e.push(p + "/rows" + '/' + i2185 + "/at" + ': required');
-if ("idx" in o2186) lf(o2186["idx"], p + "/rows" + '/' + i2185 + "/idx", e, L2);
-if ("role" in o2186) lf(o2186["role"], p + "/rows" + '/' + i2185 + "/role", e, L1);
-if ("kind" in o2186) lf(o2186["kind"], p + "/rows" + '/' + i2185 + "/kind", e, L1);
-if ("toolName" in o2186) lf(o2186["toolName"], p + "/rows" + '/' + i2185 + "/toolName", e, L1);
-if ("at" in o2186) lf(o2186["at"], p + "/rows" + '/' + i2185 + "/at", e, L17);
+const b2183: string[] = []; lf(x2183, p + "/agentIds", b2183, L4); if (b2183.length) e.push(...b2183);
+if (g2183 === "array") {
+if (g2183 === 'array') { const a2183 = x2183 as unknown[];
+for (let i2183 = 0; i2183 < a2183.length; i2183++) {
+lf(a2183[i2183], p + "/agentIds" + '/' + i2183, e, L10);
 }
 }
 }
 }
 }
-}
-}
-}
+if ("personId" in o2182) lf(o2182["personId"], p + "/personId", e, L16);
+if ("title" in o2182) lf(o2182["title"], p + "/title", e, L1);
+if ("scopeType" in o2182) lf(o2182["scopeType"], p + "/scopeType", e, L1);
+if ("scopeId" in o2182) lf(o2182["scopeId"], p + "/scopeId", e, L1);
+if ("folderId" in o2182) lf(o2182["folderId"], p + "/folderId", e, L47);
+if ("recordId" in o2182) lf(o2182["recordId"], p + "/recordId", e, L28);
+if ("model" in o2182) lf(o2182["model"], p + "/model", e, L1);
+if ("provider" in o2182) lf(o2182["provider"], p + "/provider", e, L1);
+if ("effort" in o2182) lf(o2182["effort"], p + "/effort", e, L385);
+if ("first" in o2182) lf(o2182["first"], p + "/first", e, L1);
+if ("idempotencyKey" in o2182) lf(o2182["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -4283,30 +4112,47 @@ if ("at" in o2186) lf(o2186["at"], p + "/rows" + '/' + i2185 + "/at", e, L17);
 
 function c337_in(v: unknown, p: string, e: string[]): void {
 {
-const x2187 = v;
-const g2187 = typeOf(x2187);
-const b2187: string[] = []; lf(x2187, p, b2187, L0); if (b2187.length) e.push(...b2187);
-if (g2187 === "object") {
-if (g2187 === 'object') { const o2187 = x2187 as Record<string, unknown>;
-if (!("before" in o2187)) e.push(p + "/before" + ': required');
-if (!("idempotencyKey" in o2187)) e.push(p + "/idempotencyKey" + ': required');
-if ("before" in o2187) lf(o2187["before"], p + "/before", e, L17);
-if ("limit" in o2187) lf(o2187["limit"], p + "/limit", e, L273);
-if ("skipThreadIds" in o2187) {
+const x2184 = v;
+const g2184 = typeOf(x2184);
+const b2184: string[] = []; lf(x2184, p, b2184, L0); if (b2184.length) e.push(...b2184);
+if (g2184 === "object") {
+if (g2184 === 'object') { const o2184 = x2184 as Record<string, unknown>;
+if (!("threadId" in o2184)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2184) lf(o2184["threadId"], p + "/threadId", e, L13);
+if ("account" in o2184) {
 {
-const x2188 = o2187["skipThreadIds"];
-const g2188 = typeOf(x2188);
-const b2188: string[] = []; lf(x2188, p + "/skipThreadIds", b2188, L4); if (b2188.length) e.push(...b2188);
-if (g2188 === "array") {
-if (g2188 === 'array') { const a2188 = x2188 as unknown[];
-for (let i2188 = 0; i2188 < a2188.length; i2188++) {
-lf(a2188[i2188], p + "/skipThreadIds" + '/' + i2188, e, L13);
+const x2185 = o2184["account"];
+const g2185 = typeOf(x2185);
+const b2185: string[] = []; lf(x2185, p + "/account", b2185, L0); if (b2185.length) e.push(...b2185);
+if (g2185 === "object") {
+if (g2185 === 'object') { const o2185 = x2185 as Record<string, unknown>;
+if (!("ref" in o2185)) e.push(p + "/account" + "/ref" + ': required');
+if (!("driver" in o2185)) e.push(p + "/account" + "/driver" + ': required');
+if ("ref" in o2185) lf(o2185["ref"], p + "/account" + "/ref", e, L1);
+if ("driver" in o2185) lf(o2185["driver"], p + "/account" + "/driver", e, L1);
+if ("kind" in o2185) lf(o2185["kind"], p + "/account" + "/kind", e, L1);
+if ("payer" in o2185) lf(o2185["payer"], p + "/account" + "/payer", e, L1);
+if ("spaceKey" in o2185) lf(o2185["spaceKey"], p + "/account" + "/spaceKey", e, L3);
 }
 }
 }
 }
 }
-if ("idempotencyKey" in o2187) lf(o2187["idempotencyKey"], p + "/idempotencyKey", e, L54);
+}
+}
+}
+
+function c337_out(v: unknown, p: string, e: string[]): void {
+{
+const x2186 = v;
+const g2186 = typeOf(x2186);
+const b2186: string[] = []; lf(x2186, p, b2186, L0); if (b2186.length) e.push(...b2186);
+if (g2186 === "object") {
+if (g2186 === 'object') { const o2186 = x2186 as Record<string, unknown>;
+if (!("made" in o2186)) e.push(p + "/made" + ': required');
+if ("made" in o2186) lf(o2186["made"], p + "/made", e, L3);
+if ("title" in o2186) lf(o2186["title"], p + "/title", e, L1);
+if ("why" in o2186) lf(o2186["why"], p + "/why", e, L604);
 }
 }
 }
@@ -4314,15 +4160,45 @@ if ("idempotencyKey" in o2187) lf(o2187["idempotencyKey"], p + "/idempotencyKey"
 
 function c338_in(v: unknown, p: string, e: string[]): void {
 {
-const x2189 = v;
+const x2187 = v;
+const g2187 = typeOf(x2187);
+const b2187: string[] = []; lf(x2187, p, b2187, L0); if (b2187.length) e.push(...b2187);
+if (g2187 === "object") {
+if (g2187 === 'object') { const o2187 = x2187 as Record<string, unknown>;
+if (!("threadId" in o2187)) e.push(p + "/threadId" + ': required');
+if (!("turnId" in o2187)) e.push(p + "/turnId" + ': required');
+if (!("rows" in o2187)) e.push(p + "/rows" + ': required');
+if ("threadId" in o2187) lf(o2187["threadId"], p + "/threadId", e, L13);
+if ("turnId" in o2187) lf(o2187["turnId"], p + "/turnId", e, L176);
+if ("rows" in o2187) {
+{
+const x2188 = o2187["rows"];
+const g2188 = typeOf(x2188);
+const b2188: string[] = []; lf(x2188, p + "/rows", b2188, L4); if (b2188.length) e.push(...b2188);
+if (g2188 === "array") {
+if (g2188 === 'array') { const a2188 = x2188 as unknown[];
+for (let i2188 = 0; i2188 < a2188.length; i2188++) {
+{
+const x2189 = a2188[i2188];
 const g2189 = typeOf(x2189);
-const b2189: string[] = []; lf(x2189, p, b2189, L0); if (b2189.length) e.push(...b2189);
+const b2189: string[] = []; lf(x2189, p + "/rows" + '/' + i2188, b2189, L0); if (b2189.length) e.push(...b2189);
 if (g2189 === "object") {
 if (g2189 === 'object') { const o2189 = x2189 as Record<string, unknown>;
-if (!("threadId" in o2189)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2189) lf(o2189["threadId"], p + "/threadId", e, L13);
-if ("fromIdx" in o2189) lf(o2189["fromIdx"], p + "/fromIdx", e, L2);
-if ("limit" in o2189) lf(o2189["limit"], p + "/limit", e, L121);
+if (!("role" in o2189)) e.push(p + "/rows" + '/' + i2188 + "/role" + ': required');
+if (!("kind" in o2189)) e.push(p + "/rows" + '/' + i2188 + "/kind" + ': required');
+if (!("content" in o2189)) e.push(p + "/rows" + '/' + i2188 + "/content" + ': required');
+if ("role" in o2189) lf(o2189["role"], p + "/rows" + '/' + i2188 + "/role", e, L1);
+if ("kind" in o2189) lf(o2189["kind"], p + "/rows" + '/' + i2188 + "/kind", e, L1);
+if ("toolName" in o2189) lf(o2189["toolName"], p + "/rows" + '/' + i2188 + "/toolName", e, L1);
+if ("toolCallId" in o2189) lf(o2189["toolCallId"], p + "/rows" + '/' + i2188 + "/toolCallId", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
 }
 }
 }
@@ -4335,9 +4211,8 @@ const g2190 = typeOf(x2190);
 const b2190: string[] = []; lf(x2190, p, b2190, L0); if (b2190.length) e.push(...b2190);
 if (g2190 === "object") {
 if (g2190 === 'object') { const o2190 = x2190 as Record<string, unknown>;
-if (!("markdown" in o2190)) e.push(p + "/markdown" + ': required');
-if ("markdown" in o2190) lf(o2190["markdown"], p + "/markdown", e, L1);
-if ("next" in o2190) lf(o2190["next"], p + "/next", e, L2);
+if (!("appended" in o2190)) e.push(p + "/appended" + ': required');
+if ("appended" in o2190) lf(o2190["appended"], p + "/appended", e, L2);
 }
 }
 }
@@ -4350,12 +4225,10 @@ const g2191 = typeOf(x2191);
 const b2191: string[] = []; lf(x2191, p, b2191, L0); if (b2191.length) e.push(...b2191);
 if (g2191 === "object") {
 if (g2191 === 'object') { const o2191 = x2191 as Record<string, unknown>;
-if (!("q" in o2191)) e.push(p + "/q" + ': required');
-if ("q" in o2191) lf(o2191["q"], p + "/q", e, L1);
-if ("mode" in o2191) lf(o2191["mode"], p + "/mode", e, L605);
+if (!("threadId" in o2191)) e.push(p + "/threadId" + ': required');
+if (!("turnId" in o2191)) e.push(p + "/turnId" + ': required');
 if ("threadId" in o2191) lf(o2191["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o2191) lf(o2191["agentId"], p + "/agentId", e, L10);
-if ("limit" in o2191) lf(o2191["limit"], p + "/limit", e, L601);
+if ("turnId" in o2191) lf(o2191["turnId"], p + "/turnId", e, L176);
 }
 }
 }
@@ -4368,35 +4241,33 @@ const g2192 = typeOf(x2192);
 const b2192: string[] = []; lf(x2192, p, b2192, L0); if (b2192.length) e.push(...b2192);
 if (g2192 === "object") {
 if (g2192 === 'object') { const o2192 = x2192 as Record<string, unknown>;
-if (!("hits" in o2192)) e.push(p + "/hits" + ': required');
-if ("hits" in o2192) {
+if (!("turnId" in o2192)) e.push(p + "/turnId" + ': required');
+if (!("rows" in o2192)) e.push(p + "/rows" + ': required');
+if ("turnId" in o2192) lf(o2192["turnId"], p + "/turnId", e, L176);
+if ("rows" in o2192) {
 {
-const x2193 = o2192["hits"];
+const x2193 = o2192["rows"];
 const g2193 = typeOf(x2193);
-const b2193: string[] = []; lf(x2193, p + "/hits", b2193, L4); if (b2193.length) e.push(...b2193);
+const b2193: string[] = []; lf(x2193, p + "/rows", b2193, L4); if (b2193.length) e.push(...b2193);
 if (g2193 === "array") {
 if (g2193 === 'array') { const a2193 = x2193 as unknown[];
 for (let i2193 = 0; i2193 < a2193.length; i2193++) {
 {
 const x2194 = a2193[i2193];
 const g2194 = typeOf(x2194);
-const b2194: string[] = []; lf(x2194, p + "/hits" + '/' + i2193, b2194, L0); if (b2194.length) e.push(...b2194);
+const b2194: string[] = []; lf(x2194, p + "/rows" + '/' + i2193, b2194, L0); if (b2194.length) e.push(...b2194);
 if (g2194 === "object") {
 if (g2194 === 'object') { const o2194 = x2194 as Record<string, unknown>;
-if (!("turnId" in o2194)) e.push(p + "/hits" + '/' + i2193 + "/turnId" + ': required');
-if (!("threadId" in o2194)) e.push(p + "/hits" + '/' + i2193 + "/threadId" + ': required');
-if (!("idx" in o2194)) e.push(p + "/hits" + '/' + i2193 + "/idx" + ': required');
-if (!("role" in o2194)) e.push(p + "/hits" + '/' + i2193 + "/role" + ': required');
-if (!("snippet" in o2194)) e.push(p + "/hits" + '/' + i2193 + "/snippet" + ': required');
-if (!("at" in o2194)) e.push(p + "/hits" + '/' + i2193 + "/at" + ': required');
-if (!("link" in o2194)) e.push(p + "/hits" + '/' + i2193 + "/link" + ': required');
-if ("turnId" in o2194) lf(o2194["turnId"], p + "/hits" + '/' + i2193 + "/turnId", e, L176);
-if ("threadId" in o2194) lf(o2194["threadId"], p + "/hits" + '/' + i2193 + "/threadId", e, L13);
-if ("idx" in o2194) lf(o2194["idx"], p + "/hits" + '/' + i2193 + "/idx", e, L2);
-if ("role" in o2194) lf(o2194["role"], p + "/hits" + '/' + i2193 + "/role", e, L606);
-if ("snippet" in o2194) lf(o2194["snippet"], p + "/hits" + '/' + i2193 + "/snippet", e, L1);
-if ("at" in o2194) lf(o2194["at"], p + "/hits" + '/' + i2193 + "/at", e, L17);
-if ("link" in o2194) lf(o2194["link"], p + "/hits" + '/' + i2193 + "/link", e, L1);
+if (!("idx" in o2194)) e.push(p + "/rows" + '/' + i2193 + "/idx" + ': required');
+if (!("role" in o2194)) e.push(p + "/rows" + '/' + i2193 + "/role" + ': required');
+if (!("kind" in o2194)) e.push(p + "/rows" + '/' + i2193 + "/kind" + ': required');
+if (!("content" in o2194)) e.push(p + "/rows" + '/' + i2193 + "/content" + ': required');
+if (!("at" in o2194)) e.push(p + "/rows" + '/' + i2193 + "/at" + ': required');
+if ("idx" in o2194) lf(o2194["idx"], p + "/rows" + '/' + i2193 + "/idx", e, L2);
+if ("role" in o2194) lf(o2194["role"], p + "/rows" + '/' + i2193 + "/role", e, L1);
+if ("kind" in o2194) lf(o2194["kind"], p + "/rows" + '/' + i2193 + "/kind", e, L1);
+if ("toolName" in o2194) lf(o2194["toolName"], p + "/rows" + '/' + i2193 + "/toolName", e, L1);
+if ("at" in o2194) lf(o2194["at"], p + "/rows" + '/' + i2193 + "/at", e, L17);
 }
 }
 }
@@ -4417,22 +4288,25 @@ const g2195 = typeOf(x2195);
 const b2195: string[] = []; lf(x2195, p, b2195, L0); if (b2195.length) e.push(...b2195);
 if (g2195 === "object") {
 if (g2195 === 'object') { const o2195 = x2195 as Record<string, unknown>;
-if (!("threadId" in o2195)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o2195) lf(o2195["threadId"], p + "/threadId", e, L13);
-}
-}
-}
-}
-
-function c340_out(v: unknown, p: string, e: string[]): void {
+if (!("before" in o2195)) e.push(p + "/before" + ': required');
+if (!("idempotencyKey" in o2195)) e.push(p + "/idempotencyKey" + ': required');
+if ("before" in o2195) lf(o2195["before"], p + "/before", e, L17);
+if ("limit" in o2195) lf(o2195["limit"], p + "/limit", e, L273);
+if ("skipThreadIds" in o2195) {
 {
-const x2196 = v;
+const x2196 = o2195["skipThreadIds"];
 const g2196 = typeOf(x2196);
-const b2196: string[] = []; lf(x2196, p, b2196, L0); if (b2196.length) e.push(...b2196);
-if (g2196 === "object") {
-if (g2196 === 'object') { const o2196 = x2196 as Record<string, unknown>;
-if (!("upToIdx" in o2196)) e.push(p + "/upToIdx" + ': required');
-if ("upToIdx" in o2196) lf(o2196["upToIdx"], p + "/upToIdx", e, L2);
+const b2196: string[] = []; lf(x2196, p + "/skipThreadIds", b2196, L4); if (b2196.length) e.push(...b2196);
+if (g2196 === "array") {
+if (g2196 === 'array') { const a2196 = x2196 as unknown[];
+for (let i2196 = 0; i2196 < a2196.length; i2196++) {
+lf(a2196[i2196], p + "/skipThreadIds" + '/' + i2196, e, L13);
+}
+}
+}
+}
+}
+if ("idempotencyKey" in o2195) lf(o2195["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -4447,6 +4321,8 @@ if (g2197 === "object") {
 if (g2197 === 'object') { const o2197 = x2197 as Record<string, unknown>;
 if (!("threadId" in o2197)) e.push(p + "/threadId" + ': required');
 if ("threadId" in o2197) lf(o2197["threadId"], p + "/threadId", e, L13);
+if ("fromIdx" in o2197) lf(o2197["fromIdx"], p + "/fromIdx", e, L2);
+if ("limit" in o2197) lf(o2197["limit"], p + "/limit", e, L121);
 }
 }
 }
@@ -4459,14 +4335,27 @@ const g2198 = typeOf(x2198);
 const b2198: string[] = []; lf(x2198, p, b2198, L0); if (b2198.length) e.push(...b2198);
 if (g2198 === "object") {
 if (g2198 === 'object') { const o2198 = x2198 as Record<string, unknown>;
-if (!("summary" in o2198)) e.push(p + "/summary" + ': required');
-if (!("upToIdx" in o2198)) e.push(p + "/upToIdx" + ': required');
-if (!("updatedAt" in o2198)) e.push(p + "/updatedAt" + ': required');
-if (!("transcriptPath" in o2198)) e.push(p + "/transcriptPath" + ': required');
-if ("summary" in o2198) lf(o2198["summary"], p + "/summary", e, L1);
-if ("upToIdx" in o2198) lf(o2198["upToIdx"], p + "/upToIdx", e, L2);
-if ("updatedAt" in o2198) lf(o2198["updatedAt"], p + "/updatedAt", e, L17);
-if ("transcriptPath" in o2198) lf(o2198["transcriptPath"], p + "/transcriptPath", e, L1);
+if (!("markdown" in o2198)) e.push(p + "/markdown" + ': required');
+if ("markdown" in o2198) lf(o2198["markdown"], p + "/markdown", e, L1);
+if ("next" in o2198) lf(o2198["next"], p + "/next", e, L2);
+}
+}
+}
+}
+
+function c342_in(v: unknown, p: string, e: string[]): void {
+{
+const x2199 = v;
+const g2199 = typeOf(x2199);
+const b2199: string[] = []; lf(x2199, p, b2199, L0); if (b2199.length) e.push(...b2199);
+if (g2199 === "object") {
+if (g2199 === 'object') { const o2199 = x2199 as Record<string, unknown>;
+if (!("q" in o2199)) e.push(p + "/q" + ': required');
+if ("q" in o2199) lf(o2199["q"], p + "/q", e, L1);
+if ("mode" in o2199) lf(o2199["mode"], p + "/mode", e, L605);
+if ("threadId" in o2199) lf(o2199["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o2199) lf(o2199["agentId"], p + "/agentId", e, L10);
+if ("limit" in o2199) lf(o2199["limit"], p + "/limit", e, L601);
 }
 }
 }
@@ -4474,13 +4363,48 @@ if ("transcriptPath" in o2198) lf(o2198["transcriptPath"], p + "/transcriptPath"
 
 function c342_out(v: unknown, p: string, e: string[]): void {
 {
-const x2199 = v;
-const g2199 = typeOf(x2199);
-const b2199: string[] = []; lf(x2199, p, b2199, L0); if (b2199.length) e.push(...b2199);
-if (g2199 === "object") {
-if (g2199 === 'object') { const o2199 = x2199 as Record<string, unknown>;
-if (!("pinned" in o2199)) e.push(p + "/pinned" + ': required');
-if ("pinned" in o2199) lf(o2199["pinned"], p + "/pinned", e, L3);
+const x2200 = v;
+const g2200 = typeOf(x2200);
+const b2200: string[] = []; lf(x2200, p, b2200, L0); if (b2200.length) e.push(...b2200);
+if (g2200 === "object") {
+if (g2200 === 'object') { const o2200 = x2200 as Record<string, unknown>;
+if (!("hits" in o2200)) e.push(p + "/hits" + ': required');
+if ("hits" in o2200) {
+{
+const x2201 = o2200["hits"];
+const g2201 = typeOf(x2201);
+const b2201: string[] = []; lf(x2201, p + "/hits", b2201, L4); if (b2201.length) e.push(...b2201);
+if (g2201 === "array") {
+if (g2201 === 'array') { const a2201 = x2201 as unknown[];
+for (let i2201 = 0; i2201 < a2201.length; i2201++) {
+{
+const x2202 = a2201[i2201];
+const g2202 = typeOf(x2202);
+const b2202: string[] = []; lf(x2202, p + "/hits" + '/' + i2201, b2202, L0); if (b2202.length) e.push(...b2202);
+if (g2202 === "object") {
+if (g2202 === 'object') { const o2202 = x2202 as Record<string, unknown>;
+if (!("turnId" in o2202)) e.push(p + "/hits" + '/' + i2201 + "/turnId" + ': required');
+if (!("threadId" in o2202)) e.push(p + "/hits" + '/' + i2201 + "/threadId" + ': required');
+if (!("idx" in o2202)) e.push(p + "/hits" + '/' + i2201 + "/idx" + ': required');
+if (!("role" in o2202)) e.push(p + "/hits" + '/' + i2201 + "/role" + ': required');
+if (!("snippet" in o2202)) e.push(p + "/hits" + '/' + i2201 + "/snippet" + ': required');
+if (!("at" in o2202)) e.push(p + "/hits" + '/' + i2201 + "/at" + ': required');
+if (!("link" in o2202)) e.push(p + "/hits" + '/' + i2201 + "/link" + ': required');
+if ("turnId" in o2202) lf(o2202["turnId"], p + "/hits" + '/' + i2201 + "/turnId", e, L176);
+if ("threadId" in o2202) lf(o2202["threadId"], p + "/hits" + '/' + i2201 + "/threadId", e, L13);
+if ("idx" in o2202) lf(o2202["idx"], p + "/hits" + '/' + i2201 + "/idx", e, L2);
+if ("role" in o2202) lf(o2202["role"], p + "/hits" + '/' + i2201 + "/role", e, L606);
+if ("snippet" in o2202) lf(o2202["snippet"], p + "/hits" + '/' + i2201 + "/snippet", e, L1);
+if ("at" in o2202) lf(o2202["at"], p + "/hits" + '/' + i2201 + "/at", e, L17);
+if ("link" in o2202) lf(o2202["link"], p + "/hits" + '/' + i2201 + "/link", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
 }
 }
 }
@@ -4488,76 +4412,27 @@ if ("pinned" in o2199) lf(o2199["pinned"], p + "/pinned", e, L3);
 
 function c343_in(v: unknown, p: string, e: string[]): void {
 {
-const x2200 = v;
-const g2200 = typeOf(x2200);
-const b2200: string[] = []; lf(x2200, p, b2200, L0); if (b2200.length) e.push(...b2200);
-if (g2200 === "object") {
+const x2203 = v;
+const g2203 = typeOf(x2203);
+const b2203: string[] = []; lf(x2203, p, b2203, L0); if (b2203.length) e.push(...b2203);
+if (g2203 === "object") {
+if (g2203 === 'object') { const o2203 = x2203 as Record<string, unknown>;
+if (!("threadId" in o2203)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2203) lf(o2203["threadId"], p + "/threadId", e, L13);
+}
 }
 }
 }
 
 function c343_out(v: unknown, p: string, e: string[]): void {
 {
-const x2201 = v;
-const g2201 = typeOf(x2201);
-const b2201: string[] = []; lf(x2201, p, b2201, L0); if (b2201.length) e.push(...b2201);
-if (g2201 === "object") {
-if (g2201 === 'object') { const o2201 = x2201 as Record<string, unknown>;
-if (!("people" in o2201)) e.push(p + "/people" + ': required');
-if (!("working" in o2201)) e.push(p + "/working" + ': required');
-if ("people" in o2201) {
-{
-const x2202 = o2201["people"];
-const g2202 = typeOf(x2202);
-const b2202: string[] = []; lf(x2202, p + "/people", b2202, L4); if (b2202.length) e.push(...b2202);
-if (g2202 === "array") {
-if (g2202 === 'array') { const a2202 = x2202 as unknown[];
-for (let i2202 = 0; i2202 < a2202.length; i2202++) {
-{
-const x2203 = a2202[i2202];
-const g2203 = typeOf(x2203);
-const b2203: string[] = []; lf(x2203, p + "/people" + '/' + i2202, b2203, L0); if (b2203.length) e.push(...b2203);
-if (g2203 === "object") {
-if (g2203 === 'object') { const o2203 = x2203 as Record<string, unknown>;
-if (!("personId" in o2203)) e.push(p + "/people" + '/' + i2202 + "/personId" + ': required');
-if (!("state" in o2203)) e.push(p + "/people" + '/' + i2202 + "/state" + ': required');
-if ("personId" in o2203) lf(o2203["personId"], p + "/people" + '/' + i2202 + "/personId", e, L16);
-if ("state" in o2203) lf(o2203["state"], p + "/people" + '/' + i2202 + "/state", e, L607);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("working" in o2201) {
-{
-const x2204 = o2201["working"];
+const x2204 = v;
 const g2204 = typeOf(x2204);
-const b2204: string[] = []; lf(x2204, p + "/working", b2204, L4); if (b2204.length) e.push(...b2204);
-if (g2204 === "array") {
-if (g2204 === 'array') { const a2204 = x2204 as unknown[];
-for (let i2204 = 0; i2204 < a2204.length; i2204++) {
-{
-const x2205 = a2204[i2204];
-const g2205 = typeOf(x2205);
-const b2205: string[] = []; lf(x2205, p + "/working" + '/' + i2204, b2205, L0); if (b2205.length) e.push(...b2205);
-if (g2205 === "object") {
-if (g2205 === 'object') { const o2205 = x2205 as Record<string, unknown>;
-if (!("agentId" in o2205)) e.push(p + "/working" + '/' + i2204 + "/agentId" + ': required');
-if (!("since" in o2205)) e.push(p + "/working" + '/' + i2204 + "/since" + ': required');
-if ("agentId" in o2205) lf(o2205["agentId"], p + "/working" + '/' + i2204 + "/agentId", e, L10);
-if ("threadId" in o2205) lf(o2205["threadId"], p + "/working" + '/' + i2204 + "/threadId", e, L13);
-if ("since" in o2205) lf(o2205["since"], p + "/working" + '/' + i2204 + "/since", e, L17);
-}
-}
-}
-}
-}
-}
-}
-}
+const b2204: string[] = []; lf(x2204, p, b2204, L0); if (b2204.length) e.push(...b2204);
+if (g2204 === "object") {
+if (g2204 === 'object') { const o2204 = x2204 as Record<string, unknown>;
+if (!("upToIdx" in o2204)) e.push(p + "/upToIdx" + ': required');
+if ("upToIdx" in o2204) lf(o2204["upToIdx"], p + "/upToIdx", e, L2);
 }
 }
 }
@@ -4565,27 +4440,13 @@ if ("since" in o2205) lf(o2205["since"], p + "/working" + '/' + i2204 + "/since"
 
 function c344_in(v: unknown, p: string, e: string[]): void {
 {
-const x2206 = v;
-const g2206 = typeOf(x2206);
-const b2206: string[] = []; lf(x2206, p, b2206, L0); if (b2206.length) e.push(...b2206);
-if (g2206 === "object") {
-if (g2206 === 'object') { const o2206 = x2206 as Record<string, unknown>;
-if ("filter" in o2206) lf(o2206["filter"], p + "/filter", e, L1);
-if ("more" in o2206) {
-{
-const x2207 = o2206["more"];
-const g2207 = typeOf(x2207);
-const b2207: string[] = []; lf(x2207, p + "/more", b2207, L0); if (b2207.length) e.push(...b2207);
-if (g2207 === "object") {
-if (g2207 === 'object') { const o2207 = x2207 as Record<string, unknown>;
-if (!("section" in o2207)) e.push(p + "/more" + "/section" + ': required');
-if ("section" in o2207) lf(o2207["section"], p + "/more" + "/section", e, L608);
-if ("after" in o2207) lf(o2207["after"], p + "/more" + "/after", e, L1);
-if ("limit" in o2207) lf(o2207["limit"], p + "/more" + "/limit", e, L578);
-}
-}
-}
-}
+const x2205 = v;
+const g2205 = typeOf(x2205);
+const b2205: string[] = []; lf(x2205, p, b2205, L0); if (b2205.length) e.push(...b2205);
+if (g2205 === "object") {
+if (g2205 === 'object') { const o2205 = x2205 as Record<string, unknown>;
+if (!("threadId" in o2205)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o2205) lf(o2205["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -4593,49 +4454,75 @@ if ("limit" in o2207) lf(o2207["limit"], p + "/more" + "/limit", e, L578);
 
 function c344_out(v: unknown, p: string, e: string[]): void {
 {
+const x2206 = v;
+const g2206 = typeOf(x2206);
+const b2206: string[] = []; lf(x2206, p, b2206, L0); if (b2206.length) e.push(...b2206);
+if (g2206 === "object") {
+if (g2206 === 'object') { const o2206 = x2206 as Record<string, unknown>;
+if (!("summary" in o2206)) e.push(p + "/summary" + ': required');
+if (!("upToIdx" in o2206)) e.push(p + "/upToIdx" + ': required');
+if (!("updatedAt" in o2206)) e.push(p + "/updatedAt" + ': required');
+if (!("transcriptPath" in o2206)) e.push(p + "/transcriptPath" + ': required');
+if ("summary" in o2206) lf(o2206["summary"], p + "/summary", e, L1);
+if ("upToIdx" in o2206) lf(o2206["upToIdx"], p + "/upToIdx", e, L2);
+if ("updatedAt" in o2206) lf(o2206["updatedAt"], p + "/updatedAt", e, L17);
+if ("transcriptPath" in o2206) lf(o2206["transcriptPath"], p + "/transcriptPath", e, L1);
+}
+}
+}
+}
+
+function c345_out(v: unknown, p: string, e: string[]): void {
+{
+const x2207 = v;
+const g2207 = typeOf(x2207);
+const b2207: string[] = []; lf(x2207, p, b2207, L0); if (b2207.length) e.push(...b2207);
+if (g2207 === "object") {
+if (g2207 === 'object') { const o2207 = x2207 as Record<string, unknown>;
+if (!("pinned" in o2207)) e.push(p + "/pinned" + ': required');
+if ("pinned" in o2207) lf(o2207["pinned"], p + "/pinned", e, L3);
+}
+}
+}
+}
+
+function c346_in(v: unknown, p: string, e: string[]): void {
+{
 const x2208 = v;
 const g2208 = typeOf(x2208);
 const b2208: string[] = []; lf(x2208, p, b2208, L0); if (b2208.length) e.push(...b2208);
 if (g2208 === "object") {
-if (g2208 === 'object') { const o2208 = x2208 as Record<string, unknown>;
-if (!("needs" in o2208)) e.push(p + "/needs" + ': required');
-if (!("goals" in o2208)) e.push(p + "/goals" + ': required');
-if (!("pinned" in o2208)) e.push(p + "/pinned" + ': required');
-if (!("chats" in o2208)) e.push(p + "/chats" + ': required');
-if (!("channels" in o2208)) e.push(p + "/channels" + ': required');
-if (!("team" in o2208)) e.push(p + "/team" + ': required');
-if (!("rail" in o2208)) e.push(p + "/rail" + ': required');
-if ("needs" in o2208) {
+}
+}
+}
+
+function c346_out(v: unknown, p: string, e: string[]): void {
 {
-const x2209 = o2208["needs"];
+const x2209 = v;
 const g2209 = typeOf(x2209);
-const b2209: string[] = []; lf(x2209, p + "/needs", b2209, L0); if (b2209.length) e.push(...b2209);
+const b2209: string[] = []; lf(x2209, p, b2209, L0); if (b2209.length) e.push(...b2209);
 if (g2209 === "object") {
 if (g2209 === 'object') { const o2209 = x2209 as Record<string, unknown>;
-if (!("total" in o2209)) e.push(p + "/needs" + "/total" + ': required');
-if (!("items" in o2209)) e.push(p + "/needs" + "/items" + ': required');
-if ("total" in o2209) lf(o2209["total"], p + "/needs" + "/total", e, L17);
-if ("items" in o2209) {
+if (!("people" in o2209)) e.push(p + "/people" + ': required');
+if (!("working" in o2209)) e.push(p + "/working" + ': required');
+if ("people" in o2209) {
 {
-const x2210 = o2209["items"];
+const x2210 = o2209["people"];
 const g2210 = typeOf(x2210);
-const b2210: string[] = []; lf(x2210, p + "/needs" + "/items", b2210, L4); if (b2210.length) e.push(...b2210);
+const b2210: string[] = []; lf(x2210, p + "/people", b2210, L4); if (b2210.length) e.push(...b2210);
 if (g2210 === "array") {
 if (g2210 === 'array') { const a2210 = x2210 as unknown[];
 for (let i2210 = 0; i2210 < a2210.length; i2210++) {
 {
 const x2211 = a2210[i2210];
 const g2211 = typeOf(x2211);
-const b2211: string[] = []; lf(x2211, p + "/needs" + "/items" + '/' + i2210, b2211, L0); if (b2211.length) e.push(...b2211);
+const b2211: string[] = []; lf(x2211, p + "/people" + '/' + i2210, b2211, L0); if (b2211.length) e.push(...b2211);
 if (g2211 === "object") {
 if (g2211 === 'object') { const o2211 = x2211 as Record<string, unknown>;
-if (!("taskId" in o2211)) e.push(p + "/needs" + "/items" + '/' + i2210 + "/taskId" + ': required');
-if (!("title" in o2211)) e.push(p + "/needs" + "/items" + '/' + i2210 + "/title" + ': required');
-if (!("verb" in o2211)) e.push(p + "/needs" + "/items" + '/' + i2210 + "/verb" + ': required');
-if ("taskId" in o2211) lf(o2211["taskId"], p + "/needs" + "/items" + '/' + i2210 + "/taskId", e, L1);
-if ("title" in o2211) lf(o2211["title"], p + "/needs" + "/items" + '/' + i2210 + "/title", e, L1);
-if ("verb" in o2211) lf(o2211["verb"], p + "/needs" + "/items" + '/' + i2210 + "/verb", e, L609);
-if ("askerId" in o2211) lf(o2211["askerId"], p + "/needs" + "/items" + '/' + i2210 + "/askerId", e, L1);
+if (!("personId" in o2211)) e.push(p + "/people" + '/' + i2210 + "/personId" + ': required');
+if (!("state" in o2211)) e.push(p + "/people" + '/' + i2210 + "/state" + ': required');
+if ("personId" in o2211) lf(o2211["personId"], p + "/people" + '/' + i2210 + "/personId", e, L16);
+if ("state" in o2211) lf(o2211["state"], p + "/people" + '/' + i2210 + "/state", e, L607);
 }
 }
 }
@@ -4644,177 +4531,130 @@ if ("askerId" in o2211) lf(o2211["askerId"], p + "/needs" + "/items" + '/' + i22
 }
 }
 }
+if ("working" in o2209) {
+{
+const x2212 = o2209["working"];
+const g2212 = typeOf(x2212);
+const b2212: string[] = []; lf(x2212, p + "/working", b2212, L4); if (b2212.length) e.push(...b2212);
+if (g2212 === "array") {
+if (g2212 === 'array') { const a2212 = x2212 as unknown[];
+for (let i2212 = 0; i2212 < a2212.length; i2212++) {
+{
+const x2213 = a2212[i2212];
+const g2213 = typeOf(x2213);
+const b2213: string[] = []; lf(x2213, p + "/working" + '/' + i2212, b2213, L0); if (b2213.length) e.push(...b2213);
+if (g2213 === "object") {
+if (g2213 === 'object') { const o2213 = x2213 as Record<string, unknown>;
+if (!("agentId" in o2213)) e.push(p + "/working" + '/' + i2212 + "/agentId" + ': required');
+if (!("since" in o2213)) e.push(p + "/working" + '/' + i2212 + "/since" + ': required');
+if ("agentId" in o2213) lf(o2213["agentId"], p + "/working" + '/' + i2212 + "/agentId", e, L10);
+if ("threadId" in o2213) lf(o2213["threadId"], p + "/working" + '/' + i2212 + "/threadId", e, L13);
+if ("since" in o2213) lf(o2213["since"], p + "/working" + '/' + i2212 + "/since", e, L17);
 }
 }
 }
 }
-if ("goals" in o2208) d_s_e6cbebfd43(o2208["goals"], p + "/goals", e);
-if ("pinned" in o2208) d_s_e6cbebfd43(o2208["pinned"], p + "/pinned", e);
-if ("chats" in o2208) d_s_e6cbebfd43(o2208["chats"], p + "/chats", e);
-if ("channels" in o2208) d_s_e6cbebfd43(o2208["channels"], p + "/channels", e);
-if ("team" in o2208) d_s_e6cbebfd43(o2208["team"], p + "/team", e);
-if ("rail" in o2208) lf(o2208["rail"], p + "/rail", e, L17);
-if ("nextUnread" in o2208) lf(o2208["nextUnread"], p + "/nextUnread", e, L1);
+}
+}
+}
+}
 }
 }
 }
 }
 
-function c2096_in(v: unknown, p: string, e: string[]): void {
+function c347_in(v: unknown, p: string, e: string[]): void {
 {
-const x6641 = v;
-const g6641 = typeOf(x6641);
-const b6641: string[] = []; lf(x6641, p, b6641, L0); if (b6641.length) e.push(...b6641);
-if (g6641 === "object") {
-if (g6641 === 'object') { const o6641 = x6641 as Record<string, unknown>;
-if (!("threadId" in o6641)) e.push(p + "/threadId" + ': required');
-if (!("agentId" in o6641)) e.push(p + "/agentId" + ': required');
-if ("threadId" in o6641) lf(o6641["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o6641) lf(o6641["agentId"], p + "/agentId", e, L10);
-if ("mode" in o6641) lf(o6641["mode"], p + "/mode", e, L384);
+const x2214 = v;
+const g2214 = typeOf(x2214);
+const b2214: string[] = []; lf(x2214, p, b2214, L0); if (b2214.length) e.push(...b2214);
+if (g2214 === "object") {
+if (g2214 === 'object') { const o2214 = x2214 as Record<string, unknown>;
+if ("filter" in o2214) lf(o2214["filter"], p + "/filter", e, L1);
+if ("more" in o2214) {
+{
+const x2215 = o2214["more"];
+const g2215 = typeOf(x2215);
+const b2215: string[] = []; lf(x2215, p + "/more", b2215, L0); if (b2215.length) e.push(...b2215);
+if (g2215 === "object") {
+if (g2215 === 'object') { const o2215 = x2215 as Record<string, unknown>;
+if (!("section" in o2215)) e.push(p + "/more" + "/section" + ': required');
+if ("section" in o2215) lf(o2215["section"], p + "/more" + "/section", e, L608);
+if ("after" in o2215) lf(o2215["after"], p + "/more" + "/after", e, L1);
+if ("limit" in o2215) lf(o2215["limit"], p + "/more" + "/limit", e, L578);
+}
+}
+}
+}
 }
 }
 }
 }
 
-function c2097_in(v: unknown, p: string, e: string[]): void {
+function c347_out(v: unknown, p: string, e: string[]): void {
 {
-const x6642 = v;
-const g6642 = typeOf(x6642);
-const b6642: string[] = []; lf(x6642, p, b6642, L0); if (b6642.length) e.push(...b6642);
-if (g6642 === "object") {
-if (g6642 === 'object') { const o6642 = x6642 as Record<string, unknown>;
-if (!("threadId" in o6642)) e.push(p + "/threadId" + ': required');
-if (!("agentId" in o6642)) e.push(p + "/agentId" + ': required');
-if ("threadId" in o6642) lf(o6642["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o6642) lf(o6642["agentId"], p + "/agentId", e, L10);
-if ("model" in o6642) {
+const x2216 = v;
+const g2216 = typeOf(x2216);
+const b2216: string[] = []; lf(x2216, p, b2216, L0); if (b2216.length) e.push(...b2216);
+if (g2216 === "object") {
+if (g2216 === 'object') { const o2216 = x2216 as Record<string, unknown>;
+if (!("needs" in o2216)) e.push(p + "/needs" + ': required');
+if (!("goals" in o2216)) e.push(p + "/goals" + ': required');
+if (!("pinned" in o2216)) e.push(p + "/pinned" + ': required');
+if (!("chats" in o2216)) e.push(p + "/chats" + ': required');
+if (!("channels" in o2216)) e.push(p + "/channels" + ': required');
+if (!("team" in o2216)) e.push(p + "/team" + ': required');
+if (!("rail" in o2216)) e.push(p + "/rail" + ': required');
+if ("needs" in o2216) {
 {
-const x6643 = o6642["model"];
-const t6643_0: string[] = [];
-lf(x6643, p + "/model", t6643_0, L1);
-const t6643_1: string[] = [];
-lf(x6643, p + "/model", t6643_1, L84);
-if (![t6643_0, t6643_1].some((x) => x.length === 0)) e.push(p + "/model" + ': matches none of anyOf');
-}
-}
-if ("provider" in o6642) {
+const x2217 = o2216["needs"];
+const g2217 = typeOf(x2217);
+const b2217: string[] = []; lf(x2217, p + "/needs", b2217, L0); if (b2217.length) e.push(...b2217);
+if (g2217 === "object") {
+if (g2217 === 'object') { const o2217 = x2217 as Record<string, unknown>;
+if (!("total" in o2217)) e.push(p + "/needs" + "/total" + ': required');
+if (!("items" in o2217)) e.push(p + "/needs" + "/items" + ': required');
+if ("total" in o2217) lf(o2217["total"], p + "/needs" + "/total", e, L17);
+if ("items" in o2217) {
 {
-const x6644 = o6642["provider"];
-const t6644_0: string[] = [];
-lf(x6644, p + "/provider", t6644_0, L1);
-const t6644_1: string[] = [];
-lf(x6644, p + "/provider", t6644_1, L84);
-if (![t6644_0, t6644_1].some((x) => x.length === 0)) e.push(p + "/provider" + ': matches none of anyOf');
-}
-}
-if ("effort" in o6642) {
+const x2218 = o2217["items"];
+const g2218 = typeOf(x2218);
+const b2218: string[] = []; lf(x2218, p + "/needs" + "/items", b2218, L4); if (b2218.length) e.push(...b2218);
+if (g2218 === "array") {
+if (g2218 === 'array') { const a2218 = x2218 as unknown[];
+for (let i2218 = 0; i2218 < a2218.length; i2218++) {
 {
-const x6645 = o6642["effort"];
-const t6645_0: string[] = [];
-lf(x6645, p + "/effort", t6645_0, L385);
-const t6645_1: string[] = [];
-lf(x6645, p + "/effort", t6645_1, L84);
-if (![t6645_0, t6645_1].some((x) => x.length === 0)) e.push(p + "/effort" + ': matches none of anyOf');
-}
-}
-if ("accountRef" in o6642) {
-{
-const x6646 = o6642["accountRef"];
-const t6646_0: string[] = [];
-lf(x6646, p + "/accountRef", t6646_0, L1);
-const t6646_1: string[] = [];
-lf(x6646, p + "/accountRef", t6646_1, L84);
-if (![t6646_0, t6646_1].some((x) => x.length === 0)) e.push(p + "/accountRef" + ': matches none of anyOf');
-}
-}
-if ("scope" in o6642) lf(o6642["scope"], p + "/scope", e, L1011);
+const x2219 = a2218[i2218];
+const g2219 = typeOf(x2219);
+const b2219: string[] = []; lf(x2219, p + "/needs" + "/items" + '/' + i2218, b2219, L0); if (b2219.length) e.push(...b2219);
+if (g2219 === "object") {
+if (g2219 === 'object') { const o2219 = x2219 as Record<string, unknown>;
+if (!("taskId" in o2219)) e.push(p + "/needs" + "/items" + '/' + i2218 + "/taskId" + ': required');
+if (!("title" in o2219)) e.push(p + "/needs" + "/items" + '/' + i2218 + "/title" + ': required');
+if (!("verb" in o2219)) e.push(p + "/needs" + "/items" + '/' + i2218 + "/verb" + ': required');
+if ("taskId" in o2219) lf(o2219["taskId"], p + "/needs" + "/items" + '/' + i2218 + "/taskId", e, L1);
+if ("title" in o2219) lf(o2219["title"], p + "/needs" + "/items" + '/' + i2218 + "/title", e, L1);
+if ("verb" in o2219) lf(o2219["verb"], p + "/needs" + "/items" + '/' + i2218 + "/verb", e, L609);
+if ("askerId" in o2219) lf(o2219["askerId"], p + "/needs" + "/items" + '/' + i2218 + "/askerId", e, L1);
 }
 }
 }
 }
-
-function c2098_in(v: unknown, p: string, e: string[]): void {
-{
-const x6647 = v;
-const g6647 = typeOf(x6647);
-const b6647: string[] = []; lf(x6647, p, b6647, L0); if (b6647.length) e.push(...b6647);
-if (g6647 === "object") {
-if (g6647 === 'object') { const o6647 = x6647 as Record<string, unknown>;
-if (!("threadId" in o6647)) e.push(p + "/threadId" + ': required');
-if (!("name" in o6647)) e.push(p + "/name" + ': required');
-if (!("idempotencyKey" in o6647)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o6647) lf(o6647["threadId"], p + "/threadId", e, L13);
-if ("name" in o6647) lf(o6647["name"], p + "/name", e, L1);
-if ("brief" in o6647) lf(o6647["brief"], p + "/brief", e, L1);
-if ("model" in o6647) lf(o6647["model"], p + "/model", e, L1);
-if ("mode" in o6647) lf(o6647["mode"], p + "/mode", e, L1012);
-if ("idempotencyKey" in o6647) lf(o6647["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
 }
-
-function c2098_out(v: unknown, p: string, e: string[]): void {
-{
-const x6648 = v;
-const g6648 = typeOf(x6648);
-const b6648: string[] = []; lf(x6648, p, b6648, L0); if (b6648.length) e.push(...b6648);
-if (g6648 === "object") {
-if (g6648 === 'object') { const o6648 = x6648 as Record<string, unknown>;
-if (!("thread" in o6648)) e.push(p + "/thread" + ': required');
-if (!("agentId" in o6648)) e.push(p + "/agentId" + ': required');
-if ("thread" in o6648) d_s_da8e7f1be8(o6648["thread"], p + "/thread", e);
-if ("agentId" in o6648) lf(o6648["agentId"], p + "/agentId", e, L10);
 }
 }
 }
 }
-
-function c2099_in(v: unknown, p: string, e: string[]): void {
-{
-const x6649 = v;
-const g6649 = typeOf(x6649);
-const b6649: string[] = []; lf(x6649, p, b6649, L0); if (b6649.length) e.push(...b6649);
-if (g6649 === "object") {
-if (g6649 === 'object') { const o6649 = x6649 as Record<string, unknown>;
-if (!("threadId" in o6649)) e.push(p + "/threadId" + ': required');
-if (!("agentId" in o6649)) e.push(p + "/agentId" + ': required');
-if ("threadId" in o6649) lf(o6649["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o6649) lf(o6649["agentId"], p + "/agentId", e, L10);
-if ("mode" in o6649) lf(o6649["mode"], p + "/mode", e, L1012);
-if ("when" in o6649) lf(o6649["when"], p + "/when", e, L386);
-if ("topics" in o6649) {
-{
-const x6650 = o6649["topics"];
-const t6650_0: string[] = [];
-lf(x6650, p + "/topics", t6650_0, L1);
-const t6650_1: string[] = [];
-lf(x6650, p + "/topics", t6650_1, L84);
-if (![t6650_0, t6650_1].some((x) => x.length === 0)) e.push(p + "/topics" + ': matches none of anyOf');
-}
-}
-if ("hoursFrom" in o6649) {
-{
-const x6651 = o6649["hoursFrom"];
-const t6651_0: string[] = [];
-lf(x6651, p + "/hoursFrom", t6651_0, L387);
-const t6651_1: string[] = [];
-lf(x6651, p + "/hoursFrom", t6651_1, L84);
-if (![t6651_0, t6651_1].some((x) => x.length === 0)) e.push(p + "/hoursFrom" + ': matches none of anyOf');
-}
-}
-if ("hoursTo" in o6649) {
-{
-const x6652 = o6649["hoursTo"];
-const t6652_0: string[] = [];
-lf(x6652, p + "/hoursTo", t6652_0, L387);
-const t6652_1: string[] = [];
-lf(x6652, p + "/hoursTo", t6652_1, L84);
-if (![t6652_0, t6652_1].some((x) => x.length === 0)) e.push(p + "/hoursTo" + ': matches none of anyOf');
-}
-}
-if ("style" in o6649) lf(o6649["style"], p + "/style", e, L388);
+if ("goals" in o2216) d_s_e6cbebfd43(o2216["goals"], p + "/goals", e);
+if ("pinned" in o2216) d_s_e6cbebfd43(o2216["pinned"], p + "/pinned", e);
+if ("chats" in o2216) d_s_e6cbebfd43(o2216["chats"], p + "/chats", e);
+if ("channels" in o2216) d_s_e6cbebfd43(o2216["channels"], p + "/channels", e);
+if ("team" in o2216) d_s_e6cbebfd43(o2216["team"], p + "/team", e);
+if ("rail" in o2216) lf(o2216["rail"], p + "/rail", e, L17);
+if ("nextUnread" in o2216) lf(o2216["nextUnread"], p + "/nextUnread", e, L1);
 }
 }
 }
@@ -4822,27 +4662,16 @@ if ("style" in o6649) lf(o6649["style"], p + "/style", e, L388);
 
 function c2100_in(v: unknown, p: string, e: string[]): void {
 {
-const x6653 = v;
-const g6653 = typeOf(x6653);
-const b6653: string[] = []; lf(x6653, p, b6653, L0); if (b6653.length) e.push(...b6653);
-if (g6653 === "object") {
-if (g6653 === 'object') { const o6653 = x6653 as Record<string, unknown>;
-if (!("threadId" in o6653)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o6653) lf(o6653["threadId"], p + "/threadId", e, L13);
-}
-}
-}
-}
-
-function c2100_out(v: unknown, p: string, e: string[]): void {
-{
-const x6654 = v;
-const g6654 = typeOf(x6654);
-const b6654: string[] = []; lf(x6654, p, b6654, L0); if (b6654.length) e.push(...b6654);
-if (g6654 === "object") {
-if (g6654 === 'object') { const o6654 = x6654 as Record<string, unknown>;
-if (!("archived" in o6654)) e.push(p + "/archived" + ': required');
-if ("archived" in o6654) lf(o6654["archived"], p + "/archived", e, L3);
+const x6651 = v;
+const g6651 = typeOf(x6651);
+const b6651: string[] = []; lf(x6651, p, b6651, L0); if (b6651.length) e.push(...b6651);
+if (g6651 === "object") {
+if (g6651 === 'object') { const o6651 = x6651 as Record<string, unknown>;
+if (!("threadId" in o6651)) e.push(p + "/threadId" + ': required');
+if (!("agentId" in o6651)) e.push(p + "/agentId" + ': required');
+if ("threadId" in o6651) lf(o6651["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o6651) lf(o6651["agentId"], p + "/agentId", e, L10);
+if ("mode" in o6651) lf(o6651["mode"], p + "/mode", e, L384);
 }
 }
 }
@@ -4850,13 +4679,56 @@ if ("archived" in o6654) lf(o6654["archived"], p + "/archived", e, L3);
 
 function c2101_in(v: unknown, p: string, e: string[]): void {
 {
-const x6655 = v;
-const g6655 = typeOf(x6655);
-const b6655: string[] = []; lf(x6655, p, b6655, L0); if (b6655.length) e.push(...b6655);
-if (g6655 === "object") {
-if (g6655 === 'object') { const o6655 = x6655 as Record<string, unknown>;
-if (!("threadId" in o6655)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o6655) lf(o6655["threadId"], p + "/threadId", e, L13);
+const x6652 = v;
+const g6652 = typeOf(x6652);
+const b6652: string[] = []; lf(x6652, p, b6652, L0); if (b6652.length) e.push(...b6652);
+if (g6652 === "object") {
+if (g6652 === 'object') { const o6652 = x6652 as Record<string, unknown>;
+if (!("threadId" in o6652)) e.push(p + "/threadId" + ': required');
+if (!("agentId" in o6652)) e.push(p + "/agentId" + ': required');
+if ("threadId" in o6652) lf(o6652["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o6652) lf(o6652["agentId"], p + "/agentId", e, L10);
+if ("model" in o6652) {
+{
+const x6653 = o6652["model"];
+const t6653_0: string[] = [];
+lf(x6653, p + "/model", t6653_0, L1);
+const t6653_1: string[] = [];
+lf(x6653, p + "/model", t6653_1, L84);
+if (![t6653_0, t6653_1].some((x) => x.length === 0)) e.push(p + "/model" + ': matches none of anyOf');
+}
+}
+if ("provider" in o6652) {
+{
+const x6654 = o6652["provider"];
+const t6654_0: string[] = [];
+lf(x6654, p + "/provider", t6654_0, L1);
+const t6654_1: string[] = [];
+lf(x6654, p + "/provider", t6654_1, L84);
+if (![t6654_0, t6654_1].some((x) => x.length === 0)) e.push(p + "/provider" + ': matches none of anyOf');
+}
+}
+if ("effort" in o6652) {
+{
+const x6655 = o6652["effort"];
+const t6655_0: string[] = [];
+lf(x6655, p + "/effort", t6655_0, L385);
+const t6655_1: string[] = [];
+lf(x6655, p + "/effort", t6655_1, L84);
+if (![t6655_0, t6655_1].some((x) => x.length === 0)) e.push(p + "/effort" + ': matches none of anyOf');
+}
+}
+if ("accountRef" in o6652) {
+{
+const x6656 = o6652["accountRef"];
+const t6656_0: string[] = [];
+lf(x6656, p + "/accountRef", t6656_0, L1);
+const t6656_1: string[] = [];
+lf(x6656, p + "/accountRef", t6656_1, L84);
+if (![t6656_0, t6656_1].some((x) => x.length === 0)) e.push(p + "/accountRef" + ': matches none of anyOf');
+}
+}
+if ("scope" in o6652) lf(o6652["scope"], p + "/scope", e, L1011);
 }
 }
 }
@@ -4864,13 +4736,20 @@ if ("threadId" in o6655) lf(o6655["threadId"], p + "/threadId", e, L13);
 
 function c2102_in(v: unknown, p: string, e: string[]): void {
 {
-const x6656 = v;
-const g6656 = typeOf(x6656);
-const b6656: string[] = []; lf(x6656, p, b6656, L0); if (b6656.length) e.push(...b6656);
-if (g6656 === "object") {
-if (g6656 === 'object') { const o6656 = x6656 as Record<string, unknown>;
-if (!("threadId" in o6656)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o6656) lf(o6656["threadId"], p + "/threadId", e, L13);
+const x6657 = v;
+const g6657 = typeOf(x6657);
+const b6657: string[] = []; lf(x6657, p, b6657, L0); if (b6657.length) e.push(...b6657);
+if (g6657 === "object") {
+if (g6657 === 'object') { const o6657 = x6657 as Record<string, unknown>;
+if (!("threadId" in o6657)) e.push(p + "/threadId" + ': required');
+if (!("name" in o6657)) e.push(p + "/name" + ': required');
+if (!("idempotencyKey" in o6657)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o6657) lf(o6657["threadId"], p + "/threadId", e, L13);
+if ("name" in o6657) lf(o6657["name"], p + "/name", e, L1);
+if ("brief" in o6657) lf(o6657["brief"], p + "/brief", e, L1);
+if ("model" in o6657) lf(o6657["model"], p + "/model", e, L1);
+if ("mode" in o6657) lf(o6657["mode"], p + "/mode", e, L1012);
+if ("idempotencyKey" in o6657) lf(o6657["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -4878,13 +4757,15 @@ if ("threadId" in o6656) lf(o6656["threadId"], p + "/threadId", e, L13);
 
 function c2102_out(v: unknown, p: string, e: string[]): void {
 {
-const x6657 = v;
-const g6657 = typeOf(x6657);
-const b6657: string[] = []; lf(x6657, p, b6657, L0); if (b6657.length) e.push(...b6657);
-if (g6657 === "object") {
-if (g6657 === 'object') { const o6657 = x6657 as Record<string, unknown>;
-if (!("deleted" in o6657)) e.push(p + "/deleted" + ': required');
-if ("deleted" in o6657) lf(o6657["deleted"], p + "/deleted", e, L3);
+const x6658 = v;
+const g6658 = typeOf(x6658);
+const b6658: string[] = []; lf(x6658, p, b6658, L0); if (b6658.length) e.push(...b6658);
+if (g6658 === "object") {
+if (g6658 === 'object') { const o6658 = x6658 as Record<string, unknown>;
+if (!("thread" in o6658)) e.push(p + "/thread" + ': required');
+if (!("agentId" in o6658)) e.push(p + "/agentId" + ': required');
+if ("thread" in o6658) d_s_da8e7f1be8(o6658["thread"], p + "/thread", e);
+if ("agentId" in o6658) lf(o6658["agentId"], p + "/agentId", e, L10);
 }
 }
 }
@@ -4892,29 +4773,48 @@ if ("deleted" in o6657) lf(o6657["deleted"], p + "/deleted", e, L3);
 
 function c2103_in(v: unknown, p: string, e: string[]): void {
 {
-const x6658 = v;
-const g6658 = typeOf(x6658);
-const b6658: string[] = []; lf(x6658, p, b6658, L0); if (b6658.length) e.push(...b6658);
-if (g6658 === "object") {
-if (g6658 === 'object') { const o6658 = x6658 as Record<string, unknown>;
-if (!("threadId" in o6658)) e.push(p + "/threadId" + ': required');
-if (!("idempotencyKey" in o6658)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o6658) lf(o6658["threadId"], p + "/threadId", e, L13);
-if ("idempotencyKey" in o6658) lf(o6658["idempotencyKey"], p + "/idempotencyKey", e, L54);
-}
-}
-}
-}
-
-function c2103_out(v: unknown, p: string, e: string[]): void {
-{
 const x6659 = v;
 const g6659 = typeOf(x6659);
 const b6659: string[] = []; lf(x6659, p, b6659, L0); if (b6659.length) e.push(...b6659);
 if (g6659 === "object") {
 if (g6659 === 'object') { const o6659 = x6659 as Record<string, unknown>;
-if (!("erased" in o6659)) e.push(p + "/erased" + ': required');
-if ("erased" in o6659) lf(o6659["erased"], p + "/erased", e, L3);
+if (!("threadId" in o6659)) e.push(p + "/threadId" + ': required');
+if (!("agentId" in o6659)) e.push(p + "/agentId" + ': required');
+if ("threadId" in o6659) lf(o6659["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o6659) lf(o6659["agentId"], p + "/agentId", e, L10);
+if ("mode" in o6659) lf(o6659["mode"], p + "/mode", e, L1012);
+if ("when" in o6659) lf(o6659["when"], p + "/when", e, L386);
+if ("topics" in o6659) {
+{
+const x6660 = o6659["topics"];
+const t6660_0: string[] = [];
+lf(x6660, p + "/topics", t6660_0, L1);
+const t6660_1: string[] = [];
+lf(x6660, p + "/topics", t6660_1, L84);
+if (![t6660_0, t6660_1].some((x) => x.length === 0)) e.push(p + "/topics" + ': matches none of anyOf');
+}
+}
+if ("hoursFrom" in o6659) {
+{
+const x6661 = o6659["hoursFrom"];
+const t6661_0: string[] = [];
+lf(x6661, p + "/hoursFrom", t6661_0, L387);
+const t6661_1: string[] = [];
+lf(x6661, p + "/hoursFrom", t6661_1, L84);
+if (![t6661_0, t6661_1].some((x) => x.length === 0)) e.push(p + "/hoursFrom" + ': matches none of anyOf');
+}
+}
+if ("hoursTo" in o6659) {
+{
+const x6662 = o6659["hoursTo"];
+const t6662_0: string[] = [];
+lf(x6662, p + "/hoursTo", t6662_0, L387);
+const t6662_1: string[] = [];
+lf(x6662, p + "/hoursTo", t6662_1, L84);
+if (![t6662_0, t6662_1].some((x) => x.length === 0)) e.push(p + "/hoursTo" + ': matches none of anyOf');
+}
+}
+if ("style" in o6659) lf(o6659["style"], p + "/style", e, L388);
 }
 }
 }
@@ -4922,15 +4822,13 @@ if ("erased" in o6659) lf(o6659["erased"], p + "/erased", e, L3);
 
 function c2104_in(v: unknown, p: string, e: string[]): void {
 {
-const x6660 = v;
-const g6660 = typeOf(x6660);
-const b6660: string[] = []; lf(x6660, p, b6660, L0); if (b6660.length) e.push(...b6660);
-if (g6660 === "object") {
-if (g6660 === 'object') { const o6660 = x6660 as Record<string, unknown>;
-if (!("threadId" in o6660)) e.push(p + "/threadId" + ': required');
-if (!("mode" in o6660)) e.push(p + "/mode" + ': required');
-if ("threadId" in o6660) lf(o6660["threadId"], p + "/threadId", e, L13);
-if ("mode" in o6660) lf(o6660["mode"], p + "/mode", e, L1013);
+const x6663 = v;
+const g6663 = typeOf(x6663);
+const b6663: string[] = []; lf(x6663, p, b6663, L0); if (b6663.length) e.push(...b6663);
+if (g6663 === "object") {
+if (g6663 === 'object') { const o6663 = x6663 as Record<string, unknown>;
+if (!("threadId" in o6663)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o6663) lf(o6663["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -4938,68 +4836,19 @@ if ("mode" in o6660) lf(o6660["mode"], p + "/mode", e, L1013);
 
 function c2104_out(v: unknown, p: string, e: string[]): void {
 {
-const x6661 = v;
-const g6661 = typeOf(x6661);
-const b6661: string[] = []; lf(x6661, p, b6661, L0); if (b6661.length) e.push(...b6661);
-if (g6661 === "object") {
-if (g6661 === 'object') { const o6661 = x6661 as Record<string, unknown>;
-if (!("mode" in o6661)) e.push(p + "/mode" + ': required');
-if ("mode" in o6661) lf(o6661["mode"], p + "/mode", e, L1014);
+const x6664 = v;
+const g6664 = typeOf(x6664);
+const b6664: string[] = []; lf(x6664, p, b6664, L0); if (b6664.length) e.push(...b6664);
+if (g6664 === "object") {
+if (g6664 === 'object') { const o6664 = x6664 as Record<string, unknown>;
+if (!("archived" in o6664)) e.push(p + "/archived" + ': required');
+if ("archived" in o6664) lf(o6664["archived"], p + "/archived", e, L3);
 }
 }
 }
 }
 
 function c2105_in(v: unknown, p: string, e: string[]): void {
-{
-const x6662 = v;
-const g6662 = typeOf(x6662);
-const b6662: string[] = []; lf(x6662, p, b6662, L0); if (b6662.length) e.push(...b6662);
-if (g6662 === "object") {
-if (g6662 === 'object') { const o6662 = x6662 as Record<string, unknown>;
-if (!("threadId" in o6662)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o6662) lf(o6662["threadId"], p + "/threadId", e, L13);
-}
-}
-}
-}
-
-function c2106_in(v: unknown, p: string, e: string[]): void {
-{
-const x6663 = v;
-const g6663 = typeOf(x6663);
-const b6663: string[] = []; lf(x6663, p, b6663, L0); if (b6663.length) e.push(...b6663);
-if (g6663 === "object") {
-if (g6663 === 'object') { const o6663 = x6663 as Record<string, unknown>;
-if (!("threadId" in o6663)) e.push(p + "/threadId" + ': required');
-if (!("email" in o6663)) e.push(p + "/email" + ': required');
-if (!("idempotencyKey" in o6663)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o6663) lf(o6663["threadId"], p + "/threadId", e, L13);
-if ("email" in o6663) lf(o6663["email"], p + "/email", e, L1);
-if ("level" in o6663) lf(o6663["level"], p + "/level", e, L828);
-if ("idempotencyKey" in o6663) lf(o6663["idempotencyKey"], p + "/idempotencyKey", e, L54);
-}
-}
-}
-}
-
-function c2106_out(v: unknown, p: string, e: string[]): void {
-{
-const x6664 = v;
-const g6664 = typeOf(x6664);
-const b6664: string[] = []; lf(x6664, p, b6664, L0); if (b6664.length) e.push(...b6664);
-if (g6664 === "object") {
-if (g6664 === 'object') { const o6664 = x6664 as Record<string, unknown>;
-if (!("inviteId" in o6664)) e.push(p + "/inviteId" + ': required');
-if (!("link" in o6664)) e.push(p + "/link" + ': required');
-if ("inviteId" in o6664) lf(o6664["inviteId"], p + "/inviteId", e, L105);
-if ("link" in o6664) lf(o6664["link"], p + "/link", e, L1);
-}
-}
-}
-}
-
-function c2107_in(v: unknown, p: string, e: string[]): void {
 {
 const x6665 = v;
 const g6665 = typeOf(x6665);
@@ -5013,15 +4862,59 @@ if ("threadId" in o6665) lf(o6665["threadId"], p + "/threadId", e, L13);
 }
 }
 
-function c2107_out(v: unknown, p: string, e: string[]): void {
+function c2106_in(v: unknown, p: string, e: string[]): void {
 {
 const x6666 = v;
 const g6666 = typeOf(x6666);
 const b6666: string[] = []; lf(x6666, p, b6666, L0); if (b6666.length) e.push(...b6666);
 if (g6666 === "object") {
 if (g6666 === 'object') { const o6666 = x6666 as Record<string, unknown>;
-if (!("ok" in o6666)) e.push(p + "/ok" + ': required');
-if ("ok" in o6666) lf(o6666["ok"], p + "/ok", e, L3);
+if (!("threadId" in o6666)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o6666) lf(o6666["threadId"], p + "/threadId", e, L13);
+}
+}
+}
+}
+
+function c2106_out(v: unknown, p: string, e: string[]): void {
+{
+const x6667 = v;
+const g6667 = typeOf(x6667);
+const b6667: string[] = []; lf(x6667, p, b6667, L0); if (b6667.length) e.push(...b6667);
+if (g6667 === "object") {
+if (g6667 === 'object') { const o6667 = x6667 as Record<string, unknown>;
+if (!("deleted" in o6667)) e.push(p + "/deleted" + ': required');
+if ("deleted" in o6667) lf(o6667["deleted"], p + "/deleted", e, L3);
+}
+}
+}
+}
+
+function c2107_in(v: unknown, p: string, e: string[]): void {
+{
+const x6668 = v;
+const g6668 = typeOf(x6668);
+const b6668: string[] = []; lf(x6668, p, b6668, L0); if (b6668.length) e.push(...b6668);
+if (g6668 === "object") {
+if (g6668 === 'object') { const o6668 = x6668 as Record<string, unknown>;
+if (!("threadId" in o6668)) e.push(p + "/threadId" + ': required');
+if (!("idempotencyKey" in o6668)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o6668) lf(o6668["threadId"], p + "/threadId", e, L13);
+if ("idempotencyKey" in o6668) lf(o6668["idempotencyKey"], p + "/idempotencyKey", e, L54);
+}
+}
+}
+}
+
+function c2107_out(v: unknown, p: string, e: string[]): void {
+{
+const x6669 = v;
+const g6669 = typeOf(x6669);
+const b6669: string[] = []; lf(x6669, p, b6669, L0); if (b6669.length) e.push(...b6669);
+if (g6669 === "object") {
+if (g6669 === 'object') { const o6669 = x6669 as Record<string, unknown>;
+if (!("erased" in o6669)) e.push(p + "/erased" + ': required');
+if ("erased" in o6669) lf(o6669["erased"], p + "/erased", e, L3);
 }
 }
 }
@@ -5029,46 +4922,29 @@ if ("ok" in o6666) lf(o6666["ok"], p + "/ok", e, L3);
 
 function c2108_in(v: unknown, p: string, e: string[]): void {
 {
-const x6667 = v;
-const g6667 = typeOf(x6667);
-const b6667: string[] = []; lf(x6667, p, b6667, L0); if (b6667.length) e.push(...b6667);
-if (g6667 === "object") {
-if (g6667 === 'object') { const o6667 = x6667 as Record<string, unknown>;
-if ("kind" in o6667) {
+const x6670 = v;
+const g6670 = typeOf(x6670);
+const b6670: string[] = []; lf(x6670, p, b6670, L0); if (b6670.length) e.push(...b6670);
+if (g6670 === "object") {
+if (g6670 === 'object') { const o6670 = x6670 as Record<string, unknown>;
+if (!("threadId" in o6670)) e.push(p + "/threadId" + ': required');
+if (!("mode" in o6670)) e.push(p + "/mode" + ': required');
+if ("threadId" in o6670) lf(o6670["threadId"], p + "/threadId", e, L13);
+if ("mode" in o6670) lf(o6670["mode"], p + "/mode", e, L1013);
+}
+}
+}
+}
+
+function c2108_out(v: unknown, p: string, e: string[]): void {
 {
-const x6668 = o6667["kind"];
-const g6668 = typeOf(x6668);
-const b6668: string[] = []; lf(x6668, p + "/kind", b6668, L4); if (b6668.length) e.push(...b6668);
-if (g6668 === "array") {
-if (g6668 === 'array') { const a6668 = x6668 as unknown[];
-for (let i6668 = 0; i6668 < a6668.length; i6668++) {
-lf(a6668[i6668], p + "/kind" + '/' + i6668, e, L207);
-}
-}
-}
-}
-}
-if ("folderId" in o6667) lf(o6667["folderId"], p + "/folderId", e, L47);
-if ("recordId" in o6667) lf(o6667["recordId"], p + "/recordId", e, L28);
-if ("parentThreadId" in o6667) lf(o6667["parentThreadId"], p + "/parentThreadId", e, L13);
-if ("mine" in o6667) lf(o6667["mine"], p + "/mine", e, L3);
-if ("order" in o6667) lf(o6667["order"], p + "/order", e, L1015);
-if ("exceptScope" in o6667) {
-{
-const x6669 = o6667["exceptScope"];
-const g6669 = typeOf(x6669);
-const b6669: string[] = []; lf(x6669, p + "/exceptScope", b6669, L4); if (b6669.length) e.push(...b6669);
-if (g6669 === "array") {
-if (g6669 === 'array') { const a6669 = x6669 as unknown[];
-for (let i6669 = 0; i6669 < a6669.length; i6669++) {
-lf(a6669[i6669], p + "/exceptScope" + '/' + i6669, e, L1);
-}
-}
-}
-}
-}
-if ("cursor" in o6667) lf(o6667["cursor"], p + "/cursor", e, L1);
-if ("limit" in o6667) lf(o6667["limit"], p + "/limit", e, L121);
+const x6671 = v;
+const g6671 = typeOf(x6671);
+const b6671: string[] = []; lf(x6671, p, b6671, L0); if (b6671.length) e.push(...b6671);
+if (g6671 === "object") {
+if (g6671 === 'object') { const o6671 = x6671 as Record<string, unknown>;
+if (!("mode" in o6671)) e.push(p + "/mode" + ': required');
+if ("mode" in o6671) lf(o6671["mode"], p + "/mode", e, L1014);
 }
 }
 }
@@ -5076,18 +4952,13 @@ if ("limit" in o6667) lf(o6667["limit"], p + "/limit", e, L121);
 
 function c2109_in(v: unknown, p: string, e: string[]): void {
 {
-const x6670 = v;
-const g6670 = typeOf(x6670);
-const b6670: string[] = []; lf(x6670, p, b6670, L0); if (b6670.length) e.push(...b6670);
-if (g6670 === "object") {
-if (g6670 === 'object') { const o6670 = x6670 as Record<string, unknown>;
-if (!("threadId" in o6670)) e.push(p + "/threadId" + ': required');
-if (!("personId" in o6670)) e.push(p + "/personId" + ': required');
-if (!("idempotencyKey" in o6670)) e.push(p + "/idempotencyKey" + ': required');
-if ("threadId" in o6670) lf(o6670["threadId"], p + "/threadId", e, L13);
-if ("personId" in o6670) lf(o6670["personId"], p + "/personId", e, L16);
-if ("name" in o6670) lf(o6670["name"], p + "/name", e, L1);
-if ("idempotencyKey" in o6670) lf(o6670["idempotencyKey"], p + "/idempotencyKey", e, L54);
+const x6672 = v;
+const g6672 = typeOf(x6672);
+const b6672: string[] = []; lf(x6672, p, b6672, L0); if (b6672.length) e.push(...b6672);
+if (g6672 === "object") {
+if (g6672 === 'object') { const o6672 = x6672 as Record<string, unknown>;
+if (!("threadId" in o6672)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o6672) lf(o6672["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -5095,15 +4966,18 @@ if ("idempotencyKey" in o6670) lf(o6670["idempotencyKey"], p + "/idempotencyKey"
 
 function c2110_in(v: unknown, p: string, e: string[]): void {
 {
-const x6671 = v;
-const g6671 = typeOf(x6671);
-const b6671: string[] = []; lf(x6671, p, b6671, L0); if (b6671.length) e.push(...b6671);
-if (g6671 === "object") {
-if (g6671 === 'object') { const o6671 = x6671 as Record<string, unknown>;
-if (!("threadId" in o6671)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o6671) lf(o6671["threadId"], p + "/threadId", e, L13);
-if ("upto" in o6671) lf(o6671["upto"], p + "/upto", e, L2);
-if ("unread" in o6671) lf(o6671["unread"], p + "/unread", e, L3);
+const x6673 = v;
+const g6673 = typeOf(x6673);
+const b6673: string[] = []; lf(x6673, p, b6673, L0); if (b6673.length) e.push(...b6673);
+if (g6673 === "object") {
+if (g6673 === 'object') { const o6673 = x6673 as Record<string, unknown>;
+if (!("threadId" in o6673)) e.push(p + "/threadId" + ': required');
+if (!("email" in o6673)) e.push(p + "/email" + ': required');
+if (!("idempotencyKey" in o6673)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o6673) lf(o6673["threadId"], p + "/threadId", e, L13);
+if ("email" in o6673) lf(o6673["email"], p + "/email", e, L1);
+if ("level" in o6673) lf(o6673["level"], p + "/level", e, L828);
+if ("idempotencyKey" in o6673) lf(o6673["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -5111,13 +4985,15 @@ if ("unread" in o6671) lf(o6671["unread"], p + "/unread", e, L3);
 
 function c2110_out(v: unknown, p: string, e: string[]): void {
 {
-const x6672 = v;
-const g6672 = typeOf(x6672);
-const b6672: string[] = []; lf(x6672, p, b6672, L0); if (b6672.length) e.push(...b6672);
-if (g6672 === "object") {
-if (g6672 === 'object') { const o6672 = x6672 as Record<string, unknown>;
-if (!("unread" in o6672)) e.push(p + "/unread" + ': required');
-if ("unread" in o6672) lf(o6672["unread"], p + "/unread", e, L2);
+const x6674 = v;
+const g6674 = typeOf(x6674);
+const b6674: string[] = []; lf(x6674, p, b6674, L0); if (b6674.length) e.push(...b6674);
+if (g6674 === "object") {
+if (g6674 === 'object') { const o6674 = x6674 as Record<string, unknown>;
+if (!("inviteId" in o6674)) e.push(p + "/inviteId" + ': required');
+if (!("link" in o6674)) e.push(p + "/link" + ': required');
+if ("inviteId" in o6674) lf(o6674["inviteId"], p + "/inviteId", e, L105);
+if ("link" in o6674) lf(o6674["link"], p + "/link", e, L1);
 }
 }
 }
@@ -5125,15 +5001,13 @@ if ("unread" in o6672) lf(o6672["unread"], p + "/unread", e, L2);
 
 function c2111_in(v: unknown, p: string, e: string[]): void {
 {
-const x6673 = v;
-const g6673 = typeOf(x6673);
-const b6673: string[] = []; lf(x6673, p, b6673, L0); if (b6673.length) e.push(...b6673);
-if (g6673 === "object") {
-if (g6673 === 'object') { const o6673 = x6673 as Record<string, unknown>;
-if (!("threadId" in o6673)) e.push(p + "/threadId" + ': required');
-if (!("seq" in o6673)) e.push(p + "/seq" + ': required');
-if ("threadId" in o6673) lf(o6673["threadId"], p + "/threadId", e, L13);
-if ("seq" in o6673) lf(o6673["seq"], p + "/seq", e, L12);
+const x6675 = v;
+const g6675 = typeOf(x6675);
+const b6675: string[] = []; lf(x6675, p, b6675, L0); if (b6675.length) e.push(...b6675);
+if (g6675 === "object") {
+if (g6675 === 'object') { const o6675 = x6675 as Record<string, unknown>;
+if (!("threadId" in o6675)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o6675) lf(o6675["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -5141,13 +5015,13 @@ if ("seq" in o6673) lf(o6673["seq"], p + "/seq", e, L12);
 
 function c2111_out(v: unknown, p: string, e: string[]): void {
 {
-const x6674 = v;
-const g6674 = typeOf(x6674);
-const b6674: string[] = []; lf(x6674, p, b6674, L0); if (b6674.length) e.push(...b6674);
-if (g6674 === "object") {
-if (g6674 === 'object') { const o6674 = x6674 as Record<string, unknown>;
-if (!("unread" in o6674)) e.push(p + "/unread" + ': required');
-if ("unread" in o6674) lf(o6674["unread"], p + "/unread", e, L2);
+const x6676 = v;
+const g6676 = typeOf(x6676);
+const b6676: string[] = []; lf(x6676, p, b6676, L0); if (b6676.length) e.push(...b6676);
+if (g6676 === "object") {
+if (g6676 === 'object') { const o6676 = x6676 as Record<string, unknown>;
+if (!("ok" in o6676)) e.push(p + "/ok" + ': required');
+if ("ok" in o6676) lf(o6676["ok"], p + "/ok", e, L3);
 }
 }
 }
@@ -5155,17 +5029,46 @@ if ("unread" in o6674) lf(o6674["unread"], p + "/unread", e, L2);
 
 function c2112_in(v: unknown, p: string, e: string[]): void {
 {
-const x6675 = v;
-const g6675 = typeOf(x6675);
-const b6675: string[] = []; lf(x6675, p, b6675, L0); if (b6675.length) e.push(...b6675);
-if (g6675 === "object") {
-if (g6675 === 'object') { const o6675 = x6675 as Record<string, unknown>;
-if (!("threadId" in o6675)) e.push(p + "/threadId" + ': required');
-if (!("personId" in o6675)) e.push(p + "/personId" + ': required');
-if ("threadId" in o6675) lf(o6675["threadId"], p + "/threadId", e, L13);
-if ("personId" in o6675) lf(o6675["personId"], p + "/personId", e, L16);
-if ("fromStart" in o6675) lf(o6675["fromStart"], p + "/fromStart", e, L3);
-if ("mentionedIn" in o6675) lf(o6675["mentionedIn"], p + "/mentionedIn", e, L92);
+const x6677 = v;
+const g6677 = typeOf(x6677);
+const b6677: string[] = []; lf(x6677, p, b6677, L0); if (b6677.length) e.push(...b6677);
+if (g6677 === "object") {
+if (g6677 === 'object') { const o6677 = x6677 as Record<string, unknown>;
+if ("kind" in o6677) {
+{
+const x6678 = o6677["kind"];
+const g6678 = typeOf(x6678);
+const b6678: string[] = []; lf(x6678, p + "/kind", b6678, L4); if (b6678.length) e.push(...b6678);
+if (g6678 === "array") {
+if (g6678 === 'array') { const a6678 = x6678 as unknown[];
+for (let i6678 = 0; i6678 < a6678.length; i6678++) {
+lf(a6678[i6678], p + "/kind" + '/' + i6678, e, L207);
+}
+}
+}
+}
+}
+if ("folderId" in o6677) lf(o6677["folderId"], p + "/folderId", e, L47);
+if ("recordId" in o6677) lf(o6677["recordId"], p + "/recordId", e, L28);
+if ("parentThreadId" in o6677) lf(o6677["parentThreadId"], p + "/parentThreadId", e, L13);
+if ("mine" in o6677) lf(o6677["mine"], p + "/mine", e, L3);
+if ("order" in o6677) lf(o6677["order"], p + "/order", e, L1015);
+if ("exceptScope" in o6677) {
+{
+const x6679 = o6677["exceptScope"];
+const g6679 = typeOf(x6679);
+const b6679: string[] = []; lf(x6679, p + "/exceptScope", b6679, L4); if (b6679.length) e.push(...b6679);
+if (g6679 === "array") {
+if (g6679 === 'array') { const a6679 = x6679 as unknown[];
+for (let i6679 = 0; i6679 < a6679.length; i6679++) {
+lf(a6679[i6679], p + "/exceptScope" + '/' + i6679, e, L1);
+}
+}
+}
+}
+}
+if ("cursor" in o6677) lf(o6677["cursor"], p + "/cursor", e, L1);
+if ("limit" in o6677) lf(o6677["limit"], p + "/limit", e, L121);
 }
 }
 }
@@ -5173,15 +5076,18 @@ if ("mentionedIn" in o6675) lf(o6675["mentionedIn"], p + "/mentionedIn", e, L92)
 
 function c2113_in(v: unknown, p: string, e: string[]): void {
 {
-const x6676 = v;
-const g6676 = typeOf(x6676);
-const b6676: string[] = []; lf(x6676, p, b6676, L0); if (b6676.length) e.push(...b6676);
-if (g6676 === "object") {
-if (g6676 === 'object') { const o6676 = x6676 as Record<string, unknown>;
-if (!("threadId" in o6676)) e.push(p + "/threadId" + ': required');
-if (!("personId" in o6676)) e.push(p + "/personId" + ': required');
-if ("threadId" in o6676) lf(o6676["threadId"], p + "/threadId", e, L13);
-if ("personId" in o6676) lf(o6676["personId"], p + "/personId", e, L16);
+const x6680 = v;
+const g6680 = typeOf(x6680);
+const b6680: string[] = []; lf(x6680, p, b6680, L0); if (b6680.length) e.push(...b6680);
+if (g6680 === "object") {
+if (g6680 === 'object') { const o6680 = x6680 as Record<string, unknown>;
+if (!("threadId" in o6680)) e.push(p + "/threadId" + ': required');
+if (!("personId" in o6680)) e.push(p + "/personId" + ': required');
+if (!("idempotencyKey" in o6680)) e.push(p + "/idempotencyKey" + ': required');
+if ("threadId" in o6680) lf(o6680["threadId"], p + "/threadId", e, L13);
+if ("personId" in o6680) lf(o6680["personId"], p + "/personId", e, L16);
+if ("name" in o6680) lf(o6680["name"], p + "/name", e, L1);
+if ("idempotencyKey" in o6680) lf(o6680["idempotencyKey"], p + "/idempotencyKey", e, L54);
 }
 }
 }
@@ -5189,15 +5095,29 @@ if ("personId" in o6676) lf(o6676["personId"], p + "/personId", e, L16);
 
 function c2114_in(v: unknown, p: string, e: string[]): void {
 {
-const x6677 = v;
-const g6677 = typeOf(x6677);
-const b6677: string[] = []; lf(x6677, p, b6677, L0); if (b6677.length) e.push(...b6677);
-if (g6677 === "object") {
-if (g6677 === 'object') { const o6677 = x6677 as Record<string, unknown>;
-if (!("threadId" in o6677)) e.push(p + "/threadId" + ': required');
-if (!("projectId" in o6677)) e.push(p + "/projectId" + ': required');
-if ("threadId" in o6677) lf(o6677["threadId"], p + "/threadId", e, L13);
-if ("projectId" in o6677) lf(o6677["projectId"], p + "/projectId", e, L75);
+const x6681 = v;
+const g6681 = typeOf(x6681);
+const b6681: string[] = []; lf(x6681, p, b6681, L0); if (b6681.length) e.push(...b6681);
+if (g6681 === "object") {
+if (g6681 === 'object') { const o6681 = x6681 as Record<string, unknown>;
+if (!("threadId" in o6681)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o6681) lf(o6681["threadId"], p + "/threadId", e, L13);
+if ("upto" in o6681) lf(o6681["upto"], p + "/upto", e, L2);
+if ("unread" in o6681) lf(o6681["unread"], p + "/unread", e, L3);
+}
+}
+}
+}
+
+function c2114_out(v: unknown, p: string, e: string[]): void {
+{
+const x6682 = v;
+const g6682 = typeOf(x6682);
+const b6682: string[] = []; lf(x6682, p, b6682, L0); if (b6682.length) e.push(...b6682);
+if (g6682 === "object") {
+if (g6682 === 'object') { const o6682 = x6682 as Record<string, unknown>;
+if (!("unread" in o6682)) e.push(p + "/unread" + ': required');
+if ("unread" in o6682) lf(o6682["unread"], p + "/unread", e, L2);
 }
 }
 }
@@ -5205,13 +5125,15 @@ if ("projectId" in o6677) lf(o6677["projectId"], p + "/projectId", e, L75);
 
 function c2115_in(v: unknown, p: string, e: string[]): void {
 {
-const x6678 = v;
-const g6678 = typeOf(x6678);
-const b6678: string[] = []; lf(x6678, p, b6678, L0); if (b6678.length) e.push(...b6678);
-if (g6678 === "object") {
-if (g6678 === 'object') { const o6678 = x6678 as Record<string, unknown>;
-if (!("threadId" in o6678)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o6678) lf(o6678["threadId"], p + "/threadId", e, L13);
+const x6683 = v;
+const g6683 = typeOf(x6683);
+const b6683: string[] = []; lf(x6683, p, b6683, L0); if (b6683.length) e.push(...b6683);
+if (g6683 === "object") {
+if (g6683 === 'object') { const o6683 = x6683 as Record<string, unknown>;
+if (!("threadId" in o6683)) e.push(p + "/threadId" + ': required');
+if (!("seq" in o6683)) e.push(p + "/seq" + ': required');
+if ("threadId" in o6683) lf(o6683["threadId"], p + "/threadId", e, L13);
+if ("seq" in o6683) lf(o6683["seq"], p + "/seq", e, L12);
 }
 }
 }
@@ -5219,15 +5141,13 @@ if ("threadId" in o6678) lf(o6678["threadId"], p + "/threadId", e, L13);
 
 function c2115_out(v: unknown, p: string, e: string[]): void {
 {
-const x6679 = v;
-const g6679 = typeOf(x6679);
-const b6679: string[] = []; lf(x6679, p, b6679, L0); if (b6679.length) e.push(...b6679);
-if (g6679 === "object") {
-if (g6679 === 'object') { const o6679 = x6679 as Record<string, unknown>;
-if (!("exists" in o6679)) e.push(p + "/exists" + ': required');
-if (!("closed" in o6679)) e.push(p + "/closed" + ': required');
-if ("exists" in o6679) lf(o6679["exists"], p + "/exists", e, L3);
-if ("closed" in o6679) lf(o6679["closed"], p + "/closed", e, L3);
+const x6684 = v;
+const g6684 = typeOf(x6684);
+const b6684: string[] = []; lf(x6684, p, b6684, L0); if (b6684.length) e.push(...b6684);
+if (g6684 === "object") {
+if (g6684 === 'object') { const o6684 = x6684 as Record<string, unknown>;
+if (!("unread" in o6684)) e.push(p + "/unread" + ': required');
+if ("unread" in o6684) lf(o6684["unread"], p + "/unread", e, L2);
 }
 }
 }
@@ -5235,75 +5155,33 @@ if ("closed" in o6679) lf(o6679["closed"], p + "/closed", e, L3);
 
 function c2116_in(v: unknown, p: string, e: string[]): void {
 {
-const x6680 = v;
-const g6680 = typeOf(x6680);
-const b6680: string[] = []; lf(x6680, p, b6680, L0); if (b6680.length) e.push(...b6680);
-if (g6680 === "object") {
-if (g6680 === 'object') { const o6680 = x6680 as Record<string, unknown>;
-if (!("threadId" in o6680)) e.push(p + "/threadId" + ': required');
-if (!("agentId" in o6680)) e.push(p + "/agentId" + ': required');
-if ("threadId" in o6680) lf(o6680["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o6680) lf(o6680["agentId"], p + "/agentId", e, L10);
-if ("mode" in o6680) lf(o6680["mode"], p + "/mode", e, L1012);
+const x6685 = v;
+const g6685 = typeOf(x6685);
+const b6685: string[] = []; lf(x6685, p, b6685, L0); if (b6685.length) e.push(...b6685);
+if (g6685 === "object") {
+if (g6685 === 'object') { const o6685 = x6685 as Record<string, unknown>;
+if (!("threadId" in o6685)) e.push(p + "/threadId" + ': required');
+if (!("personId" in o6685)) e.push(p + "/personId" + ': required');
+if ("threadId" in o6685) lf(o6685["threadId"], p + "/threadId", e, L13);
+if ("personId" in o6685) lf(o6685["personId"], p + "/personId", e, L16);
+if ("fromStart" in o6685) lf(o6685["fromStart"], p + "/fromStart", e, L3);
+if ("mentionedIn" in o6685) lf(o6685["mentionedIn"], p + "/mentionedIn", e, L92);
 }
 }
 }
 }
 
-function c2116_out(v: unknown, p: string, e: string[]): void {
+function c2117_in(v: unknown, p: string, e: string[]): void {
 {
-const x6681 = v;
-const g6681 = typeOf(x6681);
-const b6681: string[] = []; lf(x6681, p, b6681, L0); if (b6681.length) e.push(...b6681);
-if (g6681 === "object") {
-if (g6681 === 'object') { const o6681 = x6681 as Record<string, unknown>;
-if (!("thread" in o6681)) e.push(p + "/thread" + ': required');
-if (!("granted" in o6681)) e.push(p + "/granted" + ': required');
-if ("thread" in o6681) d_s_da8e7f1be8(o6681["thread"], p + "/thread", e);
-if ("granted" in o6681) {
-{
-const x6682 = o6681["granted"];
-const g6682 = typeOf(x6682);
-const b6682: string[] = []; lf(x6682, p + "/granted", b6682, L4); if (b6682.length) e.push(...b6682);
-if (g6682 === "array") {
-if (g6682 === 'array') { const a6682 = x6682 as unknown[];
-for (let i6682 = 0; i6682 < a6682.length; i6682++) {
-{
-const x6683 = a6682[i6682];
-const g6683 = typeOf(x6683);
-const b6683: string[] = []; lf(x6683, p + "/granted" + '/' + i6682, b6683, L0); if (b6683.length) e.push(...b6683);
-if (g6683 === "object") {
-if (g6683 === 'object') { const o6683 = x6683 as Record<string, unknown>;
-if (!("type" in o6683)) e.push(p + "/granted" + '/' + i6682 + "/type" + ': required');
-if (!("id" in o6683)) e.push(p + "/granted" + '/' + i6682 + "/id" + ': required');
-if (!("level" in o6683)) e.push(p + "/granted" + '/' + i6682 + "/level" + ': required');
-if ("type" in o6683) lf(o6683["type"], p + "/granted" + '/' + i6682 + "/type", e, L1);
-if ("id" in o6683) lf(o6683["id"], p + "/granted" + '/' + i6682 + "/id", e, L1);
-if ("level" in o6683) lf(o6683["level"], p + "/granted" + '/' + i6682 + "/level", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-}
-
-function c2117_out(v: unknown, p: string, e: string[]): void {
-{
-const x6684 = v;
-const g6684 = typeOf(x6684);
-const b6684: string[] = []; lf(x6684, p, b6684, L0); if (b6684.length) e.push(...b6684);
-if (g6684 === "object") {
-if (g6684 === 'object') { const o6684 = x6684 as Record<string, unknown>;
-if (!("thread" in o6684)) e.push(p + "/thread" + ': required');
-if (!("revoked" in o6684)) e.push(p + "/revoked" + ': required');
-if ("thread" in o6684) d_s_da8e7f1be8(o6684["thread"], p + "/thread", e);
-if ("revoked" in o6684) lf(o6684["revoked"], p + "/revoked", e, L17);
+const x6686 = v;
+const g6686 = typeOf(x6686);
+const b6686: string[] = []; lf(x6686, p, b6686, L0); if (b6686.length) e.push(...b6686);
+if (g6686 === "object") {
+if (g6686 === 'object') { const o6686 = x6686 as Record<string, unknown>;
+if (!("threadId" in o6686)) e.push(p + "/threadId" + ': required');
+if (!("personId" in o6686)) e.push(p + "/personId" + ': required');
+if ("threadId" in o6686) lf(o6686["threadId"], p + "/threadId", e, L13);
+if ("personId" in o6686) lf(o6686["personId"], p + "/personId", e, L16);
 }
 }
 }
@@ -5311,52 +5189,21 @@ if ("revoked" in o6684) lf(o6684["revoked"], p + "/revoked", e, L17);
 
 function c2118_in(v: unknown, p: string, e: string[]): void {
 {
-const x6685 = v;
-const g6685 = typeOf(x6685);
-const b6685: string[] = []; lf(x6685, p, b6685, L0); if (b6685.length) e.push(...b6685);
-if (g6685 === "object") {
-if (g6685 === 'object') { const o6685 = x6685 as Record<string, unknown>;
-if (!("threadId" in o6685)) e.push(p + "/threadId" + ': required');
-if (!("agentId" in o6685)) e.push(p + "/agentId" + ': required');
-if ("threadId" in o6685) lf(o6685["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o6685) lf(o6685["agentId"], p + "/agentId", e, L10);
-if ("note" in o6685) lf(o6685["note"], p + "/note", e, L1);
-}
-}
-}
-}
-
-function c2118_out(v: unknown, p: string, e: string[]): void {
-{
-const x6686 = v;
-const g6686 = typeOf(x6686);
-const b6686: string[] = []; lf(x6686, p, b6686, L0); if (b6686.length) e.push(...b6686);
-if (g6686 === "object") {
-if (g6686 === 'object') { const o6686 = x6686 as Record<string, unknown>;
-if (!("messageId" in o6686)) e.push(p + "/messageId" + ': required');
-if (!("delivered" in o6686)) e.push(p + "/delivered" + ': required');
-if ("messageId" in o6686) lf(o6686["messageId"], p + "/messageId", e, L92);
-if ("delivered" in o6686) lf(o6686["delivered"], p + "/delivered", e, L1016);
-}
-}
-}
-}
-
-function c2120_in(v: unknown, p: string, e: string[]): void {
-{
 const x6687 = v;
 const g6687 = typeOf(x6687);
 const b6687: string[] = []; lf(x6687, p, b6687, L0); if (b6687.length) e.push(...b6687);
 if (g6687 === "object") {
 if (g6687 === 'object') { const o6687 = x6687 as Record<string, unknown>;
 if (!("threadId" in o6687)) e.push(p + "/threadId" + ': required');
+if (!("projectId" in o6687)) e.push(p + "/projectId" + ': required');
 if ("threadId" in o6687) lf(o6687["threadId"], p + "/threadId", e, L13);
+if ("projectId" in o6687) lf(o6687["projectId"], p + "/projectId", e, L75);
 }
 }
 }
 }
 
-function c2121_in(v: unknown, p: string, e: string[]): void {
+function c2119_in(v: unknown, p: string, e: string[]): void {
 {
 const x6688 = v;
 const g6688 = typeOf(x6688);
@@ -5370,23 +5217,23 @@ if ("threadId" in o6688) lf(o6688["threadId"], p + "/threadId", e, L13);
 }
 }
 
-function c2122_in(v: unknown, p: string, e: string[]): void {
+function c2119_out(v: unknown, p: string, e: string[]): void {
 {
 const x6689 = v;
 const g6689 = typeOf(x6689);
 const b6689: string[] = []; lf(x6689, p, b6689, L0); if (b6689.length) e.push(...b6689);
 if (g6689 === "object") {
 if (g6689 === 'object') { const o6689 = x6689 as Record<string, unknown>;
-if (!("threadId" in o6689)) e.push(p + "/threadId" + ': required');
-if (!("inThreads" in o6689)) e.push(p + "/inThreads" + ': required');
-if ("threadId" in o6689) lf(o6689["threadId"], p + "/threadId", e, L13);
-if ("inThreads" in o6689) lf(o6689["inThreads"], p + "/inThreads", e, L3);
+if (!("exists" in o6689)) e.push(p + "/exists" + ': required');
+if (!("closed" in o6689)) e.push(p + "/closed" + ': required');
+if ("exists" in o6689) lf(o6689["exists"], p + "/exists", e, L3);
+if ("closed" in o6689) lf(o6689["closed"], p + "/closed", e, L3);
 }
 }
 }
 }
 
-function c2123_in(v: unknown, p: string, e: string[]): void {
+function c2120_in(v: unknown, p: string, e: string[]): void {
 {
 const x6690 = v;
 const g6690 = typeOf(x6690);
@@ -5394,18 +5241,102 @@ const b6690: string[] = []; lf(x6690, p, b6690, L0); if (b6690.length) e.push(..
 if (g6690 === "object") {
 if (g6690 === 'object') { const o6690 = x6690 as Record<string, unknown>;
 if (!("threadId" in o6690)) e.push(p + "/threadId" + ': required');
-if (!("folderId" in o6690)) e.push(p + "/folderId" + ': required');
+if (!("agentId" in o6690)) e.push(p + "/agentId" + ': required');
 if ("threadId" in o6690) lf(o6690["threadId"], p + "/threadId", e, L13);
-if ("folderId" in o6690) {
+if ("agentId" in o6690) lf(o6690["agentId"], p + "/agentId", e, L10);
+if ("mode" in o6690) lf(o6690["mode"], p + "/mode", e, L1012);
+}
+}
+}
+}
+
+function c2120_out(v: unknown, p: string, e: string[]): void {
 {
-const x6691 = o6690["folderId"];
-const t6691_0: string[] = [];
-lf(x6691, p + "/folderId", t6691_0, L47);
-const t6691_1: string[] = [];
-lf(x6691, p + "/folderId", t6691_1, L84);
-if (![t6691_0, t6691_1].some((x) => x.length === 0)) e.push(p + "/folderId" + ': matches none of anyOf');
+const x6691 = v;
+const g6691 = typeOf(x6691);
+const b6691: string[] = []; lf(x6691, p, b6691, L0); if (b6691.length) e.push(...b6691);
+if (g6691 === "object") {
+if (g6691 === 'object') { const o6691 = x6691 as Record<string, unknown>;
+if (!("thread" in o6691)) e.push(p + "/thread" + ': required');
+if (!("granted" in o6691)) e.push(p + "/granted" + ': required');
+if ("thread" in o6691) d_s_da8e7f1be8(o6691["thread"], p + "/thread", e);
+if ("granted" in o6691) {
+{
+const x6692 = o6691["granted"];
+const g6692 = typeOf(x6692);
+const b6692: string[] = []; lf(x6692, p + "/granted", b6692, L4); if (b6692.length) e.push(...b6692);
+if (g6692 === "array") {
+if (g6692 === 'array') { const a6692 = x6692 as unknown[];
+for (let i6692 = 0; i6692 < a6692.length; i6692++) {
+{
+const x6693 = a6692[i6692];
+const g6693 = typeOf(x6693);
+const b6693: string[] = []; lf(x6693, p + "/granted" + '/' + i6692, b6693, L0); if (b6693.length) e.push(...b6693);
+if (g6693 === "object") {
+if (g6693 === 'object') { const o6693 = x6693 as Record<string, unknown>;
+if (!("type" in o6693)) e.push(p + "/granted" + '/' + i6692 + "/type" + ': required');
+if (!("id" in o6693)) e.push(p + "/granted" + '/' + i6692 + "/id" + ': required');
+if (!("level" in o6693)) e.push(p + "/granted" + '/' + i6692 + "/level" + ': required');
+if ("type" in o6693) lf(o6693["type"], p + "/granted" + '/' + i6692 + "/type", e, L1);
+if ("id" in o6693) lf(o6693["id"], p + "/granted" + '/' + i6692 + "/id", e, L1);
+if ("level" in o6693) lf(o6693["level"], p + "/granted" + '/' + i6692 + "/level", e, L1);
 }
 }
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+
+function c2121_out(v: unknown, p: string, e: string[]): void {
+{
+const x6694 = v;
+const g6694 = typeOf(x6694);
+const b6694: string[] = []; lf(x6694, p, b6694, L0); if (b6694.length) e.push(...b6694);
+if (g6694 === "object") {
+if (g6694 === 'object') { const o6694 = x6694 as Record<string, unknown>;
+if (!("thread" in o6694)) e.push(p + "/thread" + ': required');
+if (!("revoked" in o6694)) e.push(p + "/revoked" + ': required');
+if ("thread" in o6694) d_s_da8e7f1be8(o6694["thread"], p + "/thread", e);
+if ("revoked" in o6694) lf(o6694["revoked"], p + "/revoked", e, L17);
+}
+}
+}
+}
+
+function c2122_in(v: unknown, p: string, e: string[]): void {
+{
+const x6695 = v;
+const g6695 = typeOf(x6695);
+const b6695: string[] = []; lf(x6695, p, b6695, L0); if (b6695.length) e.push(...b6695);
+if (g6695 === "object") {
+if (g6695 === 'object') { const o6695 = x6695 as Record<string, unknown>;
+if (!("threadId" in o6695)) e.push(p + "/threadId" + ': required');
+if (!("agentId" in o6695)) e.push(p + "/agentId" + ': required');
+if ("threadId" in o6695) lf(o6695["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o6695) lf(o6695["agentId"], p + "/agentId", e, L10);
+if ("note" in o6695) lf(o6695["note"], p + "/note", e, L1);
+}
+}
+}
+}
+
+function c2122_out(v: unknown, p: string, e: string[]): void {
+{
+const x6696 = v;
+const g6696 = typeOf(x6696);
+const b6696: string[] = []; lf(x6696, p, b6696, L0); if (b6696.length) e.push(...b6696);
+if (g6696 === "object") {
+if (g6696 === 'object') { const o6696 = x6696 as Record<string, unknown>;
+if (!("messageId" in o6696)) e.push(p + "/messageId" + ': required');
+if (!("delivered" in o6696)) e.push(p + "/delivered" + ': required');
+if ("messageId" in o6696) lf(o6696["messageId"], p + "/messageId", e, L92);
+if ("delivered" in o6696) lf(o6696["delivered"], p + "/delivered", e, L1016);
 }
 }
 }
@@ -5413,15 +5344,13 @@ if (![t6691_0, t6691_1].some((x) => x.length === 0)) e.push(p + "/folderId" + ':
 
 function c2124_in(v: unknown, p: string, e: string[]): void {
 {
-const x6692 = v;
-const g6692 = typeOf(x6692);
-const b6692: string[] = []; lf(x6692, p, b6692, L0); if (b6692.length) e.push(...b6692);
-if (g6692 === "object") {
-if (g6692 === 'object') { const o6692 = x6692 as Record<string, unknown>;
-if (!("threadId" in o6692)) e.push(p + "/threadId" + ': required');
-if (!("mode" in o6692)) e.push(p + "/mode" + ': required');
-if ("threadId" in o6692) lf(o6692["threadId"], p + "/threadId", e, L13);
-if ("mode" in o6692) lf(o6692["mode"], p + "/mode", e, L434);
+const x6697 = v;
+const g6697 = typeOf(x6697);
+const b6697: string[] = []; lf(x6697, p, b6697, L0); if (b6697.length) e.push(...b6697);
+if (g6697 === "object") {
+if (g6697 === 'object') { const o6697 = x6697 as Record<string, unknown>;
+if (!("threadId" in o6697)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o6697) lf(o6697["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -5429,15 +5358,13 @@ if ("mode" in o6692) lf(o6692["mode"], p + "/mode", e, L434);
 
 function c2125_in(v: unknown, p: string, e: string[]): void {
 {
-const x6693 = v;
-const g6693 = typeOf(x6693);
-const b6693: string[] = []; lf(x6693, p, b6693, L0); if (b6693.length) e.push(...b6693);
-if (g6693 === "object") {
-if (g6693 === 'object') { const o6693 = x6693 as Record<string, unknown>;
-if (!("threadId" in o6693)) e.push(p + "/threadId" + ': required');
-if (!("planMode" in o6693)) e.push(p + "/planMode" + ': required');
-if ("threadId" in o6693) lf(o6693["threadId"], p + "/threadId", e, L13);
-if ("planMode" in o6693) lf(o6693["planMode"], p + "/planMode", e, L3);
+const x6698 = v;
+const g6698 = typeOf(x6698);
+const b6698: string[] = []; lf(x6698, p, b6698, L0); if (b6698.length) e.push(...b6698);
+if (g6698 === "object") {
+if (g6698 === 'object') { const o6698 = x6698 as Record<string, unknown>;
+if (!("threadId" in o6698)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o6698) lf(o6698["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -5445,27 +5372,15 @@ if ("planMode" in o6693) lf(o6693["planMode"], p + "/planMode", e, L3);
 
 function c2126_in(v: unknown, p: string, e: string[]): void {
 {
-const x6694 = v;
-const g6694 = typeOf(x6694);
-const b6694: string[] = []; lf(x6694, p, b6694, L0); if (b6694.length) e.push(...b6694);
-if (g6694 === "object") {
-if (g6694 === 'object') { const o6694 = x6694 as Record<string, unknown>;
-if (!("threadId" in o6694)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o6694) lf(o6694["threadId"], p + "/threadId", e, L13);
-}
-}
-}
-}
-
-function c2126_out(v: unknown, p: string, e: string[]): void {
-{
-const x6695 = v;
-const g6695 = typeOf(x6695);
-const b6695: string[] = []; lf(x6695, p, b6695, L0); if (b6695.length) e.push(...b6695);
-if (g6695 === "object") {
-if (g6695 === 'object') { const o6695 = x6695 as Record<string, unknown>;
-if (!("archived" in o6695)) e.push(p + "/archived" + ': required');
-if ("archived" in o6695) lf(o6695["archived"], p + "/archived", e, L3);
+const x6699 = v;
+const g6699 = typeOf(x6699);
+const b6699: string[] = []; lf(x6699, p, b6699, L0); if (b6699.length) e.push(...b6699);
+if (g6699 === "object") {
+if (g6699 === 'object') { const o6699 = x6699 as Record<string, unknown>;
+if (!("threadId" in o6699)) e.push(p + "/threadId" + ': required');
+if (!("inThreads" in o6699)) e.push(p + "/inThreads" + ': required');
+if ("threadId" in o6699) lf(o6699["threadId"], p + "/threadId", e, L13);
+if ("inThreads" in o6699) lf(o6699["inThreads"], p + "/inThreads", e, L3);
 }
 }
 }
@@ -5473,15 +5388,100 @@ if ("archived" in o6695) lf(o6695["archived"], p + "/archived", e, L3);
 
 function c2127_in(v: unknown, p: string, e: string[]): void {
 {
-const x6696 = v;
-const g6696 = typeOf(x6696);
-const b6696: string[] = []; lf(x6696, p, b6696, L0); if (b6696.length) e.push(...b6696);
-if (g6696 === "object") {
-if (g6696 === 'object') { const o6696 = x6696 as Record<string, unknown>;
-if (!("threadId" in o6696)) e.push(p + "/threadId" + ': required');
-if (!("title" in o6696)) e.push(p + "/title" + ': required');
-if ("threadId" in o6696) lf(o6696["threadId"], p + "/threadId", e, L13);
-if ("title" in o6696) lf(o6696["title"], p + "/title", e, L1);
+const x6700 = v;
+const g6700 = typeOf(x6700);
+const b6700: string[] = []; lf(x6700, p, b6700, L0); if (b6700.length) e.push(...b6700);
+if (g6700 === "object") {
+if (g6700 === 'object') { const o6700 = x6700 as Record<string, unknown>;
+if (!("threadId" in o6700)) e.push(p + "/threadId" + ': required');
+if (!("folderId" in o6700)) e.push(p + "/folderId" + ': required');
+if ("threadId" in o6700) lf(o6700["threadId"], p + "/threadId", e, L13);
+if ("folderId" in o6700) {
+{
+const x6701 = o6700["folderId"];
+const t6701_0: string[] = [];
+lf(x6701, p + "/folderId", t6701_0, L47);
+const t6701_1: string[] = [];
+lf(x6701, p + "/folderId", t6701_1, L84);
+if (![t6701_0, t6701_1].some((x) => x.length === 0)) e.push(p + "/folderId" + ': matches none of anyOf');
+}
+}
+}
+}
+}
+}
+
+function c2128_in(v: unknown, p: string, e: string[]): void {
+{
+const x6702 = v;
+const g6702 = typeOf(x6702);
+const b6702: string[] = []; lf(x6702, p, b6702, L0); if (b6702.length) e.push(...b6702);
+if (g6702 === "object") {
+if (g6702 === 'object') { const o6702 = x6702 as Record<string, unknown>;
+if (!("threadId" in o6702)) e.push(p + "/threadId" + ': required');
+if (!("mode" in o6702)) e.push(p + "/mode" + ': required');
+if ("threadId" in o6702) lf(o6702["threadId"], p + "/threadId", e, L13);
+if ("mode" in o6702) lf(o6702["mode"], p + "/mode", e, L434);
+}
+}
+}
+}
+
+function c2129_in(v: unknown, p: string, e: string[]): void {
+{
+const x6703 = v;
+const g6703 = typeOf(x6703);
+const b6703: string[] = []; lf(x6703, p, b6703, L0); if (b6703.length) e.push(...b6703);
+if (g6703 === "object") {
+if (g6703 === 'object') { const o6703 = x6703 as Record<string, unknown>;
+if (!("threadId" in o6703)) e.push(p + "/threadId" + ': required');
+if (!("planMode" in o6703)) e.push(p + "/planMode" + ': required');
+if ("threadId" in o6703) lf(o6703["threadId"], p + "/threadId", e, L13);
+if ("planMode" in o6703) lf(o6703["planMode"], p + "/planMode", e, L3);
+}
+}
+}
+}
+
+function c2130_in(v: unknown, p: string, e: string[]): void {
+{
+const x6704 = v;
+const g6704 = typeOf(x6704);
+const b6704: string[] = []; lf(x6704, p, b6704, L0); if (b6704.length) e.push(...b6704);
+if (g6704 === "object") {
+if (g6704 === 'object') { const o6704 = x6704 as Record<string, unknown>;
+if (!("threadId" in o6704)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o6704) lf(o6704["threadId"], p + "/threadId", e, L13);
+}
+}
+}
+}
+
+function c2130_out(v: unknown, p: string, e: string[]): void {
+{
+const x6705 = v;
+const g6705 = typeOf(x6705);
+const b6705: string[] = []; lf(x6705, p, b6705, L0); if (b6705.length) e.push(...b6705);
+if (g6705 === "object") {
+if (g6705 === 'object') { const o6705 = x6705 as Record<string, unknown>;
+if (!("archived" in o6705)) e.push(p + "/archived" + ': required');
+if ("archived" in o6705) lf(o6705["archived"], p + "/archived", e, L3);
+}
+}
+}
+}
+
+function c2131_in(v: unknown, p: string, e: string[]): void {
+{
+const x6706 = v;
+const g6706 = typeOf(x6706);
+const b6706: string[] = []; lf(x6706, p, b6706, L0); if (b6706.length) e.push(...b6706);
+if (g6706 === "object") {
+if (g6706 === 'object') { const o6706 = x6706 as Record<string, unknown>;
+if (!("threadId" in o6706)) e.push(p + "/threadId" + ': required');
+if (!("title" in o6706)) e.push(p + "/title" + ': required');
+if ("threadId" in o6706) lf(o6706["threadId"], p + "/threadId", e, L13);
+if ("title" in o6706) lf(o6706["title"], p + "/title", e, L1);
 }
 }
 }
@@ -5489,17 +5489,17 @@ if ("title" in o6696) lf(o6696["title"], p + "/title", e, L1);
 
 function e16_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6948 = v;
-const g6948 = typeOf(x6948);
-const b6948: string[] = []; lf(x6948, p, b6948, L0); if (b6948.length) e.push(...b6948);
-if (g6948 === "object") {
-if (g6948 === 'object') { const o6948 = x6948 as Record<string, unknown>;
-if (!("threadId" in o6948)) e.push(p + "/threadId" + ': required');
-if (!("agentId" in o6948)) e.push(p + "/agentId" + ': required');
-if (!("by" in o6948)) e.push(p + "/by" + ': required');
-if ("threadId" in o6948) lf(o6948["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o6948) lf(o6948["agentId"], p + "/agentId", e, L10);
-if ("by" in o6948) lf(o6948["by"], p + "/by", e, L1);
+const x6958 = v;
+const g6958 = typeOf(x6958);
+const b6958: string[] = []; lf(x6958, p, b6958, L0); if (b6958.length) e.push(...b6958);
+if (g6958 === "object") {
+if (g6958 === 'object') { const o6958 = x6958 as Record<string, unknown>;
+if (!("threadId" in o6958)) e.push(p + "/threadId" + ': required');
+if (!("agentId" in o6958)) e.push(p + "/agentId" + ': required');
+if (!("by" in o6958)) e.push(p + "/by" + ': required');
+if ("threadId" in o6958) lf(o6958["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o6958) lf(o6958["agentId"], p + "/agentId", e, L10);
+if ("by" in o6958) lf(o6958["by"], p + "/by", e, L1);
 }
 }
 }
@@ -5507,21 +5507,21 @@ if ("by" in o6948) lf(o6948["by"], p + "/by", e, L1);
 
 function e18_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6949 = v;
-const g6949 = typeOf(x6949);
-const b6949: string[] = []; lf(x6949, p, b6949, L0); if (b6949.length) e.push(...b6949);
-if (g6949 === "object") {
-if (g6949 === 'object') { const o6949 = x6949 as Record<string, unknown>;
-if (!("fromThreadId" in o6949)) e.push(p + "/fromThreadId" + ': required');
-if (!("toThreadId" in o6949)) e.push(p + "/toThreadId" + ': required');
-if (!("fromAgentId" in o6949)) e.push(p + "/fromAgentId" + ': required');
-if (!("toAgentId" in o6949)) e.push(p + "/toAgentId" + ': required');
-if (!("depth" in o6949)) e.push(p + "/depth" + ': required');
-if ("fromThreadId" in o6949) lf(o6949["fromThreadId"], p + "/fromThreadId", e, L13);
-if ("toThreadId" in o6949) lf(o6949["toThreadId"], p + "/toThreadId", e, L13);
-if ("fromAgentId" in o6949) lf(o6949["fromAgentId"], p + "/fromAgentId", e, L10);
-if ("toAgentId" in o6949) lf(o6949["toAgentId"], p + "/toAgentId", e, L10);
-if ("depth" in o6949) lf(o6949["depth"], p + "/depth", e, L2);
+const x6959 = v;
+const g6959 = typeOf(x6959);
+const b6959: string[] = []; lf(x6959, p, b6959, L0); if (b6959.length) e.push(...b6959);
+if (g6959 === "object") {
+if (g6959 === 'object') { const o6959 = x6959 as Record<string, unknown>;
+if (!("fromThreadId" in o6959)) e.push(p + "/fromThreadId" + ': required');
+if (!("toThreadId" in o6959)) e.push(p + "/toThreadId" + ': required');
+if (!("fromAgentId" in o6959)) e.push(p + "/fromAgentId" + ': required');
+if (!("toAgentId" in o6959)) e.push(p + "/toAgentId" + ': required');
+if (!("depth" in o6959)) e.push(p + "/depth" + ': required');
+if ("fromThreadId" in o6959) lf(o6959["fromThreadId"], p + "/fromThreadId", e, L13);
+if ("toThreadId" in o6959) lf(o6959["toThreadId"], p + "/toThreadId", e, L13);
+if ("fromAgentId" in o6959) lf(o6959["fromAgentId"], p + "/fromAgentId", e, L10);
+if ("toAgentId" in o6959) lf(o6959["toAgentId"], p + "/toAgentId", e, L10);
+if ("depth" in o6959) lf(o6959["depth"], p + "/depth", e, L2);
 }
 }
 }
@@ -5529,17 +5529,17 @@ if ("depth" in o6949) lf(o6949["depth"], p + "/depth", e, L2);
 
 function e70_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6998 = v;
-const g6998 = typeOf(x6998);
-const b6998: string[] = []; lf(x6998, p, b6998, L0); if (b6998.length) e.push(...b6998);
-if (g6998 === "object") {
-if (g6998 === 'object') { const o6998 = x6998 as Record<string, unknown>;
-if (!("threadId" in o6998)) e.push(p + "/threadId" + ': required');
-if (!("blockId" in o6998)) e.push(p + "/blockId" + ': required');
-if (!("by" in o6998)) e.push(p + "/by" + ': required');
-if ("threadId" in o6998) lf(o6998["threadId"], p + "/threadId", e, L13);
-if ("blockId" in o6998) lf(o6998["blockId"], p + "/blockId", e, L129);
-if ("by" in o6998) lf(o6998["by"], p + "/by", e, L1);
+const x7008 = v;
+const g7008 = typeOf(x7008);
+const b7008: string[] = []; lf(x7008, p, b7008, L0); if (b7008.length) e.push(...b7008);
+if (g7008 === "object") {
+if (g7008 === 'object') { const o7008 = x7008 as Record<string, unknown>;
+if (!("threadId" in o7008)) e.push(p + "/threadId" + ': required');
+if (!("blockId" in o7008)) e.push(p + "/blockId" + ': required');
+if (!("by" in o7008)) e.push(p + "/by" + ': required');
+if ("threadId" in o7008) lf(o7008["threadId"], p + "/threadId", e, L13);
+if ("blockId" in o7008) lf(o7008["blockId"], p + "/blockId", e, L129);
+if ("by" in o7008) lf(o7008["by"], p + "/by", e, L1);
 }
 }
 }
@@ -5547,17 +5547,17 @@ if ("by" in o6998) lf(o6998["by"], p + "/by", e, L1);
 
 function e71_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6999 = v;
-const g6999 = typeOf(x6999);
-const b6999: string[] = []; lf(x6999, p, b6999, L0); if (b6999.length) e.push(...b6999);
-if (g6999 === "object") {
-if (g6999 === 'object') { const o6999 = x6999 as Record<string, unknown>;
-if (!("threadId" in o6999)) e.push(p + "/threadId" + ': required');
-if (!("blockId" in o6999)) e.push(p + "/blockId" + ': required');
-if (!("blockType" in o6999)) e.push(p + "/blockType" + ': required');
-if ("threadId" in o6999) lf(o6999["threadId"], p + "/threadId", e, L13);
-if ("blockId" in o6999) lf(o6999["blockId"], p + "/blockId", e, L129);
-if ("blockType" in o6999) lf(o6999["blockType"], p + "/blockType", e, L1041);
+const x7009 = v;
+const g7009 = typeOf(x7009);
+const b7009: string[] = []; lf(x7009, p, b7009, L0); if (b7009.length) e.push(...b7009);
+if (g7009 === "object") {
+if (g7009 === 'object') { const o7009 = x7009 as Record<string, unknown>;
+if (!("threadId" in o7009)) e.push(p + "/threadId" + ': required');
+if (!("blockId" in o7009)) e.push(p + "/blockId" + ': required');
+if (!("blockType" in o7009)) e.push(p + "/blockType" + ': required');
+if ("threadId" in o7009) lf(o7009["threadId"], p + "/threadId", e, L13);
+if ("blockId" in o7009) lf(o7009["blockId"], p + "/blockId", e, L129);
+if ("blockType" in o7009) lf(o7009["blockType"], p + "/blockType", e, L1041);
 }
 }
 }
@@ -5565,17 +5565,17 @@ if ("blockType" in o6999) lf(o6999["blockType"], p + "/blockType", e, L1041);
 
 function e100_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7024 = v;
-const g7024 = typeOf(x7024);
-const b7024: string[] = []; lf(x7024, p, b7024, L0); if (b7024.length) e.push(...b7024);
-if (g7024 === "object") {
-if (g7024 === 'object') { const o7024 = x7024 as Record<string, unknown>;
-if (!("channelId" in o7024)) e.push(p + "/channelId" + ': required');
-if (!("agentId" in o7024)) e.push(p + "/agentId" + ': required');
-if (!("mode" in o7024)) e.push(p + "/mode" + ': required');
-if ("channelId" in o7024) lf(o7024["channelId"], p + "/channelId", e, L220);
-if ("agentId" in o7024) lf(o7024["agentId"], p + "/agentId", e, L10);
-if ("mode" in o7024) lf(o7024["mode"], p + "/mode", e, L1);
+const x7034 = v;
+const g7034 = typeOf(x7034);
+const b7034: string[] = []; lf(x7034, p, b7034, L0); if (b7034.length) e.push(...b7034);
+if (g7034 === "object") {
+if (g7034 === 'object') { const o7034 = x7034 as Record<string, unknown>;
+if (!("channelId" in o7034)) e.push(p + "/channelId" + ': required');
+if (!("agentId" in o7034)) e.push(p + "/agentId" + ': required');
+if (!("mode" in o7034)) e.push(p + "/mode" + ': required');
+if ("channelId" in o7034) lf(o7034["channelId"], p + "/channelId", e, L220);
+if ("agentId" in o7034) lf(o7034["agentId"], p + "/agentId", e, L10);
+if ("mode" in o7034) lf(o7034["mode"], p + "/mode", e, L1);
 }
 }
 }
@@ -5583,19 +5583,19 @@ if ("mode" in o7024) lf(o7024["mode"], p + "/mode", e, L1);
 
 function e102_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7025 = v;
-const g7025 = typeOf(x7025);
-const b7025: string[] = []; lf(x7025, p, b7025, L0); if (b7025.length) e.push(...b7025);
-if (g7025 === "object") {
-if (g7025 === 'object') { const o7025 = x7025 as Record<string, unknown>;
-if (!("channelId" in o7025)) e.push(p + "/channelId" + ': required');
-if (!("agentId" in o7025)) e.push(p + "/agentId" + ': required');
-if (!("watches" in o7025)) e.push(p + "/watches" + ': required');
-if (!("by" in o7025)) e.push(p + "/by" + ': required');
-if ("channelId" in o7025) lf(o7025["channelId"], p + "/channelId", e, L220);
-if ("agentId" in o7025) lf(o7025["agentId"], p + "/agentId", e, L10);
-if ("watches" in o7025) lf(o7025["watches"], p + "/watches", e, L3);
-if ("by" in o7025) lf(o7025["by"], p + "/by", e, L1);
+const x7035 = v;
+const g7035 = typeOf(x7035);
+const b7035: string[] = []; lf(x7035, p, b7035, L0); if (b7035.length) e.push(...b7035);
+if (g7035 === "object") {
+if (g7035 === 'object') { const o7035 = x7035 as Record<string, unknown>;
+if (!("channelId" in o7035)) e.push(p + "/channelId" + ': required');
+if (!("agentId" in o7035)) e.push(p + "/agentId" + ': required');
+if (!("watches" in o7035)) e.push(p + "/watches" + ': required');
+if (!("by" in o7035)) e.push(p + "/by" + ': required');
+if ("channelId" in o7035) lf(o7035["channelId"], p + "/channelId", e, L220);
+if ("agentId" in o7035) lf(o7035["agentId"], p + "/agentId", e, L10);
+if ("watches" in o7035) lf(o7035["watches"], p + "/watches", e, L3);
+if ("by" in o7035) lf(o7035["by"], p + "/by", e, L1);
 }
 }
 }
@@ -5603,13 +5603,13 @@ if ("by" in o7025) lf(o7025["by"], p + "/by", e, L1);
 
 function e103_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7026 = v;
-const g7026 = typeOf(x7026);
-const b7026: string[] = []; lf(x7026, p, b7026, L0); if (b7026.length) e.push(...b7026);
-if (g7026 === "object") {
-if (g7026 === 'object') { const o7026 = x7026 as Record<string, unknown>;
-if (!("channelId" in o7026)) e.push(p + "/channelId" + ': required');
-if ("channelId" in o7026) lf(o7026["channelId"], p + "/channelId", e, L220);
+const x7036 = v;
+const g7036 = typeOf(x7036);
+const b7036: string[] = []; lf(x7036, p, b7036, L0); if (b7036.length) e.push(...b7036);
+if (g7036 === "object") {
+if (g7036 === 'object') { const o7036 = x7036 as Record<string, unknown>;
+if (!("channelId" in o7036)) e.push(p + "/channelId" + ': required');
+if ("channelId" in o7036) lf(o7036["channelId"], p + "/channelId", e, L220);
 }
 }
 }
@@ -5617,18 +5617,18 @@ if ("channelId" in o7026) lf(o7026["channelId"], p + "/channelId", e, L220);
 
 function e104_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7027 = v;
-const g7027 = typeOf(x7027);
-const b7027: string[] = []; lf(x7027, p, b7027, L0); if (b7027.length) e.push(...b7027);
-if (g7027 === "object") {
-if (g7027 === 'object') { const o7027 = x7027 as Record<string, unknown>;
-if (!("channelId" in o7027)) e.push(p + "/channelId" + ': required');
-if (!("name" in o7027)) e.push(p + "/name" + ': required');
-if (!("visibility" in o7027)) e.push(p + "/visibility" + ': required');
-if ("channelId" in o7027) lf(o7027["channelId"], p + "/channelId", e, L220);
-if ("name" in o7027) lf(o7027["name"], p + "/name", e, L1);
-if ("visibility" in o7027) lf(o7027["visibility"], p + "/visibility", e, L1);
-if ("recordId" in o7027) lf(o7027["recordId"], p + "/recordId", e, L28);
+const x7037 = v;
+const g7037 = typeOf(x7037);
+const b7037: string[] = []; lf(x7037, p, b7037, L0); if (b7037.length) e.push(...b7037);
+if (g7037 === "object") {
+if (g7037 === 'object') { const o7037 = x7037 as Record<string, unknown>;
+if (!("channelId" in o7037)) e.push(p + "/channelId" + ': required');
+if (!("name" in o7037)) e.push(p + "/name" + ': required');
+if (!("visibility" in o7037)) e.push(p + "/visibility" + ': required');
+if ("channelId" in o7037) lf(o7037["channelId"], p + "/channelId", e, L220);
+if ("name" in o7037) lf(o7037["name"], p + "/name", e, L1);
+if ("visibility" in o7037) lf(o7037["visibility"], p + "/visibility", e, L1);
+if ("recordId" in o7037) lf(o7037["recordId"], p + "/recordId", e, L28);
 }
 }
 }
@@ -5636,13 +5636,13 @@ if ("recordId" in o7027) lf(o7027["recordId"], p + "/recordId", e, L28);
 
 function e105_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7028 = v;
-const g7028 = typeOf(x7028);
-const b7028: string[] = []; lf(x7028, p, b7028, L0); if (b7028.length) e.push(...b7028);
-if (g7028 === "object") {
-if (g7028 === 'object') { const o7028 = x7028 as Record<string, unknown>;
-if (!("channelId" in o7028)) e.push(p + "/channelId" + ': required');
-if ("channelId" in o7028) lf(o7028["channelId"], p + "/channelId", e, L220);
+const x7038 = v;
+const g7038 = typeOf(x7038);
+const b7038: string[] = []; lf(x7038, p, b7038, L0); if (b7038.length) e.push(...b7038);
+if (g7038 === "object") {
+if (g7038 === 'object') { const o7038 = x7038 as Record<string, unknown>;
+if (!("channelId" in o7038)) e.push(p + "/channelId" + ': required');
+if ("channelId" in o7038) lf(o7038["channelId"], p + "/channelId", e, L220);
 }
 }
 }
@@ -5650,13 +5650,13 @@ if ("channelId" in o7028) lf(o7028["channelId"], p + "/channelId", e, L220);
 
 function e108_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7029 = v;
-const g7029 = typeOf(x7029);
-const b7029: string[] = []; lf(x7029, p, b7029, L0); if (b7029.length) e.push(...b7029);
-if (g7029 === "object") {
-if (g7029 === 'object') { const o7029 = x7029 as Record<string, unknown>;
-if (!("channelId" in o7029)) e.push(p + "/channelId" + ': required');
-if ("channelId" in o7029) lf(o7029["channelId"], p + "/channelId", e, L220);
+const x7039 = v;
+const g7039 = typeOf(x7039);
+const b7039: string[] = []; lf(x7039, p, b7039, L0); if (b7039.length) e.push(...b7039);
+if (g7039 === "object") {
+if (g7039 === 'object') { const o7039 = x7039 as Record<string, unknown>;
+if (!("channelId" in o7039)) e.push(p + "/channelId" + ': required');
+if ("channelId" in o7039) lf(o7039["channelId"], p + "/channelId", e, L220);
 }
 }
 }
@@ -5664,23 +5664,23 @@ if ("channelId" in o7029) lf(o7029["channelId"], p + "/channelId", e, L220);
 
 function e109_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7030 = v;
-const g7030 = typeOf(x7030);
-const b7030: string[] = []; lf(x7030, p, b7030, L0); if (b7030.length) e.push(...b7030);
-if (g7030 === "object") {
-if (g7030 === 'object') { const o7030 = x7030 as Record<string, unknown>;
-if (!("channelId" in o7030)) e.push(p + "/channelId" + ': required');
-if (!("fields" in o7030)) e.push(p + "/fields" + ': required');
-if ("channelId" in o7030) lf(o7030["channelId"], p + "/channelId", e, L220);
-if ("fields" in o7030) {
+const x7040 = v;
+const g7040 = typeOf(x7040);
+const b7040: string[] = []; lf(x7040, p, b7040, L0); if (b7040.length) e.push(...b7040);
+if (g7040 === "object") {
+if (g7040 === 'object') { const o7040 = x7040 as Record<string, unknown>;
+if (!("channelId" in o7040)) e.push(p + "/channelId" + ': required');
+if (!("fields" in o7040)) e.push(p + "/fields" + ': required');
+if ("channelId" in o7040) lf(o7040["channelId"], p + "/channelId", e, L220);
+if ("fields" in o7040) {
 {
-const x7031 = o7030["fields"];
-const g7031 = typeOf(x7031);
-const b7031: string[] = []; lf(x7031, p + "/fields", b7031, L4); if (b7031.length) e.push(...b7031);
-if (g7031 === "array") {
-if (g7031 === 'array') { const a7031 = x7031 as unknown[];
-for (let i7031 = 0; i7031 < a7031.length; i7031++) {
-lf(a7031[i7031], p + "/fields" + '/' + i7031, e, L1);
+const x7041 = o7040["fields"];
+const g7041 = typeOf(x7041);
+const b7041: string[] = []; lf(x7041, p + "/fields", b7041, L4); if (b7041.length) e.push(...b7041);
+if (g7041 === "array") {
+if (g7041 === 'array') { const a7041 = x7041 as unknown[];
+for (let i7041 = 0; i7041 < a7041.length; i7041++) {
+lf(a7041[i7041], p + "/fields" + '/' + i7041, e, L1);
 }
 }
 }
@@ -5693,19 +5693,19 @@ lf(a7031[i7031], p + "/fields" + '/' + i7031, e, L1);
 
 function e285_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7189 = v;
-const g7189 = typeOf(x7189);
-const b7189: string[] = []; lf(x7189, p, b7189, L0); if (b7189.length) e.push(...b7189);
-if (g7189 === "object") {
-if (g7189 === 'object') { const o7189 = x7189 as Record<string, unknown>;
-if (!("helperThreadId" in o7189)) e.push(p + "/helperThreadId" + ': required');
-if (!("direction" in o7189)) e.push(p + "/direction" + ': required');
-if (!("kind" in o7189)) e.push(p + "/kind" + ': required');
-if (!("messageId" in o7189)) e.push(p + "/messageId" + ': required');
-if ("helperThreadId" in o7189) lf(o7189["helperThreadId"], p + "/helperThreadId", e, L13);
-if ("direction" in o7189) lf(o7189["direction"], p + "/direction", e, L213);
-if ("kind" in o7189) lf(o7189["kind"], p + "/kind", e, L575);
-if ("messageId" in o7189) lf(o7189["messageId"], p + "/messageId", e, L92);
+const x7199 = v;
+const g7199 = typeOf(x7199);
+const b7199: string[] = []; lf(x7199, p, b7199, L0); if (b7199.length) e.push(...b7199);
+if (g7199 === "object") {
+if (g7199 === 'object') { const o7199 = x7199 as Record<string, unknown>;
+if (!("helperThreadId" in o7199)) e.push(p + "/helperThreadId" + ': required');
+if (!("direction" in o7199)) e.push(p + "/direction" + ': required');
+if (!("kind" in o7199)) e.push(p + "/kind" + ': required');
+if (!("messageId" in o7199)) e.push(p + "/messageId" + ': required');
+if ("helperThreadId" in o7199) lf(o7199["helperThreadId"], p + "/helperThreadId", e, L13);
+if ("direction" in o7199) lf(o7199["direction"], p + "/direction", e, L213);
+if ("kind" in o7199) lf(o7199["kind"], p + "/kind", e, L575);
+if ("messageId" in o7199) lf(o7199["messageId"], p + "/messageId", e, L92);
 }
 }
 }
@@ -5713,18 +5713,18 @@ if ("messageId" in o7189) lf(o7189["messageId"], p + "/messageId", e, L92);
 
 function e286_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7190 = v;
-const g7190 = typeOf(x7190);
-const b7190: string[] = []; lf(x7190, p, b7190, L0); if (b7190.length) e.push(...b7190);
-if (g7190 === "object") {
-if (g7190 === 'object') { const o7190 = x7190 as Record<string, unknown>;
-if (!("helperThreadId" in o7190)) e.push(p + "/helperThreadId" + ': required');
-if (!("parentThreadId" in o7190)) e.push(p + "/parentThreadId" + ': required');
-if (!("agentId" in o7190)) e.push(p + "/agentId" + ': required');
-if ("helperThreadId" in o7190) lf(o7190["helperThreadId"], p + "/helperThreadId", e, L13);
-if ("parentThreadId" in o7190) lf(o7190["parentThreadId"], p + "/parentThreadId", e, L13);
-if ("agentId" in o7190) lf(o7190["agentId"], p + "/agentId", e, L10);
-if ("model" in o7190) lf(o7190["model"], p + "/model", e, L1);
+const x7200 = v;
+const g7200 = typeOf(x7200);
+const b7200: string[] = []; lf(x7200, p, b7200, L0); if (b7200.length) e.push(...b7200);
+if (g7200 === "object") {
+if (g7200 === 'object') { const o7200 = x7200 as Record<string, unknown>;
+if (!("helperThreadId" in o7200)) e.push(p + "/helperThreadId" + ': required');
+if (!("parentThreadId" in o7200)) e.push(p + "/parentThreadId" + ': required');
+if (!("agentId" in o7200)) e.push(p + "/agentId" + ': required');
+if ("helperThreadId" in o7200) lf(o7200["helperThreadId"], p + "/helperThreadId", e, L13);
+if ("parentThreadId" in o7200) lf(o7200["parentThreadId"], p + "/parentThreadId", e, L13);
+if ("agentId" in o7200) lf(o7200["agentId"], p + "/agentId", e, L10);
+if ("model" in o7200) lf(o7200["model"], p + "/model", e, L1);
 }
 }
 }
@@ -5732,19 +5732,19 @@ if ("model" in o7190) lf(o7190["model"], p + "/model", e, L1);
 
 function e391_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7292 = v;
-const g7292 = typeOf(x7292);
-const b7292: string[] = []; lf(x7292, p, b7292, L0); if (b7292.length) e.push(...b7292);
-if (g7292 === "object") {
-if (g7292 === 'object') { const o7292 = x7292 as Record<string, unknown>;
-if (!("messageId" in o7292)) e.push(p + "/messageId" + ': required');
-if (!("threadId" in o7292)) e.push(p + "/threadId" + ': required');
-if (!("personId" in o7292)) e.push(p + "/personId" + ': required');
-if (!("author" in o7292)) e.push(p + "/author" + ': required');
-if ("messageId" in o7292) lf(o7292["messageId"], p + "/messageId", e, L92);
-if ("threadId" in o7292) lf(o7292["threadId"], p + "/threadId", e, L13);
-if ("personId" in o7292) lf(o7292["personId"], p + "/personId", e, L16);
-if ("author" in o7292) d_s_6c1eb10d98(o7292["author"], p + "/author", e);
+const x7302 = v;
+const g7302 = typeOf(x7302);
+const b7302: string[] = []; lf(x7302, p, b7302, L0); if (b7302.length) e.push(...b7302);
+if (g7302 === "object") {
+if (g7302 === 'object') { const o7302 = x7302 as Record<string, unknown>;
+if (!("messageId" in o7302)) e.push(p + "/messageId" + ': required');
+if (!("threadId" in o7302)) e.push(p + "/threadId" + ': required');
+if (!("personId" in o7302)) e.push(p + "/personId" + ': required');
+if (!("author" in o7302)) e.push(p + "/author" + ': required');
+if ("messageId" in o7302) lf(o7302["messageId"], p + "/messageId", e, L92);
+if ("threadId" in o7302) lf(o7302["threadId"], p + "/threadId", e, L13);
+if ("personId" in o7302) lf(o7302["personId"], p + "/personId", e, L16);
+if ("author" in o7302) d_s_6c1eb10d98(o7302["author"], p + "/author", e);
 }
 }
 }
@@ -5752,21 +5752,21 @@ if ("author" in o7292) d_s_6c1eb10d98(o7292["author"], p + "/author", e);
 
 function e394_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7294 = v;
-const g7294 = typeOf(x7294);
-const b7294: string[] = []; lf(x7294, p, b7294, L0); if (b7294.length) e.push(...b7294);
-if (g7294 === "object") {
-if (g7294 === 'object') { const o7294 = x7294 as Record<string, unknown>;
-if (!("messageId" in o7294)) e.push(p + "/messageId" + ': required');
-if (!("threadId" in o7294)) e.push(p + "/threadId" + ': required');
-if (!("personId" in o7294)) e.push(p + "/personId" + ': required');
-if (!("author" in o7294)) e.push(p + "/author" + ': required');
-if (!("inThread" in o7294)) e.push(p + "/inThread" + ': required');
-if ("messageId" in o7294) lf(o7294["messageId"], p + "/messageId", e, L92);
-if ("threadId" in o7294) lf(o7294["threadId"], p + "/threadId", e, L13);
-if ("personId" in o7294) lf(o7294["personId"], p + "/personId", e, L16);
-if ("author" in o7294) d_s_6c1eb10d98(o7294["author"], p + "/author", e);
-if ("inThread" in o7294) lf(o7294["inThread"], p + "/inThread", e, L3);
+const x7304 = v;
+const g7304 = typeOf(x7304);
+const b7304: string[] = []; lf(x7304, p, b7304, L0); if (b7304.length) e.push(...b7304);
+if (g7304 === "object") {
+if (g7304 === 'object') { const o7304 = x7304 as Record<string, unknown>;
+if (!("messageId" in o7304)) e.push(p + "/messageId" + ': required');
+if (!("threadId" in o7304)) e.push(p + "/threadId" + ': required');
+if (!("personId" in o7304)) e.push(p + "/personId" + ': required');
+if (!("author" in o7304)) e.push(p + "/author" + ': required');
+if (!("inThread" in o7304)) e.push(p + "/inThread" + ': required');
+if ("messageId" in o7304) lf(o7304["messageId"], p + "/messageId", e, L92);
+if ("threadId" in o7304) lf(o7304["threadId"], p + "/threadId", e, L13);
+if ("personId" in o7304) lf(o7304["personId"], p + "/personId", e, L16);
+if ("author" in o7304) d_s_6c1eb10d98(o7304["author"], p + "/author", e);
+if ("inThread" in o7304) lf(o7304["inThread"], p + "/inThread", e, L3);
 }
 }
 }
@@ -5774,17 +5774,17 @@ if ("inThread" in o7294) lf(o7294["inThread"], p + "/inThread", e, L3);
 
 function e396_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7296 = v;
-const g7296 = typeOf(x7296);
-const b7296: string[] = []; lf(x7296, p, b7296, L0); if (b7296.length) e.push(...b7296);
-if (g7296 === "object") {
-if (g7296 === 'object') { const o7296 = x7296 as Record<string, unknown>;
-if (!("messageId" in o7296)) e.push(p + "/messageId" + ': required');
-if (!("threadId" in o7296)) e.push(p + "/threadId" + ': required');
-if (!("pinned" in o7296)) e.push(p + "/pinned" + ': required');
-if ("messageId" in o7296) lf(o7296["messageId"], p + "/messageId", e, L92);
-if ("threadId" in o7296) lf(o7296["threadId"], p + "/threadId", e, L13);
-if ("pinned" in o7296) lf(o7296["pinned"], p + "/pinned", e, L3);
+const x7306 = v;
+const g7306 = typeOf(x7306);
+const b7306: string[] = []; lf(x7306, p, b7306, L0); if (b7306.length) e.push(...b7306);
+if (g7306 === "object") {
+if (g7306 === 'object') { const o7306 = x7306 as Record<string, unknown>;
+if (!("messageId" in o7306)) e.push(p + "/messageId" + ': required');
+if (!("threadId" in o7306)) e.push(p + "/threadId" + ': required');
+if (!("pinned" in o7306)) e.push(p + "/pinned" + ': required');
+if ("messageId" in o7306) lf(o7306["messageId"], p + "/messageId", e, L92);
+if ("threadId" in o7306) lf(o7306["threadId"], p + "/threadId", e, L13);
+if ("pinned" in o7306) lf(o7306["pinned"], p + "/pinned", e, L3);
 }
 }
 }
@@ -5792,19 +5792,19 @@ if ("pinned" in o7296) lf(o7296["pinned"], p + "/pinned", e, L3);
 
 function e397_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7297 = v;
-const g7297 = typeOf(x7297);
-const b7297: string[] = []; lf(x7297, p, b7297, L0); if (b7297.length) e.push(...b7297);
-if (g7297 === "object") {
-if (g7297 === 'object') { const o7297 = x7297 as Record<string, unknown>;
-if (!("messageId" in o7297)) e.push(p + "/messageId" + ': required');
-if (!("threadId" in o7297)) e.push(p + "/threadId" + ': required');
-if (!("emoji" in o7297)) e.push(p + "/emoji" + ': required');
-if (!("removed" in o7297)) e.push(p + "/removed" + ': required');
-if ("messageId" in o7297) lf(o7297["messageId"], p + "/messageId", e, L92);
-if ("threadId" in o7297) lf(o7297["threadId"], p + "/threadId", e, L13);
-if ("emoji" in o7297) lf(o7297["emoji"], p + "/emoji", e, L1);
-if ("removed" in o7297) lf(o7297["removed"], p + "/removed", e, L3);
+const x7307 = v;
+const g7307 = typeOf(x7307);
+const b7307: string[] = []; lf(x7307, p, b7307, L0); if (b7307.length) e.push(...b7307);
+if (g7307 === "object") {
+if (g7307 === 'object') { const o7307 = x7307 as Record<string, unknown>;
+if (!("messageId" in o7307)) e.push(p + "/messageId" + ': required');
+if (!("threadId" in o7307)) e.push(p + "/threadId" + ': required');
+if (!("emoji" in o7307)) e.push(p + "/emoji" + ': required');
+if (!("removed" in o7307)) e.push(p + "/removed" + ': required');
+if ("messageId" in o7307) lf(o7307["messageId"], p + "/messageId", e, L92);
+if ("threadId" in o7307) lf(o7307["threadId"], p + "/threadId", e, L13);
+if ("emoji" in o7307) lf(o7307["emoji"], p + "/emoji", e, L1);
+if ("removed" in o7307) lf(o7307["removed"], p + "/removed", e, L3);
 }
 }
 }
@@ -5812,44 +5812,44 @@ if ("removed" in o7297) lf(o7297["removed"], p + "/removed", e, L3);
 
 function e398_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7298 = v;
-const g7298 = typeOf(x7298);
-const b7298: string[] = []; lf(x7298, p, b7298, L0); if (b7298.length) e.push(...b7298);
-if (g7298 === "object") {
-if (g7298 === 'object') { const o7298 = x7298 as Record<string, unknown>;
-if (!("messageId" in o7298)) e.push(p + "/messageId" + ': required');
-if (!("threadId" in o7298)) e.push(p + "/threadId" + ': required');
-if (!("threadSeq" in o7298)) e.push(p + "/threadSeq" + ': required');
-if (!("author" in o7298)) e.push(p + "/author" + ': required');
-if (!("kind" in o7298)) e.push(p + "/kind" + ': required');
-if (!("depth" in o7298)) e.push(p + "/depth" + ': required');
-if (!("mentions" in o7298)) e.push(p + "/mentions" + ': required');
-if (!("hasBlocks" in o7298)) e.push(p + "/hasBlocks" + ': required');
-if ("messageId" in o7298) lf(o7298["messageId"], p + "/messageId", e, L92);
-if ("threadId" in o7298) lf(o7298["threadId"], p + "/threadId", e, L13);
-if ("threadSeq" in o7298) lf(o7298["threadSeq"], p + "/threadSeq", e, L2);
-if ("author" in o7298) d_s_6c1eb10d98(o7298["author"], p + "/author", e);
-if ("kind" in o7298) lf(o7298["kind"], p + "/kind", e, L1);
-if ("depth" in o7298) lf(o7298["depth"], p + "/depth", e, L2);
-if ("mentions" in o7298) d_s_fe17a01e9e(o7298["mentions"], p + "/mentions", e);
-if ("hasBlocks" in o7298) lf(o7298["hasBlocks"], p + "/hasBlocks", e, L3);
-if ("via" in o7298) lf(o7298["via"], p + "/via", e, L16);
-if ("actingFor" in o7298) lf(o7298["actingFor"], p + "/actingFor", e, L16);
-if ("job" in o7298) lf(o7298["job"], p + "/job", e, L3);
-if ("copy" in o7298) lf(o7298["copy"], p + "/copy", e, L3);
-if ("typed" in o7298) lf(o7298["typed"], p + "/typed", e, L3);
-if ("poke" in o7298) {
+const x7308 = v;
+const g7308 = typeOf(x7308);
+const b7308: string[] = []; lf(x7308, p, b7308, L0); if (b7308.length) e.push(...b7308);
+if (g7308 === "object") {
+if (g7308 === 'object') { const o7308 = x7308 as Record<string, unknown>;
+if (!("messageId" in o7308)) e.push(p + "/messageId" + ': required');
+if (!("threadId" in o7308)) e.push(p + "/threadId" + ': required');
+if (!("threadSeq" in o7308)) e.push(p + "/threadSeq" + ': required');
+if (!("author" in o7308)) e.push(p + "/author" + ': required');
+if (!("kind" in o7308)) e.push(p + "/kind" + ': required');
+if (!("depth" in o7308)) e.push(p + "/depth" + ': required');
+if (!("mentions" in o7308)) e.push(p + "/mentions" + ': required');
+if (!("hasBlocks" in o7308)) e.push(p + "/hasBlocks" + ': required');
+if ("messageId" in o7308) lf(o7308["messageId"], p + "/messageId", e, L92);
+if ("threadId" in o7308) lf(o7308["threadId"], p + "/threadId", e, L13);
+if ("threadSeq" in o7308) lf(o7308["threadSeq"], p + "/threadSeq", e, L2);
+if ("author" in o7308) d_s_6c1eb10d98(o7308["author"], p + "/author", e);
+if ("kind" in o7308) lf(o7308["kind"], p + "/kind", e, L1);
+if ("depth" in o7308) lf(o7308["depth"], p + "/depth", e, L2);
+if ("mentions" in o7308) d_s_fe17a01e9e(o7308["mentions"], p + "/mentions", e);
+if ("hasBlocks" in o7308) lf(o7308["hasBlocks"], p + "/hasBlocks", e, L3);
+if ("via" in o7308) lf(o7308["via"], p + "/via", e, L16);
+if ("actingFor" in o7308) lf(o7308["actingFor"], p + "/actingFor", e, L16);
+if ("job" in o7308) lf(o7308["job"], p + "/job", e, L3);
+if ("copy" in o7308) lf(o7308["copy"], p + "/copy", e, L3);
+if ("typed" in o7308) lf(o7308["typed"], p + "/typed", e, L3);
+if ("poke" in o7308) {
 {
-const x7299 = o7298["poke"];
-const g7299 = typeOf(x7299);
-const b7299: string[] = []; lf(x7299, p + "/poke", b7299, L0); if (b7299.length) e.push(...b7299);
-if (g7299 === "object") {
-if (g7299 === 'object') { const o7299 = x7299 as Record<string, unknown>;
-if (!("agentId" in o7299)) e.push(p + "/poke" + "/agentId" + ': required');
-if (!("by" in o7299)) e.push(p + "/poke" + "/by" + ': required');
-if ("agentId" in o7299) lf(o7299["agentId"], p + "/poke" + "/agentId", e, L10);
-if ("by" in o7299) lf(o7299["by"], p + "/poke" + "/by", e, L16);
-if ("outside" in o7299) lf(o7299["outside"], p + "/poke" + "/outside", e, L3);
+const x7309 = o7308["poke"];
+const g7309 = typeOf(x7309);
+const b7309: string[] = []; lf(x7309, p + "/poke", b7309, L0); if (b7309.length) e.push(...b7309);
+if (g7309 === "object") {
+if (g7309 === 'object') { const o7309 = x7309 as Record<string, unknown>;
+if (!("agentId" in o7309)) e.push(p + "/poke" + "/agentId" + ': required');
+if (!("by" in o7309)) e.push(p + "/poke" + "/by" + ': required');
+if ("agentId" in o7309) lf(o7309["agentId"], p + "/poke" + "/agentId", e, L10);
+if ("by" in o7309) lf(o7309["by"], p + "/poke" + "/by", e, L16);
+if ("outside" in o7309) lf(o7309["outside"], p + "/poke" + "/outside", e, L3);
 }
 }
 }
@@ -5861,19 +5861,19 @@ if ("outside" in o7299) lf(o7299["outside"], p + "/poke" + "/outside", e, L3);
 
 function e446_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7341 = v;
-const g7341 = typeOf(x7341);
-const b7341: string[] = []; lf(x7341, p, b7341, L0); if (b7341.length) e.push(...b7341);
-if (g7341 === "object") {
-if (g7341 === 'object') { const o7341 = x7341 as Record<string, unknown>;
-if (!("planId" in o7341)) e.push(p + "/planId" + ': required');
-if (!("threadId" in o7341)) e.push(p + "/threadId" + ': required');
-if (!("edited" in o7341)) e.push(p + "/edited" + ': required');
-if (!("by" in o7341)) e.push(p + "/by" + ': required');
-if ("planId" in o7341) lf(o7341["planId"], p + "/planId", e, L416);
-if ("threadId" in o7341) lf(o7341["threadId"], p + "/threadId", e, L13);
-if ("edited" in o7341) lf(o7341["edited"], p + "/edited", e, L3);
-if ("by" in o7341) lf(o7341["by"], p + "/by", e, L1);
+const x7351 = v;
+const g7351 = typeOf(x7351);
+const b7351: string[] = []; lf(x7351, p, b7351, L0); if (b7351.length) e.push(...b7351);
+if (g7351 === "object") {
+if (g7351 === 'object') { const o7351 = x7351 as Record<string, unknown>;
+if (!("planId" in o7351)) e.push(p + "/planId" + ': required');
+if (!("threadId" in o7351)) e.push(p + "/threadId" + ': required');
+if (!("edited" in o7351)) e.push(p + "/edited" + ': required');
+if (!("by" in o7351)) e.push(p + "/by" + ': required');
+if ("planId" in o7351) lf(o7351["planId"], p + "/planId", e, L416);
+if ("threadId" in o7351) lf(o7351["threadId"], p + "/threadId", e, L13);
+if ("edited" in o7351) lf(o7351["edited"], p + "/edited", e, L3);
+if ("by" in o7351) lf(o7351["by"], p + "/by", e, L1);
 }
 }
 }
@@ -5881,17 +5881,17 @@ if ("by" in o7341) lf(o7341["by"], p + "/by", e, L1);
 
 function e447_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7342 = v;
-const g7342 = typeOf(x7342);
-const b7342: string[] = []; lf(x7342, p, b7342, L0); if (b7342.length) e.push(...b7342);
-if (g7342 === "object") {
-if (g7342 === 'object') { const o7342 = x7342 as Record<string, unknown>;
-if (!("planId" in o7342)) e.push(p + "/planId" + ': required');
-if (!("threadId" in o7342)) e.push(p + "/threadId" + ': required');
-if (!("steps" in o7342)) e.push(p + "/steps" + ': required');
-if ("planId" in o7342) lf(o7342["planId"], p + "/planId", e, L416);
-if ("threadId" in o7342) lf(o7342["threadId"], p + "/threadId", e, L13);
-if ("steps" in o7342) lf(o7342["steps"], p + "/steps", e, L2);
+const x7352 = v;
+const g7352 = typeOf(x7352);
+const b7352: string[] = []; lf(x7352, p, b7352, L0); if (b7352.length) e.push(...b7352);
+if (g7352 === "object") {
+if (g7352 === 'object') { const o7352 = x7352 as Record<string, unknown>;
+if (!("planId" in o7352)) e.push(p + "/planId" + ': required');
+if (!("threadId" in o7352)) e.push(p + "/threadId" + ': required');
+if (!("steps" in o7352)) e.push(p + "/steps" + ': required');
+if ("planId" in o7352) lf(o7352["planId"], p + "/planId", e, L416);
+if ("threadId" in o7352) lf(o7352["threadId"], p + "/threadId", e, L13);
+if ("steps" in o7352) lf(o7352["steps"], p + "/steps", e, L2);
 }
 }
 }
@@ -5899,17 +5899,17 @@ if ("steps" in o7342) lf(o7342["steps"], p + "/steps", e, L2);
 
 function e448_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7343 = v;
-const g7343 = typeOf(x7343);
-const b7343: string[] = []; lf(x7343, p, b7343, L0); if (b7343.length) e.push(...b7343);
-if (g7343 === "object") {
-if (g7343 === 'object') { const o7343 = x7343 as Record<string, unknown>;
-if (!("planId" in o7343)) e.push(p + "/planId" + ': required');
-if (!("threadId" in o7343)) e.push(p + "/threadId" + ': required');
-if (!("by" in o7343)) e.push(p + "/by" + ': required');
-if ("planId" in o7343) lf(o7343["planId"], p + "/planId", e, L416);
-if ("threadId" in o7343) lf(o7343["threadId"], p + "/threadId", e, L13);
-if ("by" in o7343) lf(o7343["by"], p + "/by", e, L1);
+const x7353 = v;
+const g7353 = typeOf(x7353);
+const b7353: string[] = []; lf(x7353, p, b7353, L0); if (b7353.length) e.push(...b7353);
+if (g7353 === "object") {
+if (g7353 === 'object') { const o7353 = x7353 as Record<string, unknown>;
+if (!("planId" in o7353)) e.push(p + "/planId" + ': required');
+if (!("threadId" in o7353)) e.push(p + "/threadId" + ': required');
+if (!("by" in o7353)) e.push(p + "/by" + ': required');
+if ("planId" in o7353) lf(o7353["planId"], p + "/planId", e, L416);
+if ("threadId" in o7353) lf(o7353["threadId"], p + "/threadId", e, L13);
+if ("by" in o7353) lf(o7353["by"], p + "/by", e, L1);
 }
 }
 }
@@ -5917,17 +5917,17 @@ if ("by" in o7343) lf(o7343["by"], p + "/by", e, L1);
 
 function e449_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7344 = v;
-const g7344 = typeOf(x7344);
-const b7344: string[] = []; lf(x7344, p, b7344, L0); if (b7344.length) e.push(...b7344);
-if (g7344 === "object") {
-if (g7344 === 'object') { const o7344 = x7344 as Record<string, unknown>;
-if (!("planId" in o7344)) e.push(p + "/planId" + ': required');
-if (!("threadId" in o7344)) e.push(p + "/threadId" + ': required');
-if (!("stepId" in o7344)) e.push(p + "/stepId" + ': required');
-if ("planId" in o7344) lf(o7344["planId"], p + "/planId", e, L416);
-if ("threadId" in o7344) lf(o7344["threadId"], p + "/threadId", e, L13);
-if ("stepId" in o7344) lf(o7344["stepId"], p + "/stepId", e, L117);
+const x7354 = v;
+const g7354 = typeOf(x7354);
+const b7354: string[] = []; lf(x7354, p, b7354, L0); if (b7354.length) e.push(...b7354);
+if (g7354 === "object") {
+if (g7354 === 'object') { const o7354 = x7354 as Record<string, unknown>;
+if (!("planId" in o7354)) e.push(p + "/planId" + ': required');
+if (!("threadId" in o7354)) e.push(p + "/threadId" + ': required');
+if (!("stepId" in o7354)) e.push(p + "/stepId" + ': required');
+if ("planId" in o7354) lf(o7354["planId"], p + "/planId", e, L416);
+if ("threadId" in o7354) lf(o7354["threadId"], p + "/threadId", e, L13);
+if ("stepId" in o7354) lf(o7354["stepId"], p + "/stepId", e, L117);
 }
 }
 }
@@ -5935,21 +5935,21 @@ if ("stepId" in o7344) lf(o7344["stepId"], p + "/stepId", e, L117);
 
 function e656_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7529 = v;
-const g7529 = typeOf(x7529);
-const b7529: string[] = []; lf(x7529, p, b7529, L0); if (b7529.length) e.push(...b7529);
-if (g7529 === "object") {
-if (g7529 === 'object') { const o7529 = x7529 as Record<string, unknown>;
-if (!("threadId" in o7529)) e.push(p + "/threadId" + ': required');
-if (!("personId" in o7529)) e.push(p + "/personId" + ': required');
-if (!("targetType" in o7529)) e.push(p + "/targetType" + ': required');
-if (!("targetId" in o7529)) e.push(p + "/targetId" + ': required');
-if (!("agentId" in o7529)) e.push(p + "/agentId" + ': required');
-if ("threadId" in o7529) lf(o7529["threadId"], p + "/threadId", e, L13);
-if ("personId" in o7529) lf(o7529["personId"], p + "/personId", e, L16);
-if ("targetType" in o7529) lf(o7529["targetType"], p + "/targetType", e, L1);
-if ("targetId" in o7529) lf(o7529["targetId"], p + "/targetId", e, L1);
-if ("agentId" in o7529) lf(o7529["agentId"], p + "/agentId", e, L10);
+const x7539 = v;
+const g7539 = typeOf(x7539);
+const b7539: string[] = []; lf(x7539, p, b7539, L0); if (b7539.length) e.push(...b7539);
+if (g7539 === "object") {
+if (g7539 === 'object') { const o7539 = x7539 as Record<string, unknown>;
+if (!("threadId" in o7539)) e.push(p + "/threadId" + ': required');
+if (!("personId" in o7539)) e.push(p + "/personId" + ': required');
+if (!("targetType" in o7539)) e.push(p + "/targetType" + ': required');
+if (!("targetId" in o7539)) e.push(p + "/targetId" + ': required');
+if (!("agentId" in o7539)) e.push(p + "/agentId" + ': required');
+if ("threadId" in o7539) lf(o7539["threadId"], p + "/threadId", e, L13);
+if ("personId" in o7539) lf(o7539["personId"], p + "/personId", e, L16);
+if ("targetType" in o7539) lf(o7539["targetType"], p + "/targetType", e, L1);
+if ("targetId" in o7539) lf(o7539["targetId"], p + "/targetId", e, L1);
+if ("agentId" in o7539) lf(o7539["agentId"], p + "/agentId", e, L10);
 }
 }
 }
@@ -5957,13 +5957,13 @@ if ("agentId" in o7529) lf(o7529["agentId"], p + "/agentId", e, L10);
 
 function e698_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7561 = v;
-const g7561 = typeOf(x7561);
-const b7561: string[] = []; lf(x7561, p, b7561, L0); if (b7561.length) e.push(...b7561);
-if (g7561 === "object") {
-if (g7561 === 'object') { const o7561 = x7561 as Record<string, unknown>;
-if (!("threadId" in o7561)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o7561) lf(o7561["threadId"], p + "/threadId", e, L13);
+const x7571 = v;
+const g7571 = typeOf(x7571);
+const b7571: string[] = []; lf(x7571, p, b7571, L0); if (b7571.length) e.push(...b7571);
+if (g7571 === "object") {
+if (g7571 === 'object') { const o7571 = x7571 as Record<string, unknown>;
+if (!("threadId" in o7571)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o7571) lf(o7571["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -5971,13 +5971,13 @@ if ("threadId" in o7561) lf(o7561["threadId"], p + "/threadId", e, L13);
 
 function e700_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7562 = v;
-const g7562 = typeOf(x7562);
-const b7562: string[] = []; lf(x7562, p, b7562, L0); if (b7562.length) e.push(...b7562);
-if (g7562 === "object") {
-if (g7562 === 'object') { const o7562 = x7562 as Record<string, unknown>;
-if (!("threadId" in o7562)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o7562) lf(o7562["threadId"], p + "/threadId", e, L13);
+const x7572 = v;
+const g7572 = typeOf(x7572);
+const b7572: string[] = []; lf(x7572, p, b7572, L0); if (b7572.length) e.push(...b7572);
+if (g7572 === "object") {
+if (g7572 === 'object') { const o7572 = x7572 as Record<string, unknown>;
+if (!("threadId" in o7572)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o7572) lf(o7572["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -5985,17 +5985,17 @@ if ("threadId" in o7562) lf(o7562["threadId"], p + "/threadId", e, L13);
 
 function e701_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7563 = v;
-const g7563 = typeOf(x7563);
-const b7563: string[] = []; lf(x7563, p, b7563, L0); if (b7563.length) e.push(...b7563);
-if (g7563 === "object") {
-if (g7563 === 'object') { const o7563 = x7563 as Record<string, unknown>;
-if (!("threadId" in o7563)) e.push(p + "/threadId" + ': required');
-if (!("planMode" in o7563)) e.push(p + "/planMode" + ': required');
-if (!("by" in o7563)) e.push(p + "/by" + ': required');
-if ("threadId" in o7563) lf(o7563["threadId"], p + "/threadId", e, L13);
-if ("planMode" in o7563) lf(o7563["planMode"], p + "/planMode", e, L3);
-if ("by" in o7563) lf(o7563["by"], p + "/by", e, L1);
+const x7573 = v;
+const g7573 = typeOf(x7573);
+const b7573: string[] = []; lf(x7573, p, b7573, L0); if (b7573.length) e.push(...b7573);
+if (g7573 === "object") {
+if (g7573 === 'object') { const o7573 = x7573 as Record<string, unknown>;
+if (!("threadId" in o7573)) e.push(p + "/threadId" + ': required');
+if (!("planMode" in o7573)) e.push(p + "/planMode" + ': required');
+if (!("by" in o7573)) e.push(p + "/by" + ': required');
+if ("threadId" in o7573) lf(o7573["threadId"], p + "/threadId", e, L13);
+if ("planMode" in o7573) lf(o7573["planMode"], p + "/planMode", e, L3);
+if ("by" in o7573) lf(o7573["by"], p + "/by", e, L1);
 }
 }
 }
@@ -6003,17 +6003,17 @@ if ("by" in o7563) lf(o7563["by"], p + "/by", e, L1);
 
 function e702_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7564 = v;
-const g7564 = typeOf(x7564);
-const b7564: string[] = []; lf(x7564, p, b7564, L0); if (b7564.length) e.push(...b7564);
-if (g7564 === "object") {
-if (g7564 === 'object') { const o7564 = x7564 as Record<string, unknown>;
-if (!("threadId" in o7564)) e.push(p + "/threadId" + ': required');
-if (!("channelId" in o7564)) e.push(p + "/channelId" + ': required');
-if (!("personId" in o7564)) e.push(p + "/personId" + ': required');
-if ("threadId" in o7564) lf(o7564["threadId"], p + "/threadId", e, L13);
-if ("channelId" in o7564) lf(o7564["channelId"], p + "/channelId", e, L220);
-if ("personId" in o7564) lf(o7564["personId"], p + "/personId", e, L16);
+const x7574 = v;
+const g7574 = typeOf(x7574);
+const b7574: string[] = []; lf(x7574, p, b7574, L0); if (b7574.length) e.push(...b7574);
+if (g7574 === "object") {
+if (g7574 === 'object') { const o7574 = x7574 as Record<string, unknown>;
+if (!("threadId" in o7574)) e.push(p + "/threadId" + ': required');
+if (!("channelId" in o7574)) e.push(p + "/channelId" + ': required');
+if (!("personId" in o7574)) e.push(p + "/personId" + ': required');
+if ("threadId" in o7574) lf(o7574["threadId"], p + "/threadId", e, L13);
+if ("channelId" in o7574) lf(o7574["channelId"], p + "/channelId", e, L220);
+if ("personId" in o7574) lf(o7574["personId"], p + "/personId", e, L16);
 }
 }
 }
@@ -6021,13 +6021,13 @@ if ("personId" in o7564) lf(o7564["personId"], p + "/personId", e, L16);
 
 function e703_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7565 = v;
-const g7565 = typeOf(x7565);
-const b7565: string[] = []; lf(x7565, p, b7565, L0); if (b7565.length) e.push(...b7565);
-if (g7565 === "object") {
-if (g7565 === 'object') { const o7565 = x7565 as Record<string, unknown>;
-if (!("threadId" in o7565)) e.push(p + "/threadId" + ': required');
-if ("threadId" in o7565) lf(o7565["threadId"], p + "/threadId", e, L13);
+const x7575 = v;
+const g7575 = typeOf(x7575);
+const b7575: string[] = []; lf(x7575, p, b7575, L0); if (b7575.length) e.push(...b7575);
+if (g7575 === "object") {
+if (g7575 === 'object') { const o7575 = x7575 as Record<string, unknown>;
+if (!("threadId" in o7575)) e.push(p + "/threadId" + ': required');
+if ("threadId" in o7575) lf(o7575["threadId"], p + "/threadId", e, L13);
 }
 }
 }
@@ -6035,18 +6035,18 @@ if ("threadId" in o7565) lf(o7565["threadId"], p + "/threadId", e, L13);
 
 function e704_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7566 = v;
-const g7566 = typeOf(x7566);
-const b7566: string[] = []; lf(x7566, p, b7566, L0); if (b7566.length) e.push(...b7566);
-if (g7566 === "object") {
-if (g7566 === 'object') { const o7566 = x7566 as Record<string, unknown>;
-if (!("threadId" in o7566)) e.push(p + "/threadId" + ': required');
-if (!("messageId" in o7566)) e.push(p + "/messageId" + ': required');
-if (!("personId" in o7566)) e.push(p + "/personId" + ': required');
-if ("threadId" in o7566) lf(o7566["threadId"], p + "/threadId", e, L13);
-if ("parentThreadId" in o7566) lf(o7566["parentThreadId"], p + "/parentThreadId", e, L13);
-if ("messageId" in o7566) lf(o7566["messageId"], p + "/messageId", e, L92);
-if ("personId" in o7566) lf(o7566["personId"], p + "/personId", e, L16);
+const x7576 = v;
+const g7576 = typeOf(x7576);
+const b7576: string[] = []; lf(x7576, p, b7576, L0); if (b7576.length) e.push(...b7576);
+if (g7576 === "object") {
+if (g7576 === 'object') { const o7576 = x7576 as Record<string, unknown>;
+if (!("threadId" in o7576)) e.push(p + "/threadId" + ': required');
+if (!("messageId" in o7576)) e.push(p + "/messageId" + ': required');
+if (!("personId" in o7576)) e.push(p + "/personId" + ': required');
+if ("threadId" in o7576) lf(o7576["threadId"], p + "/threadId", e, L13);
+if ("parentThreadId" in o7576) lf(o7576["parentThreadId"], p + "/parentThreadId", e, L13);
+if ("messageId" in o7576) lf(o7576["messageId"], p + "/messageId", e, L92);
+if ("personId" in o7576) lf(o7576["personId"], p + "/personId", e, L16);
 }
 }
 }
@@ -6054,21 +6054,21 @@ if ("personId" in o7566) lf(o7566["personId"], p + "/personId", e, L16);
 
 function e707_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7570 = v;
-const g7570 = typeOf(x7570);
-const b7570: string[] = []; lf(x7570, p, b7570, L0); if (b7570.length) e.push(...b7570);
-if (g7570 === "object") {
-if (g7570 === 'object') { const o7570 = x7570 as Record<string, unknown>;
-if (!("threadId" in o7570)) e.push(p + "/threadId" + ': required');
-if (!("kind" in o7570)) e.push(p + "/kind" + ': required');
-if (!("starter" in o7570)) e.push(p + "/starter" + ': required');
-if ("threadId" in o7570) lf(o7570["threadId"], p + "/threadId", e, L13);
-if ("kind" in o7570) lf(o7570["kind"], p + "/kind", e, L207);
-if ("starter" in o7570) lf(o7570["starter"], p + "/starter", e, L1);
-if ("parentThreadId" in o7570) lf(o7570["parentThreadId"], p + "/parentThreadId", e, L13);
-if ("channelId" in o7570) lf(o7570["channelId"], p + "/channelId", e, L220);
-if ("scopeType" in o7570) lf(o7570["scopeType"], p + "/scopeType", e, L1);
-if ("scopeId" in o7570) lf(o7570["scopeId"], p + "/scopeId", e, L1);
+const x7580 = v;
+const g7580 = typeOf(x7580);
+const b7580: string[] = []; lf(x7580, p, b7580, L0); if (b7580.length) e.push(...b7580);
+if (g7580 === "object") {
+if (g7580 === 'object') { const o7580 = x7580 as Record<string, unknown>;
+if (!("threadId" in o7580)) e.push(p + "/threadId" + ': required');
+if (!("kind" in o7580)) e.push(p + "/kind" + ': required');
+if (!("starter" in o7580)) e.push(p + "/starter" + ': required');
+if ("threadId" in o7580) lf(o7580["threadId"], p + "/threadId", e, L13);
+if ("kind" in o7580) lf(o7580["kind"], p + "/kind", e, L207);
+if ("starter" in o7580) lf(o7580["starter"], p + "/starter", e, L1);
+if ("parentThreadId" in o7580) lf(o7580["parentThreadId"], p + "/parentThreadId", e, L13);
+if ("channelId" in o7580) lf(o7580["channelId"], p + "/channelId", e, L220);
+if ("scopeType" in o7580) lf(o7580["scopeType"], p + "/scopeType", e, L1);
+if ("scopeId" in o7580) lf(o7580["scopeId"], p + "/scopeId", e, L1);
 }
 }
 }
@@ -6076,17 +6076,17 @@ if ("scopeId" in o7570) lf(o7570["scopeId"], p + "/scopeId", e, L1);
 
 function e708_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7571 = v;
-const g7571 = typeOf(x7571);
-const b7571: string[] = []; lf(x7571, p, b7571, L0); if (b7571.length) e.push(...b7571);
-if (g7571 === "object") {
-if (g7571 === 'object') { const o7571 = x7571 as Record<string, unknown>;
-if (!("person" in o7571)) e.push(p + "/person" + ': required');
-if (!("threadId" in o7571)) e.push(p + "/threadId" + ': required');
-if (!("reason" in o7571)) e.push(p + "/reason" + ': required');
-if ("person" in o7571) lf(o7571["person"], p + "/person", e, L16);
-if ("threadId" in o7571) lf(o7571["threadId"], p + "/threadId", e, L13);
-if ("reason" in o7571) lf(o7571["reason"], p + "/reason", e, L1076);
+const x7581 = v;
+const g7581 = typeOf(x7581);
+const b7581: string[] = []; lf(x7581, p, b7581, L0); if (b7581.length) e.push(...b7581);
+if (g7581 === "object") {
+if (g7581 === 'object') { const o7581 = x7581 as Record<string, unknown>;
+if (!("person" in o7581)) e.push(p + "/person" + ': required');
+if (!("threadId" in o7581)) e.push(p + "/threadId" + ': required');
+if (!("reason" in o7581)) e.push(p + "/reason" + ': required');
+if ("person" in o7581) lf(o7581["person"], p + "/person", e, L16);
+if ("threadId" in o7581) lf(o7581["threadId"], p + "/threadId", e, L13);
+if ("reason" in o7581) lf(o7581["reason"], p + "/reason", e, L1076);
 }
 }
 }
@@ -6094,29 +6094,29 @@ if ("reason" in o7571) lf(o7571["reason"], p + "/reason", e, L1076);
 
 function e709_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7572 = v;
-const g7572 = typeOf(x7572);
-const b7572: string[] = []; lf(x7572, p, b7572, L0); if (b7572.length) e.push(...b7572);
-if (g7572 === "object") {
-if (g7572 === 'object') { const o7572 = x7572 as Record<string, unknown>;
-if (!("threadId" in o7572)) e.push(p + "/threadId" + ': required');
-if (!("fields" in o7572)) e.push(p + "/fields" + ': required');
-if ("threadId" in o7572) lf(o7572["threadId"], p + "/threadId", e, L13);
-if ("fields" in o7572) {
+const x7582 = v;
+const g7582 = typeOf(x7582);
+const b7582: string[] = []; lf(x7582, p, b7582, L0); if (b7582.length) e.push(...b7582);
+if (g7582 === "object") {
+if (g7582 === 'object') { const o7582 = x7582 as Record<string, unknown>;
+if (!("threadId" in o7582)) e.push(p + "/threadId" + ': required');
+if (!("fields" in o7582)) e.push(p + "/fields" + ': required');
+if ("threadId" in o7582) lf(o7582["threadId"], p + "/threadId", e, L13);
+if ("fields" in o7582) {
 {
-const x7573 = o7572["fields"];
-const g7573 = typeOf(x7573);
-const b7573: string[] = []; lf(x7573, p + "/fields", b7573, L4); if (b7573.length) e.push(...b7573);
-if (g7573 === "array") {
-if (g7573 === 'array') { const a7573 = x7573 as unknown[];
-for (let i7573 = 0; i7573 < a7573.length; i7573++) {
-lf(a7573[i7573], p + "/fields" + '/' + i7573, e, L1);
+const x7583 = o7582["fields"];
+const g7583 = typeOf(x7583);
+const b7583: string[] = []; lf(x7583, p + "/fields", b7583, L4); if (b7583.length) e.push(...b7583);
+if (g7583 === "array") {
+if (g7583 === 'array') { const a7583 = x7583 as unknown[];
+for (let i7583 = 0; i7583 < a7583.length; i7583++) {
+lf(a7583[i7583], p + "/fields" + '/' + i7583, e, L1);
 }
 }
 }
 }
 }
-if ("starter" in o7572) lf(o7572["starter"], p + "/starter", e, L16);
+if ("starter" in o7582) lf(o7582["starter"], p + "/starter", e, L16);
 }
 }
 }
@@ -6124,22 +6124,22 @@ if ("starter" in o7572) lf(o7572["starter"], p + "/starter", e, L16);
 
 function e712_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7576 = v;
-const g7576 = typeOf(x7576);
-const b7576: string[] = []; lf(x7576, p, b7576, L0); if (b7576.length) e.push(...b7576);
-if (g7576 === "object") {
-if (g7576 === 'object') { const o7576 = x7576 as Record<string, unknown>;
-if (!("removed" in o7576)) e.push(p + "/removed" + ': required');
-if ("removed" in o7576) lf(o7576["removed"], p + "/removed", e, L17);
-if ("messageIds" in o7576) {
+const x7586 = v;
+const g7586 = typeOf(x7586);
+const b7586: string[] = []; lf(x7586, p, b7586, L0); if (b7586.length) e.push(...b7586);
+if (g7586 === "object") {
+if (g7586 === 'object') { const o7586 = x7586 as Record<string, unknown>;
+if (!("removed" in o7586)) e.push(p + "/removed" + ': required');
+if ("removed" in o7586) lf(o7586["removed"], p + "/removed", e, L17);
+if ("messageIds" in o7586) {
 {
-const x7577 = o7576["messageIds"];
-const g7577 = typeOf(x7577);
-const b7577: string[] = []; lf(x7577, p + "/messageIds", b7577, L4); if (b7577.length) e.push(...b7577);
-if (g7577 === "array") {
-if (g7577 === 'array') { const a7577 = x7577 as unknown[];
-for (let i7577 = 0; i7577 < a7577.length; i7577++) {
-lf(a7577[i7577], p + "/messageIds" + '/' + i7577, e, L92);
+const x7587 = o7586["messageIds"];
+const g7587 = typeOf(x7587);
+const b7587: string[] = []; lf(x7587, p + "/messageIds", b7587, L4); if (b7587.length) e.push(...b7587);
+if (g7587 === "array") {
+if (g7587 === 'array') { const a7587 = x7587 as unknown[];
+for (let i7587 = 0; i7587 < a7587.length; i7587++) {
+lf(a7587[i7587], p + "/messageIds" + '/' + i7587, e, L92);
 }
 }
 }
@@ -6151,128 +6151,128 @@ lf(a7577[i7577], p + "/messageIds" + '/' + i7577, e, L92);
 }
 
 export const validators: Record<string, { in: Check; out: Check }> = {
-  "channels.agent_watch.set@1": { in: c255_in, out: d_s_c142c7dfda },
-  "channels.agents.add@1": { in: c256_in, out: d_s_c142c7dfda },
+  "channels.agent_watch.set@1": { in: c258_in, out: d_s_c142c7dfda },
+  "channels.agents.add@1": { in: c259_in, out: d_s_c142c7dfda },
   "channels.agents.remove@1": { in: d_s_dbaf158797, out: d_s_c142c7dfda },
-  "channels.archive@1": { in: c258_in, out: d_s_c142c7dfda },
-  "channels.create@1": { in: c259_in, out: d_s_c142c7dfda },
-  "channels.erase@1": { in: c260_in, out: c260_out },
-  "channels.get@1": { in: c261_in, out: d_s_c142c7dfda },
-  "channels.home@1": { in: c262_in, out: c262_out },
-  "channels.home_join@1": { in: c263_in, out: c263_out },
-  "channels.join@1": { in: c264_in, out: d_s_c142c7dfda },
-  "channels.leave@1": { in: c265_in, out: c265_out },
-  "channels.list@1": { in: c266_in, out: c266_out },
-  "channels.members.add@1": { in: c267_in, out: d_s_c142c7dfda },
-  "channels.members.remove@1": { in: c268_in, out: d_s_c142c7dfda },
-  "channels.stream@1": { in: c269_in, out: c269_out },
-  "channels.stream_prefs.get@1": { in: c270_in, out: c270_out },
-  "channels.stream_prefs.set@1": { in: c271_in, out: c271_out },
-  "channels.unarchive@1": { in: c272_in, out: d_s_c142c7dfda },
-  "channels.update@1": { in: c273_in, out: d_s_c142c7dfda },
-  "chat.agent_dm.mute@1": { in: c274_in, out: c274_out },
-  "chat.answer_block@1": { in: c275_in, out: c275_out },
-  "chat.approve_plan@1": { in: c276_in, out: c276_out },
-  "chat.aside@1": { in: c277_in, out: c277_out },
-  "chat.aside_keep@1": { in: c278_in, out: c278_out },
-  "chat.ask_level@1": { in: c279_in, out: c279_out },
-  "chat.ask_suggest@1": { in: c280_in, out: c280_out },
-  "chat.asks_of@1": { in: c281_in, out: d_s_ed21e8fac6 },
-  "chat.catch_up@1": { in: c282_in, out: c282_out },
-  "chat.chapters@1": { in: c283_in, out: c283_out },
-  "chat.chapters_write@1": { in: c284_in, out: c284_out },
-  "chat.composer.suggest@1": { in: c285_in, out: c285_out },
-  "chat.crew_line@1": { in: c286_in, out: c286_out },
-  "chat.delete_message@1": { in: d_s_1e7d706a53, out: c287_out },
-  "chat.edit@1": { in: c288_in, out: d_s_d0d3a2f28e },
-  "chat.flow_card@1": { in: c289_in, out: c289_out },
-  "chat.fork@1": { in: c290_in, out: c290_out },
-  "chat.handoff@1": { in: c291_in, out: c291_out },
-  "chat.helper.note@1": { in: c292_in, out: c292_out },
-  "chat.helper.note_seen@1": { in: c293_in, out: c293_out },
-  "chat.helper.notes@1": { in: c294_in, out: c294_out },
-  "chat.helper.restart@1": { in: c295_in, out: c295_out },
-  "chat.helper.start@1": { in: c296_in, out: c296_out },
-  "chat.helper.steer@1": { in: c297_in, out: c297_out },
-  "chat.helpers.list@1": { in: c298_in, out: c298_out },
-  "chat.history.page@1": { in: c299_in, out: c299_out },
-  "chat.history.search@1": { in: c300_in, out: c300_out },
-  "chat.hook_line@1": { in: c301_in, out: c301_out },
-  "chat.hook_resolve@1": { in: c302_in, out: c302_out },
-  "chat.make_task@1": { in: c303_in, out: c303_out },
+  "channels.archive@1": { in: c261_in, out: d_s_c142c7dfda },
+  "channels.create@1": { in: c262_in, out: d_s_c142c7dfda },
+  "channels.erase@1": { in: c263_in, out: c263_out },
+  "channels.get@1": { in: c264_in, out: d_s_c142c7dfda },
+  "channels.home@1": { in: c265_in, out: c265_out },
+  "channels.home_join@1": { in: c266_in, out: c266_out },
+  "channels.join@1": { in: c267_in, out: d_s_c142c7dfda },
+  "channels.leave@1": { in: c268_in, out: c268_out },
+  "channels.list@1": { in: c269_in, out: c269_out },
+  "channels.members.add@1": { in: c270_in, out: d_s_c142c7dfda },
+  "channels.members.remove@1": { in: c271_in, out: d_s_c142c7dfda },
+  "channels.stream@1": { in: c272_in, out: c272_out },
+  "channels.stream_prefs.get@1": { in: c273_in, out: c273_out },
+  "channels.stream_prefs.set@1": { in: c274_in, out: c274_out },
+  "channels.unarchive@1": { in: c275_in, out: d_s_c142c7dfda },
+  "channels.update@1": { in: c276_in, out: d_s_c142c7dfda },
+  "chat.agent_dm.mute@1": { in: c277_in, out: c277_out },
+  "chat.answer_block@1": { in: c278_in, out: c278_out },
+  "chat.approve_plan@1": { in: c279_in, out: c279_out },
+  "chat.aside@1": { in: c280_in, out: c280_out },
+  "chat.aside_keep@1": { in: c281_in, out: c281_out },
+  "chat.ask_level@1": { in: c282_in, out: c282_out },
+  "chat.ask_suggest@1": { in: c283_in, out: c283_out },
+  "chat.asks_of@1": { in: c284_in, out: d_s_ed21e8fac6 },
+  "chat.catch_up@1": { in: c285_in, out: c285_out },
+  "chat.chapters@1": { in: c286_in, out: c286_out },
+  "chat.chapters_write@1": { in: c287_in, out: c287_out },
+  "chat.composer.suggest@1": { in: c288_in, out: c288_out },
+  "chat.crew_line@1": { in: c289_in, out: c289_out },
+  "chat.delete_message@1": { in: d_s_1e7d706a53, out: c290_out },
+  "chat.edit@1": { in: c291_in, out: d_s_d0d3a2f28e },
+  "chat.flow_card@1": { in: c292_in, out: c292_out },
+  "chat.fork@1": { in: c293_in, out: c293_out },
+  "chat.handoff@1": { in: c294_in, out: c294_out },
+  "chat.helper.note@1": { in: c295_in, out: c295_out },
+  "chat.helper.note_seen@1": { in: c296_in, out: c296_out },
+  "chat.helper.notes@1": { in: c297_in, out: c297_out },
+  "chat.helper.restart@1": { in: c298_in, out: c298_out },
+  "chat.helper.start@1": { in: c299_in, out: c299_out },
+  "chat.helper.steer@1": { in: c300_in, out: c300_out },
+  "chat.helpers.list@1": { in: c301_in, out: c301_out },
+  "chat.history.page@1": { in: c302_in, out: c302_out },
+  "chat.history.search@1": { in: c303_in, out: c303_out },
+  "chat.hook_line@1": { in: c304_in, out: c304_out },
+  "chat.hook_resolve@1": { in: c305_in, out: c305_out },
+  "chat.make_task@1": { in: c306_in, out: c306_out },
   "chat.message.get@1": { in: d_s_da0a8cbea6, out: d_s_d0d3a2f28e },
-  "chat.message_person@1": { in: c305_in, out: c305_out },
-  "chat.messages.list@1": { in: c306_in, out: c306_out },
-  "chat.note_offer.answer@1": { in: c307_in, out: c307_out },
-  "chat.note_offer.make@1": { in: c308_in, out: c308_out },
-  "chat.noted@1": { in: c309_in, out: c309_out },
-  "chat.open_as_chat@1": { in: c310_in, out: d_s_2f215681e6 },
-  "chat.open_tab@1": { in: c311_in, out: c311_out },
-  "chat.pace_of@1": { in: c312_in, out: c312_out },
-  "chat.people_status@1": { in: c313_in, out: c313_out },
-  "chat.pin@1": { in: d_s_1e7d706a53, out: c314_out },
-  "chat.pins.list@1": { in: c315_in, out: c315_out },
-  "chat.plan.propose@1": { in: c316_in, out: d_s_d57a803e55 },
-  "chat.plan.reject@1": { in: c317_in, out: c317_out },
-  "chat.plan.step_done@1": { in: c318_in, out: c318_out },
-  "chat.post@1": { in: c319_in, out: d_s_d0d3a2f28e },
-  "chat.question.ask@1": { in: c320_in, out: d_s_4e30f81d76 },
-  "chat.question.withdraw@1": { in: d_s_c0c421f88f, out: c321_out },
-  "chat.react@1": { in: c322_in, out: c322_out },
-  "chat.read_floor@1": { in: c323_in, out: c323_out },
-  "chat.recent@1": { in: c324_in, out: c324_out },
-  "chat.remember@1": { in: c325_in, out: c325_out },
-  "chat.reply_details@1": { in: d_s_da0a8cbea6, out: c326_out },
-  "chat.round.decide@1": { in: c327_in, out: c327_out },
-  "chat.round.discuss@1": { in: c328_in, out: c328_out },
-  "chat.screen.get@1": { in: d_s_a02beb108e, out: c329_out },
-  "chat.search@1": { in: c330_in, out: c330_out },
-  "chat.share@1": { in: c331_in, out: c331_out },
-  "chat.start@1": { in: c332_in, out: d_s_2f215681e6 },
+  "chat.message_person@1": { in: c308_in, out: c308_out },
+  "chat.messages.list@1": { in: c309_in, out: c309_out },
+  "chat.note_offer.answer@1": { in: c310_in, out: c310_out },
+  "chat.note_offer.make@1": { in: c311_in, out: c311_out },
+  "chat.noted@1": { in: c312_in, out: c312_out },
+  "chat.open_as_chat@1": { in: c313_in, out: d_s_2f215681e6 },
+  "chat.open_tab@1": { in: c314_in, out: c314_out },
+  "chat.pace_of@1": { in: c315_in, out: c315_out },
+  "chat.people_status@1": { in: c316_in, out: c316_out },
+  "chat.pin@1": { in: d_s_1e7d706a53, out: c317_out },
+  "chat.pins.list@1": { in: c318_in, out: c318_out },
+  "chat.plan.propose@1": { in: c319_in, out: d_s_d57a803e55 },
+  "chat.plan.reject@1": { in: c320_in, out: c320_out },
+  "chat.plan.step_done@1": { in: c321_in, out: c321_out },
+  "chat.post@1": { in: c322_in, out: d_s_d0d3a2f28e },
+  "chat.question.ask@1": { in: c323_in, out: d_s_4e30f81d76 },
+  "chat.question.withdraw@1": { in: d_s_c0c421f88f, out: c324_out },
+  "chat.react@1": { in: c325_in, out: c325_out },
+  "chat.read_floor@1": { in: c326_in, out: c326_out },
+  "chat.recent@1": { in: c327_in, out: c327_out },
+  "chat.remember@1": { in: c328_in, out: c328_out },
+  "chat.reply_details@1": { in: d_s_da0a8cbea6, out: c329_out },
+  "chat.round.decide@1": { in: c330_in, out: c330_out },
+  "chat.round.discuss@1": { in: c331_in, out: c331_out },
+  "chat.screen.get@1": { in: d_s_a02beb108e, out: c332_out },
+  "chat.search@1": { in: c333_in, out: c333_out },
+  "chat.share@1": { in: c334_in, out: c334_out },
+  "chat.start@1": { in: c335_in, out: d_s_2f215681e6 },
   "chat.thread@1": { in: d_s_da0a8cbea6, out: d_s_2f215681e6 },
-  "chat.title_make@1": { in: c334_in, out: c334_out },
-  "chat.transcript.append@1": { in: c335_in, out: c335_out },
-  "chat.transcript.get@1": { in: c336_in, out: c336_out },
-  "chat.transcript.purge@1": { in: c337_in, out: d_s_c6cb50d174 },
-  "chat.transcript.read@1": { in: c338_in, out: c338_out },
-  "chat.transcript.search@1": { in: c339_in, out: c339_out },
-  "chat.transcript.summarize@1": { in: c340_in, out: c340_out },
-  "chat.transcript.summary@1": { in: c341_in, out: c341_out },
-  "chat.unpin@1": { in: d_s_1e7d706a53, out: c342_out },
-  "chats.presence@1": { in: c343_in, out: c343_out },
-  "chats.sidebar@1": { in: c344_in, out: c344_out },
-  "threads.add_agent@1": { in: c2096_in, out: d_s_2f215681e6 },
-  "threads.agent.configure@1": { in: c2097_in, out: d_s_2f215681e6 },
-  "threads.agent.create@1": { in: c2098_in, out: c2098_out },
-  "threads.agent_settings.set@1": { in: c2099_in, out: d_s_2f215681e6 },
-  "threads.archive@1": { in: c2100_in, out: c2100_out },
-  "threads.close@1": { in: c2101_in, out: d_s_2f215681e6 },
-  "threads.delete@1": { in: c2102_in, out: c2102_out },
-  "threads.erase@1": { in: c2103_in, out: c2103_out },
-  "threads.follow@1": { in: c2104_in, out: c2104_out },
-  "threads.get@1": { in: c2105_in, out: d_s_2f215681e6 },
-  "threads.invite_guest@1": { in: c2106_in, out: c2106_out },
-  "threads.leave@1": { in: c2107_in, out: c2107_out },
-  "threads.list@1": { in: c2108_in, out: d_s_ed21e8fac6 },
-  "threads.make_channel@1": { in: c2109_in, out: d_s_c142c7dfda },
-  "threads.mark_read@1": { in: c2110_in, out: c2110_out },
-  "threads.mark_unread_from@1": { in: c2111_in, out: c2111_out },
-  "threads.members.add@1": { in: c2112_in, out: d_s_2f215681e6 },
-  "threads.members.remove@1": { in: c2113_in, out: d_s_2f215681e6 },
-  "threads.move@1": { in: c2114_in, out: d_s_2f215681e6 },
-  "threads.open_state@1": { in: c2115_in, out: c2115_out },
-  "threads.outside_agent.add@1": { in: c2116_in, out: c2116_out },
-  "threads.outside_agent.remove@1": { in: d_s_21762a4164, out: c2117_out },
-  "threads.poke@1": { in: c2118_in, out: c2118_out },
+  "chat.title_make@1": { in: c337_in, out: c337_out },
+  "chat.transcript.append@1": { in: c338_in, out: c338_out },
+  "chat.transcript.get@1": { in: c339_in, out: c339_out },
+  "chat.transcript.purge@1": { in: c340_in, out: d_s_c6cb50d174 },
+  "chat.transcript.read@1": { in: c341_in, out: c341_out },
+  "chat.transcript.search@1": { in: c342_in, out: c342_out },
+  "chat.transcript.summarize@1": { in: c343_in, out: c343_out },
+  "chat.transcript.summary@1": { in: c344_in, out: c344_out },
+  "chat.unpin@1": { in: d_s_1e7d706a53, out: c345_out },
+  "chats.presence@1": { in: c346_in, out: c346_out },
+  "chats.sidebar@1": { in: c347_in, out: c347_out },
+  "threads.add_agent@1": { in: c2100_in, out: d_s_2f215681e6 },
+  "threads.agent.configure@1": { in: c2101_in, out: d_s_2f215681e6 },
+  "threads.agent.create@1": { in: c2102_in, out: c2102_out },
+  "threads.agent_settings.set@1": { in: c2103_in, out: d_s_2f215681e6 },
+  "threads.archive@1": { in: c2104_in, out: c2104_out },
+  "threads.close@1": { in: c2105_in, out: d_s_2f215681e6 },
+  "threads.delete@1": { in: c2106_in, out: c2106_out },
+  "threads.erase@1": { in: c2107_in, out: c2107_out },
+  "threads.follow@1": { in: c2108_in, out: c2108_out },
+  "threads.get@1": { in: c2109_in, out: d_s_2f215681e6 },
+  "threads.invite_guest@1": { in: c2110_in, out: c2110_out },
+  "threads.leave@1": { in: c2111_in, out: c2111_out },
+  "threads.list@1": { in: c2112_in, out: d_s_ed21e8fac6 },
+  "threads.make_channel@1": { in: c2113_in, out: d_s_c142c7dfda },
+  "threads.mark_read@1": { in: c2114_in, out: c2114_out },
+  "threads.mark_unread_from@1": { in: c2115_in, out: c2115_out },
+  "threads.members.add@1": { in: c2116_in, out: d_s_2f215681e6 },
+  "threads.members.remove@1": { in: c2117_in, out: d_s_2f215681e6 },
+  "threads.move@1": { in: c2118_in, out: d_s_2f215681e6 },
+  "threads.open_state@1": { in: c2119_in, out: c2119_out },
+  "threads.outside_agent.add@1": { in: c2120_in, out: c2120_out },
+  "threads.outside_agent.remove@1": { in: d_s_21762a4164, out: c2121_out },
+  "threads.poke@1": { in: c2122_in, out: c2122_out },
   "threads.remove_agent@1": { in: d_s_21762a4164, out: d_s_2f215681e6 },
-  "threads.reopen@1": { in: c2120_in, out: d_s_2f215681e6 },
-  "threads.restore@1": { in: c2121_in, out: d_s_2f215681e6 },
-  "threads.set_agent_replies@1": { in: c2122_in, out: d_s_2f215681e6 },
-  "threads.set_folder@1": { in: c2123_in, out: d_s_2f215681e6 },
-  "threads.set_mode@1": { in: c2124_in, out: d_s_2f215681e6 },
-  "threads.set_plan_mode@1": { in: c2125_in, out: d_s_2f215681e6 },
-  "threads.unarchive@1": { in: c2126_in, out: c2126_out },
-  "threads.update@1": { in: c2127_in, out: d_s_2f215681e6 },
+  "threads.reopen@1": { in: c2124_in, out: d_s_2f215681e6 },
+  "threads.restore@1": { in: c2125_in, out: d_s_2f215681e6 },
+  "threads.set_agent_replies@1": { in: c2126_in, out: d_s_2f215681e6 },
+  "threads.set_folder@1": { in: c2127_in, out: d_s_2f215681e6 },
+  "threads.set_mode@1": { in: c2128_in, out: d_s_2f215681e6 },
+  "threads.set_plan_mode@1": { in: c2129_in, out: d_s_2f215681e6 },
+  "threads.unarchive@1": { in: c2130_in, out: c2130_out },
+  "threads.update@1": { in: c2131_in, out: d_s_2f215681e6 },
 };
 
 export const eventValidators: Record<string, Check> = {

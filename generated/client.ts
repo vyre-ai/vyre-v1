@@ -225,6 +225,7 @@ export function createClient(transport: Transport) {
       dependencies: call("automations.dependencies", 1),
       draft: {
         discard: call("automations.draft.discard", 1),
+        propose: call("automations.draft.propose", 1),
         save: call("automations.draft.save", 1),
       },
       draft_connector: call("automations.draft_connector", 1),
@@ -264,6 +265,10 @@ export function createClient(transport: Transport) {
       },
       preview_promote: call("automations.preview_promote", 1),
       promote: call("automations.promote", 1),
+      proposal: {
+        accept: call("automations.proposal.accept", 1),
+        discard: call("automations.proposal.discard", 1),
+      },
       read_docs: call("automations.read_docs", 1),
       read_link: call("automations.read_link", 1),
       replay: call("automations.replay", 1),
@@ -2283,6 +2288,7 @@ export function createClient(transport: Transport) {
       custom_list: call("providers.custom_list", 1),
       custom_remove: call("providers.custom_remove", 1),
       list: call("providers.list", 1),
+      local_signins: call("providers.local_signins", 1),
       mark_signin_needed: call("providers.mark_signin_needed", 1),
       own_people: call("providers.own_people", 1),
       remove: call("providers.remove", 1),

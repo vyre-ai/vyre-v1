@@ -12,7 +12,7 @@ const tools = new Set(
     .map(toolName),
 );
 
-for (const skill of ["sites", "forms", "artifacts", "focus-apps"]) {
+for (const skill of ["sites", "forms", "artifacts", "focus-apps", "automate-with-apps"]) {
   test(`${skill}: every tool it names exists`, () => {
     const text = fs.readFileSync(new URL(`./${skill}/SKILL.md`, import.meta.url), "utf8");
     const named = [...text.matchAll(/`([a-z]+_[a-z_]+)`/g)]

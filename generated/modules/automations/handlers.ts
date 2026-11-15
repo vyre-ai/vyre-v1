@@ -21,6 +21,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.delete": Handler<"automations.delete", X>;
   "automations.dependencies": Handler<"automations.dependencies", X>;
   "automations.draft.discard": Handler<"automations.draft.discard", X>;
+  "automations.draft.propose": Handler<"automations.draft.propose", X>;
   "automations.draft.save": Handler<"automations.draft.save", X>;
   "automations.draft_connector": Handler<"automations.draft_connector", X>;
   "automations.fire": Handler<"automations.fire", X>;
@@ -51,6 +52,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.packages.list": Handler<"automations.packages.list", X>;
   "automations.preview_promote": Handler<"automations.preview_promote", X>;
   "automations.promote": Handler<"automations.promote", X>;
+  "automations.proposal.accept": Handler<"automations.proposal.accept", X>;
+  "automations.proposal.discard": Handler<"automations.proposal.discard", X>;
   "automations.read_docs": Handler<"automations.read_docs", X>;
   "automations.read_link": Handler<"automations.read_link", X>;
   "automations.replay": Handler<"automations.replay", X>;

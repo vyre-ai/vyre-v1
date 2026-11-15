@@ -5782,6 +5782,335 @@
     },
     {
       "blocks": [],
+      "cap": "automations.draft.propose",
+      "deferred": false,
+      "description": "An Assistant puts steps on the page as a proposal for a person to accept: nothing is saved as the definition, made live or turned on. With no automationId an empty Automation that is off is made first",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "definition": {
+            "properties": {
+              "ai": {
+                "properties": {
+                  "backupKeyId": {
+                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "type": "string"
+                  },
+                  "keyId": {
+                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "allowSelfTrigger": {
+                "type": "boolean"
+              },
+              "nodes": {
+                "items": {
+                  "properties": {
+                    "ai": {
+                      "properties": {
+                        "agentId": {
+                          "examples": [
+                            "agt_a1b2c3"
+                          ],
+                          "pattern": "^agt_[a-z0-9]+$",
+                          "type": "string"
+                        },
+                        "approver": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "assigned": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "backupKeyId": {
+                          "type": "string"
+                        },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
+                        "escalateTo": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
+                          "type": "string"
+                        },
+                        "nudgeMinutes": {
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "reviewer": {
+                          "properties": {
+                            "id": {
+                              "examples": [
+                                "usr_a1b2c3"
+                              ],
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "person",
+                                "agent",
+                                "group",
+                                "role",
+                                "automation"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "timeoutMinutes": {
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "askBeforeSending": {
+                      "type": "boolean"
+                    },
+                    "branches": {
+                      "items": {
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          },
+                          "when": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "to"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "id": {
+                      "examples": [
+                        "step_1"
+                      ],
+                      "type": "string"
+                    },
+                    "input": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "key": {
+                      "description": "A StepDef key",
+                      "examples": [
+                        "records.update"
+                      ],
+                      "type": "string"
+                    },
+                    "next": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "onError": {
+                      "properties": {
+                        "codes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "max": {
+                          "maximum": 10,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "mode": {
+                          "enum": [
+                            "fail",
+                            "continue",
+                            "retry",
+                            "route",
+                            "skip",
+                            "substitute"
+                          ],
+                          "type": "string"
+                        },
+                        "output": {
+                          "description": "Any JSON value"
+                        },
+                        "route": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "mode"
+                      ],
+                      "type": "object"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "input"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "start": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "triggers": {
+                "items": {
+                  "properties": {
+                    "config": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "filter": {
+                      "description": "Any JSON value"
+                    },
+                    "key": {
+                      "examples": [
+                        "record_change"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "triggers",
+              "nodes"
+            ],
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "definition",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "name": "automations_draft_propose",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.draft.save",
       "deferred": false,
       "description": "Save the edit as a draft as the person goes; an Off Automation saves at once, an On one keeps it apart until Make live",
@@ -6771,6 +7100,58 @@
         "type": "object"
       },
       "name": "automations_promote",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.proposal.accept",
+      "deferred": false,
+      "description": "A person takes the Assistant's proposal: an off Automation saves it, an on one keeps it as their draft until Make live. An agent is refused",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_proposal_accept",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.proposal.discard",
+      "deferred": false,
+      "description": "Throw the Assistant's proposal away; an empty Automation that proposing made goes to Trash with it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_proposal_discard",
       "planMode": "blocked",
       "toolset": "automations",
       "v": 1
@@ -50223,6 +50604,21 @@
         "type": "object"
       },
       "name": "providers_list",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.local_signins",
+      "deferred": false,
+      "description": "Which Claude Code and Codex sign-ins are on the computer this Space runs on: yes or no for each, never a path or an account name. The AI card shows its \"on this computer\" rows only for a yes.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "providers_local_signins",
       "planMode": "allowed",
       "toolset": "vault",
       "v": 1

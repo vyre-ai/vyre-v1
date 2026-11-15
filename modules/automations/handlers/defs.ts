@@ -49,6 +49,7 @@ import { admit, contractOf } from "../val.ts";
 import { containsSecret } from "../trust.ts";
 import { missingMessage } from "../../../lib/words/step-missing.ts";
 import type { Alerts, AutoCtx, Automation, Db, Definition, Grant, Node, Policy } from "../projections.ts";
+import { findProposal, proposalOut } from "../proposals.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -325,7 +326,7 @@ function hasPastedSecret(value: unknown): boolean {
   });
 }
 
-function refuseSecret(ctx: AutoCtx, def: Definition): void {
+export function refuseSecret(ctx: AutoCtx, def: Definition): void {
   if (!hasPastedSecret(def)) return;
   raise(ctx, "validation.bad_input", "A definition cannot hold a secret. Use a connection.", { reason: "secret" });
 }
@@ -736,10 +737,12 @@ async function blocksGoingLive(
 export async function get(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   const d = findDraft(ctx.db, a.id);
+  const p = findProposal(ctx.db, a.id);
   return {
     automation: out(a),
     canEdit: await canChangeSpace(ctx, a),
     ...(d ? { draft: { definition: d.definition, rev: d.rev, baseVersion: d.baseVersion, by: d.by, at: d.at } } : {}),
+    ...(p ? { proposal: proposalOut(p) } : {}),
   };
 }
 
@@ -913,7 +916,7 @@ export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
 
 const EMPTY: Definition = { triggers: [{ key: "manual" }], nodes: [] };
 
-function checkStructure(ctx: AutoCtx, def: Definition): void {
+export function checkStructure(ctx: AutoCtx, def: Definition): void {
   const bad = structuralIssues(def);
   if (bad.length) raise(ctx, "validation.bad_input", bad[0]!.message, { issues: bad });
 }

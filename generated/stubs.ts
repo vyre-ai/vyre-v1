@@ -225,6 +225,7 @@ export function stubs(ctx: CallCtx) {
       dependencies: call("automations.dependencies"),
       draft: {
         discard: call("automations.draft.discard"),
+        propose: call("automations.draft.propose"),
         save: call("automations.draft.save"),
       },
       draft_connector: call("automations.draft_connector"),
@@ -264,6 +265,10 @@ export function stubs(ctx: CallCtx) {
       },
       preview_promote: call("automations.preview_promote"),
       promote: call("automations.promote"),
+      proposal: {
+        accept: call("automations.proposal.accept"),
+        discard: call("automations.proposal.discard"),
+      },
       read_docs: call("automations.read_docs"),
       read_link: call("automations.read_link"),
       replay: call("automations.replay"),
@@ -2283,6 +2288,7 @@ export function stubs(ctx: CallCtx) {
       custom_list: call("providers.custom_list"),
       custom_remove: call("providers.custom_remove"),
       list: call("providers.list"),
+      local_signins: call("providers.local_signins"),
       mark_signin_needed: call("providers.mark_signin_needed"),
       own_people: call("providers.own_people"),
       remove: call("providers.remove"),

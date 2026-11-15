@@ -442,3 +442,17 @@ Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9
 `backup.export_status` answers, besides the archive's file, `leftOut` (an integer: how many files the archive could not hold and names on its `NOT-EXPORTED.txt` page) and `filesKept` (how many files it holds), both present only when at least one file was left out. They are read from the archive itself. The export screen uses them to say in one line how many files were left out and that the list is in the zip.
 
 Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
+
+## 15 Nov 2026 (rc.29): Automations: drafts saved as you go, Make live, a test of the draft, and an Assistant's proposal a person accepts (lanes b-auto2 and the lead)
+
+New capabilities, all on the `automations` tool:
+- `automations.draft.save`, `automations.draft.discard`, `automations.make_live`: an edit to an Automation that is on is kept as a draft with a `rev`; a write carries the rev or version it read and is refused in one sentence when someone else wrote first; Make live makes the draft the next version. An off Automation saves at once.
+- `automations.test_events`: real past starts of a trigger, for a test. `automations.test` gains optional `draft` and `eventRunId`.
+- `automations.draft.propose`: an Assistant puts steps on the page as a proposal with a one-line summary. Nothing proposed is saved as the definition, made live or turned on. With no `automationId` an empty Automation that is off is made first. The answer carries `ok` and `issues` (what is still missing).
+- `automations.proposal.accept`: a person takes the proposal (an off Automation saves it; an on one keeps it as their draft until Make live). An agent is refused. A proposal made before the Automation or its draft changed is refused in one sentence and kept.
+- `automations.proposal.discard`: a person who may change the Automation, or the Assistant that proposed it; an empty Automation that proposing made goes to Trash with it.
+- `automations.get` answers two optional fields: `draft` and `proposal`.
+
+All additions; nothing an older client sends changes meaning.
+
+Signed: lead, 15 Nov 2026

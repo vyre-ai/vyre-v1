@@ -722,6 +722,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_draft_propose",
+      "summary": "An Assistant puts steps on the page as a proposal for a person to accept: nothing is saved as the definition, made live or turned on. With no automationId an empty Automation that is off is made first",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_draft_save",
       "summary": "Save the edit as a draft as the person goes; an Off Automation saves at once, an On one keeps it apart until Make live",
       "toolset": "automations"
@@ -850,6 +856,18 @@
       "deferred": false,
       "name": "automations_promote",
       "summary": "Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_proposal_accept",
+      "summary": "A person takes the Assistant's proposal: an off Automation saves it, an on one keeps it as their draft until Make live. An agent is refused",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_proposal_discard",
+      "summary": "Throw the Assistant's proposal away; an empty Automation that proposing made goes to Trash with it",
       "toolset": "automations"
     },
     {
@@ -7336,6 +7354,12 @@
       "deferred": false,
       "name": "providers_list",
       "summary": "My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month's usage",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "providers_local_signins",
+      "summary": "Which Claude Code and Codex sign-ins are on the computer this Space runs on: yes or no for each, never a path or an account name. The AI card shows its \"on this computer\" rows only for a yes.",
       "toolset": "vault"
     },
     {
