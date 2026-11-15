@@ -67,14 +67,14 @@ test("scrolling is remembered per tab and address, and per tab for the list; a v
   const w = world([feed, list]);
   feed.scrollTop = 4500; // the chat filling in jumps to its end
   w.emit("scroll", { target: feed });
-  assert.deepEqual(recalled(bodyKey("chats", "a")), { "stream-list#0": 900 }, "what was remembered is kept until the person has touched the page");
+  assert.deepEqual(recalled(bodyKey("chats", "a")), { "stream-list#0": { y: 900 } }, "what was remembered is kept until the person has touched the page");
   w.emit("wheel", {});
   feed.scrollTop = 1200;
   w.emit("scroll", { target: feed });
   list.scrollTop = 300;
   w.emit("scroll", { target: list });
-  assert.deepEqual(recalled(bodyKey("chats", "a")), { "stream-list#0": 1200 });
-  assert.deepEqual(recalled(sideKey("chats")), { "sidebar-list#0": 300 });
+  assert.deepEqual(recalled(bodyKey("chats", "a")), { "stream-list#0": { y: 1200 } });
+  assert.deepEqual(recalled(sideKey("chats")), { "sidebar-list#0": { y: 300 } });
   w.stop();
 });
 
@@ -88,7 +88,7 @@ test("coming back to an address puts the scrollers where they were; a list left 
   w.emit("scroll", { target: feed });
   list.scrollTop = 4500;
   w.emit("scroll", { target: list });
-  assert.equal(recalled(sideKey("chats"))?.["sidebar-list#0"], -1, "at the end is remembered as the end");
+  assert.equal(recalled(sideKey("chats"))?.["sidebar-list#0"]?.y, -1, "at the end is remembered as the end");
   w.go("files", "x");
   feed.scrollTop = 0; // another view draws, its scroller starts at the top
   w.go("chats", "a");
@@ -122,4 +122,29 @@ test("a view that does not scroll leaves nothing behind", () => {
   rememberScroll("k", "s#0", { scrollTop: 10, scrollHeight: 5000, clientHeight: 500 });
   rememberScroll("k", "s#0", { scrollTop: 0, scrollHeight: 400, clientHeight: 500 });
   assert.deepEqual(recalled("k"), {});
+});
+
+test("what was at the top edge is put back at the same distance, even when history has arrived above it since", () => {
+  forgetScrolls();
+  const feed = el("stream-list", "body", 1612);
+  // the message sits at a place in the feed's content; where it shows depends on how far the feed is scrolled
+  let contentY = 1612 + 30;
+  const rowTop = (): number => 100 + contentY - feed.scrollTop;
+  const mock = feed as unknown as Record<string, unknown>;
+  mock["getBoundingClientRect"] = () => ({ top: 100, bottom: 600 });
+  mock["querySelectorAll"] = () => [
+    { getAttribute: () => "msg-41", getBoundingClientRect: () => ({ top: rowTop(), bottom: rowTop() + 60 }) },
+  ];
+  mock["querySelector"] = () => ({ getBoundingClientRect: () => ({ top: rowTop(), bottom: rowTop() + 60 }) });
+  rememberScroll(bodyKey("chats", "a"), "stream-list#0", feed as never);
+  assert.deepEqual(recalled(bodyKey("chats", "a")), { "stream-list#0": { y: 1612, anchor: { id: "msg-41", off: 30 } } });
+  const w = world([feed]);
+  w.go("files", "x");
+  feed.scrollTop = 0;
+  // the chat comes back with older messages drawn above: the same message now sits 400 px further down the content
+  contentY += 400;
+  w.go("chats", "a");
+  w.tick(2);
+  assert.equal(feed.scrollTop, 1612 + 400, "the page moved so the same message is where it was");
+  w.stop();
 });

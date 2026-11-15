@@ -143,6 +143,8 @@ export interface ShellHub {
   /** Show a tab the strip selected. */
   showTab(tab: TabEntry): void;
   newTab(): TabEntry;
+  /** The tab closed last comes back and is shown (Cmd-Shift-T). */
+  reopenTab(): void;
   /** Close a tab (the selected one when no key) and show the tab that is selected afterwards. */
   closeTab(key?: string): void;
   /** Every query key carries the open Space's id first. */
@@ -497,6 +499,19 @@ export function createShellHub(options: HubOptions): ShellHub {
       const s = open();
       holder?.();
       s.tabs.close(key ?? s.tabs.state().active);
+      const now = s.tabs.state();
+      const t = now.tabs.find((x) => x.key === now.active);
+      if (t !== undefined) {
+        s.place = t.place;
+        s.hash = t.hash ?? "";
+      }
+      emit();
+    },
+    reopenTab() {
+      const s = open();
+      if (!s.tabs.canReopen()) return;
+      holder?.();
+      s.tabs.reopen();
       const now = s.tabs.state();
       const t = now.tabs.find((x) => x.key === now.active);
       if (t !== undefined) {

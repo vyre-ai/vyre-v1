@@ -1,3 +1,4 @@
+import { NewTabSidebar } from "../tabs/NewTabSidebar.tsx";
 import { takeOpenHow } from "../tabs/open-how.ts";
 import { lookApplier, startupPlan } from "../providers/settings-look.ts";
 import { sessionTheme } from "./space-theme.ts";
@@ -659,7 +660,16 @@ export function ShellHost({
     sessionTheme(target, false);
     onSwitchSpace(id);
   };
-  const renderNewTab = (): ReactElement =>
+  const renderNewTab = (): ReactElement => (
+    <>
+      <NewTabSidebar
+        places={[...hub.rail().top, ...hub.rail().bottom]}
+        onGo={(place) => navRef.current?.go(place)}
+      />
+      {renderNewTabBody()}
+    </>
+  );
+  const renderNewTabBody = (): ReactElement =>
     search ? (
       <NewTabSearch
         data={search}

@@ -559,6 +559,9 @@ export function Shell(props: ShellProps): ReactElement {
       } else if (k.type === "new-tab") {
         e.preventDefault();
         hub.newTab();
+      } else if (k.type === "reopen-tab") {
+        e.preventDefault();
+        hub.reopenTab();
       } else if (k.type === "close-tab") {
         e.preventDefault();
         hub.closeTab();
