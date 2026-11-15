@@ -543,37 +543,26 @@ test("the message menu keeps every item it had and puts Remember This at its fir
   const plain = labels(
     menuFor(msg("m1", "hello"), false, { ...actions, memoryEntries: undefined } as MessageActions, () => undefined),
   );
-  // the message menu is the short list (G14) and the memory items, part of the owner's memory journey, sit at its first level, two presses from the bar (not behind More)
-  assert.deepEqual(plain, ["Copy", "Reply in thread", "Pin", "Add reaction"]);
-  assert.deepEqual(withMemory, [
-    "Copy",
-    "Reply in thread",
-    "Pin",
-    "Add reaction",
-    "-",
-    "Remember This",
-    "Add to a Page…",
-    "Forget This",
-  ]);
+  // the message menu is the short list (owner, 16 Nov): Memory is one row that opens Remember This, Add to a Page and Forget This; the rest is behind More
+  assert.deepEqual(plain, ["Copy", "Reply in thread", "Add reaction", "Pin", "More"]);
+  assert.deepEqual(withMemory, ["Copy", "Reply in thread", "Add reaction", "Pin", "Memory", "More"]);
   const mineMenu = menuFor(msg("m1", "hello", "text"), true, actions, () => undefined);
   assert.deepEqual(labels(mineMenu), [
     "Copy",
     "Reply in thread",
-    "Pin",
     "Add reaction",
-    "-",
-    "Remember This",
-    "Add to a Page…",
-    "Forget This",
-    "-",
+    "Pin",
+    "Edit",
+    "Delete",
+    "Memory",
     "More",
   ]);
   shown.length = 0;
-  (mineMenu.find((e) => "label" in e && e.label === "More") as { onSelect: () => void }).onSelect();
-  assert.deepEqual(shown.at(-1), ["Edit", "-", "Delete"]);
+  (mineMenu.find((e) => "label" in e && e.label === "Memory") as { onSelect: () => void }).onSelect();
+  assert.deepEqual(shown.at(-1), ["Remember This", "Add to a Page…", "Forget This"]);
   assert.deepEqual(
     labels(menuFor(msg("q1", "", "quiet"), false, actions, () => undefined)),
-    ["Copy", "Reply in thread", "Pin", "Add reaction"],
+    ["Copy", "Reply in thread", "Add reaction", "Pin", "More"],
     "a quiet event line has no memory items",
   );
   const entries = memoryEntries(
