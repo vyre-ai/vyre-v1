@@ -239,11 +239,14 @@ export default defineManifest({
           terminal: terminalRow,
           lease: t.opt(
             t.str({
-              description: "This take-over's lease: every batch of keys carries it, and a batch of an older take-over is refused",
+              description:
+                "This take-over's lease: every batch of keys carries it, and a batch of an older take-over is refused",
             }),
           ),
           nextSeq: t.opt(
-            t.int({ description: "The number the next batch of keys of this take-over carries (1 for a new take-over)" }),
+            t.int({
+              description: "The number the next batch of keys of this take-over carries (1 for a new take-over)",
+            }),
           ),
         },
         on: ["terminal", "/terminalId"],
@@ -295,10 +298,13 @@ export default defineManifest({
             minItems: 1,
             maxItems: 200,
           }),
-          lease: t.str({ description: "The lease terminal.take_over answered: a batch of an older take-over is refused" }),
+          lease: t.str({
+            description: "The lease terminal.take_over answered: a batch of an older take-over is refused",
+          }),
           seq: t.int({
             minimum: 1,
-            description: "This batch's number in the take-over, from the take_over answer's nextSeq: applied in order, at most once, a gap refused",
+            description:
+              "This batch's number in the take-over, from the take_over answer's nextSeq: applied in order, at most once, a gap refused",
           }),
           // answer with the screen a moment after the keys landed (what terminal.capture says), so a key shows in one round trip
           capture: t.opt(t.bool()),
