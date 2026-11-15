@@ -163,7 +163,10 @@ export async function agentDeleteWalk(
     const withAna = async (agentId: string): Promise<void> => {
       if (ana === null) {
         const roles = (await api("access.roles.list", {})).roles as { id: string; name: string }[];
-        const invite = await api("members.invites.create", { role: roles.find((r) => r.name === "Member")!.id, idempotencyKey: "ad-invite" });
+        const invite = await api("members.invites.create", {
+          role: roles.find((r) => r.name === "Member")!.id,
+          idempotencyKey: "ad-invite",
+        });
         const code = decodeURIComponent(new URL(invite.link).pathname.split("/").pop() ?? "");
         const r = await fetch(`${web.origin}/v1/members/accept`, {
           method: "POST",
