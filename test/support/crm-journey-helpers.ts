@@ -92,7 +92,6 @@ export async function session<T>(
     await page.getByTestId("claim-password").fill("fixture crm password123");
     await page.getByTestId("claim-confirm").fill("fixture crm password123");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     const origin = s.web.origin;

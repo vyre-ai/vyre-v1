@@ -647,8 +647,8 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
         block,
         waiting
           ? [
-              { key: "approve", label: "Approve" },
-              { key: "reject", label: "Decline", danger: true },
+              { key: "approve", label: "Allow" },
+              { key: "reject", label: "Deny", danger: true },
             ]
           : [],
         run,
@@ -687,9 +687,9 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
       {problem ? <StatusLine tone="bad" testID={`blk-plan-${block.id}-problem`} text={problem} /> : null}
       {waiting ? (
         <View style={styles.acts}>
-          <Btn id={`blk-plan-${block.id}-approve`} label="Approve" primary onPress={approve} />
+          <Btn id={`blk-plan-${block.id}-approve`} label="Allow" primary onPress={approve} />
           <Btn id={`blk-plan-${block.id}-edit`} label="Change it" onPress={() => void change()} />
-          <Btn id={`blk-plan-${block.id}-reject`} label="Decline" muted onPress={reject} />
+          <Btn id={`blk-plan-${block.id}-reject`} label="Deny" muted onPress={reject} />
         </View>
       ) : state === "rejected" ? (
         <StatusLine tone="bad" testID={`blk-plan-${block.id}-state`} text="Plan declined" />

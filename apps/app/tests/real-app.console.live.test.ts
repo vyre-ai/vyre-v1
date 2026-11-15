@@ -60,7 +60,6 @@ test("the real app on a booted daemon: the Console uses real backup, device and 
     await page.getByTestId("claim-password").fill("correct horse battery 9");
     await page.getByTestId("claim-confirm").fill("correct horse battery 9");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });

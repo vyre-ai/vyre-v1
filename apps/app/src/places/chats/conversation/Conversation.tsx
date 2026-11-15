@@ -2692,6 +2692,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 4,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,

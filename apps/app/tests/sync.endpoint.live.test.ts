@@ -26,7 +26,6 @@ test("configured loopback address advertises its real WebSocket origin and answe
     ])
       await page.getByTestId(id!).fill(value!);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30000 });

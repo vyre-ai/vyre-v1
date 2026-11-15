@@ -45,7 +45,6 @@ test(
       ])
         await page.getByTestId(id!).fill(value!);
       await page.getByTestId("claim-next").click();
-      await page.getByTestId("claim-saved").click();
       await page.getByTestId("claim-create").click();
       await dismissOnboarding(page as never);
 

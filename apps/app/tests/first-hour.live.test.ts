@@ -50,7 +50,7 @@ test("first hour on a server whose Space has no name: claim, setup, name, invite
       .innerText()
       .catch(() => "");
     notes.push(`fingerprint line: ${fp}`);
-    assert.match(fp, /^Server fingerprint .*It matches the link your server printed\./);
+    assert.match(fp, /^Check this code matches the one your server printed: [0-9a-f ]+$/);
     await page.getByTestId("claim-next").click();
     await page.getByTestId("claim-code").waitFor({ timeout: 20_000 });
     await shot("fh-1-recovery");
@@ -58,9 +58,18 @@ test("first hour on a server whose Space has no name: claim, setup, name, invite
     assert.match(rec, /shown only now/);
     assert.match(rec, /password manager/);
     assert.match(rec, /forget your password/);
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
-    await page.getByTestId("onboarding").waitFor({ timeout: 40_000 });
+    // prototype scenes team-3-ai and team-4-home: what opens by itself is the one-card Connect your AI, not the six-step screen; Not now goes to the chat, and the full setup is one press away on its rows
+    await page.getByTestId("first-entry-card").waitFor({ timeout: 40_000 });
+    await shot("fh-1b-first-entry");
+    const first = await body();
+    assert.match(first, /Connect your AI/);
+    assert.ok(!/Step \d+ of/.test(first), "the first screen is one card, not a six-step setup");
+    await page.getByTestId("onboarding-close").click();
+    await page.getByTestId("shell").waitFor({ timeout: 20_000 });
+    await page.locator('[data-testid^="landing-setup-"]').first().waitFor({ timeout: 20_000 });
+    await page.locator('[data-testid^="landing-setup-"]').first().click();
+    await page.getByTestId("onboarding").waitFor({ timeout: 20_000 });
     await guard.check("setup");
     // every setup step, skipped one by one
     const titles: string[] = [];

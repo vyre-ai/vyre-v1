@@ -2,7 +2,7 @@
 // Personal Space only, saved as the same fields a sign-in saves. Nothing is read where there is none, and a Team Space's server never reads its own disk for anyone.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readLocalSignin } from "./local-signin.ts";
+import { localSigninsPresent, readLocalSignin } from "./local-signin.ts";
 import { createProviderSignin } from "./provider-signin.ts";
 
 const jwt = (claims: Record<string, unknown>): string =>
@@ -153,4 +153,71 @@ test("the port uses it only when the daemon gave it a reader (a Personal Space),
     team.start({ id: "sub_t", provider: "codex", person: "usr_maya", local: true }),
     /Personal Space only/,
   );
+});
+
+test("which sign-ins are on this computer: present, absent, and a CLI that is there but not signed in; yes or no only", () => {
+  const both = localSigninsPresent({
+    home: "/h",
+    env: {},
+    platform: "linux",
+    readFile: disk({ "/h/.codex/auth.json": CODEX, "/h/.claude/.credentials.json": CLAUDE }),
+  });
+  assert.deepEqual(both, { claudeCode: true, codex: true });
+  assert.deepEqual(Object.keys(both).sort(), ["claudeCode", "codex"], "nothing but a yes or no for each engine");
+  assert.deepEqual(
+    localSigninsPresent({ home: "/h", env: {}, platform: "linux", readFile: disk({ "/h/.codex/auth.json": CODEX }) }),
+    { claudeCode: false, codex: true },
+    "one of them",
+  );
+  assert.deepEqual(localSigninsPresent({ home: "/h", env: {}, platform: "linux", readFile: () => null }), {
+    claudeCode: false,
+    codex: false,
+  });
+  // the program is installed and ran once (its files are there) but nobody signed in: no token, so no
+  assert.deepEqual(
+    localSigninsPresent({
+      home: "/h",
+      env: {},
+      platform: "linux",
+      readFile: disk({
+        "/h/.codex/auth.json": '{"OPENAI_API_KEY":null,"tokens":{}}',
+        "/h/.claude/.credentials.json": "{}",
+      }),
+    }),
+    { claudeCode: false, codex: false },
+  );
+  // a Mac: Claude Code's Keychain entry is asked about, never read, so the Mac shows no prompt
+  let read = 0;
+  const mac = localSigninsPresent({
+    home: "/h",
+    env: {},
+    platform: "darwin",
+    readFile: () => null,
+    keychain: () => {
+      read++;
+      return CLAUDE;
+    },
+    keychainHas: () => true,
+  });
+  assert.deepEqual(mac, { claudeCode: true, codex: false });
+  assert.equal(read, 0, "the Keychain secret is not read to answer");
+  assert.equal(
+    localSigninsPresent({ home: "/h", env: {}, platform: "darwin", readFile: () => null, keychainHas: () => false })
+      .claudeCode,
+    false,
+  );
+});
+
+test("the port answers the same yes or no from the daemon's reader, and no for both where it was not given one (a Team Space)", () => {
+  const fetch = (async () => {
+    throw new Error("no network in this test");
+  }) as never;
+  assert.deepEqual(
+    createProviderSignin({ fetch, localPresent: () => ({ claudeCode: true, codex: false }) }).localPresent(),
+    {
+      claudeCode: true,
+      codex: false,
+    },
+  );
+  assert.deepEqual(createProviderSignin({ fetch }).localPresent(), { claudeCode: false, codex: false });
 });

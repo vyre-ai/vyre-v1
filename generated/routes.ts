@@ -29761,6 +29761,24 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/providers/local_signins",
+    "cap": "providers.local_signins",
+    "v": 1,
+    "module": "vault",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/providers/mark_signin_needed",
     "cap": "providers.mark_signin_needed",
     "v": 1,
@@ -33141,7 +33159,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/addon_remove",
@@ -33160,10 +33181,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/artifact_open",
@@ -38263,7 +38281,7 @@ const routes6: Route[] = [
       "type": "terminal",
       "id": "/terminalId"
     },
-    "idempotency": "key",
+    "idempotency": "none",
     "risk": "medium",
     "offline": "online",
     "teamOnly": false,
@@ -38658,7 +38676,10 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/threads/erase",
@@ -38676,10 +38697,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/threads/follow",

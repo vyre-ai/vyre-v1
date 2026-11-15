@@ -58,7 +58,6 @@ test(
       await page.getByTestId("claim-password").fill("fixture password 123");
       await page.getByTestId("claim-confirm").fill("fixture password 123");
       await page.getByTestId("claim-next").click();
-      await page.getByTestId("claim-saved").click();
       await page.getByTestId("claim-create").click();
       await dismissOnboarding(page);
       await page.getByTestId("shell").waitFor({ timeout: 60_000 });
@@ -243,9 +242,7 @@ test(
       await mp.getByTestId("password").fill("fixture member password123");
       await mp.getByTestId("confirm").fill("fixture member password123");
       await mp.getByTestId("next").click();
-      await mp.getByTestId("device").fill("Cut browser");
-      await mp.getByTestId("next").click();
-      await mp.getByTestId("ai-none").click();
+      // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
       await mp.getByTestId("next").click();
       await mp.getByTestId("shell").waitFor({ timeout: 60_000 });
       await dismissOnboarding(mp);

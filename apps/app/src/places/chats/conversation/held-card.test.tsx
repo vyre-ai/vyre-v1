@@ -99,9 +99,9 @@ test("a message to a person: the recipient and the channel in plain words, the s
     find(root, "approval-tsk_1-send") && find(root, "approval-tsk_1-edit") && find(root, "approval-tsk_1-drop"),
   );
   assert.equal(find(root, "approval-tsk_1-schedule") !== null, true);
-  // the prototype's words for a message held for you (G42): Send, Edit, Don't send
-  assert.equal(textOf(find(root, "approval-tsk_1-send")).trim(), "Send");
-  assert.equal(textOf(find(root, "approval-tsk_1-drop")).trim(), "Don't send");
+  // one approval vocabulary (owner rule): a message held for you reads Allow, Edit, Deny
+  assert.equal(textOf(find(root, "approval-tsk_1-send")).trim(), "Allow");
+  assert.equal(textOf(find(root, "approval-tsk_1-drop")).trim(), "Deny");
   const now = world([
     block(
       "chat.message_person",
@@ -256,7 +256,7 @@ test("Send approves the held message and the card reads Sent to Aliza with the t
   assert.equal(find(root, "approval-tsk_1-send"), null);
 });
 
-test("Don't send asks for a reason that goes back to the agent, and the card reads Not sent", async () => {
+test("Deny asks for a reason that goes back to the agent, and the card reads Not sent", async () => {
   const w = world([DM]);
   const root = await mount(createRoot, card(w.d));
   await press(find(root, "approval-tsk_1-drop"));

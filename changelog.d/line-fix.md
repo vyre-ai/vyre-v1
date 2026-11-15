@@ -1,0 +1,1 @@
+- A held message, a plan and every other approval now use the same words: Allow, Deny, and Edit or Change it beside them.

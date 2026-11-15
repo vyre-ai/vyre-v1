@@ -93,9 +93,8 @@ test("auth entry: real signup, password retry, lock/reload/unlock, AddSpace and 
       await page.getByTestId("claim-password").fill("fixture password123");
       await page.getByTestId("claim-confirm").fill("fixture password123");
       await page.getByTestId("claim-next").click();
-      await page.getByTestId("claim-saved").waitFor();
+      await page.getByTestId("claim-create").waitFor();
       await capture("signup-recovery", "claim-code");
-      await page.getByTestId("claim-saved").click();
       await page.getByTestId("claim-create").click();
       assert.equal(
         await dismissOnboarding(page),
@@ -252,11 +251,7 @@ test("auth entry: real signup, password retry, lock/reload/unlock, AddSpace and 
       await page.getByTestId("confirm").fill("fixture member password123");
       await matrix("join-account");
       await page.getByTestId("next").click();
-      await page.getByTestId("device").fill("Auth browser");
-      await matrix("join-device");
-      await page.getByTestId("next").click();
-      await page.getByTestId("ai-none").click();
-      await matrix("join-ai");
+      // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
       await page.getByTestId("next").click();
       await page.getByTestId("shell").waitFor({ timeout: 30000 });
       await dismissOnboarding(page);
