@@ -17,7 +17,7 @@ Try the key, connect the service and keep the key; nothing is kept unless the ke
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/vault/connect_card/submit |
-| MCP tool | vault_connect_card_submit (vault) |
+| MCP tool | none |
 | CLI | none |
 | Emits | vault.request_fulfilled |
 

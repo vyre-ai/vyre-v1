@@ -850,27 +850,40 @@ test("vault.item.usage totals turns and tokens per actor from the turns metered 
 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
 
-test("discard_new erases a key saved a moment ago for good (Vault and Trash), and refuses an old one, a used one, another person's and an agent's", async () => {
+test("discard_new erases only the key a connect card saved in its open try, for good (Vault and Trash); never an old unbound key, a used one, another request's, another person's or an agent's", async () => {
   const h = harness();
   const mine = await folder(h, "mine");
+  const REQ = "vrq_00000000000000000000000000000001";
   const fresh = await put(h, mine, "Fathom");
-  assert.deepEqual(out(await v.itemDiscardNew(h.ctx, { itemId: fresh })), { ok: true });
+  h.cardSaved(fresh, REQ);
+  assert.deepEqual(out(await v.itemDiscardNew(h.ctx, { itemId: fresh, requestId: REQ })), { ok: true });
   assert.equal(await refusedWith(v.itemGet(h.ctx, { itemId: fresh })), "validation.not_found");
   assert.equal(h.rows(`SELECT * FROM vault_meta WHERE id = ?`, fresh).length, 0, "not in Trash either");
   assert.equal(h.rows(`SELECT * FROM vault_secret WHERE itemId = ?`, fresh).length, 0);
   assert.equal(h.rows(`SELECT * FROM vault_history WHERE itemId = ?`, fresh).length, 0);
 
-  const old = await put(h, mine, "Old");
-  h.advance(121_000);
-  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: old })), "older than two minutes");
+  // rule C: an item no card saved is never erased, however new it is and whoever asks; a key a card saved for ANOTHER request is not this request's
+  const hand = await put(h, mine, "ByHand");
+  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: hand, requestId: REQ })), "a key typed into the Vault by hand");
+  const other = await put(h, mine, "OtherCard");
+  h.cardSaved(other, "vrq_00000000000000000000000000000002");
+  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: other, requestId: REQ })), "bound to the one request");
+  assert.equal(Array.isArray(out(await v.itemGet(h.ctx, { itemId: hand })).item.fieldKeys), true, "still there");
 
+  // an old key the card saved can still be taken back by that card (a person's Not now, hours later), but not one something has used
+  const old = await put(h, mine, "Old");
+  h.cardSaved(old, REQ);
+  h.advance(3_600_000);
+  assert.deepEqual(out(await v.itemDiscardNew(h.ctx, { itemId: old, requestId: REQ })), { ok: true });
   const used = await put(h, mine, "Used");
+  h.cardSaved(used, REQ);
   await reveal(h, used);
-  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: used })), "something has read it");
+  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: used, requestId: REQ })), "something has read it");
 
   const theirs = await put(h, mine, "Theirs");
+  h.cardSaved(theirs, REQ);
   h.actAs("person", ROB);
-  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: theirs })), "not the person who saved it");
+  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: theirs, requestId: REQ })), "not the person who saved it");
   h.actAs("agent", AGENT);
-  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: theirs })), "never an agent");
+  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: theirs, requestId: REQ })), "never an agent");
 });

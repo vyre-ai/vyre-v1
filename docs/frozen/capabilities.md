@@ -551,3 +551,12 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 - Proof: test/goals.wake-fail.live.test.ts, modules/goals/tests, lib/words/failure.test.ts, apps/app/src/places/chats/conversation/status.test.ts. Snapshots: docs/frozen/snapshots/goals.json and engine.json.
 
 Signed: lead, 16 Nov 2026 00:42 PKT, after reading the manifest diff: optional, additive fields only.
+
+## 15 Nov 2026: the connect card is on by default; the three open review items are closed (lane b-connect2, review r-keyreach-9-b-connect), for the lead to sign
+
+- What changed: the switch `VYRE_CONNECT_CARD` is now on unless it is `0`, `off` or `false` (`connectCardOn` in `lib/connect-switch.ts`); the ten capabilities of the 15 Nov note above answer as designed, the built-in Fathom connector is seeded, and `vault_connect` is listed from the first turn (the default listed set is the frozen 65 plus that one tool: 66 with the card on, 65 with the switch at 0).
+- `vault.item.discard_new` takes one more input, `requestId` (the connect request that saved the key). It refuses unless the connect request module answers, through the new capability `vault.connect_card.may_discard`, that this item is the one key that person's own card saved in its open try. It erases nothing else; the two-minute window is gone because the binding is stronger. Still `agent: false`, no tool (item C).
+- New capability `vault.connect_card.may_discard@1` (in `requestId`, `itemId`; out `ok`; `agent: false`, no tool): asked only by the Vault, answers only a person about their own request.
+- `vault.connect_card.get`, `.options`, `.submit`, `.ask_admin`, `.reopen` and `.disconnect` drop `tool: "vault"` and set `agent: false`: they are a person's press on their own card and are no agent tools (item A). Inputs and outputs did not change. The agent's one connect tool is `vault_connect`, whose answer never says what a person has saved.
+- Not a contract change but a rule the tests pin: a saved key is offered back only from the card's own stamp (same service, same person, same hosts); a connection's key is sent only to the hosts its own record lists (a new table `cn_connection_hosts` in the connectors module, written when the connection is made); `connectors.for_service` finds a connector only when its declared domains are exactly the hosts its actions call (item B).
+- Snapshots: docs/frozen/snapshots/vault-requests.json, vault.json.

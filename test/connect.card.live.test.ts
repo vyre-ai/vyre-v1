@@ -415,7 +415,7 @@ test("Team: a member connects their OWN Fathom with no admin, the key in their o
       ["ask", true, "Mine"],
       "no admin needed for her own account",
     );
-    assert.equal(hers.checksWith, undefined, "built in: no host line");
+    assert.equal(hers.checksWith, "api.fathom.ai", "the hosts the key goes to are said before she saves, built in or not");
     const good = await a.call("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] });
     assert.equal(good.result, "connected", JSON.stringify(good));
     const conns = (await a.call("connections.list", { connector: "fathom" })).connections as Array<{

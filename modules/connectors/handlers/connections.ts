@@ -105,6 +105,17 @@ export const keyHosts = (def: ConnectorDef): string[] => {
   return out;
 };
 
+/** Are the connector's declared domains exactly the hosts its actions call (no wildcard, no extra domain, no action on an undeclared host)? The card's rule for where a key may go. */
+export const hostsEqualDomains = (def: ConnectorDef): boolean => {
+  const calls = keyHosts(def).map((h) => h.toLowerCase());
+  const declared = def.domains.map((d) => d.toLowerCase());
+  return (
+    calls.length > 0 &&
+    declared.every((d) => !d.includes("*") && calls.includes(d)) &&
+    calls.every((h) => declared.includes(h))
+  );
+};
+
 export const probeHost = (def: ConnectorDef): string | undefined => {
   const name = def.health ?? probeOf(def);
   const url = def.actions.find((a) => a.name === name)?.url;
@@ -307,6 +318,14 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         JSON.stringify(secrets),
         now,
       );
+      // the hosts this connection's key may go to, fixed now: what its actions call, never what the definition says later
+      // (an action whose address takes its host from the caller's input has no fixed host to record: such a connection keeps the connector's declared domains as its limit, and the card never connects it)
+      if (!def.actions.some((a) => a.url !== undefined && /^[a-z]+:\/\/[^/]*\{/i.test(a.url)))
+        tx.run(
+          "INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
+          id,
+          JSON.stringify(keyHosts(def).map((h) => h.toLowerCase())),
+        );
       const row = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", id)!;
       const authUrl = authUrlFor(def, row, input.scopes ?? [], false, ctx);
       // An OAuth connection is made when the sign-in comes back (complete_auth announces it); every other kind exists now.
@@ -570,8 +589,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
             .slice(0, 3),
         };
       const hit = exact[0]!;
-      // a connector whose check or any action reaches a host it does not declare cannot be connected: the key would go there
-      if (keyHosts(hit).some((h) => !checkEgress(`https://${h}/`, hit.domains).ok)) return { found: false, near: [] };
+      // a connector whose declared domains are not exactly the hosts its actions call cannot be connected from a card: the person approves the hosts the key goes to, and a domain no action calls (or a
+      // wildcard) is a place the key could be sent to without them having seen it
+      if (!hostsEqualDomains(hit)) return { found: false, near: [] };
       const me = actorOf(ctx);
       const mine = tx
         .all<ConnectionDb>("SELECT * FROM cn_connections WHERE connector = ? ORDER BY created_at", hit.key)
@@ -667,6 +687,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         r.connection_id,
       );
       tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", r.connection_id);
+      tx.run("DELETE FROM cn_connection_hosts WHERE connection_id = ?", r.connection_id);
       tx.run("DELETE FROM cn_connections WHERE connection_id = ?", r.connection_id);
       ctx.emit("connection.deleted", `connection/${r.connection_id}`, {
         connectionId: r.connection_id,

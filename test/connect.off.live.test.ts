@@ -1,6 +1,6 @@
-// The connect card is OFF by default (lib/connect-switch.ts, rc.28; review r-keyreach-9-b-connect). On a booted daemon with the switch off, an agent that needs a key for a service that HAS a built-in connector (Fathom)
+// The connect card is OFF only when VYRE_CONNECT_CARD=0 (lib/connect-switch.ts; it was off by default in rc.28). On a booted daemon with the switch off, an agent that needs a key for a service that HAS a built-in connector (Fathom)
 // calls vault_request on its first call, with no tool_search before it, and the person gets the plain key request card: a vault_request block with no service in it, the ordinary "Fathom key needed" row. No connect
-// card is made; every connect capability answers the one plain refusal, for the person and for the agent's own vault_connect call. This file never turns the switch on.
+// card is made; every connect capability answers the one plain refusal, for the person and for the agent's own vault_connect call. This file never turns the switch on; it sets it to 0.
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -17,6 +17,9 @@ import {
   waitFor,
 } from "./support/eco-live.ts";
 import { CONNECT_OFF_MESSAGE, connectCardOn } from "../lib/connect-switch.ts";
+
+// the switch is on by default from rc.29; this file tests it OFF, so it turns it off for itself (VYRE_CONNECT_CARD=0)
+process.env["VYRE_CONNECT_CARD"] = "0";
 
 test("with the switch off, an agent asking for a Fathom key gets the plain key request card and no connect card", async () => {
   assert.equal(connectCardOn(), false);

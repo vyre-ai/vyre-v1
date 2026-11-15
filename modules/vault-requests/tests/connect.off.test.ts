@@ -1,10 +1,13 @@
-// The connect card is OFF by default (lib/connect-switch.ts, rc.28; review r-keyreach-9-b-connect). Every connect capability of this module refuses for every caller with one plain message, and the refusal
-// reads nothing, writes nothing and emits nothing: the request table is untouched, no capability is called, no event leaves. The plain key request still works with the switch off. This file never turns the switch on.
+// The connect card is OFF only when VYRE_CONNECT_CARD=0 (lib/connect-switch.ts; it was off by default in rc.28). Every connect capability of this module refuses for every caller with one plain message, and the refusal
+// reads nothing, writes nothing and emits nothing: the request table is untouched, no capability is called, no event leaves. The plain key request still works with the switch off. This file never turns the switch on; it sets it to 0.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { world } from "../fixtures/world.ts";
 import { CONNECT_OFF_CODE, CONNECT_OFF_MESSAGE, connectCardOn } from "../../../lib/connect-switch.ts";
+
+// the switch is on by default from rc.29; this file tests it OFF, so it turns it off for itself (VYRE_CONNECT_CARD=0)
+process.env["VYRE_CONNECT_CARD"] = "0";
 
 const CAPS = [
   "vault.connect",

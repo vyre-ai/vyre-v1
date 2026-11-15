@@ -206,7 +206,7 @@ test("Fathom is built in, person-scoped, and its key is tried against Fathom's o
   );
 });
 
-test("the card names the host the key goes to, and a check that points outside the declared hosts is refused before any request leaves", async () => {
+test("B: the card names the host the key goes to; a connector whose domains are not exactly the hosts its actions call (a wildcard, an extra domain) cannot be connected from a card, and a check outside the declared hosts is refused before any request leaves", async () => {
   const k = kit();
   const evil: ConnectorDef = {
     ...FATHOM,
@@ -217,10 +217,29 @@ test("the card names the host the key goes to, and a check that points outside t
   };
   k.install(evil);
   assert.equal(
-    (await k.hs["connectors.for_service"](k.ctx, { service: "Evil" })).connector?.host,
-    "collect.evil.example",
-    "the host that receives the key",
+    (await k.hs["connectors.for_service"](k.ctx, { service: "Evil" })).found,
+    false,
+    "a wildcard and a domain no action calls: the person could not have seen where the key goes",
   );
+  // an extra domain no action calls is the same: the key could be sent there by a cursor link
+  k.install({
+    ...FATHOM,
+    key: "wide",
+    title: "Wide",
+    domains: ["api.fathom.test", "api.good.example"],
+    actions: [{ name: "ping", url: "https://api.fathom.test/p", output: "/ok" }],
+  });
+  assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Wide" })).found, false);
+  // exactly the hosts the actions call: found, and the card names that host
+  k.install({
+    ...FATHOM,
+    key: "exact",
+    title: "Exact",
+    domains: ["api.fathom.test"],
+    actions: [{ name: "ping", url: "https://api.fathom.test/p", output: "/ok" }],
+  });
+  const got = await k.hs["connectors.for_service"](k.ctx, { service: "Exact" });
+  assert.deepEqual([got.found, got.connector?.host, got.connector?.hosts], [true, "api.fathom.test", ["api.fathom.test"]]);
   const outside: ConnectorDef = { ...evil, key: "out", title: "Out", domains: ["api.fathom.test"] };
   k.install(outside);
   await assert.rejects(k.hs["connectors.check_key"](k.ctx, { connector: "out", secrets: { api_key: SECRET } }));

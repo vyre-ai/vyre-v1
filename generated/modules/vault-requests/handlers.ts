@@ -9,6 +9,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "vault.connect_card.ask_admin": Handler<"vault.connect_card.ask_admin", X>;
   "vault.connect_card.disconnect": Handler<"vault.connect_card.disconnect", X>;
   "vault.connect_card.get": Handler<"vault.connect_card.get", X>;
+  "vault.connect_card.may_discard": Handler<"vault.connect_card.may_discard", X>;
   "vault.connect_card.options": Handler<"vault.connect_card.options", X>;
   "vault.connect_card.reopen": Handler<"vault.connect_card.reopen", X>;
   "vault.connect_card.submit": Handler<"vault.connect_card.submit", X>;
