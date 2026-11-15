@@ -68,6 +68,10 @@ export interface OutgoingProps {
   onConnect?(channel: OutChannel): void;
   subject?: string;
   onSubject?(t: string): void;
+  /** Stands in the Subject row in place of the field: a reply shows the thread it goes into there. */
+  subjectSlot?: ReactNode;
+  /** Sits at the end of the Subject row, after the field. */
+  subjectEnd?: ReactNode;
   testID?: string;
 }
 
@@ -130,7 +134,12 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
           <Glyph icon={I.chev} native="▾" size={12} color="var(--ink-3)" />
         </Pressable>
       </View>
-      {mail && p.onSubject ? (
+      {mail && p.subjectSlot ? (
+        <View style={o.line}>
+          <Text style={o.k}>Subject</Text>
+          {p.subjectSlot}
+        </View>
+      ) : mail && p.onSubject ? (
         <View style={o.line}>
           <Text style={o.k}>Subject</Text>
           <TextInput
@@ -142,6 +151,7 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
             testID="contact-subject"
             style={[o.subject, FIELD]}
           />
+          {p.subjectEnd ?? null}
         </View>
       ) : null}
       <View style={o.sep} />

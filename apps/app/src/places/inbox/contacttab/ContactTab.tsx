@@ -15,6 +15,7 @@ import { OutgoingHeader } from "../../../../../../ui/src/Composer/outgoing.tsx";
 import type { ComposerSender, OutChannel } from "../../../../../../ui/src/Composer/outgoing.tsx";
 import { Recipients } from "../../../../../../ui/src/Recipients/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
+import { problemWords } from "../../../../../../lib/words/errors.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { Face, Ghost, pointOf } from "../sidebar/parts.tsx";
@@ -462,8 +463,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
       setBusy((b) => b.filter((x) => x !== key));
     }
   };
-  const fail = (e: unknown): string =>
-    (e as { error?: { message?: string } }).error?.message ?? (e instanceof Error ? e.message : "Could not send");
+  // what went wrong, in words a person reads: the server's own sentence when it has one, never a code, a trace or "fetch failed"
+  const fail = (e: unknown): string => problemWords((e as { error?: unknown }).error ?? e, "Could not send.").text;
 
   const send = async (text: string, files: ComposerSend["files"] = []): Promise<void> => {
     if (!inbox) return;
@@ -643,6 +644,55 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const blocker = sendBlocker(draft, inbox, online, textTo);
   const target = mail ? draft.to.join(", ") : (textTo ?? "");
 
+  // The thread a reply goes into is the reply box's own Subject row (owner, 16 Nov 2026: the bar above the box read as detached): the thread's name opens
+  // the list of threads, Reply and Reply all sit at the row's end; a new email types its subject there and offers the threads beside it.
+  const threadPick =
+    mail && mailThreads.length > 0 ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          inThread
+            ? `Replying in ${inThread.subject}. Change the conversation`
+            : "New email, a separate thread. Reply in a thread instead"
+        }
+        testID="reply-in-pick"
+        onPress={(e) => {
+          const p = pointOf(e);
+          showThreads(p.x, p.y);
+        }}
+        style={({ hovered }: { hovered?: boolean }) => [s.rinPick, hovered === true && s.hicOver]}
+      >
+        <Icon name="thread" size={13} />
+        <Text style={s.rinName} numberOfLines={1}>
+          {inThread ? inThread.subject : "Reply in a thread"}
+        </Text>
+        <Icon name="chevd" size={9} />
+      </Pressable>
+    ) : null;
+  const threadRow =
+    threadPick && inThread ? (
+      <View style={s.rin} testID="reply-in">
+        {threadPick}
+        <View style={s.grow} />
+        <View style={s.seg} accessibilityRole="radiogroup" accessibilityLabel="Reply or reply all">
+          {each(["one", "all"] as const, (m) => (
+            <Pressable
+              key={m}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: (draft.mode ?? "all") === m }}
+              aria-checked={(draft.mode ?? "all") === m}
+              testID={`reply-mode-${m}`}
+              onPress={() => reTarget(inThread.threadId, m)}
+              style={[s.segBtn, (draft.mode ?? "all") === m && s.segOn]}
+            >
+              <Text style={[s.segText, (draft.mode ?? "all") === m && s.segTextOn]}>
+                {m === "one" ? "Reply" : "Reply all"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    ) : null;
   return (
     <View style={s.main} testID="contact-tab" accessibilityLabel={`Conversation with ${conv.displayName}`}>
       <View style={s.head} testID="contact-head">
@@ -898,59 +948,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
               </Text>
             )
           ) : null}
-          {mail && mailThreads.length > 0 ? (
-            <View style={s.rin} testID="reply-in">
-              {phone ? null : inThread ? (
-                <Text style={s.rinLabel} numberOfLines={1}>
-                  Replying in
-                </Text>
-              ) : (
-                <Text style={s.rinLabel} numberOfLines={1}>
-                  New email
-                </Text>
-              )}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  inThread
-                    ? `Replying in ${inThread.subject}. Change the conversation`
-                    : "New email, a separate thread. Reply in a thread instead"
-                }
-                testID="reply-in-pick"
-                onPress={(e) => {
-                  const p = pointOf(e);
-                  showThreads(p.x, p.y);
-                }}
-                style={({ hovered }: { hovered?: boolean }) => [s.rinPick, hovered === true && s.hicOver]}
-              >
-                <Icon name={inThread ? "thread" : "edit"} size={13} />
-                <Text style={s.rinName} numberOfLines={1}>
-                  {inThread ? inThread.subject : "Starts a separate conversation"}
-                </Text>
-                <Icon name="chevd" size={9} />
-              </Pressable>
-              <View style={s.grow} />
-              {inThread ? (
-                <View style={s.seg} accessibilityRole="radiogroup" accessibilityLabel="Reply or reply all">
-                  {each(["one", "all"] as const, (m) => (
-                    <Pressable
-                      key={m}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: (draft.mode ?? "all") === m }}
-                      aria-checked={(draft.mode ?? "all") === m}
-                      testID={`reply-mode-${m}`}
-                      onPress={() => reTarget(inThread.threadId, m)}
-                      style={[s.segBtn, (draft.mode ?? "all") === m && s.segOn]}
-                    >
-                      <Text style={[s.segText, (draft.mode ?? "all") === m && s.segTextOn]}>
-                        {m === "one" ? "Reply" : "Reply all"}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ) : null}
           <Composer
             key={`${conv.id}:${chan}`}
             whoWillAnswer={inbox ? "" : "No inbox can send"}
@@ -1006,6 +1003,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                 {...(mail && !inThread
                   ? { subject: draft.subject, onSubject: (t: string) => patch({ subject: t }) }
                   : {})}
+                {...(threadRow ? { subjectSlot: threadRow } : {})}
+                {...(threadPick && !inThread ? { subjectEnd: <View testID="reply-in">{threadPick}</View> } : {})}
               />
             }
           />
@@ -1138,7 +1137,7 @@ const s = StyleSheet.create({
   cmpWrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
   cmpIn: { width: "100%", maxWidth: 740, alignSelf: "center" },
   toText: { fontSize: 13, color: ink("--ink") },
-  rin: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4, paddingBottom: 6, minWidth: 0 },
+  rin: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
   rinLabel: { fontSize: 12.5, color: ink("--ink-3"), flexShrink: 0 },
   rinPick: {
     flexDirection: "row",
