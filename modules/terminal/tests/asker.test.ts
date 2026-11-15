@@ -554,6 +554,8 @@ test("an admin with Manage on the agent and no share is told what anyone without
   assert.equal(got.elsewhere, true);
   assert.equal(got.cwd, "");
   assert.equal(got.name, "Someone else's terminal");
-  const listed = ((await h["terminal.list"]!(admin, {})).terminals as Array<{ terminalId: string; elsewhere?: boolean }>).find((x) => x.terminalId === own.terminalId);
+  const listed = (
+    (await h["terminal.list"]!(admin, {})).terminals as Array<{ terminalId: string; elsewhere?: boolean }>
+  ).find((x) => x.terminalId === own.terminalId);
   assert.equal(listed?.elsewhere, true);
 });

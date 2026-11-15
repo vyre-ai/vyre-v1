@@ -383,8 +383,14 @@ test(
     }
     const stillOwner = await w.turn(w.owner, "up-4", [{ cmd: "cat ~/.npmrc ~/work/notes.txt" }]);
     // the owner's own paths keep working: ~/projects and ~/Vyre, folders in the old home, are links to the shared folders now
-    const paths = await w.turn(w.owner, "up-5", [{ cmd: "ls -ld ~/projects ~/Vyre; ls ~/projects/ >/dev/null && echo listed" }]);
-    assert.match(paths[0]!.text, /projects -> \/shared\/projects[\s\S]*Vyre -> \/shared\/Vyre[\s\S]*listed/, paths[0]!.text);
+    const paths = await w.turn(w.owner, "up-5", [
+      { cmd: "ls -ld ~/projects ~/Vyre; ls ~/projects/ >/dev/null && echo listed" },
+    ]);
+    assert.match(
+      paths[0]!.text,
+      /projects -> \/shared\/projects[\s\S]*Vyre -> \/shared\/Vyre[\s\S]*listed/,
+      paths[0]!.text,
+    );
     assert.match(stillOwner[0]!.text, /NPMRC-OLD-SECRET[\s\S]*NOTES-OLD-SECRET/, "the owner still reads her own");
     const image = (await docker(["inspect", "-f", "{{.Config.Image}}", ws])).out.trim().split("\n")[0];
     assert.notEqual(image, RC26, "the container was made again on the new image");

@@ -184,7 +184,11 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
       if (!b || !b.running) return json(409, { message: "container is not running" });
       const body = req.json as { Cmd: string[]; Env: string[] };
       // every exec carries the umask wrapper (workspace.ts UMASK_WRAP): it is checked here, then taken off so the fake reads the command itself
-      assert.deepEqual(body.Cmd.slice(0, UMASK_WRAP.length), [...UMASK_WRAP], `an exec without the umask wrapper: ${body.Cmd.join(" ").slice(0, 80)}`);
+      assert.deepEqual(
+        body.Cmd.slice(0, UMASK_WRAP.length),
+        [...UMASK_WRAP],
+        `an exec without the umask wrapper: ${body.Cmd.join(" ").slice(0, 80)}`,
+      );
       body.Cmd = body.Cmd.slice(UMASK_WRAP.length);
       const id = `exe${String(++execSeq).padStart(61, "0")}`;
       execs.set(id, await runExec(b, body.Cmd, body.Env));

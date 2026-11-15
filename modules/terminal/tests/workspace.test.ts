@@ -360,9 +360,7 @@ test("a project the agent is on gets one shared volume, made once and handed to 
   assert.deepEqual(helper!.detail, projectInitBody("prj_site", "vyre/agent-workspace:1"));
   assert.equal(PROJECT_INIT_SCRIPT, "chown 10001:10001 /vol");
   assert.equal(r.dk.boxes.has("vyre-wsinit-prj_site"), false, "the helper is removed");
-  assert.ok(
-    r.dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_site:/shared/projects/prj_site:rw"),
-  );
+  assert.ok(r.dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_site:/shared/projects/prj_site:rw"));
 
   await r.mgr.ensure(AGENT);
   assert.equal(r.dk.ops("create").filter((x) => x.name === NAME).length, 1, "nothing changed: nothing made again");
@@ -377,9 +375,7 @@ test("a project the agent is on gets one shared volume, made once and handed to 
     ["vyre-wsproj-prj_site", "vyre-wsproj-prj_book"],
     "the first project's volume was not made again",
   );
-  assert.ok(
-    r.dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_book:/shared/projects/prj_book:rw"),
-  );
+  assert.ok(r.dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_book:/shared/projects/prj_book:rw"));
   assert.ok(r.mgr.generation(AGENT) > g);
 
   // two agents on the same project mount the same volume
@@ -578,19 +574,10 @@ test("createTmuxHost is what runs in the container: the same command lines as on
   await r.mgr.ensure(AGENT);
   const host = createTmuxHost({ exec: (argv) => r.mgr.exec(AGENT, argv) });
   await host.open({ terminalId: "trm_9", target: target(), name: "x", cols: 100, rows: 30, folders: [] });
-  assert.deepEqual(r.dk.box(NAME).tmux.calls.find((c) => c[0] === "tmux"), [
-    "tmux",
-    "new-session",
-    "-e",
-    "HISTCONTROL=ignorespace",
-    "-d",
-    "-s",
-    "vyre-trm_9",
-    "-x",
-    "100",
-    "-y",
-    "30",
-  ]);
+  assert.deepEqual(
+    r.dk.box(NAME).tmux.calls.find((c) => c[0] === "tmux"),
+    ["tmux", "new-session", "-e", "HISTCONTROL=ignorespace", "-d", "-s", "vyre-trm_9", "-x", "100", "-y", "30"],
+  );
 });
 
 // ---- the Files folder ------------------------------------------------------------------------------------------------------------------------------------
@@ -699,13 +686,7 @@ test("the disk side of the mirror is the container's own view: the archive of ~/
     .map((x) => x.detail as string[])
     .find((c) => c[0] === "sh" && c[2]?.includes("rm -f --"));
   assert.ok(rm, "an exec removed them");
-  assert.deepEqual(rm!.slice(3), [
-    "sh",
-    "/shared/Vyre/old.txt",
-    "/shared/Vyre/work/b.txt",
-    "::",
-    "/shared/Vyre/gone",
-  ]);
+  assert.deepEqual(rm!.slice(3), ["sh", "/shared/Vyre/old.txt", "/shared/Vyre/work/b.txt", "::", "/shared/Vyre/gone"]);
   await fh.seen.fs!.remove([], []);
   rg.mgr.close();
 });

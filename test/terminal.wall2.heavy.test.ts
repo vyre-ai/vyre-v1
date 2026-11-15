@@ -336,9 +336,17 @@ test(
     for (const principal of [w.agent, w.ana.id])
       assert.equal((await w.owner.call("projects.members.set", { projectId, principal, role: "member" })).status, 200);
     const ws = `vyre-ws-${w.agent}`;
-    const mine = await w.turn(w.owner, "w2-7a", [{ cmd: `echo OWNER-PROJECT > ~/projects/${projectId}/o.txt; echo OWNER-HOME > ~/own.txt; ls -ld ~/projects; echo ok` }]);
+    const mine = await w.turn(w.owner, "w2-7a", [
+      {
+        cmd: `echo OWNER-PROJECT > ~/projects/${projectId}/o.txt; echo OWNER-HOME > ~/own.txt; ls -ld ~/projects; echo ok`,
+      },
+    ]);
     assert.match(mine[0]!.text, /ok$/, mine[0]!.text);
-    assert.match(mine[0]!.text, /projects ->/, "~/projects of the owner is a link to the shared folder, and still works");
+    assert.match(
+      mine[0]!.text,
+      /projects ->/,
+      "~/projects of the owner is a link to the shared folder, and still works",
+    );
     // Bea's first command makes her place and her grant
     const first = await w.turn(w.ana, "w2-7b", [{ cmd: `cat ~/projects/${projectId}/o.txt; id -u` }]);
     assert.match(first[0]!.text, /OWNER-PROJECT/, "she reads the project she is on, through her own ~/projects");
@@ -383,13 +391,31 @@ test(
     await boundWorkspaces()!.exec(w.agent, ["sh", "-c", "echo VIA-EXEC > /home/agent/via-exec.txt"]);
     const mode = await docker(["exec", ws, "stat", "-c", "%a", "/home/agent/via-exec.txt"]);
     assert.equal(mode.out.trim().split("\n")[0], "600", "an exec of Vyre's runs under umask 077");
-    await docker(["exec", "--user", "10001:10001", ws, "sh", "-c", "umask 022; echo MIRROR-LIKE > /home/agent/mirror-like.txt; chmod 644 /home/agent/mirror-like.txt"]);
-    const m = await docker(["exec", "--user", "20000:20000", ws, "sh", "-c", "cat /home/agent/mirror-like.txt 2>&1; getfacl -c /home/agent 2>&1 | grep -c u:20000; echo END"]);
+    await docker([
+      "exec",
+      "--user",
+      "10001:10001",
+      ws,
+      "sh",
+      "-c",
+      "umask 022; echo MIRROR-LIKE > /home/agent/mirror-like.txt; chmod 644 /home/agent/mirror-like.txt",
+    ]);
+    const m = await docker([
+      "exec",
+      "--user",
+      "20000:20000",
+      ws,
+      "sh",
+      "-c",
+      "cat /home/agent/mirror-like.txt 2>&1; getfacl -c /home/agent 2>&1 | grep -c u:20000; echo END",
+    ]);
     assert.doesNotMatch(m.out, /MIRROR-LIKE/);
     assert.match(m.out, /Permission denied/);
     assert.match(m.out, /\n0\n/, "no entry for a guest on the home at all");
     // the owner reads her own, old and new
-    const back = await w.turn(w.owner, "w2-7d", [{ cmd: `cat ~/own.txt ~/late-a.txt ~/latedir-b/x.txt ~/projects/${projectId}/o.txt` }]);
+    const back = await w.turn(w.owner, "w2-7d", [
+      { cmd: `cat ~/own.txt ~/late-a.txt ~/latedir-b/x.txt ~/projects/${projectId}/o.txt` },
+    ]);
     assert.match(back[0]!.text, /OWNER-HOME[\s\S]*LATE-a[\s\S]*NESTED-b[\s\S]*OWNER-PROJECT/);
   },
 );

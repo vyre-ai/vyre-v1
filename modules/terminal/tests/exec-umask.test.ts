@@ -22,5 +22,9 @@ test("the umask wrapper is the only way a process is started in a workspace, and
   const src = fs.readFileSync(path.join(DIR, "workspace.ts"), "utf8");
   const at = src.indexOf("api.exec(workspaceName(agentId)");
   assert.ok(at > 0);
-  assert.match(src.slice(at, at + 200), /cmd: \[\.\.\.UMASK_WRAP, \.\.\.argv\]/, "with the wrapper in front of the command");
+  assert.match(
+    src.slice(at, at + 200),
+    /cmd: \[\.\.\.UMASK_WRAP, \.\.\.argv\]/,
+    "with the wrapper in front of the command",
+  );
 });
