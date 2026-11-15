@@ -91,3 +91,40 @@ const st = StyleSheet.create({
   groupName: { fontSize: 12.5, color: "var(--ink-2)" as string },
   groupTag: { fontSize: 11.5, color: "var(--ink-4)" as string },
 });
+
+/**
+ * The full-screen sheets (a terminal, the browser) as the prototype draws them: on a wide screen a near-full sheet with the page dimmed behind it, on a phone the whole screen. One place for both, so the two
+ * sheets are the same size and the same corners.
+ */
+export const SHEET_INSET = 100;
+export const sheetFrame = (windowWidth: number): Record<string, unknown> =>
+  windowWidth >= 900
+    ? {
+        top: 20,
+        bottom: 20,
+        left: SHEET_INSET,
+        right: SHEET_INSET,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "var(--line-2)",
+        overflow: "hidden",
+      }
+    : {};
+/** The dimmed page behind a sheet that does not fill the screen. It is only drawn when the sheet is inset. */
+export function SheetScrim({ windowWidth }: { windowWidth: number }): ReactElement | null {
+  return windowWidth >= 900 ? (
+    <View
+      testID="sheet-scrim"
+      aria-hidden
+      style={{
+        position: "fixed" as never,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 99997,
+        backgroundColor: "rgba(0,0,0,0.5)",
+      }}
+    />
+  ) : null;
+}

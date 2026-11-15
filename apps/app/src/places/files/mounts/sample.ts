@@ -134,6 +134,7 @@ const mountRow = (id: string, kind: MountKind, name: string, ref: string, o: Par
   reviewChanges: kind !== "local",
   pendingChanges: 0,
   conflicts: 0,
+  readOnly: false,
   ...o,
 });
 

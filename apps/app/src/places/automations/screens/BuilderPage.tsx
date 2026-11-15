@@ -74,6 +74,8 @@ export interface BuilderPageProps {
   initialPromote?: boolean;
   /** Open on this tab. */
   initialTab?: "steps" | "runs" | "settings" | "history";
+  /** A run's page opens one step's form to fix it: only that form is drawn, nothing else of the builder. */
+  stepOnly?: boolean;
 }
 
 export function BuilderPage({
@@ -82,6 +84,7 @@ export function BuilderPage({
   initialSelected = null,
   initialPromote = false,
   initialTab = "steps",
+  stepOnly = false,
 }: BuilderPageProps): ReactElement {
   const data = useAutomationsData();
   const q = useScreenQuery<GetOut>(CANVAS, "automation", { automationId, route: { automationId } });
@@ -122,6 +125,7 @@ export function BuilderPage({
       initialSelected={initialSelected}
       initialPromote={initialPromote}
       initialTab={initialTab}
+      stepOnly={stepOnly}
     />
   );
 }
@@ -146,6 +150,7 @@ function Body({
   initialSelected,
   initialPromote,
   initialTab,
+  stepOnly,
 }: {
   a: GetOut["automation"];
   canEdit?: boolean;
@@ -156,6 +161,7 @@ function Body({
   initialSelected: string | null;
   initialPromote: boolean;
   initialTab: Tab;
+  stepOnly: boolean;
 }): ReactElement {
   const data = useAutomationsData();
   const winW = useWindowDimensions().width;
@@ -207,6 +213,26 @@ function Body({
   const [saving, setSaving] = useState(false);
   const [picker, setPicker] = useState<{ after: string | null; x: number; y: number } | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
+  // what Connect an app lists, decided on the server: the Vault items this person may use whose app their Assistant can set up
+  const [vaultOffers, setVaultOffers] = useState<{ itemId: string; appName: string }[]>([]);
+  const sheetApps = vaultOffers.map((o) => ({
+    id: o.appName.toLowerCase(),
+    name: o.appName,
+    connected: false,
+    mayUse: false,
+    vault: { item: "Saved in your Vault", use: "use" as const, assistant: "cleared" as const },
+  }));
+  useEffect(() => {
+    if (!connectOpen) return undefined;
+    let live = true;
+    void data.call("automations.connect_options", {}).then(
+      (o) => live && setVaultOffers((o as { vault?: { itemId: string; appName: string }[] }).vault ?? []),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [connectOpen, data]);
   const [promoteOpen, setPromoteOpen] = useState(initialPromote);
   const [packagesOpen, setPackagesOpen] = useState(false);
   // what this Automation sends from, and how many of its runs failed: both were on the old page's head
@@ -365,6 +391,57 @@ function Body({
     }
     return out;
   }, [errors, def, catalog, openConnect, a.kind]);
+  // the files and folders a step names are shown by their names: read once each, kept
+  const [thingNames, setThingNames] = useState<Readonly<Record<string, string>>>({});
+  const wanted = useMemo(() => {
+    const out = new Set<string>();
+    const walk = (v: unknown): void => {
+      if (typeof v === "string") {
+        if (/^(fil|fld)_[0-9a-f]{8,}$/.test(v.trim())) out.add(v.trim());
+      } else if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object") Object.values(v).forEach(walk);
+    };
+    for (const n of def.nodes) {
+      walk(n.input);
+      // a record is read with its type, so the pair travels together
+      const rid = n.input?.["recordId"];
+      const rtype = n.input?.["type"];
+      if (typeof rid === "string" && /^rec_[0-9a-f]{8,}$/.test(rid) && typeof rtype === "string")
+        out.add(`${rid}@${rtype}`);
+    }
+    return [...out].sort().join(",");
+  }, [def]);
+  useEffect(() => {
+    let live = true;
+    for (const pair of wanted.split(",").filter((x) => x.includes("@"))) {
+      const [rid, rtype] = pair.split("@") as [string, string];
+      if (thingNames[rid] !== undefined) continue;
+      void data.call("records.get", { type: rtype, recordId: rid }).then(
+        (out) => {
+          const rec = (out as { record?: { fields?: Record<string, unknown>; title?: string; name?: string } }).record;
+          const f = rec?.fields ?? {};
+          const name = [f["name"], f["title"], rec?.title, rec?.name].find((x) => typeof x === "string" && x !== "");
+          if (live && typeof name === "string") setThingNames((cur) => ({ ...cur, [rid]: name }));
+        },
+        () => undefined,
+      );
+    }
+    for (const id of wanted.split(",").filter((x) => x !== "" && !x.includes("@") && thingNames[x] === undefined)) {
+      const folder = id.startsWith("fld_");
+      void data.call(folder ? "files.folder.get" : "files.get", folder ? { folderId: id } : { fileId: id }).then(
+        (out) => {
+          const o = out as { file?: { name?: string }; folder?: { name?: string }; name?: string };
+          const name = (folder ? o.folder?.name : o.file?.name) ?? o.name;
+          if (live && typeof name === "string" && name !== "") setThingNames((cur) => ({ ...cur, [id]: name }));
+        },
+        () => undefined,
+      );
+    }
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wanted, data]);
   const view = useMemo(() => {
     const full = Object.fromEntries(
       (catalog?.all ?? []).map((s) => [s.key, { title: s.title.replace(/^[^:·]{1,40}\s*[:·]\s+/, ""), ...appOf(s) }]),
@@ -386,7 +463,7 @@ function Body({
         nameOfNode: (id) =>
           id === "trigger" ? "Trigger" : (full[def.nodes.find((n) => n.id === id)?.key ?? ""]?.title ?? id),
         canUse: (app) => usable.has(app) || !isGatedApp(app),
-        nameOfId: (id) => data.name(id),
+        nameOfId: (id) => thingNames[id] ?? data.name(id),
         iconOf: (id) =>
           id === "trigger"
             ? "bolt"
@@ -412,7 +489,7 @@ function Body({
         writes: (k) => outward.has(k),
       },
     );
-  }, [def, catalog, pickIn, issues, noAccess, connectNeeds, pastEvent, data]);
+  }, [def, catalog, pickIn, issues, noAccess, connectNeeds, pastEvent, data, thingNames]);
   // each trigger is its own row: When, then Or. The first is "trigger", the others "trigger:1", "trigger:2"
   const triggerRows = useMemo(
     () =>
@@ -758,6 +835,8 @@ function Body({
     setPicker(null);
     edit(next);
     setSel(added.id);
+    // the new step's form opens with the cursor in its first empty field, so typing goes there and not into the list's search
+    setFocusNeed(added.id);
   };
   const openMore = (e: unknown): void => {
     const p = pos(e);
@@ -882,6 +961,12 @@ function Body({
     />
   ) : null;
 
+  if (stepOnly)
+    return (
+      <View style={s.fill} testID="step-only">
+        {inspector}
+      </View>
+    );
   const tabs = phone
     ? [{ id: "runs", label: "Runs", ...(failedRuns > 0 ? { badge: failedRuns } : {}) }]
     : [
@@ -1023,9 +1108,16 @@ function Body({
       ) : null}
       {connectOpen ? (
         <ConnectSheet
-          apps={[]}
+          apps={sheetApps}
           known={[]}
-          onSetup={() => setConnectOpen(false)}
+          onSetup={(id) => {
+            const o = vaultOffers.find((x) => x.appName.toLowerCase() === id);
+            setConnectOpen(false);
+            if (o)
+              void Promise.resolve(data.nav.setUpConnector?.({ itemId: o.itemId, appName: o.appName })).catch(
+                () => undefined,
+              );
+          }}
           onAsk={() => setConnectOpen(false)}
           onDescribe={() => {
             setConnectOpen(false);

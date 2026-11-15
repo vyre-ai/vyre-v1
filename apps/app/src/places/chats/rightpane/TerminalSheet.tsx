@@ -14,7 +14,7 @@ import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { TmuxScreen } from "./TmuxScreen.tsx";
 import type { Seat } from "./TmuxScreen.tsx";
 import { Icon, TextButton } from "./parts.tsx";
-import { Dot, GroupHead } from "./WorkParts.tsx";
+import { Dot, GroupHead, SheetScrim, sheetFrame } from "./WorkParts.tsx";
 import { groupSessions, sessionTitle, sessionWords, terminalBar } from "./work-model.ts";
 import type { WorkspaceSession } from "./work-model.ts";
 
@@ -30,6 +30,7 @@ export function TerminalSheet({
   me,
   nameOf,
   onClose,
+  onDrawn,
 }: {
   data: TerminalData;
   agentName: string;
@@ -40,6 +41,8 @@ export function TerminalSheet({
   me?: string | undefined;
   nameOf?: ((id: string) => string) | undefined;
   onClose(): void;
+  /** The screen drew (the computer is awake): the pane reads the computer's words again now. */
+  onDrawn?(): void;
 }): ReactElement {
   const win = useWindowDimensions();
   const [sel, setSel] = useState(start);
@@ -84,6 +87,11 @@ export function TerminalSheet({
   // the first drawing of the screen ends a start; a connection that is down says Reconnecting and the lines stay
   const [ready, setReady] = useState(false);
   const openedAt = useRef(Date.now());
+  const drawnRef = useRef(onDrawn);
+  drawnRef.current = onDrawn;
+  useEffect(() => {
+    if (ready) drawnRef.current?.();
+  }, [ready]);
   const online = useOnline(data.connection);
   const [, tick] = useState(0);
   useEffect(() => {
@@ -275,7 +283,14 @@ export function TerminalSheet({
   });
   return (
     <Overlay>
-      <View testID="terminal-popup" role="dialog" aria-modal accessibilityLabel={owner} style={st.veil}>
+      <SheetScrim windowWidth={win.width} />
+      <View
+        testID="terminal-popup"
+        role="dialog"
+        aria-modal
+        accessibilityLabel={owner}
+        style={[st.veil, sheetFrame(win.width) as never]}
+      >
         <View style={[st.head, narrow && st.headNarrow]}>
           <Icon name="terminal" size={16} color="var(--ink-2)" />
           <Text style={st.title} numberOfLines={1}>
@@ -385,7 +400,11 @@ export function TerminalSheet({
                   setHiddenPrompt(h);
                   setReady(true);
                 }}
-                onUnsupported={() => setLines((m) => ({ ...m, [sel]: true }))}
+                onUnsupported={() => {
+                  // the line terminal draws what the host has at once: the start is over, whatever the workspace read still says
+                  setReady(true);
+                  setLines((m) => ({ ...m, [sel]: true }));
+                }}
               />
             )}
           </View>

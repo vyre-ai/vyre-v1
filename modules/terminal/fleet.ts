@@ -73,7 +73,7 @@ export interface WorkspaceFleet extends WorkspaceManager {
 
 /** True on either kind of Space (12 Nov, in the voice of the browser's line, lane f-desktop): the computer this Space runs on is the person's own in a Personal Space and the Space's server in a Team one. */
 export const NO_PLACE =
-  "This Space can't run agent workspaces yet. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers.";
+  "No computer is set up for agents yet. An admin of this Space can add one in Console > Computers.";
 
 export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
   const homes = new Map<string, WorkspaceManager>();

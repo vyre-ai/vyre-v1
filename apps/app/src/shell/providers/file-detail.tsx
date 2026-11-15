@@ -1,5 +1,4 @@
 // The file route reuses the shared viewer over the signed-in Space capability door.
-import { openIn } from "../tabs/open-how.ts";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { attemptKey } from "./files-review.ts";
@@ -34,8 +33,9 @@ export function FileDetail({ rt, fileId }: { rt: ShellRuntime; fileId: string })
       agents,
       openFile: (id) => rt.open({ subject: { type: "file", id } }),
       openUrl: (url) => rt.openUrl(url),
+      ...(rt.putBlob ? { putBlob: rt.putBlob } : {}),
       openFileTab: (id, background) =>
-        openIn(background ? "behind" : "tab", () => rt.open({ subject: { type: "file", id } })),
+        rt.open({ subject: { type: "file", id }, ...(background ? { background: true } : {}) }),
       ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
       // no one to share with in a Personal Space: no door, so no Share item
       ...(rt.space.kind !== "personal" ? { share: (id: string, name: string) => setSharing({ id, name }) } : {}),

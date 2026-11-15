@@ -4,7 +4,7 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (25)
+## Capabilities (27)
 
 - [mounts.account_pause](../capabilities/mounts.account_pause.md): The connector stops or restarts everything that syncs as one address; the folders stay
 - [mounts.add](../capabilities/mounts.add.md): Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run
@@ -24,10 +24,12 @@ Requires: files.
 - [mounts.open](../capabilities/mounts.open.md): Open a file of a mount: ask the provider what it holds now and fetch the content only when the copy in Vyre is not that version
 - [mounts.pause](../capabilities/mounts.pause.md): Pause syncing of a mount
 - [mounts.remove](../capabilities/mounts.remove.md): Remove a mount; keep the files as a plain folder or delete the copy
+- [mounts.resolve](../capabilities/mounts.resolve.md): Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs; or one deleted there while an edit waited: keep it here (it goes back as a new file) or discard the edit
 - [mounts.restore](../capabilities/mounts.restore.md): Put an earlier revision of a file back as the newest; it goes out like any edit
 - [mounts.resume](../capabilities/mounts.resume.md): Resume a paused mount
 - [mounts.sheet_append](../capabilities/mounts.sheet_append.md): Add rows under the last used row of a mounted Google Sheet or Excel worksheet
 - [mounts.sheet_read](../capabilities/mounts.sheet_read.md): Read cells of a mounted Google Sheet or Excel workbook from the provider, without downloading the file
+- [mounts.sheet_tabs](../capabilities/mounts.sheet_tabs.md): List the tabs of a mounted Google Sheet, with their names and sizes, so every tab can be read and edited
 - [mounts.sheet_write](../capabilities/mounts.sheet_write.md): Write cells of a mounted Google Sheet or Excel workbook in the provider file itself
 - [mounts.sync_now](../capabilities/mounts.sync_now.md): Sync a mount now (a Run); the provider change feed and the folder both move
 - [mounts.update](../capabilities/mounts.update.md): Change mount options: server copy or live only, Review changes, read-only pull
@@ -35,7 +37,7 @@ Requires: files.
 ## Events (9)
 
 - [folder.mounted](../events/folder.mounted.md): A drive, library, local folder or repository was mounted as a folder
-- [mount.conflict](../events/mount.conflict.md): A file changed at the provider while an edit in Vyre waited to go out; the edit was kept beside it as a copy
+- [mount.conflict](../events/mount.conflict.md): A file changed at the provider while an edit in Vyre waited to go out; nothing was overwritten, and the edit waits in Vyre for the person to keep both or use theirs
 - [mount.failed](../events/mount.failed.md): A mount sync failed and needs attention
 - [mount.file_sent](../events/mount.file_sent.md): An edit made in Vyre went out to the provider as a new revision (who made it is in by)
 - [mount.paused](../events/mount.paused.md): A mount was paused

@@ -6,7 +6,7 @@ export type MountRow = CapMap["mounts.list"]["out"]["mounts"][number];
 export type Share = CapMap["access.shares_of"]["out"]["shares"][number];
 
 export type LiveTone = "ok" | "warn" | "bad" | "quiet";
-export type LiveAction = "reconnect" | "sync" | "pause" | "resume" | "open";
+export type LiveAction = "reconnect" | "sync" | "pause" | "resume" | "open" | "two_way" | "read_only";
 
 export interface LiveRow {
   mountId: string;
@@ -104,6 +104,16 @@ export function liveRow(m: MountRow, shares: readonly Share[] | null, now: numbe
   }
   const skipped = m.skipped ?? [];
   if (behind) bits.unshift(behind);
+  // A folder of a cloud provider is two-way (what changes here goes there) unless Read only was chosen. One made before write-back stays read only until its owner turns two-way on.
+  if (m.readOnly !== undefined && m.kind !== "local" && m.kind !== "github") {
+    if (m.readOnly) {
+      bits.push(
+        m.twoWayOffer === true ? `Read only. Turn on two-way to send your changes to ${m.provider}` : "Read only",
+      );
+      actions = [...actions, "two_way"];
+    } else actions = [...actions, "read_only"];
+  }
+  if (m.scanned !== undefined) bits.push(`Reading it: ${m.scanned.toLocaleString("en-US")} items so far`);
   return {
     mountId: m.mountId,
     folderId: m.folderId,
@@ -125,6 +135,8 @@ export const ACTION_LABEL: Record<LiveAction, string> = {
   pause: "Pause",
   resume: "Resume",
   open: "Open",
+  two_way: "Turn on two-way",
+  read_only: "Make read only",
 };
 
 /** Needs attention first, then paused and offline, then the rest by name. */

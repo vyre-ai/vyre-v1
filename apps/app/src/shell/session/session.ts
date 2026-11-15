@@ -353,7 +353,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
 
   const once: CapCall = async (cap, input, opts) => {
     const r = await reach(cap, input, opts);
-    if (!reads?.has(cap)) refresh();
+    // an Automation made, copied or promoted is in the list at once (not after the quiet 120 ms): a person's own action is read at once
+    if (!reads?.has(cap))
+      /^automations\.(create|templates\.use|promote|make_personal_copy)$/.test(cap) ? reread(true) : refresh();
     return r;
   };
   // where the Space runs (ai-signin/own-ai.ts), for the words of a refusal
@@ -561,7 +563,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       ? (screens.get(t.screen)?.place ?? railPlace(t.screen.split(".")[0] ?? "") ?? "")
       : t.subject
         ? (placeForSubject(t.subject.type) ?? "")
-        : (t.place ?? "");
+        : "";
     if (where === "shell") {
       if (t.screen) o.shell?.(t.screen, t.args ?? {});
       return;

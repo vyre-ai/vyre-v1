@@ -1,0 +1,1 @@
+- Automations: a test that stops on a missing input now ends as a stopped run with the reason in words (it no longer counts as a success); the Channel field and other fields that hold a thing's id are pickers by name, and no step form shows an example id; a new step's form puts the cursor in its first empty field; a step row says "Add a title" once.

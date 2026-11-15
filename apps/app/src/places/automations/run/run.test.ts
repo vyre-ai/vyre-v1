@@ -27,7 +27,8 @@ test("a run is numbered as the builder is, with the failed step in words and its
     [
       [1, "done", null, "Task for Lena, due in 2 days"],
       [2, "failed", null, null],
-      [3, "skipped", null, null],
+      // round five: a step after a stop says Not reached
+      [3, "skipped", "Not reached", null],
     ],
   );
   assert.deepEqual(r.banner, {

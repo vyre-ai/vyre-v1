@@ -39,6 +39,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { ReactElement } from "react";
+import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { COLUMN, RADIUS, gutterFits } from "../../../../../../ui/src/tokens/calm.ts";
 import { GutterContext } from "./gutter.ts";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
@@ -165,6 +166,7 @@ import {
   titleOf,
   whoLine,
   workingAgents,
+  presenceLine,
   withoutAnswered,
   faceDoor,
   peopleIn,
@@ -491,6 +493,23 @@ function ConversationView(): ReactElement {
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
   const [sentOnPage, setSentOnPage] = useState(0);
+  // a row that arrives while the chat is open comes in with one quiet motion (the prototype's); rows already there when the chat opened, and every row under reduced motion, do not move
+  const readyAt = useRef(0);
+  const arrivedRows = useRef(new Map<string, boolean>());
+  if (readyAt.current === 0 && messagesQ.status === "ready") readyAt.current = Date.now();
+  const newRow = (key: string): boolean => {
+    const m = arrivedRows.current;
+    if (!m.has(key)) m.set(key, readyAt.current !== 0 && Date.now() - readyAt.current > 1500);
+    return m.get(key) === true;
+  };
+  useEffect(() => {
+    if (Platform.OS === "web")
+      injectCss(
+        (globalThis as { document?: Parameters<typeof injectCss>[0] }).document,
+        "vyre-chat-arrive",
+        '@keyframes vy-arrive{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}[data-arrive="1"]{animation:vy-arrive 220ms ease-out}@media (prefers-reduced-motion:reduce){[data-arrive="1"]{animation:none}}',
+      );
+  }, []);
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
@@ -520,8 +539,9 @@ function ConversationView(): ReactElement {
   const width = useWindowDimensions().width;
   const [gutter, setGutter] = useState(() => gutterFits(width));
   const mobileBack = useMobileBack();
-  const narrow = width > 0 && width < 640;
 
+  /** What Cmd/Ctrl+. does: stop whoever is working here (set where the working list is known). */
+  const stopKey = useRef<() => void>(() => undefined);
   /* Cmd/Ctrl+F opens find in chat, as in the prototype; Escape closes it. */
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
@@ -540,6 +560,10 @@ function ConversationView(): ReactElement {
         // Cmd-\\ hides or shows the pane beside the chat (the design's key)
         e.preventDefault();
         data.nav.togglePane();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+        // Cmd-. stops what is working in this chat (the design's key)
+        e.preventDefault();
+        stopKey.current();
       }
     };
     g.addEventListener?.("keydown", onKey);
@@ -874,6 +898,10 @@ function ConversationView(): ReactElement {
   // a reply being written has no saved message yet: its row is the live turn (a ghost), and it counts as work from the moment the turn starts
   const working = workingAgents([...win.rows, ...ghosts], writing);
   const isWorking = working.length > 0;
+  stopKey.current = (): void => {
+    if (working.length === 0) return;
+    void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).catch(fail("Could not stop it."));
+  };
   const nameOf = data.nameOf;
   const lead = leadOf(thread);
   const hasEarlier = win.hiddenLocal > 0 || (olderMore ?? messagesQ.data.hasMore);
@@ -981,7 +1009,7 @@ function ConversationView(): ReactElement {
       void runSlash(payload.text, commandEnv());
       return;
     }
-    if (data.head) setSentOnPage((n) => n + 1);
+    setSentOnPage((n) => n + 1); // sending brings the person's own message (and the reply after it) into view, wherever the feed was scrolled
     const key = data.newKey();
     const mentions = mentionsIn(payload.text, data.directory);
     const refs = act.sendRefs(payload);
@@ -1914,33 +1942,16 @@ function ConversationView(): ReactElement {
               </Text>
             ) : null}
             <View style={{ flex: 1 }} />
-            {online ? null : (
-              <Text testID="conversation-offline" style={st.meta}>
-                Offline
-              </Text>
-            )}
+            {/* offline is said once, by the pill at the top of the window: the chat's own header says nothing, so the header never shifts */}
             {crewChip ? (
-              crewChip.text !== "" && !narrow ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={crewChip.label}
-                  testID="helpers-button"
-                  onPress={() => crew!.show(null)}
-                  style={st.crewChip}
-                >
-                  <Text testID="helpers-chip-text" style={st.crewChipText}>
-                    {crewChip.text}
-                  </Text>
-                </Pressable>
-              ) : (
-                <IconButton
-                  icon="helper"
-                  label={crewChip.label}
-                  badge={crewChip.active > 0 ? crewChip.active : crewChip.total}
-                  testID="helpers-button"
-                  onPress={() => crew!.show(null)}
-                />
-              )
+              // the head is quiet while agents work: one small mark with a count, never a text pill beside the title (the prototype's head has no marker)
+              <IconButton
+                icon="helper"
+                label={crewChip.label}
+                badge={crewChip.active > 0 ? crewChip.active : crewChip.total}
+                testID="helpers-button"
+                onPress={() => crew!.show(null)}
+              />
             ) : helpers.length > 0 ? (
               <IconButton
                 icon="helper"
@@ -2097,7 +2108,8 @@ function ConversationView(): ReactElement {
                   key={jump}
                   followKey={timelineMessages.length}
                   {...(lastStream ? { store: lastStream } : {})}
-                  {...(data.head ? { startAway: true, endKey: sentOnPage } : {})}
+                  {...(data.head ? { startAway: true } : {})}
+                  endKey={sentOnPage}
                   testID="conversation-feed"
                   contentStyle={st.feedContent}
                   onAtEndChange={setAtEnd}
@@ -2148,8 +2160,13 @@ function ConversationView(): ReactElement {
                         />
                       );
                       // always wrapped on the web, so a row that grows old keeps its state; only the style changes
+                      const arrives = Platform.OS === "web" && newRow(key);
                       return Platform.OS === "web" ? (
-                        <View key={key} style={at < laid.rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>
+                        <View
+                          key={key}
+                          style={at < laid.rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}
+                          {...(arrives ? ({ dataSet: { arrive: "1" } } as object) : {})}
+                        >
                           {row}
                         </View>
                       ) : (
@@ -2307,15 +2324,19 @@ function ConversationView(): ReactElement {
           </View>
         ) : (
           <View style={st.composerBox}>
-            {thread.kind === "channel" ? (
-              <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>
-                {typingNames.length > 0 ? (
-                  <Text
-                    style={st.typingText}
-                  >{`${typingNames.join(", ")} ${typingNames.length === 1 ? "is" : "are"} typing…`}</Text>
-                ) : null}
-              </View>
-            ) : null}
+            <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>
+              {presenceLine(
+                typingNames,
+                working.map((id) => nameOf(id)),
+              ) !== "" ? (
+                <Text testID="typing-line" style={st.typingText}>
+                  {presenceLine(
+                    typingNames,
+                    working.map((id) => nameOf(id)),
+                  )}
+                </Text>
+              ) : null}
+            </View>
             {island.list.length > 0 ? (
               <QuestionIsland
                 list={island.list}
@@ -2741,14 +2762,6 @@ const st = StyleSheet.create({
   } as object,
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
-  crewChip: {
-    height: 28,
-    paddingHorizontal: 10,
-    borderRadius: RADIUS,
-    justifyContent: "center",
-    backgroundColor: "var(--accent-wash)" as string,
-  },
-  crewChipText: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   earlierBar: {
     flexDirection: "row",
     alignItems: "center",

@@ -9,6 +9,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { QuickField } from "./QuickField.tsx";
 import { parseQuick } from "./quick.ts";
 import type { QuickPerson } from "./quick.ts";
+import { isRawId } from "../../../../../../lib/id-shapes.ts";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -79,8 +80,11 @@ const parseTicks = (v: string | undefined): number[] => {
 };
 /** Notes the page draws as blocks; the rest are the working notes anyone on the task reads and writes. */
 const OWN_NOTE =
-  /^(brief|done_means|done_ticks|output_schema|outputs|summary|fixes|asked|answer|baton\..*|thread\.origin|run\.resumed|run\.step|plan\..*|worker\..*|crew\..*|quiet\..*)$/;
+  /^(brief|done_means|done_ticks|output_schema|outputs|summary|fixes|asked|answer|baton\..*|thread\.origin|run\.resumed|run\.step|plan\..*|worker\..*|crew\..*|quiet\..*|chat\..*)$/;
 const NOTES_KEY = "notes";
+/** The working notes a person reads as lines: not the ones the page draws as blocks, and never one that is only an id ("chat.block: blk_...", the app's own bookkeeping). */
+export const readableNotes = (notes: Readonly<Record<string, string>>): Array<[string, string]> =>
+  Object.entries(notes).filter(([k, v]) => !OWN_NOTE.test(k) && !isRawId(String(v)));
 
 export interface TaskDetailProps {
   rt: ShellRuntime;
@@ -1947,7 +1951,8 @@ function Rail({
     );
   const [labelText, setLabelText] = useState((task.labels ?? []).join(" "));
   useEffect(() => setLabelText((task.labels ?? []).join(" ")), [task.labels]);
-  const notes = Object.entries(task.workingNotes).filter(([k]) => !OWN_NOTE.test(k));
+  // a note whose words are an id ("chat.block: blk_...") is the app's own bookkeeping, never a line a person reads: the chat it came from is the source chip's, by name
+  const notes = readableNotes(task.workingNotes);
   const fieldsQ = useTypeFields(rt);
   const zones = useZones();
   const due = dueLabel(task.due, clock.now, zones);

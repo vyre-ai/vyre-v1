@@ -1,0 +1,1 @@
+A terminal that you only watch no longer says "read-only, you do not have access" on your own agent's computer: it says you are watching and to press Take over to type. The "Starting" bar on a terminal now ends when its screen draws, instead of staying on "Almost ready".

@@ -11,7 +11,7 @@
 // Drive keeps a change feed (google.drive.list_changes since a page token) but no capability returns the first start token, so a Drive mount scans (a full listing, compared with what was mapped)
 // until a cursor is stored; once one is, every pass reads the feed. Graph returns a delta link with the first listing, so it is on the feed from the first pass.
 
-import { VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { dropbox } from "./dropbox-provider.ts";
 
@@ -37,6 +37,15 @@ export interface MountRec {
   reviewChanges: boolean;
   pullOnly: boolean;
   cursor?: string;
+  /** a listing the last pass left unfinished: the folders still to read (the first with the page token it stopped at), the change token taken when the listing began, and how many items were read */
+  scan?: Scan;
+}
+
+/** Where a listing larger than one pass stopped, kept with the mount so the next pass resumes there. */
+export interface Scan {
+  queue: { folder: string; token?: string }[];
+  startToken?: string;
+  count: number;
 }
 
 export interface RemoteItem {
@@ -55,6 +64,10 @@ export interface RemoteItem {
   /** who last edited it at the provider, and when */
   editor?: Person;
   modifiedAt?: number;
+  /** in the provider's own Trash (Drive reports a trashed file as a change, not as removed) */
+  trashed?: boolean;
+  /** whether the signed-in person may change it there; absent when the provider does not say */
+  canEdit?: boolean;
 }
 
 export interface Person {
@@ -94,6 +107,12 @@ export interface PullBatch {
   partial?: string;
   /** the remote id of the mounted root when the provider reveals it (Graph delta) */
   rootId?: string;
+  /** where an unfinished listing stopped, to be kept with the mount (an empty queue clears it, so the next pass starts again) */
+  scan?: Scan;
+  /** this pass read the last of a listing that took several passes: the engine adds the ids it kept from the earlier ones before it treats anything as gone */
+  scanDone?: boolean;
+  /** the ids the earlier passes of this listing saw (filled by the engine) */
+  seenBefore?: ReadonlySet<string>;
 }
 
 export interface Downloaded {
@@ -109,6 +128,10 @@ export interface Uploaded {
   editor?: Person;
   /** nothing was written: the item at the provider is no longer the one the write was based on */
   stale?: boolean;
+  /** a file or folder of that name was already there (not this one: it is never taken for it), so it was made under this name instead */
+  renamedTo?: string;
+  /** the write went out, but another revision had been saved there between the one it was based on and this one (the check and the upload are two calls): that revision is named here */
+  between?: { revisionId: string; by?: Person; at?: number };
 }
 
 export interface BrowseItem {
@@ -129,13 +152,30 @@ export interface Provider {
     m: MountRec,
     item: { remoteId: string; name: string; mime?: string; native?: boolean },
   ): Promise<Downloaded>;
+  /** Every write carries `key`: the host refuses an outward write without an idempotency key, and the same key on a retry runs nothing twice. */
   upload?(
     ctx: Ctx,
     m: MountRec,
-    a: { fileId: string; name: string; parentRemote: string; remoteId?: string; ifMatch?: IfMatch },
+    a: { fileId: string; name: string; parentRemote: string; remoteId?: string; ifMatch?: IfMatch; key: string },
   ): Promise<Uploaded>;
-  createFolder?(ctx: Ctx, m: MountRec, a: { name: string; parentRemote: string }): Promise<Uploaded>;
-  remove?(ctx: Ctx, m: MountRec, remoteId: string, isFolder: boolean): Promise<void>;
+  createFolder?(ctx: Ctx, m: MountRec, a: { name: string; parentRemote: string; key: string }): Promise<Uploaded>;
+  /** Puts the item in the provider's own Trash or recycle bin (recoverable there); never a permanent delete. */
+  remove?(ctx: Ctx, m: MountRec, remoteId: string, isFolder: boolean, key: string): Promise<void>;
+  /** A rename and/or a move of the same item (its id, links and sharing stay). `stale`: the item changed there since `ifMatch`, nothing was changed. */
+  update?(
+    ctx: Ctx,
+    m: MountRec,
+    a: {
+      remoteId: string;
+      name?: string;
+      addParent?: string;
+      removeParent?: string;
+      ifMatch?: IfMatch;
+      key: string;
+    },
+  ): Promise<Uploaded>;
+  /** Takes the item back out of the provider's Trash; throws validation.unsupported where the provider does not let Vyre do it. */
+  restore?(ctx: Ctx, m: MountRec, remoteId: string, key: string): Promise<Uploaded>;
   /** The item as the provider holds it now (undefined: gone). Opening a file compares this with what is cached. */
   stat?(ctx: Ctx, m: MountRec, remoteId: string): Promise<RemoteItem | undefined>;
   /** The provider renews its own push channel (Graph, by the microsoft module's Run); the mount only keeps the id. */
@@ -180,9 +220,9 @@ const withConnection = (m: { connectionId?: string; account?: string }): Row => 
 /** Most pages one pass reads, so a runaway feed cannot hold the pass forever. */
 export const MAX_PAGES = 200;
 
-/** What a mount says when one pass could not read the whole listing. */
-export const PARTIAL_WORDS =
-  "This folder is larger than one sync reads, so only the first part of it is here. Nothing was removed.";
+/** What a mount says while a listing larger than one sync is still being read. */
+export const scanWords = (count: number): string =>
+  `Reading this folder: ${count.toLocaleString("en-US")} items so far. It carries on at the next sync, and nothing is removed until all of it has been read.`;
 
 // ---- Google Drive -------------------------------------------------------------------------------------------
 
@@ -252,6 +292,8 @@ function driveItem(f: Row, parentId?: string): RemoteItem | undefined {
     name: text(f["name"]) ?? id,
     ...(parent !== undefined ? { parentId: parent } : {}),
     isFolder,
+    ...(f["trashed"] === true ? { trashed: true } : {}),
+    ...(typeof f["canEdit"] === "boolean" ? { canEdit: f["canEdit"] } : {}),
     ...(size !== undefined ? { size } : {}),
     ...(version !== undefined ? { version } : {}),
     ...(mime !== "" ? { mime } : {}),
@@ -266,10 +308,11 @@ function driveItem(f: Row, parentId?: string): RemoteItem | undefined {
 export const DRIVE_ROOT_ALIAS = "root";
 
 async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
+  const resuming = m.scan !== undefined && m.scan.queue.length > 0;
   let root = m.ref;
-  if (root === undefined) return { items: [], removed: [], full: true };
+  if (root === undefined && !resuming) return { items: [], removed: [], full: true };
   let rootId: string | undefined;
-  if (root === DRIVE_ROOT_ALIAS) {
+  if (!resuming && root === DRIVE_ROOT_ALIAS) {
     try {
       rootId = text(
         obj(obj(await ctx.call("google.drive.get_file", { ...withConnection(m), fileId: root }))["file"])["id"],
@@ -279,50 +322,77 @@ async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
     }
     if (rootId !== undefined) root = rootId;
   }
-  // The feed's start token is taken before the listing, so a change made while the listing runs is read by the next pass. Without one the mount rescans every time.
-  let cursor: string | undefined;
-  try {
-    cursor = text(obj(await ctx.call("google.drive.changes_start_token", withConnection(m)))["startPageToken"]);
-  } catch {
-    /* no token: the next pass scans again */
+  // The feed's start token is taken before the first page of a listing and kept until the listing is whole (it may take several passes), so a change made meanwhile is read by the feed after it.
+  // Without one the mount rescans every time.
+  let cursor: string | undefined = m.scan?.startToken;
+  if (!resuming) {
+    try {
+      cursor = text(obj(await ctx.call("google.drive.changes_start_token", withConnection(m)))["startPageToken"]);
+    } catch {
+      /* no token: the next pass scans again */
+    }
   }
+  const queue: { folder: string; token?: string }[] = resuming
+    ? m.scan!.queue.map((q) => ({ ...q }))
+    : [{ folder: root as string }];
   const items: RemoteItem[] = [];
-  const queue: string[] = [root];
   let pages = 0;
-  let partial = false;
-  for (let folder = queue.shift(); folder !== undefined && !partial; folder = queue.shift()) {
-    let pageToken: string | undefined;
-    do {
+  try {
+    while (queue.length > 0 && pages < MAX_PAGES) {
+      const head = queue[0]!;
       const res = obj(
         await ctx.call("google.drive.list_files", {
           ...withConnection(m),
-          parentId: folder,
+          parentId: head.folder,
           pageSize: 1000,
-          ...(pageToken !== undefined ? { pageToken } : {}),
+          ...(head.token !== undefined ? { pageToken: head.token } : {}),
         }),
       );
       for (const f of list(res["files"])) {
-        const it = driveItem(obj(f), folder);
+        const it = driveItem(obj(f), head.folder);
         if (!it) continue;
         items.push(it);
-        if (it.isFolder) queue.push(it.id);
+        if (it.isFolder) queue.push({ folder: it.id });
       }
-      pageToken = text(res["nextPageToken"]);
       pages += 1;
-      // the page limit with more still to read (another page of this folder, or folders not yet opened): the listing is not whole
-      if (pages >= MAX_PAGES && (pageToken !== undefined || queue.length > 0)) {
-        partial = true;
-        break;
-      }
-    } while (pageToken !== undefined);
+      const next = text(res["nextPageToken"]);
+      if (next !== undefined) head.token = next;
+      else queue.shift();
+    }
+  } catch (e) {
+    // a page token Drive no longer accepts must not trap the mount: the next pass starts the listing again. Anything else is left to the engine as it was.
+    if (
+      resuming &&
+      !/^(provider\.(unavailable|network|rate_limited|overloaded|auth_failed)|timeout\.)/.test(
+        vyreErrorOf(e)?.code ?? "",
+      )
+    )
+      return {
+        items: [],
+        removed: [],
+        full: false,
+        partial: scanWords(m.scan?.count ?? 0),
+        scan: { queue: [], count: 0 },
+      };
+    throw e;
   }
-  // a partial listing keeps no feed cursor (the next pass lists again) and removes nothing
+  const count = (m.scan?.count ?? 0) + items.length;
+  if (queue.length > 0)
+    // not everything has been read: nothing is removed, and the next pass resumes where this one stopped
+    return {
+      items,
+      removed: [],
+      full: false,
+      partial: scanWords(count),
+      scan: { queue, ...(cursor !== undefined ? { startToken: cursor } : {}), count },
+      ...(rootId !== undefined ? { rootId } : {}),
+    };
   return {
     items,
     removed: [],
-    full: !partial,
-    ...(partial ? { partial: PARTIAL_WORDS } : {}),
-    ...(cursor !== undefined && !partial ? { cursor } : {}),
+    full: true,
+    scanDone: true,
+    ...(cursor !== undefined ? { cursor } : {}),
     ...(rootId !== undefined ? { rootId } : {}),
   };
 }
@@ -337,11 +407,10 @@ async function driveFeed(ctx: Ctx, m: MountRec, cursor: string): Promise<PullBat
     for (const c of list(res["changes"])) {
       const ch = obj(c);
       const fileId = text(ch["fileId"]);
-      if (ch["removed"] === true && fileId !== undefined) removed.push(fileId);
-      else {
-        const it = driveItem(obj(ch["file"]));
-        if (it) items.push(it);
-      }
+      const it = ch["removed"] === true ? undefined : driveItem(obj(ch["file"]));
+      // Drive reports a file in its Trash as a change to the file, not as removed
+      if ((ch["removed"] === true || it?.trashed === true) && fileId !== undefined) removed.push(fileId);
+      else if (it) items.push(it);
     }
     next = text(res["newStartPageToken"]) ?? next;
     token = text(res["nextPageToken"]);
@@ -381,10 +450,9 @@ const google: Provider = {
         return await exported(mime);
       } catch (e) {
         if (
-          e instanceof VyreErr &&
-          (e.error.code.startsWith("provider.auth") ||
-            e.error.code === "provider.rate_limited" ||
-            e.error.code.startsWith("permission."))
+          (vyreErrorOf(e)?.code ?? "").startsWith("provider.auth") ||
+          vyreErrorOf(e)?.code === "provider.rate_limited" ||
+          (vyreErrorOf(e)?.code ?? "").startsWith("permission.")
         )
           throw e;
         return exported("text/plain");
@@ -406,15 +474,45 @@ const google: Provider = {
         fileId: a.fileId,
         ...(a.remoteId !== undefined ? { remoteId: a.remoteId } : {}),
         ...(a.remoteId !== undefined && a.ifMatch?.revision !== undefined ? { ifRevision: a.ifMatch.revision } : {}),
+        idempotencyKey: a.key,
       }),
     );
     const it = driveItem(obj(res["file"]));
+    // Drive has no If-Match on an upload: the check above and the upload are two calls. A revision saved between them was written over; it is still in Drive's revision list, and it is named here.
+    let between: Uploaded["between"];
+    if (
+      res["stale"] !== true &&
+      a.remoteId !== undefined &&
+      a.ifMatch?.revision !== undefined &&
+      it?.revision !== undefined
+    ) {
+      try {
+        const revs = list(
+          obj(await ctx.call("google.drive.list_revisions", { ...withConnection(m), fileId: a.remoteId }))["revisions"],
+        ).map(obj);
+        const from = revs.findIndex((r) => text(r["id"]) === a.ifMatch?.revision);
+        const to = revs.findIndex((r) => text(r["id"]) === it.revision);
+        const mid = from >= 0 && to > from + 1 ? revs[from + 1] : undefined;
+        if (mid !== undefined) {
+          const by = personOf(obj(mid["lastModifyingUser"]), "name", "email");
+          const at = stamp(mid["modifiedTime"]);
+          between = {
+            revisionId: text(mid["id"]) ?? "",
+            ...(by !== undefined ? { by } : {}),
+            ...(at !== undefined ? { at } : {}),
+          };
+        }
+      } catch {
+        /* the revision list is a check on top of the write: a failure of it does not undo the write */
+      }
+    }
     return {
       remoteId: it?.id ?? a.remoteId ?? "",
       ...(it?.version !== undefined ? { version: it.version } : {}),
       ...(it?.revision !== undefined ? { revision: it.revision } : {}),
       ...(it?.editor !== undefined ? { editor: it.editor } : {}),
       ...(res["stale"] === true ? { stale: true } : {}),
+      ...(between !== undefined ? { between } : {}),
     };
   },
   hookPath: "/hooks/google/drive",
@@ -432,6 +530,7 @@ const google: Provider = {
         pageToken: m.cursor,
         channelId: a.channelId,
         address: a.address,
+        idempotencyKey: `mnt:watch:${m.id}:${a.channelId}`,
       }),
     );
     const resource = text(res["resourceId"]);
@@ -443,7 +542,12 @@ const google: Provider = {
   },
   async unwatch(ctx, m, w) {
     if (w.resource !== undefined)
-      await ctx.call("google.drive.stop_watch", { ...withConnection(m), channelId: w.id, resourceId: w.resource });
+      await ctx.call("google.drive.stop_watch", {
+        ...withConnection(m),
+        channelId: w.id,
+        resourceId: w.resource,
+        idempotencyKey: `mnt:unwatch:${m.id}:${w.id}`,
+      });
   },
   async revisions(ctx, m, remoteId) {
     const res = obj(await ctx.call("google.drive.list_revisions", { ...withConnection(m), fileId: remoteId }));
@@ -476,12 +580,50 @@ const google: Provider = {
   },
   async createFolder(ctx, m, a) {
     const res = obj(
-      await ctx.call("google.drive.create_folder", { ...withConnection(m), name: a.name, parentId: a.parentRemote }),
+      await ctx.call("google.drive.create_folder", {
+        ...withConnection(m),
+        name: a.name,
+        parentId: a.parentRemote,
+        idempotencyKey: a.key,
+      }),
     );
     return { remoteId: text(obj(res["file"])["id"]) ?? "" };
   },
-  async remove(ctx, m, remoteId) {
-    await ctx.call("google.drive.trash_file", { ...withConnection(m), fileId: remoteId });
+  async remove(ctx, m, remoteId, _isFolder, key) {
+    await ctx.call("google.drive.trash_file", { ...withConnection(m), fileId: remoteId, idempotencyKey: key });
+  },
+  async update(ctx, m, a) {
+    // Drive has no If-Match on a metadata change, so a rename or move conditional on the revision reads the file first (the upload does the same)
+    if (a.ifMatch?.revision !== undefined) {
+      const now = driveItem(
+        obj(obj(await ctx.call("google.drive.get_file", { ...withConnection(m), fileId: a.remoteId }))["file"]),
+      );
+      if (now !== undefined && now.revision !== a.ifMatch.revision)
+        return { remoteId: a.remoteId, stale: true, ...(now.editor !== undefined ? { editor: now.editor } : {}) };
+    }
+    const res = obj(
+      await ctx.call("google.drive.update_file", {
+        ...withConnection(m),
+        fileId: a.remoteId,
+        ...(a.name !== undefined ? { name: a.name } : {}),
+        ...(a.addParent !== undefined ? { addParentId: a.addParent } : {}),
+        ...(a.removeParent !== undefined ? { removeParentId: a.removeParent } : {}),
+        idempotencyKey: a.key,
+      }),
+    );
+    const it = driveItem(obj(res["file"]));
+    return { remoteId: it?.id ?? a.remoteId, ...(it?.version !== undefined ? { version: it.version } : {}) };
+  },
+  async restore(ctx, m, remoteId, key) {
+    const res = obj(
+      await ctx.call("google.drive.update_file", {
+        ...withConnection(m),
+        fileId: remoteId,
+        trashed: false,
+        idempotencyKey: key,
+      }),
+    );
+    return { remoteId: driveItem(obj(res["file"]))?.id ?? remoteId };
   },
   async browse(ctx, input) {
     const res = obj(
@@ -583,6 +725,7 @@ const graph: Provider = {
         fileId: a.fileId,
         ...(a.remoteId !== undefined ? { remoteId: a.remoteId } : {}),
         ...(a.remoteId !== undefined && a.ifMatch?.revision !== undefined ? { ifMatch: a.ifMatch.revision } : {}),
+        idempotencyKey: a.key,
       }),
     );
     const it = graphItem(obj(res["item"]));
@@ -603,13 +746,22 @@ const graph: Provider = {
   },
   async watch(ctx, m, a) {
     const res = obj(
-      await ctx.call("ms.drive.subscribe", { ...withConnection(m), ...driveOf(m), notificationUrl: a.address }),
+      await ctx.call("ms.drive.subscribe", {
+        ...withConnection(m),
+        ...driveOf(m),
+        notificationUrl: a.address,
+        idempotencyKey: `mnt:sub:${m.id}:${a.channelId}`,
+      }),
     );
     const id = text(res["subscriptionId"]);
     return id !== undefined ? { id, expiresAt: whole(res["expiresAt"]) ?? 0 } : undefined;
   },
   async unwatch(ctx, m, w) {
-    await ctx.call("ms.drive.unsubscribe", { ...withConnection(m), subscriptionId: w.id });
+    await ctx.call("ms.drive.unsubscribe", {
+      ...withConnection(m),
+      subscriptionId: w.id,
+      idempotencyKey: `mnt:unsub:${m.id}:${w.id}`,
+    });
   },
   async revisions(ctx, m, remoteId) {
     const res = obj(
@@ -646,12 +798,53 @@ const graph: Provider = {
         ...driveOf(m),
         parentId: a.parentRemote,
         name: a.name,
+        idempotencyKey: a.key,
       }),
     );
-    return { remoteId: text(obj(res["item"])["id"]) ?? "" };
+    return {
+      remoteId: text(obj(res["item"])["id"]) ?? "",
+      ...(typeof res["renamedTo"] === "string" ? { renamedTo: res["renamedTo"] } : {}),
+    };
   },
-  async remove(ctx, m, remoteId) {
-    await ctx.call("ms.drive.delete_item", { ...withConnection(m), ...driveOf(m), itemId: remoteId });
+  /** Graph's delete puts the item in the recycle bin, where its owner can restore it. */
+  async remove(ctx, m, remoteId, _isFolder, key) {
+    await ctx.call("ms.drive.delete_item", {
+      ...withConnection(m),
+      ...driveOf(m),
+      itemId: remoteId,
+      idempotencyKey: key,
+    });
+  },
+  async update(ctx, m, a) {
+    const res = obj(
+      await ctx.call("ms.drive.update_item", {
+        ...withConnection(m),
+        ...driveOf(m),
+        itemId: a.remoteId,
+        ...(a.name !== undefined ? { name: a.name } : {}),
+        ...(a.addParent !== undefined ? { parentId: a.addParent } : {}),
+        ...(a.ifMatch?.revision !== undefined ? { ifMatch: a.ifMatch.revision } : {}),
+        idempotencyKey: a.key,
+      }),
+    );
+    const it = graphItem(obj(res["item"]));
+    return {
+      remoteId: it?.id ?? a.remoteId,
+      ...(it?.version !== undefined ? { version: it.version } : {}),
+      ...(it?.revision !== undefined ? { revision: it.revision } : {}),
+      ...(res["stale"] === true ? { stale: true, ...(it?.editor !== undefined ? { editor: it.editor } : {}) } : {}),
+    };
+  },
+  async restore(ctx, m, remoteId, key) {
+    const res = obj(
+      await ctx.call("ms.drive.restore_item", {
+        ...withConnection(m),
+        ...driveOf(m),
+        itemId: remoteId,
+        idempotencyKey: key,
+      }),
+    );
+    return { remoteId: graphItem(obj(res["item"]))?.id ?? remoteId };
   },
   /** `parent` is "<driveId>" for a drive's top or "<driveId>:<itemId>" inside it; no parent lists the caller's own OneDrive. */
   async browse(ctx, input) {

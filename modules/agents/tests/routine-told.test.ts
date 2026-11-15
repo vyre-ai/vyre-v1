@@ -91,15 +91,15 @@ test("three failed Runs for one cause: one Needs-you item for the owner and one 
   const item = t.tasks[0];
   assert.equal(item.kind, "unblock");
   assert.deepEqual(item.assigned, { kind: "person", id: r.ownerId });
-  assert.equal(item.title, "Digest paused: the AI account reached its usage limit");
-  assert.match(item.summary, /Digest paused after 3 failed runs because the AI account reached its usage limit/);
+  assert.equal(item.title, "Digest paused: your AI account reached its usage limit");
+  assert.match(item.summary, /Digest paused after 3 failed runs because your AI account reached its usage limit/);
   assert.doesNotMatch(
     `${item.title} ${item.summary} ${item.why ?? ""}`,
     /provider\.|rate_limited|429|acc_123|\[account/,
   );
   assert.equal(t.chat.length, 1, "ONE line in the routine's chat");
   assert.equal(t.chat[0].threadId, "thr_main");
-  assert.match(t.chat[0].body, /Paused "Digest" after 3 failed runs: the AI account reached its usage limit/);
+  assert.match(t.chat[0].body, /Paused "Digest" after 3 failed runs: your AI account reached its usage limit/);
   assert.doesNotMatch(t.chat[0].body, /provider\.|rate_limited|429|acc_123/);
 });
 

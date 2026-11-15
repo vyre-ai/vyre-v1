@@ -166,7 +166,7 @@ test("(g) still safe: the first of a pair, a unique file, a Drive-side rename th
   assert.deepEqual(remoteNames(w, mountId), before);
 });
 
-test("(h) a real rename by a person still reaches Drive as it does today: a new file at Drive under the typed name, the old one trashed (owed: that loses sharing and links)", async () => {
+test("(h) a real rename by a person renames the SAME Drive file under the typed name: nothing is made, nothing is trashed, so sharing and links stay", async () => {
   const w = harness();
   listing(w, [f("u1", "unique.pdf")]);
   const mountId = await mountDrive(w);
@@ -180,11 +180,12 @@ test("(h) a real rename by a person still reaches Drive as it does today: a new 
     payload: new TextEncoder().encode(JSON.stringify({ fileId, to: "Plan 2026.pdf" })),
   });
   await call(w, "mounts.sync_now", { mountId });
-  assert.ok(
-    w.google.uploads.some((u) => u.name === "Plan 2026.pdf"),
-    "the typed name goes to Drive",
+  assert.deepEqual(
+    w.google.updates,
+    [{ fileId: "u1", name: "Plan 2026.pdf" }],
+    "the typed name goes to Drive as a rename of the same file",
   );
-  assert.deepEqual(w.google.trashed, ["u1"], "today's design: the old file is trashed after the new one is made");
+  assert.deepEqual([w.google.uploads, w.google.trashed], [[], []], "nothing made, nothing trashed");
 });
 
 // ---- (f) the state rc.26 left: rows with no shown_name ----

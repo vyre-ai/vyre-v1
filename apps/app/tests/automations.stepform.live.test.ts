@@ -24,7 +24,11 @@ test("production Automations: the step row and the step form for each kind and s
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
   const page = await context.newPage();
   const errors: string[] = [];
+  const logs: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error") logs.push(m.text().slice(0, 300));
+  });
   const shot = async (name: string): Promise<void> => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
   };
@@ -141,7 +145,21 @@ test("production Automations: the step row and the step form for each kind and s
     await page.getByTestId("first-page").waitFor({ timeout: 30_000 });
     for (const kind of Object.keys(kinds))
       for (const state of ["empty", "filled", "needs", "fail"] as const) {
-        await page.getByText(`${kind}-${state}`, { exact: true }).first().click({ timeout: 30_000 });
+        await page
+          .getByTestId("auto-list")
+          .getByText(`${kind}-${state}`, { exact: true })
+          .first()
+          .click({ timeout: 30_000 })
+          .catch(async (e) => {
+            await shot(`3-debug-${kind}-${state}`);
+            await page
+              .getByText("Details", { exact: true })
+              .first()
+              .click()
+              .catch(() => undefined);
+            console.log("ERRS", logs.slice(-4).join(" ## "));
+            throw e;
+          });
         await page.getByTestId("story").waitFor({ timeout: 20_000 });
         await page.getByTestId("sv-step-n1").click({ position: { x: 120, y: 14 } });
         await page.waitForTimeout(900);
@@ -173,6 +191,10 @@ test("production Automations: the step row and the step form for each kind and s
     assert.equal(/\{\{|usr_|_id\b/.test(menuText), false, "no brace or id in the Insert data menu");
     await page.getByRole("menuitem").first().click();
     await page.waitForTimeout(900);
+    await page
+      .getByTestId("field-title-chip-1")
+      .waitFor({ timeout: 8_000 })
+      .catch(() => undefined);
     assert.ok(await page.getByTestId("field-title-chip-1").count(), "a chip is in the field");
     await shot("3-insert-data-chosen-d");
 
@@ -196,6 +218,67 @@ test("production Automations: the step row and the step form for each kind and s
     const run = (runs.runs ?? runs.data?.runs ?? [])[0];
     const steps = run ? await api("runs.steps", { runId: run.id }) : null;
     const failed = (steps?.steps ?? steps?.data?.steps ?? []).find((x: { state: string }) => x.state === "failed");
+
+    // round five (walker): a Test that stops on a missing input is a stopped run, never a success
+    const lacking = await make("Lacking a person", [{ id: "n1", key: "create_task", input: { title: "Call back" } }]);
+    const tried = await api("automations.test", { automationId: lacking });
+    const runId = (tried.data ?? tried).runId as string;
+    await page.waitForTimeout(2500);
+    await page.getByText("Lacking a person", { exact: true }).first().click();
+    await page.getByTestId("story").waitFor({ timeout: 20_000 });
+    await page
+      .getByTestId("sv-test")
+      .click()
+      .catch(() => undefined);
+    await page.waitForTimeout(2500);
+    await shot("5-stopped-test-d");
+    const got = await api("runs.get", { runId });
+    const status = (got.run ?? got.data?.run ?? got.data).status as string;
+    assert.equal(status, "failed", "a test that stops on a missing input is not a success");
+    const why = await api("runs.steps", { runId });
+    assert.match(
+      JSON.stringify([got, why]),
+      /choose who it is for/i,
+      `the run says why in words: ${JSON.stringify([got, why]).slice(0, 700)}`,
+    );
+
+    // round five (walker): the Channel field is a picker by name, never a box with an example id
+    const post = await make("Post a note", [{ id: "n1", key: "post_message", input: {} }]);
+    await page.getByText("Post a note", { exact: true }).first().click();
+    await page.getByTestId("story").waitFor({ timeout: 20_000 });
+    await page.getByTestId("sv-step-n1").click({ position: { x: 120, y: 14 } });
+    await page.getByTestId("field-channelId").waitFor({ timeout: 20_000 });
+    const channelText = await page.getByTestId("field-channelId").innerText();
+    assert.match(channelText, /Choose a channel/, "the channel is chosen from a menu");
+    await page.getByTestId("field-channelId").click();
+    await page.waitForTimeout(500);
+    await shot("5-channel-picker-d");
+    await page.keyboard.press("Escape");
+    assert.equal(/\b[a-z]{3}_[a-z0-9]{6,}/.test(await page.locator("body").innerText()), false, "no id on the form");
+    void post;
+
+    // round five: the three forms that were once bodies of their own, shown in the one form
+    await make("http-form", [
+      {
+        id: "n1",
+        key: "http_request",
+        input: { method: "POST", url: "https://api.example.com/orders", json: { note: "hello" } },
+      },
+    ]);
+    await make("code-form", [{ id: "n1", key: "code", input: { source: "return { total: 1 };" } }]);
+    for (const kind of ["http", "code"]) {
+      await page.getByText(`${kind}-form`, { exact: true }).first().click();
+      await page.getByTestId("story").waitFor({ timeout: 20_000 });
+      await page.getByTestId("sv-step-n1").click({ position: { x: 120, y: 14 } });
+      await page.waitForTimeout(900);
+      await shot(`6-${kind}-form-d`);
+      assert.equal(
+        /\b[a-z]{3}_[a-z0-9]{6,}|\{\{|Templating/.test(await page.locator("body").innerText()),
+        false,
+        `${kind}: no id or syntax`,
+      );
+    }
+
     console.log("RUN", run?.status, JSON.stringify(failed?.error ?? null));
     assert.deepEqual(errors, [], "no page error");
   } finally {

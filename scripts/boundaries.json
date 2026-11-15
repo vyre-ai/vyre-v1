@@ -216,7 +216,8 @@
       "apps/desktop/src-tauri/ci/bundle-check.ts"
     ],
     "ignoreImports": [
-      "manifest/gen/scaffold/index.ts"
+      "manifest/gen/scaffold/index.ts",
+      "apps/app/public/vendor"
     ]
   },
   "exceptions": [

@@ -53,6 +53,8 @@ type Out = {
           name?: string;
           email?: string;
         };
+        trashed?: boolean;
+        canEdit?: boolean;
       };
     }>;
   newStartPageToken?: string;
@@ -83,6 +85,7 @@ type Out = {
     "changes": [
       {
         "file": {
+          "canEdit": true,
           "driveId": "example",
           "headRevisionId": "example",
           "id": "example",
@@ -97,6 +100,7 @@ type Out = {
             "example"
           ],
           "size": 1,
+          "trashed": true,
           "webViewLink": "example"
         },
         "fileId": "example",

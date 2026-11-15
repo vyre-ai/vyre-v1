@@ -768,7 +768,7 @@ test("a full host queues the workspace with the plain line: nothing is made or s
 test("a workspace that fails to start gives its room back", async () => {
   const room = fakeRoom();
   const r = rigWith({ capacity: room.capacity }, { image: false });
-  await assert.rejects(() => r.mgr.ensure(AGENT), /can't start agent workspaces/);
+  await assert.rejects(() => r.mgr.ensure(AGENT), /no computer ready for agents/);
   assert.deepEqual(room.log, [`claim ${AGENT}`, `release ${AGENT}`]);
 });
 

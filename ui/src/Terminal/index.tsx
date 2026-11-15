@@ -498,6 +498,8 @@ export interface TerminalViewProps extends TerminalProps {
   fallbackLabel?: string;
   /** A short confirmation shown at the right of the bar, for example "Copied". */
   note?: string;
+  /** Why a read-only terminal takes no keys, in the words after the state ("watching, press Take over to type" for the owner who has not taken the keyboard); the default is for a person who has no access. */
+  readonlyWhy?: string;
   /** Every computer the person can open a terminal on (this computer, other computers, servers, agent computers). When given, the host chip lists these instead of the three kinds. */
   /** What the line being typed would do: a dot in the bar (green reads, amber changes, red is destructive and always asks). Null or absent: no dot. */
   risk?: "read" | "change" | "danger" | null;
@@ -687,7 +689,7 @@ export function Terminal(props: TerminalViewProps): ReactElement {
     </View>
   );
   const sub = session
-    ? `${props.hostLabel} · ${exited ? "exited" : "running"}${props.readonly === true ? " · read-only, you do not have access" : ""}`
+    ? `${props.hostLabel} · ${exited ? "exited" : "running"}${props.readonly === true ? ` · ${props.readonlyWhy ?? "read-only, you do not have access"}` : ""}`
     : "";
 
   return (

@@ -104,6 +104,13 @@
       "proto": "automations,{skin}",
       "waitFor": "body",
       "note": "A step form: text message"
+    },
+    {
+      "id": "AUTO13_01-list-selected",
+      "route": "/m/AUTO13_01?part=list",
+      "proto": "automations,{skin}",
+      "waitFor": "[data-testid^='row-auto-']",
+      "note": "The one list with a selected row"
     }
   ]
 }
