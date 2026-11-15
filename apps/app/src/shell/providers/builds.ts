@@ -21,7 +21,8 @@ export function useAssistantBuilds(rt: ShellRuntime | null): Builds {
   const [st, setSt] = useState<BuilderStatus | null>(null);
   const agentId = rt?.assistant.id;
   useEffect(() => {
-    if (!rt || !agentId) return undefined;
+    // until the agents are read the assistant is a placeholder ("assistant"): asking about it is refused as bad input, so the read waits for the real one
+    if (!rt || !agentId || !agentId.startsWith("agt_")) return undefined;
     let live = true;
     void (async () => {
       try {

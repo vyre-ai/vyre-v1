@@ -27,8 +27,8 @@ export function tabSpecs(tabs: readonly TabEntry[], working: ReadonlySet<string>
     out.push({
       key: t.key,
       title: t.title,
-      icon: iconMarkup(t.place),
-      ...(t.pinned === true ? { pinned: true } : {}),
+      icon: t.isNew === true ? "plus" : iconMarkup(t.place),
+      ...(t.pinned === true ? { pinned: true, iconOnly: true } : {}),
       // a chat whose agent (or whose helpers, left running in the background) works shows the working mark in its tab, still under reduced motion
       ...(thread !== undefined && working.has(thread)
         ? {
@@ -114,6 +114,7 @@ export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: Main
       label="Open tabs"
       hideLoneClose
       noOptions
+      listAll
       tabs={tabSpecs(state.tabs, working)}
       active={state.active}
       onSelect={(key) => {

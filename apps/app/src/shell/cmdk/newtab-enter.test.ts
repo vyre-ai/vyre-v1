@@ -60,28 +60,29 @@ test("Enter with words and no selection starts a chat with exactly those words, 
   assert.deepEqual(w.calls.opened, []);
 });
 
-test("an arrow moves the selection onto a result, and Enter opens that result, not a chat", () => {
+test("words that match something select the best match, and Enter opens it, not a chat", () => {
   const w = world();
   w.c.setRaw("referral");
-  assert.equal(w.c.getState().active, -1);
-  w.c.move(1);
-  const row = w.c.getState().rows[w.c.getState().active]!;
+  const st = w.c.getState();
+  assert.ok(st.active >= 0, "the best match is selected");
+  const row = st.rows[st.active]!;
   assert.ok(row.type === "hit");
   w.c.enter();
   assert.equal(w.started.length, 0);
   assert.equal(w.calls.opened.length, 1);
 });
 
-test("the pointer moving onto a result selects it too; typing again takes the selection back, and Enter starts the chat", () => {
+test("words that find nothing keep the chat: nothing is selected and Enter starts it; the arrows and the pointer still choose a row", () => {
   const w = world();
-  w.c.setRaw("referral");
-  const i = w.c.getState().rows.findIndex((r) => r.type === "hit");
-  w.c.hover(i);
-  assert.equal(w.c.getState().active, i);
-  w.c.setRaw("referral fee");
+  w.c.setRaw("zq xv blorf");
   assert.equal(w.c.getState().active, -1);
   w.c.enter();
   assert.equal(w.started.length, 1);
+  const x = world();
+  x.c.setRaw("referral");
+  const i = x.c.getState().rows.findIndex((r) => r.type === "hit");
+  x.c.hover(i);
+  assert.equal(x.c.getState().active, i);
 });
 
 test("the Ask is the first row for a phrase, not selected; the arrow lands on it and Enter asks; Alt+Enter asks from the field; a short word has no Ask row and Alt+Enter does nothing", async () => {

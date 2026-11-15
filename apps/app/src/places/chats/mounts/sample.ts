@@ -2,6 +2,7 @@
 // samples the parts were built against (sidebar, conversation, agent page, Needs you, computer popup, helper) and by one more fake replica for what this folder adds: terminals with
 // their output and stars, the terminal rules, the agent computers, a channel to connect an outside agent to, a stopped recording, and a wait that holds a thread. Every write changes
 // those rows, so each control in a mount really works; the real replica is SQLite behind the same surface. Nothing here is used by the app.
+import { forgetPanes } from "./pane-memory.ts";
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
@@ -95,6 +96,7 @@ export interface MountSample {
 export function createMountSample(
   o: { conversation?: ConversationVariant; who?: Who; online?: boolean; asleep?: boolean } = {},
 ): MountSample {
+  forgetPanes();
   const who = o.who ?? "member";
   const side = createSampleSidebar(undefined, o.online === undefined ? {} : { online: o.online });
   const conv = createConversation(o.conversation ?? "busy", o.online === undefined ? {} : { online: o.online });
