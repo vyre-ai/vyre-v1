@@ -149,6 +149,7 @@ export function RewindCard({
       ) : null}
       {read.state === "ready" ? (
         <View accessibilityRole="radiogroup" style={st.list}>
+          {/* ui-rows-lint: not a list (a radio group inside one card: the points to go back to, one of which is chosen) */}
           {read.points.map((p) => {
             const l = pointLine(p, when);
             const on = p.pointId === pick;
