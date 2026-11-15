@@ -205,13 +205,8 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
     await t.test("8 Ada sets one deal to Only me: Bea and Cal lose it at once, without a refresh", async () => {
       // back on the table, where the deal is on screen (both were on a record page)
       for (const page of [B, C]) {
-        await page
-          .getByRole("tab", { name: "Records" })
-          .first()
-          .click()
-          .catch(async () => {
-            await page.getByTestId("rail-records").or(page.getByTestId("rail-records-selected")).first().click();
-          });
+        // the Records tab remembers the record page it was on (b-nav 07f0221a0), so the table is reached the way a person does: the Deals row in the Records sidebar
+        await page.getByTestId("row-nav:type:rt_deal").click();
         await page.getByTestId(`rec-${deals["Cedar upsell"]}`).waitFor({ timeout: 20_000 });
       }
       assert.ok((await count(B, `rec-${deals["Cedar upsell"]}`)) > 0, "Bea has the deal on screen");

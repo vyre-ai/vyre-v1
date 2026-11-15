@@ -41,8 +41,12 @@ test("kinds-b: a member's refused links say so plainly with no Retry", async (t)
     assert.match(chatText, /You can't open this chat/);
     assert.doesNotMatch(chatText, /does not exist|Couldn't load/);
     assert.equal(await maya.getByTestId("state-retry").count(), 0, "a chat she cannot open offers no Retry");
+    // 298d17dd0 (rc.28): the landing tab is named "New chat" and stays in the strip beside the refused chat's tab, so the old check on the whole body now reads the landing tab.
+    // What it guards is the refused chat's own tab (the selected one): it must not be called a new chat.
+    const refusedTab = maya.locator('[data-testid^="tab-"][data-testid$="-selected"]').first();
+    await refusedTab.waitFor({ timeout: 10_000 });
     assert.ok(
-      !(await maya.locator("body").innerText()).includes("New chat"),
+      !(await refusedTab.innerText()).includes("New chat"),
       "the tab does not call a chat she cannot open a new chat",
     );
     await maya.screenshot({ path: path.join(shots, "9-member-chat.png") });

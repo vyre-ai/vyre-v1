@@ -442,3 +442,9 @@ Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9
 `backup.export_status` answers, besides the archive's file, `leftOut` (an integer: how many files the archive could not hold and names on its `NOT-EXPORTED.txt` page) and `filesKept` (how many files it holds), both present only when at least one file was left out. They are read from the archive itself. The export screen uses them to say in one line how many files were left out and that the list is in the zip.
 
 Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
+
+## 15 Nov 2026: chats.sidebar rows gain one optional output field (lane f-shots)
+
+A row of `chats.sidebar` gains `ask` (a boolean), present and true only on a pane that is an ask waiting for a person. The sidebar's Asks filter reads it; before, the server never sent ask panes and the filter was always empty. Optional output only: an older client ignores it.
+
+Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-shots-rc29 747c7008f)

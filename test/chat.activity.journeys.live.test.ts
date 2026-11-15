@@ -50,15 +50,16 @@ test("a reply being written says what the agent is doing, from its real steps an
       0,
       "no lone caret on an empty line: the activity line takes that spot",
     );
+    // 99e53ed9b (rc.28, G21): a live reply shows one calm word; the steps and its thinking are one press away in the trail, so the walk opens the trail while it works
+    await shoot(me.page, dir, "thinking", { phone: false });
+    await line.click();
+    await me.page.getByTestId("activity-trail").waitFor({ timeout: 5_000 });
     await me.page
-      .getByTestId("activity-excerpt")
+      .getByTestId("activity-thinking")
       .filter({ hasText: /notes|plan|look/i })
       .waitFor({ timeout: 10_000 }); // a live excerpt of its thinking
-    await shoot(me.page, dir, "thinking", { phone: false });
-
-    // then its steps, as they happen
+    // then its steps, as they happen, in the trail
     await me.page.getByText("Reading model.ts", { exact: false }).first().waitFor({ timeout: 25_000 }); // what it touches: the file's name, not its folders
-    assert.match(await line.innerText(), /Reading model\.ts/);
     await me.page
       .getByText(/Searching the web: stream pacing/)
       .first()
@@ -67,10 +68,6 @@ test("a reply being written says what the agent is doing, from its real steps an
       .getByText(/Running a command/)
       .first()
       .waitFor({ timeout: 25_000 });
-
-    // open the trail while it works, then fold it
-    await line.click();
-    await me.page.getByTestId("activity-trail").waitFor({ timeout: 5_000 });
     assert.ok(
       (await me.page.getByText(/Reading model\.ts/).count()) > 0 &&
         (await me.page.getByText(/Searching the web: stream pacing/).count()) > 0,
@@ -110,10 +107,7 @@ test("a reply being written says what the agent is doing, from its real steps an
     await me.page.getByTestId("composer-field").fill("think 2500");
     await me.page.getByTestId("composer-send").click();
     await me.page.getByTestId("activity-line").waitFor({ timeout: 10_000 });
-    await me.page
-      .getByTestId("activity-excerpt")
-      .waitFor({ timeout: 10_000 })
-      .catch(() => undefined);
+    await me.page.getByTestId("activity-line").waitFor({ timeout: 10_000 }); // 99e53ed9b: the excerpt is in the trail now, the line is the calm word
     await shoot(me.page, dir, "thinking-on-phone", { only: "phone" });
     assert.deepEqual(me.errors, [], "no page errors");
     passes++;

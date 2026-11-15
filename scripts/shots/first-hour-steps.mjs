@@ -14,7 +14,6 @@ export async function claim(S, name, username) {
   await page.getByTestId("claim-password").fill(S.PW);
   await page.getByTestId("claim-confirm").fill(S.PW);
   await page.getByTestId("claim-next").click();
-  await page.getByTestId("claim-saved").click();
   await page.getByTestId("claim-create").click();
   await S.dismissOnboarding(page);
   await page.getByTestId("shell").waitFor({ timeout: 30000 });

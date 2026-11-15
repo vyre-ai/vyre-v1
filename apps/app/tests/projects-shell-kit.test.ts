@@ -168,9 +168,10 @@ export async function projectsShellWalk(
         await both(p, `projects-0-plain-chat-${who}-${size}`);
         await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
       }
-      // the group in the sidebar, after Goals, and a row
+      // the project is a row among the Channels with a project tile (c5da6ccd8: Projects merged into Channels; there is no Projects head), and a row
       if (size === "wide") {
-        await p.getByTestId("head-projects").waitFor({ timeout: 20_000 });
+        await p.getByTestId("head-channels").waitFor({ timeout: 20_000 });
+        await p.getByTestId(`row-pj:${pid}`).waitFor({ timeout: 20_000 });
         await ok("the sidebar");
         await both(p, `projects-1-sidebar-${who}-${size}`);
         await p.getByTestId(`row-pj:${pid}`).click();

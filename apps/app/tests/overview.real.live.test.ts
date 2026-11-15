@@ -127,7 +127,7 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
         await page.goto(`${web.origin}/chat?skin=${skin}#subject=project:${pid}`, { waitUntil: "load" });
       } else {
         await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-        await page.getByTestId("head-projects").waitFor({ timeout: 20_000 });
+        await page.getByTestId("head-channels").waitFor({ timeout: 20_000 }); // the project row sits among the Channels (c5da6ccd8: no Projects head)
         await page.getByTestId(`row-pj:${pid}`).click();
       }
       await page

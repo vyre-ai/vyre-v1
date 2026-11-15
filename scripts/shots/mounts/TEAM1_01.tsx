@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
+import { AwayLine } from "../../../apps/app/src/places/chats/tasks/AwayLine.tsx";
 import { ChatsSidebar } from "../../../apps/app/src/places/chats/sidebar/ChatsSidebar.tsx";
 import { createSampleSidebar, northwind, SAMPLE_NOW } from "../../../apps/app/src/places/chats/sidebar/sample.ts";
 import { ConsoleDataProvider } from "../../../apps/app/src/console/shell/data.tsx";
@@ -398,7 +399,14 @@ export default function Mount(): ReactNode {
         <View style={{ width: 272, flexShrink: 0 }}>
           <ChatsSidebar data={part === "chats" ? away : quiet} window={{ start: 0, end: 500 }} />
         </View>
-        <View style={{ flex: 1 }} />
+        {/* While you were away is the top of the Tasks page now (AwayLine, tasks/TasksPage.tsx), not a sidebar row (the 13 Nov sidebar, c5da6ccd8) */}
+        <View style={{ flex: 1, padding: 16, maxWidth: 560 }}>
+          <AwayLine
+            call={(part === "chats" ? away : quiet).call}
+            assistant={{ id: "agt_assistant", name: "Assistant" }}
+            openTask={() => undefined}
+          />
+        </View>
       </View>
     );
   }

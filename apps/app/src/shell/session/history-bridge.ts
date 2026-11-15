@@ -33,6 +33,10 @@ export function startHistoryBridge(hub: ShellHub, win: BridgeWindow): () => void
   let returning = false;
   let guarded = markOf(win.history.state) === "here";
 
+  /** Which Space the address names (the `space` query of a packaged app). A switch writes the new Space's address while this hub, the old Space's, is still on screen for a moment. */
+  const spaceOf = (): string | null => new URLSearchParams(win.location.search).get("space");
+  const born = spaceOf();
+
   const here = (): string => `${win.location.pathname}${win.location.search}${win.location.hash}`;
   const read = (): void => readUrlIntoHub(hub, win.location);
 
@@ -40,6 +44,8 @@ export function startHistoryBridge(hub: ShellHub, win: BridgeWindow): () => void
   const show = (): void => {
     // between the guard and the middle entry the address belongs to the guard: the middle entry is written when it is back
     if (returning) return;
+    // the address now names another Space: it is the new Space's to write, never this one's (its item would be read into the new Space as a link)
+    if (spaceOf() !== born) return;
     const next = hubUrl(hub, win.location.search);
     if (next === null || next === here()) return;
     win.history.replaceState(guarded ? { vyre: "here" } : win.history.state, "", next);

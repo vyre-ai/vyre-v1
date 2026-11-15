@@ -260,3 +260,19 @@ test("a missed wait fails at desktop always, and at phone only for a target that
   assert.equal(waitIsHard({ ...plain, waitFor: { desktop: "[data-testid='a']" } }, "phone"), false);
   assert.equal(waitIsHard({ ...plain, waitFor: undefined }, "phone"), false);
 });
+
+// 15 Nov 2026: a printed "step failed" line failed nothing, so a picture whose click or fill could not find its control was filed as a good picture. A failed step now fails the shard.
+test("a step that could not find its control is collected and fails the shard", () => {
+  const src = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), "shots.mjs"), "utf8");
+  assert.match(
+    src,
+    /for \(const e of await runTestIdSteps\(page, steps\)\) \{[\s\S]*?failedSteps\.add\(/,
+    "each failed step is collected",
+  );
+  assert.match(
+    src,
+    /if \(failedSteps\.size\) \{[\s\S]*?failedGate = true;/,
+    "a collected failed step sets the failing gate",
+  );
+  assert.match(src, /if \(failedGate\) process\.exit\(1\)/, "the gate ends the run red");
+});

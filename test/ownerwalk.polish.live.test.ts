@@ -163,26 +163,29 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       );
       // the phone: the same request opens Projects with a name row (review O3)
       await page.setViewportSize({ width: 390, height: 844 });
-      const phoneRow = page.getByTestId("records-adding-input");
+      const phoneRow = page.getByTestId("project-page").or(page.getByTestId("record-page")).first(); // New on the phone's Projects list makes the project and opens it as a project page named New project, to be named there (no inline name row)
       try {
         await page.goto(`${w.web.origin}/chat`, { waitUntil: "load" });
         await page.getByTestId("mobile-shell").waitFor({ timeout: 25_000 });
-        await page.getByTestId("new-project").first().click({ timeout: 15_000 });
+        // the Projects head and its + went when Projects merged into Channels (c5da6ccd8): a phone person starts a project from Records, picks the Projects type and presses New
+        await page.getByTestId("tab-records").click({ timeout: 15_000 });
+        await page.getByTestId("records-type-pick").click({ timeout: 15_000 });
+        await page.getByText("Projects", { exact: true }).first().click({ timeout: 15_000 });
+        await page.getByTestId("records-new").click({ timeout: 15_000 });
         await phoneRow.waitFor({ timeout: 25_000 });
+        await page.getByText("New project", { exact: true }).first().waitFor({ timeout: 15_000 });
       } catch (e) {
         await page.setViewportSize({ width: 1280, height: 860 });
         throw e;
       }
       await w.shot("new-project-phone", { widths: [390] });
-      await phoneRow.fill("Phone launch");
-      await phoneRow.press("Enter");
       await page.setViewportSize({ width: 1280, height: 860 });
       let names = "";
-      for (let i = 0; i < 20 && !names.includes("Phone launch"); i++) {
+      for (let i = 0; i < 20 && !names.includes("New project"); i++) {
         names = JSON.stringify((await w.api("projects.list", {})).data);
-        if (!names.includes("Phone launch")) await page.waitForTimeout(500);
+        if (!names.includes("New project")) await page.waitForTimeout(500);
       }
-      assert.ok(names.includes("Phone launch"), "a project made at the phone width");
+      assert.ok(names.includes("New project"), "a project made at the phone width");
     });
 
     await w.step("7 Space Settings opens Console > Space for the owner", async () => {
@@ -231,9 +234,9 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       ).data.thread.threadId as string;
       await page.goto(`${w.web.origin}/chat#subject=thread:${thread}`, { waitUntil: "load" });
       await page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
-      if ((await page.getByTestId("pane-agent").count()) === 0) await page.getByTestId("pane-button").click();
-      await page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
-      await page.getByTestId("tab-computer").click();
+      if ((await page.getByTestId("side-pane").count()) === 0) await page.getByTestId("pane-button").click();
+      await page.getByTestId("side-pane").waitFor({ timeout: 20_000 });
+      await page.getByTestId("tab-computer").or(page.getByTestId("tab-computer-selected")).first().click(); // the agent pane opens on its Computer tab by itself (chat frame, 14 Nov: c77534521): it has no pane-agent header and the tab may already be selected
       const label = page.getByTestId("browser-head");
       await label.waitFor({ timeout: 20_000 });
       const next = page
