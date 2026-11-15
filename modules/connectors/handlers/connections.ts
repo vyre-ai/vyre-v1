@@ -20,6 +20,7 @@ import {
 } from "../projections.ts";
 import type { ConnectionDb, ConnectionState, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { clearReconnectTask, executeAction } from "./runtime.ts";
+import { destinationProblem } from "../destination.ts";
 
 export interface ConnectionRow {
   connectionId: string;
@@ -100,18 +101,13 @@ export interface ForService {
   };
   connection?: { connectionId: string; owner: "mine" | "space"; state: ConnectionState };
   near?: string[];
+  /** A built-in connector the card does not offer (its hosts cannot be made exact): it keeps its older way, from Connections. */
+  older?: string;
 }
 
-/** Are the connector's declared domains exactly the hosts its actions call (no wildcard, no extra domain, no action on an undeclared host)? The card's rule for where a key may go. */
-export const hostsEqualDomains = (def: ConnectorDef): boolean => {
-  const calls = keyHosts(def).map((h) => h.toLowerCase());
-  const declared = def.domains.map((d) => d.toLowerCase());
-  return (
-    calls.length > 0 &&
-    declared.every((d) => !d.includes("*") && calls.includes(d)) &&
-    calls.every((h) => declared.includes(h))
-  );
-};
+/** Is this connector exact enough to be connected from a card? The one decision lives in destination.ts (destinationProblem); this only reads the Space's built-in connectors for it. */
+export const hostsEqualDomains = (def: ConnectorDef, builtins: readonly ConnectorDef[] = []): boolean =>
+  destinationProblem(def, builtins) === null;
 
 /** "Fathom", "fathom.video" and "FATHOM" name one thing: lower case, letters and digits only. */
 const squash = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -134,6 +130,16 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     seedBuiltins(deps);
   };
   const actorOf = (ctx: ConnectorsCtx): string => ctx.actor ?? "system";
+  /** The Space's built-in connectors: what a connector somebody else published may not overlap (destination.ts). */
+  const builtinDefs = (): ConnectorDef[] =>
+    tx
+      .all<{ def: string }>("SELECT def FROM cn_connectors WHERE builtin = 1")
+      .map((r) => ({ ...(JSON.parse(r.def) as ConnectorDef), builtin: true }));
+  /** Built in is what the row says (seeded by the server), never what a published definition says of itself: a person-made or agent-published connector cannot call itself built in. */
+  const asStored = (r: { def: string; builtin: number }): ConnectorDef => ({
+    ...(JSON.parse(r.def) as ConnectorDef),
+    builtin: r.builtin === 1,
+  });
 
   const rowOf = (r: ConnectionDb): ConnectionRow => ({
     connectionId: r.connection_id,
@@ -164,9 +170,12 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       refuse(ctx, "permission.no_grant", "Only the owner of this connection can change it.");
   };
   const defOf = (ctx: ConnectorsCtx, key: string): ConnectorDef => {
-    const c = tx.get<{ def: string; state: string }>("SELECT def, state FROM cn_connectors WHERE key = ?", key);
+    const c = tx.get<{ def: string; state: string; builtin: number }>(
+      "SELECT def, state, builtin FROM cn_connectors WHERE key = ?",
+      key,
+    );
     if (!c) return refuse(ctx, "validation.not_found", `There is no connector ${key}.`);
-    return JSON.parse(c.def) as ConnectorDef;
+    return asStored(c);
   };
   const secretsOf = (r: ConnectionDb): Record<string, string> => JSON.parse(r.secrets) as Record<string, string>;
 
@@ -567,10 +576,12 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const want = squash(input.service);
       const rows = want
         ? tx
-            .all<{ key: string; def: string; state: string }>("SELECT key, def, state FROM cn_connectors ORDER BY key")
+            .all<{ key: string; def: string; state: string; builtin: number }>(
+              "SELECT key, def, state, builtin FROM cn_connectors ORDER BY key",
+            )
             .filter((r) => r.state !== "draft")
         : [];
-      const defs = rows.map((r) => JSON.parse(r.def) as ConnectorDef);
+      const defs = rows.map(asStored);
       // the exact name (key or title), never a prefix: "Git" is not GitHub. Several with that name is not a guess either.
       let exact = defs.filter((d) => squash(d.key) === want || squash(d.title) === want);
       // a built-in connector wins over an agent-published namesake: an agent cannot switch the card off for a service by publishing one of the same name
@@ -589,7 +600,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const hit = exact[0]!;
       // a connector whose declared domains are not exactly the hosts its actions call cannot be connected from a card: the person approves the hosts the key goes to, and a domain no action calls (or a
       // wildcard) is a place the key could be sent to without them having seen it
-      if (!hostsEqualDomains(hit)) return { found: false, near: [] };
+      if (!hostsEqualDomains(hit, builtinDefs()))
+        return hit.builtin === true ? { found: false, near: [], older: hit.title } : { found: false, near: [] };
       const me = actorOf(ctx);
       const mine = tx
         .all<ConnectionDb>("SELECT * FROM cn_connections WHERE connector = ? ORDER BY created_at", hit.key)
@@ -640,6 +652,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const c = tx.get<{ state: string }>("SELECT state FROM cn_connectors WHERE key = ?", input.connector)!;
       if (c.state === "draft")
         refuse(ctx, "validation.precondition_failed", `${def.title} is not published yet, so it cannot be tried.`);
+      // a typed key is sent only where a card could have sent it: the same rule as the card's, so a connector the card would not offer is not tried by a call that skips the card
+      if (!hostsEqualDomains(def, builtinDefs()))
+        refuse(ctx, "validation.precondition_failed", `${def.title} cannot be tried from a card, so no key was sent.`);
       for (const s of def.secrets)
         if (!/\boptional\b/i.test(s.description) && !(input.secrets[s.name] ?? "").trim())
           refuse(ctx, "validation.bad_input", `${labelOfSlot(s.name)} is needed.`);

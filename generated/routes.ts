@@ -5574,6 +5574,25 @@ const routes1: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/chat/connect_line",
+    "cap": "chat.connect_line",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/chat/crew_line",
     "cap": "chat.crew_line",
     "v": 1,
@@ -8589,6 +8608,25 @@ const routes1: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/connections/approve_hosts",
+    "cap": "connections.approve_hosts",
+    "v": 1,
+    "module": "connectors",
+    "effects": "write",
+    "permission": null,
+    "level": "manage",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/connections/complete_auth",
     "cap": "connections.complete_auth",
     "v": 1,
@@ -11072,7 +11110,10 @@ const routes1: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/email_builder/versions",
@@ -11109,10 +11150,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/engine/accounts/list",
@@ -16614,7 +16652,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/goals/sources",
@@ -16650,10 +16691,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/goals/stop",
@@ -22119,7 +22157,10 @@ const routes3: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": "send"
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mail/send_as",
@@ -22157,10 +22198,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mail/status_update",
@@ -27605,7 +27643,10 @@ const routes4: Route[] = [
     "offline": "patch",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/notes/get",
@@ -27641,10 +27682,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/notes/label",
@@ -33127,7 +33165,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/settings/kit/get",
@@ -33163,10 +33204,7 @@ const routes5: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/settings/kit/set_space",
@@ -38642,7 +38680,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/terminal/open",
@@ -38678,10 +38719,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/terminal/read",
@@ -40072,6 +40110,42 @@ const routes7: Route[] = [
     "method": "POST",
     "path": "/v1/vault/connect_card/get",
     "cap": "vault.connect_card.get",
+    "v": 1,
+    "module": "vault-requests",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/vault/connect_card/line",
+    "cap": "vault.connect_card.line",
+    "v": 1,
+    "module": "vault-requests",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/vault/connect_card/may_discard",
+    "cap": "vault.connect_card.may_discard",
     "v": 1,
     "module": "vault-requests",
     "effects": "read",

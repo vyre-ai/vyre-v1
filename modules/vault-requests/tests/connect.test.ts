@@ -103,6 +103,17 @@ test("a service with no connector answers no_connector with the one next step, a
   assert.equal(w.called("chat.post").length, 0);
 });
 
+test("a built-in service the card does not offer says so to the agent: its older way, and no second connector built for it", async () => {
+  const w = room({ older: ["Stripe"] });
+  const r = await ask(w, "Stripe");
+  assert.equal(r.status, "no_connector");
+  assert.match(r.tell, /own place under Connections/);
+  assert.match(r.tell, /build no connector/i);
+  assert.doesNotMatch(r.tell, /Build one|connectors_init/);
+  assert.equal(BANNED.test(r.tell.replace(/Connections in the Vault/, "")), false);
+  assert.equal(w.called("chat.post").length, 0, "no card is drawn for it");
+});
+
 test("Connect: the key is tried first, kept second, connected third, and nothing but the try ever carries it", async () => {
   const w = room();
   const { requestId } = await ask(w);

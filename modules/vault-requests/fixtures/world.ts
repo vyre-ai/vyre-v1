@@ -48,6 +48,8 @@ export interface Script {
   >;
   /** the person's own connection to a service, by connector key, as connectors.for_service reports it */
   connections?: Record<string, { connectionId: string; owner: "mine" | "space"; state: string }>;
+  /** built-in services the card does not offer (their hosts cannot be made exact), by name: connectors.for_service answers `older` for them */
+  older?: string[];
   /** the connector is not built in (an agent's draft made live) */
   thirdParty?: boolean;
   /** the connector has no call that tries a key */
@@ -160,6 +162,8 @@ export function world(over: Partial<Script> = {}) {
         const key = Object.keys(script.connectors ?? {}).find(
           (k) => k === want || script.connectors![k]!.title.toLowerCase() === want,
         );
+        const older = (script.older ?? []).find((t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "") === want);
+        if (older) return { found: false, near: [], older };
         if (!key) return { found: false, near: [] };
         const c = script.connectors![key]!;
         return {

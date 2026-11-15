@@ -303,6 +303,8 @@ export async function connectService(
         status: "no_connector",
         tell: `More than one connector is called ${String(near[0])}, so none was chosen. Ask an admin to remove the one that should not be there, then call vault_connect again.`,
       };
+    // a built-in service whose hosts cannot be made exact keeps its older way, and the agent is told to say so rather than build a second connector for it
+    if (typeof two?.["older"] === "string") return { status: "no_connector", tell: TELL.older_way(two["older"]) };
     return { status: "no_connector", tell: TELL.no_connector(said) };
   }
   // already connected for this person, and working: nothing to ask

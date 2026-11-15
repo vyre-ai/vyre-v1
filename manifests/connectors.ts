@@ -682,6 +682,12 @@ export default defineManifest({
             }),
           ),
           near: t.opt(t.arr(t.str(), { description: "Names of the connectors that came closest, when none matched" })),
+          older: t.opt(
+            t.str({
+              description:
+                "The title of a built-in connector the card does not offer because its hosts cannot be made exact; it is connected the older way, from Connections",
+            }),
+          ),
         },
         errors: ["internal.not_implemented"],
       },

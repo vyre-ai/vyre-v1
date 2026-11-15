@@ -431,6 +431,7 @@ export function stubs(ctx: CallCtx) {
       composer: {
         suggest: call("chat.composer.suggest"),
       },
+      connect_line: call("chat.connect_line"),
       crew_line: call("chat.crew_line"),
       delete_message: call("chat.delete_message"),
       edit: call("chat.edit"),
@@ -657,6 +658,7 @@ export function stubs(ctx: CallCtx) {
       undo: call("conflicts.undo"),
     },
     connections: {
+      approve_hosts: call("connections.approve_hosts"),
       complete_auth: call("connections.complete_auth"),
       create: call("connections.create"),
       delete: call("connections.delete"),
@@ -3045,6 +3047,8 @@ export function stubs(ctx: CallCtx) {
         ask_admin: call("vault.connect_card.ask_admin"),
         disconnect: call("vault.connect_card.disconnect"),
         get: call("vault.connect_card.get"),
+        line: call("vault.connect_card.line"),
+        may_discard: call("vault.connect_card.may_discard"),
         options: call("vault.connect_card.options"),
         reopen: call("vault.connect_card.reopen"),
         submit: call("vault.connect_card.submit"),

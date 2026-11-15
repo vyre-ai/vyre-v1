@@ -454,3 +454,134 @@ test("a built-in connector wins over an agent-published namesake; two of equal s
   const two = await k2.hs["connectors.for_service"](k2.ctx, { service: "Same" });
   assert.deepEqual([two.found, two.near], [false, ["Same", "Same"]]);
 });
+
+// ---- b-connect3 (16 Nov 2026): where a key may go, one rule for the card's read and the typed key's try ----
+
+const exact = (over: Partial<ConnectorDef> & { host: string }): ConnectorDef => {
+  const { host, ...rest } = over;
+  return {
+    ...FATHOM,
+    key: "pub",
+    title: "Pub",
+    domains: [host],
+    actions: [{ name: "ping", url: `https://${host}/p`, output: "/ok" }],
+    ...rest,
+  };
+};
+
+test("D: a connector somebody published cannot name a private, loopback or address host, a single label or a plain http action, and no key is tried at it", async () => {
+  for (const host of [
+    "localhost",
+    "127.0.0.1",
+    "10.0.0.5",
+    "169.254.169.254",
+    "192.168.1.9",
+    "2130706433",
+    "0x7f000001",
+    "api.corp.internal",
+    "printer.local",
+    "intranet",
+    "[::1]",
+  ]) {
+    const k = kit();
+    k.install(exact({ host }));
+    assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Pub" })).found, false, `${host}: not offered`);
+    await assert.rejects(
+      k.hs["connectors.check_key"](k.ctx, { connector: "pub", secrets: { api_key: SECRET } }),
+      undefined,
+      `${host}: a call that skips the card is refused too`,
+    );
+    assert.equal(k.sent.length, 0, `${host}: no request left`);
+  }
+  const plain = kit();
+  plain.install(exact({ host: "api.pub.example", actions: [{ name: "ping", url: "http://api.pub.example/p", output: "/ok" }] }));
+  assert.equal((await plain.hs["connectors.for_service"](plain.ctx, { service: "Pub" })).found, false, "http is never offered");
+  const ok = kit();
+  ok.install(exact({ host: "api.pub.example" }));
+  assert.equal((await ok.hs["connectors.for_service"](ok.ctx, { service: "Pub" })).found, true, "a public https host passes");
+});
+
+test("D: a connector that is not built in cannot sit on, under or over a built-in connector's host, wildcards counted; a definition that calls itself built in is still not", async () => {
+  const k = kit();
+  k.install({ ...FATHOM, builtin: true });
+  k.install({
+    ...FATHOM,
+    key: "stripeish",
+    title: "Stripeish",
+    domains: ["api.stripe.com"],
+    builtin: true,
+    actions: [{ name: "ping", url: "https://api.stripe.com/v1/balance", output: "/ok" }],
+  });
+  for (const host of ["api.fathom.test", "x.api.fathom.test", "fathom.test"]) {
+    k.install(exact({ host, key: "squat", title: "Squat" }));
+    assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Squat" })).found, false, `${host} overlaps Fathom`);
+    await assert.rejects(k.hs["connectors.check_key"](k.ctx, { connector: "squat", secrets: { api_key: SECRET } }));
+  }
+  // a definition that says of itself it is built in: the row decides, not the text
+  k.install(exact({ host: "api.fathom.test", key: "liar", title: "Liar", builtin: true }));
+  k.tx.run("UPDATE cn_connectors SET builtin = 0 WHERE key = 'liar'");
+  assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Liar" })).found, false);
+  k.install(exact({ host: "api.fathom.example", key: "near", title: "Near" }));
+  assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Near" })).found, true, "a different host is fine");
+  k.install(exact({ host: "notfathom.test", key: "nf", title: "NF" }));
+  assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "NF" })).found, true, "a look-alike name is not an overlap");
+  assert.equal(k.sent.length, 0);
+});
+
+test("E: an app that echoes the typed key back (in an error body, a thrown error or a rejection) puts it in no answer, error message, event, log line, stored row or nested call", async () => {
+  const k = kit();
+  k.install(FATHOM);
+  const person = { ...k.mk("usr_dana"), callerKind: "person" };
+  const seen: string[] = [];
+  for (const reply of [
+    () => ({ status: 500, body: { error: `bad key ${SECRET}` } }),
+    () => ({ status: 401, body: { error: `rejected ${SECRET}` } }),
+    () => new Error(`connect ECONNRESET while sending ${SECRET}`),
+    () => ({ status: 200, body: { ok: true, echo: SECRET } }),
+  ] as const) {
+    k.state.reply = reply as never;
+    try {
+      seen.push(JSON.stringify(await k.hs["connectors.check_key"](person, { connector: "fathom", secrets: { api_key: SECRET } })));
+    } catch (e) {
+      seen.push(JSON.stringify(e instanceof Error ? { m: e.message, e } : e));
+    }
+  }
+  const rows = ["cn_log", "cn_connections", "cn_connection_hosts"].map((t) => JSON.stringify(k.tx.all(`SELECT * FROM ${t}`)));
+  const all = JSON.stringify([seen, k.events, k.logs, k.calls, rows]);
+  assert.equal(all.includes(SECRET), false, "the key is nowhere but in the one request the app got");
+  assert.ok(k.sent.length >= 4, "the four tries really went out");
+});
+
+test("F: a person's press to allow where a key is sent is not an agent's: an agent, even one acting for the owner, is refused and nothing is recorded", async () => {
+  const k = kit();
+  k.install({
+    ...FATHOM,
+    key: "wide3",
+    title: "Wide3",
+    actions: [{ name: "ping", url: "https://api.fathom.test/p", output: "/ok" }],
+  });
+  const person = { ...k.mk("usr_dana"), callerKind: "person" };
+  const made = await k.hs["connections.create"](person, { connector: "wide3", title: "W", ownerKind: "person", secrets: { api_key: "#AcmeKey" } } as never);
+  const id = made.connection.connectionId;
+  const before = JSON.stringify(k.tx.all("SELECT * FROM cn_connection_hosts"));
+  k.install({
+    ...FATHOM,
+    key: "wide3",
+    title: "Wide3",
+    domains: ["api.fathom.test", "files.fathom.test"],
+    actions: [
+      { name: "ping", url: "https://api.fathom.test/p", output: "/ok" },
+      { name: "f", url: "https://files.fathom.test/f" },
+    ],
+  });
+  for (const kind of ["agent", "system"]) {
+    await assert.rejects(
+      k.hs["connections.approve_hosts"]({ ...k.mk("usr_dana"), callerKind: kind } as never, { connectionId: id }),
+      undefined,
+      kind,
+    );
+  }
+  assert.equal(JSON.stringify(k.tx.all("SELECT * FROM cn_connection_hosts")), before, "the record did not change");
+  await k.hs["connections.approve_hosts"](person as never, { connectionId: id });
+  assert.notEqual(JSON.stringify(k.tx.all("SELECT * FROM cn_connection_hosts")), before, "the person's own press does");
+});

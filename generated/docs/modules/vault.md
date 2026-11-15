@@ -40,7 +40,7 @@ Requires: access.
 - [vault.import_parse](../capabilities/vault.import_parse.md): Preview an import file from 1Password, Bitwarden, LastPass or Chrome: names, kinds, field keys and duplicates (values are not echoed)
 - [vault.inject_env](../capabilities/vault.inject_env.md): Inject a folder into one child process environment (vyre run --env folder -- command); returns key names only
 - [vault.item.delete](../capabilities/vault.item.delete.md): Move an item to Trash
-- [vault.item.discard_new](../capabilities/vault.item.discard_new.md): Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it
+- [vault.item.discard_new](../capabilities/vault.item.discard_new.md): Take back the key a connect card saved and could not connect: erased for good, from the Vault and from Trash. Only a person's own, only the one key that request saved, only while nothing has used it
 - [vault.item.get](../capabilities/vault.item.get.md): One item: metadata and field keys, never values
 - [vault.item.history](../capabilities/vault.item.history.md): Every use, reveal, edit and share of an item (never values)
 - [vault.item.mark_rotated](../capabilities/vault.item.mark_rotated.md): Record that the secret was rotated and restart its reminder

@@ -77,6 +77,9 @@ export function buildCatalog(
   return { all: defs, byName: (n) => byName.get(n) };
 }
 
+/** What a plain key request says once the connect card is on (rc.29): a service the person names goes to the card, not to a request. Added at read time, so the frozen description is the rc.27 one and a switch at 0 shows none. */
+export const POINT_TO_CARD = ". A service the person names (Fathom, Slack): use vault_connect instead";
+
 /**
  * The same catalog, offering only tools that can work. `refuses` says a capability's handler only refuses (host/src/routes/deferred.ts), so no agent is told to use it, listed or searched.
  * It is asked on every read and names nothing, so a capability that goes live comes back by itself. A call by name still resolves and is refused, never an unknown tool.
@@ -85,7 +88,10 @@ export function offerable(catalog: Catalog, refuses: (cap: string) => boolean): 
   return {
     get all() {
       // the connect card's tools too, while VYRE_CONNECT_CARD is off (lib/connect-switch.ts): not listed, not found with tool_search, and a call by name still resolves and is refused by the server
-      return catalog.all.filter((t) => !refuses(t.cap) && (connectCardOn() || !isConnectCap(t.cap)));
+      const on = connectCardOn();
+      return catalog
+        .all.filter((t) => !refuses(t.cap) && (on || !isConnectCap(t.cap)))
+        .map((t) => (on && t.name === "vault_request" ? { ...t, summary: `${t.summary}${POINT_TO_CARD}` } : t));
     },
     byName: catalog.byName,
   };

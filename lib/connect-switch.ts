@@ -1,10 +1,10 @@
-// THE switch for the connect card (b-connect, 14 Nov 2026) and everything behind it. OFF by default, as in rc.28: it is on only when VYRE_CONNECT_CARD is exactly "1". The three items the review r-keyreach-9-b-connect
-// left open (A a saved key offered by name, B the hosts a key goes to, C a general erase) are closed on this branch, and the lead turns the card on in one last commit that changes this function, this comment and the
-// tests that pin the default together. Off: ten capabilities answer `internal.not_implemented` and the agent tools are not offered. Read at the moment of each call, never cached, so a test can set it for itself.
-// Every site that gates the feature reads this one function; nothing else decides.
+// THE switch for the connect card (b-connect, 14 Nov 2026) and everything behind it. ON by default since rc.29 (b-connect3, 16 Nov 2026): it is off only when VYRE_CONNECT_CARD is "0", "off" or "false", so whoever starts the
+// daemon can still turn the card off without a new build. The three items the review r-keyreach-9-b-connect left open (A a saved key offered by name, B the hosts a key goes to, C a general erase) are closed, and the
+// destination rule (modules/connectors/destination.ts) decides which services the card is offered for. Off: ten capabilities answer `internal.not_implemented` and the agent tools are not offered. Read at the moment of
+// each call, never cached, so a test can set it for itself. Every site that gates the feature reads this one function; nothing else decides.
 
-/** Is the connect card on? Only the exact value "1" (the default is off). */
-export const connectCardOn = (): boolean => process.env["VYRE_CONNECT_CARD"] === "1";
+/** Is the connect card on? Yes, unless the variable is "0", "off" or "false" (case does not matter). Nothing a person or an agent can set inside a Space reaches the process environment. */
+export const connectCardOn = (): boolean => !/^(0|off|false)$/i.test((process.env["VYRE_CONNECT_CARD"] ?? "").trim());
 
 /** The one plain refusal every caller gets for a connect capability while the switch is off. */
 export const CONNECT_OFF_MESSAGE = "Connecting a service this way is not available yet.";

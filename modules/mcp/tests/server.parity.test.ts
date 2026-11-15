@@ -310,17 +310,22 @@ test("mcp.health reports the registry hash served, the live sessions and whether
   assert.ok(out.detail);
 });
 
-test("the real default, with the variable unset, is what lib/connect-switch.ts says it is: the card is off, and the tools offered are the off count", () => {
+test("the real default, with the variable unset, is what lib/connect-switch.ts says it is: the card is on (rc.29), off only for 0, off or false, and the tools offered follow", () => {
   const was = process.env["VYRE_CONNECT_CARD"];
   delete process.env["VYRE_CONNECT_CARD"];
   try {
-    assert.equal(
-      connectCardOn(),
-      false,
-      "unset means off until the switch-on commit changes the code and this test together",
-    );
+    assert.equal(connectCardOn(), true, "unset means on");
+    for (const off of ["0", "off", "false", "OFF"]) {
+      process.env["VYRE_CONNECT_CARD"] = off;
+      assert.equal(connectCardOn(), false, `${off} turns it off`);
+    }
+    for (const on of ["1", "on", "true", ""]) {
+      process.env["VYRE_CONNECT_CARD"] = on;
+      assert.equal(connectCardOn(), true, `"${on}" leaves it on`);
+    }
+    delete process.env["VYRE_CONNECT_CARD"];
     const hn = harness();
-    assert.equal(toolsList(hn.ctx, { includeDeferred: true }).total, offeredWith(false));
+    assert.equal(toolsList(hn.ctx, { includeDeferred: true }).total, offeredWith(true));
   } finally {
     if (was === undefined) delete process.env["VYRE_CONNECT_CARD"];
     else process.env["VYRE_CONNECT_CARD"] = was;
