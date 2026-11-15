@@ -787,7 +787,6 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
           });
       return { ok: true };
     },
-    "chat.plan.reject": () => ({ ok: true }),
     "chat.approve_plan": () => {
       for (const m of msgRows())
         if (m.blocks.some((b) => b.type === "plan" && b.state === "waiting"))
