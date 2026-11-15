@@ -559,6 +559,7 @@ export function createClient(transport: Transport) {
     computers: {
       browser: {
         give_back: call("computers.browser.give_back", 1),
+        my_sign_ins: call("computers.browser.my_sign_ins", 1),
         preview: call("computers.browser.preview", 1),
         profiles: call("computers.browser.profiles", 1),
         sessions: call("computers.browser.sessions", 1),
