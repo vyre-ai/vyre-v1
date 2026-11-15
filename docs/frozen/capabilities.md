@@ -420,4 +420,4 @@ All additive: every new input is optional, no input, output or error was removed
 
 The mount row these three capabilities return gains `skippedCount` (an integer, at least 1) and `skipped` (a list of up to 200 `{ name, reason }`), present only when the last pass could not bring some items in (a name Files cannot hold is now shown under a safe name; an item that still cannot be brought in is skipped, counted and listed with its reason, and the mount stays healthy). Optional output fields only: no input, version or existing field changed. The migration `modules/mounts/migrations/0004_mounts_skipped.sql` is a new additive column. The hashes of the three capabilities in `docs/frozen/snapshots/mounts.json` were written again with `node tools/gen/src/cli.ts --snapshots`.
 
-Signed: (lead, to sign at the merge)
+Signed: lead, 15 Nov 2026 (two optional output fields, nothing removed or renamed; landed with wip/f-drive-land d703b018f)
