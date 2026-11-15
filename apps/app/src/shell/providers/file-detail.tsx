@@ -34,6 +34,7 @@ export function FileDetail({ rt, fileId }: { rt: ShellRuntime; fileId: string })
       agents,
       openFile: (id) => rt.open({ subject: { type: "file", id } }),
       openUrl: (url) => rt.openUrl(url),
+      ...(rt.putBlob ? { putBlob: rt.putBlob } : {}),
       openFileTab: (id, background) =>
         openIn(background ? "behind" : "tab", () => rt.open({ subject: { type: "file", id } })),
       ask: (agentId, _mode, about) => openAsk(rt, agentId, about),

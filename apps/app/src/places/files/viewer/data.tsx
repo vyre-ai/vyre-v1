@@ -25,6 +25,8 @@ export interface FilesViewerData {
   openFileTab?(fileId: string, background: boolean): void;
   /** Share the file with people (the same sheet as in the Files list). Absent where there is no one to share with: a Personal Space, a sample. */
   share?(fileId: string, name: string): void;
+  /** Put bytes at a one-time upload address from files.upload_url, signed in as the person (a redacted copy or a saved workbook over the direct-write size). */
+  putBlob?(path: string, bytes: Uint8Array): Promise<void>;
   /** Files in the same folder, for the strip under an image. */
   siblings?(folderId: string): readonly { id: string; title: string }[];
 }

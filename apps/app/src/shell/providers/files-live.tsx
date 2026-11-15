@@ -78,6 +78,13 @@ export function LiveFoldersHost({ rt, onConnect }: { rt: ShellRuntime; onConnect
             idempotencyKey: `live-reconnect:${row.mountId}:${rt.clock().now}`,
           });
           setSaid(`${row.name} reconnected. Syncing.`);
+        } else if (action === "two_way" || action === "read_only") {
+          await rt.call("mounts.update", { mountId: row.mountId, pullOnly: action === "read_only" });
+          setSaid(
+            action === "two_way"
+              ? `${row.name} is two-way. Your changes now go to ${row.provider}.`
+              : `${row.name} is read only. Nothing you change goes to ${row.provider}.`,
+          );
         } else {
           const cap = action === "sync" ? "mounts.sync_now" : action === "pause" ? "mounts.pause" : "mounts.resume";
           await rt.call(cap, {

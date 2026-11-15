@@ -163,8 +163,11 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
   // Opening a file of a connected folder asks the provider what it holds now (mounts.open), so the viewer shows the current content: a live placeholder is fetched the first time,
   // a Google-native file is exported. Opening never makes a file; the provider stays the source. A file Vyre holds itself answers "not mounted" at once. A placeholder that could not be
   // fetched is an error here (provider.unavailable), never an empty file drawn as if it were the real one.
+  let atProvider: Obj | undefined;
   if (versionId === undefined && (isObj(file.source) || num(file.size) === 0)) {
-    await openAtProvider(ctx, fileId, true);
+    await openAtProvider(ctx, fileId, true, (o) => {
+      if (isObj(o.source)) atProvider = o.source;
+    });
     file = ((await ctx.call("files.get", { fileId })) as { file: Obj }).file;
   }
   const kind = str(file.kind);
@@ -232,7 +235,17 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
     };
   }
 
-  out.canEdit = allowed(ctx, "edit", fileId, "files.write") && !native;
+  // a file of a connected folder says what the provider says about it: the person may not change it there (view only, before they type), a change has not reached it yet, or it changed there too
+  const there = atProvider as Obj | undefined;
+  if (there !== undefined) {
+    const connected: Obj = { provider: str(there.provider) };
+    if (there.viewOnly === true) connected.viewOnly = true;
+    if (isObj(there.notSent)) connected.notSent = there.notSent;
+    if (isObj(there.writesAs)) connected.writesAs = there.writesAs;
+    if (isObj(there.changedThere)) connected.changedThere = there.changedThere;
+    out.connected = connected;
+  }
+  out.canEdit = allowed(ctx, "edit", fileId, "files.write") && !native && there?.viewOnly !== true;
   out.canMark = allowed(ctx, "edit", fileId) && MARKABLE_KINDS.has(kind);
   out.canComment = allowed(ctx, "use", fileId);
   out.pins = many(ctx, "SELECT * FROM files_comment WHERE file_id = ?", fileId).filter(
@@ -275,6 +288,9 @@ function cleanAnchor(ctx: Ctx, raw: unknown): Obj {
   if (kind === "line") {
     if (!Number.isInteger(raw.line) || (raw.line as number) < 1) return bad("line");
     out.line = raw.line;
+  } else if (kind === "range" && out.quote !== undefined && raw.from === undefined && raw.to === undefined) {
+    // a comment on a passage of a document is anchored by the words themselves (the viewer sends the quote and no offsets); the offsets are for a range of a transcript or a file read by position
+    if ((out.quote as string).trim() === "") return bad("quote");
   } else if (kind === "range") {
     if (
       !Number.isInteger(raw.from) ||

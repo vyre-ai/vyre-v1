@@ -43,9 +43,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "ms.drive.get_item": Handler<"ms.drive.get_item", X>;
   "ms.drive.list_items": Handler<"ms.drive.list_items", X>;
   "ms.drive.list_versions": Handler<"ms.drive.list_versions", X>;
+  "ms.drive.restore_item": Handler<"ms.drive.restore_item", X>;
   "ms.drive.share_item": Handler<"ms.drive.share_item", X>;
   "ms.drive.subscribe": Handler<"ms.drive.subscribe", X>;
   "ms.drive.unsubscribe": Handler<"ms.drive.unsubscribe", X>;
+  "ms.drive.update_item": Handler<"ms.drive.update_item", X>;
   "ms.drive.upload_item": Handler<"ms.drive.upload_item", X>;
   "ms.health": Handler<"ms.health", X>;
   "ms.mail.create_draft": Handler<"ms.mail.create_draft", X>;

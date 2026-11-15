@@ -661,29 +661,44 @@ export async function driveUpload(
     ...(a.as ? { as: a.as } : {}),
   });
   const base = driveBase(sub, a.driveId);
-  const url =
-    a.remoteId !== undefined
-      ? `${base}/items/${enc(a.remoteId)}/content`
-      : a.folderId
-        ? `${base}/items/${enc(a.folderId)}:/${enc(a.name)}:/content`
-        : `${base}/root:/${enc(a.name)}:/content`;
-  try {
-    return {
-      item: mapItem(
-        obj(
-          await needHost(ctx).upload(ctx, {
-            url,
-            token,
-            fileId: a.fileId,
-            ...(a.remoteId !== undefined && a.ifMatch !== undefined ? { ifMatch: a.ifMatch } : {}),
-          }),
-        ),
+  const whereOf = (name: string): string =>
+    a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(name)}` : `${base}/root:/${enc(name)}`;
+  const send = async (url: string) =>
+    mapItem(
+      obj(
+        await needHost(ctx).upload(ctx, {
+          url,
+          token,
+          fileId: a.fileId,
+          ...(a.remoteId !== undefined && a.ifMatch !== undefined ? { ifMatch: a.ifMatch } : {}),
+        }),
       ),
-    };
-  } catch (e) {
-    if (a.ifMatch !== undefined && codeOf(e) === "validation.version_conflict") return { stale: true };
-    throw e;
+    );
+  if (a.remoteId !== undefined) {
+    try {
+      return { item: await send(`${base}/items/${enc(a.remoteId)}/content`) };
+    } catch (e) {
+      if (a.ifMatch !== undefined && codeOf(e) === "validation.version_conflict") return { stale: true };
+      throw e;
+    }
   }
+  // A new file is made with conflictBehavior=fail: a name that is taken is never written over, and an item that is already there is never taken for this one (it may be older, another person's, or an item
+  // Vyre is deleting): the file is saved under a free "(2)", "(3)" name and the caller says so. Taking an item by its name would send nothing and could lose the new content.
+  const clash = (e: unknown): boolean =>
+    codeOf(e) === "validation.precondition_failed" || codeOf(e) === "validation.version_conflict";
+  const dot = a.name.lastIndexOf(".");
+  const stem = dot > 0 ? a.name.slice(0, dot) : a.name;
+  const ext = dot > 0 ? a.name.slice(dot) : "";
+  for (let n = 1; n <= 20; n++) {
+    const name = n === 1 ? a.name : `${stem} (${n})${ext}`;
+    try {
+      const item = await send(`${whereOf(name)}:/content?@microsoft.graph.conflictBehavior=fail`);
+      return { item, ...(n > 1 ? { renamedTo: name } : {}) };
+    } catch (e) {
+      if (!clash(e)) throw e;
+    }
+  }
+  bad(ctx, "OneDrive already has files with that name and every free name was tried.");
 }
 
 /** The versions OneDrive or SharePoint keeps of an item, with who saved each. */
@@ -728,12 +743,25 @@ export async function driveFolder(ctx: MsCtx, a: Act & { driveId?: string; paren
   if (!a.name || /[\\/:*?"<>|]/.test(a.name)) bad(ctx, "The folder name has characters OneDrive does not allow.");
   const sub = await who(ctx, a, "ms.drive.create_folder");
   const base = driveBase(sub, a.driveId);
-  const r = await call(ctx, a, "ms.drive.create_folder", {
-    method: "POST",
-    url: a.parentId ? `${base}/items/${enc(a.parentId)}/children` : `${base}/root/children`,
-    body: { name: a.name, folder: {}, "@microsoft.graph.conflictBehavior": "rename" },
-  });
-  return { item: mapItem(r) };
+  const at = a.parentId ? `${base}/items/${enc(a.parentId)}/children` : `${base}/root/children`;
+  // a folder is made with conflictBehavior=fail and never taken by its name (it may be an old one Vyre is deleting): on a clash it is made as "Name (2)" and the caller says so
+  let r: Record<string, unknown> | undefined;
+  let renamedTo: string | undefined;
+  for (let n = 1; n <= 20 && r === undefined; n++) {
+    const name = n === 1 ? a.name : `${a.name} (${n})`;
+    try {
+      r = await call(ctx, a, "ms.drive.create_folder", {
+        method: "POST",
+        url: at,
+        body: { name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" },
+      });
+      if (n > 1) renamedTo = name;
+    } catch (e) {
+      if (codeOf(e) !== "validation.precondition_failed" && codeOf(e) !== "validation.version_conflict") throw e;
+    }
+  }
+  if (r === undefined) bad(ctx, "OneDrive already has folders with that name and every free name was tried.");
+  return { item: mapItem(r!), ...(renamedTo !== undefined ? { renamedTo } : {}) };
 }
 
 export async function driveShare(
@@ -765,6 +793,53 @@ export async function driveShare(
   const link = text(obj(r.link).webUrl);
   if (link) out.link = link;
   return out;
+}
+
+/**
+ * Rename an item or move it in place: the same item, so its id, links and sharing stay. `ifMatch` (the eTag the change was based on) is checked by reading the item first, because the
+ * metadata call has no If-Match here: an item that moved on is left alone (`stale`). That check is a read then a write, so it is not atomic; the eTag of the content upload is.
+ */
+export async function driveUpdate(
+  ctx: MsCtx,
+  a: Act & { driveId?: string; itemId: string; name?: string; parentId?: string; ifMatch?: string },
+) {
+  if (a.name !== undefined && (!a.name || /[\\/:*?"<>|]/.test(a.name)))
+    bad(ctx, "The name has characters OneDrive does not allow.");
+  const sub = await who(ctx, a, "ms.drive.update_item");
+  const url = `${driveBase(sub, a.driveId)}/items/${enc(a.itemId)}`;
+  if (a.ifMatch !== undefined) {
+    const now = mapItem(await call(ctx, a, "ms.drive.update_item", { url }));
+    if (now.eTag !== a.ifMatch) return { item: now, stale: true };
+  }
+  const body: Record<string, unknown> = {};
+  if (a.name !== undefined) body.name = a.name;
+  if (a.parentId !== undefined) body.parentReference = { id: a.parentId };
+  return {
+    item: mapItem(await call(ctx, a, "ms.drive.update_item", { method: "PATCH", url, body })),
+  };
+}
+
+/** Bring an item back from the recycle bin. Graph offers this for OneDrive personal only; anywhere else the call says so in one sentence. */
+export async function driveRestore(ctx: MsCtx, a: Act & { driveId?: string; itemId: string }) {
+  const sub = await who(ctx, a, "ms.drive.restore_item");
+  try {
+    return {
+      item: mapItem(
+        await call(ctx, a, "ms.drive.restore_item", {
+          method: "POST",
+          url: `${driveBase(sub, a.driveId)}/items/${enc(a.itemId)}/restore`,
+          body: {},
+        }),
+      ),
+    };
+  } catch (e) {
+    const c = codeOf(e);
+    if (c === "provider.bad_response" || c === "validation.not_found")
+      throw fail("validation.unsupported", ctx.trace.traceId, {
+        message: "OneDrive does not let Vyre bring this back from its recycle bin. Restore it there.",
+      });
+    throw e;
+  }
 }
 
 export async function driveDelete(ctx: MsCtx, a: Act & { driveId?: string; itemId: string }) {

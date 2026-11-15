@@ -323,9 +323,19 @@ function TableView({
         showsHorizontalScrollIndicator
         contentContainerStyle={styles.tableScroll}
         testID={`table-scroll-${block.key}`}
+        // on the web a long table scrolls inside itself, and its header row stays in view while it does
+        {...(Platform.OS === "web" ? { style: { maxHeight: "72vh", overflowY: "auto" } as never } : {})}
       >
         <View style={styles.table}>
-          {row(block.head, true, 0)}
+          <View
+            style={
+              Platform.OS === "web"
+                ? ({ position: "sticky", top: 0, zIndex: 1, backgroundColor: "var(--raised, var(--win))" } as never)
+                : undefined
+            }
+          >
+            {row(block.head, true, 0)}
+          </View>
           {body}
         </View>
       </ScrollView>
@@ -442,6 +452,11 @@ export interface MarkdownBlocksProps {
   onChoose?: (text: string) => void;
   /** Draws plain words its own way (file names that open a tab); leave it out and words are words. */
   renderText?: RenderText;
+  /**
+   * A rendered document (a file, a note, an artifact page): text keeps this reading width, centred, while a table is as wide as the pane it sits in (with the page's own side margin), and only then scrolls
+   * sideways. Left out (a chat message) every block is the width of its container, as before.
+   */
+  readingWidth?: number;
 }
 
 /** Final blocks first (same objects every frame, so they do not re-render), then the open ones. */
@@ -454,6 +469,7 @@ export function MarkdownBlocks({
   renderText,
   scope,
   onChoose,
+  readingWidth,
 }: MarkdownBlocksProps) {
   const last = blocks.length - 1;
   const reply = useMemo(
@@ -463,8 +479,8 @@ export function MarkdownBlocks({
   const views: ReactNode[] = [];
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
-    if (b)
-      views.push(
+    if (b) {
+      const view = (
         <BlockView
           key={b.key}
           block={b}
@@ -472,8 +488,22 @@ export function MarkdownBlocks({
           {...(onLink ? { onLink } : {})}
           {...(renderLink ? { renderLink } : {})}
           {...(renderCode ? { renderCode } : {})}
-        />,
+        />
       );
+      views.push(
+        readingWidth === undefined ? (
+          view
+        ) : b.kind === "table" ? (
+          <View key={b.key} style={styles.wideBlock}>
+            {view}
+          </View>
+        ) : (
+          <View key={b.key} style={{ width: "100%", maxWidth: readingWidth, alignSelf: "center" }}>
+            {view}
+          </View>
+        ),
+      );
+    }
   }
   return (
     <TextCtx.Provider value={renderText ?? null}>
@@ -502,6 +532,7 @@ const MONO = '"JetBrains Mono", ui-monospace, Menlo, monospace';
 
 const styles = StyleSheet.create({
   root: { width: "100%" },
+  wideBlock: { width: "100%", alignSelf: "stretch" },
   p: { color: "var(--ink)" as string, fontSize: BODY_SIZE, lineHeight: BODY_LINE, marginBottom: BLOCK_GAP },
   h: { fontWeight: "600", marginTop: 4 },
   strong: { fontWeight: "600" },

@@ -244,10 +244,12 @@ test("a rename typed in Vyre on a file whose display name differs changes the Dr
     payload: new TextEncoder().encode(JSON.stringify({ fileId, to: "Plan 2026.pdf" })),
   });
   await call(w, "mounts.sync_now", { mountId });
-  assert.ok(
-    w.google.uploads.some((u) => u.name === "Plan 2026.pdf"),
-    "the typed name goes to Drive",
+  assert.deepEqual(
+    w.google.updates,
+    [{ fileId: "s1", name: "Plan 2026.pdf" }],
+    "the typed name goes to Drive as a rename of the same file",
   );
+  assert.deepEqual([w.google.uploads, w.google.trashed], [[], []]);
 });
 
 test("a skipped item is asked about again on every pass: once what refused it is fixed, the next sync brings it in and the count drops", async () => {

@@ -124,15 +124,26 @@ test("Drive: download, export, upload, new folder and delete use the connection 
     ],
   );
   w.google.calls.length = 0;
-  const folder = await drive.createFolder(w.ctx, m, { name: "Drafts", parentRemote: "root_drv" });
-  const up = await drive.upload(w.ctx, m, { fileId: "fil_1", name: "a.txt", parentRemote: folder.remoteId });
-  await drive.remove(w.ctx, m, up.remoteId, false);
+  const folder = await drive.createFolder(w.ctx, m, { name: "Drafts", parentRemote: "root_drv", key: "k-fld" });
+  const up = await drive.upload(w.ctx, m, {
+    fileId: "fil_1",
+    name: "a.txt",
+    parentRemote: folder.remoteId,
+    key: "k-up",
+  });
+  await drive.remove(w.ctx, m, up.remoteId, false, "k-rm");
   assert.deepEqual(
     w.google.calls.map((c) => [c.cap, c.input]),
     [
-      ["google.drive.create_folder", { connectionId: "con_g", name: "Drafts", parentId: "root_drv" }],
-      ["google.drive.upload_file", { connectionId: "con_g", name: "a.txt", parentId: "nf1", fileId: "fil_1" }],
-      ["google.drive.trash_file", { connectionId: "con_g", fileId: "up2" }],
+      [
+        "google.drive.create_folder",
+        { connectionId: "con_g", name: "Drafts", parentId: "root_drv", idempotencyKey: "k-fld" },
+      ],
+      [
+        "google.drive.upload_file",
+        { connectionId: "con_g", name: "a.txt", parentId: "nf1", fileId: "fil_1", idempotencyKey: "k-up" },
+      ],
+      ["google.drive.trash_file", { connectionId: "con_g", fileId: "up2", idempotencyKey: "k-rm" }],
     ],
   );
   assert.match(String(up.version), /^2026-10-10T/);
@@ -202,19 +213,34 @@ test("Graph: the delta names the root, a subfolder mount reads its own items, a 
   w.graph.calls.length = 0;
   const m = mount({ kind: "sharepoint", connectionId: "con_m", ref: "drv1" });
   await graph.download(w.ctx, m, { remoteId: "m2", name: "handbook.pdf" });
-  const made = await graph.createFolder(w.ctx, m, { name: "New", parentRemote: "m1" });
-  const sent = await graph.upload(w.ctx, m, { fileId: "fil_9", name: "n.txt", parentRemote: made.remoteId });
-  await graph.remove(w.ctx, m, sent.remoteId, false);
+  const made = await graph.createFolder(w.ctx, m, { name: "New", parentRemote: "m1", key: "k-fld" });
+  const sent = await graph.upload(w.ctx, m, {
+    fileId: "fil_9",
+    name: "n.txt",
+    parentRemote: made.remoteId,
+    key: "k-up",
+  });
+  await graph.remove(w.ctx, m, sent.remoteId, false, "k-rm");
   assert.deepEqual(
     w.graph.calls.map((c) => [c.cap, c.input]),
     [
       ["ms.drive.download_item", { connectionId: "con_m", driveId: "drv1", itemId: "m2" }],
-      ["ms.drive.create_folder", { connectionId: "con_m", driveId: "drv1", parentId: "m1", name: "New" }],
+      [
+        "ms.drive.create_folder",
+        { connectionId: "con_m", driveId: "drv1", parentId: "m1", name: "New", idempotencyKey: "k-fld" },
+      ],
       [
         "ms.drive.upload_item",
-        { connectionId: "con_m", driveId: "drv1", folderId: made.remoteId, name: "n.txt", fileId: "fil_9" },
+        {
+          connectionId: "con_m",
+          driveId: "drv1",
+          folderId: made.remoteId,
+          name: "n.txt",
+          fileId: "fil_9",
+          idempotencyKey: "k-up",
+        },
       ],
-      ["ms.drive.delete_item", { connectionId: "con_m", driveId: "drv1", itemId: "mu1" }],
+      ["ms.drive.delete_item", { connectionId: "con_m", driveId: "drv1", itemId: "mu1", idempotencyKey: "k-rm" }],
     ],
   );
   assert.equal(sent.version, "2026-10-10T00:00:00Z");

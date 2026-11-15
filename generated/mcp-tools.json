@@ -29909,6 +29909,63 @@
     },
     {
       "blocks": [],
+      "cap": "google.drive.update_file",
+      "deferred": true,
+      "description": "Rename a Drive file or folder, move it between folders, or take it back out of the Trash; the file keeps its id, its links and its sharing",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "addParentId": {
+            "type": "string"
+          },
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "removeParentId": {
+            "type": "string"
+          },
+          "trashed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_drive_update_file",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.drive.upload_file",
       "deferred": true,
       "description": "Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision",
@@ -42297,6 +42354,10 @@
           "name": {
             "type": "string"
           },
+          "readOnly": {
+            "description": "Never send changes to the provider; the default is two-way",
+            "type": "boolean"
+          },
           "reviewChanges": {
             "type": "boolean"
           },
@@ -42782,6 +42843,42 @@
     },
     {
       "blocks": [],
+      "cap": "mounts.resolve",
+      "deferred": false,
+      "description": "Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs; or one deleted there while an edit waited: keep it here (it goes back as a new file) or discard the edit",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "choice": {
+            "enum": [
+              "keep_both",
+              "use_theirs",
+              "keep_here",
+              "discard"
+            ],
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "choice"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_resolve",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.restore",
       "deferred": false,
       "description": "Put an earlier revision of a file back as the newest; it goes out like any edit",
@@ -42923,6 +43020,32 @@
     },
     {
       "blocks": [],
+      "cap": "mounts.sheet_tabs",
+      "deferred": true,
+      "description": "List the tabs of a mounted Google Sheet, with their names and sizes, so every tab can be read and edited",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_sheet_tabs",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.sheet_write",
       "deferred": true,
       "description": "Write cells of a mounted Google Sheet or Excel workbook in the provider file itself",
@@ -42984,6 +43107,9 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "auto": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -44362,6 +44488,54 @@
     },
     {
       "blocks": [],
+      "cap": "ms.drive.restore_item",
+      "deferred": true,
+      "description": "Bring an item back from the recycle bin (OneDrive personal only; others answer that it cannot be done here)",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_drive_restore_item",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.drive.share_item",
       "deferred": true,
       "description": "Create a sharing link or invite people; Microsoft emails them",
@@ -44422,6 +44596,63 @@
         "type": "object"
       },
       "name": "ms_drive_share_item",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.drive.update_item",
+      "deferred": true,
+      "description": "Rename an item or move it to another folder; the item keeps its id, links and sharing. With ifMatch only if the item still has that eTag",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "ifMatch": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_drive_update_item",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
