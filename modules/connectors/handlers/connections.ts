@@ -75,7 +75,10 @@ export interface ConnectionsHandlers {
     ctx: ConnectorsCtx,
     input: { connectionId: string },
   ): Promise<{ state: ConnectionState; stamped: boolean }>;
-  "connections.approve_hosts"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ hosts: string[] }>;
+  "connections.approve_hosts"(
+    ctx: ConnectorsCtx,
+    input: { connectionId: string; hosts: string[] },
+  ): Promise<{ hosts: string[] }>;
   "connections.delete"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ deleted: boolean }>;
   "connectors.for_service"(ctx: ConnectorsCtx, input: { service: string }): Promise<ForService>;
   "connectors.check_key"(
@@ -541,6 +544,18 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         refuse(ctx, "permission.no_grant", "Only a person can allow where a key is sent.");
       const def = defOf(ctx, r.connector);
       const hosts = recordHosts(def);
+      // what the person approves is what they were shown: a connector republished between the card and the press has other addresses, and nothing is recorded
+      if (
+        [...input.hosts]
+          .map((h) => h.toLowerCase())
+          .sort()
+          .join("\n") !== [...hosts].sort().join("\n")
+      )
+        refuse(
+          ctx,
+          "validation.precondition_failed",
+          `${def.title} changed since you looked. Open the connection again.`,
+        );
       tx.run(
         "INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
         r.connection_id,

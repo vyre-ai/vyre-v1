@@ -34,7 +34,6 @@ export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({
   "chat.aside_keep": "never",
   "chat.ask_level": "never",
   "chat.catch_up": "view", // what they missed since they last looked
-  "chat.connect_line": "never", // the engine's own quiet line after a connect card is answered; no guest writes it
   "chat.crew_line": "never",
   "chat.delete_message": "reply", // delete their own message (the handler refuses anyone elses)
   "chat.edit": "reply", // edit their own message (the handler refuses anyone elses)

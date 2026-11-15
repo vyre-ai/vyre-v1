@@ -33,7 +33,7 @@ export function tabSpecs(tabs: readonly TabEntry[], working: ReadonlySet<string>
       ...(thread !== undefined && working.has(thread)
         ? {
             lead: (
-              <View testID={`tab-working-${t.key}`} accessibilityLabel="Working" style={{ marginRight: 2 }}>
+              <View testID={`working-in-tab-${t.key}`} accessibilityLabel="Working" style={{ marginRight: 2 }}>
                 <WorkingMark state="thinking" step="Working" size={12} />
               </View>
             ),

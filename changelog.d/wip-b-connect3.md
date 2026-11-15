@@ -2,3 +2,5 @@
 - A service that keeps its own place under Connections (Stripe, HubSpot and the rest of the built-in list) says so when an assistant asks for it, instead of being offered a connector to build.
 - A plain key request now points an assistant to the card for any service the person names.
 - After you disconnect a service, the next time an assistant needs it you get a clean new card and the key you saved is not offered back (it stays in Mine until you delete it in the Vault); a card you folded with Not now still stays folded.
+- A connect card's answer can only be left by the person it was asked for, once, and a service name is cut to one short line before an assistant reads it.
+- A service connected from a card is never reached at a private or local address, and the card refuses to connect a service whose addresses changed since the card was shown.

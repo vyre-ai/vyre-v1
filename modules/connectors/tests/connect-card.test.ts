@@ -431,7 +431,15 @@ test("B: a connector that gains a host does not send the key there on its own: t
     (e: unknown) => /Wide2 now also sends to api2\.fathom\.test\. Allow it/.test((e as Error).message),
   );
   assert.equal(k.sent.length, 0);
-  await k.hs["connections.approve_hosts"](k.ctx, { connectionId: id } as never);
+  // the person approves what they were shown: the old list is refused, the current one is taken
+  await assert.rejects(
+    k.hs["connections.approve_hosts"](k.ctx, { connectionId: id, hosts: ["api.fathom.test:443"] }),
+    /changed since you looked/,
+  );
+  await k.hs["connections.approve_hosts"](k.ctx, {
+    connectionId: id,
+    hosts: ["api.fathom.test:443", "api2.fathom.test:443"],
+  });
   await k.hs["connectors.run"](k.ctx, { key: "wide2", action: "more", connectionId: id, input: {} } as never);
   assert.deepEqual(
     k.sent.map((r) => new URL(r.url).hostname),
@@ -613,13 +621,19 @@ test("F: a person's press to allow where a key is sent is not an agent's: an age
   });
   for (const kind of ["agent", "system"]) {
     await assert.rejects(
-      k.hs["connections.approve_hosts"]({ ...k.mk("usr_dana"), callerKind: kind } as never, { connectionId: id }),
+      k.hs["connections.approve_hosts"]({ ...k.mk("usr_dana"), callerKind: kind } as never, {
+        connectionId: id,
+        hosts: ["api.fathom.test:443", "files.fathom.test:443"],
+      }),
       () => true,
       kind,
     );
   }
   assert.equal(JSON.stringify(k.tx.all("SELECT * FROM cn_connection_hosts")), before, "the record did not change");
-  await k.hs["connections.approve_hosts"](person as never, { connectionId: id });
+  await k.hs["connections.approve_hosts"](person as never, {
+    connectionId: id,
+    hosts: ["api.fathom.test:443", "files.fathom.test:443"],
+  });
   assert.notEqual(JSON.stringify(k.tx.all("SELECT * FROM cn_connection_hosts")), before, "the person's own press does");
 });
 
@@ -635,5 +649,52 @@ test("G: a caller with no principal at all is refused on check_key and approve_h
     ownerKind: "person",
     secrets: { api_key: "#AcmeKey" },
   } as never);
-  await assert.rejects(k.hs["connections.approve_hosts"](none, { connectionId: made.connection.connectionId }));
+  await assert.rejects(
+    k.hs["connections.approve_hosts"](none, {
+      connectionId: made.connection.connectionId,
+      hosts: ["api.fathom.test:443"],
+    }),
+  );
+});
+
+test("D2: a trailing dot, mixed case and a punycode look-alike do not get past the built-in overlap or the public-name rule", async () => {
+  const k = kit();
+  k.install({ ...FATHOM, builtin: true });
+  for (const [host, why] of [
+    ["api.fathom.test.", "trailing dot on a built-in's host"],
+    ["API.Fathom.Test", "mixed case"],
+    ["API.FATHOM.TEST.", "mixed case and a trailing dot"],
+    ["xn--pi-7cd.fathom.test", "an IDN look-alike (the first letter is not Latin)"],
+    ["api.example.test.", "a trailing dot on any host"],
+  ] as const) {
+    k.install(exact({ host, key: "look", title: "Look" }));
+    assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Look" })).found, false, why);
+    await assert.rejects(
+      k.hs["connectors.check_key"](k.ctx, { connector: "look", secrets: { api_key: SECRET } }),
+      () => true,
+      why,
+    );
+  }
+  assert.equal(k.sent.length, 0, "no key was sent to any of them");
+});
+
+test("H: a connector republished between the card and the press is refused for the host approval and for Connect (the person approves what they were shown)", async () => {
+  const k = kit();
+  k.install(linkApp({ domains: ["api.fathom.test"], actions: [{ name: "list", url: "https://api.fathom.test/p" }] }));
+  const id = await connect(k);
+  k.install(
+    linkApp({
+      domains: ["api.fathom.test", "evil.fathom.test"],
+      actions: [
+        { name: "list", url: "https://api.fathom.test/p" },
+        { name: "x", url: "https://evil.fathom.test/p" },
+      ],
+    }),
+  );
+  const before = JSON.stringify(k.tx.all("SELECT * FROM cn_connection_hosts"));
+  await assert.rejects(
+    k.hs["connections.approve_hosts"](k.ctx, { connectionId: id, hosts: ["api.fathom.test:443"] }),
+    /changed since you looked/,
+  );
+  assert.equal(JSON.stringify(k.tx.all("SELECT * FROM cn_connection_hosts")), before, "nothing was recorded");
 });

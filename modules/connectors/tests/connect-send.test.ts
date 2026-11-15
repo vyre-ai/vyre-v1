@@ -34,7 +34,7 @@ test("the sends of the connectors module are exactly the listed ones, and each h
     // the token exchange and the revoke: both go through checkEgress on the connector's declared URL
     "handlers/oauth.ts": 2,
     // the door a live connector's request goes through: the host's port checks the domains and where each filled key may go; an unpublished connector may never carry a filled key
-    "impl.ts": 3,
+    "impl.ts": 4,
   });
   const run = read("handlers/runtime.ts");
   const egress = run.indexOf("checkEgress(u.toString(), def.domains)");

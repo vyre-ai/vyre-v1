@@ -317,7 +317,16 @@ export async function personalWalk(t: { skip(m: string): void }, SKINS: Skins, l
       await shot("after");
       assert.equal((await page.locator("body").innerText()).includes(GOOD), false, "the key is nowhere on the page");
       // Disconnect: the connection goes, the next ask draws the card again
-      await q("-disconnect").click();
+      await q("-disconnect")
+        .click({ timeout: 10_000 })
+        .catch(async (e) => {
+          await page.screenshot({ path: `${shots}/personal-stuck-${tag}.png` });
+          fs.writeFileSync(
+            `${shots}/personal-stuck-${tag}.txt`,
+            `${(await page.locator("body").innerText()).slice(0, 2500)}\n${errs.join("\n")}`,
+          );
+          throw e;
+        });
       await q("-reopen").waitFor({ timeout: 8000 });
       assert.equal(
         (await api("connections.list", {})).connections.filter((x: { connector: string }) => x.connector === "fathom")

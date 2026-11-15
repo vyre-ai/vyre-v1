@@ -21,9 +21,10 @@ export function notPublicHost(raw: string): boolean {
 }
 
 /** Does `a` equal `b`, or sit inside it or hold it (api.fathom.ai and fathom.ai overlap; fathom.ai and notfathom.ai do not)? Wildcards count as their bare domain. */
+const bare = (h: string): string => h.toLowerCase().replace(/^\*\./, "").replace(/\.+$/, "");
 const overlaps = (a: string, b: string): boolean => {
-  const x = a.toLowerCase().replace(/^\*\./, "");
-  const y = b.toLowerCase().replace(/^\*\./, "");
+  const x = bare(a);
+  const y = bare(b);
   return x === y || x.endsWith(`.${y}`) || y.endsWith(`.${x}`);
 };
 
@@ -35,6 +36,10 @@ export function destinationProblem(def: ConnectorDef, builtins: readonly Connect
   const calls = keyHosts(def).map((h) => h.toLowerCase());
   const declared = def.domains.map((d) => d.toLowerCase());
   if (calls.length === 0) return "no action has an address";
+  // a trailing dot names the same host to the network and defeats every name comparison; a name in another alphabet (punycode) can look like a built-in's and is not a name the person can read on the card
+  if ([...calls, ...declared].some((h) => h.endsWith("."))) return "a host ending in a dot";
+  if ([...calls, ...declared].some((h) => h.split(".").some((l) => l.startsWith("xn--"))))
+    return "a host written in another alphabet";
   if (declared.some((d) => d.includes("*"))) return "a wildcard domain";
   if (!declared.every((d) => calls.includes(d)) || !calls.every((h) => declared.includes(h)))
     return "the declared domains are not exactly the hosts the actions call";

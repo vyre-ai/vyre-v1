@@ -594,3 +594,30 @@ test("a not built-in service shows every host on the saved-key state too", async
   const c = await card(w, asked.requestId!);
   assert.deepEqual([c.state, c.checksWith], ["have", "api.example.test, files.example.test"]);
 });
+
+test("H: Connect with the addresses the card showed is refused when the service's addresses are no longer those, before anything is sent or kept", async () => {
+  const w = room();
+  const { requestId } = await ask(w);
+  const shown = (await card(w, requestId!)).checksWith!.split(", ");
+  await assert.rejects(
+    submit(w, requestId!, undefined, "usr_asker", { hosts: [...shown, "evil.example"] }),
+    /changed since this card was shown/,
+  );
+  assert.equal(w.called("connectors.check_key").length, 0, "no key was sent");
+  assert.equal(w.called("vault.item.put").length, 0, "nothing was kept");
+  const ok = await submit(w, requestId!, undefined, "usr_asker", { hosts: shown });
+  assert.equal(ok.result, "connected");
+});
+
+test("I: the line of a connect request is read only by its asker, a person who can see its chat, or a service; a member outside the chat, an agent and a stranger holding the id are told there is no such request", async () => {
+  const w = room({ outsiders: ["usr_out"] });
+  const { requestId } = await ask(w);
+  const line = (who: ReturnType<typeof person>) =>
+    handlers["vault.connect_card.line"](who, { requestId: requestId! } as never);
+  const mine = await line(person(w));
+  assert.deepEqual([mine.service, mine.state, mine.threadId, mine.agentId], ["Fathom", "asked", "thr_1", "agt_dex"]);
+  assert.equal((await line(person(w, "usr_inchat"))).service, "Fathom", "a person who can see the chat");
+  await assert.rejects(line(person(w, "usr_out")), /No such request/);
+  await assert.rejects(line(dex(w)), /No such request/, "an agent is not the asker and reads nothing");
+  assert.equal((await line(w.as("svc_engine", "service" as never))).service, "Fathom", "the trusted service");
+});

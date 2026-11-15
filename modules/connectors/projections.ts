@@ -402,11 +402,47 @@ export function builtinDef(b: BuiltinRow): ConnectorDef {
 
 /** Built-in connectors from the registry go into cn_connectors once (a later change by a person is never overwritten). */
 const seeded = new WeakSet<object>();
+
+/**
+ * A key that a release makes built in, held by a connector a person made before: the person-made one moves aside to `<key>-yours` (its definition, versions, drafts, connections, synced types and source folder go with it, so
+ * nothing is dropped and its connections keep working), and the built-in takes the key. Without this the person-made row would shadow the built-in for good with builtin = 0.
+ */
+export function makeRoomForBuiltin(tx: Tx, key: string, now: number): void {
+  const mine = tx.get<{ key: string; title: string; def: string }>(
+    "SELECT key, title, def FROM cn_connectors WHERE key = ? AND builtin = 0",
+    key,
+  );
+  if (!mine) return;
+  let aside = `${key}-yours`;
+  for (let n = 2; tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", aside); n++) aside = `${key}-yours-${n}`;
+  const def = { ...(JSON.parse(mine.def) as ConnectorDef), key: aside, title: `${mine.title} (yours)` };
+  tx.run(
+    "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) SELECT ?, ?, mode, scope, 0, version, state, ?, created_at, ? FROM cn_connectors WHERE key = ?",
+    aside,
+    def.title,
+    JSON.stringify(def),
+    now,
+    key,
+  );
+  for (const [table, col] of [
+    ["cn_connections", "connector"],
+    ["cn_drafts", "key"],
+    ["cn_versions", "key"],
+    ["cn_sync_specs", "connector"],
+    ["cn_sync_spec_types", "connector"],
+    ["cn_sync_hooks", "connector"],
+    ["cn_source_folders", "key"],
+  ] as const)
+    tx.run(`UPDATE ${table} SET ${col} = ? WHERE ${col} = ?`, aside, key);
+  tx.run("DELETE FROM cn_connectors WHERE key = ?", key);
+}
+
 export function seedBuiltins(deps: ConnectorsDeps): void {
   if (seeded.has(deps.tx)) return;
   ensureTables(deps.tx);
   const now = nowOf(deps);
   for (const b of deps.builtins) {
+    makeRoomForBuiltin(deps.tx, b.key, now);
     if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", b.key)) continue;
     const def = builtinDef(b);
     deps.tx.run(
@@ -422,6 +458,7 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
     );
   }
   for (const def of activeCodeBuiltins() as readonly ConnectorDef[]) {
+    makeRoomForBuiltin(deps.tx, def.key, now);
     if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", def.key)) continue;
     deps.tx.run(
       "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'live', ?, ?, ?)",

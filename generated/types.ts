@@ -11661,6 +11661,7 @@ export type ConflictsUndoOut = {
 };
 export type ConnectionsApproveHostsIn = {
   connectionId: string;
+  hosts: Array<string>;
 };
 export type ConnectionsApproveHostsOut = {
   hosts: Array<string>;
@@ -46789,6 +46790,7 @@ export type VaultConnectCardLineOut = {
   connectedBy?: string;
   threadId?: string;
   agentId?: string;
+  answeredAt?: number;
 };
 export type VaultConnectCardMayDiscardIn = {
   requestId: string;
@@ -46859,6 +46861,7 @@ export type VaultConnectCardSubmitIn = {
   useSaved?: boolean;
   folderId?: string;
   audience?: "asker" | "anyone";
+  hosts?: Array<string>;
 };
 export type VaultConnectCardSubmitOut = {
   result: "connected" | "wrong" | "offline";

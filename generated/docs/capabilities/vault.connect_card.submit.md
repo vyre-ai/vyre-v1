@@ -33,6 +33,7 @@ type In = {
   useSaved?: boolean;
   folderId?: string;
   audience?: "asker" | "anyone";
+  hosts?: Array<string>;
 };
 ```
 
@@ -103,6 +104,9 @@ type Out = {
       }
     ],
     "folderId": "vfd_a1b2c3",
+    "hosts": [
+      "example"
+    ],
     "requestId": "vrq_a1b2c3",
     "useSaved": true
   },

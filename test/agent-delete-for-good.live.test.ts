@@ -96,8 +96,14 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
           body?: string;
         }>
       ).filter((m) => m.body === "Desk was deleted.").length;
-    await waitFor(async () => ((await lines()) >= 1 ? true : null), 20_000);
-    await new Promise((r) => setTimeout(r, 1500));
+    // The three events (Trash, restore, Trash) are handled one after another, each a moment after its call: the first Trash's line can be seen before the restore
+    // takes it back and before the second Trash writes its own (CI, 16 Nov 2026: a busy runner read the channel in that gap and counted none). So wait for the
+    // settled state, one line that is still one line a second and a half later, and then assert it.
+    await waitFor(async () => {
+      if ((await lines()) !== 1) return null;
+      await new Promise((r) => setTimeout(r, 1500));
+      return (await lines()) === 1 ? true : null;
+    }, 30_000);
     assert.equal(
       await lines(),
       1,

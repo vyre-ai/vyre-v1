@@ -444,6 +444,7 @@ export async function connectSubmit(
     useSaved?: boolean;
     folderId?: string;
     audience?: KeyAudience;
+    hosts?: string[];
   },
 ) {
   personOnly(ctx);
@@ -453,6 +454,15 @@ export async function connectSubmit(
   if (!row.service) raise(trace, "validation.precondition_failed", "This is not a service to connect.");
   const svc =
     (await serviceOf(ctx, row.service)) ?? raise(trace, "validation.not_found", "That service is no longer set up.");
+  // the key goes only where the card said it would: a service republished since the card was drawn has other addresses, and nothing is sent or kept
+  if (
+    input.hosts &&
+    !sameHosts(
+      input.hosts.map((h) => h.toLowerCase()),
+      svc.hosts.map((h) => h.toLowerCase()),
+    )
+  )
+    raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
   const card = await cardOf(ctx, row.id);
   if (!card.mayFill)
     raise(trace, "permission.no_grant", "Only an admin can connect this service here. Ask one from the card.");
@@ -663,6 +673,7 @@ export async function connectLine(ctx: VaultReqCtx, input: { requestId: string }
     ...(row.state === "fulfilled" && row.decided_by ? { connectedBy: row.decided_by } : {}),
     ...(row.thread_id ? { threadId: row.thread_id } : {}),
     ...(row.requester_kind === "agent" ? { agentId: row.requester_id } : {}),
+    ...(row.decided_at !== null ? { answeredAt: row.decided_at } : {}),
   };
 }
 

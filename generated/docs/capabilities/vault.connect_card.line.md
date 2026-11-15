@@ -39,6 +39,7 @@ type Out = {
   connectedBy?: string;
   threadId?: string;
   agentId?: string;
+  answeredAt?: number;
 };
 ```
 
@@ -61,6 +62,7 @@ type Out = {
   },
   "output": {
     "agentId": "agt_a1b2c3",
+    "answeredAt": 1760000000000,
     "asker": "usr_a1b2c3",
     "connectedBy": "usr_a1b2c3",
     "service": "example",

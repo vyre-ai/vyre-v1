@@ -243,6 +243,12 @@ export default defineManifest({
           useSaved: t.opt(t.bool({ description: "Use the key the person already has instead of a typed one" })),
           folderId: t.opt(id.vaultFolder),
           audience: t.opt(t.enm("asker", "anyone")),
+          hosts: t.opt(
+            t.arr(t.str(), {
+              description:
+                "The addresses the card showed the key would be sent to; refused when the service's addresses are no longer exactly these",
+            }),
+          ),
         },
         out: { result: t.enm("connected", "wrong", "offline"), card: connectCard },
         emits: ["vault.request_fulfilled"],
@@ -283,6 +289,7 @@ export default defineManifest({
           connectedBy: t.opt(id.user),
           threadId: t.opt(id.thread),
           agentId: t.opt(id.agent),
+          answeredAt: t.opt(t.ts()),
         },
         agent: false,
         errors: ["internal.not_implemented", "permission.no_grant", "validation.not_found"],

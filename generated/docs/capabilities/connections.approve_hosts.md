@@ -26,6 +26,7 @@ The person who owns a connection allows the hosts its connector now calls (it ga
 ```ts
 type In = {
   connectionId: string;
+  hosts: Array<string>;
 };
 ```
 
@@ -44,6 +45,7 @@ type Out = {
 - permission.no_grant
 - validation.bad_input
 - validation.not_found
+- validation.precondition_failed
 
 ## Example
 
@@ -51,7 +53,10 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "connectionId": "con_a1b2c3"
+    "connectionId": "con_a1b2c3",
+    "hosts": [
+      "example"
+    ]
   },
   "output": {
     "hosts": [
