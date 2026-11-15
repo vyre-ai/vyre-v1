@@ -2,100 +2,10 @@
 // viewer as the real thing, and the viewer's own features work on them. Real Chromium against the production export and a claimed daemon. Pictures go to VYRE_VIEWER_SHOTS.
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
+import { session } from "./viewers-session.ts";
 import { makeDocx, makePdf, makePptx, reportPages, unzip } from "./viewer-fixtures.ts";
 
-const PASSWORD = "fixture password 123";
 type Pg = import("playwright-core").Page;
-
-async function session(t: { skip(m?: string): void }, size = { width: 1440, height: 900 }) {
-  const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) {
-    if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
-    t.skip("VYRE_APP_DIST required");
-    return null;
-  }
-  const { chromium } = await import("playwright-core");
-  const exe = process.env["CHROME_BIN"] || chromium.executablePath();
-  const space = await bootFreshSpace();
-  const web = await edge(dist, space.url);
-  const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
-  const ctx = await browser.newContext({ viewport: size, deviceScaleFactor: 1 });
-  const page = await ctx.newPage();
-  const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-  page.on("console", (m) => {
-    if (m.type() === "error" || m.type() === "warning") console.log(`BROWSER ${m.type()}: ${m.text().slice(0, 300)}`);
-  });
-  page.on("response", (r) => {
-    if (r.status() >= 400 && /\/v1\//.test(r.url())) void r.text().then((b) => console.log(`HTTP ${r.status()} ${r.url().replace(/^.*\/v1\//, "")} ${b.slice(0, 300)}`)).catch(() => undefined);
-  });
-  page.on("requestfailed", (r) => console.log(`REQFAIL ${r.url().slice(0, 120)} ${r.failure()?.errorText}`));
-  await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
-  await page.getByTestId("claim-name").fill("Olivia Owner");
-  await page.getByTestId("claim-username").fill("olivia");
-  await page.getByTestId("claim-password").fill(PASSWORD);
-  await page.getByTestId("claim-confirm").fill(PASSWORD);
-  await page.getByTestId("claim-next").click();
-  await page.getByTestId("claim-create").click();
-  await dismissOnboarding(page);
-  const token = await page.evaluate(
-    () => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string,
-  );
-  const call = async (cap: string, data: unknown): Promise<any> => {
-    // eslint-disable-line @typescript-eslint/no-explicit-any
-    const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, {
-      headers: { authorization: `Bearer ${token}` },
-      data,
-    });
-    const body = await r.json();
-    assert.equal(r.status(), 200, `${cap}: ${JSON.stringify(body)}`);
-    return body.data;
-  };
-  const root = JSON.stringify(await call("files.tree", {})).match(/"(fld_[a-z0-9]+)"/)![1]!;
-  const folderId = (await call("files.folder.create", { parentId: root, name: "Viewers", idempotencyKey: "vw" }))
-    .folder.folderId as string;
-  const shots = process.env["VYRE_VIEWER_SHOTS"] ?? "/tmp/vyre-viewer-shots";
-  fs.mkdirSync(shots, { recursive: true });
-  return {
-    page,
-    ctx,
-    call,
-    web,
-    folderId,
-    errors,
-    shot: (n: string) => page.screenshot({ path: path.join(shots, `${n}.png`) }),
-    make: async (name: string, bytes: Buffer, mime: string): Promise<any> => {
-      let content: unknown = { base64: bytes.toString("base64") };
-      if (bytes.length > 190 * 1024) {
-        // over the direct-write size: the bytes go to a one-time upload address first
-        const slot = await call("files.upload_url", { size: bytes.length, mime });
-        const r = await ctx.request.put(`${web.origin}${slot.url}`, {
-          headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" },
-          data: bytes,
-        });
-        assert.ok(r.ok(), `upload ${r.status()}`);
-        content = { blobId: slot.blobId };
-      }
-      return call("files.create", { folderId, name, content, mime, idempotencyKey: `m-${name}` });
-    },
-    open: async (name: string): Promise<void> => {
-      await page.goto(`${web.origin}/files`, { waitUntil: "load" });
-      await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-      await page.getByText("Viewers", { exact: true }).first().dblclick();
-      await page.getByText(name, { exact: true }).first().waitFor({ timeout: 20_000 });
-      await page.getByText(name, { exact: true }).first().dblclick();
-    },
-    close: async (): Promise<void> => {
-      await browser.close();
-      web.close();
-      await space.stop();
-    },
-  };
-}
-
 const drawn = (page: Pg, n: number): Promise<boolean> =>
   page.evaluate((k) => !!document.querySelector(`[data-testid="vwp-page-${k}"] canvas`), n);
 
@@ -288,6 +198,10 @@ test("a three sheet workbook is a real grid: tabs, formats, a cell edit that rec
     await page.waitForFunction(() => /v2/.test(document.querySelector('[data-testid="vw-saved"]')?.textContent ?? ""), null, { timeout: 20_000 });
     const versions = (await s.call("files.versions", { fileId })).versions as { n: number }[];
     assert.ok(versions.length >= 2, "History has the new version");
+    // History lists the new version
+    await page.getByTestId("vw-history").click();
+    await page.getByText(/v2/).first().waitFor({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
     // reopen: the change is there, the other sheets are intact
     await s.open("budget.xlsx");
     await page.getByTestId("vwg").waitFor({ timeout: 40_000 });
@@ -374,6 +288,18 @@ test("a Word file is drawn as its page, a word is edited and saved back, and eve
     await s.shot("docx-find");
     await page.getByTestId("vw-find-input").fill("");
     await page.getByTestId("vw-find-btn").click();
+    // a comment on a passage and a highlight, through the viewer's own selection bar
+    await page.locator('[data-pid="d2"]').dblclick();
+    await page.getByTestId("vw-sel-highlight").click();
+    await page.waitForFunction(() => !!document.querySelector('[data-hlt="1"]'), null, { timeout: 10_000 });
+    await page.locator('[data-pid="d3"]').dblclick();
+    await page.getByTestId("vw-sel-comment").click();
+    await page.getByTestId("vw-pick-input").fill("Check this goal");
+    await page.getByTestId("vw-pick-post").click();
+    await page.waitForFunction(() => !!document.querySelector('[data-testid^="vw-comment-"]'), null, { timeout: 10_000 });
+    const cm = (await s.call("files.comments.list", { fileId })).comments.find((x: any) => x.text === "Check this goal");
+    assert.ok(cm?.anchor.quote, "the comment is anchored to the words selected");
+    await s.shot("docx-comment");
     // edit: a word is replaced
     await page.getByTestId("vw-mode-edit").click();
     const tracked = page.locator('[data-ro="1"]');

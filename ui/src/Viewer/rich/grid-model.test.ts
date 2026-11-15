@@ -219,3 +219,28 @@ test("round trip with an inserted row: the sheet's cells move in the file and fo
   assert.deepEqual([1, 2, 3, 4].map((r) => s.getCell(r, 1).type === 6 ? s.getCell(r, 1).formula : s.getCell(r, 1).value), [1, 10, 2, "SUM(A1:A3)"]);
   assert.equal(s.getCell(4, 1).result, 13);
 });
+
+import { bookFromRows, cellWrites, sheetCsv } from "./workbook-io.ts";
+
+test("a Google Sheet's first tab: only the cells a person changed are written, each as what they typed", () => {
+  const g = new Grid(bookFromRows([["Item", "Cost"], ["Paper", "12"], ["Ink", "30"]], "Sheet"));
+  const was = baseline(g.book);
+  assert.deepEqual(cellWrites(g, was), []);
+  g.setCell(g.book.sheets[0]!, 1, 1, "20");
+  g.setCell(g.book.sheets[0]!, 3, 0, "Total");
+  g.setCell(g.book.sheets[0]!, 3, 1, "=SUM(B2:B3)");
+  assert.deepEqual(cellWrites(g, was), [
+    { r: 1, c: 1, value: "20" },
+    { r: 3, c: 0, value: "Total" },
+    { r: 3, c: 1, value: "=SUM(B2:B3)" },
+  ]);
+  assert.equal(g.book.sheets[0]!.cells.get(key(3, 1))!.v, 50);
+});
+
+test("a CSV round trips: quoting, a plain formula-looking cell stays text, and the saved text is the grid", () => {
+  const g = new Grid(bookFromRows([["name", "note"], ["Ada", "says \"hi\", twice"], ["=x", "7"]], "Sheet", { plain: true, header: true }));
+  assert.equal(g.book.sheets[0]!.cells.get(key(2, 0))!.f, undefined);
+  assert.equal(sheetCsv(g), 'name,note\nAda,"says ""hi"", twice"\n=x,7\n');
+  g.setCell(g.book.sheets[0]!, 1, 0, "Grace");
+  assert.match(sheetCsv(g), /^name,note\nGrace,/);
+});

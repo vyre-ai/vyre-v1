@@ -791,7 +791,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           <Text style={s.zoomText} testID="vw-page-count">{`/ ${pageCount}`}</Text>
         </View>
       ) : null}
-      {props.kind === "image" || props.paged === true ? (
+      {props.kind === "image" || (props.paged === true && props.compact !== true) ? (
         <View style={s.zoom} testID="vw-zoom">
           <Pressable
             accessibilityRole="button"

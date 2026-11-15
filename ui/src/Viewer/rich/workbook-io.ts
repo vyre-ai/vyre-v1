@@ -1,7 +1,7 @@
 // A workbook file to the grid's model and back. The file is read and written by ExcelJS (the library the Files module already uses on the server), here given in as a plain object so this
 // module stays free of the library. Saving writes only what a person changed into the file that was opened, so every sheet, style, format, formula, merge, width and frozen row the grid did not
 // touch is the file's own, byte for meaning.
-import { Grid, DEFAULT_COL_W, display, inputOf, isDateFormat, key, toSerial, unkey } from "./grid-model.ts";
+import { Grid, DEFAULT_COL_W, display, inputOf, isDateFormat, key, parseInput, toSerial, unkey } from "./grid-model.ts";
 import type { Book, GCell, GSheet } from "./grid-model.ts";
 import { colIndex } from "./formula.ts";
 
@@ -160,3 +160,54 @@ export function bookAsText(book: Book, maxRows = 200): string {
     .join("\n\n");
 }
 export { DEFAULT_COL_W };
+
+
+/** A sheet of values (a Google Sheet's export, a CSV) as a one-sheet book: each cell is read as a person would have typed it. */
+export function bookFromRows(rows: readonly (readonly string[])[], name = "Sheet1", opts: { plain?: boolean; header?: boolean } = {}): Book {
+  const cells = new Map<string, GCell>();
+  let cols = 1;
+  rows.forEach((row, r) =>
+    row.forEach((v, c) => {
+      const cell = parseInput(v);
+      if (cell) cells.set(key(r, c), cell);
+      if (cell && opts.plain && cell.f !== undefined) cells.set(key(r, c), { v });
+      cols = Math.max(cols, c + 1);
+    }),
+  );
+  if (opts.header) for (let c = 0; c < cols; c++) {
+    const h = cells.get(key(0, c));
+    if (h) h.b = true;
+  }
+  return { sheets: [{ name, rows: Math.max(rows.length, 1), cols, cells, widths: [], frozen: { rows: opts.header ? 1 : 0, cols: 0 }, merges: [] }] };
+}
+
+/** The cells of the first sheet that differ from what was opened, as what to write at the provider: a cell's A1 name and what a person would type into it ("" clears it). */
+export function cellWrites(grid: Grid, opened: Map<string, Map<string, string>>): { r: number; c: number; value: string }[] {
+  const s = grid.book.sheets[0];
+  if (!s) return [];
+  const was = opened.get(s.name) ?? new Map<string, string>();
+  const out: { r: number; c: number; value: string }[] = [];
+  for (const [k, c] of s.cells) if (was.get(k) !== sig(c)) out.push({ r: unkey(k)[0], c: unkey(k)[1], value: inputOf(c) });
+  for (const k of was.keys()) if (!s.cells.has(k)) out.push({ r: unkey(k)[0], c: unkey(k)[1], value: "" });
+  return out;
+}
+
+/** A sheet of a delimited file as CSV text: a cell with a comma, a quote or a line break is quoted; a formula is written as its value (a CSV has no formulas). */
+export function sheetCsv(grid: Grid): string {
+  const s = grid.book.sheets[0];
+  if (!s) return "";
+  let last = 0;
+  for (const k of s.cells.keys()) last = Math.max(last, unkey(k)[0] + 1);
+  const q = (v: string): string => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const lines: string[] = [];
+  for (let r = 0; r < last; r++) {
+    const row: string[] = [];
+    for (let c = 0; c < s.cols; c++) {
+      const cell = s.cells.get(key(r, c));
+      row.push(q(cell === undefined || cell.v === null ? "" : cell.f !== undefined ? String(cell.v) : inputOf(cell)));
+    }
+    while (row.length > 1 && row[row.length - 1] === "") row.pop();
+    lines.push(row.join(","));
+  }
+  return `${lines.join("\n")}\n`;
+}

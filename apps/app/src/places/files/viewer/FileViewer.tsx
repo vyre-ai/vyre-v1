@@ -179,7 +179,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
 
   const ready = load.status === "ready" ? load : null;
   // a PDF is drawn as its pages by pdf.js from the file's own bytes: its address, the words of each page (for Find) and the pages' count
-  const isPdf = ready?.data.file.kind === "pdf";
+  // the pages, grids and slides are drawn by the web page (canvas and the DOM); anywhere else the file keeps its words
+  const web = typeof document !== "undefined" && typeof ResizeObserver === "function";
+  const isPdf = web && ready?.data.file.kind === "pdf";
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
   const [pdfTexts, setPdfTexts] = useState<readonly string[]>([]);
   const [pdfDone, setPdfDone] = useState(false);
@@ -201,10 +203,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     };
   }, [d, fileId, isPdf, rev]);
   // an .xlsx opens as a real grid: every sheet, formats, formulas, and typing that is saved back as a new version
-  const isBook = ready !== null && ready.data.file.kind === "spreadsheet" && isXlsx(ready.data.file.name, ready.data.file.mime);
-  const wbk = useWorkbook(d, fileId, isBook, version, say, attempt);
+  const isBook = web && ready !== null && ready.data.file.kind === "spreadsheet" && isXlsx(ready.data.file.name, ready.data.file.mime);
   // a Word file or a deck opens as its own pages or slides, and is typed into where the file allows
-  const okind = ready !== null && isOffice(ready.data.file.kind) ? officeKindOf(ready.data.file.name) : null;
+  const okind = web && ready !== null && isOffice(ready.data.file.kind) ? officeKindOf(ready.data.file.name) : null;
   const off = useOffice(d, fileId, okind, version, say, attempt);
   const offReady = off.state.status === "ready" ? off.state : null;
   const kind = offReady ? "document" : ready ? (isPdf && pdfData === null ? "other" : viewerKindOf(isPdf ? { ...ready.data, previewUrl: pdfData !== null ? "pdf" : undefined } : ready.data)) : "other";
@@ -217,6 +218,33 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   }, [fileId]);
   const rawText = liveText ?? ready?.data.text ?? "";
   const text = app === "gdocs" ? docsMarkdown(rawText) : rawText;
+  // a Google Sheet is the same grid over its export's first tab, and a cell typed there is written at Google by the Sheets path that exists (mounts.sheet_write), never by saving the export over it
+  const isGSheet = web && app === "gsheets" && rawText.trim() !== "";
+  const providerEdit = ready !== null && ready.data.snapshot?.editVia === "provider_api" && ready.data.connected?.viewOnly !== true;
+  // a CSV or TSV opens in the same grid and is written back as a new version; a file read only in part (a large one) is never written, since its rest would be lost
+  const isCsv =
+    web &&
+    ready !== null &&
+    ready.data.file.kind === "spreadsheet" &&
+    !isBook &&
+    /\.csv$/i.test(ready.data.file.name) &&
+    rawText.trim() !== "";
+  const csvWhole = ready !== null && ready.data.file.size <= GRID_PREVIEW_BYTES;
+  const wbk = useWorkbook(
+    d,
+    fileId,
+    isBook || isGSheet || isCsv,
+    version,
+    say,
+    attempt,
+    isGSheet ? { text: rawText, write: providerEdit } : isCsv ? { text: rawText, write: csvWhole, csv: true } : null,
+  );
+  const gDocEdit = app === "gdocs" && providerEdit;
+  // a Google Doc's lines as they were when it opened, so an edited line is found at Google by its old words (mounts.doc_replace_text) and changed in the Doc itself
+  const gdocText = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (app === "gdocs") gdocText.current = new Map(textToBlocks(text, "markdown").map((b) => [b.id, b.text]));
+  }, [app, text]);
   const fileLinks = useFileLinks(
     d,
     ready && app === null ? { folderId: ready.data.file.folderId } : null,
@@ -358,6 +386,35 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     }, SAVE_DELAY_MS);
   };
 
+  // a Google Doc line edited in the viewer is replaced in the Doc itself: found by its old words and swapped for the new ones, which shows in the Doc's own history
+  const editGDoc = (next: readonly DocBlock[]): void => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      void (async () => {
+        for (const b of next) {
+          const old = gdocText.current.get(b.id);
+          if (old === undefined || old === b.text || old.trim() === "") continue;
+          if (/[*_`[\]]/.test(old) || /[*_`[\]]/.test(b.text)) {
+            setNote("This line has formatting that cannot be changed from here. Open it in Google Docs.");
+            continue;
+          }
+          try {
+            await d.call("mounts.doc_replace_text", {
+              fileId,
+              find: old,
+              replace: b.text,
+              matchCase: true,
+              idempotencyKey: `gdoc-${fileId}-${b.id}-${Date.now()}`,
+            });
+            gdocText.current.set(b.id, b.text);
+            setNote("Changed in Google Docs.");
+          } catch (e) {
+            say(e);
+          }
+        }
+      })();
+    }, SAVE_DELAY_MS);
+  };
   // a Markdown file is edited in the one Markdown editor, which saves it as new versions by itself
   const mdEditor = file.kind === "markdown" && app === null && !office && isEditable(ready.data);
   const node = ready.graph ? nodeFor(ready.graph, file.name) : null;
@@ -589,11 +646,12 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         kindLabel={kindLabel(file.name)}
         subtitle={subtitleOf(ready.data, now, path)}
         {...(mark !== undefined ? { kindMark: mark } : {})}
-        {...(app !== null ||
+        {...((app !== null && !(wbk.state.status === "ready" && providerEdit) && !gDocEdit) ||
         (office && (offReady === null || !ready.data.canEdit)) ||
         file.kind === "pdf" ||
         ready.data.connected?.viewOnly === true ||
-        (wbk.state.status === "ready" && !ready.data.canEdit)
+        (isBook && wbk.state.status === "ready" && !ready.data.canEdit) ||
+        (isCsv && wbk.state.status === "ready" && (!ready.data.canEdit || !csvWhole))
           ? { readOnly: true }
           : {})}
         {...(office
@@ -622,12 +680,18 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
                     sheet={wbk.sheet}
                     onSheet={wbk.setSheet}
                     edit={c.edit}
-                    {...(!ready.data.canEdit
+                    {...(isCsv ? { header: true } : {})}
+                    {...((isGSheet ? !providerEdit : isCsv ? !ready.data.canEdit || !csvWhole : !ready.data.canEdit)
                       ? {
                           why: ready.data.connected?.viewOnly
                             ? `View only in ${ready.data.connected.provider}.`
-                            : "You can read this file but not change it.",
+                            : isCsv && ready.data.canEdit && !csvWhole
+                              ? "A large file is shown in part. Open it in its own app to change it."
+                              : "You can read this file but not change it.",
                         }
+                      : {})}
+                    {...(isGSheet
+                      ? { noStructure: "Google Sheets takes cell values here. Open it in Google Sheets to add or remove rows and columns." }
                       : {})}
                     find={c.find}
                     current={cur ?? null}
@@ -732,6 +796,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         agentName={d.agentFor?.(fileId) ?? d.agents.find((a) => a.assistant)?.name ?? "the agent"}
         {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})}
         {...(isEditable(ready.data) && !mdEditor ? { onEdit: edit } : {})}
+        {...(gDocEdit ? { onEdit: editGDoc } : {})}
         {...(file.kind === "markdown" && app === null && !office && !(layer.preview && layer.view?.text)
           ? { markdown: rawText }
           : {})}
@@ -794,6 +859,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
       {firstOfMany && !note ? (
         <Text style={[s.note, s.noteHigh]} testID="file-viewer-sheets">
           {`Showing the first of ${sheetCount} sheets. ${link ? openInWords(link.openIn) : "Open it in its own app"} for the rest.`}
+        </Text>
+      ) : null}
+      {isGSheet && wbk.state.status === "ready" && !note ? (
+        <Text style={[s.note, s.noteHigh]} testID="file-viewer-firsttab">
+          Showing the first tab. Open it in Google Sheets for the others.
         </Text>
       ) : null}
       {cutShort && !note ? (

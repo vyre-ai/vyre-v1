@@ -151,7 +151,7 @@ async function openGoogle(mime: string, o: Partial<ViewerData>, openIn: string) 
   return root;
 }
 
-test("a Google Doc opens as its words, under the Google Docs tile, with Open in Google Docs and no Edit switch", async () => {
+test("a Google Doc opens as its words, under the Google Docs tile, with Open in Google Docs; Edit is offered because its words are changed in the Doc itself, and not when Drive says view only", async () => {
   const root = await openGoogle(`${NATIVE}document`, { text: DOC }, "Google Docs");
   const all = textOf(root);
   assert.ok(!all.includes("This file is empty"), all);
@@ -162,7 +162,9 @@ test("a Google Doc opens as its words, under the Google Docs tile, with Open in 
   assert.ok(find(root, "google-tile-gdocs"), "the header carries the Google Docs tile, not FILE");
   assert.equal(find(root, "vw-tile"), null);
   assert.equal(textOf(find(root, "vw-open-in")).trim(), "Open in Google Docs");
-  assert.equal(find(root, "vw-mode"), null, "a Doc is edited in Google Docs");
+  assert.ok(find(root, "vw-mode"), "its words are edited in the Doc itself (mounts.doc_replace_text)");
+  const locked = await openGoogle(`${NATIVE}document`, { text: DOC, connected: { provider: "Google Drive", viewOnly: true } }, "Google Docs");
+  assert.equal(find(locked, "vw-mode"), null, "a Doc Drive says is view only is not edited here");
 });
 
 test("a Google Sheet opens as a table, and a Form says where it opens", async () => {

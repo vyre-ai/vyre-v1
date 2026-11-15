@@ -18,6 +18,10 @@ export interface GridViewProps {
   edit: boolean;
   /** Why the grid cannot be changed, said once under the formula bar ("This file is view only in Google Drive."). */
   why?: string;
+  /** Rows and columns cannot be added or removed here (said once, on the buttons): a Google Sheet takes cell values only. */
+  noStructure?: string;
+  /** The first row is a header (a CSV): the foot counts the rows under it. */
+  header?: boolean;
   find: string;
   /** The cell Find is on, in this sheet, when it is. */
   current: { sheet: number; r: number; c: number } | null;
@@ -285,7 +289,7 @@ export function GridView(p: GridViewProps): ReactElement {
       },
     });
   })();
-  const block = p.grid.structureBlock(s);
+  const block = p.noStructure ?? p.grid.structureBlock(s);
   const bar = createElement(
     "div",
     { className: "vwg-fx", "data-testid": "vwg-fx" },
@@ -325,10 +329,10 @@ export function GridView(p: GridViewProps): ReactElement {
   const tabs = createElement(
     "div",
     { className: "vwg-tabs", "data-testid": "vwg-tabs", role: "tablist" },
-    ...p.grid.book.sheets.map((sh, i) =>
+    ...(p.grid.book.sheets.length < 2 ? [] : p.grid.book.sheets).map((sh, i) =>
       createElement("button", { key: sh.name, className: "vwg-tab", role: "tab", "aria-selected": i === p.sheet, "data-on": i === p.sheet ? "1" : "0", "data-testid": `vwg-tab-${i}`, onClick: () => p.onSheet(i) }, sh.name),
     ),
-    createElement("span", { className: "vwg-foot", "data-testid": "vwg-foot" }, `${s.rows.toLocaleString("en-US")} rows · ${s.cols} columns`),
+    createElement("span", { className: "vwg-foot", "data-testid": "vwg-foot" }, `${(p.header ? Math.max(s.rows - 1, 0) : s.rows).toLocaleString("en-US")} rows · ${s.cols} columns`),
   );
   return createElement(
     "div",

@@ -4,10 +4,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Grid, sheetFindText } from "../../../../../../ui/src/Viewer/rich/grid-model.ts";
 import { itemHits } from "../../../../../../ui/src/Viewer/rich/pdf-model.ts";
-import { baseline, readBook, writeChanges } from "../../../../../../ui/src/Viewer/rich/workbook-io.ts";
+import { baseline, bookFromRows, cellWrites, readBook, sheetCsv, writeChanges } from "../../../../../../ui/src/Viewer/rich/workbook-io.ts";
 import type { XBook } from "../../../../../../ui/src/Viewer/rich/workbook-io.ts";
 import { loadExcel } from "../../../../../../ui/src/Viewer/rich/vendor.ts";
+import { colName } from "../../../../../../ui/src/Viewer/rich/formula.ts";
 import { contentFor } from "./actions.ts";
+import { parseCsv } from "./model.ts";
 import type { FilesViewerData } from "./data.tsx";
 
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -49,6 +51,8 @@ export function useWorkbook(
   version: { current: number },
   say: (e: unknown) => void,
   bump: number,
+  /** A Google Sheet: its first tab as the export's CSV, and whether the person may write cells at Google. Edits go cell by cell through mounts.sheet_write, never through the export. */
+  gs: { text: string; write: boolean; csv?: boolean } | null = null,
 ): Workbook {
   const [state, setState] = useState<WorkbookState>({ status: "off" });
   const [rev, setRev] = useState(0);
@@ -71,6 +75,15 @@ export function useWorkbook(
     setSheet(0);
     void (async () => {
       try {
+        if (gs !== null) {
+          const t = parseCsv(gs.text);
+          const grid = new Grid(bookFromRows([[...t.cols], ...t.rows.map((r) => [...r])], "Sheet", gs.csv === true ? { plain: true, header: true } : {}));
+          gridRef.current = grid;
+          opened.current = baseline(grid.book);
+          setState({ status: "ready", grid });
+          setRev((x) => x + 1);
+          return;
+        }
         const [r, lib] = await Promise.all([d.call("files.read", { fileId, as: "base64" }), loadExcel()]);
         const b64 = (r as { base64?: string }).base64 ?? "";
         const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -91,12 +104,63 @@ export function useWorkbook(
       live = false;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [d, fileId, on, bump]);
+  }, [d, fileId, on, bump, gs?.text]);
 
   const flush = useCallback(async (): Promise<void> => {
     const grid = gridRef.current;
     const book = wb.current;
-    if (!grid || !book) return;
+    if (!grid) return;
+    if (gs !== null && gs.csv === true) {
+      // a CSV: the whole text is written back as a new version of the same file
+      if (busy.current) {
+        again.current = true;
+        return;
+      }
+      busy.current = true;
+      try {
+        const out = (await d.call("files.write", { fileId, content: { text: sheetCsv(grid) }, baseVersion: version.current, reason: "Edited in the viewer" })) as { file?: { version?: number } };
+        version.current = out.file?.version ?? version.current + 1;
+        setSaved(version.current);
+      } catch (e) {
+        say(e);
+      } finally {
+        busy.current = false;
+        if (again.current) {
+          again.current = false;
+          void flush();
+        }
+      }
+      return;
+    }
+    if (gs !== null) {
+      // a Google Sheet: each changed cell is written at Google by the Sheets path that exists (mounts.sheet_write), one value each
+      if (busy.current) {
+        again.current = true;
+        return;
+      }
+      busy.current = true;
+      try {
+        for (const w of cellWrites(grid, opened.current))
+          await d.call("mounts.sheet_write", {
+            fileId,
+            range: `${colName(w.c)}${w.r + 1}`,
+            values: [[w.value]],
+            idempotencyKey: `vw-${fileId}-${w.r}-${w.c}-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+          });
+        opened.current = baseline(grid.book);
+        setSaved((x) => (x ?? 0) + 1);
+      } catch (e) {
+        say(e);
+      } finally {
+        busy.current = false;
+        if (again.current) {
+          again.current = false;
+          void flush();
+        }
+      }
+      return;
+    }
+    if (!book) return;
     if (busy.current) {
       again.current = true;
       return;
@@ -125,7 +189,7 @@ export function useWorkbook(
         void flush();
       }
     }
-  }, [d, fileId, say, version]);
+  }, [d, fileId, say, version, gs]);
 
   const changed = useCallback((): void => {
     setRev((x) => x + 1);
