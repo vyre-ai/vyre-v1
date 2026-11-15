@@ -294,18 +294,24 @@ test("the quiet approval line in the chat is one button that opens the thread, w
   );
 });
 
-test("the message column carries no no-agent line, with nobody answering or with an agent answering in a thread (Ask an agent is on the message's own bar)", async () => {
+test("the no-agent hint agrees with the routing: no line under an ask an agent answers in a thread; with nobody answering it is a quiet line, not underlined", async () => {
   installDom();
   widen(1280);
   const quiet = channel();
   const a = await mount(createRoot, <Conversation data={quiet.data} />);
   await flush();
-  assert.equal(find(a, "no-agent-line"), null, "nothing drawn in the column: the prototype has no such line");
+  const line = find(a, "no-agent-line");
+  assert.ok(line, "nobody was named in a channel where agents listen, so the line says so");
+  assert.equal(JSON.stringify(line).includes("underline"), false, "a quiet line, not a link look");
   const answered = channel();
   answered.replica.put("threads", [threadRow({ replyCount: 1, lastMessageAt: at(9, 40) })]);
   const b = await mount(createRoot, <Conversation data={answered.data} />);
   await flush();
-  assert.equal(find(b, "no-agent-line"), null);
+  assert.equal(
+    find(b, "no-agent-line"),
+    null,
+    "an agent answers under the message: the footer says so, the hint does not contradict it",
+  );
 });
 
 test("while an agent writes in the thread the footer shows its face and Working with a running timer", async () => {

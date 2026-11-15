@@ -1,6 +1,6 @@
 // The Rewind card (chat gap G36, G37): "Go back to", the points of this chat with their time and file count, and, before anything is pressed, what going back undoes and what it never touches. Opened from the
 // chat's menu, a message's menu ("Rewind to here") and /rewind; each opens this one card. One press on a point selects it; "Go back" calls chat.rewind. Off in a chat with other people.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { timeLabel } from "../conversation/chat-time.ts";
@@ -25,10 +25,13 @@ export function RewindWatch({
   stamp: number;
   onRead(active: ActiveRewind[]): void;
 }): null {
+  // the caller's `call` may be a new function on every render: the read is keyed on the chat and the stamp alone, never on it, or it would read again after every state change it causes
+  const callRef = useRef(call);
+  callRef.current = call;
   useEffect(() => {
     let gone = false;
     try {
-      void Promise.resolve(call("engine.rewind.points", { threadId })).then(
+      void Promise.resolve(callRef.current("engine.rewind.points", { threadId })).then(
         (r) => !gone && onRead((r as { active?: ActiveRewind[] } | null)?.active ?? []),
         () => undefined,
       );
@@ -40,7 +43,7 @@ export function RewindWatch({
     };
     // the read is keyed on the stamp: onRead is a state setter
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, threadId, stamp]);
+  }, [threadId, stamp]);
   return null;
 }
 

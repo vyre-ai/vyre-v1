@@ -137,3 +137,29 @@ test("the folded row: one line, openable to each message, Undo only for the pers
   const root2 = await mount(createRoot, <FoldedRow row={theirs as never} />);
   assert.equal(find(root2, `folded-${theirs.key}-undo`), null, "a second member cannot undo another's rewind");
 });
+
+test("the rewind watch reads once for a chat, however often its caller makes a new call function (it never loops a chat)", async () => {
+  installDom();
+  const { RewindWatch } = await import("./RewindCard.tsx");
+  const { useState } = await import("react");
+  let reads = 0;
+  function Host() {
+    const [n, setN] = useState(0);
+    return (
+      <RewindWatch
+        call={async () => {
+          reads++;
+          return { active: [] };
+        }}
+        threadId="t1"
+        stamp={0}
+        onRead={() => setN((x) => x + 1)}
+        key={n < 0 ? "never" : "k"}
+      />
+    );
+  }
+  await mount(createRoot, <Host />);
+  await flush();
+  await flush();
+  assert.equal(reads, 1);
+});

@@ -2276,7 +2276,7 @@ function ConversationView(): ReactElement {
             call={data.call}
             threadId={thread.threadId}
             stamp={rewindLines + rewindStamp}
-            onRead={setRewinds}
+            onRead={(next) => setRewinds((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next))}
           />
         ) : null}
         <QueueWatch ids={queuedIdsNow} call={data.call} threadId={thread.threadId} onChange={setStillQueued} />
