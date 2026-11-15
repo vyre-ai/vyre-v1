@@ -145,6 +145,8 @@ test("journey 6, a record shows everything: Bo sees the comment, the task and th
 
     const seatBo = await seat(s, bo, "Member");
     await open(seatBo, s, `/records#subject=record:${rec.id}`);
+    // the pane opens on Details; Everything is the tab that holds the feed
+    await seatBo.page.getByTestId("tab-everything").click({ timeout: 30_000 });
     await seatBo.page.getByTestId("pane-everything").waitFor({ timeout: 30_000 });
     const feed = await seatBo.page.getByTestId("pane-everything").innerText();
     assert.match(feed, /Dana wants the Friday slot/);
