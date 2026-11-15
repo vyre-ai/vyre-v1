@@ -166,7 +166,7 @@ test("Made by is a face with the name beside it, for a person and for an agent",
   );
   assert.ok(has(person, ">M<") && has(person, ">Maya Chen<"));
   const sales = list(createSampleFiles(), folder("fld_proposals"));
-  assert.ok(has(sales, ">Docs<") && has(sales, ">Irfad Imtiaz<"));
+  assert.ok(has(sales, ">Docs<") && has(sales, ">Idris Ibarra<"));
 });
 
 test("Kind is plain text, with where it came from beside it, never a tinted pill", () => {

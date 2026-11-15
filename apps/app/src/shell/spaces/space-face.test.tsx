@@ -74,7 +74,7 @@ test("sign-in, join and invite screens show the Space image the gate provides, e
     renderToStaticMarkup(
       <JoinFrame>
         <SpaceImageContext.Provider value={image}>
-          <Panel space="My Legal Academy">
+          <Panel space="Northwind Academy">
             <EntryTile name="unused" image={undefined} />
           </Panel>
         </SpaceImageContext.Provider>

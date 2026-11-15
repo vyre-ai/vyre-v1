@@ -49,13 +49,13 @@ d_s_9b30b1af72(a832[i832], p + '/' + i832, e);
 
 function d_s_c2f8d6cce1(v: unknown, p: string, e: string[]): void {
 {
-const x950 = v;
-const g950 = typeOf(x950);
-const b950: string[] = []; lf(x950, p, b950, L0); if (b950.length) e.push(...b950);
-if (g950 === "object") {
-if (g950 === 'object') { const o950 = x950 as Record<string, unknown>;
-if (!("entry" in o950)) e.push(p + "/entry" + ': required');
-if ("entry" in o950) d_s_9b30b1af72(o950["entry"], p + "/entry", e);
+const x952 = v;
+const g952 = typeOf(x952);
+const b952: string[] = []; lf(x952, p, b952, L0); if (b952.length) e.push(...b952);
+if (g952 === "object") {
+if (g952 === 'object') { const o952 = x952 as Record<string, unknown>;
+if (!("entry" in o952)) e.push(p + "/entry" + ': required');
+if ("entry" in o952) d_s_9b30b1af72(o952["entry"], p + "/entry", e);
 }
 }
 }

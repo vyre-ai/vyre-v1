@@ -152,7 +152,7 @@ function rowOut(
   const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
   const address = first(ctx.db.all(`SELECT "address" FROM vault_provider_extra WHERE "providerId" = ?`, str(p, "id")));
-  // a sign-in reads by its account ("Claude Code, irfad@...") or the name the person gave it, never by a counter; an older sign-in of the same provider names the row it shows under
+  // a sign-in reads by its account ("Claude Code, idris@...") or the name the person gave it, never by a counter; an older sign-in of the same provider names the row it shows under
   const sub = str(p, "connection") === "subscription";
   const who = sub ? identityOf(ctx, str(p, "id")) : undefined;
   const aliases = sub ? aliasesOf(ctx, str(p, "id")) : [];

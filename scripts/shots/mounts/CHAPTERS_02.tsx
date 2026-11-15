@@ -23,7 +23,7 @@ export function Pieces({ two }: { two: boolean }): ReactNode {
       ...(two
         ? {
             members: [
-              { kind: "person" as const, id: "usr_irfad" },
+              { kind: "person" as const, id: "usr_idris" },
               { kind: "person" as const, id: "usr_maya" },
               { kind: "agent" as const, id: "agt_intake" },
             ],
@@ -41,7 +41,7 @@ export function Pieces({ two }: { two: boolean }): ReactNode {
       threadId: "c1",
       threadSeq: seq,
       author:
-        who === "person" ? { kind: "person" as const, id: "usr_irfad" } : { kind: "agent" as const, id: "agt_intake" },
+        who === "person" ? { kind: "person" as const, id: "usr_idris" } : { kind: "agent" as const, id: "agt_intake" },
       kind: who === "person" ? "text" : "agent",
       body,
       blocks: [],
@@ -130,7 +130,7 @@ export function Pieces({ two }: { two: boolean }): ReactNode {
                 label: "Decision",
                 sub: "A file link stays private until shared",
                 at,
-                by: "usr_irfad",
+                by: "usr_idris",
               },
             ],
             notes: [

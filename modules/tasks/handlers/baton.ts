@@ -123,7 +123,7 @@ async function line(ctx: TasksCtx, t: Task, kind: string, body: string): Promise
   await postLine(ctx, t, cut(`${await didForLine(ctx, t)}${body}`, LINE_CHARS), `${kind}:${t.version}`);
 }
 
-/** An agent finishing a seat that belongs to the person it acts for says so, by name: "Assistant did this for Irfad." Empty for anyone else. */
+/** An agent finishing a seat that belongs to the person it acts for says so, by name: "Assistant did this for Idris." Empty for anyone else. */
 async function didForLine(ctx: TasksCtx, t: Task): Promise<string> {
   const person = ctx.actingFor;
   if (ctx.principal.kind !== "agent" || !person || !ctx.call) return "";

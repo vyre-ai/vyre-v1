@@ -225,7 +225,7 @@ export default function Mount(): ReactNode {
               ],
               policy: { scriptsAdminOnly: false },
               admin: false,
-              me: "usr_irfad",
+              me: "usr_idris",
             };
           case "skills.of_agents":
             return {
@@ -259,14 +259,14 @@ export default function Mount(): ReactNode {
               revisions: [
                 {
                   rev: 2,
-                  by: "usr_irfad",
+                  by: "usr_idris",
                   authorKind: "person",
                   summary: "Updated to 7d03be8",
                   at: Date.UTC(2025, 10, 4),
                 },
                 {
                   rev: 1,
-                  by: "usr_irfad",
+                  by: "usr_idris",
                   authorKind: "person",
                   summary: "Installed from a link",
                   at: Date.UTC(2025, 9, 20),
@@ -275,9 +275,9 @@ export default function Mount(): ReactNode {
             };
           case "skills.grants":
             return {
-              owner: "usr_irfad",
+              owner: "usr_idris",
               ownerKind: "person",
-              grants: [{ agentId: "agt_mira", level: "use", by: "usr_irfad", at: 1 }],
+              grants: [{ agentId: "agt_mira", level: "use", by: "usr_idris", at: 1 }],
             };
           case "install.list":
             return { installs: INSTALLS };
@@ -294,7 +294,7 @@ export default function Mount(): ReactNode {
   const names: Record<string, string> = {
     usr_dana: "Dana Ortiz",
     usr_maya: "Maya Chen",
-    usr_irfad: "Irfad Imtiaz",
+    usr_idris: "Idris Ibarra",
     usr_sara: "Sara Malik",
     agt_mira: "Mira",
     agt_ember: "Ember",

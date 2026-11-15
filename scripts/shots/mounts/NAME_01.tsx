@@ -18,7 +18,7 @@ const TITLES: Record<string, string> = {
   group: "Lab 8 launch",
 };
 const GROUP = [
-  { kind: "person", id: "usr_irfad" },
+  { kind: "person", id: "usr_idris" },
   { kind: "person", id: "usr_maya" },
   { kind: "person", id: "usr_omar" },
   { kind: "person", id: "usr_priya" },

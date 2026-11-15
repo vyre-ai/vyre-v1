@@ -443,7 +443,7 @@ test("placePicker flips above the button near the bottom edge and never leaves t
 
 test("the Assistant row is the real agent when the list has it, under the one name a person sees", () => {
   const stand: AskAgent = { id: "assistant", name: "Assistant", assistant: true };
-  const real: AskAgent = { id: "agt_9", name: "Irfad\u2019s Assistant" };
+  const real: AskAgent = { id: "agt_9", name: "Idris\u2019s Assistant" };
   const out = withRealAssistant([stand, real, BILLING]);
   assert.deepEqual(
     out.map((a) => [a.id, a.name]),
@@ -467,7 +467,7 @@ test("the open control draws the real assistant name in the picker", () => {
       context={CTX}
       agents={[
         { id: "assistant", name: "Assistant", assistant: true },
-        { id: "agt_9", name: "Irfad\u2019s Assistant" },
+        { id: "agt_9", name: "Idris\u2019s Assistant" },
         BILLING,
       ]}
       onAsk={() => undefined}

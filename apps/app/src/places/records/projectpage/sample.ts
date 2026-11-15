@@ -8,7 +8,7 @@ export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const DAY = 86_400_000;
 const at = (d: number): number => Date.UTC(2025, 9, 24 + d);
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_idris: "Idris Ibarra",
   usr_maya: "Maya Chen",
   usr_omar: "Omar Haddad",
   agt_intake: "Intake",

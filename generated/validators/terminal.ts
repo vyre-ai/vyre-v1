@@ -66,44 +66,44 @@ if ("durationMs" in o822) lf(o822["durationMs"], p + "/durationMs", e, L2);
 
 function d_s_a575f72efb(v: unknown, p: string, e: string[]): void {
 {
-const x839 = v;
-const g839 = typeOf(x839);
-const b839: string[] = []; lf(x839, p, b839, L0); if (b839.length) e.push(...b839);
-if (g839 === "object") {
-if (g839 === 'object') { const o839 = x839 as Record<string, unknown>;
-if (!("text" in o839)) e.push(p + "/text" + ': required');
-if (!("cols" in o839)) e.push(p + "/cols" + ': required');
-if (!("rows" in o839)) e.push(p + "/rows" + ': required');
-if (!("cursor" in o839)) e.push(p + "/cursor" + ': required');
-if (!("history" in o839)) e.push(p + "/history" + ': required');
-if (!("hidden" in o839)) e.push(p + "/hidden" + ': required');
-if ("text" in o839) lf(o839["text"], p + "/text", e, L1);
-if ("cols" in o839) lf(o839["cols"], p + "/cols", e, L2);
-if ("rows" in o839) lf(o839["rows"], p + "/rows", e, L2);
-if ("cursor" in o839) {
+const x838 = v;
+const g838 = typeOf(x838);
+const b838: string[] = []; lf(x838, p, b838, L0); if (b838.length) e.push(...b838);
+if (g838 === "object") {
+if (g838 === 'object') { const o838 = x838 as Record<string, unknown>;
+if (!("text" in o838)) e.push(p + "/text" + ': required');
+if (!("cols" in o838)) e.push(p + "/cols" + ': required');
+if (!("rows" in o838)) e.push(p + "/rows" + ': required');
+if (!("cursor" in o838)) e.push(p + "/cursor" + ': required');
+if (!("history" in o838)) e.push(p + "/history" + ': required');
+if (!("hidden" in o838)) e.push(p + "/hidden" + ': required');
+if ("text" in o838) lf(o838["text"], p + "/text", e, L1);
+if ("cols" in o838) lf(o838["cols"], p + "/cols", e, L2);
+if ("rows" in o838) lf(o838["rows"], p + "/rows", e, L2);
+if ("cursor" in o838) {
 {
-const x840 = o839["cursor"];
-const t840_0: string[] = [];
+const x839 = o838["cursor"];
+const t839_0: string[] = [];
 {
-const x841 = x840;
-const g841 = typeOf(x841);
-const b841: string[] = []; lf(x841, p + "/cursor", b841, L0); if (b841.length) t840_0.push(...b841);
-if (g841 === "object") {
-if (g841 === 'object') { const o841 = x841 as Record<string, unknown>;
-if (!("x" in o841)) t840_0.push(p + "/cursor" + "/x" + ': required');
-if (!("y" in o841)) t840_0.push(p + "/cursor" + "/y" + ': required');
-if ("x" in o841) lf(o841["x"], p + "/cursor" + "/x", t840_0, L2);
-if ("y" in o841) lf(o841["y"], p + "/cursor" + "/y", t840_0, L2);
+const x840 = x839;
+const g840 = typeOf(x840);
+const b840: string[] = []; lf(x840, p + "/cursor", b840, L0); if (b840.length) t839_0.push(...b840);
+if (g840 === "object") {
+if (g840 === 'object') { const o840 = x840 as Record<string, unknown>;
+if (!("x" in o840)) t839_0.push(p + "/cursor" + "/x" + ': required');
+if (!("y" in o840)) t839_0.push(p + "/cursor" + "/y" + ': required');
+if ("x" in o840) lf(o840["x"], p + "/cursor" + "/x", t839_0, L2);
+if ("y" in o840) lf(o840["y"], p + "/cursor" + "/y", t839_0, L2);
 }
 }
 }
-const t840_1: string[] = [];
-lf(x840, p + "/cursor", t840_1, L84);
-if (![t840_0, t840_1].some((x) => x.length === 0)) e.push(p + "/cursor" + ': matches none of anyOf');
+const t839_1: string[] = [];
+lf(x839, p + "/cursor", t839_1, L84);
+if (![t839_0, t839_1].some((x) => x.length === 0)) e.push(p + "/cursor" + ': matches none of anyOf');
 }
 }
-if ("history" in o839) lf(o839["history"], p + "/history", e, L2);
-if ("hidden" in o839) lf(o839["hidden"], p + "/hidden", e, L3);
+if ("history" in o838) lf(o838["history"], p + "/history", e, L2);
+if ("hidden" in o838) lf(o838["hidden"], p + "/hidden", e, L3);
 }
 }
 }

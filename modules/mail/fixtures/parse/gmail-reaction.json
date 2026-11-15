@@ -5,13 +5,13 @@
   "SENT"
  ],
  "internalDate": "1792857600000",
- "snippet": "❤️ Irfad Imtiaz reacted via Gmail",
+ "snippet": "❤️ Idris Ibarra reacted via Gmail",
  "payload": {
   "mimeType": "multipart/alternative",
   "headers": [
    {
     "name": "From",
-    "value": "Irfad Imtiaz <irfad@northwind.example>"
+    "value": "Idris Ibarra <idris@northwind.example>"
    },
    {
     "name": "To",
@@ -23,7 +23,7 @@
    },
    {
     "name": "Message-ID",
-    "value": "<r1.irfad@northwind.example>"
+    "value": "<r1.idris@northwind.example>"
    },
    {
     "name": "In-Reply-To",
@@ -31,7 +31,7 @@
    },
    {
     "name": "References",
-    "value": "<c2.irfad@northwind.example> <c3.josh@cohenshah.example>"
+    "value": "<c2.idris@northwind.example> <c3.josh@cohenshah.example>"
    }
   ],
   "parts": [

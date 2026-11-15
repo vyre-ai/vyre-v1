@@ -52,8 +52,8 @@ function deps(over: Partial<ClaimDeps> = {}): {
 const input = {
   token: "tok_abcdefgh",
   spaceId: "spc_core",
-  name: " Irfad Imtiaz ",
-  username: "irfad",
+  name: " Idris Ibarra ",
+  username: "idris",
   password: "correct horse",
   recoveryCode: "ABCD-EFGH-JKMN-PQRS",
   deviceName: "Web browser",
@@ -91,7 +91,7 @@ test("claim: the bundle is made on this device and only its wrapped halves are s
   assert.equal(sent["code"], "tok_abcdefgh");
   assert.equal(sent["spaceId"], "spc_core");
   assert.ok(!("token" in sent), "the field is code");
-  assert.equal(sent["displayName"], "Irfad Imtiaz");
+  assert.equal(sent["displayName"], "Idris Ibarra");
   assert.deepEqual(sent["keys"], { ...bundle, spaceKeys: [] });
   assert.ok(!("personKey" in (sent["keys"] as object)), "the unwrapped person key is never in the call");
 });
@@ -155,7 +155,7 @@ test("claim logic: a spent or expired link has no form; other failures keep the 
 });
 
 test("claim logic: Continue needs a name, a valid username, 8+ characters and a matching confirmation", () => {
-  const ok = { name: "Irfad", username: "irfad", password: "longenough", confirm: "longenough" };
+  const ok = { name: "Idris", username: "idris", password: "longenough", confirm: "longenough" };
   assert.equal(problemOf(ok), null);
   assert.equal(problemOf({ ...ok, name: " " }), "name");
   assert.equal(problemOf({ ...ok, username: "9x" }), "username");

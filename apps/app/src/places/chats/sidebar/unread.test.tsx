@@ -168,7 +168,7 @@ test("the rail's Chats dot: on for any unread chat, channel or thread; off when 
   const hub = createShellHub({
     spaces: SEED_DEFS,
     openId: "nw",
-    personId: "irfad",
+    personId: "idris",
     deviceId: "mac",
     storage: null,
     skeletonMs: 0,

@@ -15,9 +15,9 @@ const source = readFileSync(new URL("../migrations/0003_note_source.sql", import
 const versioned = readFileSync(new URL("../migrations/0004_note_version.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const NOW = 1_762_160_000_000;
-export const ME = "usr_irfad",
+export const ME = "usr_idris",
   ALIZA = "usr_aliza",
-  ANDREY = "usr_andrey";
+  ANDERS = "usr_anders";
 
 export interface Ev {
   name: string;
@@ -77,7 +77,7 @@ export function harness(
   const messages = o.messages ?? {};
   const taskKeys: Record<string, string> = {};
   const callees: Record<string, Callee> = {
-    "access.principals.get": () => ({ principal: { name: "Irfad" } }),
+    "access.principals.get": () => ({ principal: { name: "Idris" } }),
     "notifications.send": () => ({ outcome: "badge" }),
     // reading a chat is for its starter, its members, and (a channel) the channel's members or everyone when it is public: anyone else is told it does not exist, as the chat module does
     "threads.get": (i: { threadId: string }, who: Who) => {

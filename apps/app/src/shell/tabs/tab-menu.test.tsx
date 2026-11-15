@@ -11,7 +11,7 @@ import type { TabsState } from "./store.ts";
 
 installDom();
 const ctl = () =>
-  createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage: null, start: "home" });
+  createTabsController({ deviceId: "mac", personId: "idris", spaceId: "nw", storage: null, start: "home" });
 const labelsOf = (root: unknown): string[] => {
   const out: string[] = [];
   const walk = (n: unknown): void => {

@@ -36,8 +36,8 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
   fs.mkdirSync(shots, { recursive: true });
   try {
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
-    await page.getByTestId("claim-name").fill("Irfad Imtiaz");
-    await page.getByTestId("claim-username").fill("irfad");
+    await page.getByTestId("claim-name").fill("Idris Ibarra");
+    await page.getByTestId("claim-username").fill("idris");
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
@@ -247,7 +247,7 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
     // the checker answers in plain words, the Audit log has the rows
     const why = await api("access.exceptions.explain", { principal: dana, perm: "agents.create" });
     assert.equal(why.allowed, false);
-    assert.match(why.words, /^Exception set by Irfad on .*, overrides Member: Allowed\. Reason: First week/);
+    assert.match(why.words, /^Exception set by Idris on .*, overrides Member: Allowed\. Reason: First week/);
     const audit = (await api("audit.list", { limit: 50 })).rows as Array<{ action: string }>;
     assert.ok(
       audit.filter((r) => r.action === "access.exceptions.set").length >= 4,

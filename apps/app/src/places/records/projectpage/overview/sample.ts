@@ -6,7 +6,7 @@ import type { OverviewDoc, PageTemplate, Revision, LiveOut } from "./model.ts";
 
 export const NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_idris: "Idris Ibarra",
   usr_maya: "Maya Chen",
   usr_omar: "Omar Haddad",
   agt_docs: "Docs",
@@ -285,7 +285,7 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
               : md === markdown
                 ? "no change"
                 : "edited a paragraph";
-        const r = push("usr_irfad", "person", said, md);
+        const r = push("usr_idris", "person", said, md);
         return { rev: r, blocks: blocksOf(markdown), markdown };
       }
       case "projects.overview_doc.undo": {
@@ -295,7 +295,7 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
             code: "validation.precondition_failed",
             details: { reason: "not_latest" },
           });
-        const r = push("usr_irfad", "person", `undid: ${last.summary}`, last.before, last.rev);
+        const r = push("usr_idris", "person", `undid: ${last.summary}`, last.before, last.rev);
         return { rev: r, undid: last.rev, blocks: blocksOf(markdown) };
       }
       case "projects.overview_doc.restore": {
@@ -307,7 +307,7 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
             code: "validation.precondition_failed",
             details: { reason: "stale_revision" },
           });
-        const r = push("usr_irfad", "person", `restored version ${target.rev}`, restoreAt(target.rev));
+        const r = push("usr_idris", "person", `restored version ${target.rev}`, restoreAt(target.rev));
         return { rev: r, restored: target.rev, blocks: blocksOf(markdown) };
       }
       case "projects.overview_doc.templates.list":
@@ -320,7 +320,7 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
           });
         const t = TEMPLATES.find((x) => x.templateId === i["templateId"])!;
         const r = push(
-          "usr_irfad",
+          "usr_idris",
           "person",
           `applied the ${t.title} template`,
           t.templateId === "tpl_hiring" ? OTHER : PAGE,
@@ -333,7 +333,7 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
           title: String(i["title"]),
           blocks: 4,
           builtin: false,
-          by: "usr_irfad",
+          by: "usr_idris",
           at: NOW,
         };
         TEMPLATES.push(t);
@@ -342,7 +342,7 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
       case "projects.overview_edit": {
         const op = (i["ops"] as { op: string; key: string; value: unknown }[])[0]!;
         props = { ...props, [op.key]: op.value === null ? "" : String(op.value) };
-        push("usr_irfad", "person", `set ${op.key === "contract" ? "Contract value" : "Repo"}`, markdown);
+        push("usr_idris", "person", `set ${op.key === "contract" ? "Contract value" : "Repo"}`, markdown);
         return { rev, summary: "set a property", blocks: blocksOf(markdown) };
       }
       case "projects.live_block.query":
@@ -370,7 +370,7 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
   const data: ProjectPageData = {
     call,
     nameOf: (id) => NAMES[id] ?? unnamed(id),
-    me: { id: "usr_irfad", name: "Irfad Imtiaz" },
+    me: { id: "usr_idris", name: "Idris Ibarra" },
     now: () => NOW + 3_600_000,
     nav: {
       openChannel: (c) => opened.push(`channel:${c}`),

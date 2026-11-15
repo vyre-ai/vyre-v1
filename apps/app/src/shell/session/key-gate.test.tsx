@@ -9,14 +9,14 @@ const text = (h: string): string => h.replace(/<[^>]*>/g, " ").replace(/\s+/g, "
 
 test("a Space server over https is checked at launch behind the calm loading state; an address with no key door goes straight in", () => {
   const checked = renderToStaticMarkup(
-    <KeyGate baseUrl="https://team.example.com" token="t" name="Irfad">
+    <KeyGate baseUrl="https://team.example.com" token="t" name="Idris">
       <p>the shell</p>
     </KeyGate>,
   );
   assert.match(checked, /data-testid="lock-checking"/);
   assert.doesNotMatch(text(checked), /the shell/, "no shell flash before it is known whether the key is held");
   const plain = renderToStaticMarkup(
-    <KeyGate baseUrl="http://10.0.0.2:7777" token="t" name="Irfad">
+    <KeyGate baseUrl="http://10.0.0.2:7777" token="t" name="Idris">
       <p>the shell</p>
     </KeyGate>,
   );
@@ -25,7 +25,7 @@ test("a Space server over https is checked at launch behind the calm loading sta
 
 test("on this computer a calm loading state shows until the daemon answers: no blank page, no shell flash behind the lock", () => {
   const html = renderToStaticMarkup(
-    <KeyGate baseUrl="http://127.0.0.1:1" token="t" name="Irfad">
+    <KeyGate baseUrl="http://127.0.0.1:1" token="t" name="Idris">
       <p>the shell</p>
     </KeyGate>,
   );

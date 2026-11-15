@@ -87,7 +87,7 @@ const msgs = (s: Sample): Message[] =>
       data: { messages: Message[] };
     }
   ).data.messages;
-const ctx = (s: Sample) => ({ meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() });
+const ctx = (s: Sample) => ({ meId: "usr_idris", nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() });
 
 test("the page reads: header with title and faces, your bubbles, Intake's folded work, cards, the composer line", () => {
   const out = html(createSample("idle"));
@@ -129,9 +129,9 @@ test("who will reply comes from the engine's route(): the lead, a mention, a per
   const s = createSample("idle");
   const t = thread(s);
   assert.equal(whoLine(t, s.data.nameOf), "Intake will reply");
-  assert.deepEqual(respondersFor(t, [], "usr_irfad"), ["agt_intake"]);
-  assert.deepEqual(respondersFor(t, mentionsIn("@Docs check this", DIRECTORY), "usr_irfad"), ["agt_docs"]);
-  assert.deepEqual(respondersFor(t, mentionsIn("@Maya can you look", DIRECTORY), "usr_irfad"), []);
+  assert.deepEqual(respondersFor(t, [], "usr_idris"), ["agt_intake"]);
+  assert.deepEqual(respondersFor(t, mentionsIn("@Docs check this", DIRECTORY), "usr_idris"), ["agt_docs"]);
+  assert.deepEqual(respondersFor(t, mentionsIn("@Maya can you look", DIRECTORY), "usr_idris"), []);
   const none = createSample("nolead");
   assert.equal(whoLine(thread(none), none.data.nameOf), "No agent will reply. @mention one");
   assert.equal(leadOf(thread(none)), undefined);
@@ -188,7 +188,7 @@ test("while an agent works a plain send queues; Interrupt sends it now with the 
   );
   const sentId = msgs(s).find((m) => m.body === "Stop, use Thursday")!.messageId;
   assert.deepEqual(s.calls[2]!.input, { threadId: "c1", messageId: sentId });
-  assert.equal(queuedCount(msgs(s), "usr_irfad", true), 2);
+  assert.equal(queuedCount(msgs(s), "usr_idris", true), 2);
   assert.equal(queueNote(2, "Intake"), "2 messages queued for Intake's next step");
   assert.equal(queueNote(2, "Intake", true), "At the next step", "an engine that steers takes it at its next step");
   assert.equal(
@@ -703,7 +703,7 @@ test("in a chat with more than one person each reply says whose account it ran o
   const reply = { ...msgs(s).find((m) => m.author.kind === "agent")!, kind: "agent" as const, body: "Done." };
   const line = (shared: boolean, paidBy = "usr_sara"): string | undefined => {
     const items = timeline([{ ...reply, paidBy }], {
-      meId: "usr_irfad",
+      meId: "usr_idris",
       nameOf: () => "Sara Khan",
       kindOf: () => "agent",
       clock: s.data.clock(),
@@ -713,7 +713,7 @@ test("in a chat with more than one person each reply says whose account it ran o
     return other?.kind === "other" ? other.paidLine : undefined;
   };
   assert.equal(line(true), "On Sara’s account");
-  assert.equal(line(true, "usr_irfad"), "On your account");
+  assert.equal(line(true, "usr_idris"), "On your account");
   assert.equal(line(false), undefined);
 });
 

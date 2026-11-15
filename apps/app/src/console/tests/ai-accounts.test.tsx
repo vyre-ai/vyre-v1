@@ -8,7 +8,7 @@ import { createSampleConsole } from "../shell/sample.ts";
 import { AiAccountsPage, accountMenu, accountState, isSpaceAccount, ownSignIns } from "../pages/AiAccounts.tsx";
 import { dataWith } from "./sheet-helper.tsx";
 
-const NAMES: Record<string, string> = { usr_maya: "Maya Chen", usr_lena: "Lena Ortiz", usr_irfad: "Irfad Imtiaz" };
+const NAMES: Record<string, string> = { usr_maya: "Maya Chen", usr_lena: "Lena Ortiz", usr_idris: "Idris Ibarra" };
 const ACCOUNTS = [
   {
     ref: "acc_claude",
@@ -16,7 +16,7 @@ const ACCOUNTS = [
     kind: "api_key",
     title: "Claude",
     mine: false,
-    ownerId: "usr_irfad",
+    ownerId: "usr_idris",
     spaceKey: true,
     status: "ok",
   },
@@ -118,7 +118,7 @@ test("the page counts the people on their own sign-ins and lists the Space's acc
     assert.match(text, /People can use their own AI sign-ins/);
     assert.match(text, /2 people do today/);
     assert.match(text, /The Space's AI accounts/);
-    assert.match(text, /Added by Irfad Imtiaz/);
+    assert.match(text, /Added by Idris Ibarra/);
     assert.match(text, /The key was turned down\. Add a new one in Vault\. Added by Maya Chen/);
     assert.equal(textOf(find(root, "ai-acct-state-acc_claude")), "Working");
     assert.equal(textOf(find(root, "ai-acct-state-acc_openai")), "Needs attention");
@@ -242,14 +242,14 @@ test("N people do today comes from providers.own_people, so an admin sees people
       people: [
         { personId: "usr_maya", accounts: 2 },
         { personId: "usr_lena", accounts: 1 },
-        { personId: "usr_irfad", accounts: 1 },
+        { personId: "usr_idris", accounts: 1 },
       ],
     },
   });
   try {
     assert.ok(textOf(t.root).includes("3 people do today"));
     await press(find(t.root, "ai-own-switch"));
-    assert.ok(textOf(t.root).includes("3 people will switch to the Space's AI accounts: Maya, Lena, Irfad"));
+    assert.ok(textOf(t.root).includes("3 people will switch to the Space's AI accounts: Maya, Lena, Idris"));
   } finally {
     t.restore();
   }
@@ -263,7 +263,7 @@ test("a Space Codex API key reads 'Codex, with an API key' in the list", async (
     title: "Codex",
     name: "Codex, with an API key",
     mine: false,
-    ownerId: "usr_irfad",
+    ownerId: "usr_idris",
     uses: { automations: true },
     status: "ok",
   };

@@ -15,7 +15,7 @@ import { writableFolders } from "../../../shell/providers/files-mounts-data.ts";
 
 async function openSheet(
   invoke: ((c: string, a?: Record<string, unknown>) => Promise<unknown>) | undefined,
-  picks: string[] = ["/Users/irfad/Claude"],
+  picks: string[] = ["/Users/idris/Claude"],
 ) {
   installDom();
   const s = createSampleMounts();
@@ -61,10 +61,10 @@ test("This computer opens the native folder dialog and mounts the pick live only
   assert.equal(add.length, 1);
   assert.deepEqual(add[0]!.input, {
     into: "fld_github",
-    source: { kind: "local", deviceId: "dev_macbook", localPath: "/Users/irfad/Claude" },
+    source: { kind: "local", deviceId: "dev_macbook", localPath: "/Users/idris/Claude" },
     name: "Claude",
     mode: "live_only",
-    idempotencyKey: "mount:local:/Users/irfad/Claude:fld_github",
+    idempotencyKey: "mount:local:/Users/idris/Claude:fld_github",
   });
   assert.equal(t.mounted.length, 1);
   assert.equal((t.mounted[0] as { name: string }).name, "Claude");

@@ -91,7 +91,7 @@ function withCall(phase: string, peer: string, child: ReactElement, opts: { note
     view: () => ({
       open: true,
       mode: phase === "held" ? "held" : phase === "ended" ? "ended" : "live",
-      numbers: [{ id: "n1", label: "Irfad", num: "+1 415 555 0132" }],
+      numbers: [{ id: "n1", label: "Idris", num: "+1 415 555 0132" }],
       secs: 134,
       recording: false,
       held: phase === "held",

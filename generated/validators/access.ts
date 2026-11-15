@@ -525,56 +525,56 @@ if ("role" in o780) d_s_787644a2cd(o780["role"], p + "/role", e);
 
 function d_s_a821ca4af1(v: unknown, p: string, e: string[]): void {
 {
-const x855 = v;
-const g855 = typeOf(x855);
-const b855: string[] = []; lf(x855, p, b855, L0); if (b855.length) e.push(...b855);
-if (g855 === "object") {
-if (g855 === 'object') { const o855 = x855 as Record<string, unknown>;
-if (!("id" in o855)) e.push(p + "/id" + ': required');
-if (!("kind" in o855)) e.push(p + "/kind" + ': required');
-if (!("name" in o855)) e.push(p + "/name" + ': required');
-if (!("status" in o855)) e.push(p + "/status" + ': required');
-if (!("roles" in o855)) e.push(p + "/roles" + ': required');
-if (!("groups" in o855)) e.push(p + "/groups" + ': required');
-if (!("createdAt" in o855)) e.push(p + "/createdAt" + ': required');
-if ("id" in o855) lf(o855["id"], p + "/id", e, L339);
-if ("kind" in o855) lf(o855["kind"], p + "/kind", e, L258);
-if ("name" in o855) lf(o855["name"], p + "/name", e, L1);
-if ("owner" in o855) lf(o855["owner"], p + "/owner", e, L339);
-if ("private" in o855) lf(o855["private"], p + "/private", e, L3);
-if ("assistant" in o855) lf(o855["assistant"], p + "/assistant", e, L3);
-if ("agentName" in o855) lf(o855["agentName"], p + "/agentName", e, L1);
-if ("status" in o855) lf(o855["status"], p + "/status", e, L340);
-if ("roles" in o855) {
+const x854 = v;
+const g854 = typeOf(x854);
+const b854: string[] = []; lf(x854, p, b854, L0); if (b854.length) e.push(...b854);
+if (g854 === "object") {
+if (g854 === 'object') { const o854 = x854 as Record<string, unknown>;
+if (!("id" in o854)) e.push(p + "/id" + ': required');
+if (!("kind" in o854)) e.push(p + "/kind" + ': required');
+if (!("name" in o854)) e.push(p + "/name" + ': required');
+if (!("status" in o854)) e.push(p + "/status" + ': required');
+if (!("roles" in o854)) e.push(p + "/roles" + ': required');
+if (!("groups" in o854)) e.push(p + "/groups" + ': required');
+if (!("createdAt" in o854)) e.push(p + "/createdAt" + ': required');
+if ("id" in o854) lf(o854["id"], p + "/id", e, L339);
+if ("kind" in o854) lf(o854["kind"], p + "/kind", e, L258);
+if ("name" in o854) lf(o854["name"], p + "/name", e, L1);
+if ("owner" in o854) lf(o854["owner"], p + "/owner", e, L339);
+if ("private" in o854) lf(o854["private"], p + "/private", e, L3);
+if ("assistant" in o854) lf(o854["assistant"], p + "/assistant", e, L3);
+if ("agentName" in o854) lf(o854["agentName"], p + "/agentName", e, L1);
+if ("status" in o854) lf(o854["status"], p + "/status", e, L340);
+if ("roles" in o854) {
 {
-const x856 = o855["roles"];
+const x855 = o854["roles"];
+const g855 = typeOf(x855);
+const b855: string[] = []; lf(x855, p + "/roles", b855, L4); if (b855.length) e.push(...b855);
+if (g855 === "array") {
+if (g855 === 'array') { const a855 = x855 as unknown[];
+for (let i855 = 0; i855 < a855.length; i855++) {
+lf(a855[i855], p + "/roles" + '/' + i855, e, L153);
+}
+}
+}
+}
+}
+if ("groups" in o854) {
+{
+const x856 = o854["groups"];
 const g856 = typeOf(x856);
-const b856: string[] = []; lf(x856, p + "/roles", b856, L4); if (b856.length) e.push(...b856);
+const b856: string[] = []; lf(x856, p + "/groups", b856, L4); if (b856.length) e.push(...b856);
 if (g856 === "array") {
 if (g856 === 'array') { const a856 = x856 as unknown[];
 for (let i856 = 0; i856 < a856.length; i856++) {
-lf(a856[i856], p + "/roles" + '/' + i856, e, L153);
+lf(a856[i856], p + "/groups" + '/' + i856, e, L222);
 }
 }
 }
 }
 }
-if ("groups" in o855) {
-{
-const x857 = o855["groups"];
-const g857 = typeOf(x857);
-const b857: string[] = []; lf(x857, p + "/groups", b857, L4); if (b857.length) e.push(...b857);
-if (g857 === "array") {
-if (g857 === 'array') { const a857 = x857 as unknown[];
-for (let i857 = 0; i857 < a857.length; i857++) {
-lf(a857[i857], p + "/groups" + '/' + i857, e, L222);
-}
-}
-}
-}
-}
-if ("title" in o855) lf(o855["title"], p + "/title", e, L1);
-if ("createdAt" in o855) lf(o855["createdAt"], p + "/createdAt", e, L17);
+if ("title" in o854) lf(o854["title"], p + "/title", e, L1);
+if ("createdAt" in o854) lf(o854["createdAt"], p + "/createdAt", e, L17);
 }
 }
 }
@@ -582,18 +582,18 @@ if ("createdAt" in o855) lf(o855["createdAt"], p + "/createdAt", e, L17);
 
 function d_s_b8cd73e979(v: unknown, p: string, e: string[]): void {
 {
-const x905 = v;
-const g905 = typeOf(x905);
-const b905: string[] = []; lf(x905, p, b905, L0); if (b905.length) e.push(...b905);
-if (g905 === "object") {
-if (g905 === 'object') { const o905 = x905 as Record<string, unknown>;
-if (!("manage" in o905)) e.push(p + "/manage" + ': required');
-if (!("share" in o905)) e.push(p + "/share" + ': required');
-if (!("export" in o905)) e.push(p + "/export" + ': required');
-if ("manage" in o905) lf(o905["manage"], p + "/manage", e, L3);
-if ("edit" in o905) lf(o905["edit"], p + "/edit", e, L3);
-if ("share" in o905) lf(o905["share"], p + "/share", e, L3);
-if ("export" in o905) lf(o905["export"], p + "/export", e, L3);
+const x907 = v;
+const g907 = typeOf(x907);
+const b907: string[] = []; lf(x907, p, b907, L0); if (b907.length) e.push(...b907);
+if (g907 === "object") {
+if (g907 === 'object') { const o907 = x907 as Record<string, unknown>;
+if (!("manage" in o907)) e.push(p + "/manage" + ': required');
+if (!("share" in o907)) e.push(p + "/share" + ': required');
+if (!("export" in o907)) e.push(p + "/export" + ': required');
+if ("manage" in o907) lf(o907["manage"], p + "/manage", e, L3);
+if ("edit" in o907) lf(o907["edit"], p + "/edit", e, L3);
+if ("share" in o907) lf(o907["share"], p + "/share", e, L3);
+if ("export" in o907) lf(o907["export"], p + "/export", e, L3);
 }
 }
 }

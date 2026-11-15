@@ -87,9 +87,9 @@ const who = (over: Partial<Parameters<typeof WhoCanUse>[0]> = {}): string =>
   renderToStaticMarkup(
     <WhoCanUse
       shares={shares}
-      you={{ name: "Irfad", level: "manage", owner: true }}
+      you={{ name: "Idris", level: "manage", owner: true }}
       nameOf={(s) => (s.id === "agt_billing" ? "Billing" : "Docs")}
-      meId="usr_irfad"
+      meId="usr_idris"
       canManage
       onLevel={() => undefined}
       onRemove={() => undefined}

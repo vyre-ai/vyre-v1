@@ -1,5 +1,5 @@
 // Mount for the whole Console over scripted Northwind answers (lane l-consolidate, 4 Nov): one part per page, ?part=<page id> (the ids in apps/app/src/console/shell/nav.ts).
-// Each part renders ConsoleShell on that page. The data matches the approved prototype (vyre-console.html, the C object): Irfad Imtiaz owner, Maya Chen admin, Omar Haddad, Lena Ortiz, Sam Patel, Dana Whitfield,
+// Each part renders ConsoleShell on that page. The data matches the approved prototype (vyre-console.html, the C object): Idris Ibarra owner, Maya Chen admin, Omar Haddad, Lena Ortiz, Sam Patel, Dana Whitfield,
 // Elena Rivera guest; teams Everyone, Delivery, Finance, Leadership; agents Intake, Billing, Docs, Research, Scout, Bookings; AI accounts Claude, OpenAI, OpenCode Go.
 // Every capability a page reads is answered in `answers` below; a capability nobody scripted logs "UNSCRIPTED <cap>" so the runner can list it.
 import { useEffect, useMemo, useState } from "react";
@@ -63,7 +63,7 @@ const berlin = row({
   serverId: "srv_box",
   name: "Berlin box",
   nickname: "Berlin box",
-  owner: "usr_irfad",
+  owner: "usr_idris",
   mine: true,
   runs: { turns: 2, agentComputers: 1, sites: 0, automations: 0 },
   load: { cpu: 71, memPct: 64, diskPct: 92, diskFreeBytes: 12e9 },
@@ -73,10 +73,10 @@ const berlin = row({
 });
 const mbp = row({
   serverId: "srv_dev_mbp",
-  name: "Irfad's MacBook Pro",
+  name: "Idris's MacBook Pro",
   kind: "linked",
   mine: true,
-  owner: "usr_irfad",
+  owner: "usr_idris",
   os: "macOS 15.1",
   arch: "arm64",
   cores: 10,
@@ -91,10 +91,10 @@ const mbp = row({
 });
 const mini = row({
   serverId: "srv_dev_mini",
-  name: "Irfad's Mac mini",
+  name: "Idris's Mac mini",
   kind: "linked",
   mine: true,
-  owner: "usr_irfad",
+  owner: "usr_idris",
   os: "macOS 15.0",
   arch: "arm64",
   cores: 8,
@@ -150,7 +150,7 @@ const ALERTS: MachinesOut["alerts"] = [
     alertId: "memory:srv_dev_mbp",
     serverId: "srv_dev_mbp",
     kind: "memory",
-    title: "Irfad's MacBook Pro is short of memory",
+    title: "Idris's MacBook Pro is short of memory",
     detail: "87% in use",
   },
   {
@@ -161,7 +161,7 @@ const ALERTS: MachinesOut["alerts"] = [
     detail: "Last seen 125 minutes ago. The pinned work waits until it is back",
   },
 ];
-const WHO: Record<string, string> = { usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", usr_omar: "Omar Haddad" };
+const WHO: Record<string, string> = { usr_idris: "Idris Ibarra", usr_maya: "Maya Chen", usr_omar: "Omar Haddad" };
 const who = (id: string): string => WHO[id] ?? id;
 const ALL = [space, berlin, mbp, mini, maya, omar];
 const answer = (ms: MachineRow[], alerts: MachinesOut["alerts"]): MachinesOut => ({
@@ -333,8 +333,8 @@ const T = Date.now();
 const ago = (ms: number): number => T - ms;
 const PEOPLE = [
   {
-    id: "usr_irfad",
-    name: "Irfad Imtiaz",
+    id: "usr_idris",
+    name: "Idris Ibarra",
     role: "rol_owner",
     title: "Owner",
     groups: ["grp_everyone", "grp_leadership"],
@@ -406,7 +406,7 @@ const AGENTS = [
   {
     id: "agt_research",
     name: "Research",
-    owner: "usr_irfad",
+    owner: "usr_idris",
     status: "awake",
     role: "Market scans",
     spend: 30,
@@ -415,7 +415,7 @@ const AGENTS = [
   {
     id: "agt_scout",
     name: "Scout",
-    owner: "usr_irfad",
+    owner: "usr_idris",
     status: "awake",
     role: "Watches competitors",
     spend: 18,
@@ -547,7 +547,7 @@ const GROUPS = [
     id: "grp_everyone",
     name: "Everyone",
     members: PEOPLE.filter((p) => p.groups.includes("grp_everyone")).map((p) => ({ kind: "person", id: p.id })),
-    managers: [{ kind: "person", id: "usr_irfad" }],
+    managers: [{ kind: "person", id: "usr_idris" }],
     builtIn: true,
   },
   {
@@ -577,10 +577,10 @@ const GROUPS = [
     id: "grp_leadership",
     name: "Leadership",
     members: [
-      { kind: "person", id: "usr_irfad" },
+      { kind: "person", id: "usr_idris" },
       { kind: "person", id: "usr_maya" },
     ],
-    managers: [{ kind: "person", id: "usr_irfad" }],
+    managers: [{ kind: "person", id: "usr_idris" }],
     builtIn: false,
   },
 ];
@@ -609,7 +609,7 @@ const GRANTS = [
     resource: { type: "record_type", id: "invoice" },
     level: "manage",
     conditions: { labelCeiling: "confidential" },
-    by: "usr_irfad",
+    by: "usr_idris",
     createdAt: ago(30 * DAY),
   },
   {
@@ -627,7 +627,7 @@ const GRANTS = [
     resource: { type: "vault_folder", id: "vlt_dev" },
     level: "view",
     conditions: { window: { from: ago(2 * DAY), to: T + 5 * DAY } },
-    by: "usr_irfad",
+    by: "usr_idris",
     createdAt: ago(2 * DAY),
   },
 ];
@@ -652,17 +652,17 @@ const usageTotals = spendRows.reduce(
 );
 const AUDIT = [
   ["person", "usr_maya", "role.changed", "admin", "space", "usr_omar", 6 * MIN],
-  ["person", "usr_irfad", "invite.created", "admin", "space", "usr_jordan", 22 * MIN],
+  ["person", "usr_idris", "invite.created", "admin", "space", "usr_jordan", 22 * MIN],
   ["agent", "agt_intake", "record.revealed", "sensitive", "record", "rec_rivera", 41 * MIN],
   ["person", "usr_omar", "file.opened", "deny", "folder", "fld_rivera_docs", 2 * HOUR],
-  ["person", "usr_irfad", "gate.rule.changed", "admin", "space", "svc_gate", 3 * HOUR],
+  ["person", "usr_idris", "gate.rule.changed", "admin", "space", "svc_gate", 3 * HOUR],
   ["agent", "agt_billing", "record.updated", "change", "record", "rec_inv_2041", 5 * HOUR],
   ["person", "usr_lena", "signed.in", "sign_in", "", "", 9 * HOUR],
   ["person", "usr_maya", "export.created", "admin", "space", "svc_gate", 20 * HOUR],
   ["agent", "agt_docs", "record.created", "change", "record", "rec_guide_7", DAY],
   ["person", "usr_dana", "signed.in", "sign_in", "", "", 26 * HOUR],
   ["person", "usr_maya", "connection.added", "admin", "connection", "con_slack", 3 * DAY],
-  ["person", "usr_irfad", "backup.run", "admin", "space", "svc_backup", 4 * DAY],
+  ["person", "usr_idris", "backup.run", "admin", "space", "svc_backup", 4 * DAY],
 ].map((r, i) => ({
   id: `aud_${i + 1}`,
   at: ago(r[6] as number),
@@ -712,7 +712,7 @@ const accounts = [
     title: "OpenCode Go",
     name: "OpenCode Go",
     mine: true,
-    ownerId: "usr_irfad",
+    ownerId: "usr_idris",
     status: "ok",
     lastProbeAt: ago(12 * MIN),
     usable: true,
@@ -980,8 +980,8 @@ const CONNECTIONS = [
   {
     connectionId: "con_github",
     connector: "github",
-    title: "GitHub, Irfad",
-    owner: { kind: "person", id: "usr_irfad" },
+    title: "GitHub, Idris",
+    owner: { kind: "person", id: "usr_idris" },
     state: "active",
     scopes: ["repo"],
     lastSyncAt: ago(HOUR),
@@ -1014,7 +1014,7 @@ const SERVERS = [
     state: "degraded",
     role: "compute",
     lastSeenAt: ago(MIN),
-    owner: "usr_irfad",
+    owner: "usr_idris",
     facts: { os: "Debian 12", arch: "x64", docker: true, version: "1.4.1" },
   },
   {
@@ -1076,7 +1076,7 @@ const INVITES = [
     channels: [],
     email: "jordan@northwind.example",
     expiresAt: T + 6 * DAY,
-    createdBy: "usr_irfad",
+    createdBy: "usr_idris",
     state: "open",
     createdAt: ago(DAY),
   },
@@ -1106,7 +1106,7 @@ const RUNS = [
   name,
   owner: NAME[who as string]!.length
     ? PEOPLE.find((p) => p.id === AGENTS.find((a) => a.id === who)!.owner)!.id
-    : "usr_irfad",
+    : "usr_idris",
   startedBy: who,
   status,
   ...(status === "waiting" ? { waitReason: "approval" } : {}),
@@ -1278,8 +1278,8 @@ const POLICIES = [
   { key: "gate.wait", scope: "space", kind: "gate", value: { hours: 4 }, updatedAt: ago(30 * DAY) },
 ];
 const DEVICES = [
-  ["dev_1", "usr_irfad", "Irfad's MacBook Pro", "desktop", "San Francisco", 0],
-  ["dev_2", "usr_irfad", "Irfad's iPhone", "phone", "San Francisco", 40 * MIN],
+  ["dev_1", "usr_idris", "Idris's MacBook Pro", "desktop", "San Francisco", 0],
+  ["dev_2", "usr_idris", "Idris's iPhone", "phone", "San Francisco", 40 * MIN],
   ["dev_3", "usr_maya", "Maya's MacBook Air", "desktop", "Austin", 12 * MIN],
   ["dev_4", "usr_omar", "Omar's iMac", "desktop", "Dallas", 2 * HOUR],
   ["dev_5", "usr_lena", "Chrome on Windows", "web", "Denver", 3 * HOUR],
@@ -1298,7 +1298,7 @@ const ISO_SPACE = {
   name: "Northwind",
   legalName: "Northwind Advisory LLC",
   kind: "team",
-  owner: "usr_irfad",
+  owner: "usr_idris",
   fingerprint: "7F:3A:91:0C",
   address: { mode: "relay", host: "northwind.vyre.run" },
   hostedOn: "Northwind server",
@@ -1357,7 +1357,7 @@ const answers: Record<string, Handler> = {
         perms: ["records.export"],
         effect: "deny",
         why: "Joined today; export waits for training",
-        by: { id: "usr_irfad", name: "Irfad Imtiaz" },
+        by: { id: "usr_idris", name: "Idris Ibarra" },
         at: ago(HOUR),
       },
     ],
@@ -1660,7 +1660,7 @@ const answers: Record<string, Handler> = {
     ),
   "engine.use_policy.export": () => ({ fileId: "fil_policy" }),
   "engine.now": () => ({ turns: [] }),
-  "voice.status": () => ({ set: true, on: true, own: 2, who: "Irfad", checkedAt: ago(4 * MIN) }),
+  "voice.status": () => ({ set: true, on: true, own: 2, who: "Idris", checkedAt: ago(4 * MIN) }),
   "memory.learning.today": () => ({
     day: "2025-10-24",
     passes: 31,
@@ -1781,7 +1781,7 @@ const answers: Record<string, Handler> = {
           target: { kind: "person", id: "usr_elena" },
           title: "Elena Rivera",
           reason: "Client records",
-          by: "usr_irfad",
+          by: "usr_idris",
           at: ago(9 * DAY),
         },
       ],
@@ -1789,7 +1789,7 @@ const answers: Record<string, Handler> = {
     ),
   "governance.erase.list": () =>
     wrap(
-      [{ findingId: "ers_1", by: "usr_irfad", at: ago(40 * DAY), kinds: ["records", "chats", "mail"], tombstones: 3 }],
+      [{ findingId: "ers_1", by: "usr_idris", at: ago(40 * DAY), kinds: ["records", "chats", "mail"], tombstones: 3 }],
       "erasures",
     ),
   "backup.list": () =>
@@ -1878,8 +1878,8 @@ const answers: Record<string, Handler> = {
       legalName: "Northwind Advisory LLC",
       ein: "12-3456789",
       website: "https://northwind.example",
-      contactName: "Irfad Imtiaz",
-      contactEmail: "irfad@northwind.example",
+      contactName: "Idris Ibarra",
+      contactEmail: "idris@northwind.example",
       useCase: "Appointment reminders and client updates",
       sampleMessages: ["Hi Dana, your consult is tomorrow at 10:00. Reply C to confirm."],
       state: "in_review",
@@ -1908,7 +1908,7 @@ const answers: Record<string, Handler> = {
   "connections.list": () => wrap(CONNECTIONS, "connections"),
   "google.dwd.status": () => ({
     configured: true,
-    adminEmail: "irfad@northwind.example",
+    adminEmail: "idris@northwind.example",
     domain: "northwind.example",
     lastProbeAt: ago(2 * HOUR),
     lastProbeOk: true,
@@ -1993,7 +1993,7 @@ const answers: Record<string, Handler> = {
     sessions: [
       {
         id: "ses_1",
-        principal: { kind: "person", id: "usr_irfad" },
+        principal: { kind: "person", id: "usr_idris" },
         deviceId: "dev_1",
         kind: "device",
         startedAt: ago(2 * DAY),
@@ -2202,7 +2202,7 @@ const answers: Record<string, Handler> = {
             size: (kb as number) * 1000,
             version: 3,
             label: 1,
-            ownerId: "usr_irfad",
+            ownerId: "usr_idris",
             createdAt: ago(40 * DAY),
             updatedAt: ago(9 * DAY),
             updatedBy: "usr_maya",
@@ -2218,7 +2218,7 @@ const answers: Record<string, Handler> = {
   }),
   "channels.list": () => ({ channels: [] }),
   "projects.list": () => ({ projects: [] }),
-  "identity.whoami": () => ({ id: "usr_irfad", name: "Irfad Imtiaz" }),
+  "identity.whoami": () => ({ id: "usr_idris", name: "Idris Ibarra" }),
   "search.query": () => ({ results: [] }),
   "search.resolve": () => ({ results: [] }),
   "vault.folders.list": () => ({ folders: [] }),
@@ -2282,7 +2282,7 @@ const answers: Record<string, Handler> = {
             provider: "elevenlabs",
             keyed: ["elevenlabs", "deepgram"],
             itemId: "vit_voice",
-            setBy: "usr_irfad",
+            setBy: "usr_idris",
             checkedAt: ago(HOUR),
             state: "ok",
             peopleOwnKey: 1,
@@ -2293,7 +2293,7 @@ const answers: Record<string, Handler> = {
             provider: "deepgram",
             keyed: ["deepgram"],
             itemId: "vit_voice",
-            setBy: "usr_irfad",
+            setBy: "usr_idris",
             checkedAt: ago(4 * MIN),
             state: part.variant === "failing" ? "failing" : "ok",
             peopleOwnKey: 2,
@@ -2510,7 +2510,7 @@ const answers: Record<string, Handler> = {
         repo: "northwind/plugins",
         commit: "0c9d44e8b1",
         url: "https://github.com/northwind/plugins",
-        by: "usr_irfad",
+        by: "usr_idris",
         at: ago(21 * DAY),
         installed: { for: "space", version: "0.9.4" },
       },
@@ -2612,7 +2612,7 @@ const answers: Record<string, Handler> = {
       agents: AGENTS.map((a) => ({ agentId: a.id, name: a.name })),
       policy: { scriptsAdminOnly: true },
       admin: true,
-      me: "usr_irfad",
+      me: "usr_idris",
     };
   },
   "skills.members": () => ({
@@ -2655,7 +2655,7 @@ const answers: Record<string, Handler> = {
     name: "Northwind Anthropic key",
     models: ["claude-sonnet-4-5"],
     state: "ok",
-    setBy: "usr_irfad",
+    setBy: "usr_idris",
     setAt: ago(30 * DAY),
     checkedAt: ago(HOUR),
     mayManage: true,
@@ -2700,7 +2700,7 @@ const HOOKS = [
     event: "outward.before",
     kind: "check",
     paused: true,
-    madeBy: "usr_irfad",
+    madeBy: "usr_idris",
     line: "Before a file leaves the Space, check it is not marked private",
     spec: { instruction: "Confirm the file is not marked private" },
     matcher: "files.*",
@@ -2795,7 +2795,7 @@ function consoleData(): ReturnType<typeof createSampleConsole>["data"] {
   return {
     ...base,
     call,
-    me: { id: "usr_irfad", name: "Irfad Imtiaz", role: "Owner" },
+    me: { id: "usr_idris", name: "Idris Ibarra", role: "Owner" },
     space: { id: "northwind", name: "Northwind", address: "northwind.vyre.run" },
     can: () => true,
     name: (id: string) => NAME[id] ?? id,

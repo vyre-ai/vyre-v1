@@ -21,7 +21,7 @@ test(
           people: [
             { id: "usr_me", name: "Me" },
             { id: "usr_aliza", name: "Aliza" },
-            { id: "usr_andrey", name: "Andrey" },
+            { id: "usr_anders", name: "Anders" },
           ],
           channels: [],
           me: "usr_me",

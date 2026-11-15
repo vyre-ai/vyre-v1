@@ -41,7 +41,7 @@ const directory: DirectoryEntry[] = [
   { name: "Billing", email: "billing@northwind.example", kind: "agent", sub: "Agent inbox" },
 ];
 const groups: RecipientGroup[] = [{ name: "Delivery", members: ["maya@northwind.example", "omar@northwind.example"] }];
-const ME = "irfad@northwind.example";
+const ME = "idris@northwind.example";
 
 test("the rendered field shows To with its placeholder and the Cc and Bcc buttons; Cc and Bcc rows stay hidden when empty", () => {
   const html = renderToStaticMarkup(<Recipients me={ME} directory={directory} />);
@@ -147,7 +147,7 @@ test("the picker ranks name start, then word start, then address, teammates and 
   const names = suggest("o", directory, groups, emptyRows(), ME).map((s) => s.title);
   assert.equal(names[0], "Omar Haddad");
   assert.deepEqual(
-    suggest("irfad", [...directory, { name: "Irfad", email: ME, kind: "team" }], [], emptyRows(), ME),
+    suggest("idris", [...directory, { name: "Idris", email: ME, kind: "team" }], [], emptyRows(), ME),
     [],
     "your own address is never offered",
   );

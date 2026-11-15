@@ -23,15 +23,15 @@ const side = async (d: Daemon, token: string, name: string): Promise<LinkSide> =
 test("two accounts become one: the kept password and recovery code work in B, B's data and membership are intact, old sessions end, and it is audited", async () => {
   const dirs = [seededDir()];
   const a = await boot(dirs[0]!, standIn);
-  const b = await spaceB("spc_oneid_mla", "MLA");
+  const b = await spaceB("spc_oneid_mla", "Northwind");
   try {
     const bSpace = await spaceOf(b);
     for (const who of [
-      { kept: "irfad", other: "irfad.mla", proveBy: "password" as const },
+      { kept: "idris", other: "idris.northwind", proveBy: "password" as const },
       { kept: "lee", other: "lee.b", proveBy: "code" as const },
     ]) {
-      const KEPT_CODE = who.kept === "irfad" ? "KEPT-2KQX-7HMT-W4PD" : "LEEK-2KQX-7HMT-W4PD",
-        OTHER_CODE = who.kept === "irfad" ? "OTHR-2KQX-7HMT-W4PD" : "LEEO-2KQX-7HMT-W4PD";
+      const KEPT_CODE = who.kept === "idris" ? "KEPT-2KQX-7HMT-W4PD" : "LEEK-2KQX-7HMT-W4PD",
+        OTHER_CODE = who.kept === "idris" ? "OTHR-2KQX-7HMT-W4PD" : "LEEO-2KQX-7HMT-W4PD";
       const kept = await joinWithNew(a, who.kept, KEPT_CODE);
       const other = await joinWithNew(b, who.other, OTHER_CODE);
       // B holds data under B's own key: a Mine item, sealed with the key the device handed over at B's door
@@ -61,7 +61,7 @@ test("two accounts become one: the kept password and recovery code work in B, B'
 
       // Settings on the device: keep A's account, prove both
       const keep = await side(a, kept.token, "Personal");
-      const otherSide = await side(b, other.token, "MLA");
+      const otherSide = await side(b, other.token, "Northwind");
       const stored: Array<{ spaceId: string; token: string; username: string }> = [];
       await linkAccounts(
         keep,

@@ -19,7 +19,7 @@ export const title = "Meetings close themselves";
 
 const SIDEBAR_W = 244;
 const HOUR = 3_600_000;
-const ME = "usr_irfad";
+const ME = "usr_idris";
 const SAM = "usr_sam";
 const RENEWAL = "rec_renewal1";
 
@@ -31,7 +31,7 @@ const LIST: MeetingsListOut = {
       title: "Intake call with Rivera Dental",
       startsAt: SAMPLE_NOW - 40 * 60_000,
       endsAt: SAMPLE_NOW - 10 * 60_000,
-      attendees: ["Irfad", "Luz Rivera"],
+      attendees: ["Idris", "Luz Rivera"],
       state: "preparing",
       proposed: 0,
       done: 0,
@@ -41,7 +41,7 @@ const LIST: MeetingsListOut = {
       title: "Lee Holdings renewal",
       startsAt: SAMPLE_NOW - 3 * HOUR,
       endsAt: SAMPLE_NOW - 2 * HOUR,
-      attendees: ["Irfad", "Sam Reyes", "Pat Lee"],
+      attendees: ["Idris", "Sam Reyes", "Pat Lee"],
       state: "ready",
       proposed: 4,
       done: 1,
@@ -51,7 +51,7 @@ const LIST: MeetingsListOut = {
       title: "Weekly team sync",
       startsAt: SAMPLE_NOW - 26 * HOUR,
       endsAt: SAMPLE_NOW - 25 * HOUR,
-      attendees: ["Irfad", "Sam Reyes", "Mia Chen"],
+      attendees: ["Idris", "Sam Reyes", "Mia Chen"],
       state: "nothing",
       proposed: 0,
       done: 0,
@@ -61,7 +61,7 @@ const LIST: MeetingsListOut = {
       title: "Harbor Studio kickoff",
       startsAt: SAMPLE_NOW - 3 * 24 * HOUR,
       endsAt: SAMPLE_NOW - 3 * 24 * HOUR + HOUR,
-      attendees: ["Irfad", "Ana Ruiz", "Tom Brandt", "Mia Chen", "Sam Reyes"],
+      attendees: ["Idris", "Ana Ruiz", "Tom Brandt", "Mia Chen", "Sam Reyes"],
       state: "closed",
       proposed: 0,
       done: 6,
@@ -76,12 +76,12 @@ const PKG: MeetingPackage = {
   endsAt: SAMPLE_NOW - 2 * HOUR,
   state: "ready",
   attendees: [
-    { name: "Irfad", email: "irfad@northwind.example" },
+    { name: "Idris", email: "idris@northwind.example" },
     { name: "Sam Reyes", email: "sam@northwind.example" },
     { name: "Pat Lee", email: "pat@leeholdings.example", recordId: "rec_pat" },
   ],
   summary:
-    "Pat confirmed Lee Holdings moves to the annual plan from January, and is now Head of Operations. Sam sends the revised quote and Irfad sets up onboarding with their team. Whether their legal team reviews the terms is still open.",
+    "Pat confirmed Lee Holdings moves to the annual plan from January, and is now Head of Operations. Sam sends the revised quote and Idris sets up onboarding with their team. Whether their legal team reviews the terms is still open.",
   decisions: ["Lee Holdings moves to the annual plan, starting in January."],
   questions: ["Does the Lee Holdings legal team need to review the terms?"],
   items: [
@@ -131,7 +131,7 @@ const PKG: MeetingPackage = {
       subject: "Next steps on your renewal",
       send: "send",
       to: [{ address: "pat@leeholdings.example", name: "Pat Lee" }],
-      text: "Hi Pat,\n\nThanks for the time today. To confirm: you are moving to the annual plan from January. Sam will send the revised quote by Thursday, and I will set up the onboarding call with your team. We still need to know whether your legal team wants to review the terms.\n\nTalk next week,\nIrfad",
+      text: "Hi Pat,\n\nThanks for the time today. To confirm: you are moving to the annual plan from January. Sam will send the revised quote by Thursday, and I will set up the onboarding call with your team. We still need to know whether your legal team wants to review the terms.\n\nTalk next week,\nIdris",
     },
     {
       itemId: "mci_h1",
@@ -146,7 +146,7 @@ const PKG: MeetingPackage = {
   shared: [],
 };
 
-const NAMES: Record<string, string> = { [ME]: "Irfad Imtiaz", [SAM]: "Sam Reyes" };
+const NAMES: Record<string, string> = { [ME]: "Idris Ibarra", [SAM]: "Sam Reyes" };
 
 export default function Mount(): ReactNode {
   // The export renders this page with no address and no window, so the query string and the phone width are read only after the page has hydrated: the first client render matches
@@ -198,7 +198,7 @@ export default function Mount(): ReactNode {
       onBack={() => undefined}
       nameOf={(id) => NAMES[id] ?? "Someone"}
       team={[
-        { id: ME, name: "Irfad Imtiaz" },
+        { id: ME, name: "Idris Ibarra" },
         { id: SAM, name: "Sam Reyes" },
       ]}
       nav={{ openSubject: () => undefined, openContact: () => undefined, openCalendar: () => undefined }}

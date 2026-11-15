@@ -48,7 +48,7 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
       },
     };
     return createThemeController({
-      personId: "irfad",
+      personId: "idris",
       spaceId: "nw",
       spaceSkin: { nw: skin },
       prefersDark: skin === "graphite",

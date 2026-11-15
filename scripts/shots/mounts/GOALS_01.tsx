@@ -50,7 +50,7 @@ function Inner({ search }: { search: string }): ReactNode {
       },
     };
     const theme = createThemeController({
-      personId: "irfad",
+      personId: "idris",
       spaceId: "nw",
       spaceSkin: { nw: skin, hb: skin, me: skin },
       prefersDark: skin === "graphite",
@@ -82,7 +82,7 @@ function Inner({ search }: { search: string }): ReactNode {
           goalId="gol_lab8"
           call={made.call}
           changes={undefined}
-          me="usr_irfad"
+          me="usr_idris"
           nameOf={(id) => MORE_PEOPLE.find((x) => x.id === id)?.name ?? id}
           clock={made.sample.rt.clock}
           conversationFor={() => {
@@ -127,7 +127,7 @@ function Cards({ call, now }: { call: (cap: string, input: unknown) => Promise<u
           "Post Lab 8 in the community (the last post brought most first-time registrations)",
           "Ask Aliza for two reels from the Lab 7 recording",
         ],
-        permissions: ["Post in the MLA AI Labs community", "Send email from the Lab template to Lab 8 registrants"],
+        permissions: ["Post in the Northwind AI Labs community", "Send email from the Lab template to Lab 8 registrants"],
       },
       {
         ...base,
@@ -200,7 +200,7 @@ function Cards({ call, now }: { call: (cap: string, input: unknown) => Promise<u
           call={c}
           changes={undefined}
           openGoal={() => undefined}
-          me="usr_irfad"
+          me="usr_idris"
         />
       ))}
     </ScrollView>

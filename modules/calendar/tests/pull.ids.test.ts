@@ -24,7 +24,7 @@ const office = (id: string, s: number) =>
   gev(id, "Weekly Tech Office Hours", s, s + 3_600_000, {
     recurringEventId: "officehours",
     hangoutLink: "https://meet.google.com/abc-defg-hij",
-    organizer: { email: "techmanager@mylegalacademy.com" },
+    organizer: { email: "ops@northwind.example" },
     description: "x".repeat(5000),
     attendees: [{ email: "a@acme.test", responseStatus: "accepted", displayName: "A" }, { email: "b@acme.test" }],
     conferenceData: {

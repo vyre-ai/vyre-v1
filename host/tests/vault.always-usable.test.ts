@@ -105,10 +105,10 @@ test("an item no key can open is said as itself: Your Codex sign-in can't be ope
     keyHeld: () => true,
   });
   await assert.rejects(
-    h.source.lookup("#Codex_irfad47_icloud_com.credentials", who),
+    h.source.lookup("#Codex_idris47_icloud_com.credentials", who),
     (e: { code?: string; message?: string }) =>
       e.code === "engine.signin_unopenable" &&
       /^Your Codex sign-in can't be opened on this device\. Sign in to Codex again\./.test(e.message ?? "") &&
-      /\[account Codex_irfad47_icloud_com\]/.test(e.message ?? ""),
+      /\[account Codex_idris47_icloud_com\]/.test(e.message ?? ""),
   );
 });

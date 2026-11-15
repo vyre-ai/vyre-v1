@@ -14,7 +14,7 @@ import type { SampleState } from "./sample.ts";
 
 const NOW = Date.UTC(2026, 10, 3, 5, 0);
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_idris: "Idris Ibarra",
   agt_labdesk: "Lab Desk",
   agt_content: "Content",
   usr_aliza: "Aliza Khan",
@@ -48,7 +48,7 @@ async function page(
       goalId="gol_lab8"
       call={logged}
       changes={undefined}
-      me="usr_irfad"
+      me="usr_idris"
       nameOf={(id) => NAMES[id] ?? id}
       clock={() => ({ now: NOW, offsetMin: 300 })}
       conversationFor={() => ({}) as ConversationData}
@@ -145,7 +145,7 @@ test("a draft card starts the goal with one press, and a check-in card shows the
   };
   const root = await mount(
     createRoot as never,
-    <GoalCard block={block} call={call} changes={undefined} me="usr_irfad" />,
+    <GoalCard block={block} call={call} changes={undefined} me="usr_idris" />,
   );
   await flush();
   assert.match(textOf(root), /First plan.*Remind Lab 7/s);
@@ -180,7 +180,7 @@ test("the Activity pane names who did it as the reader sees it: a Space agent by
     createRoot as never,
     <Activity
       data={data}
-      me="usr_irfad"
+      me="usr_idris"
       nameOf={(id) => NAMES[id] ?? id}
       now={NOW}
       zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }}
@@ -191,7 +191,7 @@ test("the Activity pane names who did it as the reader sees it: a Space agent by
   const text = textOf(find(root!, "goal-activity"));
   assert.match(text, /Lab Desk drafted this goal for you\./);
   assert.match(text, /Lab Desk/);
-  assert.doesNotMatch(text, /Irfad Imtiaz \(Agent\)|Made by|an agent|the owner|usr_|agt_|\{at:|\{who:/);
+  assert.doesNotMatch(text, /Idris Ibarra \(Agent\)|Made by|an agent|the owner|usr_|agt_|\{at:|\{who:/);
   assert.doesNotMatch(text, /your time/, "a list of times shows only the Space zone; yours is on hover");
   assert.match(text, /started the goal\. Due \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2} [AP]M\./);
 });
@@ -248,13 +248,13 @@ test("a draft can be edited where it stands: title, finish line, helpers and the
     plan.map((s) => s.key),
     ["reels"],
   );
-  await typeInto(find(p, "goal-step-new-field"), "Ask Andrey for a quote");
+  await typeInto(find(p, "goal-step-new-field"), "Ask Anders for a quote");
   await press(find(p, "goal-step-new-add"));
   const added = calls.filter((c) => c.cap === "goals.update").at(-1)?.input["plan"] as Array<{
     title: string;
     why: string;
   }>;
-  assert.equal(added.at(-1)?.title, "Ask Andrey for a quote");
+  assert.equal(added.at(-1)?.title, "Ask Anders for a quote");
   assert.equal(added.length, 3);
 });
 
@@ -357,7 +357,7 @@ test("the Activity tab reads earlier rows through goals.activity as it is scroll
     createRoot as never,
     <Activity
       data={data}
-      me="usr_irfad"
+      me="usr_idris"
       nameOf={(id) => id}
       now={NOW}
       zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }}
@@ -418,7 +418,7 @@ test("the Activity tab keeps what it loaded when new rows arrive, fills in the r
     return (
       <Activity
         data={d as never}
-        me="usr_irfad"
+        me="usr_idris"
         nameOf={(id) => id}
         now={NOW}
         zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }}
@@ -461,7 +461,7 @@ test("a goal the person cannot open says so in plain words and offers no Retry (
       goalId="gol_x"
       call={refuse}
       changes={undefined}
-      me="usr_irfad"
+      me="usr_idris"
       nameOf={(id) => id}
       clock={() => ({ now: NOW, offsetMin: 300 })}
       conversationFor={() => ({}) as ConversationData}

@@ -107,7 +107,7 @@ test("the rail has Inbox only with something flowing in, in a Team Space and in 
 });
 
 test("the answer: a live mailbox, any calendar or a number assigned to you; none of them is false only once all three have answered", () => {
-  const me = "usr_irfad";
+  const me = "usr_idris";
   assert.equal(inboxAnswer([LOADING, LOADING, LOADING], me), null, "nothing read yet");
   assert.equal(inboxAnswer([none.mail, LOADING, LOADING], me), null, "one empty answer is not all of them");
   assert.equal(inboxAnswer([none.mail, none.cal, none.nums], me), false);
@@ -159,7 +159,7 @@ test("the answer: a live mailbox, any calendar or a number assigned to you; none
 test("the signal is read on open and on change events only: it says the answer once, then only when it changes", () => {
   const src = liveSources();
   const heard: boolean[] = [];
-  const stop = followInboxSources(src.screens, "usr_irfad", (has) => heard.push(has));
+  const stop = followInboxSources(src.screens, "usr_idris", (has) => heard.push(has));
   assert.equal(src.subscribed(), 3, "one subscription per read");
   assert.deepEqual(heard, [], "while the reads load nothing is said, so the shell keeps what it had");
   src.set("mail", none.mail);
@@ -181,17 +181,17 @@ test("the signal is read on open and on change events only: it says the answer o
 
 test("the last known answer is kept per person and Space while the reads load, and the tip is shown once", () => {
   const store = memoryStorage();
-  assert.equal(knownInbox(store, "usr_irfad", "nw"), null, "never seen on this device");
-  assert.deepEqual(seedInbox(NORTHWIND, store, "usr_irfad"), NORTHWIND, "no answer anywhere: the card as it is");
-  rememberInbox(store, "usr_irfad", "nw", false);
-  assert.equal(knownInbox(store, "usr_irfad", "nw"), false);
+  assert.equal(knownInbox(store, "usr_idris", "nw"), null, "never seen on this device");
+  assert.deepEqual(seedInbox(NORTHWIND, store, "usr_idris"), NORTHWIND, "no answer anywhere: the card as it is");
+  rememberInbox(store, "usr_idris", "nw", false);
+  assert.equal(knownInbox(store, "usr_idris", "nw"), false);
   assert.equal(knownInbox(store, "usr_maya", "nw"), null, "another person on the same device has their own");
-  assert.equal(seedInbox(NORTHWIND, store, "usr_irfad").inbox, false, "the next launch opens with Inbox off the rail");
-  rememberInbox(store, "usr_irfad", "nw", true);
-  assert.equal(seedInbox(NORTHWIND, store, "usr_irfad").inbox, true);
-  assert.equal(takeInboxTip(store, "usr_irfad", "nw"), true);
-  assert.equal(takeInboxTip(store, "usr_irfad", "nw"), false, "once");
-  assert.equal(takeInboxTip(store, "usr_irfad", "me"), true, "per Space");
+  assert.equal(seedInbox(NORTHWIND, store, "usr_idris").inbox, false, "the next launch opens with Inbox off the rail");
+  rememberInbox(store, "usr_idris", "nw", true);
+  assert.equal(seedInbox(NORTHWIND, store, "usr_idris").inbox, true);
+  assert.equal(takeInboxTip(store, "usr_idris", "nw"), true);
+  assert.equal(takeInboxTip(store, "usr_idris", "nw"), false, "once");
+  assert.equal(takeInboxTip(store, "usr_idris", "me"), true, "per Space");
 });
 
 test("the hub: Inbox joins the rail with a reveal and its tip on the first connect, settles, and leaves on the last disconnect; a link to Inbox still opens it", () => {
@@ -201,7 +201,7 @@ test("the hub: Inbox joins the rail with a reveal and its tip on the first conne
       { ...PERSONAL, inbox: false },
     ],
     openId: "nw",
-    personId: "usr_irfad",
+    personId: "usr_idris",
     deviceId: "mac",
     storage: null,
   });
@@ -231,7 +231,7 @@ test("a hub that never knew (no answer on this device) keeps the Kit's Inbox and
   const hub = createShellHub({
     spaces: [NORTHWIND],
     openId: "nw",
-    personId: "usr_irfad",
+    personId: "usr_idris",
     deviceId: "mac",
     storage: null,
   });

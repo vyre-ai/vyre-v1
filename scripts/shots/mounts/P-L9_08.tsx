@@ -10,7 +10,7 @@ import { Terminal } from "../../../ui/src/Terminal/index.tsx";
 export const title = "Softphone and Terminal";
 
 const NUMBERS = [
-  { id: "n1", label: "Irfad", num: "+1 415 555 0132" },
+  { id: "n1", label: "Idris", num: "+1 415 555 0132" },
   { id: "n2", label: "Intake line", num: "+1 415 555 0177" },
 ];
 

@@ -69,7 +69,7 @@ test(
             state: "allowed",
             from: "Office iMac",
             bundle,
-            username: "irfad",
+            username: "idris",
             space: "spc_personal",
             spaceName: "Personal",
           },
@@ -90,7 +90,7 @@ test(
           />
         </JoinFrame>,
       );
-      await typeInto(find(root, "peer-username"), "irfad");
+      await typeInto(find(root, "peer-username"), "idris");
       await typeInto(find(root, "peer-password"), PASSWORD);
       await press(find(root, "peer-find"));
       await until(() => !!find(root, "peer-offer-0"), "the other computer is offered");
@@ -102,12 +102,12 @@ test(
       await until(() => joined !== null, "the copy is made once the bundle opens");
       assert.deepEqual(
         joined,
-        { space: "spc_personal", username: "irfad", password: PASSWORD },
+        { space: "spc_personal", username: "idris", password: PASSWORD },
         "the password goes on to sign in once, so it is not asked again",
       );
       assert.deepEqual(
         calls.filter((c) => c !== "status"),
-        ["find:irfad", "request:0", "commit"],
+        ["find:idris", "request:0", "commit"],
       );
     } finally {
       restore();
@@ -134,13 +134,13 @@ test("nobody answered: the screen says why and offers the address instead", asyn
         />
       </JoinFrame>,
     );
-    await typeInto(find(root, "peer-username"), "irfad");
+    await typeInto(find(root, "peer-username"), "idris");
     await typeInto(find(root, "peer-password"), PASSWORD);
     await press(find(root, "peer-find"));
     await until(() => textOf(find(root, "peer-error")).includes(NONE_ANSWERED), "says none answered");
     await press(find(root, "peer-address"));
     assert.equal(byAddress, 1);
-    assert.deepEqual(calls, ["find:irfad"]);
+    assert.deepEqual(calls, ["find:idris"]);
   } finally {
     restore();
   }
@@ -162,7 +162,7 @@ test("a bundle the password does not open copies nothing", { timeout: 60_000 }, 
           state: "allowed",
           from: "Office iMac",
           bundle,
-          username: "irfad",
+          username: "idris",
           space: "spc_personal",
           spaceName: "Personal",
         },
@@ -180,7 +180,7 @@ test("a bundle the password does not open copies nothing", { timeout: 60_000 }, 
         />
       </JoinFrame>,
     );
-    await typeInto(find(root, "peer-username"), "irfad");
+    await typeInto(find(root, "peer-username"), "idris");
     await typeInto(find(root, "peer-password"), PASSWORD);
     await press(find(root, "peer-find"));
     await until(() => !!find(root, "peer-offer-0"), "offered");

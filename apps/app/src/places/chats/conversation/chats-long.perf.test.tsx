@@ -29,7 +29,7 @@ const many: Message[] = Array.from({ length: N }, (_, i) => {
         : b.body,
   };
 });
-const ctx = { meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() };
+const ctx = { meId: "usr_idris", nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() };
 const ms = (f: () => void): number => {
   const t = performance.now();
   f();
@@ -83,7 +83,7 @@ test("a render that changes nothing a row shows leaves all 2,000 rows alone, and
   const row = (it: (typeof first)[number], actions: MessageViewProps["actions"]): MessageViewProps => ({
     item: it,
     actions,
-    meId: "usr_irfad",
+    meId: "usr_idris",
   });
   let same = 0;
   const t = ms(() => {

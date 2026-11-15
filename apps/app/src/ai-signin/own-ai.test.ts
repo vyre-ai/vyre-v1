@@ -22,8 +22,8 @@ const refusal = (message: string, reason?: string): Error =>
 test("where the Space runs comes from what this app can reach, not the browser's name", () => {
   assert.equal(aiHomeOf("http://127.0.0.1:4100", false), "here", "a Space on this computer: the local key route");
   assert.equal(aiHomeOf("http://localhost:4100", true), "here");
-  assert.equal(aiHomeOf("https://mla.vyre.run", true), "computer");
-  assert.equal(aiHomeOf("https://mla.vyre.run", false), "none");
+  assert.equal(aiHomeOf("https://northwind.vyre.run", true), "computer");
+  assert.equal(aiHomeOf("https://northwind.vyre.run", false), "none");
 });
 
 test("the wording: locked only where it can be unlocked here; elsewhere sign in again; no vault reason is a session that ended", () => {
@@ -110,12 +110,12 @@ test("the Space key in plain words: covered with its models, failing, none with 
     "This Space's AI key (Team) works for you for the models below.",
   );
   assert.match(
-    spaceAiWords({ set: true, name: "OpenCode Go", state: "failing" }, "Irfad Imtiaz (owner)").line,
-    /Ask Irfad Imtiaz \(owner\) to check it/,
+    spaceAiWords({ set: true, name: "OpenCode Go", state: "failing" }, "Idris Ibarra (owner)").line,
+    /Ask Idris Ibarra \(owner\) to check it/,
   );
-  const none = spaceAiWords({ set: false }, "Irfad Imtiaz (owner)");
+  const none = spaceAiWords({ set: false }, "Idris Ibarra (owner)");
   assert.equal(none.covered, false);
-  assert.equal(none.line, "Ask Irfad Imtiaz (owner) to add one in Console, or connect your own account.");
+  assert.equal(none.line, "Ask Idris Ibarra (owner) to add one in Console, or connect your own account.");
   assert.match(spaceAiWords({ set: false }, null).line, /Ask the Space owner or an admin/);
   assert.match(spaceAiWords({ set: false, mayManage: true }, null).line, /Add one in Console/);
   assert.match(spaceAiWords("error", null).line, /connect your own account/);
@@ -127,9 +127,9 @@ test("who can add a Space key: the owner by name and role, then an admin, never 
   const people = [
     { id: "usr_me", kind: "person", name: "Dana", status: "active", roles: ["rol_owner"] },
     { id: "usr_a", kind: "person", name: "Sam", status: "active", roles: ["admin"] },
-    { id: "usr_o", kind: "person", name: "Irfad Imtiaz", status: "active", roles: ["Owner"] },
+    { id: "usr_o", kind: "person", name: "Idris Ibarra", status: "active", roles: ["Owner"] },
   ];
-  assert.equal(adminOf(people, "usr_me"), "Irfad Imtiaz (owner)");
+  assert.equal(adminOf(people, "usr_me"), "Idris Ibarra (owner)");
   assert.equal(adminOf(people.slice(0, 2), "usr_me"), "Sam (admin)");
   assert.equal(adminOf([], "usr_me"), null);
   const read = await readSpaceAi(
@@ -137,11 +137,11 @@ test("who can add a Space key: the owner by name and role, then an admin, never 
       if (cap === "access.principals.list") throw new Error("no");
       return { set: false };
     },
-    { fallbackAdmin: "Irfad Imtiaz" },
+    { fallbackAdmin: "Idris Ibarra" },
   );
   assert.deepEqual(
     read,
-    { key: { set: false }, admin: "Irfad Imtiaz" },
+    { key: { set: false }, admin: "Idris Ibarra" },
     "a people list a member cannot read falls back to the inviter",
   );
 });

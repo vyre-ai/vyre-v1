@@ -76,7 +76,7 @@ test("GitHub: Disconnect asks first, then calls github.me.disconnect; Reconnect 
 test("GitHub: an org's Change opens GitHub's own page", async () => {
   const { root, restore, s } = await open("github");
   try {
-    await press(find(root, "gh-org-irfad7"));
+    await press(find(root, "gh-org-idris7"));
     assert.ok(s.opened.includes("link:https://github.com/settings/installations/1"));
   } finally {
     restore();

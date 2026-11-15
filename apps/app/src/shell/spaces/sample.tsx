@@ -108,7 +108,7 @@ export function createSampleShell(options: SampleShellOptions = {}): ShellHub {
   return createShellHub({
     spaces: options.spaces ?? SEED_DEFS,
     openId: options.openId ?? "nw",
-    personId: options.personId ?? "irfad",
+    personId: options.personId ?? "idris",
     deviceId: options.deviceId ?? "mac",
     storage: options.storage === undefined ? memoryStorage() : options.storage,
     ...(options.theme === undefined ? {} : { theme: options.theme }),

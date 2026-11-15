@@ -1,6 +1,6 @@
 // Inbox > a contact's email threads (owner, 3 Nov; a live case, anonymised): one card per thread at its last activity, subject once, who is on it, the count, what is new
 // and your role; open, older messages one line each and the newest and new ones in full with quoted text and signatures folded; a Gmail reaction on its message; the same
-// Scout thread whole under Josh and under Andrey; the composer replies in the thread you are in, Reply or Reply all, or starts a New email.
+// Scout thread whole under Josh and under Anders; the composer replies in the thread you are in, Reply or Reply all, or starts a New email.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -32,7 +32,7 @@ import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 
 installComposerForTests(Composer);
 
-const ME = new Set(["irfad@northwind.example"]);
+const ME = new Set(["idris@northwind.example"]);
 const CHROME = "gm_18c2a1f04e9b",
   SCOUT = "gm_18c39f7b2d10";
 const wrap = (s: ContactTabSample, child: ReactElement): string =>
@@ -68,7 +68,7 @@ test("screen: Josh's email is two thread cards, not a flat stream; each subject 
   );
   assert.ok(has(out, "With Maya Chen and Josh Cohen") && has(out, "5 messages") && has(out, "You were added later"));
   assert.ok(
-    has(out, "With Andrey Volkov and Josh Cohen") &&
+    has(out, "With Anders Volkov and Josh Cohen") &&
       has(out, "2 messages") &&
       has(out, `data-testid="thread-role:${SCOUT}"`),
   );
@@ -107,15 +107,15 @@ test("screen: the open thread shows older messages as one line, then New since y
   assert.ok(!has(out, `data-testid="email:${"eml_w1"}"`), "the older Scout thread is closed");
 });
 
-test("screen: under Andrey the same Scout thread shows whole; his HTML welcome is sanitised with the image held", () => {
-  const { out } = tab("andrey");
+test("screen: under Anders the same Scout thread shows whole; his HTML welcome is sanitised with the image held", () => {
+  const { out } = tab("anders");
   assert.ok(has(out, `data-testid="thread:${SCOUT}"`));
   assert.ok(
     at(out, 'data-testid="email:eml_w1"') < at(out, 'data-testid="email:eml_w2"'),
-    "both messages, Andrey's then Josh's reply",
+    "both messages, Anders's then Josh's reply",
   );
-  assert.ok(has(out, "Thanks Andrey. I am in and the team is set up."));
-  const scout = mailThreads["andrey"]![0]!;
+  assert.ok(has(out, "Thanks Anders. I am in and the team is set up."));
+  const scout = mailThreads["anders"]![0]!;
   const card = renderToStaticMarkup(
     <ThreadCard
       e={{ kind: "thread", key: `thread:${SCOUT}`, thread: scout, at: scout.lastAt }}
@@ -173,7 +173,7 @@ test("model: Reply goes to the sender, Reply all keeps Cc, never you; New Email 
   });
   const scout = josh()[1]!;
   assert.deepEqual(replyTarget(scout, "all", ME), {
-    to: ["josh@cohenshah.example", "andrey@scout.example"],
+    to: ["josh@cohenshah.example", "anders@scout.example"],
     cc: [],
     subject: "Re: Welcome to Scout, Josh",
   });
@@ -224,7 +224,7 @@ test("send: the reply goes to the selected thread, answering the newest message 
   const inbox: InboxChoice = {
     id: "mbx_work",
     kind: "mailbox",
-    address: "irfad@northwind.example",
+    address: "idris@northwind.example",
     label: "Work Gmail",
     isDefault: true,
   };
@@ -250,7 +250,7 @@ test("send: the reply goes to the selected thread, answering the newest message 
   assert.equal(sent.subject, "Re: Welcome to Scout, Josh");
   assert.deepEqual(
     sent.to.map((x) => x.address),
-    ["josh@cohenshah.example", "andrey@scout.example"],
+    ["josh@cohenshah.example", "anders@scout.example"],
   );
   await sendEmail(
     s.data,

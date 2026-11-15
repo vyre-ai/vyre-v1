@@ -10,9 +10,9 @@ import type { FlowState, JoinInvite } from "../logic.ts";
 const INVITE: JoinInvite = {
   space: "Northwind",
   host: "northwind",
-  by: "Irfad Imtiaz",
+  by: "Idris Ibarra",
   role: "Member",
-  email: "irfad@northwind.example",
+  email: "idris@northwind.example",
   names: { first: "Dana", last: "Whitfield" },
   deviceName: "Dana's MacBook",
   starting: { agents: ["Intake"], projects: ["Rivera matter"] },

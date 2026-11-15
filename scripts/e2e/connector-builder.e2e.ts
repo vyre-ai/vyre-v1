@@ -3,7 +3,7 @@
 // connector is live, bound to the Vault item, its reads are tested and the step picker lists its actions.
 //
 // NOT part of any CI glob. Run by hand:
-//   set -a; source /Users/irfad/Claude/simba/secrets/.env.simba; set +a
+//   set -a; source /Users/idris/Claude/simba/secrets/.env.simba; set +a
 //   node --import tsx --import ./scripts/shots/rn-alias.mjs scripts/e2e/connector-builder.e2e.ts fathom   (or resend)
 // Secrets: the token and the app key come from the environment, go into the Vault through its write capability and nowhere else. Every line this script prints or saves is scrubbed of both.
 // Writes: the daemon's network seam answers only GET to the app's API host. Any other request aborts the run.
@@ -52,7 +52,7 @@ if (!TOKEN || !APP_KEY)
   throw new Error("load the vault env first: VYRE_TEST_CLAUDE_SETUP_TOKEN and the app key are required");
 const OUT =
   process.env["E2E_OUT"] ??
-  `/private/tmp/claude-501/-Users-irfad-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/e2e-connector${which === "fathom" ? "" : `-${which}`}`;
+  `/private/tmp/claude-501/-Users-idris-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/e2e-connector${which === "fathom" ? "" : `-${which}`}`;
 fs.mkdirSync(OUT, { recursive: true });
 
 const scrub = (s: string): string =>

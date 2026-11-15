@@ -16,8 +16,8 @@ test("known acts read as sentences", () => {
   );
   assert.equal(auditSentence({ actor: "Priya Raman", action: "files.save" }), "Priya Raman saved a file");
   assert.equal(
-    auditSentence({ actor: "Dex", action: "tasks.working_notes.set", onBehalfOf: "Andrey" }),
-    "Dex changed the working notes of a task, for Andrey",
+    auditSentence({ actor: "Dex", action: "tasks.working_notes.set", onBehalfOf: "Anders" }),
+    "Dex changed the working notes of a task, for Anders",
   );
   assert.equal(
     auditSentence({ actor: "Omar", action: "tasks.working_notes.set", resource: "Send Josh the link" }),
@@ -79,7 +79,7 @@ test("every act the registry has reads without a dotted name, an id, an undersco
   for (const a of acts) {
     for (const line of [
       auditSentence({ actor: "Priya Raman", action: a }),
-      auditSentence({ actor: "Priya Raman", action: a, resource: "Fee agreement.pdf", onBehalfOf: "Andrey" }),
+      auditSentence({ actor: "Priya Raman", action: a, resource: "Fee agreement.pdf", onBehalfOf: "Anders" }),
     ]) {
       const why = leaksCode(line);
       if (why) bad.push(`${a}: ${line} (${why})`);

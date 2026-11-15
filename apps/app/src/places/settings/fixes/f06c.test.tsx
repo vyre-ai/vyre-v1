@@ -68,7 +68,7 @@ test("Sign-in and devices: Password and GitHub, then one card per Space with its
   const s = createSampleSettings(northwind);
   const out = html(s, { initialPage: "signin" });
   assert.ok(
-    has(out, 'data-testid="signin-account"') && has(out, "Changed 3 months ago") && has(out, "Connected as @irfad7"),
+    has(out, 'data-testid="signin-account"') && has(out, "Changed 3 months ago") && has(out, "Connected as @idris7"),
   );
   for (const sp of ["northwind", "harbor", "personal"]) assert.ok(has(out, `data-testid="security-${sp}"`), sp);
   const nw = out.slice(out.indexOf('data-testid="security-northwind"'), out.indexOf('data-testid="security-harbor"'));

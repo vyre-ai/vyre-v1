@@ -85,10 +85,10 @@ test("the people popover is People and agents: one row per member with the role 
     assert.ok(pop);
     assert.match(textOf(pop), /^\s*People and agents/);
     assert.match(textOf(pop), /Add people and agents\s*$/, "the footer");
-    assert.match(textOf(find(root, "people-row-usr_irfad")), /^\s*You\s+Owner\s*$/);
+    assert.match(textOf(find(root, "people-row-usr_idris")), /^\s*You\s+Owner\s*$/);
     assert.ok(find(root, "people-row-agt_intake") && find(root, "people-row-agt_docs"));
     // an agent's Poke and settings are in its right-click menu; a person's are not
-    await rightClick(root, "people-row-usr_irfad");
+    await rightClick(root, "people-row-usr_idris");
     assert.equal(find(root, "menu-item-Poke"), null);
     await press(find(root, "people-footer"));
     await flush();
@@ -204,16 +204,16 @@ test("the new-chat landing's With row uses the same sheet and hands the picks ba
 
 /* ---------- what the picks call ---------- */
 
-test("the outside-agents note names the signed-in person in full, from data.me: Others see these as Irfad Imtiaz (Agent)", async () => {
+test("the outside-agents note names the signed-in person in full, from data.me: Others see these as Idris Ibarra (Agent)", async () => {
   await withDom(async () => {
     const s = createSample("idle");
-    assert.equal(s.data.me.name, "Irfad Imtiaz");
+    assert.equal(s.data.me.name, "Idris Ibarra");
     const root = await mount(createRoot, <Conversation data={s.data} />);
     await press(find(root, "participants-button"));
     await flush();
     await press(find(root, "people-footer"));
     await flush();
-    assert.match(textOf(find(root, SHEET)), /Others see these as Irfad Imtiaz \(Agent\)/);
+    assert.match(textOf(find(root, SHEET)), /Others see these as Idris Ibarra \(Agent\)/);
     assert.ok(!/these as You \(Agent\)/.test(textOf(find(root, SHEET))));
   });
 });

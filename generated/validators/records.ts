@@ -91,13 +91,13 @@ if ("comment" in o777) d_s_cdc7d96e9b(o777["comment"], p + "/comment", e);
 
 function d_s_a56f3dc8f1(v: unknown, p: string, e: string[]): void {
 {
-const x838 = v;
-const g838 = typeOf(x838);
-const b838: string[] = []; lf(x838, p, b838, L4); if (b838.length) e.push(...b838);
-if (g838 === "array") {
-if (g838 === 'array') { const a838 = x838 as unknown[];
-for (let i838 = 0; i838 < a838.length; i838++) {
-d_s_b87b1cfef9(a838[i838], p + '/' + i838, e);
+const x837 = v;
+const g837 = typeOf(x837);
+const b837: string[] = []; lf(x837, p, b837, L4); if (b837.length) e.push(...b837);
+if (g837 === "array") {
+if (g837 === 'array') { const a837 = x837 as unknown[];
+for (let i837 = 0; i837 < a837.length; i837++) {
+d_s_b87b1cfef9(a837[i837], p + '/' + i837, e);
 }
 }
 }
@@ -106,38 +106,38 @@ d_s_b87b1cfef9(a838[i838], p + '/' + i838, e);
 
 function d_s_b87b1cfef9(v: unknown, p: string, e: string[]): void {
 {
-const x901 = v;
-const g901 = typeOf(x901);
-const b901: string[] = []; lf(x901, p, b901, L0); if (b901.length) e.push(...b901);
-if (g901 === "object") {
-if (g901 === 'object') { const o901 = x901 as Record<string, unknown>;
-if (!("id" in o901)) e.push(p + "/id" + ': required');
-if (!("type" in o901)) e.push(p + "/type" + ': required');
-if (!("version" in o901)) e.push(p + "/version" + ': required');
-if (!("label" in o901)) e.push(p + "/label" + ': required');
-if (!("fields" in o901)) e.push(p + "/fields" + ': required');
-if (!("createdAt" in o901)) e.push(p + "/createdAt" + ': required');
-if (!("updatedAt" in o901)) e.push(p + "/updatedAt" + ': required');
-if (!("holds" in o901)) e.push(p + "/holds" + ': required');
-if ("id" in o901) lf(o901["id"], p + "/id", e, L28);
-if ("type" in o901) lf(o901["type"], p + "/type", e, L32);
-if ("version" in o901) lf(o901["version"], p + "/version", e, L2);
-if ("label" in o901) lf(o901["label"], p + "/label", e, L187);
-if ("fields" in o901) {
+const x903 = v;
+const g903 = typeOf(x903);
+const b903: string[] = []; lf(x903, p, b903, L0); if (b903.length) e.push(...b903);
+if (g903 === "object") {
+if (g903 === 'object') { const o903 = x903 as Record<string, unknown>;
+if (!("id" in o903)) e.push(p + "/id" + ': required');
+if (!("type" in o903)) e.push(p + "/type" + ': required');
+if (!("version" in o903)) e.push(p + "/version" + ': required');
+if (!("label" in o903)) e.push(p + "/label" + ': required');
+if (!("fields" in o903)) e.push(p + "/fields" + ': required');
+if (!("createdAt" in o903)) e.push(p + "/createdAt" + ': required');
+if (!("updatedAt" in o903)) e.push(p + "/updatedAt" + ': required');
+if (!("holds" in o903)) e.push(p + "/holds" + ': required');
+if ("id" in o903) lf(o903["id"], p + "/id", e, L28);
+if ("type" in o903) lf(o903["type"], p + "/type", e, L32);
+if ("version" in o903) lf(o903["version"], p + "/version", e, L2);
+if ("label" in o903) lf(o903["label"], p + "/label", e, L187);
+if ("fields" in o903) {
 {
-const x902 = o901["fields"];
-const g902 = typeOf(x902);
-const b902: string[] = []; lf(x902, p + "/fields", b902, L0); if (b902.length) e.push(...b902);
-if (g902 === "object") {
-if (g902 === 'object') { const o902 = x902 as Record<string, unknown>;
+const x904 = o903["fields"];
+const g904 = typeOf(x904);
+const b904: string[] = []; lf(x904, p + "/fields", b904, L0); if (b904.length) e.push(...b904);
+if (g904 === "object") {
+if (g904 === 'object') { const o904 = x904 as Record<string, unknown>;
 }
 }
 }
 }
-if ("createdAt" in o901) lf(o901["createdAt"], p + "/createdAt", e, L17);
-if ("updatedAt" in o901) lf(o901["updatedAt"], p + "/updatedAt", e, L17);
-if ("deletedAt" in o901) lf(o901["deletedAt"], p + "/deletedAt", e, L17);
-if ("holds" in o901) lf(o901["holds"], p + "/holds", e, L2);
+if ("createdAt" in o903) lf(o903["createdAt"], p + "/createdAt", e, L17);
+if ("updatedAt" in o903) lf(o903["updatedAt"], p + "/updatedAt", e, L17);
+if ("deletedAt" in o903) lf(o903["deletedAt"], p + "/deletedAt", e, L17);
+if ("holds" in o903) lf(o903["holds"], p + "/holds", e, L2);
 }
 }
 }

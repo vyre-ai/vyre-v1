@@ -3,8 +3,8 @@ import type { SpaceFixture } from "./types.ts";
 
 export const personal: SpaceFixture = {
   space: { key: "personal", protoId: "me", name: "Personal", address: "on this computer", team: false },
-  me: "usr_irfad",
-  people: [{ id: "usr_irfad", name: "Irfad Imtiaz", role: "Owner" }],
+  me: "usr_idris",
+  people: [{ id: "usr_idris", name: "Idris Ibarra", role: "Owner" }],
   agents: [{ id: "agt_assistant", name: "Assistant", role: "Your assistant", pinned: true, model: "opus" }],
   channels: [],
   needs: [],

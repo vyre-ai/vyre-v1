@@ -60,7 +60,7 @@ function Page({ search }: { search: string }): ReactNode {
       },
     };
     const theme = createThemeController({
-      personId: "irfad",
+      personId: "idris",
       spaceId: "nw",
       spaceSkin: { nw: skin, hb: skin, me: skin },
       prefersDark: skin === "graphite",
@@ -108,7 +108,7 @@ function Page({ search }: { search: string }): ReactNode {
       role: i === 5 ? "assistant" : "Does the work",
       kind: i === 5 ? "assistant" : "agent",
       status: i === 1 ? "working" : i === 3 ? "asleep" : "awake",
-      ownerId: "usr_irfad",
+      ownerId: "usr_idris",
       hasComputer: i % 2 === 0,
       face: i === 5 ? "assistant" : formatFace(Object.values(FACES)[i % 5]!),
       accountPolicy: "asker",

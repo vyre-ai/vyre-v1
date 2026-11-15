@@ -78,13 +78,13 @@ test("step 1 lists the six sources in order, with the connected account under ea
     "Dropbox",
     "This computer",
     "GitHub",
-    "irfad@northwind.example",
-    "Irfad&#x27;s MacBook",
-    "irfad7",
+    "idris@northwind.example",
+    "Idris&#x27;s MacBook",
+    "idris7",
   ])
     assert.ok(has(out, name), name);
   assert.ok(has(out, 'aria-label="Connect a folder"') && has(out, 'role="dialog"'));
-  const off = createSampleMounts({ accounts: { ...northwindAccounts, github: { label: "irfad7", connected: false } } });
+  const off = createSampleMounts({ accounts: { ...northwindAccounts, github: { label: "idris7", connected: false } } });
   const o2 = html(off, <MountSheet onClose={noop} onMounted={noop} />);
   assert.ok(has(o2, "Not connected") && has(o2, ">Connect<"));
 });
@@ -370,7 +370,7 @@ test("a share that fails after the mount keeps the mount and comes back as a war
   s.failNext("access.share", "permission.not_contained");
   const r = await submitMount(
     s.data.call,
-    draftAt("github", item("github", "irfad7/dotfiles", "irfad7/dotfiles"), {
+    draftAt("github", item("github", "idris7/dotfiles", "idris7/dotfiles"), {
       who: { mode: "people", ids: ["usr_sam"] },
     }),
     s.data.accounts,

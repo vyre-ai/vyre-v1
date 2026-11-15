@@ -40,7 +40,7 @@ export function isFiltered(f: AuditFilter): boolean {
   return f.query.trim() !== "" || f.cls !== null || f.traceId !== null;
 }
 
-/** "Priya Raman assigned a role to Omar Haddad, for Andrey": who did what to which thing, and on whose behalf (lib/words). An id the directory has no name for is left out, not read out. */
+/** "Priya Raman assigned a role to Omar Haddad, for Anders": who did what to which thing, and on whose behalf (lib/words). An id the directory has no name for is left out, not read out. */
 export function rowTitle(r: AuditRow, name: (id: string) => string): string {
   const what = r.resource ? name(r.resource.id) : "";
   return auditSentence({
@@ -60,7 +60,7 @@ export function snapshotLines(v: unknown): string[] {
   );
 }
 
-/** The details line under an agent's audit row (owner ruling 3 Nov): the headline credits its person, "Irfad Imtiaz (Agent)"; this says which agent, its id, the setup grant when it used one, and the trace. */
+/** The details line under an agent's audit row (owner ruling 3 Nov): the headline credits its person, "Idris Ibarra (Agent)"; this says which agent, its id, the setup grant when it used one, and the trace. */
 export function agentDetails(
   r: Pick<AuditRow, "actor" | "after" | "traceId">,
   agentName: string | undefined,

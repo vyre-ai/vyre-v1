@@ -266,7 +266,7 @@ test("Codex gets the same file and a trusted hash for each hook, as Codex record
   );
   // the hash recipe reproduces a hash a real Codex wrote for a hook of ~/.codex/hooks.json
   assert.equal(
-    codexHash("pre_compact", "python3 '/Users/irfad/Claude/.codex/hooks/journal.py'", 15),
+    codexHash("pre_compact", "python3 '/Users/idris/Claude/.codex/hooks/journal.py'", 15),
     "sha256:e118ef3121a2e4aaa5660d749a199e647e5fcc599a35970745354ba1963b134d",
   );
   const files = hookFiles("codex", { workFolder: "/work", stdio });

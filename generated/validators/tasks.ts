@@ -318,15 +318,15 @@ if ("workerThread" in o759) lf(o759["workerThread"], p + "/workerThread", e, L13
 
 function d_s_b92225d0bc(v: unknown, p: string, e: string[]): void {
 {
-const x906 = v;
-const g906 = typeOf(x906);
-const b906: string[] = []; lf(x906, p, b906, L0); if (b906.length) e.push(...b906);
-if (g906 === "object") {
-if (g906 === 'object') { const o906 = x906 as Record<string, unknown>;
-if (!("taskId" in o906)) e.push(p + "/taskId" + ': required');
-if (!("follower" in o906)) e.push(p + "/follower" + ': required');
-if ("taskId" in o906) lf(o906["taskId"], p + "/taskId", e, L61);
-if ("follower" in o906) lf(o906["follower"], p + "/follower", e, L1);
+const x908 = v;
+const g908 = typeOf(x908);
+const b908: string[] = []; lf(x908, p, b908, L0); if (b908.length) e.push(...b908);
+if (g908 === "object") {
+if (g908 === 'object') { const o908 = x908 as Record<string, unknown>;
+if (!("taskId" in o908)) e.push(p + "/taskId" + ': required');
+if (!("follower" in o908)) e.push(p + "/follower" + ': required');
+if ("taskId" in o908) lf(o908["taskId"], p + "/taskId", e, L61);
+if ("follower" in o908) lf(o908["follower"], p + "/follower", e, L1);
 }
 }
 }

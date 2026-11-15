@@ -280,7 +280,7 @@ test("a reply that used memory shows 'Used 3 memories' (closed) and a card for t
     "a reply no memory shaped shows no fact line",
   );
   assert.ok(
-    has(out, "Irfad Imtiaz") && has(out, "Oct 12 · Brooks kickoff") && has(out, "“Ian was clear about updates."),
+    has(out, "Idris Ibarra") && has(out, "Oct 12 · Brooks kickoff") && has(out, "“Ian was clear about updates."),
   );
   assert.ok(has(out, "Jump to the message") && has(out, "Exact words, recalled from the chat"));
   assert.equal(
@@ -962,7 +962,7 @@ test("the sample answers memory.used, memory.knows and memory.quote, and memory.
     quotes: Array<{ ref: string; author: { name: string }; threadTitle: string; link: string }>;
   };
   assert.equal(used.facts.length, 2);
-  assert.equal(used.quotes[0]!.author.name, "Irfad Imtiaz");
+  assert.equal(used.quotes[0]!.author.name, "Idris Ibarra");
   assert.equal(used.quotes[0]!.link, "vyre://thread/thr_k1?m=msg_k1_2");
   assert.deepEqual(
     await store.read("memory.used", { threadId: "thr_k2", messageId: "nope" }),

@@ -33,11 +33,11 @@ function sites(view: string) {
     siteId: "sit_cx",
     name: "CX dashboard",
     slug: "cx",
-    url: "https://cx.mla.vyre.run",
+    url: "https://cx.northwind.vyre.run",
     port: 3000,
     live: true,
     state: view === "building" ? "building" : "ready",
-    source: { repo: "https://github.com/mla/cx-dashboard.git", branch: "main" },
+    source: { repo: "https://github.com/northwind/cx-dashboard.git", branch: "main" },
     addons: [{ kind: "postgres", state: "ready", envName: "DATABASE_URL" }],
     passwordSet: false,
     lastDeploy:
@@ -70,7 +70,7 @@ function sites(view: string) {
       siteId: "sit_kpi",
       name: "Weekly KPIs",
       slug: "kpi",
-      url: "https://kpi.mla.vyre.run",
+      url: "https://kpi.northwind.vyre.run",
       live: true,
       state: "ready",
       access: "password",
@@ -92,10 +92,10 @@ function sites(view: string) {
       siteId: "sit_api",
       name: "Intake API",
       slug: "intake-api",
-      url: "https://intake-api.mla.vyre.run",
+      url: "https://intake-api.northwind.vyre.run",
       live: false,
       state: "failed",
-      source: { repo: "mla/intake-api" },
+      source: { repo: "northwind/intake-api" },
       addons: [],
       lastDeploy: {
         deploymentId: "dpl_a",
@@ -113,7 +113,7 @@ function sites(view: string) {
       siteId: "sit_north",
       name: "Northwind site",
       kind: "site",
-      owner: "usr_irfad",
+      owner: "usr_idris",
       state: "stopped",
       live: false,
       access: "public",
@@ -124,7 +124,7 @@ function sites(view: string) {
 }
 
 const BUILD = [
-  "==> Getting mla/cx-dashboard (main)",
+  "==> Getting northwind/cx-dashboard (main)",
   "==> Commit 4be1c0a: Show refund requests on the queue",
   "==> Node: npm ci, npm run build, then npm start (from railway.json, package.json).",
   "==> Building",
@@ -163,7 +163,7 @@ export default function Mount(): ReactNode {
     const names: Record<string, string> = {
       usr_anem: "Anem Fatima",
       usr_rubab: "Rubab Ali",
-      usr_irfad: "Irfad Imtiaz",
+      usr_idris: "Idris Ibarra",
     };
     const call = s.data.call;
     const deps =
@@ -201,14 +201,14 @@ export default function Mount(): ReactNode {
     const answers: Record<string, (i: Record<string, unknown>) => unknown> = {
       "sites.list": () => ({ sites: rows }),
       "sites.get": (i) => ({ site: rows.find((r) => r.siteId === i["siteId"]) }),
-      "sites.status": () => ({ answering: true, live: true, blocked: false, url: "https://cx.mla.vyre.run" }),
+      "sites.status": () => ({ answering: true, live: true, blocked: false, url: "https://cx.northwind.vyre.run" }),
       "sites.host": () => ({
-        origin: "https://mla.vyre.run",
+        origin: "https://northwind.vyre.run",
         relay: false,
         computers: false,
         domains: true,
         deploy: true,
-        sitesDomain: "mla.vyre.run",
+        sitesDomain: "northwind.vyre.run",
       }),
       "sites.domains_get": () => ({ domains: [] }),
       "sites.deployments": () => ({
@@ -228,7 +228,7 @@ export default function Mount(): ReactNode {
           { handle: "#GHL_CX", name: "GHL CX key" },
           { handle: "#CX_Session", name: "CX session secret" },
           { handle: "#Railway_DB", name: "Railway database" },
-          { handle: "#GitHub_MLA", name: "GitHub token (MLA)" },
+          { handle: "#GitHub_MLA", name: "GitHub token (Northwind)" },
         ],
         counts: {},
       }),

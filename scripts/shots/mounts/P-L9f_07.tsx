@@ -10,9 +10,9 @@ export const title = "Join pages";
 const NORTHWIND: JoinInvite = {
   space: "Northwind",
   host: "northwind",
-  by: "Irfad Imtiaz",
+  by: "Idris Ibarra",
   role: "Member",
-  email: "irfad@northwind.example",
+  email: "idris@northwind.example",
   names: { first: "Dana", last: "Whitfield" },
   deviceName: "Dana's MacBook",
   starting: { agents: ["Intake", "Billing", "Research", "Docs"], projects: ["Rivera matter", "Q4 billing", "Hiring"] },
@@ -33,7 +33,7 @@ const HARBOR: JoinInvite = {
   github: true,
   adminKey: false,
 };
-const TAKEN = ["irfad", "maya", "omar", "lena", "sam", "admin", "ines", "theo"];
+const TAKEN = ["idris", "maya", "omar", "lena", "sam", "admin", "ines", "theo"];
 const CODE = "K7QM-4TXD-92HB-WPLE";
 const PASSWORD = "harbor-lamp-ninety";
 

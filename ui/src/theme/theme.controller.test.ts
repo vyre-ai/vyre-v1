@@ -30,7 +30,7 @@ function rig(
     },
   };
   const controller = createThemeController({
-    personId: opts.person ?? "usr_irfad",
+    personId: opts.person ?? "usr_idris",
     spaceId: opts.space ?? "nw",
     spaceSkin: seedSpaceSkin(),
     prefersDark: opts.dark ?? false,

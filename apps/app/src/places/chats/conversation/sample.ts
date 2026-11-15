@@ -38,7 +38,7 @@ export const NAMES: Record<string, string> = {
   agt_research: "Research",
   agt_scout: "Scout",
   agt_billing: "Billing",
-  usr_irfad: "You",
+  usr_idris: "You",
   usr_maya: "Maya Chen",
   usr_omar: "Omar Haddad",
 };
@@ -48,7 +48,7 @@ const KINDS: Record<string, "person" | "agent"> = {
   agt_research: "agent",
   agt_scout: "agent",
   agt_billing: "agent",
-  usr_irfad: "person",
+  usr_idris: "person",
   usr_maya: "person",
   usr_omar: "person",
 };
@@ -137,7 +137,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
     listed: true,
     planMode: false,
     members: [
-      { kind: "person", id: "usr_irfad" },
+      { kind: "person", id: "usr_idris" },
       { kind: "agent", id: "agt_intake" },
       { kind: "agent", id: "agt_docs" },
     ],
@@ -181,7 +181,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
     createdAt,
     ...o,
   });
-  const me = { kind: "person" as const, id: "usr_irfad" };
+  const me = { kind: "person" as const, id: "usr_idris" };
   const intake = { kind: "agent" as const, id: "agt_intake" };
   const docs = { kind: "agent" as const, id: "agt_docs" };
   const messages: Message[] = [];
@@ -278,7 +278,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
     thread.title = "Harbor order form";
     thread.agents = [{ agentId: "agt_docs", mode: "lead", model: "opus" }];
     thread.members = [
-      { kind: "person", id: "usr_irfad" },
+      { kind: "person", id: "usr_idris" },
       { kind: "agent", id: "agt_docs" },
     ];
     messages.push(
@@ -449,7 +449,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
                   "Steps",
                   "Opened the project folder · 0.4s, read order-form.docx · 0.2s, read price-list.csv · refused",
                 ],
-                ["Machine", "irfad-macbook"],
+                ["Machine", "idris-macbook"],
                 ["Model", "Opus · your Claude account"],
                 ["Key used", "Your Claude subscription"],
                 ["Denials", "price-list.csv: Restricted, not available to Anthropic"],
@@ -724,7 +724,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
         messageId: `srv_${++counter}`,
         threadId: i.threadId,
         threadSeq: (prev[prev.length - 1]?.threadSeq ?? 0) + 1,
-        author: { kind: "person", id: "usr_irfad" },
+        author: { kind: "person", id: "usr_idris" },
         kind: "text",
         body: i.body,
         blocks: [],
@@ -739,7 +739,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     },
     // Rewind over the sample: a point for each of your messages, one rewind in force at a time, and the point that undoes it
     "engine.rewind.points": () => {
-      const mine = msgRows().filter((m) => m.author.id === "usr_irfad" && m.kind === "text");
+      const mine = msgRows().filter((m) => m.author.id === "usr_idris" && m.kind === "text");
       const points = mine
         .map((m, i) => ({
           pointId: `agt_intake.pt_${m.messageId}`,
@@ -756,7 +756,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
       return {
         available: true,
         points: [...undo, ...points],
-        active: rewound ? [{ ...rewound, by: "usr_irfad", at: SAMPLE_NOW, undoPointId: "agt_intake.undo" }] : [],
+        active: rewound ? [{ ...rewound, by: "usr_idris", at: SAMPLE_NOW, undoPointId: "agt_intake.undo" }] : [],
       };
     },
     "chat.rewind": (i: { pointId: string }) => {
@@ -772,7 +772,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
         messageId: `srv_${++counter}`,
         threadId: "c1",
         threadSeq: top + 1,
-        author: { kind: "person", id: "usr_irfad" },
+        author: { kind: "person", id: "usr_idris" },
         kind: "system",
         body: line,
         blocks: [
@@ -784,7 +784,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
               icon: "reply",
               lead: undoing ? "Came back" : "Went back",
               title: undoing ? "To where you were before going back" : line.replace("Went back to ", ""),
-              by: "usr_irfad",
+              by: "usr_idris",
               sub: "Messages stay. Anything already sent stays sent.",
             },
             state: "done",
@@ -816,7 +816,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
             ? mine && mine.by.length > 1
               ? [...others, { emoji: i.emoji, by: mine.by.slice(1) }]
               : others
-            : [...others, { emoji: i.emoji, by: [...(mine?.by ?? []), "usr_irfad"] }],
+            : [...others, { emoji: i.emoji, by: [...(mine?.by ?? []), "usr_idris"] }],
         });
       }
       return { ok: true };
@@ -879,7 +879,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     "access.principals.list": () => ({
       principals: [
         {
-          id: "usr_irfad",
+          id: "usr_idris",
           kind: "person",
           name: "You",
           status: "active",
@@ -917,7 +917,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
         ...(id === "out_cc" ? { runtime: "outside" } : {}),
         face: id,
         status: "awake",
-        ownerId: "usr_irfad",
+        ownerId: "usr_idris",
         folderId: "fld",
         accountPolicy: "asker",
         accountFallback: [],
@@ -1026,7 +1026,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
         messageId: `poke_${++counter}`,
         threadId: thread.threadId,
         threadSeq: seq,
-        author: { kind: "person", id: "usr_irfad" },
+        author: { kind: "person", id: "usr_idris" },
         kind: "quiet",
         body: `You poked ${NAMES[i.agentId] ?? i.agentId}`,
         blocks: [
@@ -1034,7 +1034,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
             type: "poke",
             v: 1,
             id: `bp_${counter}`,
-            data: { agentId: i.agentId, by: "usr_irfad" },
+            data: { agentId: i.agentId, by: "usr_idris" },
             state: "done",
             traceId: "tr_poke",
           },
@@ -1057,7 +1057,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
             type: "poked",
             v: 1,
             id: `bq_${counter}`,
-            data: { agentId: i.agentId, by: "usr_irfad" },
+            data: { agentId: i.agentId, by: "usr_idris" },
             state: "done",
             traceId: "tr_poke",
           },
@@ -1198,7 +1198,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
           turnId: i.turnId,
           threadId: "c1",
           agentId: "agt_intake",
-          asker: "usr_irfad",
+          asker: "usr_idris",
           engine: "claude_code",
           model: "opus",
           state: "failed",
@@ -1215,7 +1215,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
             traceId: "tr_r9",
           },
           ranOn: [
-            { kind: "computer", name: "Irfad's MacBook" },
+            { kind: "computer", name: "Idris's MacBook" },
             { kind: "space", name: "the Northwind server" },
           ],
         },
@@ -1261,7 +1261,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     },
     connection,
     threadId: thread.threadId,
-    me: { id: "usr_irfad", name: "Irfad Imtiaz" },
+    me: { id: "usr_idris", name: "Idris Ibarra" },
     nameOf: (id) => NAMES[id] ?? id,
     kindOf: (id) => KINDS[id] ?? "person",
     nav,
@@ -1280,7 +1280,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
       ],
       commands: ["later", "memory", "fork"],
     },
-    directory: DIRECTORY.filter((c) => c.id !== "usr_irfad"),
+    directory: DIRECTORY.filter((c) => c.id !== "usr_idris"),
     newKey: () => `key_${++counter}`,
     streamOf: (id) => (variant === "streaming" && id === liveId ? stream : undefined),
     copy: (t) => void copied.push(t),

@@ -921,28 +921,28 @@ if ("connector" in o798) lf(o798["connector"], p + "/connector", e, L1);
 
 function d_s_a78d49b059(v: unknown, p: string, e: string[]): void {
 {
-const x852 = v;
-const g852 = typeOf(x852);
-const b852: string[] = []; lf(x852, p, b852, L4); if (b852.length) e.push(...b852);
-if (g852 === "array") {
-if (g852 === 'array') { const a852 = x852 as unknown[];
-for (let i852 = 0; i852 < a852.length; i852++) {
+const x851 = v;
+const g851 = typeOf(x851);
+const b851: string[] = []; lf(x851, p, b851, L4); if (b851.length) e.push(...b851);
+if (g851 === "array") {
+if (g851 === 'array') { const a851 = x851 as unknown[];
+for (let i851 = 0; i851 < a851.length; i851++) {
 {
-const x853 = a852[i852];
-const g853 = typeOf(x853);
-const b853: string[] = []; lf(x853, p + '/' + i852, b853, L0); if (b853.length) e.push(...b853);
-if (g853 === "object") {
-if (g853 === 'object') { const o853 = x853 as Record<string, unknown>;
-if (!("key" in o853)) e.push(p + '/' + i852 + "/key" + ': required');
-if (!("remote" in o853)) e.push(p + '/' + i852 + "/remote" + ': required');
-if (!("dir" in o853)) e.push(p + '/' + i852 + "/dir" + ': required');
-if ("key" in o853) lf(o853["key"], p + '/' + i852 + "/key", e, L32);
-if ("remote" in o853) lf(o853["remote"], p + '/' + i852 + "/remote", e, L1);
-if ("dir" in o853) lf(o853["dir"], p + '/' + i852 + "/dir", e, L338);
-if ("transform" in o853) lf(o853["transform"], p + '/' + i852 + "/transform", e, L1);
-if ("relation" in o853) lf(o853["relation"], p + '/' + i852 + "/relation", e, L32);
-if ("inverse" in o853) lf(o853["inverse"], p + '/' + i852 + "/inverse", e, L32);
-if ("constant" in o853) lf(o853["constant"], p + '/' + i852 + "/constant", e, L1);
+const x852 = a851[i851];
+const g852 = typeOf(x852);
+const b852: string[] = []; lf(x852, p + '/' + i851, b852, L0); if (b852.length) e.push(...b852);
+if (g852 === "object") {
+if (g852 === 'object') { const o852 = x852 as Record<string, unknown>;
+if (!("key" in o852)) e.push(p + '/' + i851 + "/key" + ': required');
+if (!("remote" in o852)) e.push(p + '/' + i851 + "/remote" + ': required');
+if (!("dir" in o852)) e.push(p + '/' + i851 + "/dir" + ': required');
+if ("key" in o852) lf(o852["key"], p + '/' + i851 + "/key", e, L32);
+if ("remote" in o852) lf(o852["remote"], p + '/' + i851 + "/remote", e, L1);
+if ("dir" in o852) lf(o852["dir"], p + '/' + i851 + "/dir", e, L338);
+if ("transform" in o852) lf(o852["transform"], p + '/' + i851 + "/transform", e, L1);
+if ("relation" in o852) lf(o852["relation"], p + '/' + i851 + "/relation", e, L32);
+if ("inverse" in o852) lf(o852["inverse"], p + '/' + i851 + "/inverse", e, L32);
+if ("constant" in o852) lf(o852["constant"], p + '/' + i851 + "/constant", e, L1);
 }
 }
 }

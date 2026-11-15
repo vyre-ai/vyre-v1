@@ -51,7 +51,7 @@ const mountRow = t.obj({
   lastSyncAt: t.opt(t.ts()),
   pendingChanges: t.int({ minimum: 0 }),
   conflicts: t.int({ minimum: 0 }),
-  fromDevice: t.opt(t.str({ examples: ["Irfad's MacBook"] })),
+  fromDevice: t.opt(t.str({ examples: ["Idris's MacBook"] })),
   error: t.opt(t.str()),
   // items the last pass could not bring in (a name Files cannot hold, a refused file): the mount is not failing for them; the list says why for each
   skippedCount: t.opt(t.int({ minimum: 1 })),

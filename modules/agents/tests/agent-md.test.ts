@@ -101,10 +101,10 @@ test("'Your job' is never the bare role word: 'Use me when' turns to the second 
 });
 
 test("both defaults are instructions to the agent: the sections in order, second person, imperative, no first-person sentence", () => {
-  assert.deepEqual(headsOf(ASSISTANT_AGENT_MD("Irfad’s Assistant")), ASSISTANT_HEADS);
+  assert.deepEqual(headsOf(ASSISTANT_AGENT_MD("Idris’s Assistant")), ASSISTANT_HEADS);
   assert.deepEqual(headsOf(AGENT_MD_DEFAULT("Intake", "Use me when a form arrives.")), AGENT_HEADS);
   for (const text of [
-    ASSISTANT_AGENT_MD("Irfad’s Assistant"),
+    ASSISTANT_AGENT_MD("Idris’s Assistant"),
     AGENT_MD_DEFAULT("Intake", "Use me when a form arrives."),
     AGENT_MD_DEFAULT("Scout", undefined),
   ]) {
@@ -120,11 +120,11 @@ test("both defaults are instructions to the agent: the sections in order, second
   }
   const lines = (t: string): number => t.split("\n").length - 1;
   assert.ok(
-    lines(ASSISTANT_AGENT_MD("Irfad’s Assistant")) >= 80 && lines(ASSISTANT_AGENT_MD("Irfad’s Assistant")) <= 120,
-    `assistant ${lines(ASSISTANT_AGENT_MD("Irfad’s Assistant"))} lines`,
+    lines(ASSISTANT_AGENT_MD("Idris’s Assistant")) >= 80 && lines(ASSISTANT_AGENT_MD("Idris’s Assistant")) <= 120,
+    `assistant ${lines(ASSISTANT_AGENT_MD("Idris’s Assistant"))} lines`,
   );
   assert.ok(lines(AGENT_MD_DEFAULT("Intake", "x y z w.")) <= 70);
-  const a = ASSISTANT_AGENT_MD("Irfad’s Assistant");
+  const a = ASSISTANT_AGENT_MD("Idris’s Assistant");
   for (const must of [
     "Act without asking on reversible work inside Vyre",
     "Ask once, with the draft ready",

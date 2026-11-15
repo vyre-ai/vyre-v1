@@ -7,7 +7,7 @@ test("Northwind has the prototype's people, agents, channels, Needs you items an
   const f = fixtureFor("northwind");
   assert.deepEqual(
     f.people.map((p) => p.name),
-    ["Irfad Imtiaz", "Maya Chen", "Omar Haddad", "Lena Ortiz", "Sam Patel"],
+    ["Idris Ibarra", "Maya Chen", "Omar Haddad", "Lena Ortiz", "Sam Patel"],
   );
   assert.deepEqual(
     f.agents.map((a) => a.name),
@@ -20,7 +20,7 @@ test("Northwind has the prototype's people, agents, channels, Needs you items an
   assert.equal(f.needs.length, 8);
   assert.equal(f.chats.length, 9);
   assert.equal(f.space.address, "northwind.vyre.run");
-  assert.equal(meName("northwind"), "Irfad Imtiaz");
+  assert.equal(meName("northwind"), "Idris Ibarra");
 });
 
 test("Harbor Studio has Scheduler, Proofer, the studio and galleries channels and the Moreno chats", () => {
@@ -87,9 +87,9 @@ test("an id the Space does not know shows a plain word, never the id", () => {
 });
 
 test("the extras a place adds win and join the Space's own names", () => {
-  const names = namesFor("northwind", { aut_lead: "New lead follow-up", usr_irfad: "You" });
+  const names = namesFor("northwind", { aut_lead: "New lead follow-up", usr_idris: "You" });
   assert.equal(names.aut_lead, "New lead follow-up");
-  assert.equal(names.usr_irfad, "You");
+  assert.equal(names.usr_idris, "You");
   assert.equal(names.usr_maya, "Maya Chen");
 });
 

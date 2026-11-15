@@ -25,7 +25,7 @@ const MIN = 60_000,
   HOUR = 60 * MIN;
 const DIGEST = {
   id: "dgs_1",
-  person: "usr_irfad",
+  person: "usr_idris",
   periodStart: SAMPLE_NOW - 14 * HOUR,
   periodEnd: SAMPLE_NOW,
   builtBy: "vyre",
@@ -53,7 +53,7 @@ const DIGEST = {
 };
 const PRESENCE = {
   people: [
-    { personId: "usr_irfad", state: "online", lastSeenAt: SAMPLE_NOW },
+    { personId: "usr_idris", state: "online", lastSeenAt: SAMPLE_NOW },
     { personId: "usr_priya", state: "online", lastSeenAt: SAMPLE_NOW - 2 * MIN },
     { personId: "usr_omar", state: "away", lastSeenAt: SAMPLE_NOW - 40 * MIN, awayUntil: SAMPLE_NOW + 9 * HOUR },
     { personId: "usr_maya", state: "offline", lastSeenAt: SAMPLE_NOW - 3 * HOUR },
@@ -90,7 +90,7 @@ function chats(away: boolean): ReturnType<typeof createSampleSidebar>["data"] {
 }
 
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_idris: "Idris Ibarra",
   usr_priya: "Priya Raman",
   usr_omar: "Omar Haddad",
   usr_maya: "Maya Chen",
@@ -103,9 +103,9 @@ const ROWS: Record<string, unknown> = {
   "access.principals.list": {
     principals: [
       {
-        id: "usr_irfad",
+        id: "usr_idris",
         kind: "person",
-        name: "Irfad Imtiaz",
+        name: "Idris Ibarra",
         status: "active",
         roles: ["rol_owner"],
         groups: ["grp_everyone"],
@@ -225,7 +225,7 @@ const ROWS: Record<string, unknown> = {
         kind: "agent",
         face: "intake",
         status: "awake",
-        ownerId: "usr_irfad",
+        ownerId: "usr_idris",
         folderId: "fld_a1",
         accountPolicy: "asker",
         accountFallback: [],
@@ -236,7 +236,7 @@ const ROWS: Record<string, unknown> = {
         kind: "agent",
         face: "docs",
         status: "awake",
-        ownerId: "usr_irfad",
+        ownerId: "usr_idris",
         folderId: "fld_a2",
         accountPolicy: "asker",
         accountFallback: [],
@@ -261,7 +261,7 @@ const ROWS: Record<string, unknown> = {
         name: "Team webhook",
         kind: "api_key",
         folderId: "vfd_team",
-        owner: "usr_irfad",
+        owner: "usr_idris",
         scope: "shared",
         fieldKeys: ["key"],
         handle: "#Team_webhook",
@@ -275,7 +275,7 @@ const ROWS: Record<string, unknown> = {
         name: "Stripe",
         kind: "api_key",
         folderId: "vfd_team",
-        owner: "usr_irfad",
+        owner: "usr_idris",
         scope: "shared",
         fieldKeys: ["key"],
         handle: "#Stripe",

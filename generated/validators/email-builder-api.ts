@@ -80,22 +80,22 @@ if ("email" in o605) d_s_573e287a45(o605["email"], p + "/email", e);
 
 function d_s_b2a5d50757(v: unknown, p: string, e: string[]): void {
 {
-const x879 = v;
-const g879 = typeOf(x879);
-const b879: string[] = []; lf(x879, p, b879, L0); if (b879.length) e.push(...b879);
-if (g879 === "object") {
-if (g879 === 'object') { const o879 = x879 as Record<string, unknown>;
-if (!("snippetId" in o879)) e.push(p + "/snippetId" + ': required');
-if (!("name" in o879)) e.push(p + "/name" + ': required');
-if (!("body" in o879)) e.push(p + "/body" + ': required');
-if (!("shared" in o879)) e.push(p + "/shared" + ': required');
-if (!("updatedAt" in o879)) e.push(p + "/updatedAt" + ': required');
-if ("snippetId" in o879) lf(o879["snippetId"], p + "/snippetId", e, L351);
-if ("name" in o879) lf(o879["name"], p + "/name", e, L1);
-if ("body" in o879) lf(o879["body"], p + "/body", e, L1);
-if ("shortcut" in o879) lf(o879["shortcut"], p + "/shortcut", e, L1);
-if ("shared" in o879) lf(o879["shared"], p + "/shared", e, L3);
-if ("updatedAt" in o879) lf(o879["updatedAt"], p + "/updatedAt", e, L17);
+const x878 = v;
+const g878 = typeOf(x878);
+const b878: string[] = []; lf(x878, p, b878, L0); if (b878.length) e.push(...b878);
+if (g878 === "object") {
+if (g878 === 'object') { const o878 = x878 as Record<string, unknown>;
+if (!("snippetId" in o878)) e.push(p + "/snippetId" + ': required');
+if (!("name" in o878)) e.push(p + "/name" + ': required');
+if (!("body" in o878)) e.push(p + "/body" + ': required');
+if (!("shared" in o878)) e.push(p + "/shared" + ': required');
+if (!("updatedAt" in o878)) e.push(p + "/updatedAt" + ': required');
+if ("snippetId" in o878) lf(o878["snippetId"], p + "/snippetId", e, L351);
+if ("name" in o878) lf(o878["name"], p + "/name", e, L1);
+if ("body" in o878) lf(o878["body"], p + "/body", e, L1);
+if ("shortcut" in o878) lf(o878["shortcut"], p + "/shortcut", e, L1);
+if ("shared" in o878) lf(o878["shared"], p + "/shared", e, L3);
+if ("updatedAt" in o878) lf(o878["updatedAt"], p + "/updatedAt", e, L17);
 }
 }
 }

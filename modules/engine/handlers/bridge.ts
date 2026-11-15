@@ -86,7 +86,7 @@ export type PostAs = (agentId: string, post: AgentPost) => Promise<unknown>;
 export type CallAs = (cap: string, input: unknown, personId: string) => Promise<unknown>;
 
 /**
- * "Tell Andrey the deck is ready": a name the person typed is also the teammate it names (lane l-agentdm). For each send to a bare name, every active person in the Space whose first name, last name or full
+ * "Tell Anders the deck is ready": a name the person typed is also the teammate it names (lane l-agentdm). For each send to a bare name, every active person in the Space whose first name, last name or full
  * name is that name gets a row of their own (their id), so the Gate lets an agent's message_person to them through this turn. Read as the person who typed it; a name that matches nobody adds nothing.
  */
 export async function withTeammates(

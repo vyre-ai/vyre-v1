@@ -65,11 +65,11 @@ function scripted(): { rt: ShellRuntime; calls: { cap: string; input: Record<str
     }
     throw new Error(`no answer for ${cap}`);
   };
-  const people = { status: "ready" as const, data: [{ id: "usr_me", name: "Irfad Imtiaz", kind: "person" as const }] };
+  const people = { status: "ready" as const, data: [{ id: "usr_me", name: "Idris Ibarra", kind: "person" as const }] };
   const rt = {
     call,
-    me: { id: "usr_me", name: "Irfad Imtiaz" },
-    space: { id: "mla", kind: "team", name: "My Legal Academy" },
+    me: { id: "usr_me", name: "Idris Ibarra" },
+    space: { id: "northwind", kind: "team", name: "Northwind Academy" },
     assistant: { id: "agt_assistant", name: "Assistant" },
     principals: { subscribe: () => () => undefined, getSnapshot: () => people },
     clock: () => ({ now: T0 + 60_000, offsetMin: 300 }),
@@ -101,7 +101,7 @@ test("the grid: Pinned above Others, a pin and a delete with Undo reach the note
   );
   const root = await mount(
     createRoot,
-    <NotesPage rt={rt} nameOf={(id) => (id === "usr_me" ? "Irfad Imtiaz" : id)} store={store} />,
+    <NotesPage rt={rt} nameOf={(id) => (id === "usr_me" ? "Idris Ibarra" : id)} store={store} />,
   );
   await flush();
   assert.deepEqual(cardsIn(root, "notes-pinned"), ["note-n1"]);

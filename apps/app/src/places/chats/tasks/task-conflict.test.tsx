@@ -145,8 +145,8 @@ const TASK = {
   title: "Review the lease",
   state: "todo",
   blocked: false,
-  assigned: { kind: "person", id: "usr_irfad" },
-  createdBy: "usr_irfad",
+  assigned: { kind: "person", id: "usr_idris" },
+  createdBy: "usr_idris",
   version: 4,
   blocks: [],
   actions: [],
@@ -167,7 +167,7 @@ const fixed = (snap: unknown): LiveQuery<unknown> => ({
 const PEOPLE = {
   status: "ready",
   data: [
-    { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+    { id: "usr_idris", name: "Idris Ibarra", kind: "person" },
     { id: "usr_sara", name: "Sara Lund", kind: "person" },
   ],
 } as const;
@@ -204,7 +204,7 @@ function runtime(): { rt: ShellRuntime; calls: Call[] } {
     connection: conv.data.connection,
     principals: { subscribe: () => () => undefined, getSnapshot: () => PEOPLE },
     recordTitle: () => undefined,
-    me: { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+    me: { id: "usr_idris", name: "Idris Ibarra", kind: "person" },
     clock: conv.data.clock,
     space: { id: "northwind", kind: "team", name: "Northwind" },
     assistant: { id: "agt_assistant", name: "Assistant" },
@@ -307,18 +307,18 @@ test("the description is saved against the note it started from: two saves race,
     await press(find(root, "task-brief"));
     // the description is the shared Markdown editor: its Markdown view is the field a test can type into, and Done saves what was typed
     await press(find(root, "md-view-raw"));
-    await typeInto(find(root, "markdown-editor-raw-text"), "Irfad's brief");
+    await typeInto(find(root, "markdown-editor-raw-text"), "Idris's brief");
     await press(find(root, "task-brief-done"));
     await wait(() => find(root, "task-conflict") !== null);
     assert.match(textOf(find(root, "task-conflict")), /Description/);
-    assert.match(textOf(find(root, "task-conflict")), /Irfad's brief/);
+    assert.match(textOf(find(root, "task-conflict")), /Idris's brief/);
     assert.match(textOf(find(root, "task-conflict")), /Alice's brief/);
     assert.equal(NOTES["brief"], "Alice's brief", "nothing was overwritten");
     const first = calls.filter((c) => c.cap === "tasks.working_notes.set")[0]!;
     assert.equal(first.input["expectedFrom"], "Check the renewal terms.", "it names the note it started from");
     await press(find(root, "task-conflict-save"));
     await wait(() => find(root, "task-conflict") === null);
-    assert.equal(NOTES["brief"], "Irfad's brief");
+    assert.equal(NOTES["brief"], "Idris's brief");
     assert.equal(
       calls.filter((c) => c.cap === "tasks.working_notes.set").at(-1)!.input["expectedFrom"],
       "Alice's brief",

@@ -65,7 +65,7 @@ const thread = (
   title,
   listed: true,
   planMode: false,
-  members: [{ kind: "person", id: "usr_irfad" }],
+  members: [{ kind: "person", id: "usr_idris" }],
   agents: [{ agentId: INTAKE, mode: "lead" }],
   createdAt,
   ...o,
@@ -570,7 +570,7 @@ export function createSample(
           true,
         ),
         allowed: [
-          { id: "alw_1", what: "sending an email to sara@acme.com", by: "usr_irfad", createdAt: SAMPLE_NOW - 30 * MIN },
+          { id: "alw_1", what: "sending an email to sara@acme.com", by: "usr_idris", createdAt: SAMPLE_NOW - 30 * MIN },
         ],
       },
       hk(
@@ -602,7 +602,7 @@ export function createSample(
         "check",
         { instruction: "No client names in prompts" },
         "before each message is read, no client names",
-        "usr_irfad",
+        "usr_idris",
         "admin",
         o.admin === true,
       ),
@@ -784,7 +784,7 @@ export function createSample(
     },
     "computers.wake": () => ({ computer: patchComputer({ state: "working", caption: "Waking up" }) }),
     "computers.sleep": () => ({ computer: patchComputer({ state: "asleep" }) }),
-    "computers.take_over": () => ({ computer: patchComputer({ state: "takeover", takeoverBy: "usr_irfad" }) }),
+    "computers.take_over": () => ({ computer: patchComputer({ state: "takeover", takeoverBy: "usr_idris" }) }),
     "computers.give_back": () => ({ computer: patchComputer({ state: "working" }) }),
     "computers.provision": () => ({ computer }),
     "computers.session.sign_out": (i: { site: string }) => {
@@ -800,7 +800,7 @@ export function createSample(
         validFrom: SAMPLE_NOW,
         learnedAt: SAMPLE_NOW,
         sourceKind: "manual",
-        sourceRef: "usr_irfad",
+        sourceRef: "usr_idris",
         fromMe: true,
       });
       replica.put("facts", [{ id, ...next }]);
@@ -824,7 +824,7 @@ export function createSample(
       const id = i.routineId ?? `r_new${++seq}`;
       const cur = rowsOf<Routine & Row>("routines").find((x) => x.routineId === id);
       const next: Routine = {
-        ...(cur ? strip(cur, []) : { ownerId: "usr_irfad" }),
+        ...(cur ? strip(cur, []) : { ownerId: "usr_idris" }),
         routineId: id,
         agentId: i.agentId,
         title: i.title,
@@ -868,7 +868,7 @@ export function createSample(
         listed: true,
         planMode: false,
         members: [
-          { kind: "person", id: "usr_irfad" },
+          { kind: "person", id: "usr_idris" },
           { kind: "agent", id: agentId },
         ],
         agents: [{ agentId, mode: "lead" }],
@@ -878,9 +878,9 @@ export function createSample(
     "access.principals.list": () => ({
       principals: [
         {
-          id: "usr_irfad",
+          id: "usr_idris",
           kind: "person",
-          name: "Irfad Imtiaz",
+          name: "Idris Ibarra",
           status: "active",
           roles: [],
           groups: [],
@@ -940,7 +940,7 @@ export function createSample(
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
     people: [
       { id: "usr_omar", name: "Omar Haddad", sub: "Owner" },
-      { id: "usr_irfad", name: "Irfad Imtiaz", sub: "Admin" },
+      { id: "usr_idris", name: "Idris Ibarra", sub: "Admin" },
       { id: "usr_maya", name: "Maya Chen", sub: "Intake lead" },
     ],
   };

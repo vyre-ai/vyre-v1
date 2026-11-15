@@ -155,7 +155,7 @@ test("every turn carries one line about itself: the model and effort, who pays, 
       driver: "claude_code",
       provider: "anthropic",
       kind: "subscription" as const,
-      payer: "usr_irfad",
+      payer: "usr_idris",
       reason: "starter" as const,
     },
   };

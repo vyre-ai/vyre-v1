@@ -1,4 +1,4 @@
-// Mount for TASKS_01 (lane l-tasks): the real Tasks page and task page over a runtime that answers the tasks capabilities with one Space's rows. Irfad is the reader.
+// Mount for TASKS_01 (lane l-tasks): the real Tasks page and task page over a runtime that answers the tasks capabilities with one Space's rows. Idris is the reader.
 //   ?view=list     Tasks, Mine: While you were away on top, Needs you with a review handed to him, work sent back by Omar's private agent ("Omar Reyes (Agent)"), a team task to Take and a
 //                  question, then Now, Next and Waiting on others (a team task Sara took).
 //   ?view=review   the task page of the review: the baton path by name, Approve and Send back.
@@ -20,9 +20,9 @@ export const title = "Tasks: your turn, teams, moves from your seat";
 
 const NOW = Date.UTC(2026, 10, 3, 9, 30);
 const DAY = 86_400_000;
-const ME = "usr_irfad";
+const ME = "usr_idris";
 const PEOPLE = [
-  { id: ME, name: "Irfad Imtiaz", kind: "person" },
+  { id: ME, name: "Idris Ibarra", kind: "person" },
   { id: "usr_maya", name: "Maya Lin", kind: "person" },
   { id: "usr_sara", name: "Sara Khan", kind: "person" },
   { id: "usr_omar", name: "Omar Reyes", kind: "person" },
@@ -248,7 +248,7 @@ function runtime(): unknown {
     screens,
     call: async (cap: string, input: Row) => answer(cap, input),
     principals: live(PEOPLE),
-    me: { id: ME, name: "Irfad Imtiaz" },
+    me: { id: ME, name: "Idris Ibarra" },
     assistant: { id: "agt_assistant", name: "Assistant" },
     clock: () => ({ now: NOW, offsetMin: 300 }),
     recordTitle: () => undefined,
@@ -313,7 +313,7 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
       },
     };
     return createThemeController({
-      personId: "irfad",
+      personId: "idris",
       spaceId: "nw",
       spaceSkin: { nw: skin },
       prefersDark: skin === "graphite",

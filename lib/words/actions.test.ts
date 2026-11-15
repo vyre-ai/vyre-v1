@@ -18,8 +18,8 @@ test("acts read as sentences", () => {
     "Tom Reyes changed the record Acme Legal",
   );
   assert.equal(
-    actionSentence({ who: "Irfad", action: "agents.delete", thing: "Dex", forWho: "Andrey" }),
-    "Irfad deleted the agent Dex, for Andrey",
+    actionSentence({ who: "Idris", action: "agents.delete", thing: "Dex", forWho: "Anders" }),
+    "Idris deleted the agent Dex, for Anders",
   );
   assert.equal(actionSentence({ who: "Someone", action: "audit.viewed" }), "Someone opened the audit log");
   assert.equal(actionSentence({ who: "Aliza", action: "agents.create" }), "Aliza created an agent");

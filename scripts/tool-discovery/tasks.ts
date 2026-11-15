@@ -236,7 +236,7 @@ export const TASKS: Task[] = [
   {
     id: "vault-request",
     area: "vault",
-    prompt: "I need the Stripe key; ask Irfad for it.",
+    prompt: "I need the Stripe key; ask Idris for it.",
     place: chat,
     steps: [{ tool: "vault_request", natural: "request secret", refined: "vault request" }],
   },

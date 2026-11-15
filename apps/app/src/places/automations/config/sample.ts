@@ -92,7 +92,7 @@ export const RECORD_FIELDS: Record<string, RecordFields> = {
 export const DIRECTORY: Record<SampleSpace["id"], ConfigDirectory> = {
   northwind: {
     people: [
-      { id: "usr_irfad", name: "Irfad Imtiaz" },
+      { id: "usr_idris", name: "Idris Ibarra" },
       { id: "usr_maya", name: "Maya Chen" },
       { id: "usr_omar", name: "Omar Haddad" },
       { id: "usr_lena", name: "Lena Ortiz" },
@@ -182,7 +182,7 @@ export function createConfigSample(space: SampleSpace = northwind): ConfigSample
       followers: ["usr_maya"],
       alerts: {
         who: [
-          { kind: "person", id: "usr_irfad" },
+          { kind: "person", id: "usr_idris" },
           { kind: "person", id: "usr_maya" },
         ],
         when: { mode: "every" },
@@ -193,7 +193,7 @@ export function createConfigSample(space: SampleSpace = northwind): ConfigSample
     patchAuto("aut_invoice", {
       followers: ["usr_omar"],
       alerts: {
-        who: [{ kind: "person", id: "usr_irfad" }],
+        who: [{ kind: "person", id: "usr_idris" }],
         when: { mode: "after_n", n: 3 },
         where: { needsYou: true, dm: true },
         escalation: [{ to: { kind: "group", id: "grp_admins" }, afterHours: 2 }],
@@ -233,7 +233,7 @@ export function createConfigSample(space: SampleSpace = northwind): ConfigSample
           {
             id: "s1",
             resourceId: "aut_lead",
-            subject: { kind: "person", id: "usr_irfad" },
+            subject: { kind: "person", id: "usr_idris" },
             level: "manage",
             through: "owner",
           },

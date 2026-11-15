@@ -6,7 +6,7 @@ import type { Link, Rule, Run } from "./model.ts";
 export const NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const min = 60_000;
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_idris: "Idris Ibarra",
   usr_maya: "Maya Chen",
   usr_lena: "Lena Ortiz",
   agt_assistant: "Assistant",
@@ -39,7 +39,7 @@ export const LINKS = (): Link[] => [
     addedBy: "agt_assistant",
     ruleId: "rul_1",
   }),
-  link("lnk_4", "file", "fil_1", { label: "Service agreement", state: "Edited 2025-10-24", addedBy: "usr_irfad" }),
+  link("lnk_4", "file", "fil_1", { label: "Service agreement", state: "Edited 2025-10-24", addedBy: "usr_idris" }),
   link("lnk_5", "file", "fil_fee", { addedBy: "usr_lena" }),
   link("lnk_6", "chat", "thr_intake", { label: "#intake", state: "Open" }),
   link("lnk_7", "github.pr", "northwind/website#214", {
@@ -61,7 +61,7 @@ export const LINKS = (): Link[] => [
   link("lnk_9", "artifact", "sit_pricing", {
     label: "Pricing comparison",
     state: "Edited 2025-10-24",
-    addedBy: "usr_irfad",
+    addedBy: "usr_idris",
   }),
 ];
 export const RULES = (): Rule[] => [
@@ -149,7 +149,7 @@ export function createSampleLinked(
         return { links: state.links.map((l) => ({ ...l })), rules: state.rules.map((r) => ({ ...r })) };
       case "projects.links.link": {
         const l = link(`lnk_${++n}`, i["kind"] as Link["kind"], String(i["ref"]), {
-          addedBy: o.me ?? "usr_irfad",
+          addedBy: o.me ?? "usr_idris",
           ...(i["label"] ? { label: String(i["label"]) } : {}),
           ...(i["state"] ? { state: String(i["state"]) } : {}),
           ...(i["url"] ? { url: String(i["url"]) } : {}),
@@ -171,7 +171,7 @@ export function createSampleLinked(
           ...(r["field"] ? { field: String(r["field"]) } : {}),
           ...(r["equals"] ? { equals: String(r["equals"]) } : {}),
           ...(r["domain"] ? { domain: String(r["domain"]) } : {}),
-          by: "usr_irfad",
+          by: "usr_idris",
           at: NOW,
         }));
         state.rules = next;
@@ -224,7 +224,7 @@ export function createSampleLinked(
     spaceId: "spc_nw",
     call,
     nameOf: (id) => NAMES[id] ?? id,
-    me: { id: o.me ?? "usr_irfad", name: "Irfad Imtiaz" },
+    me: { id: o.me ?? "usr_idris", name: "Idris Ibarra" },
     now: () => NOW,
     nav: {
       openChannel: (id) => void opened.push(`channel:${id}`),

@@ -177,7 +177,7 @@ test("on your own message the sheet ends with Delete, alone and in the danger co
   const mine = {
     ...reply,
     messageId: "m_mine",
-    author: { kind: "person", id: "usr_irfad" },
+    author: { kind: "person", id: "usr_idris" },
     kind: "text",
     body: "Book 2pm.",
   } as unknown as Message;
@@ -234,7 +234,7 @@ test("a row of the sheet does what it says, on that message: Make a task calls m
   const m = media(true);
   const made: string[] = [];
   const reacted: string[] = [];
-  const given = { ...reply, reactions: [{ emoji: "\u{1F44D}", by: ["usr_irfad"] }] } as unknown as Message;
+  const given = { ...reply, reactions: [{ emoji: "\u{1F44D}", by: ["usr_idris"] }] } as unknown as Message;
   const { root, restore } = await rig(m, given, { made, reacted });
   try {
     await longPress(root);

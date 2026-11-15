@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regen bot (ruling 22), run by .github/workflows/regen.yml on a build/* branch after manifests/ or host/modules.json changed.
 #   1. node tools/gen/src/cli.ts writes generated/ in place.
-#   2. npm install --package-lock-only refreshes package-lock.json. If generated/ or the lockfile differs, commit it as Irfad Imtiaz with "chore(gen): regenerate" and push to the same branch.
+#   2. npm install --package-lock-only refreshes package-lock.json. If generated/ or the lockfile differs, commit it as Idris Ibarra with "chore(gen): regenerate" and push to the same branch.
 #   3. Rerun the checks on the resulting head (contracts gate, then the affected tests) and publish the result as the
 #      commit status "regen-checks". Needed because a GITHUB_TOKEN push does not trigger the check workflow.
 # Env: BRANCH, PUSHED_SHA, BEFORE (optional), GH_TOKEN, REPO. Local dry run: DRY_RUN=1 skips push and statuses.
@@ -59,7 +59,7 @@ while :; do
     echo "regen: generated/ already matches the manifests, nothing to commit"
     break
   fi
-  git config user.name "Irfad Imtiaz"
+  git config user.name "Idris Ibarra"
   git config user.email "130136633+irfad7@users.noreply.github.com"
   gen_changed="$(git status --porcelain -- generated $SNAP package-lock.json)"
   seed_changed="$(git status --porcelain -- $SEED)"

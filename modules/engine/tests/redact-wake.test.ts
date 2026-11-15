@@ -14,7 +14,7 @@ import type { EngineHostSeam } from "../runtime.ts";
 const THREAD = "thr_redact";
 const logs: string[] = [];
 const THREADS = [
-  { threadId: THREAD, kind: "chat", starter: "usr_irfad", agents: [{ agentId: "agt_intake", mode: "lead" as const }] },
+  { threadId: THREAD, kind: "chat", starter: "usr_idris", agents: [{ agentId: "agt_intake", mode: "lead" as const }] },
 ];
 const say: DriverEvent[] = [
   { type: "text", text: "Reading it now." },
@@ -33,15 +33,15 @@ function hostFor(
     async call(cap) {
       if (cap === "engine.account.resolve")
         return {
-          accountRef: "#Irfad_Anthropic",
-          payer: "usr_irfad",
+          accountRef: "#Idris_Anthropic",
+          payer: "usr_idris",
           reason: "starter",
           allowed: true,
           itemId: "vit_aaaaaaaaaaaa",
         };
       if (cap === "engine.accounts.list")
-        return { accounts: [{ ref: "#Irfad_Anthropic", driver: "claude_code", kind: "subscription", status: "ok" }] };
-      if (cap === "access.principals.get") return { principal: { name: "Irfad Imtiaz" } };
+        return { accounts: [{ ref: "#Idris_Anthropic", driver: "claude_code", kind: "subscription", status: "ok" }] };
+      if (cap === "access.principals.get") return { principal: { name: "Idris Ibarra" } };
       if (cap === "engine.turn.record_usage") return {};
       if (cap === "threads.get") return { thread: THREADS[0] };
       return {};
@@ -68,7 +68,7 @@ test("the request card goes into the chat it was asked in, as the agent, with th
         fileId: "fil_ret",
         name: "Rivera retainer.pdf",
         agentId: "agt_intake",
-        actingFor: "usr_irfad",
+        actingFor: "usr_idris",
         threadId: THREAD,
       },
     } as never,
@@ -93,7 +93,7 @@ test("the request card goes into the chat it was asked in, as the agent, with th
     await consumers["engine.redact_requested"].run(
       h.ctx as never,
       {
-        payload: { requestId: "rrq_2", fileId: "fil_ret", name: "x", agentId: "agt_intake", actingFor: "usr_irfad" },
+        payload: { requestId: "rrq_2", fileId: "fil_ret", name: "x", agentId: "agt_intake", actingFor: "usr_idris" },
       } as never,
     ),
     [],
@@ -123,9 +123,9 @@ test("Done wakes the agent in that chat with a note to read the redacted version
         requestId: "rrq_1",
         fileId: "fil_ret",
         name: "Rivera retainer.pdf",
-        by: "usr_irfad",
+        by: "usr_idris",
         agentId: "agt_intake",
-        actingFor: "usr_irfad",
+        actingFor: "usr_idris",
         threadId: THREAD,
       },
     } as never,
@@ -133,11 +133,11 @@ test("Done wakes the agent in that chat with a note to read the redacted version
   assert.deepEqual(done, ["rrq_1"], logs.join("\n"));
   assert.deepEqual(woke, [`${THREAD}:agt_intake`]);
   assert.equal(notes.length, 1);
-  assert.match(notes[0]!, /Irfad Imtiaz reviewed Rivera retainer\.pdf/);
+  assert.match(notes[0]!, /Idris Ibarra reviewed Rivera retainer\.pdf/);
   assert.match(notes[0]!, /\[REDACTED\]/);
   assert.match(notes[0]!, /Do not guess/);
   assert.deepEqual(posts.at(-1)!.post.blocks, [
-    { type: "turn_status", v: 1, data: { state: "note", text: "Reviewed by Irfad Imtiaz" } },
+    { type: "turn_status", v: 1, data: { state: "note", text: "Reviewed by Idris Ibarra" } },
   ]);
   hostSeams.setEngineHost(null);
 });

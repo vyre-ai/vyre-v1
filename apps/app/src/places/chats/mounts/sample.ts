@@ -28,7 +28,7 @@ export const RECORDING = "rec_1";
 export const HELPER = "h1";
 
 export const PEOPLE: Principal[] = [
-  { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+  { id: "usr_idris", name: "Idris Ibarra", kind: "person" },
   { id: "usr_omar", name: "Omar Haddad", kind: "person" },
   { id: "usr_maya", name: "Maya Chen", kind: "person" },
   { id: "agt_intake", name: "Intake", kind: "agent" },
@@ -129,7 +129,7 @@ export function createMountSample(
     },
     {
       id: "trm_old",
-      ...term("trm_old", "Invoice export", "device", "irfad-macbook", {
+      ...term("trm_old", "Invoice export", "device", "idris-macbook", {
         state: "exited",
         exitCode: 0,
         lastActiveAt: at(7, 45),
@@ -173,7 +173,7 @@ export function createMountSample(
       visibility: "invite",
       archived: false,
       members: [
-        { kind: "person", id: "usr_irfad" },
+        { kind: "person", id: "usr_idris" },
         { kind: "person", id: "usr_maya" },
       ],
       agents: [{ agentId: "agt_intake", mode: "lead" }],
@@ -252,7 +252,7 @@ export function createMountSample(
     title: threadId,
     listed: true,
     planMode: false,
-    members: [{ kind: "person", id: "usr_irfad" }],
+    members: [{ kind: "person", id: "usr_idris" }],
     agents: [{ agentId: "agt_intake", mode: "lead" }],
     createdAt: at(9, 0),
   });
@@ -267,7 +267,7 @@ export function createMountSample(
       input.name ??
         (host === "space_server" ? "Space server" : host === "device" ? "This computer" : "Intake's computer"),
       host,
-      host === "space_server" ? "Space server" : host === "device" ? "irfad-macbook" : "Intake's computer",
+      host === "space_server" ? "Space server" : host === "device" ? "idris-macbook" : "Intake's computer",
       {
         ...(host === "agent_computer"
           ? { agentId: input.agentId ?? "agt_intake", computerId: input.computerId ?? COMPUTER }

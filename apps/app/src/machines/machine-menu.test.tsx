@@ -30,7 +30,7 @@ const base = (o: Partial<MachineRow> & { serverId: string; name: string }): Mach
 const space = base({ serverId: "space", name: "Northwind server", kind: "space" });
 const box = base({ serverId: "srv_box", name: "Berlin box" });
 const maya = base({ serverId: "dev_maya", name: "Maya's MacBook", kind: "linked", owner: "usr_maya", private: true });
-const mine = base({ serverId: "dev_me", name: "Irfad's MacBook", kind: "linked", mine: true, owner: "usr_me" });
+const mine = base({ serverId: "dev_me", name: "Idris's MacBook", kind: "linked", mine: true, owner: "usr_me" });
 const out = (ms: MachineRow[], admin: boolean): MachinesOut => ({
   machines: ms,
   waiting: [],

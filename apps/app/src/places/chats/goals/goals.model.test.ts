@@ -28,7 +28,7 @@ const line = (over: Partial<GoalLine> = {}): GoalLine => ({
   id: "gol_lab8",
   title: "300 registrations for Lab 8",
   status: "active",
-  owner: "usr_irfad",
+  owner: "usr_idris",
   leadAgentId: "agt_desk",
   threadId: "thr_g",
   deadline: NOW + 4 * DAY,
@@ -39,8 +39,8 @@ const line = (over: Partial<GoalLine> = {}): GoalLine => ({
 });
 
 test("a goal's row says what changes what you do first, else the number and the next check-in", () => {
-  assert.deepEqual(rowNote(line(), NOW, PKT, "usr_irfad"), { text: "212 / 300 · Check-in Tomorrow 9:00 AM" });
-  assert.deepEqual(rowNote(line({ status: "waiting" }), NOW, PKT, "usr_irfad"), {
+  assert.deepEqual(rowNote(line(), NOW, PKT, "usr_idris"), { text: "212 / 300 · Check-in Tomorrow 9:00 AM" });
+  assert.deepEqual(rowNote(line({ status: "waiting" }), NOW, PKT, "usr_idris"), {
     lead: "Waiting on you",
     tone: "need",
     text: "212 / 300",

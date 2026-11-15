@@ -25,7 +25,7 @@ test("a request names its act and target", () => {
 });
 
 test("reaching a teammate: tell, ask, remind, ping and let ... know count only with a name", () => {
-  assert.deepEqual(acts("tell Andrey the deck is ready"), ["send:andrey"]);
+  assert.deepEqual(acts("tell Anders the deck is ready"), ["send:anders"]);
   assert.deepEqual(acts("please ask Rubab for the Fathom key"), ["send:rubab"]);
   assert.deepEqual(acts("let Sam know I will be late"), ["send:sam"]);
   assert.deepEqual(acts("remind Lee about Friday"), ["send:lee"]);
@@ -33,7 +33,7 @@ test("reaching a teammate: tell, ask, remind, ping and let ... know count only w
     "tell me what you find",
     "let me know when it is done",
     "ask the team",
-    "don't tell Andrey yet",
+    "don't tell Anders yet",
     "can you tell us more?",
   ])
     assert.deepEqual(acts(s), [], s);

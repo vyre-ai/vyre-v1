@@ -7,9 +7,9 @@ INSERT INTO "access_roles" ("id","name","builtIn","clearance","assignableToAgent
 INSERT INTO "access_roles" ("id","name","builtIn","clearance","assignableToAgents","permissions","version") VALUES ('rol_guest', 'Guest', 1, 'public', 1, '[]', 1);
 
 -- people
-INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('usr_irfad', 'Irfad Imtiaz', 'person', NULL, 'active', '["rol_owner"]', '[]', 'irfadimtiaz7@gmail.com', 1760000000000, 1);
+INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('usr_idris', 'Idris Ibarra', 'person', NULL, 'active', '["rol_owner"]', '[]', 'idris@northwind.example', 1760000000000, 1);
 
 -- agents
-INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_assistant', 'Assistant', 'agent', 'usr_irfad', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
+INSERT INTO "access_principals" ("id","name","kind","owner","status","roles","groups","title","createdAt","version") VALUES ('agt_assistant', 'Assistant', 'agent', 'usr_idris', 'active', '["rol_member"]', '[]', NULL, 1760000000000, 1);
 
 -- companies and contacts

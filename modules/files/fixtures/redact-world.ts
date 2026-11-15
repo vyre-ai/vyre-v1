@@ -74,17 +74,17 @@ export function redactWorld(sql: SqlDb) {
     } as unknown as Ctx;
     return ctx;
   };
-  const irfad = ctxFor({ kind: "person", id: "usr_irfad" });
+  const idris = ctxFor({ kind: "person", id: "usr_idris" });
   const call = (ctx: Ctx, cap: string, input: unknown = {}): Promise<any> =>
     (handlers as unknown as Record<string, H>)[cap]!(ctx, input); // eslint-disable-line @typescript-eslint/no-explicit-any
 
   async function folder(parentId: string, name: string): Promise<string> {
-    return (await call(irfad, "files.folder.create", { parentId, name, idempotencyKey: `f-${parentId}-${name}` }))
+    return (await call(idris, "files.folder.create", { parentId, name, idempotencyKey: `f-${parentId}-${name}` }))
       .folder.folderId;
   }
   async function file(folderId: string, name: string, text: string, mime = "text/plain"): Promise<string> {
     return (
-      await call(irfad, "files.create", {
+      await call(idris, "files.create", {
         folderId,
         name,
         mime,
@@ -94,14 +94,14 @@ export function redactWorld(sql: SqlDb) {
     ).file.fileId;
   }
   async function write(fileId: string, text: string): Promise<void> {
-    const cur = (await call(irfad, "files.get", { fileId })).file.version;
-    await call(irfad, "files.write", { fileId, content: { text }, baseVersion: cur, reason: "new version" });
+    const cur = (await call(idris, "files.get", { fileId })).file.version;
+    await call(idris, "files.write", { fileId, content: { text }, baseVersion: cur, reason: "new version" });
   }
   async function roots(): Promise<Record<string, string>> {
-    const tree = (await call(irfad, "files.tree", {})) as { roots: { key: string; folderId?: string }[] };
+    const tree = (await call(idris, "files.tree", {})) as { roots: { key: string; folderId?: string }[] };
     return Object.fromEntries(tree.roots.filter((r) => r.folderId).map((r) => [r.key, r.folderId!]));
   }
-  return { sql, db, events, ctxFor, irfad, call, folder, file, write, roots, done: () => configureFilesHost(null) };
+  return { sql, db, events, ctxFor, idris, call, folder, file, write, roots, done: () => configureFilesHost(null) };
 }
 
 export const INTAKE = [

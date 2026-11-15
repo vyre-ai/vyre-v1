@@ -31,7 +31,7 @@ const NOV4 = Date.UTC(2026, 10, 4, 9, 0);
 const NAMES: Record<string, string> = {
   usr_dana: "Dana Ortiz",
   usr_maya: "Maya Chen",
-  usr_irfad: "Irfad Imtiaz",
+  usr_idris: "Idris Ibarra",
   usr_sara: "Sara Malik",
   agt_mira: "Mira",
   agt_ember: "Ember",
@@ -151,7 +151,7 @@ export function scripted(kind: string): Call {
           agents: [],
           policy: { scriptsAdminOnly: true },
           admin: true,
-          me: "usr_irfad",
+          me: "usr_idris",
           space: [],
           mine: [
             {
@@ -244,7 +244,7 @@ export function scripted(kind: string): Call {
           revisions: [
             {
               rev: 1,
-              by: "usr_irfad",
+              by: "usr_idris",
               authorKind: "person",
               version: "1.2.0",
               summary: "Installed from a link · a41f9c2",
@@ -274,7 +274,7 @@ function useSkin(skin: string): void {
       },
     };
     return createThemeController({
-      personId: "irfad",
+      personId: "idris",
       spaceId: "nw",
       spaceSkin: { nw: skin },
       prefersDark: skin === "graphite",

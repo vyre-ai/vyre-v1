@@ -6,13 +6,13 @@ import {
   DAY,
   GB,
   HOUR,
-  IRFAD,
+  IDRIS,
   MAYA,
   MIN,
   T0,
   admin,
   host,
-  irfad,
+  idris,
   maya,
   report,
   world,
@@ -20,14 +20,14 @@ import {
 import { compact } from "../projections.ts";
 
 const SRV = "srv_berlin1";
-const IRFAD_MAC = "device:dev_irfadmac";
+const IDRIS_MAC = "device:dev_idrismac";
 const MAYA_AIR = "device:dev_mayaair";
 
 function fleet(f: Parameters<typeof world>[0] = {}) {
   const w = world({
     servers: [{ serverId: SRV, name: "Berlin box" }],
     devices: [
-      { id: "dev_irfadmac", name: "Irfad's MacBook Pro", person: IRFAD },
+      { id: "dev_idrismac", name: "Idris's MacBook Pro", person: IDRIS },
       { id: "dev_mayaair", name: "Maya's MacBook Air", person: MAYA },
     ],
     ...f,
@@ -43,10 +43,10 @@ function fleet(f: Parameters<typeof world>[0] = {}) {
     "server",
     "Berlin box",
     report({ cpu: 46, mem: 66, cores: 4, can: ["claude_code", "docker"], turns: 2 }),
-    { ownerId: IRFAD, latencyMs: 34 },
+    { ownerId: IDRIS, latencyMs: 34 },
   );
-  w.feed(IRFAD_MAC, "computer", "Irfad's MacBook Pro", report({ cpu: 58, mem: 81, turns: 4 }), {
-    ownerId: IRFAD,
+  w.feed(IDRIS_MAC, "computer", "Idris's MacBook Pro", report({ cpu: 58, mem: 81, turns: 4 }), {
+    ownerId: IDRIS,
     latencyMs: 18,
   });
   w.feed(MAYA_AIR, "computer", "Maya's MacBook Air", report({ cpu: 22, mem: 58, turns: 1, vyreCpu: 5 }), {
@@ -61,7 +61,7 @@ test("a report makes a row; the admin's list shows every machine with its load, 
   const { machines, summary } = await w.call("machines.list", {}, admin);
   assert.deepEqual(
     machines.map((m: { machineId: string }) => m.machineId),
-    ["space", SRV, IRFAD_MAC, MAYA_AIR],
+    ["space", SRV, IDRIS_MAC, MAYA_AIR],
   );
   const space = machines[0];
   assert.equal(space.kind, "space");
@@ -116,8 +116,8 @@ test("an admin sees only name, online, capacity and Vyre's own work on a member'
   assert.equal(own.diskBytes, 500 * GB);
   assert.equal("vyreLoad" in own, false);
   // the admin's own computer is theirs in full, and a server is not a member's private machine
-  const mine = (await w.call("machines.list", {}, { ...admin, id: IRFAD })).machines.find(
-    (m: { machineId: string }) => m.machineId === IRFAD_MAC,
+  const mine = (await w.call("machines.list", {}, { ...admin, id: IDRIS })).machines.find(
+    (m: { machineId: string }) => m.machineId === IDRIS_MAC,
   );
   assert.equal(mine.restricted, false);
   assert.equal(
@@ -245,7 +245,7 @@ test("machines.set: the owner names and limits their server, an admin may drain 
   const r1 = await w.call(
     "machines.set",
     { machineId: SRV, nickname: "Berlin", maxTurns: 6, maxAgentComputers: 3 },
-    { ...irfad },
+    { ...idris },
   );
   assert.equal(r1.machine.name, "Berlin");
   assert.equal(r1.machine.limits.maxTurns, 6);
@@ -261,7 +261,7 @@ test("machines.set: the owner names and limits their server, an admin may drain 
     w.call("machines.set", { machineId: MAYA_AIR, maxTurns: 9 }, admin),
     /Only the person it belongs to/,
   );
-  await assert.rejects(w.call("machines.set", { machineId: MAYA_AIR, drain: false }, irfad), /not in this Space/);
+  await assert.rejects(w.call("machines.set", { machineId: MAYA_AIR, drain: false }, idris), /not in this Space/);
   await assert.rejects(w.call("machines.set", { machineId: "space", drain: true }, maya), /not in this Space/);
   const ok = await w.call(
     "machines.set",
@@ -285,12 +285,12 @@ test("machines.set: the owner names and limits their server, an admin may drain 
 test("alerts: disk under 10%, memory pressure with yesterday's number, offline with pinned work, update waiting, backup failed", async () => {
   const w = fleet({ updates: { current: "1.4.1", available: "1.4.2" }, backup: { state: "down" } });
   w.advance(MIN);
-  w.feed(SRV, "server", "Berlin box", report({ diskFree: 6, mem: 40 }), { ownerId: IRFAD });
+  w.feed(SRV, "server", "Berlin box", report({ diskFree: 6, mem: 40 }), { ownerId: IDRIS });
   w.advance(DAY);
-  w.feed(SRV, "server", "Berlin box", report({ diskFree: 6, mem: 90, version: "1.4.0" }), { ownerId: IRFAD });
+  w.feed(SRV, "server", "Berlin box", report({ diskFree: 6, mem: 90, version: "1.4.0" }), { ownerId: IDRIS });
   w.feed("space", "space", "Northwind server", report({ version: "1.4.1" }));
   w.feed(MAYA_AIR, "computer", "Maya's MacBook Air", report({ diskFree: 3, mem: 95 }), { ownerId: MAYA });
-  await w.call("machines.set", { machineId: IRFAD_MAC, pinAgent: { agentId: "agt_scout", pinned: true } }, irfad);
+  await w.call("machines.set", { machineId: IDRIS_MAC, pinAgent: { agentId: "agt_scout", pinned: true } }, idris);
   const kinds = (a: Array<{ kind: string; machineId: string }>) => a.map((x) => `${x.kind}:${x.machineId}`).sort();
   const adminAlerts = (await w.call("machines.alerts", {}, admin)).alerts;
   assert.deepEqual(
@@ -299,7 +299,7 @@ test("alerts: disk under 10%, memory pressure with yesterday's number, offline w
       `backup_failed:space`,
       `disk_low:${SRV}`,
       `memory_pressure:${SRV}`,
-      `offline_pinned:${IRFAD_MAC}`,
+      `offline_pinned:${IDRIS_MAC}`,
       `update_waiting:${SRV}`,
       `update_waiting:space`,
     ].sort(),
@@ -319,8 +319,8 @@ test("alerts: disk under 10%, memory pressure with yesterday's number, offline w
 test("machines.rooms: the score the Machines page shows is the score placement gets, with the words for why", async () => {
   const w = fleet();
   const r = await w.rooms();
-  assert.equal(r[IRFAD_MAC]!.score, 0);
-  assert.equal(r[IRFAD_MAC]!.why, "4 of 4 turns");
+  assert.equal(r[IDRIS_MAC]!.score, 0);
+  assert.equal(r[IDRIS_MAC]!.why, "4 of 4 turns");
   assert.equal(r["space"]!.score > 0, true);
   const list = (await w.call("machines.list", {}, admin)).machines;
   for (const m of list) assert.equal(m.room.score, r[m.machineId]!.score);
@@ -333,7 +333,7 @@ test("a removed server or a signed-out computer leaves the list", async () => {
   const w = fleet();
   w.state.fakes.servers = [];
   w.state.fakes.devices = [
-    { id: "dev_irfadmac", name: "x", person: IRFAD, revokedAt: T0 },
+    { id: "dev_idrismac", name: "x", person: IDRIS, revokedAt: T0 },
     { id: "dev_mayaair", name: "Maya's MacBook Air", person: MAYA },
   ];
   const ids = (await w.call("machines.list", {}, admin)).machines.map((m: { machineId: string }) => m.machineId);
@@ -363,8 +363,8 @@ void ADMIN;
 test("machines.rooms: a person asks for their own machines and the Space's and gets no words about another person's CPU or disk", async () => {
   const w = fleet();
   w.feed(MAYA_AIR, "computer", "Maya's MacBook Air", report({ cpu: 99 }), { ownerId: MAYA });
-  const mine = await w.rooms(irfad);
-  assert.equal(mine[IRFAD_MAC]!.why, "4 of 4 turns");
+  const mine = await w.rooms(idris);
+  assert.equal(mine[IDRIS_MAC]!.why, "4 of 4 turns");
   assert.equal(mine[MAYA_AIR], undefined, "another member's computer is not one to place on, and not one to ask about");
   const asAdmin = await w.rooms(admin);
   assert.equal(asAdmin[MAYA_AIR]!.why, "busy", "an admin sees that it is busy and not why");
@@ -378,13 +378,13 @@ test("a machine's page: its findings with the Fix to press, the work on it, and 
     turns: [
       {
         agentId: "agt_scout",
-        asker: IRFAD,
+        asker: IDRIS,
         startedAt: T0 - 5 * MIN,
-        where: { kind: "computer", name: "Irfad's MacBook Pro", nodeId: IRFAD_MAC },
+        where: { kind: "computer", name: "Idris's MacBook Pro", nodeId: IDRIS_MAC },
       },
       {
         agentId: "agt_billing",
-        asker: IRFAD,
+        asker: IDRIS,
         startedAt: T0 - 9 * MIN,
         where: { kind: "space", name: "the Space's server" },
       },
@@ -402,7 +402,7 @@ test("a machine's page: its findings with the Fix to press, the work on it, and 
     ],
     automations: [{ name: "Invoice reminders" }],
   });
-  w.feed(SRV, "server", "Berlin box", report({ diskFree: 6, mem: 90, version: "1.4.0" }), { ownerId: IRFAD });
+  w.feed(SRV, "server", "Berlin box", report({ diskFree: 6, mem: 90, version: "1.4.0" }), { ownerId: IDRIS });
   const box = await w.call("machines.get", { machineId: SRV }, admin);
   const fixOf = (g: { findings: Array<{ key: string; fix: string | null; state: string }> }, key: string) =>
     g.findings.find((f) => f.key === key);
@@ -421,7 +421,7 @@ test("a machine's page: its findings with the Fix to press, the work on it, and 
     ],
     "live turns, live sites on the server (not on an agent computer, not stopped ones) and automations that are on",
   );
-  const mac = await w.call("machines.get", { machineId: IRFAD_MAC }, irfad);
+  const mac = await w.call("machines.get", { machineId: IDRIS_MAC }, idris);
   assert.deepEqual(
     mac.work.map((x: { agentId?: string }) => x.agentId),
     ["agt_scout"],
@@ -483,12 +483,12 @@ test("Recent moves: the engine records each move; an admin reads all of them, a 
   w.advance(MIN);
   await w.call(
     "machines.move_record",
-    { asker: IRFAD, from: "Irfad's MacBook Pro", to: "Northwind server", why: "it is draining" },
+    { asker: IDRIS, from: "Idris's MacBook Pro", to: "Northwind server", why: "it is draining" },
     host,
   );
   assert.deepEqual(
     (await w.call("machines.moves", {}, admin)).moves.map((m: { from: string; to: string }) => `${m.from} > ${m.to}`),
-    ["Irfad's MacBook Pro > Northwind server", "Maya's MacBook Air > Berlin box"],
+    ["Idris's MacBook Pro > Northwind server", "Maya's MacBook Air > Berlin box"],
     "newest first",
   );
   assert.deepEqual(
@@ -522,27 +522,27 @@ test("machine.changed: drain, limits, running out of room and having room again,
   await w.call("machines.alerts_notify", {}, host);
   assert.deepEqual(
     told(),
-    [`${SRV}:full`, `${IRFAD_MAC}:full`],
-    "Berlin box (2 of 2 turns, as limited above) and Irfad's computer (4 of 4) are full: told once",
+    [`${SRV}:full`, `${IDRIS_MAC}:full`],
+    "Berlin box (2 of 2 turns, as limited above) and Idris's computer (4 of 4) are full: told once",
   );
-  w.feed(IRFAD_MAC, "computer", "Irfad's MacBook Pro", report({ cpu: 20, mem: 40, turns: 0 }), { ownerId: IRFAD });
+  w.feed(IDRIS_MAC, "computer", "Idris's MacBook Pro", report({ cpu: 20, mem: 40, turns: 0 }), { ownerId: IDRIS });
   w.state.events.length = 0;
   await w.call("machines.alerts_notify", {}, host);
-  assert.deepEqual(told(), [`${IRFAD_MAC}:room`]);
+  assert.deepEqual(told(), [`${IDRIS_MAC}:room`]);
   await assert.rejects(w.call("machines.alerts_notify", {}, admin), /Only the host/);
 });
 
 test("alerts reach the Inbox once while they last, and again after they cleared", async () => {
   const w = fleet({ backup: { state: "down" } });
   const sent = () => w.state.events.filter((e) => e.name === "machine.alert").length;
-  w.feed(SRV, "server", "Berlin box", report({ diskFree: 5 }), { ownerId: IRFAD });
+  w.feed(SRV, "server", "Berlin box", report({ diskFree: 5 }), { ownerId: IDRIS });
   assert.equal((await w.call("machines.alerts_notify", {}, host)).sent, 2, "the disk and the failed backup");
   assert.equal((await w.call("machines.alerts_notify", {}, host)).sent, 0);
   assert.equal(sent(), 2);
-  w.feed(SRV, "server", "Berlin box", report({ diskFree: 60 }), { ownerId: IRFAD });
+  w.feed(SRV, "server", "Berlin box", report({ diskFree: 60 }), { ownerId: IDRIS });
   await w.call("machines.alerts_notify", {}, host);
   w.advance(MIN);
-  w.feed(SRV, "server", "Berlin box", report({ diskFree: 5 }), { ownerId: IRFAD });
+  w.feed(SRV, "server", "Berlin box", report({ diskFree: 5 }), { ownerId: IDRIS });
   assert.equal((await w.call("machines.alerts_notify", {}, host)).sent, 1, "rings again");
 });
 
@@ -557,11 +557,11 @@ test("an agent is pinned to one machine at a time, and machines.rooms names the 
     [["space", 1]],
   );
   assert.equal(
-    (await w.call("machines.rooms", { ids: ["space", SRV], agentId: "agt_scout" }, irfad)).pinnedTo,
+    (await w.call("machines.rooms", { ids: ["space", SRV], agentId: "agt_scout" }, idris)).pinnedTo,
     "space",
   );
   assert.equal(
-    (await w.call("machines.rooms", { ids: [SRV], agentId: "agt_scout" }, irfad)).pinnedTo,
+    (await w.call("machines.rooms", { ids: [SRV], agentId: "agt_scout" }, idris)).pinnedTo,
     undefined,
     "a pin on a machine not asked about is not a pin for this turn",
   );
@@ -587,7 +587,7 @@ test("machines.sync: the host calls it when a turn starts or ends on a machine, 
   const { hostCalls } = await import("../impl.ts");
   const w = fleet();
   let live = 1;
-  w.bind({ turns: (id) => (id === IRFAD_MAC ? live : undefined) });
+  w.bind({ turns: (id) => (id === IDRIS_MAC ? live : undefined) });
   const sync = async () => {
     await hostCalls["machines.sync"](w.ctxFor(host));
   };
@@ -596,14 +596,14 @@ test("machines.sync: the host calls it when a turn starts or ends on a machine, 
       .filter((e) => e.name === "machine.changed")
       .map((e) => `${e.subject}:${(e.payload.what as string[]).join()}`);
   await sync();
-  assert.deepEqual(told(), [`${SRV}:full`], "Berlin box runs 2 of 2 turns already; Irfad's computer, 1 of 4, has room");
+  assert.deepEqual(told(), [`${SRV}:full`], "Berlin box runs 2 of 2 turns already; Idris's computer, 1 of 4, has room");
   live = 4;
   await sync();
   await sync();
-  assert.deepEqual(told(), [`${SRV}:full`, `${IRFAD_MAC}:full`], "the fourth turn started: full, told once");
+  assert.deepEqual(told(), [`${SRV}:full`, `${IDRIS_MAC}:full`], "the fourth turn started: full, told once");
   live = 3;
   await sync();
-  assert.deepEqual(told(), [`${SRV}:full`, `${IRFAD_MAC}:full`, `${IRFAD_MAC}:room`], "one ended: room again");
+  assert.deepEqual(told(), [`${SRV}:full`, `${IDRIS_MAC}:full`, `${IDRIS_MAC}:room`], "one ended: room again");
   w.bind(null);
 });
 
@@ -625,7 +625,7 @@ test("stop idle sessions: the Space server's is Space-wide; on a member's own co
     [
       ["space", undefined],
       [MAYA_AIR, MAYA],
-      [SRV, IRFAD],
+      [SRV, IDRIS],
     ],
     "the Space is asked for everyone's; a computer or a server for its owner's",
   );
@@ -668,7 +668,7 @@ test("a server the Space approved that has not reported yet is listed offline an
 test("machines.rooms carries the most agent computers a machine runs, the same number the list shows, and the Space server's reaches a member", async () => {
   const w = fleet();
   const list = (await w.call("machines.list", {}, admin)).machines;
-  const asked = await w.call("machines.rooms", { ids: ["space"] }, { ...admin, id: IRFAD });
+  const asked = await w.call("machines.rooms", { ids: ["space"] }, { ...admin, id: IDRIS });
   const room = asked.rooms.find((x: { machineId: string }) => x.machineId === "space");
   assert.equal(typeof room.maxAgentComputers, "number");
   assert.equal(

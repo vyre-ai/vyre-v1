@@ -137,7 +137,7 @@ type PrincipalRow = { id: string; kind: string; name: string; status: string; ro
 
 const holds = (p: PrincipalRow, role: string): boolean =>
   p.roles.some((r) => r.toLowerCase().replace(/^rol_/, "") === role);
-/** Someone who can add a Space AI key, named with their role: "Irfad Imtiaz (owner)", else an admin. Never the person asking. */
+/** Someone who can add a Space AI key, named with their role: "Idris Ibarra (owner)", else an admin. Never the person asking. */
 export function adminOf(principals: readonly PrincipalRow[], me?: string): string | null {
   const people = principals.filter(
     (p) => p.kind === "person" && p.status === "active" && p.id !== me && p.name.trim() !== "",

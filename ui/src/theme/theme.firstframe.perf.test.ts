@@ -34,7 +34,7 @@ import {
 import type { AppearanceStore, AppliedTheme, Mode, PlaceId, ThemeRoot } from "./index.ts";
 
 const MODES: readonly Mode[] = ["light", "dark"];
-const PERSON = "usr_irfad";
+const PERSON = "usr_idris";
 
 function attr(html: string, name: string): string {
   return new RegExp(`\\b${name}="([^"]*)"`).exec(html)?.[1] ?? "";

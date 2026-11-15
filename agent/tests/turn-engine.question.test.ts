@@ -1,4 +1,4 @@
-// ask_question parks the turn (owner bug, 4 Nov 2026: Andrey's Assistant asked "test" mid-loop and carried on). The question's card and task are in the chat and in Needs you, so the turn stops there:
+// ask_question parks the turn (owner bug, 4 Nov 2026: Anders's Assistant asked "test" mid-loop and carried on). The question's card and task are in the chat and in Needs you, so the turn stops there:
 // turn.waiting on its block, no result and no further model call, until the answer (a message that wakes the agent) or a withdrawal. A turn that ends without waiting takes its question back.
 import test from "node:test";
 import assert from "node:assert/strict";

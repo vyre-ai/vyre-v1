@@ -13,7 +13,7 @@ import type { ReplyDetails, ReplyTurn } from "./model.ts";
 
 const clean = (s: string): string =>
   s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
-const NAMES: Record<string, string> = { usr_irfad: "Irfad Imtiaz", usr_omar: "Omar Reyes", agt_mira: "Mira" };
+const NAMES: Record<string, string> = { usr_idris: "Idris Ibarra", usr_omar: "Omar Reyes", agt_mira: "Mira" };
 const msg = (id: string, author: { kind: "agent" | "person"; id: string }): Message =>
   ({
     messageId: id,
@@ -36,15 +36,15 @@ const TURN: ReplyTurn = {
   turnId: "trn_a1",
   traceId: "0123456789abcdef0123456789abcdef",
   agentId: "agt_mira",
-  asker: "usr_irfad",
+  asker: "usr_idris",
   model: "claude-opus-5-5",
   effort: "high",
   engine: "claude_code",
   provider: "anthropic",
   accountKind: "subscription",
-  accountRef: "#Irfad_Claude",
+  accountRef: "#Idris_Claude",
   state: "completed",
-  ranOn: [{ kind: "computer", name: "Irfad's MacBook" }],
+  ranOn: [{ kind: "computer", name: "Idris's MacBook" }],
   timing: { queuedAt: 999_600, startedAt: 1_000_000, firstTokenAt: 1_002_100, endedAt: 1_014_000 },
   tokens: { in: 169_330, out: 1904, cacheRead: 118_400, cacheWrite: 9650 },
   cost: { source: "subscription" },
@@ -70,7 +70,7 @@ function stubCall(d: ReplyDetails) {
   const call = async (cap: string): Promise<unknown> => {
     calls.push(cap);
     if (cap === "chat.reply_details") return { details: d };
-    if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Irfad_Claude", name: "Irfad's Claude (Max)" }] };
+    if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Idris_Claude", name: "Idris's Claude (Max)" }] };
     throw new Error(cap);
   };
   return { call, calls };
@@ -88,7 +88,7 @@ const actionsFor = (
 
 test("an agent's reply has Details at the end of its menu, which opens the right pane on it; a person's message has none", () => {
   const opened: string[] = [];
-  const details = actionsFor("usr_irfad", async () => ({}), opened);
+  const details = actionsFor("usr_idris", async () => ({}), opened);
   const a = {
     copy: () => undefined,
     openThread: () => undefined,
@@ -121,7 +121,7 @@ test("an agent's reply has Details at the end of its menu, which opens the right
 test("the hover card names the model, the account, the asker, where it ran, the cost, tokens and time", async () => {
   forgetReplyDetails();
   const { call } = stubCall(DETAILS(TURN));
-  const details = actionsFor("usr_irfad", call);
+  const details = actionsFor("usr_idris", call);
   await details.read("msg_r1");
   const out = clean(
     renderToStaticMarkup(
@@ -133,8 +133,8 @@ test("the hover card names the model, the account, the asker, where it ran, the 
     "Claude Opus 5.5 · High effort",
     "Asked by",
     "You",
-    "Irfad's Claude (Max)",
-    "Irfad's MacBook",
+    "Idris's Claude (Max)",
+    "Idris's MacBook",
     "Included in your Claude plan",
     "41k new in · 128k cached · 1.9k out",
     "14 s",
@@ -146,7 +146,7 @@ test("the hover card names the model, the account, the asker, where it ran, the 
 test("the Details tab draws every section from the record, with copy buttons on the ids and Not reported where the provider was silent", async () => {
   forgetReplyDetails();
   const { call, calls } = stubCall(DETAILS(TURN));
-  const details = actionsFor("usr_irfad", call);
+  const details = actionsFor("usr_idris", call);
   await details.read("msg_r1");
   await details.read("msg_r1");
   assert.equal(calls.filter((c) => c === "chat.reply_details").length, 1, "an ended reply is read once");
@@ -195,15 +195,15 @@ test("another member's Details: whose account it was, and no account name, cost,
   const out = clean(
     renderToStaticMarkup(<ReplyDetailsPane messageId="msg_r1" details={details} copy={() => undefined} />),
   );
-  assert.ok(out.includes("On Irfad's account"));
+  assert.ok(out.includes("On Idris's account"));
   assert.ok(out.includes("Arguments hidden"));
-  assert.ok(out.includes("Only Irfad and the people who manage AI spend see the account and the cost."));
-  assert.ok(!out.includes("Irfad's Claude (Max)") && !out.includes("upload-spec.md") && !out.includes("Included in"));
+  assert.ok(out.includes("Only Idris and the people who manage AI spend see the account and the cost."));
+  assert.ok(!out.includes("Idris's Claude (Max)") && !out.includes("upload-spec.md") && !out.includes("Included in"));
 });
 
 test("one Paid by row: the account's name, then in grey whose it is; no sentence-style reasons", async () => {
   const { cardLines, detailLines } = await import("./model.ts");
-  const ctx = { meId: "usr_irfad", nameOf: (id: string) => NAMES[id] ?? id };
+  const ctx = { meId: "usr_idris", nameOf: (id: string) => NAMES[id] ?? id };
   const rows = (paid: string | undefined) => {
     const d = DETAILS({ ...TURN, ...(paid ? { paid } : {}) });
     return {

@@ -18,7 +18,7 @@ if (!TOKEN || !DIST || !CHROME)
   throw new Error("VYRE_TEST_CLAUDE_SETUP_TOKEN, VYRE_APP_DIST and CHROME_BIN are required");
 const OUT =
   process.env["E2E_OUT"] ??
-  "/private/tmp/claude-501/-Users-irfad-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/activity-proof";
+  "/private/tmp/claude-501/-Users-idris-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/activity-proof";
 fs.mkdirSync(OUT, { recursive: true });
 const scrub = (s: string): string =>
   s

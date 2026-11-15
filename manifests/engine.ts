@@ -1849,7 +1849,7 @@ export default defineManifest({
             t.obj({
               ref: accountRef,
               provider: t.str(),
-              label: t.str({ examples: ["OpenAI · irfad@mylegalacademy.com"] }),
+              label: t.str({ examples: ["OpenAI · idris@northwind.example"] }),
               mine: t.bool(),
               shared: t.bool(),
               spaceKey: t.bool(),

@@ -478,7 +478,7 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
     // a project's teammate is born under the project in access (a chat's agent keeps the Space: its chat decides who asks it)
     ...(kind === "teammate" && input.projectId?.startsWith("prj_") ? { projectId: input.projectId } : {}),
   });
-  // access names a private agent as its person to everyone else ("Irfad Imtiaz (Agent)"); this is what tells it
+  // access names a private agent as its person to everyone else ("Idris Ibarra (Agent)"); this is what tells it
   if (priv) {
     ctx.emit("agent.privacy_set", id, {
       agentId: id,
@@ -1111,7 +1111,7 @@ export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
 
 // ---- what the engine and Files tell this module --------------------------------------------------------------------------------------------------------
 
-/** "Irfad" becomes "Irfad’s", "James" becomes "James’": the typographic apostrophe, and a name that ends in s takes no second s. */
+/** "Idris" becomes "Idris’s", "James" becomes "James’": the typographic apostrophe, and a name that ends in s takes no second s. */
 // the one possessive every Assistant name uses (lib/words/agent-name, 12 Nov)
 import { possessive } from "../../../lib/words/agent-name.ts";
 export { possessive };
@@ -1186,7 +1186,7 @@ async function renameFollowing(
 }
 
 /**
- * Boot: Spaces made before the possessive rule hold assistants called "Irfad Assistant". One whose name still exactly equals that old default is renamed to "Irfad’s Assistant" through the normal update
+ * Boot: Spaces made before the possessive rule hold assistants called "Idris Assistant". One whose name still exactly equals that old default is renamed to "Idris’s Assistant" through the normal update
  * (the agent.toml, the folder and the display name follow). Runs once at start; after the rename nothing matches.
  */
 export async function renameOldAssistants(ctx: AgentsCtx): Promise<string[]> {
