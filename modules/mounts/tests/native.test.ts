@@ -476,6 +476,7 @@ test("the native capabilities are in the mounts manifest: edits behind the post 
     "mounts.file_link",
     "mounts.sheet_append",
     "mounts.sheet_read",
+    "mounts.sheet_tabs",
     "mounts.sheet_write",
   ]);
   for (const c of caps) {

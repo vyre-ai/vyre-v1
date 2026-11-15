@@ -185,3 +185,16 @@ test("a failing mount's sentence names who can fix it: the admin-only Google mes
   );
   assert.equal(liveRow(m({ state: "failing", error: "Drive is down." }), null, NOW).detail, "Drive is down.");
 });
+
+test("a cloud folder says whether it is two-way or read only, offers the other, and a folder made before write-back says it stays read only until two-way is turned on", () => {
+  const two = liveRow(m({ readOnly: false }), null, NOW);
+  assert.deepEqual(two.actions.slice(-1), ["read_only"]);
+  assert.doesNotMatch(two.detail, /Read only/);
+  const old = liveRow(m({ readOnly: true, twoWayOffer: true }), null, NOW);
+  assert.match(old.detail, /Read only\. Turn on two-way to send your changes to Google Drive/);
+  assert.deepEqual(old.actions.slice(-1), ["two_way"]);
+  const chosen = liveRow(m({ readOnly: true }), null, NOW);
+  assert.match(chosen.detail, /^Read only$/);
+  assert.deepEqual(liveRow(m({ kind: "local", readOnly: false }), null, NOW).actions.includes("read_only"), false);
+  assert.match(liveRow(m({ scanned: 12_400 }), null, NOW).detail, /Reading it: 12,400 items so far/);
+});

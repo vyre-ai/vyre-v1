@@ -2460,6 +2460,10 @@
     "connectionId": "con_a1b2c3",
     "fileId": "Quarterly planning"
   },
+  "google_drive_update_file": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning"
+  },
   "google_drive_upload_file": {
     "connectionId": "con_a1b2c3",
     "name": "Quarterly planning",
@@ -3455,6 +3459,10 @@
   "mounts_remove": {
     "mountId": "mnt_a1b2c3"
   },
+  "mounts_resolve": {
+    "fileId": "fil_a1b2c3",
+    "choice": "keep_both"
+  },
   "mounts_restore": {
     "fileId": "fil_a1b2c3",
     "revisionId": "Quarterly planning"
@@ -3471,6 +3479,9 @@
   "mounts_sheet_read": {
     "fileId": "fil_a1b2c3",
     "range": "Quarterly planning"
+  },
+  "mounts_sheet_tabs": {
+    "fileId": "fil_a1b2c3"
   },
   "mounts_sheet_write": {
     "fileId": "fil_a1b2c3",
@@ -3598,10 +3609,18 @@
     "connectionId": "con_a1b2c3",
     "itemId": "Quarterly planning"
   },
+  "ms_drive_restore_item": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning"
+  },
   "ms_drive_share_item": {
     "connectionId": "con_a1b2c3",
     "itemId": "Quarterly planning",
     "role": "read"
+  },
+  "ms_drive_update_item": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning"
   },
   "ms_drive_upload_item": {
     "connectionId": "con_a1b2c3",

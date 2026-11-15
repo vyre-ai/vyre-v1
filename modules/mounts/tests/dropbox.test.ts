@@ -382,7 +382,7 @@ test("download, upload, new folder and delete use the connection and carry the p
   assert.deepEqual(db.calls[0], { cap: "dropbox.files.download", input: { connectionId: "con_d", path: "id:report" } });
   db.calls.length = 0;
 
-  const folder = await p.createFolder!(w.ctx, m, { name: "Drafts", parentRemote: "id:sales" });
+  const folder = await p.createFolder!(w.ctx, m, { name: "Drafts", parentRemote: "id:sales", key: "k1" });
   assert.deepEqual(
     db.calls.map((c) => [c.cap, c.input["path"]]),
     [
@@ -391,7 +391,7 @@ test("download, upload, new folder and delete use the connection and carry the p
     ],
   );
   db.calls.length = 0;
-  const fresh = await p.upload!(w.ctx, m, { fileId: "fil_1", name: "a.txt", parentRemote: folder.remoteId });
+  const fresh = await p.upload!(w.ctx, m, { fileId: "fil_1", name: "a.txt", parentRemote: folder.remoteId, key: "k2" });
   assert.deepEqual(
     db.calls.map((c) => [c.cap, c.input["path"], c.input["rev"]]),
     [
@@ -409,12 +409,14 @@ test("download, upload, new folder and delete use the connection and carry the p
     parentRemote: "id:sales",
     remoteId: "id:report",
     ifMatch: { revision: "r1" },
+    key: "k3",
   });
   assert.deepEqual(db.calls.at(-1)?.input, {
     connectionId: "con_d",
     fileId: "fil_2",
     path: "/Sales/Report.docx",
     rev: "r1",
+    idempotencyKey: "k3",
   });
   assert.deepEqual(
     [sent.remoteId, sent.stale, sent.revision === sent.version, typeof sent.revision],
@@ -428,15 +430,25 @@ test("download, upload, new folder and delete use the connection and carry the p
     parentRemote: "id:sales",
     remoteId: "id:report",
     ifMatch: { revision: "stale" },
+    key: "k4",
   });
   assert.deepEqual(late, { remoteId: "id:report", stale: true });
   db.calls.length = 0;
-  await p.upload!(w.ctx, m, { fileId: "fil_3", name: "Deck.pptx", parentRemote: "id:q4", remoteId: "id:deck" });
+  await p.upload!(w.ctx, m, {
+    fileId: "fil_3",
+    name: "Deck.pptx",
+    parentRemote: "id:q4",
+    remoteId: "id:deck",
+    key: "k5",
+  });
   assert.equal(db.calls.at(-1)?.input["rev"], "d1", "no recorded revision: the current one");
 
-  await p.remove!(w.ctx, m, "id:deck", false);
-  assert.deepEqual(db.calls.at(-1), { cap: "dropbox.files.delete", input: { connectionId: "con_d", path: "id:deck" } });
-  const root = await p.createFolder!(w.ctx, mount({ ref: "/" }), { name: "Top", parentRemote: "/" });
+  await p.remove!(w.ctx, m, "id:deck", false, "k6");
+  assert.deepEqual(db.calls.at(-1), {
+    cap: "dropbox.files.delete",
+    input: { connectionId: "con_d", path: "id:deck", idempotencyKey: "k6" },
+  });
+  const root = await p.createFolder!(w.ctx, mount({ ref: "/" }), { name: "Top", parentRemote: "/", key: "k7" });
   assert.equal(db.nodes.get(root.remoteId)?.path, "/Top", "a folder at the account root has no parent path");
 });
 

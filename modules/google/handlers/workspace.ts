@@ -1139,7 +1139,7 @@ export async function calendarStopWatch(ctx: GoogleCtx, a: Act & { channelId: st
 // ---- Drive
 
 const FILE_FIELDS =
-  "id,name,mimeType,parents,modifiedTime,size,webViewLink,driveId,headRevisionId,lastModifyingUser(displayName,emailAddress)";
+  "id,name,mimeType,parents,modifiedTime,size,webViewLink,driveId,headRevisionId,trashed,capabilities(canEdit),lastModifyingUser(displayName,emailAddress)";
 const mapFile = (f: Record<string, unknown>) => {
   const out: Record<string, unknown> = {
     id: text(f.id) ?? "",
@@ -1152,6 +1152,8 @@ const mapFile = (f: Record<string, unknown>) => {
   const size = int(f.size);
   if (size !== undefined) out.size = size;
   if (text(f.headRevisionId) !== undefined) out.headRevisionId = text(f.headRevisionId);
+  if (f.trashed === true) out.trashed = true;
+  if (typeof obj(f.capabilities).canEdit === "boolean") out.canEdit = obj(f.capabilities).canEdit;
   const who = mapUser(obj(f.lastModifyingUser));
   if (who) out.lastModifyingUser = who;
   return out;
@@ -1165,6 +1167,29 @@ function mapUser(u: Record<string, unknown>): { name?: string; email?: string } 
 }
 const shared = { supportsAllDrives: true } as const;
 const quote = (s: string): string => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+/**
+ * A create that timed out may have made the file: Drive makes it and the answer is lost, and a retry would make a second one. Every file or folder Vyre creates carries the request's key as an app
+ * property, and a create first looks for one that already has it and takes that one. The key is the same on every retry of one change.
+ */
+const KEY_PROP = "vyre_key";
+async function adopt(ctx: GoogleCtx, a: Act, cap: string, key: string | undefined, parentId: string | undefined) {
+  if (key === undefined || key === "") return undefined;
+  const r = await g(ctx, a, cap, "drive", {
+    url: `${DRIVE}/files`,
+    query: {
+      q: `appProperties has { key='${KEY_PROP}' and value='${quote(key)}' } and trashed = false${parentId ? ` and '${quote(parentId)}' in parents` : ""}`,
+      fields: `files(${FILE_FIELDS})`,
+      pageSize: 1,
+      ...shared,
+    },
+  });
+  const first = list(r.files)[0];
+  return first === undefined ? undefined : mapFile(obj(first));
+}
+const keyOf = (a: unknown): string | undefined => {
+  const k = (a as { idempotencyKey?: unknown }).idempotencyKey;
+  return typeof k === "string" ? k : undefined;
+};
 
 export async function driveList(
   ctx: GoogleCtx,
@@ -1254,13 +1279,19 @@ export async function driveUpload(
   a: Act & { name: string; parentId?: string; fileId: string; remoteId?: string; ifRevision?: string },
 ) {
   if (a.remoteId !== undefined && a.ifRevision !== undefined) {
-    const now = mapFile(
-      await g(ctx, a, "google.drive.upload_file", "drive", {
-        url: `${DRIVE}/files/${enc(a.remoteId)}`,
-        query: { fields: FILE_FIELDS, ...shared },
-      }),
-    );
+    const raw = await g(ctx, a, "google.drive.upload_file", "drive", {
+      url: `${DRIVE}/files/${enc(a.remoteId)}`,
+      query: { fields: `${FILE_FIELDS},appProperties`, ...shared },
+    });
+    const now = mapFile(raw);
+    // this very upload already landed (the daemon stopped before the answer was read): the file carries this request's key, so it is taken as sent, not written again and not taken for someone else's change
+    if (keyOf(a) !== undefined && obj(raw.appProperties)[KEY_PROP] === keyOf(a)) return { file: now };
     if (now.headRevisionId !== a.ifRevision) return { file: now, stale: true };
+  }
+  if (a.remoteId === undefined) {
+    // a create that was sent before and not heard back: the file is there, and it is taken, not made again
+    const there = await adopt(ctx, a, "google.drive.upload_file", keyOf(a), a.parentId);
+    if (there !== undefined) return { file: there };
   }
   const { token } = await bearer(ctx, {
     cap: "google.drive.upload_file",
@@ -1275,27 +1306,43 @@ export async function driveUpload(
           url: `${base}/${enc(a.remoteId)}?uploadType=multipart&supportsAllDrives=true&fields=${enc(FILE_FIELDS)}`,
           token,
           fileId: a.fileId,
-          metadata: {},
+          metadata: keyOf(a) !== undefined ? { appProperties: { [KEY_PROP]: keyOf(a) } } : {},
           method: "PATCH",
         })
       : await needHost(ctx).upload(ctx, {
           url: `${base}?uploadType=multipart&supportsAllDrives=true&fields=${enc(FILE_FIELDS)}`,
           token,
           fileId: a.fileId,
-          metadata: { name: a.name, ...(a.parentId ? { parents: [a.parentId] } : {}) },
+          metadata: {
+            name: a.name,
+            ...(a.parentId ? { parents: [a.parentId] } : {}),
+            ...(keyOf(a) !== undefined ? { appProperties: { [KEY_PROP]: keyOf(a) } } : {}),
+          },
         });
   return { file: mapFile(obj(answered)) };
 }
 
 /** The revisions Drive keeps of a file, newest last. */
 export async function driveRevisions(ctx: GoogleCtx, a: Act & { fileId: string }) {
-  const r = await g(ctx, a, "google.drive.list_revisions", "drive", {
-    url: `${DRIVE}/files/${enc(a.fileId)}/revisions`,
-    bulk: true,
-    query: { pageSize: 200, fields: "revisions(id,modifiedTime,size,lastModifyingUser(displayName,emailAddress))" },
-  });
+  // Drive pages its revisions (200 at most a page): every page is read, or a file with more would show only its oldest
+  const all: unknown[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < 50; page++) {
+    const r = await g(ctx, a, "google.drive.list_revisions", "drive", {
+      url: `${DRIVE}/files/${enc(a.fileId)}/revisions`,
+      bulk: true,
+      query: {
+        pageSize: 200,
+        fields: "nextPageToken,revisions(id,modifiedTime,size,lastModifyingUser(displayName,emailAddress))",
+        ...(pageToken !== undefined ? { pageToken } : {}),
+      },
+    });
+    all.push(...list(r.revisions));
+    pageToken = text(r.nextPageToken);
+    if (pageToken === undefined) break;
+  }
   return {
-    revisions: list(r.revisions).map((x) => {
+    revisions: all.map((x) => {
       const o = obj(x);
       const rev: Record<string, unknown> = { id: text(o.id) ?? "", modifiedTime: text(o.modifiedTime) ?? "" };
       const size = int(o.size);
@@ -1322,6 +1369,8 @@ export async function driveRevisionDownload(ctx: GoogleCtx, a: Act & { fileId: s
 }
 
 export async function driveCreateFolder(ctx: GoogleCtx, a: Act & { name: string; parentId?: string }) {
+  const there = await adopt(ctx, a, "google.drive.create_folder", keyOf(a), a.parentId);
+  if (there !== undefined) return { file: there };
   const r = await g(ctx, a, "google.drive.create_folder", "drive", {
     method: "POST",
     url: `${DRIVE}/files`,
@@ -1330,6 +1379,7 @@ export async function driveCreateFolder(ctx: GoogleCtx, a: Act & { name: string;
       name: a.name,
       mimeType: "application/vnd.google-apps.folder",
       ...(a.parentId ? { parents: [a.parentId] } : {}),
+      ...(keyOf(a) !== undefined ? { appProperties: { [KEY_PROP]: keyOf(a) } } : {}),
     },
   });
   return { file: mapFile(r) };
@@ -1369,6 +1419,28 @@ export async function driveTrash(ctx: GoogleCtx, a: Act & { fileId: string }) {
     body: { trashed: true },
   });
   return { trashed: true };
+}
+
+/** Rename, move or untrash a file in place: the same Drive file, so its id, links and sharing stay. A move names the folder it leaves and the one it enters. */
+export async function driveUpdate(
+  ctx: GoogleCtx,
+  a: Act & { fileId: string; name?: string; addParentId?: string; removeParentId?: string; trashed?: boolean },
+) {
+  const body: Record<string, unknown> = {};
+  if (a.name !== undefined) body.name = a.name;
+  if (a.trashed !== undefined) body.trashed = a.trashed;
+  const r = await g(ctx, a, "google.drive.update_file", "drive", {
+    method: "PATCH",
+    url: `${DRIVE}/files/${enc(a.fileId)}`,
+    query: {
+      fields: FILE_FIELDS,
+      ...shared,
+      ...(a.addParentId ? { addParents: a.addParentId } : {}),
+      ...(a.removeParentId ? { removeParents: a.removeParentId } : {}),
+    },
+    body,
+  });
+  return { file: mapFile(r) };
 }
 
 export async function driveChanges(ctx: GoogleCtx, a: Act & { pageToken: string; driveId?: string }) {

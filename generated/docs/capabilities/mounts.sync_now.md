@@ -19,13 +19,14 @@ Sync a mount now (a Run); the provider change feed and the folder both move
 | HTTP | POST /v1/mounts/sync_now |
 | MCP tool | mounts_sync_now (files) |
 | CLI | vyre mounts sync |
-| Emits | mount.synced, mount.failed, file.version_added, file.conflict_kept |
+| Emits | mount.synced, mount.failed, mount.conflict, mount.file_sent, file.version_added, file.conflict_kept |
 
 ## Input
 
 ```ts
 type In = {
   mountId: string;
+  auto?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -51,6 +52,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "auto": true,
     "idempotencyKey": "idem_1",
     "mountId": "mnt_a1b2c3"
   },

@@ -19,7 +19,7 @@ Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your compute
 | HTTP | POST /v1/mounts/add |
 | MCP tool | mounts_add (files) |
 | CLI | vyre mounts add |
-| Emits | folder.mounted, mount.synced, mount.failed |
+| Emits | folder.mounted, mount.synced, mount.failed, mount.conflict, mount.file_sent |
 
 ## Input
 
@@ -38,6 +38,7 @@ type In = {
   name?: string;
   mode?: "server_copy" | "live_only";
   reviewChanges?: boolean;
+  readOnly?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -73,6 +74,7 @@ type Out = {
     "into": "fld_a1b2c3",
     "mode": "server_copy",
     "name": "example",
+    "readOnly": true,
     "reviewChanges": true,
     "source": {
       "branch": "example",

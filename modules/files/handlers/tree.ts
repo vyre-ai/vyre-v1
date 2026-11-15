@@ -4,7 +4,7 @@
 // @reads ../migrations/0001_files_tree.sql
 // Agent and UI writes both commit a version here. Changeset staging on Approve is a later packet.
 
-import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx, Sealed } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
@@ -1447,7 +1447,13 @@ function unreadable(ctx: Ctx, name: string, size: number, bytes: () => Uint8Arra
  * has content, so an edit made at the provider shows). A placeholder whose content could not be fetched is never handed on as an empty file: the call says the content is not here (provider.unavailable),
  * so a viewer shows "could not get this" with Retry and an agent is not told the file is empty. A file the mounts module does not know, or one that really is empty at its provider, reads as it is.
  */
-export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean): Promise<Row> {
+export async function openAtProvider(
+  ctx: Ctx,
+  fileId: string,
+  refresh: boolean,
+  /** hears what mounts.open answered (the file's place at its provider), when it answered */
+  heard?: (opened: Record<string, unknown>) => void,
+): Promise<Row> {
   const before = mustFile(ctx, fileId);
   const mounted = sourceOfFolder(ctx, String(before.folder_id)) !== undefined;
   if (num(before.size) !== 0 && !(refresh && mounted)) return before;
@@ -1455,6 +1461,7 @@ export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean)
   let failure: unknown;
   try {
     opened = (await ctx.call("mounts.open", { fileId })) as Record<string, unknown>;
+    heard?.(opened);
   } catch (e) {
     failure = e;
   }
@@ -1465,9 +1472,9 @@ export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean)
     // an agent's fetch waiting for approval has no content yet either
     if (!here && opened?.changesetId === undefined) {
       // the provider's own reason travels on when it is one a person can act on (sign-in, rate limit, the file is gone); anything else is the generic "not here just now"
-      const code = failure instanceof VyreErr ? failure.error.code : "";
+      const code = vyreErrorOf(failure)?.code ?? "";
       if (
-        failure instanceof VyreErr &&
+        vyreErrorOf(failure) !== undefined &&
         /^(provider\.(auth_failed|rate_limited|overloaded|network)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/.test(
           code,
         )
@@ -1953,8 +1960,19 @@ async function filesWrite(
 ): Promise<{ file: FileOut; versionId?: string; changesetId?: string }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
-  const file = liveFile(ctx, reqStr(ctx, o, "fileId"));
+  const fileId0 = reqStr(ctx, o, "fileId");
   const base = optInt(ctx, o, "baseVersion");
+  // a write that names the version it was based on, to a file of a connected folder: the provider is asked first, so a change made there since the writer read it is brought in and the write is refused
+  // ("The file changed since it was read.") rather than sent on over it
+  if (base !== undefined) {
+    liveFile(ctx, fileId0);
+    try {
+      await openAtProvider(ctx, fileId0, true);
+    } catch {
+      /* the provider cannot be asked just now: the write goes on, and the push is conditional on the revision it was based on */
+    }
+  }
+  const file = liveFile(ctx, fileId0);
   if (base !== undefined && base !== num(file.version)) {
     fail(ctx, "validation.version_conflict", "The file changed since it was read.");
   }
