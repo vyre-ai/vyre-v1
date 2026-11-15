@@ -93,6 +93,7 @@ test("a store that fails keeps the job where it is; the next pass resumes at tha
     "the agent's own row waits for every store",
   );
   down = false;
+  hn.advance(3_001); // the back-off after the failure
   assert.deepEqual(await runErase(hn.ctx as never), [a.agentId]);
   assert.equal(stepsCalled(hn).filter((s) => s === "engine").length, 1, "a step that was done is not asked again");
 });
@@ -181,4 +182,32 @@ test("a teammate is not pressed for good by a person (it goes with its project o
   await assert.rejects(h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId }), (e: unknown) =>
     /goes with its project or chat/.test(String((e as Error).message)),
   );
+});
+
+test("a step that keeps failing backs off (3 s, 30 s, 5 min), the Trash row says what it could not finish, and pressing again is Try again", async () => {
+  const hn = world();
+  const a = await make(hn);
+  await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
+  await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId });
+  hn.world.answer("host.hook.call.memory.erase_agent", () => {
+    throw new Error("memory is down");
+  });
+  const at = (): number => Number((hn.ctx.db.all("SELECT nextAt FROM agents_erase_retry WHERE agentId = ?", a.agentId)[0] as Record<string, unknown>)["nextAt"]);
+  const t0 = hn.ctx.now();
+  await runErase(hn.ctx as never);
+  assert.equal(at() - t0, 3_000);
+  const calls = (): number => hn.world.calls.filter((c) => c.cap === "host.hook.call.memory.erase_agent" && (c.input as { input?: { dry?: boolean } }).input?.dry !== true).length;
+  const n1 = calls();
+  await runErase(hn.ctx as never);
+  assert.equal(calls(), n1, "inside the back-off nothing is tried");
+  hn.advance(3_001);
+  await runErase(hn.ctx as never);
+  assert.equal(at() - hn.ctx.now(), 30_000);
+  hn.advance(30_001);
+  await runErase(hn.ctx as never);
+  assert.equal(at() - hn.ctx.now(), 300_000);
+  const row = (await h["agents.trash.list"]!(hn.ctx, {})).agents[0];
+  assert.equal(row.failed, "its memory", "the row says what it could not finish");
+  await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId }); // Try again
+  assert.equal(hn.ctx.db.all("SELECT nextAt FROM agents_erase_retry WHERE agentId = ?", a.agentId).length, 0, "it goes at once");
 });

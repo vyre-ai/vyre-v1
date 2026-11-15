@@ -44,7 +44,7 @@ export const hostCalls = {
   "files.erase_agent": (ctx: unknown, i: { agentId: string; folderId?: string; dry?: boolean }) => {
     if (i.dry === true) return { bytes: i.folderId ? folderTreeBytes(ctx as never, i.folderId) : 0 };
     if (!i.folderId) return {};
-    eraseFolderTree(ctx as never, i.folderId);
+    eraseFolderTree(ctx as never, i.folderId, i.agentId);
     return {};
   },
   /** The read gate's files half (Redaction for AI): the host asks before and after every call an agent is behind (host/src/seams/agent-read.ts). Never throws a refusal: it answers one, so the request it

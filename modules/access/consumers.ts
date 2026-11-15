@@ -571,6 +571,8 @@ export const hostCalls = {
     tryRun(db, `DELETE FROM access_assignments WHERE holder = ?`, i.agentId);
     tryRun(db, `DELETE FROM access_resources WHERE (type = 'agent' AND id = ?) OR id = ?`, i.agentId, i.folderId ?? "");
     tryRun(db, `DELETE FROM access_principals WHERE id = ?`, i.agentId);
+    tryRun(db, `DELETE FROM access_actors WHERE id = ?`, i.agentId);
+    tryRun(db, `DELETE FROM access_acl WHERE person = ? OR entity_id = ?`, i.agentId, i.agentId);
     return {};
   },
   /** Who an outside tool is when it presents its long-lived credential: the active actor holding it, or none. Host only; the credential is compared by hash and never stored in clear. */

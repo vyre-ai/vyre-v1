@@ -7,7 +7,7 @@
 // DECISION: a person's Assistant is refused here in one sentence; it goes only with its person (agents.person_left) and, when Trash has kept it as long as Trash keeps things, by the same job.
 import { agentBy, agentOf, allows, canSee, ensure, raise, tolerant } from "../projections.ts";
 import type { AgentRec, AgentsCtx } from "../projections.ts";
-import { eraseWhere, tryRun } from "../../../lib/erase-agent.ts";
+import { eraseWhere, tryAll, tryRun } from "../../../lib/erase-agent.ts";
 export { eraseWhere };
 import type { Footprint } from "../../../lib/erase-agent.ts";
 export type { Footprint };
@@ -85,7 +85,11 @@ export async function deleteForGood(ctx: AgentsCtx, input: { agentId: string }):
   const asker = ctx.actingFor ?? ctx.principal.id;
   if (owner === undefined || (owner !== asker && !mayManage(ctx, a ?? ({ ownerId: owner } as AgentRec))))
     raise(ctx, "validation.not_found", "That agent does not exist.");
-  if (have) return { erasing: String(have["state"]) === "erasing" };
+  if (have) {
+    // pressing again on a job that failed is "Try again": it goes at once instead of waiting for its back-off
+    if (String(have["state"]) === "erasing") tryRun(ctx.db, "DELETE FROM agents_erase_retry WHERE agentId = ?", input.agentId);
+    return { erasing: String(have["state"]) === "erasing" };
+  }
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
   refuseKind(ctx, a);
   if (a.deletedAt === undefined)
@@ -177,6 +181,7 @@ export async function trashList(ctx: AgentsCtx) {
     deleting: boolean;
     folderId?: string;
     erasesAt?: number;
+    failed?: string;
     canDelete: boolean;
   }> = [];
   for (const r of rows) {
@@ -190,6 +195,7 @@ export async function trashList(ctx: AgentsCtx) {
       deletedAt: a.deletedAt ?? 0,
       deleting: String(pending(ctx, a.id)?.["state"]) === "erasing",
       ...(a.folderId !== undefined ? { folderId: a.folderId } : {}),
+      ...failedOf(ctx, a.id),
       ...(typeof keep === "number" && a.deletedAt !== undefined ? { erasesAt: a.deletedAt + keep } : {}),
       canDelete: a.kind !== "assistant" && (a.ownerId === asker || mayManage(ctx, a)),
     });
@@ -219,6 +225,8 @@ export async function runErase(ctx: AgentsCtx): Promise<string[]> {
   const finished: string[] = [];
   for (const j of jobs) {
     const id = String(j["agentId"]);
+    const wait = (ctx.db.all("SELECT nextAt FROM agents_erase_retry WHERE agentId = ?", id) as Row[])[0];
+    if (wait && Number(wait["nextAt"]) > ctx.now()) continue; // backing off after a failure
     const done = new Set(doneOf(j));
     let stuck = false;
     // the ids the event log and the request cache are cleared of at the end: its routines and its one-to-one chats, read before the stores that know them are cleared
@@ -259,6 +267,16 @@ export async function runErase(ctx: AgentsCtx): Promise<string[]> {
             agentId: id,
             step: m,
           });
+          const tries = Number(
+            ((ctx.db.all("SELECT tries FROM agents_erase WHERE agentId = ?", id) as Row[])[0] ?? {})["tries"] ?? 1,
+          );
+          // 3 seconds, then 30 seconds, then 5 minutes for every try after
+          const delay = [3_000, 30_000, 300_000][Math.min(Math.max(tries, 1) - 1, 2)]!;
+          ctx.db.run(
+            `INSERT INTO agents_erase_retry ("agentId", "nextAt") VALUES (?, ?) ON CONFLICT ("agentId") DO UPDATE SET "nextAt" = excluded."nextAt"`,
+            id,
+            ctx.now() + delay,
+          );
           stuck = true;
           break;
         }
@@ -268,6 +286,7 @@ export async function runErase(ctx: AgentsCtx): Promise<string[]> {
     }
     if (stuck) continue;
     ctx.db.run("DELETE FROM agents_erase_ids WHERE agentId = ?", id);
+    ctx.db.run("DELETE FROM agents_erase_retry WHERE agentId = ?", id);
     eraseOwn(ctx, id);
     ctx.db.run(
       `UPDATE agents_erase SET "state" = 'erased', "finishedAt" = ?, "lastError" = NULL WHERE "agentId" = ?`,
@@ -304,6 +323,17 @@ export function eraseOwn(ctx: Pick<AgentsCtx, "db">, id: string): void {
     ["agents_agent", "id"],
   ]);
   tryRun(db, "DELETE FROM agents_meta WHERE key = ?", `assistant:${id}`);
+  // the agent's id comes out of the lists of agents a skill is added for (what people's skills and receipts hold); the skills themselves are the people's
+  for (const t of ["agents_skill_own", "agents_skill_receipts"])
+    for (const r of tryAll(db, `SELECT id, agents_json FROM ${t} WHERE agents_json LIKE ?`, `%${id}%`)) {
+      try {
+        const v = JSON.parse(String(r["agents_json"])) as unknown;
+        const next = Array.isArray(v) ? v.filter((x) => (typeof x === "string" ? x : (x as { id?: string; agentId?: string })?.id ?? (x as { agentId?: string })?.agentId) !== id) : v;
+        tryRun(db, `UPDATE ${t} SET agents_json = ? WHERE id = ?`, JSON.stringify(next), String(r["id"]));
+      } catch {
+        /* not a list: left as it is */
+      }
+    }
 }
 
 // ---- the Trash clock ---------------------------------------------------------------------------------------------------------------------------------
@@ -374,4 +404,22 @@ export async function erasedList(ctx: AgentsCtx) {
       erasedAt: Number(r["finishedAt"] ?? 0),
     })),
   };
+}
+
+const STEP_WORDS: Readonly<Record<string, string>> = {
+  terminal: "its computer",
+  computers: "its computer and browser",
+  chat: "its chats",
+  memory: "its memory",
+  files: "its files",
+  access: "its access",
+  vault: "its keys",
+  governance: "its record in the log",
+};
+/** A job that failed at least once and is still going: the plain words of what it could not finish. */
+function failedOf(ctx: AgentsCtx, id: string): { failed?: string } {
+  const r = pending(ctx, id);
+  if (!r || String(r["state"]) !== "erasing" || Number(r["tries"]) < 1) return {};
+  const step = String(r["lastError"] ?? "").split(":")[0] ?? "";
+  return { failed: STEP_WORDS[step] ?? "some of what it kept" };
 }

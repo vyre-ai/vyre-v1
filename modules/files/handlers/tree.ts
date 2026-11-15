@@ -2312,9 +2312,11 @@ export function folderTreeBytes(ctx: Ctx, folderId: string): number {
 }
 
 /** Delete for good (F77): a folder with everything in it, every version, its Trash copy and its blobs, whether or not it is in Trash. The agents job calls this for an agent's own folder; a second call finds nothing. */
-export function eraseFolderTree(ctx: Ctx, folderId: string): number {
+export function eraseFolderTree(ctx: Ctx, folderId: string, agentId: string): number {
   const folder = one(ctx, "SELECT * FROM files_folder WHERE id = ?", folderId);
   if (!folder) return 0;
+  // the stored folder id is trusted only when the folder says it is this agent's own (system_key agent:<id>): any other folder is left alone
+  if (String(folder.system_key ?? "") !== `agent:${agentId}`) return 0;
   const before = many(ctx, "SELECT id FROM files_file").length;
   purgeFolderRow(ctx, folder);
   return before - many(ctx, "SELECT id FROM files_file").length;

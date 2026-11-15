@@ -90,7 +90,7 @@ export const hostCalls = {
         "The agent on this goal was deleted for good, so it needs someone.",
       );
     }
-    tryRun(ctx.db, `DELETE FROM goals_step WHERE "by" = ?`, i.agentId);
+    // the steps it did stay on other people's goals: they read "a deleted agent" (the id resolves through the tombstone)
     return { named };
   },
 };

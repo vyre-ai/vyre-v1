@@ -21,11 +21,10 @@ export const hostCalls = {
     const named: NonNullable<Footprint["named"]> = [];
     for (const r of tryAll(
       ctx.db,
-      `SELECT m.id AS id, c.title AS title, m.assigned AS assigned, m.reviewer AS reviewer, m.approver AS approver, m.taken_by AS taken_by FROM tasks_meta m JOIN tasks_core c ON c.id = m.id WHERE m.assigned LIKE ? OR m.reviewer LIKE ? OR m.approver LIKE ? OR m.taken_by = ? OR c.created_by = ?`,
+      `SELECT m.id AS id, c.title AS title, m.assigned AS assigned, m.reviewer AS reviewer, m.approver AS approver, m.taken_by AS taken_by FROM tasks_meta m JOIN tasks_core c ON c.id = m.id WHERE m.assigned LIKE ? OR m.reviewer LIKE ? OR m.approver LIKE ? OR m.taken_by = ?`,
       `%${i.agentId}%`,
       `%${i.agentId}%`,
       `%${i.agentId}%`,
-      i.agentId,
       i.agentId,
     )) {
       named.push({ kind: "task", id: String(r["id"]), title: String(r["title"] ?? "") });

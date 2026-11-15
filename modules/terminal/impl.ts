@@ -1260,7 +1260,10 @@ let inTrashCheck: ((agentId: string) => boolean | undefined) | null = null;
 /** The workspaces of this machine, for the host's Computer tab and tests: null when there are none. */
 export const boundWorkspaces = (): WorkspaceManager | null => workspaceManager;
 
+/** The daemon has told this module what runtime the Space has (a workspace manager, or none): until then an erase cannot know whether a container is to be removed. */
+let hostBound = false;
 export function setTerminalHost(seam: TerminalHostSeam | null): void {
+  hostBound = true;
   workspaceManager?.close();
   const fleet = seam?.workspaces ? buildWorkspaceFleet(seam.workspaces) : null;
   workspaceManager = fleet;
@@ -1414,6 +1417,8 @@ export const hostCalls = {
       tryAll(ctx.db, "SELECT terminal_id FROM terminal_sessions WHERE agent_id = ?", i.agentId) as Row[]
     ).map((r) => String(r["terminal_id"]));
     if (i.dry === true) return {};
+    // the manager is not bound yet (the daemon is still starting): the container and its volumes are still to be removed, so this step fails and the job tries again, never skips
+    if (!workspaceManager && !hostBound) throw new Error("The workspace manager is not ready yet, so the computer is kept for the next try.");
     if (workspaceManager) await (workspaceManager as WorkspaceManager).remove(i.agentId);
     forgetAgentSecrets(i.agentId);
     for (const id of ids) {
