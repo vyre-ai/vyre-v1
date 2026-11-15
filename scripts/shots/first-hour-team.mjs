@@ -493,7 +493,8 @@ export const teamSteps = [
       const t = await S.page.locator("body").innerText();
       const link = (t.match(/https?:\/\/[^\s]+\/join[^\s]*/) ?? [])[0] ?? "";
       if (!link) throw new Error(`no invite link on screen: ${t.slice(0, 300)}`);
-      if (new URL(link).origin !== S.web.origin)
+      // plain http where the Space is reached over plain http; the host and port are the Space's own address
+      if (new URL(link).protocol !== new URL(S.web.origin).protocol)
         throw new Error(`the invite link is ${link}, the Space is reached at ${S.web.origin}`);
       await S.page.screenshot({ path: path.join(S.out, "wf-09-invite-link.png") });
     },

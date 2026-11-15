@@ -184,8 +184,8 @@ export function copyItemLink(type: string, id: string, forOthers = false): void 
 }
 
 /**
- * An invite or join link as the Space is actually reached. The Space makes the link from its address host and always writes https, with no port: for a Space reached over plain http (127.0.0.1, a LAN address,
- * a port) that link opens nothing. When the link's host is this page's own host (or a loopback or local name, which can only mean this page's Space), the scheme and port are the page's.
+ * An invite or join link as the Space is actually reached. The Space writes the link from its own address and always says https: for a Space reached over plain http (127.0.0.1, a LAN address) that link opens
+ * nothing. When the link's host is this page's own host (or a loopback or local name, which can only mean this page's Space), the scheme is the page's; the host and port stay the Space's own address.
  * A public host, and a page that is not a web page (the desktop app), keep the link as made.
  */
 export function reachedLink(
@@ -204,6 +204,5 @@ export function reachedLink(
   if (host !== here.hostname.toLowerCase() && !(isLocalHost(host) && isLocalHost(here.hostname.toLowerCase())))
     return link;
   u.protocol = here.protocol;
-  u.host = here.host;
   return u.toString();
 }

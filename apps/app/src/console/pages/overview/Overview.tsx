@@ -294,7 +294,7 @@ export function Overview(): ReactElement {
       page: "machines",
       label: "Computer alerts",
       icon: "server",
-      big: machineAlerts.length ? String(machineAlerts.length) : computerCount === 0 ? "None yet" : "All clear",
+      big: machineAlerts.length ? String(machineAlerts.length) : "All clear",
       sub: machineAlerts.length
         ? [...new Set(machineAlerts.map((a) => a.kind))].join(", ")
         : computerCount === 0

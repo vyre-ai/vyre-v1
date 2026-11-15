@@ -1,0 +1,7 @@
+// The walker's first pass, fixed (w-first, 15 Nov 2026), part b: a real browser on a booted team Space presses what the walker pressed (wf-words-scan). Steps: scripts/shots/first-hour-team.mjs.
+import test from "node:test";
+import { runWalk } from "./w-first.walk-support.ts";
+
+test("the walker's first pass, part b: every step passes in a real browser", { timeout: 300_000 }, async (t) => {
+  await runWalk(t, ["wf-words-scan"]);
+});
