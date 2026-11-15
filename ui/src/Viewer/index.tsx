@@ -31,7 +31,7 @@ import {
   useLayerCss,
 } from "./layer.tsx";
 import type { LayerAct, Span, ViewerLayer, ViewerMark } from "./layer.tsx";
-import type { RichBody } from "./rich/types.ts";
+import type { DecorRange, RichBody } from "./rich/types.ts";
 export { LAYER_CSS, layerRuns, layerSpans, previewRuns, REDACTED } from "./layer.tsx";
 export type { LayerAct, ViewerLayer, ViewerMark } from "./layer.tsx";
 import type { FileLinks } from "./links.ts";
@@ -1613,6 +1613,15 @@ export function Viewer(props: ViewerViewProps): ReactElement {
               ? null
               : { block: hit.block, occurrence: hits.slice(0, at).filter((h) => h.block === hit.block).length },
           zoom,
+          decor: (bi: number) => {
+            const out: DecorRange[] = [];
+            const t = texts[bi] ?? "";
+            for (const h of hits)
+              if (h.block === bi) out.push({ s: h.at, e: h.at + h.len, kind: hits[at] === h ? "find-on" : "find" });
+            for (const sp of spansBy[bi] ?? []) out.push({ s: sp.s, e: sp.e, kind: sp.mark.kind === "redact" ? "redact" : "highlight", id: sp.mark.id });
+            for (const c of shownComments) for (const o of occurrences(t, c.quote)) out.push({ s: o, e: o + c.quote.length, kind: "comment", id: c.id });
+            return out;
+          },
           tool: rtool ? "redact" : tool === "comment" ? "comment" : null,
           thumbs,
           jump,

@@ -16,6 +16,9 @@ import type { FileLink } from "../open-in.ts";
 import { commentOnPage, commentOnQuote, contentFor, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
 import { GridView } from "../../../../../../ui/src/Viewer/rich/GridView.tsx";
 import { isXlsx, useWorkbook } from "./workbook.ts";
+import { officeKindOf, useOffice } from "./office.ts";
+import { DocPage } from "../../../../../../ui/src/Viewer/rich/DocPage.tsx";
+import { SlideView } from "../../../../../../ui/src/Viewer/rich/SlideView.tsx";
 import { PdfPages } from "../../../../../../ui/src/Viewer/rich/PdfPages.tsx";
 import { redactedCopy } from "../../../../../../ui/src/Viewer/rich/pdf-copy.ts";
 import { noTextLayer } from "../../../../../../ui/src/Viewer/rich/pdf-model.ts";
@@ -200,7 +203,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   // an .xlsx opens as a real grid: every sheet, formats, formulas, and typing that is saved back as a new version
   const isBook = ready !== null && ready.data.file.kind === "spreadsheet" && isXlsx(ready.data.file.name, ready.data.file.mime);
   const wbk = useWorkbook(d, fileId, isBook, version, say, attempt);
-  const kind = ready ? (isPdf && pdfData === null ? "other" : viewerKindOf(isPdf ? { ...ready.data, previewUrl: pdfData !== null ? "pdf" : undefined } : ready.data)) : "other";
+  // a Word file or a deck opens as its own pages or slides, and is typed into where the file allows
+  const okind = ready !== null && isOffice(ready.data.file.kind) ? officeKindOf(ready.data.file.name) : null;
+  const off = useOffice(d, fileId, okind, version, say, attempt);
+  const offReady = off.state.status === "ready" ? off.state : null;
+  const kind = offReady ? "document" : ready ? (isPdf && pdfData === null ? "other" : viewerKindOf(isPdf ? { ...ready.data, previewUrl: pdfData !== null ? "pdf" : undefined } : ready.data)) : "other";
   // a Google Doc is kept as Markdown: it is read as a note is, without Drive's escapes
   const app = ready ? googleAppOf(ready.data.file) : null;
   // the text the file holds after the saves of the Markdown editor, so the page reads what was just written once Edit is left
@@ -219,7 +226,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const office = ready !== null && isOffice(ready.data.file.kind);
   const blocks = useMemo(
     () =>
-      wbk.state.status === "ready"
+      offReady
+        ? offReady.kind === "docx"
+          ? offReady.doc.paras.map((q) => ({ id: q.id, tag: "p" as const, text: q.text }))
+          : offReady.deck.slides.map((sl) => ({ id: `sl${sl.n}`, tag: "p" as const, text: sl.texts }))
+        : wbk.state.status === "ready"
         ? wbk.texts.map((t, i) => ({ id: `sh${i + 1}`, tag: "p" as const, text: t }))
         : isPdf && kind === "document"
         ? pdfTexts.map((t, i) => ({ id: `pg${i + 1}`, tag: "p" as const, text: t }))
@@ -228,7 +239,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
           ? officeBlocks(text)
           : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)
         : [],
-    [ready, kind, text, app, office, isPdf, pdfTexts, wbk.state.status, wbk.texts],
+    [ready, kind, text, app, office, isPdf, pdfTexts, wbk.state.status, wbk.texts, offReady, off.rev],
   );
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
@@ -579,7 +590,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         subtitle={subtitleOf(ready.data, now, path)}
         {...(mark !== undefined ? { kindMark: mark } : {})}
         {...(app !== null ||
-        office ||
+        (office && (offReady === null || !ready.data.canEdit)) ||
         file.kind === "pdf" ||
         ready.data.connected?.viewOnly === true ||
         (wbk.state.status === "ready" && !ready.data.canEdit)
@@ -595,7 +606,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         {...(fileLinks ? { fileLinks } : {})}
         {...(sheet ? { sheet } : {})}
         comments={
-          layer.preview ? [] : isPdf ? pageCommentsOf(ready.comments, d.name, now) : docCommentsOf(ready.comments, d.name, now)
+          layer.preview ? [] : isPdf || offReady?.kind === "pptx" ? pageCommentsOf(ready.comments, d.name, now) : docCommentsOf(ready.comments, d.name, now)
         }
         {...(wbk.state.status === "ready"
           ? {
@@ -622,6 +633,52 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
                     current={cur ?? null}
                     matches={m.all[wbk.sheet] ?? new Set<string>()}
                     onChange={wbk.changed}
+                  />
+                );
+              },
+            }
+          : {})}
+        {...(offReady
+          ? {
+              ...(off.saved !== undefined ? { saved: off.saved } : {}),
+              ...(offReady.kind === "pptx" ? { paged: true } : {}),
+              rich: (c: RichCtx): ReactElement => {
+                const why = !ready.data.canEdit
+                  ? ready.data.connected?.viewOnly
+                    ? `View only in ${ready.data.connected.provider}.`
+                    : "You can read this file but not change it."
+                  : undefined;
+                if (offReady.kind === "docx") {
+                  const cur = c.hit?.block ?? null;
+                  return (
+                    <DocPage
+                      model={offReady.doc}
+                      rev={off.redrawRev}
+                      zoom={c.zoom}
+                      edit={c.edit}
+                      {...(why !== undefined ? { why } : {})}
+                      imageUrl={off.imageUrl}
+                      decor={c.decor}
+                      currentBlock={cur}
+                      onChange={off.changed}
+                      onRedraw={off.redraw}
+                    />
+                  );
+                }
+                return (
+                  <SlideHost
+                    ctx={c}
+                    model={offReady.deck}
+                    rev={off.redrawRev}
+                    {...(why !== undefined ? { why } : {})}
+                    imageUrl={off.imageUrl}
+                    pins={pagePins(ready.comments)}
+                    marks={pdfMarks}
+                    onChange={off.changed}
+                    onArea={(a) => {
+                      if (a.tool === "redact") layer.mark({ kind: "redact", shape: "box", box: a.box, page: a.page });
+                      else void commentOnPage(d, fileId, { page: a.page, box: a.box }, a.text).then(reload).catch(say);
+                    }}
                   />
                 );
               },
@@ -750,6 +807,50 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         </Text>
       ) : null}
     </View>
+  );
+}
+
+/** The deck's body: the slide on show follows the viewer's page control, and reports how many slides there are. */
+function SlideHost(p: {
+  ctx: RichCtx;
+  model: import("../../../../../../ui/src/Viewer/rich/pptx.ts").PptxModel;
+  rev: number;
+  why?: string;
+  imageUrl: (path: string) => string | undefined;
+  pins: readonly import("../../../../../../ui/src/Viewer/rich/PdfPages.tsx").PdfPin[];
+  marks: readonly import("../../../../../../ui/src/Viewer/rich/PdfPages.tsx").PdfMark[];
+  onChange: () => void;
+  onArea: (a: { tool: "comment" | "redact"; page: number; box: { x: number; y: number; w: number; h: number }; text: string }) => void;
+}): ReactElement {
+  const [slide, setSlide] = useState(1);
+  const { setPages, setPage } = p.ctx;
+  useEffect(() => setPages(p.model.slides.length), [p.model.slides.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setPage(slide), [slide]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (p.ctx.jump !== null) setSlide(p.ctx.jump.page);
+  }, [p.ctx.jump?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Find on another slide brings that slide up
+  useEffect(() => {
+    if (p.ctx.hit !== null) setSlide(p.ctx.hit.block + 1);
+  }, [p.ctx.hit?.block, p.ctx.hit?.occurrence, p.ctx.find]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <SlideView
+      model={p.model}
+      rev={p.rev}
+      slide={slide}
+      onSlide={setSlide}
+      zoom={Math.min(p.ctx.zoom, 1.4)}
+      edit={p.ctx.edit}
+      {...(p.why !== undefined ? { why: p.why } : {})}
+      thumbs={p.ctx.thumbs}
+      imageUrl={p.imageUrl}
+      decor={p.ctx.decor}
+      tool={p.ctx.tool}
+      pins={p.pins}
+      marks={p.marks}
+      onChange={p.onChange}
+      onArea={p.onArea}
+    />
   );
 }
 

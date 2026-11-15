@@ -131,18 +131,19 @@ export function driveStandIn(o: DriveOptions) {
     if (isBytes) {
       if (state.denyWrites) return { status: 403, json: { error: { code: 403 } } };
       const raw = body instanceof Uint8Array ? body : enc.encode(String(body ?? ""));
-      const text = dec.decode(raw);
+      // read as latin1 so the bytes of a workbook or a Word file come through whole; the JSON part is decoded as UTF-8 from the same bytes
+      const text = Buffer.from(raw).toString("latin1");
       const boundary = /^--(\S+)\r\n/.exec(text)?.[1] ?? "";
       const parts = text.split(`--${boundary}`).filter((p) => p.trim() !== "" && p.trim() !== "--");
-      const meta = JSON.parse(/\r\n\r\n([\s\S]*?)\r\n$/.exec(parts[0] ?? "")?.[1] ?? "{}") as Record<string, unknown>;
-      const media = (parts[1] ?? "").replace(/^\r\nContent-Type:[^\r]*\r\n\r\n/, "").replace(/\r\n$/, "");
+      const meta = JSON.parse(Buffer.from(/\r\n\r\n([\s\S]*?)\r\n$/.exec(parts[0] ?? "")?.[1] ?? "{}", "latin1").toString("utf8")) as Record<string, unknown>;
+      const media = Buffer.from((parts[1] ?? "").replace(/^\r\nContent-Type:[^\r]*\r\n\r\n/, "").replace(/\r\n$/, ""), "latin1");
       const m = /\/upload\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname);
       if (m) {
         const f = files.get(decodeURIComponent(m[1]!));
         if (!f) return { status: 404, json: {} };
         if (!f.canEdit) return { status: 403, json: {} };
         f.head += 1;
-        f.bytes = enc.encode(media);
+        f.bytes = new Uint8Array(media);
         f.modified = stamp();
         f.by = me;
         f.revs.push({ id: `${f.id}-r${f.head}`, time: f.modified, bytes: f.bytes, by: me });
@@ -153,7 +154,7 @@ export function driveStandIn(o: DriveOptions) {
       const parents = Array.isArray(meta["parents"]) ? (meta["parents"] as string[]) : ["root-folder"];
       return {
         json: view(
-          put({ name: String(meta["name"]), parents, mimeType: String(meta["mimeType"] ?? "application/pdf") }, media),
+          put({ name: String(meta["name"]), parents, mimeType: String(meta["mimeType"] ?? "application/pdf") }, new Uint8Array(media)),
         ),
       };
     }
@@ -202,9 +203,9 @@ export function driveStandIn(o: DriveOptions) {
       };
     if (one[3] === "revisions") {
       const r = f.revs.find((x) => x.id === decodeURIComponent(one[5]!));
-      return r ? { text: dec.decode(r.bytes) } : { status: 404, json: {} };
+      return r ? { bytes: r.bytes, text: dec.decode(r.bytes) } : { status: 404, json: {} };
     }
-    if (method === "GET" && query["alt"] === "media") return { text: dec.decode(f.bytes) };
+    if (method === "GET" && query["alt"] === "media") return { bytes: f.bytes, text: dec.decode(f.bytes) };
     if (method === "GET") return { json: view(f) };
     if (method === "PATCH") {
       if (state.denyWrites || !f.canEdit) return { status: 403, json: { error: { code: 403 } } };

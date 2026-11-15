@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
-import { makePdf, reportPages } from "./viewer-fixtures.ts";
+import { makeDocx, makePdf, makePptx, reportPages, unzip } from "./viewer-fixtures.ts";
 
 const PASSWORD = "fixture password 123";
 type Pg = import("playwright-core").Page;
@@ -340,6 +340,131 @@ test("a 50,000 row sheet opens and scrolls: only the rows near the screen are dr
     await page.getByTestId("vwg-scroll").evaluate((el) => (el.scrollTop = 28 * 40_000));
     await page.waitForFunction(() => !!document.querySelector('[data-testid="vwg-cell-40010-1"]'), null, { timeout: 10_000 });
     assert.equal((await page.getByTestId("vwg-cell-40010-1").innerText()).trim(), "row 40010");
+  } finally {
+    await s.close();
+  }
+});
+
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+test("a Word file is drawn as its page, a word is edited and saved back, and everything else in the file is the same", async (t) => {
+  const s = await session(t);
+  if (!s) return;
+  const { page } = s;
+  try {
+    const original = makeDocx();
+    const f = await s.make("plan.docx", original, DOCX);
+    const fileId = f.file.fileId as string;
+    await s.open("plan.docx");
+    await page.getByTestId("vww").waitFor({ timeout: 30_000 });
+    assert.match(await page.getByTestId("vww-header").innerText(), /Sample company report/);
+    assert.match(await page.getByTestId("vww-footer").innerText(), /Confidential sample/);
+    assert.match(await page.getByTestId("vww-footnotes").innerText(), /Figures are estimates/);
+    assert.equal(await page.getByTestId("vww-table").locator("td").count(), 4);
+    assert.equal(await page.getByTestId("vww-img").count(), 1);
+    const head = page.locator('[data-pid="d0"]');
+    assert.equal(await head.evaluate((e) => getComputedStyle(e).fontWeight), "700");
+    assert.equal(await page.locator('a[href="https://example.com/sample"]').count(), 1);
+    await s.shot("docx-open");
+    // find marks the words on the page
+    await page.getByTestId("vw-find-btn").click();
+    await page.getByTestId("vw-find-input").fill("quarter");
+    await page.waitForFunction(() => document.querySelectorAll("mark.vwf").length >= 2, null, { timeout: 10_000 });
+    await s.shot("docx-find");
+    await page.getByTestId("vw-find-input").fill("");
+    await page.getByTestId("vw-find-btn").click();
+    // edit: a word is replaced
+    await page.getByTestId("vw-mode-edit").click();
+    const tracked = page.locator('[data-ro="1"]');
+    assert.equal(await tracked.first().getAttribute("contenteditable"), "false", "a paragraph with a tracked change is not edited");
+    const p1 = page.locator('[data-pid="d1"] [data-r="1"]');
+    await p1.dblclick();
+    await page.keyboard.type("coming");
+    await s.shot("docx-edit");
+    const nt = await page.getByTestId("file-viewer-note").waitFor({ timeout: 4000 }).then(() => page.getByTestId("file-viewer-note").innerText()).catch(() => "(no note)");
+    console.log("NOTE-AFTER-EDIT", nt);
+    console.log("FFLATE", await page.evaluate(() => { try { const f = (window as any).fflate; const z = f.zipSync({ "a.xml": [new Uint8Array([1, 2]), { level: 6, mtime: 0 }] }); return "ok " + z.length; } catch (e: any) { return "ERR " + e.message; } }));
+    await page.waitForFunction(() => /v2/.test(document.querySelector('[data-testid="vw-saved"]')?.textContent ?? ""), null, { timeout: 20_000 }).catch(async (e) => {
+      console.log("NOTE", await page.getByTestId("file-viewer-note").innerText().catch(() => "(none)"), "SAVED", await page.getByTestId("vw-saved").innerText().catch(() => "(none)"));
+      throw e;
+    });
+    const out = unzip(Buffer.from((await s.call("files.read", { fileId, as: "base64" })).base64, "base64"));
+    const was = unzip(original);
+    for (const k of Object.keys(was)) if (k !== "word/document.xml") assert.deepEqual(out[k], was[k], `${k} is the file's own bytes`);
+    const docXml = new TextDecoder().decode(out["word/document.xml"]!);
+    assert.match(docXml, /coming|comingquarter/);
+    assert.match(docXml, /<w:ins w:id="5"/, "the tracked change is kept");
+    assert.match(docXml, /<w:drawing>/, "the picture is kept");
+    // reopen: the change is there
+    await s.open("plan.docx");
+    await page.getByTestId("vww").waitFor({ timeout: 30_000 });
+    assert.match(await page.getByTestId("vww-card").innerText(), /coming/);
+    assert.deepEqual(s.errors, []);
+  } finally {
+    await s.close();
+  }
+});
+
+test("a deck is drawn as slides with a filmstrip, find, a comment on a slide, present, and an edited word saved back", async (t) => {
+  const s = await session(t);
+  if (!s) return;
+  const { page } = s;
+  try {
+    const original = makePptx();
+    const f = await s.make("review.pptx", original, PPTX);
+    const fileId = f.file.fileId as string;
+    await s.open("review.pptx");
+    await page.getByTestId("vws").waitFor({ timeout: 30_000 });
+    assert.equal(await page.getByTestId("vws").getAttribute("data-slides"), "3");
+    assert.equal(await page.getByTestId("vws-count").innerText(), "Slide 1 of 3");
+    await s.shot("pptx-open");
+    await page.getByTestId("vws-thumb-2").click();
+    await page.getByText("Revenue grew in every region").first().waitFor({ timeout: 10_000 });
+    const box = page.locator('[data-testid="vws-slide-2"] .vws-sh').nth(2);
+    assert.equal(await box.evaluate((e) => getComputedStyle(e).backgroundColor), "rgb(79, 129, 189)", "a shape's fill is drawn");
+    await page.getByTestId("vws-thumb-3").click();
+    await page.getByText("12 percent").first().waitFor();
+    assert.equal(await page.getByTestId("vws-img").count() >= 1, true, "the picture is drawn");
+    // find across slides steps into the slide with the match
+    await page.getByTestId("vw-find-btn").click();
+    await page.getByTestId("vw-find-input").fill("hiring");
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="vws"] mark.vwf').length >= 1, null, { timeout: 10_000 });
+    assert.equal(await page.getByTestId("vws").getAttribute("data-current"), "2");
+    await s.shot("pptx-find");
+    await page.getByTestId("vw-find-input").fill("");
+    // a comment pinned on the slide
+    await page.getByTestId("vw-tool-comment").click();
+    const sb = await page.locator('.vws-stage [data-testid="vws-slide-2"]').boundingBox();
+    assert.ok(sb);
+    await page.mouse.move(sb.x + sb.width * 0.1, sb.y + sb.height * 0.3);
+    await page.mouse.down();
+    await page.mouse.move(sb.x + sb.width * 0.5, sb.y + sb.height * 0.5, { steps: 5 });
+    await page.mouse.up();
+    await page.getByTestId("vwp-note-input").fill("Add the source");
+    await page.getByTestId("vwp-note-input").press("Enter");
+    await page.getByTestId("vwp-pin-1").waitFor({ timeout: 10_000 });
+    const c = (await s.call("files.comments.list", { fileId })).comments.find((x: any) => x.text === "Add the source");
+    assert.equal(c?.anchor.page, 2, "the comment is pinned to slide 2");
+    await page.getByTestId("vw-tool-comment").click();
+    // present: full screen, arrows
+    await page.getByTestId("vws-present").click();
+    await page.getByTestId("vws-full").waitFor();
+    await page.keyboard.press("ArrowRight");
+    await page.waitForFunction(() => document.querySelector('[data-testid="vws-full"] [data-testid="vws-slide-3"]'));
+    await page.keyboard.press("Escape");
+    // edit a word
+    await page.getByTestId("vws-thumb-2").click();
+    await page.getByTestId("vw-mode-edit").click();
+    const target = page.locator('[data-testid="vws-slide-2"] p', { hasText: "Costs stayed flat" }).locator("[data-r]");
+    await target.click({ clickCount: 3 });
+    await page.keyboard.type("Costs fell slightly");
+    await page.waitForFunction(() => /v2/.test(document.querySelector('[data-testid="vw-saved"]')?.textContent ?? ""), null, { timeout: 20_000 });
+    const out = unzip(Buffer.from((await s.call("files.read", { fileId, as: "base64" })).base64, "base64"));
+    const was = unzip(original);
+    for (const k of Object.keys(was)) if (k !== "ppt/slides/slide2.xml") assert.deepEqual(out[k], was[k], `${k} is the file's own bytes`);
+    assert.match(new TextDecoder().decode(out["ppt/slides/slide2.xml"]!), /Costs fell slightly/);
+    assert.deepEqual(s.errors, []);
   } finally {
     await s.close();
   }
