@@ -390,6 +390,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      # the wall's container tests import the client's key code (hash-wasm): this job ran with no workspace packages and every one failed at import (16 Nov 2026)
+      - uses: ./.github/actions/deps
       - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
         run: bash scripts/ci-iolock.sh shared
       - name: Install bubblewrap and tmux when the runner does not have them
