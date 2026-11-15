@@ -121,6 +121,9 @@ export function stubs(ctx: CallCtx) {
       },
       create: call("agents.create"),
       delete: call("agents.delete"),
+      delete_for_good: call("agents.delete_for_good"),
+      delete_preview: call("agents.delete_preview"),
+      erased: call("agents.erased"),
       get: call("agents.get"),
       guide: {
         get: call("agents.guide.get"),
@@ -180,6 +183,9 @@ export function stubs(ctx: CallCtx) {
         apply: call("agents.template.apply"),
         get: call("agents.template.get"),
         preview: call("agents.template.preview"),
+      },
+      trash: {
+        list: call("agents.trash.list"),
       },
       update: call("agents.update"),
       versions: call("agents.versions"),
@@ -1044,6 +1050,7 @@ export function stubs(ctx: CallCtx) {
         delete: call("files.folder.delete"),
         get: call("files.folder.get"),
         move: call("files.folder.move"),
+        purge: call("files.folder.purge"),
         rename: call("files.folder.rename"),
         restore: call("files.folder.restore"),
         search: call("files.folder.search"),
