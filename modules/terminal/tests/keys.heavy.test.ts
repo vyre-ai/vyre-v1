@@ -115,6 +115,24 @@ test(
 );
 
 test(
+  "a pane left in tmux's copy mode: the keys still reach the shell (copy mode is left first), never tmux's own bindings",
+  { skip },
+  async () => {
+    await open("cm1");
+    await host.keys!("cm1", [{ text: "echo before" }, { key: "Enter" }]);
+    await until("before", async () => /\nbefore\b/.test(await screen("cm1")));
+    await run("tmux", [...TMUX, "copy-mode", "-t", "vyre-cm1"]);
+    const inMode = await run("tmux", [...TMUX, "display-message", "-p", "-t", "vyre-cm1", "#{pane_in_mode}"]);
+    assert.equal(inMode.stdout.trim(), "1", "the pane is in copy mode");
+    // in copy mode these would be searches and jumps; they must reach the shell
+    await host.keys!("cm1", [{ text: "echo after-copy-mode" }, { key: "Enter" }]);
+    await until("the shell ran it", async () => /\nafter-copy-mode\b/.test(await screen("cm1")));
+    const now = await run("tmux", [...TMUX, "display-message", "-p", "-t", "vyre-cm1", "#{pane_in_mode}"]);
+    assert.equal(now.stdout.trim(), "0", "copy mode was left");
+  },
+);
+
+test(
   "a hidden prompt: the typed secret is never on the screen, in the scrollback, in the log pipe or in a read; the program still gets it",
   { skip },
   async () => {

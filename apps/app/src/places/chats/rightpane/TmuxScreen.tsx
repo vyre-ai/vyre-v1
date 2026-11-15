@@ -76,6 +76,9 @@ export function keyToPress(e: KeyLike): KeyPress | null {
  * Keys go one request at a time, in order. Everything pressed while a request is in flight waits and goes as one call when it lands (letters join into one text), so a fast typist or a paste of a long line is a few
  * requests, not one per key, and the screen never lags behind the hands.
  */
+const LOST_KEYS = "Those keys may not have arrived.";
+const KEYBOARD_GONE = "The keyboard is no longer yours.";
+
 /** What the screen needs of the take-over it types under. */
 export interface Seat {
   get(): Promise<{ lease: string; seq: number } | null>;
@@ -98,10 +101,10 @@ export async function sendKeys(
     sleep: (ms: number) => Promise<void>;
   },
   ks: KeyPress[],
-): Promise<{ screen?: Capture; sent: boolean }> {
+): Promise<{ screen?: Capture; sent: boolean; said?: string }> {
   const st = d.seat;
   const mine = st === undefined ? null : await st.get().catch(() => null);
-  if (st === undefined || mine === null) return { sent: false };
+  if (st === undefined || mine === null) return { sent: false, said: LOST_KEYS };
   const batchKey = d.newKey?.() ?? `kb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   for (let attempt = 0; attempt < 8; attempt++) {
     try {
@@ -120,17 +123,19 @@ export async function sendKeys(
       const reason = (e as { details?: { reason?: unknown } } | null)?.details?.reason;
       if (reason !== "in_flight" && typeof code === "string" && /^(validation|permission|internal)\./.test(code)) {
         st.reset();
-        return { sent: false };
+        // the server's own plain sentence ("Your take-over of this terminal is over...", "Those keys may not have arrived.")
+        const words = (e as { message?: unknown } | null)?.message;
+        return { sent: false, said: typeof words === "string" && words !== "" ? words : LOST_KEYS };
       }
       if (!d.holding()) {
         st.reset();
-        return { sent: false };
+        return { sent: false, said: KEYBOARD_GONE };
       }
       await d.sleep(120 * (attempt + 1));
     }
   }
   st.reset();
-  return { sent: false };
+  return { sent: false, said: LOST_KEYS };
 }
 
 export function keyBatcher(send: (keys: KeyPress[]) => Promise<unknown>): { push(k: KeyPress): void } {
@@ -273,6 +278,7 @@ export function TmuxScreen({
   taking,
   seat,
   newKey,
+  onSaid,
   onHidden,
   onUnsupported,
 }: {
@@ -286,6 +292,8 @@ export function TmuxScreen({
   seat?: Seat | undefined;
   /** a key for one batch of keys: the same key goes with every retry of that batch, never with another */
   newKey?: (() => string) | undefined;
+  /** one plain line when keys did not arrive (the bar shows it); null when keys arrive again */
+  onSaid?(line: string | null): void;
   onHidden?(hidden: boolean): void;
   onUnsupported?(): void;
 }): ReactElement | null {
@@ -311,6 +319,8 @@ export function TmuxScreen({
   const batcher = useRef<ReturnType<typeof keyBatcher> | null>(null);
   const holding = useRef(keys);
   holding.current = keys || taking?.current === true;
+  const onSaidRef = useRef(onSaid);
+  onSaidRef.current = onSaid;
   const seatRef = useRef(seat);
   seatRef.current = seat;
   const keyOf = useRef(newKey);
@@ -331,6 +341,7 @@ export function TmuxScreen({
         },
         ks,
       );
+      onSaidRef.current?.(out.said ?? null);
       if (out.screen && n > drawn.current) {
         drawn.current = n;
         latest.current.show(out.screen);

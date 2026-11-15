@@ -5113,6 +5113,8 @@ export type BackupExportStatusOut = {
   name: string;
   sizeBytes: number;
   expiresAt: number;
+  leftOut?: number;
+  filesKept?: number;
 };
 export type BackupHealthIn = Record<string, unknown>;
 export type BackupHealthOut = {
@@ -27498,6 +27500,11 @@ export type MountsGetOut = {
     conflicts: number;
     fromDevice?: string;
     error?: string;
+    skippedCount?: number;
+    skipped?: Array<{
+        name: string;
+        reason: string;
+      }>;
     live?: boolean;
     liveVia?: "push" | "poll";
   };
@@ -27548,6 +27555,11 @@ export type MountsListOut = {
       conflicts: number;
       fromDevice?: string;
       error?: string;
+      skippedCount?: number;
+      skipped?: Array<{
+          name: string;
+          reason: string;
+        }>;
       live?: boolean;
       liveVia?: "push" | "poll";
     }>;
@@ -27688,6 +27700,11 @@ export type MountsUpdateOut = {
     conflicts: number;
     fromDevice?: string;
     error?: string;
+    skippedCount?: number;
+    skipped?: Array<{
+        name: string;
+        reason: string;
+      }>;
     live?: boolean;
     liveVia?: "push" | "poll";
   };
@@ -52253,6 +52270,9 @@ export type TerminalCommandFinishedPayload = {
 export type TerminalGivenBackPayload = {
   terminalId: string;
   by: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 export type TerminalOpenedPayload = {
   terminalId: string;
@@ -52271,6 +52291,9 @@ export type TerminalTakenPayload = {
   terminalId: string;
   by: string;
   from?: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 export type ThreadArchivedPayload = {
   person: string;

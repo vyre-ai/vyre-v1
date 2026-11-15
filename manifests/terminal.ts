@@ -473,16 +473,33 @@ export default defineManifest({
       subject: ["terminal", "/terminalId"],
       vis: "participants",
     }),
-    ev("terminal.taken", "A person took the keyboard of a terminal (the agent is told, its commands wait)", {
-      p: { terminalId: id.terminal, by: t.str(), from: t.opt(t.str()) },
-      subject: ["terminal", "/terminalId"],
-      vis: "participants",
-    }),
+    ev(
+      "terminal.taken",
+      "A person took the keyboard of a terminal (the agent is told, its commands are refused until it is handed back). When it is someone other than the agent's owner, the payload names the agent and its owner so the owner is told in their chat",
+      {
+        p: {
+          terminalId: id.terminal,
+          by: t.str(),
+          from: t.opt(t.str()),
+          agentId: t.opt(t.str()),
+          agentName: t.opt(t.str()),
+          agentOwner: t.opt(t.str()),
+        },
+        subject: ["terminal", "/terminalId"],
+        vis: "participants",
+      },
+    ),
     ev(
       "terminal.given_back",
       "The keyboard of a terminal was handed back to the agent by the person who held it (a hold that ran out after 15 quiet minutes is read as over and emits nothing)",
       {
-        p: { terminalId: id.terminal, by: t.str() },
+        p: {
+          terminalId: id.terminal,
+          by: t.str(),
+          agentId: t.opt(t.str()),
+          agentName: t.opt(t.str()),
+          agentOwner: t.opt(t.str()),
+        },
         subject: ["terminal", "/terminalId"],
         vis: "participants",
       },

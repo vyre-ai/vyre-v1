@@ -703,6 +703,7 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
 export async function read(ctx: TermCtx, input: { terminalId: string; lines?: number; since?: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
   try {
     const r = await (
       await hostFor(ctx, x)
@@ -719,6 +720,7 @@ export async function read(ctx: TermCtx, input: { terminalId: string; lines?: nu
 export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
   let replay: string;
   try {
     replay = clean(scopeOf(x), (await (await hostFor(ctx, x)).read(input.terminalId, { lines: REPLAY_LINES })).text);
@@ -740,6 +742,25 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
 }
 
 // ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------
+
+/**
+ * A person's own terminal is theirs alone: one on the Space's server or a device, or their own tab in an agent's computer. Nobody else types into it, takes its keyboard, reads its screen or closes it, a manager
+ * and the agent included (they still see that it is there and who is typing, in the list). A terminal of the agent's own (opened by the agent) is entered by whoever may enter the agent's computer, as before.
+ */
+function needOwnTerminal(ctx: TermCtx, x: SessionRow): void {
+  const agents = x.by?.kind === "agent" || x.by?.kind === "helper" || x.name === AGENT_SESSION;
+  if (x.host === "agent_computer" && agents) return;
+  if (isTrustedService(ctx.principal)) return;
+  if (x.owner === actorOf(ctx) && ctx.principal.kind !== "agent") return;
+  raise(
+    ctx,
+    "permission.role_lacks_permission",
+    "That terminal is someone else's. Only the person who opened it can use it.",
+    {
+      reason: "terminal_not_yours",
+    },
+  );
+}
 
 /** What the agent, or anyone else who is not the holder, is told while a person has the keyboard. */
 export const KEYBOARD_HELD =
@@ -787,12 +808,26 @@ function needTakeOver(ctx: TermCtx): void {
   if (!takeOverOn()) raise(ctx, "permission.no_grant", TAKE_OVER_OFF, { reason: "take_over_off" });
 }
 
+/** When someone other than the agent's owner takes or hands back the keyboard of an agent's terminal, the event names the agent and its owner, so the owner is told in their chat. */
+async function ownerNote(
+  ctx: TermCtx,
+  x: SessionRow,
+  me: string,
+): Promise<{ agentId?: string; agentName?: string; agentOwner?: string }> {
+  if (x.agentId === undefined || ctx.call === undefined) return {};
+  const got = await lookup(ctx, x.agentId);
+  const owner = got.agent?.ownerId;
+  if (owner === undefined || owner === me) return {};
+  return { agentId: x.agentId, agentName: got.agent?.name ?? "the agent", agentOwner: owner };
+}
+
 export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   needTakeOver(ctx);
   if (ctx.principal.kind === "agent")
     raise(ctx, "permission.no_grant", "An agent types in its own terminal; taking the keyboard is for people.");
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
   const me = actorOf(ctx);
   const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h !== null && h !== me && !mayTakeFromOther(ctx, x))
@@ -806,7 +841,12 @@ export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
     );
   if (h !== me) {
     setHold(ctx.db, x.terminalId, me, ctx.now());
-    ctx.emit("terminal.taken", x.terminalId, { terminalId: x.terminalId, by: me, ...(h === null ? {} : { from: h }) });
+    ctx.emit("terminal.taken", x.terminalId, {
+      terminalId: x.terminalId,
+      by: me,
+      ...(h === null ? {} : { from: h }),
+      ...(await ownerNote(ctx, x, me)),
+    });
   } else touchHold(ctx.db, x.terminalId, me, ctx.now());
   // the take-over's lease and the number of the next batch of keys: a screen that reloads while it holds the keyboard asks again and carries on from here
   const { lease, nextSeq } = leaseOf(ctx.db, x.terminalId, ctx.now());
@@ -817,6 +857,7 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   needTakeOver(ctx);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
   const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h === null) return { terminal: terminalRow(x) };
   const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
@@ -830,7 +871,11 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
       },
     );
   dropHold(ctx.db, x.terminalId);
-  ctx.emit("terminal.given_back", x.terminalId, { terminalId: x.terminalId, by: me ?? "agent" });
+  ctx.emit("terminal.given_back", x.terminalId, {
+    terminalId: x.terminalId,
+    by: me ?? "agent",
+    ...(me === undefined ? {} : await ownerNote(ctx, x, me)),
+  });
   const { heldBy: _gone, ...rest } = x;
   void _gone;
   return { terminal: terminalRow(rest) };
@@ -841,6 +886,7 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
 export function rename(ctx: TermCtx, input: { terminalId: string; name: string }) {
   ensure(ctx.db);
   const x = live(ctx, input.terminalId);
+  needOwnTerminal(ctx, x);
   needKeyboard(ctx, x);
   const name = input.name.trim();
   if (name === "" || name.length > 80)
@@ -856,6 +902,7 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
   if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
   if (x.closedAt !== undefined) return { closed: true };
   await needAccess(ctx, x);
+  needOwnTerminal(ctx, x);
   needKeyboard(ctx, fresh(ctx, x));
   // The tmux session is killed when the machine can be reached; if it cannot, the row is still closed so the person is not stuck with a session they cannot see.
   const host = boundHost();
@@ -883,6 +930,7 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
 export async function input(ctx: TermCtx, a: { terminalId: string; data: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
+  needOwnTerminal(ctx, x);
   if (a.data === "") raise(ctx, "validation.bad_input", "There is nothing to send.");
   needKeyboard(ctx, x);
   try {
@@ -910,6 +958,7 @@ function screenOf<T extends { text: string; cursor: { x: number; y: number } | n
 export async function capture(ctx: TermCtx, input: { terminalId: string; lines?: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
   const host = await hostFor(ctx, x);
   if (!host.capture)
     raise(ctx, "validation.precondition_failed", "This terminal draws lines, not a screen.", { reason: "no_screen" });
@@ -922,6 +971,8 @@ export async function capture(ctx: TermCtx, input: { terminalId: string; lines?:
   }
 }
 
+/** The most characters one batch of keys holds. */
+const MAX_KEYS_CHARS = 100_000;
 const BATCH_KEEP_MS = 10 * 60_000;
 /** A batch that has been "being sent" this long was lost with the process that was sending it: it is answered as not known to have arrived, and never sent again. */
 const SENDING_STALE_MS = 15_000;
@@ -961,6 +1012,7 @@ export async function keys(
   ensure(ctx.db);
   needTakeOver(ctx);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
   // from here to the written-down batch nothing is awaited: two calls of the same batch cannot both pass
   const now = ctx.now();
   const me = actorOf(ctx);
@@ -996,7 +1048,7 @@ export async function keys(
     }
     const st = JSON.parse(String(seen["answer"])) as Stored;
     if (!st.ok) return raiseStored(ctx, st);
-    return { ok: true, ...(st.screen === undefined ? {} : { screen: st.screen }) };
+    return { ok: true };
   }
   // 2 only the holder of the take-over in force types; someone else holding it refuses with who, nobody holding says so
   needKeyboard(ctx, x);
@@ -1009,7 +1061,12 @@ export async function keys(
   if (input.seq < cur.nextSeq) refuse(ctx, "Those keys were already sent.", "seq_used", tid);
   if (input.seq > cur.nextSeq)
     refuse(ctx, "Some keys before these did not arrive. Take the keyboard again to type.", "seq_gap", tid);
-  // 3 the keys themselves
+  // 3 the keys themselves; a batch that is too big is refused in plain words before its number is spent
+  const size = input.keys.reduce((n, k) => n + (k.text ?? k.paste ?? k.key ?? "").length, 0);
+  if (size > MAX_KEYS_CHARS)
+    raise(ctx, "validation.bad_input", "That is too much to type at once. Paste a smaller piece.", {
+      reason: "keys_too_big",
+    });
   const list: KeyPress[] = [];
   for (const k of input.keys) {
     const set = [k.text, k.key, k.paste].filter((v) => v !== undefined).length;
@@ -1087,9 +1144,9 @@ export async function keys(
     await new Promise<void>((r) => setTimeout(r, SETTLE_MS));
     try {
       const r = await host.capture(tid, { lines: 2000 });
-      const screen = screenOf(r, clean(scopeOf(x), r.text));
-      settle({ ok: true, screen });
-      return { ok: true, screen };
+      // the record of the batch never holds the screen (a pasted token, `cat .env`): a repeat answers ok and the app reads the screen again
+      settle({ ok: true });
+      return { ok: true, screen: screenOf(r, clean(scopeOf(x), r.text)) };
     } catch {
       settle({ ok: true });
       return { ok: true };
@@ -1103,6 +1160,7 @@ export async function keys(
 export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
+  needOwnTerminal(ctx, x);
   needKeyboard(ctx, x);
   try {
     await (await hostFor(ctx, x)).interrupt(a.terminalId);
@@ -1116,6 +1174,7 @@ export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
 export async function resize(ctx: TermCtx, a: { terminalId: string; cols: number; rows: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
+  needOwnTerminal(ctx, x);
   needKeyboard(ctx, x);
   try {
     await (await hostFor(ctx, x)).resize(a.terminalId, a.cols, a.rows);
@@ -1929,3 +1988,14 @@ export async function forgetExpiredWorkspaces(
 }
 
 export { commandsOf, judge, rulesOf };
+
+/** A person lost their place (suspended, removed from the Space, signed out): every keyboard they held goes back to the agent at once, and nothing of their batches is kept. */
+export function onHolderGone(ctx: TermCtx, personId: unknown): string[] {
+  if (typeof personId !== "string" || personId === "") return [];
+  ensure(ctx.db);
+  const held = (ctx.db.all("SELECT terminal_id FROM terminal_hold WHERE person_id = ?", personId) as Row[]).map((r) =>
+    String(r["terminal_id"]),
+  );
+  for (const id of held) dropHold(ctx.db, id);
+  return held;
+}

@@ -42,9 +42,16 @@ function setup(): { hn: Harness; id: string } {
   bindHost(fakeHost({}).host);
   return { hn, id: "" };
 }
+// the agent's own terminal (a person's own tab is theirs alone: see the last tests)
 const open = async (hn: Harness): Promise<string> =>
-  (await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: `k${++keys}` }))
-    .terminal.terminalId;
+  (
+    await call(
+      hn,
+      "terminal.open",
+      { host: "agent_computer", agentId: "agt_intake", idempotencyKey: `k${++keys}` },
+      hn.as(AGENT, "usr_dana"),
+    )
+  ).terminal.terminalId;
 
 test("take over: the row says who has the keyboard, and the take is announced", async () => {
   const { hn } = setup();

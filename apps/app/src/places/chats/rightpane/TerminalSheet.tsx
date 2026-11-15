@@ -380,6 +380,7 @@ export function TerminalSheet({
                 taking={takingRef}
                 seat={seat}
                 newKey={data.newKey}
+                onSaid={setSaid}
                 onHidden={(h) => {
                   setHiddenPrompt(h);
                   setReady(true);

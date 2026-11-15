@@ -797,8 +797,9 @@ export function workspaceHolder(db: Db, agentId: string, now: number): string | 
 
 export function setHold(db: Db, terminalId: string, personId: string, now: number): void {
   db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
-  // a new take-over is a new lease: whatever the last holder had in flight is over
+  // a new take-over is a new lease: whatever the last holder had in flight is over, and nothing of it is kept
   db.run("DELETE FROM terminal_lease WHERE terminal_id = ?", terminalId);
+  db.run("DELETE FROM terminal_key_batch WHERE terminal_id = ?", terminalId);
   db.run(
     "INSERT INTO terminal_hold (terminal_id, person_id, since, seen) VALUES (?, ?, ?, ?)",
     terminalId,
@@ -811,6 +812,8 @@ export function setHold(db: Db, terminalId: string, personId: string, now: numbe
 export function dropHold(db: Db, terminalId: string): void {
   db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
   db.run("DELETE FROM terminal_lease WHERE terminal_id = ?", terminalId);
+  // the lease is over: nothing of its batches is kept
+  db.run("DELETE FROM terminal_key_batch WHERE terminal_id = ?", terminalId);
 }
 
 /** The lease of the take-over in force, or null when it has none (a read: nothing is written). */

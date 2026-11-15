@@ -247,3 +247,39 @@ test("with no take-over to type under nothing is sent", async () => {
   assert.equal(r.sent, false);
   assert.equal(calls, 0);
 });
+
+test("a batch that did not arrive says so in one plain line (the server's own words, or ours); a batch that arrives says nothing", async () => {
+  const words = "Some keys before these did not arrive. Take the keyboard again to type.";
+  const gap = await sendKeys(
+    deps(async () => {
+      throw Object.assign(new Error(words), { code: "validation.precondition_failed", details: { reason: "seq_gap" } });
+    }, makeSeat()),
+    [{ text: "x" }],
+  );
+  assert.equal(gap.said, words);
+  const failed = await sendKeys(
+    deps(async () => {
+      throw Object.assign(new Error(""), { code: "internal.unexpected" });
+    }, makeSeat()),
+    [{ text: "x" }],
+  );
+  assert.equal(failed.said, "Those keys may not have arrived.");
+  let held = true;
+  const gone = await sendKeys(
+    deps(
+      async () => {
+        held = false;
+        throw new Error("network lost");
+      },
+      makeSeat(),
+      () => held,
+    ),
+    [{ text: "x" }],
+  );
+  assert.equal(gone.said, "The keyboard is no longer yours.");
+  const ok = await sendKeys(
+    deps(async () => ({ ok: true }), makeSeat()),
+    [{ text: "x" }],
+  );
+  assert.equal(ok.said, undefined);
+});

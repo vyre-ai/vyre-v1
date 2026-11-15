@@ -49,8 +49,14 @@ function world(opts: { failAfterApplying?: boolean; slowMs?: number } = {}) {
   return { hn, sent, order };
 }
 const open = async (hn: Harness): Promise<string> =>
-  (await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: `o${++n}` }))
-    .terminal.terminalId;
+  (
+    await call(
+      hn,
+      "terminal.open",
+      { host: "agent_computer", agentId: "agt_intake", idempotencyKey: `o${++n}` },
+      hn.as(AGENT, "usr_dana"),
+    )
+  ).terminal.terminalId;
 const batch = (id: string, lease: string, seq: number, key: string, text: string, extra: object = {}) => ({
   terminalId: id,
   lease,
@@ -67,7 +73,12 @@ test("a batch sent twice with the same key types once and the second answer is t
   assert.equal(t.nextSeq, 1);
   const first = await call(hn, "terminal.keys", batch(id, t.lease, 1, "k-one", "echo one", { capture: true }));
   const again = await call(hn, "terminal.keys", batch(id, t.lease, 1, "k-one", "echo one", { capture: true }));
-  assert.deepEqual(again, first, "a repeat gets the first answer");
+  assert.deepEqual(
+    again,
+    { ok: true },
+    "a repeat gets the first answer without the screen (the app reads the screen again)",
+  );
+  assert.equal(first.ok, true);
   assert.equal(sent.length, 1, "and types nothing");
   // the next number goes on from there
   await call(hn, "terminal.keys", batch(id, t.lease, 2, "k-two", "\n"));
@@ -109,11 +120,13 @@ test("an old take-over is refused: after a give back and a new take, the old lea
   const { hn, sent } = world();
   const id = await open(hn);
   const old = await call(hn, "terminal.take_over", { terminalId: id });
-  const first = await call(hn, "terminal.keys", batch(id, old.lease, 1, "k-a", "echo one"));
+  await call(hn, "terminal.keys", batch(id, old.lease, 1, "k-a", "echo one"));
   await call(hn, "terminal.give_back", { terminalId: id });
-  // late repeat of the applied batch: the first answer, no second delivery, and nothing lands in what the agent runs now
-  assert.deepEqual(await call(hn, "terminal.keys", batch(id, old.lease, 1, "k-a", "echo one")), first);
+  // late repeat of the applied batch after the give back: nothing of the lease is kept, so it is refused and types nothing
+  const repeat = await failure(() => h["terminal.keys"]!(hn.ctx, batch(id, old.lease, 1, "k-a", "echo one")));
+  assert.equal(repeat.reason, "not_holder");
   assert.equal(sent.length, 1);
+  assert.equal(hn.rows("SELECT * FROM terminal_key_batch").length, 0, "the batches went with the lease");
   // a NEW batch of the old take-over after the give back: nobody holds, refused
   const late = await failure(() => h["terminal.keys"]!(hn.ctx, batch(id, old.lease, 2, "k-b", "echo two")));
   assert.equal(late.reason, "not_holder");
@@ -204,4 +217,112 @@ test("the three calls are audited as the person's own: audit always on take_over
   for (const name of ["terminal.take_over", "terminal.keys", "terminal.give_back"])
     assert.equal(caps.find((c) => c.name === name)?.audit, "always", name);
   assert.equal(caps.find((c) => c.name === "terminal.keys")?.idempotency, "key");
+});
+
+test("a screen that shows a secret is never kept: neither the batch record nor the idempotency copy holds it, and the typed text is not hashed into the stored input", async () => {
+  reset();
+  const hn = harness();
+  const base = fakeHost({}).host;
+  bindHost({
+    ...base,
+    async capture() {
+      return { text: "TOKEN=sk-live-SECRET-0123456789", cols: 100, rows: 30, cursor: null, history: 0, hidden: false };
+    },
+    async keys() {},
+  });
+  const id = await open(hn);
+  const t = await call(hn, "terminal.take_over", { terminalId: id });
+  const r = await call(hn, "terminal.keys", batch(id, t.lease, 1, "k-s", "cat .env", { capture: true }));
+  assert.ok(JSON.stringify(r).includes("SECRET"), "the person gets the screen");
+  assert.ok(
+    !JSON.stringify(hn.rows("SELECT * FROM terminal_key_batch")).includes("SECRET"),
+    "the batch record has no screen",
+  );
+  // what the host's idempotency table keeps of the call
+  const { withoutScreen, withoutTypedKeys } = await import("../../../host/src/invoke.ts");
+  const kept = JSON.stringify(withoutScreen({ status: "ok", output: r, traceId: "t" }));
+  assert.ok(!kept.includes("SECRET") && kept.includes('"ok":true'), "the stored copy is {ok} only");
+  const hashed = JSON.stringify(withoutTypedKeys(batch(id, t.lease, 1, "k-s", "cat .env")));
+  assert.ok(!hashed.includes("cat .env"), "the typed text is not in the stored input");
+});
+
+test("a batch that is too big is refused in plain words before its number is spent", async () => {
+  const { hn, sent } = world();
+  const id = await open(hn);
+  const t = await call(hn, "terminal.take_over", { terminalId: id });
+  const big = await failure(() => h["terminal.keys"]!(hn.ctx, batch(id, t.lease, 1, "k-big", "x".repeat(2_000_000))));
+  assert.equal(big.code, "validation.bad_input");
+  assert.match(big.message, /too much to type at once/);
+  assert.equal(sent.length, 0);
+  assert.equal((await call(hn, "terminal.take_over", { terminalId: id })).nextSeq, 1, "the number was not spent");
+});
+
+test("a person's own terminal is theirs alone: another person, a manager and the agent cannot take it, type, read its screen, interrupt or close it", async () => {
+  const { hn, sent } = world();
+  // Dana's own tab in the agent's computer (opened by her, not the agent's)
+  const own = (
+    await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "own-1" })
+  ).terminal.terminalId as string;
+  const sara = hn.as(SARA); // allowed everything by the harness: a manager
+  for (const [cap, input] of [
+    ["terminal.take_over", { terminalId: own }],
+    ["terminal.keys", batch(own, "lse_x", 1, "own-k", "echo hijack")],
+    ["terminal.capture", { terminalId: own }],
+    ["terminal.read", { terminalId: own }],
+    ["terminal.input", { terminalId: own, data: "x" }],
+    ["terminal.interrupt", { terminalId: own }],
+    ["terminal.rename", { terminalId: own, name: "mine" }],
+    ["terminal.close", { terminalId: own }],
+  ] as const)
+    for (const [who, ctx] of [
+      ["a manager", sara],
+      ["the agent", hn.as(AGENT, "usr_dana")],
+    ] as const) {
+      const r = await failure(() => h[cap]!(ctx, input));
+      assert.ok(r.code.startsWith("permission."), `${cap} by ${who}: ${r.code}`);
+    }
+  assert.equal(sent.length, 0);
+  assert.equal(
+    (await call(hn, "terminal.take_over", { terminalId: own })).terminal.heldBy,
+    "usr_dana",
+    "its owner may",
+  );
+});
+
+test("a holder who is suspended, removed or signed out gives the keyboard back at once", async () => {
+  const { hn } = world();
+  const id = await open(hn);
+  await call(hn, "terminal.take_over", { terminalId: id });
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_dana");
+  const { consumers } = await import("../impl.ts");
+  const gone = consumers["terminal.holder_gone"];
+  assert.deepEqual(gone.on, ["principal.suspended", "member.removed", "session.revoked"]);
+  assert.deepEqual(gone.run(hn.ctx, { payload: { principalId: "usr_dana" } }), [id]);
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined);
+  const r = await h["terminal.run"]!(hn.as(AGENT, "usr_dana"), {
+    command: "echo hi",
+    terminalId: id,
+    idempotencyKey: "after-gone",
+  });
+  assert.ok(r, "the agent's next command runs");
+  assert.equal(hn.rows("SELECT * FROM terminal_lease").length, 0);
+});
+
+test("when a manager takes the keyboard the event names the agent and its owner; the owner taking their own names nobody", async () => {
+  const { hn } = world();
+  const id = await open(hn);
+  const asked = (who: string, ownerId: string): Harness["ctx"] => ({
+    ...hn.as({ kind: "person", id: who }),
+    call: async (cap: string) => (cap === "agents.get" ? { agent: { ownerId, kind: "agent", name: "Desk" } } : {}),
+  });
+  await call(hn, "terminal.take_over", { terminalId: id }, asked("usr_wes", "usr_dana"));
+  const p = hn.named("terminal.taken")[0]!.payload;
+  assert.deepEqual(
+    [p["by"], p["agentId"], p["agentName"], p["agentOwner"]],
+    ["usr_wes", "agt_intake", "Desk", "usr_dana"],
+  );
+  await call(hn, "terminal.give_back", { terminalId: id }, asked("usr_wes", "usr_dana"));
+  assert.equal(hn.named("terminal.given_back")[0]!.payload["agentOwner"], "usr_dana");
+  await call(hn, "terminal.take_over", { terminalId: id }, asked("usr_dana", "usr_dana"));
+  assert.equal(hn.named("terminal.taken")[1]!.payload["agentOwner"], undefined, "the owner is not told of their own");
 });

@@ -38,4 +38,4 @@ Requires: nothing.
 - [terminal.opened](../events/terminal.opened.md): A terminal session was opened
 - [terminal.renamed](../events/terminal.renamed.md): A terminal session was renamed
 - [terminal.rules_changed](../events/terminal.rules_changed.md): A person changed their terminal rules
-- [terminal.taken](../events/terminal.taken.md): A person took the keyboard of a terminal (the agent is told, its commands wait)
+- [terminal.taken](../events/terminal.taken.md): A person took the keyboard of a terminal (the agent is told, its commands are refused until it is handed back). When it is someone other than the agent's owner, the payload names the agent and its owner so the owner is told in their chat

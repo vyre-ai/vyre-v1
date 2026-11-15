@@ -115,3 +115,29 @@ export async function onAgentDeleted(
   }
   return touched;
 }
+
+/**
+ * Someone other than an agent's owner (a manager) took the keyboard of that agent's terminal, or handed it back: the owner is told in their chat with that agent, in one quiet line, and it stays in that chat.
+ * Their chat, not a channel: only the people in it read it. The terminal events carry the agent and its owner only when the one acting is not the owner.
+ */
+export async function onKeyboardTaken(
+  ctx: ChatCtx,
+  event: { name?: string; payload: { by?: string; agentId?: string; agentName?: string; agentOwner?: string } },
+): Promise<string[]> {
+  const { by, agentId, agentName, agentOwner } = event.payload;
+  if (!by || !agentId || !agentOwner || by === agentOwner || !by.startsWith("usr_")) return [];
+  const row = ctx.db.all(
+    `SELECT t."id" AS "id" FROM chat_thread t JOIN chat_thread_agent a ON a."thread" = t."id" AND a."agentId" = ? AND a."deleted_at" IS NULL
+     WHERE t."kind" = 'chat' AND t."starter" = ? AND t."deleted_at" IS NULL AND t."parentThreadId" IS NULL ORDER BY t."updated_at" DESC LIMIT 1`,
+    agentId,
+    agentOwner,
+  )[0] as Row | undefined;
+  if (!row) return [];
+  const who = await nameOf(ctx, by);
+  const body =
+    event.name === "terminal.given_back"
+      ? `${who} gave back the keyboard of ${agentName ?? "the agent"}'s terminal.`
+      : `${who} took the keyboard of ${agentName ?? "the agent"}'s terminal.`;
+  insertMessage(ctx, str(row["id"]), { author: agentId, kind: "system", body });
+  return [str(row["id"])];
+}

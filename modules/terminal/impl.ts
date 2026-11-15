@@ -4,7 +4,14 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { forgetExpiredWorkspaces, onAgentGone, onAgentRestored, openTabForRun, stopRuns } from "./handlers/sessions.ts";
+import {
+  forgetExpiredWorkspaces,
+  onAgentGone,
+  onHolderGone,
+  onAgentRestored,
+  openTabForRun,
+  stopRuns,
+} from "./handlers/sessions.ts";
 import {
   bindWorkspaceStatus,
   bindHost,
@@ -514,6 +521,10 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     },
     async keys(terminalId, ks) {
       const session = nameOf(terminalId);
+      // a pane left in tmux's copy mode reads keys by tmux's own bindings (q, /, Enter...): leave it first, so what a person types reaches the shell
+      const mode = await o.exec(["tmux", "display-message", "-p", "-t", session, "#{pane_in_mode}"]).catch(() => null);
+      if (mode !== null && mode.code === 0 && mode.stdout.trim() === "1")
+        await tmux(["send-keys", "-t", session, "-X", "cancel"]).catch(() => undefined);
       for (const k of ks) {
         if ("text" in k) {
           for (let i = 0; i < k.text.length; i += 1000)
@@ -1367,6 +1378,14 @@ export const consumers = {
       });
       return n > 0 ? [String(n)] : [];
     },
+  },
+  /** A person who held a terminal's keyboard was suspended, removed from the Space or signed out: the keyboard goes back to the agent at once (the agent's next command runs). */
+  "terminal.holder_gone": {
+    on: ["principal.suspended", "member.removed", "session.revoked"],
+    run: (
+      ctx: TermCtx,
+      event: { payload: { principalId?: unknown; personId?: unknown; person?: unknown } },
+    ): string[] => onHolderGone(ctx, event.payload.principalId ?? event.payload.personId ?? event.payload.person),
   },
   /** An agent came back from Trash: its workspace may be made again, over the volumes it kept. */
   "terminal.agent_restored": {
