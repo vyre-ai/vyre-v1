@@ -1456,8 +1456,9 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     quoted === null;
   const docBody = plainRead ? (
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
-      <View style={s.doc} testID="vw-markdown">
+      <View style={s.docWide} testID="vw-markdown">
         <MarkdownText
+          readingWidth={720}
           text={props.markdown ?? ""}
           {...(props.fileLinks
             ? { renderText: (t: string) => withFileLinks(splitRefs(t), props.fileLinks as FileLinks) }
@@ -1466,9 +1467,15 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       </View>
     </ScrollView>
   ) : props.docEditor !== undefined && editing ? (
-    <View style={s.scroll} testID="vw-doc-editor">
+    // the editor draws its page at full height: this is the container that scrolls it (wheel, trackpad, keys, the scrollbar), on the web and on a phone
+    <ScrollView
+      style={s.scroll}
+      contentContainerStyle={s.editWrap}
+      keyboardShouldPersistTaps="handled"
+      testID="vw-doc-editor"
+    >
       {props.docEditor}
-    </View>
+    </ScrollView>
   ) : (
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
       {pickBar}
@@ -2030,6 +2037,7 @@ const s = StyleSheet.create({
   pinList: { width: "100%", maxWidth: 480, gap: 6 },
   pinRow: { color: "var(--ink-2)" as string, fontSize: 13 },
   docWrap: { padding: 24, alignItems: "center" },
+  editWrap: { flexGrow: 1 },
   main: { flex: 1, flexDirection: "row", minHeight: 0 },
   details: { width: 300, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
   detailsHead: {
@@ -2161,6 +2169,8 @@ const s = StyleSheet.create({
   codeCol: { flex: 1, minWidth: 0 },
   linked: { marginTop: 22, paddingTop: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   doc: { width: "100%", maxWidth: 720, gap: 10 },
+  // a rendered note: the page is the width of the pane (its text and its tables fit themselves inside it)
+  docWide: { width: "100%", gap: 10 },
   block: { color: "var(--ink)" as string, fontSize: 15, lineHeight: 23, padding: 0 },
   h1: { fontSize: 24, lineHeight: 30, fontWeight: "700" },
   h2: { fontSize: 18, lineHeight: 26, fontWeight: "600" },
