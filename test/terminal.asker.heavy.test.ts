@@ -117,7 +117,7 @@ test(
     // the person has a passwd entry with their own home, so `whoami` and ssh (which reads the home the system lists) are theirs too
     const who = await w.turn(w.ben, "ben-who", [{ cmd: "whoami" }, { cmd: 'echo "$(id -un):$HOME"' }]);
     assert.equal(who[0]!.text, `u${uid}`);
-    assert.equal(who[1]!.text, `u${uid}:${mine}`, "a name and a home of his own");
+    assert.equal(who[1]!.text, `u${uid}:${mine}`, `a name and a home of his own: ${JSON.stringify(who)}`);
     // the lookups a tool makes about "who am I" are reads: no hold, an answer for the person's own uid (lead, 14 Nov)
     const look = await w.turn(w.ben, "ben-lookups", [
       { cmd: "id -un" },

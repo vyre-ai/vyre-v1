@@ -251,6 +251,9 @@ const repoFlag = (p: string): string[] => {
 const CURL_SENDS =
   /\s(-d|--data\S*|--json|-F|--form\S*|-T|--upload-file|-[a-zA-Z]*[dFT])(\s|=|$)|\s(-X|--request)[\s=]*['"]?(POST|PUT|PATCH|DELETE)\b/;
 
+/** Words that only run another command: the command is the next word that is not one of these, a flag or a number. */
+const WRAPPERS: ReadonlySet<string> = new Set(["sudo", "doas", "xargs", "time", "timeout", "nice", "nohup", "env", "command", "exec"]);
+
 /** What one simple command sends out. Null when it reaches nobody. */
 function partOutward(raw: string): Outward | null {
   const w = words(raw);
@@ -288,16 +291,16 @@ function partOutward(raw: string): Outward | null {
   if (/\bcurl\b/.test(p) && CURL_SENDS.test(` ${p}`)) return { act: "send", targets: hostsIn(p) };
   if (/\bwget\b/.test(p) && /\s--(post-data|post-file|body-data|body-file|method)\b/.test(p))
     return { act: "send", targets: hostsIn(p) };
-  const remote = /\b(ssh|scp|sftp|rsync)\b/.exec(p);
-  if (remote && (remote[1] === "ssh" || remote[1] === "sftp" || /\S+@?\S*:\S*/.test(p))) {
-    const rest = p
-      .slice(remote.index + remote[1]!.length)
-      .split(/\s+/)
-      .filter((x) => x !== "" && !x.startsWith("-"));
+  // the command itself, not a folder or file named like it (~/.ssh, ~/.config/rsync): the first word that is not a wrapper (sudo, timeout 5, xargs -n1 ...), by its name even when it is spelled as a path
+  const lead = w.findIndex((x, i) => !(WRAPPERS.has(x) || x.startsWith("-") || (i > 0 && /^\d+$/.test(x))));
+  const cmdName = lead < 0 ? "" : (w[lead]!.split("/").pop() ?? "");
+  const remote = /^(ssh|scp|sftp|rsync)$/.test(cmdName) ? cmdName : null;
+  if (remote && (remote === "ssh" || remote === "sftp" || /\S+@?\S*:\S*/.test(p))) {
+    const rest = w.slice(lead + 1).filter((x) => x !== "" && !x.startsWith("-"));
     const named = rest
       .map((x) => /^(?:[\w.-]+@)?([\w.-]+):/.exec(x)?.[1] ?? /^[\w.-]+@([\w.-]+)$/.exec(x)?.[1])
       .find((x) => x !== undefined);
-    const host = named ?? (remote[1] === "ssh" || remote[1] === "sftp" ? rest[0] : undefined);
+    const host = named ?? (remote === "ssh" || remote === "sftp" ? rest[0] : undefined);
     return { act: "send", targets: host ? [host.toLowerCase()] : [] };
   }
   if (/\b(sendmail|mutt|mailx)\b/.test(p) || /^mail\s/.test(p)) return { act: "send", targets: [] };

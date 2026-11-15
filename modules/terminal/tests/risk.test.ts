@@ -243,3 +243,18 @@ test("reading the user database is a read, not red: whoami, id, getent passwd an
     assert.equal(isDangerous(c), true, c);
   assert.equal(riskOf("git config user.name Ana"), "change", "setting it is a change");
 });
+
+test("a folder or file named like a command is not that command: a sign-in kept in ~/.ssh or ~/.config/rsync is not a message sent out", () => {
+  for (const c of [
+    "mkdir -p ~/.ssh ~/.config/tool && echo k > ~/.ssh/id_ed25519",
+    "cat ~/.ssh/known_hosts",
+    "chmod 600 ~/.ssh/id_ed25519",
+    "ls ~/.config/rsync ~/scp-notes",
+  ])
+    assert.equal(outwardOf(c), null, c);
+  // the commands themselves still go outward
+  assert.equal(outwardOf("ssh deploy@host.example uptime")?.act, "send");
+  assert.equal(outwardOf("/usr/bin/ssh host.example ls")?.act, "send");
+  assert.equal(outwardOf("rsync -a site/ deploy@host.example:/srv/site")?.act, "send");
+  assert.equal(outwardOf("scp f.txt host.example:/tmp")?.act, "send");
+});

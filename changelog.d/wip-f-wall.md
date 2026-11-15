@@ -10,3 +10,4 @@
 - On a shared agent, `whoami`, `id`, `getent passwd` and `git config user.name` answer at once in a person's own terminal; the command check no longer holds a command because it names the user database (changing a password is still held).
 - A browser card posted in a person's own browser place is drawn live only for that person; everyone else in the chat sees its last picture.
 - Project folders are opened to a person by an access list per project (their role: edit for Lead and Member, read otherwise), not by a group, because a container user cannot be added to a group while it runs. The person's own Files folder is not yet mirrored into their terminal.
+- A command that only names a folder like ~/.ssh or ~/.config/rsync is no longer taken for a message sent to the outside, so an agent that keeps a sign-in there is not held up for a yes.
