@@ -36,6 +36,8 @@ export const COMMAND_KINDS: Readonly<Record<ChatCommandId, CommandKind>> = Objec
   "security-review": "opens",
   fork: "opens",
   rewind: "opens",
+  jobs: "notice",
+  diff: "opens",
   new: "opens",
   task: "opens",
   find: "opens",

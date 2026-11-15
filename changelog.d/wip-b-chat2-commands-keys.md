@@ -1,0 +1,1 @@
+- Two more slash commands do something real: /jobs says what the chat's agents have running in the background, and /diff opens the diff of the last changes an agent left in the chat. Cmd-B hides or shows the sidebar and Cmd-\ the pane beside the chat (Shift-Cmd-\ still hides the sidebar).

@@ -8,6 +8,8 @@ import { notice, opens, usageCard } from "./command-result.ts";
 import type { CommandResult, NoticeResult } from "./command-result.ts";
 import { compactChat, setChatMode } from "./brain.tsx";
 import { metersOf } from "./chapters/ContextCard.tsx";
+import { jobsOf, runningWords } from "./chapters/jobs.ts";
+import type { Term, TerminalFeed } from "./chapters/jobs.ts";
 import { pct } from "./chapters/SessionBlock.tsx";
 import type { Usage } from "./chapters/SessionBlock.tsx";
 import type { ConversationData, PluginCommand } from "./data.tsx";
@@ -279,6 +281,38 @@ async function run(
           await act.setPinned(data, m.messageId, was);
         },
       });
+    }
+    case "jobs": {
+      // the same read the chat's job lines use: the commands the chat's agents have running in a terminal on their computer
+      let terms: readonly Term[] = [];
+      try {
+        const feed = data.screens.query("chats.terminal-list", "terminals", { host: "agent_computer" }) as
+          | TerminalFeed
+          | undefined;
+        terms = feed?.getSnapshot().data?.terminals ?? [];
+      } catch {
+        /* no feed in this build: nothing is known to run */
+      }
+      const running = jobsOf(terms, new Set(thread.agents.map((a) => a.agentId)), thread.threadId);
+      if (running.length === 0) return notice("Nothing is running in the background");
+      const now = data.clock().now;
+      return notice(
+        `${running.length === 1 ? "1 job" : `${running.length} jobs`} running in the background: ${running
+          .map((j) => `${j.title} (${runningWords(j, now).time})`)
+          .join(", ")}`,
+      );
+    }
+    case "diff": {
+      // the diff beside the chat for the newest set of changes an agent left here (the same tab its card opens)
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const b = rows[i]!.blocks.find((x) => x.type === "changeset");
+        const id = (b?.data as { changesetId?: unknown } | undefined)?.changesetId;
+        if (typeof id === "string" && id !== "") {
+          data.nav.openBeside("diff", id);
+          return opens();
+        }
+      }
+      return notice("No changes to look at yet");
     }
     case "rewind": {
       if (!env.openRewind) return notice("Going back needs a chat with an agent");
