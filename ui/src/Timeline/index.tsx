@@ -159,12 +159,18 @@ export function Timeline({
         );
         if (quiet || (!more && !leads))
           return (
-            <View key={e.id} testID={`${testID}-entry`} style={s.entry}>
+            <View
+              // ui-rows-lint: not a list (the one Timeline: an entry is a marker on a rail, a sentence and a time, and Row cannot draw its folded detail)
+              key={e.id}
+              testID={`${testID}-entry`}
+              style={s.entry}
+            >
               {body}
             </View>
           );
         return (
           <Pressable
+            // ui-rows-lint: not a list (the one Timeline: an entry is a marker on a rail, a sentence and a time, and Row cannot draw its folded detail)
             key={e.id}
             accessibilityRole="button"
             accessibilityState={{ expanded: isOpen }}
