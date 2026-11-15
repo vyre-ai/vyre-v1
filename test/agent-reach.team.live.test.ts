@@ -203,15 +203,39 @@ test("D: after the update an agent the owner made stays usable by members and on
   assert.equal(await may(dan, old), "allow");
 });
 
-test("F: every door says the same sentence about an agent the person may not see, and about one that is not there", async () => {
+test("F: every door says the same thing about an agent the person may not see and about one that is not there", async () => {
   const hidden = await make(h.owner, "Hidden", { sharing: "me" });
   const unknown = "agt_zzzzzzzzzzzzzzzz";
-  const a = await refusal(dan.attempt("agents.get", { agentId: hidden }));
-  const b = await refusal(dan.attempt("agents.get", { agentId: unknown }));
-  assert.deepEqual([a.status, a.message], [b.status, b.message]);
-  assert.equal(a.message, GONE);
-  assert.doesNotMatch(a.message, /agt_|access/i, "no id and no Ask for access");
-  const c = await refusal(dan.attempt("chat.start", { kind: "chat", agentIds: [hidden], idempotencyKey: "ar-f1" }));
-  assert.equal(c.message, GONE, "chat.start with an agent Dan may not see says the same sentence");
-  assert.equal(c.status, a.status);
+  // what the caller receives, without the trace id: status, code, message, details and the next steps
+  const body = async (p: Promise<{ ok: true; data: unknown } | { ok: false; error: unknown }>) => {
+    const r = await p;
+    assert.equal(r.ok, false, "it was refused");
+    const e = (r as { error: { status: number; code: string; message: string; details?: unknown; next?: unknown } })
+      .error;
+    const rest = JSON.parse(
+      JSON.stringify({ status: e.status, code: e.code, message: e.message, details: e.details, next: e.next }),
+    ) as Record<string, unknown>;
+    return rest;
+  };
+  const a = await body(dan.attempt("agents.get", { agentId: hidden }));
+  const b = await body(dan.attempt("agents.get", { agentId: unknown }));
+  assert.deepEqual(a, b, "agents.get: a hidden agent and a made-up id are indistinguishable");
+  assert.equal(a["message"], GONE);
+  assert.doesNotMatch(JSON.stringify(a), /agt_|access|hidden/i, "no id, no Ask for access, no marker");
+  // adding it to a channel of his own
+  const mine = (
+    (await dan.call("channels.create", {
+      name: "dan-room",
+      visibility: "public",
+      memberIds: [],
+      idempotencyKey: "ar-f-room",
+    })) as { channel: { channelId: string } }
+  ).channel;
+  const addHidden = await body(
+    dan.attempt("channels.agents.add", { channelId: mine.channelId, agentId: hidden, idempotencyKey: "ar-f-add1" }),
+  );
+  assert.equal(addHidden["message"], GONE, "channels.agents.add with an agent he may not see says the same sentence");
+  // chat.start with a hidden agent is refused in that sentence (a made-up id is accepted there, as it always was)
+  const c = await body(dan.attempt("chat.start", { kind: "chat", agentIds: [hidden], idempotencyKey: "ar-f1" }));
+  assert.equal(c["message"], GONE);
 });
