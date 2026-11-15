@@ -166,13 +166,13 @@ d_s_193ebba03a(a897[i897], p + '/' + i897, e);
 
 function d_s_f1aa180d5c(v: unknown, p: string, e: string[]): void {
 {
-const x1215 = v;
-const g1215 = typeOf(x1215);
-const b1215: string[] = []; lf(x1215, p, b1215, L0); if (b1215.length) e.push(...b1215);
-if (g1215 === "object") {
-if (g1215 === 'object') { const o1215 = x1215 as Record<string, unknown>;
-if (!("booking" in o1215)) e.push(p + "/booking" + ': required');
-if ("booking" in o1215) d_s_62563ce16a(o1215["booking"], p + "/booking", e);
+const x1209 = v;
+const g1209 = typeOf(x1209);
+const b1209: string[] = []; lf(x1209, p, b1209, L0); if (b1209.length) e.push(...b1209);
+if (g1209 === "object") {
+if (g1209 === 'object') { const o1209 = x1209 as Record<string, unknown>;
+if (!("booking" in o1209)) e.push(p + "/booking" + ': required');
+if ("booking" in o1209) d_s_62563ce16a(o1209["booking"], p + "/booking", e);
 }
 }
 }

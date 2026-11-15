@@ -37,13 +37,13 @@ if ("contentType" in o923) lf(o923["contentType"], p + "/contentType", e, L376);
 
 function d_s_ee7e2574b9(v: unknown, p: string, e: string[]): void {
 {
-const x1196 = v;
-const g1196 = typeOf(x1196);
-const b1196: string[] = []; lf(x1196, p, b1196, L0); if (b1196.length) e.push(...b1196);
-if (g1196 === "object") {
-if (g1196 === 'object') { const o1196 = x1196 as Record<string, unknown>;
-if (!("note" in o1196)) e.push(p + "/note" + ': required');
-if ("note" in o1196) d_s_fb6c8d9ae0(o1196["note"], p + "/note", e);
+const x1190 = v;
+const g1190 = typeOf(x1190);
+const b1190: string[] = []; lf(x1190, p, b1190, L0); if (b1190.length) e.push(...b1190);
+if (g1190 === "object") {
+if (g1190 === 'object') { const o1190 = x1190 as Record<string, unknown>;
+if (!("note" in o1190)) e.push(p + "/note" + ': required');
+if ("note" in o1190) d_s_fb6c8d9ae0(o1190["note"], p + "/note", e);
 }
 }
 }
