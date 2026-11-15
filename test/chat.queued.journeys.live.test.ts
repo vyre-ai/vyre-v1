@@ -49,7 +49,7 @@ test("a message queued behind a running agent shows as queued; Edit takes it bac
     await me.page.getByTestId("queue-send-now").waitFor({ state: "visible", timeout: 10_000 });
     assert.equal(
       await me.page.getByTestId("queue-note").innerText(),
-      "Goes in at the next step",
+      "At the next step", // dcd532fe6 (rc.28, G11): the waiting note under your message reads "At the next step"
       "a steering engine takes the message at its next step",
     );
     await shoot(me.page, dir, "queued", { phone: false });
