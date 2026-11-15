@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [v1-ci-1-7, v1-ci-1-8, v1-ci-1-9, v1-ci-1-10, v1-ci-1-11, v1-ci-1-12, v1-ci-2-7, v1-ci-2-8, v1-ci-2-9, v1-ci-2-10, v1-ci-2-11, v1-ci-2-12]
+        runner: [v1-ci-11-7, v1-ci-11-8, v1-ci-11-9, v1-ci-11-10, v1-ci-11-11, v1-ci-11-12, v1-ci-12-7, v1-ci-12-8, v1-ci-12-9, v1-ci-12-10, v1-ci-12-11, v1-ci-12-12]
     steps:
       - uses: actions/checkout@v4
       - name: Prewarm this host

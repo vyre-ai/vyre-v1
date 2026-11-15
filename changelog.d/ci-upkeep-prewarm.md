@@ -1,0 +1,1 @@
+The nightly prewarm warms the two CI computers that exist now (vyre-ci-11, vyre-ci-12): it had been aimed at twelve runners that were retired, so every nightly prewarm sat queued until it was cancelled.
