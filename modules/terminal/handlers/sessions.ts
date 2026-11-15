@@ -934,8 +934,9 @@ interface Stored {
   message?: string;
   screen?: unknown;
 }
-const refuse = (ctx: TermCtx, message: string, reason: string, terminalId: string): never =>
-  raise(ctx, "validation.precondition_failed", message, { reason, terminalId });
+function refuse(ctx: TermCtx, message: string, reason: string, terminalId: string): never {
+  return raise(ctx, "validation.precondition_failed", message, { reason, terminalId });
+}
 const raiseStored = (ctx: TermCtx, st: Stored): never =>
   raise(ctx, (st.code ?? "internal.unexpected") as ErrorCode, st.message ?? "The terminal could not take those keys.");
 
