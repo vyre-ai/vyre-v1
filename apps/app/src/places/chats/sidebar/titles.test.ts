@@ -22,10 +22,10 @@ const personName = (id: string): string => ({ usr_aliza: "Aliza", usr_omar: "Oma
 
 test("one name in the list: a direct message is the person, a chat with no real title shows who is in it, a real title wins", () => {
   assert.equal(displayTitle(rowOf(item({ title: "Heyy", people: ["usr_aliza"] }), agentName, personName)), "Aliza");
-  assert.equal(displayTitle(rowOf(item({ title: "", agents: ["agt_dex"] }), agentName, personName)), "New chat");
+  assert.equal(displayTitle(rowOf(item({ title: "", agents: ["agt_dex"] }), agentName, personName)), "Dex");
   assert.equal(
     displayTitle(rowOf(item({ title: "New chat", agents: ["agt_dex"], people: ["usr_aliza"] }), agentName, personName)),
-    "New chat",
+    "Dex and Aliza",
   );
   assert.equal(
     displayTitle(rowOf(item({ title: "GHL onboarding goal", agents: ["agt_dex"] }), agentName, personName)),

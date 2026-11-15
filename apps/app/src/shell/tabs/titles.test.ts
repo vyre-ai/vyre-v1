@@ -91,7 +91,7 @@ test("a chat's tab carries the chat's one name: the person for a direct message,
   );
   assert.equal(
     await resolve({ kind: "chat", agents: [{ agentId: "agt_dex" }], members: [{ kind: "person", id: "usr_me" }] }),
-    "New chat",
+    "Dex",
   );
   assert.equal(
     await resolve({
@@ -102,7 +102,7 @@ test("a chat's tab carries the chat's one name: the person for a direct message,
         { kind: "person", id: "usr_aliza" },
       ],
     }),
-    "New chat",
+    "Dex and Aliza",
   );
   assert.equal(
     await resolve({ kind: "chat", title: "GHL onboarding goal", agents: [{ agentId: "agt_dex" }], members: [] }),

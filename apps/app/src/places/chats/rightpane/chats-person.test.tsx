@@ -187,8 +187,8 @@ test("a chat in Shared context takes the one chat name: its title, else who is i
         ],
       }),
     ),
-    "New chat",
-    "untitled with an agent: New chat the whole time",
+    "Ember and Sara Malik",
+    "untitled: who is in it",
   );
   assert.equal(
     chatLabel(
