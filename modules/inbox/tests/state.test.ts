@@ -50,8 +50,9 @@ test("in a shared inbox each person has their own unread: Maya reading does not 
   const mine = await counts(h.as(person(MAYA)));
   const his = await counts(h.as(person(JONAS)));
   assert.equal(mine.total, 0);
-  assert.equal(his.total, 2);
-  assert.deepEqual(his.byInbox, [{ kind: "mailbox", id: SHARED, unread: 2 }]);
+  // the badge counts conversations waiting on him, not messages (16 Nov 2026): one conversation, two unread messages in it (his row still says 2)
+  assert.equal(his.total, 1);
+  assert.deepEqual(his.byInbox, [{ kind: "mailbox", id: SHARED, unread: 1 }]);
   assert.deepEqual(mine.byInbox, []);
   // and by thread and in the conversation itself
   const byThread = async (who: string) =>

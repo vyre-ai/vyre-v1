@@ -8,7 +8,7 @@ Requires: calendar, mail, telephony.
 
 - [comms.senders.list](../capabilities/comms.senders.list.md): Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why
 - [comms.senders.set_default](../capabilities/comms.senders.set_default.md): Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list
-- [inbox.counts](../capabilities/inbox.counts.md): Unread counts for the sidebar: per inbox, per number and the Needs a match total
+- [inbox.counts](../capabilities/inbox.counts.md): Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match
 - [inbox.follow_set](../capabilities/inbox.follow_set.md): Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)
 - [inbox.following](../capabilities/inbox.following.md): Contacts that reach your Inbox and why: owner, project, follow or shared inbox
 - [inbox.item.erase](../capabilities/inbox.item.erase.md): Erase the conversation entries of one message, text or call for good: previews, subjects and participants go, the conversation keeps only what other items still say (governance erase)
