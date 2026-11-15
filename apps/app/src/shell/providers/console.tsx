@@ -349,7 +349,9 @@ export default function ConsolePlace(): ReactElement {
           setSkin(id);
         }}
         assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />}
-        renderPage={(id, state) => spaceDefaults(rt, id, state["extra"] === true) ?? consolePageFor(id, { ...pageArgs, ...stringState(state) })}
+        renderPage={(id, state) =>
+          spaceDefaults(rt, id, state["extra"] === true) ?? consolePageFor(id, { ...pageArgs, ...stringState(state) })
+        }
       />
     </ConsoleDataProvider>
   );

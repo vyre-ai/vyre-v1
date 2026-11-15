@@ -180,6 +180,8 @@ export interface MessageActions {
   canSetSpaceKey?: boolean;
   /** True in a Personal Space: no line about a Space AI key or an admin. */
   noSpaceKey?: boolean;
+  /** The Space's change stream: a card that waits for an AI account asks again when something changed. */
+  changes?: import("./use-follow.ts").Changes;
   /** True once the person has a working AI account (read after "Connect your AI"). Left out where the chat cannot tell. */
   accountReady?(): Promise<boolean>;
   retrySend(messageId: string): void;
@@ -2163,27 +2165,18 @@ export function ErrorRowView({
     actions.accountReady !== undefined &&
     (at === undefined || Date.now() - at < AUTO_RESEND_MS);
   const [resent, setResent] = useState(false);
-  useEffect(() => {
-    if (!noAccount || resent) return undefined;
-    let live = true;
-    const check = (): void => {
-      void actions.accountReady!().then(
-        (ok) => {
-          if (live && ok) {
-            live = false;
-            setResent(true);
-            actions.retryTurn(e.turnId);
-          }
-        },
-        () => undefined,
-      );
-    };
-    const timer = setInterval(check, 2500);
-    return () => {
-      live = false;
-      clearInterval(timer);
-    };
-  }, [noAccount, resent, actions, e.turnId]);
+  const sentAgain = useRef(false);
+  useFollow(
+    actions.changes,
+    () =>
+      actions.accountReady!().then((ok) => {
+        if (!ok || sentAgain.current) return;
+        sentAgain.current = true;
+        setResent(true);
+        actions.retryTurn(e.turnId);
+      }),
+    noAccount && !resent,
+  );
   const { element: moreMenu, show: showMore } = useMenu();
   const spaceKey = actions.noSpaceKey === true ? { line: "" } : spaceKeyWay(e.code, actions.canSetSpaceKey === true);
   const steps = [

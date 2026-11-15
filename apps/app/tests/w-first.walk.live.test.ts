@@ -37,6 +37,10 @@ test("the walker's first pass: every wf step passes in a real browser on a boote
   const lines = `${r.stdout}\n${r.stderr}`.split("\n");
   const failed = lines.filter((l) => /^FAIL /.test(l));
   assert.deepEqual(failed, [], failed.join("\n"));
-  for (const id of STEPS) assert.ok(lines.some((l) => l.startsWith(`ok   team/${id}`)), `${id} did not run`);
+  for (const id of STEPS)
+    assert.ok(
+      lines.some((l) => l.startsWith(`ok   team/${id}`)),
+      `${id} did not run`,
+    );
   assert.equal(r.status, 0, lines.slice(-8).join("\n"));
 });
