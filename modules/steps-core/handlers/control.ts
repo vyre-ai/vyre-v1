@@ -9,6 +9,7 @@
 // DECISION: a Wait that is resumed and has no way to tell why (no startedAt from the engine) is over; a Wait that is cancelled by one of its cancel-on events is ended by the engine, not here.
 // A relative milestone that is already past succeeds with missed output so later outward steps can be skipped. An anchor id is re-read from the calendar when the wait resumes.
 import { registry } from "../../../generated/registry.ts";
+import { missingInput } from "../../../lib/words/step-missing.ts";
 import { collectItems, groupItems, transformValue } from "./data-steps.ts";
 import { nextOpen } from "./hours.ts";
 import type { OpenHours } from "./hours.ts";
@@ -902,15 +903,11 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
   if (call.sandbox && sandboxStubs(def, input)) {
     // a test or replay answers with the sample, but a step whose required input is empty would have been refused for real: it stops here the same way (a stopped test is not a success)
     const field = emptyRequired(node.key, input);
-    if (field)
-      throw Object.assign(new Error(`${field} is required`), {
-        error: {
-          code: "validation.bad_input",
-          message: "Something in what you entered is not right.",
-          retryable: false,
-          details: { errors: [`/${field} is required`] },
-        },
-      });
+    if (field) {
+      // said in words here: the error crosses a call boundary that keeps the code and the message
+      const words = `${def.title.replace(/^[^:·]{1,40}\s*[:·]\s+/, "")}: ${missingInput(node.key, field).do}.`;
+      throw stepError("validation.bad_input", words, false);
+    }
     return { output: def.sample };
   }
   switch (node.key) {

@@ -233,7 +233,8 @@ test("no step's form shows an id shape: a field that holds a thing's id is a pic
     const node = blank(step.key);
     const def: Definition = { triggers: [{ key: "manual" }], nodes: [node] };
     const out = page(def, node, schemaOf(step));
-    const text = out.replace(/<[^>]*>/g, " ") + " " + [...out.matchAll(/placeholder="([^"]*)"/g)].map((m) => m[1]).join(" ");
+    const text =
+      out.replace(/<[^>]*>/g, " ") + " " + [...out.matchAll(/placeholder="([^"]*)"/g)].map((m) => m[1]).join(" ");
     for (const id of rawIdsIn(text)) shown.push(`${step.key}: ${id}`);
   }
   assert.deepEqual(shown, []);

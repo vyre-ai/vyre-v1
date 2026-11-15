@@ -223,7 +223,12 @@ test("production Automations: the step row and the step form for each kind and s
     const got = await api("runs.get", { runId });
     const status = (got.run ?? got.data?.run ?? got.data).status as string;
     assert.equal(status, "failed", "a test that stops on a missing input is not a success");
-    assert.match(JSON.stringify(got), /choose who it is for/i, "the run says why in words");
+    const why = await api("runs.steps", { runId });
+    assert.match(
+      JSON.stringify([got, why]),
+      /choose who it is for/i,
+      `the run says why in words: ${JSON.stringify([got, why]).slice(0, 700)}`,
+    );
 
     // round five (walker): the Channel field is a picker by name, never a box with an example id
     const post = await make("Post a note", [{ id: "n1", key: "post_message", input: {} }]);

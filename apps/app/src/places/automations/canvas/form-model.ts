@@ -134,7 +134,8 @@ export function controlsFor(schema: unknown): Control[] {
       kind = "list";
       numeric = itemType !== "string";
     }
-    const pattern = typeof prop["pattern"] === "string" ? /^\^([a-z]{2,4})_/.exec(prop["pattern"] as string)?.[1] : undefined;
+    const pattern =
+      typeof prop["pattern"] === "string" ? /^\^([a-z]{2,4})_/.exec(prop["pattern"] as string)?.[1] : undefined;
     out.push({
       name,
       ...(pattern && t === "string" ? { ref: pattern } : {}),
@@ -144,7 +145,9 @@ export function controlsFor(schema: unknown): Control[] {
       options,
       account: ACCOUNT.has(name),
       numeric,
-      placeholder: (isRawId(example) ? "" : example) || (kind === "list" ? "One per line or separated by commas" : kind === "json" ? "JSON" : ""),
+      placeholder:
+        (isRawId(example) ? "" : example) ||
+        (kind === "list" ? "One per line or separated by commas" : kind === "json" ? "JSON" : ""),
       hint: description,
     });
   }

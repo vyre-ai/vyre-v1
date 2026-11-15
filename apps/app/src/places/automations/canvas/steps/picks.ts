@@ -21,7 +21,8 @@ export interface WhoPick {
   name: string;
 }
 
-export const rec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+export const rec = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 export const text = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export function vaultPicks(out: unknown): VaultPick[] {

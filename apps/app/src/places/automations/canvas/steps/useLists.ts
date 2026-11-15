@@ -64,12 +64,33 @@ export interface ThingKind {
   word: string;
 }
 export const THINGS: Record<string, ThingKind> = {
-  chn: { cap: "channels.list", input: { limit: 200 }, key: "channels", ids: ["id", "channelId"], names: ["name", "title"], word: "channel" },
-  mbx: { cap: "mail.mailbox.list", input: { limit: 200 }, key: "mailboxes", ids: ["id", "mailboxId"], names: ["address", "name"], word: "mailbox" },
+  chn: {
+    cap: "channels.list",
+    input: { limit: 200 },
+    key: "channels",
+    ids: ["id", "channelId"],
+    names: ["name", "title"],
+    word: "channel",
+  },
+  mbx: {
+    cap: "mail.mailbox.list",
+    input: { limit: 200 },
+    key: "mailboxes",
+    ids: ["id", "mailboxId"],
+    names: ["address", "name"],
+    word: "mailbox",
+  },
   agt: { cap: "agents.list", input: {}, key: "agents", ids: ["agentId", "id"], names: ["name"], word: "agent" },
   aut: { cap: "automations.list", input: {}, key: "automations", ids: ["id"], names: ["name"], word: "automation" },
   jrn: { cap: "journeys.list", input: {}, key: "journeys", ids: ["id"], names: ["name"], word: "journey" },
-  frm: { cap: "forms.list", input: { limit: 200 }, key: "forms", ids: ["formId", "id"], names: ["name", "title"], word: "form" },
+  frm: {
+    cap: "forms.list",
+    input: { limit: 200 },
+    key: "forms",
+    ids: ["formId", "id"],
+    names: ["name", "title"],
+    word: "form",
+  },
 };
 export interface ThingPick {
   value: string;

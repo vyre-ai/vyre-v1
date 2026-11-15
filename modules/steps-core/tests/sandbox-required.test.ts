@@ -12,8 +12,8 @@ test("in a sandbox a step with an empty required input is refused and names the 
   const h = harness({});
   await assert.rejects(
     () => runStep(h.env, { id: "s", key: "create_task", input: { title: "Follow up" } }, call({ sandbox: true })),
-    (e: { error?: { code?: string; details?: { errors?: string[] } } }) =>
-      e.error?.code === "validation.bad_input" && e.error?.details?.errors?.[0]?.startsWith("/assigned") === true,
+    (e: { error?: { code?: string; message?: string } }) =>
+      e.error?.code === "validation.bad_input" && e.error?.message === "Create a task: choose who it is for.",
   );
   assert.equal(h.log.length, 0);
 });

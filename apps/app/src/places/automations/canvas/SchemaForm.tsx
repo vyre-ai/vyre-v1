@@ -87,7 +87,16 @@ function ThingField({
   const word = THINGS[prefix]?.word ?? "one";
   const held = typeof value === "string" ? value : "";
   const hit = picks.state === "ready" ? picks.items.find((p) => p.value === held) : undefined;
-  const shown = held === "" ? "" : hit ? hit.label : /\{\{/.test(held) ? "From earlier data" : picks.state === "ready" ? "Not available to you" : "";
+  const shown =
+    held === ""
+      ? ""
+      : hit
+        ? hit.label
+        : /\{\{/.test(held)
+          ? "From earlier data"
+          : picks.state === "ready"
+            ? "Not available to you"
+            : "";
   return (
     <Choice
       label={control.label}
@@ -98,8 +107,10 @@ function ThingField({
         if (picks.state === "ready")
           for (const p of picks.items)
             entries.push({ label: p.label, checked: held === p.value, onSelect: () => onValue(p.value) });
-        if (entries.length === 0) entries.push({ label: picks.state === "loading" ? "Loading" : `No ${word} to choose`, disabled: true });
-        else if (!control.required && held !== "") entries.push({ separator: true }, { label: "None", onSelect: () => onValue(undefined) });
+        if (entries.length === 0)
+          entries.push({ label: picks.state === "loading" ? "Loading" : `No ${word} to choose`, disabled: true });
+        else if (!control.required && held !== "")
+          entries.push({ separator: true }, { label: "None", onSelect: () => onValue(undefined) });
         openMenu(entries, x, y, "other");
       }}
     />
