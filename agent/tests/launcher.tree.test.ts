@@ -29,22 +29,26 @@ const c=spawn(process.execPath,["-e","setTimeout(()=>{},30000)"],{detached:true,
 console.log(c.pid);setTimeout(()=>{},30000)`;
 
 for (const signal of ["SIGTERM", "SIGKILL"] as const) {
-  test(`Stop (${signal}) ends the wrapper and the engine under it, within two seconds`, { timeout: 15_000 }, async () => {
-    if (process.platform === "win32") return; // Windows ends the tree with taskkill, covered below
-    const proc = await createLocalLauncher().spawn({ argv: [process.execPath, "-e", WRAPPER], env: {} });
-    let out = "";
-    for await (const chunk of proc.stdout) {
-      out += chunk.toString();
-      if (out.includes("\n")) break;
-    }
-    const engine = Number(out.trim());
-    assert.ok(engine > 0 && alive(engine), "the engine under the wrapper is running");
-    const at = Date.now();
-    proc.kill(signal);
-    assert.equal(await gone(engine, 2000), true, "the engine under the wrapper is gone");
-    await proc.exited;
-    assert.ok(Date.now() - at < 2000, `all of it ended in ${Date.now() - at} ms`);
-  });
+  test(
+    `Stop (${signal}) ends the wrapper and the engine under it, within two seconds`,
+    { timeout: 15_000 },
+    async () => {
+      if (process.platform === "win32") return; // Windows ends the tree with taskkill, covered below
+      const proc = await createLocalLauncher().spawn({ argv: [process.execPath, "-e", WRAPPER], env: {} });
+      let out = "";
+      for await (const chunk of proc.stdout) {
+        out += chunk.toString();
+        if (out.includes("\n")) break;
+      }
+      const engine = Number(out.trim());
+      assert.ok(engine > 0 && alive(engine), "the engine under the wrapper is running");
+      const at = Date.now();
+      proc.kill(signal);
+      assert.equal(await gone(engine, 2000), true, "the engine under the wrapper is gone");
+      await proc.exited;
+      assert.ok(Date.now() - at < 2000, `all of it ended in ${Date.now() - at} ms`);
+    },
+  );
 }
 
 const rows: ProcRow[] = [
