@@ -10,7 +10,7 @@ function call(
   path: string,
   o: { method?: string; host?: string } = {},
 ): { status: number; headers: Record<string, string>; handled: boolean; body: string } {
-  const route = createGithubConnectRoute();
+  const route = createGithubConnectRoute({ origin: () => "https://space.vyre.test" });
   const req = {
     url: path,
     method: o.method ?? "GET",

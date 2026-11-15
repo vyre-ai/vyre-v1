@@ -3,6 +3,7 @@
 // The app then calls identity.github_sign_in {code}; the code is exchanged there, with the secret, and the Space's sign-in policy decides.
 // The return address is the Space's own origin or a loopback address, so a crafted link cannot hand a code to a stranger's site.
 import http from "node:http";
+import { NO_ADDRESS } from "./own-origin.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 
 const COOKIE = "vyre_gh_state";
@@ -12,6 +13,8 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 export interface GithubSignInRouteDeps {
   oauth: () => GithubOAuth | null;
+  /** the Space's own address for this request (routes/own-origin.ts), never read from the Host header */
+  origin: (req: http.IncomingMessage) => string | null;
   now?: () => number;
 }
 
@@ -36,13 +39,6 @@ export function createGithubSignInRoute(deps: GithubSignInRouteDeps): {
 } {
   const now = deps.now ?? Date.now;
   const states = new Map<string, { ret: string; exp: number }>();
-  const origin = (req: http.IncomingMessage): string => {
-    const proto =
-      String(req.headers["x-forwarded-proto"] ?? "")
-        .split(",")[0]
-        ?.trim() || ((req.socket as { encrypted?: boolean }).encrypted ? "https" : "http");
-    return `${proto === "https" ? "https" : "http"}://${req.headers.host ?? "localhost"}`;
-  };
   const allowedReturn = (own: string, ret: string): string | null => {
     try {
       const u = new URL(ret);
@@ -66,7 +62,11 @@ export function createGithubSignInRoute(deps: GithubSignInRouteDeps): {
         page(res, 503, "GitHub sign-in is not set up on this server.");
         return true;
       }
-      const own = origin(req);
+      const own = deps.origin(req);
+      if (own === null) {
+        page(res, 503, NO_ADDRESS);
+        return true;
+      }
       const redirect = `${own}${PATH}/callback`;
       for (const [k, v] of states) if (v.exp < now()) states.delete(k);
       if (url.pathname.endsWith("/start")) {
