@@ -16,7 +16,9 @@ import {
   SQUATTED,
 } from "../asker.ts";
 import { handlers } from "../impl.ts";
-import { bindHost, bindPlace, bindTeam, burnUid, uidOf } from "../projections.ts";
+import { bindHost, bindPlace, bindPlaceGrant, bindTeam, burnUid, uidOf } from "../projections.ts";
+import { reconcileAccess, REGRANT_MS } from "../handlers/sessions.ts";
+import type { AccessDeps } from "../handlers/sessions.ts";
 import type { TermCtx } from "../projections.ts";
 import { codeOf, fakeHost, harness, reset } from "../fixtures/harness.ts";
 
@@ -425,4 +427,99 @@ test("F30: a person who may only use the agent, and an agent working for them, h
     await refused(() => h["terminal.input"]!(bea, { terminalId: hers.terminalId, data: "ls\n" })),
     "allowed",
   );
+});
+
+// ---- review of 15 Nov: the three mutants the Docker tests alone caught (foreign() always false, onUseGone doing nothing, REGRANT_MS huge)
+
+test("mutant: a person who only uses the agent sees the agent's terminal as a row that says it is there, and a person the agent cannot be read for sees nothing of it", async () => {
+  const w = setup({ ownerId: "usr_maya", kind: "agent" }, (type, _id, level) => !(type === "agent" && level === "manage"));
+  const own = await h["terminal.run"]!(w.turn("usr_maya"), { command: "echo hi", idempotencyKey: idem() });
+  const bea = w.person("usr_bea");
+  const rows = (await h["terminal.list"]!(bea, {})).terminals as Array<{ terminalId: string; elsewhere?: boolean; cwd: string; name: string }>;
+  const row = rows.find((x) => x.terminalId === own.terminalId)!;
+  assert.equal(row.elsewhere, true, "a row that only says it is there");
+  assert.equal(row.cwd, "", "no folder");
+  assert.equal((await h["terminal.get"]!(bea, { terminalId: own.terminalId })).terminal.elsewhere, true);
+  // the agent cannot be read for her (revoked, or never shared): she is told nothing, not even that it is there
+  const none: TermCtx = {
+    ...bea,
+    call: (async () => {
+      throw Object.assign(new Error("no"), { error: { code: "permission.no_grant" } });
+    }) as never,
+  };
+  assert.deepEqual(
+    ((await h["terminal.list"]!(none, {})).terminals as Array<{ terminalId: string }>).filter((x) => x.terminalId === own.terminalId),
+    [],
+  );
+  assert.equal(await codeOf2(() => h["terminal.get"]!(none, { terminalId: own.terminalId })), "validation.not_found");
+  // and when the answer cannot be had at all, the same: nothing
+  const broken: TermCtx = { ...bea, call: (async () => { throw new Error("down"); }) as never };
+  assert.deepEqual(((await h["terminal.list"]!(broken, {})).terminals as unknown[]).length, 0);
+});
+async function codeOf2(f: () => unknown): Promise<string> {
+  try {
+    await f();
+  } catch (e) {
+    return codeOf(e);
+  }
+  return "no error";
+}
+
+test("mutant: when a person loses the use of an agent their terminals close, their programs are stopped, they lose the chat folders and their home is kept 30 days then erased; when they keep it they lose only the chats they left", async () => {
+  const w = setup({ ownerId: "usr_maya", kind: "agent" });
+  const ran = await h["terminal.run"]!(w.turn("usr_bea"), { command: "echo hi", idempotencyKey: idem() });
+  const db = w.hn.ctx.db;
+  db.run("INSERT INTO terminal_chat_folders (agent_id, thread) VALUES ('agt_dex', 'thr_a'), ('agt_dex', 'thr_b')");
+  const calls: string[] = [];
+  const deps = (use: boolean, views: Record<string, boolean>): AccessDeps => ({
+    mayUse: async () => use,
+    mayView: async (_p, t) => views[t] ?? false,
+    stopFor: async (agent) => {
+      calls.push(`stop ${agent}`);
+    },
+    run: async (_a, argv, user) => {
+      calls.push(`run ${argv.slice(3).join(" ")} ${user ?? ""}`);
+      return { code: 0 };
+    },
+  });
+  // keeps Use, still in chat a only: chat b's entries come off, nothing is stopped
+  await reconcileAccess(w.hn.ctx, deps(true, { thr_a: true }));
+  assert.equal(calls.filter((c) => c.startsWith("stop")).length, 0);
+  assert.equal(calls.filter((c) => c.includes("thr_b")).length, 1, "the chat they left");
+  assert.equal(calls.filter((c) => c.includes("thr_a")).length, 0);
+  calls.length = 0;
+  // loses Use: terminals closed, programs stopped, both chats off, the clock starts
+  const out = await reconcileAccess(w.hn.ctx, deps(false, {}));
+  assert.deepEqual(out, ["usr_bea"]);
+  assert.ok(calls.includes("stop agt_dex"));
+  assert.equal(calls.filter((c) => c.includes("thr_")).length, 2);
+  assert.equal((db.all("SELECT closed_at FROM terminal_sessions WHERE terminal_id = ?", ran.terminalId)[0] as { closed_at: unknown }).closed_at !== null, true);
+  assert.equal(db.all("SELECT 1 FROM terminal_use_lost").length, 1);
+  assert.equal(db.all("SELECT 1 FROM terminal_person_places").length, 1, "the home is kept");
+  // 29 days on: still kept; 31 days on: erased
+  w.hn.advance(29 * 24 * 3600_000);
+  await reconcileAccess(w.hn.ctx, deps(false, {}));
+  assert.equal(db.all("SELECT 1 FROM terminal_person_places").length, 1);
+  w.hn.advance(2 * 24 * 3600_000);
+  await reconcileAccess(w.hn.ctx, deps(false, {}));
+  assert.equal(db.all("SELECT 1 FROM terminal_person_places").length, 0, "erased after 30 days");
+});
+
+test("mutant: what reaches a person is set again at a command once it is older than REGRANT_MS, and not before", async () => {
+  const w = setup({ ownerId: "usr_maya", kind: "agent" });
+  let n = 0;
+  bindPlaceGrant(async () => {
+    n++;
+  });
+  try {
+    await h["terminal.run"]!(w.turn("usr_bea"), { command: "echo hi", idempotencyKey: idem() });
+    await h["terminal.run"]!(w.turn("usr_bea"), { command: "echo hi", idempotencyKey: idem() });
+    assert.equal(n, 1, "not again within the few seconds");
+    w.hn.advance(REGRANT_MS + 1000);
+    await h["terminal.run"]!(w.turn("usr_bea"), { command: "echo hi", idempotencyKey: idem() });
+    assert.equal(n, 2, "again when it is older");
+    assert.ok(REGRANT_MS <= 10_000, "a few seconds, not minutes");
+  } finally {
+    bindPlaceGrant(null);
+  }
 });

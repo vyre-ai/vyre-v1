@@ -77,7 +77,8 @@ export function grantCommand(p: AskerPlace, projects: ReadonlyArray<{ id: string
     "sh",
     "-c",
     'u="$1"; files="$2"; shift 2; H=/home/agent; rc=0; fail() { echo "could not open $1 for the person" >&2; rc=$((rc+1)); }; ' +
-      'setfacl -m "u:$u:--x" "$H" "$H/projects" || fail "the agent computer"; ' +
+      // a workspace of an older release has no projects folder yet: it is made (0700, the agent's own) before the person is let through it
+      'mkdir -p -m 700 "$H/projects" 2>/dev/null; setfacl -m "u:$u:--x" "$H" "$H/projects" || fail "the agent computer"; ' +
       'for d in "$H"/projects/* "$H/Vyre"; do [ -d "$d" ] && { chmod 700 "$d"; setfacl -R -x "u:$u" "$d" 2>/dev/null; setfacl -R -d -x "u:$u" "$d" 2>/dev/null; }; done; ' +
       '[ "$files" = 1 ] && [ -d "$H/Vyre" ] && { setfacl -m "u:$u:rX" "$H/Vyre" && setfacl -d -m "u:$u:rX" "$H/Vyre" || fail "the Files folder"; setfacl -R -m "u:$u:rX" "$H/Vyre" 2>/dev/null; setfacl -R -d -m "u:$u:rX" "$H/Vyre" 2>/dev/null; }; ' +
       // the agent's home is not walkable by a guest: whatever a program of the agent's wrote with a loose umask (an engine, an exec outside the session shell, every file of an older workspace) has its group and

@@ -4,6 +4,11 @@
 // the shell history, a file in the agent's home, the tmux session. And what the tool layer refuses: a working directory or a path in another person's folder.
 // What one user id inside one container cannot close is written in team/v1/REPORT-f-agentpc-2026-11-13.md; these tests hold only what the tool layer and the shell's environment enforce.
 import test from "node:test";
+import { execFile } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { docker, world } from "./support/agentpc-world.ts";
 import type { World } from "./support/agentpc-world.ts";
@@ -295,15 +300,33 @@ test(
 
 // Lead's condition (3): a workspace made by the rc.26 image (no named users, no /people volume, the old label and host name) holds the owner's files and has a session running. The first call of a
 // non-owner after the update makes it again with the new bind and the new image; the owner's home and what is in it stay; the non-owner works as their own Unix user; nothing is left unusable.
-// Needs VYRE_RC26_WORKSPACE_IMAGE (an image built from the rc.26 images/agent-workspace); without it the test is skipped and that is not a pass.
-const RC26 = process.env["VYRE_RC26_WORKSPACE_IMAGE"];
+// The old image is the one of the rc.28 release (git tag v1.0.0-rc.28, built here from `git archive`, so the job needs the tags), or VYRE_RC26_WORKSPACE_IMAGE when a lane names one. A missing tag is a failure, not a skip.
+// What the old workspace left is what the wall has to be safe over: a home written with umask 022 (files and folders anyone can read, such as ~/.npmrc and ~/work/notes.txt).
+const OLD_TAG = "v1.0.0-rc.28";
+async function oldImage(): Promise<string> {
+  const named = process.env["VYRE_RC26_WORKSPACE_IMAGE"];
+  if (named !== undefined) return named;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-oldws-"));
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const tar = await new Promise<{ code: number; out: string }>((resolve) =>
+    execFile("sh", ["-c", `git -C "${root}" archive ${OLD_TAG} images/agent-workspace | tar -x -C "${dir}"`], (err, so, se) =>
+      resolve({ code: err ? 1 : 0, out: `${so}${se}` }),
+    ),
+  );
+  assert.equal(tar.code, 0, `the tag ${OLD_TAG} is not in this checkout (the job fetches tags): ${tar.out}`);
+  const tag = `vyre/agent-workspace:rc28-${process.pid}`;
+  const built = await docker(["build", "-t", tag, path.join(dir, "images/agent-workspace")]);
+  assert.equal(built.code, 0, built.out.slice(-600));
+  return tag;
+}
 test(
   "a workspace made by the rc.26 image is made again at the first non-owner call: the owner's home stays, the non-owner is their own Unix user",
   {
-    skip: skip || (RC26 === undefined ? "needs VYRE_RC26_WORKSPACE_IMAGE (an image built from rc.26)" : false),
+    skip,
     timeout: 900_000,
   },
   async (t) => {
+    const RC26 = await oldImage();
     const w = await world();
     t.after(() => w.close());
     const ws = `vyre-ws-${w.agent}`;
@@ -318,9 +341,9 @@ test(
       "0",
       "--entrypoint",
       "sh",
-      RC26!,
+      RC26,
       "-c",
-      "echo OWNER-BEFORE > /h/owner-note.txt; chown -R 10001:10001 /h",
+      "umask 022; echo OWNER-BEFORE > /h/owner-note.txt; echo NPMRC-OLD-SECRET > /h/.npmrc; mkdir -p /h/work; echo NOTES-OLD-SECRET > /h/work/notes.txt; chown -R 10001:10001 /h",
     ]);
     assert.equal(seed.code, 0, seed.out);
     const made = await docker([
@@ -339,7 +362,7 @@ test(
       `${ws}-home:/home/agent`,
       "-v",
       `${ws}-files:/home/agent/Vyre`,
-      RC26!,
+      RC26,
       "sleep",
       "infinity",
     ]);
@@ -353,7 +376,18 @@ test(
       "the owner's file is where it was; the host name has no id",
     );
     const ben = await w.turn(w.ben, "up-2", [{ cmd: "whoami; echo $HOME" }]);
-    assert.match(ben[0]!.text, /^u2\d{4}\n\/people\/u2\d{4}$/, ben[0]!.text);
+    assert.match(ben[0]!.text, /^u2\d{4}\n\/people\/u2\d{4}$/, JSON.stringify(ben));
+    // what the old workspace wrote with umask 022 is not the non-owner's to read, after the update (round two, item 1)
+    const loose = await w.turn(w.ben, "up-3", [
+      { cmd: 'H=/home/ag""ent; cat $H/.npmrc 2>&1' },
+      { cmd: 'H=/home/ag""ent; cat $H/work/notes.txt 2>&1' },
+    ]);
+    for (const [i, g] of loose.entries()) {
+      assert.doesNotMatch(g.text, /SECRET/, `old file ${i} printed`);
+      assert.match(g.text, /Permission denied|Operation not permitted/, g.text);
+    }
+    const stillOwner = await w.turn(w.owner, "up-4", [{ cmd: "cat ~/.npmrc ~/work/notes.txt" }]);
+    assert.match(stillOwner[0]!.text, /NPMRC-OLD-SECRET[\s\S]*NOTES-OLD-SECRET/, "the owner still reads her own");
     const image = (await docker(["inspect", "-f", "{{.Config.Image}}", ws])).out.trim().split("\n")[0];
     assert.notEqual(image, RC26, "the container was made again on the new image");
   },

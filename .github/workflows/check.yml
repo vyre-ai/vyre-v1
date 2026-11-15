@@ -431,10 +431,13 @@ jobs:
           VYRE_WORKSPACE_TEST_IMAGE: vyre/agent-workspace:ci-${{ github.run_id }}
         run: |
           set -o pipefail
+          # the upgrade from an rc.28 workspace is built from the release's tag: the tags are fetched here
+          git fetch -q --tags origin
+          git rev-parse -q --verify v1.0.0-rc.28 > /dev/null
           # one file at a time: each boots a daemon and a workspace of its own and measures what a person can reach, and a file that restarts or removes workspaces beside it makes those numbers wrong
-          node --test --test-concurrency=1 --test-force-exit --test-timeout=1800000 --test-reporter=spec test/terminal.wall.heavy.test.ts test/terminal.asker.heavy.test.ts test/shared-agent.wall.heavy.test.ts 2>&1 | tee workspace-wall.log
-          # the rc.26 upgrade test of terminal.asker.heavy needs an image built from the rc.26 tag (VYRE_RC26_WORKSPACE_IMAGE) and skips by name without one: exactly that one test may skip
-          grep -a -q -E "^ℹ skipped [01]$" workspace-wall.log || { echo "a heavy test was skipped (is Docker or the image missing?)" >&2; exit 1; }
+          node --test --test-concurrency=1 --test-force-exit --test-timeout=1800000 --test-reporter=spec test/terminal.wall.heavy.test.ts test/terminal.wall2.heavy.test.ts test/terminal.asker.heavy.test.ts test/shared-agent.wall.heavy.test.ts 2>&1 | tee workspace-wall.log
+          # a skip is not a pass: the upgrade test builds the rc.28 workspace image from its git tag in the job, so nothing here may skip
+          grep -a -q -E "^ℹ skipped 0$" workspace-wall.log || { echo "a heavy test was skipped (is Docker or the image missing?)" >&2; exit 1; }
           grep -a -q -E "^ℹ fail 0$" workspace-wall.log
       - name: Images and containers left behind
         if: always()
