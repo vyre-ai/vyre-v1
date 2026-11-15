@@ -557,3 +557,12 @@ Signed: lead, 16 Nov 2026 02:19 PKT, after reading the manifest diff: one option
 - Proof: test/goals.wake-fail.live.test.ts, modules/goals/tests, lib/words/failure.test.ts, apps/app/src/places/chats/conversation/status.test.ts. Snapshots: docs/frozen/snapshots/goals.json and engine.json.
 
 Signed: lead, 16 Nov 2026 00:42 PKT, after reading the manifest diff: optional, additive fields only.
+
+## 16 Nov 2026: mail.drafts.list can be asked for one address, and an agent's repeated draft replaces its earlier one (the lead, the owner's Inbox report)
+
+- What changed: `mail.drafts.list@1` takes one more optional input, `address`: only drafts written to that address (To or Cc, any case). Nothing was removed or made required; a caller that sends nothing gets what it got. The Inbox conversation screen now always sends the conversation's contact or its address, never an empty filter.
+- Behaviour, no contract change: `mail.draft` by an agent that names no message it answers now replaces that agent's own pending draft in the same mailbox when the subject (Re: and Fwd: aside) and the people in To are the same; the earlier text is kept as before. A person's draft, another agent's draft and a named draft are never replaced.
+- Why: the owner's Inbox showed drafts written to other people inside one person's conversation (the screen asked for every draft), and two pending drafts of one email.
+- Proof: modules/mail/tests/drafts.test.ts (two new cases), modules/inbox/tests/match.test.ts. Snapshot: docs/frozen/snapshots/mail.json.
+
+Signed: lead, 16 Nov 2026 03:01 PKT (written and read by the lead: one optional, additive input).

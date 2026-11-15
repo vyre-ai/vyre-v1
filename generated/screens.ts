@@ -5692,7 +5692,8 @@ export const screens: ScreenIndexEntry[] = [
       "drafts": {
         "cap": "mail.drafts.list",
         "input": {
-          "contactId": "/state/contactId"
+          "contactId": "/state/contactId",
+          "address": "/state/address"
         },
         "live": true
       }

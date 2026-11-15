@@ -85,6 +85,8 @@ import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, MailHtmlStyle, QuietL
 import { usePhone } from "../softphone/phone.tsx";
 
 export const SCREEN = "inbox.contact-tab";
+/** An address no draft is written to (the reserved .invalid domain): what the drafts query asks for while the conversation is still loading. */
+const NOBODY = "nobody@drafts.invalid";
 type MailboxesOut = { mailboxes: Mailbox[] };
 type DraftsOut = { drafts: DraftRow[] };
 
@@ -213,7 +215,15 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const [images, setImages] = useState(false);
   const threadsQ = useScreenQuery<ThreadsOut>(SCREEN, "threads", { ...state, ...(images ? { images: true } : {}) });
   const opts = useScreenQuery<SendOptions>(SCREEN, "options", state);
-  const drafts = useScreenQuery<DraftsOut>(SCREEN, "drafts", contactId ? { contactId } : {});
+  // The drafts of THIS conversation only: by its contact, else by its address. Never an empty filter: the list then answers every draft the caller may read, and a
+  // conversation opened by its id showed drafts written to other people (owner's Inbox, 16 Nov 2026). Until the conversation is known the query asks for nobody.
+  const known = thread.status === "ready" ? thread.data.conversation : null;
+  const draftsOf = contactId ?? known?.contactId;
+  const drafts = useScreenQuery<DraftsOut>(
+    SCREEN,
+    "drafts",
+    draftsOf ? { contactId: draftsOf } : { address: known?.address || NOBODY },
+  );
   const boxes = useScreenQuery<MailboxesOut>("inbox.sidebar", "mailboxes");
 
   const ask = props.ask;

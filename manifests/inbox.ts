@@ -602,7 +602,7 @@ const manifest = defineManifest({
           { conversationId: "/state/conversationId", contactId: "/state/contactId" },
           true,
         ],
-        drafts: ["mail.drafts.list", { contactId: "/state/contactId" }, true],
+        drafts: ["mail.drafts.list", { contactId: "/state/contactId", address: "/state/address" }, true],
       },
       a: {
         email: [
