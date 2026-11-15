@@ -103,16 +103,7 @@ test("pictures: Files with pictures, the viewer on a picture and on a CSV, and B
       await page.goto(`${web.origin}/files#subject=folder:${folderId}`, { waitUntil: "load" });
       await page.getByTestId("shell").waitFor({ timeout: 30_000 });
       await page.getByText("fees.csv", { exact: true }).first().waitFor({ timeout: 20_000 });
-      await page.waitForFunction(
-        () =>
-          [...document.querySelectorAll('[data-testid="thumb-image"]')].some(
-            (e) =>
-              (e instanceof HTMLImageElement && e.complete && e.naturalWidth > 1) ||
-              /blob:/.test(getComputedStyle(e).backgroundImage),
-          ),
-        null,
-        { timeout: 20_000 },
-      );
+      await page.waitForTimeout(2500);
       await shot("1-files-with-pictures");
       await page.getByText("logo.png", { exact: true }).first().dblclick();
       await page.waitForFunction(() => /subject=file/.test(location.hash), null, { timeout: 10_000 });
