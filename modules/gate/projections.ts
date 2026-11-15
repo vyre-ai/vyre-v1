@@ -23,6 +23,8 @@ export type ActKey =
   | "signature_send"
   | "spend_raise"
   | "signin_change"
+  | "github_approval"
+  | "agent_erase"
   | "approve";
 export type Risk = "low" | "medium" | "high";
 export type Mode = "hold" | "allow";

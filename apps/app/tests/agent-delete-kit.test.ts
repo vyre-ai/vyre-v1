@@ -11,7 +11,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { guardCrashes } from "./crash-guard.ts";
-import { as, join } from "../../../test/support/people.ts";
 import { vendor } from "../../../fixtures/model-vendor.ts";
 
 const PRELOAD = fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url));
@@ -163,21 +162,37 @@ export async function agentDeleteWalk(
     let ana: { id: string; token: string } | null = null;
     const withAna = async (agentId: string): Promise<void> => {
       if (ana === null) {
-        const call = async (cap: string, input: Record<string, unknown> = {}) => {
-          const r = await owner.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, {
-            headers: { authorization: `Bearer ${token}` },
-            data: { idempotencyKey: `ad-j-${cap}-${Math.random()}`, ...input },
-          });
-          const body = (await r.json()) as { data?: unknown };
-          return { status: r.status(), data: (body.data ?? body) as never };
-        };
-        ana = await join({ url: web.origin } as never, call as never, "Member", "ana", "Ana Adler");
+        const roles = (await api("access.roles.list", {})).roles as { id: string; name: string }[];
+        const invite = await api("members.invites.create", { role: roles.find((r) => r.name === "Member")!.id, idempotencyKey: "ad-invite" });
+        const code = decodeURIComponent(new URL(invite.link).pathname.split("/").pop() ?? "");
+        const r = await fetch(`${web.origin}/v1/members/accept`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            code,
+            username: "ana",
+            displayName: "Ana Adler",
+            password: "correct horse battery staple 9",
+            keys: {
+              personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk",
+              publicKey: "cHVibGljLWtleQ==",
+              privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk",
+              spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }],
+            },
+            deviceName: "Test browser",
+            deviceClass: "desktop",
+          }),
+        });
+        const body = (await r.json()) as { data?: { token: string; personId: string } };
+        assert.equal(r.status, 200, JSON.stringify(body));
+        ana = { id: body.data!.personId, token: body.data!.token };
       }
-      const chat = await as({ url: web.origin } as never, ana.token)("chat.start", {
-        kind: "chat",
-        agentIds: [agentId],
+      const chat = await fetch(`${web.origin}/v1/chat/start`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${ana.token}` },
+        body: JSON.stringify({ kind: "chat", agentIds: [agentId], idempotencyKey: `ad-ana-${agentId}` }),
       });
-      assert.equal(chat.status, 200, JSON.stringify(chat.data));
+      assert.equal(chat.status, 200, await chat.text());
     };
     const walk = async (mode: Mode, name: string, tag: string): Promise<void> => {
       const A = await makeAgent(name, tag);
