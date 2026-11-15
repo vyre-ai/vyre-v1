@@ -56,7 +56,9 @@ export function AgentTrashRows({
           note={
             a.deleting
               ? "Deleting"
-              : `Agent · Moved to Trash ${day(a.deletedAt)}${a.erasesAt !== undefined ? ` · Erased on ${day(a.erasesAt)}` : ""}`
+              : phone
+                ? "Agent"
+                : `Agent · Moved to Trash ${day(a.deletedAt)}${a.erasesAt !== undefined ? ` · Erased on ${day(a.erasesAt)}` : ""}`
           }
           leading={
             <View style={st.face}>
