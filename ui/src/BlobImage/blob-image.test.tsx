@@ -88,7 +88,10 @@ test("another person on the same page never gets the first person's picture: a n
   const before = g.URL.revokeObjectURL;
   g.URL.revokeObjectURL = (u) => void revoked.push(u);
   try {
-    const mk = (who: string) => async (p: string): Promise<string> => `blob:${who}-${p}`;
+    const mk =
+      (who: string) =>
+      async (p: string): Promise<string> =>
+        `blob:${who}-${p}`;
     const first = mk("ann");
     const second = mk("bob");
     const addr = "/spaces/a/blobs/shared1";

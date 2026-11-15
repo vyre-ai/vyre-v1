@@ -20,10 +20,12 @@ const ALLOW: Record<string, string> = {
     "frames of a live computer or browser: object addresses made on this page from the stream's own bytes, never a Space blob address",
   "apps/app/src/places/chats/rightpane/PreviewImage.tsx":
     "a browser preview picture: a data address (data:image/png;base64) the capability returns, never a Space blob address",
-  "apps/app/src/places/chats/conversation/webpage.tsx": "a page's screenshot: shown only when it matches ^data:image/(jpeg|png|webp);base64 (the SHOT test in this file), never a Space blob address",
+  "apps/app/src/places/chats/conversation/webpage.tsx":
+    "a page's screenshot: shown only when it matches ^data:image/(jpeg|png|webp);base64 (the SHOT test in this file), never a Space blob address",
   "apps/app/src/places/chats/conversation/LiveCard.tsx":
     "a frozen still: built here as data:image/png;base64 from a files.read answer (LiveCard setStill), never a Space blob address",
-  "apps/app/src/places/chats/conversation/chrome-cards.tsx": "a step thumbnail: shown only when it matches ^data:image/(jpeg|png|webp);base64 (the THUMB test in this file), never a Space blob address",
+  "apps/app/src/places/chats/conversation/chrome-cards.tsx":
+    "a step thumbnail: shown only when it matches ^data:image/(jpeg|png|webp);base64 (the THUMB test in this file), never a Space blob address",
   "apps/app/src/onboarding/ProviderLogo.tsx": "static provider logos",
   "apps/app/src/console/pages/SpaceImage.tsx": "the picture being cropped: a local file read to a data address",
   "ui/src/EmailBuilder/index.tsx": "the email's own pictures, addresses the sender typed",

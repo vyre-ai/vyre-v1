@@ -75,7 +75,12 @@ export function useBlobSrc(uri: string | undefined): string | undefined {
     let e = c.get(uri);
     if (!e) {
       // the oldest entry nobody is showing goes when the cache is full
-      if (c.size >= MAX_KEPT) for (const [k, v] of c) if (v.refs === 0) { forget(c, k); break; }
+      if (c.size >= MAX_KEPT)
+        for (const [k, v] of c)
+          if (v.refs === 0) {
+            forget(c, k);
+            break;
+          }
       const made: Entry = { p: door.fetcher(uri), refs: 0 };
       made.p.then(
         (u) => void (made.url = u),

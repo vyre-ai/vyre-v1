@@ -1995,7 +1995,7 @@ test("session: a picture is fetched with the person's token only from the Space'
     baseUrl: "http://s.test",
     token: "vst_1",
     fetch: ((url: string, init?: { headers?: Record<string, string> }) => {
-      if (String(url).includes("/spaces/")) {
+      if (/\/spaces\/[^/]+\/blobs\//.test(String(url))) {
         pictures.push({ url: String(url), auth: init?.headers?.["authorization"] });
         return Promise.resolve(new Response("png", { status: 200 }));
       }
