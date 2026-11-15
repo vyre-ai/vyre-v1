@@ -101,7 +101,7 @@ test("pictures: Files with pictures, the viewer on a picture and on a CSV, and B
       await page.setViewportSize(phone ? { width: 390, height: 844 } : { width: 1440, height: 900 });
       const shot = (n: string): Promise<unknown> => page.screenshot({ path: path.join(shots, `${tag}-${n}.png`) });
       await page.goto(`${web.origin}/files#subject=folder:${folderId}`, { waitUntil: "load" });
-      await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+      await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });
       await page.getByText("fees.csv", { exact: true }).first().waitFor({ timeout: 20_000 });
       await page.waitForTimeout(2500);
       await shot("1-files-with-pictures");

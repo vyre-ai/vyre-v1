@@ -16,6 +16,10 @@ const ALLOW: Record<string, string> = {
   "apps/app/src/places/chats/rightpane/BrowserLive.tsx":
     "a live browser frame (a data address or the stream) from the computer, not a Files blob (NOT verified)",
   "apps/app/src/places/chats/computer/LiveScreen.tsx": "a live screen stream address with its own ticket",
+  "ui/src/LiveSurface/index.tsx":
+    "frames of a live computer or browser: object addresses made on this page from the stream's own bytes, never a Space blob address",
+  "apps/app/src/places/chats/rightpane/PreviewImage.tsx":
+    "a browser preview picture: a data address (data:image/png;base64) the capability returns, never a Space blob address",
   "apps/app/src/places/chats/conversation/webpage.tsx": "a page's own screenshot data address (NOT verified)",
   "apps/app/src/places/chats/conversation/LiveCard.tsx":
     "a frozen still, a data address read through files.read (NOT verified)",
