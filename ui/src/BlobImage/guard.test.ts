@@ -8,6 +8,8 @@ import { isSpaceBlob } from "./address.ts";
 
 const root = new URL("../../../", import.meta.url).pathname;
 const ALLOW: Record<string, string> = {
+  "ui/src/AppLogo/index.tsx": "an app's own icon address (the app's site, or the icon the Space fetched once and keeps at its own address), never a Space blob address",
+  "apps/app/src/places/automations/cards/Cards.tsx": "the pictures of the form choices an Assistant offers: static addresses the card is given, never a Space blob address",
   "ui/src/BlobImage/index.tsx": "the component itself",
   "apps/app/src/join/kit.tsx": "the join screens' own static logos",
   "apps/app/src/shell/spaces/SpaceSwitcher.tsx":

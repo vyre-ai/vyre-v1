@@ -28,8 +28,7 @@ const html = (place: "automations" | "console" | "chats", hash = ""): string =>
 
 test("a phone deep link to Automations or the Console shows the Chat-about-it screen", () => {
   for (const [place, hash, line] of [
-    ["automations", "", "Automations open on a computer."],
-    ["automations", "subject=automation%3Aaut_1", "Automations open on a computer."],
+    // changed for AUTOMATIONS-BUILD-RC29 round four (lead, 15 Nov): Automations are on the phone; only the Console is a computer's
     ["console", "", "The Console opens on a computer."],
     ["console", "members", "The Console opens on a computer."],
   ] as const) {
@@ -39,6 +38,11 @@ test("a phone deep link to Automations or the Console shows the Chat-about-it sc
     assert.ok(out.includes('data-testid="mobile-tabs"'), "the five tabs stay, so the person is never stuck");
     assert.ok(!out.includes('data-testid="tab-automations"') && !out.includes('data-testid="tab-console"'));
   }
+});
+
+test("a phone link to Automations opens the place, not the Chat-about-it screen (round four)", () => {
+  assert.ok(!html("automations", "").includes('data-testid="desktop-only"'));
+  assert.ok(!html("automations", "subject=automation%3Aaut_1").includes('data-testid="desktop-only"'));
 });
 
 test("the phone's tabs have no Automations or Console, and a plain Chats link is unchanged", () => {
