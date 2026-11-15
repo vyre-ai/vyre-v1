@@ -32,12 +32,7 @@ test("progress loads as a map and marks go to the Space", async () => {
       ],
     },
   });
-  // `fresh` (16 Nov 2026): the server says whether the account is new; an answer that leaves it out reads as new, so a new Space is never taken for an old one
-  assert.deepEqual(await loadFlow(f.call, "personal"), {
-    seen: true,
-    progress: { ai: "done", phone: "later" },
-    fresh: true,
-  });
+  assert.deepEqual(await loadFlow(f.call, "personal"), { seen: true, progress: { ai: "done", phone: "later" } });
   await markStep(f.call, "team", "org", "done");
   await markSeen(f.call, "member");
   assert.deepEqual(f.calls.slice(1), [

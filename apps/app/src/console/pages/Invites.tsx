@@ -13,7 +13,6 @@ import { CopyRow } from "./suite/parts.tsx";
 import { Actions, Button, TextBox, FormSheet, Note, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { EMPTY_START, InviteStart, startInput } from "./InviteStart.tsx";
 import type { StartSet } from "./InviteStart.tsx";
-import { reachedLink } from "../../share/rows.ts";
 
 type Invite = CapMap["members.invites.list"]["out"]["invites"][number];
 
@@ -88,7 +87,7 @@ export function InviteSheet({
       >("members.invites.create", { role: chosenRole, ...(email.trim() ? { email: email.trim() } : {}), ...startInput(start), expiresInDays: Number(days), idempotencyKey: attempt() }, "Invite created")
       .then((out) => {
         if (out) {
-          setLink(reachedLink(out.link));
+          setLink(out.link);
           onCreated?.();
         }
       });
@@ -199,7 +198,7 @@ export function OpenInvites({
       },
       "New link made. The old one no longer works.",
     );
-    if (out) setFresh({ id: out.invite.id, link: reachedLink(out.link), ...(inv.email ? { email: inv.email } : {}) });
+    if (out) setFresh({ id: out.invite.id, link: out.link, ...(inv.email ? { email: inv.email } : {}) });
   };
   const mail = async (): Promise<void> => {
     if (!fresh?.email) return;

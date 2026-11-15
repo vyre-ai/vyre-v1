@@ -282,7 +282,7 @@ export function ProviderPage({
         </View>
         {provider.agentsUsing.length === 0 ? (
           <Text style={s.dim} testID="provider-nobody">
-            {provider.usage.tokens > 0 ? "Used in chats. No agent or Automation is set to it" : "Nothing uses it yet"}
+            Nothing uses it yet
           </Text>
         ) : null}
         {provider.agentsUsing.map((id) => (

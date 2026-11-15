@@ -60,12 +60,6 @@ export function TakeNote({
       close();
       return;
     }
-    // Tab from the title goes to the note, never on to the editor's Paragraph button (it opened that menu and the next letters went into it)
-    if (k === "Tab" && field === "title" && !(ev.nativeEvent as { shiftKey?: boolean } | undefined)?.shiftKey) {
-      ev.preventDefault?.();
-      setBodyFocusKey((n) => n + 1);
-      return;
-    }
     if (k === "Enter" && field === "title") {
       ev.preventDefault?.();
       setBodyFocusKey((k) => k + 1);
@@ -130,7 +124,6 @@ export function TakeNote({
         placeholderTextColor="var(--ink-3)"
         accessibilityLabel="Title"
         testID="take-title"
-        autoFocus={!take.body && focusBody === 0}
         style={s.tkT}
       />
       <View style={s.tkBWrap}>
@@ -143,7 +136,7 @@ export function TakeNote({
           bare
           density="compact"
           minHeight={44}
-          autoFocus={false}
+          autoFocus={!take.title && !take.body}
           focusKey={bodyFocusKey}
           onEscape={close}
           onModEnter={close}

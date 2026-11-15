@@ -1,1 +1,0 @@
-Plain words in place of wrong ones: Console Home, the claim page on your own computer, People, the event log without ids, a cut chat title with an ellipsis, a letter for providers without a mark, and the phone landing and You tab laid out without repeats or a blank hole.

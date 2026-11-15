@@ -183,7 +183,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
         >{`Used by ${countWords(provider.agentsUsing.length, "agent or Automation", "agents and Automations")}`}</Text>
         {provider.agentsUsing.length === 0 ? (
           <Text style={s.none} testID="provider-nobody">
-            {provider.usage.tokens > 0 ? "Used in chats. No agent or Automation is set to it." : "Nothing uses it yet."}
+            Nothing uses it yet.
           </Text>
         ) : (
           provider.agentsUsing.map((id) => (
@@ -261,8 +261,8 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
             style={s.switchRow}
           >
             <View style={{ flex: 1 }}>
-              <Text style={s.switchTitle}>{spaceUseWords(provider, data.personal === true).title}</Text>
-              <Text style={s.switchNote}>{spaceUseWords(provider, data.personal === true).note}</Text>
+              <Text style={s.switchTitle}>{spaceUseWords(provider).title}</Text>
+              <Text style={s.switchNote}>{spaceUseWords(provider).note}</Text>
             </View>
             <View style={[s.track, spaceMay && s.trackOn]}>
               <View style={[s.knob, spaceMay && s.knobOn]} />

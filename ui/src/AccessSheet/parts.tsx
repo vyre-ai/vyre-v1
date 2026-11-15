@@ -811,7 +811,7 @@ export function ViewHead({
           {title}
         </Text>
         {sub === undefined ? null : (
-          <Text style={st.sub} numberOfLines={2}>
+          <Text style={st.sub} numberOfLines={1}>
             {sub}
           </Text>
         )}

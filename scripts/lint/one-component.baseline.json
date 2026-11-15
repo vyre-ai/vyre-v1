@@ -94,6 +94,9 @@
   "apps/app/src/places/chats/conversation/data.tsx": {
     "read-hook": 1
   },
+  "apps/app/src/places/chats/conversation/MessageView.tsx": {
+    "crew-poll": 1
+  },
   "apps/app/src/places/chats/conversation/parts.tsx": {
     "declared": 1
   },

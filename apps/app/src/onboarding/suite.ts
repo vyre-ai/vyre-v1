@@ -1,7 +1,6 @@
 // Team steps 3 to 6 call the suite's capabilities (names agreed with the suite builder). Nothing here builds a backend. A capability the Space does not have yet reads "not set up yet",
 // never an error: the step stays on the rail and can be done later.
 import type { CapCall } from "../shell/session/caps.ts";
-import { reachedLink } from "../share/rows.ts";
 
 export type Probe<T> = { kind: "ready"; value: T } | { kind: "not_yet" } | { kind: "failed" };
 
@@ -233,7 +232,7 @@ export async function createInviteLink(
     ...(email ? { email } : {}),
     idempotencyKey,
   })) as { link: string };
-  return reachedLink(out.link);
+  return out.link;
 }
 
 // ---- email the invites
