@@ -213,6 +213,26 @@ function Body({
   const [saving, setSaving] = useState(false);
   const [picker, setPicker] = useState<{ after: string | null; x: number; y: number } | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
+  // what Connect an app lists, decided on the server: the Vault items this person may use whose app their Assistant can set up
+  const [vaultOffers, setVaultOffers] = useState<{ itemId: string; appName: string }[]>([]);
+  const sheetApps = vaultOffers.map((o) => ({
+    id: o.appName.toLowerCase(),
+    name: o.appName,
+    connected: false,
+    mayUse: false,
+    vault: { item: "Saved in your Vault", use: "use" as const, assistant: "cleared" as const },
+  }));
+  useEffect(() => {
+    if (!connectOpen) return undefined;
+    let live = true;
+    void data.call("automations.connect_options", {}).then(
+      (o) => live && setVaultOffers((o as { vault?: { itemId: string; appName: string }[] }).vault ?? []),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [connectOpen, data]);
   const [promoteOpen, setPromoteOpen] = useState(initialPromote);
   const [packagesOpen, setPackagesOpen] = useState(false);
   // what this Automation sends from, and how many of its runs failed: both were on the old page's head
@@ -1030,9 +1050,13 @@ function Body({
       ) : null}
       {connectOpen ? (
         <ConnectSheet
-          apps={[]}
+          apps={sheetApps}
           known={[]}
-          onSetup={() => setConnectOpen(false)}
+          onSetup={(id) => {
+            const o = vaultOffers.find((x) => x.appName.toLowerCase() === id);
+            setConnectOpen(false);
+            if (o) void Promise.resolve(data.nav.setUpConnector?.({ itemId: o.itemId, appName: o.appName })).catch(() => undefined);
+          }}
           onAsk={() => setConnectOpen(false)}
           onDescribe={() => {
             setConnectOpen(false);

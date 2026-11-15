@@ -453,6 +453,7 @@ New capabilities, all on the `automations` tool:
 - `automations.proposal.discard`: a person who may change the Automation, or the Assistant that proposed it; an empty Automation that proposing made goes to Trash with it.
 - `automations.get` answers two optional fields: `draft` and `proposal`, and takes an optional `version` (an integer): the definition of that version, so a run's page shows what the run RAN.
 - `automations.home`: what the Automations first page shows in one read (what needs the person, at most one suggestion, the Today line, the counts). A new read; nothing an older client sends changes meaning.
+- `automations.connect_options`: what Connect an app lists for the person (the Vault items they may use whose app their Assistant can set up). A new read.
 
 All additions; nothing an older client sends changes meaning.
 

@@ -491,6 +491,16 @@ export default defineManifest({
         label: "check",
       },
     ),
+    read(
+      "automations.connect_options",
+      "What Connect an app lists for the person: the Vault items they may use whose app their Assistant can set up",
+      {
+        in: {},
+        out: { vault: t.arr(t.obj({ itemId: t.str(), appName: t.str() })) },
+        tool: "automations",
+        label: "check",
+      },
+    ),
     read("automations.packages.list", "List portable Automation packages this person has exported", {
       in: {},
       out: { packages: t.arr(packageRow) },

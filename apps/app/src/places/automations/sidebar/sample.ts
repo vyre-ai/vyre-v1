@@ -822,6 +822,7 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
     "automations.set_enabled": (i: { automationId: string; enabled: boolean }) => ({
       automation: patch(i.automationId, { status: i.enabled ? "on" : "off" }),
     }),
+    "automations.connect_options": () => ({ vault: [] }),
     "automations.home": () => {
       const rows = autos();
       const lastOf = (a: Row) => a["lastRun"] as { runId: string; status: string; at: number } | undefined;

@@ -211,6 +211,7 @@ export function createClient(transport: Transport) {
       },
       analytics: call("automations.analytics", 1),
       code_reach: call("automations.code_reach", 1),
+      connect_options: call("automations.connect_options", 1),
       connector_card: call("automations.connector_card", 1),
       connector_levels: call("automations.connector_levels", 1),
       connector_offer: {

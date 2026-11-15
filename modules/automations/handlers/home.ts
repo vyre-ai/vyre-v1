@@ -52,3 +52,9 @@ export async function home(ctx: AutoCtx): Promise<unknown> {
     counts: { total: rows.length, on: rows.filter((a) => a.status === "on").length, needYou: needs.length },
   };
 }
+
+/** What "Connect an app" lists for this person: the Vault items they hold Use on whose app their Assistant can set up (the same three-part rule as the first page's suggestion). */
+export async function connectOptions(ctx: AutoCtx): Promise<unknown> {
+  const offers = (await connectorOffers(ctx).catch(() => ({ offers: [] as { itemId: string; appName: string; text: string }[] }))).offers;
+  return { vault: offers.map((o) => ({ itemId: o.itemId, appName: o.appName })) };
+}
