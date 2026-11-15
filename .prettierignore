@@ -29,3 +29,6 @@ shots-evidence/
 package-lock.json
 *.md
 *.json
+
+# Vendored libraries served as static files (pdf.js Apache-2.0, ExcelJS MIT, fflate MIT): minified, never reformatted.
+apps/app/public/vendor/

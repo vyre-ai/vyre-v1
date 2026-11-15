@@ -31,6 +31,7 @@ import {
   useLayerCss,
 } from "./layer.tsx";
 import type { LayerAct, Span, ViewerLayer, ViewerMark } from "./layer.tsx";
+import type { RichBody } from "./rich/types.ts";
 export { LAYER_CSS, layerRuns, layerSpans, previewRuns, REDACTED } from "./layer.tsx";
 export type { LayerAct, ViewerLayer, ViewerMark } from "./layer.tsx";
 import type { FileLinks } from "./links.ts";
@@ -345,6 +346,7 @@ const ICON = {
   down: `${SVG}<path d="M4 6l4 4 4-4"/></svg>`,
   info: `${SVG}<circle cx="8" cy="8" r="5.500"/><path d="M8 7.500V11M8 5.200v.1"/></svg>`,
   history: `${SVG}<path d="M2.500 8a5.500 5.500 0 105.500-5.500A5.500 5.500 0 004 4.500M2 2.500v2.500h2.500M8 5v3l2 1.200"/></svg>`,
+  pages: `${SVG}<rect x="2.500" y="2.500" width="4.500" height="11" rx="1"/><path d="M9.500 4h4M9.500 8h4M9.500 12h4"/></svg>`,
   more: `${SVG}<path d="M3.500 8h.1M8 8h.1M12.500 8h.1"/></svg>`,
 } as const;
 
@@ -432,6 +434,16 @@ export interface ViewerViewProps extends ViewerProps {
   side?: ReactNode;
   /** A quiet line under the header (Needs review, an agent waiting, Preview as agent). */
   banner?: ReactNode;
+  /**
+   * A file body the viewer draws for the file's own kind (PDF pages, a workbook, a Word page, a deck). The viewer keeps the toolbar and Find; `blocks` then holds the words Find reads (a page or a sheet
+   * per block) and `rich` draws the file and marks the matches. `paged` adds the page number, jump and thumbnails to the toolbar and Comment on an area and Redact an area to the mark bar.
+   */
+  rich?: RichBody;
+  paged?: boolean;
+  /** Where Find has no words to read (a scan): the viewer says so instead of "No matches". */
+  noText?: boolean;
+  /** What a drawn page or sheet reports about itself, for the toolbar: how many pages and which one is showing. */
+  onPages?: (count: number) => void;
 }
 
 /** Web-only attributes. react-native-web drops unknown props, so `data-x` becomes `dataSet.x` and `data-testid` becomes `testID`. */
@@ -491,7 +503,14 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const [zoom, setZoom] = useState(props.zoom ?? 1);
   const [boxes, setBoxes] = useState<readonly MarkupBox[]>(props.boxes ?? []);
   const [strokes, setStrokes] = useState<readonly Stroke[]>(props.strokes ?? []);
-  const [blocks, setBlocks] = useState<readonly DocBlock[]>(props.blocks ?? []);
+  const [blocksState, setBlocks] = useState<readonly DocBlock[]>(props.blocks ?? []);
+  // a rich body reads the words its own file gives, which arrive after the page opens (a PDF reads its pages in the background)
+  const blocks = props.rich !== undefined ? (props.blocks ?? blocksState) : blocksState;
+  const [pageNo, setPageNo] = useState(1);
+  const [pageCount, setPageCount] = useState(0);
+  const [thumbs, setThumbs] = useState(Platform.OS === "web" && !(props.compact === true));
+  const [jump, setJump] = useState<{ page: number; n: number } | null>(null);
+  const [pageDraft, setPageDraft] = useState("");
   const [drag, setDrag] = useState<{ a: readonly [number, number]; b: readonly [number, number] } | null>(null);
   const [line, setLine] = useState<readonly (readonly [number, number])[] | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -719,7 +738,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           />
           {find !== "" ? (
             <Text style={s.count} testID="vw-count">
-              {hits.length === 0 ? "No matches" : `${at + 1} of ${hits.length}`}
+              {hits.length === 0 ? (props.noText === true ? "No text to search here" : "No matches") : `${at + 1} of ${hits.length}`}
             </Text>
           ) : null}
           {hits.length > 1 ? (
@@ -744,7 +763,35 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           ) : null}
         </View>
       ) : null}
-      {props.kind === "image" ? (
+      {props.paged === true && pageCount > 0 ? (
+        <View style={s.zoom} testID="vw-pages">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={thumbs ? "Hide pages" : "Show pages"}
+            aria-selected={thumbs}
+            testID="vw-thumbs"
+            onPress={() => setThumbs((t) => !t)}
+          >
+            <MenuIcon icon={ICON.pages} />
+          </Pressable>
+          <TextInput
+            accessibilityLabel="Page number"
+            testID="vw-page-input"
+            value={pageDraft !== "" ? pageDraft : String(pageNo)}
+            style={s.pageInput}
+            onFocus={() => setPageDraft(String(pageNo))}
+            onChangeText={(t) => setPageDraft(t.replace(/\D/g, ""))}
+            onBlur={() => setPageDraft("")}
+            onSubmitEditing={() => {
+              const n = Math.max(1, Math.min(pageCount, Number(pageDraft) || pageNo));
+              setPageDraft("");
+              setJump((j) => ({ page: n, n: (j?.n ?? 0) + 1 }));
+            }}
+          />
+          <Text style={s.zoomText} testID="vw-page-count">{`/ ${pageCount}`}</Text>
+        </View>
+      ) : null}
+      {props.kind === "image" || props.paged === true ? (
         <View style={s.zoom} testID="vw-zoom">
           <Pressable
             accessibilityRole="button"
@@ -756,7 +803,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Reset zoom"
+            accessibilityLabel={props.paged === true ? "Fit width" : "Reset zoom"}
             testID="vw-zoom-reset"
             onPress={() => setZ(stepZoom(zoom, 0))}
           >
@@ -849,9 +896,11 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   );
 
   const markBar =
-    props.kind === "image" ? (
+    props.kind === "image" || props.paged === true ? (
       <View style={s.mark} testID="vw-markup" accessibilityRole="toolbar" accessibilityLabel="Mark up">
-        <Tool label="Draw" icon={ICON.draw} on={tool === "draw"} onPress={() => pick("draw")} testID="vw-tool-draw" />
+        {props.paged === true ? null : (
+          <Tool label="Draw" icon={ICON.draw} on={tool === "draw"} onPress={() => pick("draw")} testID="vw-tool-draw" />
+        )}
         <Tool
           label="Comment on an area"
           icon={ICON.area}
@@ -875,7 +924,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           />
         ) : null}
         <View style={s.grow} />
-        {boxes.length + strokes.length > 0 ? (
+        {props.paged !== true && boxes.length + strokes.length > 0 ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Clear markup"
@@ -889,7 +938,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
             <Text style={s.toolText}>Clear</Text>
           </Pressable>
         ) : null}
-        {boxes.length + strokes.length > 0 ? (
+        {props.paged !== true && boxes.length + strokes.length > 0 ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Ask ${props.agentName ?? "the agent"}`}
@@ -1554,8 +1603,32 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       </View>
     );
 
+  const hit = hits[at];
+  const richBody =
+    props.rich !== undefined
+      ? props.rich({
+          find,
+          hit:
+            hit === undefined || find === ""
+              ? null
+              : { block: hit.block, occurrence: hits.slice(0, at).filter((h) => h.block === hit.block).length },
+          zoom,
+          tool: rtool ? "redact" : tool === "comment" ? "comment" : null,
+          thumbs,
+          jump,
+          edit: editMode,
+          setZoom: setZ,
+          setPage: setPageNo,
+          setPages: (n) => {
+            setPageCount(n);
+            props.onPages?.(n);
+          },
+        })
+      : null;
   const body =
-    props.kind === "image" ? (
+    richBody !== null ? (
+      richBody
+    ) : props.kind === "image" ? (
       image
     ) : props.kind === "csv" ? (
       table
@@ -1854,6 +1927,14 @@ const s = StyleSheet.create({
   count: { color: "var(--ink-3)" as string, fontSize: 11.5 },
   zoom: { flexDirection: "row", alignItems: "center", gap: 10 },
   zoomText: { color: "var(--ink-3)" as string, fontSize: 13 },
+  pageInput: {
+    width: 34,
+    textAlign: "right",
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    padding: 0,
+    borderWidth: 0,
+  },
   mark: {
     height: 40,
     flexDirection: "row",

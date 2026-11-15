@@ -54,7 +54,8 @@ export function viewerKindOf(d: {
   // a Word or PowerPoint file with no words read from it (password-protected, damaged, an old .doc with no converter) is the quiet "no preview" line with Open in Word, never a blank page
   if (isOffice(d.file.kind) && (d.text ?? "").trim() === "") return "other";
   // a PDF reads as its words (the text files.viewer_data extracts), so it can be selected, highlighted and redacted for AI like a document; with no words it is the quiet "no preview" line
-  if (d.file.kind === "pdf") return (d.text ?? "").trim() !== "" ? "document" : "other";
+  // a PDF is drawn as its pages (a scan too, which has no words); with neither the pages nor words it is the quiet "no preview" line
+  if (d.file.kind === "pdf") return (d.text ?? "").trim() !== "" || d.previewUrl !== undefined ? "document" : "other";
   if (d.file.kind !== "google_native") return viewerKind(d.file.kind);
   const app = googleAppOf(d.file);
   const words = (d.text ?? "").trim() !== "";
@@ -269,6 +270,44 @@ export function boxesOf(comments: readonly FileComment[]): MarkupBox[] {
   for (const c of comments)
     if (c.anchor.kind === "area" && c.anchor.box && !c.resolved)
       out.push({ id: c.commentId, text: c.text, ...c.anchor.box });
+  return out;
+}
+
+/** A comment on a place of a page (a PDF): the pin the page draws, numbered in the order the comments were made. */
+export interface PagePin {
+  id: string;
+  n: number;
+  page: number;
+  box: { x: number; y: number; w: number; h: number };
+  text: string;
+}
+export function pagePins(comments: readonly FileComment[]): PagePin[] {
+  const out: PagePin[] = [];
+  for (const c of comments)
+    if (c.anchor.kind === "area" && c.anchor.box && typeof c.anchor.page === "number" && !c.resolved)
+      out.push({ id: c.commentId, n: out.length + 1, page: c.anchor.page, box: c.anchor.box, text: c.text });
+  return out;
+}
+
+/** The comments of a paged file as the viewer's comment cards: the quoted words when the comment was made on a selection, else the page it is on. */
+export function pageCommentsOf(
+  comments: readonly FileComment[],
+  name: (id: string) => string,
+  now: number,
+): DocComment[] {
+  const out: DocComment[] = [];
+  for (const c of comments) {
+    const page = typeof c.anchor.page === "number" ? c.anchor.page : undefined;
+    if (page === undefined && !c.anchor.quote) continue;
+    out.push({
+      id: c.commentId,
+      quote: c.anchor.quote ? c.anchor.quote : `Page ${page}`,
+      by: name(c.by),
+      at: when(c.at, now),
+      text: c.text,
+      resolved: c.resolved,
+    });
+  }
   return out;
 }
 

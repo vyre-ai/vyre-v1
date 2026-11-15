@@ -8,11 +8,17 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-na
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Viewer } from "../../../../../../ui/src/Viewer/index.tsx";
+import type { RichCtx } from "../../../../../../ui/src/Viewer/rich/types.ts";
 import type { DocBlock, MarkupBox, Stroke } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { fileLink, noPreviewWords, openInWords } from "../open-in.ts";
 import type { FileLink } from "../open-in.ts";
-import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
+import { commentOnPage, commentOnQuote, contentFor, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
+import { GridView } from "../../../../../../ui/src/Viewer/rich/GridView.tsx";
+import { isXlsx, useWorkbook } from "./workbook.ts";
+import { PdfPages } from "../../../../../../ui/src/Viewer/rich/PdfPages.tsx";
+import { redactedCopy } from "../../../../../../ui/src/Viewer/rich/pdf-copy.ts";
+import { noTextLayer } from "../../../../../../ui/src/Viewer/rich/pdf-model.ts";
 import { useFilesViewerData } from "./data.tsx";
 import { useFileLinks } from "../links.ts";
 import { ConnectedBar } from "./ConnectedBar.tsx";
@@ -21,6 +27,8 @@ import {
   versionRows,
   providerRevisionRows,
   boxesOf,
+  pageCommentsOf,
+  pagePins,
   nodeFor,
   docCommentsOf,
   docsMarkdown,
@@ -167,7 +175,32 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   }, [d, fileId, say]);
 
   const ready = load.status === "ready" ? load : null;
-  const kind = ready ? viewerKindOf(ready.data) : "other";
+  // a PDF is drawn as its pages by pdf.js from the file's own bytes: its address, the words of each page (for Find) and the pages' count
+  const isPdf = ready?.data.file.kind === "pdf";
+  const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
+  const [pdfTexts, setPdfTexts] = useState<readonly string[]>([]);
+  const [pdfDone, setPdfDone] = useState(false);
+  useEffect(() => {
+    setPdfData(null);
+    setPdfTexts([]);
+    setPdfDone(false);
+    if (!isPdf) return undefined;
+    let live = true;
+    void d.call("files.read", { fileId, as: "base64" }).then(
+      (r) => {
+        const b = (r as { base64?: string }).base64;
+        if (live && typeof b === "string") setPdfData(Uint8Array.from(atob(b), (ch) => ch.charCodeAt(0)));
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [d, fileId, isPdf, rev]);
+  // an .xlsx opens as a real grid: every sheet, formats, formulas, and typing that is saved back as a new version
+  const isBook = ready !== null && ready.data.file.kind === "spreadsheet" && isXlsx(ready.data.file.name, ready.data.file.mime);
+  const wbk = useWorkbook(d, fileId, isBook, version, say, attempt);
+  const kind = ready ? (isPdf && pdfData === null ? "other" : viewerKindOf(isPdf ? { ...ready.data, previewUrl: pdfData !== null ? "pdf" : undefined } : ready.data)) : "other";
   // a Google Doc is kept as Markdown: it is read as a note is, without Drive's escapes
   const app = ready ? googleAppOf(ready.data.file) : null;
   // the text the file holds after the saves of the Markdown editor, so the page reads what was just written once Edit is left
@@ -186,16 +219,30 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const office = ready !== null && isOffice(ready.data.file.kind);
   const blocks = useMemo(
     () =>
-      ready && kind === "document"
+      wbk.state.status === "ready"
+        ? wbk.texts.map((t, i) => ({ id: `sh${i + 1}`, tag: "p" as const, text: t }))
+        : isPdf && kind === "document"
+        ? pdfTexts.map((t, i) => ({ id: `pg${i + 1}`, tag: "p" as const, text: t }))
+        : ready && kind === "document"
         ? office
           ? officeBlocks(text)
           : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)
         : [],
-    [ready, kind, text, app, office],
+    [ready, kind, text, app, office, isPdf, pdfTexts, wbk.state.status, wbk.texts],
   );
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
   const strokes = useMemo(() => (ready ? strokesOf(ready.markup.strokes) : []), [ready]);
+  // the Redact for AI boxes on pages of a PDF
+  const pdfMarks = useMemo(
+    () =>
+      (layer.list?.marks ?? []).flatMap((m) =>
+        m.kind === "redact" && m.shape === "box" && m.box !== undefined && m.page !== undefined
+          ? [{ id: m.markId, page: m.page, box: m.box }]
+          : [],
+      ),
+    [layer.list],
+  );
 
   if (load.status === "loading")
     return (
@@ -287,7 +334,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     void saveMarkup(d, fileId, next).catch(say);
   };
   const sheetCount = Array.isArray(ready.data.sheets) ? ready.data.sheets.length : 0;
-  const firstOfMany = file.kind === "spreadsheet" && sheetCount > 1;
+  const firstOfMany = file.kind === "spreadsheet" && sheetCount > 1 && wbk.state.status !== "ready";
   const cutShort = file.kind === "spreadsheet" && file.size > GRID_PREVIEW_BYTES && file.size <= GRID_MAX_BYTES;
   const edit = (next: readonly DocBlock[]): void => {
     if (timer.current) clearTimeout(timer.current);
@@ -409,6 +456,26 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
       () => setNote("Could not copy here."),
     );
   };
+  // a copy of the PDF with the marked areas painted out of its pictures: a new file beside it, the original untouched
+  const makeCopy = async (): Promise<void> => {
+    if (pdfData === null) return;
+    setNote("Making the redacted copy");
+    try {
+      const bytes = await redactedCopy(pdfData, pdfMarks);
+      const base = file.name.replace(/\.pdf$/i, "");
+      await d.call("files.create", {
+        folderId: file.folderId,
+        name: `${base} (redacted).pdf`,
+        kind: "pdf",
+        mime: "application/pdf",
+        content: await contentFor(d, bytes, "application/pdf"),
+        idempotencyKey: `redcopy-${fileId}-${pdfMarks.map((m) => m.id).join("")}`,
+      });
+      setNote(`Saved ${base} (redacted).pdf beside the original.`);
+    } catch (e) {
+      say(e);
+    }
+  };
   const openMore = (x: number, y: number, hidden: { label: string; onSelect: () => void }[] = []): void => {
     const name = load.status === "ready" ? load.data.file.name : "";
     accessMenu.show(
@@ -419,6 +486,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
               { label: "Redact for AI", onSelect: () => toggle("redact") },
               { label: "Activity", onSelect: () => toggle("activity") },
             ]
+          : []),
+        ...(isPdf && pdfData !== null && pdfMarks.length > 0
+          ? [{ label: "Save a redacted copy", onSelect: () => void makeCopy() }]
           : []),
         ...(d.share ? [{ label: "Share…", onSelect: () => d.share?.(fileId, name) }] : []),
         {
@@ -508,7 +578,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         kindLabel={kindLabel(file.name)}
         subtitle={subtitleOf(ready.data, now, path)}
         {...(mark !== undefined ? { kindMark: mark } : {})}
-        {...(app !== null || office || file.kind === "pdf" || ready.data.connected?.viewOnly === true
+        {...(app !== null ||
+        office ||
+        file.kind === "pdf" ||
+        ready.data.connected?.viewOnly === true ||
+        (wbk.state.status === "ready" && !ready.data.canEdit)
           ? { readOnly: true }
           : {})}
         {...(office
@@ -520,7 +594,72 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         blocks={shownBlocks}
         {...(fileLinks ? { fileLinks } : {})}
         {...(sheet ? { sheet } : {})}
-        comments={layer.preview ? [] : docCommentsOf(ready.comments, d.name, now)}
+        comments={
+          layer.preview ? [] : isPdf ? pageCommentsOf(ready.comments, d.name, now) : docCommentsOf(ready.comments, d.name, now)
+        }
+        {...(wbk.state.status === "ready"
+          ? {
+              ...(wbk.saved !== undefined ? { saved: wbk.saved } : {}),
+              rich: (c: RichCtx): ReactElement => {
+                const grid = (wbk.state as { grid: import("../../../../../../ui/src/Viewer/rich/grid-model.ts").Grid }).grid;
+                const m = wbk.matchCells(c.find);
+                const cur = c.hit === null ? undefined : m.list.filter((x) => x.sheet === c.hit!.block)[c.hit.occurrence];
+                return (
+                  <GridView
+                    grid={grid}
+                    rev={wbk.rev}
+                    sheet={wbk.sheet}
+                    onSheet={wbk.setSheet}
+                    edit={c.edit}
+                    {...(!ready.data.canEdit
+                      ? {
+                          why: ready.data.connected?.viewOnly
+                            ? `View only in ${ready.data.connected.provider}.`
+                            : "You can read this file but not change it.",
+                        }
+                      : {})}
+                    find={c.find}
+                    current={cur ?? null}
+                    matches={m.all[wbk.sheet] ?? new Set<string>()}
+                    onChange={wbk.changed}
+                  />
+                );
+              },
+            }
+          : {})}
+        {...(isPdf && pdfData !== null
+          ? {
+              paged: true,
+              noText: noTextLayer(pdfTexts, pdfDone),
+              rich: (c: RichCtx): ReactElement => (
+                <PdfPages
+                  data={pdfData}
+                  zoom={c.zoom}
+                  find={c.find}
+                  current={c.hit === null ? null : { page: c.hit.block + 1, occurrence: c.hit.occurrence }}
+                  tool={c.tool}
+                  pins={pagePins(ready.comments)}
+                  marks={pdfMarks}
+                  thumbs={c.thumbs}
+                  jump={c.jump}
+                  onPages={(i) => c.setPages(i.count)}
+                  onPage={c.setPage}
+                  onText={(t, done) => {
+                    setPdfTexts(t);
+                    setPdfDone(done);
+                  }}
+                  onZoom={c.setZoom}
+                  onArea={(a) => {
+                    if (a.tool === "redact") layer.mark({ kind: "redact", shape: "box", box: a.box, page: a.page });
+                    else
+                      void commentOnPage(d, fileId, { page: a.page, box: a.box, ...(a.quote ? { quote: a.quote } : {}) }, a.text)
+                        .then(reload)
+                        .catch(say);
+                  }}
+                />
+              ),
+            }
+          : {})}
         ask={{
           place: "files",
           context: { kind: "file", id: fileId, title: file.name, access: ready.data.canEdit ? "edit" : "view" },

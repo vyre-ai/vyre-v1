@@ -22,6 +22,7 @@ export interface LayerMarkRow {
   shape: "span" | "box" | "range" | "name";
   text?: string;
   occurrence?: number;
+  page?: number;
   box?: { x: number; y: number; w: number; h: number };
   from?: number;
   to?: number;
@@ -110,6 +111,7 @@ export function viewerMarks(list: LayerList | null, name: (id: string) => string
       ...(m.text !== undefined ? { text: m.text } : {}),
       ...(m.occurrence !== undefined ? { occurrence: m.occurrence } : {}),
       ...(m.box ? { box: m.box } : {}),
+      ...(m.page !== undefined ? { page: m.page } : {}),
       ...(m.label ? { label: m.label } : {}),
       by: creditOf(m, name),
       when:
@@ -214,7 +216,14 @@ export function useLayer(d: FilesViewerData, fileId: string, fileName?: string) 
       void run(
         "files.marks.add",
         a.shape === "box"
-          ? { target: { type: "file", id: fileId }, kind: "redact", shape: "box", box: a.box, via: "box" }
+          ? {
+              target: { type: "file", id: fileId },
+              kind: "redact",
+              shape: "box",
+              box: a.box,
+              via: "box",
+              ...(a.page !== undefined ? { page: a.page } : {}),
+            }
           : {
               target: { type: "file", id: fileId },
               kind: a.kind,
