@@ -396,7 +396,7 @@ export function ConnectAiCard({
                       }
                       style={[s.signin, s.localPrimary, busy && s.busyDim]}
                     >
-                      <Mark k={o.key} size={18} letter={o.label} />
+                      <Mark k={o.key} size={18} letter={o.button} />
                       <Text style={s.localPrimaryText}>{o.button}</Text>
                     </Pressable>
                     {note ? (

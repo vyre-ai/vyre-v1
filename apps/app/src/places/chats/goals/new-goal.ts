@@ -36,6 +36,8 @@ export function goalInput(f: GoalForm, now: number): GoalCreateIn {
     finish: { kind: "owner", line: f.outcome.trim() || title },
     deadline: now + f.days * DAY_MS,
     leadAgentId: f.leadAgentId,
+    // one key per press of Create: a press sent twice (a slow network, a retry) makes one goal
+    idempotencyKey: `goal-new-${now.toString(36)}`,
   };
 }
 

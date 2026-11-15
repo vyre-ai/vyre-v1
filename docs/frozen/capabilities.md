@@ -549,7 +549,7 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 - `spaces.onboarding.flow` answers one more field, `fresh` (true during the person's first 7 days in the Space, from their first sign-in; true when the Space cannot tell). Nothing is removed or renamed; a client that ignores it behaves as before. The chip and rows of Getting Started draw only while `fresh` is true, so a person who has used a Space for weeks never sees it appear after an update.
 - Proof: modules/spaces/tests/switcher.test.ts (made today, day six, 30 days, unknown age).
 
-Signed: pending the lead.
+Signed: lead, 16 Nov 2026 02:19 PKT, after reading the manifest diff: one optional, additive output field. To watch: the age is taken from the person's earliest session, so a person whose old sessions were all removed may read as new again.
 ## 16 Nov 2026: a goal says what holds its check-ins back, and a failed turn says when a usage limit lifts (finding F26, lane f-goalwake, brought onto the line by the lead)
 
 - What changed, all additive: the goal row (every `goals.*` answer that carries a goal) gains an optional `blocked` (`cause`: person, limit, transient or other; `what`, `fix` and `short` in words; `since`; `until` when it goes on by itself; `missed`; `code`), present only while something holds the check-ins back. `engine.turn.record` and the event `turn.failed` gain an optional `resetsAt` (when the provider said a usage limit lifts). No input, output or error was removed or made required.
