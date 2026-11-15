@@ -38,6 +38,8 @@ type Out = {
       ownerId: string;
       deletedAt: number;
       deleting: boolean;
+      folderId?: string;
+      erasesAt?: number;
       canDelete: boolean;
     }>;
 };
@@ -63,6 +65,8 @@ type Out = {
         "canDelete": true,
         "deletedAt": 1760000000000,
         "deleting": true,
+        "erasesAt": 1760000000000,
+        "folderId": "fld_a1b2c3",
         "kind": "assistant",
         "name": "example",
         "ownerId": "usr_a1b2c3"

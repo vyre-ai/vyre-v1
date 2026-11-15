@@ -123,6 +123,7 @@ export function createClient(transport: Transport) {
       delete: call("agents.delete", 1),
       delete_for_good: call("agents.delete_for_good", 1),
       delete_preview: call("agents.delete_preview", 1),
+      erased: call("agents.erased", 1),
       get: call("agents.get", 1),
       guide: {
         get: call("agents.guide.get", 1),

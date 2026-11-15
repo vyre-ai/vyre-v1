@@ -404,6 +404,12 @@
     },
     {
       "deferred": false,
+      "name": "agents_erased",
+      "summary": "The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_get",
       "summary": "Read one agent: record, status, limits and the effective configuration",
       "toolset": "agents"

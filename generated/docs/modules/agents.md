@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, notes, runs, terminal.
 
-## Capabilities (113)
+## Capabilities (114)
 
 - [agents.assistant_of](../capabilities/agents.assistant_of.md): A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
@@ -16,6 +16,7 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [agents.delete](../capabilities/agents.delete.md): Move an agent to Trash (its folder and memory follow the folder rules)
 - [agents.delete_for_good](../capabilities/agents.delete_for_good.md): Delete an agent in Trash for good: its memory, its one-to-one chats, its computer, its folder, its access and what it ran are erased; what others built that names it asks them to choose another agent. Not an Assistant
 - [agents.delete_preview](../capabilities/agents.delete_preview.md): What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone
+- [agents.erased](../capabilities/agents.erased.md): The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant
 - [agents.get](../capabilities/agents.get.md): Read one agent: record, status, limits and the effective configuration
 - [agents.guide.get](../capabilities/agents.guide.get.md): The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md
 - [agents.instruction.append](../capabilities/agents.instruction.append.md): Make a lesson an instruction: one line added to the agent's AGENT.md under Lessons from corrections, as a new version with an inline Undo; needs Edit on the agent

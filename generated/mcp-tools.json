@@ -3356,6 +3356,21 @@
     },
     {
       "blocks": [],
+      "cap": "agents.erased",
+      "deferred": false,
+      "description": "The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_erased",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.get",
       "deferred": false,
       "description": "Read one agent: record, status, limits and the effective configuration",

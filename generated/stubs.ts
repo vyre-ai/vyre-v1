@@ -123,6 +123,7 @@ export function stubs(ctx: CallCtx) {
       delete: call("agents.delete"),
       delete_for_good: call("agents.delete_for_good"),
       delete_preview: call("agents.delete_preview"),
+      erased: call("agents.erased"),
       get: call("agents.get"),
       guide: {
         get: call("agents.guide.get"),

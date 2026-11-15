@@ -164,6 +164,7 @@ export async function trashList(ctx: AgentsCtx) {
     `SELECT * FROM agents_agent WHERE deletedAt IS NOT NULL AND kind <> 'teammate' ORDER BY deletedAt DESC, id`,
   ) as Row[];
   const asker = ctx.actingFor ?? ctx.principal.id;
+  const keep = await trashKeepMs(ctx);
   const out: Array<{
     agentId: string;
     name: string;
@@ -171,6 +172,8 @@ export async function trashList(ctx: AgentsCtx) {
     ownerId: string;
     deletedAt: number;
     deleting: boolean;
+    folderId?: string;
+    erasesAt?: number;
     canDelete: boolean;
   }> = [];
   for (const r of rows) {
@@ -183,6 +186,8 @@ export async function trashList(ctx: AgentsCtx) {
       ownerId: a.ownerId,
       deletedAt: a.deletedAt ?? 0,
       deleting: String(pending(ctx, a.id)?.["state"]) === "erasing",
+      ...(a.folderId !== undefined ? { folderId: a.folderId } : {}),
+      ...(keep !== null && a.deletedAt !== undefined ? { erasesAt: a.deletedAt + keep } : {}),
       canDelete: a.kind !== "assistant" && (a.ownerId === asker || mayManage(ctx, a)),
     });
   }
@@ -351,4 +356,13 @@ async function backupsKeepMs(ctx: AgentsCtx): Promise<number | null | undefined>
   } catch {
     return undefined;
   }
+}
+
+/** The agents deleted for good: the name they had and when. A person's Assistant is not listed. */
+export async function erasedList(ctx: AgentsCtx) {
+  ensure(ctx.db);
+  const rows = ctx.db.all(
+    `SELECT agentId, name, finishedAt FROM agents_erase WHERE state = 'erased' AND kind <> 'assistant' ORDER BY finishedAt DESC LIMIT 500`,
+  ) as Row[];
+  return { agents: rows.map((r) => ({ agentId: String(r["agentId"]), name: String(r["name"]), erasedAt: Number(r["finishedAt"] ?? 0) })) };
 }

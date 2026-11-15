@@ -43,8 +43,8 @@ const withMarket = async (hn: Harness) => {
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 113 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 113); // agents.delete_for_good, agents.delete_preview and agents.trash.list (F77); 109 and agents.routine.fire (P1 step 4); 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons), agents.share_class (the Space browser)
+test("the handler table covers exactly the 114 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 114); // agents.delete_for_good, agents.delete_preview and agents.trash.list (F77); 109 and agents.routine.fire (P1 step 4); 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons), agents.share_class (the Space browser)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -348,6 +348,7 @@ const scenarios: Scenario[] = [
     expect: "validation.not_found",
   },
   { cap: "agents.trash.list", run: (hn) => h["agents.trash.list"]!(hn.ctx, {}) },
+  { cap: "agents.erased", run: (hn) => h["agents.erased"]!(hn.ctx, {}) },
   {
     cap: "agents.set_owner",
     setup: withAgent,

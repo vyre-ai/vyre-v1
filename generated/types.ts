@@ -1515,6 +1515,14 @@ export type AgentsDeletePreviewOut = {
   backupsKeptDays?: number;
   refused?: string;
 };
+export type AgentsErasedIn = Record<string, unknown>;
+export type AgentsErasedOut = {
+  agents: Array<{
+      agentId: string;
+      name: string;
+      erasedAt: number;
+    }>;
+};
 export type AgentsGetIn = {
   agentId: string;
 };
@@ -2359,6 +2367,8 @@ export type AgentsTrashListOut = {
       ownerId: string;
       deletedAt: number;
       deleting: boolean;
+      folderId?: string;
+      erasesAt?: number;
       canDelete: boolean;
     }>;
 };
@@ -8477,6 +8487,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8509,6 +8520,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8541,6 +8553,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8573,6 +8586,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8605,6 +8619,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -46274,6 +46289,7 @@ export interface CapMap {
   "agents.delete": { in: AgentsDeleteIn; out: AgentsDeleteOut };
   "agents.delete_for_good": { in: AgentsDeleteForGoodIn; out: AgentsDeleteForGoodOut };
   "agents.delete_preview": { in: AgentsDeletePreviewIn; out: AgentsDeletePreviewOut };
+  "agents.erased": { in: AgentsErasedIn; out: AgentsErasedOut };
   "agents.get": { in: AgentsGetIn; out: AgentsGetOut };
   "agents.guide.get": { in: AgentsGuideGetIn; out: AgentsGuideGetOut };
   "agents.instruction.append": { in: AgentsInstructionAppendIn; out: AgentsInstructionAppendOut };
