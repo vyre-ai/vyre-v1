@@ -42681,6 +42681,7 @@ export type TerminalGetOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -42711,6 +42712,7 @@ export type TerminalGiveBackOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -42792,6 +42794,7 @@ export type TerminalListOut = {
       };
       heldBy?: string;
       ownerId?: string;
+      elsewhere?: boolean;
       threadId?: string;
     }>;
   next?: string;
@@ -42833,6 +42836,7 @@ export type TerminalOpenOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -42867,6 +42871,7 @@ export type TerminalOpenServerOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -42907,6 +42912,7 @@ export type TerminalRenameOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -43020,6 +43026,7 @@ export type TerminalTakeOverOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
   lease?: string;
@@ -43037,6 +43044,7 @@ export type TerminalWorkspaceOut = {
   canAttach: boolean;
   cannotAttach?: string;
   takeOver?: boolean;
+  ownPlace?: boolean;
 };
 export type ThreadsAddAgentIn = {
   threadId: string;

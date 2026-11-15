@@ -39,6 +39,7 @@ import {
   workspacesFor,
   boundWorkspaceStatus,
   boundChatFolder,
+  boundPlaceGrant,
   SESSION_SELECT,
   insertTab,
   scopeOf,
@@ -735,6 +736,7 @@ export function terminalHint(x: SessionRow) {
     state: x.state,
     exitCode: null,
     named: false,
+    elsewhere: true,
     cols: x.cols,
     rows: x.rows,
     createdAt: x.createdAt,
@@ -969,6 +971,28 @@ async function needOwnPlace(ctx: TermCtx, x: SessionRow): Promise<void> {
  * The shared folder of this chat on the agent's computer, opened to the person whose turn it is and linked as `~/chat` in their place. Made once a minute per person and chat, and never makes a command
  * fail: a convenience, not a wall (what a person may reach is the file system's ACLs).
  */
+const regranted = new Map<string, number>();
+/** How long what reaches a person is trusted before a command sets it again. */
+export const REGRANT_MS = 5000;
+async function regrant(ctx: TermCtx, agentId: string, place: AskerPlace): Promise<void> {
+  const set = boundPlaceGrant();
+  if (set === null) return;
+  const key = `${agentId}\u0000${place.person}`;
+  const at = ctx.now();
+  if ((regranted.get(key) ?? 0) > at - REGRANT_MS) return;
+  try {
+    await set(agentId, place);
+    regranted.set(key, at);
+  } catch (e) {
+    regranted.delete(key);
+    raise(
+      ctx,
+      "provider.unavailable",
+      e instanceof Error && e.message.startsWith("What this person") ? e.message : "What you may reach on this computer could not be set just now. Try again.",
+      { reason: "grant_failed" },
+    );
+  }
+}
 const chatMade = new Map<string, number>();
 const chatRoots = new Map<string, string>();
 /** The chat a turn's thread belongs to: a reply thread in a channel, and a helper's thread, climb to the chat they hang from, so everyone who works in that chat shares one folder. */
@@ -1616,7 +1640,8 @@ async function workspaceRead(ctx: TermCtx, input: { agentId: string }) {
       line: isTeam(ctx.space) ? NO_WORKSPACE_TEAM : NO_WORKSPACE_PERSONAL,
       cannotAttach: "There is no workspace to attach to.",
     };
-  return { ...st, canAttach: st.state === "running" || st.state === "asleep" || st.state === "none" };
+  const own = (await askerPlaceFor(ctx, input.agentId, actorOf(ctx)).catch(() => undefined)) !== undefined;
+  return { ...st, canAttach: st.state === "running" || st.state === "asleep" || st.state === "none", ...(own ? { ownPlace: true } : {}) };
 }
 
 /** The session an agent's commands go to when it names none: one per agent, person, host and computer, kept so "Open terminal" shows the same screen. */
@@ -1735,6 +1760,12 @@ export async function run(ctx: TermCtx, a: RunInput) {
     if (place !== undefined) await keepOut(ctx, place, s.agentId, [a.cwd, command]);
   }
   const host = await hostFor(ctx, s);
+  // what reaches a person who works in their own place is set again when it is older than a few seconds, at every command, so a project they were taken off, or put on, is applied at their next command and
+  // not at their next session (review of f-agentpc, 14 Nov, item 2). When it cannot be set the command does not run: a person is never left with more than they should have by a failure.
+  if (s.host === "agent_computer" && s.agentId !== undefined) {
+    const place = await askerPlaceFor(ctx, s.agentId, owner);
+    if (place !== undefined) await regrant(ctx, s.agentId, place);
+  }
   // the chat's shared folder (~/chat) is there for everyone who works in this chat, in their own place or the agent's home
   if (s.host === "agent_computer" && s.agentId !== undefined && ctx.thread !== undefined)
     await ensureChatFolder(ctx, s.agentId, owner, ctx.thread);

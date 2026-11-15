@@ -433,6 +433,39 @@ test(
     // the owner reads what Ben wrote in the project, in her own place
     const back = await w.turn(w.owner, "acl-3", [{ cmd: `cat ~/projects/${one}/ben.txt` }]);
     assert.match(back[0]!.text, /BEN-WROTE/);
+
+    // a reviewer reads and cannot write (review of f-agentpc, 14 Nov, item 4: the grant behaviours are held here, not only by unit strings)
+    const three = await mk("Project three");
+    const rev = await w.owner.call("projects.members.set", { projectId: three, principal: w.ben.id, role: "reviewer" });
+    assert.equal(rev.status, 200, JSON.stringify(rev.data));
+    const made3 = await w.turn(w.owner, "acl-4", [{ cmd: `echo THREE-DATA > ~/projects/${three}/f.txt; echo ok` }]);
+    assert.equal(made3[0]!.text, "ok", made3[0]!.text);
+    const viewer = await w.turn(w.ben, "acl-5", [
+      { cmd: `${H} cat $H/projects/${three}/f.txt 2>&1` },
+      { cmd: `${H} echo X > $H/projects/${three}/w.txt 2>&1; echo END` },
+      // the Files mirror is read-only to him
+      { cmd: `${H} echo X > $H/Vyre/ben-wrote2 2>&1; echo END` },
+    ]);
+    assert.match(viewer[0]!.text, /THREE-DATA/, "a reviewer reads");
+    assert.match(viewer[1]!.text, /Permission denied/, "and cannot write");
+    assert.match(viewer[2]!.text, /Permission denied/, "the mirror is not writable");
+    // a file a member makes is readable by the people on the project at that time (default entries)
+    const addCy = await w.owner.call("projects.members.set", { projectId: one, principal: w.ana.id, role: "member" });
+    assert.equal(addCy.status, 200, JSON.stringify(addCy.data));
+    await new Promise((r) => setTimeout(r, 6000));
+    const ana = await w.turn(w.ana, "acl-6", [
+      { cmd: `${H} echo ANA-WROTE > $H/projects/${one}/ana.txt 2>&1; cat $H/projects/${one}/ana.txt 2>&1` },
+    ]);
+    assert.match(ana[0]!.text, /ANA-WROTE/, "Ana, put on the project, writes in it at her next command");
+    const seen = await w.turn(w.ben, "acl-7", [{ cmd: `${H} cat $H/projects/${one}/ana.txt 2>&1` }]);
+    assert.match(seen[0]!.text, /ANA-WROTE/, "a file a member made is readable by the members of the time");
+    // taken off the project, a person is refused at their next command, not at their next session
+    const off = await w.owner.call("projects.members.remove", { projectId: one, principal: w.ben.id });
+    assert.equal(off.status, 200, JSON.stringify(off.data));
+    await new Promise((r) => setTimeout(r, 6000));
+    const gone = await w.turn(w.ben, "acl-8", [{ cmd: `${H} cat $H/projects/${one}/f.txt 2>&1` }]);
+    assert.match(gone[0]!.text, /Permission denied/, "taken off the project, refused at the next command");
+    assert.doesNotMatch(gone[0]!.text, /ONE-DATA/);
   },
 );
 

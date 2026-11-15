@@ -16,10 +16,11 @@ import {
   openTabForRun,
   stopRuns,
 } from "./handlers/sessions.ts";
-import { chatFolderCommand, chatLinkCommand, removeCommand } from "./asker.ts";
+import { chatFolderCommand, chatLinkCommand, grantCommand, removeCommand } from "./asker.ts";
 import {
   bindWorkspaceStatus,
   bindChatFolder,
+  bindPlaceGrant,
   bindHost,
   bindKit,
   bindMachineHost,
@@ -1265,6 +1266,16 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
   // agent commands go to a workspace when there is a machine for this agent's one right now; with none (no runtime, no server) they go where the turn runs, as before
   bindWorkspaces(fleet ? (agentId) => fleet.available(agentId) : false);
   bindWorkspaceStatus(fleet ? (agentId) => fleet.status(agentId) : null);
+  bindPlaceGrant(
+    fleet
+      ? async (agentId, place) => {
+          const projects = await fleet.projectAccess(agentId, place.person);
+          const g = await fleet.exec(agentId, grantCommand(place, projects));
+          if (g.code !== 0)
+            throw new Error(`What this person may reach could not be set (${g.stderr.trim().slice(0, 160)}).`);
+        }
+      : null,
+  );
   bindChatFolder(
     fleet
       ? async (agentId, thread, place) => {

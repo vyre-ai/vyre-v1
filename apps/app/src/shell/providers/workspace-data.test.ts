@@ -281,3 +281,23 @@ test("a row shows the state terminal.status last said: a terminal the list still
   off();
   assert.deepEqual(seen.at(-1), [["main", "running"]]);
 });
+
+test("a row that only says someone else's terminal is there is counted and never drawn, and the person's own place is said", async () => {
+  const { workspaceView } = await import("./workspace-data.ts");
+  const AG = "agt_nova";
+  const rows = [
+    { terminalId: "trm_mine", name: "bea", host: "agent_computer", agentId: AG, state: "idle" as const, cwd: "/people/u20000", by: { kind: "person" as const }, ownerId: "usr_bea" },
+    { terminalId: "trm_ada", name: "Someone else's terminal", host: "agent_computer", agentId: AG, state: "idle" as const, cwd: "", elsewhere: true },
+    { terminalId: "trm_ada2", name: "Someone else's terminal", host: "agent_computer", agentId: AG, state: "running" as const, cwd: "", elsewhere: true },
+  ];
+  const v = workspaceView(AG, { state: "running", canAttach: true, ownPlace: true }, rows);
+  assert.deepEqual(
+    v.sessions.map((s) => s.terminalId),
+    ["trm_mine"],
+  );
+  assert.equal(v.others, 2);
+  assert.equal(v.ownPlace, true);
+  const owner = workspaceView(AG, { state: "running", canAttach: true }, rows.slice(1));
+  assert.equal(owner.sessions.length, 0);
+  assert.equal(owner.ownPlace, undefined);
+});

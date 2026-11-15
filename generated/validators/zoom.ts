@@ -5,40 +5,40 @@ import type { Check } from './core.ts';
 
 function d_s_0a656f2423(v: unknown, p: string, e: string[]): void {
 {
-const x46 = v;
-const g46 = typeOf(x46);
-const b46: string[] = []; lf(x46, p, b46, L0); if (b46.length) e.push(...b46);
-if (g46 === "object") {
-if (g46 === 'object') { const o46 = x46 as Record<string, unknown>;
-if (!("id" in o46)) e.push(p + "/id" + ': required');
-if (!("topic" in o46)) e.push(p + "/topic" + ': required');
-if (!("joinUrl" in o46)) e.push(p + "/joinUrl" + ': required');
-if ("id" in o46) lf(o46["id"], p + "/id", e, L1);
-if ("uuid" in o46) lf(o46["uuid"], p + "/uuid", e, L1);
-if ("topic" in o46) lf(o46["topic"], p + "/topic", e, L1);
-if ("startTime" in o46) lf(o46["startTime"], p + "/startTime", e, L17);
-if ("durationMinutes" in o46) lf(o46["durationMinutes"], p + "/durationMinutes", e, L2);
-if ("joinUrl" in o46) lf(o46["joinUrl"], p + "/joinUrl", e, L1);
-if ("password" in o46) lf(o46["password"], p + "/password", e, L1);
-if ("hostEmail" in o46) lf(o46["hostEmail"], p + "/hostEmail", e, L6);
-if ("timezone" in o46) lf(o46["timezone"], p + "/timezone", e, L1);
-if ("dialIns" in o46) {
-{
-const x47 = o46["dialIns"];
+const x47 = v;
 const g47 = typeOf(x47);
-const b47: string[] = []; lf(x47, p + "/dialIns", b47, L4); if (b47.length) e.push(...b47);
-if (g47 === "array") {
-if (g47 === 'array') { const a47 = x47 as unknown[];
-for (let i47 = 0; i47 < a47.length; i47++) {
+const b47: string[] = []; lf(x47, p, b47, L0); if (b47.length) e.push(...b47);
+if (g47 === "object") {
+if (g47 === 'object') { const o47 = x47 as Record<string, unknown>;
+if (!("id" in o47)) e.push(p + "/id" + ': required');
+if (!("topic" in o47)) e.push(p + "/topic" + ': required');
+if (!("joinUrl" in o47)) e.push(p + "/joinUrl" + ': required');
+if ("id" in o47) lf(o47["id"], p + "/id", e, L1);
+if ("uuid" in o47) lf(o47["uuid"], p + "/uuid", e, L1);
+if ("topic" in o47) lf(o47["topic"], p + "/topic", e, L1);
+if ("startTime" in o47) lf(o47["startTime"], p + "/startTime", e, L17);
+if ("durationMinutes" in o47) lf(o47["durationMinutes"], p + "/durationMinutes", e, L2);
+if ("joinUrl" in o47) lf(o47["joinUrl"], p + "/joinUrl", e, L1);
+if ("password" in o47) lf(o47["password"], p + "/password", e, L1);
+if ("hostEmail" in o47) lf(o47["hostEmail"], p + "/hostEmail", e, L6);
+if ("timezone" in o47) lf(o47["timezone"], p + "/timezone", e, L1);
+if ("dialIns" in o47) {
 {
-const x48 = a47[i47];
+const x48 = o47["dialIns"];
 const g48 = typeOf(x48);
-const b48: string[] = []; lf(x48, p + "/dialIns" + '/' + i47, b48, L0); if (b48.length) e.push(...b48);
-if (g48 === "object") {
-if (g48 === 'object') { const o48 = x48 as Record<string, unknown>;
-if (!("number" in o48)) e.push(p + "/dialIns" + '/' + i47 + "/number" + ': required');
-if ("number" in o48) lf(o48["number"], p + "/dialIns" + '/' + i47 + "/number", e, L1);
-if ("country" in o48) lf(o48["country"], p + "/dialIns" + '/' + i47 + "/country", e, L1);
+const b48: string[] = []; lf(x48, p + "/dialIns", b48, L4); if (b48.length) e.push(...b48);
+if (g48 === "array") {
+if (g48 === 'array') { const a48 = x48 as unknown[];
+for (let i48 = 0; i48 < a48.length; i48++) {
+{
+const x49 = a48[i48];
+const g49 = typeOf(x49);
+const b49: string[] = []; lf(x49, p + "/dialIns" + '/' + i48, b49, L0); if (b49.length) e.push(...b49);
+if (g49 === "object") {
+if (g49 === 'object') { const o49 = x49 as Record<string, unknown>;
+if (!("number" in o49)) e.push(p + "/dialIns" + '/' + i48 + "/number" + ': required');
+if ("number" in o49) lf(o49["number"], p + "/dialIns" + '/' + i48 + "/number", e, L1);
+if ("country" in o49) lf(o49["country"], p + "/dialIns" + '/' + i48 + "/country", e, L1);
 }
 }
 }

@@ -228,6 +228,14 @@ export function bindChatFolder(f: ChatFolderOf | null): void {
 }
 export const boundChatFolder = (): ChatFolderOf | null => chatPort;
 
+/** Opens to a person, again, what of the agent's home reaches them now (their projects at their role, the Files folder when Files shows it): asker.ts grantCommand. Throws a sentence when it could not. */
+export type PlaceGrantOf = (agentId: string, place: AskerPlace) => Promise<void>;
+let grantPort: PlaceGrantOf | null = null;
+export function bindPlaceGrant(f: PlaceGrantOf | null): void {
+  grantPort = f;
+}
+export const boundPlaceGrant = (): PlaceGrantOf | null => grantPort;
+
 /** Is this a Team Space? Agent computers need one (spec 2.7). The host binds the answer; unbound means team. */
 let teamSpace: (space: string) => boolean = () => true;
 export function bindTeam(f: ((space: string) => boolean) | null): void {

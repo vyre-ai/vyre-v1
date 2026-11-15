@@ -69,13 +69,18 @@ export function ensureCommand(p: AskerPlace): string[] {
  * who may. Run again at each session the person opens, so a change in who is on a project is applied then. A person's new files in a folder the agent also uses carry the group's rights: sessions run with umask 007.
  */
 export function grantCommand(p: AskerPlace, projects: ReadonlyArray<{ id: string; write: boolean }>): string[] {
+  // Every step that opens something is checked on the folder itself and fails the whole command with a line naming it (the exit status is the number of failures, the stderr says which); what is only
+  // best effort is the walk through files other people made inside (the agent's own user may not change those), and taking an entry away that was never there.
   return [
     "sh",
     "-c",
-    'u="$1"; files="$2"; shift 2; H=/home/agent; setfacl -m "u:$u:--x" "$H" "$H/projects" 2>/dev/null; ' +
+    'u="$1"; files="$2"; shift 2; H=/home/agent; rc=0; fail() { echo "could not open $1 for the person" >&2; rc=$((rc+1)); }; ' +
+      'setfacl -m "u:$u:--x" "$H" "$H/projects" || fail "the agent computer"; ' +
       'for d in "$H"/projects/* "$H/Vyre"; do [ -d "$d" ] && { chmod 700 "$d"; setfacl -R -x "u:$u" "$d" 2>/dev/null; setfacl -R -d -x "u:$u" "$d" 2>/dev/null; }; done; ' +
-      '[ "$files" = 1 ] && [ -d "$H/Vyre" ] && { setfacl -R -m "u:$u:rX" "$H/Vyre"; setfacl -R -d -m "u:$u:rX" "$H/Vyre"; }; ' +
-      'for p in "$@"; do id="${p%%:*}"; m="${p##*:}"; d="$H/projects/$id"; [ -d "$d" ] || continue; perm=rX; [ "$m" = rw ] && perm=rwX; setfacl -R -m "u:$u:$perm" "$d"; setfacl -R -d -m "u:$u:$perm" "$d"; setfacl -R -d -m u:10001:rwX "$d"; done; true',
+      '[ "$files" = 1 ] && [ -d "$H/Vyre" ] && { setfacl -m "u:$u:rX" "$H/Vyre" && setfacl -d -m "u:$u:rX" "$H/Vyre" || fail "the Files folder"; setfacl -R -m "u:$u:rX" "$H/Vyre" 2>/dev/null; setfacl -R -d -m "u:$u:rX" "$H/Vyre" 2>/dev/null; }; ' +
+      'for p in "$@"; do id="${p%%:*}"; m="${p##*:}"; d="$H/projects/$id"; [ -d "$d" ] || continue; perm=rX; [ "$m" = rw ] && perm=rwX; ' +
+      'setfacl -m "u:$u:$perm" "$d" && setfacl -d -m "u:$u:$perm" "$d" && setfacl -d -m u:10001:rwX "$d" || fail "project $id"; ' +
+      'setfacl -R -m "u:$u:$perm" "$d" 2>/dev/null; setfacl -R -d -m "u:$u:$perm" "$d" 2>/dev/null; setfacl -R -d -m u:10001:rwX "$d" 2>/dev/null; done; exit $rc',
     "sh",
     String(p.uid),
     p.files ? "1" : "0",
