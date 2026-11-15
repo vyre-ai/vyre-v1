@@ -12,9 +12,9 @@ Press keys in a session as a person at a keyboard does: text, a named key (Enter
 | Risk | medium |
 | Resource | terminal (/terminalId) |
 | Gate | none |
-| Idempotency | none |
+| Idempotency | key |
 | Offline | online |
-| Audit | none |
+| Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/terminal/keys |
 | MCP tool | none |
@@ -31,7 +31,10 @@ type In = {
       key?: string;
       paste?: string;
     }>;
+  lease: string;
+  seq: number;
   capture?: boolean;
+  idempotencyKey: string;
 };
 ```
 
@@ -70,6 +73,7 @@ type Out = {
   "name": "example",
   "input": {
     "capture": true,
+    "idempotencyKey": "idem_1",
     "keys": [
       {
         "key": "example",
@@ -77,6 +81,8 @@ type Out = {
         "text": "example"
       }
     ],
+    "lease": "example",
+    "seq": 1,
     "terminalId": "trm_a1b2c3"
   },
   "output": {

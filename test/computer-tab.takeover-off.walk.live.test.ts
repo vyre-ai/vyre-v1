@@ -1,11 +1,11 @@
-// Taking the keyboard is OFF by default in rc.28 (re-sent keys are not idempotent yet): a person opens an agent's terminal from the Computer tab and sees a watching view, with no Take over control. Needs the
+// Taking the keyboard is OFF when the Space server runs with VYRE_TERMINAL_TAKEOVER=0: a person opens an agent's terminal from the Computer tab and sees a watching view, with no Take over control. Needs the
 // production web export (VYRE_APP_DIST), Chromium and tmux.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { shoot } from "./support/mail-browser.ts";
 import { world } from "./support/computer-tab-world.ts";
 
-delete process.env["VYRE_TERMINAL_TAKEOVER"];
+process.env["VYRE_TERMINAL_TAKEOVER"] = "0";
 const DIR = "shots-evidence/b-pc-off";
 const ROW = '[data-testid^="row-session-"]';
 

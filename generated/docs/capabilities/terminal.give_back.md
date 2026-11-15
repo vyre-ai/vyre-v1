@@ -14,7 +14,7 @@ Hand the keyboard of a terminal back to the agent
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
-| Audit | none |
+| Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/terminal/give_back |
 | MCP tool | none |

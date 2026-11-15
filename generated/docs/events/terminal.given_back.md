@@ -20,5 +20,8 @@ The keyboard of a terminal was handed back to the agent by the person who held i
 type Payload = {
   terminalId: string;
   by: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 ```

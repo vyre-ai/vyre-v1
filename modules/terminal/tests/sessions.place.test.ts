@@ -424,9 +424,10 @@ test("a terminal the call names is checked at Use by the handler, now that the c
   assert.equal(f.code, "validation.not_found");
   assert.equal(host.calls.filter((c) => c.op === "run" && c.terminalId === ravis).length, 0);
   hn.allowOnly(() => true);
-  assert.equal(
-    (await call(agent, "terminal.run", { command: "echo hi", terminalId: ravis, idempotencyKey: idem() })).output,
-    "hi",
-    "with a grant on it, it runs",
+  // even with a grant on it, another person's own terminal is theirs alone (15 Nov): the run is refused in plain words
+  const g = await failure(() =>
+    h["terminal.run"]!(agent, { command: "echo hi", terminalId: ravis, idempotencyKey: idem() }),
   );
+  assert.equal(g.code, "permission.role_lacks_permission", "a grant does not open a person's own terminal to a run");
+  assert.equal(host.calls.filter((c) => c.op === "run" && c.terminalId === ravis).length, 0);
 });

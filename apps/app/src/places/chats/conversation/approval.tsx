@@ -255,6 +255,7 @@ export function ApprovalCard({
           ev ? [] : ow.to.map((r) => ({ name: nameOf(r), seed: r.id ?? r.address ?? agentId, kind: "person" as const }))
         }
         verb={verbOfChannel(ow, nameOf)}
+        {...(!ev && held.act !== "pay" ? { sendWord: "Send", dropWord: "Don't send" } : {})}
         schedule={scheduleLine(ow.schedule, {
           yours: (at) => clock(at),
           theirs: theirTz ? (at) => clock(at, theirTz) : null,
