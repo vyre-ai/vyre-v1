@@ -83,7 +83,8 @@ export function initialState(invite: JoinInvite, over: Partial<FlowState> = {}):
     code: "",
     saved: false,
     sheet: false,
-    ai: invite.adminKey ? "admin" : "sub",
+    // the AI account is asked once, on the card that opens after joining (prototype scene member-4-ai), so the join itself starts no sign-in
+    ai: invite.adminKey ? "admin" : "none",
     key: "",
     aiProvider: "openrouter",
     note: "",
@@ -244,8 +245,8 @@ export function valid(s: FlowState, r: Rules): boolean {
     return (
       usernameOk(s.user) && !r.isTaken(s.user) && s.user !== s.refused && s.pw.length >= PASSWORD_MIN && s.pw2 === s.pw
     );
-  if (s.step === 2) return !!s.device.trim() && (!s.rec || s.saved);
-  return s.ai === "none" || s.ai === "admin" || (s.ai === "key" && s.key.trim().length >= 8) || s.ai === "sub";
+  // prototype scene member-1-join: the device name is never asked (it defaults to this computer's or browser's name, Settings changes it) and the AI account is asked once, after joining
+  return !s.rec || s.saved;
 }
 
 export function signInValid(s: FlowState): boolean {
@@ -293,7 +294,7 @@ export function reduce(s: FlowState, a: Action, r: Rules): FlowState {
         return s.si === "pw" ? { ...s, si: "totp", dir: 1 } : { ...s, stage: "done", dir: 1 };
       }
       if (s.stage !== "steps" || s.sheet || !valid(s, r)) return s;
-      if (s.step === 3) return { ...s, stage: "run", run: 0, dir: 1, error: "" };
+      if (s.step === 2) return { ...s, stage: "run", run: 0, dir: 1, error: "" };
       return { ...s, step: (s.step + 1) as FlowState["step"], dir: 1, error: "" };
     }
     case "recovery_open":
@@ -330,7 +331,7 @@ export function reduce(s: FlowState, a: Action, r: Rules): FlowState {
       return {
         ...s,
         stage: "steps",
-        step: a.step ?? 3,
+        step: a.step ?? 2,
         error: a.message,
         refused: a.step === 1 ? s.user : s.refused,
         run: 0,

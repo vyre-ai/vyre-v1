@@ -27,6 +27,7 @@ import { readableName, shouldAutoOpen } from "./flow.ts";
 import { scriptFor } from "./script.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
+import { FirstEntry } from "./FirstEntry.tsx";
 import type { CardContext } from "./OnboardingScreen.tsx";
 import { desktopSessionImporter } from "../../../../client/src/session-import/desktop.ts";
 import {
@@ -87,6 +88,8 @@ export function OnboardingHost({
   const [hiddenFlows, setHiddenFlows] = useState<Readonly<Record<string, true>>>({});
   const [shown, setShown] = useState(false);
   const [step, setStep] = useState<string | null>(null);
+  // the screen that opens by itself is the one-card Connect your AI (prototype scenes personal-3-ai, team-3-ai, member-4-ai); the six-step screen opens only when a person asks (a row, the Setup guide)
+  const [first, setFirst] = useState(false);
   const [aiProvider, setAiProvider] = useState<string | null>(null);
   const [hasAi, setHasAi] = useState(false);
   // the Space's name as the owner types it on Your organisation, so the preview follows each key; never a raw id
@@ -131,6 +134,7 @@ export function OnboardingHost({
         }
         if (shouldAutoOpen(f, state.progress, before)) {
           await markSeen(call, f).catch(() => undefined);
+          setFirst(true);
           setShown(true);
         }
       } catch {
@@ -145,6 +149,7 @@ export function OnboardingHost({
   useEffect(
     () =>
       registerOnboardingOpener((s) => {
+        setFirst(false);
         setStep(s ?? null);
         setShown(true);
       }),
@@ -390,7 +395,40 @@ export function OnboardingHost({
   return (
     <>
       <ResumeContext.Provider value={resume}>{children}</ResumeContext.Provider>
-      {shown && flow ? (
+      {shown && flow && first && call ? (
+        <View style={s.fill}>
+          <FirstEntry
+            title={flow === "team" && shownName ? `AI for ${shownName}` : "Connect your AI"}
+            sub={
+              flow === "team" ? "Your own account, or a key for everyone." : "Your own account. It stays in your Vault."
+            }
+            onNotNow={() => {
+              setShown(false);
+              setFirst(false);
+              void markSeen(call, flow).catch(() => undefined);
+            }}
+          >
+            <View style={s.aiCol}>
+              {space.kind === "team" ? <SpaceAiStatus call={call} {...(person ? { me: person } : {})} /> : null}
+              <ConnectAiCard
+                home={home}
+                call={call}
+                local={space.kind === "personal"}
+                connected={aiProvider !== null || progress["ai"] === "done"}
+                onConnected={(id) => {
+                  setAiProvider(id);
+                  setHasAi(true);
+                  onStep("ai", "done");
+                  setShown(false);
+                  setFirst(false);
+                }}
+                onDisconnected={() => undefined}
+              />
+            </View>
+          </FirstEntry>
+        </View>
+      ) : null}
+      {shown && flow && !first ? (
         <View style={s.fill}>
           <OnboardingScreen
             flow={flow}

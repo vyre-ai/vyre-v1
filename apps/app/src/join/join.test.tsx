@@ -212,25 +212,15 @@ test("each step enables Continue only when it can go on", () => {
     true,
     "the same rule as the owner's form: eight characters; strength advises, it does not block with no reason",
   );
-  const s2 = { ...s0, step: 2 as const, device: "Dana's MacBook" };
-  assert.equal(valid(s2, rules), true);
+  const s2 = { ...s0, step: 2 as const };
+  assert.equal(valid(s2, rules), true, "the recovery code is optional");
   assert.equal(valid({ ...s2, rec: true, saved: false }, rules), false, "a recovery code that was made must be saved");
   assert.equal(valid({ ...s2, rec: true, saved: true }, rules), true);
-  assert.equal(valid({ ...s2, device: " " }, rules), false);
-  const s3 = { ...s0, step: 3 as const };
-  assert.equal(valid({ ...s3, ai: "admin" }, rules), true);
-  assert.equal(valid({ ...s3, ai: "none" }, rules), true, "Not now is allowed");
-  assert.equal(valid({ ...s3, ai: "key", key: "sk-1" }, rules), false);
-  assert.equal(valid({ ...s3, ai: "key", key: "sk-long-enough" }, rules), true);
-  assert.equal(
-    valid({ ...s3, ai: "sub", note: "" }, rules),
-    true,
-    "subscription authentication follows verified account creation",
-  );
-  assert.equal(valid({ ...s3, ai: "sub", note: "subok" }, rules), true);
+  // prototype scene member-1-join: no device-name step and no AI step; the device name defaults to this computer's and the AI account is asked once, after joining
+  assert.equal(valid({ ...s2, device: " " }, rules), true, "the device name is never asked");
 });
 
-test("the journey: invite landing, four steps, setup, finish; Back returns and Escape-style back leaves the steps", () => {
+test("the journey: invite landing, three steps, setup, finish; Back returns and Escape-style back leaves the steps", () => {
   let s = initialState(INVITE);
   assert.equal(s.stage, "accept");
   assert.equal(s.ai, "admin", "the admin's key is the default when there is one");
@@ -251,10 +241,7 @@ test("the journey: invite landing, four steps, setup, finish; Back returns and E
   s = step(s, { t: "set", patch: { saved: true } }, { t: "recovery_done" });
   assert.deepEqual([s.sheet, s.rec], [false, true]);
   s = step(s, { t: "next" });
-  assert.equal(s.step, 3);
-  assert.equal(step(s, { t: "back" }).step, 2);
-  s = step(s, { t: "pick_ai", ai: "none" }, { t: "next" });
-  assert.equal(s.stage, "run");
+  assert.equal(s.stage, "run", "the recovery code is the last step; the AI account is asked once, after joining");
   const total = RUN_STEPS("Northwind").length;
   assert.equal(total, 4);
   for (let i = 0; i < total + 2; i++) s = step(s, { t: "run_tick", total });
@@ -263,7 +250,7 @@ test("the journey: invite landing, four steps, setup, finish; Back returns and E
   assert.equal(s.stage, "done");
   // a failed join goes back to the last step with the reason
   const failed = step({ ...s, stage: "run" }, { t: "failed", message: "That username was taken a moment ago." });
-  assert.deepEqual([failed.stage, failed.step, failed.error], ["steps", 3, "That username was taken a moment ago."]);
+  assert.deepEqual([failed.stage, failed.step, failed.error], ["steps", 2, "That username was taken a moment ago."]);
   assert.equal(step(initialState(INVITE), { t: "back" }).stage, "accept");
   assert.equal(
     step(step(initialState(INVITE), { t: "web" }), { t: "back" }).stage,
@@ -324,7 +311,7 @@ test("step 1: welcome, name and photo, what the person starts with", () => {
   assert.match(out, /value="Dana"/);
   assert.match(out, /value="Whitfield"/);
   assert.match(out, /data-testid="dots"/);
-  assert.match(out, /aria-label="Step 1 of 4"/);
+  assert.match(out, /aria-label="Step 1 of 3"/);
   assert.match(out, /Continue/);
   const bare = renderToStaticMarkup(
     <JoinFlow invite={{ ...INVITE, starting: undefined }} initial={{ stage: "steps", step: 0 }} hold />,
@@ -411,9 +398,10 @@ test("taken usernames give a truthful fallback when no suggestions are available
   assert.doesNotMatch(out, /Try one of the suggestions below\.|data-testid="suggestions"/);
 });
 
-test("step 3: this device, and the recovery code sheet with the code and the box", () => {
+test("step 3: the optional recovery code, and its sheet with the code and the box", () => {
   const dev = html({ stage: "steps", step: 2, ...FILLED });
-  for (const text of ["This device", "Device name", "Recovery code", "Create"]) assert.ok(dev.includes(text), text);
+  for (const text of ["Recovery code", "Optional", "Create"]) assert.ok(dev.includes(text), text);
+  assert.ok(!dev.includes("Device name"), "the device name is never asked");
   assert.ok(!dev.includes("Trust this device"), "no Trust this device row: nothing used it");
   assert.doesNotMatch(dev, /role="switch"/, "no switch on this step");
   assert.doesNotMatch(dev, /data-testid="join-sheet"/);
@@ -428,32 +416,13 @@ test("step 3: this device, and the recovery code sheet with the code and the box
   assert.match(saved, />View</);
 });
 
-test("step 4: ConnectAI shows the ways in, the key field only for a key, and the lock when it is Not now", () => {
+test("the join asks no AI question: the AI account is asked once, after joining", () => {
   assert.deepEqual(
     aiOptions({ space: "Northwind", adminKey: false }).map((o) => o.id),
     ["sub", "key"],
   );
-  assert.deepEqual(
-    aiOptions({ space: "Northwind", adminKey: true }).map((o) => o.id),
-    ["sub", "key", "admin"],
-  );
-  const base = html({ stage: "steps", step: 3, ...FILLED });
-  for (const text of ["Connect your AI", "Claude, ChatGPT or Grok", "API key", "The key from Northwind", "Not now"])
-    assert.ok(base.includes(text), text);
-  assert.ok(tagOf(base, "ai-admin").includes('aria-checked="true"'));
-  assert.ok(tagOf(base, "ai-sub").includes('aria-checked="false"'));
-  assert.doesNotMatch(base, /data-testid="ai-key-field"/);
-  assert.match(html({ stage: "steps", step: 3, ...FILLED, ai: "key" }), /data-testid="ai-key-field"/);
-  const sub = html({ stage: "steps", step: 3, ...FILLED, ai: "sub", note: "subok" });
-  assert.match(sub, /You sign in after joining/);
-  assert.doesNotMatch(sub, /Connected as/);
-  const none = html({ stage: "steps", step: 3, ...FILLED, ai: "none" });
-  assert.match(none, /Your assistant waits until you connect one/);
-  assert.doesNotMatch(none, /data-testid="ai-none"/);
-  assert.match(
-    html({ stage: "steps", step: 3, ...FILLED, error: "That username was taken a moment ago." }),
-    /That username was taken a moment ago\./,
-  );
+  const last = html({ stage: "steps", step: 2, ...FILLED });
+  assert.doesNotMatch(last, /Connect your AI|ai-sub|ai-none/);
 });
 
 test("setup shows a progress bar and the current line; done says welcome and offers to open the Space", () => {

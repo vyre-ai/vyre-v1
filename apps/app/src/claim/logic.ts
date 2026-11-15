@@ -8,6 +8,8 @@ export interface Details {
   username: string;
   password: string;
   confirm: string;
+  /** the Space's name, asked on the owner's card when the link carried none */
+  spaceName?: string;
 }
 
 export const PASSWORD_MIN = 8;

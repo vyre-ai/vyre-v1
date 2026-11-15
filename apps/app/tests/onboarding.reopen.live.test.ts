@@ -156,7 +156,6 @@ for (const SIZE of ["wide", "phone"] as const)
       await claim.getByTestId("claim-password").fill(PASSWORD);
       await claim.getByTestId("claim-confirm").fill(PASSWORD);
       await claim.getByTestId("claim-next").click();
-      await claim.getByTestId("claim-saved").click();
       await claim.getByTestId("claim-create").click();
       await claim.getByTestId("shell").waitFor({ timeout: 30_000 });
       const state = await first.storageState();
