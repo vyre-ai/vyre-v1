@@ -125,6 +125,8 @@ export function StepPicker(p: StepPickerProps): ReactElement {
     }
   };
 
+  const layerKey = onKeyDown;
+
   const showSub = sub !== null && (!phone || nav.col === "sub");
   const showMain = !(phone && sub !== null && nav.col === "sub");
 
@@ -160,7 +162,7 @@ export function StepPicker(p: StepPickerProps): ReactElement {
                 onKeyPress={(e: { nativeEvent?: { key?: string }; preventDefault?: () => void }) => {
                   const key = e.nativeEvent?.key ?? "";
                   if (["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Escape"].includes(key))
-                    onKeyDown({ key, preventDefault: () => e.preventDefault?.() });
+                    layerKey({ key, preventDefault: () => e.preventDefault?.() });
                 }}
                 style={styles.search}
               />

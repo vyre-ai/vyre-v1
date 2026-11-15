@@ -576,7 +576,6 @@ export function AiForm({
           label="Goal"
           value={show(input["prompt"])}
           placeholder="What should be done? Bring in data with Insert data."
-          chips
           testID="field-prompt"
           hint="What the agent is asked to do. Written like a note to a colleague."
           chipLabel={(ref) => chipLabel(ref, stepTitle)}

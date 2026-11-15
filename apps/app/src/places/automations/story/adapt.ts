@@ -62,7 +62,10 @@ function refChip(source: string, path: string, ctx: AdaptCtx): Value {
       label: field === "" ? from : `${from} \u00b7 ${human(field)}`,
       from,
       sample: ctx.sample?.[`${node}.${field}`] ?? ctx.sample?.[`${source}.${path}`] ?? "",
-      ...(ctx.iconOf?.(node) ? { icon: ctx.iconOf(node) } : {}),
+      ...((): { icon?: string } => {
+        const ic = ctx.iconOf?.(node);
+        return ic ? { icon: ic } : {};
+      })(),
     },
   };
 }

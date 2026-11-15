@@ -12,6 +12,8 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 
 type OpenMenu = (entries: MenuEntry[], x: number, y: number, source: "other") => void;
 
+const tid = (testID: string | undefined, suffix: string): { testID?: string } => (testID ? { testID: `${testID}-${suffix}` } : {});
+
 const refOf = (put: string): string | null => {
   const seg = splitTemplate(put).find((x) => x.kind === "chip");
   return seg && seg.kind === "chip" ? seg.ref : null;
@@ -57,7 +59,7 @@ export function ConditionField({
             <Choice
               label=""
               value={parsed.join === "&&" ? "and" : "or"}
-              testID={testID ? `${testID}-join-${i}` : undefined}
+              {...tid(testID, `join-${i}`)}
               onOpen={(x, y) =>
                 openMenu(
                   [
@@ -74,7 +76,7 @@ export function ConditionField({
           <Choice
             label={i === 0 ? "Field" : ""}
             value={c.left ? chipLabel(c.left, titleOf) : "Choose a field"}
-            testID={testID ? `${testID}-field-${i}` : undefined}
+            {...tid(testID, `field-${i}`)}
             onOpen={(x, y) =>
               words?.insert?.(x, y, "", (put) => {
                 const ref = refOf(put);
@@ -85,7 +87,7 @@ export function ConditionField({
           <Choice
             label={i === 0 ? "Is" : ""}
             value={OP_WORDS[c.op]}
-            testID={testID ? `${testID}-op-${i}` : undefined}
+            {...tid(testID, `op-${i}`)}
             onOpen={(x, y) =>
               openMenu(
                 OPS.map((op) => ({
@@ -104,7 +106,7 @@ export function ConditionField({
               chips
               label={i === 0 ? "Value" : ""}
               value={c.value}
-              testID={testID ? `${testID}-value-${i}` : undefined}
+              {...tid(testID, `value-${i}`)}
               onCommit={(t) => setClause(i, { ...c, value: t })}
             />
           )}
@@ -164,7 +166,7 @@ export function EventField({
       <Choice
         label="Wait for this to happen"
         value={v.event ? eventWords(v.event) : "Choose what to wait for"}
-        testID={testID ? `${testID}-event` : undefined}
+        {...tid(testID, "event")}
         onOpen={(x, y) =>
           openMenu(
             [...EVENT_NAMES, ...(v.event && !EVENT_NAMES.includes(v.event) ? [v.event] : [])].map((n) => ({
