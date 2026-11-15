@@ -48,6 +48,8 @@ export function driveStandIn(o: DriveOptions) {
     denyWrites: false,
     /** pages of a list answer, to test a listing larger than one pass reads */
     pageSize: 1000,
+    /** revisions a page of the revision list answers (Drive: 200); a test sets it small */
+    revPageSize: null as number | null,
     /** the next N creates make the file and then answer 503 (the answer is lost, the file is there) */
     createThen503: 0,
     /** the next upload to this file finds another revision saved first (a change between the check and the upload) */
@@ -313,16 +315,21 @@ export function driveStandIn(o: DriveOptions) {
     const f = files.get(decodeURIComponent(one[1]!));
     if (!f) return { status: 404, json: { error: { code: 404 } } };
     if (one[3] === "revisions" && !one[5])
+    {
+      const size = state.revPageSize ?? Number(query["pageSize"] ?? 200);
+      const at = Number(query["pageToken"] ?? 0);
       return {
         json: {
-          revisions: f.revs.map((r) => ({
+          revisions: f.revs.slice(at, at + size).map((r) => ({
             id: r.id,
             modifiedTime: r.time,
             size: String(r.bytes.byteLength),
             lastModifyingUser: { displayName: r.by.name, emailAddress: r.by.email },
           })),
+          ...(at + size < f.revs.length ? { nextPageToken: String(at + size) } : {}),
         },
       };
+    }
     if (one[3] === "revisions") {
       const r = f.revs.find((x) => x.id === decodeURIComponent(one[5]!));
       return r ? { bytes: r.bytes, text: dec.decode(r.bytes) } : { status: 404, json: {} };

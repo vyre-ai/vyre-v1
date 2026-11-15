@@ -128,7 +128,7 @@ test("migration and module state: two tables, nothing else; the first sync of a 
   // the next sync is queued on the scheduler
   assert.deepEqual(
     w.scheduled.map((s) => [s.cap, s.input, s.at]),
-    [["mounts.sync_now", { mountId, auto: true }, NOW + SYNC_INTERVAL_MS]],
+    [["mounts.sync_now", { mountId, auto: true, idempotencyKey: `pass:${mountId}:${NOW + SYNC_INTERVAL_MS}` }, NOW + SYNC_INTERVAL_MS]],
   );
   assert.equal(w.mountRow(mountId)["next_sync_at"], NOW + SYNC_INTERVAL_MS);
 
@@ -702,7 +702,7 @@ test("update, pause, resume and remove: options, events, Trash or keep, and the 
   assert.equal(w.named("mount.resumed").length, 1);
   assert.equal((await view(w, mountId))["state"], "idle");
   assert.deepEqual(
-    w.scheduled.map((s) => [s.cap, s.input]),
+    w.scheduled.map((s) => [s.cap, { mountId: (s.input as { mountId: string }).mountId }]),
     [["mounts.sync_now", { mountId }]],
   );
 

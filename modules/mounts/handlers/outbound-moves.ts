@@ -341,7 +341,7 @@ function namesAPassGives(row: Row, label: string): string[] {
 }
 
 const messageOf = (e: unknown): string =>
-  vyreErrorOf(e)?.message ?? (e instanceof Error ? e.message : "The move failed.");
+  vyreErrorOf(e)?.message ?? "The move failed.";
 
 /** The content of the item changed in Vyre and has not gone out (a rename alone never makes it upload a new revision). */
 export const contentWaits = (r: Row): boolean =>

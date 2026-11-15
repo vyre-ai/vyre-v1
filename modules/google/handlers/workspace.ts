@@ -1324,13 +1324,25 @@ export async function driveUpload(
 
 /** The revisions Drive keeps of a file, newest last. */
 export async function driveRevisions(ctx: GoogleCtx, a: Act & { fileId: string }) {
-  const r = await g(ctx, a, "google.drive.list_revisions", "drive", {
-    url: `${DRIVE}/files/${enc(a.fileId)}/revisions`,
-    bulk: true,
-    query: { pageSize: 200, fields: "revisions(id,modifiedTime,size,lastModifyingUser(displayName,emailAddress))" },
-  });
+  // Drive pages its revisions (200 at most a page): every page is read, or a file with more would show only its oldest
+  const all: unknown[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < 50; page++) {
+    const r = await g(ctx, a, "google.drive.list_revisions", "drive", {
+      url: `${DRIVE}/files/${enc(a.fileId)}/revisions`,
+      bulk: true,
+      query: {
+        pageSize: 200,
+        fields: "nextPageToken,revisions(id,modifiedTime,size,lastModifyingUser(displayName,emailAddress))",
+        ...(pageToken !== undefined ? { pageToken } : {}),
+      },
+    });
+    all.push(...list(r.revisions));
+    pageToken = text(r.nextPageToken);
+    if (pageToken === undefined) break;
+  }
   return {
-    revisions: list(r.revisions).map((x) => {
+    revisions: all.map((x) => {
       const o = obj(x);
       const rev: Record<string, unknown> = { id: text(o.id) ?? "", modifiedTime: text(o.modifiedTime) ?? "" };
       const size = int(o.size);

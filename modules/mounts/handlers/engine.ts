@@ -85,8 +85,8 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
 }
 
 const codeOf = (e: unknown): string | undefined => vyreErrorOf(e)?.code;
-const messageOf = (e: unknown): string =>
-  vyreErrorOf(e)?.message ?? (e instanceof Error ? e.message : "The sync failed.");
+// an error that is not a shaped one (a bug, a socket, a parser) never puts its own text in a row, a mount or the page: one fixed sentence, and the detail goes to the log
+const messageOf = (e: unknown): string => vyreErrorOf(e)?.message ?? "The sync failed.";
 
 /** Codes that mean the provider itself cannot be reached or does not allow Vyre in: these stop a pass and make the mount failing. Anything else is about one item. */
 const MOUNT_LEVEL =
@@ -787,6 +787,8 @@ interface Pushed {
 
 /** An edit made in Vyre goes to the provider after this long without another one (a pass the scheduler starts), so a long edit is one revision there. */
 export const PUSH_QUIET_MS = 30_000;
+/** ...and never for longer than this from the first edit of the batch. */
+export const PUSH_QUIET_CAP_MS = 5 * 60_000;
 
 /** The name a Vyre edit is kept under when the file moved on at the provider: "Report (Noah's edit).docx". */
 function copyName(name: string, who: string): string {
@@ -916,8 +918,17 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[], q
     const parent = parentRemote(f);
     if (parent === undefined || !provider.upload) continue;
     // a scheduled pass leaves an edit to a file already at the provider until it has been quiet for a while; the person's Sync now, and leaving the file, send it at once
-    if (quiet && !isNull(f["remote_id"]) && !isNull(f["dirty_at"]) && ctx.now() - num(f["dirty_at"]) < PUSH_QUIET_MS) {
-      const due = num(f["dirty_at"]) + PUSH_QUIET_MS;
+    if (
+      quiet &&
+      !isNull(f["remote_id"]) &&
+      !isNull(f["dirty_at"]) &&
+      ctx.now() - num(f["dirty_at"]) < PUSH_QUIET_MS &&
+      ctx.now() - num(isNull(f["dirty_since"]) ? f["dirty_at"] : f["dirty_since"]) < PUSH_QUIET_CAP_MS
+    ) {
+      const due = Math.min(
+        num(f["dirty_at"]) + PUSH_QUIET_MS,
+        num(isNull(f["dirty_since"]) ? f["dirty_at"] : f["dirty_since"]) + PUSH_QUIET_CAP_MS,
+      );
       res.quietUntil = res.quietUntil === undefined ? due : Math.min(res.quietUntil, due);
       continue;
     }
@@ -977,6 +988,7 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[], q
         synced_version: f["local_version"] ?? null,
         dirty: 0,
         dirty_by: null,
+        dirty_since: null,
         wait_reason: null,
       });
       if (up.revision !== undefined) {
@@ -1156,7 +1168,7 @@ async function scheduleNext(ctx: Ctx, row: Row): Promise<void> {
   // a pass already queued sooner than that stays; one queued later (the app just arrived) is overtaken
   if (!isNull(row["next_sync_at"]) && num(row["next_sync_at"]) > now && num(row["next_sync_at"]) <= at) return;
   try {
-    await ctx.schedule(at, "mounts.sync_now", { mountId: str(row["id"]), auto: true });
+    await ctx.schedule(at, "mounts.sync_now", { mountId: str(row["id"]), auto: true, idempotencyKey: `pass:${str(row["id"])}:${at}` });
     patchMount(ctx, row, { next_sync_at: at });
   } catch {
     // no scheduler: the next sync is a person's Sync now
@@ -1371,7 +1383,7 @@ async function runPass(ctx: Ctx, mountId: string, quiet = false): Promise<PassRe
     if (quietUntil !== undefined) {
       // an edit is waiting for its quiet time: the pass after it sends it
       try {
-        await ctx.schedule(quietUntil + 500, "mounts.sync_now", { mountId: m.id, auto: true });
+        await ctx.schedule(quietUntil + 500, "mounts.sync_now", { mountId: m.id, auto: true, idempotencyKey: `pass:${m.id}:${quietUntil + 500}` });
       } catch {
         /* the next scheduled pass does it */
       }
@@ -1379,7 +1391,7 @@ async function runPass(ctx: Ctx, mountId: string, quiet = false): Promise<PassRe
     if (kept > 0) {
       // a Vyre edit was kept as a copy: one more pass brings in the provider's version and the copy
       try {
-        await ctx.schedule(now + 1000, "mounts.sync_now", { mountId: m.id });
+        await ctx.schedule(now + 1000, "mounts.sync_now", { mountId: m.id, idempotencyKey: `pass:${m.id}:${now + 1000}` });
       } catch {
         /* the next scheduled pass does it */
       }
@@ -1744,7 +1756,10 @@ async function mountsSyncNow(ctx: Ctx, input: unknown): Promise<{ runId: string 
       "validation.precondition_failed",
       "A folder on your computer syncs when that computer reports. Turn the computer on and open Vyre there.",
     );
-  await runPass(ctx, mountId, o["auto"] === true);
+  if (!maySee(ctx, row)) fail(ctx, "permission.no_grant", "You cannot see that mount.");
+  // a pass that sends an edit at once is for someone who may edit the folder; anyone else starts the scheduled kind, which waits for the quiet time
+  const mayEdit = ctx.authorize({ perm: "files.write", level: "edit" }, { type: "folder", id: str(row["folder_id"]) }).effect === "allow";
+  await runPass(ctx, mountId, o["auto"] === true || !mayEdit);
   return { runId: ctx.run ?? nid(ctx, "run") };
 }
 
@@ -1839,7 +1854,10 @@ async function mountsBrowse(ctx: Ctx, input: unknown): Promise<Row> {
 async function mountsUpdate(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
   const o = record(ctx, input);
   const row = mountRow(ctx, reqStr(ctx, o, "mountId"));
-  const onlyReadOnly = Object.keys(o).every((k) => k === "mountId" || o[k] === undefined || k === "pullOnly");
+  if (!maySee(ctx, row)) fail(ctx, "permission.no_grant", "You cannot see that mount.");
+  // the person who connected the folder may turn two-way OFF for their own mount (Read only), and nothing else: never back on over a manager's choice, never another option
+  const onlyReadOnly =
+    Object.keys(o).every((k) => k === "mountId" || o[k] === undefined || k === "pullOnly") && o["pullOnly"] === true;
   if (!(onlyReadOnly && !isNull(row["owner"]) && str(row["owner"]) === ctx.principal.id)) mayManage(ctx, row);
   const fields: string[] = [];
   const patch: Row = {};
@@ -1888,7 +1906,7 @@ async function mountsUpdate(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
     });
     if (patch["cursor"] === null) {
       try {
-        await ctx.schedule(ctx.now(), "mounts.sync_now", { mountId: str(row["id"]) });
+        await ctx.schedule(ctx.now(), "mounts.sync_now", { mountId: str(row["id"]), idempotencyKey: `pass:${str(row["id"])}:${ctx.now()}` });
       } catch {
         /* the next pass brings the content in */
       }
@@ -1939,7 +1957,7 @@ async function mountsResume(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
   });
   if (str(row["kind"]) !== "local") {
     try {
-      await ctx.schedule(ctx.now(), "mounts.sync_now", { mountId: str(row["id"]) });
+      await ctx.schedule(ctx.now(), "mounts.sync_now", { mountId: str(row["id"]), idempotencyKey: `pass:${str(row["id"])}:${ctx.now()}` });
     } catch {
       // the next Sync now picks it up
     }
@@ -2212,8 +2230,11 @@ function sourceView(ctx: Ctx, item: Row, row: Row): Row {
       ...(flag(item["gone_there"]) ? { goneThere: true } : {}),
     };
   // a save by someone who did not connect the folder goes out under the connection of the one who did: the page says whose
-  if (isCloud(kind) && !isNull(row["owner"]) && str(row["owner"]) !== ctx.principal.id)
-    out["writesAs"] = { by: str(row["owner"]), ...(isNull(row["account"]) ? {} : { email: str(row["account"]) }) };
+  if (isCloud(kind) && !isNull(row["owner"]) && str(row["owner"]) !== ctx.principal.id) {
+    // the connector's name (the page resolves it from `by`) goes to every reader; their address only to someone who manages the folder
+    const manager = ctx.authorize({ perm: "files.write", level: "manage" }, { type: "folder", id: str(row["folder_id"]) }).effect === "allow";
+    out["writesAs"] = { by: str(row["owner"]), ...(manager && !isNull(row["account"]) ? { email: str(row["account"]) } : {}) };
+  }
   if (!isNull(item["remote_rev"])) out["revisionId"] = str(item["remote_rev"]);
   if (!isNull(item["modified_at"])) out["modifiedAt"] = num(item["modified_at"]);
   const editor = personOut(item["editor_name"], item["editor_email"]);
@@ -2399,13 +2420,42 @@ async function mountsResolve(ctx: Ctx, input: unknown): Promise<Row> {
           wait_reason: null,
         });
       else {
-        patchItem(ctx, item, { gone_there: 0, dirty: 0, wait_reason: null });
-        await trashLocal(ctx, rows, item);
+        // only the person who made the unsent edit, or a manager of the folder, may drop it
+        const manager = ctx.authorize({ perm: "files.write", level: "manage" }, { type: "folder", id: m.folderId }).effect === "allow";
+        if (!manager && !(!isNull(item["dirty_by"]) && str(item["dirty_by"]) === ctx.principal.id))
+          return fail(ctx, "permission.no_grant", "Only the person who made these changes, or a manager of the folder, can discard them.");
+        // the unsent edit goes, the file stays: Vyre's file goes back to the last content that was at the provider
+        const synced = num(item["synced_version"]);
+        let restored = false;
+        try {
+          const vs = (obj(await ctx.call("files.versions", { fileId })) as { versions?: Row[] }).versions ?? [];
+          const back = vs.find((v) => num(v["n"]) === synced);
+          const newest = vs.reduce((a, v) => Math.max(a, num(v["n"])), 0);
+          if (back && synced < newest) {
+            const r = obj(await ctx.call("files.restore_version", { fileId, versionId: str(back["versionId"]), idempotencyKey: `mnt:discard:${m.id}:${str(item["item_key"])}:${newest}` }));
+            void r;
+            restored = true;
+          }
+        } catch {
+          /* the file keeps its content when an earlier one cannot be put back */
+        }
+        const file = obj(obj(await ctx.call("files.get", { fileId }))["file"]);
+        patchItem(ctx, item, {
+          gone_there: 0,
+          dirty: 0,
+          dirty_since: null,
+          remote_id: null,
+          remote_version: null,
+          remote_rev: null,
+          synced_version: restored || synced === 0 ? num(file["version"]) : synced,
+          local_version: restored || synced === 0 ? num(file["version"]) : synced,
+          wait_reason: `This file is no longer at ${provider.label}. It is kept here as it was there, without your changes.`,
+        });
       }
     });
     if (choice === "keep_here") {
       try {
-        await ctx.schedule(ctx.now() + 500, "mounts.sync_now", { mountId: m.id });
+        await ctx.schedule(ctx.now() + 500, "mounts.sync_now", { mountId: m.id, idempotencyKey: `pass:${m.id}:${ctx.now() + 500}` });
       } catch {
         /* the next scheduled pass sends it */
       }
@@ -2424,6 +2474,13 @@ async function mountsResolve(ctx: Ctx, input: unknown): Promise<Row> {
     const rows = itemsOf(ctx, m.id);
     const parent = rows.find((r) => r["item_key"] === item["parent_key"]);
     if (choice === "keep_both") {
+      // keep_both writes a copy at the provider: never on a Read only mount or a file the person may not edit there
+      if (m.pullOnly || item["can_edit"] === 0)
+        return fail(
+          ctx,
+          "validation.precondition_failed",
+          `This folder is read only, so a copy cannot be saved at ${provider.label}. Use theirs, or ask the owner for edit access.`,
+        );
       if (!parent || isNull(parent["remote_id"]))
         return fail(ctx, "validation.precondition_failed", "The folder is not at the provider yet.");
       copy = copyName(str(item["name"]), whoLabel(m));
@@ -2460,7 +2517,7 @@ async function mountsResolve(ctx: Ctx, input: unknown): Promise<Row> {
   // the copy comes into the folder as a new file on the next pass
   if (copy !== undefined) {
     try {
-      await ctx.schedule(ctx.now() + 500, "mounts.sync_now", { mountId: m.id });
+      await ctx.schedule(ctx.now() + 500, "mounts.sync_now", { mountId: m.id, idempotencyKey: `pass:${m.id}:${ctx.now() + 500}` });
     } catch {
       /* the next scheduled pass brings it in */
     }
