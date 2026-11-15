@@ -27,8 +27,18 @@ export const DEFAULT_WORKSPACE_IMAGE = "vyre/agent-workspace:1";
 export const WORKSPACE_PREFIX = "vyre-ws-";
 export const PROJECT_VOLUME_PREFIX = "vyre-wsproj-";
 export const WORKSPACE_HOME = "/home/agent";
-export const FILES_GUEST = "/home/agent/Vyre";
-export const PROJECTS_GUEST = "/home/agent/projects";
+/**
+ * The folders people other than the agent's owner may be let into live OUTSIDE the agent's home, under /shared (round three of the wall review: a guest has no search permission on /home/agent at all, so no
+ * file the agent writes there, with any umask, at any moment, can be reached by name). `~/projects` and `~/Vyre` in the agent's home, and in each person's own home, are links to them.
+ */
+export const SHARED_ROOT = "/shared";
+export const FILES_GUEST = `${SHARED_ROOT}/Vyre`;
+export const PROJECTS_GUEST = `${SHARED_ROOT}/projects`;
+/** Closes the home to everyone but the agent (a volume of an older release may have been made with other rights) and makes `~/Vyre` and `~/projects` of the agent's home links to the shared folders (a workspace of an older release has them as the folders the volumes were mounted on: empty, so they are replaced; one with something in it is left as it is). */
+export const LINK_SCRIPT =
+  'chmod 700 "$HOME" 2>/dev/null; for n in Vyre projects; do p="$HOME/$n"; [ -L "$p" ] && continue; if [ -d "$p" ]; then [ -z "$(find "$p" -mindepth 1 ! -type d 2>/dev/null | head -n 1)" ] || continue; find "$p" -depth -mindepth 1 -type d -empty -delete 2>/dev/null; rmdir "$p" 2>/dev/null; fi; [ -e "$p" ] || ln -s "/shared/$n" "$p"; done; true';
+/** The exec wrapper: every process Vyre starts in a workspace runs with umask 077, so nothing it makes outside a session shell is readable by anyone but the agent's own user. */
+export const UMASK_WRAP: readonly string[] = ["sh", "-c", 'umask 077; exec "$@"', "sh"];
 export const WORKSPACE_UID = 10001;
 export const DEFAULT_IDLE_MS = 10 * 60_000;
 /**
@@ -289,7 +299,7 @@ export interface MountSpec {
 /** The label that says what a container was made with: its project folders, and the shared network when it is on it (a workspace made on the default bridge before 12 Nov is made again once, when quiet). */
 const stable = (m: MountSpec, net?: string): string =>
   sha256Hex(
-    JSON.stringify({ p: [...m.projects].sort(), h: 1, u: 1, ...(net === SHARED_NETWORK ? { n: net } : {}) }),
+    JSON.stringify({ p: [...m.projects].sort(), h: 1, u: 1, s: 1, ...(net === SHARED_NETWORK ? { n: net } : {}) }),
   ).slice(0, 16);
 
 /**
@@ -1541,6 +1551,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       await o.capacity?.release(agentId).catch(() => undefined);
       throw e;
     }
+    // ~/Vyre and ~/projects are links to /shared (a failure here leaves the owner's old paths as they were)
+    await execIn(agentId, ["sh", "-c", LINK_SCRIPT], undefined).catch(() => undefined);
     if (o.capacity) claimed.add(agentId);
     gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
     lastUsed.set(agentId, now());
@@ -1576,7 +1588,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         ? { TMUX_TMPDIR: `/people/u${user}/.tmux` }
         : {};
     const r = await api.exec(workspaceName(agentId), {
-      cmd: argv,
+      cmd: [...UMASK_WRAP, ...argv],
       env: Object.entries({ ...(env ?? {}), ...own }).map(([k, v]) => `${k}=${v}`),
       ...(user === undefined ? {} : { user: `${user}:${user}` }),
     });

@@ -137,9 +137,9 @@ test(
     ]);
     assert.equal(wrote[0]!.text, "ok", JSON.stringify(wrote));
     const both = await w.turn(bea, "walk-bea-2", [
-      { cmd: `${H} cat $H/projects/${projectId}/ada.txt 2>&1` },
+      { cmd: `${H} cat ~/projects/${projectId}/ada.txt 2>&1` },
       {
-        cmd: `${H} echo BEA-SHARED > $H/projects/${projectId}/bea.txt 2>&1; cat $H/projects/${projectId}/bea.txt 2>&1`,
+        cmd: `${H} echo BEA-SHARED > ~/projects/${projectId}/bea.txt 2>&1; cat ~/projects/${projectId}/bea.txt 2>&1`,
       },
     ]);
     assert.match(both[0]!.text, /ADA-SHARED/, "Bea reads what Ada put in the project");

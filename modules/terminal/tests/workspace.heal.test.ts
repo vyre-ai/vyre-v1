@@ -225,7 +225,7 @@ test("a project change in the middle of a command waits for the command: the con
   assert.equal(next.exitCode, 0);
   assert.equal(dk.ops("create").filter((x) => x.name === NAME).length, 2, "made again with the new mount once quiet");
   assert.ok(
-    dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_book:/home/agent/projects/prj_book:rw"),
+    dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_book:/shared/projects/prj_book:rw"),
   );
   m.close();
 });
@@ -245,7 +245,7 @@ test("a project change while a person runs a program in an attached tab (an edit
   clock.t += 6000;
   assert.equal(await m.ensure(AGENT), "created", "quiet now: made again with the new mount");
   assert.ok(
-    dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_book:/home/agent/projects/prj_book:rw"),
+    dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_book:/shared/projects/prj_book:rw"),
   );
   m.close();
 });
@@ -259,7 +259,7 @@ test("a project change on a workspace that sleeps is applied when it wakes", asy
   projects = ["prj_book"];
   assert.equal(await m.ensure(AGENT), "created");
   assert.ok(
-    dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_book:/home/agent/projects/prj_book:rw"),
+    dk.box(NAME).config["HostConfig"]["Binds"].includes("vyre-wsproj-prj_book:/shared/projects/prj_book:rw"),
   );
   m.close();
 });

@@ -338,7 +338,7 @@ test(
       "sh",
       RC26,
       "-c",
-      "umask 022; echo OWNER-BEFORE > /h/owner-note.txt; echo NPMRC-OLD-SECRET > /h/.npmrc; mkdir -p /h/work; echo NOTES-OLD-SECRET > /h/work/notes.txt; chown -R 10001:10001 /h",
+      "umask 022; echo OWNER-BEFORE > /h/owner-note.txt; echo NPMRC-OLD-SECRET > /h/.npmrc; mkdir -p /h/projects/prj_old /h/Vyre /h/work; echo NOTES-OLD-SECRET > /h/work/notes.txt; chown -R 10001:10001 /h",
     ]);
     assert.equal(seed.code, 0, seed.out);
     const made = await docker([
@@ -382,6 +382,9 @@ test(
       assert.match(g.text, /Permission denied|Operation not permitted/, g.text);
     }
     const stillOwner = await w.turn(w.owner, "up-4", [{ cmd: "cat ~/.npmrc ~/work/notes.txt" }]);
+    // the owner's own paths keep working: ~/projects and ~/Vyre, folders in the old home, are links to the shared folders now
+    const paths = await w.turn(w.owner, "up-5", [{ cmd: "ls -ld ~/projects ~/Vyre; ls ~/projects/ >/dev/null && echo listed" }]);
+    assert.match(paths[0]!.text, /projects -> \/shared\/projects[\s\S]*Vyre -> \/shared\/Vyre[\s\S]*listed/, paths[0]!.text);
     assert.match(stillOwner[0]!.text, /NPMRC-OLD-SECRET[\s\S]*NOTES-OLD-SECRET/, "the owner still reads her own");
     const image = (await docker(["inspect", "-f", "{{.Config.Image}}", ws])).out.trim().split("\n")[0];
     assert.notEqual(image, RC26, "the container was made again on the new image");
@@ -438,12 +441,12 @@ test(
     assert.equal(made[0]!.text, "ok", made[0]!.text);
     const H = 'H=/home/ag""ent;';
     const ben = await w.turn(w.ben, "acl-2", [
-      { cmd: `${H} cat $H/projects/${one}/f.txt 2>&1` },
-      { cmd: `${H} echo BEN-WROTE > $H/projects/${one}/ben.txt 2>&1; cat $H/projects/${one}/ben.txt 2>&1` },
-      { cmd: `${H} cat $H/projects/${two}/f.txt 2>&1` },
-      { cmd: `${H} ls $H/projects 2>&1` },
+      { cmd: `${H} cat ~/projects/${one}/f.txt 2>&1` },
+      { cmd: `${H} echo BEN-WROTE > ~/projects/${one}/ben.txt 2>&1; cat ~/projects/${one}/ben.txt 2>&1` },
+      { cmd: `${H} cat ~/projects/${two}/f.txt 2>&1` },
+      { cmd: `${H} ls ~/projects 2>&1` },
       { cmd: `${H} ls -A $H 2>&1` },
-      { cmd: `${H} ls $H/Vyre 2>&1; echo X > $H/Vyre/ben-wrote 2>&1; echo END` },
+      { cmd: `${H} ls ~/Vyre 2>&1; echo X > ~/Vyre/ben-wrote 2>&1; echo END` },
     ]);
     console.log("ACL ", JSON.stringify(ben.map((b) => (b.text || b.error || "").slice(0, 300))));
     assert.match(ben[0]!.text, /ONE-DATA/, "he reads the project he is on");
@@ -470,10 +473,10 @@ test(
     const made3 = await w.turn(w.owner, "acl-4", [{ cmd: `echo THREE-DATA > ~/projects/${three}/f.txt; echo ok` }]);
     assert.equal(made3[0]!.text, "ok", made3[0]!.text);
     const viewer = await w.turn(w.ben, "acl-5", [
-      { cmd: `${H} cat $H/projects/${three}/f.txt 2>&1` },
-      { cmd: `${H} echo X > $H/projects/${three}/w.txt 2>&1; echo END` },
+      { cmd: `${H} cat ~/projects/${three}/f.txt 2>&1` },
+      { cmd: `${H} echo X > ~/projects/${three}/w.txt 2>&1; echo END` },
       // the Files mirror is read-only to him
-      { cmd: `${H} echo X > $H/Vyre/ben-wrote2 2>&1; echo END` },
+      { cmd: `${H} echo X > ~/Vyre/ben-wrote2 2>&1; echo END` },
     ]);
     assert.match(viewer[0]!.text, /THREE-DATA/, "a reviewer reads");
     assert.match(viewer[1]!.text, /Permission denied/, "and cannot write");
@@ -483,16 +486,16 @@ test(
     assert.equal(addCy.status, 200, JSON.stringify(addCy.data));
     await new Promise((r) => setTimeout(r, 6000));
     const ana = await w.turn(w.ana, "acl-6", [
-      { cmd: `${H} echo ANA-WROTE > $H/projects/${one}/ana.txt 2>&1; cat $H/projects/${one}/ana.txt 2>&1` },
+      { cmd: `${H} echo ANA-WROTE > ~/projects/${one}/ana.txt 2>&1; cat ~/projects/${one}/ana.txt 2>&1` },
     ]);
     assert.match(ana[0]!.text, /ANA-WROTE/, "Ana, put on the project, writes in it at her next command");
-    const seen = await w.turn(w.ben, "acl-7", [{ cmd: `${H} cat $H/projects/${one}/ana.txt 2>&1` }]);
+    const seen = await w.turn(w.ben, "acl-7", [{ cmd: `${H} cat ~/projects/${one}/ana.txt 2>&1` }]);
     assert.match(seen[0]!.text, /ANA-WROTE/, "a file a member made is readable by the members of the time");
     // taken off the project, a person is refused at their next command, not at their next session
     const off = await w.owner.call("projects.members.remove", { projectId: one, principal: w.ben.id });
     assert.equal(off.status, 200, JSON.stringify(off.data));
     await new Promise((r) => setTimeout(r, 6000));
-    const gone = await w.turn(w.ben, "acl-8", [{ cmd: `${H} cat $H/projects/${one}/f.txt 2>&1` }]);
+    const gone = await w.turn(w.ben, "acl-8", [{ cmd: `${H} cat ~/projects/${one}/f.txt 2>&1` }]);
     assert.match(gone[0]!.text, /Permission denied/, "taken off the project, refused at the next command");
     assert.doesNotMatch(gone[0]!.text, /ONE-DATA/);
   },

@@ -308,7 +308,7 @@ const READERS = new Set([
 export function passwdCommand(command: string): boolean {
   for (const seg of command.split(/[;&|\n(){}`]|\$\(/)) {
     const t = nameTokens(seg);
-    const at = t.indexOf("passwd");
+    const at = t.findIndex((x) => x === "passwd" || x === "/usr/bin/passwd" || x === "/bin/passwd");
     if (at >= 0 && !t.slice(0, at).some((x) => READERS.has(x.split("/").pop() ?? ""))) return true;
   }
   return false;

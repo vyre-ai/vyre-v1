@@ -747,11 +747,9 @@ async function foreign(ctx: TermCtx, x: SessionRow, facts: Facts): Promise<boole
   if (got.failed !== undefined) return true;
   if (hasOwnPlace(got.agent, x.agentId, x.owner)) return true; // someone's own place
   if (!hasOwnPlace(got.agent, x.agentId, me)) return false; // the agent's owner: as before
-  // the caller has a place of their own: the agent's own terminals are not theirs unless they manage the agent (an agent working for them is never a manager)
-  return (
-    ctx.principal.kind !== "person" ||
-    ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow"
-  );
+  // the caller works in a place of their own: the agent's own terminals and its owner's are not theirs to look into, whoever they are and whatever they manage (managing an agent is not reading its
+  // owner's terminals); an agent working for them is held to the same
+  return true;
 }
 
 /** May the caller be told even that this terminal exists: not on an agent's computer they may not enter. */

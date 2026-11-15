@@ -55,7 +55,7 @@ export function ensureCommand(p: AskerPlace): string[] {
     "sh",
     "-c",
     'h="$1"; u="$2"; umask 077; if [ -e "$h" ]; then [ "$(stat -c %u "$h")" = "$u" ] || exit 77; else mkdir -m 700 "$h" || exit 77; [ "$(stat -c %u "$h")" = "$u" ] || exit 77; fi; ' +
-      'mkdir -p "$h/.config" "$h/.cache" "$h/.local/share" "$h/.local/state" "$h/.ssh" "$h/.tmp" "$h/.tmux" && cp -rn /etc/skel/. "$h"/ 2>/dev/null; ' +
+      'mkdir -p "$h/.config" "$h/.cache" "$h/.local/share" "$h/.local/state" "$h/.ssh" "$h/.tmp" "$h/.tmux" && ln -sfn /shared/projects "$h/projects" && ln -sfn /shared/Vyre "$h/Vyre" && cp -rn /etc/skel/. "$h"/ 2>/dev/null; ' +
       // the first line this person reads in their terminal (lead, 14 Nov): where their files are, and that this is their own home; the agent's own home and the Files mirror are not offered to them
       '[ -e "$h/.vyre-hello" ] || { printf "%s\\n" "echo \\"Your files are in Files. This is your own home on this computer.\\"" >> "$h/.bashrc"; : > "$h/.vyre-hello"; }; true',
     "sh",
@@ -65,10 +65,12 @@ export function ensureCommand(p: AskerPlace): string[] {
 }
 
 /**
- * What reaches a person in the agent's own home, by the file system (POSIX ACLs; run as the agent's own user 10001, which owns every folder named here, so no capability is needed): the person's uid may pass
- * through /home/agent and /home/agent/projects (execute only: it cannot list them), the project folders of the projects they are on are theirs at the level the project gives (members read and write, others
- * read), and the Files mirror is theirs to read when Files lets them view the agent's folder. Every other project folder and the mirror are closed to everyone but the agent (0700) and then opened by name for
- * who may. Run again at each session the person opens, so a change in who is on a project is applied then. A person's new files in a folder the agent also uses carry the group's rights: sessions run with umask 007.
+ * What reaches a person of the agent's computer, by the file system (POSIX ACLs; run as the agent's own user 10001, which owns every folder named here, so no capability is needed). A person has no search
+ * permission on the agent's home at all: what they may be let into lives under /shared (outside the home; /shared, /shared/projects and /shared/chats can be passed through by anyone and listed by no one),
+ * and `~/projects` and `~/Vyre` in their own home are links to it. The project folders of the projects they are on are theirs at the level the project gives (members read and write, others read), and the
+ * Files mirror is theirs to read when Files lets them view the agent's folder. Every other project folder and the mirror are closed to everyone but the agent (0700) and then opened by name for who may.
+ * Run again at each command of the person (when the last time is more than a few seconds ago), so a change in who is on a project is applied then. A person's new files in a folder the agent also uses carry
+ * the group's rights: sessions run with umask 007.
  */
 export function grantCommand(p: AskerPlace, projects: ReadonlyArray<{ id: string; write: boolean }>): string[] {
   // Every step that opens something is checked on the folder itself and fails the whole command with a line naming it (the exit status is the number of failures, the stderr says which); what is only
@@ -76,16 +78,12 @@ export function grantCommand(p: AskerPlace, projects: ReadonlyArray<{ id: string
   return [
     "sh",
     "-c",
-    'u="$1"; files="$2"; shift 2; H=/home/agent; rc=0; fail() { echo "could not open $1 for the person" >&2; rc=$((rc+1)); }; ' +
-      // a workspace of an older release has no projects folder yet: it is made (0700, the agent's own) before the person is let through it
-      'mkdir -p -m 700 "$H/projects" 2>/dev/null; setfacl -m "u:$u:--x" "$H" "$H/projects" || fail "the agent computer"; ' +
-      'for d in "$H"/projects/* "$H/Vyre"; do [ -d "$d" ] && { chmod 700 "$d"; setfacl -R -x "u:$u" "$d" 2>/dev/null; setfacl -R -d -x "u:$u" "$d" 2>/dev/null; }; done; ' +
-      '[ "$files" = 1 ] && [ -d "$H/Vyre" ] && { setfacl -m "u:$u:rX" "$H/Vyre" && setfacl -d -m "u:$u:rX" "$H/Vyre" || fail "the Files folder"; setfacl -R -m "u:$u:rX" "$H/Vyre" 2>/dev/null; setfacl -R -d -m "u:$u:rX" "$H/Vyre" 2>/dev/null; }; ' +
-      // the agent's home is not walkable by a guest: whatever a program of the agent's wrote with a loose umask (an engine, an exec outside the session shell, every file of an older workspace) has its group and
-      // other bits taken off at each grant, so the --x a guest holds on the home reaches only the folders opened to them by name
-      'find "$H" -mindepth 1 -maxdepth 1 ! -name projects ! -name chats ! -name Vyre ! -type l -exec chmod go-rwx {} + 2>/dev/null; ' +
-      '[ -z "$(find "$H" -mindepth 1 -maxdepth 1 ! -name projects ! -name chats ! -name Vyre ! -type l -perm /077 2>/dev/null | head -n 1)" ] || fail "the agent home"; ' +
-      'for p in "$@"; do id="${p%%:*}"; m="${p##*:}"; d="$H/projects/$id"; [ -d "$d" ] || continue; perm=rX; [ "$m" = rw ] && perm=rwX; ' +
+    'u="$1"; files="$2"; shift 2; H=/home/agent; S=/shared; rc=0; fail() { echo "could not open $1 for the person" >&2; rc=$((rc+1)); }; ' +
+      // a guest never holds search permission on the home (an entry an earlier release gave is taken away); the shared folders exist (a workspace of an older release made the image's folders by the first start)
+      'setfacl -x "u:$u" "$H" 2>/dev/null; mkdir -p -m 711 "$S/projects" "$S/chats" 2>/dev/null; ' +
+      'for d in "$S"/projects/* "$S/Vyre"; do [ -d "$d" ] && { chmod 700 "$d"; setfacl -R -x "u:$u" "$d" 2>/dev/null; setfacl -R -d -x "u:$u" "$d" 2>/dev/null; }; done; ' +
+      '[ "$files" = 1 ] && [ -d "$S/Vyre" ] && { setfacl -m "u:$u:--x" "$S" 2>/dev/null; setfacl -m "u:$u:rX" "$S/Vyre" && setfacl -d -m "u:$u:rX" "$S/Vyre" || fail "the Files folder"; setfacl -R -m "u:$u:rX" "$S/Vyre" 2>/dev/null; setfacl -R -d -m "u:$u:rX" "$S/Vyre" 2>/dev/null; }; ' +
+      'for p in "$@"; do id="${p%%:*}"; m="${p##*:}"; d="$S/projects/$id"; [ -d "$d" ] || continue; perm=rX; [ "$m" = rw ] && perm=rwX; ' +
       'setfacl -m "u:$u:$perm" "$d" && setfacl -d -m "u:$u:$perm" "$d" && setfacl -d -m u:10001:rwX "$d" || fail "project $id"; ' +
       'setfacl -R -m "u:$u:$perm" "$d" 2>/dev/null; setfacl -R -d -m "u:$u:$perm" "$d" 2>/dev/null; setfacl -R -d -m u:10001:rwX "$d" 2>/dev/null; done; exit $rc',
     "sh",
@@ -96,7 +94,7 @@ export function grantCommand(p: AskerPlace, projects: ReadonlyArray<{ id: string
 }
 
 /** The folder of one chat on an agent's computer that every person working in that chat reaches: `~/chat` in each person's place (and the agent's own home) points at it. */
-export const chatFolderPath = (thread: string): string => `/home/agent/chats/${thread.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+export const chatFolderPath = (thread: string): string => `/shared/chats/${thread.replace(/[^A-Za-z0-9_-]/g, "_")}`;
 
 /**
  * Makes the shared folder of a chat (closed to everyone, 0700, the agent's own user keeping it) and, when a uid is named, opens it to that person: they may pass through /home/agent and /home/agent/chats and
@@ -107,9 +105,9 @@ export function chatFolderCommand(thread: string, uid?: number): string[] {
   return [
     "sh",
     "-c",
-    'd="$1"; u="$2"; mkdir -p -m 700 /home/agent/chats "$d" || exit 1; setfacl -m u:10001:rwx "$d" && setfacl -d -m u:10001:rwX "$d" || exit 1; ' +
+    'd="$1"; u="$2"; mkdir -p -m 711 /shared/chats 2>/dev/null; mkdir -p -m 700 "$d" || exit 1; setfacl -m u:10001:rwx "$d" && setfacl -d -m u:10001:rwX "$d" || exit 1; ' +
       // what is already there is opened to them too, as far as the agent's own user may change it (a file another person made keeps only the entries its maker gave: that is theirs to share)
-      '[ -z "$u" ] || { setfacl -m "u:$u:--x" /home/agent /home/agent/chats && setfacl -m "u:$u:rwX" "$d" && setfacl -d -m "u:$u:rwX" "$d" && { setfacl -R -m "u:$u:rwX" "$d" 2>/dev/null; true; }; }',
+      '[ -z "$u" ] || { setfacl -m "u:$u:rwX" "$d" && setfacl -d -m "u:$u:rwX" "$d" && { setfacl -R -m "u:$u:rwX" "$d" 2>/dev/null; true; }; }',
     "sh",
     chatFolderPath(thread),
     uid === undefined ? "" : String(uid),
@@ -167,12 +165,12 @@ export function ownersHomeRefs(text: string): string[] {
 
 /** Does a path name the Files mirror (`~/Vyre`, `$HOME/Vyre`, `/home/agent/Vyre`)? */
 export const namesMirror = (text: string): boolean =>
-  /(?:\/home\/agent|~|\$HOME|\$\{HOME\})\/Vyre(?![A-Za-z0-9_-])/.test(text);
+  /(?:\/home\/agent|\/shared|~|\$HOME|\$\{HOME\})\/Vyre(?![A-Za-z0-9_-])/.test(text);
 
 /** The project folders a path names: `/home/agent/projects/<id>` or `~/projects/<id>`. */
 export function projectsNamed(text: string): string[] {
   const out = new Set<string>();
-  for (const m of text.matchAll(/(?:\/home\/agent|~|\$HOME|\$\{HOME\})\/projects\/([A-Za-z0-9_-]+)/g))
+  for (const m of text.matchAll(/(?:\/home\/agent|\/shared|~|\$HOME|\$\{HOME\})\/projects\/([A-Za-z0-9_-]+)/g))
     if (m[1]) out.add(m[1]);
   return [...out];
 }

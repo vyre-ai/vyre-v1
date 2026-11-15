@@ -3,7 +3,8 @@
 import type { DockerHttp, DockerRequest, DockerResponse } from "../../../sandbox/src/docker.ts";
 import type { ExecResult } from "../impl.ts";
 import { fakeTmux } from "./fake-tmux.ts";
-import { BUSY_SCRIPT } from "../workspace.ts";
+import assert from "node:assert/strict";
+import { BUSY_SCRIPT, UMASK_WRAP } from "../workspace.ts";
 import type { FakeTmux, FakeTmuxOptions } from "./fake-tmux.ts";
 
 interface Box {
@@ -182,6 +183,9 @@ export function fakeDocker(o: FakeDockerOptions = {}) {
       const b = boxes.get(r[1] as string);
       if (!b || !b.running) return json(409, { message: "container is not running" });
       const body = req.json as { Cmd: string[]; Env: string[] };
+      // every exec carries the umask wrapper (workspace.ts UMASK_WRAP): it is checked here, then taken off so the fake reads the command itself
+      assert.deepEqual(body.Cmd.slice(0, UMASK_WRAP.length), [...UMASK_WRAP], `an exec without the umask wrapper: ${body.Cmd.join(" ").slice(0, 80)}`);
+      body.Cmd = body.Cmd.slice(UMASK_WRAP.length);
       const id = `exe${String(++execSeq).padStart(61, "0")}`;
       execs.set(id, await runExec(b, body.Cmd, body.Env));
       return json(201, { Id: id });

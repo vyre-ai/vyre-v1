@@ -33,6 +33,11 @@ RUN groupadd --gid 10001 agent \
 RUN mkdir -p -m 0711 /people \
  && for i in $(seq 20000 20999); do echo "u$i:x:$i:$i:person $i:/people/u$i:/bin/bash" >> /etc/passwd; echo "u$i:x:$i:" >> /etc/group; mkdir -m 0700 /people/u$i; chown $i:$i /people/u$i; done
 
+# The folders people other than the agent's owner may be let into live outside the agent's home, under /shared (the home is closed to them entirely): /shared/projects and /shared/chats can be passed through by
+# anyone and listed by no one (0711), each project and chat folder below them opens by name; /shared/Vyre is the Files mirror, the agent's own and opened to a person by name.
+RUN mkdir -p /shared/projects /shared/chats /shared/Vyre \
+ && chown -R 10001:10001 /shared && chmod 0711 /shared /shared/projects /shared/chats && chmod 0700 /shared/Vyre
+
 # One tmux config for every session: a big scrollback (the terminal tab reads it back), no status bar (the tab has its own chrome), no escape delay.
 COPY tmux.conf /etc/tmux.conf
 

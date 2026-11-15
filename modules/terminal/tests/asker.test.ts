@@ -545,3 +545,15 @@ test("mutant: what reaches a person is set again at a command once it is older t
     bindPlaceGrant(null);
   }
 });
+
+test("an admin with Manage on the agent and no share is told what anyone without a share is told of its owner's terminal: that it is there, and nothing of what it holds", async () => {
+  const w = setup({ ownerId: "usr_maya", kind: "agent" }); // everything is allowed, Manage included
+  const own = await h["terminal.run"]!(w.turn("usr_maya"), { command: "echo hi", idempotencyKey: idem() });
+  const admin = w.person("usr_admin");
+  const got = (await h["terminal.get"]!(admin, { terminalId: own.terminalId })).terminal;
+  assert.equal(got.elsewhere, true);
+  assert.equal(got.cwd, "");
+  assert.equal(got.name, "Someone else's terminal");
+  const listed = ((await h["terminal.list"]!(admin, {})).terminals as Array<{ terminalId: string; elsewhere?: boolean }>).find((x) => x.terminalId === own.terminalId);
+  assert.equal(listed?.elsewhere, true);
+});

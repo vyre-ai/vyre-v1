@@ -325,6 +325,9 @@ test("passwd is red as a command wherever it stands and behind any wrapper, and 
     "echo `passwd`",
     "echo $(passwd)",
     "su -c passwd root",
+    "/usr/bin/passwd",
+    "sudo /usr/bin/passwd bob",
+    "/bin/passwd -d x",
     "visudo",
   ];
   for (const c of red) assert.equal(isDangerous(c), true, c);
