@@ -23,9 +23,7 @@ export const headerBack = (e: Entry): boolean => e.tab === "chats" && /^(chat|th
 export const DESKTOP_ONLY: readonly PlaceId[] = ["automations", "console"];
 /** Subject kinds that belong to a desktop-only place: an automation, a run or a Journey opened from anywhere on the phone also gets the Chat-about-it line. */
 const DESKTOP_KINDS: Readonly<Record<string, PlaceId>> = {
-  automation: "automations",
-  automations: "automations",
-  run: "automations",
+  // AUTOMATIONS-BUILD-RC29 round four (lead, 15 Nov): the first page, the list, All runs, a run and its fix work on a phone, so an automation or a run opens in the place; building stays a line under the name. A Journey is still a computer's.
   journey: "automations",
   journeys: "automations",
   console: "console",
@@ -74,7 +72,7 @@ export const isAskEntry = (e: Entry): boolean => e.screen.startsWith("ask:");
 
 /** The phone screen for a place and hash. Never null: a place the phone does not have is the Chat-about-it screen. */
 export function entryFor(place: PlaceId, hash: string): Entry {
-  if ((DESKTOP_ONLY as readonly string[]).includes(place)) return desktopEntry(place, hash);
+  if ((DESKTOP_ONLY as readonly string[]).includes(place) && place !== "automations") return desktopEntry(place, hash);
   if (place === "apps") return { tab: "you", screen: `apps:${encodeURIComponent(hash)}`, title: "Apps" };
   if (place === "vault") return { tab: "you", screen: `vault:${encodeURIComponent(hash)}`, title: "Vault" };
   const t = parseHash(hash);
@@ -96,6 +94,7 @@ export function entryFor(place: PlaceId, hash: string): Entry {
   if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
   if ((TAB_PLACES as readonly string[]).includes(place)) return { tab: place as TabId, screen: place };
   if (place === "settings") return { tab: "you", screen: "you:settings", title: "Settings" };
+  if (place === "automations") return { tab: "you", screen: "you:automations", title: "Automations" };
   return { tab: "you", screen: "you" };
 }
 
@@ -143,6 +142,7 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
   if (kind === "you") {
     const what = e.screen.slice(i + 1);
     if (what === "settings") return { place: "settings", hash: "" };
+    if (what === "automations") return { place: "automations", hash: "" };
     return { place: "chats", hash: "screen=tasks.my-work" };
   }
   const place = placeForSubject(kind);

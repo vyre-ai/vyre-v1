@@ -4,7 +4,7 @@
 //   <SidebarContent title="Chats" searchPlaceholder="Search chats">{(query, slot) => <ChatsSidebarItems query={query} onOpen={slot.openBody} />}</SidebarContent>
 // Put it anywhere inside the place. The shell draws it in the slot (a portal, so the place's providers still reach it). `query` is the search field's text;
 // call `slot.openBody()` when an item is chosen so the phone leaves the list for the body. A place without <SidebarContent> has no sidebar and no slot.
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
@@ -22,7 +22,17 @@ export interface SidebarEntry {
   title: string;
   searchPlaceholder: string;
   noSearch?: boolean;
+  /** The place draws the whole column itself, its own head included (Inbox, Vault, Settings): the slot adds no title row and no search. */
+  bare?: boolean;
+  /** The place that put this here has gone and the next one has not arrived yet: the column keeps its room, with nothing in it (see SIDEBAR_HOLD_MS). */
+  held?: true;
 }
+
+/**
+ * How long the column keeps its room after a place leaves. Two places that both have a list (a Chats tab, then a Console tab) must never show a frame without the column
+ * between them: the tab strip and the body would slide across and back (owner, 15 Nov 2026; measured in team/v1/TABS-2026-11-15.md). A place with no list lets it go after this.
+ */
+export const SIDEBAR_HOLD_MS = 260;
 
 export interface SidebarSlotApi {
   /** The search field's text. */
@@ -123,7 +133,32 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
     }),
     [query, collapsed, setCollapsed, hasSidebar, p.compact, bodyOpen, entry?.title, actionsOutlet],
   );
-  const reg = useMemo(() => ({ register: setEntry, outlet }), [outlet]);
+  const letGo = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const register = useCallback((e: SidebarEntry | null): void => {
+    if (letGo.current !== null) {
+      clearTimeout(letGo.current);
+      letGo.current = null;
+    }
+    if (e !== null) {
+      setEntry(e);
+      return;
+    }
+    // the place left: keep the column's room, empty, until the next place fills it or the hold runs out
+    setEntry((cur) =>
+      cur === null ? null : { title: "", searchPlaceholder: cur.searchPlaceholder, noSearch: true, held: true },
+    );
+    letGo.current = setTimeout(() => {
+      letGo.current = null;
+      setEntry((cur) => (cur !== null && cur.held === true ? null : cur));
+    }, SIDEBAR_HOLD_MS);
+  }, []);
+  useEffect(
+    () => () => {
+      if (letGo.current !== null) clearTimeout(letGo.current);
+    },
+    [],
+  );
+  const reg = useMemo(() => ({ register, outlet }), [register, outlet]);
   return (
     <Ctx.Provider value={api}>
       <Reg.Provider value={reg}>
@@ -143,6 +178,13 @@ const OutletContext = createContext<{
   setActionsOutlet(n: unknown): void;
 } | null>(null);
 
+/** True where a shell sidebar column exists to draw in (inside the app's shell). A place that can also stand alone draws its own list when this is false. */
+export function useInSidebarSlot(): boolean {
+  const reg = useContext(Reg);
+  const slot = useContext(Ctx);
+  return reg !== null && slot !== null;
+}
+
 export function useSidebarSlot(): SidebarSlotApi {
   const v = useContext(Ctx);
   if (v === null) throw new Error("useSidebarSlot needs a SidebarSlotProvider above it");
@@ -154,19 +196,22 @@ export function SidebarContent(props: {
   title: string;
   searchPlaceholder?: string;
   /** The place has no search of its own: ⌘K is the one search (Chats). */ noSearch?: boolean;
+  /** The place draws its own head: the slot adds none. */ bare?: boolean;
   children: (query: string, slot: SidebarSlotApi) => ReactNode;
 }): ReactElement | null {
   const reg = useContext(Reg);
   const slot = useContext(Ctx);
   const search = props.searchPlaceholder ?? "Search";
-  useEffect(() => {
+  // before paint, so a place that replaces another in the same commit fills the column in that commit: no frame shows it empty
+  useLayoutEffect(() => {
     reg?.register({
       title: props.title,
       searchPlaceholder: search,
       ...(props.noSearch === true ? { noSearch: true } : {}),
+      ...(props.bare === true ? { bare: true } : {}),
     });
     return () => reg?.register(null);
-  }, [reg?.register, props.title, search, props.noSearch]);
+  }, [reg?.register, props.title, search, props.noSearch, props.bare]);
   if (reg === null || slot === null) return null;
   return <>{portalInto(reg.outlet, props.children(slot.query, slot))}</>;
 }
@@ -190,9 +235,10 @@ export function SidebarSlot(): ReactElement | null {
   const full = slot.compact;
   // On the phone an opened body replaces the list. The slot stays mounted (display none) because the place's sidebar content is portalled into its outlet.
   const away = slot.compact && slot.view === "body";
+  const bare = o.entry.bare === true;
   const inner = (
     <>
-      <View style={s.head}>
+      <View style={[s.head, bare && s.gone]}>
         <Text style={s.title} accessibilityRole="header" numberOfLines={1}>
           {o.entry.title}
         </Text>
@@ -216,7 +262,7 @@ export function SidebarSlot(): ReactElement | null {
           </Pressable>
         )}
       </View>
-      {o.entry.noSearch === true ? null : (
+      {o.entry.noSearch === true || bare ? null : (
         <View style={s.search} testID="sidebar-search">
           <MenuIcon icon={iconMarkup("search")} color="var(--ink-3)" />
           <TextInput
@@ -392,6 +438,8 @@ const PANEL =
   '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.500" y="3" width="11" height="10" rx="1.500"/><path d="M6 3v10"/></svg>';
 
 const s = StyleSheet.create({
+  // a place that draws its own head: the slot's head row is kept in the tree (its buttons' outlet stays) and takes no room
+  gone: { display: "none" },
   slot: { backgroundColor: "var(--side)" as string, minHeight: 0 },
   column: { position: "relative", minHeight: 0, flexShrink: 0 },
   full: { flex: 1 },

@@ -26,7 +26,10 @@ export interface Section {
 
 /** Why an Automation is in Needs you: it is paused (a key or connection is missing, an approval waits) or its last run failed. */
 export function needsYou(a: AutoRow): boolean {
-  return a.status === "paused" || a.failedRuns > 0 || a.lastRun?.status === "failed";
+  // one failure, one place, cleared together: a later run that went through (the fix and the run again) clears the card, the run and the amber dot at once
+  return (
+    a.status === "paused" || (a.failedRuns > 0 && a.lastRun?.status !== "succeeded") || a.lastRun?.status === "failed"
+  );
 }
 export function isRunning(a: AutoRow): boolean {
   return a.lastRun?.status === "running";
@@ -79,14 +82,11 @@ export function sectionsOf(
       groups: [...blocks.values()].filter((b) => b.rows.length > 0 || (showEmpty && b.empty && q === "")),
     };
   };
-  const needs = rows.filter(needsYou);
   const personal = rows.filter((a) => a.kind === "personal" && a.ownerId === opts.me);
   const shared = rows.filter((a) => sharedIds.has(a.id));
   const space = rows.filter((a) => a.kind === "space" && !sharedIds.has(a.id));
   const running = rows.filter(isRunning);
   const out: Section[] = [];
-  if (needs.length > 0)
-    out.push({ key: "needs", title: "Needs you", count: needs.length, loose: needs, groups: [], canAdd: false });
   const p = byGroup(personal);
   out.push({ key: "personal", title: "Personal", count: personal.length, ...p, canAdd: true });
   if (shared.length > 0 || q === "") {

@@ -170,16 +170,31 @@ export function DependencyList({
   );
 }
 
-export function Dependencies(): ReactElement {
+/** With an `automationId` the page reads "This Automation uses": only what that Automation names. Without one it is every dependency in the Space. */
+export function Dependencies({ automationId }: { automationId?: string } = {}): ReactElement {
   const data = useAutomationsData();
-  const state = useCall("automations.dependencies", {}, depsOf);
+  const all = useCall("automations.dependencies", {}, depsOf);
+  const state =
+    automationId && all.phase === "ready"
+      ? {
+          ...all,
+          value: {
+            ...all.value,
+            items: all.value.items.filter((i) => i.usedBy.some((u) => u.automationId === automationId)),
+          },
+        }
+      : all;
   const copy = (text: string): void => {
     void (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard
       ?.writeText(text)
       .catch(() => undefined);
   };
   return (
-    <Frame testID="dependencies" title="Dependencies" line={DEPS_LINE}>
+    <Frame
+      testID="dependencies"
+      title={automationId ? "This Automation uses" : "Dependencies"}
+      line={automationId ? "The apps, connections and other Automations its steps name." : DEPS_LINE}
+    >
       <Status state={state} />
       {state.phase === "ready" && state.value.items.length === 0 ? (
         <Empty

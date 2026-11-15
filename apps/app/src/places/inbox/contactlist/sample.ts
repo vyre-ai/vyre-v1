@@ -576,6 +576,8 @@ export function createSampleInbox(
     connection,
     nav,
     extras: (key) => space.extras?.[key],
+    // the sample's person is an admin of the Space
+    canBuyNumbers: true,
     numbers: () => new Map(Object.entries(space.numberInfo ?? {})),
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };

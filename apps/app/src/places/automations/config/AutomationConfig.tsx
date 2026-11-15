@@ -23,6 +23,8 @@ export interface AutomationConfigProps {
   openShare?: boolean;
   /** Drawn inside an Automation page (its Settings tab): the page already names the Automation, so the head is left out. */
   embedded?: boolean;
+  /** No Add, Share or follower buttons for a person who may not change this Automation. */
+  readOnly?: boolean;
 }
 
 export function AutomationConfig({
@@ -31,6 +33,7 @@ export function AutomationConfig({
   openPromote = false,
   openShare = false,
   embedded = false,
+  readOnly = false,
 }: AutomationConfigProps): ReactElement {
   const data = useAutomationsData();
   const q = useScreenQuery<GetOut>(CONFIG, "automation", { automationId });
@@ -77,7 +80,7 @@ export function AutomationConfig({
       />
       <ScrollView style={s.scroll} keyboardShouldPersistTaps="handled">
         {tab === "settings" ? (
-          <SettingsTab key={a.id} automation={a} openPromote={openPromote} openShare={openShare} />
+          <SettingsTab key={a.id} automation={a} openPromote={openPromote} openShare={openShare} readOnly={readOnly} />
         ) : null}
         {tab === "alerts" ? <AlertsTab key={a.id} automation={a} /> : null}
         {tab === "runs" ? <RunsTab key={a.id} automationId={a.id} version={a.version} /> : null}

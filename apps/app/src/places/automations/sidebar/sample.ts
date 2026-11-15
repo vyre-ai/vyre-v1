@@ -616,10 +616,22 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
         total: replica.rows("journeys").length,
       }) as CapMap["journeys.list"]["out"],
   );
+  // the server's draft per Automation (AUTOMATIONS-BUILD-RC29 1c): what an On Automation's edit is saved as, apart from what is live
+  const drafts = new Map<
+    string,
+    { definition: Definition; rev: number; baseVersion: number; by: string; at: number }
+  >();
+  // what an Assistant proposed and a person has not accepted (AUTOMATIONS-BUILD-RC29 phase 2): beside the Automation, never in it
+  const proposals = new Map<
+    string,
+    { definition: Definition; summary: string; by: string; for: string; baseVersion: number; at: number; steps: number }
+  >();
   replica.resolve("automations.get", (_t, input) => {
     const r = autos().find((x) => x.id === input.automationId);
+    const d = drafts.get(String(input.automationId));
+    const p = proposals.get(String(input.automationId));
     // a deleted Automation reads as absent; the canvas then says it is not available
-    return { automation: r as unknown as Automation };
+    return { automation: r as unknown as Automation, ...(d ? { draft: d } : {}), ...(p ? { proposal: p } : {}) };
   });
   replica.resolve("runs.list", (_t, input) => {
     const id = input.subject?.id;
@@ -668,6 +680,10 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
     return next;
   };
   const writes: Record<string, (input: any) => unknown> = {
+    "automations.senders": () => ({
+      senders: [{ id: "snd_1", channel: "text", address: "+14155550100", usable: true }],
+    }),
+    "automations.get": (i: { automationId: string }) => ({ automation: autos().find((x) => x.id === i.automationId) }),
     "automations.update": (i: {
       automationId: string;
       name?: string;
@@ -677,10 +693,128 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
       const cur = autos().find((x) => x.id === i.automationId);
       if (!cur) throw new Error("no such automation");
       if (i.expectedVersion !== undefined && i.expectedVersion !== cur["version"])
-        throw new Error("Someone else saved a newer version. Reload to see it.");
+        throw Object.assign(new Error("Someone else saved a newer version. Reload to see it."), {
+          code: "validation.version_conflict",
+        });
       const bump = i.definition ? { version: Number(cur["version"]) + 1, definition: i.definition } : {};
       return { automation: patch(i.automationId, { ...(i.name ? { name: i.name } : {}), ...bump }) };
     },
+    "automations.draft.save": (i: {
+      automationId: string;
+      definition: Definition;
+      expectedVersion?: number;
+      expectedRev?: number;
+    }) => {
+      const cur = autos().find((x) => x.id === i.automationId);
+      if (!cur) throw new Error("no such automation");
+      const stale = (): never => {
+        throw Object.assign(
+          new Error("Someone else changed this Automation while you were editing. Reload to see their version."),
+          { code: "validation.version_conflict" },
+        );
+      };
+      const d = drafts.get(i.automationId);
+      if (cur["status"] !== "on") {
+        if (i.expectedVersion !== undefined && i.expectedVersion !== cur["version"]) stale();
+        drafts.delete(i.automationId);
+        return { automation: patch(i.automationId, { version: Number(cur["version"]) + 1, definition: i.definition }) };
+      }
+      if (d ? i.expectedRev !== d.rev : i.expectedVersion !== undefined && i.expectedVersion !== cur["version"])
+        stale();
+      const next = {
+        definition: i.definition,
+        rev: (d?.rev ?? 0) + 1,
+        baseVersion: Number(cur["version"]),
+        by: space.me.id,
+        at: SAMPLE_NOW,
+      };
+      drafts.set(i.automationId, next);
+      return { automation: patch(i.automationId, { draftRev: next.rev }), draft: next };
+    },
+    "automations.draft.discard": (i: { automationId: string }) => {
+      drafts.delete(i.automationId);
+      return { automation: patch(i.automationId, { draftRev: 0 }) };
+    },
+    "automations.draft.propose": (i: { automationId: string; definition: Definition; summary: string }) => {
+      const cur = autos().find((x) => x.id === i.automationId);
+      if (!cur) throw new Error("no such automation");
+      const at = Date.now();
+      proposals.set(i.automationId, {
+        definition: i.definition,
+        summary: i.summary,
+        by: "agt_assistant",
+        for: "usr_me",
+        baseVersion: Number(cur["version"]),
+        at,
+        steps: i.definition.nodes.length,
+      });
+      return {
+        automation: patch(i.automationId, { proposalAt: at }),
+        proposal: proposals.get(i.automationId),
+        ok: true,
+        issues: [],
+      };
+    },
+    "automations.proposal.accept": (i: { automationId: string }) => {
+      const p = proposals.get(i.automationId);
+      const cur = autos().find((x) => x.id === i.automationId);
+      if (!cur) throw new Error("no such automation");
+      if (!p) return { automation: cur };
+      proposals.delete(i.automationId);
+      if (cur["status"] === "on") {
+        const next = {
+          definition: p.definition,
+          rev: 1,
+          baseVersion: Number(cur["version"]),
+          by: "usr_me",
+          at: Date.now(),
+        };
+        drafts.set(i.automationId, next);
+        return { automation: patch(i.automationId, { draftRev: next.rev, proposalAt: 0 }), draft: next };
+      }
+      return {
+        automation: patch(i.automationId, {
+          version: Number(cur["version"]) + 1,
+          definition: p.definition,
+          proposalAt: 0,
+        }),
+      };
+    },
+    "automations.proposal.discard": (i: { automationId: string }) => {
+      proposals.delete(i.automationId);
+      return { automation: patch(i.automationId, { proposalAt: 0 }) };
+    },
+    "automations.make_live": (i: { automationId: string; expectedRev?: number }) => {
+      const d = drafts.get(i.automationId);
+      const cur = autos().find((x) => x.id === i.automationId);
+      if (!cur) throw new Error("no such automation");
+      if (!d) return { automation: cur };
+      if (i.expectedRev !== undefined && i.expectedRev !== d.rev)
+        throw Object.assign(
+          new Error("Someone else changed this Automation while you were editing. Reload to see their version."),
+          {
+            code: "validation.version_conflict",
+          },
+        );
+      drafts.delete(i.automationId);
+      return {
+        automation: patch(i.automationId, {
+          version: Number(cur["version"]) + 1,
+          definition: d.definition,
+          draftRev: 0,
+        }),
+      };
+    },
+    "automations.test_events": () => ({
+      events: [
+        {
+          runId: "run_past1",
+          at: SAMPLE_NOW - 86_400_000,
+          payload: { name: "Sam Reyes", summary: "Intake from Sam Reyes" },
+        },
+      ],
+      sample: {},
+    }),
     "automations.validate": (i: { definition: Definition; kind?: "personal" | "space" }) => {
       const issues = [...check(i.definition, i.kind ?? "space"), ...serverIssues(i.definition)];
       return { ok: !issues.some((x) => x.severity === "error"), issues };
@@ -688,6 +822,25 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
     "automations.set_enabled": (i: { automationId: string; enabled: boolean }) => ({
       automation: patch(i.automationId, { status: i.enabled ? "on" : "off" }),
     }),
+    "automations.home": () => {
+      const rows = autos();
+      const lastOf = (a: Row) => a["lastRun"] as { runId: string; status: string; at: number } | undefined;
+      const needs = rows
+        .filter((a) => a["status"] === "paused" || lastOf(a)?.status === "failed")
+        .map((a) => ({
+          id: String(a["id"]),
+          automation: String(a["name"]),
+          why: a["status"] === "paused" ? String(a["pausedReason"] ?? "It is paused.") : "Its last run failed.",
+          at: lastOf(a)?.at ?? Number(a["updatedAt"]),
+          ...(lastOf(a)?.status === "failed" && a["status"] !== "paused" ? { runId: lastOf(a)!.runId } : {}),
+        }));
+      const ran = rows.flatMap((a) => (lastOf(a) ? [lastOf(a)!] : []));
+      return {
+        needs,
+        today: { ran: ran.length, failed: ran.filter((r) => r.status === "failed").map((r) => ({ runId: r.runId })) },
+        counts: { total: rows.length, on: rows.filter((a) => a["status"] === "on").length, needYou: needs.length },
+      };
+    },
     "automations.test": () => ({ runId: "run_test" }),
     "automations.create": (i: { name: string; groupId?: string }) => {
       const id = `aut_new${autos().length + 1}`;

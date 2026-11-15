@@ -12,8 +12,8 @@ export const MOBILE_TABS: readonly { id: TabId; label: string }[] = [
   { id: "you", label: "You" },
 ];
 
-/** Places the phone does not have: the first part of a screen key. A screen of one of these kinds is refused; links to them become the Chat-about-it screen instead. */
-export const NOT_ON_PHONE: readonly string[] = ["automations", "automation", "journeys", "journey", "console"];
+/** Places the phone does not have (Automations are on it since AUTOMATIONS-BUILD-RC29 round four: the list, a run and its fix; building says it opens on a computer): the first part of a screen key. A screen of one of these kinds is refused; links to them become the Chat-about-it screen instead. */
+export const NOT_ON_PHONE: readonly string[] = ["journeys", "journey", "console"];
 
 export interface Entry {
   tab: TabId;

@@ -5,6 +5,7 @@ import type { PlaceId } from "../rail/kits.ts";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
 import { applySkinToWindow } from "../providers/settings-skin.ts";
 import { listable } from "../reach/reach.ts";
+import { GATE, allows } from "../session/gates.ts";
 import type { Viewer } from "../reach/reach.ts";
 import { livePlace } from "../rail/kits.ts";
 import type { CmdKData } from "./controller.ts";
@@ -434,9 +435,10 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     },
     recent: () => mine(d.recent()),
     actions: (text) =>
-      [...askActions(currentScreen()), ...gateActions(state, rt.space.kind === "team", d.signOut !== undefined)].filter(
-        (a) => !text || a.title.toLowerCase().includes(text.toLowerCase()),
-      ),
+      [
+        ...askActions(currentScreen()),
+        ...gateActions(state, rt.space.kind === "team" && allows(rt, GATE.newChannel), d.signOut !== undefined),
+      ].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
     skins: () => [
       { id: system.id, name: system.name },
       ...skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent })),

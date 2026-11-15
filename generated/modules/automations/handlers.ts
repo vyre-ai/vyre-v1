@@ -20,6 +20,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.create": Handler<"automations.create", X>;
   "automations.delete": Handler<"automations.delete", X>;
   "automations.dependencies": Handler<"automations.dependencies", X>;
+  "automations.draft.discard": Handler<"automations.draft.discard", X>;
+  "automations.draft.propose": Handler<"automations.draft.propose", X>;
+  "automations.draft.save": Handler<"automations.draft.save", X>;
   "automations.draft_connector": Handler<"automations.draft_connector", X>;
   "automations.fire": Handler<"automations.fire", X>;
   "automations.followers.add": Handler<"automations.followers.add", X>;
@@ -29,6 +32,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.groups.delete": Handler<"automations.groups.delete", X>;
   "automations.groups.list": Handler<"automations.groups.list", X>;
   "automations.groups.rename": Handler<"automations.groups.rename", X>;
+  "automations.home": Handler<"automations.home", X>;
   "automations.http_read": Handler<"automations.http_read", X>;
   "automations.http_send": Handler<"automations.http_send", X>;
   "automations.key_hosts.allow": Handler<"automations.key_hosts.allow", X>;
@@ -37,6 +41,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.key_hosts.pending_bind": Handler<"automations.key_hosts.pending_bind", X>;
   "automations.key_hosts.remove": Handler<"automations.key_hosts.remove", X>;
   "automations.list": Handler<"automations.list", X>;
+  "automations.make_live": Handler<"automations.make_live", X>;
   "automations.make_personal_copy": Handler<"automations.make_personal_copy", X>;
   "automations.migrate_runs": Handler<"automations.migrate_runs", X>;
   "automations.migration_preview": Handler<"automations.migration_preview", X>;
@@ -48,6 +53,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.packages.list": Handler<"automations.packages.list", X>;
   "automations.preview_promote": Handler<"automations.preview_promote", X>;
   "automations.promote": Handler<"automations.promote", X>;
+  "automations.proposal.accept": Handler<"automations.proposal.accept", X>;
+  "automations.proposal.discard": Handler<"automations.proposal.discard", X>;
   "automations.read_docs": Handler<"automations.read_docs", X>;
   "automations.read_link": Handler<"automations.read_link", X>;
   "automations.replay": Handler<"automations.replay", X>;
@@ -64,6 +71,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.templates.list": Handler<"automations.templates.list", X>;
   "automations.templates.use": Handler<"automations.templates.use", X>;
   "automations.test": Handler<"automations.test", X>;
+  "automations.test_events": Handler<"automations.test_events", X>;
   "automations.triggers.list": Handler<"automations.triggers.list", X>;
   "automations.try_read": Handler<"automations.try_read", X>;
   "automations.undelete": Handler<"automations.undelete", X>;

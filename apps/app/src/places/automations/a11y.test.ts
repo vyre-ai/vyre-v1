@@ -53,16 +53,6 @@ test("compact order is canvas overview, selected step, data, then test", () => {
     assert.ok(next > at, name);
     at = next;
   }
-  const canvas = source("./canvas/AutomationCanvas.tsx");
-  const overview = canvas.indexOf('testID="region-canvas"');
-  const step = canvas.indexOf('testID="inspector-stack"');
-  assert.ok(overview > 0 && step > overview);
-  assert.match(canvas, /compactRegionLabel/);
-  assert.match(canvas, /COMPACT_REGIONS/);
-  assert.match(canvas, /canvasScale\(ordered, zoom\)/);
-  assert.match(canvas, /frame\.compact/);
-  assert.doesNotMatch(canvas, /Animated\./);
-  assert.doesNotMatch(canvas, /@keyframes/);
 });
 
 test("labels name the action and the state, not the icon", () => {
@@ -111,22 +101,15 @@ test("labels name the action and the state, not the icon", () => {
   assert.equal(stepStatusChip("a", [], "waiting", new Set()), "waiting");
   assert.equal(stepStatusChip("a", [{ severity: "error" }], "waiting", new Set(["a"])), "error");
   assert.equal(stepStatusChip("a", [], "done", new Set(["a"])), "tested");
-  const cards = source("./canvas/Cards.tsx");
-  const canvas = source("./canvas/AutomationCanvas.tsx");
+  const story = source("./screens/StoryView.tsx");
   const marks = source("./builder/marks.tsx");
-  assert.match(cards, /cardLabel/);
-  assert.match(cards, /\{chipText\(card\.chip, card\.issues, card\.state\)\}/, "the card draws its chip, in words");
-  assert.match(cards, /runStateText/);
-  assert.match(cards, /triggerLabel/);
-  assert.match(cards, /moreLabel/);
-  assert.match(canvas, /insertLabel/);
-  assert.match(canvas, /moreLabel/);
+  // the page's own controls name their action in words: the slot between two steps says where it adds, the head has a labelled menu
+  assert.match(story, /accessibilityLabel="Add a step here"/);
+  assert.match(source("./screens/Page.tsx"), /accessibilityLabel="More"/);
   assert.match(marks, /mappingLabel/);
   assert.match(marks, /tabLabel/);
   assert.match(marks, /COMPACT_SECTION/);
-  assert.doesNotMatch(canvas, /label="More"/);
-  assert.doesNotMatch(cards, /label="More"/);
-  for (const file of [cards, canvas, marks, source("./canvas/Inspector.tsx")]) {
+  for (const file of [story, source("./screens/BuilderPage.tsx"), marks, source("./canvas/Inspector.tsx")]) {
     assert.doesNotMatch(file, /accessibilityLabel="(more|plus|x|bolt|chevD)"/);
     assert.doesNotMatch(file, /label="(more|plus|x|bolt)"/);
   }
@@ -144,14 +127,10 @@ test("arrows walk cards, tabs, insert controls, and mappings", () => {
   assert.equal(keyNeighbour(["m1", "m2", "m3"], "m2", "ArrowUp"), "m1");
   assert.equal(keyNeighbour(["m1"], "m1", "ArrowDown"), null);
   assert.equal(keyNeighbour([], "m1", "ArrowDown"), null);
-  const canvas = source("./canvas/AutomationCanvas.tsx");
-  const cards = source("./canvas/Cards.tsx");
   const marks = source("./builder/marks.tsx");
   const tabs = source("./canvas/parts.tsx");
-  assert.match(canvas, /neighbour\(/);
-  assert.match(canvas, /keyNeighbour/);
-  assert.match(cards, /onKeyDown/);
-  assert.match(cards, /tabIndex: 0/);
+  // the picker walks its rows by the arrow keys through one pure function (picker/nav.ts, tested in nav.test.ts)
+  assert.match(source("./picker/StepPicker.tsx"), /onKeyDown/);
   assert.match(marks, /keyNeighbour/);
   assert.match(marks, /tabIndex: 0/);
   assert.match(marks, /tabIndex: on \? 0 : -1/);
@@ -166,14 +145,12 @@ test("visible focus uses the existing accent line token and adds no motion", () 
   assert.match(FOCUS_VISIBLE, /var\(--accent-line\)/);
   assert.match(focusRingCss(), /var\(--accent-line\)/);
   assert.doesNotMatch(focusRingCss(), /#[0-9A-Fa-f]{3,8}/);
-  assert.match(source("./canvas/AutomationCanvas.tsx"), /installFocusRing/);
   assert.match(source("./canvas/Inspector.tsx"), /installFocusRing/);
   assert.match(source("./canvas/parts.tsx"), /vyreFocus/);
-  assert.match(source("./canvas/Cards.tsx"), /vyreFocus/);
   for (const path of [
-    "./canvas/AutomationCanvas.tsx",
+    "./screens/BuilderPage.tsx",
+    "./screens/StoryView.tsx",
     "./canvas/Inspector.tsx",
-    "./canvas/Cards.tsx",
     "./builder/marks.tsx",
     "./config/Overlay.tsx",
   ]) {

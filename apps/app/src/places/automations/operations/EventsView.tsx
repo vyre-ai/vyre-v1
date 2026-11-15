@@ -176,7 +176,7 @@ export function LiveEvents(): ReactElement {
   return (
     <Frame
       testID="live-events"
-      title="Live Event Explorer"
+      title="Event log"
       line={EVENTS_LINE}
       actions={
         <TextButton label="Refresh" icon="loop" onPress={() => setAgain((n) => n + 1)} testID="events-refresh" />

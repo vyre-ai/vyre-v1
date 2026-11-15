@@ -737,8 +737,10 @@ function Page({
     </>
   );
   const listPane = twoPane ? (
+    // the item list is part of the Vault's page, under the tab strip: it is not a second sidebar, so the tab strip stays where it is in every place (team/v1/TABS-2026-11-15.md)
     <ResizableColumn
       paneKey="vault-list"
+      inline
       defaultWidth={380}
       grow="right"
       min={260}

@@ -522,7 +522,7 @@ test("Open its computer shows only for a request an agent made in a run or chat"
 
 test("a connection request's main button is the fix itself; Take is gone and its own actions wait in the menu", () => {
   const out = html(withConnectionTask());
-  assert.ok(has(out, 'data-testid="needs-replace-key"') && has(out, "Replace key"));
+  assert.ok(!has(out, 'data-testid="needs-replace-key"'), "nothing is offered before the Vault item is read");
   assert.ok(!has(out, 'data-testid="needs-take"') && !has(out, ">Take<"));
   assert.ok(
     !has(out, 'data-testid="needs-primary"') &&
@@ -673,4 +673,36 @@ test("what has waited days is grouped under Older, after what just arrived; with
     "each keeps the queue's order",
   );
   assert.deepEqual(splitOlder([mk("a", 5 * DAY)], SAMPLE_NOW).fresh, []);
+});
+
+test("Replace key is offered once the Vault item is read and is the person's to edit; a view-only holder is told instead", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { find, flush, installDom, mount } = await import("../../../../../../ui/src/testing/dom.ts");
+  installDom();
+  for (const [level, offered] of [
+    ["edit", true],
+    ["view", false],
+  ] as const) {
+    const s = withConnectionTask();
+    const real = s.data.call;
+    const data = {
+      ...s.data,
+      call: async (cap: string, input: unknown) => {
+        if (cap === "plugins.connections.list")
+          return {
+            connections: [{ connectionId: "mcs_1", headers: { Authorization: "Bearer #Composio_key.api_key" } }],
+          };
+        if (cap === "vault.items.list") return { items: [{ id: "itm_1", name: "Composio_key", yourLevel: level }] };
+        return real(cap as never, input as never);
+      },
+    };
+    const root = await mount(createRoot, <NeedsYou data={data as never} window={ALL} initialSelected="tsk_k" />);
+    for (let i = 0; i < 4; i++) await flush();
+    assert.equal(find(root, "needs-replace-key") !== null, offered, `${level}: Replace key offered ${offered}`);
+    assert.equal(
+      find(root, "needs-replace-key-no") !== null,
+      !offered,
+      `${level}: the reason shows when it is not offered`,
+    );
+  }
 });
