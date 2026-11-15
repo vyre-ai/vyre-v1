@@ -109,7 +109,9 @@ export function useShareSheet(deps: ShareDeps): ShareSheetApi {
           ownerId={deps.me.id}
           {...(deps.spaceName ? { spaceName: deps.spaceName } : {})}
           levels={["view", "use", "edit", "manage"]}
-          {...(t.itemType === "agent" ? { subtitle: agentShareSubtitle(othersOf(s.shares), sharedWithEveryone(s.shares)) } : {})}
+          {...(t.itemType === "agent"
+            ? { subtitle: agentShareSubtitle(othersOf(s.shares), sharedWithEveryone(s.shares)) }
+            : {})}
           shares={shareRows(s.shares, deps.nameOf, t.resourceId)}
           allowExternal={false}
           density="compact"

@@ -480,7 +480,8 @@ export const teamSteps = [
       const t = await S.page.locator("body").innerText();
       const link = (t.match(/https?:\/\/[^\s]+\/join[^\s]*/) ?? [])[0] ?? "";
       if (!link) throw new Error(`no invite link on screen: ${t.slice(0, 300)}`);
-      if (new URL(link).origin !== S.web.origin) throw new Error(`the invite link is ${link}, the Space is reached at ${S.web.origin}`);
+      if (new URL(link).origin !== S.web.origin)
+        throw new Error(`the invite link is ${link}, the Space is reached at ${S.web.origin}`);
       await S.page.screenshot({ path: path.join(S.out, "wf-09-invite-link.png") });
     },
   },
@@ -490,11 +491,23 @@ export const teamSteps = [
     run: async (S) => {
       const d = S.state.dana;
       const ownerId = S.state.ownerId ?? (await S.api("identity.me").catch(() => ({}))).person?.id;
-      const ch = (await S.api("channels.create", { name: "launch", visibility: "public", memberIds: ownerId ? [ownerId] : [], agentIds: [] })).channel;
+      const ch = (
+        await S.api("channels.create", {
+          name: "launch",
+          visibility: "public",
+          memberIds: ownerId ? [ownerId] : [],
+          agentIds: [],
+        })
+      ).channel;
       const dana = await asDana(S);
       await dana.page.goto(`${S.web.origin}/chat`, { waitUntil: "load" });
       const pw = dana.page.locator("input[type=password]").first();
-      if (await pw.waitFor({ timeout: 8000 }).then(() => true, () => false)) {
+      if (
+        await pw.waitFor({ timeout: 8000 }).then(
+          () => true,
+          () => false,
+        )
+      ) {
         await pw.fill(S.PW);
         await pw.press("Enter");
       }
@@ -514,7 +527,9 @@ export const teamSteps = [
     owner: "w-first",
     run: async (S) => {
       // a message waits for lack of an AI account; the account is added elsewhere; the card goes and the message is sent again
-      const asst = (await S.api("agents.list", {})).agents.find((a) => a.kind === "assistant") ?? (await S.api("agents.list", {})).agents[0];
+      const asst =
+        (await S.api("agents.list", {})).agents.find((a) => a.kind === "assistant") ??
+        (await S.api("agents.list", {})).agents[0];
       const started = await S.api("chat.start", { kind: "chat", agentIds: [asst.agentId], idempotencyKey: "wf-conn" });
       const threadId = started.thread.threadId;
       await S.api("chat.post", { threadId, body: "Can you summarise my week?", idempotencyKey: "wf-conn-post" });
@@ -536,7 +551,8 @@ export const teamSteps = [
       await S.page.getByTestId("files-new").click();
       const menu = await S.page.getByRole("menu").first().innerText();
       if (/Report a problem/i.test(menu)) throw new Error(`the New menu offers: ${menu.replace(/\n/g, " / ")}`);
-      for (const want of ["New Note", "New Folder", "Upload"]) if (!menu.includes(want)) throw new Error(`the New menu has no ${want}: ${menu.replace(/\n/g, " / ")}`);
+      for (const want of ["New Note", "New Folder", "Upload"])
+        if (!menu.includes(want)) throw new Error(`the New menu has no ${want}: ${menu.replace(/\n/g, " / ")}`);
       await S.page.screenshot({ path: path.join(S.out, "wf-13-files-new-menu.png") });
       await S.page.getByText("New Note", { exact: true }).first().click();
       const title = S.page.getByTestId("take-title");

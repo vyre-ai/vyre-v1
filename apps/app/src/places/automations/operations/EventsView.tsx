@@ -200,5 +200,11 @@ export function LiveEvents(): ReactElement {
 
 /** Who made an event, in a plain word: the log keeps the id, the screen never shows it. */
 function actorWords(id: string): string {
-  return id.startsWith("usr_") ? "A person" : id.startsWith("agt_") ? "An agent" : id.startsWith("svc_") ? "Vyre" : "The Space";
+  return id.startsWith("usr_")
+    ? "A person"
+    : id.startsWith("agt_")
+      ? "An agent"
+      : id.startsWith("svc_")
+        ? "Vyre"
+        : "The Space";
 }
