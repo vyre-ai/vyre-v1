@@ -619,7 +619,11 @@ export function applyPick(
   });
   if (trigger.ch === "@") {
     const insert = `@${item.kind === "Agent" ? item.label : firstWord(item.label)} `; // an agent's whole name; a person's first name, as people say it
-    return { next: place(before + insert + after, before.length + insert.length), effect: { kind: "none" } };
+    // the mention brings its own space: a space already after the cursor is not a second one ("@Scout  and")
+    return {
+      next: place(before + insert + after.replace(/^ /, ""), before.length + insert.length),
+      effect: { kind: "none" },
+    };
   }
   if (trigger.ch === ":") {
     const insert = `${item.body ?? item.label} `;
@@ -630,7 +634,7 @@ export function applyPick(
   }
   if (trigger.ch === "[[") {
     const insert = `[[${item.label}]] `;
-    const next = place(before + insert + after, before.length + insert.length);
+    const next = place(before + insert + after.replace(/^ /, ""), before.length + insert.length);
     return {
       next:
         item.ref === undefined

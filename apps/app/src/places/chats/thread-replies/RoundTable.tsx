@@ -103,9 +103,12 @@ function Table({
           {split.map((a) => `${nameOf(a.agentId).split(" ")[0] ?? ""}: ${a.headline}`).join("   ")}
         </Text>
       ) : null}
-      <Text testID={`round-table-${messageId}-answer`} style={st.answer}>
-        {shown.headline !== undefined ? `${shown.headline}. ${shown.rest}`.trim() : shown.text}
-      </Text>
+      {/* the answers are the messages above: the card keeps only the headline of the one picked, never the whole answer again */}
+      {shown.headline !== undefined ? (
+        <Text testID={`round-table-${messageId}-answer`} style={st.answer}>
+          {shown.headline}
+        </Text>
+      ) : null}
       <View style={st.foot}>
         <Pressable
           testID={`round-table-${messageId}-go`}

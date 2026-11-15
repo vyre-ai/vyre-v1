@@ -117,3 +117,10 @@ test("after the field scrolls, the wash scrolls with it", async () => {
     restore();
   }
 });
+
+test("picking a mention before a space leaves one space, not two (owner's walk, 15 Nov: \"@Scout  and @Helper\")", async () => {
+  const { applyPick } = await import("./index.tsx");
+  const state = { text: "@Sc and hello", cursor: 3, active: -1, dismissedAt: -1 } as never;
+  const { next } = applyPick(state, { ch: "@", start: 0, end: 3, query: "Sc" } as never, { kind: "Agent", label: "Scout" } as never);
+  assert.equal((next as { text: string }).text, "@Scout and hello");
+});
