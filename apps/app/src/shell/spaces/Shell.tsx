@@ -176,7 +176,9 @@ export function Sheets({
     if (!hub || Platform.OS !== "web") return undefined;
     installMotion((globalThis as { document?: Parameters<typeof installMotion>[0] }).document);
     let held: Swap | null = null;
-    hub.setHolder(() => {
+    hub.setHolder((target) => {
+      // the screen of this tab is alive behind the one on screen: it shows at once, no still copy is made of a page full of hidden screens
+      if (target !== undefined && KEPT_NOW.has(target)) return;
       if (held !== null) return;
       const swap = holdView(main.current, main.current);
       if (swap === null) return;
@@ -464,6 +466,8 @@ export function ShellStage({
     );
   const blocked = kind === "personal" ? teamOnly(state.place, state.hash) : null;
   const alive = keptTabs(tabs ?? [], activeTab?.key ?? "");
+  KEPT_NOW.clear();
+  for (const t of alive) KEPT_NOW.add(t.key);
   // The screens of the last tabs stay mounted, the ones not on screen hidden (display none, their effects off, nothing drawn through a portal): a switch back shows what the tab showed, at once, with its
   // scroll, pane and layers as they were (owner, 16 Nov 2026, F97). A tab beyond the last KEPT_TABS is dropped and made again when it is chosen, behind the held view.
   if (blocked === null && activeTab !== undefined && alive.length > 0 && Activity !== undefined) {
@@ -502,6 +506,9 @@ export function ShellStage({
     </PlaceFrame>
   );
 }
+
+/** The keys of the tabs whose screens are alive now (the holder asks). */
+const KEPT_NOW = new Set<string>();
 
 /** How many tabs keep their screen alive. */
 export const KEPT_TABS = 6;

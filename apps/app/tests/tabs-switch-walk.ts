@@ -130,11 +130,11 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
     say(`tabs: ${tabs.map((x) => x.name).join(" | ")}`);
     assert.ok(tabs.length >= names.length, "a tab for each kind");
     await page.evaluate(`
-      window.__sw = function (marker, ms) {
+      window.__sw = function (marker, ms, tabName) {
         return new Promise(function (res) {
           var t0 = performance.now();
           var re = new RegExp(marker);
-          var info = '', shown = -1, blank = 0, frames = 0, maxBlank = 0, run = 0;
+          var selAt = -1, info = '', shown = -1, blank = 0, frames = 0, maxBlank = 0, run = 0;
           function f() {
             frames++;
             var now = performance.now() - t0;
@@ -142,11 +142,12 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
             var own = [].filter.call(body.children, function (c) { return !c.hasAttribute("data-swap"); });
             var text = own.map(function (c) { return c.innerText || ""; }).join(" ");
             var swap = document.querySelector("[data-swap]") !== null;
+            if (selAt < 0) { var st = document.querySelector('[data-testid="tab-strip"] [role="tab"][aria-selected="true"]'); if (st && (st.getAttribute('aria-label') || '').indexOf(tabName) >= 0) selAt = Math.round(now); }
             if (shown < 0 && re.test(text)) shown = Math.round(now);
             var empty = text.replace(/\\s+/g, "").length < 12 && !swap;
             if (empty) { if (!info) info = body.children.length + ' kids; ' + [].map.call(body.children, function (c) { return c.tagName + '[' + (c.getAttribute('data-testid') || '') + ']:' + (c.innerHTML || '').length; }).join(','); blank++; run++; if (run > maxBlank) maxBlank = run; } else run = 0;
             if (now < ms) requestAnimationFrame(f);
-            else res({ info: info, shown: shown, blank: blank, maxBlank: maxBlank, frames: frames });
+            else res({ selAt: selAt, info: info, shown: shown, blank: blank, maxBlank: maxBlank, frames: frames });
           }
           requestAnimationFrame(f);
         });
@@ -176,13 +177,13 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
         const other = tabs.find((x) => x.id !== tab.id)!;
         await page.locator(`[data-testid="tab-${other.id}"], [data-testid="tab-${other.id}-selected"]`).first().click();
         await page.waitForTimeout(1200);
-        const rec = page.evaluate(`window.__sw(${JSON.stringify(p.marker.source)}, 1600)`);
+        const rec = page.evaluate(`window.__sw(${JSON.stringify(p.marker.source)}, 1600, ${JSON.stringify(tab.name)})`);
         await page.locator(`[data-testid="tab-${tab.id}"], [data-testid="tab-${tab.id}-selected"]`).first().click();
-        const r = (await rec) as { info: string; shown: number; blank: number; maxBlank: number; frames: number };
+        const r = (await rec) as { selAt: number; info: string; shown: number; blank: number; maxBlank: number; frames: number };
         (results[p.name] ??= []).push(r.shown);
         if (round === 0 && p.name === "file") await page.screenshot({ path: path.join(shots, "switch-file.png") });
         say(
-          `round ${round + 1} ${p.name}: first line after ${r.shown} ms, empty frames ${r.blank} (longest run ${r.maxBlank} of ${r.frames}) ${r.info}`,
+          `round ${round + 1} ${p.name}: first line after ${r.shown} ms (tab selected at ${r.selAt}), empty frames ${r.blank} (longest run ${r.maxBlank} of ${r.frames}) ${r.info}`,
         );
         if (r.shown > SWITCH_MAX_MS) say(`  over the ${SWITCH_MAX_MS} ms budget: ${p.name} ${r.shown} ms`);
         if (r.shown < 0 || r.shown > HOLD_CEILING_MS)

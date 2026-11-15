@@ -127,7 +127,8 @@ export interface ShellHub {
   fill(place: PlaceId, hash: string, title?: string, from?: string): void;
   /** The view is about to change: whoever draws the frame keeps a still copy until the next one is ready. */
   hold(): void;
-  setHolder(fn: (() => void) | null): void;
+  /** The view is about to change: `target` names the tab being shown when it is one (the shell keeps a held copy only for a screen it does not have alive). */
+  setHolder(fn: ((target?: string) => void) | null): void;
   /** Name a tab for the item it holds (its title arrives after the tab opens). */
   retitle(key: string, title: string, empty?: boolean): void;
   /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
@@ -231,7 +232,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   let refusals = 0;
   const probeLog: SwitchProbe[] = [];
   const listeners = new Set<() => void>();
-  let holder: (() => void) | null = null;
+  let holder: ((target?: string) => void) | null = null;
   const waiters: (() => void)[] = [];
   const subs = new Map<string, Map<string, readonly string[]>>();
   let snap: HubState;
@@ -490,7 +491,7 @@ export function createShellHub(options: HubOptions): ShellHub {
     },
     showTab(tab) {
       const s = open();
-      holder?.();
+      holder?.(tab.key);
       s.place = tab.place;
       s.hash = tab.hash ?? "";
       emit();
