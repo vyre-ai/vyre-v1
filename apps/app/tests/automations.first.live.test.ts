@@ -53,10 +53,19 @@ test("production Automations: the first page and list with real content, on a de
     const idOf = (o: any): string => (o.automation ?? o.data?.automation ?? o.data ?? o).id;
     const folderId = (await api("vault.folders.create", { name: "Keys", scope: "shared" })).data.folder.id as string;
     for (const name of ["Google_DWD", "Acme"])
-      await api("vault.item.put", { folderId, name, kind: "api_key", fields: [{ key: "api_key", value: "plain-fake-value" }] });
-    const task = (title: string): unknown[] => [{ id: "n1", key: "create_task", input: { title, assigned: { kind: "person", id: who } } }];
+      await api("vault.item.put", {
+        folderId,
+        name,
+        kind: "api_key",
+        fields: [{ key: "api_key", value: "plain-fake-value" }],
+      });
+    const task = (title: string): unknown[] => [
+      { id: "n1", key: "create_task", input: { title, assigned: { kind: "person", id: who } } },
+    ];
     const mk = async (name: string, nodes: unknown[], on: boolean): Promise<string> => {
-      const id = idOf(await api("automations.create", { name, definition: { triggers: [{ key: "manual" }], nodes, start: ["n1"] } }));
+      const id = idOf(
+        await api("automations.create", { name, definition: { triggers: [{ key: "manual" }], nodes, start: ["n1"] } }),
+      );
       if (on) await api("automations.set_enabled", { automationId: id, enabled: true });
       return id;
     };
@@ -64,12 +73,19 @@ test("production Automations: the first page and list with real content, on a de
     await mk("Friday task summary", task("Summary"), true);
     await mk("Draft intake", task("Intake"), false);
     await mk("Meeting notes to tasks", task("Notes"), true);
-    const ping = await mk("Ping the intake", [{ id: "n1", key: "http_request", input: { method: "GET", url: "https://127.0.0.1:1/ping" } }], true);
+    const ping = await mk(
+      "Ping the intake",
+      [{ id: "n1", key: "http_request", input: { method: "GET", url: "https://127.0.0.1:1/ping" } }],
+      true,
+    );
     await api("automations.run", { automationId: daily, payload: {} });
     await api("automations.run", { automationId: ping, payload: {} });
     await page.waitForTimeout(4000);
 
-    const homeRes = await context.request.post(`${web.origin}/v1/automations/home`, { headers: { authorization: `Bearer ${token}` }, data: {} });
+    const homeRes = await context.request.post(`${web.origin}/v1/automations/home`, {
+      headers: { authorization: `Bearer ${token}` },
+      data: {},
+    });
     console.log("HOME", homeRes.status(), (await homeRes.text()).slice(0, 500));
     await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
     await page.getByTestId("first-page").waitFor({ timeout: 30_000 });
@@ -82,11 +98,18 @@ test("production Automations: the first page and list with real content, on a de
     assert.equal(body.includes("Google_DWD"), false, "the admin-only company key is never suggested");
     assert.match(body, /Today/);
     const list = await page.getByTestId("auto-list").innerText();
-    assert.equal((list.match(/Automations/g) ?? []).length <= 1, true, "the word Automations is not said twice in the list");
+    assert.equal(
+      (list.match(/Automations/g) ?? []).length <= 1,
+      true,
+      "the word Automations is not said twice in the list",
+    );
 
     // the same Space on a phone: first page, list, a run and its fix work; building says it opens on a computer
     const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
-    await phone.addInitScript((s) => localStorage.setItem("vyre.session.v1", s), await page.evaluate(() => localStorage.getItem("vyre.session.v1")!));
+    await phone.addInitScript(
+      (s) => localStorage.setItem("vyre.session.v1", s),
+      await page.evaluate(() => localStorage.getItem("vyre.session.v1")!),
+    );
     const p = await phone.newPage();
     p.on("pageerror", (e) => errors.push(e.message));
     await p.goto(`${web.origin}/automations`, { waitUntil: "load" });

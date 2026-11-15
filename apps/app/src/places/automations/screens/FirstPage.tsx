@@ -31,7 +31,9 @@ export function FirstPage({
   const fail = (e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work.");
   // what the page shows is decided on the server and read in one call: what needs the person, at most one suggestion, the Today line, the counts. It is read again whenever the list changes.
   const rows = list.status === "ready" ? list.data.automations : [];
-  const signature = rows.map((a) => `${a.id}:${a.status}:${a.lastRun?.runId ?? ""}:${a.lastRun?.status ?? ""}:${a.failedRuns}`).join("|");
+  const signature = rows
+    .map((a) => `${a.id}:${a.status}:${a.lastRun?.runId ?? ""}:${a.lastRun?.status ?? ""}:${a.failedRuns}`)
+    .join("|");
   const [home, setHome] = useState<HomeOut | null>(null);
   useEffect(() => {
     let live = true;

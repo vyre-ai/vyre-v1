@@ -86,8 +86,10 @@ const TRIGGERS: Readonly<Record<string, string>> = {
 
 export const stepSentence = (key: string): string | null => STEPS[key] ?? null;
 export const triggerSentence = (key: string): string | null => TRIGGERS[key] ?? null;
-export const fallbackSentenceKinds = (kinds: readonly string[]): string[] => kinds.filter((k) => STEPS[k] === undefined);
-export const fallbackTriggerKinds = (kinds: readonly string[]): string[] => kinds.filter((k) => TRIGGERS[k] === undefined);
+export const fallbackSentenceKinds = (kinds: readonly string[]): string[] =>
+  kinds.filter((k) => STEPS[k] === undefined);
+export const fallbackTriggerKinds = (kinds: readonly string[]): string[] =>
+  kinds.filter((k) => TRIGGERS[k] === undefined);
 
 /** A duration in words: "2d" is "2 days", "90m" is "90 minutes", "1h" is "1 hour". Anything else is kept as written. */
 export function durationWords(raw: string): string {

@@ -18,7 +18,12 @@ const DAY = 86_400_000;
 export async function home(ctx: AutoCtx): Promise<unknown> {
   const rows = ((await list(ctx, { limit: 200 })) as { automations: Row[] }).automations;
   const needs = rows
-    .filter((a) => a.status === "paused" || a.lastRun?.status === "failed" || (a.failedRuns > 0 && a.lastRun?.status !== "succeeded"))
+    .filter(
+      (a) =>
+        a.status === "paused" ||
+        a.lastRun?.status === "failed" ||
+        (a.failedRuns > 0 && a.lastRun?.status !== "succeeded"),
+    )
     .map((a) => {
       const failed = a.lastRun?.status === "failed";
       let why = "Its last run failed.";
@@ -35,7 +40,9 @@ export async function home(ctx: AutoCtx): Promise<unknown> {
       };
     })
     .sort((x, y) => y.at - x.at);
-  const offers = (await connectorOffers(ctx).catch(() => ({ offers: [] as { itemId: string; appName: string; text: string }[] }))).offers;
+  const offers = (
+    await connectorOffers(ctx).catch(() => ({ offers: [] as { itemId: string; appName: string; text: string }[] }))
+  ).offers;
   const since = ctx.now() - DAY;
   const today = rows.flatMap((a) => (a.lastRun && a.lastRun.at >= since ? [a.lastRun] : []));
   return {

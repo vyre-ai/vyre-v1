@@ -184,7 +184,11 @@ function fromTemplate(
     }
     const v = Array.isArray(raw)
       ? valueOf(
-          raw.map((x) => (x && typeof x === "object" && typeof (x as { name?: unknown }).name === "string" ? (x as { name: string }).name : x)),
+          raw.map((x) =>
+            x && typeof x === "object" && typeof (x as { name?: unknown }).name === "string"
+              ? (x as { name: string }).name
+              : x,
+          ),
           ctx,
         )
       : valueOf(raw, ctx);

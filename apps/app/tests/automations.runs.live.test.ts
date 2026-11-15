@@ -57,7 +57,11 @@ test("production Automations: a failed run is fixed in place, and a second sessi
     const bad = idOf(
       await api("automations.create", {
         name: "Ping the intake",
-        definition: { triggers: [{ key: "manual" }], nodes: [{ id: "n1", key: "http_request", input: { method: "GET", url: "https://127.0.0.1:1/ping" } }], start: ["n1"] },
+        definition: {
+          triggers: [{ key: "manual" }],
+          nodes: [{ id: "n1", key: "http_request", input: { method: "GET", url: "https://127.0.0.1:1/ping" } }],
+          start: ["n1"],
+        },
       }),
     );
     await api("automations.set_enabled", { automationId: bad, enabled: true });
@@ -67,7 +71,11 @@ test("production Automations: a failed run is fixed in place, and a second sessi
     await page.getByTestId("first-page").waitFor({ timeout: 30_000 });
     await page.waitForTimeout(1500);
     await shot("7-needs-you-failed-d");
-    assert.match(await page.getByTestId("first-page").innerText(), /Ping the intake/, "the failure is a card on the first page");
+    assert.match(
+      await page.getByTestId("first-page").innerText(),
+      /Ping the intake/,
+      "the failure is a card on the first page",
+    );
     await page.getByText("Ping the intake", { exact: true }).first().click();
     await page.getByTestId("story").waitFor({ timeout: 20_000 });
     await page.getByTestId("page-tab-runs").click();
@@ -81,7 +89,10 @@ test("production Automations: a failed run is fixed in place, and a second sessi
     await page.getByTestId("run-fix").waitFor({ timeout: 10_000 });
     await page.waitForTimeout(1200);
     await shot("7-run-fix-in-place-d");
-    assert.ok(await page.getByTestId("run-fix").getByTestId("inspector").count(), "the step's form is open in place on the run's page");
+    assert.ok(
+      await page.getByTestId("run-fix").getByTestId("inspector").count(),
+      "the step's form is open in place on the run's page",
+    );
     await page.getByTestId("run-again").click();
     await page.waitForTimeout(3500);
     const runs = await api("runs.list", { scope: "subject", subject: { type: "automation", id: bad } });
@@ -91,7 +102,11 @@ test("production Automations: a failed run is fixed in place, and a second sessi
     const two = idOf(
       await api("automations.create", {
         name: "Shared plan",
-        definition: { triggers: [{ key: "manual" }], nodes: [{ id: "a", key: "create_task", input: { title: "First", assigned: { kind: "person", id: who } } }], start: ["a"] },
+        definition: {
+          triggers: [{ key: "manual" }],
+          nodes: [{ id: "a", key: "create_task", input: { title: "First", assigned: { kind: "person", id: who } } }],
+          start: ["a"],
+        },
       }),
     );
     await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
@@ -99,11 +114,22 @@ test("production Automations: a failed run is fixed in place, and a second sessi
     await page.getByTestId("story").waitFor({ timeout: 20_000 });
     await page.waitForTimeout(1500);
     const g = await api("automations.get", { automationId: two });
-    const theirs = { ...au(g).definition, nodes: [...au(g).definition.nodes, { id: "b", key: "create_task", input: { title: "Theirs", assigned: { kind: "person", id: who } } }] };
+    const theirs = {
+      ...au(g).definition,
+      nodes: [
+        ...au(g).definition.nodes,
+        { id: "b", key: "create_task", input: { title: "Theirs", assigned: { kind: "person", id: who } } },
+      ],
+    };
     const other = await browser.newContext();
     const r2 = await other.request.post(`${web.origin}/v1/automations/draft/save`, {
       headers: { authorization: `Bearer ${token}` },
-      data: { idempotencyKey: `b-${Math.random()}`, automationId: two, definition: theirs, expectedVersion: au(g).version },
+      data: {
+        idempotencyKey: `b-${Math.random()}`,
+        automationId: two,
+        definition: theirs,
+        expectedVersion: au(g).version,
+      },
     });
     assert.equal(r2.status(), 200, await r2.text());
     await other.close();

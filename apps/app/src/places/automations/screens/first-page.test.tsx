@@ -73,7 +73,8 @@ const offerWorld = (
       ...data,
       call: async (cap: string, input: unknown) => {
         // round four: the first page reads one server answer (automations.home); the offer the server judged finishable rides in it
-        if (cap === "automations.home") return { ...((await data.call(cap, input)) as object), ...(offers[0] ? { suggestion: offers[0] } : {}) };
+        if (cap === "automations.home")
+          return { ...((await data.call(cap, input)) as object), ...(offers[0] ? { suggestion: offers[0] } : {}) };
         if (cap.startsWith("automations.connector_offer.")) {
           calls.push({ cap, input });
           return { decision: cap.endsWith("accept") ? "accepted" : "declined" };
@@ -116,7 +117,8 @@ test("without a suggestion in the answer the page is the page", async () => {
   const none = {
     ...data,
     call: async (cap: string, input: unknown) => {
-      if (cap === "automations.home") return { needs: [], today: { ran: 0, failed: [] }, counts: { total: 0, on: 0, needYou: 0 } };
+      if (cap === "automations.home")
+        return { needs: [], today: { ran: 0, failed: [] }, counts: { total: 0, on: 0, needYou: 0 } };
       return data.call(cap, input);
     },
   };

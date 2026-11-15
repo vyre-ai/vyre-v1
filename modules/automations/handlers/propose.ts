@@ -51,7 +51,7 @@ export async function propose(ctx: AutoCtx, input: In): Promise<unknown> {
   let a: Automation;
   let madeShell = false;
   if (typeof input.automationId === "string" && input.automationId) {
-    a = seen(ctx, getAutomation(ctx, input.automationId));
+    a = seen(ctx, getAutomation(ctx, String(input.automationId)));
     await mustChange(ctx, a);
     madeShell = findProposal(ctx.db, a.id)?.madeShell === true && emptyOf(a.definition) && a.version === 1;
   } else {
@@ -79,7 +79,7 @@ export async function propose(ctx: AutoCtx, input: In): Promise<unknown> {
 export async function proposalAccept(ctx: AutoCtx, input: In): Promise<unknown> {
   if (ctx.principal.kind !== "person")
     raise(ctx, "validation.precondition_failed", PERSON_ONLY, { reason: "person_only" });
-  const a = seen(ctx, getAutomation(ctx, input.automationId));
+  const a = seen(ctx, getAutomation(ctx, String(input.automationId)));
   await mustChange(ctx, a);
   const p = findProposal(ctx.db, a.id);
   if (!p) return answer(ctx, a);
@@ -103,7 +103,7 @@ export async function proposalAccept(ctx: AutoCtx, input: In): Promise<unknown> 
  * empty Automation goes to Trash with it, so a discarded idea leaves no empty row behind.
  */
 export async function proposalDiscard(ctx: AutoCtx, input: In): Promise<unknown> {
-  const a = seen(ctx, getAutomation(ctx, input.automationId));
+  const a = seen(ctx, getAutomation(ctx, String(input.automationId)));
   const p = findProposal(ctx.db, a.id);
   if (!p) return answer(ctx, a);
   if (ctx.principal.id !== p.by) await mustChange(ctx, a);

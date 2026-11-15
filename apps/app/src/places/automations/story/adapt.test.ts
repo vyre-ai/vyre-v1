@@ -73,9 +73,12 @@ test("a reference becomes a chip that names its source and shows a sample; a tex
     { ...def, nodes: [{ id: "s1", key: "post_message", input: { text: "{{trigger.name}}" } }] },
     ctx(),
   ).steps[0]!;
-  assert.deepEqual(Object.values(name.values).find((v) => v !== undefined), {
-    chip: { label: "A form is submitted \u00b7 Name", from: "A form is submitted", sample: "Sam Reyes" },
-  });
+  assert.deepEqual(
+    Object.values(name.values).find((v) => v !== undefined),
+    {
+      chip: { label: "A form is submitted \u00b7 Name", from: "A form is submitted", sample: "Sam Reyes" },
+    },
+  );
 });
 
 test("a Paths step with two lanes shows If yes and Otherwise, and what comes after both lanes follows them", () => {

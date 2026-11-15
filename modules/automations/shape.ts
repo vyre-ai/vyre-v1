@@ -10,7 +10,8 @@ const defs = ((registry as unknown as { $defs?: Record<string, unknown> }).$defs
 
 const resolve = (schema: unknown): Rec => {
   let s = schema;
-  for (let i = 0; i < 4 && isRec(s) && typeof s["$ref"] === "string"; i++) s = defs[(s["$ref"] as string).replace("#/$defs/", "")];
+  for (let i = 0; i < 4 && isRec(s) && typeof s["$ref"] === "string"; i++)
+    s = defs[(s["$ref"] as string).replace("#/$defs/", "")];
   return isRec(s) ? s : {};
 };
 const kindOf = (schema: Rec): string => {
@@ -19,7 +20,10 @@ const kindOf = (schema: Rec): string => {
   return typeof name === "string" ? name : "";
 };
 const STEPS = new Map<string, { title: string; input: Rec }>(
-  registry.steps.map((s) => [s.key, { title: s.title.replace(/^[^:·]{1,40}\s*[:·]\s+/, ""), input: isRec(s.input) ? s.input : {} }] as const),
+  registry.steps.map(
+    (s) =>
+      [s.key, { title: s.title.replace(/^[^:·]{1,40}\s*[:·]\s+/, ""), input: isRec(s.input) ? s.input : {} }] as const,
+  ),
 );
 
 /** One sentence per step whose value is the wrong shape for its field: a person's words, the field named as the form names it. */

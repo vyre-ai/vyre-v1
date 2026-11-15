@@ -62,7 +62,15 @@ test("production Automations: a proposed draft shows its bar, Accept keeps it, D
       await api("automations.draft.propose", {
         name: "New lead follow-up",
         summary: "When you run it: call the lead, send the quote, thank them a week later.",
-        definition: { triggers: [{ key: "manual" }], nodes: [task("call", "Call the new lead", "quote"), task("quote", "Send the quote", "thank"), task("thank", "Thank them a week later")], start: ["call"] },
+        definition: {
+          triggers: [{ key: "manual" }],
+          nodes: [
+            task("call", "Call the new lead", "quote"),
+            task("quote", "Send the quote", "thank"),
+            task("thank", "Thank them a week later"),
+          ],
+          start: ["call"],
+        },
       }),
     );
     await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
@@ -70,16 +78,25 @@ test("production Automations: a proposed draft shows its bar, Accept keeps it, D
     await page.getByTestId("story").waitFor({ timeout: 20_000 });
     await page.waitForTimeout(1500);
     await shot("6-proposal-d");
-    for (const b of ["Discard", "Change", "Accept"]) assert.ok(await page.getByTestId(`sv-bar-${b}`).count(), `the bar has ${b}`);
+    for (const b of ["Discard", "Change", "Accept"])
+      assert.ok(await page.getByTestId(`sv-bar-${b}`).count(), `the bar has ${b}`);
     assert.match(await page.getByTestId("story").innerText(), /Call the new lead|Create a task/);
     const before = await api("automations.get", { automationId: first });
-    assert.equal((before.automation ?? before.data.automation).definition.nodes.length, 0, "nothing proposed is saved yet");
+    assert.equal(
+      (before.automation ?? before.data.automation).definition.nodes.length,
+      0,
+      "nothing proposed is saved yet",
+    );
     await page.getByTestId("sv-bar-Accept").click();
     await page.waitForTimeout(2000);
     await shot("6-accepted-d");
     assert.equal(await page.getByTestId("sv-bar-Accept").count(), 0, "the bar is gone");
     const after = await api("automations.get", { automationId: first });
-    assert.equal((after.automation ?? after.data.automation).definition.nodes.length, 3, "the three steps are the Automation's");
+    assert.equal(
+      (after.automation ?? after.data.automation).definition.nodes.length,
+      3,
+      "the three steps are the Automation's",
+    );
     assert.equal((after.automation ?? after.data.automation).status, "draft", "nothing was turned on");
 
     // a second proposal: Discard removes the empty Automation and the page leaves it
@@ -95,7 +112,11 @@ test("production Automations: a proposed draft shows its bar, Accept keeps it, D
     await page.waitForTimeout(2500);
     await shot("6-discarded-d");
     await page.getByTestId("first-page").waitFor({ timeout: 10_000 });
-    assert.equal(await page.getByTestId("auto-list").getByText("Second idea", { exact: true }).count(), 0, "the empty Automation is gone from the list");
+    assert.equal(
+      await page.getByTestId("auto-list").getByText("Second idea", { exact: true }).count(),
+      0,
+      "the empty Automation is gone from the list",
+    );
     assert.equal(await page.getByTestId("story").count(), 0, "the page left it");
     assert.deepEqual(errors, [], "no page error");
   } finally {

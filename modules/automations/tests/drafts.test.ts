@@ -130,11 +130,14 @@ test("a value of the wrong shape is refused at save in one sentence that names t
   const bad = goodDefinition({
     nodes: [node("t", "create_task", { title: "Call back", assigned: "usr_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" })],
   });
-  await assert.rejects(h.call("automations.draft.save", { automationId: id, definition: bad, expectedVersion: 1 }, alice), (e) => {
-    assert.equal(codeOf(e), "validation.bad_input");
-    assert.equal((e as Error).message, "Create a task: choose who it is for.");
-    return true;
-  });
+  await assert.rejects(
+    h.call("automations.draft.save", { automationId: id, definition: bad, expectedVersion: 1 }, alice),
+    (e) => {
+      assert.equal(codeOf(e), "validation.bad_input");
+      assert.equal((e as Error).message, "Create a task: choose who it is for.");
+      return true;
+    },
+  );
   // the shape the engine reads is saved
   const ok = goodDefinition({
     nodes: [node("t", "create_task", { title: "Call back", assigned: { kind: "person", id: "usr_alice" } })],

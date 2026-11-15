@@ -163,6 +163,11 @@ export function Inspector({
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
   const autoData = useOptionalAutomationsData();
+  // a row's orange button opens the form on the control that is needed: the effect sits above every early return, the function it calls is set where the form is built
+  const focusNeedRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (autoFocusNeed) focusNeedRef.current?.();
+  }, [autoFocusNeed, node?.id]);
   const openConnect = useOpenConnect();
   const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
   const zone = usePersonZone();
@@ -486,9 +491,7 @@ export function Inspector({
     el?.scrollIntoView?.({ block: "center" });
     el?.focus?.();
   };
-  useEffect(() => {
-    if (autoFocusNeed && needLine) focusFirstNeeded();
-  }, [autoFocusNeed, node.id]);
+  focusNeedRef.current = needLine ? focusFirstNeeded : null;
   return (
     <DataWordsContext.Provider value={dataWords}>
       <MapTargetContext.Provider value={{ set: setMapTarget }}>

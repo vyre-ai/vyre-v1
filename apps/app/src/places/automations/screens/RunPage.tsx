@@ -120,7 +120,12 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
           onPress={() => {
             setNote(null);
             void data
-              .call("automations.replay", { automationId: state.automationId, runId, version: "current", confirm: true })
+              .call("automations.replay", {
+                automationId: state.automationId,
+                runId,
+                version: "current",
+                confirm: true,
+              })
               .then(
                 (o) => {
                   setFixing(false);

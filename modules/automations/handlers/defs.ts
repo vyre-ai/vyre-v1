@@ -741,7 +741,10 @@ export async function get(ctx: AutoCtx, input: In): Promise<unknown> {
   const d = findDraft(ctx.db, a.id);
   const p = findProposal(ctx.db, a.id);
   // a run's page reads the version the run RAN on (pinned), not the definition as it is now
-  const ran = typeof input.version === "number" && input.version !== a.version ? versionDefinition(ctx.db, a.id, input.version) : undefined;
+  const ran =
+    typeof input.version === "number" && input.version !== a.version
+      ? versionDefinition(ctx.db, a.id, input.version)
+      : undefined;
   return {
     automation: ran ? { ...out(a), definition: ran } : out(a),
     canEdit: await canChangeSpace(ctx, a),
@@ -921,10 +924,7 @@ export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
 const EMPTY: Definition = { triggers: [{ key: "manual" }], nodes: [] };
 
 export function checkStructure(ctx: AutoCtx, def: Definition): void {
-  const bad = [
-    ...structuralIssues(def),
-    ...shapeIssues(def).map((x) => issue("error", x.message, x.nodeId)),
-  ];
+  const bad = [...structuralIssues(def), ...shapeIssues(def).map((x) => issue("error", x.message, x.nodeId))];
   if (bad.length) raise(ctx, "validation.bad_input", bad[0]!.message, { issues: bad });
 }
 

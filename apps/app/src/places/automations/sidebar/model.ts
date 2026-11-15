@@ -27,7 +27,9 @@ export interface Section {
 /** Why an Automation is in Needs you: it is paused (a key or connection is missing, an approval waits) or its last run failed. */
 export function needsYou(a: AutoRow): boolean {
   // one failure, one place, cleared together: a later run that went through (the fix and the run again) clears the card, the run and the amber dot at once
-  return a.status === "paused" || (a.failedRuns > 0 && a.lastRun?.status !== "succeeded") || a.lastRun?.status === "failed";
+  return (
+    a.status === "paused" || (a.failedRuns > 0 && a.lastRun?.status !== "succeeded") || a.lastRun?.status === "failed"
+  );
 }
 export function isRunning(a: AutoRow): boolean {
   return a.lastRun?.status === "running";

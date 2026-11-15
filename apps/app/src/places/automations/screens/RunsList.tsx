@@ -31,7 +31,10 @@ export function RunsList({ automationId }: { automationId?: string }): ReactElem
   useEffect(() => {
     let live = true;
     void data
-      .call("runs.list", automationId ? { scope: "subject", subject: { type: "automation", id: automationId } } : { scope: "mine" })
+      .call(
+        "runs.list",
+        automationId ? { scope: "subject", subject: { type: "automation", id: automationId } } : { scope: "mine" },
+      )
       .then(
         (o) => live && setRuns(((o as { runs?: RunLine[] }).runs ?? []).filter((r) => r.status !== undefined)),
         () => live && setRuns([]),

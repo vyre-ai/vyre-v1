@@ -110,7 +110,7 @@ export const handlers = {
   "automations.groups.list": groupsList,
   "automations.groups.rename": groupsRename,
   "automations.list": list,
-  "automations.home": (ctx) => home(ctx),
+  "automations.home": (ctx: AutoCtx) => home(ctx),
   "automations.make_personal_copy": makePersonalCopy,
   "automations.migrate_runs": migrateRuns,
   "automations.migration_preview": migrationPreview,

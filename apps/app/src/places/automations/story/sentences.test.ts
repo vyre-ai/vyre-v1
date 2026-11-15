@@ -4,16 +4,8 @@ import { registry } from "../../../../../../generated/registry.ts";
 import { durationWords, fallbackSentenceKinds, fallbackTriggerKinds, parseTemplate } from "./sentences.ts";
 
 test("every step kind and trigger kind the server lists has a sentence, or is named as falling back", () => {
-  assert.deepEqual(
-    fallbackSentenceKinds(registry.steps.map((s) => s.key)),
-    [],
-    "step kinds with no sentence",
-  );
-  assert.deepEqual(
-    fallbackTriggerKinds(registry.triggers.map((t) => t.key)),
-    [],
-    "trigger kinds with no sentence",
-  );
+  assert.deepEqual(fallbackSentenceKinds(registry.steps.map((s) => s.key)), [], "step kinds with no sentence");
+  assert.deepEqual(fallbackTriggerKinds(registry.triggers.map((t) => t.key)), [], "trigger kinds with no sentence");
 });
 
 test("durations are words and a template parses into literals, slots and optional groups", () => {
