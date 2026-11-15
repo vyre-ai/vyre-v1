@@ -69,6 +69,20 @@ test("three turns write files; going back to the second puts the first turn's fi
     const msgs = (await call(d, "chat.messages.list", { threadId })).data.messages as { body: string }[];
     assert.ok(msgs.some((m) => m.body === "writefile c.txt see"), "the chat still shows the later messages");
     assert.ok(msgs.some((m) => /^Went back/.test(m.body)));
+    // the later messages are folded away for the chat (a rewind in force with a range) and still readable; the line names who went back
+    const live = (await call(d, "engine.rewind.points", { threadId })).data as {
+      active: { afterSeq: number; uptoSeq: number; by: string; undoPointId?: string }[];
+    };
+    assert.equal(live.active.length, 1, "one rewind in force");
+    const range = live.active[0]!;
+    assert.ok(range.uptoSeq > range.afterSeq && range.undoPointId, "a range to fold and the point that undoes it");
+    const folded = (
+      (await call(d, "chat.messages.list", { threadId })).data.messages as { body: string; threadSeq: number }[]
+    ).filter((m) => m.threadSeq > range.afterSeq && m.threadSeq <= range.uptoSeq && !/^Went back/.test(m.body));
+    assert.ok(
+      folded.some((m) => m.body === "writefile b.txt bee") && folded.some((m) => m.body === "writefile c.txt see"),
+      "the folded messages are still there to read",
+    );
     // the agent's next turn does not read what came after the point: it is given the first ask, and not the later ones
     assert.equal(await seenBy(d, threadId, agentId, "rw-h1"), "a=yes b=no c=no");
     // undo: the point the rewind took first brings the files back and the messages are read again
@@ -83,6 +97,8 @@ test("three turns write files; going back to the second puts the first turn's fi
     assert.equal(read(work, "b.txt"), "bee\n");
     assert.equal(read(work, "c.txt"), "see\n");
     assert.equal(await seenBy(d, threadId, agentId, "rw-h2"), "a=yes b=yes c=yes", "the messages are read again");
+    const after = (await call(d, "engine.rewind.points", { threadId })).data as { active: unknown[] };
+    assert.equal(after.active.length, 0, "after Undo nothing is folded");
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });
