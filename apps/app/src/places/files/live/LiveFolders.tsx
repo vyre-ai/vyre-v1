@@ -1,5 +1,6 @@
 // Live folders (rc.8): the Files view that lists every mount with its source logo, live or last synced, lag, conflicts, who can see it, and the buttons that mend or move it. Reads and writes go through
 // `data`, which the shell fills; the places's own rows are ui/Row. Empty: a quiet line and the Connect a folder button. Error: a retry.
+import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -7,7 +8,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Mark } from "../mounts/icons.tsx";
 import type { MarkKind } from "../mounts/icons.tsx";
-import { ACTION_LABEL, orderRows, summaryLine } from "./model.ts";
+import { ACTION_LABEL, orderRows, skippedWords, summaryLine } from "./model.ts";
 import type { LiveAction, LiveRow } from "./model.ts";
 
 export interface LiveFoldersProps {
@@ -26,6 +27,7 @@ const TONE = { ok: "var(--ok)", warn: "var(--warn)", bad: "var(--danger)", quiet
 
 export function LiveFolders({ rows, busy, said, onAction, onConnect, onRetry }: LiveFoldersProps): ReactElement {
   const menu = useMenu();
+  const [skippedOpen, setSkippedOpen] = useState<string | null>(null);
   // On a phone the row is the state and the line; a press opens every action in a menu (there is no room for buttons beside the words)
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < 560;
@@ -101,50 +103,79 @@ export function LiveFolders({ rows, busy, said, onAction, onConnect, onRetry }: 
         {list.map((r) => {
           const first = r.actions[0];
           return (
-            <Row
-              key={r.mountId}
-              id={`live:${r.mountId}`}
-              title={r.name}
-              tall
-              note={[r.provider, r.detail, r.who].filter((x) => x !== "").join(" · ")}
-              leading={
-                <View style={st.lead}>
-                  <Mark kind={markOf(r.kind)} size={24} />
+            <View key={r.mountId}>
+              <Row
+                id={`live:${r.mountId}`}
+                title={r.name}
+                tall
+                note={[r.provider, r.detail, r.who].filter((x) => x !== "").join(" · ")}
+                leading={
+                  <View style={st.lead}>
+                    <Mark kind={markOf(r.kind)} size={24} />
+                  </View>
+                }
+                trailing={
+                  <View style={st.trail}>
+                    <View style={[st.dot, { backgroundColor: TONE[r.tone] }]} />
+                    <Text testID={`live-state-${r.mountId}`} style={[st.state, { color: TONE[r.tone] }]}>
+                      {r.state}
+                    </Text>
+                    {first && !narrow ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${ACTION_LABEL[first]} ${r.name}`}
+                        testID={`live-act-${r.mountId}`}
+                        disabled={busy.has(r.mountId)}
+                        onPress={() => onAction(r, first)}
+                        style={[st.btn, busy.has(r.mountId) && { opacity: 0.5 }]}
+                      >
+                        <Text style={st.btnText}>{ACTION_LABEL[first]}</Text>
+                      </Pressable>
+                    ) : null}
+                    {r.actions.length > 1 && !narrow ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`More for ${r.name}`}
+                        testID={`live-more-${r.mountId}`}
+                        onPress={(e) => more(r, e)}
+                        style={st.btn}
+                      >
+                        <Text style={st.btnText}>{"…"}</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                }
+                onPress={(e) => (narrow ? more(r, e) : onAction(r, "open"))}
+              />
+              {r.skipped.length > 0 ? (
+                <View style={st.skipped}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: skippedOpen === r.mountId }}
+                    accessibilityLabel={`${skippedWords(r.skipped.length)} in ${r.name}`}
+                    testID={`live-skipped-${r.mountId}`}
+                    onPress={() => setSkippedOpen(skippedOpen === r.mountId ? null : r.mountId)}
+                  >
+                    <Text style={st.skippedLine}>
+                      {skippedWords(r.skipped.length)}
+                      {skippedOpen === r.mountId ? "" : " · See which"}
+                    </Text>
+                  </Pressable>
+                  {/* ui-rows-lint: not a list (a short note under one folder, a few lines of words) */}
+                  {skippedOpen === r.mountId
+                    ? r.skipped.map((x, i) => (
+                        <Text
+                          key={`${i}:${x.name}`}
+                          testID={`live-skipped-item-${r.mountId}-${i}`}
+                          style={st.skippedItem}
+                        >
+                          {`${x.name}: ${x.reason}`}
+                        </Text>
+                      ))
+                    : null}
                 </View>
-              }
-              trailing={
-                <View style={st.trail}>
-                  <View style={[st.dot, { backgroundColor: TONE[r.tone] }]} />
-                  <Text testID={`live-state-${r.mountId}`} style={[st.state, { color: TONE[r.tone] }]}>
-                    {r.state}
-                  </Text>
-                  {first && !narrow ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${ACTION_LABEL[first]} ${r.name}`}
-                      testID={`live-act-${r.mountId}`}
-                      disabled={busy.has(r.mountId)}
-                      onPress={() => onAction(r, first)}
-                      style={[st.btn, busy.has(r.mountId) && { opacity: 0.5 }]}
-                    >
-                      <Text style={st.btnText}>{ACTION_LABEL[first]}</Text>
-                    </Pressable>
-                  ) : null}
-                  {r.actions.length > 1 && !narrow ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`More for ${r.name}`}
-                      testID={`live-more-${r.mountId}`}
-                      onPress={(e) => more(r, e)}
-                      style={st.btn}
-                    >
-                      <Text style={st.btnText}>{"…"}</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              }
-              onPress={(e) => (narrow ? more(r, e) : onAction(r, "open"))}
-            />
+              ) : null}
+            </View>
           );
         })}
       </ScrollView>
@@ -167,6 +198,9 @@ const st = StyleSheet.create({
   },
   heading: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   quiet: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
+  skipped: { paddingLeft: 64, paddingRight: 18, paddingBottom: 8, gap: 4 },
+  skippedLine: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  skippedItem: { fontSize: 12.5, color: "var(--ink-2)" as string },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, padding: 24 },
   title: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   lead: { width: 28, alignItems: "center", justifyContent: "center" },

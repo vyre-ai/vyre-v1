@@ -249,7 +249,8 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
     } while (cursor);
   }
   json("files/folders.json", sanitize(folders, "folder", o.space));
-  for (const file of fileRows) {
+  for (const row0 of fileRows) {
+    let file = row0;
     const id = safeId(file.fileId);
     if (!seenFolders.has(file.folderId)) {
       const folder = (await read("files.folder.get", { folderId: file.folderId })).folder;
@@ -259,6 +260,23 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
       }
     }
     if (file.deletedAt !== undefined) continue;
+    // a file that lives at its provider and was never opened is an empty placeholder here: the archive holds its real bytes or says which file it could not fetch, never an empty file where a document
+    // should be. Reading it fetches it; the file is read again so its size and version are the fetched ones.
+    if (file.size === 0 && file.source !== undefined && file.kind !== "google_native") {
+      try {
+        await read("files.read", { fileId: id, as: "base64", offset: 0, length: 1 });
+        file = (await read("files.get", { fileId: id })).file ?? file;
+      } catch (e) {
+        const code =
+          (e as { error?: { code?: string }; code?: string } | null)?.error?.code ??
+          (e as { code?: string } | null)?.code;
+        if (/^(provider\.|timeout\.|auth\.|rate_limit\.|validation\.not_found)/.test(String(code)))
+          throw new SpaceExportError(
+            `${String(file.name ?? id)} lives in ${String(file.source.provider ?? "its provider")} and could not be fetched, so no archive was made. Try again when it can be reached.`,
+          );
+        throw e;
+      }
+    }
     const versionsOut = await read("files.versions", { fileId: id });
     if (!Array.isArray(versionsOut.versions) || !versionsOut.versions.length)
       throw new SpaceExportError(`Retained versions are unavailable for ${id}.`);

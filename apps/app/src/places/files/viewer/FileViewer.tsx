@@ -4,7 +4,7 @@
 // The file to open comes from the tab hash (`subject=file:<id>`); this screen never reads the hash itself.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Viewer } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { DocBlock, MarkupBox, Stroke } from "../../../../../../ui/src/Viewer/index.tsx";
@@ -30,6 +30,10 @@ import {
   subtitleOf,
   textToBlocks,
   viewerKindOf,
+  GRID_MAX_BYTES,
+  FETCH_FAILURE_CODES,
+  fetchFailureWords,
+  GRID_PREVIEW_BYTES,
 } from "./model.ts";
 import { TypeTile } from "../FileList.tsx";
 import { tileLabel } from "../tree/model.ts";
@@ -52,8 +56,13 @@ export interface FileViewerProps {
 
 type Graph = CapMap["memory.graph"]["out"];
 type Load =
-  | { status: "loading" }
+  | { status: "loading"; /** the provider, when the file is a live placeholder being fetched from it */ from?: string }
   | { status: "gone" }
+  | {
+      status: "failed";
+      /** the provider the content could not be got from, and the cause the server named */ from: string;
+      code: string;
+    }
   | { status: "ready"; data: ViewerData; comments: readonly FileComment[]; markup: Markup; graph: Graph | null };
 
 export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactElement {
@@ -77,10 +86,24 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     }
   }, [layer]);
 
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
     setLoad({ status: "loading" });
     void (async () => {
+      // a live file whose content is not here yet is fetched from its provider while this waits: say so, and say what failed if it does
+      let from = "";
+      try {
+        const head = (await d.call("files.get", { fileId })) as {
+          file: { size: number; source?: { provider: string } };
+        };
+        if (head.file.source && head.file.size === 0) {
+          from = head.file.source.provider;
+          if (live) setLoad({ status: "loading", from });
+        }
+      } catch {
+        /* the real read below says what is wrong */
+      }
       try {
         const data = (await d.call("files.viewer_data", { fileId })) as ViewerData;
         const comments = ((await d.call("files.comments.list", { fileId })) as { comments: FileComment[] }).comments;
@@ -93,17 +116,25 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
             : null;
         version.current = data.file.version;
         if (live) setLoad({ status: "ready", data, comments, markup, graph });
-      } catch {
-        if (live) setLoad({ status: "gone" });
+      } catch (e) {
+        const code =
+          (e as { code?: string; error?: { code?: string } } | null)?.code ??
+          (e as { error?: { code?: string } } | null)?.error?.code;
+        if (live)
+          setLoad(
+            from !== "" && FETCH_FAILURE_CODES.test(code ?? "")
+              ? { status: "failed", from, code: code ?? "" }
+              : { status: "gone" },
+          );
       }
     })();
     return () => {
       live = false;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [d, fileId]);
+  }, [d, fileId, attempt]);
 
-  const mounted = load.status === "ready" && load.data.file.source !== undefined;
+  const mounted = (load.status === "ready" && load.data.file.source !== undefined) || load.status === "failed";
   useEffect(() => {
     setLink(null);
     if (!mounted || !d.openUrl) return undefined;
@@ -164,11 +195,49 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
 
   if (load.status === "loading")
     return (
-      <View testID="file-viewer-loading" style={s.frame} accessibilityLabel="Loading the file">
+      <View
+        testID="file-viewer-loading"
+        style={s.frame}
+        accessibilityLabel={load.from ? `Getting this from ${load.from}` : "Loading the file"}
+      >
         <View style={s.skHead} />
         <View style={s.skBody} />
+        {load.from ? (
+          <Text style={s.getting} accessibilityLiveRegion="polite" testID="file-viewer-getting">
+            {`Getting this from ${load.from}`}
+          </Text>
+        ) : null}
       </View>
     );
+  if (load.status === "failed") {
+    const fw = fetchFailureWords(load.code, load.from);
+    return (
+      <View
+        testID="file-viewer-failed"
+        style={[s.frame, s.failedFrame]}
+        accessibilityLabel={`Could not get this from ${load.from}`}
+      >
+        <View style={s.failedBox}>
+          <States
+            kind="empty"
+            title={fw.words}
+            icon="offline"
+            {...(fw.retry ? { action: { label: "Try again", onPress: () => setAttempt((n) => n + 1) } } : {})}
+          />
+        </View>
+        {link && d.openUrl ? (
+          <Pressable
+            accessibilityRole="link"
+            testID="file-viewer-failed-open"
+            onPress={() => d.openUrl?.(link.webUrl)}
+            style={s.failedOpen}
+          >
+            <Text style={s.failedOpenText}>{openInWords(link.openIn)}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
   if (load.status === "gone" || !ready)
     return (
       <View
@@ -182,6 +251,25 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
 
   const file = ready.data.file;
   const now = d.clock().now;
+  // a spreadsheet too big to draw: say so and point at where the whole file opens (a 50 MB CSV is not sent to the page)
+  if (file.kind === "spreadsheet" && file.size > GRID_MAX_BYTES && (ready.data.text ?? "") === "")
+    return (
+      <View testID="file-viewer-toolarge" style={[s.frame, s.failedFrame]} accessibilityLabel="Too large to preview">
+        <View style={s.failedBox}>
+          <States kind="empty" title="Too large to preview here" icon="doc" />
+        </View>
+        {link && d.openUrl ? (
+          <Pressable
+            accessibilityRole="link"
+            testID="file-viewer-toolarge-open"
+            onPress={() => d.openUrl?.(link.webUrl)}
+            style={s.failedOpen}
+          >
+            <Text style={s.failedOpenText}>{openInWords(link.openIn)}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
   const addBox = (next: readonly MarkupBox[]): void => {
     const known = new Set(boxes.map((b) => b.id));
     const fresh = next.find((b) => !known.has(b.id));
@@ -194,6 +282,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const saveStrokes = (next: readonly Stroke[]): void => {
     void saveMarkup(d, fileId, next).catch(say);
   };
+  const sheetCount = Array.isArray(ready.data.sheets) ? ready.data.sheets.length : 0;
+  const firstOfMany = file.kind === "spreadsheet" && sheetCount > 1;
+  const cutShort = file.kind === "spreadsheet" && file.size > GRID_PREVIEW_BYTES && file.size <= GRID_MAX_BYTES;
   const edit = (next: readonly DocBlock[]): void => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -443,6 +534,16 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         }
       />
       {accessMenu.element}
+      {firstOfMany && !note ? (
+        <Text style={[s.note, s.noteHigh]} testID="file-viewer-sheets">
+          {`Showing the first of ${sheetCount} sheets. ${link ? openInWords(link.openIn) : "Open it in its own app"} for the rest.`}
+        </Text>
+      ) : null}
+      {cutShort && !note ? (
+        <Text style={s.note} testID="file-viewer-cutshort">
+          Showing the first rows of a large file.
+        </Text>
+      ) : null}
       {note ? (
         <Text style={s.note} accessibilityLiveRegion="polite" testID="file-viewer-note">
           {note}
@@ -466,6 +567,20 @@ const s = StyleSheet.create({
   },
   tileText: { color: "var(--ink-3)" as string, fontSize: 8.5, fontWeight: "700" },
   typeTile: { marginRight: -10 },
+  getting: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "42%" as unknown as number,
+    textAlign: "center",
+    fontSize: 13,
+    color: "var(--ink-3)" as string,
+  },
+  failedFrame: { alignItems: "center", justifyContent: "center" },
+  failedBox: { height: 190, width: "100%" },
+  failedOpen: { alignSelf: "center", paddingHorizontal: 12, paddingVertical: 8, marginTop: -6 },
+  failedOpenText: { fontSize: 13, color: "var(--accent)" as string, fontWeight: "600" },
+  noteHigh: { bottom: 48 },
   note: {
     position: "absolute",
     left: 16,

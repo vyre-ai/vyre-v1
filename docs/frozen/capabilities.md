@@ -415,3 +415,9 @@ All additive: every new input is optional, no input, output or error was removed
 - The fail-closed preview: when the hold look-up fails, `computers.browser.preview` answers `state: held` with no `by` and no picture (the same state as when another person holds the browser, but it does not say who).
 - Snapshots: docs/frozen/snapshots/terminal.json and computers.json.
 - Signed: ______ (lead)
+
+## 13 Nov 2026: mounts.get, mounts.list and mounts.update gain two optional output fields (lane f-drive)
+
+The mount row these three capabilities return gains `skippedCount` (an integer, at least 1) and `skipped` (a list of up to 200 `{ name, reason }`), present only when the last pass could not bring some items in (a name Files cannot hold is now shown under a safe name; an item that still cannot be brought in is skipped, counted and listed with its reason, and the mount stays healthy). Optional output fields only: no input, version or existing field changed. The migration `modules/mounts/migrations/0004_mounts_skipped.sql` is a new additive column. The hashes of the three capabilities in `docs/frozen/snapshots/mounts.json` were written again with `node tools/gen/src/cli.ts --snapshots`.
+
+Signed: (lead, to sign at the merge)

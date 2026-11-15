@@ -6,6 +6,7 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { BlobImage } from "../BlobImage/index.tsx";
 import { AskButton } from "../AskButton/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MarkdownText } from "../stream/MarkdownText.tsx";
@@ -629,6 +630,26 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     props.onEdit?.(next);
   };
   const pick = (t: MarkupTool): void => setTool((x) => (x === t ? null : t));
+  // Esc leaves a markup tool (Draw, Pin) before it leaves anything else: it is taken here, in the capture phase, so a screen's own Esc (back to the list) sees it was used
+  useEffect(() => {
+    if (tool === null || Platform.OS !== "web") return undefined;
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener(t: string, f: (e: KeyboardEvent) => void, capture?: boolean): void;
+          removeEventListener(t: string, f: (e: KeyboardEvent) => void, capture?: boolean): void;
+        };
+      }
+    ).document;
+    if (doc === undefined) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setTool(null);
+    };
+    doc.addEventListener("keydown", onKey, true);
+    return () => doc.removeEventListener("keydown", onKey, true);
+  }, [tool]);
 
   const iconBtn = (
     label: string,
@@ -927,10 +948,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         onResponderRelease={(e) => pointer("up", e)}
       >
         {props.src !== undefined ? (
-          <Image
+          <BlobImage
             accessibilityIgnoresInvertColors
             accessibilityLabel={props.title}
-            source={{ uri: props.src }}
+            uri={props.src}
             resizeMode="cover"
             style={s.pictureImg}
             testID="vw-picture"

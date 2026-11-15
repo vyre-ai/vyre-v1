@@ -492,3 +492,9 @@ test("a file that lives at a provider shows one Open in button in the header, wi
   const off = renderToStaticMarkup(<Viewer fileId="f_1" title="Plan" kind="document" blocks={BLOCKS} />);
   assert.ok(!off.includes("vw-open-in"));
 });
+
+test("the Esc source: a markup tool takes Esc in the capture phase and prevents the default, so a screen's own Esc (back to the list) sees it was used", async () => {
+  const src = (await import("node:fs")).readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  assert.match(src, /doc\.addEventListener\("keydown", onKey, true\)/);
+  assert.match(src, /if \(e\.key !== "Escape"\) return;\s+e\.preventDefault\(\);\s+setTool\(null\);/);
+});

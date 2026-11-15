@@ -35,6 +35,7 @@ import type { ShellRuntime } from "./runtime.tsx";
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { AgentFileGate, ReviewScreen, reviewKind } from "./files-review-screens.tsx";
 import { FileDetail } from "./file-detail.tsx";
+import { FileTrail } from "../../places/files/viewer/FileTrail.tsx";
 
 const TREE_W = 240;
 
@@ -94,7 +95,10 @@ function FilesBody({
   if (fileId)
     return (
       <AgentFileGate rt={rt} fileId={fileId}>
-        <FileDetail rt={rt} fileId={fileId} />
+        <View style={{ flex: 1, minHeight: 0, minWidth: 0 }}>
+          <FileTrail fileId={fileId} onBack={() => opened({})} />
+          <FileDetail rt={rt} fileId={fileId} />
+        </View>
       </AgentFileGate>
     );
   if (memory) return <MemoryMount rt={rt} route={memory} go={go} />;
