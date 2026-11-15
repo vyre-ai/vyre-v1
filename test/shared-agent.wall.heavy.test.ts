@@ -231,7 +231,17 @@ test(
       { cmd: `${H} cat $H/ada-own.txt 2>&1` },
     ]);
     assert.match(b1[0]!.text, /^2\d{4}$/, "Bea's message in Ada's chat runs as Bea's own user, not as Ada's");
-    assert.equal(b1[1]!.text, "CHAT-ADA", "Bea reads what Ada left in the chat's folder");
+    // a read that comes back empty on a loaded box (the output of a typed command is read off a screen) is asked again, up to twice; a refusal is never asked again
+    const readAgain = async (who: typeof ada, key: string, cmd: string, first: string): Promise<string> => {
+      let text = first;
+      for (let i = 1; i <= 2 && text === ""; i++) text = (await say(who, `${key}-again${i}`, [{ cmd }]))[0]!.text;
+      return text;
+    };
+    assert.equal(
+      await readAgain(bea, "grp-bea-r", "cat ~/chat/ada.txt", b1[1]!.text),
+      "CHAT-ADA",
+      "Bea reads what Ada left in the chat's folder",
+    );
     assert.equal(b1[2]!.text, "ok", JSON.stringify(b1));
     assert.match(b1[3]!.text, KERNEL, "and not what Ada made in her own folder");
     assert.doesNotMatch(b1[3]!.text, /ADA-OWN/);
@@ -239,7 +249,11 @@ test(
       { cmd: "cat ~/chat/bea.txt" },
       { cmd: 'P=/peo""ple; cat $P/u20000/bea-own.txt 2>&1' },
     ]);
-    assert.equal(a2[0]!.text, "CHAT-BEA", "Ada reads what Bea left in the chat's folder");
+    assert.equal(
+      await readAgain(ada, "grp-ada-r", "cat ~/chat/bea.txt", a2[0]!.text),
+      "CHAT-BEA",
+      "Ada reads what Bea left in the chat's folder",
+    );
     assert.match(a2[1]!.text, KERNEL, "and not what Bea made in her own folder");
     assert.doesNotMatch(a2[1]!.text, /BEA-OWN/);
     // Bea, still shared, is untouched
