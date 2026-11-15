@@ -20,7 +20,12 @@ export function useTabs(controller: TabsController): TabsState {
 export function tabSpecs(tabs: readonly TabEntry[]): TabSpec[] {
   const out: TabSpec[] = [];
   for (const t of tabs)
-    out.push({ key: t.key, title: t.title, icon: iconMarkup(t.place), ...(t.pinned === true ? { pinned: true } : {}) });
+    out.push({
+      key: t.key,
+      title: t.title,
+      icon: iconMarkup(t.place),
+      ...(t.pinned === true ? { pinned: true, iconOnly: true } : {}),
+    });
   return out;
 }
 
@@ -93,6 +98,7 @@ export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: Main
       label="Open tabs"
       hideLoneClose
       noOptions
+      listAll
       tabs={tabSpecs(state.tabs)}
       active={state.active}
       onSelect={(key) => {

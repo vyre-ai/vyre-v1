@@ -91,11 +91,15 @@ export function GoalRow({
             {needs ? (
               <View
                 testID={`goal-needs-${goal.id}`}
-                accessibilityLabel={note.lead ?? "Needs you"}
+                accessibilityLabel={goal.blocked ? `${note.lead}: ${goal.blocked.short}` : (note.lead ?? "Needs you")}
                 style={[st.needs, { backgroundColor: note.tone === "stuck" ? "var(--danger)" : "var(--warn)" }]}
               />
             ) : null}
-            {count ? (
+            {goal.blocked ? (
+              <Text testID={`goal-blocked-${goal.id}`} numberOfLines={1} style={st.blocked}>
+                {goal.blocked.short}
+              </Text>
+            ) : count ? (
               <Text testID={`goal-count-${goal.id}`} style={st.count}>
                 {count}
               </Text>
@@ -111,6 +115,7 @@ const st = StyleSheet.create({
   face: { marginRight: 9 },
   tail: { flexDirection: "row", alignItems: "center", gap: 8 },
   needs: { width: 7, height: 7, borderRadius: 4 },
+  blocked: { fontSize: 12, color: "var(--warn)" as string, maxWidth: 120 } as object,
   count: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] } as object,
   bar: { height: 3, borderRadius: 2, backgroundColor: "var(--sel)" as string, overflow: "hidden" },
   fill: { height: 3, borderRadius: 2 },

@@ -1,0 +1,10 @@
+- A goal's check-in that cannot run now tells you why, once, in words, with the one thing to do: your Vault key is not on the server, your AI account reached its usage limit (and when it resets), or the server kept failing. It shows as a Needs you item, on the goal's row and page, and in its Activity.
+- A goal whose check-in cannot run waits instead of trying again every minute. It goes on by itself when the Vault is unlocked, when the usage limit resets, or when you press Done on the Needs you item. A passing trouble is tried again a few times with a longer wait each time, and you are told only if it keeps failing.
+- Check-ins that did not run while a goal waited are counted, not replayed one by one. The next one says how many went by, and a goal that ends while waiting says so in its summary.
+- A goal no longer turns "Stuck" because its lead agent could not check in, and no longer stays stuck after the cause clears.
+- A goal's check-in count is the check-ins that ran, and a turn that failed no longer counts against the goal's turn budget.
+- A failed turn reads the same in a chat and in a goal's check-in, and no longer shows "something went wrong that Vyre has no words for" for a locked Vault.
+- A goal whose check-ins cannot run shows "Not being worked" with the reason on its row and its page, in the same words as the Needs you item and the Activity line.
+- A helper whose turn failed no longer reports "The helper finished". Its task goes to you in Needs you with the cause.
+- A task an agent could not work on because your Vault is locked, your sign-in is missing or your AI account is at its limit reaches you with that cause and what to do, not only "the agent stopped".
+- An automation's AI step that cannot run because your Vault is locked or your sign-in is missing says so in plain words, and is not tried again by itself.

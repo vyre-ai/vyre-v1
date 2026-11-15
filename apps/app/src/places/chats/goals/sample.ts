@@ -1,16 +1,35 @@
 // A Space's goals for screenshots and screen tests: "300 registrations for Lab 8" read from Luma, led by Lab Desk, in each state the page draws (active with a held send, stuck, budget at
 // 80%, paused at the budget, missed, done, a draft), plus two more goals for the sidebar. `goalsCall` answers the goals capabilities and the tasks a waiting item reads.
 import { atToken, whoToken } from "../../../../../../lib/words/time.ts";
-import type { ActivityLine, Goal, GoalLine, GoalPageData, Reading, TaskLine, WaitLine } from "./model.ts";
+import type { ActivityLine, Blocked, Goal, GoalLine, GoalPageData, Reading, TaskLine, WaitLine } from "./model.ts";
 
-export type SampleState = "active" | "stuck" | "budget" | "paused" | "missed" | "done" | "draft";
+export type SampleState =
+  | "active"
+  | "stuck"
+  | "budget"
+  | "paused"
+  | "missed"
+  | "done"
+  | "draft"
+  | "vault"
+  | "limit"
+  | "kept";
+/** The states whose check-ins cannot run: the Vault is locked, the AI plan is at its limit, the server kept failing. */
+const HELD = new Set<SampleState>(["vault", "limit", "kept"]);
 const HOUR = 3_600_000,
   DAY = 24 * HOUR;
 
 export function sampleGoals(now: number, state: SampleState = "active"): { page: GoalPageData; lines: GoalLine[] } {
   const created = now - 5 * DAY;
   const value = state === "done" ? 301 : state === "missed" ? 268 : 212;
-  const status = state === "budget" ? "waiting" : state === "active" ? "waiting" : state;
+  const status =
+    state === "budget"
+      ? "waiting"
+      : state === "active"
+        ? "waiting"
+        : HELD.has(state)
+          ? "waiting"
+          : (state as Goal["status"]);
   const goal: Goal = {
     id: "gol_lab8",
     title: "300 registrations for Lab 8",
@@ -23,9 +42,24 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
         }
       : state === "paused"
         ? { statusReason: "The budget is used: $25.10 of $25, 151 of 200 turns." }
-        : state === "active" || state === "budget"
-          ? { statusReason: "Approve: email to 1,240 Lab 7 attendees" }
-          : {}),
+        : state === "vault"
+          ? {
+              statusReason:
+                "Not being worked: your Vault key is not on this server. Open Vyre on your computer and unlock your Vault. The check-in runs when that is done.",
+            }
+          : state === "limit"
+            ? {
+                statusReason:
+                  "Not being worked: your AI account reached its usage limit. It resets Mon 17 Nov, 09:00 (Asia/Karachi). The check-in runs then. To go on sooner, let the agent use another AI account.",
+              }
+            : state === "kept"
+              ? {
+                  statusReason:
+                    "Not being worked: the server stopped while this was running. It kept failing, so check-ins wait. Ask the agent in the goal chat what is wrong, or give the goal another lead agent.",
+                }
+              : state === "active" || state === "budget"
+                ? { statusReason: "Approve: email to 1,240 Lab 7 attendees" }
+                : {}),
     owner: "usr_irfad",
     leadAgentId: "agt_labdesk",
     deadline: state === "missed" || state === "done" ? now - 2 * HOUR : now + 3 * DAY + 8 * HOUR,
@@ -217,6 +251,48 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
       by: "agt_labdesk>usr_irfad",
     },
   ];
+  // what holds the check-ins back, in the words the server says (modules/goals life.ts blockedOut), and the Activity line that said so
+  const held: Record<string, { b: Blocked; line: string }> = {
+    vault: {
+      b: {
+        cause: "person",
+        what: "Your Vault key is not on this server.",
+        fix: "Open Vyre on your computer and unlock your Vault. The check-in runs when that is done.",
+        short: "Vault locked",
+        since: now - 4 * HOUR,
+        missed: 1,
+      },
+      line: `${whoToken("agt_labdesk")} could not check in: your Vault key is not on this server. Open Vyre on your computer and unlock your Vault. The check-in runs when that is done.`,
+    },
+    limit: {
+      b: {
+        cause: "limit",
+        what: "Your AI account reached its usage limit.",
+        fix: "",
+        short: "AI plan at its limit",
+        since: now - 4 * HOUR,
+        until: now + 2 * DAY + 60_000,
+        missed: 1,
+      },
+      line: `${whoToken("agt_labdesk")} could not check in: your AI account reached its usage limit. It resets ${atToken(now + 2 * DAY)}. The check-in runs then. To go on sooner, let the agent use another AI account.`,
+    },
+    kept: {
+      b: {
+        cause: "transient",
+        what: "The server stopped while this was running.",
+        fix: "It kept failing, so check-ins wait. Ask the agent in the goal chat what is wrong, or give the goal another lead agent.",
+        short: "Server kept failing",
+        since: now - 4 * HOUR,
+        missed: 1,
+      },
+      line: `${whoToken("agt_labdesk")} could not check in: the server stopped while this was running. It kept failing, so check-ins wait. Ask the agent in the goal chat what is wrong, or give the goal another lead agent.`,
+    },
+  };
+  const heldNow = held[state];
+  if (heldNow) {
+    goal.blocked = heldNow.b;
+    activity.unshift({ at: now - 4 * HOUR + 2 * 60_000, kind: "wake", text: heldNow.line });
+  }
   const page: GoalPageData = {
     goal:
       state === "draft"
@@ -255,6 +331,7 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
     deadline: g.deadline,
     ...(g.nextCheckinAt ? { nextCheckinAt: g.nextCheckinAt } : {}),
     progress: g.progress,
+    ...(g.blocked ? { blocked: g.blocked } : {}),
     updatedAt: g.updatedAt,
   });
   const lines: GoalLine[] = [
