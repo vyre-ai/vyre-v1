@@ -732,3 +732,61 @@ test("a task slot moved by someone who cannot decide the hold is not followed, a
   );
   assert.deepEqual(findHold(h.db, p.holdId)!.approver, { kind: "person", id: bob.id });
 });
+
+// ---- an approval pressed the instant the task appears (finding F73) ----
+
+test("an approval pressed while the hold is still being linked to its task waits for it, and is not refused as another task's hold", async () => {
+  const h = harness();
+  h.callee("mail.send", () => ({ messageId: "msg_1" }));
+  let early: Promise<{ ok?: unknown; err?: unknown }> | undefined;
+  // the task exists and its approver can see it; the hold has not learned the task's id yet. This is the moment the person presses Allow.
+  h.callee("tasks.working_notes.set", () => {
+    if (!early) {
+      const holdId = (h.db.all("SELECT id FROM gate_holds") as { id: string }[])[0]!.id;
+      early = release(h, { holdId, taskId: "tsk_g1" }).then(
+        (ok) => ({ ok }),
+        (err: unknown) => ({ err }),
+      );
+    }
+    return { task: {} };
+  });
+  const p = await park(h);
+  assert.equal(p.taskId, "tsk_g1");
+  const got = await early!;
+  assert.equal(got.err, undefined, got.err ? `${reasonOf(got.err)}: ${(got.err as Error).message}` : "");
+  assert.deepEqual(got.ok, { result: { messageId: "msg_1" } });
+  assert.equal(sent(h), 1, "sent once");
+  assert.equal(findHold(h.db, p.holdId)!.state, "approved");
+});
+
+test("a deny pressed in the same moment waits the same way", async () => {
+  const h = harness();
+  let early: Promise<{ ok?: unknown; err?: unknown }> | undefined;
+  h.callee("tasks.working_notes.set", () => {
+    if (!early) {
+      const holdId = (h.db.all("SELECT id FROM gate_holds") as { id: string }[])[0]!.id;
+      early = h.call("gate.deny", { holdId, taskId: "tsk_g1", mode: "drop", note: "No." }, person(alice)).then(
+        (ok: unknown) => ({ ok }),
+        (err: unknown) => ({ err }),
+      );
+    }
+    return { task: {} };
+  });
+  const p = await park(h);
+  const got = await early!;
+  assert.equal(got.err, undefined, got.err ? `${reasonOf(got.err)}: ${(got.err as Error).message}` : "");
+  assert.notEqual(findHold(h.db, p.holdId)!.state, "held");
+});
+
+test("a hold that never finishes linking says it is still being set up, and a task that is not the hold's is still refused", async () => {
+  const h = harness();
+  const p = await park(h);
+  await refused(
+    release(h, { holdId: p.holdId, taskId: "tsk_other" }),
+    "validation.precondition_failed",
+    "task_mismatch",
+  );
+  h.db.run("UPDATE gate_holds SET task_id = '' WHERE id = ?", p.holdId);
+  await refused(release(h, p), "internal.unavailable", "setting_up");
+  assert.equal(findHold(h.db, p.holdId)!.state, "held", "nothing was released");
+});
