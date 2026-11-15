@@ -111,8 +111,8 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
       <TextBox
         label="Address"
         value={show(input["url"])}
-        mono
         placeholder="https://api.example.com/v1/items"
+        chips
         testID="field-url"
         onCommit={(t) => write(withField(input, "url", t.trim() === "" ? undefined : t.trim()))}
       />
@@ -194,6 +194,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
               value={show(input["text"])}
               mono
               rows={5}
+              chips
               testID="field-text-body"
               onCommit={(t) => write(withField(input, "text", t))}
             />
@@ -575,6 +576,7 @@ export function AiForm({
           label="Goal"
           value={show(input["prompt"])}
           placeholder="What should be done? Bring in data with Insert data."
+          chips
           testID="field-prompt"
           hint="What the agent is asked to do. Written like a note to a colleague."
           chipLabel={(ref) => chipLabel(ref, stepTitle)}
@@ -678,6 +680,7 @@ export function AiForm({
           value={doneMeansText(ai)}
           rows={4}
           placeholder="One check per line"
+          chips
           testID="field-done-means"
           hint="The reviewer checks the work against these"
           onCommit={(t) => writeAi(setDoneMeans(ai, t))}
@@ -759,6 +762,7 @@ export function AiForm({
         value={show(input["prompt"])}
         rows={6}
         placeholder="What should the AI do? Use {{ steps.name.out.field }} to bring an earlier step's data in."
+        chips
         testID="field-prompt"
         onCommit={(t) => writeInput(withField(input, "prompt", t))}
       />
