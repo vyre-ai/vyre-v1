@@ -86,7 +86,10 @@ test("while a person holds it, the agent's commands and another person's keys ar
     }
     return "";
   })();
-  assert.match(said, /A person is typing in this computer's terminal\. Your commands are refused until they hand it back/);
+  assert.match(
+    said,
+    /A person is typing in this computer's terminal\. Your commands are refused until they hand it back/,
+  );
   assert.equal((await call(hn, "terminal.input", { terminalId: id, data: "pwd\r" })).ok, true, "the holder types");
 });
 
@@ -182,7 +185,6 @@ test("an agent cannot take the keyboard", async () => {
 
 // ---- the screen and the keys (lead ruling 14 Nov): tmux's own capture with colours, and raw keys for the person who holds the keyboard
 
-
 /** A person's seat at the keyboard: takes it over, then types batch after batch with the lease, the next number and a key of their own, as the app does. */
 interface Seat {
   lease: string;
@@ -253,7 +255,13 @@ test("keys reach the terminal raw for the person who took it; while another pers
   for (const who of [hn.ctx, hn.as(AGENT)])
     assert.equal(
       await rejects(() =>
-        h["terminal.keys"]!(who, { terminalId: id, lease: dana.lease, seq: 3, idempotencyKey: "x1", keys: [{ key: "Enter" }] }),
+        h["terminal.keys"]!(who, {
+          terminalId: id,
+          lease: dana.lease,
+          seq: 3,
+          idempotencyKey: "x1",
+          keys: [{ key: "Enter" }],
+        }),
       ),
       "validation.precondition_failed",
     );
@@ -266,8 +274,17 @@ test("a key entry is exactly one of text, key or paste; keys are never in the au
   const { hn, sent } = keyed();
   const id = await open(hn);
   const dana = await sit(hn, id);
-  const at = (ks: unknown[], n: number) => ({ terminalId: id, lease: dana.lease, seq: dana.next, idempotencyKey: `bad${n}`, keys: ks });
-  assert.equal(await rejects(() => h["terminal.keys"]!(hn.ctx, at([{ text: "a", key: "Enter" }], 1))), "validation.bad_input");
+  const at = (ks: unknown[], n: number) => ({
+    terminalId: id,
+    lease: dana.lease,
+    seq: dana.next,
+    idempotencyKey: `bad${n}`,
+    keys: ks,
+  });
+  assert.equal(
+    await rejects(() => h["terminal.keys"]!(hn.ctx, at([{ text: "a", key: "Enter" }], 1))),
+    "validation.bad_input",
+  );
   assert.equal(await rejects(() => h["terminal.keys"]!(hn.ctx, at([{}], 2))), "validation.bad_input");
   await press(hn, id, dana, [{ text: "hunter2-correct-horse" }]);
   assert.equal(sent.length, 1);
@@ -287,7 +304,13 @@ test("a terminal whose host has no screen or keys says so in one sentence", asyn
   const dana = await sit(hn, id);
   assert.equal(
     await rejects(() =>
-      h["terminal.keys"]!(hn.ctx, { terminalId: id, lease: dana.lease, seq: dana.next, idempotencyKey: "nk", keys: [{ key: "Enter" }] }),
+      h["terminal.keys"]!(hn.ctx, {
+        terminalId: id,
+        lease: dana.lease,
+        seq: dana.next,
+        idempotencyKey: "nk",
+        keys: [{ key: "Enter" }],
+      }),
     ),
     "validation.precondition_failed",
   );

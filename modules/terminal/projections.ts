@@ -813,6 +813,12 @@ export function dropHold(db: Db, terminalId: string): void {
   db.run("DELETE FROM terminal_lease WHERE terminal_id = ?", terminalId);
 }
 
+/** The lease of the take-over in force, or null when it has none (a read: nothing is written). */
+export function peekLease(db: Db, terminalId: string): { lease: string; nextSeq: number } | null {
+  const r = (db.all("SELECT lease, next_seq FROM terminal_lease WHERE terminal_id = ?", terminalId) as Row[])[0];
+  return r ? { lease: s(r["lease"]), nextSeq: Number(r["next_seq"]) } : null;
+}
+
 /** The lease of the take-over in force: its id and the number the next batch of keys must carry. A take-over made before leases existed is given one when its holder next asks. */
 export function leaseOf(db: Db, terminalId: string, now: number): { lease: string; nextSeq: number } {
   const r = (db.all("SELECT lease, next_seq FROM terminal_lease WHERE terminal_id = ?", terminalId) as Row[])[0];

@@ -24,7 +24,11 @@ test(
     // the agent starts its own terminal first (its workspace is made here)
     const warm = await w.turn(ada, "once-warm", [{ cmd: "echo warm" }]);
     assert.equal(warm[0]!.text, "warm");
-    const opened = await ada.call("terminal.open", { host: "agent_computer", agentId: w.agent, idempotencyKey: "once-open" });
+    const opened = await ada.call("terminal.open", {
+      host: "agent_computer",
+      agentId: w.agent,
+      idempotencyKey: "once-open",
+    });
     assert.equal(opened.status, 200, JSON.stringify(opened.data));
     const id = opened.data.terminal.terminalId as string;
 
@@ -60,9 +64,17 @@ test(
 
     // a second person watching sees who is typing, and cannot type
     const listed = await watcher("terminal.list", { host: "agent_computer" });
-    const row = (listed.data.terminals as Array<{ terminalId: string; heldBy?: string }>).find((x) => x.terminalId === id);
+    const row = (listed.data.terminals as Array<{ terminalId: string; heldBy?: string }>).find(
+      (x) => x.terminalId === id,
+    );
     assert.equal(row?.heldBy, w.owner.id, "the watcher sees who has the keyboard");
-    const hijack = await watcher("terminal.keys", { terminalId: id, lease, seq: 3, idempotencyKey: "wes-1", keys: [{ text: "echo hijack" }] });
+    const hijack = await watcher("terminal.keys", {
+      terminalId: id,
+      lease,
+      seq: 3,
+      idempotencyKey: "wes-1",
+      keys: [{ text: "echo hijack" }],
+    });
     assert.equal(hijack.status, 422, JSON.stringify(hijack.data));
     // the agent's own commands are refused while a person types
     const refused = await w.turn(ada, "once-agent-held", [{ cmd: "echo agent-held" }]);
@@ -81,10 +93,17 @@ test(
     assert.equal(agent[0]!.text, "agent-types");
     const after = String((await ada.call("terminal.capture", { terminalId: id })).data.text);
     assert.ok(!after.includes("echo late"), "nothing typed after the give back reached the terminal");
-    assert.equal(after.split("\n").filter((l) => l.replace(/\s+$/, "") === "one").length, 1, "the repeat did not type it again");
+    assert.equal(
+      after.split("\n").filter((l) => l.replace(/\s+$/, "") === "one").length,
+      1,
+      "the repeat did not type it again",
+    );
 
     // the audit log has the person's takes, keys and give back, as theirs
-    const rows = (await ada.call("audit.list", { action: "terminal.keys" })).data.rows as Array<{ principal?: unknown; actor?: unknown }>;
+    const rows = (await ada.call("audit.list", { action: "terminal.keys" })).data.rows as Array<{
+      principal?: unknown;
+      actor?: unknown;
+    }>;
     assert.ok(rows.length >= 2, `terminal.keys is on the audit log (${rows.length})`);
     for (const cap of ["terminal.take_over", "terminal.give_back"]) {
       const r = (await ada.call("audit.list", { action: cap })).data.rows as unknown[];

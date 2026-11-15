@@ -72,13 +72,19 @@ export async function world(): Promise<World> {
     for (const s of steps) {
       if (s.tool !== undefined) {
         yield* run("tool_search", { query: s.tool.name.replace(/_/g, " ") });
-        const r = (yield* run(s.tool.name, { ...s.tool.input, idempotencyKey: `${m[1]}-${++n}-t` })) as { ok: boolean; content: unknown };
+        const r = (yield* run(s.tool.name, { ...s.tool.input, idempotencyKey: `${m[1]}-${++n}-t` })) as {
+          ok: boolean;
+          content: unknown;
+        };
         got.push({ ok: r.ok, text: JSON.stringify(r.content).slice(0, 3000) });
         continue;
       }
       if (s.typed !== undefined) {
         yield* run("tool_search", { query: "terminal open input read" });
-        const opened = (yield* run("terminal_open", { name: `typed-${m[1]}-${n}`, idempotencyKey: `${m[1]}-${++n}-o` })) as {
+        const opened = (yield* run("terminal_open", {
+          name: `typed-${m[1]}-${n}`,
+          idempotencyKey: `${m[1]}-${++n}-o`,
+        })) as {
           content: { data?: { terminal?: { terminalId?: string } }; terminal?: { terminalId?: string } };
         };
         const terminalId = (opened.content?.data ?? opened.content)?.terminal?.terminalId as string;

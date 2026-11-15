@@ -40,7 +40,7 @@ function world(opts: { failAfterApplying?: boolean; slowMs?: number } = {}) {
     },
     async keys(_id, ks) {
       if (opts.slowMs) await new Promise((r) => setTimeout(r, opts.slowMs));
-      sent.push(ks);
+      sent.push([...ks]);
       order.push(JSON.stringify(ks));
       // the host applies the keys and THEN fails (a connection lost after tmux took them): the case that ran a command twice
       if (opts.failAfterApplying) throw new Error("connection lost after the keys were applied");
@@ -49,8 +49,8 @@ function world(opts: { failAfterApplying?: boolean; slowMs?: number } = {}) {
   return { hn, sent, order };
 }
 const open = async (hn: Harness): Promise<string> =>
-  (await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: `o${++n}` })).terminal
-    .terminalId;
+  (await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: `o${++n}` }))
+    .terminal.terminalId;
 const batch = (id: string, lease: string, seq: number, key: string, text: string, extra: object = {}) => ({
   terminalId: id,
   lease,
@@ -199,7 +199,8 @@ test("who may take the keyboard: the owner of the agent and the Space's managers
 
 test("the three calls are audited as the person's own: audit always on take_over, keys and give_back", async () => {
   const { registry } = await import("../../../generated/registry.ts");
-  const caps = (registry as { capabilities: Array<{ name: string; audit?: string; idempotency?: string }> }).capabilities;
+  const caps = (registry as { capabilities: Array<{ name: string; audit?: string; idempotency?: string }> })
+    .capabilities;
   for (const name of ["terminal.take_over", "terminal.keys", "terminal.give_back"])
     assert.equal(caps.find((c) => c.name === name)?.audit, "always", name);
   assert.equal(caps.find((c) => c.name === "terminal.keys")?.idempotency, "key");

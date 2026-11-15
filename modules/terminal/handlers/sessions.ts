@@ -39,6 +39,7 @@ import {
   scopeOf,
   dropHold,
   leaseOf,
+  peekLease,
   takeOverOn,
   holderOf,
   setHold,
@@ -966,7 +967,6 @@ export async function keys(
   // an agent never types, not even for the person who holds the keyboard, and not to read a repeat's answer
   if (ctx.principal.kind === "agent")
     refuse(ctx, "You do not have the keyboard here. Take it over to type.", "not_holder", tid);
-  ctx.db.run("DELETE FROM terminal_key_batch WHERE at < ?", now - BATCH_KEEP_MS);
   // 1 a repeat of a batch this person already sent in this take-over: the first answer, nothing typed
   const key = input.idempotencyKey ?? `seq:${input.seq}`;
   const seen = (
@@ -1001,11 +1001,11 @@ export async function keys(
   needKeyboard(ctx, x);
   if (holderOf(ctx.db, tid, now) !== me)
     refuse(ctx, "You do not have the keyboard here. Take it over to type.", "not_holder", tid);
-  const cur = leaseOf(ctx.db, tid, now);
-  if (input.lease !== cur.lease)
+  // a take-over made before leases existed has none: its holder takes it again (a read here, so a refused call writes nothing)
+  const cur = peekLease(ctx.db, tid);
+  if (cur === null || input.lease !== cur.lease)
     refuse(ctx, "Your take-over of this terminal is over. Take the keyboard again to type.", "lease_old", tid);
-  if (input.seq < cur.nextSeq)
-    refuse(ctx, "Those keys were already sent.", "seq_used", tid);
+  if (input.seq < cur.nextSeq) refuse(ctx, "Those keys were already sent.", "seq_used", tid);
   if (input.seq > cur.nextSeq)
     refuse(ctx, "Some keys before these did not arrive. Take the keyboard again to type.", "seq_gap", tid);
   // 3 the keys themselves
@@ -1018,6 +1018,7 @@ export async function keys(
     );
   }
   // 4 the number is spent and the batch written down BEFORE tmux is touched: from here a repeat can only be answered, never sent again
+  ctx.db.run("DELETE FROM terminal_key_batch WHERE at < ?", now - BATCH_KEEP_MS);
   ctx.db.run(
     "INSERT INTO terminal_key_batch (terminal_id, lease, seq, batch_key, person_id, state, answer, at) VALUES (?, ?, ?, ?, ?, 'sending', NULL, ?)",
     tid,
@@ -1069,7 +1070,10 @@ export async function keys(
         ? { ok: false, code: "validation.bad_input", message: "That key is not one a terminal takes." }
         : { ok: false, code: "internal.unexpected", message: "The terminal could not take those keys." };
       settle(st);
-      if (!bad) ctx.log.warn("terminal: take those keys failed", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" });
+      if (!bad)
+        ctx.log.warn("terminal: take those keys failed", {
+          reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+        });
       return raiseStored(ctx, st);
     }
     touch(ctx.db, tid, ctx.now());

@@ -14,7 +14,8 @@ test("pictures: take over, typing, given back; desktop and phone", { timeout: 30
   if (!k) return;
   const page = k.me.page;
   const bar = page.getByTestId("terminal-popup-bar");
-  const rename = (files: string[], to: string): void => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", to)));
+  const rename = (files: string[], to: string): void =>
+    files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", to)));
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await k.computerTab();
@@ -27,7 +28,10 @@ test("pictures: take over, typing, given back; desktop and phone", { timeout: 30
     await page.keyboard.type("echo one", { delay: 0 });
     await page.keyboard.press("Enter");
     await page.waitForFunction(
-      () => /\none\n/.test((document.querySelector("[data-testid=terminal-screen]") as HTMLElement | null)?.innerText ?? ""),
+      () =>
+        /\none\n/.test(
+          (document.querySelector("[data-testid=terminal-screen]") as HTMLElement | null)?.innerText ?? "",
+        ),
       undefined,
       { timeout: 10_000 },
     );
@@ -40,8 +44,16 @@ test("pictures: take over, typing, given back; desktop and phone", { timeout: 30
     await page.getByTestId("terminal-popup").waitFor({ state: "hidden", timeout: 10_000 });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(800);
-    await page.getByTestId("pane-button").click().catch(() => undefined);
-    await page.getByTestId("tab-computer").or(page.getByTestId("tab-computer-selected")).first().click({ timeout: 15_000 }).catch(() => undefined);
+    await page
+      .getByTestId("pane-button")
+      .click()
+      .catch(() => undefined);
+    await page
+      .getByTestId("tab-computer")
+      .or(page.getByTestId("tab-computer-selected"))
+      .first()
+      .click({ timeout: 15_000 })
+      .catch(() => undefined);
     await page.locator(ROW).first().click({ timeout: 15_000 });
     await page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });
     await page.getByTestId("terminal-take").waitFor({ timeout: 10_000 });

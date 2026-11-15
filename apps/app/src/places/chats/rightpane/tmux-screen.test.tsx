@@ -134,7 +134,8 @@ const makeSeat = (): Seat & { next: number; resets: number; lease: string } => {
   };
   return seat;
 };
-const err = (code: string, reason?: string) => Object.assign(new Error(code), { code, ...(reason ? { details: { reason } } : {}) });
+const err = (code: string, reason?: string) =>
+  Object.assign(new Error(code), { code, ...(reason ? { details: { reason } } : {}) });
 const deps = (call: (cap: string, input: unknown) => Promise<unknown>, seat: Seat, holding = () => true) => ({
   call,
   terminalId: "trm_1",
@@ -234,10 +235,13 @@ test("the resend stops when the keyboard is no longer ours (given back, lost): a
 test("with no take-over to type under nothing is sent", async () => {
   let calls = 0;
   const r = await sendKeys(
-    deps(async () => {
-      calls++;
-      return { ok: true };
-    }, { get: async () => null, advance: () => undefined, reset: () => undefined }),
+    deps(
+      async () => {
+        calls++;
+        return { ok: true };
+      },
+      { get: async () => null, advance: () => undefined, reset: () => undefined },
+    ),
     [{ text: "x" }],
   );
   assert.equal(r.sent, false);
