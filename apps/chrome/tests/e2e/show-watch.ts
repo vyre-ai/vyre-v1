@@ -1,6 +1,6 @@
 // Shared by the Show Vyre how and Watch a page end-to-end tests: fixture pages, the side panel opened as its own window, the proof screenshots, the agents the fake app lists.
 export const SECRET = "hunter2-Pa55";
-export const USER = "techmanager@mylegalacademy.com";
+export const USER = "sam@northwind.example";
 
 export const STYLE = `<style>body{font:15px system-ui,sans-serif;margin:0;background:#F5F7FB;color:#1d2433}header{height:52px;background:#fff;border-bottom:1px solid #E4E8F0;display:flex;align-items:center;padding:0 18px;font-weight:600}
 main{padding:24px;max-width:560px}label{display:block;font-size:12px;color:#6B778C;margin:12px 0 4px}input{width:100%;box-sizing:border-box;height:34px;border:1px solid #D5DBE6;border-radius:6px;padding:0 10px;font:inherit}
