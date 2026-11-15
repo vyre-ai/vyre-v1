@@ -17,11 +17,11 @@ export const title = "Joining a server Space from a browser";
 
 const noop = (): void => undefined;
 const stored = {
-  baseUrl: "https://mla.vyre.run",
+  baseUrl: "https://northwind.vyre.run",
   token: "fixture-token",
-  def: { name: "My Legal Academy" },
+  def: { name: "Northwind Academy" },
 } as StoredSession;
-const owner = [{ id: "usr_owner", kind: "person", name: "Irfad Imtiaz", status: "active", roles: ["rol_owner"] }];
+const owner = [{ id: "usr_owner", kind: "person", name: "Idris Ibarra", status: "active", roles: ["rol_owner"] }];
 
 function vaultFor(
   key: { set: boolean; name?: string; models?: string[] } | null,
@@ -85,13 +85,13 @@ export default function Mount(): ReactNode {
         stored={stored}
         ai={{ choice: "sub" }}
         home="none"
-        spaceAi={{ key: { set: false }, admin: "Irfad Imtiaz (owner)" }}
+        spaceAi={{ key: { set: false }, admin: "Idris Ibarra (owner)" }}
         onOpen={noop}
         onClearSecret={noop}
       />
     );
   if (part === "signin-name") {
-    const invite = signInInvite("https://mla.vyre.run", {
+    const invite = signInInvite("https://northwind.vyre.run", {
       name: "spc_2a7c98c337e1dfd2e05e1aab",
       fingerprint: "",
       password: true,

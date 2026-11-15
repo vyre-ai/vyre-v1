@@ -413,8 +413,8 @@ test("live: the socket address swaps http for ws, drops the path and carries the
 });
 
 const WHOAMI = {
-  principal: { kind: "person", id: "usr_irfad" },
-  name: "Irfad Imtiaz",
+  principal: { kind: "person", id: "usr_idris" },
+  name: "Idris Ibarra",
   roles: ["owner"],
   groups: [],
   epoch: 1,
@@ -425,7 +425,7 @@ const SPACE = {
     id: "spc_nw",
     name: "Northwind",
     kind: "team",
-    owner: "usr_irfad",
+    owner: "usr_idris",
     fingerprint: "ab",
     address: { mode: "relay" },
     defaults: {},
@@ -456,8 +456,8 @@ test("session: opens the Space as the signed-in person and builds the card the s
     dial: fakeServer().dial,
     pollMs: 1_000_000,
   });
-  assert.equal(s.me.id, "usr_irfad");
-  assert.equal(s.runtime.me.name, "Irfad Imtiaz");
+  assert.equal(s.me.id, "usr_idris");
+  assert.equal(s.runtime.me.name, "Idris Ibarra");
   assert.equal(s.def.spaceId, "spc_nw");
   assert.equal(s.def.name, "Northwind");
   assert.equal(s.def.role, "Owner");

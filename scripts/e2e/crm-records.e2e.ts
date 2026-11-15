@@ -3,7 +3,7 @@
 // through the API that a connector, a connection holding only the Vault handle, record types with fields and a few records exist.
 //
 // NOT part of any CI glob. Run by hand:
-//   set -a; source /Users/irfad/Claude/simba/secrets/.env.simba; set +a
+//   set -a; source /Users/idris/Claude/simba/secrets/.env.simba; set +a
 //   node --import tsx --import ./scripts/shots/rn-alias.mjs scripts/e2e/crm-records.e2e.ts
 // Secrets: the token, the GoHighLevel key and the location id come from the environment, go into the Vault through its write capability (the id into the first message as the person would say
 // it) and nowhere else. Every line this script prints or saves is scrubbed of all three.
@@ -39,7 +39,7 @@ if (!TOKEN || !KEY || !LOCATION)
   );
 const OUT =
   process.env["E2E_OUT"] ??
-  "/private/tmp/claude-501/-Users-irfad-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/e2e-crm";
+  "/private/tmp/claude-501/-Users-idris-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/e2e-crm";
 const note = (name: string): string => (MODE === "run" ? name : `${name}-${MODE}-${ACCOUNT}`);
 fs.mkdirSync(OUT, { recursive: true });
 

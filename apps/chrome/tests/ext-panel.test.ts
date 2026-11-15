@@ -130,7 +130,7 @@ function fakePanelWorld(o: { incognito?: boolean; url?: string; privacy?: any[] 
       ops.push({ op, input });
       if (op === "hello")
         return {
-          spaces: [{ id: "spc_mla", name: "My Legal Academy", webUrl: "https://mla.vyre.test" }],
+          spaces: [{ id: "spc_mla", name: "Northwind Academy", webUrl: "https://northwind.vyre.test" }],
           active: "spc_mla",
           locked: false,
         };
@@ -524,7 +524,7 @@ function fakeApp(o: { signedIn?: boolean } = {}) {
     o.signedIn === false
       ? []
       : [
-          { id: "spc_mla", name: "My Legal Academy", address: "https://mla.test", token: "vst_mine" },
+          { id: "spc_mla", name: "Northwind Academy", address: "https://northwind.test", token: "vst_mine" },
           { id: "spc_me", name: "Personal", address: "http://127.0.0.1:4100", token: "vst_me" },
         ];
   const app = createChromeApp({
@@ -574,7 +574,7 @@ function fakeApp(o: { signedIn?: boolean } = {}) {
           throw Object.assign(new Error("That is not shared with you."), { code: "permission.no_grant" });
         return input.artifactId === "sit_local"
           ? { path: "/x/aaaa", url: "http://a.localhost:4100/x/aaaa", expiresAt: 5 }
-          : { path: "/x/code1", url: "https://mla-a.vyre.run/x/code1", expiresAt: 60_000 };
+          : { path: "/x/code1", url: "https://northwind-a.vyre.run/x/code1", expiresAt: 60_000 };
       }
       if (cap === "identity.whoami")
         return {
@@ -653,7 +653,7 @@ test("every call runs with the picked Space's own session; with nobody signed in
   assert.deepEqual(hello, {
     version: "1",
     spaces: [
-      { id: "spc_mla", name: "My Legal Academy", webUrl: "https://mla.test" },
+      { id: "spc_mla", name: "Northwind Academy", webUrl: "https://northwind.test" },
       { id: "spc_me", name: "Personal", webUrl: "http://127.0.0.1:4100" },
     ],
     active: "spc_me",
@@ -807,8 +807,8 @@ import { artifactLink, createArtifacts } from "../src/worker/artifacts.js";
 
 test("artifact.open mints the single-use address as the person who is signed in to that Space, and gives back only the address", async () => {
   const f = fakeApp();
-  const r = (await f.app.op("artifact.open", { url: "https://mla.test/a/sit_abc123" })) as any;
-  assert.deepEqual(r, { url: "https://mla-a.vyre.run/x/code1", expiresAt: 60_000 });
+  const r = (await f.app.op("artifact.open", { url: "https://northwind.test/a/sit_abc123" })) as any;
+  assert.deepEqual(r, { url: "https://northwind-a.vyre.run/x/code1", expiresAt: 60_000 });
   const call = f.calls.find((c) => c.cap === "sites.artifact_open")!;
   assert.deepEqual(
     [call.input, call.as],
@@ -817,7 +817,7 @@ test("artifact.open mints the single-use address as the person who is signed in 
   );
   assert.equal(
     ((await f.app.op("artifact.open", { artifactId: "sit_x1" })) as any).url,
-    "https://mla-a.vyre.run/x/code1",
+    "https://northwind-a.vyre.run/x/code1",
     "or by id, in the active Space",
   );
   const local = (await f.app.op("artifact.open", { artifactId: "sit_local" })) as any;
@@ -827,7 +827,7 @@ test("artifact.open mints the single-use address as the person who is signed in 
 test("artifact.open is refused when signed out, for a Space this person is not signed in to, for a link that is not an artifact, and for one that is not shared with them", async () => {
   const out = fakeApp({ signedIn: false });
   await assert.rejects(
-    out.app.op("artifact.open", { url: "https://mla.test/a/sit_abc123" }),
+    out.app.op("artifact.open", { url: "https://northwind.test/a/sit_abc123" }),
     (e: any) => e.code === "signed_out",
   );
   const f = fakeApp();
@@ -836,7 +836,7 @@ test("artifact.open is refused when signed out, for a Space this person is not s
     (e: any) => e.code === "not_this_space",
   );
   await assert.rejects(
-    f.app.op("artifact.open", { url: "https://mla.test/files/sit_abc123" }),
+    f.app.op("artifact.open", { url: "https://northwind.test/files/sit_abc123" }),
     (e: any) => e.code === "validation.bad_input",
   );
   await assert.rejects(
@@ -848,7 +848,7 @@ test("artifact.open is refused when signed out, for a Space this person is not s
     (e: any) => e.code === "validation.bad_input",
   );
   await assert.rejects(
-    f.app.op("artifact.open", { url: "https://mla.test/a/sit_private" }),
+    f.app.op("artifact.open", { url: "https://northwind.test/a/sit_private" }),
     (e: any) => e.code === "permission.no_grant",
     "the Space's own refusal reaches the caller",
   );
@@ -860,12 +860,12 @@ test("artifact.open is refused when signed out, for a Space this person is not s
 });
 
 test("the worker takes over only a real artifact link, opens what the Space gave in a tab, and lets anything else load as it was going to", async () => {
-  assert.deepEqual(artifactLink("https://mla.test/a/sit_abc123"), { host: "mla.test", id: "sit_abc123" });
+  assert.deepEqual(artifactLink("https://northwind.test/a/sit_abc123"), { host: "northwind.test", id: "sit_abc123" });
   for (const no of [
-    "https://mla.test/a/other",
-    "https://mla.test/a/sit_abc/x",
-    "ftp://mla.test/a/sit_abc",
-    "http://mla.test/a/sit_abc",
+    "https://northwind.test/a/other",
+    "https://northwind.test/a/sit_abc/x",
+    "ftp://northwind.test/a/sit_abc",
+    "http://northwind.test/a/sit_abc",
     "",
     null,
   ])
@@ -885,20 +885,20 @@ test("the worker takes over only a real artifact link, opens what the Space gave
       op: async (op: string, i: any) => {
         ops.push([op, i]);
         if (fail) throw fail;
-        return { url: "https://mla-a.vyre.run/x/code1" };
+        return { url: "https://northwind-a.vyre.run/x/code1" };
       },
     },
     store: createStore(memoryArea()) as any,
   });
-  assert.deepEqual(await a.open({ href: "https://mla.test/a/sit_abc123" }), { handled: true });
+  assert.deepEqual(await a.open({ href: "https://northwind.test/a/sit_abc123" }), { handled: true });
   assert.deepEqual(
     [tabs, ops],
-    [[{ url: "https://mla-a.vyre.run/x/code1" }], [["artifact.open", { url: "https://mla.test/a/sit_abc123" }]]],
+    [[{ url: "https://northwind-a.vyre.run/x/code1" }], [["artifact.open", { url: "https://northwind.test/a/sit_abc123" }]]],
   );
   assert.deepEqual(await a.open({ id: "sit_abc123" }), { handled: true });
-  assert.deepEqual(await a.open({ href: "https://mla.test/pricing" }), { handled: false, why: "not_artifact" });
+  assert.deepEqual(await a.open({ href: "https://northwind.test/pricing" }), { handled: false, why: "not_artifact" });
   fail = Object.assign(new Error("x"), { code: "signed_out" });
-  assert.deepEqual(await a.open({ href: "https://mla.test/a/sit_abc123" }), { handled: false, why: "signed_out" });
+  assert.deepEqual(await a.open({ href: "https://northwind.test/a/sit_abc123" }), { handled: false, why: "signed_out" });
   assert.equal(tabs.length, 2, "a refusal opens nothing");
   fail = null;
   const bad = createArtifacts({

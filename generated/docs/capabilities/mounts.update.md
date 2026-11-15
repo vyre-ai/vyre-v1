@@ -91,7 +91,7 @@ type Out = {
       "conflicts": 1,
       "error": "example",
       "folderId": "fld_a1b2c3",
-      "fromDevice": "Irfad's MacBook",
+      "fromDevice": "Idris's MacBook",
       "kind": "google_drive",
       "lagSeconds": 1,
       "lastSyncAt": 1760000000000,

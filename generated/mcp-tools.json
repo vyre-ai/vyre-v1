@@ -2764,7 +2764,7 @@
             "type": "string"
           },
           "notify": {
-            "description": "Tell the person: a notification and an Inbox line (\"Irfad shared Dex with you\"), with this optional message",
+            "description": "Tell the person: a notification and an Inbox line (\"Idris shared Dex with you\"), with this optional message",
             "properties": {
               "message": {
                 "type": "string"

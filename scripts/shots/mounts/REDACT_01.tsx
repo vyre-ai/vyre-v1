@@ -21,7 +21,7 @@ const NOW = Date.UTC(2026, 10, 3, 9, 52, 0);
 const MIN = 60_000,
   DAY = 86_400_000;
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_idris: "Idris Ibarra",
   usr_maya: "Maya Chen",
   usr_lena: "Lena Ortiz",
   usr_omar: "Omar Haddad",
@@ -132,10 +132,10 @@ const vdata = (
       size: 184_000,
       version: 3,
       label: 1,
-      ownerId: "usr_irfad",
+      ownerId: "usr_idris",
       createdAt: NOW - 12 * DAY,
       updatedAt: NOW - 50 * MIN,
-      updatedBy: "usr_irfad",
+      updatedBy: "usr_idris",
       thumb: false,
       holds: 0,
     },
@@ -150,7 +150,7 @@ const red = (
   id: string,
   text: string,
   label: string,
-  by = "usr_irfad",
+  by = "usr_idris",
   ago = 11 * MIN,
   o: Partial<Mark> = {},
 ): Mark => ({ markId: id, kind: "redact", shape: "span", text, label, by, at: NOW - ago, unplaced: false, ...o });
@@ -177,21 +177,21 @@ function docs(): Map<string, Doc> {
   m.set("f_intake", {
     data: vdata("f_intake", "Rivera intake form.pdf", "pdf", "application/pdf", INTAKE),
     state: "reviewed",
-    reviewed: { by: "usr_irfad", at: NOW - 8 * MIN, version: 3 },
+    reviewed: { by: "usr_idris", at: NOW - 8 * MIN, version: 3 },
     requests: [],
     unplaced: [],
     access: { value: "redact", own: false, inherited: "redact", from: CLAIM },
     marks: [
-      red("m1", "Elena Rivera", "Name", "usr_irfad", 12 * MIN, { occurrence: 0 }),
+      red("m1", "Elena Rivera", "Name", "usr_idris", 12 * MIN, { occurrence: 0 }),
       red("m2", "03/14/1986", "Date of birth"),
       red("m3", "512-44-8391", "SSN"),
       red("m4", "(415) 555-0161", "Phone"),
       red("m5", "2217 Alder Street, Apt 4", "Address"),
-      red("m7", "elena.rivera@fastmail.example", "Email", "usr_irfad", 10 * MIN),
-      red("m8", "Marco Rivera", "Name", "usr_irfad", 10 * MIN),
-      red("n1", "Rivera", "Name", "usr_irfad", 12 * MIN, { shape: "name" }),
+      red("m7", "elena.rivera@fastmail.example", "Email", "usr_idris", 10 * MIN),
+      red("m8", "Marco Rivera", "Name", "usr_idris", 10 * MIN),
+      red("n1", "Rivera", "Name", "usr_idris", 12 * MIN, { shape: "name" }),
       hl("h1", "Slipped on a wet floor near aisle 7 with no warning sign.", "usr_maya", DAY + 70 * MIN),
-      red("m6", "(415) 555-0178", "Phone", "usr_irfad", 22 * MIN, { byAgent: "assistant" }),
+      red("m6", "(415) 555-0178", "Phone", "usr_idris", 22 * MIN, { byAgent: "assistant" }),
     ],
     comments: [
       {
@@ -208,12 +208,12 @@ function docs(): Map<string, Doc> {
     ],
     events: [
       ev("e1", "file.agent_read", "svc_host", 5 * MIN, { agentId: "agt_intake", redacted: true }),
-      ev("e2", "file.reviewed", "usr_irfad", 8 * MIN, { by: "usr_irfad" }),
-      ev("e10", "file.redacted", "usr_irfad", 10 * MIN, { by: "usr_irfad", label: "Email" }),
-      ev("e11", "file.redacted", "usr_irfad", 10 * MIN, { by: "usr_irfad", label: "Name" }),
-      ev("e3", "file.redacted", "usr_irfad", 11 * MIN, { by: "usr_irfad", label: "Date of birth" }),
-      ev("e4", "file.redacted", "usr_irfad", 12 * MIN, { by: "usr_irfad", label: "Name" }),
-      ev("e5", "file.redacted", "usr_irfad", 22 * MIN, { by: "usr_irfad", byAgent: "assistant", label: "Phone" }),
+      ev("e2", "file.reviewed", "usr_idris", 8 * MIN, { by: "usr_idris" }),
+      ev("e10", "file.redacted", "usr_idris", 10 * MIN, { by: "usr_idris", label: "Email" }),
+      ev("e11", "file.redacted", "usr_idris", 10 * MIN, { by: "usr_idris", label: "Name" }),
+      ev("e3", "file.redacted", "usr_idris", 11 * MIN, { by: "usr_idris", label: "Date of birth" }),
+      ev("e4", "file.redacted", "usr_idris", 12 * MIN, { by: "usr_idris", label: "Name" }),
+      ev("e5", "file.redacted", "usr_idris", 22 * MIN, { by: "usr_idris", byAgent: "assistant", label: "Phone" }),
       ev("e6", "file.unredacted", "usr_maya", DAY + 60 * MIN, { by: "usr_maya", label: "Date" }),
       ev("e7", "file.highlighted", "usr_maya", DAY + 70 * MIN, { by: "usr_maya" }),
       ev("e8", "file.comment_added", "usr_lena", DAY, {}),
@@ -236,7 +236,7 @@ function docs(): Map<string, Doc> {
     marks: [
       hl("h1", "diagnosed with a torn meniscus in her right knee and a sprained right wrist", "usr_lena", 70 * MIN),
       hl("h2", "Store video shows the spill sat for 40 minutes before her fall.", "usr_lena", DAY),
-      hl("h3", "$85,000", "usr_irfad", 30 * MIN),
+      hl("h3", "$85,000", "usr_idris", 30 * MIN),
       red("m1", "Elena Rivera", "Name", "usr_lena", 72 * MIN),
       red("m2", "torn meniscus in her right knee", "Medical", "usr_maya", DAY + 30 * MIN),
       red("m3", "Dr. Amara Okafor", "Name", "usr_lena", 72 * MIN),
@@ -286,7 +286,7 @@ function docs(): Map<string, Doc> {
         shape: "box",
         box: { x: 0.205, y: 0.225, w: 0.2, h: 0.05 },
         label: "Name",
-        by: "usr_irfad",
+        by: "usr_idris",
         at: NOW - 2 * MIN,
         unplaced: false,
       },
@@ -296,7 +296,7 @@ function docs(): Map<string, Doc> {
         shape: "box",
         box: { x: 0.615, y: 0.225, w: 0.17, h: 0.05 },
         label: "Date of birth",
-        by: "usr_irfad",
+        by: "usr_idris",
         at: NOW - MIN,
         unplaced: false,
       },
@@ -316,15 +316,15 @@ function docs(): Map<string, Doc> {
     },
     comments: [],
     marks: [
-      red("m1", "Elena Rivera", "Name", "usr_irfad", 12 * DAY),
-      red("m2", "Dr. Amara Okafor", "Name", "usr_irfad", 12 * DAY),
-      red("m3", "KP-88213-0475", "Account number", "usr_irfad", 12 * DAY),
-      red("m4", "Bayview Physical Therapy", "Name", "usr_irfad", 12 * DAY),
-      red("m5", "1450 Bayview Ave, Suite 3", "Address", "usr_irfad", 12 * DAY),
+      red("m1", "Elena Rivera", "Name", "usr_idris", 12 * DAY),
+      red("m2", "Dr. Amara Okafor", "Name", "usr_idris", 12 * DAY),
+      red("m3", "KP-88213-0475", "Account number", "usr_idris", 12 * DAY),
+      red("m4", "Bayview Physical Therapy", "Name", "usr_idris", 12 * DAY),
+      red("m5", "1450 Bayview Ave, Suite 3", "Address", "usr_idris", 12 * DAY),
     ],
     unplaced: [
-      red("u1", "03/14/1986", "Date of birth", "usr_irfad", 12 * DAY, { unplaced: true }),
-      red("u2", "(415) 555-0161", "Phone", "usr_irfad", 12 * DAY, { unplaced: true }),
+      red("u1", "03/14/1986", "Date of birth", "usr_idris", 12 * DAY, { unplaced: true }),
+      red("u2", "(415) 555-0161", "Phone", "usr_idris", 12 * DAY, { unplaced: true }),
     ],
     events: [ev("e1", "file.needs_review", "svc_host", 100 * MIN, { unplaced: 2, version: 3 })],
   });
@@ -425,7 +425,7 @@ function viewerData(): FilesViewerData {
             ...(typeof i["text"] === "string" ? { text: i["text"] } : {}),
             ...(i["box"] ? { box: i["box"] as Mark["box"] } : {}),
             label: String(i["label"] ?? "Text"),
-            by: "usr_irfad",
+            by: "usr_idris",
             at: NOW,
             unplaced: false,
           } as Mark);
@@ -442,7 +442,7 @@ function viewerData(): FilesViewerData {
         case "files.review": {
           const d = need(i["fileId"]);
           d.state = "reviewed";
-          d.reviewed = { by: "usr_irfad", at: NOW, version: 3 };
+          d.reviewed = { by: "usr_idris", at: NOW, version: 3 };
           d.requests = [];
           return { reviewed: d.reviewed, woke: 1 };
         }
@@ -561,7 +561,7 @@ function List({ open }: { open: boolean }): ReactNode {
           value: "redact",
           own: true,
           inherited: "on",
-          setBy: "usr_irfad",
+          setBy: "usr_idris",
           setAt: NOW - 12 * DAY,
           overrides: [
             { kind: "folder", id: "fld_bill", name: "Billing", value: "off" },

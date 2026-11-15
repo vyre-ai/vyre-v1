@@ -18,7 +18,7 @@ installComposerForTests(Composer);
 type Call = { cap: string; input: Record<string, unknown> };
 const LOADING = { status: "loading" } as const;
 const loading: LiveQuery<unknown> = { subscribe: () => () => undefined, getSnapshot: () => LOADING as never };
-const PEOPLE = { status: "ready", data: [{ id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }] } as const;
+const PEOPLE = { status: "ready", data: [{ id: "usr_idris", name: "Idris Ibarra", kind: "person" }] } as const;
 
 function runtime(): { rt: ShellRuntime; calls: Call[]; opened: unknown[] } {
   const conv = createSample("idle");
@@ -48,7 +48,7 @@ function runtime(): { rt: ShellRuntime; calls: Call[]; opened: unknown[] } {
     connection: conv.data.connection,
     principals,
     recordTitle: () => undefined,
-    me: { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+    me: { id: "usr_idris", name: "Idris Ibarra", kind: "person" },
     clock: conv.data.clock,
     space: { id: "northwind", kind: "team", name: "Northwind" },
     assistant: { id: "agt_assistant", name: "Assistant" },

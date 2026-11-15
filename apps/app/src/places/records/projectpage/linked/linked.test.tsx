@@ -109,7 +109,7 @@ test("links group, count and read as words", () => {
 });
 
 test("the access rule: what the viewer cannot open is a peek with only its kind, never a link to a place they cannot open", () => {
-  const viewer = { id: "usr_irfad" };
+  const viewer = { id: "usr_idris" };
   const fee = L("lnk_5");
   assert.equal(levelOf(fee), "none");
   assert.equal(titleOf(fee), "A file you don't have access to", "never its name");

@@ -188,7 +188,7 @@ export function mayGive(
 
 export const dayMonth = (at: number): string =>
   new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-/** One exception as a line: "Exception set by Irfad on 3 Nov, until 10 Nov · First week". */
+/** One exception as a line: "Exception set by Idris on 3 Nov, until 10 Nov · First week". */
 export function exceptionLine(e: ExceptionLite): string {
   return `Exception set by ${e.by.name.split(" ")[0]} on ${dayMonth(e.at)}${e.until !== undefined ? `, until ${dayMonth(e.until)}` : ""}${e.why ? ` · ${e.why}` : ""}`;
 }

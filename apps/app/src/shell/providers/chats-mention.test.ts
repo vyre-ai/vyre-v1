@@ -8,10 +8,10 @@ import { mentionable } from "../../places/chats/conversation/model.ts";
 import { popupFor } from "../../../../../ui/src/Composer/index.tsx";
 import type { Principal } from "../session/runtime-data.ts";
 
-const ME = "usr_irfad",
-  ASSISTANT = { id: "agt_irfad_assistant", name: "Assistant" };
+const ME = "usr_idris",
+  ASSISTANT = { id: "agt_idris_assistant", name: "Assistant" };
 const principals: Principal[] = [
-  { id: ME, name: "Irfad Imtiaz", kind: "person" },
+  { id: ME, name: "Idris Ibarra", kind: "person" },
   { id: "usr_maya", name: "Maya Lin", kind: "person" },
   { id: "usr_gus", name: "Gus Guest", kind: "person", guest: true },
   // his own Assistant, as the shell directory has it: private, named for him
@@ -21,7 +21,7 @@ const principals: Principal[] = [
   { id: "agt_proofer", name: "Proofer", kind: "agent" },
   // someone else's Assistant, and an outside agent (Claude Code) credited to its person: neither is offered
   { id: "agt_maya_assistant", name: "Maya Lin (Agent)", kind: "agent", owner: "usr_maya", private: true },
-  { id: "agt_irfad_cc", name: "Irfad Imtiaz (Agent)", kind: "agent", owner: ME },
+  { id: "agt_idris_cc", name: "Idris Ibarra (Agent)", kind: "agent", owner: ME },
   // an agent kept from this person
   { id: "agt_secret", name: "Hidden one", kind: "agent", hidden: true },
 ];

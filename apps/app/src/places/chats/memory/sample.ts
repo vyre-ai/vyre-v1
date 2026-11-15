@@ -17,11 +17,11 @@ const T = (d: number, h: number, m = 0): number => Date.UTC(2025, 9, d, h, m);
 const CHAT_THREAD = "c1";
 /** The thread id the Knowledge sample's links and recalled replies use for this chat. */
 export const KNOW_THREAD = "thr_k2";
-export const ME = "usr_irfad";
+export const ME = "usr_idris";
 export const ASSISTANT = "agt_assistant";
 
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_idris: "Idris Ibarra",
   usr_maya: "Maya Chen",
   usr_omar: "Omar Haddad",
   agt_assistant: "Assistant",

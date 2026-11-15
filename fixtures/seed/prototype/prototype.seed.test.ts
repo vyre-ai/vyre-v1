@@ -62,7 +62,7 @@ test("no id is duplicated inside a Space", async () => {
 
 test("Personal has the owner and Assistant only, and no invites", async () => {
   const space = await bootPrototype("personal", { cache, scratch });
-  assert.deepEqual(space.people, ["usr_irfad"]);
+  assert.deepEqual(space.people, ["usr_idris"]);
   assert.deepEqual(space.agents, ["agt_assistant"]);
   assert.equal(space.invited, 0);
   space.close();

@@ -33,8 +33,8 @@ const firm = {
 };
 const call = async (): Promise<unknown> => ({});
 const sides = [
-  { name: "Personal", spaceId: "spc_personal", call, username: "irfad", publicKey: "a2VwdA==" },
-  { name: "MLA", spaceId: "spc_mla", call, username: "irfad.mla", publicKey: "b3RoZXI=" },
+  { name: "Personal", spaceId: "spc_personal", call, username: "idris", publicKey: "a2VwdA==" },
+  { name: "Northwind", spaceId: "spc_mla", call, username: "idris.northwind", publicKey: "b3RoZXI=" },
 ];
 
 export const title = "One Vyre account everywhere";

@@ -8,7 +8,7 @@ test("going to Join (the old rail +) opens Chats, never an empty place; a link t
   const hub = createShellHub({
     spaces: SEED_DEFS,
     openId: "nw",
-    personId: "irfad",
+    personId: "idris",
     deviceId: "mac",
     storage: null,
     skeletonMs: 0,
@@ -42,7 +42,7 @@ test("the Chats badge moves with what it counts, and an equal count draws nothin
   const hub = createShellHub({
     spaces: SEED_DEFS,
     openId: "nw",
-    personId: "irfad",
+    personId: "idris",
     deviceId: "mac",
     storage: null,
     skeletonMs: 0,

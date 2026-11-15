@@ -78,7 +78,7 @@ test("the participants button shows how many people are on the request and lists
     list.map((p) => [p.id, p.role]),
     [
       ["agt_billing", "Requester, Assigned"],
-      ["usr_irfad", "Approver"],
+      ["usr_idris", "Approver"],
     ],
   );
   assert.equal(peopleCount(list), 1);

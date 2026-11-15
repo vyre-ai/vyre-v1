@@ -148,11 +148,11 @@ test("the composer shows no account name and no context ring (they are in the me
         whoWillAnswer=""
         lead="Intake"
         lists={lists}
-        agents={[{ ...agents[0]!, accountName: "MLA work", context: { used: 170_000, window: 200_000 } }]}
+        agents={[{ ...agents[0]!, accountName: "Northwind work", context: { used: 170_000, window: 200_000 } }]}
       />,
     ),
   );
-  assert.doesNotMatch(two, /MLA work</);
+  assert.doesNotMatch(two, /Northwind work</);
   assert.doesNotMatch(two, /composer-ring/);
   assert.equal(contextRing({ used: 60, window: 100 }), null);
   assert.deepEqual(contextRing({ used: 70, window: 100 }), { pct: 0.7, warn: false });
@@ -243,7 +243,7 @@ test("the settings dot shows only while something is off its default (a mode oth
 
 const ACCTS: PanelAccount[] = [
   { ref: "#cl_personal", name: "Personal", provider: "claude_code", session: 0.88 },
-  { ref: "#cl_work", name: "MLA work", provider: "claude_code", session: 0.22 },
+  { ref: "#cl_work", name: "Northwind work", provider: "claude_code", session: 0.22 },
   { ref: "#gpt", name: "ChatGPT Plus", provider: "codex", session: null },
 ];
 const MODELS: Record<string, PanelModel[]> = {
@@ -336,7 +336,7 @@ test("the Provider submenu lists only the connected accounts, by the names given
     assert.equal(find(root, "model-accounts"), null);
     await press(find(root, "model-account"));
     const list = textOf(find(root, "model-accounts"));
-    for (const n of ["Personal", "MLA work", "ChatGPT Plus", "Connect another"]) assert.ok(list.includes(n), n);
+    for (const n of ["Personal", "Northwind work", "ChatGPT Plus", "Connect another"]) assert.ok(list.includes(n), n);
     assert.ok(!list.includes("Grok"), "a provider that is not connected is not listed");
     await press(find(root, "row-model-account-#gpt"));
     assert.deepEqual(log, ["account:#gpt"]);
@@ -368,7 +368,7 @@ test("usage follows the selected account and model, and a meter the engine did n
     assert.match(textOf(find(root, "meter-session")), /Session.*resets/);
     assert.match(textOf(find(root, "meter-week")), /Week.*resets/);
     assert.ok(find(root, "model-low"), "running low on Personal");
-    assert.match(textOf(find(root, "model-low")), /Use MLA work · 22%/, "suggests the least used other account");
+    assert.match(textOf(find(root, "model-low")), /Use Northwind work · 22%/, "suggests the least used other account");
     await press(find(root, "model-model"));
     await press(find(root, "row-model-sonnet"));
     assert.match(textOf(find(root, "meter-context")), /8% of 1M/, "the window follows the model");
@@ -589,8 +589,8 @@ const SENDERS: ComposerSender[] = [
   {
     id: "mbx_1",
     channel: "email",
-    name: "Irfad Imtiaz",
-    address: "irfad@example.test",
+    name: "Idris Ibarra",
+    address: "idris@example.test",
     via: "Gmail",
     provider: "gmail",
     default: true,
@@ -652,7 +652,7 @@ test("the From picker groups every sender by service with its logo and address, 
       );
     }
     const root = await mount(createRoot, <Host />);
-    assert.match(textOf(find(root, "from-name")), /Irfad Imtiaz/);
+    assert.match(textOf(find(root, "from-name")), /Idris Ibarra/);
     await press(find(root, "from-pick"));
     const menu = textOf(find(root, "from-menu"));
     assert.ok(

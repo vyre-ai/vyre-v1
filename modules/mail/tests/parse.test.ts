@@ -26,7 +26,7 @@ test("Gmail: the 'On … wrote:' history folds away, even when Gmail wraps it ov
   const c = cleanText(fx("gmail-reply.txt"), "Maya Chen");
   assert.equal(
     c.body,
-    "Hi Josh,\n\nAdding Irfad, who set up Claude in Chrome for our own Clio Grow intake. Irfad, Josh wants the same setup for his intake team, and a follow-up after each consult.",
+    "Hi Josh,\n\nAdding Idris, who set up Claude in Chrome for our own Clio Grow intake. Idris, Josh wants the same setup for his intake team, and a follow-up after each consult.",
   );
   assert.match(c.quoted, /^On Tue, Oct 20, 2026 at 4:12 PM Josh Cohen/);
   assert.match(c.quoted, /re-types every web lead by hand/);
@@ -35,11 +35,11 @@ test("Gmail: the 'On … wrote:' history folds away, even when Gmail wraps it ov
 
 test("Outlook: the From/Sent header block starts the history; the name block and the confidentiality notice are the signature", () => {
   const c = cleanText(fx("outlook-reply.txt"), "Josh Cohen");
-  assert.match(c.body, /^Hi Irfad,\n\nQuick one before Wednesday\./);
+  assert.match(c.body, /^Hi Idris,\n\nQuick one before Wednesday\./);
   assert.match(c.body, /we will call on day three\. Could the same setup draft that email for Rachel to send\?$/);
   assert.match(c.signature, /^Josh Cohen\nManaging Partner/);
   assert.match(c.signature, /CONFIDENTIALITY NOTICE/);
-  assert.match(c.quoted, /^From: Irfad Imtiaz/);
+  assert.match(c.quoted, /^From: Idris Ibarra/);
   assert.ok(!c.body.includes("From:"));
 });
 
@@ -47,9 +47,9 @@ test("Outlook: '-----Original Message-----' starts the history", () => {
   const c = cleanText(fx("outlook-original.txt"), "Josh Cohen");
   assert.equal(
     c.body,
-    "Thanks Andrey. I am in and the team is set up.\n\nIrfad, can you connect it to Clio Grow when we meet Wednesday?",
+    "Thanks Anders. I am in and the team is set up.\n\nIdris, can you connect it to Clio Grow when we meet Wednesday?",
   );
-  assert.match(c.quoted, /^-----Original Message-----\nFrom: Andrey Volkov/);
+  assert.match(c.quoted, /^-----Original Message-----\nFrom: Anders Volkov/);
 });
 
 test("Apple Mail: 'Sent from my iPhone' is the signature and the '> On …, at …, wrote:' block is the history; a one-word sign-off stays", () => {
@@ -81,10 +81,10 @@ test("a forwarded message is the content and is not folded", () => {
 test("Gmail HTML: gmail_signature and gmail_quote come out of the body", () => {
   const h = sanitizeHtml(fx("gmail-html.html"));
   assert.match(h.text, /^Hi Josh,\n+Tuesday at 10:00 works\. I sent the invite\.\n+--$/);
-  assert.equal(h.signature, "Irfad Imtiaz\nNorthwind | +1 415 555 0132");
+  assert.equal(h.signature, "Idris Ibarra\nNorthwind | +1 415 555 0132");
   assert.match(h.quoted, /On Mon, Oct 26, 2026 at 9:02 AM Josh Cohen <josh@cohenshah.example> wrote:/);
   assert.match(h.quoted, /Can we meet Tuesday morning\?/);
-  const m = cleanMessage({ html: fx("gmail-html.html") }, "Irfad Imtiaz");
+  const m = cleanMessage({ html: fx("gmail-html.html") }, "Idris Ibarra");
   assert.equal(m.body, "Hi Josh,\n\nTuesday at 10:00 works. I sent the invite.");
 });
 
@@ -92,7 +92,7 @@ test("Outlook HTML: the Signature block and everything from divRplyFwdMsg on are
   const h = sanitizeHtml(fx("outlook-html.html"));
   assert.equal(h.text, "Thanks, I will put in the card for the Clio seat today. Wednesday at 2 works for us.");
   assert.match(h.signature, /^Josh Cohen\nManaging Partner \| Cohen & Shah Law$/);
-  assert.match(h.quoted, /From: Irfad Imtiaz <irfad@northwind\.example>/);
+  assert.match(h.quoted, /From: Idris Ibarra <idris@northwind\.example>/);
   assert.match(h.quoted, /Happy to\. The short version/);
   assert.ok(!h.html.includes("style"));
 });
@@ -160,7 +160,7 @@ test("Gmail reaction: known by its JSON part (as the x-vyre-reaction header) or 
   assert.ok(part);
   assert.equal(reactionEmoji(Buffer.from(part.body.data, "base64url").toString("utf8")), "❤️");
   const text = Buffer.from(msg.payload.parts[0]?.body.data ?? "", "base64url").toString("utf8");
-  assert.deepEqual(reactionOf({ text }), { emoji: "❤️", name: "Irfad Imtiaz" });
+  assert.deepEqual(reactionOf({ text }), { emoji: "❤️", name: "Idris Ibarra" });
   assert.deepEqual(reactionOf({ text: "", headers: { "x-vyre-reaction": "👍" } }), { emoji: "👍" });
   assert.equal(reactionOf({ text: "Thanks, I reacted to the news via phone." }), null);
   assert.equal(reactionEmoji("not json"), null);

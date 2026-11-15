@@ -284,7 +284,7 @@ export interface ActionSentence {
   /** the person an agent acted for */ forWho?: string | undefined;
 }
 
-/** "Priya Raman assigned a role to Omar Haddad, for Andrey" or "Priya Raman deleted the agent Dex": the thing joins with the verb's own word ("to", "from", "with"), else it follows its kind. */
+/** "Priya Raman assigned a role to Omar Haddad, for Anders" or "Priya Raman deleted the agent Dex": the thing joins with the verb's own word ("to", "from", "with"), else it follows its kind. */
 export function actionSentence(s: ActionSentence): string {
   const forWho = s.forWho ? `, for ${s.forWho}` : "";
   if (SENTENCES[s.action] || !s.thing) return `${s.who} ${actionWords(s.action)}${forWho}`;

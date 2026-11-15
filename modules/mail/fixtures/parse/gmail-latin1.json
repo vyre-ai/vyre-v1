@@ -6,7 +6,7 @@
   "UNREAD"
  ],
  "internalDate": "1792857600000",
- "snippet": "Hola Irfad, Gracias por la llamada.",
+ "snippet": "Hola Idris, Gracias por la llamada.",
  "payload": {
   "mimeType": "multipart/alternative",
   "headers": [
@@ -16,7 +16,7 @@
    },
    {
     "name": "To",
-    "value": "irfad@northwind.example"
+    "value": "idris@northwind.example"
    },
    {
     "name": "Subject",

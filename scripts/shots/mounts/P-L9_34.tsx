@@ -42,7 +42,7 @@ function Inner(): ReactNode {
       },
     };
     const theme = createThemeController({
-      personId: "irfad",
+      personId: "idris",
       spaceId: "nw",
       spaceSkin: { nw: skin, hb: skin, me: skin },
       prefersDark: skin === "graphite",

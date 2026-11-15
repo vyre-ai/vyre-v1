@@ -16,7 +16,7 @@ import { LESSON_IDS, createChatMemorySample } from "./sample.ts";
 import { ChatMemoryProvider } from "./thread.tsx";
 
 const LONG =
-  "Show me your draft text here first, before anything is sent, and never write to Andrey on my behalf without it";
+  "Show me your draft text here first, before anything is sent, and never write to Anders on my behalf without it";
 
 function setup() {
   const s = createChatMemorySample({ lessons: true });

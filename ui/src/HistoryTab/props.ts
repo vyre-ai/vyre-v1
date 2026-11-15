@@ -44,7 +44,7 @@ export const frozenHistoryTabProps = {
     {
       id: "ver_2",
       n: 2,
-      who: "Irfad",
+      who: "Idris",
       why: "Shorten the role line",
       at: "2026-10-24T12:00:00Z",
       runId: null,

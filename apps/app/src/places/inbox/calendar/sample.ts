@@ -8,13 +8,13 @@ import type { SampleInbox, SampleSpace } from "../contactlist/sample.ts";
 import { DAY, HOUR, MIN, STEP } from "./model.ts";
 import type { Busy, EventRow, Slot } from "./model.ts";
 
-export const ME = "irfad@northwind.example";
+export const ME = "idris@northwind.example";
 export interface Person {
   email: string;
   name: string;
 }
 export const TEAM: readonly Person[] = [
-  { email: ME, name: "Irfad Imtiaz" },
+  { email: ME, name: "Idris Ibarra" },
   { email: "maya@northwind.example", name: "Maya Chen" },
   { email: "omar@northwind.example", name: "Omar Haddad" },
   { email: "lena@northwind.example", name: "Lena Ortiz" },
@@ -197,12 +197,12 @@ function nwEvents(): EventRow[] {
     ev("e_x_omar", "cal_ms", "Quick sync: Omar", at(MON + 3, 10, 30), at(MON + 3, 11), {
       attendees: att(ME, "omar@northwind.example"),
     }),
-    day("e_x_up1", "cal_work", "MLA Updates", MON + 0),
-    day("e_x_up2", "cal_work", "MLA Updates", MON + 1),
-    day("e_x_up2b", "cal_work", "MLA Updates", MON + 1),
-    day("e_x_up3", "cal_work", "MLA Updates", MON + 2),
-    day("e_x_up3b", "cal_work", "MLA Updates", MON + 2),
-    day("e_x_up4", "cal_work", "MLA Updates", MON + 3),
+    day("e_x_up1", "cal_work", "Northwind Updates", MON + 0),
+    day("e_x_up2", "cal_work", "Northwind Updates", MON + 1),
+    day("e_x_up2b", "cal_work", "Northwind Updates", MON + 1),
+    day("e_x_up3", "cal_work", "Northwind Updates", MON + 2),
+    day("e_x_up3b", "cal_work", "Northwind Updates", MON + 2),
+    day("e_x_up4", "cal_work", "Northwind Updates", MON + 3),
     day("e_x_off", "cal_ms", "Offsite prep", MON + 1),
     day("e_x_bd", "cal_work", "Birthday: Maya", MON + 2),
     day("e_x_car", "cal_pers", "Car service", MON + 2),

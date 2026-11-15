@@ -10,9 +10,9 @@ export const northwind: SpaceFixture = {
     team: true,
     role: "Owner",
   },
-  me: "usr_irfad",
+  me: "usr_idris",
   people: [
-    { id: "usr_irfad", name: "Irfad Imtiaz", role: "Owner" },
+    { id: "usr_idris", name: "Idris Ibarra", role: "Owner" },
     { id: "usr_maya", name: "Maya Chen", role: "Admin", online: true },
     { id: "usr_omar", name: "Omar Haddad", role: "Member", online: true },
     { id: "usr_lena", name: "Lena Ortiz", role: "Member" },

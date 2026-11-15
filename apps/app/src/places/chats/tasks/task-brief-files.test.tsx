@@ -20,8 +20,8 @@ const TASK = {
   title: "Review the lease",
   state: "todo",
   blocked: false,
-  assigned: { kind: "person", id: "usr_irfad" },
-  createdBy: "usr_irfad",
+  assigned: { kind: "person", id: "usr_idris" },
+  createdBy: "usr_idris",
   blocks: [],
   actions: [],
   fileIds: [],
@@ -40,7 +40,7 @@ const fixed = (snap: unknown): LiveQuery<unknown> => ({
 });
 const TASK_Q = fixed({ status: "ready", data: { task: TASK } });
 const EMPTY_Q = fixed({ status: "ready", data: { entries: [] } });
-const PEOPLE = { status: "ready", data: [{ id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }] } as const;
+const PEOPLE = { status: "ready", data: [{ id: "usr_idris", name: "Idris Ibarra", kind: "person" }] } as const;
 
 function runtime(fail = false): { rt: ShellRuntime; calls: Call[] } {
   const conv = createSample("idle");
@@ -69,7 +69,7 @@ function runtime(fail = false): { rt: ShellRuntime; calls: Call[] } {
     connection: conv.data.connection,
     principals: { subscribe: () => () => undefined, getSnapshot: () => PEOPLE },
     recordTitle: () => undefined,
-    me: { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+    me: { id: "usr_idris", name: "Idris Ibarra", kind: "person" },
     clock: conv.data.clock,
     space: { id: "northwind", kind: "team", name: "Northwind" },
     assistant: { id: "agt_assistant", name: "Assistant" },

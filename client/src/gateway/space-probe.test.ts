@@ -14,7 +14,7 @@ const html = (status: number): Response =>
   });
 const MLA_HEALTH = { ok: true, version: "1.0.0-rc.14", roles: ["space"], space: "spc_01JMLA", head: 12, startedAt: 1 };
 const OPTIONS = {
-  data: { name: "MLA", fingerprint: "ab12 cd34", password: true, github: false, sso: [], secondFactorRequired: false },
+  data: { name: "Northwind", fingerprint: "ab12 cd34", password: true, github: false, sso: [], secondFactorRequired: false },
 };
 
 function fake(answer: (url: string, init?: RequestInit) => Response | Promise<Response>): {
@@ -32,9 +32,9 @@ function fake(answer: (url: string, init?: RequestInit) => Response | Promise<Re
   };
 }
 
-test("an mla-style server on a vyre.run name answers /healthz as a Space: direct", async () => {
-  const f = fake((url) => (url === "https://mla.vyre.run/healthz" ? json(200, MLA_HEALTH) : html(404)));
-  assert.equal(await probeDirectSpace("https://mla.vyre.run", { fetch: f.fetch, routes }), true);
+test("an northwind-style server on a vyre.run name answers /healthz as a Space: direct", async () => {
+  const f = fake((url) => (url === "https://northwind.vyre.run/healthz" ? json(200, MLA_HEALTH) : html(404)));
+  assert.equal(await probeDirectSpace("https://northwind.vyre.run", { fetch: f.fetch, routes }), true);
   assert.deepEqual(f.asked, ["GET /healthz"], "one ask when /healthz answers");
 });
 
@@ -43,20 +43,20 @@ test("an rc.14 server whose /healthz the desktop app cannot read (no CORS) still
     if (url.endsWith("/healthz")) throw new TypeError("Load failed");
     return json(200, OPTIONS);
   });
-  assert.equal(await probeDirectSpace("https://mla.vyre.run", { fetch: f.fetch, routes }), true);
+  assert.equal(await probeDirectSpace("https://northwind.vyre.run", { fetch: f.fetch, routes }), true);
   assert.deepEqual(f.asked, ["GET /healthz", "POST /v1/identity/sign_in_options"]);
 });
 
 test("a relay phone name is never direct: the shell page, asleep, 405 or 404 are not a Space's answers", async () => {
   for (const shell of [html(200), html(503), html(404), new Response(null, { status: 404 })]) {
     const f = fake((_url, init) => (init?.method === "POST" ? new Response(null, { status: 405 }) : shell.clone()));
-    assert.equal(await probeDirectSpace("https://irfad.vyre.run", { fetch: f.fetch, routes }), false);
+    assert.equal(await probeDirectSpace("https://idris.vyre.run", { fetch: f.fetch, routes }), false);
   }
   // the browser blocks both reads (no CORS from the relay)
   const blocked = fake(() => {
     throw new TypeError("Load failed");
   });
-  assert.equal(await probeDirectSpace("https://irfad.vyre.run", { fetch: blocked.fetch, routes }), false);
+  assert.equal(await probeDirectSpace("https://idris.vyre.run", { fetch: blocked.fetch, routes }), false);
 });
 
 test("JSON that is not a Space's health (wrong role, no spc_ id, an error) is not direct", async () => {

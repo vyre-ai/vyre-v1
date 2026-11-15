@@ -33,7 +33,7 @@ function rig() {
     sessionId: "ses_lead",
     space: "spc_1",
     principal: { kind: "agent", id: "agt_labdesk" },
-    actingFor: "usr_irfad",
+    actingFor: "usr_idris",
     threadId: "thr_goal",
     traceId: "a".repeat(32),
   };
@@ -127,7 +127,7 @@ for (const cli of ["Claude Code", "Codex"]) {
       assert.ok(called, `${cli}: goals_checkin_post reached goals.report`);
       if (called?.seed) {
         assert.equal(called.seed.principal?.id, "agt_labdesk");
-        assert.equal(called.seed.actingFor, "usr_irfad");
+        assert.equal(called.seed.actingFor, "usr_idris");
       }
     } finally {
       await b.close();

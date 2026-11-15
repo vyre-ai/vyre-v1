@@ -97,10 +97,10 @@ test("You has My work, Starred and Settings", () => {
         selectTab: () => undefined,
         origin: undefined,
       }}
-      data={{ name: "Irfad Imtiaz", space: "Northwind", workOpen: 4, starred: 3 }}
+      data={{ name: "Idris Ibarra", space: "Northwind", workOpen: 4, starred: 3 }}
     />,
   ).replaceAll("<!-- -->", "");
-  for (const t of ["Irfad Imtiaz", "Northwind", "My work", "4 open", "Starred", "3 starred", "Automations", "Settings"])
+  for (const t of ["Idris Ibarra", "Northwind", "My work", "4 open", "Starred", "3 starred", "Automations", "Settings"])
     assert.ok(has(out, t), t);
   // round four: Automations are under You on the phone; the Console is not
   assert.ok(!has(out, "Console"));

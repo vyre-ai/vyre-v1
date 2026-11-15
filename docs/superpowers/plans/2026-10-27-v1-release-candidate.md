@@ -14,7 +14,7 @@
 
 ## Task 1: Restore the protected landing path and land the agent-folder grant fix
 
-**Worktree:** `/Users/irfad/Claude/Orgs/Vyre/v1-wt/P-L5_30`  
+**Worktree:** `/Users/idris/Claude/Orgs/Vyre/v1-wt/P-L5_30`  
 **Branch/PR:** `build/P-L5_30`, PR #717
 
 **Files:**
@@ -38,7 +38,7 @@
 
 ## Task 2: Remove the production Mail and Automations render loops
 
-**Worktree:** `/Users/irfad/Claude/Orgs/Vyre/v1-wt/P-APP_03`  
+**Worktree:** `/Users/idris/Claude/Orgs/Vyre/v1-wt/P-APP_03`  
 **Branch/PR:** `build/P-APP_03`, PR #517
 
 **Files:**
@@ -61,7 +61,7 @@
 
 ## Task 3: Land the Files mirror after its access dependency
 
-**Worktree:** `/Users/irfad/Claude/Orgs/Vyre/v1-wt/P-L2_35`  
+**Worktree:** `/Users/idris/Claude/Orgs/Vyre/v1-wt/P-L2_35`  
 **Branch/PR:** `build/P-L2_35`, PR #715
 
 **Files:** Keep the branch's existing owned paths; resolve only conflicts introduced by current `main`; update `changelog.md` if the branch has not already done so.
@@ -249,7 +249,7 @@
 3. Complete a fresh Personal Space install and a Team Space join, then create user data, back it up, restore it, and compare counts/hashes.
 4. Fix any missing `buildx` runner label before tagging; verify the label through the GitHub API.
 5. Bump to `1.0.0-rc.1`, merge the version PR, and tag that exact `main` commit.
-6. When the protected `release` deployment waits, inspect its environment and commit, then approve it through GitHub using Irfad's authorization.
+6. When the protected `release` deployment waits, inspect its environment and commit, then approve it through GitHub using Idris's authorization.
 7. Wait for package, sign, publish, deploy, and smoke. Download the release and verify checksums independently.
 8. Publish the evidence package from the release contract, including the artifact's actual signing/notarization status and every non-blocking issue.
 9. Remove temporary CI hosts only after the RC evidence has been retained.

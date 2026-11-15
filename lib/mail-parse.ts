@@ -2,7 +2,7 @@
 // part bodies decoded by their charset and transfer encoding, and previews that end at a word. Pure: no I/O, no clock.
 //
 // Why it exists (owner, 3 Nov): a contact's mail showed every reply's quoted history, every signature and disclaimer, a Gmail reaction as raw text
-// ("❤️ Irfad Imtiaz reacted via Gmail <https://...>"), and bodies cut mid-word at 160 characters.
+// ("❤️ Idris Ibarra reacted via Gmail <https://...>"), and bodies cut mid-word at 160 characters.
 // DECISION: the open message is never shortened. Only a one-line preview is cut, and it stops at a word and ends in "…".
 // DECISION: a forwarded message ("---------- Forwarded message ---------") is the content, so it is not folded; a reply's history is.
 

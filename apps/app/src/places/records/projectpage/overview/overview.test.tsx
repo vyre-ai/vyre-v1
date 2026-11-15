@@ -77,11 +77,11 @@ test("words: titles, counts, hidden rows, properties, versions, a stale save, an
   );
   const latest = { rev: 5, by: "agt_docs", authorKind: "agent" as const, summary: "added a section", at: NOW };
   assert.deepEqual(
-    agentNotice(latest, "usr_irfad", (id) => (id === "agt_docs" ? "Docs" : id)),
+    agentNotice(latest, "usr_idris", (id) => (id === "agt_docs" ? "Docs" : id)),
     { text: "Docs added a section", rev: 5 },
   );
-  assert.equal(agentNotice({ ...latest, undoOf: 4 }, "usr_irfad", String), null, "an undo is not an agent's edit");
-  assert.equal(agentNotice({ ...latest, authorKind: "person" }, "usr_irfad", String), null);
+  assert.equal(agentNotice({ ...latest, undoOf: 4 }, "usr_idris", String), null, "an undo is not an agent's edit");
+  assert.equal(agentNotice({ ...latest, authorKind: "person" }, "usr_idris", String), null);
   assert.equal(
     saveFailure({ code: "validation.precondition_failed", details: { reason: "stale_revision" } }).stale,
     true,

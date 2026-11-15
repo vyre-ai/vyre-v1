@@ -6,7 +6,7 @@
   "UNREAD"
  ],
  "internalDate": "1792857600000",
- "snippet": "Hi Irfad,\n\nQuick one before Wednesday. Our lead form also feeds a Google Sheet that Rachel's team works from, so the intake team sees each lead twice.",
+ "snippet": "Hi Idris,\n\nQuick one before Wednesday. Our lead form also feeds a Google Sheet that Rachel's team works from, so the intake team sees each lead twice.",
  "payload": {
   "mimeType": "multipart/mixed",
   "headers": [
@@ -16,7 +16,7 @@
    },
    {
     "name": "To",
-    "value": "Irfad Imtiaz <irfad@northwind.example>"
+    "value": "Idris Ibarra <idris@northwind.example>"
    },
    {
     "name": "Cc",

@@ -60,7 +60,7 @@ function column(): ConversationData {
       messageId: "rc2",
       ...base,
       threadSeq: 99,
-      author: { kind: "person", id: "usr_irfad" },
+      author: { kind: "person", id: "usr_idris" },
       body: "Also add the deposit to the summary",
       blocks: [],
       createdAt: SAMPLE_NOW - 60_000,
@@ -75,7 +75,7 @@ function column(): ConversationData {
       state: "writing" as const,
       startedAt: SAMPLE_NOW - 90_000,
       triggerId: "m6",
-      asker: "usr_irfad",
+      asker: "usr_idris",
     },
   ];
   const live = {

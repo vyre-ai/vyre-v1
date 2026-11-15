@@ -171,7 +171,7 @@ test("what needs the person: an open question, a proposed plan, a card with butt
     true,
   );
   assert.equal(
-    needsPerson(msg({ at: T0, body: "hey @Irfad" }), (m) => m.body.includes("@Irfad")),
+    needsPerson(msg({ at: T0, body: "hey @Idris" }), (m) => m.body.includes("@Idris")),
     true,
   );
   assert.equal(needsPerson(msg({ at: T0, body: "fine" })), false);
@@ -327,7 +327,7 @@ test("a message with a status card is never folded, and no jump row repeats it",
     me(T0),
     ...pad(3, T0 + MIN),
     card("cp", "progress_card", { title: "Release rc.22.1", state: "running", steps: [] }),
-    card("cs", "status_card", { title: "The MLA update could not start", tone: "warn" }),
+    card("cs", "status_card", { title: "The Northwind update could not start", tone: "warn" }),
     merged,
     ...pad(4, T0 + 3 * H),
     me(T0 + 4 * H),

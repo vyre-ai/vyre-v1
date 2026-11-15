@@ -86,7 +86,7 @@ const msg = (
   ...o,
 });
 const intake = { kind: "agent" as const, id: "agt_intake" };
-const me = { kind: "person" as const, id: "usr_irfad" };
+const me = { kind: "person" as const, id: "usr_idris" };
 
 const liveOf = (
   turns: { threadId: string; agentId: string; state: "writing" | "ended"; startedAt: number }[],
@@ -167,7 +167,7 @@ test("when the agent has finished the footer says Done with its one-line outcome
     threadRow({
       replyCount: 4,
       lastMessageAt: at(9, 50),
-      repliers: [{ kind: "person", id: "usr_irfad" }],
+      repliers: [{ kind: "person", id: "usr_idris" }],
       preview: "Thanks",
     }),
   ]);
@@ -224,7 +224,7 @@ test("a turn parked on an approval says Waiting for your OK with the approval's 
   installDom();
   widen(1280);
   // yours to approve
-  const mine = parked("usr_irfad");
+  const mine = parked("usr_idris");
   const root = await mount(createRoot, <Conversation data={mine.data} />);
   await flush();
   await flush();
@@ -411,7 +411,7 @@ const withRoot = (s: Sample): Sample => {
     cap === "chat.message.get"
       ? {
           message: {
-            author: { id: "usr_irfad" },
+            author: { id: "usr_idris" },
             body: "Find a time for the vendor call next week.",
             createdAt: at(9, 21),
           },
@@ -637,7 +637,7 @@ test("the thread's root is a plain message row with its face, name and time, the
     cap === "chat.message.get"
       ? {
           message: {
-            author: { id: "usr_irfad" },
+            author: { id: "usr_idris" },
             body: "Find a time for the vendor call next week, and compare the two quotes.",
             createdAt: at(9, 21),
           },

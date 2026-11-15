@@ -14,7 +14,7 @@ export type Variant = "owner" | "viewer" | "paused" | "broken" | "personal";
 export const NAMES: Record<string, string> = {
   usr_omar: "Omar Haddad",
   usr_maya: "Maya Chen",
-  usr_irfad: "Irfad",
+  usr_idris: "Idris",
   agt_intake: "Intake",
   agt_assistant: "Assistant",
 };
@@ -259,7 +259,7 @@ export function createSample(variant: Variant = "owner", o: { online?: boolean }
     closePage: () => void opened.push("close"),
     openSource: (kind, ref) => void opened.push(`source:${kind}:${ref}`),
   };
-  const me = variant === "viewer" ? { id: "usr_irfad", name: "Irfad" } : { id: "usr_omar", name: "Omar Haddad" };
+  const me = variant === "viewer" ? { id: "usr_idris", name: "Idris" } : { id: "usr_omar", name: "Omar Haddad" };
   const data: AgentPageData = {
     screens: createScreenHooks(replica, screensById),
     async call(cap, input) {

@@ -291,7 +291,7 @@ export function placePicker(
 }
 
 /**
- * Callers often pass a stand-in named "Assistant" next to the Space's agents; when one of those agents is named like "Irfad's Assistant", that one is the assistant: it takes the flag and the stand-in's
+ * Callers often pass a stand-in named "Assistant" next to the Space's agents; when one of those agents is named like "Idris's Assistant", that one is the assistant: it takes the flag and the stand-in's
  * name, the one name a person sees for it, and the stand-in is dropped. Anything else is returned unchanged.
  */
 export function withRealAssistant(agents: readonly AskAgent[]): readonly AskAgent[] {

@@ -25,9 +25,9 @@ const run = consumers["identity.space_name"];
 
 test("a rename reaches the sign-in page's name at once", async () => {
   assert.deepEqual(run.on, ["space.updated"]);
-  const w = world("My Legal Academy");
+  const w = world("Northwind Academy");
   await run.run(w.ctx, { payload: { fields: ["name"], by: "usr_owner" } } as never);
-  assert.equal(w.name(), "My Legal Academy");
+  assert.equal(w.name(), "Northwind Academy");
 });
 
 test("an id or an empty name never replaces a name, and a logo change leaves the name alone", async () => {

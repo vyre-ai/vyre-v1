@@ -94,21 +94,21 @@ export const northwind: SampleSpace = {
     F("fld_knowledge", "Knowledge", null, "space", { knowledge: true }),
   ],
   files: [
-    f("fil_notes", "Notes 2025-10-24.md", "fld_daily", "markdown", 2_400, 0.5 * HOUR, "usr_irfad"),
-    f("fil_budget", "Budget 2026.xlsx", "fld_money", "spreadsheet", 48_000, 5 * HOUR, "usr_irfad"),
+    f("fil_notes", "Notes 2025-10-24.md", "fld_daily", "markdown", 2_400, 0.5 * HOUR, "usr_idris"),
+    f("fil_budget", "Budget 2026.xlsx", "fld_money", "spreadsheet", 48_000, 5 * HOUR, "usr_idris"),
     f("fil_q3", "Q3 report.pdf", "fld_maya", "pdf", 1_240_000, 26 * HOUR, "usr_maya", { shared: true }),
     f("fil_deck", "Pitch deck v4.pptx", "fld_sales", "presentation", 8_900_000, 2 * HOUR, "usr_omar"),
     f("fil_pricing", "Pricing sheet.xlsx", "fld_sales", "spreadsheet", 62_000, 30 * HOUR, "usr_omar"),
     f("fil_logo", "logo-northwind.png", "fld_sales", "image", 210_000, 9 * DAY, "usr_maya"),
     f("fil_rivera", "Rivera engagement letter.docx", "fld_proposals", "document", 31_000, 3 * HOUR, "agt_docs"),
-    f("fil_harlow", "Harlow & Price worksheet.xlsx", "fld_proposals", "spreadsheet", 77_000, 2 * DAY, "usr_irfad", {
+    f("fil_harlow", "Harlow & Price worksheet.xlsx", "fld_proposals", "spreadsheet", 77_000, 2 * DAY, "usr_idris", {
       source: "Google Drive",
     }),
     f("fil_inv", "Invoice 1042.pdf", "fld_billing", "pdf", 58_000, 6 * HOUR, "agt_billing"),
     f("fil_inv2", "Invoice 1041.pdf", "fld_billing", "pdf", 61_000, 30 * HOUR, "agt_billing"),
     f("fil_form", "Intake form.pdf", "fld_intake", "pdf", 184_000, 4 * DAY, "usr_maya"),
     f("fil_script", "sync-clients.ts", "fld_intake", "code", 5_100, 3 * DAY, "usr_omar"),
-    f("fil_vyre", "VYRE.md", "fld_knowledge", "markdown", 3_800, 12 * HOUR, "usr_irfad", { knowledge: true }),
+    f("fil_vyre", "VYRE.md", "fld_knowledge", "markdown", 3_800, 12 * HOUR, "usr_idris", { knowledge: true }),
     f("fil_voice", "Brand voice.md", "fld_knowledge", "markdown", 6_100, 5 * DAY, "agt_docs", { knowledge: true }),
   ],
   // Docs staged three writes in Proposals and nothing is saved until they are approved (the prototype's Rivera matter banner)
@@ -259,7 +259,7 @@ export function createSampleFiles(
           kind: i % 4 === 0 ? "image" : "pdf",
           size: 10_000 + ((i * 37) % 900_000),
           ago: HOUR + i * 60_000,
-          by: "usr_irfad",
+          by: "usr_idris",
         }),
       );
   }

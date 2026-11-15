@@ -672,7 +672,7 @@ export default defineManifest({
               { message: t.opt(t.str()) },
               {
                 description:
-                  'Tell the person: a notification and an Inbox line ("Irfad shared Dex with you"), with this optional message',
+                  'Tell the person: a notification and an Inbox line ("Idris shared Dex with you"), with this optional message',
               },
             ),
           ),

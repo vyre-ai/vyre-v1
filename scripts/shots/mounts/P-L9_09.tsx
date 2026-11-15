@@ -90,7 +90,7 @@ export default function Mount(): ReactNode {
         savedBlocks={SAVED}
         comments={[{ id: "k1", by: "Maya Chen", text: "Keep it under three lines." }]}
         fromName="Maya Chen · Northwind"
-        testTo="Irfad Imtiaz"
+        testTo="Idris Ibarra"
         brand={{ name: "Northwind", color: "#5B5BD6", font: "Inter" }}
         askThread={[
           { from: "you", text: "Make it warmer and shorter, then add a P.S." },

@@ -88,7 +88,7 @@ test("a saved list with duplicates loads once per place and item, and keeps the 
 
 test("the controller opens a saved list deduplicated and an open place focuses its tab", () => {
   const s = mem();
-  const key = "vyre.tabs.v1:mac:irfad:me";
+  const key = "vyre.tabs.v1:mac:idris:me";
   s.data.set(
     key,
     JSON.stringify({
@@ -101,7 +101,7 @@ test("the controller opens a saved list deduplicated and an open place focuses i
       ],
     }),
   );
-  const c = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "me", storage: s, start: "home" });
+  const c = createTabsController({ deviceId: "mac", personId: "idris", spaceId: "me", storage: s, start: "home" });
   assert.deepEqual(
     c.state().tabs.map((t) => t.key),
     ["vault", "chats"],
@@ -115,7 +115,7 @@ test("the controller opens a saved list deduplicated and an open place focuses i
 test("a Personal Space never has an Apps tab, new or saved", () => {
   const s = mem();
   s.data.set(
-    "vyre.tabs.v1:mac:irfad:me",
+    "vyre.tabs.v1:mac:idris:me",
     JSON.stringify({
       v: 1,
       active: "apps",
@@ -127,7 +127,7 @@ test("a Personal Space never has an Apps tab, new or saved", () => {
   );
   const c = createTabsController({
     deviceId: "mac",
-    personId: "irfad",
+    personId: "idris",
     spaceId: "me",
     storage: s,
     start: "chats",
@@ -145,12 +145,12 @@ test("a Personal Space never has an Apps tab, new or saved", () => {
   );
   const only = mem();
   only.data.set(
-    "vyre.tabs.v1:mac:irfad:me",
+    "vyre.tabs.v1:mac:idris:me",
     JSON.stringify({ v: 1, active: "apps", tabs: [{ key: "apps", title: "Apps", place: "apps" }] }),
   );
   const d = createTabsController({
     deviceId: "mac",
-    personId: "irfad",
+    personId: "idris",
     spaceId: "me",
     storage: only,
     start: "chats",
@@ -162,7 +162,7 @@ test("a Personal Space never has an Apps tab, new or saved", () => {
   );
   const team = createTabsController({
     deviceId: "mac",
-    personId: "irfad",
+    personId: "idris",
     spaceId: "nw",
     storage: null,
     start: "chats",

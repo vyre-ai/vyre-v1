@@ -190,9 +190,9 @@ export default function Mount(): ReactNode {
           goalId="gol_lab8"
           call={goalCall}
           changes={undefined}
-          me="usr_irfad"
+          me="usr_idris"
           nameOf={(id) =>
-            (({ usr_irfad: "Irfad Imtiaz", agt_labdesk: "Lab Desk" }) as Record<string, string>)[id] ?? id
+            (({ usr_idris: "Idris Ibarra", agt_labdesk: "Lab Desk" }) as Record<string, string>)[id] ?? id
           }
           clock={() => ({ now: NOW, offsetMin: 300 })}
           conversationFor={() => ({}) as ConversationData}

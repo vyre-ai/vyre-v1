@@ -71,11 +71,11 @@ test("the assistant belongs to its person alone: another member's list does not 
 });
 
 test("the assistant name is possessive with a typographic apostrophe, and a name ending in s takes none", () => {
-  assert.equal(possessive("Irfad"), "Irfad’s");
+  assert.equal(possessive("Idris"), "Idris’s");
   assert.equal(possessive("James"), "James’");
-  assert.deepEqual(assistantNames("usr_abcdefgh", "Irfad Imtiaz"), [
-    "Irfad’s Assistant",
-    "Irfad’s Assistant abcd",
+  assert.deepEqual(assistantNames("usr_abcdefgh", "Idris Ibarra"), [
+    "Idris’s Assistant",
+    "Idris’s Assistant abcd",
     "Assistant abcdef",
   ]);
   assert.deepEqual(assistantNames("usr_abcdefgh", "James Cross"), [
@@ -85,7 +85,7 @@ test("the assistant name is possessive with a typographic apostrophe, and a name
   ]);
   assert.deepEqual(assistantNames("usr_abcdefgh", undefined), ["Assistant", "My Assistant", "Assistant abcdef"]);
   assert.deepEqual(assistantNames("usr_abcdefgh", "  "), ["Assistant", "My Assistant", "Assistant abcdef"]);
-  assert.equal(assistantNames("usr_abcdefgh", "Irfad")[0], "Irfad’s Assistant");
+  assert.equal(assistantNames("usr_abcdefgh", "Idris")[0], "Idris’s Assistant");
   assert.deepEqual(
     assistantNames("usr_abcdefgh", "olivia reyes"),
     ["Olivia’s Assistant", "Olivia’s Assistant abcd", "Assistant abcdef"],

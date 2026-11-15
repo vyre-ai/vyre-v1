@@ -1,4 +1,4 @@
-// The desktop app's own path to the server's wrap (owner, 4 Nov: on MLA only Andrey had a wrap, so after a restart the owner's Claude sign-in was never used). The app signs in with the password
+// The desktop app's own path to the server's wrap (owner, 4 Nov: on Northwind only Anders had a wrap, so after a restart the owner's Claude sign-in was never used). The app signs in with the password
 // (identity.sign_in answers the key bundle), opens the bundle on the device and hands the key through the Space's https door, which writes the server's wrap (host_person_wrap). Real daemon; the
 // client side is the app's own unlockWithPassword and the launch check (remoteGateState). Steps: sign in and unlock at launch, the wrap exists and the key is held; the server restarts; the relaunched
 // app is told to lock; one unlock and the person's own Claude answers, the wrap still there.
@@ -63,14 +63,14 @@ test("desktop path: sign in, unlock at launch writes the wrap; after a server re
     await ok(d, d.token, "providers.space_key.set", { providerKey: ep.endpoint.key, apiKey: SPACE_KEY });
     const agentId = (await ok(d, d.token, "agents.create", { name: "Spark", role: "You help the team." })).agent
       .agentId as string;
-    const member = await join(d, "irfad"); // the account exists with a real key bundle; this device signs in fresh, as the desktop app does
+    const member = await join(d, "idris"); // the account exists with a real key bundle; this device signs in fresh, as the desktop app does
 
     // the desktop app: a password sign-in on a new device answers the key bundle with the session
     const signed = (
       await api(d, null, "identity.sign_in", {
-        username: "irfad",
+        username: "idris",
         password: PASSWORD,
-        deviceName: "Irfad's Mac",
+        deviceName: "Idris's Mac",
         deviceClass: "desktop",
       })
     ).data as { session: { token: string }; keys?: unknown };
@@ -87,7 +87,7 @@ test("desktop path: sign in, unlock at launch writes the wrap; after a server re
       "held now, and the server wrote its wrap of the key",
     );
     assert.match(hostLog(d), /vault\.wrap_made/);
-    const ref = await connectClaude(d, token, "Irfad_Claude", { spaceUse: false });
+    const ref = await connectClaude(d, token, "Idris_Claude", { spaceUse: false });
     const mine = `ran for ${member.personId} on subscription ${ref}`;
     assert.equal((await ask(d, agentId, { token }, "before")).reply, mine);
 

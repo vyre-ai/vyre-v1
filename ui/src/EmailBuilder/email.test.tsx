@@ -322,7 +322,7 @@ test("Style pane shows the brand with Use brand; Preview pane shows the inbox ro
     "no brand, no section",
   );
   const pv = renderToStaticMarkup(
-    <EmailBuilder {...base} paneTab="preview" fromName="Maya Chen" testTo="Irfad" previewAs="Elena Rivera" />,
+    <EmailBuilder {...base} paneTab="preview" fromName="Maya Chen" testTo="Idris" previewAs="Elena Rivera" />,
   );
   assert.ok(
     pv.includes('data-testid="em-inbox"') &&

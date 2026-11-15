@@ -203,13 +203,13 @@ test("Notes pieces: [[links]] with a page are links, a link to a title with no p
 });
 
 test("who a fact credits, the words under a name, the Visible to choices, the crumbs", () => {
-  const f = { by: "usr_irfad", byKind: "person" } as KFact;
+  const f = { by: "usr_idris", byKind: "person" } as KFact;
   assert.equal(
-    whoText(f, { id: "usr_irfad" }, () => "x"),
+    whoText(f, { id: "usr_idris" }, () => "x"),
     "you",
   );
   assert.equal(
-    whoText({ by: "agt_billing", byKind: "agent" } as KFact, { id: "usr_irfad" }, (id) =>
+    whoText({ by: "agt_billing", byKind: "agent" } as KFact, { id: "usr_idris" }, (id) =>
       id === "agt_billing" ? "Billing" : id,
     ),
     "Billing",

@@ -89,7 +89,7 @@ export function RoutinesTab({
     setRunning((x) => [...x, r.routineId]);
     void runNow(deps, r).then(() => setRunning((x) => x.filter((id) => id !== r.routineId)));
   };
-  // who set a routine, in the one way every "set by" line says it: "You", "You, through Assistant" to its owner, "Irfad Imtiaz (Agent)" to anyone else
+  // who set a routine, in the one way every "set by" line says it: "You", "You, through Assistant" to its owner, "Idris Ibarra (Agent)" to anyone else
   const nameOf = (id: string): string => data.nameOf?.(id) ?? nameOr(data.people?.find((p) => p.id === id)?.name, id);
   const setBy = (r: Routine): string =>
     creditLine((r as Routine & { setBy?: { kind: string; id: string } }).setBy ?? { kind: "person", id: r.ownerId }, {

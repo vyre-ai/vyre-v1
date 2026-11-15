@@ -7,7 +7,7 @@ export function sampleRuntime(o: {
   call(cap: string, input: unknown): Promise<unknown>;
   opened?: string[];
 }): ShellRuntime {
-  const me = { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" as const };
+  const me = { id: "usr_idris", name: "Idris Ibarra", kind: "person" as const };
   return {
     screens: o.screens,
     call: o.call,

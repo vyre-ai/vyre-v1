@@ -17,8 +17,8 @@ const TASK = {
   title: "Send Pat the revised quote",
   state: "todo",
   blocked: false,
-  assigned: { kind: "person", id: "usr_irfad" },
-  createdBy: "usr_irfad",
+  assigned: { kind: "person", id: "usr_idris" },
+  createdBy: "usr_idris",
   blocks: [],
   actions: [],
   fileIds: [],
@@ -36,7 +36,7 @@ const fixed = (snap: unknown): LiveQuery<unknown> => ({
   subscribe: () => () => undefined,
   getSnapshot: () => snap as never,
 });
-const PEOPLE = { status: "ready", data: [{ id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" }] } as const;
+const PEOPLE = { status: "ready", data: [{ id: "usr_idris", name: "Idris Ibarra", kind: "person" }] } as const;
 
 test("a task from a meeting says From and the meeting, and opens its close-out", async () => {
   const off = installDom();
@@ -60,7 +60,7 @@ test("a task from a meeting says From and the meeting, and opens its close-out",
       connection: conv.data.connection,
       principals: { subscribe: () => () => undefined, getSnapshot: () => PEOPLE },
       recordTitle: () => undefined,
-      me: { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+      me: { id: "usr_idris", name: "Idris Ibarra", kind: "person" },
       clock: conv.data.clock,
       space: { id: "northwind", kind: "team", name: "Northwind" },
       assistant: { id: "agt_assistant", name: "Assistant" },

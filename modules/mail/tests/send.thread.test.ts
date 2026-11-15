@@ -58,7 +58,7 @@ test("a reply from Outlook answers this mailbox's copy through createReply", asy
     from: { address: JOSH },
     to: [{ address: "sam@vyre.test" }],
     subject: "RE: Welcome to Scout, Josh",
-    text: "Thanks Andrey.",
+    text: "Thanks Anders.",
     receivedAt: NOW,
   });
   await send(

@@ -46,7 +46,7 @@ const PERMS: Readonly<Record<Viewer, readonly string[]>> = {
 };
 
 export const NAMES: Readonly<Record<string, string>> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_idris: "Idris Ibarra",
   usr_priya: "Priya Raman",
   usr_omar: "Omar Haddad",
   usr_lena: "Lena Berg",
@@ -90,7 +90,7 @@ export const AUDIT: readonly AuditRow[] = [
     before: { role: "Member" },
     after: { role: "Developer" },
   }),
-  ev(2, 22 * MIN, person("usr_irfad"), "invite.created", "admin", {
+  ev(2, 22 * MIN, person("usr_idris"), "invite.created", "admin", {
     resource: { type: "space", id: "usr_lena" },
     after: { role: "Member", expires: "7 days" },
   }),
@@ -99,7 +99,7 @@ export const AUDIT: readonly AuditRow[] = [
     onBehalfOf: person("usr_priya"),
   }),
   ev(4, 2 * HOUR, person("usr_omar"), "file.opened", "deny", { resource: { type: "folder", id: "rec_rivera" } }),
-  ev(5, 3 * HOUR, person("usr_irfad"), "gate.rule.changed", "admin", {
+  ev(5, 3 * HOUR, person("usr_idris"), "gate.rule.changed", "admin", {
     resource: { type: "space", id: "svc_gate" },
     before: { send: "ask" },
     after: { send: "approve" },
@@ -116,7 +116,7 @@ export const AUDIT: readonly AuditRow[] = [
     resource: { type: "record", id: "rec_rivera" },
     onBehalfOf: person("usr_omar"),
   }),
-  ev(10, 2 * DAY, person("usr_irfad"), "person.erased", "erase", { resource: { type: "space", id: "usr_lena" } }),
+  ev(10, 2 * DAY, person("usr_idris"), "person.erased", "erase", { resource: { type: "space", id: "usr_lena" } }),
   ev(11, 3 * DAY, person("usr_omar"), "signed.in", "sign_in"),
   ev(12, 4 * DAY, person("usr_priya"), "connection.added", "admin", {
     resource: { type: "connection", id: "con_gmail" },
@@ -216,7 +216,7 @@ export function createSampleConsole(o: { viewer?: Viewer; busy?: boolean } = {})
     },
     me:
       viewer === "owner"
-        ? { id: "usr_irfad", name: "Irfad Imtiaz", role: "Owner" }
+        ? { id: "usr_idris", name: "Idris Ibarra", role: "Owner" }
         : viewer === "developer"
           ? { id: "usr_omar", name: "Omar Haddad", role: "Developer" }
           : { id: "usr_lena", name: "Lena Berg", role: "Member" },

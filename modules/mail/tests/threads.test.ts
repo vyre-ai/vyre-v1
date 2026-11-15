@@ -15,17 +15,17 @@ import type { HarnessOptions } from "../fixtures/harness.ts";
 
 const fx = (name: string): string =>
   readFileSync(fileURLToPath(new URL(`../fixtures/parse/${name}`, import.meta.url)), "utf8");
-const IRFAD = "irfad@northwind.test",
+const IDRIS = "idris@northwind.test",
   JOSH = "josh@cohenshah.test",
-  ANDREY = "andrey@scout.test",
+  ANDERS = "anders@scout.test",
   MAYA = "maya@northwind.test";
-const ME = { kind: "person" as const, id: "usr_irfad01" };
+const ME = { kind: "person" as const, id: "usr_idris01" };
 
 function setup(o: HarnessOptions = {}) {
   const h = harness({ principal: ME, ...o });
-  seedMailbox(h, "mbx_irfad", IRFAD, { kind: "personal", provider: "google", ownerId: ME.id });
+  seedMailbox(h, "mbx_idris", IDRIS, { kind: "personal", provider: "google", ownerId: ME.id });
   seedMailbox(h, "mbx_hello", "hello@northwind.test", { kind: "shared", provider: "inbound_only" });
-  h.ctx.db.run(`UPDATE mail_mailbox SET "connectionId" = ? WHERE id = ?`, "con_g1", "mbx_irfad");
+  h.ctx.db.run(`UPDATE mail_mailbox SET "connectionId" = ? WHERE id = ?`, "con_g1", "mbx_idris");
   return h;
 }
 
@@ -42,7 +42,7 @@ const mail = (
   const { text, ...others } = rest;
   const out: IngestIn = {
     source: "google",
-    mailboxId: "mbx_irfad",
+    mailboxId: "mbx_idris",
     rfcMessageId: rfc,
     from: { address: from },
     to: [],
@@ -55,20 +55,20 @@ const mail = (
   return out;
 };
 
-test("Andrey starts the thread, Josh replies through another mailbox, and later Gmail messages of the same provider thread all land in one thread", async () => {
+test("Anders starts the thread, Josh replies through another mailbox, and later Gmail messages of the same provider thread all land in one thread", async () => {
   const h = setup();
-  // Andrey's welcome reached the shared inbox; Josh's reply reaches Irfad's Gmail with a Gmail thread key of its own
+  // Anders's welcome reached the shared inbox; Josh's reply reaches Idris's Gmail with a Gmail thread key of its own
   const a = await ingest(
     h.ctx,
     mail({
       source: "resend",
       mailboxId: "mbx_hello",
-      from: ANDREY,
+      from: ANDERS,
       rfc: "<w1@scout.test>",
       providerId: "rs_w1",
       at: 0,
       to: [{ address: JOSH }],
-      cc: [{ address: IRFAD }],
+      cc: [{ address: IDRIS }],
     }),
   );
   const j = await ingest(
@@ -79,8 +79,8 @@ test("Andrey starts the thread, Josh replies through another mailbox, and later 
       providerId: "gm_w2",
       at: 60_000,
       threadKey: "gthread9",
-      to: [{ address: ANDREY }],
-      cc: [{ address: IRFAD }],
+      to: [{ address: ANDERS }],
+      cc: [{ address: IDRIS }],
       headers: { "In-Reply-To": "<w1@scout.test>", References: "<w1@scout.test>" },
     }),
   );
@@ -93,7 +93,7 @@ test("Andrey starts the thread, Josh replies through another mailbox, and later 
       providerId: "gm_w3",
       at: 120_000,
       threadKey: "gthread9",
-      to: [{ address: IRFAD }],
+      to: [{ address: IDRIS }],
       headers: { "In-Reply-To": "<never-synced@cohenshah.test>" },
     }),
   );
@@ -106,14 +106,14 @@ test("Andrey starts the thread, Josh replies through another mailbox, and later 
   );
   assert.deepEqual(
     t.messages.map((m) => m.from.address),
-    [ANDREY, JOSH, JOSH],
+    [ANDERS, JOSH, JOSH],
   );
   assert.equal(t.role, "cc");
   assert.equal(t.subject, "Welcome to Scout, Josh");
-  assert.deepEqual(t.participants.map((p) => p.address).sort(), [ANDREY, IRFAD, JOSH].sort());
+  assert.deepEqual(t.participants.map((p) => p.address).sort(), [ANDERS, IDRIS, JOSH].sort());
   assert.deepEqual(contractErrors("mail.thread.get", "out", t), []);
   assert.deepEqual(h.rows(`SELECT "mailboxId", "threadKey" FROM mail_copy WHERE "messageId" = ?`, j.messageId), [
-    { mailboxId: "mbx_irfad", threadKey: "gthread9" },
+    { mailboxId: "mbx_idris", threadKey: "gthread9" },
   ]);
 });
 
@@ -123,7 +123,7 @@ test("the open thread has every word: bodies are never cut, quoted history and s
   await ingest(
     h.ctx,
     mail({
-      from: ANDREY,
+      from: ANDERS,
       rfc: "<w1@scout.test>",
       providerId: "gm_1",
       at: 0,
@@ -131,7 +131,7 @@ test("the open thread has every word: bodies are never cut, quoted history and s
       html: fx("welcome-html.html"),
       text: undefined,
       to: [{ address: JOSH }],
-      cc: [{ address: IRFAD }],
+      cc: [{ address: IDRIS }],
     }),
   );
   await ingest(
@@ -143,8 +143,8 @@ test("the open thread has every word: bodies are never cut, quoted history and s
       at: 1000,
       threadKey: "t1",
       text: fx("outlook-original.txt"),
-      to: [{ address: ANDREY }],
-      cc: [{ address: IRFAD }],
+      to: [{ address: ANDERS }],
+      cc: [{ address: IDRIS }],
       headers: { "in-reply-to": "<w1@scout.test>" },
     }),
   );
@@ -156,8 +156,8 @@ test("the open thread has every word: bodies are never cut, quoted history and s
       providerId: "gm_3",
       at: 2000,
       threadKey: "t1",
-      text: `Hi Irfad,\n\n${long}\n\nJosh`,
-      to: [{ address: IRFAD }],
+      text: `Hi Idris,\n\n${long}\n\nJosh`,
+      to: [{ address: IDRIS }],
       headers: { "in-reply-to": "<w2@cohenshah.test>" },
     }),
   );
@@ -174,7 +174,7 @@ test("the open thread has every word: bodies are never cut, quoted history and s
   assert.match(welcome.body, /Welcome to Scout\. Your workspace for Cohen & Shah Law is ready\./);
   assert.equal(
     reply.body,
-    "Thanks Andrey. I am in and the team is set up.\n\nIrfad, can you connect it to Clio Grow when we meet Wednesday?",
+    "Thanks Anders. I am in and the team is set up.\n\nIdris, can you connect it to Clio Grow when we meet Wednesday?",
   );
   assert.match(reply.quoted ?? "", /^-----Original Message-----/);
   assert.match(reply.signature ?? "", /CONFIDENTIALITY NOTICE/);
@@ -202,20 +202,20 @@ test("a Gmail reaction is not a message: it sits on the message it answers, from
       threadKey: "t2",
       subject: "Claude in Chrome for Clio Grow",
       text: "Thanks, I will put in the card for the Clio seat today.",
-      to: [{ address: IRFAD }],
+      to: [{ address: IDRIS }],
     }),
   );
   await ingest(
     h.ctx,
     mail({
-      from: IRFAD,
+      from: IDRIS,
       direction: "out",
       rfc: "<r1@northwind.test>",
       providerId: "gm_r1",
       at: 60_000,
       threadKey: "t2",
       subject: "Re: Claude in Chrome for Clio Grow",
-      text: "❤️ Irfad Imtiaz reacted via Gmail <https://www.google.com/gmail/about/>",
+      text: "❤️ Idris Ibarra reacted via Gmail <https://www.google.com/gmail/about/>",
       headers: { "in-reply-to": "<c3@cohenshah.test>", "x-vyre-reaction": "❤️" },
       to: [{ address: JOSH }],
     }),
@@ -230,14 +230,14 @@ test("a Gmail reaction is not a message: it sits on the message it answers, from
       threadKey: "t2",
       subject: "RE: Claude in Chrome for Clio Grow",
       text: "One more: can we do 11:00?",
-      to: [{ address: IRFAD }],
+      to: [{ address: IDRIS }],
       headers: { "in-reply-to": "<c3@cohenshah.test>" },
     }),
   );
   const thread = String(h.rows(`SELECT "threadId" FROM mail_message`)[0]!.threadId);
   const t = await threadGet(h.ctx, { threadId: thread });
   assert.equal(t.messages.length, 2, "the reaction is not listed as a message");
-  assert.deepEqual(t.messages[0]?.reactions, [{ emoji: "❤️", from: { address: IRFAD }, at: NOW + 60_000 }]);
+  assert.deepEqual(t.messages[0]?.reactions, [{ emoji: "❤️", from: { address: IDRIS }, at: NOW + 60_000 }]);
   assert.deepEqual(t.messages[1]?.reactions, []);
   assert.equal(t.role, "to");
 });
@@ -255,7 +255,7 @@ test("your role: you started it, or you were added later (the first message you 
       subject: "Re: Claude in Chrome for Clio Grow",
       text: fx("gmail-reply.txt"),
       to: [{ address: JOSH }],
-      cc: [{ address: IRFAD }],
+      cc: [{ address: IDRIS }],
       headers: { "in-reply-to": "<j0@cohenshah.test>", references: "<j0@cohenshah.test>" },
     }),
   );
@@ -268,7 +268,7 @@ test("your role: you started it, or you were added later (the first message you 
   await ingest(
     h.ctx,
     mail({
-      from: IRFAD,
+      from: IDRIS,
       direction: "out",
       rfc: "<s1@northwind.test>",
       providerId: "gm_s1",
@@ -286,7 +286,7 @@ test("your role: you started it, or you were added later (the first message you 
 });
 
 test("a thread you may not read is not found; a bad id is refused", async () => {
-  const h = setup({ denied: new Set(["mbx_irfad"]) });
+  const h = setup({ denied: new Set(["mbx_idris"]) });
   await ingest(
     h.ctx,
     mail({
@@ -295,7 +295,7 @@ test("a thread you may not read is not found; a bad id is refused", async () => 
       providerId: "gm_x1",
       at: 0,
       threadKey: "t5",
-      to: [{ address: IRFAD }],
+      to: [{ address: IDRIS }],
     }),
   );
   await assert.rejects(threadGet(h.ctx, { threadId: "t5" }), (e) => codeOf(e) === "permission.not_found");
@@ -324,14 +324,14 @@ test("a body stored empty is read again from Gmail when the thread opens, in its
       threadKey: "t6",
       subject: "Reunión del miércoles",
       text: undefined,
-      to: [{ address: IRFAD }],
+      to: [{ address: IDRIS }],
     }),
   );
   const t = await threadGet(h.ctx, { threadId: "t6" });
-  assert.deepEqual(asked, [{ connectionId: "con_g1", as: IRFAD, messageId: "gm_l1", format: "full" }]);
+  assert.deepEqual(asked, [{ connectionId: "con_g1", as: IDRIS, messageId: "gm_l1", format: "full" }]);
   assert.equal(
     t.messages[0]?.body,
-    "Hola Irfad,\n\nGracias por la llamada. La reunión es el miércoles a las 11:00. El café está pagado.\n\nJosé",
+    "Hola Idris,\n\nGracias por la llamada. La reunión es el miércoles a las 11:00. El café está pagado.\n\nJosé",
   );
   assert.match(
     String(h.rows(`SELECT text FROM mail_body WHERE "messageId" = ?`, got.messageId)[0]!.text),

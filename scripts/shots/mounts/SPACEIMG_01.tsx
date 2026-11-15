@@ -54,31 +54,31 @@ function logo(w: number, h: number): string {
   g.font = `700 ${Math.round(side * 0.2)}px Georgia, serif`;
   g.textAlign = "center";
   g.textBaseline = "middle";
-  g.fillText("MLA", x + side / 2, y + side * 0.72);
+  g.fillText("Northwind", x + side / 2, y + side * 0.72);
   if (w > h) {
     g.fillStyle = "#12305A";
     g.font = `600 ${Math.round(h * 0.06)}px Georgia, serif`;
     g.textAlign = "left";
-    g.fillText("My Legal Academy", x + side + h * 0.24, h / 2);
+    g.fillText("Northwind Academy", x + side + h * 0.24, h / 2);
   }
   return c.toDataURL("image/png");
 }
 
 const SPACE = {
   id: "spc_mla",
-  name: "My Legal Academy",
+  name: "Northwind Academy",
   kind: "team",
-  owner: "usr_irfad",
+  owner: "usr_idris",
   fingerprint: "ab12 cd34 ef56 7890",
-  address: { mode: "own_domain", host: "mla.vyre.run" },
+  address: { mode: "own_domain", host: "northwind.vyre.run" },
   defaults: {},
   createdAt: NOW - 40 * 86_400_000,
 };
 
 const FILES = [
-  { name: "MLA logo.png", ago: 0.2 },
+  { name: "Northwind logo.png", ago: 0.2 },
   { name: "Lab 7 cover.png", ago: 1 },
-  { name: "Andrey headshot.jpg", ago: 3 },
+  { name: "Anders headshot.jpg", ago: 3 },
   { name: "Probate webinar banner.png", ago: 6 },
   { name: "Office front.jpg", ago: 12 },
   { name: "Brand colours.png", ago: 30 },
@@ -91,10 +91,10 @@ const FILES = [
   size: 48_000,
   version: 1,
   label: 0,
-  ownerId: "usr_irfad",
+  ownerId: "usr_idris",
   createdAt: NOW - f.ago * 86_400_000,
   updatedAt: NOW - f.ago * 86_400_000,
-  updatedBy: "usr_irfad",
+  updatedBy: "usr_idris",
   thumb: true,
   holds: 0,
 }));
@@ -164,7 +164,7 @@ export default function Mount(): ReactNode {
   const saved = useMemo(() => consoleFor({ image: square, wide, square }), [wide, square]);
   useEffect(() => {
     if (part === "crop") {
-      const t = setTimeout(() => paste(wide, "MLA logo.png"), 300);
+      const t = setTimeout(() => paste(wide, "Northwind logo.png"), 300);
       return () => clearTimeout(t);
     }
     if (part === "rail") {
@@ -184,25 +184,25 @@ export default function Mount(): ReactNode {
     );
   }
   if (part === "rail") {
-    const mla = {
+    const northwind = {
       ...NORTHWIND,
-      spaceId: "mla",
-      name: "My Legal Academy",
-      address: "mla.vyre.run",
+      spaceId: "northwind",
+      name: "Northwind Academy",
+      address: "northwind.vyre.run",
       image: square,
       imageKey: "fil_saved",
     };
     return (
       <View style={{ flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
         <View style={{ width: 64, alignItems: "center", paddingTop: 14, backgroundColor: "var(--rail)" as string }}>
-          <SpaceTile spaces={[mla, HARBOR, PERSONAL]} openId="mla" away={false} onSwitch={noop} onAction={noop} />
+          <SpaceTile spaces={[northwind, HARBOR, PERSONAL]} openId="northwind" away={false} onSwitch={noop} onAction={noop} />
         </View>
       </View>
     );
   }
   if (part === "signin") {
-    const invite = signInInvite("https://mla.vyre.run", {
-      name: "My Legal Academy",
+    const invite = signInInvite("https://northwind.vyre.run", {
+      name: "Northwind Academy",
       fingerprint: "",
       password: true,
       github: false,
@@ -216,9 +216,9 @@ export default function Mount(): ReactNode {
     );
   }
   const invite: JoinInvite = {
-    space: "My Legal Academy",
-    host: "mla.vyre.run",
-    by: "Irfad Imtiaz",
+    space: "Northwind Academy",
+    host: "northwind.vyre.run",
+    by: "Idris Ibarra",
     role: "Member",
     fingerprint: "ab12 cd34 ef56 7890",
     sso: [],

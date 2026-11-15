@@ -30,7 +30,7 @@ function rig(): { data: ConversationData; calls: Call[] } {
       if (cap === "agents.list")
         return {
           agents: [
-            { agentId: "agt_docs", name: "Docs", ownerId: "usr_irfad", kind: "agent" },
+            { agentId: "agt_docs", name: "Docs", ownerId: "usr_idris", kind: "agent" },
             { agentId: "agt_intake", name: "Intake", ownerId: "usr_maya", kind: "assistant" },
           ],
         };
@@ -161,7 +161,7 @@ test("editing your message to add an @mention asks that agent once, as you, and 
         if (cap === "agents.list")
           return {
             agents: [
-              { agentId: "agt_docs", name: "Docs", ownerId: "usr_irfad", kind: "agent" },
+              { agentId: "agt_docs", name: "Docs", ownerId: "usr_idris", kind: "agent" },
               { agentId: "agt_intake", name: "Intake", ownerId: "usr_maya", kind: "agent" },
             ],
           };

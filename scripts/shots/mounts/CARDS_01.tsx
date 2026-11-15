@@ -223,7 +223,7 @@ const Goal = (): ReactNode => (
     }
     call={goalCall}
     changes={undefined}
-    me="usr_irfad"
+    me="usr_idris"
   />
 );
 const PLAN = {

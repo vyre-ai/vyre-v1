@@ -7,7 +7,7 @@ import { ArtifactView } from "./ArtifactView.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 
 const rt = {
-  me: { id: "me", name: "Irfad" },
+  me: { id: "me", name: "Idris" },
   clock: () => ({ now: Date.UTC(2026, 10, 4, 16, 0), offsetMin: 0 }),
   call: () => new Promise(() => undefined),
   open: () => undefined,

@@ -364,7 +364,7 @@ function skills(extra: Record<string, unknown> = {}) {
           agents: [{ agentId: "agt_mira", name: "Mira" }],
           policy: { scriptsAdminOnly: false },
           admin: false,
-          me: "usr_irfad",
+          me: "usr_idris",
           ...extra,
         };
       case "skills.of_agents":
@@ -393,7 +393,7 @@ function skills(extra: Record<string, unknown> = {}) {
               repo: "acme/pdf-tools",
               commit: "a41f9c2",
               url: "u",
-              by: "usr_irfad",
+              by: "usr_idris",
               at: 1,
               installed: { skillId: "sko_1" },
             },
@@ -406,20 +406,20 @@ function skills(extra: Record<string, unknown> = {}) {
       case "skills.history":
         return {
           revisions: [
-            { rev: 2, by: "usr_irfad", authorKind: "person", summary: "updated to 7d03be8", at: Date.UTC(2025, 10, 4) },
-            { rev: 1, by: "usr_irfad", authorKind: "person", summary: "created", at: Date.UTC(2025, 9, 20) },
+            { rev: 2, by: "usr_idris", authorKind: "person", summary: "updated to 7d03be8", at: Date.UTC(2025, 10, 4) },
+            { rev: 1, by: "usr_idris", authorKind: "person", summary: "created", at: Date.UTC(2025, 9, 20) },
           ],
         };
       case "skills.grants":
         return {
-          owner: "usr_irfad",
+          owner: "usr_idris",
           ownerKind: "person",
-          grants: [...held].map(([agentId, level]) => ({ agentId, level, by: "usr_irfad", at: 1 })),
+          grants: [...held].map(([agentId, level]) => ({ agentId, level, by: "usr_idris", at: 1 })),
         };
       case "skills.grant":
         if (i["level"] === null) held.delete(i["agentId"]);
         else held.set(i["agentId"], i["level"]);
-        return { grants: [...held].map(([agentId, level]) => ({ agentId, level, by: "usr_irfad", at: 1 })) };
+        return { grants: [...held].map(([agentId, level]) => ({ agentId, level, by: "usr_idris", at: 1 })) };
       default:
         throw new Error(`no ${cap}`);
     }
@@ -432,7 +432,7 @@ test("the Skills list groups Yours, Your agents' and Shared with you, each with 
   const s = skills();
   const root = await mount(
     createRoot as never,
-    <SkillsTab deps={s.deps} nameOf={(id) => (({ usr_irfad: "Irfad Imtiaz" }) as Record<string, string>)[id] ?? id} />,
+    <SkillsTab deps={s.deps} nameOf={(id) => (({ usr_idris: "Idris Ibarra" }) as Record<string, string>)[id] ?? id} />,
   );
   await flush();
   await flush();

@@ -17,7 +17,7 @@ import {
 import type { Viewer } from "./index.ts";
 
 const NAMES: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_idris: "Idris Ibarra",
   usr_omar: "Omar Reyes",
   agt_dex: "Dex",
   agt_omar_cc: "Omar Reyes (Agent)",
@@ -29,32 +29,32 @@ const WED = Date.UTC(2026, 10, 11, 11, 16); // Wed 11 Nov 2026 11:16 UTC = 16:16
 test("a time reads once, short, in the reader's zone", () => {
   assert.equal(shortTime(WED, 300), "Wed 11 Nov, 4:16 PM");
   assert.equal(shortTime(WED, 0), "Wed 11 Nov, 11:16 AM");
-  assert.equal(expandWords(`Started. Due ${atToken(WED)}.`, viewer("usr_irfad")), "Started. Due Wed 11 Nov, 4:16 PM.");
+  assert.equal(expandWords(`Started. Due ${atToken(WED)}.`, viewer("usr_idris")), "Started. Due Wed 11 Nov, 4:16 PM.");
 });
 
 test("the reader is 'you', anyone else is named, and a sentence start is capitalised", () => {
-  const t = `${whoToken("agt_dex")} drafted this goal for ${whoToken("usr_irfad")}.`;
-  assert.equal(expandWords(t, viewer("usr_irfad")), "Dex drafted this goal for you.");
-  assert.equal(expandWords(t, viewer("usr_omar")), "Dex drafted this goal for Irfad Imtiaz.");
-  assert.equal(expandWords(`${whoToken("usr_irfad")} made this goal.`, viewer("usr_irfad")), "You made this goal.");
+  const t = `${whoToken("agt_dex")} drafted this goal for ${whoToken("usr_idris")}.`;
+  assert.equal(expandWords(t, viewer("usr_idris")), "Dex drafted this goal for you.");
+  assert.equal(expandWords(t, viewer("usr_omar")), "Dex drafted this goal for Idris Ibarra.");
+  assert.equal(expandWords(`${whoToken("usr_idris")} made this goal.`, viewer("usr_idris")), "You made this goal.");
 });
 
 test("credit: a Space agent by its name, the reader as You, another person's private agent as its person, the server as Vyre", () => {
-  assert.equal(creditOf("agt_dex>usr_irfad", viewer("usr_irfad")), "Dex");
+  assert.equal(creditOf("agt_dex>usr_idris", viewer("usr_idris")), "Dex");
   assert.equal(creditOf("agt_dex", viewer("usr_omar")), "Dex");
-  assert.equal(creditOf("usr_irfad", viewer("usr_irfad")), "You");
-  assert.equal(creditOf("agt_omar_cc>usr_omar", viewer("usr_irfad")), "Omar Reyes (Agent)");
-  assert.equal(creditOf("svc_host", viewer("usr_irfad")), "", "the server is never credited by name");
-  assert.equal(creditOf(undefined, viewer("usr_irfad")), "");
+  assert.equal(creditOf("usr_idris", viewer("usr_idris")), "You");
+  assert.equal(creditOf("agt_omar_cc>usr_omar", viewer("usr_idris")), "Omar Reyes (Agent)");
+  assert.equal(creditOf("svc_host", viewer("usr_idris")), "", "the server is never credited by name");
+  assert.equal(creditOf(undefined, viewer("usr_idris")), "");
 });
 
 test("snapshot: the main goal feed lines", () => {
-  const v = viewer("usr_irfad");
+  const v = viewer("usr_idris");
   const lines = [
-    { text: `${whoToken("agt_dex")} drafted this goal for ${whoToken("usr_irfad")}.`, by: "agt_dex>usr_irfad" },
-    { text: `Started. Due ${atToken(WED)}.`, by: "usr_irfad" },
+    { text: `${whoToken("agt_dex")} drafted this goal for ${whoToken("usr_idris")}.`, by: "agt_dex>usr_idris" },
+    { text: `Started. Due ${atToken(WED)}.`, by: "usr_idris" },
     { text: `${whoToken("agt_dex")} was woken because it is time for a check-in.`, by: "svc_host" },
-    { text: `${whoToken("usr_omar")} was mentioned in the goal chat and can now open its folder.`, by: "usr_irfad" },
+    { text: `${whoToken("usr_omar")} was mentioned in the goal chat and can now open its folder.`, by: "usr_idris" },
     { text: "Moved from Planning to Active.", by: "svc_host" },
   ].map((e) => formatActivity({ ...e, at: WED }, v));
   assert.deepEqual(
@@ -70,7 +70,7 @@ test("snapshot: the main goal feed lines", () => {
 });
 
 test("a stored sentence with no token reads as stored, and tpl wins when the server sent both", () => {
-  const v = viewer("usr_irfad");
+  const v = viewer("usr_idris");
   assert.equal(formatActivity({ text: "Done: Pull the list", at: WED }, v).text, "Done: Pull the list");
   assert.equal(
     formatActivity({ text: "Started. Due Wed 11 Nov, 11:16.", tpl: `Started. Due ${atToken(WED)}.`, at: WED }, v).text,
@@ -93,7 +93,7 @@ test("code-like text is caught: ids, error codes, tool names, snake_case, traces
     "Open agent.toml in the editor.",
     "Save it as report.pdf.",
     "Wed 11 Nov, 4:16",
-    "Visit ranql.com today.",
+    "Visit northwind.example today.",
   ])
     assert.equal(looksLikeCode(ok), false, ok);
 });
@@ -143,7 +143,7 @@ test("problemWords: machine talk never reaches a person", () => {
 });
 
 test("a feed line in a zone reads in it, 12 hour, daylight saving included, never as raw UTC", () => {
-  const v = { me: "usr_irfad", nameOf: (id: string) => id, offsetMin: 0, zone: "America/Los_Angeles" };
+  const v = { me: "usr_idris", nameOf: (id: string) => id, offsetMin: 0, zone: "America/Los_Angeles" };
   assert.equal(shortTimeIn(WED, "America/Los_Angeles"), "Wed 11 Nov, 3:16 AM");
   assert.equal(
     expandWords(`Started. Due ${atToken(WED)}.`, v),

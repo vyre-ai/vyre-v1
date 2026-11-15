@@ -161,7 +161,7 @@ export const AGENT_TOML_INTAKE = [
   "enabled = true",
   "",
   "[handoff]",
-  'can_message  = ["@billing", "lena", "irfad"]',
+  'can_message  = ["@billing", "lena", "idris"]',
   "can_delegate = []",
   'accepts_from = ["*"]',
   "",
@@ -524,7 +524,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
         {
           versionId: "ver_a3",
           n: 3,
-          by: "usr_irfad",
+          by: "usr_idris",
           at: t0 - 2 * DAY,
           reason: "Say what happens next",
           name: "Before the Lab",
@@ -533,7 +533,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
         {
           versionId: "ver_a4",
           n: 4,
-          by: "usr_irfad",
+          by: "usr_idris",
           at: t0 - 3 * 3_600_000,
           reason: "Allow texts in the daytime",
           text: AGENT_MD,
@@ -547,7 +547,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
             {
               versionId: "ver_t1",
               n: 1,
-              by: "usr_irfad",
+              by: "usr_idris",
               at: t0 - 9 * DAY,
               reason: "First version",
               text: AGENT_TOML_INTAKE.replace("max_output_tokens = 3000", "max_output_tokens = 2000"),
@@ -576,7 +576,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
             {
               versionId: "ver_t1",
               n: 1,
-              by: "usr_irfad",
+              by: "usr_idris",
               at: t0 - 5 * DAY,
               reason: "Models and limits",
               text: AGENT_TOML.replace("daily_budget = 12", "daily_budget = 8"),
@@ -584,7 +584,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
             {
               versionId: "ver_t2",
               n: 2,
-              by: "usr_irfad",
+              by: "usr_idris",
               at: t0 - 1 * DAY,
               reason: "Raise the daily budget",
               text: o.secret
@@ -607,7 +607,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
     size: current(fileId).text.length,
     version: current(fileId).n,
     label: 1,
-    ownerId: "usr_irfad",
+    ownerId: "usr_idris",
     createdAt: t0 - 6 * DAY,
     updatedAt: current(fileId).at,
     updatedBy: current(fileId).by,
@@ -752,7 +752,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
       const next: Version = {
         versionId: `ver_${i.fileId}_${vs.length + 1}`,
         n: vs.length + 1,
-        by: "usr_irfad",
+        by: "usr_idris",
         at: SAMPLE_NOW,
         reason: `Restored version ${old.n}`,
         text: old.text,
@@ -785,7 +785,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
       const next: Version = {
         versionId: `ver_${i.fileId}_${vs.length + 1}`,
         n: top.n + 1,
-        by: "usr_irfad",
+        by: "usr_idris",
         at: SAMPLE_NOW,
         ...(i.reason ? { reason: i.reason } : {}),
         text: i.text,
@@ -902,7 +902,7 @@ export function createSampleReview(o: SampleOptions = {}): SampleReview {
             { id: "agt_scout", name: "Scout" },
           ],
     people: [
-      { id: "irfad", name: "Irfad Imtiaz" },
+      { id: "idris", name: "Idris Ibarra" },
       { id: "maya", name: "Maya Chen" },
       { id: "omar", name: "Omar Haddad" },
       { id: "lena", name: "Lena Ortiz" },

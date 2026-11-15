@@ -47,10 +47,10 @@ export const threads: Record<string, ThreadItem[]> = {
       at: ago(4320),
       direction: "in",
       title: "Client intake form",
-      preview: "Hi Irfad, I filled out your intake form this morning.",
+      preview: "Hi Idris, I filled out your intake form this morning.",
       ref: {
         subject: "Client intake form",
-        body: "Hi Irfad,\n\nI filled out your intake form this morning. Let me know if you need anything else from me before Thursday.\n\nElena",
+        body: "Hi Idris,\n\nI filled out your intake form this morning. Let me know if you need anything else from me before Thursday.\n\nElena",
         via: "hello@",
         attachments: [{ name: "Intake-Elena-Rivera.pdf", size: "182 KB" }],
         chips: [
@@ -68,11 +68,11 @@ export const threads: Record<string, ThreadItem[]> = {
       preview: "Thanks Elena, got it.",
       ref: {
         subject: "Re: Client intake form",
-        body: "Thanks Elena, got it. I will go through it tonight and send the lease draft tomorrow.\n\nIrfad",
+        body: "Thanks Elena, got it. I will go through it tonight and send the lease draft tomorrow.\n\nIdris",
         via: "Work Gmail",
         status: "delivered",
         quoted:
-          "On Fri, Oct 20 at 9:12 AM Elena Rivera wrote:\n> Hi Irfad,\n> I filled out your intake form this morning.",
+          "On Fri, Oct 20 at 9:12 AM Elena Rivera wrote:\n> Hi Idris,\n> I filled out your intake form this morning.",
       },
     },
     {
@@ -92,7 +92,7 @@ export const threads: Record<string, ThreadItem[]> = {
         recordingUrl: SILENT_WAV,
         transcript: [
           { who: "Elena", text: "Hi, it is Elena. I will send the lease on Thursday." },
-          { who: "Irfad", text: "Perfect. Can we talk for ten minutes on Friday morning?" },
+          { who: "Idris", text: "Perfect. Can we talk for ten minutes on Friday morning?" },
           { who: "Elena", text: "Yes, nine thirty works." },
         ],
       },
@@ -130,7 +130,7 @@ export const threads: Record<string, ThreadItem[]> = {
       preview: "Attached is draft 3 of the lease.",
       ref: {
         subject: "Lease documents for Thursday",
-        body: "Hi Irfad,\n\nAttached is draft 3 of the lease. Marcus at the property company asked for a reply by Friday, so a quick read tonight would help.\n\nThank you,\nElena",
+        body: "Hi Idris,\n\nAttached is draft 3 of the lease. Marcus at the property company asked for a reply by Friday, so a quick read tonight would help.\n\nThank you,\nElena",
         quoted: ELENA_QUOTE,
         via: "Work Gmail",
         attachments: [
@@ -165,7 +165,7 @@ export const threads: Record<string, ThreadItem[]> = {
         summary: "Marcus confirms invoice 1038 landed. He asks for 1041 again and agrees to net 15 on the next one.",
         transcript: [
           { who: "Marcus", text: "Invoice 1038 landed on Monday, thank you." },
-          { who: "Irfad", text: "Good. I will send 1041 today." },
+          { who: "Idris", text: "Good. I will send 1041 today." },
           { who: "Marcus", text: "Net 15 on the next one works for us." },
         ],
       },
@@ -237,16 +237,16 @@ export const threads: Record<string, ThreadItem[]> = {
 
 // ---------------------------------------------------------------- email threads (owner, 3 Nov; a live case, anonymised)
 // Josh Cohen is on two threads. "Claude in Chrome for Clio Grow + follow-up": Maya added you later, you answered, Josh replied (you reacted with a heart) and has written twice
-// since you last looked. "Welcome to Scout, Josh": Andrey started it with you on Cc and Josh replied. The Scout thread is one object, so it shows whole under Andrey too.
+// since you last looked. "Welcome to Scout, Josh": Anders started it with you on Cc and Josh replied. The Scout thread is one object, so it shows whole under Anders too.
 
-const ME = "irfad@northwind.example",
+const ME = "idris@northwind.example",
   JOSH = "josh@cohenshah.example",
-  ANDREY = "andrey@scout.example",
+  ANDERS = "anders@scout.example",
   MAYA = "maya@northwind.example";
 const P = {
-  me: { address: ME, name: "Irfad Imtiaz" },
+  me: { address: ME, name: "Idris Ibarra" },
   josh: { address: JOSH, name: "Josh Cohen" },
-  andrey: { address: ANDREY, name: "Andrey Volkov" },
+  anders: { address: ANDERS, name: "Anders Volkov" },
   maya: { address: MAYA, name: "Maya Chen" },
 };
 const JOSH_SIG =
@@ -279,12 +279,12 @@ const msg = (
 const CHROME = "Claude in Chrome for Clio Grow + follow-up",
   SCOUT = "Welcome to Scout, Josh";
 const SCOUT_HTML =
-  '<p>Hi Josh,</p><p>Welcome to Scout. Your workspace for <b>Cohen &amp; Shah Law</b> is ready, and your team can sign in now.</p><p><a href="https://app.scout.example/w/cohen-shah" target="_blank" rel="noopener noreferrer nofollow">Open your workspace</a> <span class="vy-link-host">(app.scout.example)</span></p><p>Irfad is copied here. He will connect Scout to Clio Grow when you meet.</p><p>Andrey</p>';
+  '<p>Hi Josh,</p><p>Welcome to Scout. Your workspace for <b>Cohen &amp; Shah Law</b> is ready, and your team can sign in now.</p><p><a href="https://app.scout.example/w/cohen-shah" target="_blank" rel="noopener noreferrer nofollow">Open your workspace</a> <span class="vy-link-host">(app.scout.example)</span></p><p>Idris is copied here. He will connect Scout to Clio Grow when you meet.</p><p>Anders</p>';
 const scoutThread = (unread: boolean): MailThread => ({
   threadId: "gm_18c39f7b2d10",
   subject: SCOUT,
   role: "cc",
-  participants: [P.andrey, P.josh, P.me],
+  participants: [P.anders, P.josh, P.me],
   lastAt: ago(1410),
   messageCount: 2,
   unread: 0,
@@ -294,12 +294,12 @@ const scoutThread = (unread: boolean): MailThread => ({
       message: msg(
         "eml_w1",
         1530,
-        P.andrey,
+        P.anders,
         [P.josh],
         [P.me],
         SCOUT,
-        "Hi Josh,\n\nWelcome to Scout. Your workspace for Cohen & Shah Law is ready, and your team can sign in now.\n\nOpen your workspace (app.scout.example)\n\nIrfad is copied here. He will connect Scout to Clio Grow when you meet.\n\nAndrey",
-        { html: SCOUT_HTML, imagesHeld: 1, signature: "Andrey Volkov\nCEO, Scout\nscout.example" },
+        "Hi Josh,\n\nWelcome to Scout. Your workspace for Cohen & Shah Law is ready, and your team can sign in now.\n\nOpen your workspace (app.scout.example)\n\nIdris is copied here. He will connect Scout to Clio Grow when you meet.\n\nAnders",
+        { html: SCOUT_HTML, imagesHeld: 1, signature: "Anders Volkov\nCEO, Scout\nscout.example" },
       ),
     },
     {
@@ -308,14 +308,14 @@ const scoutThread = (unread: boolean): MailThread => ({
         "eml_w2",
         1410,
         P.josh,
-        [P.andrey],
+        [P.anders],
         [P.me],
         `RE: ${SCOUT}`,
-        "Thanks Andrey. I am in and the team is set up.\n\nIrfad, can you connect it to Clio Grow when we meet Wednesday?",
+        "Thanks Anders. I am in and the team is set up.\n\nIdris, can you connect it to Clio Grow when we meet Wednesday?",
         {
           signature: JOSH_SIG,
           quoted:
-            "-----Original Message-----\nFrom: Andrey Volkov <andrey@scout.example>\nSent: Friday, October 23, 2026 9:10 AM\nTo: Josh Cohen <josh@cohenshah.example>\nCc: Irfad Imtiaz <irfad@northwind.example>\nSubject: Welcome to Scout, Josh\n\nHi Josh,\nWelcome to Scout. Your workspace for Cohen & Shah Law is ready.",
+            "-----Original Message-----\nFrom: Anders Volkov <anders@scout.example>\nSent: Friday, October 23, 2026 9:10 AM\nTo: Josh Cohen <josh@cohenshah.example>\nCc: Idris Ibarra <idris@northwind.example>\nSubject: Welcome to Scout, Josh\n\nHi Josh,\nWelcome to Scout. Your workspace for Cohen & Shah Law is ready.",
         },
       ),
     },
@@ -341,7 +341,7 @@ export const mailThreads: Record<string, MailThread[]> = {
             [P.josh],
             [P.me],
             `Re: ${CHROME}`,
-            "Hi Josh,\n\nAdding Irfad, who set up Claude in Chrome for our own Clio Grow intake. Irfad, Josh wants the same setup for his intake team, and a follow-up after each consult.",
+            "Hi Josh,\n\nAdding Idris, who set up Claude in Chrome for our own Clio Grow intake. Idris, Josh wants the same setup for his intake team, and a follow-up after each consult.",
             {
               signature: "Maya Chen\nClient Success | Northwind\n+1 415 555 0140",
               quoted:
@@ -358,10 +358,10 @@ export const mailThreads: Record<string, MailThread[]> = {
             [P.josh],
             [P.maya],
             `Re: ${CHROME}`,
-            "Hi Josh,\n\nHappy to. The short version: Claude in Chrome reads each new lead in Clio Grow, fills the matter fields and leaves a note for your team to check before anything is saved. I can set it up with your intake lead on a 30-minute call. Tuesday or Wednesday afternoon both work.\n\nIrfad",
+            "Hi Josh,\n\nHappy to. The short version: Claude in Chrome reads each new lead in Clio Grow, fills the matter fields and leaves a note for your team to check before anything is saved. I can set it up with your intake lead on a 30-minute call. Tuesday or Wednesday afternoon both work.\n\nIdris",
             {
               quoted:
-                "On Thu, Oct 22, 2026 at 11:30 AM Maya Chen <maya@northwind.example> wrote:\n> Adding Irfad, who set up Claude in Chrome for our own Clio Grow intake.",
+                "On Thu, Oct 22, 2026 at 11:30 AM Maya Chen <maya@northwind.example> wrote:\n> Adding Idris, who set up Claude in Chrome for our own Clio Grow intake.",
             },
           ),
         },
@@ -379,7 +379,7 @@ export const mailThreads: Record<string, MailThread[]> = {
               signature: JOSH_SIG,
               reactions: [{ emoji: "\u2764\ufe0f", from: P.me, at: ago(2660) }],
               quoted:
-                "From: Irfad Imtiaz <irfad@northwind.example>\nSent: Thursday, October 22, 2026 1:30 PM\nTo: Josh Cohen <josh@cohenshah.example>\nCc: Maya Chen <maya@northwind.example>\nSubject: Re: Claude in Chrome for Clio Grow + follow-up",
+                "From: Idris Ibarra <idris@northwind.example>\nSent: Thursday, October 22, 2026 1:30 PM\nTo: Josh Cohen <josh@cohenshah.example>\nCc: Maya Chen <maya@northwind.example>\nSubject: Re: Claude in Chrome for Clio Grow + follow-up",
             },
           ),
         },
@@ -392,11 +392,11 @@ export const mailThreads: Record<string, MailThread[]> = {
             [P.me],
             [P.maya],
             `RE: ${CHROME}`,
-            "Hi Irfad,\n\nQuick one before Wednesday. Our lead form also feeds a Google Sheet that Rachel's team works from, so the intake team sees each lead twice. Could Claude in Chrome check the sheet first and skip anything already in Clio Grow? If that is easy, we would also like it to tag the practice area, so the right attorney gets the lead the same morning.\n\nThe second thing is the follow-up. Right now nobody writes after the consult, so the lead goes quiet and we lose about a third of them. A short email the next morning, then we will call on day three. Could the same setup draft that email for Rachel to send?",
+            "Hi Idris,\n\nQuick one before Wednesday. Our lead form also feeds a Google Sheet that Rachel's team works from, so the intake team sees each lead twice. Could Claude in Chrome check the sheet first and skip anything already in Clio Grow? If that is easy, we would also like it to tag the practice area, so the right attorney gets the lead the same morning.\n\nThe second thing is the follow-up. Right now nobody writes after the consult, so the lead goes quiet and we lose about a third of them. A short email the next morning, then we will call on day three. Could the same setup draft that email for Rachel to send?",
             {
               signature: JOSH_SIG,
               quoted:
-                "-----Original Message-----\nFrom: Josh Cohen <josh@cohenshah.example>\nSent: Thursday, October 22, 2026 3:40 PM\nTo: Irfad Imtiaz <irfad@northwind.example>\nSubject: RE: Claude in Chrome for Clio Grow + follow-up\n\nThanks, I will put in the card for the Clio seat today.",
+                "-----Original Message-----\nFrom: Josh Cohen <josh@cohenshah.example>\nSent: Thursday, October 22, 2026 3:40 PM\nTo: Idris Ibarra <idris@northwind.example>\nSubject: RE: Claude in Chrome for Clio Grow + follow-up\n\nThanks, I will put in the card for the Clio seat today.",
             },
           ),
         },
@@ -413,7 +413,7 @@ export const mailThreads: Record<string, MailThread[]> = {
             {
               signature: "Sent from my iPhone",
               quoted:
-                "> On Oct 24, 2026, at 9:04 AM, Josh Cohen <josh@cohenshah.example> wrote:\n>\n> Hi Irfad,\n> Quick one before Wednesday.",
+                "> On Oct 24, 2026, at 9:04 AM, Josh Cohen <josh@cohenshah.example> wrote:\n>\n> Hi Idris,\n> Quick one before Wednesday.",
             },
           ),
         },
@@ -421,7 +421,7 @@ export const mailThreads: Record<string, MailThread[]> = {
     },
     scoutThread(false),
   ],
-  andrey: [scoutThread(false)],
+  anders: [scoutThread(false)],
 };
 /** The email items behind those threads, so the flat history (inbox.thread) holds them too, under each contact on them. */
 const threadItems = (id: string): ThreadItem[] =>
@@ -546,7 +546,7 @@ export const draftSeeds: DraftSeed[] = [
     agentId: "agt_intake",
     mailboxId: "mbx_work",
     subject: "Re: Lease documents for Thursday",
-    body: "Hi Elena,\n\nThanks for draft 3. I will read it tonight and reply to Marcus by Friday morning.\n\nIrfad",
+    body: "Hi Elena,\n\nThanks for draft 3. I will read it tonight and reply to Marcus by Friday morning.\n\nIdris",
     to: "elena@example.test",
   },
 ];
@@ -565,7 +565,7 @@ const draftRow = (d: DraftSeed): DraftRow => ({
   threadId: d.to.includes("@") ? "thr_lease" : "thr_1041",
   direction: "out",
   status: "draft",
-  from: { address: "irfad@northwind.example" },
+  from: { address: "idris@northwind.example" },
   to: [{ address: d.to, contactId: d.contactId }],
   cc: [],
   subject: d.subject,
@@ -591,7 +591,7 @@ export function createContactTabSample(
       ? [
           ...Object.entries(threads).filter(([k]) => k !== "kai" && k !== "clara"),
           ["josh", threadItems("josh")] as const,
-          ["andrey", threadItems("andrey")] as const,
+          ["anders", threadItems("anders")] as const,
         ]
       : [["kai", threads["kai"]!] as const, ["clara", threads["clara"]!] as const];
   const itemRows: Item[] = [];
@@ -614,7 +614,7 @@ export function createContactTabSample(
         lastPreview: "Studio session for the autumn range",
       },
     ] as unknown as Row[]);
-  // Josh Cohen and Andrey Volkov, the people on the two threads (northwind only)
+  // Josh Cohen and Anders Volkov, the people on the two threads (northwind only)
   const elenaRow = space.id === "northwind" ? contacts().find((c) => c.id === "elena") : undefined;
   if (elenaRow) {
     replica.put("contacts", [
@@ -634,13 +634,13 @@ export function createContactTabSample(
       },
       {
         ...elenaRow,
-        id: "andrey",
-        contactId: "ct_andrey",
-        address: ANDREY,
-        displayName: "Andrey Volkov",
+        id: "anders",
+        contactId: "ct_anders",
+        address: ANDERS,
+        displayName: "Anders Volkov",
         lastMessageAt: ago(1410),
         lastChannel: "email",
-        lastPreview: "Welcome to Scout, Josh · Josh: Thanks Andrey. I am in and the team is set up.",
+        lastPreview: "Welcome to Scout, Josh · Josh: Thanks Anders. I am in and the team is set up.",
         unreadCount: 0,
         followed: false,
         mailboxIds: ["mbx_work"],

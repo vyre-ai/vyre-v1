@@ -82,7 +82,7 @@ const msgs = (s: Sample): Message[] =>
       data: { messages: Message[] };
     }
   ).data.messages;
-const ctx = (s: Sample) => ({ meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() });
+const ctx = (s: Sample) => ({ meId: "usr_idris", nameOf: s.data.nameOf, kindOf: s.data.kindOf, clock: s.data.clock() });
 
 const noActions = {
   copy: () => undefined,
@@ -151,10 +151,10 @@ test("a send is a row on the page before chat.post answers, in under 16 ms", asy
     mentions: [],
     working: false,
   };
-  const items = timeline([...rows, pendingMessage(p, "usr_irfad", "c1", 99)], ctx(s));
+  const items = timeline([...rows, pendingMessage(p, "usr_idris", "c1", 99)], ctx(s));
   const last = items[items.length - 1]!;
   const out = clean(
-    renderToStaticMarkup(<MessageView item={last} actions={noActions} meId="usr_irfad" sending="sending" />),
+    renderToStaticMarkup(<MessageView item={last} actions={noActions} meId="usr_idris" sending="sending" />),
   );
   const ms = performance.now() - t0;
   console.log(

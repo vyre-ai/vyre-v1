@@ -18,7 +18,7 @@ const ready = (data: unknown) => {
 export default function Mount(): ReactNode {
   const rt = useMemo(() => {
     const conv = createSample("idle");
-    const me = { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" as const };
+    const me = { id: "usr_idris", name: "Idris Ibarra", kind: "person" as const };
     const fixed: Record<string, unknown> = {
       "tasks.my-work.needs": ready({ items: [], total: 0 }),
       "chats.sidebar.recent": ready({

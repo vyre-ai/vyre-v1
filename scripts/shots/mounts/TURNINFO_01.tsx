@@ -3,7 +3,7 @@
 //   menu     the conversation; the shot right-clicks the reply for its menu, Details last
 //   details  the right pane open on the reply's Details tab (a sign-in turn: included in the plan; one retry when the provider was busy)
 //   api      the Details of a turn on a Space key, priced from the list: dollars per line, cache writes not reported
-//   member   another member's view of the same reply: on Irfad's account, no cost, arguments hidden
+//   member   another member's view of the same reply: on Idris's account, no cost, arguments hidden
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
@@ -21,15 +21,15 @@ const SIGNIN: ReplyTurn = {
   turnId: "trn_01jbx4k2",
   traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
   agentId: "agt_intake",
-  asker: "usr_irfad",
+  asker: "usr_idris",
   model: "claude-opus-5-5",
   effort: "high",
   engine: "claude_code",
   provider: "anthropic",
   accountKind: "subscription",
-  accountRef: "#Irfad_Claude",
+  accountRef: "#Idris_Claude",
   state: "completed",
-  ranOn: [{ kind: "computer", name: "Irfad's MacBook" }],
+  ranOn: [{ kind: "computer", name: "Idris's MacBook" }],
   timing: { queuedAt: T0 - 400, startedAt: T0, firstTokenAt: T0 + 2100, endedAt: T0 + 14_000 },
   tokens: { in: 169_330, out: 1904, context: 52_000, cacheRead: 118_400, cacheWrite: 9650 },
   cost: { source: "subscription" },
@@ -43,7 +43,7 @@ const SIGNIN: ReplyTurn = {
   files: { read: ["fee-schedule-2025.csv"], written: ["engagement-letter.docx"] },
   skills: ["engagement-letter"],
   switches: [
-    { at: T0 + 500, why: "provider.overloaded", sameAccount: true, from: "#Irfad_Claude", to: "#Irfad_Claude" },
+    { at: T0 + 500, why: "provider.overloaded", sameAccount: true, from: "#Idris_Claude", to: "#Idris_Claude" },
   ],
   private: false,
   partial: false,
@@ -85,7 +85,7 @@ const MEMBER: ReplyTurn = {
 };
 delete (MEMBER as Partial<ReplyTurn>).cost;
 delete (MEMBER as Partial<ReplyTurn>).accountRef;
-const NAMES: Record<string, string> = { usr_irfad: "Irfad Imtiaz", usr_omar: "Omar Haddad", agt_intake: "Intake" };
+const NAMES: Record<string, string> = { usr_idris: "Idris Ibarra", usr_omar: "Omar Haddad", agt_intake: "Intake" };
 
 export default function Mount(): ReactNode {
   const [search, setSearch] = useState<string | null>(null);
@@ -105,7 +105,7 @@ export default function Mount(): ReactNode {
       ).find((m) => m.author.kind === "agent" && m.body !== "")?.messageId ?? "",
     [sample],
   );
-  const meId = part === "member" ? "usr_omar" : "usr_irfad";
+  const meId = part === "member" ? "usr_omar" : "usr_idris";
   const call = useMemo(
     () =>
       async (cap: string, input: unknown): Promise<unknown> => {
@@ -134,7 +134,7 @@ export default function Mount(): ReactNode {
               part === "member"
                 ? []
                 : [
-                    { ref: "#Irfad_Claude", name: "Your Claude sign-in (Max)" },
+                    { ref: "#Idris_Claude", name: "Your Claude sign-in (Max)" },
                     { ref: "#Team_Anthropic", name: "Anthropic API · Team credits" },
                   ],
           };

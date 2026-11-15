@@ -15,7 +15,7 @@ export default function Mount(): ReactNode {
       messageId: `c${i}`,
       threadId: "c1",
       threadSeq: i + 1,
-      author: i % 2 === 0 ? { kind: "person" as const, id: "usr_irfad" } : { kind: "agent" as const, id: "agt_intake" },
+      author: i % 2 === 0 ? { kind: "person" as const, id: "usr_idris" } : { kind: "agent" as const, id: "agt_intake" },
       kind: i % 2 === 0 ? "text" : "agent",
       body: i % 2 === 0 ? `Question ${i + 1}` : `Answer ${i + 1} with a few more words.`,
       blocks: [],

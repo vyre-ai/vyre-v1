@@ -32,7 +32,7 @@ test(
       await r.worker.evaluate(
         (u: string) =>
           (globalThis as any).chrome.storage.local.set({
-            spaces: [{ id: "spc_mla", name: "My Legal Academy", webUrl: u }],
+            spaces: [{ id: "spc_mla", name: "Northwind Academy", webUrl: u }],
             activeSpace: "spc_mla",
           }),
         space.url,

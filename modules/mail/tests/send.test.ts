@@ -344,11 +344,11 @@ test("a person sending an agent's draft keeps the agent line and the agent's nam
 
 test("an agent's draft is sent as it is stored: its own recipients, Cc, subject and every character of its body, whatever the caller's input holds", async () => {
   const r = rig({ principal: { kind: "agent", id: "agt_scout01" } });
-  const FULL = `Hi Osama,\n\nAgenda for the call:\n${"1. Instantly warm-up and sending limits for the new domains.\n".repeat(10)}Thanks, Irfad`;
+  const FULL = `Hi Osama,\n\nAgenda for the call:\n${"1. Instantly warm-up and sending limits for the new domains.\n".repeat(10)}Thanks, Idris`;
   const made = await draft(r.ctx, {
     mailboxId: "mbx_hello",
     to: [{ address: "osama@mail.test" }],
-    cc: [{ address: "aliza@mla.test" }],
+    cc: [{ address: "aliza@northwind.test" }],
     subject: "Cold email setup",
     text: FULL,
     idempotencyKey: "d-osama",
@@ -369,7 +369,7 @@ test("an agent's draft is sent as it is stored: its own recipients, Cc, subject 
     String(JSON.stringify(sent.to)).includes("osama@mail.test") && !JSON.stringify(sent).includes("josh@jcs.test"),
     "to the draft's own recipient, never the composer's",
   );
-  assert.ok(JSON.stringify(sent.cc ?? []).includes("aliza@mla.test"));
+  assert.ok(JSON.stringify(sent.cc ?? []).includes("aliza@northwind.test"));
   assert.equal(sent.subject, "Cold email setup");
   assert.ok(sent.text.startsWith(FULL), "every character of the stored body");
 });

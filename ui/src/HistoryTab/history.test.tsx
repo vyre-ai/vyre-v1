@@ -211,7 +211,7 @@ test("the tab shows every version as a shared Row with a dot, the Current mark o
   assert.match(html, />Current</);
   assert.equal((html.match(/>Current</g) ?? []).length, 1, "only the newest is current");
   assert.match(html, /Intake · First draft/);
-  assert.match(html, /Irfad · Shorten the role line/);
+  assert.match(html, /Idris · Shorten the role line/);
   assert.match(html, />Oct 24</);
   assert.ok(html.includes(RETENTION_NOTE));
   assert.doesNotMatch(

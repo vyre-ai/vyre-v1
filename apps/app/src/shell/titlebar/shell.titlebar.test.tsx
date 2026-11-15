@@ -124,7 +124,7 @@ test("the hub keeps a confirmation for a moment, undo takes the action back, off
   const hub = createShellHub({
     spaces: SEED_DEFS,
     openId: "nw",
-    personId: "irfad",
+    personId: "idris",
     deviceId: "mac",
     storage: null,
     later: (fn) => {

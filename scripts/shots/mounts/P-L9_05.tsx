@@ -77,7 +77,7 @@ export default function Mount() {
           },
         }}
         engine={part === "live" ? "tiptap" : "static"}
-        user={{ name: "Irfad Imtiaz", color: "#4c6ef5" }}
+        user={{ name: "Idris Ibarra", color: "#4c6ef5" }}
       />
     </View>
   );

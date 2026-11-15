@@ -7,7 +7,7 @@ import { TaskLine } from "./parts.tsx";
 import type { RowEnv } from "./parts.tsx";
 
 const NOW = Date.UTC(2026, 10, 4, 10);
-const NAMES: Record<string, string> = { usr_me: "Irfad", usr_sara: "Sara", agt_ops: "Assistant" };
+const NAMES: Record<string, string> = { usr_me: "Idris", usr_sara: "Sara", agt_ops: "Assistant" };
 const env = {
   now: NOW,
   offsetMin: 0,

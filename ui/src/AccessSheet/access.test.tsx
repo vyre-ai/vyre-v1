@@ -89,7 +89,7 @@ test("add, empty: title, search, the two makers right under it, then the section
   );
   assert.match(html, /Yours, private to you/);
   assert.match(html, /Assistant/);
-  assert.match(html, /Others see these as Irfad \(Agent\)/);
+  assert.match(html, /Others see these as Idris \(Agent\)/);
   assert.match(html, /Pick who to add\. You will see what they get before you confirm\./);
   assert.doesNotMatch(html, /aria-label="Poke Docs"/, "no Poke on a suggestion row: the agent is not in the chat yet");
   assert.match(html, /aria-label="Poke Mira"/, "Poke on a Here now row");
@@ -226,10 +226,10 @@ test("an outside agent says how it shows and what it reads; it cannot be the lea
   await withDom(async () => {
     const root = await mount(createRoot, <AccessSheet {...add()} />);
     await press(find(root, "as-row-outside:out_cc"));
-    assert.match(textOf(find(root, "as-pick-outside:out_cc")), /Claude Code . shows as Irfad \(Agent\)/);
+    assert.match(textOf(find(root, "as-pick-outside:out_cc")), /Claude Code . shows as Idris \(Agent\)/);
     assert.match(
       textOf(find(root, "as-line-out-out_cc")),
-      /Claude Code reads and posts in this chat and reads its folder and the records folder, through MCP tools scoped to exactly these, never wider\. It shows as Irfad \(Agent\), is audited, and removing it ends access at once\./,
+      /Claude Code reads and posts in this chat and reads its folder and the records folder, through MCP tools scoped to exactly these, never wider\. It shows as Idris \(Agent\), is audited, and removing it ends access at once\./,
     );
     await press(find(root, "as-settings-outside:out_cc"));
     assert.ok(find(root, "as-how-tag") && find(root, "as-how-listen"));
@@ -878,11 +878,11 @@ const dex = (over: Partial<ShareSheetProps> = {}): ShareSheetProps =>
     resourceType: "agent",
     resourceId: "agt_dex",
     ownerId: "usr_me",
-    ownerName: "Irfad",
+    ownerName: "Idris",
     spaceName: "Northwind",
     directory: sharePeople,
     shares: [
-      { subjectKind: "person", subjectId: "usr_me", name: "Irfad", level: "manage", via: "folder", fromFolderId: null },
+      { subjectKind: "person", subjectId: "usr_me", name: "Idris", level: "manage", via: "folder", fromFolderId: null },
       { subjectKind: "agent", subjectId: "agt_dex", name: "Dex", level: "edit", via: "space", fromFolderId: null },
       { subjectKind: "agent", subjectId: "agt_docs", name: "Docs", level: "edit", via: "space", fromFolderId: null },
       {
@@ -908,10 +908,10 @@ const dex = (over: Partial<ShareSheetProps> = {}): ShareSheetProps =>
 
 test("Dex: an item never lists itself, the owner is one row, and no one else's private agent is named", () => {
   const html = ssr(<AccessSheet {...dex()} />);
-  assert.equal((html.match(/>Irfad</g) ?? []).length + (html.match(/title="Irfad"/g) ?? []).length >= 1, true);
+  assert.equal((html.match(/>Idris</g) ?? []).length + (html.match(/title="Idris"/g) ?? []).length >= 1, true);
   assert.doesNotMatch(html, /aria-label="Level for Dex/, "no self row");
   assert.doesNotMatch(html, /Aliza Rizvi/, "no private agent by name");
-  assert.doesNotMatch(html, /Level for Irfad/, "the owner is the Owner row, not a level row");
+  assert.doesNotMatch(html, /Level for Idris/, "the owner is the Owner row, not a level row");
   assert.equal((html.match(/Owner/g) ?? []).length, 1);
 });
 
@@ -1141,7 +1141,7 @@ test("share mode shows one Suggested list of at most five, and no Add more", () 
 test("the People count is the rows listed under People; the subtitle counts everyone with access from the same deduped list", async () => {
   await withDom(async () => {
     const root = await mount(createRoot, <AccessSheet {...dex()} />);
-    assert.equal(textOf(find(root, "as-count")).trim(), "1", "only Irfad is listed under People");
+    assert.equal(textOf(find(root, "as-count")).trim(), "1", "only Idris is listed under People");
     assert.match(textOf(root), /Agent · 2 with access/, "the owner and Everyone");
     const more = await mount(
       createRoot,
@@ -1296,7 +1296,7 @@ test("removing yourself says what you lose and asks first", async () => {
             {
               subjectKind: "person",
               subjectId: "p_me",
-              name: "Irfad",
+              name: "Idris",
               level: "edit",
               via: "grant",
               fromFolderId: null,
@@ -1332,7 +1332,7 @@ test("Make owner: only in the owner's own view, with a confirm that says you bec
     const owner = await mount(
       createRoot,
       <AccessSheet
-        {...dex({ meId: "usr_irfad", ownerId: "usr_irfad", shares: rows, onMakeOwner: (s) => made.push(s) })}
+        {...dex({ meId: "usr_idris", ownerId: "usr_idris", shares: rows, onMakeOwner: (s) => made.push(s) })}
       />,
     );
     await press(find(owner, "as-acc-level-p_omar"));
@@ -1343,7 +1343,7 @@ test("Make owner: only in the owner's own view, with a confirm that says you bec
     assert.deepEqual(made, [{ kind: "person", id: "p_omar" }]);
     const other = await mount(
       createRoot,
-      <AccessSheet {...dex({ meId: "p_omar", ownerId: "usr_irfad", shares: rows, onMakeOwner: () => undefined })} />,
+      <AccessSheet {...dex({ meId: "p_omar", ownerId: "usr_idris", shares: rows, onMakeOwner: () => undefined })} />,
     );
     await press(find(other, "as-acc-level-p_omar"));
     assert.ok(find(other, "menu-item-Make owner") === null, "a manager does not see it");
@@ -1453,7 +1453,7 @@ test("the owner, the viewer and Everyone are not offered as suggestions: they ar
   const dir = {
     ...sharePeople,
     people: [
-      { id: "usr_irfad", name: "Irfad", kind: "person" as const },
+      { id: "usr_idris", name: "Idris", kind: "person" as const },
       { id: "usr_me", name: "Maya", kind: "person" as const },
       { id: "usr_sara", name: "Sara Malik", kind: "person" as const },
     ],
@@ -1464,9 +1464,9 @@ test("the owner, the viewer and Everyone are not offered as suggestions: they ar
     suggested: [],
   };
   const html = ssr(
-    <AccessSheet {...share({ itemType: "note", ownerId: "usr_irfad", meId: "usr_me", directory: dir, shares: [] })} />,
+    <AccessSheet {...share({ itemType: "note", ownerId: "usr_idris", meId: "usr_me", directory: dir, shares: [] })} />,
   );
-  assert.ok(!html.includes('data-testid="as-row-person:usr_irfad"'), "the owner");
+  assert.ok(!html.includes('data-testid="as-row-person:usr_idris"'), "the owner");
   assert.ok(!html.includes('data-testid="as-row-person:usr_me"'), "the viewer");
   assert.ok(!html.includes('data-testid="as-row-group:grp_everyone"'), "Everyone");
   assert.ok(

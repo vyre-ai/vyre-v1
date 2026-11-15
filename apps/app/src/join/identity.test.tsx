@@ -46,10 +46,10 @@ const session = (
   ({
     baseUrl,
     token: `tok_${spaceId}`,
-    personId: "usr_irfad",
+    personId: "usr_idris",
     marker: "m",
     ...(username ? { username } : {}),
-    displayName: "Irfad Imtiaz",
+    displayName: "Idris Ibarra",
     def: def(spaceId, name, kind),
   }) as unknown as StoredSession;
 
@@ -83,15 +83,15 @@ const carry = (keys: unknown) => (password: string, spaceId: string) =>
   );
 
 test("the known account: the Personal Space's, never the Space being set up, and a provider sign-in last", () => {
-  const mine = session("http://127.0.0.1:7801", "spc_personal", "Personal", "personal", "irfad");
-  const team = session("https://acme.example", "spc_acme", "Acme", "team", "irfad.i");
+  const mine = session("http://127.0.0.1:7801", "spc_personal", "Personal", "personal", "idris");
+  const team = session("https://acme.example", "spc_acme", "Acme", "team", "idris.i");
   assert.equal(knownIdentity([team, mine])?.spaceId, "spc_personal", "the Personal Space first");
   assert.equal(knownIdentity([team, mine], { spaceId: "spc_personal" })?.spaceId, "spc_acme");
   assert.equal(knownIdentity([mine], { baseUrl: "http://127.0.0.1:7801" }), null);
   // rc.17: a session from a Google, Microsoft or GitHub sign-in has no username; it is offered after any whose password this device has seen
   const sso = session("https://x.example", "spc_x", "X", "team");
   assert.deepEqual(knownIdentity([sso]), {
-    name: "Irfad Imtiaz",
+    name: "Idris Ibarra",
     baseUrl: "https://x.example",
     token: "tok_spc_x",
     spaceId: "spc_x",
@@ -100,8 +100,8 @@ test("the known account: the Personal Space's, never the Space being set up, and
   });
   assert.equal(knownIdentity([sso, team])?.spaceId, "spc_acme", "an account opened with its password comes first");
   assert.deepEqual(knownIdentity([mine]), {
-    username: "irfad",
-    name: "Irfad Imtiaz",
+    username: "idris",
+    name: "Idris Ibarra",
     baseUrl: "http://127.0.0.1:7801",
     token: "tok_spc_personal",
     spaceId: "spc_personal",
@@ -129,8 +129,8 @@ test("claim with the existing account: the same person key and wraps, a Space ke
     {
       token: "clm_abcdefgh",
       spaceId: "spc_mla",
-      name: "Irfad Imtiaz",
-      username: "irfad",
+      name: "Idris Ibarra",
+      username: "idris",
       password: PASSWORD,
       recoveryCode: "",
       deviceName: "Vyre desktop",
@@ -140,7 +140,7 @@ test("claim with the existing account: the same person key and wraps, a Space ke
   assert.equal(out.token, "vst_owner");
   const sent = calls[0]!.input;
   assert.equal(calls[0]!.cap, "identity.claim_owner");
-  assert.equal(sent["username"], "irfad");
+  assert.equal(sent["username"], "idris");
   assert.equal(sent["password"], PASSWORD, "the same password signs in to the new Space");
   const k = sent["keys"] as {
     personKeyByPassword: string;
@@ -187,7 +187,7 @@ test("claim with the existing account: a wrong password is one plain line and no
         token: "clm_abcdefgh",
         spaceId: "spc_mla",
         name: "I",
-        username: "irfad",
+        username: "idris",
         password: "wrong password",
         recoveryCode: "",
         deviceName: "d",
@@ -235,8 +235,8 @@ test("join with the existing account: members.accept gets the same wraps and key
         },
       },
       {
-        username: "irfad",
-        displayName: "Irfad Imtiaz",
+        username: "idris",
+        displayName: "Idris Ibarra",
         password: PASSWORD,
         deviceName: "Vyre desktop",
         ai: { choice: "none" },
@@ -256,7 +256,7 @@ test("join with the existing account: members.accept gets the same wraps and key
     assert.equal(stored.def.spaceId, "spc_acme");
     assert.equal(persisted.length, 1, "the Space is stored, so the switcher lists it");
     const k = accepted[0]!["keys"] as Record<string, unknown> & { spaceKeys: { epoch: number; wrapped: string }[] };
-    assert.equal(accepted[0]!["username"], "irfad");
+    assert.equal(accepted[0]!["username"], "idris");
     assert.equal(k["personKeyByPassword"], keys.personKeyByPassword);
     assert.equal(k["publicKey"], keys.publicKey);
     assert.equal(k["privateKeyWrapped"], keys.privateKeyWrapped);
@@ -274,17 +274,17 @@ test("claim screen: with an account on this device it opens on Continue as, aski
   const root = await mount(
     createRoot,
     <ClaimOwner
-      space="MLA"
+      space="Northwind"
       newCode={() => CODE}
       onClaim={async () => undefined}
-      known={{ username: "irfad", name: "Irfad Imtiaz" }}
+      known={{ username: "idris", name: "Idris Ibarra" }}
       onClaimAs={async (pw) => {
         tried.push(pw);
         throw new CarryError("password", CARRY_LINE.password);
       }}
     />,
   );
-  assert.match(textOf(root as never), /Continue as irfad/);
+  assert.match(textOf(root as never), /Continue as idris/);
   assert.ok(find(root as never, "claim-as-password"));
   assert.equal(find(root as never, "claim-name"), null, "no name, username or new password");
   assert.equal(find(root as never, "claim-confirm"), null);
@@ -310,7 +310,7 @@ test("claim screen: with an account on this device it opens on Continue as, aski
 });
 
 test("claim screen: with no account on this device it is today's form, which says it makes the Vyre account for every Space", () => {
-  const out = renderToStaticMarkup(<ClaimOwner space="MLA" newCode={() => CODE} onClaim={async () => undefined} />);
+  const out = renderToStaticMarkup(<ClaimOwner space="Northwind" newCode={() => CODE} onClaim={async () => undefined} />);
   assert.ok(out.includes('data-testid="claim-name"'));
   assert.ok(!out.includes("claim-as"));
   assert.ok(out.includes(NEW_ACCOUNT));
@@ -333,19 +333,19 @@ const withStored = (sessions: Record<string, unknown>, run: () => void): void =>
 };
 
 test("claim route: the account signed in on this device is offered; none in a fresh browser", () => {
-  const mine = session("http://127.0.0.1:7801", "spc_personal", "Personal", "personal", "irfad");
+  const mine = session("http://127.0.0.1:7801", "spc_personal", "Personal", "personal", "idris");
   const route = (): string =>
     renderToStaticMarkup(
       <ClaimRoute
         token="clm_abcdefgh"
-        address="https://mla.example"
-        fragment="#s=spc_mla&n=MLA"
+        address="https://northwind.example"
+        fragment="#s=spc_mla&n=Northwind"
         onDone={() => undefined}
         onSignIn={() => undefined}
         deviceClass="desktop"
       />,
     );
-  withStored({ [mine.baseUrl]: mine }, () => assert.ok(route().includes("Continue as irfad")));
+  withStored({ [mine.baseUrl]: mine }, () => assert.ok(route().includes("Continue as idris")));
   withStored({}, () => {
     const out = route();
     assert.ok(out.includes('data-testid="claim-name"'));
@@ -354,27 +354,27 @@ test("claim route: the account signed in on this device is offered; none in a fr
 });
 
 test("a claim link in a browser can hand off to the desktop app, which routes it to its own claim", () => {
-  const link = claimAppLink("https://mla.example", "clm_abcdefgh", "#fp=9f3c1a2b&s=spc_mla&n=MLA%20Team");
+  const link = claimAppLink("https://northwind.example", "clm_abcdefgh", "#fp=9f3c1a2b&s=spc_mla&n=Northwind%20Team");
   assert.equal(
     link,
-    "vyre://claim?address=https%3A%2F%2Fmla.example&token=clm_abcdefgh&s=spc_mla&fp=9f3c1a2b&n=MLA+Team",
+    "vyre://claim?address=https%3A%2F%2Fmla.example&token=clm_abcdefgh&s=spc_mla&fp=9f3c1a2b&n=Northwind+Team",
   );
   assert.equal(
     claimAppLink("http://127.0.0.1:7801", "clm_abcdefgh", "#s=spc_mla"),
     null,
     "a Space on this computer is claimed here already",
   );
-  assert.equal(claimAppLink("https://irfad.vyre.run", "clm_abcdefgh", "#s=spc_mla"), null, "not a phone address");
+  assert.equal(claimAppLink("https://idris.vyre.run", "clm_abcdefgh", "#s=spc_mla"), null, "not a phone address");
   const params = Object.fromEntries(new URL(link!).searchParams);
   const route = routeDesktopLink({ action: "claim", params });
   assert.deepEqual(route, {
     kind: "claim",
-    address: "https://mla.example",
+    address: "https://northwind.example",
     token: "clm_abcdefgh",
-    fragment: "#s=spc_mla&fp=9f3c1a2b&n=MLA+Team",
+    fragment: "#s=spc_mla&fp=9f3c1a2b&n=Northwind+Team",
   });
   assert.equal(
-    routeDesktopLink({ action: "claim", params: { ...params, address: "http://mla.example" } }),
+    routeDesktopLink({ action: "claim", params: { ...params, address: "http://northwind.example" } }),
     null,
     "HTTPS only",
   );
@@ -385,7 +385,7 @@ test("a new recovery code: the old code stops working, the new one works, in eve
   const { made, keys } = await personal();
   const stores: Record<string, Record<string, unknown>> = {
     here: { ...keys, spaceKeys: [] },
-    mla: { ...keys, spaceKeys: [] },
+    northwind: { ...keys, spaceKeys: [] },
     other: { ...keys, publicKey: "b3RoZXI=", spaceKeys: [] },
   };
   const callOf =
@@ -413,15 +413,15 @@ test("a new recovery code: the old code stops working, the new one works, in eve
     PASSWORD,
     NEW,
     [
-      { name: "MLA", call: callOf("mla") },
+      { name: "Northwind", call: callOf("northwind") },
       { name: "Elsewhere", call: callOf("other") },
       { name: "Offline", call: callOf("down") },
     ],
     "Personal",
     { argon: FAST },
   );
-  assert.deepEqual(out, { updated: ["Personal", "MLA"], missed: ["Offline"] });
-  for (const name of ["here", "mla"]) {
+  assert.deepEqual(out, { updated: ["Personal", "Northwind"], missed: ["Offline"] });
+  for (const name of ["here", "northwind"]) {
     const bundle = { ...stores[name]!, personKeyByPassword: keys.personKeyByPassword } as never;
     await assert.rejects(openWithRecovery(CODE, bundle, { argon: FAST }), "the old code no longer opens it");
     assert.ok(

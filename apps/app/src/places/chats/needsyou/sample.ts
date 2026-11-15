@@ -14,10 +14,10 @@ const at = (m: number, d: number, h: number, min = 0): number => Date.UTC(2025, 
 
 export type Variant = "northwind" | "harbor";
 
-export const ME = "usr_irfad";
+export const ME = "usr_idris";
 export const NAMES: Record<string, string> = {
   ...namesFor("harbor"),
-  ...namesFor("northwind", { usr_irfad: "You", role_finance: "Finance" }),
+  ...namesFor("northwind", { usr_idris: "You", role_finance: "Finance" }),
 };
 const SOURCES: Record<string, string> = {
   "chat:c3": "October invoices",
@@ -193,7 +193,7 @@ export function northwindTasks(): { task: Task; reason: Reason; handledBy?: stri
                 input: {
                   to: [{ address: "accounts@harlowprice.test", name: "Harlow & Price", contactId: "rec_hp" }],
                   subject: "ATP worksheet due Nov 12",
-                  text: "Hello,\n\nThe quarterly worksheet is due Nov 12. The link is below; it takes about ten minutes.\n\nThanks,\nIrfad",
+                  text: "Hello,\n\nThe quarterly worksheet is due Nov 12. The link is below; it takes about ten minutes.\n\nThanks,\nIdris",
                   contactId: "rec_hp",
                 },
               },
