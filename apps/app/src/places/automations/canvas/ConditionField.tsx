@@ -3,7 +3,6 @@
 import { useContext } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { registry } from "../../../../../../generated/registry.ts";
 import { build, OP_WORDS, OPS, parse } from "./conditions.ts";
 import type { Clause, Op, Parsed } from "./conditions.ts";
 import { Choice, DataWordsContext, TextBox } from "./fields.tsx";
@@ -118,7 +117,17 @@ export function ConditionField({
 }
 
 /** What a Wait waits for: an event picked by name in words, then its conditions as field-is-value rows. Anything the rows cannot show stays whole. */
-const EVENT_NAMES: readonly string[] = (registry.events as readonly { name: string }[]).map((e) => e.name);
+// the events an Automation commonly waits for (the full list is the server's; a name already in the step is always kept and shown)
+const EVENT_NAMES: readonly string[] = [
+  "record.updated",
+  "task.completed",
+  "email.received",
+  "message.received",
+  "calendar_event.updated",
+  "journey.stage_entered",
+  "approval.decided",
+  "run.child_terminal",
+];
 export const eventWords = (name: string): string => {
   const w = name.replace(/[._]+/g, " ").trim();
   return w.charAt(0).toUpperCase() + w.slice(1);
@@ -150,7 +159,7 @@ export function EventField({
         testID={testID ? `${testID}-event` : undefined}
         onOpen={(x, y) =>
           openMenu(
-            EVENT_NAMES.map((n) => ({ label: eventWords(n), checked: n === v.event, onSelect: () => onCommit({ ...v, event: n }) })),
+            [...EVENT_NAMES, ...(v.event && !EVENT_NAMES.includes(v.event) ? [v.event] : [])].map((n) => ({ label: eventWords(n), checked: n === v.event, onSelect: () => onCommit({ ...v, event: n }) })),
             x,
             y,
             "other",
