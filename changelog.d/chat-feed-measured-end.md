@@ -1,1 +1,1 @@
-The chat feed decides whether the person is at the end from where it actually is against its old height, so a person who scrolled up is never pulled back down and Jump to latest shows.
+A chat's feed no longer pulls you back to the end when something below grows while you are reading further up, and Jump to latest shows whenever you have scrolled up yourself.

@@ -82,7 +82,7 @@ export function targetIsComputed(input: unknown): boolean {
 
 /** A read that brings words from outside into the turn. They can hold instructions, so outward acts stop after one, even if asked. */
 const OUTSIDE_READS =
-  /^(automations\.(read_docs|read_link|try_read)|engine\.mcp\.read|connectors\.(read|test)|computers\.chrome\.(snapshot|inspect|sources|console|net|state)|computers\.(screen\.)?screenshot|mail\.message\.|inbox\.(thread|list_by_thread|list_by_contact|unmatched)|google\.(gmail\.get_|gmail\.list_messages|docs\.get|drive\.(download|export)|sheets\.get|meet\.get)|ms\.(mail\.(get|list_messages)|drive\.download|workbook\.get|teams\.recordings\.get)|github\.(issue\.get|pull_request\.(get|diff))|dropbox\.files\.download|mounts\.(sheet_read|browse)|meetings\.transcript|zoom\.transcripts|telephony\.sms\.list)/;
+  /^(automations\.(read_docs|read_link|try_read)|engine\.mcp\.read|connectors\.(read|test)|computers\.chrome\.(snapshot|inspect|sources|console|net|state)|computers\.(screen\.)?screenshot|mail\.message\.|inbox\.(thread|list_by_thread|list_by_contact|unmatched)|google\.(gmail\.get_|gmail\.list_messages|docs\.get|drive\.(download|export)|sheets\.get|meet\.get)|ms\.(mail\.(get|list_messages)|drive\.download|workbook\.get|teams\.recordings\.get)|github\.(issue\.get|pull_request\.(get|diff))|dropbox\.files\.download|mounts\.(sheet_read|sheet_tabs|browse)|meetings\.transcript|zoom\.transcripts|telephony\.sms\.list)/;
 const OUTSIDE_CALLS: ReadonlySet<string> = new Set(["engine.mcp.call", "connectors.run"]);
 export const bringsOutside = (cap: string, effects: string): boolean =>
   OUTSIDE_CALLS.has(cap) || (effects === "read" && OUTSIDE_READS.test(cap));

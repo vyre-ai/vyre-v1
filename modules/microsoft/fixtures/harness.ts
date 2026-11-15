@@ -63,6 +63,8 @@ export function harness(opts: HarnessOptions = {}) {
   const scheduled: { at: number; cap: string; input: Record<string, unknown> }[] = [];
   const requests: Req[] = [];
   const uploads: { url: string; ifMatch?: string }[] = [];
+  /** names that already exist in the folder a create goes to */
+  const taken = new Set<string>();
   const routes: { method: string; match: string | RegExp; reply: Reply | ((r: Req) => Reply) }[] = [];
   const ingests: Record<string, unknown>[] = [];
   const userApps = new Map<string, { clientId: string; tenant?: string }>([
@@ -206,11 +208,17 @@ export function harness(opts: HarnessOptions = {}) {
     },
     async upload(_c, a) {
       uploads.push({ url: a.url, ...(a.ifMatch !== undefined ? { ifMatch: a.ifMatch } : {}) });
+      // a name that is taken answers 409 when the create said conflictBehavior=fail
+      const asked = decodeURIComponent(/:\/([^/:]+):\/content/.exec(a.url)?.[1] ?? "");
+      if (/conflictBehavior=fail/.test(a.url) && taken.has(asked))
+        throw fail("validation.precondition_failed", ctx.trace.traceId, {
+          details: { status: 409, what: "nameAlreadyExists" },
+        });
       if (a.ifMatch !== undefined && a.ifMatch !== state.eTag)
         throw fail("validation.version_conflict", ctx.trace.traceId, { details: { status: 412, what: "upload" } });
       return {
         id: "up1",
-        name: decodeURIComponent(/:\/([^/]+):\/content$/.exec(a.url)?.[1] ?? ""),
+        name: decodeURIComponent(/:\/([^/]+):\/content(?:\?.*)?$/.exec(a.url)?.[1] ?? ""),
         size: 9,
         eTag: "etag2",
         lastModifiedBy: { user: { displayName: "Maya Lin", email: "maya@vyre.test" } },
@@ -263,6 +271,7 @@ export function harness(opts: HarnessOptions = {}) {
     scheduled,
     requests,
     uploads,
+    taken,
     ingests,
     ingestState,
     state,

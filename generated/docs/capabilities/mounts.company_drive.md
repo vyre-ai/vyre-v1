@@ -19,7 +19,7 @@ Bring the person's own Drive or OneDrive into their Personal folder, with nothin
 | HTTP | POST /v1/mounts/company_drive |
 | MCP tool | none |
 | CLI | none |
-| Emits | folder.mounted, mount.failed |
+| Emits | folder.mounted, mount.synced, mount.failed, mount.conflict, mount.file_sent |
 
 ## Input
 

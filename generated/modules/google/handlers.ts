@@ -38,6 +38,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.drive.share_file": Handler<"google.drive.share_file", X>;
   "google.drive.stop_watch": Handler<"google.drive.stop_watch", X>;
   "google.drive.trash_file": Handler<"google.drive.trash_file", X>;
+  "google.drive.update_file": Handler<"google.drive.update_file", X>;
   "google.drive.upload_file": Handler<"google.drive.upload_file", X>;
   "google.drive.watch_changes": Handler<"google.drive.watch_changes", X>;
   "google.dwd.check_key": Handler<"google.dwd.check_key", X>;

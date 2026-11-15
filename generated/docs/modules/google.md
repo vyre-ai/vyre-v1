@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (82)
+## Capabilities (83)
 
 - [google.access_log](../capabilities/google.access_log.md): Who reached whose Google data: who made the call, the person an agent worked for, which mailbox, which capability, when
 - [google.calendar.create_event](../capabilities/google.calendar.create_event.md): Create an event; Google invites the attendees
@@ -39,6 +39,7 @@ Requires: mail.
 - [google.drive.share_file](../capabilities/google.drive.share_file.md): Share a Drive file with people; Google emails them
 - [google.drive.stop_watch](../capabilities/google.drive.stop_watch.md): Close a Drive watch channel
 - [google.drive.trash_file](../capabilities/google.drive.trash_file.md): Move a Drive file to Trash
+- [google.drive.update_file](../capabilities/google.drive.update_file.md): Rename a Drive file or folder, move it between folders, or take it back out of the Trash; the file keeps its id, its links and its sharing
 - [google.drive.upload_file](../capabilities/google.drive.upload_file.md): Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision
 - [google.drive.watch_changes](../capabilities/google.drive.watch_changes.md): Open a Drive changes.watch channel
 - [google.dwd.check_key](../capabilities/google.dwd.check_key.md): Prove the service-account key in the Vault works, with no person involved: its shape, its signature, and that Google still knows it. Answers what is wrong in plain words; never the key
