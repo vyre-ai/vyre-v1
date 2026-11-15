@@ -754,6 +754,11 @@ function Body({
     const r = model.rows.find((x) => x.kind === "step" && x.id === sel);
     return r && r.kind === "step" ? { text: r.sentence.text, app: r.app } : undefined;
   })();
+  // the row's own orange line and button: the form's bar says the same and does the same
+  const needOfRow = (nodeId: string): { needButton?: string; onNeed?: () => void } => {
+    const r = model.rows.find((x) => x.kind === "step" && x.id === nodeId);
+    return r && r.kind === "step" && r.need ? { needButton: r.need.button, onNeed: () => onAction("need", nodeId) } : {};
+  };
   const given = useMemo(() => {
     if (!selNode || !catalog) return [];
     const at = def.nodes.findIndex((n) => n.id === selNode.id);
@@ -780,6 +785,7 @@ function Body({
       node={selNode}
       {...(headingOf ? { heading: headingOf.text, mark: headingOf.app } : {})}
       autoFocusNeed={focusNeed !== null && focusNeed === sel}
+      {...(selNode ? needOfRow(selNode.id) : {})}
       given={given}
       trigger={trigIndex !== null ? (def.triggers[trigIndex] ?? null) : null}
       triggerIndex={trigIndex}

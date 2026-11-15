@@ -22,7 +22,6 @@ import { useOpenConnect } from "../../../shell/connect/context.ts";
 import { connectEntries } from "../../../shell/connect/model.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import { asFixture } from "../builder/fields.ts";
-import { MessageComposer } from "../builder/MessageComposer.tsx";
 import { DataShelf, MappingFix, advancedInputEdit, basicFieldEdit, nodeIdSet } from "../builder/marks.tsx";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { glyphOf, tintOf } from "../picker/glyphs.ts";
@@ -102,6 +101,8 @@ export function Inspector({
   runLog,
   heading,
   autoFocusNeed,
+  needButton,
+  onNeed,
   given,
   mark,
 }: {
@@ -149,6 +150,9 @@ export function Inspector({
   heading?: string;
   /** Opened by a row's orange button: scroll to and focus the control that is needed. */
   autoFocusNeed?: boolean;
+  /** The button of the row's orange line, so the bar and the row say one thing, and what it does. */
+  needButton?: string;
+  onNeed?(): void;
   /** What the trigger and each earlier step give, for "Insert data" (builder/insert-data.ts). */
   given?: readonly GiveRow[];
   /** The mark its row wears on the page (an app's logo or the kind's glyph); the form's head wears the same one. */
@@ -396,15 +400,7 @@ export function Inspector({
       );
     }
   }
-  const composer = node.key === "send_email" || node.key === "send_sms";
   const fixedAccount = accountFixedLine(accountPick?.value);
-  const hidden = new Set(
-    node.key === "send_email"
-      ? ["subject", "body", "to", "cc", "fileIds", "message"]
-      : node.key === "send_sms"
-        ? ["body", "to", "message", "mediaFileIds"]
-        : [],
-  );
   const skipAccount = (name: string): boolean =>
     !!accountPick &&
     (name === "connectionId" ||
@@ -422,7 +418,7 @@ export function Inspector({
     return /Ids?$/.test(name) && typeof v === "string" && /^[a-z]{2,6}_[A-Za-z0-9]+$/.test(v) && nameOfId(v) === null;
   };
   const skipField = (name: string): boolean =>
-    skipAccount(name) || onTheStep(name) || (composer && hidden.has(name)) || name === "summary" || opaqueId(name);
+    skipAccount(name) || onTheStep(name) || name === "summary" || opaqueId(name);
   const writeInput = (name: string, next: unknown): void => {
     const input = { ...node.input };
     if (next === undefined) delete input[name];
@@ -531,10 +527,10 @@ export function Inspector({
                     <Pressable
                       accessibilityRole="button"
                       testID="step-needs-button"
-                      onPress={() => focusFirstNeeded()}
+                      onPress={() => (onNeed ? onNeed() : focusFirstNeeded())}
                       style={[i.needBtn, pointer]}
                     >
-                      <Text style={i.needBtnText}>{needLine}</Text>
+                      <Text style={i.needBtnText}>{needButton ?? needLine}</Text>
                     </Pressable>
                   </View>
                 ) : null}
@@ -599,15 +595,6 @@ export function Inspector({
                     openMenu={openMenu}
                     kind={automationKind}
                     keys={keys}
-                  />
-                ) : null}
-                {composer ? (
-                  <MessageComposer
-                    stepKey={node.key}
-                    nodeId={node.id}
-                    input={node.input ?? {}}
-                    samples={samples}
-                    onInput={(input) => onChange(updateStep(def, node.id, { input }))}
                   />
                 ) : null}
                 {live ? null : fields}

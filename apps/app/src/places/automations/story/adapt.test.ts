@@ -62,13 +62,15 @@ test("a reference becomes a chip that names its source and shows a sample; a tex
   const text = Object.values(s2.values)
     .map((v) => (v && "text" in v ? v.text : ""))
     .join("|");
-  assert.ok(text.includes("New request from Name"));
+  // round three: a text with a reference keeps its words and the reference is a chip beside them
+  assert.ok(text.includes("New request from "));
+  assert.ok(Object.values(s2.values).some((v) => v && "chip" in v && v.chip.label === "A form is submitted \u00b7 Name"));
   const name = fromDefinition(
     { ...def, nodes: [{ id: "s1", key: "post_message", input: { text: "{{trigger.name}}" } }] },
     ctx(),
   ).steps[0]!;
   assert.deepEqual(Object.values(name.values)[0], {
-    chip: { label: "Name", from: "A form is submitted", sample: "Sam Reyes" },
+    chip: { label: "A form is submitted \u00b7 Name", from: "A form is submitted", sample: "Sam Reyes" },
   });
 });
 

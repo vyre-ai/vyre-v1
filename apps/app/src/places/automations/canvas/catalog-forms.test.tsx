@@ -72,8 +72,7 @@ const OWNED: Record<string, Record<string, string[]>> = {
   http_request: { method: ["field-method"], url: ["field-url"] },
   code: { source: ["field-source"] },
   ai: { prompt: ["field-prompt"] },
-  send_email: { to: ["composer-to"], subject: ["em-subject"], body: ["em-plain"] },
-  send_sms: { to: ["composer-to"], body: ["richeditor-host"] },
+  // round three: an email and a text are the one step form (To, Subject, Message as chip fields), so their fields are field-<name> like every other step's
   paths: { paths: ["field-path-0"] },
   parallel: { branches: ["field-lane-0"] },
 };
