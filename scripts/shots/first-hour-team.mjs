@@ -554,6 +554,51 @@ export const teamSteps = [
     },
   },
   {
+    id: "wf-pictures",
+    owner: "w-first",
+    run: async (S) => {
+      const out = (n) => path.join(S.out, `wf-pic-${n}.png`);
+      const sheet = async (n) => {
+        await S.page.goto(`${S.web.origin}/chat`, { waitUntil: "load" });
+        await S.dismissOnboarding(S.page).catch(() => undefined);
+        await S.page.keyboard.press("Alt+Meta+g");
+        const open = await S.page.getByTestId("new-goal-sheet").waitFor({ timeout: 6000 }).then(() => true, () => false);
+        if (!open) {
+          await S.page.getByText("New goal", { exact: true }).first().click({ timeout: 8000 }).catch(() => undefined);
+          await S.page.getByTestId("new-goal-sheet").waitFor({ timeout: 8000 });
+        }
+        await S.page.getByTestId("new-goal-title").fill("Answer every open question");
+        await S.page.screenshot({ path: out(n) });
+        await S.page.keyboard.press("Escape");
+      };
+      await S.page.emulateMedia({ colorScheme: "dark" });
+      await S.page.setViewportSize({ width: 1440, height: 900 });
+      await sheet("new-goal-dark-desktop");
+      await S.page.emulateMedia({ colorScheme: "light" });
+      await sheet("new-goal-light-desktop");
+      await S.page.setViewportSize({ width: 390, height: 844 });
+      await sheet("new-goal-light-phone");
+      // the phone landing, and the You tab
+      await S.page.goto(`${S.web.origin}/chat`, { waitUntil: "load" });
+      await S.page.waitForTimeout(2500);
+      await S.page.screenshot({ path: out("phone-landing") });
+      await S.page.getByText("You", { exact: true }).last().click({ timeout: 8000 }).catch(() => undefined);
+      await S.page.waitForTimeout(1500);
+      await S.page.screenshot({ path: out("phone-you") });
+      // the join page a member meets on a phone
+      const roles = (await S.api("access.roles.list")).roles;
+      const inv = await S.api("members.invites.create", { role: roles.find((r) => r.name === "Member").id });
+      const ctx = await S.page.context().browser().newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light", reducedMotion: "reduce" });
+      const j = await ctx.newPage();
+      const link = new URL(inv.link);
+      await j.goto(`${S.web.origin}${link.pathname}${link.hash}`, { waitUntil: "load" });
+      await j.waitForTimeout(2500);
+      await j.screenshot({ path: out("phone-join") });
+      await ctx.close();
+      await S.page.setViewportSize({ width: 1440, height: 900 });
+    },
+  },
+  {
     id: "wf-notes-and-files",
     owner: "w-first",
     run: async (S) => {
