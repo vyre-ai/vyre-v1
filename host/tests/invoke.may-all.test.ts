@@ -110,6 +110,15 @@ test("what an agent reads for a person inside a chat is noted for the answer che
   s.putPrincipal({ id: "usr_dana", kind: "person", status: "active", name: "Dana" });
   s.putPrincipal({ id: "agt_x", kind: "agent", status: "active", name: "X" });
   for (const id of ["usr_dana", "agt_x"]) s.addPrincipalRole({ holder: id, role: "member" });
+  // an agent reaches the whole Space only through its own Space grant, never the Member role's (b5cec962a), so the agent is given one; the test is about the note, not that rule
+  s.putGrant({
+    id: "g_x",
+    subject_kind: "actor",
+    subject_id: "agt_x",
+    resource_type: "space",
+    resource_id: "spc_1",
+    level: "view",
+  });
   const deps: InvokeDeps = {
     caps: indexCapabilities([recGet]),
     validateInput: () => [],
