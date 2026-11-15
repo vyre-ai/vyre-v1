@@ -177,7 +177,9 @@ export default function Mount(): ReactNode {
     return (
       <Frame width={320}>
         <AutomationsDataProvider value={autos.data}>
-          <AutomationsList selectedId={null} query="" onChoose={() => undefined} />
+          <View style={{ width: 272, backgroundColor: "var(--side)" as string }} testID="automations-sidebar">
+            <AutomationsList selectedId={null} query="" onChoose={() => undefined} />
+          </View>
         </AutomationsDataProvider>
       </Frame>
     );

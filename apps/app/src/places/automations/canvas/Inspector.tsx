@@ -959,7 +959,11 @@ const i = StyleSheet.create({
     gap: 10,
     padding: 10,
     borderRadius: 12,
+<<<<<<< ours
     backgroundColor: "var(--sunk)" as string,
+=======
+    backgroundColor: "var(--warn-wash, var(--sel))" as string,
+>>>>>>> theirs
   },
   needText: { flex: 1, fontSize: 13, color: "var(--warn)" as string },
   needBtn: {
