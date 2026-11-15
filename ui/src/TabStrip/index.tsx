@@ -475,7 +475,9 @@ function TabItem({
   const ink = on ? "var(--ink)" : over ? "var(--ink-2)" : "var(--ink-3)";
   const extraTab = tab as TabSpec & { lead?: ReactNode; iconOnly?: boolean; label?: string };
   const name = extraTab.label ?? tab.title;
-  const showClose = !pinned && canClose && (over || on);
+  // A tab is as wide as its icon and its name, selected or not (owner, 15 Nov 2026: the highlight fits the name; a tab that grew when selected pushed every tab after it
+  // sideways on each switch). The Close sits over the tab's right edge while the pointer is on the tab, and takes no room.
+  const showClose = !pinned && canClose && over;
   return (
     <Pressable
       ref={nodeRef}
@@ -491,7 +493,7 @@ function TabItem({
       style={[
         styles.tab,
         { maxWidth: widest },
-        !on && !pinned ? styles.tabIdle : null,
+        !pinned ? styles.tabIdle : null,
         pinned ? styles.tabPinned : null,
         pinned && tight ? styles.tabTight : null,
         underline ? LINE_TAB : null,
@@ -541,7 +543,8 @@ function TabItem({
           // hidden, it takes no clicks: a press on the right edge of a short tab (Plan) selects the tab, it does not land on an invisible close
           style={[
             styles.close,
-            on ? null : styles.closeOver,
+            styles.closeOver,
+            on ? CLOSE_ON : null,
             showClose ? null : HIDDEN,
             showClose ? null : ({ pointerEvents: "none" } as object),
           ]}
@@ -563,6 +566,8 @@ const HOVER_LINE = { backgroundColor: "transparent" };
 const ACTIVE_LINE = { backgroundColor: "transparent", boxShadow: "inset 0 -2px 0 var(--ink)" };
 const DROP = { boxShadow: "inset 2px 0 0 var(--accent)" } as unknown as ViewStyle;
 const HIDDEN = { opacity: 0 };
+/* on the selected tab the Close sits on the tab's own fill, so the end of the name does not show through it */
+const CLOSE_ON = { backgroundColor: "var(--sel)" };
 
 const styles = StyleSheet.create({
   strip: { height: TAB_STRIP_HEIGHT, flexDirection: "row", alignItems: "center", paddingTop: 6, paddingRight: 8 },
@@ -581,7 +586,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS,
   },
   tabPinned: { paddingRight: 10 },
-  // a tab that is not selected holds no room for its Close: the button sits over the right padding when the pointer is on the tab, so every tab is the same distance from the next
+  // no tab holds room for its Close: the button sits over the right edge when the pointer is on the tab, so a tab is the same width selected or not
   tabIdle: { paddingRight: 10 },
   tabTight: { paddingLeft: 7, paddingRight: 7 },
   // one longest title for every tab: longer names are cut with an ellipsis

@@ -1,0 +1,2 @@
+- Switching tabs cuts cleanly to the new view: the old view is no longer drawn over it for a moment.
+- A tab is the same width selected or not, and its highlight fits its name; Close shows when the pointer is on the tab.
