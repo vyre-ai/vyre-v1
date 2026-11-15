@@ -49,7 +49,6 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
     await claimPage.getByTestId("claim-password").fill("fixture password 123");
     await claimPage.getByTestId("claim-confirm").fill("fixture password 123");
     await claimPage.getByTestId("claim-next").click();
-    await claimPage.getByTestId("claim-saved").click();
     await claimPage.getByTestId("claim-create").click();
     await dismissOnboarding(claimPage);
     const session = await claimPage.evaluate(() => localStorage.getItem("vyre.session.v1")!);

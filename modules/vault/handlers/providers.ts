@@ -543,6 +543,12 @@ export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; al
 
 // ---- subscription sign-in
 
+/** Which sign-ins are on the computer this Space runs on: yes or no for Claude Code and for Codex. Any signed-in person of the Space may ask; an agent may not. Both no in a Space that is not a Personal Space on its own computer. */
+export async function localSignins(ctx: VaultCtx, _input: Record<string, never>) {
+  if (ctx.principal.kind === "agent") return bad(ctx, "Signing in is something a person does.");
+  return hostOf()?.signin?.localPresent?.() ?? { claudeCode: false, codex: false };
+}
+
 export async function subscriptionStart(
   ctx: VaultCtx,
   input: { providerKey: string; idempotencyKey: string; local?: boolean },

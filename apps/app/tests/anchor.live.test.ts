@@ -37,7 +37,6 @@ test("a message's time card draws under the time, in a scrolled chat", async (t)
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });

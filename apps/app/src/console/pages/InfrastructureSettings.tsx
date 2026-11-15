@@ -1,4 +1,5 @@
 import { isNamed } from "../../shell/spaces/space-label.ts";
+import { groupFingerprint } from "../../join/logic.ts";
 import { belowPhone } from "../../../../../ui/src/SidePane/layout.ts";
 import { SpaceLogoRow } from "./SpaceImage.tsx";
 import { createdLine } from "./space-created.ts";
@@ -717,7 +718,12 @@ export function SpaceProfile(): ReactElement {
             />
           </Line>
           <Line index={1}>
-            <Row id="space-fingerprint" title="Key fingerprint" trailing={mono(space.fingerprint)} />
+            <Row
+              id="space-fingerprint"
+              title="Key fingerprint"
+              note="People who join or sign in by this address check that they see this code."
+              trailing={mono(groupFingerprint(space.fingerprint))}
+            />
           </Line>
           <Line index={2}>
             <Row

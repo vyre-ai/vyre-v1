@@ -32,7 +32,6 @@ test("Space admin without Manage: change a role, remove, and add people on a pro
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     const tokenOf = (p: typeof page): Promise<string> =>
@@ -83,9 +82,7 @@ test("Space admin without Manage: change a role, remove, and add people on a pro
       await p.getByTestId("password").fill(PASSWORD);
       await p.getByTestId("confirm").fill(PASSWORD);
       await p.getByTestId("next").click();
-      await p.getByTestId("device").fill(`${first}'s browser`);
-      await p.getByTestId("next").click();
-      await p.getByTestId("ai-none").click();
+      // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
       await p.getByTestId("next").click();
       await dismissOnboarding(p);
       const id = await p.evaluate(

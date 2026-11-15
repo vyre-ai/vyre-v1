@@ -41,7 +41,6 @@ test("phone walk at 390 px: a chat, an agent's page and a file each open with a 
     await page.getByTestId("claim-password").fill("fixture password 123");
     await page.getByTestId("claim-confirm").fill("fixture password 123");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page, { wait: 60_000 });
     await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });

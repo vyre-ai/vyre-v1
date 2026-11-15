@@ -41,7 +41,6 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
@@ -281,9 +280,7 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
       await memberPage.getByTestId("password").fill(PASSWORD);
       await memberPage.getByTestId("confirm").fill(PASSWORD);
       await memberPage.getByTestId("next").click();
-      await memberPage.getByTestId("device").fill("Mia's browser");
-      await memberPage.getByTestId("next").click();
-      await memberPage.getByTestId("ai-none").click();
+      // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
       await memberPage.getByTestId("next").click();
       await memberPage.getByTestId("shell").waitFor({ timeout: 30_000 });
       await dismissOnboarding(memberPage);

@@ -38,7 +38,6 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     const token = await page.evaluate(

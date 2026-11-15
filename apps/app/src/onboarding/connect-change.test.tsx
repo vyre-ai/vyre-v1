@@ -153,6 +153,7 @@ test("picking Codex on a computer without the Codex program says so in the card,
     const calls: string[] = [];
     const call = (async (cap: string, input: unknown) => {
       calls.push(cap);
+      if (cap === "providers.local_signins") return { claudeCode: true, codex: true };
       if (cap === "providers.subscription_start")
         return { flowId: "f1", instruction: "Using the Codex sign-in on this computer.", needsCode: false };
       if (cap === "providers.subscription_complete") return { provider: { id: "prv_x" } };
@@ -172,6 +173,7 @@ test("picking Codex on a computer without the Codex program says so in the card,
     }) as unknown as CapCall;
     const got: string[] = [];
     const root = await mount(createRoot, <ConnectAiCard call={call} local onConnected={(id) => got.push(id)} />);
+    await flush();
     await press(find(root, "ai-local-codex"));
     await flush();
     await flush();
@@ -200,6 +202,7 @@ test("switching to an account that cannot run here: Keep it anyway still removes
     const calls: Array<{ cap: string; input: unknown }> = [];
     const call = (async (cap: string, input: unknown) => {
       calls.push({ cap, input });
+      if (cap === "providers.local_signins") return { claudeCode: true, codex: true };
       if (cap === "providers.list")
         return {
           providers: [

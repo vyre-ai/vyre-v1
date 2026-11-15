@@ -31944,6 +31944,11 @@ export type ProvidersListOut = {
       models?: Array<string>;
     }>;
 };
+export type ProvidersLocalSigninsIn = Record<string, unknown>;
+export type ProvidersLocalSigninsOut = {
+  claudeCode: boolean;
+  codex: boolean;
+};
 export type ProvidersMarkSigninNeededIn = {
   handle: string;
   why?: string;
@@ -42728,10 +42733,7 @@ export type TerminalKeysIn = {
       key?: string;
       paste?: string;
     }>;
-  lease: string;
-  seq: number;
   capture?: boolean;
-  idempotencyKey: string;
 };
 export type TerminalKeysOut = {
   ok: boolean;
@@ -43009,8 +43011,6 @@ export type TerminalTakeOverOut = {
     ownerId?: string;
     threadId?: string;
   };
-  lease?: string;
-  nextSeq?: number;
 };
 export type TerminalWorkspaceIn = {
   agentId: string;
@@ -47741,6 +47741,7 @@ export interface CapMap {
   "providers.custom_list": { in: ProvidersCustomListIn; out: ProvidersCustomListOut };
   "providers.custom_remove": { in: ProvidersCustomRemoveIn; out: ProvidersCustomRemoveOut };
   "providers.list": { in: ProvidersListIn; out: ProvidersListOut };
+  "providers.local_signins": { in: ProvidersLocalSigninsIn; out: ProvidersLocalSigninsOut };
   "providers.mark_signin_needed": { in: ProvidersMarkSigninNeededIn; out: ProvidersMarkSigninNeededOut };
   "providers.own_people": { in: ProvidersOwnPeopleIn; out: ProvidersOwnPeopleOut };
   "providers.remove": { in: ProvidersRemoveIn; out: ProvidersRemoveOut };
@@ -52270,9 +52271,6 @@ export type TerminalCommandFinishedPayload = {
 export type TerminalGivenBackPayload = {
   terminalId: string;
   by: string;
-  agentId?: string;
-  agentName?: string;
-  agentOwner?: string;
 };
 export type TerminalOpenedPayload = {
   terminalId: string;
@@ -52291,9 +52289,6 @@ export type TerminalTakenPayload = {
   terminalId: string;
   by: string;
   from?: string;
-  agentId?: string;
-  agentName?: string;
-  agentOwner?: string;
 };
 export type ThreadArchivedPayload = {
   person: string;

@@ -1,12 +1,11 @@
 // join/AcceptInvite: the invite landing, the three account steps, the setup run and the finish (spec 3.13, ARCH 7.13).
 // Landing: Open in Vyre, Download Vyre, Continue in the browser, and Sign in for people who already have an account.
-// Steps: welcome with name and photo, the sign-in (username, password, strength), this device (name, recovery code), then ConnectAI.
+// Steps: welcome with name and photo, the sign-in (username, password, strength), then the optional recovery code. The device name is never asked and the AI account is asked once, after joining (onboarding/FirstEntry.tsx).
 // The page is presentational: the stage machine lives in logic.ts and JoinFlow.tsx owns the timers and the calls.
 import { createElement } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import type { Dispatch, ReactNode } from "react";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
-import { ConnectAI } from "./ConnectAI.tsx";
 import {
   Bar,
   Button,
@@ -32,7 +31,18 @@ import {
   useJoin,
   RECOVERY_WHAT,
 } from "./kit.tsx";
-import { PASSWORD_MIN, RUN_STEPS, meter, strength, suggestions, usernameOk, valid, cleanUsername } from "./logic.ts";
+import {
+  ADMIN_CODE_LINE,
+  PASSWORD_MIN,
+  RUN_STEPS,
+  adminCode,
+  meter,
+  strength,
+  suggestions,
+  usernameOk,
+  valid,
+  cleanUsername,
+} from "./logic.ts";
 import type { Action, FlowState, JoinInvite, Rules } from "./logic.ts";
 
 export interface AcceptInviteProps {
@@ -53,7 +63,7 @@ export interface AcceptInviteProps {
   onHaveAccount?: () => void;
 }
 
-const STEPS = 4;
+const STEPS = 3;
 
 // ---- landing and expired
 
@@ -62,6 +72,9 @@ function Landing({ invite, state }: Pick<AcceptInviteProps, "invite" | "state">)
   return (
     <Step id="accept" dir={state.dir}>
       <Title title={`Join ${invite.space}`} sub={invite.by ? `${invite.by} invited you` : undefined} />
+      {adminCode(invite, state) ? (
+        <Foot testID="space-code" top={8} centre>{`${ADMIN_CODE_LINE} ${adminCode(invite, state)}`}</Foot>
+      ) : null}
       {invite.role ? (
         <Text style={[baseText(p), { marginTop: 2, fontSize: 13, lineHeight: 18, color: p.ink3, textAlign: "center" }]}>
           {invite.role}
@@ -321,18 +334,10 @@ function SignInStep({ state, dispatch, rules }: Pick<AcceptInviteProps, "invite"
 
 function DeviceStep({ state, dispatch, newCode }: Pick<AcceptInviteProps, "state" | "dispatch" | "newCode">) {
   const { p } = useJoin();
-  const set = (patch: Partial<FlowState>) => dispatch({ t: "set", patch });
   return (
     <Step id="device" dir={state.dir}>
-      <Title title="This device" />
+      <Title title="Recovery code" sub="Optional. It lets you set a new password if you forget yours." />
       <Group>
-        <FieldRow
-          testID="device"
-          label="Device name"
-          value={state.device}
-          onChange={(v) => set({ device: v })}
-          onSubmit={() => dispatch({ t: "next" })}
-        />
         <Row testID="recovery-row">
           <Text style={[baseText(p), { flex: 1, fontSize: 14 }]}>Recovery code</Text>
           {state.rec ? (
@@ -487,25 +492,7 @@ export function AcceptInvite(props: AcceptInviteProps) {
   else if (state.step === 0)
     body = <Welcome invite={invite} state={state} dispatch={dispatch} onPickPhoto={props.onPickPhoto} />;
   else if (state.step === 1) body = <SignInStep invite={invite} state={state} dispatch={dispatch} rules={rules} />;
-  else if (state.step === 2) body = <DeviceStep state={state} dispatch={dispatch} newCode={props.newCode} />;
-  else {
-    body = (
-      <Step id="connect-ai" dir={state.dir}>
-        <ConnectAI
-          invite={invite}
-          ai={state.ai}
-          apiKey={state.key}
-          note={state.note}
-          error={state.error}
-          providerKey={state.aiProvider}
-          onProvider={(aiProvider) => dispatch({ t: "set", patch: { aiProvider } })}
-          onPick={(ai) => dispatch({ t: "pick_ai", ai })}
-          onKey={(v) => dispatch({ t: "set", patch: { key: v } })}
-          onSubscribe={() => undefined}
-        />
-      </Step>
-    );
-  }
+  else body = <DeviceStep state={state} dispatch={dispatch} newCode={props.newCode} />;
   return (
     <>
       <Panel

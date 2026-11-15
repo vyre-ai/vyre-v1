@@ -7,6 +7,7 @@ import {
   Caption,
   ErrorLine,
   FieldRow,
+  Foot,
   Group,
   Links,
   Panel,
@@ -15,11 +16,11 @@ import {
   TextButton,
   Title,
 } from "./kit.tsx";
-import { cleanUsername, signInValid } from "./logic.ts";
+import { ADMIN_CODE_LINE, adminCode, cleanUsername, signInValid } from "./logic.ts";
 import type { Action, FlowState, JoinInvite } from "./logic.ts";
 
 export interface SignInProps {
-  invite: Pick<JoinInvite, "space" | "host" | "sso" | "github">;
+  invite: Pick<JoinInvite, "space" | "host" | "sso" | "github"> & { fingerprint?: string };
   state: FlowState;
   dispatch: Dispatch<Action>;
   busy?: boolean;
@@ -42,6 +43,8 @@ export function SignIn({
   onBack,
 }: SignInProps) {
   const totp = state.si === "totp";
+  // a first sign-in at an address the person typed: the code that tells them it is the right server (Console, Space, Key fingerprint shows the same one)
+  const code = totp ? null : adminCode(invite, state);
   const go = (): void => {
     if (onSubmit) onSubmit();
     else dispatch({ t: "next" });
@@ -89,6 +92,7 @@ export function SignIn({
       bar={bar}
       below={
         <>
+          {code ? <Foot testID="space-code" top={4} centre>{`${ADMIN_CODE_LINE} ${code}`}</Foot> : null}
           {help}
           {others}
         </>

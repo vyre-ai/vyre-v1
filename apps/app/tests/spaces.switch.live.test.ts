@@ -87,7 +87,6 @@ test("Production Space switcher uses two real saved sessions with isolated runti
       await page.getByTestId("claim-password").fill("fixture switch password123");
       await page.getByTestId("claim-confirm").fill("fixture switch password123");
       await page.getByTestId("claim-next").click();
-      await page.getByTestId("claim-saved").click();
       await page.getByTestId("claim-create").click();
       await dismissOnboarding(page);
       await page.getByTestId("shell").waitFor({ timeout: 30000 });

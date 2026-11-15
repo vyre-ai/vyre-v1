@@ -273,7 +273,6 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByTestId("claim-password").fill("correct horse battery 9");
         await page.getByTestId("claim-confirm").fill("correct horse battery 9");
         await page.getByTestId("claim-next").click();
-        await page.getByTestId("claim-saved").click();
         await page.getByTestId("claim-create").click();
         await dismissOnboarding(page);
         await page.getByTestId("shell").waitFor({ timeout: 30_000 });
@@ -676,14 +675,11 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
           await joined.getByTestId("password").fill("correct horse provider 9");
           await joined.getByTestId("confirm").fill("correct horse provider 9");
           await joined.getByTestId("next").click();
-          await joined.getByTestId("device").fill("Release desktop");
-          await joined.getByTestId("next").click();
-          await joined.getByTestId("ai-key").click();
-          await joined.getByTestId("ai-provider-openai").click();
-          await joined.getByTestId("ai-key-field").fill("synthetic-release-api-key");
+          // prototype scenes member-1-join and member-4-ai: the join asks no device name and no AI question; the recovery code step is optional (Continue), and the AI account is asked once, on the
+          // one-card Connect your AI that opens by itself after joining. The key goes in there, a transient refusal says so under the form, and the second try connects.
           await joined.getByTestId("next").click();
           await joined
-            .getByTestId("joined-provider-continue")
+            .getByTestId("first-entry-card")
             .waitFor({ timeout: 30_000 })
             .catch(async (error) => {
               console.log(
@@ -691,17 +687,21 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
               );
               throw error;
             });
-          await joined.getByTestId("joined-provider-continue").click();
-          await joined.getByTestId("joined-provider-error").waitFor({ timeout: 15_000 });
-          assert.equal(await joined.getByText("Your AI account is connected", { exact: true }).count(), 0);
-          await joined.getByTestId("joined-provider-continue").click();
-          // the second try reaches the Space, which keeps a member's AI key for them on the server (encrypted, opened when they sign in; owner decision 3 Nov), so it connects now
-          await joined.getByText("Your AI is connected", { exact: true }).waitFor({ timeout: 15_000 });
+          await joined.getByTestId("ai-use-key").click();
+          await joined.getByTestId("row-ai-provider-openai").click();
+          await joined.getByTestId("ai-key-field").fill("synthetic-release-api-key");
+          await joined.getByTestId("ai-key-save").click();
+          await joined.getByTestId("ai-error").waitFor({ timeout: 15_000 });
           assert.equal(
-            await joined.getByTestId("joined-provider-error").filter({ hasText: /\S/ }).count(),
-            0,
-            "no error once it connects",
+            await joined.getByTestId("first-entry-card").count(),
+            1,
+            "a refused key does not report success: the card stays",
           );
+          await joined.getByTestId("ai-key-field").fill("synthetic-release-api-key");
+          await joined.getByTestId("ai-key-save").click();
+          // the second try reaches the Space, which keeps a member's AI key for them on the server (encrypted, opened when they sign in; owner decision 3 Nov), so it connects now and the card goes to the chat
+          await joined.getByTestId("first-entry-card").waitFor({ state: "detached", timeout: 30_000 });
+          await joined.getByTestId("shell").waitFor({ timeout: 30_000 });
           assert.equal(accepted, 1, "retry never consumes the invite twice");
           assert.equal(providerAttempts, 2);
           assert.equal(
@@ -711,8 +711,6 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
           );
           fs.mkdirSync("shots-evidence/join-provider", { recursive: true });
           await joined.screenshot({ path: "shots-evidence/join-provider/connected.png" });
-          await joined.getByTestId("joined-provider-continue").click();
-          await joined.getByTestId("shell").waitFor({ timeout: 15_000 });
         } finally {
           await joinedContext.close();
           secureWeb.close();
