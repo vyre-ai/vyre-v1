@@ -265,3 +265,46 @@ test("with connecting off on the server, a request that names a service draws th
     restore();
   }
 });
+
+test("a person who is not the one asked reads one quiet line (who asked, whom, which service) and nothing else", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { flush, installDom, mount, textOf } = await import("../../../onboarding/test-dom.ts");
+  const restore = installDom();
+  try {
+    // the server answers the card only to the asked person: for anyone else the read is refused
+    const h = harness({
+      "vault.connect_card.get": () => {
+        throw Object.assign(new Error("No such request."), { code: "validation.not_found" });
+      },
+    });
+    const root = await mount(
+      createRoot,
+      <ConnectCardLive requestId="vrq_1" agent="Dex" asker="usr_maya" service="fathom" data={h.data} />,
+    );
+    await flush();
+    assert.equal(textOf(root).trim(), "Dex asked Maya to connect Fathom");
+  } finally {
+    restore();
+  }
+});
+
+test("the hosts line says where the key goes: one host, two hosts, three hosts", async () => {
+  const { hostsSaid } = await import("../../../../../../ui/src/ConnectCard/index.tsx");
+  assert.equal(hostsSaid("api.fathom.ai"), "api.fathom.ai");
+  assert.equal(hostsSaid("api.example.test, files.example.test"), "api.example.test and files.example.test");
+  assert.equal(hostsSaid("a.test, b.test, c.test"), "a.test, b.test and c.test");
+});
+
+test("Ask says, before anything is saved, that the key is sent only to the hosts the server names", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { flush, installDom, mount, textOf } = await import("../../../onboarding/test-dom.ts");
+  const restore = installDom();
+  try {
+    const h = harness({ "vault.connect_card.get": () => card("ask", { checksWith: "api.a.test, api.b.test" }) });
+    const root = await mount(createRoot, <ConnectCardLive requestId="vrq_1" agent="Dex" data={h.data} />);
+    await flush();
+    assert.ok(textOf(root).includes("Your key is sent only to api.a.test and api.b.test"), textOf(root));
+  } finally {
+    restore();
+  }
+});

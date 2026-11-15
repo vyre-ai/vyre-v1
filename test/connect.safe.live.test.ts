@@ -117,8 +117,23 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
     const conn = JSON.stringify((await a.call("connections.list", { connector: "fathom" })).connections);
     assert.equal(conn.includes("#Fathom."), false, conn);
     const itemId = used.split(" ")[2]!;
-    // OPEN QUESTION FOR THE LEAD, not asserted here: Mine is "you and the agents working for you" (test/vault.made-mine.live.test.ts), so a SECOND agent of Aina's in this chat reaches the key through her too.
-    // The made-for-me rule as the lead words it ("no other agent can") needs the Vault's Mine access to change, which is outside this lane.
+    // Mine is "you and the agents working for you" (the lead's ruling): a second agent of Aina's may use her key. An agent working for ANOTHER person may not: the same Space agent, in a turn BILAL asked for,
+    // is refused, and nothing of Aina's key (its name, its handle, its id, that it exists) is in what the agent says or what Bilal reads.
+    const before = (await messages(h, b, threadId)).length;
+    const bilalAsks = await say(h, b, threadId, "Carry on, Fathom is connected");
+    assert.match(bilalAsks, /^FAILED/, `the agent used Aina's key in Bilal's turn: ${bilalAsks}`);
+    // what Bilal is told in this turn: the agent's own reply and anything posted after his message (his own card for Fathom is the only new thing)
+    const bilalReads = JSON.stringify((await messages(h, b, threadId)).slice(before));
+    for (const leak of [itemId, "Fathom_2", HAND, SECRET])
+      assert.equal(bilalReads.includes(leak), false, `Bilal was told ${leak}`);
+    // he gets a connect card of his own, and it offers him no key of Aina's
+    const bilalsCard = (await messages(h, b, threadId))
+      .slice(before)
+      .flatMap((m) => m.blocks ?? [])
+      .find((x) => x.type === "vault_request");
+    assert.ok(bilalsCard && bilalsCard.data.requestId !== requestId, "Bilal's own connect card");
+    const his = (await b.call("vault.connect_card.get", { requestId: bilalsCard.data.requestId })).card;
+    assert.deepEqual([his.state, his.have], ["ask", undefined]);
     // an agent calling any erase of a Vault item is refused (the discard has no tool; the Trash delete is held for a person), and the key is still there
     const erased = await say(h, a, threadId, `ERASE ${itemId} ${requestId}`);
     assert.match(erased, /^ERASE discard=refused delete=refused found=no/, erased);
