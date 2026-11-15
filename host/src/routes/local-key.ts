@@ -33,7 +33,15 @@ export interface LocalKeyDeps {
 const TRACE = "0".repeat(32);
 const LOOPBACK_ADDR = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 const LOOPBACK_HOST = new Set(["127.0.0.1", "localhost", "[::1]"]);
-const PROXY_HEADERS = ["x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "forwarded", "x-real-ip", "via"];
+const PROXY_HEADERS = [
+  "x-forwarded-for",
+  "x-forwarded-host",
+  "x-forwarded-proto",
+  "forwarded",
+  "x-real-ip",
+  "via",
+  "x-vyre-via",
+];
 const PATH = /^\/(local\/)?vault\/key\/(unlock|lock|status|forget|remember)$/;
 
 function send(res: http.ServerResponse, status: number, body?: unknown): void {

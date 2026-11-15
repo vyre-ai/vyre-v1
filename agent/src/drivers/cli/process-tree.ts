@@ -2,6 +2,7 @@
 // own. A signal to the wrapper alone can leave the engine alive: bwrap puts the engine in a session of its own (--new-session) and its own process namespace, so the engine is neither in the wrapper's process
 // group nor reliably ended when the wrapper is. So the tree is read BEFORE the first signal (once the wrapper is gone, its children belong to init and can no longer be found) and every process in it is
 // signalled. A process is remembered with when it started, so a number that was reused by something else is never signalled.
+// Known limit: an engine that double-forked and was re-parented to init BEFORE the first Stop is not in the tree and is missed.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 
@@ -70,6 +71,8 @@ export function treeKiller(
     list?: () => ProcRow[];
     send?: (pid: number, signal: "SIGTERM" | "SIGKILL") => void;
     run?: (cmd: string, args: string[]) => void;
+    /** has the root already exited? then it is not walked (its number may belong to another process now) */
+    exited?: () => boolean;
   } = {},
 ): TreeKiller {
   const platform = o.platform ?? process.platform;
@@ -93,17 +96,28 @@ export function treeKiller(
       }
     });
   const known = new Map<number, string>();
+  // the root's start time AT SPAWN: a root whose start time no longer matches is never walked
+  let rootStart: string | undefined;
+  if (rootPid !== undefined && platform !== "win32") {
+    try {
+      rootStart = list().find((r) => r.pid === rootPid)?.start;
+    } catch {
+      /* the table could not be read */
+    }
+  }
   return {
     kill(signal) {
       if (rootPid === undefined) return;
       if (platform === "win32") {
+        if (o.exited?.()) return;
         const w = windowsKill(rootPid);
         run(w.cmd, w.args);
         return;
       }
       const rows = list();
       const now = new Map(rows.map((r) => [r.pid, r.start]));
-      for (const r of treeOf(rootPid, rows)) known.set(r.pid, r.start);
+      const rootHere = !(o.exited?.() ?? false) && rootStart !== undefined && now.get(rootPid) === rootStart;
+      if (rootHere) for (const r of treeOf(rootPid, rows)) known.set(r.pid, r.start);
       // children first, so a parent cannot start another before it is told; a number now held by a different process (another start time) is left alone
       for (const [pid, start] of [...known].reverse()) {
         if (now.get(pid) === start) send(pid, signal);

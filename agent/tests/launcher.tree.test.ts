@@ -95,3 +95,45 @@ test("on Windows the whole tree is ended with taskkill", () => {
   assert.deepEqual(ran, [["taskkill", ["/PID", "77", "/T", "/F"]]]);
   assert.deepEqual(windowsKill(5).args, ["/PID", "5", "/T", "/F"]);
 });
+
+test("a wrapper that already exited is not walked, and a different process at its number is never signalled", () => {
+  const sent: number[] = [];
+  let table: ProcRow[] = [{ pid: 10, ppid: 1, start: "a" }];
+  let exited = false;
+  const k = treeKiller(10, {
+    platform: "linux",
+    list: () => table,
+    send: (p) => void sent.push(p),
+    exited: () => exited,
+  });
+  // the wrapper ends by itself; an unrelated process (with a child) now stands at its number
+  exited = true;
+  table = [
+    { pid: 10, ppid: 1, start: "OTHER" },
+    { pid: 50, ppid: 10, start: "x" },
+  ];
+  k.kill("SIGKILL");
+  assert.deepEqual(sent, []);
+  // and even when the exit was not noticed, a changed start time at the root's number is not walked
+  exited = false;
+  k.kill("SIGKILL");
+  assert.deepEqual(sent, []);
+});
+
+test("a remembered tree is still finished after the wrapper has exited", () => {
+  const sent: number[] = [];
+  let table = rows;
+  let exited = false;
+  const k = treeKiller(10, {
+    platform: "linux",
+    list: () => table,
+    send: (p) => void sent.push(p),
+    exited: () => exited,
+  });
+  k.kill("SIGTERM");
+  sent.length = 0;
+  exited = true;
+  table = [{ pid: 11, ppid: 1, start: "b" }];
+  k.kill("SIGKILL");
+  assert.deepEqual(sent, [11]);
+});

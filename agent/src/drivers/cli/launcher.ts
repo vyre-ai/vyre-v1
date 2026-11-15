@@ -55,7 +55,7 @@ export function createLocalLauncher(o: LocalLauncherOptions = {}): Launcher {
           reject(new LaunchError("engine.cli_missing", e instanceof Error ? e.message : "could not start"));
           return;
         }
-        const tree = treeKiller(child.pid);
+        const tree = treeKiller(child.pid, { exited: () => child.exitCode !== null || child.signalCode !== null });
         let tail = "";
         child.stderr?.setEncoding("utf8");
         child.stderr?.on("data", (d: string) => {

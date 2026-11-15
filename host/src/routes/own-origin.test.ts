@@ -49,6 +49,11 @@ test("on the person's own computer a loopback request keeps its loopback address
     ownOriginOf(req({ host: "localhost:7421", "x-forwarded-for": "198.51.100.1" }, "127.0.0.1"), () => PUBLIC),
     PUBLIC,
   );
+  // a request the relay carried arrives on a loopback socket with a loopback Host: not local
+  assert.equal(
+    ownOriginOf(req({ host: "127.0.0.1:7421", "x-vyre-via": "relay" }, "127.0.0.1"), () => PUBLIC),
+    PUBLIC,
+  );
   // a loopback socket that names another host is not local
   assert.equal(
     ownOriginOf(req(FORGED, "127.0.0.1"), () => PUBLIC),
