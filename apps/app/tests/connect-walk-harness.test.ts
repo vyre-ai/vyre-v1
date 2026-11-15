@@ -5,6 +5,7 @@
 // gets the ask, a wrong key stays on her card, the right key finishes Mia's card by itself and the agent goes on, and Disconnect makes the next call ask again. Every state is a picture (VYRE_CONNECT_SHOTS) in
 // both skins, at 1440 and 390 wide. The typed keys are in no page text after the card closes.
 import assert from "node:assert/strict";
+import test from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -367,7 +368,12 @@ export async function teamWalk(t: { skip(m: string): void }, SKINS: Skins, label
     // the Space's own AI key (a fake provider on this computer), the way an admin sets it for the team, and one agent
     const models = await vendor();
     closers.push(() => models.close());
-    const ep = await olivia("providers.custom_add", { name: "Provider Go", baseUrl: models.base, apiKey: SPACE_KEY, scope: "mine" });
+    const ep = await olivia("providers.custom_add", {
+      name: "Provider Go",
+      baseUrl: models.base,
+      apiKey: SPACE_KEY,
+      scope: "mine",
+    });
     await olivia("providers.space_key.set", { providerKey: ep.endpoint.key, apiKey: SPACE_KEY });
     const agentId = (await olivia("agents.create", { name: "Dex", role: "You help." })).agent.agentId as string;
     // a Space service: a connector the admin made and published (an API connector made in one call is Space-scope), on a host of its own
@@ -554,3 +560,14 @@ export async function teamWalk(t: { skip(m: string): void }, SKINS: Skins, label
     await stop(d);
   }
 }
+
+test("harness: the stand-in app refuses a key that starts with bad, cannot be reached for offline, and writes down every key that reached it", async () => {
+  const reached: string[] = [];
+  const net = network(reached);
+  const asKey = (key: string) => ({ headers: { "X-Api-Key": key } });
+  const url = new URL("https://api.fathom.ai/external/v1/meetings");
+  assert.equal((await net.request(url, asKey("bad-1"))).status, 401);
+  assert.equal((await net.request(url, asKey("fine-1"))).status, 200);
+  await assert.rejects(net.request(url, asKey("offline-1")));
+  assert.deepEqual(reached, ["bad-1", "fine-1", "offline-1"]);
+});

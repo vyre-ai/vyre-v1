@@ -492,7 +492,7 @@ test("D: a connector somebody published cannot name a private, loopback or addre
     );
     await assert.rejects(
       k.hs["connectors.check_key"](k.ctx, { connector: "pub", secrets: { api_key: SECRET } }),
-      undefined,
+      () => true,
       `${host}: a call that skips the card is refused too`,
     );
     assert.equal(k.sent.length, 0, `${host}: no request left`);
@@ -614,7 +614,7 @@ test("F: a person's press to allow where a key is sent is not an agent's: an age
   for (const kind of ["agent", "system"]) {
     await assert.rejects(
       k.hs["connections.approve_hosts"]({ ...k.mk("usr_dana"), callerKind: kind } as never, { connectionId: id }),
-      undefined,
+      () => true,
       kind,
     );
   }
