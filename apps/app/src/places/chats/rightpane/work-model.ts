@@ -182,8 +182,11 @@ export interface SessionGroup {
 export function groupSessions(
   list: readonly WorkspaceSession[],
   agentName: string,
-  who: { me?: string | undefined; nameOf?: ((id: string) => string) | undefined } = {},
+  who: { me?: string | undefined; nameOf?: ((id: string) => string) | undefined; ownPlace?: boolean | undefined } = {},
 ): SessionGroup[] {
+  // a person in their own place on a shared agent sees one group, theirs: what the agent opened for them is theirs too, and nothing sits under the agent's name
+  if (who.ownPlace === true)
+    return list.length === 0 ? [] : [{ key: "person:yours", name: "Your terminals", kind: "person", rows: orderSessions(list) }];
   const out: SessionGroup[] = [];
   for (const s of orderSessions(list)) {
     const o = s.owner;
@@ -327,4 +330,13 @@ export function whoseSide(agentName: string, ownPlace: boolean, others: number):
       ? `Your own space on ${agentName}'s computer. ${count}`
       : `Your own space on ${agentName}'s computer.`;
   return others > 0 ? count : null;
+}
+
+/** A folder as a person reads it: their own home is `~`, never `/people/u<number>` (an internal path and a user number) and never the agent's `/home/agent` for a person who is not its owner. */
+export function folderWords(cwd: string | undefined, ownPlace: boolean): string | undefined {
+  if (cwd === undefined || cwd === "") return undefined;
+  const mine = /^\/people\/u\d+(\/.*)?$/.exec(cwd);
+  if (mine) return `~${mine[1] ?? ""}`;
+  if (ownPlace && /^\/home\/agent(\/|$)/.test(cwd)) return `~${cwd.slice("/home/agent".length)}`;
+  return cwd;
 }

@@ -6,10 +6,11 @@ import { SIZES, open, seat, shoot } from "./support/mail-browser.ts";
 import { world } from "./support/computer-tab-world.ts";
 
 const DIR = "shots-evidence/f-wall";
+// the agent's computer is the real container (VYRE_WORKSPACE_TEST_IMAGE): the folders, users and rows in the pictures are what the product makes
 const WIDE = { width: 1440, height: 900 };
 
 test("the Computer tab as Ada and as Bea on the same shared agent", { timeout: 420_000 }, async (t) => {
-  const k = await world(t, { noTerminal: true });
+  const k = await world(t, { noTerminal: true, realWorkspace: true });
   if (!k) return;
   try {
     const bea = await k.s.world.join("bea");
@@ -48,6 +49,10 @@ test("the Computer tab as Ada and as Bea on the same shared agent", { timeout: 4
         );
         assert.equal(await who.page.getByTestId("row-session-ada-notes").count(), 0, "Bea does not see Ada's terminal");
         assert.equal(await who.page.getByTestId("row-session-bea-notes").count(), 1, "Bea sees her own");
+        const text = await who.page.locator("body").innerText();
+        assert.match(text, /Your terminals/, "one group, hers");
+        assert.doesNotMatch(text, /\/people|u2\d{4}|\/home\/agent/, "no internal path and no user number");
+        assert.match(text, /~/, "her folder as ~");
       } else {
         assert.equal(await who.page.getByTestId("row-session-ada-notes").count(), 1, "Ada sees hers");
         assert.equal(await who.page.getByTestId("row-session-bea-notes").count(), 0, "Ada does not see Bea's");

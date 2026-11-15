@@ -24,6 +24,7 @@ import {
   olderDesktopMenu,
   sessionTitle,
   sessionWords,
+  folderWords,
   sharedWait,
   terminalsHead,
   whoseSide,
@@ -298,7 +299,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
             </Text>
           ),
         });
-      const groups = groupSessions(v.sessions, name, { me: data.me?.id, nameOf: data.nameOf });
+      const groups = groupSessions(v.sessions, name, { me: data.me?.id, nameOf: data.nameOf, ownPlace: v.ownPlace });
       for (const g of groups) {
         entries.push({
           key: `g-${g.key}`,
@@ -311,7 +312,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
             key: `session-${sx.terminalId ?? sx.name}`,
             type: "row",
             title: sessionTitle(sx),
-            ...(sx.cwd ? { suffix: sx.cwd } : {}),
+            ...(folderWords(sx.cwd, v.ownPlace === true) ? { suffix: folderWords(sx.cwd, v.ownPlace === true) as string } : {}),
             ...(sx.lastCommand ? { note: `$ ${sx.lastCommand}` } : {}),
             leading: (
               <View style={st.dotLead}>
