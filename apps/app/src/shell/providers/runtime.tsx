@@ -74,6 +74,8 @@ export interface ShellRuntime extends RuntimeBase {
   putBlob?(path: string, bytes: Uint8Array): Promise<void>;
   /** Fetch a blob the Space serves (a preview, a picture) with the person's own token and hand back an address the page can draw: an image element sends no token, so the bare address answers 401. */
   fetchBlobUrl?(path: string): Promise<string>;
+  /** The Space's own origin: a picture is fetched with the person's token only from here. */
+  blobOrigin?: string;
   /** Open the person's own Mine vault key on this computer with their password, in place (no sign-out). Absent where there is no live Space. Rejects with a sentence the page can show. */
   unlockVault?(password: string): Promise<void>;
   /** A Space server's wrap of the person's key for provider sign-ins (owner ruling 3 Nov): what it keeps, and Forget on this server. Null state where there is no such server. */
@@ -96,7 +98,7 @@ export function ShellRuntimeProvider({ value, children }: { value: ShellRuntime;
   setAssistantId(value.assistant.id, value.assistant.name);
   return (
     <Ctx.Provider value={value}>
-      <BlobUrlProvider fetcher={value.fetchBlobUrl}>{children}</BlobUrlProvider>
+      <BlobUrlProvider fetcher={value.fetchBlobUrl} origin={value.blobOrigin}>{children}</BlobUrlProvider>
     </Ctx.Provider>
   );
 }

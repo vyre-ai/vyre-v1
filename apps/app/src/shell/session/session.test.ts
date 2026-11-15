@@ -1987,3 +1987,38 @@ test("session: a live link that drops says reconnecting after 1.5 s, not before,
   assert.equal(s.runtime.connection.get(), "online", "the line goes away by itself when the link is back");
   s.close();
 });
+
+test("session: a picture is fetched with the person's token only from the Space's own address (a reply or a document can name any host)", async () => {
+  const gw = sessionGateway();
+  const pictures: { url: string; auth: string | undefined }[] = [];
+  const s = await openRealSession({
+    baseUrl: "http://s.test",
+    token: "vst_1",
+    fetch: ((url: string, init?: { headers?: Record<string, string> }) => {
+      if (String(url).includes("/spaces/")) {
+        pictures.push({ url: String(url), auth: init?.headers?.["authorization"] });
+        return Promise.resolve(new Response("png", { status: 200 }));
+      }
+      return gw.fetch(url as never, init as never);
+    }) as typeof fetch,
+    routes: async () => ROUTES,
+    screens: async () => SCREENS,
+    dial: fakeServer().dial,
+    pollMs: 1_000_000,
+  });
+  const get = s.runtime.fetchBlobUrl!;
+  await get("/spaces/spc_nw/blobs/blb_1");
+  await get("http://s.test/spaces/spc_nw/blobs/blb_2");
+  await assert.rejects(get("https://evil.example/spaces/a/blobs/b"));
+  await assert.rejects(get("//evil.example/spaces/a/blobs/b"));
+  assert.deepEqual(
+    pictures.map((p) => [p.url, p.auth]),
+    [
+      ["http://s.test/spaces/spc_nw/blobs/blb_1", "Bearer vst_1"],
+      ["http://s.test/spaces/spc_nw/blobs/blb_2", "Bearer vst_1"],
+    ],
+    "the same-origin ones carry the token; the other host was never contacted",
+  );
+  assert.equal(s.runtime.blobOrigin, "http://s.test");
+  s.close();
+});
