@@ -47,7 +47,7 @@ test("production Automations: open a draft, then the Automations row goes back t
     await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
     await page.getByText("Welcome new leads", { exact: true }).first().click({ timeout: 30_000 });
     await page.getByTestId("story").first().waitFor({ timeout: 20_000 });
-    await page.getByTestId("nav-automations").click();
+    await page.getByTestId("automations-home").click();
     await page.getByTestId("first-page").waitFor({ timeout: 10_000 });
     assert.deepEqual(errors, [], "no page error while opening and leaving an automation");
   } finally {
