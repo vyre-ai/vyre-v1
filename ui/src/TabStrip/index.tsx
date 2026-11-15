@@ -140,10 +140,14 @@ function focusNode(node: unknown): void {
   if (typeof focusable.focus === "function") focusable.focus({ preventScroll: true });
 }
 
-/** How wide a tab that is not the open one may be. The open tab keeps its full title; the others give up room evenly, down to a width that still reads, and only then does the strip scroll. */
+/**
+ * How wide any tab may be, the open one too. Every tab gets the same share of the strip, never less than a width that shows a place's name whole, and past that the strip
+ * scrolls. One cap for all, so a tab is the same width selected or not: the open tab used to be let wider than the rest, and choosing a tab pushed its neighbours sideways
+ * (owner, 15 Nov 2026; team/v1/TABS-2026-11-15.md).
+ */
 export function tabCap(room: number, count: number, plain = TAB_MAX_WIDTH, least = TAB_MIN_WIDTH): number {
   if (count < 2 || room <= 0) return plain;
-  return Math.min(plain, Math.max(least, Math.floor((room - plain) / (count - 1)) - TAB_GAP));
+  return Math.min(plain, Math.max(least, Math.floor(room / count) - TAB_GAP));
 }
 
 /** A strip that overflows fades out at the edge with more behind it, so a cut tab reads as more to come. */
@@ -159,7 +163,8 @@ export const TAB_STRIP_HEIGHT = 38;
 export const TAB_HEIGHT = 30;
 const TAB_MAX_WIDTH = 200;
 const TITLE_MAX_WIDTH = 150;
-const TAB_MIN_WIDTH = 112;
+// wide enough for an icon and the longest place name ("Automations") with nothing cut
+const TAB_MIN_WIDTH = 124;
 const TAB_GAP = 2;
 /** The strip's padding and its two buttons, which stay beside the tabs. */
 const STRIP_CHROME = 8 + 8 + 30 + 30;
@@ -313,7 +318,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         on={on}
         tight={props.tight === true}
         underline={props.underline === true}
-        widest={on ? TAB_MAX_WIDTH : cap}
+        widest={cap}
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
         only={(props.hideLoneClose === true && tabs.length === 1) || props.noClose === true}
