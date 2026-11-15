@@ -105,9 +105,10 @@ export function EventList({
               title={e.type}
               selected={picked === e.id}
               note={
-                [e.subject ? `${e.subject.type} ${e.subject.id}` : "", e.runId ? `run ${e.runId}` : ""]
+                // an id is for the copy button, never a word on screen
+                [e.subject ? e.subject.type.replace(/_/g, " ") : "", e.runId ? "a run" : ""]
                   .filter(Boolean)
-                  .join(" · ") || e.actor
+                  .join(" · ") || actorWords(e.actor)
               }
               trailing={
                 <View style={v.actions}>
@@ -195,4 +196,9 @@ export function LiveEvents(): ReactElement {
       ) : null}
     </Frame>
   );
+}
+
+/** Who made an event, in a plain word: the log keeps the id, the screen never shows it. */
+function actorWords(id: string): string {
+  return id.startsWith("usr_") ? "A person" : id.startsWith("agt_") ? "An agent" : id.startsWith("svc_") ? "Vyre" : "The Space";
 }

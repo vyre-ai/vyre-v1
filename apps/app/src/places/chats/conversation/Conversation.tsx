@@ -354,13 +354,21 @@ function NoAiLine({
   const openConnect = useOpenConnect();
   useEffect(() => {
     let live = true;
-    void aiReady(data.call, threadId, agentId).then((r) => {
-      if (live) setAi(r);
-    });
+    const ask = (): void => {
+      void aiReady(data.call, threadId, agentId).then((r) => {
+        if (live) setAi(r);
+      });
+    };
+    ask();
+    // an account added somewhere else (the Vault, a sign-in on the card) takes this line away without a reload; it stops asking once there is one
+    const timer = setInterval(() => {
+      if (!ai.ready) ask();
+    }, 3000);
     return () => {
       live = false;
+      clearInterval(timer);
     };
-  }, [data.call, threadId, agentId]);
+  }, [data.call, threadId, agentId, ai.ready]);
   if (ai.ready) return null;
   const connect = (): void => {
     if (openConnect) void openConnect({ kind: "ai" });

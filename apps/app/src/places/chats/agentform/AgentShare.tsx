@@ -13,9 +13,10 @@ type Call = (cap: string, input: unknown) => Promise<unknown>;
 type SharesOut = CapMap["access.shares_of"]["out"];
 
 /** The line under the sheet's title: who has the agent now, and the rule for a new agent (a member's is theirs alone; an admin's is shared with everyone). `others` counts the grants that are not the owner's. */
-export function agentShareSubtitle(others: number): string {
-  const who =
-    others <= 0
+export function agentShareSubtitle(others: number, everyone = false): string {
+  const who = everyone
+    ? "Everyone in the Space can use it"
+    : others <= 0
       ? "Only you can use it"
       : others === 1
         ? "You and 1 other can use it"
@@ -23,6 +24,8 @@ export function agentShareSubtitle(others: number): string {
   return `${who}. An agent a member makes stays theirs; an admin's is shared with everyone.`;
 }
 export const othersOf = (s: SharesOut): number => s.shares.filter((x) => x.through !== "owner").length;
+export const sharedWithEveryone = (s: SharesOut): boolean =>
+  s.shares.some((x) => x.grant.subject.kind === "group" && x.grant.subject.id === "grp_everyone");
 
 export interface AgentSharing {
   directory: ConfigDirectory;
@@ -80,7 +83,7 @@ export function AgentShareSheet({
         ownerId={sharing.meId}
         {...(sharing.spaceName ? { spaceName: sharing.spaceName } : {})}
         levels={["use", "edit", "manage"]}
-        subtitle={agentShareSubtitle(othersOf(shares))}
+        subtitle={agentShareSubtitle(othersOf(shares), sharedWithEveryone(shares))}
         meId={sharing.meId}
         notifyPeople
         onCopyLink={() => copyItemLink("agent", agentId, true)}
