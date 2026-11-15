@@ -36882,6 +36882,13 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "address": {
+            "description": "Only drafts written to this address (To or Cc): a conversation with someone who is not a contact yet",
+            "examples": [
+              "maya@example.com"
+            ],
+            "type": "string"
+          },
           "contactId": {
             "examples": [
               "rec_a1b2c3"
