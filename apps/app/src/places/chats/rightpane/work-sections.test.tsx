@@ -660,3 +660,44 @@ test("mounted: a press that fails for another reason says why in one line, never
     off();
   }
 });
+
+test("whose side of the computer the Terminals section shows: a person's own space, and the terminals of others as a count", async () => {
+  const { whoseSide } = await import("./work-model.ts");
+  assert.equal(whoseSide("Nova", true, 0), "Your own space on Nova's computer.");
+  assert.equal(
+    whoseSide("Nova", true, 2),
+    "Your own space on Nova's computer. 2 terminals of other people are open here.",
+  );
+  assert.equal(whoseSide("Nova", false, 1), "1 terminal of another person is open here.");
+  assert.equal(whoseSide("Nova", false, 0), null, "the owner of an agent with nobody else on it reads nothing extra");
+});
+
+test("a person in their own place sees one group, Your terminals, and their folder as ~ (never /people/u<number>)", async () => {
+  const { groupSessions, folderWords } = await import("./work-model.ts");
+  const list = [
+    {
+      name: "main",
+      terminalId: "trm_1",
+      state: "idle" as const,
+      cwd: "/people/u20000",
+      owner: { kind: "agent" as const },
+    },
+    {
+      name: "notes",
+      terminalId: "trm_2",
+      state: "idle" as const,
+      cwd: "/people/u20000/work",
+      owner: { kind: "person" as const },
+      ownerId: "usr_bea",
+    },
+  ];
+  const g = groupSessions(list, "Nova", { me: "usr_bea", ownPlace: true });
+  assert.equal(g.length, 1);
+  assert.equal(g[0]!.name, "Your terminals");
+  assert.equal(g[0]!.rows.length, 2);
+  assert.equal(folderWords("/people/u20000", true), "~");
+  assert.equal(folderWords("/people/u20000/work", true), "~/work");
+  assert.equal(folderWords("/home/agent/x", true), "~/x");
+  assert.equal(folderWords("/home/agent/x", false), "/home/agent/x", "the owner's own folder is left as it is");
+  assert.deepEqual(groupSessions([], "Nova", { ownPlace: true }), []);
+});

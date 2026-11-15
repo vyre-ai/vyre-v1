@@ -39,6 +39,8 @@ export interface WorkspaceView {
   projects?: readonly string[];
   /** May this person attach? A person for their own Assistant's workspace; an owner or admin for a team agent's. */
   canAttach: boolean;
+  /** This person works in a place of their own on a shared agent's computer: the tab says it is theirs. */ ownPlace?: boolean;
+  /** How many terminals of other people are open here: said as a count, never listed. */ others?: number;
   /** false when taking the keyboard is off (rc.28): the terminal sheet only watches; left out when the host does not say */ takeOver?: boolean;
   /** Why not, as one sentence, when canAttach is false. */
   cannotAttach?: string;
@@ -180,8 +182,13 @@ export interface SessionGroup {
 export function groupSessions(
   list: readonly WorkspaceSession[],
   agentName: string,
-  who: { me?: string | undefined; nameOf?: ((id: string) => string) | undefined } = {},
+  who: { me?: string | undefined; nameOf?: ((id: string) => string) | undefined; ownPlace?: boolean | undefined } = {},
 ): SessionGroup[] {
+  // a person in their own place on a shared agent sees one group, theirs: what the agent opened for them is theirs too, and nothing sits under the agent's name
+  if (who.ownPlace === true)
+    return list.length === 0
+      ? []
+      : [{ key: "person:yours", name: "Your terminals", kind: "person", rows: orderSessions(list) }];
   const out: SessionGroup[] = [];
   for (const s of orderSessions(list)) {
     const o = s.owner;
@@ -315,3 +322,23 @@ export function terminalBar(i: BarIn): TermBar {
 /** A terminal's name as shown: the agent's own is "main" (it is stored as "agent", the name its commands find it by). */
 export const sessionTitle = (s: Pick<WorkspaceSession, "name" | "owner">): string =>
   s.owner?.kind === "agent" && s.name === "agent" ? "main" : s.name;
+
+/** The one line that says whose side of a shared agent's computer the Terminals section shows; null when it is all one person's (the agent's own, as its owner sees it). */
+export function whoseSide(agentName: string, ownPlace: boolean, others: number): string | null {
+  const count =
+    others === 1 ? "1 terminal of another person is open here." : `${others} terminals of other people are open here.`;
+  if (ownPlace)
+    return others > 0
+      ? `Your own space on ${agentName}'s computer. ${count}`
+      : `Your own space on ${agentName}'s computer.`;
+  return others > 0 ? count : null;
+}
+
+/** A folder as a person reads it: their own home is `~`, never `/people/u<number>` (an internal path and a user number) and never the agent's `/home/agent` for a person who is not its owner. */
+export function folderWords(cwd: string | undefined, ownPlace: boolean): string | undefined {
+  if (cwd === undefined || cwd === "") return undefined;
+  const mine = /^\/people\/u\d+(\/.*)?$/.exec(cwd);
+  if (mine) return `~${mine[1] ?? ""}`;
+  if (ownPlace && /^\/home\/agent(\/|$)/.test(cwd)) return `~${cwd.slice("/home/agent".length)}`;
+  return cwd;
+}
