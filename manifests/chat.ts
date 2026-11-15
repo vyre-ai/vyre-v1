@@ -1713,12 +1713,11 @@ export default defineManifest({
     ),
     write(
       "chat.connect_line",
-      "The engine only: after a connect card is answered, leave one quiet line (not a message of the person) in the chat that wakes the agent that asked",
+      "The engine only: after a connect card is answered, leave one quiet line (not a message of the person) in the chat that wakes the agent that asked. It takes the answered request's id and reads the chat, the agent, the asker and the words from that request; only the request's own asker may call it",
       {
-        in: { ...threadT, agentId: id.agent, asker: id.user, body: t.str({ maxLength: 200 }) },
+        in: { requestId: t.id("vrq") },
         out: { messageId: id.message },
-        on: ["thread", "/threadId"],
-        level: "use",
+        level: "member",
         agent: false,
         idem: "none",
         emits: [
@@ -1729,7 +1728,7 @@ export default defineManifest({
           "thread.unarchived",
           "thread.updated",
         ],
-        errors: ["validation.bad_input", "validation.not_found"],
+        errors: ["validation.bad_input", "validation.not_found", "permission.no_grant"],
       },
     ),
     write(

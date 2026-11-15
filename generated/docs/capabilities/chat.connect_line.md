@@ -1,6 +1,6 @@
 # chat.connect_line
 
-The engine only: after a connect card is answered, leave one quiet line (not a message of the person) in the chat that wakes the agent that asked
+The engine only: after a connect card is answered, leave one quiet line (not a message of the person) in the chat that wakes the agent that asked. It takes the answered request's id and reads the chat, the agent, the asker and the words from that request; only the request's own asker may call it
 
 | | |
 |---|---|
@@ -8,9 +8,9 @@ The engine only: after a connect card is answered, leave one quiet line (not a m
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | use |
+| Grant level | member |
 | Risk | medium |
-| Resource | thread (/threadId) |
+| Resource | space |
 | Gate | none |
 | Idempotency | none |
 | Offline | online |
@@ -25,10 +25,7 @@ The engine only: after a connect card is answered, leave one quiet line (not a m
 
 ```ts
 type In = {
-  threadId: string;
-  agentId: string;
-  asker: string;
-  body: string;
+  requestId: string;
 };
 ```
 
@@ -54,10 +51,7 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "agentId": "agt_a1b2c3",
-    "asker": "usr_a1b2c3",
-    "body": "example",
-    "threadId": "thr_a1b2c3"
+    "requestId": "vrq_a1b2c3"
   },
   "output": {
     "messageId": "msg_a1b2c3"

@@ -53,6 +53,8 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   const mk = (actor: string): ConnectorsCtx => ({
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
     actor,
+    // a person's own call by default; a test that means another caller says so
+    callerKind: "person",
     emit: (name, subject, payload) => {
       events.push({ name, subject, payload });
     },

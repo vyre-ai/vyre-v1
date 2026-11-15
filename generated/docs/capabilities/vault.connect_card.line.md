@@ -37,6 +37,8 @@ type Out = {
   service: string;
   asker?: string;
   connectedBy?: string;
+  threadId?: string;
+  agentId?: string;
 };
 ```
 
@@ -58,10 +60,12 @@ type Out = {
     "requestId": "vrq_a1b2c3"
   },
   "output": {
+    "agentId": "agt_a1b2c3",
     "asker": "usr_a1b2c3",
     "connectedBy": "usr_a1b2c3",
     "service": "example",
-    "state": "asked"
+    "state": "asked",
+    "threadId": "thr_a1b2c3"
   }
 }
 ```

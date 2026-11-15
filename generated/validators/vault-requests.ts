@@ -262,6 +262,8 @@ if ("state" in o6843) lf(o6843["state"], p + "/state", e, L1028);
 if ("service" in o6843) lf(o6843["service"], p + "/service", e, L1);
 if ("asker" in o6843) lf(o6843["asker"], p + "/asker", e, L16);
 if ("connectedBy" in o6843) lf(o6843["connectedBy"], p + "/connectedBy", e, L16);
+if ("threadId" in o6843) lf(o6843["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o6843) lf(o6843["agentId"], p + "/agentId", e, L10);
 }
 }
 }

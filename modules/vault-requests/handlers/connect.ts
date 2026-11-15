@@ -635,6 +635,21 @@ export async function connectSubmit(
 export async function connectLine(ctx: VaultReqCtx, input: { requestId: string }) {
   const row = requestById(ctx, input.requestId);
   if (!row || !row.service) raise(ctx.trace.traceId, "validation.not_found", "No such request.");
+  // who may read it: the person the card was asked for, or a person who can see the chat the card is in (the chat module answers that: reading the thread is its own check)
+  const me = ctx.principal.kind === "person" ? ctx.principal.id : undefined;
+  const mine = me !== undefined && (row.asker_id ?? null) === me;
+  if (!mine) {
+    let sees = false;
+    if (me !== undefined && row.thread_id) {
+      try {
+        await ctx.call("threads.get", { threadId: row.thread_id });
+        sees = true;
+      } catch {
+        sees = false;
+      }
+    }
+    if (!sees && ctx.principal.kind !== "service") raise(ctx.trace.traceId, "validation.not_found", "No such request.");
+  }
   const svc = await serviceOf(ctx, row.service);
   return {
     state:
@@ -646,6 +661,8 @@ export async function connectLine(ctx: VaultReqCtx, input: { requestId: string }
     service: svc?.title ?? row.service,
     ...(row.asker_id ? { asker: row.asker_id } : {}),
     ...(row.state === "fulfilled" && row.decided_by ? { connectedBy: row.decided_by } : {}),
+    ...(row.thread_id ? { threadId: row.thread_id } : {}),
+    ...(row.requester_kind === "agent" ? { agentId: row.requester_id } : {}),
   };
 }
 

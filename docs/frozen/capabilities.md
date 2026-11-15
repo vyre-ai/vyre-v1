@@ -625,3 +625,11 @@ Signed: lead, 16 Nov 2026 03:01 PKT (written and read by the lead: one optional,
 `inbox.counts@1` keeps its shape. Its numbers change meaning: `total` and each `byInbox[].unread` are now the number of conversations that hold unread messages for the caller (not marked done), not the number of unread messages. Reason: the owner's Inbox read "551" beside By contact and beside the mailbox and the number told him nothing; a badge beside a list of conversations counts conversations. A conversation's own `unreadCount` still counts messages. Only the description text of the capability changed in the manifest.
 
 Signed: lead, 16 Nov 2026 03:36 PKT (written and read by the lead: no shape change, a change of meaning in two numbers).
+
+## 16 Nov 2026: chat.connect_line takes only the answered request's id (lane b-connect3, review of 77603b1d6, blocker 1)
+
+- What changed: `chat.connect_line` took a free-form `threadId`, `agentId`, `asker` and `body` from its caller, so any member could leave a line from an agent in another person's name. Its input is now `{ requestId }` alone. The chat, the agent, the asker and the words are read from the answered request through `vault.connect_card.line`; only the person the card was asked for may call it (`permission.no_grant` otherwise), the agent must be one of the chat's, a request still waiting is refused, and the line is never the person's typed words. Its level is `member` (there is no thread in the input to authorize against; the handler checks the chat).
+- `vault.connect_card.line` answers two more optional fields, `threadId` and `agentId`, and now answers only the request's asker, a person who can read the chat the card is in, or a service; anyone else gets `validation.not_found`. It declares `permission.no_grant`.
+- The engine's carry-on after a connect card passes `{ requestId }`. Snapshots: docs/frozen/snapshots/chat.json, vault-requests.json.
+
+Signed: lead, 16 Nov 2026 <time> PKT

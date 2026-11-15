@@ -537,7 +537,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       ready();
       const r = need(ctx, input.connectionId);
       owned(ctx, r);
-      if (ctx.callerKind !== undefined && ctx.callerKind !== "person")
+      if (ctx.callerKind !== "person")
         refuse(ctx, "permission.no_grant", "Only a person can allow where a key is sent.");
       const def = defOf(ctx, r.connector);
       const hosts = recordHosts(def);
@@ -649,7 +649,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     "connectors.check_key": async (ctx, input) => {
       ready();
       // sending a typed key to an app is a person's act, done from their own card; an agent never calls it
-      if (ctx.callerKind !== undefined && ctx.callerKind !== "person")
+      if (ctx.callerKind !== "person")
         refuse(ctx, "permission.no_grant", "Only the person who types a key can have it tried.");
       const def = defOf(ctx, input.connector);
       const c = tx.get<{ state: string }>("SELECT state FROM cn_connectors WHERE key = ?", input.connector)!;

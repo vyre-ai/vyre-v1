@@ -8471,10 +8471,7 @@ export type ChatComposerSuggestOut = {
     }>;
 };
 export type ChatConnectLineIn = {
-  threadId: string;
-  agentId: string;
-  asker: string;
-  body: string;
+  requestId: string;
 };
 export type ChatConnectLineOut = {
   messageId: string;
@@ -46790,6 +46787,8 @@ export type VaultConnectCardLineOut = {
   service: string;
   asker?: string;
   connectedBy?: string;
+  threadId?: string;
+  agentId?: string;
 };
 export type VaultConnectCardMayDiscardIn = {
   requestId: string;

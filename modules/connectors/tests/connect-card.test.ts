@@ -622,3 +622,18 @@ test("F: a person's press to allow where a key is sent is not an agent's: an age
   await k.hs["connections.approve_hosts"](person as never, { connectionId: id });
   assert.notEqual(JSON.stringify(k.tx.all("SELECT * FROM cn_connection_hosts")), before, "the person's own press does");
 });
+
+test("G: a caller with no principal at all is refused on check_key and approve_hosts (the check fails closed), and nothing is sent or recorded", async () => {
+  const k = kit();
+  k.install(FATHOM);
+  const none = { ...k.mk("usr_dana"), callerKind: undefined } as never;
+  await assert.rejects(k.hs["connectors.check_key"](none, { connector: "fathom", secrets: { api_key: SECRET } }));
+  assert.equal(k.sent.length, 0);
+  const made = await k.hs["connections.create"](k.ctx, {
+    connector: "fathom",
+    title: "F",
+    ownerKind: "person",
+    secrets: { api_key: "#AcmeKey" },
+  } as never);
+  await assert.rejects(k.hs["connections.approve_hosts"](none, { connectionId: made.connection.connectionId }));
+});

@@ -420,12 +420,7 @@ export const consumers = keptWhileStopping({
           : `I did not add the ${key} key${p.note ? `: ${p.note}` : "."}`;
       try {
         // a connect card is answered with a quiet line that is no message of the person (it starts the agent's turn all the same); a plain key request keeps its line as the person's own
-        if (p.service)
-          await host.call(
-            "chat.connect_line",
-            { threadId: p.threadId, agentId: p.agentId, asker: p.asker, body: text },
-            p.asker,
-          );
+        if (p.service) await host.call("chat.connect_line", { requestId: p.requestId }, p.asker);
         else
           await host.call(
             "chat.post",

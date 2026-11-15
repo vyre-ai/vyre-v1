@@ -281,9 +281,11 @@ export default defineManifest({
           service: t.str(),
           asker: t.opt(id.user),
           connectedBy: t.opt(id.user),
+          threadId: t.opt(id.thread),
+          agentId: t.opt(id.agent),
         },
         agent: false,
-        errors: ["internal.not_implemented", "validation.not_found"],
+        errors: ["internal.not_implemented", "permission.no_grant", "validation.not_found"],
       },
     ),
     write("vault.connect_card.ask_admin", "Ask an admin to connect the service when this person may not", {

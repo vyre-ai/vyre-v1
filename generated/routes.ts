@@ -5653,10 +5653,9 @@ const routes1: Route[] = [
     "module": "chat",
     "effects": "write",
     "permission": null,
-    "level": "use",
+    "level": "member",
     "resource": {
-      "type": "thread",
-      "id": "/threadId"
+      "type": "space"
     },
     "idempotency": "none",
     "risk": "medium",
