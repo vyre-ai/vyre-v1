@@ -1035,7 +1035,7 @@ test("F33: the host name a person reads in the shell prompt is a word, never the
   assert.deepEqual(reviewWorkspaceConfig({ ...good, Hostname: NAME }, AGENT), ["is not this agent's workspace"]);
   // the label an unchanged workspace carries (made before the host name was part of it) differs from the new one, so such a workspace is made again once, when quiet
   const old = sha256Hex(JSON.stringify({ p: [], n: SHARED_NETWORK })).slice(0, 16);
-  const now = sha256Hex(JSON.stringify({ p: [], h: 1, n: SHARED_NETWORK })).slice(0, 16);
+  const now = sha256Hex(JSON.stringify({ p: [], h: 1, u: 1, n: SHARED_NETWORK })).slice(0, 16);
   assert.equal(good.Labels["vyre.mounts"], now);
   assert.notEqual(good.Labels["vyre.mounts"], old);
 });
