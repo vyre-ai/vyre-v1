@@ -11,6 +11,7 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
+import { usePaneTab } from "../../../../../../ui/src/SidePane/usePaneTab.ts";
 import { JourneyStepper } from "../journey/JourneyStepper.tsx";
 import { isJourneyDef, stageFieldOf } from "../journey/model.ts";
 import { useJourneyStages } from "../journey/useStages.ts";
@@ -53,7 +54,7 @@ import { TabMeasure, useFittedTabs, useTitleWidths } from "../../chats/rightpane
 import { PANE_CHROME, PANE_TAB_EXTRA } from "../../chats/rightpane/ChatRightPane.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { channelFieldToAdd, findContact } from "./askfor.ts";
-import { ActivityTab, CommentsTab, EverythingTab, FilesTab } from "../recordpane/index.ts";
+import { ActivityTab, CommentsTab, DetailsTab, EverythingTab, FilesTab } from "../recordpane/index.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
 import { SealedField } from "./SealedField.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
@@ -481,6 +482,7 @@ function chooseFrom(f: FieldDef, q: FieldProps, x: number, y: number): void {
 // ---------------------------------------------------------------- the right pane
 
 const PANE_W = 340;
+const PANE_KEYS: readonly PaneKey[] = PANE_TABS.map((t) => t.key);
 const PINNED_TABS = PANE_TABS.map((t) => ({ ...t, pinned: true }));
 const withMore = (w: ReadonlyMap<string, number>): ReadonlyMap<string, number> =>
   new Map(w).set("More", 14).set("More tabs", 14);
@@ -547,7 +549,8 @@ function Pane({
   let body: ReactElement;
   // Comments and Chat fill the pane's height (a field at the bottom); the other tabs scroll
   let fill = false;
-  if (tab === "everything")
+  if (tab === "details") body = <DetailsTab row={row} />;
+  else if (tab === "everything")
     body = <EverythingTab type={type} recordId={row.id} def={def} onComments={() => onTab("comments")} />;
   else if (tab === "activity") body = <ActivityTab type={type} recordId={row.id} def={def} />;
   else if (tab === "comments") {
@@ -726,7 +729,14 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const [flash, setFlash] = useState<Flash | null>(null);
   const [all, setAll] = useState(start.all === true || start.edit !== undefined);
   const [pane, setPane] = useState<boolean | null>(start.pane ?? null);
-  const [tab, setTab] = useState<PaneKey>(start.tab ?? "everything");
+  // the pane opens on Details; a tab a card or link asked for wins until the person picks one, and the pick is kept for this record
+  const [kept, keep] = usePaneTab<PaneKey>("record", recordId, PANE_KEYS);
+  const [asked, setAsked] = useState<PaneKey | undefined>(start.tab);
+  const tab = asked ?? kept;
+  const setTab = (k: PaneKey): void => {
+    setAsked(undefined);
+    keep(k);
+  };
   const busy = useRef(false);
   // the right pane (its three reads and its rows) comes after the first paint on a screen (late, above); a server render or a test has no frames, so it is there at once
   useEffect(() => {

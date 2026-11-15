@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { followSet, linkMessage, markRead, match, matchNew, matchSuggestions, unmatch } from "../handlers/index.ts";
+import { nameOldConversations } from "../handlers/match.ts";
 import { handlers } from "../impl.ts";
 import { registry } from "../../../generated/registry.ts";
 import { codeOf, contractErrors, DANA, harness, LEE, link, NOW } from "../fixtures/harness.ts";
@@ -611,4 +612,85 @@ test("match_new without the extras does neither", async () => {
   assert.equal(out.filed, undefined);
   assert.equal(h.calls("files.copy").length, 0);
   assert.equal(h.calls("tasks.create").filter((c) => /^Reply to/.test(String(c.input.title))).length, 0);
+});
+
+// ---- a conversation is named after the person, not their address (owner's Inbox, 16 Nov 2026)
+
+test("a stranger's conversation takes the name their mail is signed with; a later mail does not rename it, and our own mail never names it", async () => {
+  const h = setup({
+    mail: [
+      {
+        id: "eml_n1",
+        threadId: "thr_n",
+        subject: "Hello",
+        from: "usman@nowhere.test",
+        fromName: "Usman Khan",
+        to: ["work@acme.test"],
+      },
+      {
+        id: "eml_n2",
+        threadId: "thr_n",
+        subject: "Re: Hello",
+        from: "usman@nowhere.test",
+        fromName: "U. K.",
+        to: ["work@acme.test"],
+      },
+      {
+        id: "eml_n3",
+        threadId: "thr_o",
+        subject: "Hi",
+        from: "work@acme.test",
+        fromName: "Our Team",
+        to: ["quiet@nowhere.test"],
+      },
+      { id: "eml_n4", threadId: "thr_p", subject: "Hi", from: "plain@nowhere.test", to: ["work@acme.test"] },
+      {
+        id: "eml_n5",
+        threadId: "thr_q",
+        subject: "Hi",
+        from: "echo@nowhere.test",
+        fromName: "echo@nowhere.test",
+        to: ["work@acme.test"],
+      },
+    ],
+  });
+  const nameOf = (id: string) => convs(h).find((c) => c.id === id)!.displayName;
+  const a = await linkMessage(h.ctx, link({ address: "usman@nowhere.test", id: "eml_n1", mailboxId: "mbx_work1" }));
+  assert.equal(nameOf(a.conversationId), "Usman Khan");
+  await linkMessage(h.ctx, link({ address: "usman@nowhere.test", id: "eml_n2", mailboxId: "mbx_work1" }));
+  assert.equal(nameOf(a.conversationId), "Usman Khan", "named once");
+  const b = await linkMessage(
+    h.ctx,
+    link({ address: "quiet@nowhere.test", id: "eml_n3", mailboxId: "mbx_work1", direction: "out" }),
+  );
+  assert.equal(nameOf(b.conversationId), "quiet@nowhere.test", "our own name is not theirs");
+  const c = await linkMessage(h.ctx, link({ address: "plain@nowhere.test", id: "eml_n4", mailboxId: "mbx_work1" }));
+  assert.equal(nameOf(c.conversationId), "plain@nowhere.test", "no name in the mail: the address stays");
+  const d = await linkMessage(h.ctx, link({ address: "echo@nowhere.test", id: "eml_n5", mailboxId: "mbx_work1" }));
+  assert.equal(nameOf(d.conversationId), "echo@nowhere.test", "a name that is only the address again is no name");
+});
+
+test("conversations filed before names were read are named from their newest mail in one pass, and a matched contact's name is never touched", async () => {
+  const mail = [
+    { id: "eml_o1", threadId: "thr_o1", subject: "Hello", from: "old@nowhere.test", to: ["work@acme.test"] },
+    {
+      id: "eml_o2",
+      threadId: "thr_o2",
+      subject: "Hello",
+      from: "pat@acme.test",
+      fromName: "Patricia L.",
+      to: ["work@acme.test"],
+    },
+  ];
+  const h = setup({ mail });
+  const nameOf = (id: string) => convs(h).find((c) => c.id === id)!.displayName;
+  const old = await linkMessage(h.ctx, link({ address: "old@nowhere.test", id: "eml_o1", mailboxId: "mbx_work1" }));
+  const sure = await linkMessage(h.ctx, link({ address: "pat@acme.test", id: "eml_o2", mailboxId: "mbx_work1" }));
+  assert.equal(nameOf(old.conversationId), "old@nowhere.test");
+  // the mail store carries the name (as on a Space filed before this release, where the name was always in mail and never read)
+  (mail[0] as { fromName?: string }).fromName = "Olde Sender";
+  assert.deepEqual(await nameOldConversations(h.ctx), { looked: 1, named: 1 });
+  assert.equal(nameOf(old.conversationId), "Olde Sender");
+  assert.equal(nameOf(sure.conversationId), "Pat Lee", "a contact's name comes from the record");
+  assert.deepEqual(await nameOldConversations(h.ctx), { looked: 0, named: 0 }, "a second pass finds nothing");
 });

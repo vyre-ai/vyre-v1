@@ -76,6 +76,22 @@ function ensurePrior(ctx: MailCtx): void {
 const GATE_LINE = "An agent wrote this draft. It is sent only after a person approves.";
 const DEFAULT_LIMIT = 50;
 
+/** A subject as two drafts of one email share it: reply and forward marks, case and spacing aside. */
+export function subjectKey(subject: string): string {
+  let s = subject.trim();
+  for (let i = 0; i < 8; i++) {
+    const next = s.replace(/^(re|fw|fwd|aw|wg)\s*:\s*/i, "");
+    if (next === s) break;
+    s = next;
+  }
+  return s.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** The people in To as one key: their addresses, lower case, in order of the alphabet. */
+export function toKey(to: readonly { address: string }[]): string {
+  return [...new Set(to.map((p) => p.address.trim().toLowerCase()))].sort().join(",");
+}
+
 export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   ensure(ctx);
   if (!isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
@@ -97,7 +113,11 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   }
 
   const parent = input.replyToMessageId === undefined ? null : loadParent(ctx, input, box);
-  // one pending draft per thread per agent: a new draft by the same agent on the same thread takes the place of the old one, which is kept as the earlier text
+  // ONE pending agent draft per reply. A new draft by an agent takes the place of the pending agent draft it repeats, which is kept as the earlier text, so a person is
+  // never asked to allow two versions of the same email (owner's Inbox, 16 Nov 2026: two cards to one person with one subject and different wording). It repeats one when:
+  //   it answers the same thread from the same mailbox, or
+  //   it names no message it answers, and a pending draft of the same agent in that mailbox has the same subject (Re: and Fwd: aside) and the same people in To.
+  // Always the same agent's own earlier draft: a person's draft, another agent's draft and a draft the caller named (draftId) are never replaced.
   const drafting = ctx.principal.kind === "agent" && isId("agt", ctx.principal.id) ? ctx.principal.id : null;
   let replaced: Row | null = null;
   if (!existing && drafting && parent) {
@@ -112,6 +132,34 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
         ),
       ) ?? null;
     if (replaced) existing = replaced;
+  }
+  if (
+    !existing &&
+    drafting &&
+    !parent &&
+    input.subject !== undefined &&
+    input.to !== undefined &&
+    input.to.length > 0
+  ) {
+    const wantSubject = subjectKey(input.subject);
+    const wantTo = toKey(cleanParties(ctx, input.to));
+    if (wantSubject !== "" && wantTo !== "") {
+      replaced =
+        rowsOf(
+          ctx.db.all(
+            `SELECT * FROM mail_message WHERE "draftedByAgent" = ? AND status = ? AND "mailboxId" = ? AND deleted_at IS NULL ORDER BY updated_at DESC`,
+            drafting,
+            "draft",
+            input.mailboxId,
+          ),
+        )
+          .slice(0, 200) // an agent's pending drafts in one mailbox: the newest two hundred are looked at
+          .find(
+            (r) =>
+              subjectKey(str(r, "subject")) === wantSubject && toKey(readParties(str(r, "toAddresses"))) === wantTo,
+          ) ?? null;
+      if (replaced) existing = replaced;
+    }
   }
   const own = str(box, "address");
   const text = input.text;
@@ -266,7 +314,7 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
 
 export async function draftsList(
   ctx: MailCtx,
-  input: { mailboxId?: string; contactId?: string; cursor?: string; limit?: number },
+  input: { mailboxId?: string; contactId?: string; address?: string; cursor?: string; limit?: number },
 ): Promise<{ drafts: MessageRowOut[]; next?: string; total: number }> {
   ensure(ctx);
   if (input.mailboxId !== undefined && !isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
@@ -298,7 +346,18 @@ export async function draftsList(
         (r) => contactFor(ctx, [input.contactId!], readParties(str(r, "toAddresses")), null) === input.contactId,
       )
     : rows;
-  const visible = ofContact.filter((r) => {
+  // By address: a conversation with someone who is not a contact yet shows only the drafts written to that address (To or Cc). Without this a conversation opened by its
+  // id asked for every draft and showed drafts for other people (owner's Inbox, 16 Nov 2026).
+  const addr = typeof input.address === "string" ? input.address.trim().toLowerCase() : "";
+  const scoped =
+    input.address === undefined
+      ? ofContact
+      : ofContact.filter((r) =>
+          [...readParties(str(r, "toAddresses")), ...readParties(str(r, "ccAddresses"))].some(
+            (p) => p.address.trim().toLowerCase() === addr,
+          ),
+        );
+  const visible = scoped.filter((r) => {
     const id = str(r, "mailboxId");
     if (!verdict.has(id)) verdict.set(id, can(ctx, "view", { type: "mailbox", id }));
     return verdict.get(id) === true;

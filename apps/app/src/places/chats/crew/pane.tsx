@@ -28,6 +28,7 @@ import {
   span,
   stateWord,
   timeline,
+  sideBySide,
   tokenSplit,
   tokens,
   totalsLine,
@@ -98,10 +99,8 @@ export function CrewOverview({
   const [show, setShow] = useState<Show>(initialShow);
   const menu = useMenu();
   const live = status.totals.working + status.totals.needsYou > 0;
-  // the engine's own subagents stop with their turn: Stop all is for the helpers and teammates Vyre started
-  const stoppable = status.members.some(
-    (m) => m.kind !== "subagent" && (m.state === "working" || m.state === "needs_you"),
-  );
+  // Stop all ends everything that works here: helpers and teammates, and the helpers and jobs the engine left running in the background
+  const stoppable = status.members.some((m) => m.state === "working" || m.state === "needs_you");
   const now = useNow(live);
   const [sortKey, setSortKey] = useState<SortKey>("state");
   const all = sortedBy(status.members, sortKey);
@@ -191,9 +190,10 @@ export function CrewOverview({
         </View>
       )}
 
-      <Text style={st.section}>Side by side</Text>
+      {/* Side by side says something only when two or more helpers have run long enough to compare; one bar, or bars of a second each, mean nothing */}
+      {sideBySide(all) ? <Text style={st.section}>Side by side</Text> : null}
       <View testID="crew-timeline" style={{ gap: 3 }}>
-        {all.map((m, i) => (
+        {(sideBySide(all) ? all : []).map((m, i) => (
           <Row
             key={m.id}
             id={`crew-tl-${m.id}`}
@@ -577,14 +577,14 @@ export function CrewPeek({
         </>
       )}
       {steps.length > 0 ||
-      (own && (member.steps?.length ?? 0) > 0) ||
+      (own && ((member.steps?.length ?? 0) > 0 || member.step !== undefined)) ||
       member.state === "working" ||
       member.state === "needs_you" ? (
         <Text style={st.section}>Steps</Text>
       ) : null}
       {/* ui-rows-lint: not a list (the steps of one agent's plan on a timeline of dots, not list rows) */}
       {own
-        ? (member.steps ?? []).map((x, i) => (
+        ? (member.steps && member.steps.length > 0 ? member.steps : member.step ? [member.step] : []).map((x, i) => (
             <View key={`${i}-${x}`} testID={`crew-step-${i}`} style={st.step}>
               <View
                 style={[

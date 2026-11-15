@@ -68,6 +68,10 @@ export interface OutgoingProps {
   onConnect?(channel: OutChannel): void;
   subject?: string;
   onSubject?(t: string): void;
+  /** Stands in the Subject row in place of the field: a reply shows the thread it goes into there. */
+  subjectSlot?: ReactNode;
+  /** Sits at the end of the Subject row, after the field. */
+  subjectEnd?: ReactNode;
   testID?: string;
 }
 
@@ -130,7 +134,12 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
           <Glyph icon={I.chev} native="▾" size={12} color="var(--ink-3)" />
         </Pressable>
       </View>
-      {mail && p.onSubject ? (
+      {mail && p.subjectSlot ? (
+        <View style={o.line}>
+          <Text style={o.k}>Subject</Text>
+          {p.subjectSlot}
+        </View>
+      ) : mail && p.onSubject ? (
         <View style={o.line}>
           <Text style={o.k}>Subject</Text>
           <TextInput
@@ -142,6 +151,7 @@ export function OutgoingHeader(p: OutgoingProps): ReactElement {
             testID="contact-subject"
             style={[o.subject, FIELD]}
           />
+          {p.subjectEnd ?? null}
         </View>
       ) : null}
       <View style={o.sep} />
@@ -218,8 +228,9 @@ const FIELD = {
 
 const o = StyleSheet.create({
   out: { position: "relative", zIndex: 5, paddingTop: 2, gap: 6 },
-  line: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 26 },
-  k: { width: 52, fontSize: 13, color: "var(--ink-3)" as string },
+  // rows start at the top: with two lines of people the label stays beside the first line, not between the two (owner's Inbox, 16 Nov 2026)
+  line: { flexDirection: "row", alignItems: "flex-start", gap: 10, minHeight: 26 },
+  k: { width: 52, fontSize: 13, lineHeight: 20, paddingTop: 3, color: "var(--ink-3)" as string },
   v: { flex: 1, minWidth: 0 },
   seg: {
     flexDirection: "row",

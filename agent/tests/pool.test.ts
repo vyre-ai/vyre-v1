@@ -236,6 +236,25 @@ test("an idle session is closed after ten minutes, and a release with reuse fals
   assert.equal((await pool.acquire(spec())).warm, false, "acquire sweeps first: an expired session is not handed out");
 });
 
+test("a session whose engine still runs background helpers is not idle: it is not swept, not closed by Stop idle, and not evicted (owner's rc.28 report)", async () => {
+  const clock = manualClock();
+  const d = driver("anthropic", "cli");
+  const pool = createPool({ placement: "device", drivers: [d], now: clock.now, maxPerDriver: 1 });
+  const l = await pool.acquire(spec());
+  let background = 2;
+  Object.defineProperty(l.session, "background", { get: () => background });
+  await pool.release(l);
+  clock.advance(30 * 60_000);
+  assert.equal(await pool.sweep(), 0, "half an hour idle, but its helpers work");
+  assert.equal(await pool.closeIdle(), 0);
+  assert.equal(pool.idleCount(), 0);
+  assert.equal(d.provider.sessions[0]?.closed, false);
+  background = 0;
+  assert.equal(pool.idleCount(), 1);
+  assert.equal(await pool.sweep(), 1, "idle once the last helper ended");
+  assert.equal(d.provider.sessions[0]?.closed, true);
+});
+
 test("status lists every driver, with warm, busy, hits, misses and evictions", async () => {
   const pool = createPool({ placement: "device", drivers: [driver("anthropic"), driver("codex", "cli")] });
   assert.deepEqual(pool.status(), {

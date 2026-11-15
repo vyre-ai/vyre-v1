@@ -4,6 +4,7 @@ import { MAKES_A_THREAD, noteMade, threadOfStart } from "./just-made.ts";
 import type { Judge } from "../reach/target.ts";
 import { adminPages } from "../providers/settings-admin.ts";
 import { createLinkPolicy } from "../reach/policy.ts";
+import { watchWorking } from "../tabs/working.ts";
 import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
 import { createRecordsPreview } from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
@@ -745,6 +746,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     },
   };
 
+  // the chats whose agents (or helpers left running in the background) work now: the tab strip marks their tabs
+  const stopWorking = watchWorking({
+    call: (cap, input) => call(cap, input),
+    onInvalidate: (l) => hooks.onInvalidate(l),
+  });
+
   return {
     def,
     baseUrl: o.baseUrl,
@@ -765,6 +772,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       if (closed) return;
       closed = true;
       stopPerms();
+      stopWorking();
       if (permsTimer !== null) clearTimeout(permsTimer);
       detachSpeed();
       stopKeyWatch();

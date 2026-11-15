@@ -70,6 +70,25 @@ export function activityOf(
   return out;
 }
 
+/** The history of a task as plain lines for the Activity tab (newest first, as tasks.history gives them): who did it, in words. The same words as the feed's event lines. */
+export function taskLines(
+  entries: readonly Entry[],
+  nameOf: (id: string) => string,
+  assigned?: string,
+): { id: string; at: number; by: string; text: string }[] {
+  const out: { id: string; at: number; by: string; text: string }[] = [];
+  let madeAt = -BORN_MS;
+  for (let i = entries.length - 1; i >= 0; i--) if (entries[i]!.type === "created") madeAt = entries[i]!.at;
+  for (const e of entries) {
+    if (e.type === "assigned" && e.at - madeAt < BORN_MS) continue;
+    const say = WORDS[e.type.replace(/^task\./, "").replace(/^transitioned:/, "")];
+    if (!say) continue;
+    const by = assigned && e.by.startsWith("svc_") && e.type === "transitioned:doing" ? assigned : e.by;
+    out.push({ id: e.eventId, at: e.at, by, text: `${say(nameOf(by))}${e.note ? `: ${e.note}` : ""}` });
+  }
+  return out;
+}
+
 /** The thread's messages and the quiet lines, in the order they happened. */
 export function weave(messages: readonly Message[], events: readonly Message[]): Message[] {
   if (events.length === 0) return [...messages];

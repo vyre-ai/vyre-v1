@@ -248,14 +248,25 @@ export async function listCliModels(
     );
   });
   const talk = (async (): Promise<LiveModel[]> => {
-    for (const s of dialog.start) await proc.write(s);
+    // An engine that ends before it has taken its input closes the pipe under the write ("write EPIPE"). That is not the reason a person reads: what the
+    // engine printed and how it ended is, so a failed write stops the sending and the reading below finds the reason.
+    let open = true;
+    const send = async (data: string): Promise<void> => {
+      if (!open) return;
+      try {
+        await proc.write(data);
+      } catch {
+        open = false;
+      }
+    };
+    for (const s of dialog.start) await send(s);
     if (dialog.start.length === 0) proc.endInput();
     for await (const line of lines(proc.stdout)) {
       const step = dialog.push(line);
       if (!step) continue;
       if (step.fail !== undefined) throw new ModelListError(step.fail);
       if (step.done) return step.done;
-      for (const s of step.send ?? []) await proc.write(s);
+      for (const s of step.send ?? []) await send(s);
     }
     const last = dialog.end();
     if (last) return last;

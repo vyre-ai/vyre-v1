@@ -1301,6 +1301,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           trigger,
           asker,
           history: stoppedTurn ? closedHistory(recent, item.agentId, stoppedTurn.askId) : recent,
+          ...(item.kind === "wake" ? { wake: true } : {}),
           listeners: st.thread.agents
             .filter((a) => a.mode === "listen" && a.id !== agent.id)
             .map((a) => (a.role === undefined ? { id: a.id } : { id: a.id, role: a.role })),

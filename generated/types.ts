@@ -25167,6 +25167,7 @@ export type MailDraftsDiscardOut = {
 export type MailDraftsListIn = {
   mailboxId?: string;
   contactId?: string;
+  address?: string;
   cursor?: string;
   limit?: number;
 };

@@ -418,14 +418,14 @@ test("screen: the page has the title, the ring, the sections, the relation cards
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
 
-test("screen: on a wide window the sheet is two columns and the right pane starts on Everything", () => {
+test("screen: on a wide window the sheet is two columns and the right pane starts on Details", () => {
   const out = page(createSamplePage());
-  assert.ok(has(out, 'data-testid="record-pane"') && has(out, 'data-testid="pane-everything-loading"'));
+  assert.ok(has(out, 'data-testid="record-pane"') && has(out, 'data-testid="pane-details"'));
   const edits = page(createSamplePage(), { tab: "activity" });
   assert.ok(
     has(edits, 'data-testid="pane-activity"') && has(edits, "Maya set status to Active") && !has(edits, "Nothing yet"),
   );
-  for (const t of ["Everything", "Activity"]) assert.ok(has(out, `>${t}<`), t);
+  for (const t of ["Details", "Activity"]) assert.ok(has(out, `>${t}<`), t);
   assert.ok(has(out, ">More<") || has(out, "More tabs"), "at 340 px the tabs that do not fit fold behind More");
   assert.ok(
     has(page(createSamplePage(), { tab: "activity" }, "clients", "cl_1"), 'data-testid="pane-activity-empty"'),

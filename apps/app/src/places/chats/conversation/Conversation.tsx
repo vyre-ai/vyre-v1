@@ -24,6 +24,7 @@ import {
 } from "../crew/model.ts";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { CrewIsland, WorkIsland, blocksActivity } from "../crew/island.tsx";
+import { BackgroundLine } from "../crew/background-line.tsx";
 import { AlsoToChat } from "../crew/also.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
@@ -2410,6 +2411,20 @@ function ConversationView(): ReactElement {
               const needs = crew?.status ? crewCounts(crew.status.totals).needsYou : 0;
               if (crew?.status && needs > 0) return <CrewIsland status={crew.status} onPress={() => crew.show(null)} />;
               if (openQs.length > 0) return null;
+              // helpers or jobs work on after the reply ended and nobody is writing: one live line says so, with Stop (never a bare "Thinking")
+              if (crew?.status && working.length === 0 && crew.status.totals.working > 0)
+                return (
+                  <BackgroundLine
+                    status={crew.status}
+                    onOpen={() => crew.show(null)}
+                    onStop={() => {
+                      void Promise.resolve(crew.call?.("engine.helpers.stop_all", { threadId: crew.threadId })).then(
+                        crew.refresh,
+                        fail("Could not stop them."),
+                      );
+                    }}
+                  />
+                );
               const helpersAtWork = (crew?.status?.members ?? []).filter((m) => m.state === "working");
               const faces = [
                 ...working.map((id) => ({ id, name: nameOf(id), seed: id })),
