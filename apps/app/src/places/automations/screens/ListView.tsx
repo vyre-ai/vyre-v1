@@ -57,10 +57,11 @@ export function ListView({
           />
         </>
       )}
+      {/* ui-rows-lint: each item is a ui/Row; the View only carries the row's menu trigger */}
       {v.rows.map((r) => (
         <View key={r.id} {...(onMenu ? menuTrigger((x, y) => onMenu(r.id, x, y)) : {})}>
           <Row
-            id={`${r.scope === "Journey" ? "journey" : "auto"}-${r.id}`}
+            id={`auto-${r.id}`}
             {...(selectedId === r.id ? { selected: true } : {})}
             title={r.name}
             leading={<View style={[s.dot, { backgroundColor: DOT[r.dot] as string }]} />}
