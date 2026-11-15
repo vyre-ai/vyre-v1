@@ -553,8 +553,8 @@ function List(): ReactElement {
       }),
       x,
       y,
-"other",
-);
+      "other",
+    );
   // On the phone the header keeps New and one "..." menu: sort, the list or grid view, upload, then the folder's own options.
   const phoneMenu = (x: number, y: number): void =>
     menu.show(
@@ -618,8 +618,8 @@ function List(): ReactElement {
               ),
               x,
               y,
-"other",
-)
+              "other",
+            )
           }
           onView={(view) => dispatch({ type: "view", view })}
           onBack={state.back.length > 0 ? () => dispatch({ type: "back" }) : undefined}

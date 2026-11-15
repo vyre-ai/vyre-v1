@@ -260,11 +260,12 @@ export function Overview(): ReactElement {
       icon: "server",
       big: HEALTH_LABEL[o.health],
       // a build with no release number says 0.0.0-dev: that is not a version a person can use, so it is not shown
-      sub: space?.version && !/-dev$/.test(space.version)
-        ? `v${space.version}`
-        : o.attention.length
-          ? `${o.attention.length} need${o.attention.length === 1 ? "s" : ""} you`
-          : "Nothing waiting",
+      sub:
+        space?.version && !/-dev$/.test(space.version)
+          ? `v${space.version}`
+          : o.attention.length
+            ? `${o.attention.length} need${o.attention.length === 1 ? "s" : ""} you`
+            : "Nothing waiting",
       tone: HEALTH_TONE[o.health],
       ...(bars.length ? { bars } : {}),
     },

@@ -586,7 +586,11 @@ test("a first sign-in or join shows the server's code in plain words, at a typed
   const accept = renderToStaticMarkup(<JoinFlow invite={withCode} initial={{ stage: "accept", ...typed }} hold />);
   assert.match(accept, /Check this code matches the one your admin sees: ab12 cd34 ef56 7890/);
   const fromLink = renderToStaticMarkup(<JoinFlow invite={withCode} initial={{ stage: "accept" }} hold />);
-  assert.match(fromLink, /Check this code matches the one your admin sees: ab12 cd34 ef56 7890/, "the link's own code is shown too");
+  assert.match(
+    fromLink,
+    /Check this code matches the one your admin sees: ab12 cd34 ef56 7890/,
+    "the link's own code is shown too",
+  );
   assert.doesNotMatch(
     renderToStaticMarkup(<JoinFlow invite={INVITE} initial={{ stage: "signin", ...typed }} hold />),
     /Check this code/,

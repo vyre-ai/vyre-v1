@@ -2184,8 +2184,7 @@ export function ErrorRowView({
     };
   }, [noAccount, resent, actions, e.turnId]);
   const { element: moreMenu, show: showMore } = useMenu();
-  const spaceKey =
-    actions.noSpaceKey === true ? { line: "" } : spaceKeyWay(e.code, actions.canSetSpaceKey === true);
+  const spaceKey = actions.noSpaceKey === true ? { line: "" } : spaceKeyWay(e.code, actions.canSetSpaceKey === true);
   const steps = [
     ...e.next.map((n) => ({
       label: n.label,
