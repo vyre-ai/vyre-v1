@@ -357,8 +357,10 @@ test("F30: a person who may only use the agent, and an agent working for them, h
       ["Bea typing", bea],
       ["Bea's agent turn", beaTurn],
     ] as const) {
-      assert.equal(await refused(() => h["terminal.input"]!(ctx, { terminalId: id, data: "ls\n" })), "others_place", `${who}: ${what}`);
-      assert.equal(await refused(() => h["terminal.read"]!(ctx, { terminalId: id })), "others_place", `${who} reads: ${what}`);
+      // a person is told it is not theirs; an agent working for them, that it is not in their place
+      const reason = ctx === bea ? "terminal_not_yours" : "others_place";
+      assert.equal(await refused(() => h["terminal.input"]!(ctx, { terminalId: id, data: "ls\n" })), reason, `${who}: ${what}`);
+      assert.equal(await refused(() => h["terminal.read"]!(ctx, { terminalId: id })), reason, `${who} reads: ${what}`);
     }
   }
   // her own terminal, opened by her turn, is hers

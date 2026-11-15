@@ -11,6 +11,7 @@ import {
   onAgentRestored,
   onPersonBack,
   onPersonLeft,
+  onUseGone,
   forgetExpiredPeople,
   openTabForRun,
   stopRuns,
@@ -1359,6 +1360,30 @@ export const consumers = {
         // as them, and only where it runs: a sleeping workspace has nothing of theirs running and is not woken
         await workspaceManager?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
       }),
+  },
+  /** A person's share of an agent was removed: they are out of its computer at once, their programs there are stopped (handlers/sessions.ts onUseGone). */
+  "terminal.use_gone": {
+    on: ["grant.revoked"],
+    run: (
+      ctx: TermCtx,
+      event: { payload: { subject?: { kind?: unknown; id?: unknown }; resource?: { type?: unknown; id?: unknown } } },
+    ): Promise<string[]> =>
+      onUseGone(
+        ctx,
+        event,
+        async (person, agentId) => {
+          const r = (await ctx.call?.("access.check", {
+            principal: { kind: "person", id: person },
+            action: { level: "use" },
+            resource: { type: "agent", id: agentId },
+          })) as { decision?: { effect?: string } } | undefined;
+          if (r?.decision?.effect === undefined) throw new Error("the access answer could not be read");
+          return r.decision.effect === "allow";
+        },
+        async (agentId, place) => {
+          await workspaceManager?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
+        },
+      ),
   },
   /** Back inside the Trash time: their folder is theirs again. */
   "terminal.person_back": {

@@ -707,7 +707,41 @@ export async function openServer(ctx: TermCtx, input: { name?: string; cwd?: str
 
 // ---- reading ------------------------------------------------------------------------------------------------------------------------------------------------
 
-export function list(
+/**
+ * A terminal of someone else's place on an agent's computer, or the agent's own one to a person who only uses it, is shown to the caller as a row that says it is there and nothing of what it holds: no
+ * folder, no chat, no name, no one at the keyboard (F30). The person it belongs to, and whoever manages the agent for the agent's own terminals, see the whole row.
+ */
+async function foreign(ctx: TermCtx, x: SessionRow, facts: Facts): Promise<boolean> {
+  if (x.host !== "agent_computer" || x.agentId === undefined || isTrustedService(ctx.principal)) return false;
+  const me = actorOf(ctx);
+  if (x.owner === me) return false;
+  const got = ctx.call === undefined ? {} : await lookup(ctx, x.agentId, facts);
+  if (hasOwnPlace(got.agent, x.agentId, x.owner)) return true; // someone's own place
+  if (!hasOwnPlace(got.agent, x.agentId, me)) return false; // the agent's owner, or no way to tell: as before
+  // the caller has a place of their own: the agent's own terminals are not theirs unless they manage the agent (an agent working for them is never a manager)
+  return ctx.principal.kind !== "person" || ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow";
+}
+
+/** What a terminal row says about a terminal that is not the caller's to see into. */
+export function terminalHint(x: SessionRow) {
+  return {
+    terminalId: x.terminalId,
+    name: "Someone else's terminal",
+    host: x.host,
+    hostTitle: x.hostTitle,
+    ...(x.agentId === undefined ? {} : { agentId: x.agentId }),
+    cwd: "",
+    state: x.state,
+    exitCode: null,
+    named: false,
+    cols: x.cols,
+    rows: x.rows,
+    createdAt: x.createdAt,
+    lastActiveAt: x.lastActiveAt,
+  };
+}
+
+export async function list(
   ctx: TermCtx,
   input: {
     section?: "personal" | "shared" | "space";
@@ -747,14 +781,18 @@ export function list(
   const offset = input.cursor !== undefined && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
   const page = mine.slice(offset, offset + limit);
   const next = offset + page.length < mine.length ? String(offset + page.length) : undefined;
-  return { terminals: page.map(terminalRow), ...(next === undefined ? {} : { next }), total: mine.length };
+  const facts: Facts = new Map();
+  const rows = [];
+  for (const x of page) rows.push((await foreign(ctx, x, facts)) ? terminalHint(x) : terminalRow(x));
+  return { terminals: rows, ...(next === undefined ? {} : { next }), total: mine.length };
 }
 
-export function get(ctx: TermCtx, input: { terminalId: string }) {
+export async function get(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   const x = sessionBy(ctx.db, input.terminalId);
   if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
-  return { terminal: terminalRow(fresh(ctx, x)) };
+  const f = fresh(ctx, x);
+  return { terminal: (await foreign(ctx, f, new Map())) ? terminalHint(f) : terminalRow(f) };
 }
 
 export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
@@ -768,7 +806,7 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
   for (const x of rows0) {
     const may = await mayRead(ctx, x, facts);
     // someone else's own terminal shows that it is there and its state, never its last line or last command
-    if (may === "yes" && ownerOk(ctx, x)) known.push(x);
+    if (may === "yes" && ownerOk(ctx, x) && !(await foreign(ctx, x, facts))) known.push(x);
     else if (may === "yes" || may === "unknown") kept.push(x);
   }
   const host = boundHost();
@@ -880,8 +918,12 @@ const isAgentsOwn = (x: SessionRow): boolean =>
 
 /** Is this terminal one the caller may use as its own (or an agent's own that the workspace rules decide)? A terminal with no recorded opener is nobody's: refused to every person. */
 function ownerOk(ctx: TermCtx, x: SessionRow): boolean {
-  // an agent's own terminal: opened by the agent, a helper, the agent's named session, or (an old row, before tab records) owned by an agent id
-  if (x.host === "agent_computer" && isAgentsOwn(x)) return true;
+  // an agent's own terminal: opened by the agent, a helper, the agent's named session, or (an old row, before tab records) owned by an agent id. A person enters it as its owner or as one who manages the
+  // agent; a person who only uses the agent has a place of their own and no more (an agent working for them is held to that by needOwnPlace)
+  if (x.host === "agent_computer" && isAgentsOwn(x)) {
+    if (ctx.principal.kind !== "person" || x.owner === actorOf(ctx) || x.agentId === undefined) return true;
+    return ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect === "allow";
+  }
   if (isTrustedService(ctx.principal)) return true;
   return x.owner !== "" && x.owner === actorOf(ctx);
 }
@@ -2108,6 +2150,61 @@ export async function onPersonLeft(
     }
   }
   return stopped;
+}
+
+/**
+ * A grant on an agent was removed (grant.revoked): a person who had a place on that agent's computer and may no longer use the agent is out at once. Their terminals there close and what they have running
+ * is stopped where it runs; their next call is refused at the door (entry). Their folder stays, like a leaver's, for the day they are shared again. `mayUse` is the access answer for that person now.
+ */
+export async function onUseGone(
+  ctx: TermCtx,
+  event: { payload: { subject?: { kind?: unknown; id?: unknown }; resource?: { type?: unknown; id?: unknown } } },
+  mayUse: (person: string, agentId: string) => Promise<boolean>,
+  stopFor: (agentId: string, place: AskerPlace) => Promise<void>,
+): Promise<string[]> {
+  ensure(ctx.db);
+  const res = event.payload.resource;
+  if (res?.type !== "agent" || typeof res.id !== "string") return [];
+  const agentId = res.id;
+  const sub = event.payload.subject;
+  // a person's own grant names them; a group's or a role's grant may have reached any of the people who work there
+  const named = sub?.kind === "person" && typeof sub.id === "string" ? [sub.id] : null;
+  const people = (
+    ctx.db.all("SELECT person FROM terminal_person_places WHERE agent_id = ?", agentId) as Row[]
+  )
+    .map((r) => String(r["person"]))
+    .filter((p) => named === null || named.includes(p));
+  const out: string[] = [];
+  for (const person of people) {
+    let may = true;
+    try {
+      may = await mayUse(person, agentId);
+    } catch {
+      continue; // not told: nothing is cut on a guess
+    }
+    if (may) continue;
+    const at = ctx.now();
+    for (const r of ctx.db.all(
+      "SELECT terminal_id FROM terminal_sessions WHERE owner = ? AND agent_id = ? AND closed_at IS NULL",
+      person,
+      agentId,
+    ) as Row[]) {
+      const id = String(r["terminal_id"]);
+      ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
+      dropHold(ctx.db, id);
+      ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
+    }
+    const uid = uidOf(ctx.db, person, at);
+    if (uid !== null) {
+      try {
+        await stopFor(agentId, askerPlace(person, uid));
+      } catch {
+        /* asleep or gone: nothing of theirs is running */
+      }
+    }
+    out.push(person);
+  }
+  return out;
 }
 
 /** member.joined with an id that left a moment ago: they are back inside the Trash time, so their folder is theirs again, intact. */
