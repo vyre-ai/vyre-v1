@@ -424,6 +424,7 @@ export async function turnRecord(
     code?: string;
     message?: string;
     stoppedBy?: { id: string; kind: "person" | "guest" | "agent" | "system" };
+    resetsAt?: number;
     info?: TurnInfo;
   },
 ): Promise<{ turn: TurnOut }> {
@@ -560,6 +561,11 @@ export async function turnRecord(
       agentId,
       code: input.code ?? "unknown",
       message: error?.message ?? "The turn failed.",
+      ...(input.code === "provider.rate_limited" &&
+      typeof input.resetsAt === "number" &&
+      Number.isFinite(input.resetsAt)
+        ? { resetsAt: Math.trunc(input.resetsAt) }
+        : {}),
     });
   } else {
     if (input.stoppedBy) setTurnStop(ctx.db, input.turnId, input.stoppedBy);

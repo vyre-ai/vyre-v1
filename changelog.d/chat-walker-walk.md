@@ -1,0 +1,1 @@
+A new browser walk, chat.walker, proves the chat findings of the owner's first pass: send follows, the Worked line, the plan card order and title, no ids in the task view, React on an agent's message.

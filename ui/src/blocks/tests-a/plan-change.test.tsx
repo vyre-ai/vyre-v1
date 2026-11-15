@@ -17,29 +17,31 @@ const host = (fail: boolean, drafts: string[], calls: string[]): BlockHost => ({
   draft: (t) => void drafts.push(t),
 });
 
-test("Change it declines the plan, then puts it in the composer as a draft", async () => {
+test("Change it puts the plan in the composer and marks the card Changing: nothing is declined, nothing is sent", async () => {
   installDom();
   const drafts: string[] = [];
   const calls: string[] = [];
   const root = await mount(createRoot, <BlockViewA block={SAMPLE_PLAN} host={host(false, drafts, calls)} />);
   await press(find(root, `blk-plan-${SAMPLE_PLAN.id}-edit`));
   await flush();
-  assert.equal(calls.length, 1, "the plan was declined");
+  assert.equal(calls.length, 0, "the plan was not declined");
   assert.equal(drafts.length, 1);
   assert.ok(drafts[0]!.startsWith("Change the plan:\n1. "));
-  assert.match(textOf(root), /Plan declined/);
+  assert.match(textOf(root), /Changing/);
+  assert.doesNotMatch(textOf(root), /declined/i);
 });
 
-test("when the decline fails there is no draft, the plan stays waiting with its buttons, and the card says so", async () => {
+test("Deny says Declined, and the plan's own title heads the card", async () => {
   installDom();
-  const drafts: string[] = [];
   const calls: string[] = [];
-  const root = await mount(createRoot, <BlockViewA block={SAMPLE_PLAN} host={host(true, drafts, calls)} />);
-  await press(find(root, `blk-plan-${SAMPLE_PLAN.id}-edit`));
+  const titled = { ...SAMPLE_PLAN, data: { ...(SAMPLE_PLAN.data as object), title: "Tidy the quarterly notes" } };
+  const root = await mount(createRoot, <BlockViewA block={titled} host={host(false, [], calls)} />);
+  assert.match(textOf(root), /Tidy the quarterly notes/);
+  await press(find(root, `blk-plan-${SAMPLE_PLAN.id}-reject`));
   await flush();
-  assert.deepEqual(drafts, []);
-  assert.match(textOf(find(root, `blk-plan-${SAMPLE_PLAN.id}-problem`)), /still waiting for you/);
-  assert.ok(find(root, `blk-plan-${SAMPLE_PLAN.id}-approve`), "Allow is still offered");
+  assert.deepEqual(calls, ["chat.plan.reject"]);
+  assert.match(textOf(root), /Declined/);
+  assert.doesNotMatch(textOf(root), /Plan declined/);
 });
 
 test("the card has the book mark beside Plan, and Deny is its own muted button (looked at in the pictures)", () => {

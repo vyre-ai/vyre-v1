@@ -212,6 +212,23 @@ export async function fetchSuggestions(
     ch === "[["
       ? { records: [], files: [], folders: [], channels: [] }
       : { records: [], files: [], folders: [], channels: [], chats: [], automations: [], projects: [] };
+  // everything # reads is asked at once: the company Drive (it waits a moment at most), the projects, the folders and the connected sources run beside the search, so a record or a file shows as soon as the slowest of them answers, not after the sum of them
+  const extras =
+    ch === "#"
+      ? {
+          drive: withCompanyDrive(data),
+          projects: Promise.resolve()
+            .then(
+              () => data.call("projects.list", { mine: true, limit: 50 }) as Promise<CapMap["projects.list"]["out"]>,
+            )
+            .catch(() => null),
+          folders: Promise.resolve()
+            .then(
+              () => data.call("files.folder.search", { q, limit: 6 }) as Promise<CapMap["files.folder.search"]["out"]>,
+            )
+            .catch(() => null),
+        }
+      : null;
   const hits =
     q === ""
       ? ((await data.call("search.recent.list", { types, limit: 12 })) as CapMap["search.recent.list"]["out"]).hits
@@ -220,10 +237,10 @@ export async function fetchSuggestions(
     const m = itemOf(h);
     if (m) (out[m.group] ??= []).push(m.item);
   }
-  if (ch === "#") {
-    try {
-      const p = (await data.call("projects.list", { mine: true, limit: 50 })) as CapMap["projects.list"]["out"];
-      const want = q.toLowerCase();
+  if (ch === "#" && extras) {
+    const p = await extras.projects; // projects and folders are extras: when one cannot be read, the rest still shows
+    const want = q.toLowerCase();
+    if (p)
       out.projects = p.projects
         .filter((x) => want === "" || x.title.toLowerCase().includes(want))
         .slice(0, 12)
@@ -234,16 +251,9 @@ export async function fetchSuggestions(
           ref: x.projectId,
           data: { status: x.status, ...(x.due ? { due: String(x.due) } : {}) },
         }));
-    } catch {
-      /* projects are an extra */
-    }
-    try {
-      const f = (await data.call("files.folder.search", { q, limit: 6 })) as CapMap["files.folder.search"]["out"];
-      out.folders = f.folders.map(folderItem);
-    } catch {
-      /* folders are an extra; the rest still shows */
-    }
-    await withCompanyDrive(data);
+    const f = await extras.folders;
+    if (f) out.folders = f.folders.map(folderItem);
+    await extras.drive;
     try {
       const m = (await data.call("mounts.list", { limit: 100 })) as CapMap["mounts.list"]["out"];
       return withMounts(out, hits, m.mounts, q, Date.now());

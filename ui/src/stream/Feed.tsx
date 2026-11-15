@@ -100,6 +100,22 @@ export function Feed({
     toEnd();
   }, [followKey, version, follow, endKey, toEnd]);
 
+  // the person acted (sent a message): the feed is at the end again, and "to latest" goes away with no scroll event needed
+  const firstEnd = useRef(true);
+  useLayoutEffect(() => {
+    if (firstEnd.current) {
+      firstEnd.current = false;
+      return;
+    }
+    setAway(false);
+    onAtEndChange?.(true);
+  }, [endKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // content that grows after the commit (a card, a block that renders late, a reply streaming in) keeps the end in view while the person is at it
+  const onContentSizeChange = useCallback(() => {
+    if (holdsEnd(follow, atEnd.current)) toEnd();
+  }, [follow, toEnd]);
+
   // the list got shorter (a notice line, a taller composer, a menu opened under it) while the person was at the end: the end stays in view, so the last card's buttons are not cut off
   const onLayout = useCallback(() => {
     if (holdsEnd(follow, atEnd.current)) toEnd();
@@ -112,6 +128,7 @@ export function Feed({
       accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"}
       onScroll={onScroll}
       onLayout={onLayout}
+      onContentSizeChange={onContentSizeChange}
       scrollEventThrottle={16}
       style={[{ flex: 1 }, GUTTER]}
       contentContainerStyle={contentStyle}
