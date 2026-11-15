@@ -2202,48 +2202,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             });
           }
         }
-        // Once per Space, at the first start on the build that writes an agent's sharing with its birth (15 Nov 2026): the agents an admin or owner made before it stay shared with Everyone, as every member could use them
-        // until then; a member's become their own. The marker says it ran, so an admin who narrows an agent later is never overruled by a start.
-        if (cfg.spaceKind !== "personal") {
-          try {
-            db!.run(`CREATE TABLE IF NOT EXISTS host_passes ("key" TEXT PRIMARY KEY, "at" INTEGER)`);
-            const done = db!.all(`SELECT 1 FROM host_passes WHERE "key" = 'agent-birth-share'`).length > 0;
-            if (!done) {
-              const old = db!.all(
-                `SELECT "id", "ownerId" FROM agents_agent WHERE "kind" = 'agent' AND "runtime" = 'vyre' AND "deletedAt" IS NULL`,
-              ) as { id: string; ownerId: string }[];
-              const events = oldAgentShareEvents({
-                agents: old.map((r) => ({
-                  id: r.id,
-                  ownerId: r.ownerId,
-                  underSpace: access.snap.resource(r.id)?.parent_id === space,
-                  hasGrant: (access.snap.grantsOn(r.id)?.length ?? 0) > 0,
-                })),
-                mayShareAll: (person) => mayShareWithEveryone(access.snap, person),
-              });
-              for (const e of events) {
-                const wrote = await appendRepair({
-                  id: `evt_agent_birthshare_${e.id}`,
-                  type: e.type,
-                  sv: 1,
-                  trace_id: "c0".repeat(16),
-                  actor: "svc_host",
-                  vis: "space",
-                  entity: e.entity,
-                  entity_id: e.id,
-                  payload: e.payload,
-                });
-                if (!wrote.duplicate) {
-                  access.fold(wrote.event);
-                  accessPending.push(toAccessEvent(wrote.event));
-                }
-              }
-              db!.run(`INSERT OR IGNORE INTO host_passes ("key", "at") VALUES ('agent-birth-share', ?)`, now());
-            }
-          } catch {
-            // no agents table yet (a new Space): its agents are born with their sharing, and the pass has nothing to do
-          }
-        }
         // Ruling 99 home grants an agent never got at birth (see missingAgentHomeEvents). The host writes them once per boot, granted by the agent's owner; the agents module's 15 s
         // boot check runs as the host and holds no grant on anyone's folder, so it no longer tries (it logged the refusal for every agent on every pass).
         // A Personal Space has no sharing, so nothing to write.
@@ -3907,6 +3865,56 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       await syncAccess();
       await healAgents();
+      // Once per Space, at the first start on the build that writes an agent's sharing with its birth (15 Nov 2026): the agents an admin or owner made before it stay shared with Everyone, as every member could use them
+      // until then; a member's become their own. It runs here, after the access log is folded and the snapshot is current: who may share with Everyone and which agents already hold a grant are read from the snapshot, so an agent with ANY
+      // grant is left exactly as it is. The marker says it ran, so an admin who narrows an agent later is never overruled by a start.
+      if (cfg.spaceKind !== "personal" && log && !chainBroken) {
+        try {
+          db!.run(`CREATE TABLE IF NOT EXISTS host_passes ("key" TEXT PRIMARY KEY, "at" INTEGER)`);
+          const done = db!.all(`SELECT 1 FROM host_passes WHERE "key" = 'agent-birth-share'`).length > 0;
+          if (!done) {
+            const old = db!.all(
+              `SELECT "id", "ownerId" FROM agents_agent WHERE "kind" = 'agent' AND "runtime" = 'vyre' AND "deletedAt" IS NULL`,
+            ) as { id: string; ownerId: string }[];
+            const events = oldAgentShareEvents({
+              agents: old.map((r) => ({
+                id: r.id,
+                ownerId: r.ownerId,
+                underSpace: access.snap.resource(r.id)?.parent_id === spaceId,
+                // the maker's own grant on it (and the agent's on itself) is how every agent is born: only a grant to someone else counts
+                hasGrant: (access.snap.grantsOn(r.id) ?? []).some(
+                  (g) =>
+                    ![`actor:${r.ownerId}`, `person:${r.ownerId}`, `actor:${r.id}`, `agent:${r.id}`].includes(g.key),
+                ),
+              })),
+              mayShareAll: (person) => mayShareWithEveryone(access.snap, person),
+            });
+            let wrote = 0;
+            for (const e of events) {
+              const r = await log.appendResult({
+                id: `evt_agent_birthshare_${e.id}`,
+                type: e.type,
+                sv: 1,
+                trace_id: "c0".repeat(16),
+                actor: "svc_host",
+                vis: "space",
+                entity: e.entity,
+                entity_id: e.id,
+                payload: e.payload,
+              });
+              if (r.ok && !r.duplicate) {
+                access.fold(r.event);
+                accessPending.push(toAccessEvent(r.event));
+                wrote++;
+              }
+            }
+            if (wrote > 0) await syncAccess(true);
+            db!.run(`INSERT OR IGNORE INTO host_passes ("key", "at") VALUES ('agent-birth-share', ?)`, now());
+          }
+        } catch {
+          // no agents table yet (a new Space): its agents are born with their sharing, and the pass has nothing to do
+        }
+      }
       const personalRuns = new Map<string, Promise<void>>();
       ensurePersonalCalendar = (person) => {
         if (!person || loaded.serving.get("calendar") !== "live") return Promise.resolve();
