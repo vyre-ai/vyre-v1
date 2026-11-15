@@ -289,7 +289,8 @@ function PickRowView({
 }
 
 const styles = StyleSheet.create({
-  layer: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, zIndex: 2147483000 },
+  // one under the menu layer (ui/Menu, 2147483000): a menu opened from a row of the picker is drawn above the picker, and the picker is above every sheet and dialog
+  layer: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, zIndex: 2147482999 },
   backdrop: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "transparent" },
   panel: {
     position: FIXED,
