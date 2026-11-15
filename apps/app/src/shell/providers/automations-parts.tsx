@@ -1,5 +1,7 @@
 // What the Automations place mounts beyond the canvas: the config directory (who can be picked), the runs data, run history on an automation, Failed runs, a run in Main or the side,
 // and the Journey designer with its pane and the new Journey sheet. All of it reads the Space's runtime; nothing here invents a row.
+import { RunsList } from "../../places/automations/screens/RunsList.tsx";
+import { RunPage } from "../../places/automations/screens/RunPage.tsx";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -7,11 +9,10 @@ import { StyleSheet, View } from "react-native";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { ConfigDirectory, ConfigExtras, DirEntry } from "../../places/automations/config/data.tsx";
 import { EMPTY_DIRECTORY } from "../../places/automations/config/data.tsx";
-import { useScreenQuery, CANVAS } from "../../places/automations/canvas/data.tsx";
 import type { AutomationsNav } from "../../places/automations/canvas/data.tsx";
 import { JourneyDesigner, JourneyNewSheet, JourneyPane } from "../../places/automations/journeys/index.ts";
 import type { Selection } from "../../places/automations/journeys/index.ts";
-import { FailedRuns, RunChat, RunHistory } from "../../places/automations/runs/index.ts";
+import { FailedRuns, RunChat } from "../../places/automations/runs/index.ts";
 import type { RunsData } from "../../places/automations/runs/index.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 import { nameOf } from "./misc-common.ts";
@@ -143,25 +144,14 @@ export function runsData(
   };
 }
 
-type GetOut = { automation?: { version?: number } };
-
 /** The Runs tab of an automation: its run history, newest first, with the menu on every row. */
 export function AutomationRuns({
   automationId,
-  selectedRunId,
 }: {
   automationId: string;
-  selectedRunId: string | null;
+  selectedRunId?: string | null;
 }): ReactElement {
-  const q = useScreenQuery<GetOut>(CANVAS, "automation", { automationId, route: { automationId } });
-  const version = q.status === "ready" ? q.data.automation?.version : undefined;
-  return (
-    <RunHistory
-      subject={{ type: "automation", id: automationId }}
-      {...(version !== undefined ? { currentVersion: version } : {})}
-      selectedRunId={selectedRunId}
-    />
-  );
+  return <RunsList automationId={automationId} />;
 }
 
 export function FailedView({ selectedRunId }: { selectedRunId: string | null }): ReactElement {
@@ -169,7 +159,7 @@ export function FailedView({ selectedRunId }: { selectedRunId: string | null }):
 }
 
 export function RunView({ runId }: { runId: string }): ReactElement {
-  return <RunChat runId={runId} wide />;
+  return <RunPage runId={runId} />;
 }
 
 /** The Journey designer with the pane of the stage or task chosen in it. */

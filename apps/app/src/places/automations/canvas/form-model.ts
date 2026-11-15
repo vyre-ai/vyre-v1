@@ -1,5 +1,6 @@
 // What the Configure tab asks for. Pure functions, no React: a control for every property of a step's input schema, a form for every trigger, and a one-line summary of each that says
 // "Not set up" when something the Automation cannot run without is missing. The tests walk the whole catalog (generated/registry.json) through these, so a step or trigger that has no form fails there.
+import { fieldsOf } from "./form-table.ts";
 import { cronSummary, deviceTimeZone, parseCron, scheduleWords, validTimeZone } from "./schedule.ts";
 
 export const NOT_SET_UP = "Not set up";
@@ -15,8 +16,9 @@ export function present(v: unknown): boolean {
   return true;
 }
 
+/** A field's name as a person reads it. No label is a raw key: "numberId" is Number, "fileIds" is Files, a lone "id" is Reference. */
 export const humanize = (k: string): string =>
-  k
+  (/^id$/i.test(k) ? "reference" : /^ids$/i.test(k) ? "references" : k.replace(/Ids$/, "s").replace(/Id$/, ""))
     .replace(/([A-Z])/g, " $1")
     .replace(/[_.]+/g, " ")
     .replace(/^./, (x) => x.toUpperCase())
@@ -104,8 +106,14 @@ export function controlsFor(schema: unknown): Control[] {
     const options = Array.isArray(prop["enum"]) ? prop["enum"].filter((x): x is string => typeof x === "string") : [];
     const examples = Array.isArray(prop["examples"]) ? prop["examples"] : [];
     const example = typeof examples[0] === "string" ? examples[0] : "";
+    // templating syntax is never shown to a person: data comes in by "Insert data" (AUTOMATIONS-BUILD-RC29, round two, item 2)
     const description =
-      typeof prop["description"] === "string" && prop["description"] !== "Any JSON value" ? prop["description"] : "";
+      typeof prop["description"] === "string" && prop["description"] !== "Any JSON value"
+        ? prop["description"]
+            .replace(/\s*Templating\b.*$/is, "")
+            .replace(/\{\{[^}]*\}\}/g, "")
+            .trim()
+        : "";
     const items = isRec(prop["items"]) ? prop["items"] : {};
     const itemType = typeName(items);
     let kind: ControlKind = "json";
@@ -494,3 +502,26 @@ export function triggerSummary(t: TriggerLike, names: RefNames = {}, zone?: stri
 }
 
 export { cronSummary };
+
+/**
+ * A step's controls in the order a person thinks, from the table in form-table.ts: the listed fields first with their words (a short text becomes a long one where the table says so), the rest under
+ * Details with plain words. A kind with no entry keeps the schema's order. Account fields are never listed: the Account row covers them.
+ */
+export function arrangeControls(key: string, controls: readonly Control[]): { main: Control[]; details: Control[] } {
+  const spec = fieldsOf(key);
+  if (!spec) return { main: [...controls], details: [] };
+  const by = new Map(controls.map((c) => [c.name, c] as const));
+  const main: Control[] = [];
+  const details: Control[] = [];
+  const used = new Set<string>();
+  for (const f of spec) {
+    const c = by.get(f.name);
+    if (!c) continue;
+    used.add(f.name);
+    const next: Control = { ...c, label: f.label, kind: f.long && c.kind === "text" ? "multiline" : c.kind };
+    // a needed field is never tucked away: it shows whatever the table says
+    (f.details && !c.required ? details : main).push(next);
+  }
+  for (const c of controls) if (!used.has(c.name) && !c.account) (c.required ? main : details).push(c);
+  return { main, details };
+}

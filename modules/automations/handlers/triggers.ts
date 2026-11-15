@@ -12,7 +12,9 @@ import {
   clean,
   emitAuto,
   findAutomation,
+  findDraft,
   findRunLink,
+  pastEvents,
   getAutomation,
   isOwner,
   listChildLinks,
@@ -47,6 +49,8 @@ export interface StartOpts {
   key: string;
   principal?: { kind: "person" | "service"; id: string } | undefined;
   scope?: RunScope | undefined;
+  /** Run this draft instead of the pinned version (a test of what the person is looking at). */
+  draftDefinition?: Definition | undefined;
   /** Park the new Run before anyone is told it started, so a loop slot does not run ahead of the concurrency cap. */
   hold?: boolean | undefined;
 }
@@ -84,6 +88,7 @@ export async function startRun(ctx: AutoCtx, a: Automation, o: StartOpts): Promi
     parentRun: o.parentRun,
     startedAt: ctx.now(),
     scope: o.scope,
+    draftDefinition: o.draftDefinition,
   }) as RunLink;
   saveRunLink(ctx.db, link);
   // A held iteration is waiting before run_started, so the drive consumer finds it parked and leaves it there.
@@ -104,7 +109,7 @@ export function loadRunPlan(
 ): { link: RunLink; definition: Definition; vault: string[] } | undefined {
   const link = findRunLink(ctx.db, runId);
   if (!link) return undefined;
-  const definition = versionDefinition(ctx.db, link.automationId, link.version);
+  const definition = link.draftDefinition ?? versionDefinition(ctx.db, link.automationId, link.version);
   if (!definition) return undefined;
   return {
     link,
@@ -139,16 +144,36 @@ export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
   const key: string = input.trigger ?? a.definition.triggers[0]?.key ?? "manual";
   const def = TRIGGERS.get(key);
   if (!def) raise(ctx, "validation.bad_input", `There is no trigger called ${key}.`);
+  // the draft is what the person is looking at: test it, not the last saved version (AUTOMATIONS-BUILD-RC29, 1f)
+  const draft = input.draft === true ? findDraft(ctx.db, a.id) : undefined;
+  const past = typeof input.eventRunId === "string" ? findRunLink(ctx.db, input.eventRunId) : undefined;
+  if (typeof input.eventRunId === "string" && (!past || past.test || past.trigger !== key))
+    raise(ctx, "validation.precondition_failed", "That past event is not there any more. Pick another.", {
+      reason: "no_event",
+    });
   const runId = await startRun(ctx, a, {
     trigger: key,
-    payload: input.sample ?? def.sample,
+    payload: input.sample ?? past?.payload ?? def.sample,
     test: true,
     depth: 0,
     version: input.version,
     key: `test:${a.id}:${ctx.now()}:${rand()}`,
     principal: { kind: "person", id: me(ctx) },
+    ...(draft ? { draftDefinition: draft.definition } : {}),
   });
   return { runId };
+}
+
+/** Real past events a test can be tried on: this trigger's earlier starts, newest first, each with a plain line. */
+export async function testEvents(ctx: AutoCtx, input: In): Promise<unknown> {
+  const a = getAutomation(ctx, input.automationId);
+  onlyAsOwner(ctx, a);
+  const key: string = input.trigger ?? a.definition.triggers[0]?.key ?? "manual";
+  const links = pastEvents(ctx.db, key, 8, a.id);
+  return {
+    events: links.map((l) => ({ runId: l.runId, at: l.startedAt, payload: l.payload })),
+    sample: TRIGGERS.get(key)?.sample ?? {},
+  };
 }
 
 /** The origin of a Run an agent started by hand (runs.ts reads it as the trigger "agent_run", which is from outside). */

@@ -1,0 +1,1 @@
+An Automation you are editing is saved as a draft as you go. On an Automation that is on, Make live publishes it, and a second person who edited the same one is told in one sentence instead of being overwritten. Test tries the draft on a real earlier event.

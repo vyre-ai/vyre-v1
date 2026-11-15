@@ -444,6 +444,43 @@
   },
   "automations_dependencies": {},
   "automations_draft_connector": {},
+  "automations_draft_discard": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_draft_propose": {
+    "definition": {
+      "triggers": [
+        {
+          "key": "Plan_Key"
+        }
+      ],
+      "nodes": [
+        {
+          "id": "Quarterly planning",
+          "key": "Plan_Key",
+          "input": {}
+        }
+      ]
+    },
+    "summary": "Quarterly planning"
+  },
+  "automations_draft_save": {
+    "automationId": "aut_a1b2c3",
+    "definition": {
+      "triggers": [
+        {
+          "key": "Plan_Key"
+        }
+      ],
+      "nodes": [
+        {
+          "id": "Quarterly planning",
+          "key": "Plan_Key",
+          "input": {}
+        }
+      ]
+    }
+  },
   "automations_followers_add": {
     "automationId": "aut_a1b2c3",
     "follower": "Quarterly planning"
@@ -466,10 +503,14 @@
     "groupId": "agr_a1b2c3",
     "name": "Quarterly planning"
   },
+  "automations_home": {},
   "automations_key_hosts_list": {
     "itemId": "Quarterly planning"
   },
   "automations_list": {},
+  "automations_make_live": {
+    "automationId": "aut_a1b2c3"
+  },
   "automations_make_personal_copy": {
     "automationId": "aut_a1b2c3"
   },
@@ -508,6 +549,12 @@
   "automations_promote": {
     "automationId": "aut_a1b2c3",
     "confirm": true
+  },
+  "automations_proposal_accept": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_proposal_discard": {
+    "automationId": "aut_a1b2c3"
   },
   "automations_read_docs": {
     "url": "https://acme.test/plan"
@@ -556,6 +603,9 @@
     "templateKey": "Quarterly planning"
   },
   "automations_test": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_test_events": {
     "automationId": "aut_a1b2c3"
   },
   "automations_triggers_list": {},

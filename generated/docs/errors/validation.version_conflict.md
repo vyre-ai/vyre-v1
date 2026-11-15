@@ -6,6 +6,9 @@ HTTP 409. Retryable: yes.
 
 ## Raised by
 
+- automations.draft.save
+- automations.make_live
+- automations.proposal.accept
 - automations.update
 - calendar.update_event
 - dropbox.files.create_folder

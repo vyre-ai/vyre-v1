@@ -15,6 +15,7 @@ Area: automations. Risk: low. Applies to: space.
 ## Capabilities that need it
 
 - automations.create
+- automations.draft.propose
 - automations.groups.create
 - automations.make_personal_copy
 - automations.templates.use

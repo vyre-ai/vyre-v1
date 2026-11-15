@@ -48,6 +48,8 @@ function runtime(sources: "none" | "loading" | "sample"): ShellRuntime {
     deferredModules: new Set<string>(),
     isDeferred: () => false,
     calendarConnected: true,
+    // the sample person is an admin: they may buy or connect a number, so the Twilio tile is theirs
+    permissions: new Set(["comms.numbers"]),
     open: () => undefined,
     openUrl: () => undefined,
   };

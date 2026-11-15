@@ -92,6 +92,8 @@ export const PAGES: readonly PageDef[] = [
   p("export", "Export", "Data", "download", "server.backups", "console.backups"),
   p("spacedel", "Transfer or delete", "", "home", "console.access", "spaces.console"),
   p("audit", "Audit log", "", "audit", "audit.read", "audit.log", true),
+  p("eventlog", "Event log", "", "audit", "audit.read", "events.log"),
+  p("autousage", "Automation usage", "", "chart", "audit.read", "automations.usage"),
   p("space", "General", "", "home", "console.access", "spaces.console"),
   // Space defaults: what a person's own choices in Settings sit inside. They share the Policies screen, so whoever may set policy has them all.
   p("def-access", "Review schedule", "Space defaults", "check", "policy.manage", "access.policies"),
@@ -145,6 +147,8 @@ export const PAGE_NOTE: Readonly<Record<string, string>> = {
   aipolicy: "The policy people agree to",
   company: "Sign-in, people, mail, calendar and files from Google Workspace or Microsoft 365",
   audit: "Who did what, and when",
+  eventlog: "What happened in the Space, with the run and Automation it belongs to",
+  autousage: "How many runs succeeded or failed, across every Automation",
   backups: "Where and how often",
   checker: "Why someone can or cannot open something",
   machines: "Every computer that runs Vyre work: load, limits, drain and alerts",
