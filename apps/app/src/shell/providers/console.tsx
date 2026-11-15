@@ -349,7 +349,7 @@ export default function ConsolePlace(): ReactElement {
           setSkin(id);
         }}
         assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />}
-        renderPage={(id, state) => spaceDefaults(rt, id, state["extra"] === true) ?? consolePageFor(id, pageArgs)}
+        renderPage={(id, state) => spaceDefaults(rt, id, state["extra"] === true) ?? consolePageFor(id, { ...pageArgs, ...stringState(state) })}
       />
     </ConsoleDataProvider>
   );
@@ -397,4 +397,9 @@ function OutsideShell({
       ) : null}
     </View>
   );
+}
+
+/** What a page was opened with from another page (openPage(id, { invite: "1" })), as the string arguments a page reads from a link. */
+function stringState(state: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(Object.entries(state).filter((e): e is [string, string] => typeof e[1] === "string"));
 }

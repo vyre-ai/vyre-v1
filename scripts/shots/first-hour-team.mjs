@@ -431,7 +431,7 @@ export const teamSteps = [
       const menu = S.page.getByRole("menu").first();
       await menu.waitFor({ timeout: 8000 });
       const m = await menu.boundingBox();
-      if (!box || !m || m.x < box.x - 40 || m.y < box.y - 10)
+      if (!box || !m || m.y < box.y || m.y > box.y + 60 || m.x + m.width < box.x + box.width - 5)
         throw new Error(`the menu is not under its button: button ${JSON.stringify(box)} menu ${JSON.stringify(m)}`);
       await S.page.screenshot({ path: path.join(S.out, "wf-06-share-with-everyone.png") });
       await S.page.keyboard.press("Escape");
@@ -473,8 +473,7 @@ export const teamSteps = [
         if (bad.test(t)) throw new Error(`Console Home still says ${bad}`);
       await S.page.screenshot({ path: path.join(S.out, "wf-07-console-home.png") });
       await S.page.getByTestId("qa-invite-go").click();
-      await S.page.getByText("Invite", { exact: false }).first().waitFor({ timeout: 15000 });
-      await S.page.getByTestId("invite-sheet").or(S.page.getByRole("dialog")).first().waitFor({ timeout: 15000 });
+      await S.page.getByTestId("invite-sheet").waitFor({ timeout: 15000 });
       await S.page.screenshot({ path: path.join(S.out, "wf-08-invite-sheet-from-home.png") });
       await S.page.keyboard.press("Escape");
     },
@@ -484,9 +483,12 @@ export const teamSteps = [
     owner: "w-first",
     run: async (S) => {
       await S.page.goto(`${S.web.origin}/console#screen=console.page&page=people&invite=1`, { waitUntil: "load" });
-      await S.page.getByRole("dialog").first().waitFor({ timeout: 30000 });
-      const create = S.page.getByRole("button", { name: /create invite|make invite|create link/i }).first();
-      await create.click({ timeout: 8000 });
+      await S.page.reload({ waitUntil: "load" });
+      await S.page.getByTestId("invite-sheet").waitFor({ timeout: 30000 });
+      await S.page
+        .getByRole("button", { name: /create invite/i })
+        .first()
+        .click({ timeout: 8000 });
       await S.page.waitForTimeout(1500);
       const t = await S.page.locator("body").innerText();
       const link = (t.match(/https?:\/\/[^\s]+\/join[^\s]*/) ?? [])[0] ?? "";
@@ -561,13 +563,24 @@ export const teamSteps = [
       const sheet = async (n) => {
         await S.page.goto(`${S.web.origin}/chat`, { waitUntil: "load" });
         await S.dismissOnboarding(S.page).catch(() => undefined);
-        await S.page.keyboard.press("Alt+Meta+g");
-        const open = await S.page.getByTestId("new-goal-sheet").waitFor({ timeout: 6000 }).then(() => true, () => false);
+        await S.page.keyboard.press("Alt+Control+g");
+        const open = await S.page
+          .getByTestId("new-goal-sheet")
+          .waitFor({ timeout: 6000 })
+          .then(
+            () => true,
+            () => false,
+          );
         if (!open) {
-          await S.page.getByText("New goal", { exact: true }).first().click({ timeout: 8000 }).catch(() => undefined);
+          await S.page
+            .getByText("New goal", { exact: true })
+            .first()
+            .click({ timeout: 8000 })
+            .catch(() => undefined);
           await S.page.getByTestId("new-goal-sheet").waitFor({ timeout: 8000 });
         }
         await S.page.getByTestId("new-goal-title").fill("Answer every open question");
+        await S.page.waitForTimeout(900);
         await S.page.screenshot({ path: out(n) });
         await S.page.keyboard.press("Escape");
       };
@@ -582,13 +595,20 @@ export const teamSteps = [
       await S.page.goto(`${S.web.origin}/chat`, { waitUntil: "load" });
       await S.page.waitForTimeout(2500);
       await S.page.screenshot({ path: out("phone-landing") });
-      await S.page.getByText("You", { exact: true }).last().click({ timeout: 8000 }).catch(() => undefined);
+      await S.page
+        .getByText("You", { exact: true })
+        .last()
+        .click({ timeout: 8000 })
+        .catch(() => undefined);
       await S.page.waitForTimeout(1500);
       await S.page.screenshot({ path: out("phone-you") });
       // the join page a member meets on a phone
       const roles = (await S.api("access.roles.list")).roles;
       const inv = await S.api("members.invites.create", { role: roles.find((r) => r.name === "Member").id });
-      const ctx = await S.page.context().browser().newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light", reducedMotion: "reduce" });
+      const ctx = await S.page
+        .context()
+        .browser()
+        .newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light", reducedMotion: "reduce" });
       const j = await ctx.newPage();
       const link = new URL(inv.link);
       await j.goto(`${S.web.origin}${link.pathname}${link.hash}`, { waitUntil: "load" });
@@ -617,6 +637,7 @@ export const teamSteps = [
       const typed = await title.inputValue();
       if (typed !== "Plan for Monday") throw new Error(`typing did not go to the title: ${typed}`);
       await S.page.keyboard.press("Tab");
+      await S.page.waitForTimeout(300);
       await S.page.keyboard.type("First line");
       const open = await S.page.getByRole("menu").count();
       if (open) throw new Error("Tab opened a menu");

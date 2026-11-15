@@ -23,9 +23,15 @@ export function agentShareSubtitle(others: number, everyone = false): string {
         : `You and ${others} others can use it`;
   return `${who}. An agent a member makes stays theirs; an admin's is shared with everyone.`;
 }
-export const othersOf = (s: SharesOut): number => s.shares.filter((x) => x.through !== "owner").length;
+/** People and groups the agent was shared with by name: not the owner, and not what a role gives. */
+export const othersOf = (s: SharesOut): number =>
+  s.shares.filter(
+    (x) => x.through === "direct" && (x.grant.subject.kind === "person" || x.grant.subject.kind === "group"),
+  ).length;
 export const sharedWithEveryone = (s: SharesOut): boolean =>
-  s.shares.some((x) => x.grant.subject.kind === "group" && x.grant.subject.id === "grp_everyone");
+  s.shares.some(
+    (x) => x.through === "direct" && x.grant.subject.kind === "group" && x.grant.subject.id === "grp_everyone",
+  );
 
 export interface AgentSharing {
   directory: ConfigDirectory;
