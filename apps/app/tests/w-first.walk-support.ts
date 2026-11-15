@@ -20,7 +20,13 @@ export async function runWalk(t: TestContext, steps: readonly string[]): Promise
   const out = process.env["VYRE_TEST_CAPTURE_DIR"] ?? fs.mkdtempSync(path.join(os.tmpdir(), "w-first-"));
   const r = spawnSync(
     process.execPath,
-    ["scripts/shots/first-hour.mjs", path.join(out, `w-first-${steps[0]}`), "--only=team", "--skip-export", `--dist=${b.dist}`],
+    [
+      "scripts/shots/first-hour.mjs",
+      path.join(out, `w-first-${steps[0]}`),
+      "--only=team",
+      "--skip-export",
+      `--dist=${b.dist}`,
+    ],
     {
       cwd: REPO,
       env: { ...process.env, FH_STEPS: steps.join(","), CHROME_BIN: b.exe },
@@ -31,6 +37,10 @@ export async function runWalk(t: TestContext, steps: readonly string[]): Promise
   const lines = `${r.stdout}\n${r.stderr}`.split("\n");
   const failed = lines.filter((l) => /^FAIL /.test(l));
   assert.deepEqual(failed, [], failed.join("\n"));
-  for (const id of steps) assert.ok(lines.some((l) => l.startsWith(`ok   team/${id}`)), `${id} did not run`);
+  for (const id of steps)
+    assert.ok(
+      lines.some((l) => l.startsWith(`ok   team/${id}`)),
+      `${id} did not run`,
+    );
   assert.equal(r.status, 0, lines.slice(-8).join("\n"));
 }
