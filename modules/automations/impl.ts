@@ -163,7 +163,7 @@ export const hostCalls = {
         ctx.db,
         `UPDATE automations_defs SET definition = REPLACE(definition, ?, ''), status = 'paused', paused_reason = ?, updated_at = ? WHERE id = ?`,
         i.agentId,
-        "Needs you: choose another agent. The one it used was deleted.",
+        "Needs you: choose another agent",
         ctx.now(),
         a.id,
       );

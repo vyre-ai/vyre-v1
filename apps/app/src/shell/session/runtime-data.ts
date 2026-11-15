@@ -28,6 +28,8 @@ export interface RuntimeBase {
   connection: Connection;
   /** Everyone the face menu and the names read from: people, agents, groups, roles. */
   principals: LiveQuery<Principal[]>;
+  /** Agents deleted for good, by the name they had: what a chat shows under a message they wrote (a quiet "deleted"). Never in a picker or a mention list. */
+  erased?(id: string): string | undefined;
   /** Record titles for the chip on a task, by record id. */
   recordTitle(recordId: string): string | undefined;
   me: Principal;

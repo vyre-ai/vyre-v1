@@ -35,6 +35,6 @@ export function nameLookup(rt: ShellRuntime): (id: string) => string {
     if (s.status !== "ready") return (s as { error?: unknown }).error ? NAME_UNAVAILABLE : NAME_LOADING;
     const p: Principal | undefined = s.data.find((x) => x.id === id);
     // never a raw id: a service (svc_host) is Vyre, and anyone not known is a plain word
-    return p ? p.name : unnamed(id);
+    return p ? p.name : (rt.erased?.(id) ?? unnamed(id));
   };
 }
