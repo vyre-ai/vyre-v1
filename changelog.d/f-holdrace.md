@@ -1,0 +1,1 @@
+- Pressing Allow or Deny the instant an approval card appears no longer fails with "That hold belongs to another task".
