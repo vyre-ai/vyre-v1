@@ -290,15 +290,15 @@ test("question: free mode has a text box and no options; multi mode has an Answe
   assert.ok(multiMarkup.includes("blk-question-blk_q1-opt-60"));
 });
 
-test("plan: a proposed plan is headed Plan, lists its steps with empty ticks, and offers Approve, Change it, Decline", () => {
+test("plan: a proposed plan is headed Plan, lists its steps with empty ticks, and offers Allow, Change it, Deny", () => {
   const markup = html(SAMPLE_PLAN);
   assert.ok(markup.includes(">Plan<"));
   assert.ok(!markup.includes("Plan mode on") && !markup.includes("Allow") && !markup.includes("Deny"));
   assert.ok(markup.includes("Mount the Marketing folder from Google Drive for the welcome kit"));
   for (const [key, word] of [
-    ["approve", "Approve"],
+    ["approve", "Allow"],
     ["edit", "Change it"],
-    ["reject", "Decline"],
+    ["reject", "Deny"],
   ] as const) {
     assert.ok(markup.includes(`blk-plan-blk_plan1-${key}`), key);
     assert.ok(markup.includes(word), word);
