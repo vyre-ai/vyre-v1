@@ -16,6 +16,7 @@ import { NOT_FETCHED_REASON, createDockerApi, fetchableImage } from "../../sandb
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp, DockerResponse } from "../../sandbox/src/docker.ts";
 import { createTmuxHost, HISTORY_ENV } from "./impl.ts";
+import { START_SCRIPT, READ_SCRIPT, STOP_SCRIPT, SWEEP_SCRIPT, parseRead, streamFile } from "./stream-log.ts";
 import type { TmuxHost } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
 import type { AdoptArgs, TerminalHost } from "./projections.ts";
@@ -2074,7 +2075,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
           if (have.listeners.size === 0) have.stop();
         };
       }
-      const file = `/tmp/.vyre-stream-${session}`;
+      const file = streamFile(session);
       const listeners = new Set<(line: string) => void>([onLine]);
       let stopped = false;
       const entry = {
@@ -2082,11 +2083,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         stop() {
           stopped = true;
           streams.delete(session);
-          void m
-            .exec(agentId, ["sh", "-c", 'tmux pipe-pane -t "$1" 2>/dev/null; rm -f "$2"', "sh", session, file], {
-              quiet: true,
-            })
-            .catch(() => undefined);
+          void m.exec(agentId, ["sh", "-c", STOP_SCRIPT, "sh", session, file], { quiet: true }).catch(() => undefined);
         },
       };
       streams.set(session, entry);
@@ -2094,20 +2091,15 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         let offset = 0;
         let carry: Uint8Array = new Uint8Array(0);
         try {
-          await m.exec(agentId, ["sh", "-c", ': > "$2"; tmux pipe-pane -t "$1" "cat >> $2"', "sh", session, file]);
+          const started = await m.exec(agentId, ["sh", "-c", START_SCRIPT, "sh", session, file]);
+          if (started.code !== 0) throw new Error("the live view could not be started");
           while (!stopped) {
-            const r = await m.exec(agentId, [
-              "sh",
-              "-c",
-              'tail -c +"$1" "$2" 2>/dev/null | head -c 49152 | base64 -w0',
-              "sh",
-              String(offset + 1),
-              file,
-            ]);
-            const b64 = r.stdout.trim();
-            if (b64 !== "") {
-              const got = Buffer.from(b64, "base64");
-              offset += got.length;
+            const r = await m.exec(agentId, ["sh", "-c", READ_SCRIPT, "sh", String(offset), file]);
+            const read = parseRead(r.stdout);
+            const got = read.bytes;
+            if (got.length > 0) {
+              // what was read is gone from the file: the next read starts at its beginning again
+              offset = read.emptied ? 0 : offset + got.length;
               const all = new Uint8Array(carry.length + got.length);
               all.set(carry);
               all.set(got, carry.length);
@@ -2154,7 +2146,11 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       // the first use of this workspace in this process: what a run left before a restart is removed before anyone reads (review 12 Nov, 3b); every use waits for it (third look)
       firstSweep.set(
         agentId,
-        h.sweep().catch(() => undefined),
+        // and the live views' files a run left before a restart (stream-log.ts)
+        Promise.all([h.sweep(), m.exec(agentId, ["sh", "-c", SWEEP_SCRIPT], { quiet: true })]).then(
+          () => undefined,
+          () => undefined,
+        ),
       );
     }
     return h;
@@ -2344,6 +2340,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       }
       const found = await m.find(nameOf(id));
       if (found !== null) await tmuxFor(found).close(id);
+      streams.get(nameOf(id))?.stop(); // the live view's file goes with the session
     },
     async health() {
       const h = await m.health();

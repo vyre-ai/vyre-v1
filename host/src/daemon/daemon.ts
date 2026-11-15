@@ -277,6 +277,7 @@ import { WRAP_POLICY, createKeyWraps } from "../seams/key-wraps.ts";
 import { createCarryDoor } from "../routes/carry-door.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createGithubConnectRoute } from "../routes/github-connect.ts";
+import { ownOriginOf } from "../routes/own-origin.ts";
 import { createGithubTickets } from "../seams/github-tickets.ts";
 import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
 import {
@@ -1511,8 +1512,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let reloadSpaceGithub: () => Promise<void> = async () => undefined;
   const githubNow = (): GithubOAuth | null =>
     (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env)) ?? spaceGithub;
-  const githubSignInRoute = createGithubSignInRoute({ oauth: githubNow });
-  const githubConnectRoute = createGithubConnectRoute();
+  const signInOrigin = (r: http.IncomingMessage): string | null => ownOriginOf(r, () => publicOrigin()?.origin ?? null);
+  const githubSignInRoute = createGithubSignInRoute({ oauth: githubNow, origin: signInOrigin });
+  const githubConnectRoute = createGithubConnectRoute({ origin: signInOrigin });
   const githubTickets = createGithubTickets(); // what connecting GitHub and signing in with GitHub hand each other
   // Sign in with the firm's own Google or Microsoft app: the providers come from the members policy, the client secret from the Vault (bound once the Vault exists), the tickets are shared with identity
   const ssoTickets = createSsoTickets();
@@ -1529,6 +1531,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     secret: (h) => ssoSecret(h),
     fetch: o.seams?.fetch ?? defaultFetch,
     tickets: ssoTickets,
+    origin: signInOrigin,
     bind: (key, who, person) => {
       const bound = db ? linkSso(db, key, who, person) : false;
       if (bound) matchProven(key, who, person);

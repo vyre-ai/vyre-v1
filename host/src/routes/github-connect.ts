@@ -3,6 +3,7 @@
 // The app then calls github.me.complete {code, state} as the signed-in person: that call checks the state is theirs, unused and recent (single use) and holds the PKCE verifier, which never leaves the server.
 // The state is "<random>.<base64url(return address)>". The return address is the Space's own origin or a loopback address, as for sign-in with GitHub, so a crafted link cannot hand a code to a stranger's site.
 import http from "node:http";
+import { NO_ADDRESS } from "./own-origin.ts";
 
 const PATH = "/hooks/github/connect";
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -26,14 +27,9 @@ const page = (res: http.ServerResponse, status: number, text: string): void => {
   res.end(text);
 };
 
-export function createGithubConnectRoute(): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
-  const origin = (req: http.IncomingMessage): string => {
-    const proto =
-      String(req.headers["x-forwarded-proto"] ?? "")
-        .split(",")[0]
-        ?.trim() || ((req.socket as { encrypted?: boolean }).encrypted ? "https" : "http");
-    return `${proto === "https" ? "https" : "http"}://${req.headers.host ?? "localhost"}`;
-  };
+export function createGithubConnectRoute(deps: { origin: (req: http.IncomingMessage) => string | null }): {
+  handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
+} {
   const allowed = (own: string, ret: string): string | null => {
     try {
       const u = new URL(ret);
@@ -52,9 +48,14 @@ export function createGithubConnectRoute(): { handle(req: http.IncomingMessage, 
         page(res, 405, "Not a way in.");
         return true;
       }
+      const own = deps.origin(req);
+      if (own === null) {
+        page(res, 503, NO_ADDRESS);
+        return true;
+      }
       const state = url.searchParams.get("state") ?? "";
       const ret = returnOf(state);
-      const to = ret === null ? null : allowed(origin(req), ret);
+      const to = ret === null ? null : allowed(own, ret);
       if (!to) {
         page(res, 400, "This GitHub link is not valid. Go back to Vyre and connect again.");
         return true;

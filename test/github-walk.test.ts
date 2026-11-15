@@ -121,7 +121,7 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     const c = await me.meConnect(g.ctx, { return: "https://space.vyre.test/settings" });
     assert.equal(c.source, "vyre", "no Space app, so the default Vyre app");
     assert.equal(new URL(c.authUrl).searchParams.get("redirect_uri"), "https://space.vyre.test/hooks/github/connect");
-    const route = createGithubConnectRoute();
+    const route = createGithubConnectRoute({ origin: () => "https://space.vyre.test" });
     let location = "";
     const req = {
       url: `/hooks/github/connect?code=gh-code-1&state=${encodeURIComponent(c.state)}`,

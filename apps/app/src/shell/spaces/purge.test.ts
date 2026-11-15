@@ -2,7 +2,10 @@
 // does the shell leave. The ack is the client package's createPurgeAcker; the signals are the live link's.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { watchPurge, webPurgeClient, wipeBrowserStorage } from "./purge.ts";
+import { removeSpaceFromBrowser, watchPurge, webPurgeClient, wipeBrowserStorage } from "./purge.ts";
+import { NORTHWIND } from "./model.ts";
+import { readStored, readStoredSessions, writeStored } from "../session/stored.ts";
+import type { StoredSession } from "../session/stored.ts";
 
 const fast = { backoffMs: () => 0, sleep: async () => undefined };
 
@@ -120,6 +123,117 @@ test("wiping the browser removes every key the app keeps and leaves the rest", (
   try {
     wipeBrowserStorage();
     assert.deepEqual([...store.keys()], ["other"]);
+  } finally {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
+test("clearing one Space from a browser leaves every other Space signed in and opening (F5)", () => {
+  const store = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    get length() {
+      return store.size;
+    },
+    key: (i: number) => [...store.keys()][i] ?? null,
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+  };
+  try {
+    const one: StoredSession = {
+      baseUrl: "https://one.example.test",
+      token: "t1",
+      personId: "p1",
+      marker: "m1",
+      def: { ...NORTHWIND, spaceId: "one" },
+    };
+    const two: StoredSession = {
+      baseUrl: "https://two.example.test",
+      token: "t2",
+      personId: "p2",
+      marker: "m2",
+      def: { ...NORTHWIND, spaceId: "two" },
+    };
+    writeStored(one);
+    writeStored(two);
+    for (const k of [
+      "vyre.sidebar.folded.one",
+      "vyre.sidebar.v2.one",
+      "vyre.tabs.v1:web:p1:one",
+      "vyre.look.p1",
+      "vyre.appearance.v1:p1:one",
+      "vyre.inbox.has.p1.one",
+      // the other Space's own
+      "vyre.sidebar.folded.two",
+      "vyre.sidebar.v2.two",
+      "vyre.tabs.v1:web:p2:two",
+      "vyre.look.p2",
+      "vyre.appearance.v1:p2:two",
+      // the device's own
+      "vyre.update.auto",
+      "vyre.ui.v1",
+      "other",
+    ])
+      store.set(k, "x");
+    removeSpaceFromBrowser(one);
+    assert.equal(readStored(undefined, one.baseUrl), null, "the removed Space is signed out here");
+    const left = readStored(undefined, two.baseUrl);
+    assert.equal(left?.token, "t2", "the other Space is still signed in");
+    assert.deepEqual(
+      readStoredSessions().map((s) => s.def.spaceId),
+      ["two"],
+      "and it still opens from the stored list",
+    );
+    assert.deepEqual(
+      [...store.keys()].sort(),
+      [
+        "other",
+        "vyre.appearance.v1:p2:two",
+        "vyre.look.p2",
+        "vyre.session.v1",
+        "vyre.sidebar.folded.two",
+        "vyre.sidebar.v2.two",
+        "vyre.tabs.v1:web:p2:two",
+        "vyre.ui.v1",
+        "vyre.update.auto",
+      ].sort(),
+    );
+  } finally {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
+test("a person who is in two Spaces on this browser keeps their look when one Space goes", () => {
+  const store = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    get length() {
+      return store.size;
+    },
+    key: (i: number) => [...store.keys()][i] ?? null,
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+  };
+  try {
+    const a: StoredSession = {
+      baseUrl: "https://a.example.test",
+      token: "ta",
+      personId: "same",
+      marker: "m",
+      def: { ...NORTHWIND, spaceId: "a" },
+    };
+    const b: StoredSession = {
+      baseUrl: "https://b.example.test",
+      token: "tb",
+      personId: "same",
+      marker: "m",
+      def: { ...NORTHWIND, spaceId: "b" },
+    };
+    writeStored(a);
+    writeStored(b);
+    store.set("vyre.look.same", "x");
+    removeSpaceFromBrowser(a);
+    assert.equal(store.has("vyre.look.same"), true);
   } finally {
     delete (globalThis as { localStorage?: unknown }).localStorage;
   }
