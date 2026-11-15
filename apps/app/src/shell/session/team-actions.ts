@@ -2,8 +2,6 @@
 //   Invite People   makes a one-time invite for a Member that lasts 7 days and copies its link. It starts them where the Space starts everyone (#vyre and what is shared with Everyone);
 //                   Console > People makes one with a different role, groups, channels, projects or agents.
 //   Away            stored (notifications.away.set, until you press I'm Back), so teammates see a steady away dot and approvals wait; I'm Back clears it and writes the digest.
-import { reachedLink } from "../../share/rows.ts";
-
 export const INVITE_ROLE = "rol_member";
 export const INVITE_DAYS = 7;
 /** "Until I'm Back": away holds until the person clears it; the store needs an end, so it is far off. */
@@ -41,7 +39,7 @@ export function teamActions(o: {
           expiresInDays: INVITE_DAYS,
           idempotencyKey: key(),
         })) as { link: string };
-        link = reachedLink(out.link);
+        link = out.link;
       } catch (e) {
         o.hub.flash(`Couldn't make an invite link: ${reason(e)}`);
         return null;

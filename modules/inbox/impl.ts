@@ -7,6 +7,7 @@ import * as h from "./handlers/index.ts";
 import { seamFor, stateKinds } from "./state.ts";
 import type { InboxCtx } from "./projections.ts";
 import { matchClosingTask, matchNewClosingTask, recipientsSearchWithMembers } from "./handlers/recipients-members.ts";
+import { nameOldConversations } from "./handlers/match.ts";
 
 /** A capability on one conversation: the access rules know no row for a conversation (an unmatched sender has no record above it), so the manifest binds these to the Space and the Inbox's own rule decides who may touch it. */
 const guarded =
@@ -50,6 +51,15 @@ export { stateKinds };
  * what it is about to do first, writes once, and does nothing on a Space it has already finished; a restart changes nothing.
  */
 export const periodic = {
+  // conversations filed before names were read from mail: named from their newest mail, a batch at a time, newest conversations first
+  "inbox.names_backfill": {
+    everyMs: 6 * 60 * 60_000,
+    immediate: true,
+    run: async (ctx: InboxCtx): Promise<void> => {
+      const done = await nameOldConversations(ctx);
+      if (done.named > 0) ctx.log.info("inbox: conversations named from their mail", { ...done });
+    },
+  },
   "inbox.state_backfill": {
     everyMs: 24 * 60 * 60_000,
     immediate: true,

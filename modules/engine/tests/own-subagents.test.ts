@@ -1,7 +1,17 @@
 // The subagents a command-line engine starts in its own turn (finding F41): a row at the start and one at the end, nothing per line; the row hangs under the reply and goes with it; and who reads what.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { eraseOwn, hangOwn, listOwn, noteOwn, settleOwn } from "../own-subagents.ts";
+import {
+  backgroundCount,
+  backgroundLine,
+  backgroundNow,
+  eraseOwn,
+  hangOwn,
+  listOwn,
+  noteOwn,
+  noteTask,
+  settleOwn,
+} from "../own-subagents.ts";
 import { crewStatus } from "../handlers/crew-status.ts";
 import { harness } from "../fixtures/harness.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -196,4 +206,126 @@ test("retention: a purge that names the messages it removed takes their rows; a 
     removed: 1,
   });
   assert.deepEqual(listOwn(h.ctx.db, "thr_1", new Set()), []);
+});
+
+// ---- helpers started in the background (owner's rc.28 report, 16 Nov 2026): launched is not finished ----
+
+const bgE = { threadId: "thr_bg", turnId: "trn_bg", agentId: "agt_dex", asker: "usr_asker" };
+const launched = (id: string, title: string): unknown[] => [
+  { phase: "call", id, name: "Agent" },
+  { phase: "input", id, detail: title },
+  // what the engine's launch call returns: it started, it did not finish (no answer, whatever its words)
+  { phase: "result", id, ok: true, launched: true },
+];
+
+test("a helper launched in the background keeps working after its launch result and after its turn ends; its own end finishes it", () => {
+  const h = harness();
+  noteOwn(h.ctx.db, bgE, [...launched("c1", "Batch 1"), ...launched("c2", "Batch 2")], 1_000);
+  const rows = (): ReturnType<typeof listOwn> => listOwn(h.ctx.db, "thr_bg", new Set());
+  assert.deepEqual(
+    rows().map((x) => [x.title, x.state]),
+    [
+      ["Batch 1", "working"],
+      ["Batch 2", "working"],
+    ],
+    "launched, not done",
+  );
+  assert.equal(backgroundCount("thr_bg"), 2);
+  settleOwn(h.ctx.db, "trn_bg", 2_000); // the turn ends: "I'm waiting for all four"
+  assert.deepEqual(
+    rows().map((x) => x.state),
+    ["working", "working"],
+    "a background helper is not the turn's to end",
+  );
+  noteTask(h.ctx.db, bgE, { state: "progress", id: "c1", taskId: "ag_1", text: "Reading the second profile" }, 3_000);
+  assert.equal(rows()[0]!.step, "Reading the second profile");
+  noteTask(h.ctx.db, bgE, { state: "end", id: "c1", taskId: "ag_1", ok: true, text: "11 rows ranked" }, 4_000);
+  assert.deepEqual(
+    rows().map((x) => [x.state, x.found, x.endedAt, x.step]),
+    [
+      ["done", "11 rows ranked", 4_000, undefined],
+      ["working", undefined, undefined, undefined],
+    ],
+  );
+  assert.equal(backgroundCount("thr_bg"), 1);
+  assert.match(
+    backgroundLine(h.ctx.db, "thr_bg") ?? "",
+    /^1 of 2 helpers or jobs you started in the background is still working: Batch 2\./,
+  );
+  // a task line that names only the engine's own id finds its row by it; a stopped one is stopped, a failed one failed
+  noteTask(h.ctx.db, bgE, { state: "end", id: "ag_2", taskId: "ag_2", ok: false, text: "no network" }, 5_000);
+  assert.equal(rows()[1]!.state, "working", "an unknown id ends nothing");
+  noteTask(h.ctx.db, bgE, { state: "start", id: "c2", taskId: "ag_2" }, 5_100);
+  noteTask(h.ctx.db, bgE, { state: "end", id: "ag_2", taskId: "ag_2", ok: false, text: "no network" }, 5_200);
+  assert.deepEqual([rows()[1]!.state, rows()[1]!.found], ["failed", "no network"]);
+  assert.equal(backgroundCount("thr_bg"), 0);
+  assert.equal(backgroundLine(h.ctx.db, "thr_bg"), null);
+});
+
+test("a background shell job is a row of its own; a server that restarted has no process, so a row still working is read as stopped", () => {
+  const h = harness();
+  const e2 = { ...bgE, threadId: "thr_sh" };
+  noteOwn(
+    h.ctx.db,
+    e2,
+    [
+      { phase: "call", id: "sh1", name: "Bash" },
+      { phase: "result", id: "sh1", ok: true, launched: true, detail: "Build the site" },
+    ],
+    1,
+  );
+  assert.deepEqual(
+    listOwn(h.ctx.db, "thr_sh", new Set()).map((x) => [x.title, x.state]),
+    [["Build the site", "working"]],
+  );
+  assert.deepEqual(
+    backgroundNow()
+      .filter((b) => b.threadId === "thr_sh")
+      .map((b) => b.count),
+    [1],
+  );
+  noteTask(h.ctx.db, e2, { state: "end", id: "sh1", taskId: "", stopped: true }, 9);
+  assert.equal(listOwn(h.ctx.db, "thr_sh", new Set())[0]!.state, "stopped");
+  assert.equal(backgroundCount("thr_sh"), 0);
+  // a row that says working with no process behind it (the server restarted)
+  h.ctx.db.run(
+    "INSERT INTO engine_own_subagent (thread_id, call_id, agent_id, turn_id, asker, started_at, title, background) VALUES ('thr_old', 'x', 'agt', 'trn', 'usr_asker', 1, 'Old', 1)",
+  );
+  assert.equal(listOwn(h.ctx.db, "thr_old", new Set())[0]!.state, "stopped");
+});
+
+test("the crew read says a background helper works, with its step and a clock that counts, and 2 of 4 done only for what ended", async () => {
+  const h = harness();
+  noteOwn(
+    h.ctx.db,
+    bgE,
+    [...launched("c1", "B1"), ...launched("c2", "B2"), ...launched("c3", "B3"), ...launched("c4", "B4")],
+    1_000,
+  );
+  noteTask(h.ctx.db, bgE, { state: "progress", id: "c1", taskId: "", text: "Searching the web" }, 1_500);
+  noteTask(h.ctx.db, bgE, { state: "end", id: "c2", taskId: "", ok: true, text: "Done: 3 rows" }, 2_000);
+  noteTask(h.ctx.db, bgE, { state: "end", id: "c3", taskId: "", ok: true, text: "Done: 4 rows" }, 2_500);
+  const ctx = {
+    ...h.ctx,
+    now: () => 63_000,
+    principal: { kind: "person", id: "usr_asker" },
+    async call(cap: string) {
+      if (cap === "chat.helpers.list") return { helpers: [] };
+      if (cap === "engine.accounts.list") return { accounts: [] };
+      return {};
+    },
+  } as unknown as EngineCtx;
+  const out = await crewStatus(ctx, { threadId: "thr_bg" });
+  assert.deepEqual(
+    out.members.map((m) => [m.title, m.state, m.step]),
+    [
+      ["B1", "working", "Searching the web"],
+      ["B2", "done", undefined],
+      ["B3", "done", undefined],
+      ["B4", "working", undefined],
+    ],
+  );
+  assert.deepEqual([out.totals.working, out.totals.done, out.totals.members], [2, 2, 4]);
+  assert.equal(out.totals.elapsedMs, 62_000, "the real elapsed time of the longest, not 0:08");
+  assert.equal(JSON.stringify(out).includes("Async agent launched"), false);
 });

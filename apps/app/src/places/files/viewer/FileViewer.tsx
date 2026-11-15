@@ -197,19 +197,27 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
   const [pdfTexts, setPdfTexts] = useState<readonly string[]>([]);
   const [pdfDone, setPdfDone] = useState(false);
+  // the file's bytes could not be read (a refused read, a cached file with no bytes here): the PDF is then shown as the text the server read out of it, with its
+  // marks, never as "This file is empty"
+  const [pdfGone, setPdfGone] = useState(false);
   useEffect(() => {
     setPdfData(null);
     setPdfTexts([]);
     setPdfDone(false);
+    setPdfGone(false);
     // a PDF over the size the viewer reads is refused before it is fetched
     if (!isPdf || pdfBig !== null) return undefined;
     let live = true;
     void d.call("files.read", { fileId, as: "base64" }).then(
       (r) => {
-        const b = (r as { base64?: string }).base64;
-        if (live && typeof b === "string") setPdfData(Uint8Array.from(atob(b), (ch) => ch.charCodeAt(0)));
+        const b = (r as { base64?: string } | null | undefined)?.base64;
+        if (!live) return;
+        if (typeof b === "string" && b !== "") setPdfData(Uint8Array.from(atob(b), (ch) => ch.charCodeAt(0)));
+        else setPdfGone(true);
       },
-      () => undefined,
+      () => {
+        if (live) setPdfGone(true);
+      },
     );
     return () => {
       live = false;
@@ -228,9 +236,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const kind = offReady
     ? "document"
     : ready
-      ? isPdf && pdfData === null
+      ? isPdf && pdfData === null && !pdfGone
         ? "other"
-        : viewerKindOf(isPdf ? { ...ready.data, previewUrl: pdfData !== null ? "pdf" : undefined } : ready.data)
+        : viewerKindOf(isPdf && pdfData !== null ? { ...ready.data, previewUrl: "pdf" } : ready.data)
       : "other";
   // a Google Doc is kept as Markdown: it is read as a note is, without Drive's escapes
   const app = ready ? googleAppOf(ready.data.file) : null;
@@ -292,14 +300,14 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
           : offReady.deck.slides.map((sl) => ({ id: `sl${sl.n}`, tag: "p" as const, text: sl.texts }))
         : wbk.state.status === "ready"
           ? wbk.texts.map((t, i) => ({ id: `sh${i + 1}`, tag: "p" as const, text: t }))
-          : isPdf && kind === "document"
+          : isPdf && pdfData !== null && kind === "document"
             ? pdfTexts.map((t, i) => ({ id: `pg${i + 1}`, tag: "p" as const, text: t }))
             : ready && kind === "document"
               ? office
                 ? officeBlocks(text)
                 : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)
               : [],
-    [ready, kind, text, app, office, isPdf, pdfTexts, wbk.state.status, wbk.texts, offReady, off.rev],
+    [ready, kind, text, app, office, isPdf, pdfData, pdfTexts, wbk.state.status, wbk.texts, offReady, off.rev],
   );
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
@@ -675,7 +683,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         />
       ) : null}
       <Viewer
-        key={`${fileId}:${layer.preview && layer.view?.text ? "agent" : "people"}`}
+        // the viewer keeps the blocks it was first given (it edits them in place), so a PDF that falls back to its words is drawn afresh
+        key={`${fileId}:${layer.preview && layer.view?.text ? "agent" : "people"}${isPdf && pdfGone ? ":words" : ""}`}
         fileId={fileId}
         title={file.name}
         kind={kind}

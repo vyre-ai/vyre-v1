@@ -10,6 +10,7 @@ import { TextButton } from "../../chats/rightpane/parts.tsx";
 import { useDueText } from "../../../../../../ui/src/Time/index.tsx";
 import { useFilesData, useLive } from "../tree/data.tsx";
 import { tellIfRefused } from "../tree/refusal.ts";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 export interface TrashAgent {
   agentId: string;
@@ -38,7 +39,7 @@ export function AgentTrashRows({
 }): ReactElement | null {
   const data = useFilesData();
   const day = useDueText();
-  const phone = useWindowDimensions().width < 700;
+  const phone = isPhoneWidth(useWindowDimensions().width);
   const was = useRef<Map<string, { name: string; deleting: boolean }>>(new Map());
   useEffect(() => {
     // a row that said Deleting and is gone: one line says it is done

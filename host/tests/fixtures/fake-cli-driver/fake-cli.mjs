@@ -23,6 +23,11 @@
 //   slowwhere    "first part. " at once, then after FAKE_SLOW_MS the same as whereami
 //   twosubagents  Claude Code starting two subagents of its own (Agent calls), whose own lines carry parent_tool_use_id: the first works with a shell command and says words nobody should read as the
 //                 reply, the second reads a file; each returns its answer at a different time, then the engine answers. A turn of about six seconds
+//   howmany       says the line of its turn context that counts the helpers it started in the background
+//   bgsubagents   Claude Code starting THREE helpers in the background (Agent calls with run_in_background, as in the owner's rc.28 chat): each launch call returns "Async agent launched successfully." at once, the
+//                 turn says "I am waiting for all three." and ends. The helpers finish FAKE_BG_MS later (default 5000,10000,15000, one per helper): each ends with a task_progress half way and a
+//                 task_notification, and the engine wakes itself as the real one does: a status line after the first two ("Helper 1 is back, still waiting on 2."), the answer after the last ("All three helpers are
+//                 back. Ranked list ready.")
 //   /compact ... compacts the way Claude Code does: a compact_boundary line (42000 tokens before, 2500 after), then an empty success result
 // Sessions are kept the way the real CLI keeps them: a file per session id under $HOME/.fake-claude/sessions, with the last line of every prompt it was sent. `--resume <id>` of a session with no file
 // says so in the real CLI's words on stderr and exits 1 before reading anything.
@@ -777,6 +782,138 @@ async function run(raw) {
       result: "Both subagents finished.",
       session_id: session,
       usage: { input_tokens: 20, output_tokens: 8 },
+    });
+    return;
+  }
+  if (lastLine === "howmany") {
+    // answers with the one line of its turn context that counts the helpers it started in the background (Vyre's own count)
+    const m = /\d+ of \d+ helpers or jobs you started in the background[^\n]*?(?:\.|$)/m.exec(raw);
+    reply([m ? m[0].replace(/ Vyre wakes you once.*$/, "") : "no count in my context"]);
+    return;
+  }
+  if (lastLine === "bgsubagents") {
+    const times = (process.env.FAKE_BG_MS ?? "5000,10000,15000").split(",").map(Number);
+    const msg = (content) => ({
+      type: "assistant",
+      parent_tool_use_id: null,
+      session_id: session,
+      message: {
+        id: `m_${Math.random().toString(36).slice(2, 8)}`,
+        model: "claude-sonnet-fake",
+        content,
+        usage: { input_tokens: 9, output_tokens: 3 },
+      },
+    });
+    init();
+    out(
+      msg(
+        times.map((_, i) => ({
+          type: "tool_use",
+          id: `toolu_bg${i + 1}`,
+          name: "Agent",
+          input: { description: `Research applicants batch ${i + 1}`, prompt: "go", run_in_background: true },
+        })),
+      ),
+    );
+    times.forEach((_, i) =>
+      out({
+        type: "user",
+        parent_tool_use_id: null,
+        session_id: session,
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: `toolu_bg${i + 1}`,
+              content: [
+                {
+                  type: "text",
+                  text: `Async agent launched successfully.\nagentId: ag_${i + 1} (internal ID - do not mention to user.)`,
+                },
+              ],
+            },
+          ],
+        },
+        tool_use_result: {
+          isAsync: true,
+          status: "async_launched",
+          agentId: `ag_${i + 1}`,
+          description: `Research applicants batch ${i + 1}`,
+        },
+      }),
+    );
+    times.forEach((_, i) =>
+      out({
+        type: "system",
+        subtype: "task_started",
+        task_id: `ag_${i + 1}`,
+        tool_use_id: `toolu_bg${i + 1}`,
+        description: `Research applicants batch ${i + 1}`,
+        session_id: session,
+      }),
+    );
+    out(msg([{ type: "text", text: "I am waiting for all three." }]));
+    out({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "I am waiting for all three.",
+      session_id: session,
+      usage: { input_tokens: 20, output_tokens: 8 },
+    });
+    let left = times.length;
+    times.forEach((t, i) => {
+      const steps = ["Reading the first profile", "Ranking the rows"];
+      setTimeout(
+        () =>
+          out({
+            type: "system",
+            subtype: "task_progress",
+            task_id: `ag_${i + 1}`,
+            tool_use_id: `toolu_bg${i + 1}`,
+            description: steps[0],
+            session_id: session,
+          }),
+        Math.floor(t / 3),
+      );
+      setTimeout(
+        () =>
+          out({
+            type: "system",
+            subtype: "task_progress",
+            task_id: `ag_${i + 1}`,
+            tool_use_id: `toolu_bg${i + 1}`,
+            description: steps[1],
+            session_id: session,
+          }),
+        Math.floor((2 * t) / 3),
+      );
+      setTimeout(() => {
+        out({
+          type: "system",
+          subtype: "task_notification",
+          task_id: `ag_${i + 1}`,
+          tool_use_id: `toolu_bg${i + 1}`,
+          status: "completed",
+          summary: `Batch ${i + 1}: 11 applicants ranked`,
+          session_id: session,
+        });
+        left -= 1;
+        const text =
+          left > 0
+            ? `Helper ${i + 1} is back, still waiting on ${left}.`
+            : "All three helpers are back. Ranked list ready.";
+        out(msg([{ type: "text", text }]));
+        out({
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          result: text,
+          session_id: session,
+          usage: { input_tokens: 20, output_tokens: 8 },
+        });
+      }, t);
     });
     return;
   }

@@ -91,11 +91,11 @@ test("rule 4: a greeting, a test or an acknowledgement is small talk and makes n
 test("a title is 2 to 5 plain words, from the request or from a model's answer", () => {
   assert.equal(
     titleFromRequest("Can you set up the GHL onboarding goal for the Lab 8 registrants?"),
-    "Set up the GHL onboarding\u2026",
+    "Set up the GHL onboarding",
   );
-  assert.equal(titleFromRequest("Draft the October note for Sara"), "Draft the October note\u2026");
+  assert.equal(titleFromRequest("Draft the October note for Sara"), "Draft the October note");
   // never cut off on a word that wants another (rc.22 bug 22: "I want you to create a")
-  assert.equal(titleFromRequest("I want you to create a landing page for the clinic"), "Create a landing page\u2026");
+  assert.equal(titleFromRequest("I want you to create a landing page for the clinic"), "Create a landing page");
   assert.equal(
     titleFromRequest("I want you to create a"),
     null,
@@ -104,7 +104,7 @@ test("a title is 2 to 5 plain words, from the request or from a model's answer",
   // a greeting in front of the request is not the title (client walk: "Hello! Can you list three things" named the chat)
   assert.equal(
     titleFromRequest("Hello! Can you list three things a client should do in week one?"),
-    "List three things a client\u2026",
+    "List three things a client",
   );
   assert.equal(titleFromRequest("Hi there, please draft the October note"), "Draft the October note");
   assert.equal(titleFromRequest("hello"), null);

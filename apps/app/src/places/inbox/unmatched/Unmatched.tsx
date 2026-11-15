@@ -25,6 +25,7 @@ import {
   waitingLine,
 } from "./model.ts";
 import type { CreateOut, MatchOut, Suggestion, Unmatched, UnmatchedOut } from "./model.ts";
+import { problemWords } from "../../../../../../lib/words/errors.ts";
 
 const DOUBLE_MS = 450;
 const ROW = 62;
@@ -157,7 +158,9 @@ function List({ onSearchRecords, onShowAll }: UnmatchedProps): ReactElement {
     try {
       setNote(await work());
     } catch (e) {
-      setNote({ text: `Could not do that: ${e instanceof Error ? e.message : "try again"}` });
+      setNote({
+        text: problemWords((e as { error?: unknown }).error ?? e, "That did not go through. Try again.").text,
+      });
     }
     setSelected((cur) => (cur === u.id ? null : cur));
   };

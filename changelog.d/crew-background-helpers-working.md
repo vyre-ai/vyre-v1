@@ -1,0 +1,1 @@
+A helper the Assistant starts in the background now shows as working until its own work is done, with what it is doing now, a clock that counts, and a true "2 of 4 done"; before, it showed as done a few seconds after it started.

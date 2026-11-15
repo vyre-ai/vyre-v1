@@ -266,7 +266,7 @@ export function ConnectAiCard({
           selected={on}
           leading={
             <View style={s.lead}>
-              <Mark k={o.key} size={18} letter={o.label} />
+              <Mark k={o.key} size={18} />
             </View>
           }
           onPress={() => setProvider(o.key)}
@@ -396,7 +396,7 @@ export function ConnectAiCard({
                       }
                       style={[s.signin, s.localPrimary, busy && s.busyDim]}
                     >
-                      <Mark k={o.key} size={18} letter={o.button} />
+                      <Mark k={o.key} size={18} />
                       <Text style={s.localPrimaryText}>{o.button}</Text>
                     </Pressable>
                     {note ? (
@@ -426,7 +426,7 @@ export function ConnectAiCard({
               }
               style={[s.signin, busy && s.busyDim]}
             >
-              <Mark k={o.key} size={18} letter={o.label} />
+              <Mark k={o.key} size={18} />
               <Text style={s.tileText}>{o.button}</Text>
             </Pressable>
           ))}

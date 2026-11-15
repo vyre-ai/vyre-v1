@@ -5,22 +5,14 @@ import type { FlowKind, Progress, StepState } from "./flow.ts";
 export interface FlowState {
   seen: boolean;
   progress: Progress;
-  /** The person's account here is new (the Space answers); Getting Started shows its chip and rows only then. */
-  fresh: boolean;
 }
 
 export async function loadFlow(call: CapCall, flow: FlowKind): Promise<FlowState> {
   const out = (await call("spaces.onboarding.flow", { flow })) as {
     seen: boolean;
     steps: { key: string; state: "done" | "later" }[];
-    fresh?: boolean;
   };
-  // an older Space that does not say counts as new: the chip never vanishes for want of an answer
-  return {
-    seen: out.seen,
-    progress: Object.fromEntries(out.steps.map((s) => [s.key, s.state])),
-    fresh: out.fresh !== false,
-  };
+  return { seen: out.seen, progress: Object.fromEntries(out.steps.map((s) => [s.key, s.state])) };
 }
 
 export async function markStep(call: CapCall, flow: FlowKind, step: string, state: StepState): Promise<void> {

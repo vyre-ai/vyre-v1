@@ -476,7 +476,8 @@ test("counts give the unread per inbox and number, the total, and how many need 
     { kind: "mailbox", id: "mbx_hello1", unread: 1 },
     { kind: "number", id: "num_main1", unread: 1 },
   ]);
-  assert.deepEqual([out.total, out.needsMatch], [4, 1]);
+  // the total is conversations waiting on the person (three), not their four unread messages (16 Nov 2026)
+  assert.deepEqual([out.total, out.needsMatch], [3, 1]);
 });
 
 test("following says why each contact reaches you: you own it, follow it, or an inbox you can see received it", async () => {

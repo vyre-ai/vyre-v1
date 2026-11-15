@@ -10,6 +10,8 @@
 //   slow [ms]       waits, then replays text (a turn that takes a while)
 //   hang            starts, says nothing more, never ends
 //   die             writes to stderr and exits 3 with no result
+//   bg <ms> <ms>... [noself]  (claude only) launches one background helper per number, each finishing that many ms later (task_started now, task_progress half way, task_notification at the end), says "I am waiting"
+//                   and ends its turn. As the real engine does, it wakes itself when a helper ends and answers (a status line, or the last word when it was the last one); `noself` leaves that out, so the host must wake it
 //   /compact [keep] (claude only) compacts: a compact_boundary line with the tokens before and after, then an empty success result
 //   pluginenv       starts each plugin MCP server the way the real CLI would (Claude Code: its own environment plus the server's env with ${NAME} expanded; Codex: a short default environment, the
 //                   env table's plain values and the variables env_vars names) and answers with what each server printed: the environment the server process actually saw
@@ -268,6 +270,142 @@ async function run(prompt) {
     case "text":
       replay("text");
       break;
+    case "bg": {
+      const ms = words
+        .slice(1)
+        .filter((w) => /^\d+$/.test(w))
+        .map(Number);
+      const self = !words.includes("noself");
+      const init = {
+        type: "system",
+        subtype: "init",
+        session_id: session,
+        mcp_servers: [{ name: "vyre", status: "connected" }],
+      };
+      out(JSON.stringify(init));
+      const msg = (content) => ({
+        type: "assistant",
+        parent_tool_use_id: null,
+        message: {
+          id: `m_${Date.now()}_${Math.random()}`,
+          model: "claude-sonnet-5-5",
+          content,
+          usage: { input_tokens: 1, output_tokens: 1 },
+        },
+        session_id: session,
+      });
+      out(
+        JSON.stringify(
+          msg(
+            ms.map((_, i) => ({
+              type: "tool_use",
+              id: `toolu_bg${i + 1}`,
+              name: "Agent",
+              input: { description: `Helper ${i + 1}`, prompt: "go", run_in_background: true },
+            })),
+          ),
+        ),
+      );
+      ms.forEach((_, i) =>
+        out(
+          JSON.stringify({
+            type: "user",
+            parent_tool_use_id: null,
+            session_id: session,
+            message: {
+              content: [
+                {
+                  type: "tool_result",
+                  tool_use_id: `toolu_bg${i + 1}`,
+                  content: [
+                    {
+                      type: "text",
+                      text: `Async agent launched successfully.\nagentId: ag_${i + 1} (internal ID - do not mention to user.)`,
+                    },
+                  ],
+                },
+              ],
+            },
+            tool_use_result: {
+              isAsync: true,
+              status: "async_launched",
+              agentId: `ag_${i + 1}`,
+              description: `Helper ${i + 1}`,
+            },
+          }),
+        ),
+      );
+      ms.forEach((_, i) =>
+        out(
+          JSON.stringify({
+            type: "system",
+            subtype: "task_started",
+            task_id: `ag_${i + 1}`,
+            tool_use_id: `toolu_bg${i + 1}`,
+            description: `Helper ${i + 1}`,
+            session_id: session,
+          }),
+        ),
+      );
+      out(JSON.stringify(msg([{ type: "text", text: "I am waiting for all of them." }])));
+      out(
+        JSON.stringify({
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          result: "I am waiting for all of them.",
+          session_id: session,
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
+      );
+      let left = ms.length;
+      ms.forEach((t, i) => {
+        setTimeout(
+          () =>
+            out(
+              JSON.stringify({
+                type: "system",
+                subtype: "task_progress",
+                task_id: `ag_${i + 1}`,
+                tool_use_id: `toolu_bg${i + 1}`,
+                last_tool_name: "WebSearch",
+                description: "",
+                session_id: session,
+              }),
+            ),
+          Math.floor(t / 2),
+        );
+        setTimeout(() => {
+          out(
+            JSON.stringify({
+              type: "system",
+              subtype: "task_notification",
+              task_id: `ag_${i + 1}`,
+              tool_use_id: `toolu_bg${i + 1}`,
+              status: "completed",
+              summary: `Helper ${i + 1} found 3 rows`,
+              session_id: session,
+            }),
+          );
+          left -= 1;
+          if (!self) return;
+          const text =
+            left > 0 ? `Helper ${i + 1} is back, still waiting on ${left}.` : `All ${ms.length} helpers are back.`;
+          out(JSON.stringify(msg([{ type: "text", text }])));
+          out(
+            JSON.stringify({
+              type: "result",
+              subtype: "success",
+              is_error: false,
+              result: text,
+              session_id: session,
+              usage: { input_tokens: 1, output_tokens: 1 },
+            }),
+          );
+        }, t);
+      });
+      break;
+    }
     case "echoenv":
       say(`env GH_TOKEN=${process.env.GH_TOKEN ?? "none"} GITHUB_TOKEN=${process.env.GITHUB_TOKEN ?? "none"}`);
       process.stderr.write(`stderr ${process.env.GH_TOKEN ?? "none"}\n`);

@@ -1,6 +1,9 @@
 // The main-view tab strip (spec 3.0): ui/TabStrip bound to one Space's tab controller. Click selects, the x or middle-click closes, drag or Alt-Arrow reorders,
 // the "+" (or Cmd-T) opens a new tab with one search. The tab menu gets "Open in Place" for an item tab; ui/Menu appends Report a problem.
 import { useSyncExternalStore } from "react";
+import { View } from "react-native";
+import { WorkingMark } from "../../../../../ui/src/WorkingMark/index.tsx";
+import { subscribeWorking, threadOfTab, workingThreads } from "./working.ts";
 import type { ReactElement } from "react";
 import { TabStrip } from "../../../../../ui/src/TabStrip/index.tsx";
 import type { TabSpec } from "../../../../../ui/src/TabStrip/index.tsx";
@@ -17,10 +20,27 @@ export function useTabs(controller: TabsController): TabsState {
   return useSyncExternalStore(controller.subscribe, controller.state, controller.state);
 }
 
-export function tabSpecs(tabs: readonly TabEntry[]): TabSpec[] {
+export function tabSpecs(tabs: readonly TabEntry[], working: ReadonlySet<string> = new Set()): TabSpec[] {
   const out: TabSpec[] = [];
-  for (const t of tabs)
-    out.push({ key: t.key, title: t.title, icon: iconMarkup(t.place), ...(t.pinned === true ? { pinned: true } : {}) });
+  for (const t of tabs) {
+    const thread = threadOfTab(t);
+    out.push({
+      key: t.key,
+      title: t.title,
+      icon: iconMarkup(t.place),
+      ...(t.pinned === true ? { pinned: true } : {}),
+      // a chat whose agent (or whose helpers, left running in the background) works shows the working mark in its tab, still under reduced motion
+      ...(thread !== undefined && working.has(thread)
+        ? {
+            lead: (
+              <View testID={`tab-working-${t.key}`} accessibilityLabel="Working" style={{ marginRight: 2 }}>
+                <WorkingMark state="thinking" step="Working" size={12} />
+              </View>
+            ),
+          }
+        : {}),
+    } as TabSpec);
+  }
   return out;
 }
 
@@ -35,6 +55,7 @@ export interface MainTabsProps {
 
 export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: MainTabsProps): ReactElement {
   const state = useTabs(controller);
+  const working = useSyncExternalStore(subscribeWorking, workingThreads, workingThreads);
   const find = (key: string): TabEntry | undefined => state.tabs.find((t) => t.key === key);
   const goActive = (): void => {
     const now = controller.state();
@@ -93,7 +114,7 @@ export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: Main
       label="Open tabs"
       hideLoneClose
       noOptions
-      tabs={tabSpecs(state.tabs)}
+      tabs={tabSpecs(state.tabs, working)}
       active={state.active}
       onSelect={(key) => {
         controller.select(key);

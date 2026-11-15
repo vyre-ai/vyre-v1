@@ -1,0 +1,1 @@
+When an engine ends before Vyre has asked it for its models, the reason shown is the engine's own, not a pipe error. A PDF whose bytes cannot be read here opens as the text read out of it, with its marks, instead of saying the file is empty.

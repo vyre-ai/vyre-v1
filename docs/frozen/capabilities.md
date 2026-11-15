@@ -552,13 +552,6 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11-15.md) and the lane's fourth round; the limits that remain are the ones written above.
 
 
-## 16 Nov 2026: Getting Started shows only for a new account (lane w-first)
-
-- `spaces.onboarding.flow` answers one more field, `fresh` (true during the person's first 7 days in the Space, from their first sign-in; true when the Space cannot tell). Nothing is removed or renamed; a client that ignores it behaves as before. The chip and rows of Getting Started draw only while `fresh` is true, so a person who has used a Space for weeks never sees it appear after an update.
-- Proof: modules/spaces/tests/switcher.test.ts (made today, day six, 30 days, unknown age).
-
-Signed: lead, 16 Nov 2026 02:19 PKT, after reading the manifest diff: one optional, additive output field. To watch: the age is taken from the person's earliest session, so a person whose old sessions were all removed may read as new again.
-
 ## 13 Nov 2026: sites.artifact_publish summary reworded to say what is required (lane f-firstcall)
 
 The summary of `sites.artifact_publish@1`, the words a model reads, now begins with what the call needs ("Needs a title and exactly one of html, fileId, folderId, path or port"), gives one example call, and says that a title left out is taken from the page's own `<title>`. No input, output or error changes. The handler's refusal for two sources at once now names the two given, in the same code (`validation.bad_input`, field `html`). The tool layer (agent/src/tools) no longer shows a model the `idempotencyKey` of a `create` capability or the `threadId` of a chat tool as required; the contract is unchanged and the server still validates the full input, so an outside caller sends the key as before.
@@ -617,3 +610,18 @@ Signed: pending, the lead
 - Compatibility: additive outputs; `files.folder.purge` and `files.trash.empty` refuse or skip agent folders.
 
 Signed: lead, 16 Nov 2026 02:40 PKT, after two data-safety reviews (team/v1/reviews/r-agentdel-2026-11-16.md: six blocking items, then two, all closed by the lane with tests). Left open and known: the phone shows no "in Trash" line on an agent's page; delete, restore and delete within milliseconds can leave a channel without its "was deleted" line.
+
+## 16 Nov 2026: mail.drafts.list can be asked for one address, and an agent's repeated draft replaces its earlier one (the lead, the owner's Inbox report)
+
+- What changed: `mail.drafts.list@1` takes one more optional input, `address`: only drafts written to that address (To or Cc, any case). Nothing was removed or made required; a caller that sends nothing gets what it got. The Inbox conversation screen now always sends the conversation's contact or its address, never an empty filter.
+- Behaviour, no contract change: `mail.draft` by an agent that names no message it answers now replaces that agent's own pending draft in the same mailbox when the subject (Re: and Fwd: aside) and the people in To are the same; the earlier text is kept as before. A person's draft, another agent's draft and a named draft are never replaced.
+- Why: the owner's Inbox showed drafts written to other people inside one person's conversation (the screen asked for every draft), and two pending drafts of one email.
+- Proof: modules/mail/tests/drafts.test.ts (two new cases), modules/inbox/tests/match.test.ts. Snapshot: docs/frozen/snapshots/mail.json.
+
+Signed: lead, 16 Nov 2026 03:01 PKT (written and read by the lead: one optional, additive input).
+
+## 16 Nov 2026: inbox.counts counts conversations, not messages (the lead's Inbox work)
+
+`inbox.counts@1` keeps its shape. Its numbers change meaning: `total` and each `byInbox[].unread` are now the number of conversations that hold unread messages for the caller (not marked done), not the number of unread messages. Reason: the owner's Inbox read "551" beside By contact and beside the mailbox and the number told him nothing; a badge beside a list of conversations counts conversations. A conversation's own `unreadCount` still counts messages. Only the description text of the capability changed in the manifest.
+
+Signed: lead, 16 Nov 2026 03:36 PKT (written and read by the lead: no shape change, a change of meaning in two numbers).

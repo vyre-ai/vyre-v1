@@ -416,27 +416,31 @@ const manifest = defineManifest({
         label: "check",
       },
     ),
-    read("inbox.counts", "Unread counts for the sidebar: per inbox, per number and the Needs a match total", {
-      in: {},
-      out: {
-        byInbox: t.arr(
-          t.obj({
-            kind: t.enm("mailbox", "number"),
-            id: t.str(),
-            name: t.opt(
-              t.str({
-                description:
-                  "What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id",
-              }),
-            ),
-            unread: t.int(),
-          }),
-        ),
-        total: t.int(),
-        needsMatch: t.int(),
+    read(
+      "inbox.counts",
+      "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
+      {
+        in: {},
+        out: {
+          byInbox: t.arr(
+            t.obj({
+              kind: t.enm("mailbox", "number"),
+              id: t.str(),
+              name: t.opt(
+                t.str({
+                  description:
+                    "What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id",
+                }),
+              ),
+              unread: t.int(),
+            }),
+          ),
+          total: t.int(),
+          needsMatch: t.int(),
+        },
+        tool: "inbox",
       },
-      tool: "inbox",
-    }),
+    ),
     write("inbox.mark_read", "Mark a conversation read or unread", {
       in: { conversationId: cnvId, read: t.opt(t.bool()) },
       out: { conversation: conversationRow },
@@ -602,7 +606,7 @@ const manifest = defineManifest({
           { conversationId: "/state/conversationId", contactId: "/state/contactId" },
           true,
         ],
-        drafts: ["mail.drafts.list", { contactId: "/state/contactId" }, true],
+        drafts: ["mail.drafts.list", { contactId: "/state/contactId", address: "/state/address" }, true],
       },
       a: {
         email: [

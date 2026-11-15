@@ -67,34 +67,17 @@ export function Line({ index, children }: { index: number; children: ReactNode }
 export const PageHelpContext = createContext<((text: string) => () => void) | null>(null);
 export const useInGroup = (): boolean => useContext(InGroup);
 
-/** Where a press happened, as the point a menu opens at: under the control that was pressed (its left edge, its bottom), never a fixed corner of the window. */
-export function anchorOf(e: unknown): { x: number; y: number } {
-  const ev = e as {
-    currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
-    nativeEvent?: { pageX?: number; pageY?: number };
-  } | null;
-  const box = ev?.currentTarget?.getBoundingClientRect?.();
-  return box ? { x: box.left, y: box.bottom + 4 } : { x: ev?.nativeEvent?.pageX ?? 0, y: ev?.nativeEvent?.pageY ?? 0 };
-}
-
 export function LinkButton({
   label,
   onPress,
   testID,
 }: {
   label: string;
-  /** `at` is the pressed control's own place, for a menu that opens from it. */
-  onPress: (at: { x: number; y: number }) => void;
+  onPress: () => void;
   testID?: string;
 }): ReactElement {
   return (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityLabel={label}
-      testID={testID}
-      onPress={(e) => onPress(anchorOf(e))}
-      style={pointer}
-    >
+    <Pressable accessibilityRole="link" accessibilityLabel={label} testID={testID} onPress={onPress} style={pointer}>
       <Text style={s.link}>{label}</Text>
     </Pressable>
   );

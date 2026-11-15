@@ -6,7 +6,9 @@ import { createElement, useCallback, useEffect, useMemo, useRef, useState } from
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
-import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
+import { SidePane, usePaneTab } from "../../../../../../ui/src/SidePane/index.tsx";
+import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
+import { Timeline } from "../../../../../../ui/src/Timeline/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { LoadFailed, isRefused } from "../../../../../../ui/src/States/Loads.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -17,7 +19,7 @@ import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
 import type { ConversationData } from "../conversation/data.tsx";
 import type { Changes } from "../conversation/use-follow.ts";
-import { formatActivity } from "../../../../../../lib/words/activity.ts";
+import { goalTimeline } from "../../../../../../lib/words/timeline.ts";
 import { useGoal } from "./data.ts";
 import type { Call } from "./data.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
@@ -26,7 +28,6 @@ import {
   LIVE,
   bareLine,
   budgetOf,
-  byDay,
   canEdit as mayEdit,
   chartOf,
   dueWords,
@@ -53,7 +54,7 @@ import {
   newId,
 } from "./GoalEdit.tsx";
 import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
-import { TimePop, When, useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { When, useZones } from "../../../../../../ui/src/Time/index.tsx";
 import { whenIn } from "../../../../../../lib/zones.ts";
 import type { Zones } from "../../../../../../ui/src/Time/index.tsx";
 import type { Goal, GoalPageData, PlanStep, TaskLine, Tone, WaitLine, Who } from "./model.ts";
@@ -80,7 +81,13 @@ export interface GoalPageProps {
   directory?: readonly PickEntry[];
 }
 
-type PaneTab = "activity" | "details" | "files";
+type PaneTab = "details" | "activity" | "files";
+const PANE_TAB_KEYS: readonly PaneTab[] = ["details", "activity", "files"];
+const PANE_TABS = [
+  { key: "details", title: "Details" },
+  { key: "activity", title: "Activity" },
+  { key: "files", title: "Files" },
+] as const;
 const DAY = 86_400_000;
 
 export function GoalPage({
@@ -103,7 +110,7 @@ export function GoalPage({
   const zones = useZones();
   const width = useWindowDimensions().width;
   const phone = isPhoneWidth(width);
-  const [tab, setTab] = useState<PaneTab>("details");
+  const [tab, setTab] = usePaneTab<PaneTab>("goal", goalId, PANE_TAB_KEYS);
   const [paneOpen, setPaneOpen] = useState(pane && !phone && width >= 980);
   const [line, setLine] = useState("");
   const [undo, setUndo] = useState<{ input: Record<string, unknown>; said: string } | null>(null);
@@ -294,6 +301,36 @@ export function GoalPage({
   ) : (
     <ScrollView contentContainerStyle={st.scroll}>{head}</ScrollView>
   );
+  const paneBody = (
+    <>
+      {tab === "activity" ? (
+        <Activity data={data} me={me} nameOf={nameOf} now={now} zones={zones} openTask={openTask} call={call} />
+      ) : tab === "details" ? (
+        <GoalSettings
+          g={g}
+          nameOf={nameOf}
+          zones={zones}
+          canEdit={edit}
+          patch={(i, said, back) => void run("goals.update", i, said, back)}
+          pick={setPicker}
+          removeHelper={(id) =>
+            saveHelpers(
+              g.helpers.filter((h) => h.id !== id),
+              `${nameOf(id)} is no longer a helper.`,
+            )
+          }
+        />
+      ) : (
+        <Files
+          g={g}
+          call={call}
+          changes={changes}
+          {...(openFolder ? { openFolder } : {})}
+          {...(openFile ? { openFile } : {})}
+        />
+      )}
+    </>
+  );
   return (
     <View testID="goal-page" style={st.row}>
       <View style={st.main}>{feed}</View>
@@ -302,42 +339,30 @@ export function GoalPage({
           paneKey="goal-pane"
           toggle={{ open: true, onPress: () => setPaneOpen(false) }}
           title="Goal"
-          tabs={[
-            { key: "details", title: "Details" },
-            { key: "activity", title: "Activity" },
-            { key: "files", title: "Files" },
-          ]}
+          tabs={PANE_TABS}
           activeTab={tab}
           onSelectTab={(k) => setTab(k as PaneTab)}
           defaultWidth={340}
         >
-          {tab === "activity" ? (
-            <Activity data={data} me={me} nameOf={nameOf} now={now} zones={zones} openTask={openTask} call={call} />
-          ) : tab === "details" ? (
-            <GoalSettings
-              g={g}
-              nameOf={nameOf}
-              zones={zones}
-              canEdit={edit}
-              patch={(i, said, back) => void run("goals.update", i, said, back)}
-              pick={setPicker}
-              removeHelper={(id) =>
-                saveHelpers(
-                  g.helpers.filter((h) => h.id !== id),
-                  `${nameOf(id)} is no longer a helper.`,
-                )
-              }
-            />
-          ) : (
-            <Files
-              g={g}
-              call={call}
-              changes={changes}
-              {...(openFolder ? { openFolder } : {})}
-              {...(openFile ? { openFile } : {})}
-            />
-          )}
+          {paneBody}
         </SidePane>
+      ) : null}
+      {paneOpen && phone ? (
+        <View testID="goal-pane-phone" style={st.phoneSheet}>
+          <View style={st.phoneHead}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              testID="goal-pane-phone-close"
+              onPress={() => setPaneOpen(false)}
+              style={st.phoneClose}
+            >
+              <Text style={st.phoneCloseText}>Done</Text>
+            </Pressable>
+            <TabStrip underline noOptions tabs={PANE_TABS} active={tab} onSelect={(k) => setTab(k as PaneTab)} />
+          </View>
+          <View style={st.phoneBody}>{paneBody}</View>
+        </View>
       ) : null}
       {menu.element}
       {picker === "lead" ? (
@@ -567,7 +592,10 @@ function Head({
       items.push({ head: "Extend the deadline" }, ...extendEntries(g, run), { separator: true });
     if (live || g.status === "paused")
       items.push({ label: "Change the plan", onSelect: () => fill?.("Change the plan: ") });
-    items.push({ label: "Show activity", onSelect: () => showPane("activity") });
+    items.push(
+      { label: "Show details", onSelect: () => showPane("details") },
+      { label: "Show activity", onSelect: () => showPane("activity") },
+    );
     if (!ENDED.has(g.status))
       items.push(
         { separator: true },
@@ -674,35 +702,33 @@ function Head({
           )
         }
       />
-      {ENDED.has(g.status) ? null : (
-        <View style={st.controls}>
-          {g.status === "draft" ? (
-            <Btn
-              label="Start goal"
-              primary
-              testID="goal-start"
-              onPress={() => void run("goals.confirm", {}, "Started")}
-            />
-          ) : null}
-          {live ? (
-            <Btn
-              label="Pause"
-              icon="pause"
-              testID="goal-pause"
-              onPress={() => void run("goals.pause", {}, "Paused. Nothing wakes until you resume it.")}
-            />
-          ) : null}
-          {g.status === "paused" ? (
-            <Btn
-              label="Resume"
-              icon="play"
-              testID="goal-resume"
-              onPress={() => void run("goals.resume", {}, "Resumed")}
-            />
-          ) : null}
-          <Btn label="More" icon="more" testID="goal-more" onPress={more} />
-        </View>
-      )}
+      <View style={st.controls}>
+        {g.status === "draft" ? (
+          <Btn
+            label="Start goal"
+            primary
+            testID="goal-start"
+            onPress={() => void run("goals.confirm", {}, "Started")}
+          />
+        ) : null}
+        {live ? (
+          <Btn
+            label="Pause"
+            icon="pause"
+            testID="goal-pause"
+            onPress={() => void run("goals.pause", {}, "Paused. Nothing wakes until you resume it.")}
+          />
+        ) : null}
+        {g.status === "paused" ? (
+          <Btn
+            label="Resume"
+            icon="play"
+            testID="goal-resume"
+            onPress={() => void run("goals.resume", {}, "Resumed")}
+          />
+        ) : null}
+        <Btn label="More" icon="more" testID="goal-more" onPress={more} />
+      </View>
     </View>
   );
 }
@@ -1403,48 +1429,27 @@ export function Activity({
         busy.current = false;
       });
   };
-  const days = byDay(all, now, zones);
-  const seen = new Map<string, number>();
-  if (days.length === 0) return <Text style={[st.small, st.pad]}>Nothing yet.</Text>;
+  const entries = useMemo(() => goalTimeline(all, viewer), [all, me, zones.space]); // eslint-disable-line react-hooks/exhaustive-deps
+  const more = call && !end && (data.activity.length >= 30 || earlier.length > 0);
   return (
     <ScrollView
       testID="goal-activity"
-      contentContainerStyle={st.pad}
       scrollEventThrottle={100}
       onScroll={(e) => {
         const n = e.nativeEvent;
         if (n.contentOffset.y + n.layoutMeasurement.height >= n.contentSize.height - 160) loadEarlier();
       }}
     >
-      {/* ui-rows-lint: not a list (a day heading over its rows, which are ui/Row) */}
-      {days.map((d) => (
-        <View key={d.day} style={st.day}>
-          <Text style={st.label}>{d.day}</Text>
-          {/* ui-rows-lint: not a list (each item is a ui/Row; the TimePop around it only adds the hover card with both zones) */}
-          {d.items.map((a) => {
-            const line = formatActivity(a, viewer);
-            // two rows can share a moment and a kind: the second is told from the first by its place among them
-            const base = `${a.at}-${a.kind}`,
-              nth = seen.get(base) ?? 0;
-            seen.set(base, nth + 1);
-            // a list of times: each reads in the Space zone only; yours is on hover, so the list stays quiet
-            return (
-              <TimePop key={`${base}-${nth}`} at={a.at}>
-                <Row
-                  id={`ga-${base}-${nth}`}
-                  title={line.text}
-                  note={`${whenIn(a.at, now, zones).text}${line.credit ? ` · ${line.credit}` : ""}`}
-                  {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})}
-                />
-              </TimePop>
-            );
-          })}
-        </View>
-      ))}
-      {/* ui-rows-lint: not a list (one row that reads the next page; scrolling to the end presses it for you) */}
-      {call && !end && (data.activity.length >= 30 || earlier.length > 0) ? (
-        <Row id="goal-activity-earlier" title="Show earlier activity" onPress={loadEarlier} />
-      ) : null}
+      <Timeline
+        entries={entries}
+        nameOf={nameOf}
+        now={now}
+        empty="Nothing has happened yet. Activity appears when work starts."
+        goLabel={(e) => (e.ref?.startsWith("tsk_") ? "Open the task" : undefined)}
+        onGo={(ref) => openTask(ref)}
+        onEarlier={more ? loadEarlier : undefined}
+        testID="goal-timeline"
+      />
     </ScrollView>
   );
 }
@@ -1515,6 +1520,25 @@ function useEffectFollow(changes: Changes | undefined, load: () => void): void {
 }
 
 const st = StyleSheet.create({
+  phoneSheet: {
+    position: "absolute" as never,
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    zIndex: 30,
+    backgroundColor: "var(--win)" as string,
+  },
+  phoneHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
+  phoneClose: { paddingHorizontal: 10, paddingVertical: 12 },
+  phoneCloseText: { color: "var(--accent)" as string, fontSize: 15, fontWeight: "500" },
+  phoneBody: { flex: 1, minHeight: 0 },
   root: { flex: 1, alignItems: "center", justifyContent: "center" },
   loading: { height: 1 },
   row: { flex: 1, minHeight: 0, flexDirection: "row" },

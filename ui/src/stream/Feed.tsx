@@ -1,7 +1,7 @@
 // The scroll area of a conversation: it follows the end while the person is at the end, lets go when they scroll up, and says so (`atEnd`) so the place can show "to latest".
 // Following happens in a layout effect, in the same frame as the commit that grew the content: DOM writes first, then one read of the scroll height (the one layout of the frame), then one write of
 // the scroll position. Nothing reads layout between two writes, so a frame never lays out twice.
-import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { Platform, ScrollView } from "react-native";
 import type { StreamStore } from "./store.ts";
@@ -9,6 +9,8 @@ import type { NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } fr
 
 /** Closer to the end than this and the person counts as at the end. */
 export const END_SLACK = 24;
+/** How long after a wheel, touch, key or scrollbar press a scroll counts as the person's own. */
+export const INPUT_MS = 3000;
 
 export function isAtEnd(scrollTop: number, clientHeight: number, scrollHeight: number, slack = END_SLACK): boolean {
   return scrollHeight - scrollTop - clientHeight <= slack;
@@ -73,10 +75,15 @@ export function Feed({
     store ? () => store.getSnapshot().version : NO_VERSION,
   );
 
-  const onScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-      const now = isAtEnd(contentOffset.y, layoutMeasurement.height, contentSize.height);
+  // A person has scrolled away only when THEY moved it: a wheel, a touch, a key or a press on the scrollbar in the last moments. A scroll event with none of those is the feed's own move (or the list growing under it)
+  // being delivered late, and must never read as "scrolled up", whatever the heights were when it arrived. Coming back to the end by scrolling down is always seen.
+  const pinned = useRef(0);
+  const lastInput = useRef(0);
+  const settle = useCallback(
+    (top: number, client: number, height: number): void => {
+      let now = isAtEnd(top, client, height);
+      if (Platform.OS === "web" && atEnd.current && !now && Date.now() - lastInput.current > INPUT_MS) now = true;
+      if (now && !atEnd.current) pinned.current = top;
       if (now !== atEnd.current) {
         atEnd.current = now;
         setAway(!now);
@@ -85,14 +92,40 @@ export function Feed({
     },
     [onAtEndChange],
   );
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+      settle(contentOffset.y, layoutMeasurement.height, contentSize.height);
+    },
+    [settle],
+  );
 
   const toEnd = useCallback((): void => {
     if (Platform.OS === "web") {
       const node = (ref.current as unknown as { getScrollableNode?: () => ScrollNode } | null)?.getScrollableNode?.();
-      if (node) node.scrollTop = node.scrollHeight;
+      if (node) {
+        node.scrollTop = node.scrollHeight;
+        pinned.current = node.scrollTop;
+      }
     } else {
       ref.current?.scrollToEnd({ animated: false });
     }
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    const node = (
+      ref.current as unknown as { getScrollableNode?: () => ScrollNode & EventTarget } | null
+    )?.getScrollableNode?.();
+    if (!node) return undefined;
+    const mark = (): void => {
+      lastInput.current = Date.now();
+    };
+    const kinds = ["wheel", "touchstart", "touchmove", "keydown", "pointerdown"];
+    for (const k of kinds) node.addEventListener(k, mark, { passive: true });
+    return () => {
+      for (const k of kinds) node.removeEventListener(k, mark);
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -111,28 +144,17 @@ export function Feed({
     onAtEndChange?.(true);
   }, [endKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // content that grows after the commit (a card, a block that renders late, a reply streaming in) keeps the end in view while the person is at it. "At it" is measured, not remembered: the scroll event
-  // for a person's own wheel may not have run yet when the content grows, so the position the feed had against its OLD height decides, and a person who scrolled up is never pulled back down.
-  const prevHeight = useRef(0);
+  // content that grows after the commit (a card, a block that renders late, a reply streaming in) keeps the end in view while the person is at it
   const onContentSizeChange = useCallback(
     (_w: number, h: number) => {
       const node =
         Platform.OS === "web"
           ? (ref.current as unknown as { getScrollableNode?: () => ScrollNode } | null)?.getScrollableNode?.()
           : undefined;
-      const before = prevHeight.current;
-      prevHeight.current = h;
-      if (node && before > 0) {
-        const was = isAtEnd(node.scrollTop, node.clientHeight, before);
-        if (was !== atEnd.current) {
-          atEnd.current = was;
-          setAway(!was);
-          onAtEndChange?.(was);
-        }
-      }
+      if (node) settle(node.scrollTop, node.clientHeight, h);
       if (holdsEnd(follow, atEnd.current)) toEnd();
     },
-    [follow, toEnd, onAtEndChange],
+    [follow, toEnd, settle],
   );
 
   // the list got shorter (a notice line, a taller composer, a menu opened under it) while the person was at the end: the end stays in view, so the last card's buttons are not cut off

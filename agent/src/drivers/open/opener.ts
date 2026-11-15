@@ -85,7 +85,16 @@ export interface SessionOpenerDeps {
   api?: Pick<ApiDriverDeps, "summarize" | "retry" | "idleMs" | "maxSteps" | "random">;
   cli?: Pick<
     CliDriverDeps,
-    "system" | "workFolder" | "env" | "planMode" | "resume" | "checkpoint" | "idleMs" | "graceMs" | "prewarm"
+    | "system"
+    | "workFolder"
+    | "env"
+    | "planMode"
+    | "resume"
+    | "checkpoint"
+    | "idleMs"
+    | "graceMs"
+    | "prewarm"
+    | "background"
   >;
   pool?: Pick<PoolOptions, "maxPerDriver" | "maxPerPerson" | "maxTotal" | "idleMs" | "now">;
   /** A Vault item was used for a session: ids and handles only (audit and usage records). */

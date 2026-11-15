@@ -258,11 +258,11 @@ function DetailsStep({
         ) : null}
       </Group>
       {s.error ? <ErrorLine testID="claim-error">{s.error}</ErrorLine> : null}
-      {fingerprint && !onThisComputer() ? (
+      {fingerprint ? (
         <Foot
           testID="claim-fingerprint"
           top={4}
-        >{`Check this code matches the one shown where you set up the server: ${fingerprint}`}</Foot>
+        >{`Check this code matches the one your server printed: ${fingerprint}`}</Foot>
       ) : null}
     </Step>
   );
@@ -485,10 +485,4 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
       </Panel>
     </JoinFrame>
   );
-}
-
-/** The page is this computer's own (127.0.0.1, localhost or the desktop app): the code was never carried anywhere, so asking a person to compare it says nothing true. */
-function onThisComputer(): boolean {
-  const h = ((globalThis as { location?: { hostname?: string } }).location?.hostname ?? "").toLowerCase();
-  return h === "localhost" || h === "[::1]" || h === "tauri.localhost" || h.endsWith(".localhost") || /^127\./.test(h);
 }

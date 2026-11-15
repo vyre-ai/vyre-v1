@@ -617,9 +617,9 @@ export function NotesPage({
     },
     [store, say],
   );
-  // a new note opens with the cursor in its title; Tab goes on to the note
   const openTake = useCallback((): void => {
     dispatch({ t: "open" });
+    setFocusBody((n) => n + 1);
   }, []);
   useEffect(() => {
     if (takeNonce > 0) openTake();

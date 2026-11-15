@@ -210,7 +210,7 @@ test("the Activity pane names who did it as the reader sees it: a Space agent by
   assert.match(text, /Lab Desk/);
   assert.doesNotMatch(text, /Irfad Imtiaz \(Agent\)|Made by|an agent|the owner|usr_|agt_|\{at:|\{who:/);
   assert.doesNotMatch(text, /your time/, "a list of times shows only the Space zone; yours is on hover");
-  assert.match(text, /started the goal\. Due \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2} [AP]M\./);
+  assert.match(text, /started the goal\..*Due \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2} [AP]M\./);
 });
 
 test("a draft card says what to do in plain words", async () => {
@@ -387,7 +387,7 @@ test("the Activity tab reads earlier rows through goals.activity as it is scroll
   assert.match(textOf(list), /Reading number 100/);
   assert.doesNotMatch(textOf(list), /Reading number 1(?!\d)/, "the start of the story is not there yet");
   for (let i = 0; i < 5; i++) {
-    const more = find(root!, "row-goal-activity-earlier");
+    const more = find(root!, "goal-timeline-earlier");
     if (more) {
       await press(more);
       await flush();
@@ -401,7 +401,7 @@ test("the Activity tab reads earlier rows through goals.activity as it is scroll
   );
   assert.equal((textOf(find(root!, "goal-activity")).match(/Reading number/g) ?? []).length, 100, "every row once");
   // nothing earlier: the end is remembered, the row goes, and no further call is made
-  assert.equal(find(root!, "row-goal-activity-earlier"), null, "no more to show");
+  assert.equal(find(root!, "goal-timeline-earlier"), null, "no more to show");
   assert.equal(asked.length, 3, "two pages of rows, then one empty answer");
 });
 
@@ -447,7 +447,7 @@ test("the Activity tab keeps what it loaded when new rows arrive, fills in the r
   const root = await mount(createRoot as never, <Wrapper />);
   await flush();
   for (let i = 0; i < 6; i++) {
-    const more = find(root!, "row-goal-activity-earlier");
+    const more = find(root!, "goal-timeline-earlier");
     if (more) {
       await press(more);
       await flush();

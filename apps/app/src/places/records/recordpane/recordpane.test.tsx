@@ -173,8 +173,7 @@ test("the @ in a text: what is being typed, the people it offers, the name that 
 test("Activity lists the record's real history newest first, one row each with a face, and an edit shows at the top at once", async () => {
   const s = createSamplePage();
   const root = await up(s, "activity");
-  const actRows = (): string[] =>
-    ids(root).filter((i) => i.startsWith("row-act:") && !/-(leading|trailing|suffix|marks)$/.test(i));
+  const actRows = (): string[] => ids(root).filter((i) => i === "record-timeline-entry");
   const rows = actRows();
   assert.ok(rows.length >= 5, "the five seeded changes are there");
   const first = textOf(find(root, rows[0]!));

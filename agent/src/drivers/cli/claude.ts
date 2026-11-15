@@ -103,6 +103,10 @@ export function createClaudeDecoder(): CliDecoder {
   const called = new Set<string>();
   /** The calls that start a subagent (Agent, Task): their result is the subagent's answer, and the lines that carry them as `parent` are the subagent's own work. */
   const subagents = new Set<string>();
+  /** What each call of this process is (its tool, what it touches, and whether the model asked for it to run in the background): kept across turns, because a background task ends in a later one. */
+  const calls = new Map<string, { name: string; background: boolean; detail: string }>();
+  /** The engine's id for a background task, and the call that started it (and back): a later line names one or the other. */
+  const taskCall = new Map<string, string>();
   const perMessage = new Map<string, Tally>();
   let current = "";
   let sawText = false;
@@ -218,6 +222,11 @@ export function createClaudeDecoder(): CliDecoder {
         }
         // the whole message carries the call's input (the streamed start does not): what it touches, in safe words only
         const detail = toolDetail(str(b["name"]), b["input"]);
+        calls.set(str(b["id"]), {
+          name: str(b["name"]),
+          background: obj(b["input"])?.["run_in_background"] === true,
+          detail,
+        });
         if (detail !== "")
           out.push({ type: "tool", phase: "input", id: str(b["id"]), detail, ...(parent !== "" ? { parent } : {}) });
       }
@@ -243,7 +252,25 @@ export function createClaudeDecoder(): CliDecoder {
     if (j["isReplay"] === true && parent === "") out.push({ type: "read" });
     for (const raw of arr(m?.["content"])) {
       const b = obj(raw);
-      if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "")
+      if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "") {
+        const launch =
+          b["is_error"] === true ? null : launchOf(str(b["tool_use_id"]), b["content"], j["tool_use_result"]);
+        if (launch !== null) {
+          // the call only STARTED work that goes on after it: its text ("Async agent launched successfully.") is not an answer and not shown; its end is a later `task` line
+          if (launch.taskId !== "") taskCall.set(launch.taskId, str(b["tool_use_id"]));
+          const c = calls.get(str(b["tool_use_id"]));
+          out.push({
+            type: "tool",
+            phase: "result",
+            id: str(b["tool_use_id"]),
+            ok: true,
+            launched: true,
+            ...(c?.name ? { name: c.name } : {}),
+            ...(c?.detail ? { detail: c.detail } : {}),
+            ...(parent !== "" ? { parent } : {}),
+          });
+          continue;
+        }
         out.push({
           type: "tool",
           phase: "result",
@@ -255,8 +282,98 @@ export function createClaudeDecoder(): CliDecoder {
             ? { result: answer(b["content"]) }
             : {}),
         });
+      }
     }
     return out;
+  }
+
+  /**
+   * A tool result that says the work was only STARTED. The engine's own shapes: a helper started with run_in_background answers "Async agent launched successfully." (its tool_use_result says
+   * status async_launched, with the agent's id); a shell job started in the background answers "Command running in background with ID: <id>". Null for any other result. Only the calls this process
+   * made (a helper call or a shell call) are looked at.
+   */
+  function launchOf(callId: string, content: unknown, meta: unknown): { taskId: string } | null {
+    const c = calls.get(callId);
+    const isAgent = subagents.has(callId) || (c !== undefined && /^(Agent|Task)$/.test(c.name));
+    const isShell = c !== undefined && /^(Bash|PowerShell)$/.test(c.name);
+    if (!isAgent && !isShell) return null;
+    const m = obj(meta);
+    const text = (
+      typeof content === "string"
+        ? content
+        : arr(content)
+            .map((p) => str(obj(p)?.["text"]))
+            .join("\n")
+    ).trim();
+    const asyncAgent =
+      isAgent &&
+      (/^Async agent launched/i.test(text) || str(m?.["status"]) === "async_launched" || m?.["isAsync"] === true);
+    const asyncShell =
+      isShell &&
+      (/running in background/i.test(text) || (c?.background === true && /background/i.test(text))) &&
+      m?.["interrupted"] !== true;
+    if (!asyncAgent && !asyncShell) return null;
+    const taskId =
+      str(m?.["agentId"]) ||
+      str(m?.["backgroundTaskId"]) ||
+      str(m?.["task_id"]) ||
+      /agentId:\s*([\w-]+)/i.exec(text)?.[1] ||
+      /\bID:\s*([\w-]+)/i.exec(text)?.[1] ||
+      "";
+    return { taskId };
+  }
+
+  /** The step a background task is on, in plain words, from what the engine told of it. Never the launch tool's text. */
+  const STEP_WORDS: Readonly<Record<string, string>> = {
+    Read: "Reading files",
+    Grep: "Searching files",
+    Glob: "Searching files",
+    Bash: "Running a command",
+    WebSearch: "Searching the web",
+    WebFetch: "Reading a page",
+    Edit: "Editing files",
+    MultiEdit: "Editing files",
+    Write: "Writing a file",
+  };
+  function plain(text: string, max: number): string {
+    const clean = redact(text).text.replace(/\s+/g, " ").trim();
+    return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
+  }
+  /** system/task_started, task_progress, task_notification: a background task, at any time (during the turn that started it or long after). */
+  function onTask(j: Json): CliEvent[] {
+    const kind = str(j["subtype"]);
+    const taskId = str(j["task_id"]);
+    const given = str(j["tool_use_id"]);
+    if (taskId === "" && given === "") return [];
+    if (given !== "" && taskId !== "") taskCall.set(taskId, given);
+    const id = given || taskCall.get(taskId) || taskId;
+    if (kind === "task_started") {
+      const text = plain(str(j["description"]), 80);
+      return [{ type: "task", state: "start", id, taskId, ...(text !== "" ? { text } : {}) }];
+    }
+    if (kind === "task_progress") {
+      const text =
+        plain(str(j["summary"]), 120) ||
+        plain(str(j["description"]), 120) ||
+        (STEP_WORDS[str(j["last_tool_name"])] ?? "");
+      return text !== "" ? [{ type: "task", state: "progress", id, taskId, text }] : [];
+    }
+    if (kind === "task_notification") {
+      const status = str(j["status"]);
+      const text = plain(str(j["summary"]), 1500);
+      return [
+        {
+          type: "task",
+          state: "end",
+          id,
+          taskId,
+          ok: status === "completed",
+          ...(status === "stopped" || status === "killed" ? { stopped: true } : {}),
+          ...(text !== "" ? { text } : {}),
+        },
+      ];
+    }
+    return [];
   }
 
   function onResult(j: Json): CliEvent[] {
@@ -337,6 +454,7 @@ export function createClaudeDecoder(): CliDecoder {
               post = num(m?.["post_tokens"]);
             return [{ type: "compacted", ...(pre > 0 ? { before: pre } : {}), ...(post > 0 ? { after: post } : {}) }];
           }
+          if (/^task_(started|progress|notification)$/.test(str(j["subtype"]))) return onTask(j);
           if (str(j["subtype"]) !== "init") return [];
           sawModel(str(j["model"]));
           const out: CliEvent[] = session(str(j["session_id"]));
