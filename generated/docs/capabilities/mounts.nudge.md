@@ -19,7 +19,7 @@ A provider push notice (Drive channel, Graph subscription, Dropbox account) or a
 | HTTP | POST /v1/mounts/nudge |
 | MCP tool | mounts_nudge (files) |
 | CLI | none |
-| Emits | mount.synced, mount.failed |
+| Emits | mount.synced, mount.failed, mount.conflict, mount.file_sent |
 
 ## Input
 

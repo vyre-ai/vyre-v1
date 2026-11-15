@@ -51,6 +51,8 @@ type Out = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
 };
 ```
@@ -79,6 +81,7 @@ type Out = {
   },
   "output": {
     "file": {
+      "canEdit": true,
       "driveId": "example",
       "headRevisionId": "example",
       "id": "example",
@@ -93,6 +96,7 @@ type Out = {
         "example"
       ],
       "size": 1,
+      "trashed": true,
       "webViewLink": "example"
     }
   }

@@ -51,6 +51,9 @@ type Out = {
     lastSyncAt?: number;
     pendingChanges: number;
     conflicts: number;
+    readOnly: boolean;
+    twoWayOffer?: boolean;
+    scanned?: number;
     fromDevice?: string;
     error?: string;
     skippedCount?: number;
@@ -100,8 +103,10 @@ type Out = {
       "name": "example",
       "pendingChanges": 1,
       "provider": "Google Drive",
+      "readOnly": true,
       "ref": "example",
       "reviewChanges": true,
+      "scanned": 1,
       "skipped": [
         {
           "name": "example",
@@ -109,7 +114,8 @@ type Out = {
         }
       ],
       "skippedCount": 1,
-      "state": "idle"
+      "state": "idle",
+      "twoWayOffer": true
     }
   }
 }

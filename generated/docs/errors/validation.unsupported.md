@@ -13,3 +13,4 @@ HTTP 422. Retryable: no.
 - mounts.sheet_append
 - mounts.sheet_read
 - mounts.sheet_write
+- ms.drive.restore_item

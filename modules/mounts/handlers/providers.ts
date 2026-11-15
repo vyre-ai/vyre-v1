@@ -55,6 +55,10 @@ export interface RemoteItem {
   /** who last edited it at the provider, and when */
   editor?: Person;
   modifiedAt?: number;
+  /** in the provider's own Trash (Drive reports a trashed file as a change, not as removed) */
+  trashed?: boolean;
+  /** whether the signed-in person may change it there; absent when the provider does not say */
+  canEdit?: boolean;
 }
 
 export interface Person {
@@ -129,13 +133,30 @@ export interface Provider {
     m: MountRec,
     item: { remoteId: string; name: string; mime?: string; native?: boolean },
   ): Promise<Downloaded>;
+  /** Every write carries `key`: the host refuses an outward write without an idempotency key, and the same key on a retry runs nothing twice. */
   upload?(
     ctx: Ctx,
     m: MountRec,
-    a: { fileId: string; name: string; parentRemote: string; remoteId?: string; ifMatch?: IfMatch },
+    a: { fileId: string; name: string; parentRemote: string; remoteId?: string; ifMatch?: IfMatch; key: string },
   ): Promise<Uploaded>;
-  createFolder?(ctx: Ctx, m: MountRec, a: { name: string; parentRemote: string }): Promise<Uploaded>;
-  remove?(ctx: Ctx, m: MountRec, remoteId: string, isFolder: boolean): Promise<void>;
+  createFolder?(ctx: Ctx, m: MountRec, a: { name: string; parentRemote: string; key: string }): Promise<Uploaded>;
+  /** Puts the item in the provider's own Trash or recycle bin (recoverable there); never a permanent delete. */
+  remove?(ctx: Ctx, m: MountRec, remoteId: string, isFolder: boolean, key: string): Promise<void>;
+  /** A rename and/or a move of the same item (its id, links and sharing stay). `stale`: the item changed there since `ifMatch`, nothing was changed. */
+  update?(
+    ctx: Ctx,
+    m: MountRec,
+    a: {
+      remoteId: string;
+      name?: string;
+      addParent?: string;
+      removeParent?: string;
+      ifMatch?: IfMatch;
+      key: string;
+    },
+  ): Promise<Uploaded>;
+  /** Takes the item back out of the provider's Trash; throws validation.unsupported where the provider does not let Vyre do it. */
+  restore?(ctx: Ctx, m: MountRec, remoteId: string, key: string): Promise<Uploaded>;
   /** The item as the provider holds it now (undefined: gone). Opening a file compares this with what is cached. */
   stat?(ctx: Ctx, m: MountRec, remoteId: string): Promise<RemoteItem | undefined>;
   /** The provider renews its own push channel (Graph, by the microsoft module's Run); the mount only keeps the id. */
@@ -252,6 +273,8 @@ function driveItem(f: Row, parentId?: string): RemoteItem | undefined {
     name: text(f["name"]) ?? id,
     ...(parent !== undefined ? { parentId: parent } : {}),
     isFolder,
+    ...(f["trashed"] === true ? { trashed: true } : {}),
+    ...(typeof f["canEdit"] === "boolean" ? { canEdit: f["canEdit"] } : {}),
     ...(size !== undefined ? { size } : {}),
     ...(version !== undefined ? { version } : {}),
     ...(mime !== "" ? { mime } : {}),
@@ -337,11 +360,10 @@ async function driveFeed(ctx: Ctx, m: MountRec, cursor: string): Promise<PullBat
     for (const c of list(res["changes"])) {
       const ch = obj(c);
       const fileId = text(ch["fileId"]);
-      if (ch["removed"] === true && fileId !== undefined) removed.push(fileId);
-      else {
-        const it = driveItem(obj(ch["file"]));
-        if (it) items.push(it);
-      }
+      const it = ch["removed"] === true ? undefined : driveItem(obj(ch["file"]));
+      // Drive reports a file in its Trash as a change to the file, not as removed
+      if ((ch["removed"] === true || it?.trashed === true) && fileId !== undefined) removed.push(fileId);
+      else if (it) items.push(it);
     }
     next = text(res["newStartPageToken"]) ?? next;
     token = text(res["nextPageToken"]);
@@ -406,6 +428,7 @@ const google: Provider = {
         fileId: a.fileId,
         ...(a.remoteId !== undefined ? { remoteId: a.remoteId } : {}),
         ...(a.remoteId !== undefined && a.ifMatch?.revision !== undefined ? { ifRevision: a.ifMatch.revision } : {}),
+        idempotencyKey: a.key,
       }),
     );
     const it = driveItem(obj(res["file"]));
@@ -432,6 +455,7 @@ const google: Provider = {
         pageToken: m.cursor,
         channelId: a.channelId,
         address: a.address,
+        idempotencyKey: `mnt:watch:${m.id}:${a.channelId}`,
       }),
     );
     const resource = text(res["resourceId"]);
@@ -443,7 +467,12 @@ const google: Provider = {
   },
   async unwatch(ctx, m, w) {
     if (w.resource !== undefined)
-      await ctx.call("google.drive.stop_watch", { ...withConnection(m), channelId: w.id, resourceId: w.resource });
+      await ctx.call("google.drive.stop_watch", {
+        ...withConnection(m),
+        channelId: w.id,
+        resourceId: w.resource,
+        idempotencyKey: `mnt:unwatch:${m.id}:${w.id}`,
+      });
   },
   async revisions(ctx, m, remoteId) {
     const res = obj(await ctx.call("google.drive.list_revisions", { ...withConnection(m), fileId: remoteId }));
@@ -476,12 +505,50 @@ const google: Provider = {
   },
   async createFolder(ctx, m, a) {
     const res = obj(
-      await ctx.call("google.drive.create_folder", { ...withConnection(m), name: a.name, parentId: a.parentRemote }),
+      await ctx.call("google.drive.create_folder", {
+        ...withConnection(m),
+        name: a.name,
+        parentId: a.parentRemote,
+        idempotencyKey: a.key,
+      }),
     );
     return { remoteId: text(obj(res["file"])["id"]) ?? "" };
   },
-  async remove(ctx, m, remoteId) {
-    await ctx.call("google.drive.trash_file", { ...withConnection(m), fileId: remoteId });
+  async remove(ctx, m, remoteId, _isFolder, key) {
+    await ctx.call("google.drive.trash_file", { ...withConnection(m), fileId: remoteId, idempotencyKey: key });
+  },
+  async update(ctx, m, a) {
+    // Drive has no If-Match on a metadata change, so a rename or move conditional on the revision reads the file first (the upload does the same)
+    if (a.ifMatch?.revision !== undefined) {
+      const now = driveItem(
+        obj(obj(await ctx.call("google.drive.get_file", { ...withConnection(m), fileId: a.remoteId }))["file"]),
+      );
+      if (now !== undefined && now.revision !== a.ifMatch.revision)
+        return { remoteId: a.remoteId, stale: true, ...(now.editor !== undefined ? { editor: now.editor } : {}) };
+    }
+    const res = obj(
+      await ctx.call("google.drive.update_file", {
+        ...withConnection(m),
+        fileId: a.remoteId,
+        ...(a.name !== undefined ? { name: a.name } : {}),
+        ...(a.addParent !== undefined ? { addParentId: a.addParent } : {}),
+        ...(a.removeParent !== undefined ? { removeParentId: a.removeParent } : {}),
+        idempotencyKey: a.key,
+      }),
+    );
+    const it = driveItem(obj(res["file"]));
+    return { remoteId: it?.id ?? a.remoteId, ...(it?.version !== undefined ? { version: it.version } : {}) };
+  },
+  async restore(ctx, m, remoteId, key) {
+    const res = obj(
+      await ctx.call("google.drive.update_file", {
+        ...withConnection(m),
+        fileId: remoteId,
+        trashed: false,
+        idempotencyKey: key,
+      }),
+    );
+    return { remoteId: driveItem(obj(res["file"]))?.id ?? remoteId };
   },
   async browse(ctx, input) {
     const res = obj(
@@ -583,6 +650,7 @@ const graph: Provider = {
         fileId: a.fileId,
         ...(a.remoteId !== undefined ? { remoteId: a.remoteId } : {}),
         ...(a.remoteId !== undefined && a.ifMatch?.revision !== undefined ? { ifMatch: a.ifMatch.revision } : {}),
+        idempotencyKey: a.key,
       }),
     );
     const it = graphItem(obj(res["item"]));
@@ -603,13 +671,22 @@ const graph: Provider = {
   },
   async watch(ctx, m, a) {
     const res = obj(
-      await ctx.call("ms.drive.subscribe", { ...withConnection(m), ...driveOf(m), notificationUrl: a.address }),
+      await ctx.call("ms.drive.subscribe", {
+        ...withConnection(m),
+        ...driveOf(m),
+        notificationUrl: a.address,
+        idempotencyKey: `mnt:sub:${m.id}:${a.channelId}`,
+      }),
     );
     const id = text(res["subscriptionId"]);
     return id !== undefined ? { id, expiresAt: whole(res["expiresAt"]) ?? 0 } : undefined;
   },
   async unwatch(ctx, m, w) {
-    await ctx.call("ms.drive.unsubscribe", { ...withConnection(m), subscriptionId: w.id });
+    await ctx.call("ms.drive.unsubscribe", {
+      ...withConnection(m),
+      subscriptionId: w.id,
+      idempotencyKey: `mnt:unsub:${m.id}:${w.id}`,
+    });
   },
   async revisions(ctx, m, remoteId) {
     const res = obj(
@@ -646,12 +723,50 @@ const graph: Provider = {
         ...driveOf(m),
         parentId: a.parentRemote,
         name: a.name,
+        idempotencyKey: a.key,
       }),
     );
     return { remoteId: text(obj(res["item"])["id"]) ?? "" };
   },
-  async remove(ctx, m, remoteId) {
-    await ctx.call("ms.drive.delete_item", { ...withConnection(m), ...driveOf(m), itemId: remoteId });
+  /** Graph's delete puts the item in the recycle bin, where its owner can restore it. */
+  async remove(ctx, m, remoteId, _isFolder, key) {
+    await ctx.call("ms.drive.delete_item", {
+      ...withConnection(m),
+      ...driveOf(m),
+      itemId: remoteId,
+      idempotencyKey: key,
+    });
+  },
+  async update(ctx, m, a) {
+    const res = obj(
+      await ctx.call("ms.drive.update_item", {
+        ...withConnection(m),
+        ...driveOf(m),
+        itemId: a.remoteId,
+        ...(a.name !== undefined ? { name: a.name } : {}),
+        ...(a.addParent !== undefined ? { parentId: a.addParent } : {}),
+        ...(a.ifMatch?.revision !== undefined ? { ifMatch: a.ifMatch.revision } : {}),
+        idempotencyKey: a.key,
+      }),
+    );
+    const it = graphItem(obj(res["item"]));
+    return {
+      remoteId: it?.id ?? a.remoteId,
+      ...(it?.version !== undefined ? { version: it.version } : {}),
+      ...(it?.revision !== undefined ? { revision: it.revision } : {}),
+      ...(res["stale"] === true ? { stale: true, ...(it?.editor !== undefined ? { editor: it.editor } : {}) } : {}),
+    };
+  },
+  async restore(ctx, m, remoteId, key) {
+    const res = obj(
+      await ctx.call("ms.drive.restore_item", {
+        ...withConnection(m),
+        ...driveOf(m),
+        itemId: remoteId,
+        idempotencyKey: key,
+      }),
+    );
+    return { remoteId: graphItem(obj(res["item"]))?.id ?? remoteId };
   },
   /** `parent` is "<driveId>" for a drive's top or "<driveId>:<itemId>" inside it; no parent lists the caller's own OneDrive. */
   async browse(ctx, input) {

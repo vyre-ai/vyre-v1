@@ -159,7 +159,7 @@ test("a write is sent with the revision it was based on and replaces the file in
   );
 });
 
-test("a file that moved on at the provider is never overwritten: the Vyre edit is kept as a copy and the mount raises a conflict", async () => {
+test("a file that moved on at the provider is never overwritten: the Vyre edit stays in Vyre, the item waits for a choice, and the row says who changed it there", async () => {
   const w = harness();
   w.google.decorate("f1", { headRevisionId: "r1" });
   const mountId = await add(w, DRIVE, { mode: "server_copy" });
@@ -168,32 +168,58 @@ test("a file that moved on at the provider is never overwritten: the Vyre edit i
   w.google.decorate("f1", { headRevisionId: "r9", lastModifyingUser: MAYA });
   await sync(w, mountId);
   assert.deepEqual(w.google.replaced, [], "the file at Drive was left alone");
+  assert.deepEqual(w.google.uploads, [], "nothing was made at Drive either: the choice is the person's");
+  const item = itemFor(w, mountId, "intro.pdf");
+  assert.deepEqual([item["conflict"], item["dirty"]], [1, 1], "the edit still waits, and is held");
+  assert.deepEqual([item["editor_name"], item["editor_email"]], [MAYA.name, MAYA.email], "who changed it there");
+  assert.equal(w.files.text(fileId), "my edit", "the edit in Vyre is still there");
+  assert.deepEqual(w.named("mount.conflict"), [
+    { mountId, folderId: w.mountRow(mountId)["folder_id"], fileId, name: "intro.pdf" },
+  ]);
+  assert.equal((await view(w, mountId))["conflicts"], 1);
+  const opened = await call(w, "mounts.open", { fileId });
+  assert.deepEqual((opened["source"] as Row)["changedThere"], {
+    by: MAYA,
+    at: Date.parse("2026-10-01T10:05:00.000Z"),
+  });
+
+  // Keep both: their version becomes the file, the person's edit goes up beside it as a copy
+  const done = await call(w, "mounts.resolve", { fileId, choice: "keep_both" });
+  assert.deepEqual(done, { resolved: true, copyName: "intro (Noah's edit).pdf" });
   assert.deepEqual(
     w.google.uploads.map((u) => u.name),
     ["intro (Noah's edit).pdf"],
-    "both are kept",
+    "the copy is named plainly",
   );
   assert.equal(w.google.uploads[0]?.fileId, fileId);
-  const item = itemFor(w, mountId, "intro.pdf");
-  assert.deepEqual([item["conflict"], item["dirty"]], [1, 0]);
-  assert.equal(w.files.text(fileId), "my edit", "the edit in Vyre is still there");
-  assert.deepEqual(w.named("mount.conflict"), [
-    {
-      mountId,
-      folderId: w.mountRow(mountId)["folder_id"],
-      fileId,
-      name: "intro.pdf",
-      keptAs: "intro (Noah's edit).pdf",
-    },
-  ]);
-  assert.equal((await view(w, mountId))["conflicts"], 1);
+  assert.equal(w.files.text(fileId), "drive:f1@2026-10-01T10:05:00.000Z", "the file in Vyre is their version now");
+  assert.deepEqual([itemFor(w, mountId, "intro.pdf")["conflict"], itemFor(w, mountId, "intro.pdf")["dirty"]], [0, 0]);
   assert.ok(
     w.scheduled.some((s) => s.cap === "mounts.sync_now"),
-    "one more pass brings the provider's copies in",
+    "one more pass brings the copy in",
   );
 });
 
-test("a Graph write is conditional on the eTag: If-Match goes out, and a stale item keeps both", async () => {
+test("a stale edit settled with Use theirs: their version is the file, nothing is made at the provider", async () => {
+  const w = harness();
+  w.google.decorate("f1", { headRevisionId: "r1" });
+  const mountId = await add(w, DRIVE, { mode: "server_copy" });
+  const fileId = editInVyre(w, "intro.pdf", "my edit");
+  w.google.decorate("f1", { headRevisionId: "r9", lastModifyingUser: MAYA });
+  await sync(w, mountId);
+  const done = await call(w, "mounts.resolve", { fileId, choice: "use_theirs" });
+  assert.deepEqual(done, { resolved: true });
+  assert.deepEqual([w.google.uploads, w.google.replaced], [[], []]);
+  assert.equal(w.files.text(fileId), "drive:f1@2026-10-01T10:05:00.000Z");
+  assert.ok(
+    w.files.writes.some((x) => x.fileId === fileId),
+    "the person's version stays in Vyre's history",
+  );
+  await sync(w, mountId);
+  assert.deepEqual([w.google.uploads, w.google.replaced], [[], []], "and nothing is sent afterwards");
+});
+
+test("a Graph write is conditional on the eTag: If-Match goes out, and a stale item is held for the person's choice", async () => {
   const w = harness();
   w.graph.decorate("m3", {
     eTag: "e1",
@@ -213,8 +239,9 @@ test("a Graph write is conditional on the eTag: If-Match goes out, and a stale i
   editInVyre(w, "README.md", "two");
   await sync(w, mountId);
   assert.equal(w.graph.replaced.length, 1, "not overwritten");
-  assert.equal(w.graph.uploads.at(-1)?.name, "README (Noah's edit).md");
+  assert.equal(w.graph.uploads.length, 1, "nothing made beside it until the person chooses");
   assert.equal(itemFor(w, mountId, "README.md")["conflict"], 1);
+  assert.equal(itemFor(w, mountId, "README.md")["dirty"], 1, "the edit is kept in Vyre");
   assert.equal(w.named("mount.conflict").length, 1);
   assert.ok(fileId);
 });

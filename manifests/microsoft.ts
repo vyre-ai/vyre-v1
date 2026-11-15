@@ -752,6 +752,26 @@ const capabilities = [
     { gate: "send", tool: "files", deferred: true },
   ),
   gw(
+    "ms.drive.update_item",
+    "Rename an item or move it to another folder; the item keeps its id, links and sharing. With ifMatch only if the item still has that eTag",
+    {
+      driveId: t.opt(t.str()),
+      itemId: t.str(),
+      name: t.opt(t.str()),
+      parentId: t.opt(t.str()),
+      ifMatch: t.opt(t.str()),
+    },
+    { item: t.opt(driveItem), stale: t.opt(t.bool()) },
+    { gate: "post", tool: "files", deferred: true },
+  ),
+  gw(
+    "ms.drive.restore_item",
+    "Bring an item back from the recycle bin (OneDrive personal only; others answer that it cannot be done here)",
+    { driveId: t.opt(t.str()), itemId: t.str() },
+    { item: driveItem },
+    { gate: "post", tool: "files", deferred: true, errors: ["validation.unsupported"] },
+  ),
+  gw(
     "ms.drive.delete_item",
     "Delete an item",
     { driveId: t.opt(t.str()), itemId: t.str() },

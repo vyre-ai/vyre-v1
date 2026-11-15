@@ -173,6 +173,7 @@ export const dropbox: Provider = {
           fileId: a.fileId,
           path,
           ...(rev !== undefined ? { rev } : {}),
+          idempotencyKey: a.key,
         }),
       );
       const entry = obj(res["entry"]);
@@ -241,12 +242,13 @@ export const dropbox: Provider = {
       await ctx.call("dropbox.files.create_folder", {
         ...connection(m),
         path: `${await pathOfFolder(ctx, m, a.parentRemote)}/${a.name}`,
+        idempotencyKey: a.key,
       }),
     );
     return { remoteId: text(obj(res["entry"])["id"]) ?? "" };
   },
-  async remove(ctx, m, remoteId): Promise<void> {
-    await ctx.call("dropbox.files.delete", { ...connection(m), path: remoteId });
+  async remove(ctx, m, remoteId, _isFolder, key): Promise<void> {
+    await ctx.call("dropbox.files.delete", { ...connection(m), path: remoteId, idempotencyKey: key });
   },
   /** `parent` is a folder id or path; none lists the top of the account, after a first row that mounts the whole account. */
   async browse(ctx, input) {

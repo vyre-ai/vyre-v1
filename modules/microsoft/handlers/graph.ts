@@ -767,6 +767,53 @@ export async function driveShare(
   return out;
 }
 
+/**
+ * Rename an item or move it in place: the same item, so its id, links and sharing stay. `ifMatch` (the eTag the change was based on) is checked by reading the item first, because the
+ * metadata call has no If-Match here: an item that moved on is left alone (`stale`). That check is a read then a write, so it is not atomic; the eTag of the content upload is.
+ */
+export async function driveUpdate(
+  ctx: MsCtx,
+  a: Act & { driveId?: string; itemId: string; name?: string; parentId?: string; ifMatch?: string },
+) {
+  if (a.name !== undefined && (!a.name || /[\\/:*?"<>|]/.test(a.name)))
+    bad(ctx, "The name has characters OneDrive does not allow.");
+  const sub = await who(ctx, a, "ms.drive.update_item");
+  const url = `${driveBase(sub, a.driveId)}/items/${enc(a.itemId)}`;
+  if (a.ifMatch !== undefined) {
+    const now = mapItem(await call(ctx, a, "ms.drive.update_item", { url }));
+    if (now.eTag !== a.ifMatch) return { item: now, stale: true };
+  }
+  const body: Record<string, unknown> = {};
+  if (a.name !== undefined) body.name = a.name;
+  if (a.parentId !== undefined) body.parentReference = { id: a.parentId };
+  return {
+    item: mapItem(await call(ctx, a, "ms.drive.update_item", { method: "PATCH", url, body })),
+  };
+}
+
+/** Bring an item back from the recycle bin. Graph offers this for OneDrive personal only; anywhere else the call says so in one sentence. */
+export async function driveRestore(ctx: MsCtx, a: Act & { driveId?: string; itemId: string }) {
+  const sub = await who(ctx, a, "ms.drive.restore_item");
+  try {
+    return {
+      item: mapItem(
+        await call(ctx, a, "ms.drive.restore_item", {
+          method: "POST",
+          url: `${driveBase(sub, a.driveId)}/items/${enc(a.itemId)}/restore`,
+          body: {},
+        }),
+      ),
+    };
+  } catch (e) {
+    const c = codeOf(e);
+    if (c === "provider.bad_response" || c === "validation.not_found")
+      throw fail("validation.unsupported", ctx.trace.traceId, {
+        message: "OneDrive does not let Vyre bring this back from its recycle bin. Restore it there.",
+      });
+    throw e;
+  }
+}
+
 export async function driveDelete(ctx: MsCtx, a: Act & { driveId?: string; itemId: string }) {
   const sub = await who(ctx, a, "ms.drive.delete_item");
   await call(ctx, a, "ms.drive.delete_item", {

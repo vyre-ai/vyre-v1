@@ -23,6 +23,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mounts.open": Handler<"mounts.open", X>;
   "mounts.pause": Handler<"mounts.pause", X>;
   "mounts.remove": Handler<"mounts.remove", X>;
+  "mounts.resolve": Handler<"mounts.resolve", X>;
   "mounts.restore": Handler<"mounts.restore", X>;
   "mounts.resume": Handler<"mounts.resume", X>;
   "mounts.sheet_append": Handler<"mounts.sheet_append", X>;

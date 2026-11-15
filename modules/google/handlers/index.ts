@@ -36,6 +36,7 @@ export {
   driveStartToken,
   driveStopWatch,
   driveTrash,
+  driveUpdate,
   driveUpload,
   driveWatch,
   accessLog,

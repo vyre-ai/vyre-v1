@@ -51,6 +51,12 @@ const mountRow = t.obj({
   lastSyncAt: t.opt(t.ts()),
   pendingChanges: t.int({ minimum: 0 }),
   conflicts: t.int({ minimum: 0 }),
+  /** Vyre does not send changes to the provider for this mount (a choice, or a mount made before write-back) */
+  readOnly: t.bool(),
+  /** a mount made before write-back existed: it stays read only until its owner turns two-way on */
+  twoWayOffer: t.opt(t.bool()),
+  /** a listing larger than one sync is still being read: how many items were seen so far */
+  scanned: t.opt(t.int({ minimum: 0 })),
   fromDevice: t.opt(t.str({ examples: ["Irfad's MacBook"] })),
   error: t.opt(t.str()),
   // items the last pass could not bring in (a name Files cannot hold, a refused file): the mount is not failing for them; the list says why for each
@@ -74,6 +80,12 @@ const fileSource = t.obj({
   revisionId: t.opt(t.str()),
   modifiedAt: t.opt(t.ts()),
   lastEditedBy: t.opt(person),
+  /** the signed-in person may not change this file at the provider: the viewer shows it as view only before they type */
+  viewOnly: t.opt(t.bool()),
+  /** a change made in Vyre has not reached the provider yet, with the reason in words a person can read */
+  notSent: t.opt(t.obj({ reason: t.str() })),
+  /** the file changed at the provider after the edit's base: who changed it there and when, when the provider says */
+  changedThere: t.opt(t.obj({ by: t.opt(person), at: t.opt(t.ts()) })),
 });
 
 const revision = t.obj({
@@ -142,9 +154,9 @@ export default defineManifest({
     }),
     ev(
       "mount.conflict",
-      "A file changed at the provider while an edit in Vyre waited to go out; the edit was kept beside it as a copy",
+      "A file changed at the provider while an edit in Vyre waited to go out; nothing was overwritten, and the edit waits in Vyre for the person to keep both or use theirs",
       {
-        p: { mountId: id.mount, folderId: id.folder, fileId: id.file, name: t.str(), keptAs: t.str() },
+        p: { mountId: id.mount, folderId: id.folder, fileId: id.file, name: t.str(), keptAs: t.opt(t.str()) },
         subject: ["folder", "/folderId"],
         notify: "sync.attention",
       },
@@ -210,12 +222,19 @@ export default defineManifest({
       "mounts.add",
       "Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
       {
-        in: { into: id.folder, source, name: t.opt(t.str()), mode: t.opt(mode), reviewChanges: t.opt(t.bool()) },
+        in: {
+          into: id.folder,
+          source,
+          name: t.opt(t.str()),
+          mode: t.opt(mode),
+          reviewChanges: t.opt(t.bool()),
+          readOnly: t.opt(t.bool({ description: "Never send changes to the provider; the default is two-way" })),
+        },
         out: { mountId: id.mount, folderId: id.folder, ...runStarted },
         make: ["folder", "/into"],
         perm: "files.write",
         run: { kind: "mount_sync", stoppable: true },
-        emits: ["folder.mounted", "mount.synced", "mount.failed"],
+        emits: ["folder.mounted", "mount.synced", "mount.failed", "mount.conflict", "mount.file_sent"],
         audit: "always",
         tool: "files",
         cli: "vyre mounts add",
@@ -236,6 +255,22 @@ export default defineManifest({
       emits: ["mount.updated"],
       tool: "files",
     }),
+    write(
+      "mounts.resolve",
+      "Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs",
+      {
+        in: { fileId: id.file, choice: t.enm("keep_both", "use_theirs") },
+        out: { resolved: t.bool(), copyName: t.opt(t.str()) },
+        on: ["file", "/fileId"],
+        perm: "files.write",
+        level: "edit",
+        audit: "always",
+        emits: ["file.version_added", "mount.synced", "mount.failed", "mount.file_sent"],
+        tool: "files",
+        offline: "online",
+        errors: ["provider.auth_failed", "provider.unavailable", "validation.precondition_failed"],
+      },
+    ),
     write("mounts.remove", "Remove a mount; keep the files as a plain folder or delete the copy", {
       in: { mountId: id.mount, keepCopy: t.opt(t.bool()) },
       out: { removed: t.bool() },
@@ -253,7 +288,14 @@ export default defineManifest({
       perm: null,
       run: { kind: "mount_sync", stoppable: true },
       idem: "key",
-      emits: ["mount.synced", "mount.failed", "file.version_added", "file.conflict_kept"],
+      emits: [
+        "mount.synced",
+        "mount.failed",
+        "mount.conflict",
+        "mount.file_sent",
+        "file.version_added",
+        "file.conflict_kept",
+      ],
       tool: "files",
       offline: "online",
       cli: "vyre mounts sync",
@@ -264,7 +306,7 @@ export default defineManifest({
       {
         in: {},
         out: { mounted: t.arr(id.mount) },
-        emits: ["folder.mounted", "mount.failed"],
+        emits: ["folder.mounted", "mount.synced", "mount.failed", "mount.conflict", "mount.file_sent"],
       },
     ),
     write(
@@ -497,7 +539,7 @@ export default defineManifest({
         out: { mounts: t.int({ minimum: 0 }), passes: t.int({ minimum: 0 }) },
         perm: null,
         level: "use",
-        emits: ["mount.synced", "mount.failed"],
+        emits: ["mount.synced", "mount.failed", "mount.conflict", "mount.file_sent"],
         tool: "files",
         offline: "online",
       },

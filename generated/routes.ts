@@ -17090,6 +17090,25 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/drive/update_file",
+    "cap": "google.drive.update_file",
+    "v": 1,
+    "module": "google",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/drive/upload_file",
     "cap": "google.drive.upload_file",
     "v": 1,
@@ -22130,7 +22149,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mailgun/routes/delete",
@@ -22148,10 +22170,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mailgun/routes/list",
@@ -25170,6 +25189,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mounts/resolve",
+    "cap": "mounts.resolve",
+    "v": 1,
+    "module": "mounts",
+    "effects": "write",
+    "permission": "files.write",
+    "level": "edit",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/mounts/restore",
     "cap": "mounts.restore",
     "v": 1,
@@ -26004,6 +26042,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/ms/drive/restore_item",
+    "cap": "ms.drive.restore_item",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
+  },
+  {
+    "method": "POST",
     "path": "/v1/ms/drive/share_item",
     "cap": "ms.drive.share_item",
     "v": 1,
@@ -26058,6 +26115,25 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/drive/update_item",
+    "cap": "ms.drive.update_item",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "post"
   },
   {
     "method": "POST",
@@ -27555,7 +27631,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/notifications/counts",
@@ -27628,10 +27707,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/notifications/digest/collect",
@@ -33083,7 +33159,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sheets/read_rows",
@@ -33159,10 +33238,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/addon_remove",
@@ -38281,7 +38357,7 @@ const routes6: Route[] = [
       "type": "terminal",
       "id": "/terminalId"
     },
-    "idempotency": "none",
+    "idempotency": "key",
     "risk": "medium",
     "offline": "online",
     "teamOnly": false,
@@ -38600,7 +38676,10 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/threads/agent_settings/set",
@@ -38676,10 +38755,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/threads/erase",

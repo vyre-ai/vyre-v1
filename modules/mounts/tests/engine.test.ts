@@ -339,7 +339,11 @@ test("what changes in Vyre goes out: new folders first, then files, then deletes
   assert.deepEqual([lastSynced(w)["pushed"], lastSynced(w)["pulled"]], [5, 0]);
   const done = await view(w, mountId);
   assert.deepEqual([done["pendingChanges"], done["lagSeconds"], done["state"]], [0, 0, "idle"]);
-  assert.ok(!w.items(mountId).some((r) => r["name"] === "Budget"), "the deleted item is forgotten once Drive has it");
+  const tomb = w.items(mountId).find((r) => r["name"] === "Budget");
+  assert.ok(
+    tomb !== undefined && tomb["deleted"] === 1 && tomb["trashed_at"] !== null && tomb["dirty"] === 0,
+    "the deleted item stays as a tombstone once Drive has it in its Trash, so a restore from Vyre's Trash can take it back out",
+  );
   assert.equal(itemFor(w, mountId, "d.txt")["remote_id"], "up3", "Drive's id replaces the placeholder");
   assert.equal(itemFor(w, mountId, "d.txt")["parent_key"], itemFor(w, mountId, "Drafts")["item_key"]);
 

@@ -19,7 +19,7 @@ Sync a mount now (a Run); the provider change feed and the folder both move
 | HTTP | POST /v1/mounts/sync_now |
 | MCP tool | mounts_sync_now (files) |
 | CLI | vyre mounts sync |
-| Emits | mount.synced, mount.failed, file.version_added, file.conflict_kept |
+| Emits | mount.synced, mount.failed, mount.conflict, mount.file_sent, file.version_added, file.conflict_kept |
 
 ## Input
 

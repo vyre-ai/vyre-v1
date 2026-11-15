@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (72)
+## Capabilities (74)
 
 - [ms.access_log](../capabilities/ms.access_log.md): Who reached whose Microsoft data: who made the call, the person an agent worked for, which mailbox, which capability, when
 - [ms.calendar.create_event](../capabilities/ms.calendar.create_event.md): Create an event; Exchange invites the attendees
@@ -44,9 +44,11 @@ Requires: mail.
 - [ms.drive.get_item](../capabilities/ms.drive.get_item.md): Read item metadata
 - [ms.drive.list_items](../capabilities/ms.drive.list_items.md): List items in a OneDrive or SharePoint folder
 - [ms.drive.list_versions](../capabilities/ms.drive.list_versions.md): The versions OneDrive or SharePoint keeps of an item, with who saved each
+- [ms.drive.restore_item](../capabilities/ms.drive.restore_item.md): Bring an item back from the recycle bin (OneDrive personal only; others answer that it cannot be done here)
 - [ms.drive.share_item](../capabilities/ms.drive.share_item.md): Create a sharing link or invite people; Microsoft emails them
 - [ms.drive.subscribe](../capabilities/ms.drive.subscribe.md): Subscribe to change notifications for a drive
 - [ms.drive.unsubscribe](../capabilities/ms.drive.unsubscribe.md): Remove a drive change subscription
+- [ms.drive.update_item](../capabilities/ms.drive.update_item.md): Rename an item or move it to another folder; the item keeps its id, links and sharing. With ifMatch only if the item still has that eTag
 - [ms.drive.upload_item](../capabilities/ms.drive.upload_item.md): Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag
 - [ms.health](../capabilities/ms.health.md): Health probe: GET /organization
 - [ms.mail.create_draft](../capabilities/ms.mail.create_draft.md): Create a draft in the member mailbox

@@ -1,0 +1,3 @@
+- Edits, renames, moves and deletes you make in a connected Google Drive or OneDrive folder now reach it. An edit becomes a new revision of the same file, a rename or move changes the same item (its links and sharing stay), and a delete puts it in the provider's own Trash. Before, nothing you changed in Vyre ever reached Drive or OneDrive.
+- When a connected file changed there while you were editing it, nothing is overwritten: your edit stays in Vyre and you choose Keep both or Use theirs, with a line saying who changed it there.
+- Folders you connected before this update stay read only and show one line offering to turn two-way on; new folders are two-way unless you choose Read only.

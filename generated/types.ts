@@ -18817,6 +18817,8 @@ export type GoogleDriveCopyFileOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
 };
 export type GoogleDriveCreateFolderIn = {
@@ -18841,6 +18843,8 @@ export type GoogleDriveCreateFolderOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
 };
 export type GoogleDriveDownloadFileIn = {
@@ -18894,6 +18898,8 @@ export type GoogleDriveGetFileOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
 };
 export type GoogleDriveGetPermissionsIn = {
@@ -18933,6 +18939,8 @@ export type GoogleDriveListChangesOut = {
           name?: string;
           email?: string;
         };
+        trashed?: boolean;
+        canEdit?: boolean;
       };
     }>;
   newStartPageToken?: string;
@@ -18962,6 +18970,8 @@ export type GoogleDriveListFilesOut = {
         name?: string;
         email?: string;
       };
+      trashed?: boolean;
+      canEdit?: boolean;
     }>;
   nextPageToken?: string;
 };
@@ -19012,6 +19022,35 @@ export type GoogleDriveTrashFileIn = {
 export type GoogleDriveTrashFileOut = {
   trashed: boolean;
 };
+export type GoogleDriveUpdateFileIn = {
+  connectionId: string;
+  as?: string;
+  fileId: string;
+  name?: string;
+  addParentId?: string;
+  removeParentId?: string;
+  trashed?: boolean;
+  idempotencyKey: string;
+};
+export type GoogleDriveUpdateFileOut = {
+  file: {
+    id: string;
+    name: string;
+    mimeType: string;
+    parents?: Array<string>;
+    modifiedTime?: string;
+    size?: number;
+    webViewLink?: string;
+    driveId?: string;
+    headRevisionId?: string;
+    lastModifyingUser?: {
+      name?: string;
+      email?: string;
+    };
+    trashed?: boolean;
+    canEdit?: boolean;
+  };
+};
 export type GoogleDriveUploadFileIn = {
   connectionId: string;
   as?: string;
@@ -19037,6 +19076,8 @@ export type GoogleDriveUploadFileOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
   stale?: boolean;
 };
@@ -27392,6 +27433,7 @@ export type MountsAddIn = {
   name?: string;
   mode?: "server_copy" | "live_only";
   reviewChanges?: boolean;
+  readOnly?: boolean;
   idempotencyKey: string;
 };
 export type MountsAddOut = {
@@ -27498,6 +27540,9 @@ export type MountsGetOut = {
     lastSyncAt?: number;
     pendingChanges: number;
     conflicts: number;
+    readOnly: boolean;
+    twoWayOffer?: boolean;
+    scanned?: number;
     fromDevice?: string;
     error?: string;
     skippedCount?: number;
@@ -27553,6 +27598,9 @@ export type MountsListOut = {
       lastSyncAt?: number;
       pendingChanges: number;
       conflicts: number;
+      readOnly: boolean;
+      twoWayOffer?: boolean;
+      scanned?: number;
       fromDevice?: string;
       error?: string;
       skippedCount?: number;
@@ -27613,6 +27661,17 @@ export type MountsOpenOut = {
       name?: string;
       email?: string;
     };
+    viewOnly?: boolean;
+    notSent?: {
+      reason: string;
+    };
+    changedThere?: {
+      by?: {
+        name?: string;
+        email?: string;
+      };
+      at?: number;
+    };
   };
 };
 export type MountsPauseIn = {
@@ -27627,6 +27686,14 @@ export type MountsRemoveIn = {
 };
 export type MountsRemoveOut = {
   removed: boolean;
+};
+export type MountsResolveIn = {
+  fileId: string;
+  choice: "keep_both" | "use_theirs";
+};
+export type MountsResolveOut = {
+  resolved: boolean;
+  copyName?: string;
 };
 export type MountsRestoreIn = {
   fileId: string;
@@ -27698,6 +27765,9 @@ export type MountsUpdateOut = {
     lastSyncAt?: number;
     pendingChanges: number;
     conflicts: number;
+    readOnly: boolean;
+    twoWayOffer?: boolean;
+    scanned?: number;
     fromDevice?: string;
     error?: string;
     skippedCount?: number;
@@ -28288,6 +28358,29 @@ export type MsDriveListVersionsOut = {
       };
     }>;
 };
+export type MsDriveRestoreItemIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  idempotencyKey: string;
+};
+export type MsDriveRestoreItemOut = {
+  item: {
+    id: string;
+    name: string;
+    size?: number;
+    lastModifiedDateTime?: string;
+    folder?: boolean;
+    webUrl?: string;
+    parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
+  };
+};
 export type MsDriveShareItemIn = {
   connectionId: string;
   as?: string;
@@ -28320,6 +28413,33 @@ export type MsDriveUnsubscribeIn = {
 };
 export type MsDriveUnsubscribeOut = {
   removed: boolean;
+};
+export type MsDriveUpdateItemIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  name?: string;
+  parentId?: string;
+  ifMatch?: string;
+  idempotencyKey: string;
+};
+export type MsDriveUpdateItemOut = {
+  item?: {
+    id: string;
+    name: string;
+    size?: number;
+    lastModifiedDateTime?: string;
+    folder?: boolean;
+    webUrl?: string;
+    parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
+  };
+  stale?: boolean;
 };
 export type MsDriveUploadItemIn = {
   connectionId: string;
@@ -42733,7 +42853,10 @@ export type TerminalKeysIn = {
       key?: string;
       paste?: string;
     }>;
+  lease: string;
+  seq: number;
   capture?: boolean;
+  idempotencyKey: string;
 };
 export type TerminalKeysOut = {
   ok: boolean;
@@ -43011,6 +43134,8 @@ export type TerminalTakeOverOut = {
     ownerId?: string;
     threadId?: string;
   };
+  lease?: string;
+  nextSeq?: number;
 };
 export type TerminalWorkspaceIn = {
   agentId: string;
@@ -47047,6 +47172,7 @@ export interface CapMap {
   "google.drive.share_file": { in: GoogleDriveShareFileIn; out: GoogleDriveShareFileOut };
   "google.drive.stop_watch": { in: GoogleDriveStopWatchIn; out: GoogleDriveStopWatchOut };
   "google.drive.trash_file": { in: GoogleDriveTrashFileIn; out: GoogleDriveTrashFileOut };
+  "google.drive.update_file": { in: GoogleDriveUpdateFileIn; out: GoogleDriveUpdateFileOut };
   "google.drive.upload_file": { in: GoogleDriveUploadFileIn; out: GoogleDriveUploadFileOut };
   "google.drive.watch_changes": { in: GoogleDriveWatchChangesIn; out: GoogleDriveWatchChangesOut };
   "google.dwd.check_key": { in: GoogleDwdCheckKeyIn; out: GoogleDwdCheckKeyOut };
@@ -47491,6 +47617,7 @@ export interface CapMap {
   "mounts.open": { in: MountsOpenIn; out: MountsOpenOut };
   "mounts.pause": { in: MountsPauseIn; out: MountsPauseOut };
   "mounts.remove": { in: MountsRemoveIn; out: MountsRemoveOut };
+  "mounts.resolve": { in: MountsResolveIn; out: MountsResolveOut };
   "mounts.restore": { in: MountsRestoreIn; out: MountsRestoreOut };
   "mounts.resume": { in: MountsResumeIn; out: MountsResumeOut };
   "mounts.sheet_append": { in: MountsSheetAppendIn; out: MountsSheetAppendOut };
@@ -47536,9 +47663,11 @@ export interface CapMap {
   "ms.drive.get_item": { in: MsDriveGetItemIn; out: MsDriveGetItemOut };
   "ms.drive.list_items": { in: MsDriveListItemsIn; out: MsDriveListItemsOut };
   "ms.drive.list_versions": { in: MsDriveListVersionsIn; out: MsDriveListVersionsOut };
+  "ms.drive.restore_item": { in: MsDriveRestoreItemIn; out: MsDriveRestoreItemOut };
   "ms.drive.share_item": { in: MsDriveShareItemIn; out: MsDriveShareItemOut };
   "ms.drive.subscribe": { in: MsDriveSubscribeIn; out: MsDriveSubscribeOut };
   "ms.drive.unsubscribe": { in: MsDriveUnsubscribeIn; out: MsDriveUnsubscribeOut };
+  "ms.drive.update_item": { in: MsDriveUpdateItemIn; out: MsDriveUpdateItemOut };
   "ms.drive.upload_item": { in: MsDriveUploadItemIn; out: MsDriveUploadItemOut };
   "ms.health": { in: MsHealthIn; out: MsHealthOut };
   "ms.mail.create_draft": { in: MsMailCreateDraftIn; out: MsMailCreateDraftOut };
@@ -50669,7 +50798,7 @@ export type MountConflictPayload = {
   folderId: string;
   fileId: string;
   name: string;
-  keptAs: string;
+  keptAs?: string;
 };
 export type MountFailedPayload = {
   mountId: string;
@@ -52271,6 +52400,9 @@ export type TerminalCommandFinishedPayload = {
 export type TerminalGivenBackPayload = {
   terminalId: string;
   by: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 export type TerminalOpenedPayload = {
   terminalId: string;
@@ -52289,6 +52421,9 @@ export type TerminalTakenPayload = {
   terminalId: string;
   by: string;
   from?: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 export type ThreadArchivedPayload = {
   person: string;

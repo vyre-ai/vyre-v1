@@ -141,9 +141,10 @@ function queueDelete(tx: ProjTx, row: Row, at: number): void {
     return;
   }
   tx.run(
-    "UPDATE mounts_item SET deleted = ?, dirty = ? WHERE mount_id = ? AND item_key = ?",
+    "UPDATE mounts_item SET deleted = ?, dirty = ?, op_seq = ? WHERE mount_id = ? AND item_key = ?",
     1,
     1,
+    (typeof row["op_seq"] === "number" ? row["op_seq"] : 0) + 1,
     mountId,
     row["item_key"],
   );

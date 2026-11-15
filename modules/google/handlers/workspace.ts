@@ -1139,7 +1139,7 @@ export async function calendarStopWatch(ctx: GoogleCtx, a: Act & { channelId: st
 // ---- Drive
 
 const FILE_FIELDS =
-  "id,name,mimeType,parents,modifiedTime,size,webViewLink,driveId,headRevisionId,lastModifyingUser(displayName,emailAddress)";
+  "id,name,mimeType,parents,modifiedTime,size,webViewLink,driveId,headRevisionId,trashed,capabilities(canEdit),lastModifyingUser(displayName,emailAddress)";
 const mapFile = (f: Record<string, unknown>) => {
   const out: Record<string, unknown> = {
     id: text(f.id) ?? "",
@@ -1152,6 +1152,8 @@ const mapFile = (f: Record<string, unknown>) => {
   const size = int(f.size);
   if (size !== undefined) out.size = size;
   if (text(f.headRevisionId) !== undefined) out.headRevisionId = text(f.headRevisionId);
+  if (f.trashed === true) out.trashed = true;
+  if (typeof obj(f.capabilities).canEdit === "boolean") out.canEdit = obj(f.capabilities).canEdit;
   const who = mapUser(obj(f.lastModifyingUser));
   if (who) out.lastModifyingUser = who;
   return out;
@@ -1369,6 +1371,28 @@ export async function driveTrash(ctx: GoogleCtx, a: Act & { fileId: string }) {
     body: { trashed: true },
   });
   return { trashed: true };
+}
+
+/** Rename, move or untrash a file in place: the same Drive file, so its id, links and sharing stay. A move names the folder it leaves and the one it enters. */
+export async function driveUpdate(
+  ctx: GoogleCtx,
+  a: Act & { fileId: string; name?: string; addParentId?: string; removeParentId?: string; trashed?: boolean },
+) {
+  const body: Record<string, unknown> = {};
+  if (a.name !== undefined) body.name = a.name;
+  if (a.trashed !== undefined) body.trashed = a.trashed;
+  const r = await g(ctx, a, "google.drive.update_file", "drive", {
+    method: "PATCH",
+    url: `${DRIVE}/files/${enc(a.fileId)}`,
+    query: {
+      fields: FILE_FIELDS,
+      ...shared,
+      ...(a.addParentId ? { addParents: a.addParentId } : {}),
+      ...(a.removeParentId ? { removeParents: a.removeParentId } : {}),
+    },
+    body,
+  });
+  return { file: mapFile(r) };
 }
 
 export async function driveChanges(ctx: GoogleCtx, a: Act & { pageToken: string; driveId?: string }) {
