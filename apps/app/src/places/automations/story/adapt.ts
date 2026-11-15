@@ -62,10 +62,18 @@ function refChip(source: string, path: string, ctx: AdaptCtx): Value {
       label: field === "" ? from : `${from} \u00b7 ${human(field)}`,
       from,
       sample: ctx.sample?.[`${node}.${field}`] ?? ctx.sample?.[`${source}.${path}`] ?? "",
-      ...(ctx.iconOf?.(node) ? { icon: ctx.iconOf(node) } : {}),
+      ...((): { icon?: string } => {
+        const ic = ctx.iconOf?.(node);
+        return ic ? { icon: ic } : {};
+      })(),
     },
   };
 }
+
+const valueText = (x: string | number, ctx: AdaptCtx): string => {
+  const v = valueOf(x, ctx);
+  return v ? ("text" in v ? v.text : v.chip.label) : String(x);
+};
 
 /** A stored value as the page shows it: a lone reference is a chip, a text with references keeps its words. */
 function valueOf(v: unknown, ctx: AdaptCtx): Value | undefined {
@@ -103,6 +111,11 @@ function valueOf(v: unknown, ctx: AdaptCtx): Value | undefined {
     if (typeof who.id === "string" && Object.keys(v as object).every((k) => k === "id" || k === "kind"))
       return { text: ctx.nameOfId?.(who.id) ?? "Chosen" };
     if (o.kind === "resource" && typeof o.label === "string") return { text: o.label };
+    // a set of fields to write ({ name: "Tidy Co" }): "Name to Tidy Co"
+    const pairs = Object.entries(v as Record<string, unknown>).flatMap(([k, x]) =>
+      typeof x === "string" || typeof x === "number" ? [`${human(k)} to ${valueText(x, ctx)}`] : [],
+    );
+    if (pairs.length > 0) return { text: pairs.join(", ") };
   }
   return undefined;
 }
@@ -247,7 +260,7 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
     const cfg = Object.entries(t.config ?? {}).find(([, v]) => typeof v === "string" && v !== "");
     trigger = {
       id: "trigger",
-      app: { id: "vyre:trigger", name: title },
+      app: { id: `vyre:trig-${t.key}`, name: title },
       template: cfg ? `${title}: {${cfg[0]}}` : title,
       values: cfg ? { [cfg[0]]: { text: String(cfg[1]) } } : {},
       hand: t.key === "manual" || t.key === "button",
@@ -310,7 +323,8 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
       action: n.title?.trim()
         ? detailOf(n, title, known?.title, ctx)
         : stepSentence(n.key)
-          ? (known?.title ?? human(n.key)).replace(/^[^:·]{1,40}\s*[:·]\s+/, "")
+          ? // the sentence already says what was chosen: the kind's name is never said again under it
+            ""
           : Object.keys(s.values).length > 0
             ? (known?.title ?? human(n.key))
             : "",

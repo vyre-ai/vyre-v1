@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { listView } from "../list/model.ts";
 import type { ListRowIn } from "../list/model.ts";
 
@@ -15,6 +16,7 @@ export function ListView({
   onNew,
   query,
   selectedId,
+  onMenu,
 }: {
   rows: readonly ListRowIn[];
   onOpen(id: string): void;
@@ -23,6 +25,8 @@ export function ListView({
   /** The shell sidebar supplies the one search and its own head: then this draws only the rows. */
   query?: string;
   selectedId?: string | null;
+  /** The row's own menu: right-click, the keyboard's menu key, a long press on a phone. */
+  onMenu?(id: string, x: number, y: number): void;
 }): ReactElement {
   const [own, setOwn] = useState("");
   const q = query ?? own;
@@ -54,17 +58,21 @@ export function ListView({
         </>
       )}
       {v.rows.map((r) => (
-        <Row
-          key={r.id}
-          id={`al-${r.id}`}
-          {...(selectedId === r.id ? { selected: true } : {})}
-          title={r.name}
-          leading={<View style={[s.dot, { backgroundColor: DOT[r.dot] as string }]} />}
-          domProps={{ style: { minHeight: 34 } }}
-          {...(r.scope ? { trailing: <Text style={s.quiet}>{r.scope}</Text> } : {})}
-          onPress={() => onOpen(r.id)}
-        />
+        // ui-rows-lint: not a list (each item is a ui/Row; the View only carries the row's menu trigger)
+        <View key={r.id} {...(onMenu ? menuTrigger((x, y) => onMenu(r.id, x, y)) : {})}>
+          <Row
+            id={`auto-${r.id}`}
+            {...(selectedId === r.id ? { selected: true } : {})}
+            title={r.name}
+            leading={<View style={[s.dot, { backgroundColor: DOT[r.dot] as string }]} />}
+            domProps={{ style: { minHeight: 34 } }}
+            {...(r.scope ? { trailing: <Text style={s.quiet}>{r.scope}</Text> } : {})}
+            onPress={() => onOpen(r.id)}
+          />
+        </View>
       ))}
+      {/* the empty line sits under the list's own heading, never beside the page's Needs you block */}
+      {v.empty && query !== undefined ? <Text style={s.title}>Automations</Text> : null}
       {v.empty ? <Text style={s.quiet}>{v.empty}</Text> : null}
     </View>
   );

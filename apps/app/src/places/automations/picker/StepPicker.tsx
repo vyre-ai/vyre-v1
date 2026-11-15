@@ -125,6 +125,8 @@ export function StepPicker(p: StepPickerProps): ReactElement {
     }
   };
 
+  const layerKey = onKeyDown;
+
   const showSub = sub !== null && (!phone || nav.col === "sub");
   const showMain = !(phone && sub !== null && nav.col === "sub");
 
@@ -156,6 +158,12 @@ export function StepPicker(p: StepPickerProps): ReactElement {
                 // a real browser's text box keeps Enter for itself: it never reaches the layer's key handler, so Enter in the search adds the lit row here
                 blurOnSubmit={false}
                 onSubmitEditing={() => send({ key: "Enter" })}
+                // the same: arrows and Escape typed in the search box never reach the layer's key handler in a real browser, so the box passes them on itself
+                onKeyPress={(e: { nativeEvent?: { key?: string }; preventDefault?: () => void }) => {
+                  const key = e.nativeEvent?.key ?? "";
+                  if (["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Escape"].includes(key))
+                    layerKey({ key, preventDefault: () => e.preventDefault?.() });
+                }}
                 style={styles.search}
               />
             </View>

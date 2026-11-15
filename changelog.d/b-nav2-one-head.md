@@ -1,1 +1,0 @@
-Every place's list now has the same head: the title, the place's own buttons and Hide sit on one line in the same place for Chats, Files, Records, Automations, Inbox, Vault, Settings and the Console (the Vault had lost its Hide button, and its head sat a few pixels off).

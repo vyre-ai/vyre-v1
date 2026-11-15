@@ -56,6 +56,8 @@ export interface WorkspaceData {
   ensure?(agentId: string): Promise<string>;
   /** Open one terminal full screen. */
   open?(terminalId: string): void;
+  /** Read the workspace again now, instead of at the next poll: something a person saw (a terminal drawing) says its state may have changed. */
+  refresh?(agentId: string): void;
 }
 
 // ---- Browser: the agent's profile in the Space browser

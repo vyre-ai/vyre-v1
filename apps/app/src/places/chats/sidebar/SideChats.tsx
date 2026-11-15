@@ -1,6 +1,5 @@
 // The Chats sidebar of the 13 Nov design, drawn from ONE read (chats.sidebar) and the small presence read. It owns what a person does here (open, pin, mute, mark, archive, the "+" and filter menus, folds, keys) and hands drawing to
 // SidebarList. Pins and mutes are the server's answer; folds are kept on this device through the one port (side-state.ts), so the per-person state module replaces that line and nothing else.
-import { openIn, takeOpenHow } from "../../../shell/tabs/open-how.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -325,39 +324,7 @@ export function SideChats({
   const guard = (p: Promise<unknown>): void => void p.then(reread, () => say("That did not work. Try again."));
   const refOf = (x: Item): SideRow | undefined => built?.refs.get(x.key);
 
-  const openItem = (x: Item, how0: "here" | "tab"): void => {
-    // a Cmd-press or a middle press on the row asks for a new tab, as the menu's "Open in a new tab" does (tabs/open-rule.ts: one rule for every row)
-    const asked = takeOpenHow();
-    const mode: "here" | "tab" | "behind" = asked !== "here" ? asked : how0;
-    const how: "here" | "tab" = mode === "here" ? "here" : "tab";
-    if (mode !== "here") {
-      const rr = x.key.startsWith("i:") ? undefined : refOf(x);
-      const subject: { type: string; id: string } | null =
-        x.kind === "task"
-          ? { type: "task", id: x.key.slice(2) }
-          : rr === undefined
-            ? null
-            : rr.kind === "goal"
-              ? { type: "goal", id: x.key.slice(2) }
-              : rr.kind === "project"
-                ? { type: "project", id: x.key.slice(3) }
-                : rr.threadId
-                  ? { type: "thread", id: rr.threadId }
-                  : rr.kind === "channel"
-                    ? { type: "channel", id: x.key.slice(3) }
-                    : null;
-      if (rr?.kind === "agent" && subject === null && data.nav.openAgentChatIn) {
-        data.nav.openAgentChatIn(rr.agentId!, mode);
-        leave();
-        return;
-      }
-      if (subject !== null && data.nav.openSubject) {
-        const open = data.nav.openSubject;
-        openIn(mode, () => open(subject));
-        leave();
-        return;
-      }
-    }
+  const openItem = (x: Item, how: "here" | "tab"): void => {
     if (x.key.startsWith("i:")) {
       const s = imported.find((i) => `i:${i.conversationId}` === x.key);
       if (s?.continuedThreadId) data.nav.openChat(s.continuedThreadId);

@@ -57,9 +57,9 @@ for (const look of LOOKS) {
       await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
       await page.waitForTimeout(2500);
       await shot("a-first-page");
-      // phones: Automations is a computer place (the shell says so); nothing more to walk there
+      // phones: the place opens on its list (the shell no longer sends a phone to "open on a computer"); the builder itself is walked on the computer sizes
       if (look.tag === "p") {
-        assert.match(await page.locator("body").innerText(), /Automations open on a computer/);
+        assert.match(await page.locator("body").innerText(), /No automations yet\.|Automations/);
         return;
       }
       const made = await api("automations.create", { name: "Welcome new leads" });

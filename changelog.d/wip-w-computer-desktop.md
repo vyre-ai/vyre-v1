@@ -1,0 +1,1 @@
+An agent that still has an older desktop is no longer offered "Open its desktop", which only reopened the page you were on. The one row left removes the older desktop in Console, for the people who may.

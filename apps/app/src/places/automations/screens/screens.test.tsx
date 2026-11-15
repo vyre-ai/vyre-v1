@@ -206,7 +206,7 @@ test("the left list: a dot, the name, a quiet scope word, search, the count on t
   );
   const t = textOf(root);
   assert.ok(t.includes("Automations") && t.includes("Daily brief") && t.includes("Space") && t.includes("1"));
-  await press(find(root, "row-al-2"));
+  await press(find(root, "row-auto-2"));
   await press(find(root, "al-home"));
   assert.deepEqual(calls, ["2", "home"]);
 });

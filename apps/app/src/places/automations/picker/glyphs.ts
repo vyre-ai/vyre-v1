@@ -1,6 +1,7 @@
 // The glyph each of Vyre's own picker groups wears, drawn from the Automations icon set. An app is never listed here: an app wears its logo (ui/AppLogo).
 import { SHELL_ICONS } from "../../../shell/rail/icons.tsx";
 import { PATHS } from "../canvas/icons.tsx";
+import { iconForTrigger } from "../catalog/model.ts";
 import type { Mark } from "./model.ts";
 
 const OF: Readonly<Record<string, readonly string[]>> = {
@@ -26,6 +27,9 @@ const OF: Readonly<Record<string, readonly string[]>> = {
 
 /** The paths to hand to AppLogo for a mark, or undefined for an app. */
 export function glyphOf(mark: Mark): readonly string[] | undefined {
+  // a trigger wears its own icon, the one the picker shows for it (a clock for a schedule, a hook for a web request)
+  if (mark.app.startsWith("vyre:trig-"))
+    return (PATHS as Record<string, readonly string[]>)[iconForTrigger(mark.app.slice(10))] ?? PATHS.more;
   return mark.app.startsWith("vyre:") ? (OF[mark.app.slice(5)] ?? PATHS.more) : undefined;
 }
 
@@ -52,5 +56,6 @@ const TINT: Readonly<Record<string, string>> = {
 
 /** The fill of a Vyre group's tile. */
 export function tintOf(mark: Mark): string | undefined {
+  if (mark.app.startsWith("vyre:trig-")) return "#7c5cdb";
   return mark.app.startsWith("vyre:") ? (TINT[mark.app.slice(5)] ?? "#6b7280") : undefined;
 }

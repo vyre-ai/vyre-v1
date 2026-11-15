@@ -1,6 +1,6 @@
 // The live view of an agent's profile in the Space browser (computers.browser.stream). Watching is MJPEG in an image. After a take-over the view reopens on the WebSocket the same call hands out, which carries
 // the frames down and the person's clicks, wheel and keys up (the ticket opens once, so the two never share one). Wire format: host/src/routes/browser-stream.ts and images/space-browser/browserd/view.ts.
-import { createElement, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, Pressable, StyleSheet } from "react-native";
 
@@ -289,6 +289,16 @@ export function BrowserLive({
   // The keys and the wheel are DOM listeners on the view itself (a native press view forwards neither): keys go to the page only while the view has the focus, so leaving it (Tab, Escape, a click elsewhere) or
   // handing the controls back stops them at once, and nothing else in the app loses its keys. The key listener is in the capture phase because the framework turns Space and Enter on a focused view into a press.
   const viewRef = useRef<unknown>(null);
+  // the picture of a stream is ended when it goes (the view closes, or another address replaces it): an image with no source ends its request, so the browser stops counting this view as watching
+  const mjpeg = useRef<HTMLImageElement | null>(null);
+  const mjpegRef = useCallback((el: HTMLImageElement | null): void => {
+    const gone = mjpeg.current;
+    if (gone !== null && gone !== el) {
+      gone.removeAttribute("src");
+      gone.src = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+    }
+    mjpeg.current = el;
+  }, []);
   useEffect(() => {
     type Target = {
       addEventListener?: (t: string, f: (e: never) => void, o?: boolean | { passive: boolean }) => void;
@@ -352,16 +362,40 @@ export function BrowserLive({
       style={st.fill}
     >
       {uri ? (
-        <Image
-          testID={`${testID}-image`}
-          accessibilityLabel="Live view"
-          source={{ uri }}
-          resizeMode="contain"
-          style={st.fill}
-          onLoad={(e: { nativeEvent?: { source?: { width?: number; height?: number } } }) => {
-            natural.current = sized(e.nativeEvent?.source?.width, e.nativeEvent?.source?.height) ?? natural.current;
-          }}
-        />
+        Platform.OS === "web" ? (
+          // a plain picture element, so closing the view can end the stream: a framework image keeps its request open after it is gone, and the browser then counts a viewer nobody is
+          createElement("img", {
+            key: uri,
+            ref: mjpegRef,
+            "data-testid": `${testID}-image`,
+            alt: "Live view",
+            src: uri,
+            draggable: false,
+            onLoad: (e: { currentTarget: { naturalWidth: number; naturalHeight: number } }) => {
+              natural.current = sized(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight) ?? natural.current;
+            },
+            style: {
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              pointerEvents: "none",
+            },
+          })
+        ) : (
+          <Image
+            testID={`${testID}-image`}
+            accessibilityLabel="Live view"
+            source={{ uri }}
+            resizeMode="contain"
+            style={st.fill}
+            onLoad={(e: { nativeEvent?: { source?: { width?: number; height?: number } } }) => {
+              natural.current = sized(e.nativeEvent?.source?.width, e.nativeEvent?.source?.height) ?? natural.current;
+            }}
+          />
+        )
       ) : null}
       {painted}
     </Pressable>

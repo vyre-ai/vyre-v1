@@ -362,7 +362,7 @@ test("mounted: a person who may not enter sees one line and no list, and no site
   }
 });
 
-test("mounted: an agent that still has an older desktop gets one row that opens it; an agent without one gets none", async () => {
+test("mounted: an agent that still has an older desktop never gets a row that says Open (nobody is sent to the page they are on); only who may remove it is offered the Console", async () => {
   const off = installDom();
   try {
     const s = createSample();
@@ -378,10 +378,9 @@ test("mounted: an agent that still has an older desktop gets one row that opens 
     );
     const root = await mount(createRoot, withOld);
     const t = textOf(root);
-    assert.ok(t.includes("Older desktop") && t.includes("Open its desktop"));
-    assert.ok(!/sign-ins move|kept until you remove/.test(t), "one row, no paragraph");
-    await press(find(root, "row-older-desktop"));
-    assert.deepEqual(s.opened.slice(-1), ["computer:cmp_old"]);
+    // a pane with no one who may remove it (the sample has no admin) shows nothing to press, and never a door that opens the page it is on; the admin's row is the Remove entry below
+    assert.ok(!t.includes("Open its desktop") && !t.includes("Older desktop"), t);
+    assert.equal(find(root, "row-older-desktop"), null);
     const none = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser }, depsOf([])));
     assert.ok(!textOf(none).includes("Older desktop"));
   } finally {

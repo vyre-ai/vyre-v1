@@ -22,7 +22,7 @@ export interface RunRow {
   action: string;
   why?: string;
   mark: "done" | "failed" | "held" | "waiting" | "skipped";
-  tag: "Not sent" | null;
+  tag: "Not sent" | "Not reached" | null;
   line: string | null;
   values: readonly (readonly [string, string])[];
 }
@@ -49,7 +49,7 @@ export function runView(
     const r = results[step.id];
     const base = { id: step.id, number, depth, sentence: sentence(step), app: step.app, action: step.action };
     if (stopped || !r) {
-      rows.push({ ...base, mark: "skipped", tag: null, line: null, values: [] });
+      rows.push({ ...base, mark: "skipped", tag: stopped ? "Not reached" : null, line: null, values: [] });
       continue;
     }
     if (r.status === "failed") {

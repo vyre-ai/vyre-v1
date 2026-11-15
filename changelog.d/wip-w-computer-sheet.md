@@ -1,0 +1,1 @@
+A terminal row on an agent's page opens the full-screen terminal, as it does beside a chat, and the full-screen terminal and browser are drawn as one near-full sheet over a dimmed page on a wide screen (the whole screen on a phone).

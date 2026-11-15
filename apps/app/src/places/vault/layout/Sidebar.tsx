@@ -55,7 +55,6 @@ export function Sidebar({
   connectionCount,
 }: SidebarProps): ReactElement {
   const routed = advanced || connections;
-  const inSlot = useInSidebarSlot();
   const [naming, setNaming] = useState<string | null>(null);
   const [folderError, setFolderError] = useState<string | null>(null);
   const item = (sel: Selection, key: string, label: string, icon: IconName, n?: number): ReactElement => (
@@ -129,13 +128,11 @@ export function Sidebar({
   }
   return (
     <Column>
-      {inSlot ? null : (
-        <View style={s.title}>
-          <Text accessibilityRole="header" style={s.titleText}>
-            Vault
-          </Text>
-        </View>
-      )}
+      <View style={s.title}>
+        <Text accessibilityRole="header" style={s.titleText}>
+          Vault
+        </Text>
+      </View>
       <View style={s.group}>
         {counts.requested > 0
           ? item({ kind: "requested" }, "requested", "Requested", "requested", counts.requested)
@@ -238,7 +235,7 @@ function Column({ children }: { children: ReactNode }): ReactElement {
   const inSlot = useInSidebarSlot();
   if (inSlot)
     return (
-      <SidebarContent title="Vault" noSearch>
+      <SidebarContent title="Vault" bare noSearch>
         {() => (
           <View style={s.sideSlot} testID="vault-sidebar" role="menu" aria-label="Vault sections">
             {children}

@@ -22,6 +22,8 @@ export interface SidebarEntry {
   title: string;
   searchPlaceholder: string;
   noSearch?: boolean;
+  /** The place draws the whole column itself, its own head included (Inbox, Vault, Settings): the slot adds no title row and no search. */
+  bare?: boolean;
   /** The place that put this here has gone and the next one has not arrived yet: the column keeps its room, with nothing in it (see SIDEBAR_HOLD_MS). */
   held?: true;
 }
@@ -183,18 +185,6 @@ export function useInSidebarSlot(): boolean {
   return reg !== null && slot !== null;
 }
 
-const InColumn = createContext(false);
-
-/** True inside a place's content that the shell draws in its sidebar column: the column's head already carries the title, the buttons' spot and Hide. */
-export function useInSidebarColumn(): boolean {
-  return useContext(InColumn);
-}
-
-/** The slot's api where there is one (inside the shell), else null: a place that can also stand alone uses it to put its buttons in the slot's head. */
-export function useOptionalSidebarSlot(): SidebarSlotApi | null {
-  return useContext(Ctx);
-}
-
 export function useSidebarSlot(): SidebarSlotApi {
   const v = useContext(Ctx);
   if (v === null) throw new Error("useSidebarSlot needs a SidebarSlotProvider above it");
@@ -206,6 +196,7 @@ export function SidebarContent(props: {
   title: string;
   searchPlaceholder?: string;
   /** The place has no search of its own: ⌘K is the one search (Chats). */ noSearch?: boolean;
+  /** The place draws its own head: the slot adds none. */ bare?: boolean;
   children: (query: string, slot: SidebarSlotApi) => ReactNode;
 }): ReactElement | null {
   const reg = useContext(Reg);
@@ -217,15 +208,12 @@ export function SidebarContent(props: {
       title: props.title,
       searchPlaceholder: search,
       ...(props.noSearch === true ? { noSearch: true } : {}),
+      ...(props.bare === true ? { bare: true } : {}),
     });
     return () => reg?.register(null);
-  }, [reg?.register, props.title, search, props.noSearch]);
+  }, [reg?.register, props.title, search, props.noSearch, props.bare]);
   if (reg === null || slot === null) return null;
-  return (
-    <>
-      {portalInto(reg.outlet, <InColumn.Provider value={true}>{props.children(slot.query, slot)}</InColumn.Provider>)}
-    </>
-  );
+  return <>{portalInto(reg.outlet, props.children(slot.query, slot))}</>;
 }
 
 /** What the shell draws beside the body: the chrome, then an empty outlet the place's content portals into. */
@@ -247,9 +235,10 @@ export function SidebarSlot(): ReactElement | null {
   const full = slot.compact;
   // On the phone an opened body replaces the list. The slot stays mounted (display none) because the place's sidebar content is portalled into its outlet.
   const away = slot.compact && slot.view === "body";
+  const bare = o.entry.bare === true;
   const inner = (
     <>
-      <View style={s.head}>
+      <View style={[s.head, bare && s.gone]}>
         <Text style={s.title} accessibilityRole="header" numberOfLines={1}>
           {o.entry.title}
         </Text>
@@ -273,7 +262,7 @@ export function SidebarSlot(): ReactElement | null {
           </Pressable>
         )}
       </View>
-      {o.entry.noSearch === true ? null : (
+      {o.entry.noSearch === true || bare ? null : (
         <View style={s.search} testID="sidebar-search">
           <MenuIcon icon={iconMarkup("search")} color="var(--ink-3)" />
           <TextInput
@@ -322,7 +311,7 @@ export function SidebarSlot(): ReactElement | null {
   );
 }
 
-/** The Hide button on a column a place still draws for itself (a ResizableColumn standing in the shell's sidebar spot); the places that use the shell's own column have its head. */
+/** The Hide button on a sheet that draws its own head (Inbox, Vault, Settings). */
 export function SidebarHide(): ReactElement | null {
   const slot = useSidebarSlot();
   const shell = useShellLayout();
@@ -449,6 +438,8 @@ const PANEL =
   '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.500" y="3" width="11" height="10" rx="1.500"/><path d="M6 3v10"/></svg>';
 
 const s = StyleSheet.create({
+  // a place that draws its own head: the slot's head row is kept in the tree (its buttons' outlet stays) and takes no room
+  gone: { display: "none" },
   slot: { backgroundColor: "var(--side)" as string, minHeight: 0 },
   column: { position: "relative", minHeight: 0, flexShrink: 0 },
   full: { flex: 1 },

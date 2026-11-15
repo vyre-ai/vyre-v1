@@ -2682,6 +2682,13 @@ export type AutomationsCodeReachIn = {
 export type AutomationsCodeReachOut = {
   ok: boolean;
 };
+export type AutomationsConnectOptionsIn = Record<string, unknown>;
+export type AutomationsConnectOptionsOut = {
+  vault: Array<{
+      itemId: string;
+      appName: string;
+    }>;
+};
 export type AutomationsConnectorCardIn = {
   threadId: string;
   title: string;
@@ -47959,6 +47966,7 @@ export interface CapMap {
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
   "automations.code_reach": { in: AutomationsCodeReachIn; out: AutomationsCodeReachOut };
+  "automations.connect_options": { in: AutomationsConnectOptionsIn; out: AutomationsConnectOptionsOut };
   "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
   "automations.connector_levels": { in: AutomationsConnectorLevelsIn; out: AutomationsConnectorLevelsOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
