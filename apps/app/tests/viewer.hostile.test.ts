@@ -2,10 +2,9 @@
 // refused from its directory in one sentence, before anything is unpacked; a file that declares entities of its own is refused.
 import test from "node:test";
 import assert from "node:assert/strict";
-import zlib from "node:zlib";
 import ExcelJS from "exceljs";
 import { fflate } from "./fflate-node.ts";
-import { makeDocx, makePptx } from "./viewer-fixtures.ts";
+import { makeDocx, makePptx, zipOfZeros } from "./viewer-fixtures.ts";
 import { LimitError, MAX_ENTRIES, safeHref, safeUnzip, tooLargeWords } from "../../../ui/src/Viewer/rich/limits.ts";
 import { Grid } from "../../../ui/src/Viewer/rich/grid-model.ts";
 import { baseline, editUnsafe, readBook, writeChanges } from "../../../ui/src/Viewer/rich/workbook-io.ts";
@@ -165,38 +164,6 @@ test("only web, mail and in-document addresses become links; everything else in 
   assert.equal(img.external, true);
   assert.equal(img.rid, "");
 });
-
-/** A zip of one entry that is `size` zeros (a bomb): its directory says how big it unpacks to; the file itself is a few kilobytes. */
-function zipOfZeros(size: number): Buffer {
-  const big = Buffer.alloc(size);
-  const def = zlib.deflateRawSync(big, { level: 9 });
-  const crc = zlib.crc32(big) >>> 0;
-  const name = Buffer.from("word/document.xml");
-  const h = Buffer.alloc(30);
-  h.writeUInt32LE(0x04034b50, 0);
-  h.writeUInt16LE(20, 4);
-  h.writeUInt16LE(8, 8);
-  h.writeUInt32LE(crc, 14);
-  h.writeUInt32LE(def.length, 18);
-  h.writeUInt32LE(size >>> 0, 22);
-  h.writeUInt16LE(name.length, 26);
-  const c = Buffer.alloc(46);
-  c.writeUInt32LE(0x02014b50, 0);
-  c.writeUInt16LE(20, 4);
-  c.writeUInt16LE(20, 6);
-  c.writeUInt16LE(8, 10);
-  c.writeUInt32LE(crc, 16);
-  c.writeUInt32LE(def.length, 20);
-  c.writeUInt32LE(size >>> 0, 24);
-  c.writeUInt16LE(name.length, 28);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(1, 8);
-  end.writeUInt16LE(1, 10);
-  end.writeUInt32LE(46 + name.length, 12);
-  end.writeUInt32LE(30 + name.length + def.length, 16);
-  return Buffer.concat([h, name, def, c, name, end]);
-}
 
 test("a zip that unpacks to a gigabyte is refused from its directory in one sentence, and the tab does not grow", () => {
   const bomb = zipOfZeros(1 << 30);
