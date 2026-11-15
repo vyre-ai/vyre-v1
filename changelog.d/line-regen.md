@@ -1,0 +1,1 @@
+- The generated files match the contracts again after the Getting Started merge.
