@@ -41,8 +41,18 @@ export interface CliDriverDeps {
   modelsFor?(acct: AccountRef): Promise<ModelInfo[]> | ModelInfo[];
   idleMs?: number;
   firstTokenMs?: number;
+  /** How long a woken turn waits for the engine to continue by itself before it writes the wake message (CliSessionDeps.attachMs). */
+  attachMs?: number;
   onNoFirstToken?: CliSessionDeps["onNoFirstToken"];
   graceMs?: number;
+  /**
+   * The host's side of a session's background work (helpers the engine starts and shell jobs that go on after its turn): told when one starts, is on a step or ends, and once when the last has ended.
+   * `session` is the session being opened, for the host to stop it later. Absent: the engine's background work is only what its turn shows.
+   */
+  background?(
+    spec: SessionSpec,
+    session: () => CliSession | null,
+  ): { task: NonNullable<CliSessionDeps["onTask"]>; done: () => void } | null;
   /** Start a persistent engine's process when the session opens, before anyone waits for it. Default true. */
   prewarm?: boolean;
 }
@@ -115,6 +125,8 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
       const lean = spec.lean === true;
       const noTools = spec.tools === "none" || lean;
       const endpoint = noTools ? { url: "", token: "" } : await deps.mcp(spec);
+      let made: CliSession | null = null;
+      const bg = lean || noTools ? null : (deps.background?.(spec, () => made) ?? null);
       const session = createCliSession(
         {
           adapter,
@@ -135,6 +147,7 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
           ...(deps.prompt ? { prompt: deps.prompt } : {}),
           ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
           ...(deps.firstTokenMs !== undefined ? { firstTokenMs: deps.firstTokenMs } : {}),
+          ...(deps.attachMs !== undefined ? { attachMs: deps.attachMs } : {}),
           ...(deps.onNoFirstToken ? { onNoFirstToken: deps.onNoFirstToken } : {}),
           account: spec.agent.accountRef ?? "",
           ...(deps.graceMs !== undefined ? { graceMs: deps.graceMs } : {}),
@@ -142,9 +155,11 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
             if (!noTools) await deps.mcpClose?.(spec, endpoint);
           },
           ...(deps.checkpoint && !lean ? { checkpoint: (id: string | null) => deps.checkpoint?.(spec, id) } : {}),
+          ...(bg ? { onTask: bg.task, onBackgroundDone: bg.done } : {}),
         },
         spec,
       );
+      made = session;
       if (deps.prewarm !== false) {
         try {
           await session.prewarm();

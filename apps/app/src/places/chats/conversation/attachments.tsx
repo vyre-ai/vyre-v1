@@ -215,6 +215,8 @@ function Chip({
   const open = (): void => {
     if (file) data.nav.openBeside("file", id);
   };
+  // a chip is drawn only for a file that is there and that this reader may open: a file that is gone, or not theirs, leaves no chip (never "a file you cannot open")
+  if (file === null && !pending) return <></>;
   return (
     <Pressable
       testID={`attachment-${id}`}

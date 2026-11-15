@@ -1,0 +1,1 @@
+When the last background helper finishes, the Assistant continues by itself, once, with the result, instead of waiting for you to ask again or posting a status line for each helper; if you write while they work, it answers with the true count.

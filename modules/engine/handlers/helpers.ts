@@ -5,6 +5,7 @@ import { ensure } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import { liveTurns } from "./bridge.ts";
 import { stopRunning } from "./control.ts";
+import { stopBackground } from "../background.ts";
 
 type Row = Record<string, unknown>;
 const num = (v: unknown): number => Number(v ?? 0);
@@ -193,6 +194,8 @@ export async function helpersStopAll(ctx: EngineCtx, input: { threadId: string }
   let stopped = 0;
   for (const h of helpers)
     if (h.state === "working") stopped += (await stopRunning(ctx, { threadId: h.threadId })).stopped;
+  // the helpers and jobs the engine itself left running in the background of this chat
+  stopped += await stopBackground(input.threadId);
   return { stopped };
 }
 
