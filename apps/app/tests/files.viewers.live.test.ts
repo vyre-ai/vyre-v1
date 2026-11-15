@@ -2,7 +2,7 @@
 // viewer as the real thing, and the viewer's own features work on them. Real Chromium against the production export and a claimed daemon. Pictures go to VYRE_VIEWER_SHOTS.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { session } from "./viewers-session.ts";
+import { session } from "./viewers-harness.test.ts";
 import { makeDocx, makePdf, makePptx, reportPages, unzip } from "./viewer-fixtures.ts";
 
 type Pg = import("playwright-core").Page;

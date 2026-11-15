@@ -1,8 +1,8 @@
 // The deck's round trip: three slides with a text box, a filled rectangle, a table and a picture; change one word; only that slide's XML differs and every other part is the same bytes.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makePptx, unzip } from "../../../../apps/app/tests/viewer-fixtures.ts";
-import { deckAsText, readPptx, setParaRuns, writePptx } from "./pptx.ts";
+import { makePptx, unzip } from "./viewer-fixtures.ts";
+import { deckAsText, readPptx, setParaRuns, writePptx } from "../../../ui/src/Viewer/rich/pptx.ts";
 
 test("a deck is read as slides with shapes, a fill, a table and a picture at the file's own places", () => {
   const m = readPptx(unzip(makePptx()));

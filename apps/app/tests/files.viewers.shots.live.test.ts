@@ -1,7 +1,7 @@
 // Pictures of the real app for the native viewers (dark desktop at 1440, light phone at 390) and the phone layout of each: one page wide, no sideways scroll, the same toolbar. Sample files are neutral.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { session } from "./viewers-session.ts";
+import { session } from "./viewers-harness.test.ts";
 import { makeDocx, makePdf, makePptx, reportPages } from "./viewer-fixtures.ts";
 
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";

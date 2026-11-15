@@ -3,6 +3,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import test from "node:test";
+import { makeDocx, makePdf, makePptx, reportPages, unzip } from "./viewer-fixtures.ts";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 
 const PASSWORD = "fixture password 123";
@@ -96,3 +98,9 @@ export async function session(t: { skip(m?: string): void }, size = { width: 144
     },
   };
 }
+
+test("harness: the sample files the viewer walks open are real files", () => {
+  assert.equal(makePdf(reportPages(3)).subarray(0, 5).toString(), "%PDF-");
+  assert.ok(unzip(makeDocx())["word/document.xml"]);
+  assert.ok(unzip(makePptx())["ppt/slides/slide1.xml"]);
+});

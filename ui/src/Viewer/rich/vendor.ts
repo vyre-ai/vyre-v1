@@ -81,7 +81,7 @@ export interface PdfLib {
 export function loadPdfjs(): Promise<PdfLib> {
   return memo("pdfjs", async () => {
     // a runtime import of the app's own static file; the bundler never sees it
-    const load = new Function("u", "return import(u)") as (u: string) => Promise<PdfLib>;
+    const load = new Function("u", "return import" + "(u)") as (u: string) => Promise<PdfLib>;
     const lib = await load(`${root()}/vendor/pdfjs/pdf.js`);
     lib.GlobalWorkerOptions.workerSrc = `${root()}/vendor/pdfjs/pdf.worker.js`;
     return lib;

@@ -2,9 +2,9 @@
 // other paragraph is the same, and a paragraph the editor cannot change safely is left exactly as it was.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeDocx, unzip } from "../../../../apps/app/tests/viewer-fixtures.ts";
-import { parseXml, writeXml } from "./ooxml.ts";
-import { applyRunTexts, docAsText, readDocx, setHeading, textRuns, toggleFormat, writeDocx } from "./docx.ts";
+import { makeDocx, unzip } from "./viewer-fixtures.ts";
+import { parseXml, writeXml } from "../../../ui/src/Viewer/rich/ooxml.ts";
+import { applyRunTexts, docAsText, readDocx, setHeading, textRuns, toggleFormat, writeDocx } from "../../../ui/src/Viewer/rich/docx.ts";
 
 const sample = (): { entries: Record<string, Uint8Array>; bytes: Buffer } => {
   const bytes = makeDocx();

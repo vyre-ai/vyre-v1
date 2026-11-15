@@ -71,9 +71,11 @@ function formatDate(serial: number, fmt: string): string {
   const y = d.getUTCFullYear();
   const mo = d.getUTCMonth();
   const da = d.getUTCDate();
-  const h = d.getUTCHours();
-  const mi = d.getUTCMinutes();
-  const se = d.getUTCSeconds();
+  // the time of day is the fraction of the serial number (a workbook's clock, not a Space's)
+  const secs = Math.round((serial - Math.floor(serial)) * 86_400) % 86_400;
+  const h = Math.floor(secs / 3600);
+  const mi = Math.floor((secs % 3600) / 60);
+  const se = secs % 60;
   const ampm = /am\/pm|a\/p/i.test(fmt);
   let out = "";
   const f = fmt.replace(/\[[^\]]*\]/g, "");
