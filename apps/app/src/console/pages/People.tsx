@@ -73,12 +73,19 @@ export const personRowFilters = (person: Person): string[] => [
   ...person.groups.map((id) => `group:${id}`),
 ];
 
-export function People({ initialPersonId }: { initialPersonId?: string } = {}): ReactElement {
+export function People({
+  initialPersonId,
+  openInvite,
+}: {
+  initialPersonId?: string;
+  /** Quick actions > Invite people: the invite sheet is open on arrival. */
+  openInvite?: boolean;
+} = {}): ReactElement {
   const consoleData = useConsoleData();
   const people = useRead<Principals>("access.principals.list", { kind: "person" });
   const roles = useRead<Roles>("access.roles.list");
   const groups = useRead<Groups>("access.groups.list", {});
-  const [inviting, setInviting] = useState(false);
+  const [inviting, setInviting] = useState(openInvite === true);
   const [checking, setChecking] = useState(false);
   const [selected, setSelected] = useState<string | null>(initialPersonId ?? null);
   const [filters, setFilters] = useState<ReadonlySet<string>>(new Set());

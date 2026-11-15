@@ -168,6 +168,7 @@ export function Overview(): ReactElement {
       load?: { cpuPct: number; memUsedBytes: number; diskFreeBytes: number };
     }>;
   }>("machines.list");
+  const computerCount = (fleet.data?.machines ?? []).filter((m) => m.kind === "computer").length;
   if (q.status !== "ready")
     return (
       <Text style={s.loading} accessibilityRole="progressbar">
@@ -258,11 +259,13 @@ export function Overview(): ReactElement {
       label: "Space server",
       icon: "server",
       big: HEALTH_LABEL[o.health],
-      sub: space?.version
-        ? `v${space.version}`
-        : o.attention.length
-          ? `${o.attention.length} need${o.attention.length === 1 ? "s" : ""} you`
-          : "Nothing waiting",
+      // a build with no release number says 0.0.0-dev: that is not a version a person can use, so it is not shown
+      sub:
+        space?.version && !/-dev$/.test(space.version)
+          ? `v${space.version}`
+          : o.attention.length
+            ? `${o.attention.length} need${o.attention.length === 1 ? "s" : ""} you`
+            : "Nothing waiting",
       tone: HEALTH_TONE[o.health],
       ...(bars.length ? { bars } : {}),
     },
@@ -291,8 +294,12 @@ export function Overview(): ReactElement {
       page: "machines",
       label: "Computer alerts",
       icon: "server",
-      big: machineAlerts.length ? String(machineAlerts.length) : "All clear",
-      sub: machineAlerts.length ? [...new Set(machineAlerts.map((a) => a.kind))].join(", ") : "Every computer is fine",
+      big: machineAlerts.length ? String(machineAlerts.length) : computerCount === 0 ? "None yet" : "All clear",
+      sub: machineAlerts.length
+        ? [...new Set(machineAlerts.map((a) => a.kind))].join(", ")
+        : computerCount === 0
+          ? "No computers linked yet"
+          : "Every computer is fine",
       ...(machineAlerts.length ? { tone: "warn" as Tone } : {}),
     },
   ];
@@ -468,9 +475,13 @@ export function Overview(): ReactElement {
               </Lead>
             }
             trailing={
-              <LinkButton label="Invite people" onPress={() => data.nav.openPage("people")} testID="qa-invite-go" />
+              <LinkButton
+                label="Invite people"
+                onPress={() => data.nav.openPage("people", { invite: "1" })}
+                testID="qa-invite-go"
+              />
             }
-            onPress={() => data.nav.openPage("people")}
+            onPress={() => data.nav.openPage("people", { invite: "1" })}
           />
           <Row
             id="qa-ai"
