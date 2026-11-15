@@ -5,7 +5,17 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import { checkpointTurn, erase, points, prune, pruneSpace, restore, snapshot, storeOf } from "../checkpoints.ts";
+import {
+  checkpointTurn,
+  erase,
+  lockStore,
+  points,
+  prune,
+  pruneSpace,
+  restore,
+  snapshot,
+  storeOf,
+} from "../checkpoints.ts";
 import { workFolder } from "../sandbox.ts";
 
 function world() {
@@ -402,4 +412,32 @@ test("the sweep is registered with the engine's periodic table, hourly; an agent
   const erased = (impl.consumers as unknown as Record<string, { on: string[] }>)["engine.checkpoints_erased"]!;
   assert.ok(!erased.on.includes("agent.deleted"), "Trash is not delete");
   assert.ok(erased.on.includes("thread.erased") && erased.on.includes("member.removed"));
+});
+
+// Found on two test servers, 15 Nov 2026: the lock walked six folders up from the store whatever they were, and from a short path it set the root of the disk to 700.
+test("locking the store never changes a folder above the Space's checkpoints folder, and a store under none locks itself alone", () => {
+  const mode = (p: string): number => fs.statSync(p).mode & 0o777;
+  // a store that is not under a `checkpoints` folder: only the store changes
+  const a = fs.mkdtempSync(path.join(os.tmpdir(), "ckpt-lock-"));
+  const loose = path.join(a, "one", "two", "store.git");
+  fs.mkdirSync(loose, { recursive: true, mode: 0o755 });
+  for (const d of [a, path.join(a, "one"), path.join(a, "one", "two"), loose]) fs.chmodSync(d, 0o755);
+  const above = [os.tmpdir(), path.dirname(os.tmpdir())].map((d) => [d, mode(d)] as const);
+  lockStore(loose);
+  assert.equal(mode(loose), 0o700, "the store itself is the server's alone");
+  assert.equal(mode(path.join(a, "one", "two")), 0o755, "the folder above a loose store is left as it was");
+  assert.equal(mode(path.join(a, "one")), 0o755);
+  assert.equal(mode(a), 0o755);
+  for (const [d, m] of above) assert.equal(mode(d), m, `${d} is left as it was`);
+  // the product's layout: locked from the store up to `checkpoints`, and the Space's folder above it is left alone
+  const space = fs.mkdtempSync(path.join(os.tmpdir(), "ckpt-space-"));
+  fs.chmodSync(space, 0o755);
+  const store = path.join(space, "checkpoints", "usr_a", "thr_b", "agt_c.git");
+  fs.mkdirSync(store, { recursive: true, mode: 0o755 });
+  lockStore(store);
+  for (const d of [store, path.dirname(store), path.dirname(path.dirname(store)), path.join(space, "checkpoints")])
+    assert.equal(mode(d), 0o700, `${path.relative(space, d)} is the server's alone`);
+  assert.equal(mode(space), 0o755, "the Space's own folder is not touched");
+  fs.rmSync(a, { recursive: true, force: true });
+  fs.rmSync(space, { recursive: true, force: true });
 });

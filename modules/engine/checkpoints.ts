@@ -75,15 +75,25 @@ async function run(
 
 /** The store and every folder above it up to the Space's `checkpoints` folder are the server's alone: mode 700, and what git writes inside is 600 (core.sharedRepository). The sandboxed agent binds only its work folder; this keeps every other account on the computer out too. */
 export function lockStore(gitDir: string): void {
+  // Only the folders from the store up to the Space's `checkpoints` folder are locked. A store that is not under one (a test's folder, a layout this code does not know) locks
+  // itself alone: this used to walk six folders up whatever they were, and on a short path that reached the root of the disk and set it to 700, which stops every service
+  // that does not run as root (found on two test servers, 15 Nov 2026: name resolution went down).
+  const chain: string[] = [gitDir];
   let d = gitDir;
-  for (let i = 0; i < 6; i++) {
+  let found = path.basename(d) === "checkpoints";
+  for (let i = 0; i < 6 && !found; i++) {
+    const up = path.dirname(d);
+    if (up === d) break;
+    d = up;
+    chain.push(d);
+    found = path.basename(d) === "checkpoints";
+  }
+  for (const f of found ? chain : [gitDir]) {
     try {
-      fs.chmodSync(d, 0o700);
+      fs.chmodSync(f, 0o700);
     } catch {
       /* not there yet */
     }
-    if (path.basename(d) === "checkpoints") break;
-    d = path.dirname(d);
   }
 }
 
