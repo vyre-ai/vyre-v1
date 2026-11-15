@@ -199,6 +199,7 @@ interface RowOut {
   archived?: boolean;
   private?: boolean;
   withPeople?: boolean;
+  ask?: boolean;
 }
 type Extra = Omit<
   RowOut,
@@ -434,6 +435,41 @@ function chatDetails(ctx: ChatCtx, asker: string, ids: readonly string[]): ChatL
 }
 
 /**
+ * The caller's Ask panes (a conversation opened beside a record, file or other thing, with an agent), newest first, for the sidebar's Asks filter. They are never in the chats list (`t.kind = 'chat'` there);
+ * each goes out with `ask: true`, so the shared rule (lib/sidebar.ts) shows it under the Asks filter and nowhere else. Without this read the filter was always empty (15 Nov 2026).
+ */
+export function askList(ctx: ChatCtx, asker: string, limit = 100): ChatListRow[] {
+  ensureLast(ctx.db);
+  const threads = ctx.db.all(
+    `SELECT t.id AS id, t.title AS title, t.createdAt AS createdAt, l.at AS lastAt
+       FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id
+      WHERE t.kind = 'ask' AND t.starter = ? AND t.deleted_at IS NULL AND t.closedAt IS NULL
+      ORDER BY COALESCE(l.at, t.createdAt) DESC, t.id LIMIT ?`,
+    asker,
+    limit,
+  ) as Record<string, unknown>[];
+  if (threads.length === 0) return [];
+  const IN = threads.map(() => "?").join(", ");
+  const agents = new Map<string, string[]>();
+  for (const r of ctx.db.all(
+    `SELECT thread, agentId FROM chat_thread_agent WHERE deleted_at IS NULL AND thread IN (${IN}) ORDER BY rowid`,
+    ...threads.map((t) => String(t["id"])),
+  ) as Record<string, unknown>[]) {
+    const k = String(r["thread"]);
+    (agents.get(k) ?? agents.set(k, []).get(k)!).push(String(r["agentId"]));
+  }
+  return threads.map((t) => ({
+    threadId: String(t["id"]),
+    title: t["title"] === null || t["title"] === undefined || t["title"] === "" ? "Ask" : String(t["title"]),
+    agents: agents.get(String(t["id"])) ?? [],
+    people: [],
+    unread: 0,
+    lastAt: t["lastAt"] === null || t["lastAt"] === undefined ? Number(t["createdAt"] ?? 0) : Number(t["lastAt"]),
+    archived: false,
+  }));
+}
+
+/**
  * The channels the caller is IN (the sidebar lists those; a public one they are not in is for Browse), in the Space's order, with their unread: three set-based reads for the whole list. Membership is the only way in, so
  * what a guest sees is exactly the channels they were added to. A guest (no View on the Space) also needs a live grant on the channel, the same rule channels.list applies: a member row alone
  * (the Space's public channel a guest lands in on joining, or a room whose access was removed) is a channel they cannot open, and its name is not told to them.
@@ -619,6 +655,24 @@ export async function chatsSidebar(
         ...common,
       },
       { kind: "chat", threadId, withPeople: people.length > 0, ...(r.archived ? { archived: true } : {}) },
+    );
+  }
+  for (const r of askList(ctx, me)) {
+    add(
+      {
+        key: `c:${r.threadId}`,
+        kind: "chat",
+        shape: "agent",
+        title: r.title,
+        faces: r.agents.map((id) => ({ id, name: "" })),
+        unread: 0,
+        mentions: 0,
+        muted: false,
+        working: false,
+        lastAt: r.lastAt,
+        ask: true,
+      },
+      { kind: "chat", threadId: r.threadId, withPeople: false, ask: true },
     );
   }
   // channels (a project's own channel is the project's row)

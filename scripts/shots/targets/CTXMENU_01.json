@@ -5,14 +5,22 @@
       "route": "/m/CTXMENU_01?kind=agent",
       "proto": "chats,{skin}",
       "waitFor": "[data-testid='row-f:agt_intake']",
-      "note": "Right-click on an agent: Message, Open Profile, its computer, Pause, Star, Mute, Delete Agent last."
+      "note": "Right-click on an agent (a Team row since the 13 Nov sidebar, shown with Team's N more pressed): Message, Open Profile, its computer, Pause, Star, Mute, Delete Agent last.",
+      "steps": [
+        "click|more-team",
+        "see|row-f:agt_intake"
+      ]
     },
     {
       "id": "CTXMENU_01-agentmember",
       "route": "/m/CTXMENU_01?kind=agentmember",
       "proto": "chats,{skin}",
       "waitFor": "[data-testid='row-f:agt_intake']",
-      "note": "The same agent for a member: no Pause, Wake or Sleep, Delete."
+      "note": "The same agent for a member: no Pause, Wake or Sleep, Delete.",
+      "steps": [
+        "click|more-team",
+        "see|row-f:agt_intake"
+      ]
     },
     {
       "id": "CTXMENU_01-chat",

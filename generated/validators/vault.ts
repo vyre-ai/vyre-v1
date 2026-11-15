@@ -445,13 +445,13 @@ lf(a1099[i1099], p + "/models" + '/' + i1099, e, L1);
 
 function d_s_f30e8e7155(v: unknown, p: string, e: string[]): void {
 {
-const x1216 = v;
-const g1216 = typeOf(x1216);
-const b1216: string[] = []; lf(x1216, p, b1216, L0); if (b1216.length) e.push(...b1216);
-if (g1216 === "object") {
-if (g1216 === 'object') { const o1216 = x1216 as Record<string, unknown>;
-if (!("provider" in o1216)) e.push(p + "/provider" + ': required');
-if ("provider" in o1216) d_s_deb5f883c5(o1216["provider"], p + "/provider", e);
+const x1210 = v;
+const g1210 = typeOf(x1210);
+const b1210: string[] = []; lf(x1210, p, b1210, L0); if (b1210.length) e.push(...b1210);
+if (g1210 === "object") {
+if (g1210 === 'object') { const o1210 = x1210 as Record<string, unknown>;
+if (!("provider" in o1210)) e.push(p + "/provider" + ': required');
+if ("provider" in o1210) d_s_deb5f883c5(o1210["provider"], p + "/provider", e);
 }
 }
 }

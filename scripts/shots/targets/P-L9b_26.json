@@ -4,15 +4,15 @@
       "id": "P-L9b_26-chats-sidebar",
       "route": "/m/P-L9b_26",
       "proto": "chat,{skin}",
-      "waitFor": "[data-testid='head-faces']",
-      "note": "The Chats sidebar in the shared place sidebar with the Agents group listing the Space's agents (agents.list takes no starred input): Needs you, the agents waiting on you first, Channels and Chats. The prototype side is its Chats place in the same skin."
+      "waitFor": "[data-testid='head-team']",
+      "note": "The Chats sidebar in the shared place sidebar (the 13 Nov design: Tasks, Goals, Pinned, Chats, Channels with projects, Team with people and agents). The prototype side is its Chats place in the same skin."
     },
     {
       "id": "P-L9b_26-chats-sidebar-error",
       "route": "/m/P-L9b_26?fail=agents",
       "proto": "chat,{skin}",
-      "waitFor": "[data-testid='section-error-faces']",
-      "note": "The agents read is refused: the Agents section shows the shared error state (Agents could not load, the cause and trace id) and the rest of the sidebar still draws, with no skeleton and no empty state. The prototype has no error state; its sidebar is shown for the other sections."
+      "waitFor": "[data-testid='load-failed']",
+      "note": "The sidebar's one read is refused: one compact row says what could not load, with Retry; no skeleton and no empty state. The prototype has no error state; its sidebar is shown for the layout."
     }
   ]
 }

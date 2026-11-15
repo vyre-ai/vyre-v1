@@ -29,6 +29,7 @@ export function sampleSideOut(
       lastAt: t.lastAt,
       threadId: t.threadId,
       ...(t.archived ? { archived: true } : {}),
+      ...(t.ask ? { ask: true } : {}),
     });
   }
   for (const c of space.channels)

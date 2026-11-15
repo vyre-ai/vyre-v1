@@ -411,13 +411,13 @@ if ("expiration" in o1035) lf(o1035["expiration"], p + "/expiration", e, L17);
 
 function d_s_ed31edb328(v: unknown, p: string, e: string[]): void {
 {
-const x1188 = v;
-const g1188 = typeOf(x1188);
-const b1188: string[] = []; lf(x1188, p, b1188, L0); if (b1188.length) e.push(...b1188);
-if (g1188 === "object") {
-if (g1188 === 'object') { const o1188 = x1188 as Record<string, unknown>;
-if (!("event" in o1188)) e.push(p + "/event" + ': required');
-if ("event" in o1188) d_s_133a097d93(o1188["event"], p + "/event", e);
+const x1182 = v;
+const g1182 = typeOf(x1182);
+const b1182: string[] = []; lf(x1182, p, b1182, L0); if (b1182.length) e.push(...b1182);
+if (g1182 === "object") {
+if (g1182 === 'object') { const o1182 = x1182 as Record<string, unknown>;
+if (!("event" in o1182)) e.push(p + "/event" + ': required');
+if ("event" in o1182) d_s_133a097d93(o1182["event"], p + "/event", e);
 }
 }
 }

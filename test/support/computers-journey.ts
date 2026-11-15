@@ -243,9 +243,9 @@ export function computersJourney(kind: "team" | "personal"): void {
       // The Computer tab is always there (no grant button). On a Space with no host that can run it, it says so in one plain line and offers nothing that fails when pressed.
       bindSpaceBrowser(null);
       await showChat();
-      if ((await me.page.getByTestId("pane-agent").count()) === 0) await me.page.getByTestId("pane-button").click(); // the chat header's own button; the pane starts closed
-      await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
-      await me.page.getByTestId("tab-computer").click();
+      if ((await me.page.getByTestId("side-pane").count()) === 0) await me.page.getByTestId("pane-button").click(); // the chat header's own button; the pane starts closed
+      await me.page.getByTestId("side-pane").waitFor({ timeout: 20_000 });
+      await me.page.getByTestId("tab-computer").or(me.page.getByTestId("tab-computer-selected")).first().click(); // the agent pane opens on its Computer tab by itself (chat frame, 14 Nov: c77534521): it has no pane-agent header and the tab may already be selected
       // what a person reads: the Browser says in one line that there is nowhere to run it, and nothing in the tab can be pressed to no effect or waits for ever
       await me.page.getByTestId("browser-note").waitFor({ timeout: 20_000 });
       assert.match(
@@ -305,9 +305,9 @@ export function computersJourney(kind: "team" | "personal"): void {
           }>
         ).find((x) => x.agentId === agentId);
       const openComputerTab = async (): Promise<void> => {
-        if ((await me.page.getByTestId("pane-agent").count()) === 0) await me.page.getByTestId("pane-button").click();
-        await me.page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
-        await me.page.getByTestId("tab-computer").click();
+        if ((await me.page.getByTestId("side-pane").count()) === 0) await me.page.getByTestId("pane-button").click();
+        await me.page.getByTestId("side-pane").waitFor({ timeout: 20_000 });
+        await me.page.getByTestId("tab-computer").or(me.page.getByTestId("tab-computer-selected")).first().click(); // the agent pane opens on its Computer tab by itself (chat frame, 14 Nov: c77534521): it has no pane-agent header and the tab may already be selected
       };
       await showChat();
       await openComputerTab();
