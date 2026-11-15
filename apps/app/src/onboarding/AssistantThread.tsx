@@ -9,7 +9,7 @@ import { Text } from "react-native";
 import { conversationData } from "../shell/providers/chats-data.ts";
 import { createComposerFill } from "../places/chats/conversation/data.tsx";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
-import { noteThreadKind, setScreenContext } from "../shell/ask/screen.ts";
+import { noteThreadKind, pinThreadScreen, setScreenContext } from "../shell/ask/screen.ts";
 import type { FlowKind, Progress } from "./flow.ts";
 import { onboardingScreen } from "./screen-context.ts";
 import type { StepAsk as Ask } from "./said.ts";
@@ -75,6 +75,14 @@ export function AssistantThread({
   useEffect(() => {
     setScreenContext(onboardingScreen(flow, step, progress));
   }, [flow, step, progress]);
+  // the thread carries this screen whatever the shell's own place signal says next (it names the page under the setup screen): the focus skill of the step reaches the Assistant on every message
+  const here = useRef(onboardingScreen(flow, step, progress));
+  here.current = onboardingScreen(flow, step, progress);
+  useEffect(() => {
+    if (!thread) return undefined;
+    pinThreadScreen(thread, () => here.current);
+    return () => pinThreadScreen(thread, null);
+  }, [thread]);
   const data = useMemo(() => {
     if (!thread) return null;
     const people = rt.principals.getSnapshot();
