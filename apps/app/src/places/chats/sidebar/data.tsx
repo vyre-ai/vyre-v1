@@ -73,8 +73,6 @@ export interface ChatsSidebarData {
   people?: readonly { id: string; name: string }[];
   /** You: left out of the people a channel can add (you are always in), and the test for "a channel you are not in". */
   me?: { id: string };
-  /** The Space changed: what a group that reads by capability (Goals) follows. */
-  changes?: { subscribe(listener: () => void): () => void };
   clock(): { now: number; offsetMin: number };
 }
 

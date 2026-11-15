@@ -9,9 +9,10 @@ const END_SLACK = 24;
  * for its own and keeps following; told first, it knows the person is up the page and leaves them there when the page re-wraps (a side pane opening).
  */
 export const RESTORE_EVENT = "vyre-restore";
-function ownMove(el: { dispatchEvent?: (e: Event) => boolean }): void {
+function ownMove(el: unknown): void {
   try {
-    if (typeof Event === "function") el.dispatchEvent?.(new Event(RESTORE_EVENT));
+    const node = el as { dispatchEvent?: (e: Event) => boolean };
+    if (typeof Event === "function") node.dispatchEvent?.(new Event(RESTORE_EVENT));
   } catch {
     /* a view with no events keeps its position without it */
   }
