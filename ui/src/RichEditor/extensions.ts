@@ -19,6 +19,7 @@ import OrderedList from "@tiptap/extension-ordered-list";
 import Paragraph from "@tiptap/extension-paragraph";
 import Strike from "@tiptap/extension-strike";
 import Text from "@tiptap/extension-text";
+import { tableExtensions } from "./table.ts";
 
 // The starter kit is not used: the lockfile resolves its extensions to 2.27.3 while @tiptap/core is pinned at 2.11.5, and the horizontal rule of 2.27.3 imports a name 2.11.5 does not export.
 // Each extension below loads against core 2.11.5; the divider is written here.
@@ -61,6 +62,7 @@ const Keeps = Extension.create({
           "codeBlock",
           "horizontalRule",
           "rawBlock",
+          "mdTable",
           "liveBlock",
         ],
         attributes: { tight: quiet(false), blockId: { default: null, rendered: false, keepOnSplit: false } },
@@ -357,6 +359,7 @@ export function markdownExtensions(options: MarkdownExtensionOptions = {}): Exte
     TaskList,
     TaskItem,
     RawBlock,
+    ...tableExtensions,
     LiveBlock.configure({ render: options.liveBlock }),
   ];
 }

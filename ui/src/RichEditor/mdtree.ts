@@ -279,6 +279,104 @@ function startsBlock(line: string, next: string | undefined): boolean {
   return line.includes("|") && next !== undefined && TABLE_SEP.test(next);
 }
 
+/* ---------- tables ---------- */
+
+/** The cells of one table line: split on pipes that are not escaped, the outer pipes dropped. */
+function splitRow(line: string): string[] {
+  const s = line.trim();
+  const cells: string[] = [];
+  let cur = "";
+  let endedOnPipe = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i] ?? "";
+    endedOnPipe = false;
+    if (ch === "\\" && i + 1 < s.length) {
+      cur += ch + (s[i + 1] ?? "");
+      i += 1;
+      continue;
+    }
+    if (ch === "|") {
+      cells.push(cur);
+      cur = "";
+      endedOnPipe = true;
+    } else cur += ch;
+  }
+  if (!endedOnPipe) cells.push(cur);
+  if (s.startsWith("|")) cells.shift();
+  return cells.map((c) => c.trim());
+}
+
+const ALIGN = (c: string): string => (/^:-+:$/.test(c) ? "c" : /^-+:$/.test(c) ? "r" : /^:-+$/.test(c) ? "l" : "");
+
+/** A pipe table as a table of cells. Null when the header and the divider row disagree on the number of columns (the lines stay raw then). */
+function tableNode(lines: readonly string[], tight: boolean): PMNode | null {
+  const head = splitRow(lines[0] ?? "");
+  const sep = splitRow(lines[1] ?? "");
+  if (head.length !== sep.length || head.length === 0) return null;
+  const body = lines.slice(2).map((l) => ({ src: l, cells: splitRow(l) }));
+  const n = Math.max(head.length, ...body.map((r) => r.cells.length));
+  const row = (src: string, cells: string[], header: boolean): PMNode => ({
+    type: "mdRow",
+    attrs: { src, cols: n },
+    content: Array.from({ length: n }, (_, i) => {
+      const t = cells[i] ?? "";
+      return { type: header ? "mdHeader" : "mdCell", attrs: { src: t }, content: inlineToNodes(t) };
+    }),
+  });
+  return {
+    type: "mdTable",
+    attrs: { tight, sep: lines[1] ?? "", cols: n, align: sep.map(ALIGN) },
+    content: [row(lines[0] ?? "", head, true), ...body.map((r) => row(r.src, r.cells, false))],
+  };
+}
+
+/** A pipe inside a cell is written escaped. */
+function escapePipes(s: string): string {
+  let out = "";
+  let slashes = 0;
+  for (const ch of s) {
+    if (ch === "|" && slashes % 2 === 0) out += "\\|";
+    else out += ch;
+    slashes = ch === "\\" ? slashes + 1 : 0;
+  }
+  return out;
+}
+const cellMarkdown = (nodes: readonly PMNode[] | undefined): string =>
+  escapePipes(nodesToInline(nodes).replace(/\n/g, "<br>"));
+
+/** A table back to markdown. A row whose cells are as they were read is written exactly as it was read; a changed row is written fresh. */
+function tableText(t: PMNode): string {
+  const rows = t.content ?? [];
+  const ncols = Math.max(1, ...rows.map((r) => (r.content ?? []).length));
+  const lines: string[] = [];
+  for (const [ri, r] of rows.entries()) {
+    const cells = r.content ?? [];
+    const texts = cells.map((c) => cellMarkdown(c.content));
+    const clean =
+      typeof r.attrs?.["src"] === "string" &&
+      r.attrs["cols"] === cells.length &&
+      cells.every(
+        (c, i) =>
+          typeof c.attrs?.["src"] === "string" && cellMarkdown(inlineToNodes(c.attrs["src"] as string)) === texts[i],
+      );
+    if (clean) lines.push(r.attrs?.["src"] as string);
+    else lines.push(`| ${Array.from({ length: ncols }, (_, i) => texts[i] ?? "").join(" | ")} |`);
+    if (ri === 0) {
+      const align = (t.attrs?.["align"] as string[] | undefined) ?? [];
+      const sep = t.attrs?.["sep"];
+      if (typeof sep === "string" && sep !== "" && t.attrs?.["cols"] === ncols) lines.push(sep);
+      else
+        lines.push(
+          `| ${Array.from({ length: ncols }, (_, i) => {
+            const a = align[i] ?? "";
+            return a === "c" ? ":---:" : a === "r" ? "---:" : a === "l" ? ":---" : "---";
+          }).join(" | ")} |`,
+        );
+    }
+  }
+  return lines.join("\n");
+}
+
 function raw(kind: string, text: string, tight: boolean): PMNode {
   return { type: "rawBlock", attrs: { kind, tight }, content: text === "" ? [] : [{ type: "text", text }] };
 }
@@ -567,7 +665,7 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
         body.push(lines[i] ?? "");
         i += 1;
       }
-      out.push(raw("table", body.join("\n"), tight));
+      out.push(tableNode(body, tight) ?? raw("table", body.join("\n"), tight));
       continue;
     }
     if (REF_DEF.test(line)) {
@@ -677,6 +775,8 @@ function blockText(b: PMNode): string {
       return String(b.attrs?.["mark"] ?? "---");
     case "rawBlock":
       return nodesText(b.content);
+    case "mdTable":
+      return tableText(b);
     case "liveBlock":
       return liveText(b.attrs ?? {});
     case "codeBlock": {
@@ -743,7 +843,9 @@ export function docText(d: PMNode): string {
       return;
     }
     for (const c of n.content ?? []) walk(c);
-    if (["paragraph", "heading", "codeBlock", "rawBlock", "listItem", "taskItem", "blockquote"].includes(n.type))
+    if (
+      ["paragraph", "heading", "codeBlock", "rawBlock", "listItem", "taskItem", "blockquote", "mdRow"].includes(n.type)
+    )
       out.push("\n");
   };
   walk(d);

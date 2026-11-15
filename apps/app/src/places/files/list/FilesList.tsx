@@ -56,6 +56,9 @@ import { Toolbar, crumbTrail } from "../Toolbar.tsx";
 import { DragWrap, dragAttrs, useDragDelegation } from "./DragWrap.tsx";
 import type { DragHandlers, DragRegistry } from "./DragWrap.tsx";
 import { StagedBanner } from "./StagedBanner.tsx";
+import { MoveAsk } from "./MoveAsk.tsx";
+import { askMove } from "../tree/model.ts";
+import type { MoveAsk as MoveAskState } from "../tree/model.ts";
 import { AccessControl, AccessPopover, FolderBadge, LayerBadge, ReviewLine, useAgentStates } from "./AgentAccess.tsx";
 import { GoalFolderHead } from "../../chats/goals/GoalFolderHead.tsx";
 import { QuickLook } from "./QuickLook.tsx";
@@ -215,6 +218,7 @@ function List(): ReactElement {
   useDragDelegation(box, registry);
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [over, setOver] = useState<string | null>(null);
+  const [ask, setAsk] = useState<MoveAskState | null>(null);
   const [width, setWidth] = useState(0);
   const phoneW = useWindowDimensions().width;
   const phone = phoneW > 0 && phoneW < PHONE_BELOW; // 0 is "not measured yet" (the static page)
@@ -292,7 +296,15 @@ function List(): ReactElement {
   const drop = (target: Line, payload: string): void => {
     const here = (it: { type: "file" | "folder"; id: string }): string | null =>
       byKey.get(`${it.type}:${it.id}`)?.folderId ?? null;
-    for (const m of dropMoves(parsePayload(payload), target.id, here)) void data.call(m.cap, m.input);
+    const planned = dropMoves(parsePayload(payload), target.id, here);
+    const ask = askMove(
+      parsePayload(payload),
+      { id: target.id, source: target.source },
+      (it) => byKey.get(`${it.type}:${it.id}`),
+      planned,
+    );
+    if (ask !== null) setAsk(ask);
+    else for (const m of planned) void data.call(m.cap, m.input);
     spring.current?.cancel();
     setOver(null);
     dispatch({ type: "clear" });
@@ -628,6 +640,20 @@ function List(): ReactElement {
           }
         />
         {here ? <StagedBanner folderId={here} /> : null}
+        {ask !== null ? (
+          <MoveAsk
+            ask={ask}
+            onMove={() => {
+              for (const m of ask.moves) void data.call(m.cap, m.input);
+              setAsk(null);
+            }}
+            onCopy={() => {
+              for (const m of ask.copies) void data.call(m.cap, m.input);
+              setAsk(null);
+            }}
+            onCancel={() => setAsk(null)}
+          />
+        ) : null}
         <ReviewLine states={agentStates} onNext={(id) => data.nav.openFile(id)} compact={phone} />
         {here ? (
           <GoalFolderHead

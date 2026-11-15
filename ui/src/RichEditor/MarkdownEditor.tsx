@@ -104,6 +104,7 @@ const MD_CSS = [
   ".vyre-md li[data-type=taskItem]>label{margin-top:5px;flex:none;user-select:none}.vyre-md li[data-type=taskItem]>div{flex:1;min-width:0}.vyre-md li[data-checked=true]>div{color:var(--ink-3)}",
   ".vyre-md code{font:12.5px var(--mono,ui-monospace,Menlo,monospace);background:var(--sunk);border-radius:4px;padding:1px 5px}",
   ".vyre-md pre{margin:0 0 12px;padding:10px 12px;background:var(--sunk);border-radius:8px;font:12.5px/19px var(--mono,ui-monospace,Menlo,monospace);white-space:pre-wrap}.vyre-md pre code{background:none;padding:0;font:inherit}",
+  ".vyre-md>*{max-width:696px;margin-left:auto;margin-right:auto}.vyre-md>table.vyre-tbl{max-width:100%;margin-left:0;margin-right:0}.vyre-md table.vyre-tbl{border-collapse:collapse;display:block;overflow-x:auto;max-width:100%;margin:0 0 12px;font-size:14px;line-height:21px}.vyre-md .vyre-tbl td,.vyre-md .vyre-tbl th{border:1px solid var(--line);padding:6px 28px 6px 10px;min-width:110px;vertical-align:top;position:relative;text-align:left}.vyre-md .vyre-tbl th{background:var(--sunk);font-weight:600}.vyre-md .vyre-tbl .selectedCell{background:var(--accent-wash)}.vyre-md .vyre-tbl:first-child{margin-top:0}.vyre-tbl-menu{position:absolute;right:3px;top:3px;width:20px;height:20px;line-height:18px;text-align:center;border-radius:5px;color:var(--ink-3);cursor:pointer;user-select:none;font-size:15px}.vyre-tbl-menu:hover{background:var(--sunk);color:var(--ink)}",
   ".vyre-md pre.vyre-raw{border-left:3px solid var(--line-2);border-radius:0 8px 8px 0;white-space:pre;overflow-x:auto;max-width:100%;tab-size:2}.vyre-md pre.vyre-raw::before{content:attr(data-raw);display:block;font:600 10.5px var(--ui,inherit);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-4);margin-bottom:4px;user-select:none}",
   ".vyre-md blockquote{margin:0 0 10px;padding:0 0 0 12px;border-left:3px solid var(--line-2);color:var(--ink-2)}.vyre-md blockquote p:last-child{margin-bottom:0}",
   ".vyre-md hr{border:0;border-top:1px solid var(--line-2);margin:16px 0}.vyre-md a{color:var(--accent);text-decoration:none}.vyre-md a:hover{text-decoration:underline}.vyre-md s{color:var(--ink-3)}",
@@ -769,6 +770,8 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
               (event as { clipboardData?: { getData(t: string): string } }).clipboardData?.getData("text/plain") ?? "";
             if (text === "" || !editorRef.current) return false;
             const ed = editorRef.current;
+            // in a table cell the table's own paste (a block of cells from a sheet, or plain words in the cell) takes it
+            if (ed.isActive("mdCell") || ed.isActive("mdHeader")) return false;
             if (ed.isActive("codeBlock") || ed.isActive("rawBlock")) {
               ed.view.dispatch(ed.state.tr.insertText(text));
               return true;
@@ -1373,7 +1376,8 @@ const st = StyleSheet.create({
     flex: 1,
     paddingVertical: 20,
     paddingHorizontal: 32,
-    maxWidth: 760,
+    // the page is as wide as the pane; its text keeps a reading width (see the .vyre-md rule) and a table grows to the pane
+    maxWidth: "100%" as unknown as number,
     width: "100%",
     alignSelf: "center",
     position: "relative",
