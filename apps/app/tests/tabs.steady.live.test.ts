@@ -23,7 +23,7 @@ test("tabs: every switch between places keeps the sidebar, the tab strip and the
   const space = await bootFreshSpace();
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
   const page = await context.newPage();
   try {
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });

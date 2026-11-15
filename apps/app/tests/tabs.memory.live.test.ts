@@ -24,7 +24,7 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
   const space = await bootFreshSpace();
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
   const page = await context.newPage();
   const say = (m: string): void => {
     fs.appendFileSync(log, m + "\n");
