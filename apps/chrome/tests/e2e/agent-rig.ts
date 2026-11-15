@@ -6,7 +6,7 @@ import { createAgentControl } from "../../src/agent/index.js";
 import { playwrightChromium } from "./rig.ts";
 
 export const SECRET = "hunter2-Pa55";
-export const LOGIN = "techmanager@mylegalacademy.com";
+export const LOGIN = "sam@northwind.example";
 
 export async function findChrome() {
   const chromium = await playwrightChromium();

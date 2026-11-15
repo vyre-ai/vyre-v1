@@ -33,14 +33,14 @@ function memoryArea() {
 
 test("per-site privacy: attach by default, a parent domain covers its subdomains, an exact host wins, never reads nothing", async () => {
   const list = [
-    { host: "gohighlevel.com", mode: "ask" as const, records: true },
-    { host: "app.gohighlevel.com", mode: "never" as const, records: false },
+    { host: "crm.example", mode: "ask" as const, records: true },
+    { host: "app.crm.example", mode: "never" as const, records: false },
   ];
   assert.deepEqual(privacyFor("example.com", list), { host: null, ...DEFAULT });
-  assert.equal(privacyFor("x.gohighlevel.com", list).mode, "ask");
-  assert.equal(privacyFor("app.gohighlevel.com", list).mode, "never");
-  assert.equal(privacyFor("evilgohighlevel.com", list).mode, "attach", "a look-alike host is not under the rule");
-  const never = allowed({ url: "https://app.gohighlevel.com/v2/contacts", incognito: false }, list);
+  assert.equal(privacyFor("x.crm.example", list).mode, "ask");
+  assert.equal(privacyFor("app.crm.example", list).mode, "never");
+  assert.equal(privacyFor("evilcrm.example", list).mode, "attach", "a look-alike host is not under the rule");
+  const never = allowed({ url: "https://app.crm.example/v2/contacts", incognito: false }, list);
   assert.equal(never.read, false);
   assert.equal(never.records, false);
   assert.equal(never.why, "never");
@@ -88,9 +88,9 @@ test("masked boxes are scaled from CSS pixels to the image the browser returned,
 // ---------- what a message carries
 
 const ctx = {
-  url: "https://app.gohighlevel.com/c/1",
-  title: "Marisol Vega",
-  page: { text: "Marisol Vega marisol@vegalaw.com" },
+  url: "https://app.crm.example/c/1",
+  title: "Maya Chen",
+  page: { text: "Maya Chen maya@northwind.example" },
   shot: { dataUrl: "data:image/jpeg;base64,AAAA" },
 };
 test("a message carries the page, its screenshot and the selection only as far as the chips say, and nothing on a site that is never sent", () => {
@@ -116,8 +116,8 @@ function fakePanelWorld(o: { incognito?: boolean; url?: string; privacy?: any[] 
     id: 7,
     windowId: 3,
     active: true,
-    url: o.url ?? "https://app.gohighlevel.com/c/1",
-    title: "Marisol Vega · Contacts",
+    url: o.url ?? "https://app.crm.example/c/1",
+    title: "Maya Chen · Contacts",
     incognito: Boolean(o.incognito),
   };
   const area = memoryArea();
@@ -145,12 +145,10 @@ function fakePanelWorld(o: { incognito?: boolean; url?: string; privacy?: any[] 
       if (op === "chat.ask") return { threadId: "thr_1", turnId: "msg_1" };
       if (op === "records.match")
         return {
-          records: [
-            { id: "rec_1", name: "Marisol Vega", kind: "Contact", why: "by email address", chats: [], goals: [] },
-          ],
+          records: [{ id: "rec_1", name: "Maya Chen", kind: "Contact", why: "by email address", chats: [], goals: [] }],
         };
       if (op === "chat.search")
-        return { threads: [{ threadId: "thr_9", title: "Follow up", host: "app.gohighlevel.com" }] };
+        return { threads: [{ threadId: "thr_9", title: "Follow up", host: "app.crm.example" }] };
       throw Object.assign(new Error("no"), { code: "not_available" });
     },
     async invoke(cap: string, input: any = {}) {
@@ -196,10 +194,10 @@ function fakePanelWorld(o: { incognito?: boolean; url?: string; privacy?: any[] 
     async read(tabId: number) {
       reads.push(tabId);
       return {
-        title: "Marisol Vega · Contacts",
-        text: "Marisol marisol@vegalaw.com",
+        title: "Maya Chen · Contacts",
+        text: "Maya maya@northwind.example",
         selection: "",
-        emails: ["marisol@vegalaw.com"],
+        emails: ["maya@northwind.example"],
         phones: [],
       };
     },
@@ -209,9 +207,9 @@ function fakePanelWorld(o: { incognito?: boolean; url?: string; privacy?: any[] 
         tabId: t.id,
         url: t.url,
         title: t.title,
-        host: "app.gohighlevel.com",
+        host: "app.crm.example",
         privacy: may,
-        page: may.read ? { text: "Marisol", selection: "" } : null,
+        page: may.read ? { text: "Maya", selection: "" } : null,
         shot: may.read && opt.shot !== false ? { dataUrl: "data:image/jpeg;base64,QUJD" } : null,
       };
     },
@@ -235,7 +233,7 @@ test("panel.state: the Space, agents and the page, with Vyre off in incognito", 
   assert.equal(st.off, null);
   assert.equal(st.active, "spc_mla");
   assert.equal(st.agents.length, 2);
-  assert.equal(st.page.host, "app.gohighlevel.com");
+  assert.equal(st.page.host, "app.crm.example");
   assert.equal(st.page.privacy.read, true);
   const inc = fakePanelWorld({ incognito: true });
   assert.deepEqual((await inc.panel.handle({ type: "panel.state", windowId: 3 })).data, { off: "incognito" });
@@ -296,8 +294,8 @@ test("on a site that is never sent the panel sends only the words, looks up no r
 test("records.match gets the address and the contact details on the page; the model list is the live one", async () => {
   const w = fakePanelWorld();
   const rec = (await w.panel.handle({ type: "panel.records", windowId: 3 })).data;
-  assert.equal(rec.records[0].name, "Marisol Vega");
-  assert.deepEqual(w.ops.find((o) => o.op === "records.match")!.input.emails, ["marisol@vegalaw.com"]);
+  assert.equal(rec.records[0].name, "Maya Chen");
+  assert.deepEqual(w.ops.find((o) => o.op === "records.match")!.input.emails, ["maya@northwind.example"]);
   const m = (await w.panel.handle({ type: "panel.models", windowId: 3, threadId: "thr_1" })).data;
   assert.equal(w.invokes[0]!.cap, "engine.models.list");
   assert.deepEqual(w.invokes[0]!.input, { threadId: "thr_1" });
@@ -458,9 +456,9 @@ test("chips: the page chip starts off on an ask-me site, the Selected chip is se
 
 test("streamed replies grow one message per turn; search puts this page's chats first; models are grouped live; two suggestions only", () => {
   let conv = applyDelta([], { turnId: "t1", text: "Mar", done: false, error: null }, "Assistant", 1);
-  conv = applyDelta(conv, { turnId: "t1", text: "Marisol booked", done: true, error: null }, "Assistant", 2);
+  conv = applyDelta(conv, { turnId: "t1", text: "Maya booked", done: true, error: null }, "Assistant", 2);
   assert.equal(conv.length, 1);
-  assert.equal(conv[0]!.text, "Marisol booked");
+  assert.equal(conv[0]!.text, "Maya booked");
   assert.equal(conv[0]!.streaming, false);
   const gr = groupThreads(
     [
@@ -482,7 +480,7 @@ test("streamed replies grow one message per turn; search puts this page's chats 
   assert.equal(modelLabel(models, ""), "Opus 5.5");
   assert.equal(modelLabel(models, "openai/g"), "GPT");
   assert.equal(
-    suggestions({ host: "app.gohighlevel.com", title: "x", record: { name: "Marisol Vega", kind: "Contact" } }).length,
+    suggestions({ host: "app.crm.example", title: "x", record: { name: "Maya Chen", kind: "Contact" } }).length,
     2,
   );
   assert.deepEqual(suggestions({ host: "", title: "", record: null }), []);
@@ -544,7 +542,7 @@ function fakeApp(o: { signedIn?: boolean } = {}) {
           ],
         };
       if (cap === "search.query")
-        return { hits: [{ kind: "record", id: "rec_1", title: "Marisol Vega", recordType: "Contact" }] };
+        return { hits: [{ kind: "record", id: "rec_1", title: "Maya Chen", recordType: "Contact" }] };
       if (cap === "search.related") return { hits: [{ kind: "chat", id: "thr_7", title: "Follow up after Lab 7" }] };
       if (cap === "notes.clip") return { note: { noteId: "not_1" } };
       if (cap === "access.principals.list")
@@ -615,12 +613,12 @@ test("chat.ask starts the chat with the agent and model, posts the page and sele
     model: "anthropic/claude-opus-5-5",
     text: "What should I say?",
     page: {
-      url: "https://app.gohighlevel.com/c/1",
-      title: "Marisol",
+      url: "https://app.crm.example/c/1",
+      title: "Maya",
       text: "page",
       shot: "data:image/jpeg;base64,QUJD",
     },
-    selection: { text: "after 5 PM", url: "https://app.gohighlevel.com/c/1" },
+    selection: { text: "after 5 PM", url: "https://app.crm.example/c/1" },
   });
   assert.deepEqual(r, { threadId: "thr_1", turnId: "msg_9" });
   const start = f.calls.find((c) => c.cap === "chat.start")!.input;
@@ -631,13 +629,13 @@ test("chat.ask starts the chat with the agent and model, posts the page and sele
     ["web_page", "quote"],
   );
   assert.equal(post.blocks[0].data.shot, "data:image/jpeg;base64,QUJD");
-  f.reply([{ author: { kind: "agent", id: "agt_a" }, kind: "agent", body: "Marisol booked" }]);
+  f.reply([{ author: { kind: "agent", id: "agt_a" }, kind: "agent", body: "Maya booked" }]);
   await f.run();
   assert.deepEqual(f.pushed.at(-1), {
     type: "chat.delta",
     threadId: "thr_1",
     turnId: "msg_9",
-    text: "Marisol booked",
+    text: "Maya booked",
     done: false,
   });
   for (let i = 0; i < 4; i++) await f.run();
@@ -695,10 +693,10 @@ test("agents, record matches and app.open", async () => {
   const f = fakeApp();
   const ag: any = await f.app.op("agents.list", {});
   assert.equal(ag.suggested.id, "agt_a");
-  const rec: any = await f.app.op("records.match", { emails: ["marisol@vegalaw.com"], phones: [] });
+  const rec: any = await f.app.op("records.match", { emails: ["maya@northwind.example"], phones: [] });
   assert.deepEqual(rec.records[0], {
     id: "rec_1",
-    name: "Marisol Vega",
+    name: "Maya Chen",
     kind: "Contact",
     why: "by email address",
     chats: [{ threadId: "thr_7", title: "Follow up after Lab 7", at: null, agentName: "" }],

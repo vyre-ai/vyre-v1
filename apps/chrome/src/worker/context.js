@@ -2,7 +2,7 @@
 // What the side panel, Ask, Save to Notes and the record lookup read from a page, decided in one place against the per-site privacy choice (privacy.js).
 // The page chip carries the title, the address, the page's visible text and a masked screenshot; the Selected chip carries the highlighted text. Neither ever carries
 // a field's value: innerText leaves inputs out, and the selection is refused when it sits in a password field. Record lookup sends only the address and the email
-// addresses and phone numbers written on the page, so the app can say "Marisol Vega matched by her email address".
+// addresses and phone numbers written on the page, so the app can say "Maya Chen matched by her email address".
 
 import { maskedShot } from "./shot.js";
 import { pageOf } from "./match.js";
