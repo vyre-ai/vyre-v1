@@ -245,7 +245,8 @@ function evalSubject(
   max = 0;
   const reach = req.action.direct === true ? Math.min(1, chain.length) : chain.length;
   // at a Space node: an agent asking holds only its own Space grant (every role grant skipped); anyone asking about an agent (or what is inside one) holds no role grant below Manage
-  const aboutAgent = chain.some((r) => r.type === "agent");
+  // an agent that lives under something other than the Space (a project's teammate) inherits exactly what that place gives: only an agent directly under the Space is cut off from the role
+  const aboutAgent = chain.some((r, i) => r.type === "agent" && chain[i + 1]?.type === "space");
   for (let i = 0; i < reach; i++) {
     const l = snap.grantsOn(chain[i]!.id);
     if (!l) continue;
@@ -424,6 +425,10 @@ export function providerMax(
   if (provider !== OUTSIDE_PROVIDER) return p.defaultMax ?? Infinity;
   return Math.min(...Object.values(p.allow), p.defaultMax ?? Infinity);
 }
+
+/** May this principal share something with Everyone? Only one who manages access: the one rule access.share (assertEveryone) and an agent's birth share both ask. */
+export const mayShareWithEveryone = (snap: AccessSnapshot, who: string): boolean =>
+  snap.info(who)?.perms.has("access.manage") === true;
 
 export function authorize(snap: AccessSnapshot, req: Req): Decision {
   const steps: Step[] | null = req.explain ? [] : null;

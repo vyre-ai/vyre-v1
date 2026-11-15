@@ -474,6 +474,8 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
     templateVersion: rec.templateVersion,
     ...(priv ? { private: true } : {}),
     ...(shared ? { shared: true } : {}),
+    // a project's teammate is born under the project in access (a chat's agent keeps the Space: its chat decides who asks it)
+    ...(kind === "teammate" && input.projectId?.startsWith("prj_") ? { projectId: input.projectId } : {}),
   });
   // access names a private agent as its person to everyone else ("Irfad Imtiaz (Agent)"); this is what tells it
   if (priv) {

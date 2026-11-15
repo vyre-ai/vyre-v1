@@ -401,3 +401,32 @@ test("an agent born shared gets exactly one Everyone use grant on itself, with t
   const alone = reg("edit").register({ events: created("agt_8abc"), space: "spc_core", maker: "usr_a" });
   assert.equal(alone.filter((e) => e.payload["resource_type"] === "agent").length, 0);
 });
+
+test("an agent a person makes is born shared with Everyone only when that person could share with Everyone themselves", () => {
+  const born = [
+    { type: "agent.created", payload: { agentId: "agt_7abc", name: "Intake", ownerId: "usr_m", shared: true } },
+  ];
+  const mk = (may: boolean) =>
+    createPrincipalRegistrar({ exists: () => false, levelOf: () => "edit", mayShareAll: () => may }).register({
+      events: born,
+      space: "spc_core",
+      maker: "usr_m",
+    });
+  assert.equal(mk(true).filter((e) => e.payload["resource_type"] === "agent").length, 1, "an admin's agent is shared");
+  assert.equal(mk(false).filter((e) => e.payload["resource_type"] === "agent").length, 0, "a member's is her own");
+});
+
+test("a project's teammate is registered under its project", () => {
+  // the resource registrar is exercised in host/tests/resources.created.test.ts; here the birth payload is what carries the project
+  const out = reg("edit").register({
+    events: [
+      {
+        type: "agent.created",
+        payload: { agentId: "agt_6abc", name: "Scribe", ownerId: "usr_a", projectId: "prj_1abc" },
+      },
+    ],
+    space: "spc_core",
+    maker: "usr_a",
+  });
+  assert.equal(out.filter((e) => e.payload["resource_type"] === "agent").length, 0, "no Everyone grant for a teammate");
+});

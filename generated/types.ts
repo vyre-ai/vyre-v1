@@ -48459,6 +48459,7 @@ export type AgentCreatedPayload = {
   folderId: string;
   templateVersion: number;
   private?: boolean;
+  projectId?: string;
   shared?: boolean;
 };
 export type AgentDeletedPayload = {

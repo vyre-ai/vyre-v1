@@ -6417,6 +6417,7 @@ if ("ownerId" in o6934) lf(o6934["ownerId"], p + "/ownerId", e, L16);
 if ("folderId" in o6934) lf(o6934["folderId"], p + "/folderId", e, L1);
 if ("templateVersion" in o6934) lf(o6934["templateVersion"], p + "/templateVersion", e, L2);
 if ("private" in o6934) lf(o6934["private"], p + "/private", e, L3);
+if ("projectId" in o6934) lf(o6934["projectId"], p + "/projectId", e, L1);
 if ("shared" in o6934) lf(o6934["shared"], p + "/shared", e, L3);
 }
 }

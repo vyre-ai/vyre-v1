@@ -973,12 +973,19 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           deps.hidden?.(resource, seed.principal.id, seed.actingFor)
         )
           throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
-        // an agent that is its person's alone, reached by another person (an agent nobody shared no longer rides on the Member role, so access answers first): the agents module's own words
-        const words =
-          resource !== null && resource.type === "agent" && resource.id !== null && seed.principal.kind === "person"
-            ? deps.privateAgentWords?.(resource.id)
-            : null;
-        if (words) throw fail("validation.not_found", traceId, { message: words, details: { reason: "private" } });
+        // a person reaching for an agent they may not see (an agent nobody shared with them, an id that is not one): every door says the same sentence, with no id and no "Ask for access", so what exists is not
+        // leaked. An agent that is its person's alone (an Assistant, an outside agent) keeps its own words, which say whose it is.
+        if (
+          resource !== null &&
+          resource.type === "agent" &&
+          resource.id !== null &&
+          seed.principal.kind === "person" &&
+          (d.reason === "no_grant" || d.reason === "not_found")
+        ) {
+          const words = deps.privateAgentWords?.(resource.id);
+          if (words) throw fail("validation.not_found", traceId, { message: words, details: { reason: "private" } });
+          throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
+        }
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare =

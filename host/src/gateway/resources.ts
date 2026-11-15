@@ -386,8 +386,14 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
                   )
                 : undefined;
         const holder = typeof inFolder === "string" && (deps.exists(inFolder) || seen.has(inFolder)) ? inFolder : given;
+        // a project's teammate lives in its project (15 Nov 2026): who reaches the project reaches its teammate through the tree, and the Space's Member role does not reach it on its own
+        const teamOf = s.type === "agent" ? pointer(ev.payload, "/projectId") : undefined;
         const container =
-          typeof holder === "string" && holder !== id && (deps.exists(holder) || seen.has(holder)) ? holder : a.space;
+          typeof teamOf === "string" && idFits("project", teamOf) && (deps.exists(teamOf) || seen.has(teamOf))
+            ? teamOf
+            : typeof holder === "string" && holder !== id && (deps.exists(holder) || seen.has(holder))
+              ? holder
+              : a.space;
         // a birth event that names its owner (agent.created names ownerId) says whose the object is; otherwise the person the call acts for
         const named = OWNER_NAMED.has(s.type) ? pointer(ev.payload, OWNER_NAMED.get(s.type)!) : undefined;
         // a calendar, mailbox or site that says it is private (a member's own Google or Outlook calendar or mail, a Personal calendar, an artifact) does not inherit the Space's access: the owner has it, and anyone they share it with

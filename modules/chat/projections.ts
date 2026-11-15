@@ -70,9 +70,15 @@ export function refOf(id: string): { kind: Principal["kind"]; id: string } {
  * A person can only bring in, ask or @mention an agent they may see: the agents module answers "not found" for one they may not (a person's private assistant is one), and so does this.
  * Agents act for themselves (an agent posting is not a person choosing who to talk to), and a host with no agents module to ask keeps the old behaviour.
  */
-export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): Promise<void> {
+export async function refuseUnseenAgents(
+  ctx: ChatCtx,
+  ids: readonly string[],
+  /** the door rule of a chat: an agent that is a member of THIS chat may be asked in it by whoever may post there, whether or not the asker could use it anywhere else (mayAskInChat) */
+  inChat?: (agentId: string) => boolean,
+): Promise<void> {
   if (!ctx.call || ctx.principal.kind !== "person") return;
   for (const agentId of new Set(ids)) {
+    const here = inChat?.(agentId) === true;
     try {
       await ctx.call("agents.get", { agentId });
     } catch (e) {
@@ -87,7 +93,8 @@ export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): 
       const priv = (x.details ?? x.error?.details)?.reason === "private";
       // Only "not found" refuses here. A permission refusal from agents.get is NOT a reason to refuse the chat: a member who may talk to a Space agent often may not read its settings,
       // and treating that as "does not exist" stopped ordinary chats with agents (12 Nov, CI on 664e3b157: ten live files). Who may reach a chat's own agent is decided by access.
-      if (code === "validation.not_found")
+      // an agent of this chat is asked here whatever the asker could use elsewhere, except one that is its person's alone (an Assistant, an outside agent): that keeps its own sentence
+      if (code === "validation.not_found" && (priv || !here))
         raise(
           ctx,
           "validation.not_found",
@@ -97,6 +104,7 @@ export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): 
           { agentId, ...(priv ? { reason: "private" } : {}) },
         );
     }
+    if (here) continue;
     // an agent nobody shared with the person is not theirs to bring in or ask (15 Nov 2026): access answers for it, the same way it answers for the agent list
     const gate = (
       ctx as unknown as {

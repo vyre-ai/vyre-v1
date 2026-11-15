@@ -17,6 +17,7 @@ import {
   threadOut,
 } from "../projections.ts";
 import { messageAsMe } from "./floor.ts";
+import { refuseUnseenAgents } from "../projections.ts";
 import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import { canSpeak, channelManageDenied, mayGovernChannel, rootOf } from "./post.ts";
@@ -307,6 +308,7 @@ export async function addAgentTo(ctx: ChatCtx, input: { threadId: string; agentI
   if (!agentMayChange(ctx, t))
     raise(ctx, "permission.role_lacks_permission", "Only the lead agent of a chat adds agents to it.");
   if (t.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This chat is closed. Reopen it first.");
+  await refuseUnseenAgents(ctx, [input.agentId]);
   const now = agentsOf(ctx.db, t.id);
   const by = askerOf(ctx);
   const have = now.find((a) => a.agentId === input.agentId);

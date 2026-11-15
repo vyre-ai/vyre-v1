@@ -115,7 +115,7 @@
   "events": {
     "agent.config_changed": "7c928543a20c07e6adcdedb7fade1a78d79b2885f422825ddb697d1e13a3616c",
     "agent.config_error": "4ef993c9554ab5ab0166846264537067eaae0683d3fd42852ab4cc41acc22717",
-    "agent.created": "c47b6c8b06d410f1462493a91ccf2dc066504e75f49c3f1c7ece0d7eee7d4e74",
+    "agent.created": "587e45f5abbe6357b7942fff0f4c1f2d9499357e44a60c93cb1c7f6383d8ae6e",
     "agent.deleted": "d6fc180032c85d7b13a10aee631dbc46ab9e618cf493587fb3ec4339cf6008b0",
     "agent.job_queued": "7ed3d3cd6a441c7a4204d4aa36902f9575f67ccc5cde300528fc240c57ffd27d",
     "agent.job_taken": "c8f3648db621f23d4ce9ea520995f5863dc22a7cca0f59124b5a3c36a5b246f1",

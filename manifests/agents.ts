@@ -955,6 +955,9 @@ export default defineManifest({
         folderId: t.str(),
         templateVersion: t.int(),
         private: t.opt(t.bool()),
+        projectId: t.opt(
+          t.str({ description: "The project a teammate belongs to: it is registered under the project in access" }),
+        ),
         shared: t.opt(
           t.bool({
             description: "Made in the open Space by a person: shared with Everyone at use, written with the birth",

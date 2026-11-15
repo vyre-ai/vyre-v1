@@ -103,3 +103,28 @@ test("a guest reaches nothing of an agent", () => {
   assert.equal(ask(s, "usr_gst", "agent", "agt_priv", "view"), "deny");
   assert.equal(ask(s, "usr_gst", "agent", "agt_all", "view"), "deny");
 });
+
+test("a project's teammate inherits what the project gives: its people reach it, a Space member outside a private project does not, and the Member role reaches it exactly as it reaches the project", () => {
+  const s = world();
+  // a project open to the Space only through the Member role's Space grant, and a private one (no parent)
+  s.putResource({ id: "prj_open", type: "project", parent_id: "spc", label: 0, owner_id: "usr_ada", holds: 0 });
+  s.putResource({ id: "agt_tm_open", type: "agent", parent_id: "prj_open", label: 0, owner_id: "usr_ada", holds: 0 });
+  s.putResource({ id: "prj_priv", type: "project", parent_id: null, label: 0, owner_id: "usr_ada", holds: 0 });
+  s.putResource({ id: "agt_tm_priv", type: "agent", parent_id: "prj_priv", label: 0, owner_id: "usr_ada", holds: 0 });
+  s.putGrant({
+    id: "g_prj_cy",
+    subject_kind: "actor",
+    subject_id: "usr_cy",
+    resource_type: "project",
+    resource_id: "prj_priv",
+    level: "edit",
+  });
+  assert.equal(ask(s, "usr_cy", "agent", "agt_tm_priv"), "allow", "a member of the project reaches its teammate");
+  assert.equal(ask(s, "usr_dee", "agent", "agt_tm_priv"), "deny", "a Space member outside a private project does not");
+  assert.equal(
+    ask(s, "usr_bea", "agent", "agt_tm_open"),
+    ask(s, "usr_bea", "project", "prj_open", "use", "agents.use"),
+    "the role reaches the teammate exactly as it reaches its project",
+  );
+  assert.equal(ask(s, "usr_bea", "agent", "agt_tm_open"), "allow");
+});

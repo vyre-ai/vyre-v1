@@ -325,6 +325,8 @@ export function lowAgentUpgradeEvents(a: {
 export function createPrincipalRegistrar(deps: {
   exists(id: string): boolean;
   /** what the person may do on the Space itself */ levelOf(person: string, space: string): SpaceLevel;
+  /** may this person share with Everyone themselves? (an agent they make is born shared only if they could do it by hand) */
+  mayShareAll?(person: string): boolean;
 }): PrincipalRegistrar {
   return {
     register(a) {
@@ -399,7 +401,7 @@ export function createPrincipalRegistrar(deps: {
         }
         // an agent a person made in the open Space is the team's: the birth says so (`shared`, set by agents.create for an ordinary agent made by a person, never an Assistant, an outside agent, a teammate, one a chat made or one an
         // agent made), and the explicit grant is written with the birth, so the Member role's Space grant never has to stand for it. The sharing sheet narrows it like any grant.
-        if ((ev.payload as { shared?: unknown } | null)?.shared === true) {
+        if ((ev.payload as { shared?: unknown } | null)?.shared === true && deps.mayShareAll?.(a.maker) !== false) {
           const all = agentGrantId(id, "all");
           out.push({
             type: "grant.created",

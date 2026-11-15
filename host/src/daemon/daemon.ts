@@ -20,7 +20,7 @@ import { createUnsubscribeRoute } from "../routes/unsubscribe.ts";
 import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { authorize, sharedThrough } from "../../../kernel/src/authorize/index.ts";
+import { authorize, mayShareWithEveryone, sharedThrough } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { LogClient } from "../../../kernel/src/log/index.ts";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
@@ -2025,6 +2025,39 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             });
           }
         }
+        // A project's teammate lives in its project in the access tree (15 Nov 2026): the teammates made before this build sit under the Space, and are moved at every start (a row already under its project is left).
+        try {
+          for (const t of db!.all(
+            `SELECT "id", "projectId" FROM agents_agent WHERE "kind" = 'teammate' AND "projectId" LIKE 'prj\\_%' ESCAPE '\\' AND "deletedAt" IS NULL`,
+          ) as { id: string; projectId: string }[]) {
+            const row = access.snap.resource(t.id);
+            if (!row || row.parent_id === t.projectId || !access.snap.resource(t.projectId)) continue;
+            const moved = await appendRepair({
+              id: `evt_res_teammate_${t.id.slice(-12)}_${t.projectId.slice(-12)}`,
+              type: "resource.created",
+              sv: 1,
+              trace_id: "c0".repeat(16),
+              actor: "svc_host",
+              vis: "space",
+              entity: "resource",
+              entity_id: t.id,
+              payload: {
+                id: t.id,
+                type: row.type,
+                parent_id: t.projectId,
+                label: row.label,
+                owner_id: row.owner_id,
+                holds: row.holds,
+              },
+            });
+            if (!moved.duplicate) {
+              access.fold(moved.event);
+              accessPending.push(toAccessEvent(moved.event));
+            }
+          }
+        } catch {
+          // no agents table yet: nothing to move
+        }
         // An inbox a person set to private (or to chosen people) before the setting was enforced is registered under the Space, so every member still reaches it (F48, 14 Nov 2026). Close it from the
         // event that set it, at every start: an inbox already closed is left as it is, so this is safe to repeat and moves no data.
         const lastPrivacy = new Map<string, { privacy: string; at: string }>();
@@ -3535,6 +3568,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         principals: createPrincipalRegistrar({
           exists: (id) => access.snap.info(id) !== null,
+          mayShareAll: (person) => mayShareWithEveryone(access.snap, person),
           levelOf: (person, space) => {
             const may = (level: "edit" | "view"): boolean =>
               authorize(access.snap, {
