@@ -320,7 +320,7 @@ export function chatListFast(
   ctx: ChatCtx,
   asker: string,
   o: { pinned: readonly string[]; muted: ReadonlySet<string>; want: number },
-): { rows: ChatListRow[]; total: number } {
+): { rows: ChatListRow[]; total: number; asks: ChatListRow[] } {
   ensureReadTable(ctx);
   ensureLast(ctx.db);
   archivedIds(ctx, asker); // makes the archive tables
@@ -372,11 +372,38 @@ export function chatListFast(
       ...mutedHere,
     ))
       ids.add(String(r["id"]));
-  // every one-to-one: the team's rows
-  for (const r of run(() => `SELECT t.id AS id ${base()} AND NOT ${agentsHere} AND ${humans()} = 1`))
-    ids.add(String(r["id"]));
+  // every one-to-one: the team's rows. The caller's Ask panes ride in the same read (askList's rows, newest first, at most 100): the Asks filter needs them, and the
+  // sidebar's first page stays the same handful of reads it was (sidebar.read.perf.test.ts counts them)
+  const asks: ChatListRow[] = [];
+  for (const r of run(
+    () =>
+      `SELECT t.id AS id, 0 AS isAsk, NULL AS title, NULL AS at, NULL AS agents ${base()} AND NOT ${agentsHere} AND ${humans()} = 1
+       UNION ALL
+       SELECT * FROM (
+         SELECT t.id AS id, 1 AS isAsk, t.title AS title, COALESCE(l.at, t.createdAt) AS at,
+                (SELECT group_concat(x.agentId) FROM (SELECT g.agentId AS agentId FROM chat_thread_agent g WHERE g.thread = t.id AND g.deleted_at IS NULL ORDER BY g.rowid) x) AS agents
+           FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id
+          WHERE t.kind = 'ask' AND t.starter = ${ask()} AND t.deleted_at IS NULL AND t.closedAt IS NULL
+          ORDER BY at DESC, id LIMIT 100)`,
+  )) {
+    if (Number(r["isAsk"]) !== 1) {
+      ids.add(String(r["id"]));
+      continue;
+    }
+    const title = r["title"];
+    const agents = r["agents"];
+    asks.push({
+      threadId: String(r["id"]),
+      title: title === null || title === undefined || title === "" ? "Ask" : String(title),
+      agents: typeof agents === "string" && agents !== "" ? agents.split(",") : [],
+      people: [],
+      unread: 0,
+      lastAt: Number(r["at"] ?? 0),
+      archived: false,
+    });
+  }
   for (const id of o.pinned) ids.add(id);
-  return { rows: chatDetails(ctx, asker, [...ids]), total: nonMuted + mutedTotal };
+  return { rows: chatDetails(ctx, asker, [...ids]), total: nonMuted + mutedTotal, asks };
 }
 
 /** The rows of these chats (the caller's own: a chat they are not in gives nothing), with their agents, people and unread. */
@@ -657,7 +684,7 @@ export async function chatsSidebar(
       { kind: "chat", threadId, withPeople: people.length > 0, ...(r.archived ? { archived: true } : {}) },
     );
   }
-  for (const r of askList(ctx, me)) {
+  for (const r of fastList?.asks ?? askList(ctx, me)) {
     add(
       {
         key: `c:${r.threadId}`,
