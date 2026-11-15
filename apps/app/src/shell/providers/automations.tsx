@@ -1,5 +1,4 @@
 // The Automations place: the shell sidebar slot holds the list, and the body holds the open Automation or an operational view.
-import { openIn, takeOpenHow } from "../tabs/open-how.ts";
 import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useConnectVersion } from "../connect/context.ts";
@@ -191,12 +190,6 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
             setSideRun(null);
           },
           openAutomation: (id) => {
-            // Cmd-press, the middle button or "Open in New Tab": the Automation opens as a tab beside this one (tabs/open-rule.ts)
-            const how = takeOpenHow();
-            if (how !== "here") {
-              openIn(how, () => rt.open({ subject: { type: "automation", id } }));
-              return;
-            }
             setView("automations");
             setStep(null);
             setOpenId(id);

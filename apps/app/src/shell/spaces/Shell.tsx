@@ -181,13 +181,9 @@ export function Sheets({
       const wait = (): void => {
         const el = main.current as { querySelector?: (q: string) => unknown } | null;
         frames += 1;
-        // the view that arrived has nothing on its page yet (a file or a record still being read): the still copy stays over it. Never a frame with an empty page between two views (owner, 16 Nov: "2 seconds of blank screen").
-        const stage = el?.querySelector?.('[data-testid="place-stage"]') as { innerText?: string } | null | undefined;
-        const empty = stage !== null && stage !== undefined && (stage.innerText ?? "").replace(/\s+/g, "").length < 12;
         if (
           frames < 3 ||
-          ((el?.querySelector?.("[data-loading]:not([data-swap] [data-loading])") || empty) &&
-            Date.now() - began < HOLD_MAX_MS)
+          (el?.querySelector?.("[data-loading]:not([data-swap] [data-loading])") && Date.now() - began < HOLD_MAX_MS)
         ) {
           requestAnimationFrame(wait);
           return;
@@ -563,9 +559,6 @@ export function Shell(props: ShellProps): ReactElement {
       } else if (k.type === "new-tab") {
         e.preventDefault();
         hub.newTab();
-      } else if (k.type === "reopen-tab") {
-        e.preventDefault();
-        hub.reopenTab();
       } else if (k.type === "close-tab") {
         e.preventDefault();
         hub.closeTab();

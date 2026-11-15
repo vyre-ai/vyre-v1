@@ -16,7 +16,6 @@ export function recordsData(rt: ShellRuntime, screen?: string, canEditSchema = f
     nameOf: nameLookup(rt),
     nav: {
       openRecord: (recordId) => rt.open({ subject: { type: "record", id: recordId } }),
-      openType: (type) => rt.open({ place: "records", args: { type } }),
       openRecordTypes: () => rt.open({ screen: "records.types" }),
       openSchemaMap: () => rt.open({ screen: "records.schema-map" }),
       // the session that brings a CRM in runs in the Records Ask pane, beside the records it makes

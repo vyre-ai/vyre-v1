@@ -16,8 +16,6 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Glyph, IconButton, Unread } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useInboxState } from "./state.tsx";
-import { useInSidebarColumn, useOptionalSidebarSlot } from "../../../shell/sidebar/index.ts";
-import { portalInto } from "../../../shell/sidebar/portal.ts";
 import { useMeetingsQuery } from "../meetings/MeetingsTab.tsx";
 import type { ListOut as MeetingsOut } from "../meetings/model.ts";
 
@@ -249,32 +247,20 @@ function Sidebar(): ReactElement {
     />
   );
 
-  const slotApi = useOptionalSidebarSlot();
-  const inColumn = useInSidebarColumn();
-  const buttons = (
-    <>
-      {bare ? null : (
-        <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => data.nav.compose()} />
-      )}
-      {bare ? null : (
-        <IconButton icon="plus" label="Connect a mailbox or number" testID="inbox-connect" onPress={connectMenu} />
-      )}
-    </>
-  );
   return (
     <View style={styles.side} testID="inbox-sidebar" accessibilityLabel="Inbox sidebar">
-      {inColumn ? (
-        // the column's own head carries the title and Hide; the place's buttons go in its buttons' spot
-        portalInto(slotApi?.actionsOutlet, buttons)
-      ) : (
-        <View style={styles.top}>
-          <Text accessibilityRole="header" style={styles.title}>
-            Inbox
-          </Text>
-          <View style={styles.grow} />
-          {buttons}
-        </View>
-      )}
+      <View style={styles.top}>
+        <Text accessibilityRole="header" style={styles.title}>
+          Inbox
+        </Text>
+        <View style={styles.grow} />
+        {bare ? null : (
+          <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => data.nav.compose()} />
+        )}
+        {bare ? null : (
+          <IconButton icon="plus" label="Connect a mailbox or number" testID="inbox-connect" onPress={connectMenu} />
+        )}
+      </View>
       <View style={[styles.search, focus && styles.searchOn]}>
         <Glyph name="search" size={13} />
         <TextInput
