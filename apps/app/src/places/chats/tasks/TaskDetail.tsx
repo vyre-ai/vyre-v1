@@ -13,7 +13,9 @@ import { isRawId } from "../../../../../../lib/id-shapes.ts";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
+import { SidePane, usePaneTab } from "../../../../../../ui/src/SidePane/index.tsx";
+import { Timeline } from "../../../../../../ui/src/Timeline/index.tsx";
+import { actionTimeline } from "../../../../../../lib/words/timeline.ts";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import {
   deliverableOf,
@@ -48,7 +50,7 @@ import type { Clash } from "./conflict.ts";
 import { dueLabel, holderOf, isOpenState, planOrder, PRIORITIES } from "./model.ts";
 import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
-import { activityOf } from "./activity.ts";
+import { activityOf, taskLines } from "./activity.ts";
 import { partOf } from "../goals/model.ts";
 import type { ActivityShow } from "./activity.ts";
 import { offered } from "../../../shell/session/private-agents.ts";
@@ -251,6 +253,9 @@ export function TaskDetail({
     [entries, threadId, nameOf, assignedId],
   );
 
+  const timeline = useMemo(() => actionTimeline(taskLines(entries, nameOf, assignedId)), [entries, nameOf, assignedId]);
+  const [paneTab, setPaneTab] = usePaneTab<"details" | "activity">("task", taskId, TASK_PANE_TABS);
+
   if (!shown) {
     const failed = q.status === "loading" ? q.error : undefined;
     return (
@@ -319,22 +324,38 @@ export function TaskDetail({
           paneKey="task-details"
           toggle={{ open: true, onPress: () => setRailOpen(false) }}
           title="Details"
-          tabs={[{ key: "details", title: "Details" }]}
-          activeTab="details"
+          tabs={[
+            { key: "details", title: "Details" },
+            { key: "activity", title: "Activity" },
+          ]}
+          activeTab={paneTab}
+          onSelectTab={(k) => setPaneTab(k as "details" | "activity")}
           defaultWidth={340}
           onCloseTab={() => setRailOpen(false)}
         >
-          <Rail
-            task={shown}
-            rt={rt}
-            nameOf={nameOf}
-            run={run}
-            menu={menu}
-            seats={who.seats}
-            openTask={openTask}
-            kidsCount={kids.length}
-            begin={begin}
-          />
+          {paneTab === "activity" ? (
+            <ScrollView testID="task-activity">
+              <Timeline
+                entries={timeline}
+                nameOf={nameOf}
+                now={Date.now()}
+                empty="Nothing has happened yet. Activity appears as the task moves."
+                testID="task-timeline"
+              />
+            </ScrollView>
+          ) : (
+            <Rail
+              task={shown}
+              rt={rt}
+              nameOf={nameOf}
+              run={run}
+              menu={menu}
+              seats={who.seats}
+              openTask={openTask}
+              kidsCount={kids.length}
+              begin={begin}
+            />
+          )}
         </SidePane>
       ) : null}
       {menu.element}
@@ -342,6 +363,7 @@ export function TaskDetail({
   );
 }
 const NO_ENTRIES: History["entries"] = [];
+const TASK_PANE_TABS: readonly ("details" | "activity")[] = ["details", "activity"];
 
 type Menu = ReturnType<typeof useMenu>;
 const pointAt = (e: unknown): { x: number; y: number } => {
