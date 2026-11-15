@@ -36,6 +36,8 @@ export interface ChatCtx {
   db: Db;
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call?(cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<unknown>;
+  /** the Space's access answer for the caller (the gateway always supplies it; a context without one refuses what it would have to ask about) */
+  authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: string };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
 
@@ -106,12 +108,23 @@ export async function refuseUnseenAgents(
     }
     if (here) continue;
     // an agent nobody shared with the person is not theirs to bring in or ask (15 Nov 2026): access answers for it, the same way it answers for the agent list
-    const gate = (
-      ctx as unknown as {
-        authorize?: (a: { perm: null; level: "view" }, r: { type: string; id: string }) => { effect: string };
-      }
-    ).authorize;
-    if (gate && gate({ perm: null, level: "view" }, { type: "agent", id: agentId }).effect !== "allow")
+    // fail closed: the answer must be a yes. A context with no access function asks access.check for the same view, and one that cannot be answered refuses: the agent does not exist for them
+    const seen = { perm: null, level: "view" as const };
+    let effect: string | undefined;
+    try {
+      effect = ctx.authorize
+        ? ctx.authorize(seen, { type: "agent", id: agentId }).effect
+        : (
+            (await ctx.call("access.check", {
+              principal: { kind: ctx.principal.kind, id: askerOf(ctx) },
+              action: { level: seen.level },
+              resource: { type: "agent", id: agentId },
+            })) as { decision?: { effect?: string } }
+          ).decision?.effect;
+    } catch {
+      effect = undefined;
+    }
+    if (effect !== "allow")
       raise(ctx, "validation.not_found", "That agent does not exist.", { agentId });
   }
 }

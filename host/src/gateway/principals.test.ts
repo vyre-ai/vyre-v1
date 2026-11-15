@@ -6,6 +6,7 @@ import { foldEvent } from "../daemon/access.ts";
 import {
   createPrincipalRegistrar,
   missingAgentHomeEvents,
+  oldAgentShareEvents,
   missingAgentPrincipalEvents,
   ownPlaceGrant,
 } from "./principals.ts";
@@ -429,4 +430,25 @@ test("a project's teammate is registered under its project", () => {
     maker: "usr_a",
   });
   assert.equal(out.filter((e) => e.payload["resource_type"] === "agent").length, 0, "no Everyone grant for a teammate");
+});
+
+test("the one-time pass shares an admin's old agent with Everyone once, leaves a member's, one with a grant, and a repeat", () => {
+  const agents = [
+    { id: "agt_1admin", ownerId: "usr_admin", underSpace: true, hasGrant: false },
+    { id: "agt_2member", ownerId: "usr_member", underSpace: true, hasGrant: false },
+    { id: "agt_3granted", ownerId: "usr_admin", underSpace: true, hasGrant: true },
+    { id: "agt_4project", ownerId: "usr_admin", underSpace: false, hasGrant: false },
+  ];
+  const run = () => oldAgentShareEvents({ agents, mayShareAll: (p) => p === "usr_admin" });
+  const out = run();
+  assert.equal(out.length, 1, "exactly one agent is shared");
+  assert.deepEqual(
+    [out[0]!.payload["resource_id"], out[0]!.payload["subject_id"], out[0]!.payload["level"], out[0]!.payload["source"]],
+    ["agt_1admin", "grp_everyone", "use", "birth:agt_1admin"],
+  );
+  assert.deepEqual(
+    run().map((e) => e.id),
+    out.map((e) => e.id),
+    "the same event id each time, so the log writes it once",
+  );
 });

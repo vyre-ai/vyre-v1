@@ -175,7 +175,18 @@ test("C: a member's own new agent is hers; she shares it with named people, not 
   assert.equal(await may(dan, teams), "allow");
 });
 
-test("D: an old agent nobody shared is its maker's; sharing it again opens it", async () => {
+test("D: after the update an agent the owner made stays usable by members and one a member made is hers; an agent nobody shared is its maker's, and sharing it again opens it", async () => {
+  // what the update leaves (the one-time pass, host/src/gateway/principals.ts oldAgentShareEvents, writes the owner's old agents the grant a new one is born with): the owner's agent is a member's to use, a plain member's is her own
+  assert.equal(
+    h.d.db!.all(`SELECT 1 FROM host_passes WHERE "key" = 'agent-birth-share'`).length,
+    1,
+    "the one-time pass ran at the first start and left its marker",
+  );
+  const ownersOld = await make(h.owner, "OwnersOld");
+  assert.equal(await may(dan, ownersOld), "allow", "an agent the owner made is still usable by a member");
+  const membersOld = await make(bea, "MembersOld");
+  assert.notEqual(await may(dan, membersOld), "allow", "an agent a plain member made is its maker's");
+  assert.equal(await may(bea, membersOld), "allow");
   const old = await make(h.owner, "OldBot");
   await h.owner.call("access.unshare", {
     resource: { type: "agent", id: old },
