@@ -443,7 +443,12 @@ test("the one-time pass shares an admin's old agent with Everyone once, leaves a
   const out = run();
   assert.equal(out.length, 1, "exactly one agent is shared");
   assert.deepEqual(
-    [out[0]!.payload["resource_id"], out[0]!.payload["subject_id"], out[0]!.payload["level"], out[0]!.payload["source"]],
+    [
+      out[0]!.payload["resource_id"],
+      out[0]!.payload["subject_id"],
+      out[0]!.payload["level"],
+      out[0]!.payload["source"],
+    ],
     ["agt_1admin", "grp_everyone", "use", "birth:agt_1admin"],
   );
   assert.deepEqual(

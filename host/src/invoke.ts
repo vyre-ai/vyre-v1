@@ -984,7 +984,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         ) {
           const words = deps.privateAgentWords?.(resource.id);
           if (words) throw fail("validation.not_found", traceId, { message: words, details: { reason: "private" } });
-          throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
+          // an id that is no agent keeps the code access always gave it (permission.not_found); one that exists and is not theirs reads as not found, and says it came from access (the chat door asks access itself)
+          if (d.reason === "not_found")
+            throw fail("permission.not_found", traceId, { message: "That agent does not exist." });
+          throw fail("validation.not_found", traceId, {
+            message: "That agent does not exist.",
+            details: { reason: "hidden" },
+          });
         }
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you

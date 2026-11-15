@@ -98,9 +98,14 @@ test("adding an agent to a channel needs the adder to be able to use it", async 
 const INTAKE_OK = "agt_intake";
 
 test("a context without the access function refuses an agent that is not of this chat unless access.check says yes", async () => {
-  const none = harness({ calls: { "agents.get": () => ({ agent: {} }), "access.check": () => ({ decision: { effect: "deny" } }) } });
+  const none = harness({
+    calls: { "agents.get": () => ({ agent: {} }), "access.check": () => ({ decision: { effect: "deny" } }) },
+  });
   await assert.rejects(
-    h["chat.start"]!({ ...none.ctx, authorize: undefined }, { kind: "chat", agentIds: [WREN], idempotencyKey: "door-bare" }),
+    h["chat.start"]!(
+      { ...none.ctx, authorize: undefined },
+      { kind: "chat", agentIds: [WREN], idempotencyKey: "door-bare" },
+    ),
     (e) => codeOf(e) === "validation.not_found",
   );
   const broken = harness({
@@ -112,7 +117,10 @@ test("a context without the access function refuses an agent that is not of this
     },
   });
   await assert.rejects(
-    h["chat.start"]!({ ...broken.ctx, authorize: undefined }, { kind: "chat", agentIds: [WREN], idempotencyKey: "door-bare2" }),
+    h["chat.start"]!(
+      { ...broken.ctx, authorize: undefined },
+      { kind: "chat", agentIds: [WREN], idempotencyKey: "door-bare2" },
+    ),
     (e) => codeOf(e) === "validation.not_found",
     "an access function that cannot answer is a refusal, never a pass",
   );

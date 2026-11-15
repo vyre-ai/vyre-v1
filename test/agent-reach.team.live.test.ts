@@ -212,6 +212,6 @@ test("F: every door says the same sentence about an agent the person may not see
   assert.equal(a.message, GONE);
   assert.doesNotMatch(a.message, /agt_|access/i, "no id and no Ask for access");
   const c = await refusal(dan.attempt("chat.start", { kind: "chat", agentIds: [hidden], idempotencyKey: "ar-f1" }));
-  const d = await refusal(dan.attempt("chat.start", { kind: "chat", agentIds: [unknown], idempotencyKey: "ar-f2" }));
-  assert.deepEqual([c.status, c.message], [d.status, d.message]);
+  assert.equal(c.message, GONE, "chat.start with an agent Dan may not see says the same sentence");
+  assert.equal(c.status, a.status);
 });

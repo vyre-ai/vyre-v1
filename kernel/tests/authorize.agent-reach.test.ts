@@ -98,7 +98,7 @@ test("the Space's owner reaches every agent through their own Manage grant on th
   assert.equal(ask(s, "usr_boss", "agent", "agt_priv", "manage"), "allow");
 });
 
-test("a guest reaches nothing of an agent", () => {
+test("a guest reaches nothing of an agent, not even one shared with Everyone", () => {
   const s = world();
   assert.equal(ask(s, "usr_gst", "agent", "agt_priv", "view"), "deny");
   assert.equal(ask(s, "usr_gst", "agent", "agt_all", "view"), "deny");
@@ -127,4 +127,17 @@ test("a project's teammate inherits what the project gives: its people reach it,
     "the role reaches the teammate exactly as it reaches its project",
   );
   assert.equal(ask(s, "usr_bea", "agent", "agt_tm_open"), "allow");
+});
+
+test("a guest holds no agent through the Everyone group, with no permission asked either", () => {
+  const s = world();
+  const effect = (who: string) =>
+    authorize(s, {
+      principal: who,
+      action: { perm: null, level: "view" },
+      resource: { type: "agent", id: "agt_all" },
+      now: NOW,
+    }).effect;
+  assert.equal(effect("usr_bea"), "allow", "a member holds it through Everyone");
+  assert.equal(effect("usr_gst"), "deny", "a guest does not");
 });

@@ -37,7 +37,10 @@ export interface ChatCtx {
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call?(cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<unknown>;
   /** the Space's access answer for the caller (the gateway always supplies it; a context without one refuses what it would have to ask about) */
-  authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: string };
+  authorize?(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ): { effect: string; reason?: string };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
 
@@ -96,7 +99,9 @@ export async function refuseUnseenAgents(
       // Only "not found" refuses here. A permission refusal from agents.get is NOT a reason to refuse the chat: a member who may talk to a Space agent often may not read its settings,
       // and treating that as "does not exist" stopped ordinary chats with agents (12 Nov, CI on 664e3b157: ten live files). Who may reach a chat's own agent is decided by access.
       // an agent of this chat is asked here whatever the asker could use elsewhere, except one that is its person's alone (an Assistant, an outside agent): that keeps its own sentence
-      if (code === "validation.not_found" && (priv || !here))
+      // (an answer that came from access itself, reason "hidden", is not the agents module's: the access question below decides)
+      const fromAccess = (x.details ?? x.error?.details)?.reason === "hidden";
+      if (code === "validation.not_found" && (priv || (!here && !fromAccess)))
         raise(
           ctx,
           "validation.not_found",
@@ -110,21 +115,24 @@ export async function refuseUnseenAgents(
     // an agent nobody shared with the person is not theirs to bring in or ask (15 Nov 2026): access answers for it, the same way it answers for the agent list
     // fail closed: the answer must be a yes. A context with no access function asks access.check for the same view, and one that cannot be answered refuses: the agent does not exist for them
     const seen = { perm: null, level: "view" as const };
-    let effect: string | undefined;
+    let effect: string | undefined, reason: string | undefined;
     try {
-      effect = ctx.authorize
-        ? ctx.authorize(seen, { type: "agent", id: agentId }).effect
+      const said = ctx.authorize
+        ? ctx.authorize(seen, { type: "agent", id: agentId })
         : (
             (await ctx.call("access.check", {
               principal: { kind: ctx.principal.kind, id: askerOf(ctx) },
               action: { level: seen.level },
               resource: { type: "agent", id: agentId },
-            })) as { decision?: { effect?: string } }
-          ).decision?.effect;
+            })) as { decision?: { effect?: string; reason?: string } }
+          ).decision;
+      effect = said?.effect;
+      reason = (said as { reason?: string } | undefined)?.reason;
     } catch {
       effect = undefined;
     }
-    if (effect !== "allow")
+    // an id access has no agent for is nothing to reach: the agents module answers for it. Anything else that is not a yes refuses.
+    if (effect !== "allow" && reason !== "not_found")
       raise(ctx, "validation.not_found", "That agent does not exist.", { agentId });
   }
 }

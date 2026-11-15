@@ -79,6 +79,7 @@ function collect(
   res: ResourceRow,
   label: number,
   roleBelow = 0,
+  noEveryone = false,
 ): void {
   const now = req.now,
     fields = req.fields;
@@ -89,6 +90,8 @@ function collect(
     // an agent's reach across the whole Space is its own Space grant (made with the agent, and taken away by unsharing it), never its role's: a Member agent whose own grant is gone holds only what is shared with it
     // a role's Space-wide grant below Manage does not reach an agent, nor anything inside one: an agent is reached by its owner, by a grant naming it (a person, a group, Everyone, a role) and by the Space's managers
     if (g.rank < roleBelow && g.key.startsWith("role:")) continue;
+    // Everyone is the team: a guest is in that group to be addressed, and still reaches an agent only by a grant that names them (or the chat door, in a chat the agent is in)
+    if (noEveryone && g.key === "group:grp_everyone") continue;
     if (g.exp <= now) {
       sawExpired = true;
       continue;
@@ -259,6 +262,7 @@ function evalSubject(
       res,
       label,
       atSpace && p.kind === "agent" ? LEVEL_RANK.manage + 1 : atSpace && aboutAgent ? LEVEL_RANK.manage : 0,
+      s.guest && chain.some((r) => r.type === "agent"),
     );
   }
   const tw = req.action.direct === true ? undefined : snap.typeWide(res.type);
