@@ -143,7 +143,7 @@ export function startViewMemory(
     const s = recalled(sideKey(current.tab));
     if (b !== undefined) wanted.push(["body", b]);
     if (s !== undefined) wanted.push(["side", s]);
-    if (wanted.every(([, r]) => Object.values(r).every((w) => w.y <= 0))) {
+    if (wanted.every(([, r]) => Object.values(r).every((w) => w.y === 0))) {
       touched = true;
       return;
     }
@@ -156,7 +156,7 @@ export function startViewMemory(
       let open = false;
       for (const [region, r] of wanted) {
         for (const [slot, w] of Object.entries(r)) {
-          if (w.y <= 0) continue;
+          if (w.y === 0) continue;
           const [id, nth] = slot.split("#") as [string, string];
           const els = Array.from(doc.querySelectorAll(`[data-testid="${id}"]`)).filter((x) => slotRegion(x) === region);
           const el = els[Number(nth)];
@@ -165,6 +165,16 @@ export function startViewMemory(
             continue;
           }
           // what was at the top edge is put back at the same distance from it; a view that has not drawn that thing yet is held to the pixels it had, once it is tall enough
+          // left at its end: it goes back to its end (a chat following the latest message, a list scrolled to the bottom)
+          if (w.y < 0) {
+            const to = el.scrollHeight - el.clientHeight;
+            if (to > 1 && Math.abs(el.scrollTop - to) > 1) el.scrollTop = to;
+            const h0 = held.get(slot);
+            const n0 = h0 !== undefined && h0.el === el ? h0.n + 1 : 1;
+            held.set(slot, { el, n: n0 });
+            if (n0 < 30 || to <= 1) open = true;
+            continue;
+          }
           const mark =
             w.anchor !== undefined && el.querySelector !== undefined && el.getBoundingClientRect !== undefined
               ? el.querySelector(`[data-testid="${w.anchor.id.replace(/"/g, '\\"')}"]`)

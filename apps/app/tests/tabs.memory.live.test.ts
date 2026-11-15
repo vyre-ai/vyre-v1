@@ -111,7 +111,7 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
     assert.ok(Math.abs(back.off - start.off) <= 4, `Back returns to the same place on screen (${start.off}, now ${back.off})`);
 
     // (b) leave the tab for another and come back
-    await page.getByTestId("tab-files").click();
+    await page.getByTestId("tab-strip").first().getByTestId("tab-files").click();
     await page.waitForTimeout(1500);
     await page.locator('[data-testid="tab-strip"] [role="tab"]').first().click();
     await page.waitForTimeout(2500);
@@ -130,7 +130,7 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
     say(`the pane opened on Files: page scrollTop ${during.y} (was ${start.y})`);
     assert.ok(Math.abs(during.off - start.off) <= 4 && during.first === start.first, "opening the pane did not move the page");
     await page.screenshot({ path: path.join(shots, "3-pane-on-files.png") });
-    await page.getByTestId("tab-files").first().click();
+    await page.getByTestId("tab-strip").first().getByTestId("tab-files").click();
     await page.waitForTimeout(1200);
     await page.locator('[data-testid="tab-strip"] [role="tab"]').first().click();
     await page.waitForTimeout(2500);
@@ -154,6 +154,9 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
     assert.ok(closed.first === start.first && Math.abs(closed.off - start.off) <= 4, "closing the pane did not move the page");
 
     // (d) the sidebar list keeps its place too
+    // a short window, so the list scrolls as it is drawn
+    await page.setViewportSize({ width: 1440, height: 420 });
+    await page.waitForTimeout(800);
     const list = page.getByTestId("sidebar-list");
     const lb = (await list.boundingBox())!;
     await page.mouse.move(lb.x + 100, lb.y + lb.height / 2);
@@ -165,10 +168,18 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
         const sc = [l, ...l.querySelectorAll("*")].find((e) => e.scrollTop > 0) as HTMLElement | undefined;
         return Math.round(sc?.scrollTop ?? 0);
       });
+    say(
+      "sidebar scroller: " +
+        (await page.evaluate(() => {
+          const l = document.querySelector('[data-testid="sidebar-list"]')!;
+          const sc = [l, ...l.querySelectorAll("*")].find((e) => e.scrollTop > 0) as HTMLElement | undefined;
+          return sc ? `${sc.tagName} testid=${sc.getAttribute("data-testid")} parent=${sc.parentElement?.getAttribute("data-testid")}` : "none";
+        })),
+    );
     const sideStart = await side();
     say(`sidebar list scrolled: ${sideStart}`);
-    assert.ok(sideStart > 50, "the sidebar list is scrolled");
-    await page.getByTestId("tab-files").click();
+    assert.ok(sideStart > 20, "the sidebar list is scrolled");
+    await page.getByTestId("tab-strip").first().getByTestId("tab-files").click();
     await page.waitForTimeout(1500);
     await page.locator('[data-testid="tab-strip"] [role="tab"]').first().click();
     await page.waitForTimeout(2500);

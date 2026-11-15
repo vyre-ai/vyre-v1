@@ -94,7 +94,7 @@ test("coming back to an address puts the scrollers where they were; a list left 
   w.go("chats", "a");
   w.tick(3);
   assert.equal(feed.scrollTop, 1200, "the chat is at the same place");
-  assert.equal(list.scrollTop, 4500, "an end-following list is not pulled anywhere");
+  assert.equal(list.scrollTop, 4500, "a list left at its end is back at its end");
   w.stop();
 });
 

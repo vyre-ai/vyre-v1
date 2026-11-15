@@ -120,6 +120,9 @@ type RecordingOut = CapMap["computers.recording.get"]["out"];
 export const SIDEBAR_W = 264;
 export const PANE_W = 340;
 export const TERMINAL_W = 480;
+/** What each chat's right pane was showing: open or not, and which of its own tabs. */
+const PANE_MEMORY = new Map<string, { open: boolean; tab?: TabKey }>();
+
 /** Under this width the agent's pane and the terminal fill the window (the sidebar is the shell's slot, which has its own phone view). */
 export const WIDE = 640;
 const LINE_MS = 4000;
@@ -412,10 +415,26 @@ export function ChatsMounted({
     setSideTask(null);
     setThingTrail([]);
   }, [chatShown]);
+  // each chat keeps its pane: whether it is open and on which tab, for as long as the app is open, so leaving the tab and coming back (or Back) finds the pane as it was (NAV-2026-11-14 rules 1 and 5)
+  const savedPane = useRef<string | null>(null);
+  const skipSave = useRef(false);
   useEffect(() => {
-    setPaneTab(undefined);
+    const mem = chatShown === null ? undefined : PANE_MEMORY.get(chatShown);
+    setPaneTab(mem?.tab);
     setHookSel(null);
-  }, [chatShown]);
+    savedPane.current = chatShown;
+    // the commit that brings a chat in still carries the last chat's pane flag: what it says is not this chat's
+    skipSave.current = true;
+    if (mem?.open === true && !shown.pane) act({ t: "pane-open" });
+  }, [chatShown]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (skipSave.current) {
+      skipSave.current = false;
+      return;
+    }
+    if (chatShown === null || savedPane.current !== chatShown) return;
+    PANE_MEMORY.set(chatShown, { open: shown.pane, ...(paneTab !== undefined ? { tab: paneTab } : {}) });
+  }, [chatShown, shown.pane, paneTab]);
   const profile = useCallback(
     (id: string, asPerson = false): void => {
       const agent =
