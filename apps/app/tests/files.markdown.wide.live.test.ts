@@ -198,3 +198,45 @@ test("in Edit a table is a table of cells: Tab goes across, Enter goes down, the
     await s.close();
   }
 });
+
+test("in View a wide table that scrolls sideways keeps its first column in view, and its header row stays while it scrolls down", async (t) => {
+  const s = await session(t, { width: 900, height: 700 });
+  if (!s) return;
+  const { page } = s;
+  try {
+    const f = await s.make("applicants.md", Buffer.from(MD), "text/markdown");
+    await page.goto(`${s.web.origin}/files#subject=file:${f.file.fileId}`, { waitUntil: "load" });
+    await page.getByText("A short paragraph above the table.").waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(600);
+    const m = await page.evaluate(async () => {
+      const sc = document.querySelector('[data-testid^="table-scroll-"]') as HTMLElement;
+      const first = () =>
+        (document.querySelector('[data-testid$="-0-0"][data-testid^="cell-"]') as HTMLElement).getBoundingClientRect()
+          .left;
+      const head = () => (document.querySelector('[data-testid^="thead-"]') as HTMLElement).getBoundingClientRect().top;
+      const before = { left: first(), top: head(), scrollW: sc.scrollWidth, clientW: sc.clientWidth };
+      sc.scrollLeft = 400;
+      sc.scrollTop = 300;
+      await new Promise((r) => setTimeout(r, 200));
+      return {
+        before,
+        afterLeft: first(),
+        afterTop: head(),
+        scrolledX: sc.scrollLeft,
+        scrolledY: sc.scrollTop,
+        scrollTopHead: sc.getBoundingClientRect().top,
+      };
+    });
+    console.log("STICKY", JSON.stringify(m));
+    assert.ok(m.before.scrollW > m.before.clientW, "the table scrolls sideways at this width");
+    assert.ok(m.scrolledX > 0, "it scrolled");
+    assert.ok(Math.abs(m.afterLeft - m.before.left) < 2, "the first column stays where it was");
+    assert.ok(
+      m.afterTop >= m.scrollTopHead - 2 && m.afterTop <= m.scrollTopHead + 40,
+      "the header row stays at the top of the table while its rows scroll",
+    );
+    await s.shot("owner-F95-sticky-scrolled");
+  } finally {
+    await s.close();
+  }
+});
