@@ -49,28 +49,55 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
       idempotencyKey: "cs-hand",
     });
 
-    // NOT DONE in this lane: the channel with Bilal present (the agent did not answer in a channel); Aina asks in her own chat and Bilal is checked from outside it
-    const threadId = (await a.call("chat.start", { kind: "chat", agentIds: [h.agentId] })).thread.threadId as string;
-    assert.equal(await say(h, a, threadId, "please connect fathom"), "Not yet. Add its key.");
+    // a channel of Aina, Bilal and two agents; Aina mentions the first agent, which asks to connect Fathom for her
+    const second = (await h.owner.call("agents.create", { name: "Other", role: "You help the team." })).agent
+      .agentId as string;
+    const threadId = (await a.call("chat.start", { kind: "chat", agentIds: [h.agentId, second], personId: b.personId }))
+      .thread.threadId as string;
+    const first = await say(h, a, threadId, "please connect fathom").catch(async (e: unknown) => {
+      console.error("DEBUG", JSON.stringify(await messages(h, a, threadId)).slice(0, 1500));
+      throw e;
+    });
+    assert.equal(first, "Not yet. Add its key.");
 
-    const block = (await messages(h, a, threadId)).flatMap((m) => m.blocks ?? []).find((x) => x.type === "vault_request");
-    assert.ok(block, "the card is in Aina's chat");
+    const block = (await messages(h, a, threadId))
+      .flatMap((m) => m.blocks ?? [])
+      .find((x) => x.type === "vault_request");
+    assert.ok(block, "the card is in the channel");
     assert.equal(block.data.service, "fathom");
     const requestId = block.data.requestId as string;
+    // Bilal is in the channel: he reads that a connection was asked of Aina (the card's block: a service, who asked, for whom), and nothing of what she has or chooses
+    const bilalSees = JSON.stringify(await messages(h, b, threadId));
+    assert.ok(bilalSees.includes('"service":"fathom"'), "Bilal sees that Fathom was asked for");
+    assert.equal(
+      /Fathom_|vit_|have|saved/i.test(bilalSees.replace(/"service":"fathom"/g, "")),
+      false,
+      "no key name or id",
+    );
     const refused = await b.attempt("vault.connect_card.get", { requestId });
     assert.equal(refused.ok, false, "Bilal cannot read Aina's card");
     assert.equal((await b.attempt("vault.connect_card.options", { requestId })).ok, false);
-    assert.equal((await b.attempt("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] })).ok, false);
+    assert.equal(
+      (await b.attempt("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] })).ok,
+      false,
+    );
 
     // Aina's own card: the hosts the key goes to before she saves; the key she named by hand is NOT offered (A)
     const hers = (await a.call("vault.connect_card.get", { requestId })).card;
-    assert.deepEqual([hers.state, hers.have, hers.checksWith, hers.keptIn], ["ask", undefined, "api.fathom.ai", "Mine"]);
+    assert.deepEqual(
+      [hers.state, hers.have, hers.checksWith, hers.keptIn],
+      ["ask", undefined, "api.fathom.ai", "Mine"],
+    );
 
     // a wrong key keeps nothing; the right one connects
-    const wrong = await a.call("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: "bad-key-1" }] });
+    const wrong = await a.call("vault.connect_card.submit", {
+      requestId,
+      fields: [{ key: "api_key", value: "bad-key-1" }],
+    });
     assert.equal(wrong.result, "wrong");
     assert.equal(
-      ((await a.call("vault.items.list", {})).items as Array<{ name: string }>).filter((i) => /^Fathom/.test(i.name)).length,
+      ((await a.call("vault.items.list", {})).items as Array<{ name: string }>).filter((i) => /^Fathom/.test(i.name))
+        .length,
       1,
       "only the hand-made key is in the Vault",
     );
@@ -85,7 +112,17 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
       30_000,
       "the agent carries on",
     );
-    assert.match(used, /^USED #Fathom/, used);
+    assert.match(used, /^USED #Fathom_2 /, used);
+    // the connection itself points at the item the card saved, by its handle, never at the older key of the same name
+    const conn = JSON.stringify((await a.call("connections.list", { connector: "fathom" })).connections);
+    assert.equal(conn.includes("#Fathom."), false, conn);
+    const itemId = used.split(" ")[2]!;
+    // OPEN QUESTION FOR THE LEAD, not asserted here: Mine is "you and the agents working for you" (test/vault.made-mine.live.test.ts), so a SECOND agent of Aina's in this chat reaches the key through her too.
+    // The made-for-me rule as the lead words it ("no other agent can") needs the Vault's Mine access to change, which is outside this lane.
+    // an agent calling any erase of a Vault item is refused (the discard has no tool; the Trash delete is held for a person), and the key is still there
+    const erased = await say(h, a, threadId, `ERASE ${itemId} ${requestId}`);
+    assert.match(erased, /^ERASE discard=refused delete=refused found=no/, erased);
+    assert.equal((await a.attempt("vault.item.get", { itemId })).ok, true, "the key is still in the Vault");
     // the saved item is Aina's: Bilal's Vault and connections show nothing of it
     assert.equal(((await b.call("vault.items.list", {})).items as unknown[]).length, 0);
     assert.equal(((await b.call("connections.list", { connector: "fathom" })).connections as unknown[]).length, 0);
@@ -117,7 +154,10 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
       ((await a.call("vault.items.list", {})).items as Array<{ name: string }>).some((i) => i.name === "Fathom"),
       "the hand-made key is still there",
     );
-    assert.ok(seen.every((r) => r.host === "api.fathom.ai"), `every request went to the listed host: ${JSON.stringify(seen)}`);
+    assert.ok(
+      seen.every((r) => r.host === "api.fathom.ai"),
+      `every request went to the listed host: ${JSON.stringify(seen)}`,
+    );
     assert.ok(!JSON.stringify(await messages(h, a, threadId)).includes(SECRET));
   } finally {
     await h.stop();
@@ -130,8 +170,15 @@ test("B: a connection's key goes only to the hosts its record lists: a listed ho
   try {
     const own = h.owner;
     assert.equal(
-      (await own.call("connectors.init", { key: "pages", title: "Pages", mode: "api", source: false, idempotencyKey: "ch-init" }))
-        .connector?.key ?? "pages",
+      (
+        await own.call("connectors.init", {
+          key: "pages",
+          title: "Pages",
+          mode: "api",
+          source: false,
+          idempotencyKey: "ch-init",
+        })
+      ).connector?.key ?? "pages",
       "pages",
     );
     const def = await own.attempt("connectors.define", {
@@ -154,7 +201,13 @@ test("B: a connection's key goes only to the hosts its record lists: a listed ho
     assert.equal(def.ok, true, JSON.stringify(def));
     assert.equal((await own.call("connectors.publish", { key: "pages", idempotencyKey: "ch-pub" })).published, true);
     // a connector that also declares another domain (or a wildcard) cannot be connected from a card at all
-    await own.call("connectors.init", { key: "wide", title: "Wide", mode: "api", source: false, idempotencyKey: "ch-init2" });
+    await own.call("connectors.init", {
+      key: "wide",
+      title: "Wide",
+      mode: "api",
+      source: false,
+      idempotencyKey: "ch-init2",
+    });
     await own.call("connectors.define", {
       key: "wide",
       title: "Wide",
@@ -166,7 +219,11 @@ test("B: a connection's key goes only to the hosts its record lists: a listed ho
       idempotencyKey: "ch-def2",
     });
     await own.call("connectors.publish", { key: "wide", idempotencyKey: "ch-pub2" });
-    assert.equal((await own.call("connectors.for_service", { service: "Wide" })).found, false, "a wildcard cannot be a card's host");
+    assert.equal(
+      (await own.call("connectors.for_service", { service: "Wide" })).found,
+      false,
+      "a wildcard cannot be a card's host",
+    );
 
     const threadId = (await own.call("chat.start", { kind: "chat", agentIds: [h.agentId] })).thread.threadId as string;
     const folderId = (await own.call("vault.folders.create", { name: "Keys", scope: "shared", idempotencyKey: "ch-f" }))
@@ -189,7 +246,8 @@ test("B: a connection's key goes only to the hosts its record lists: a listed ho
     await own.call("connections.mark_working", { connectionId, idempotencyKey: "ch-work" });
     void threadId;
 
-    const run = (input: unknown) => own.attempt("connectors.run", { key: "pages", action: "list", connectionId, input });
+    const run = (input: unknown) =>
+      own.attempt("connectors.run", { key: "pages", action: "list", connectionId, input });
     // a listed host carries the key
     assert.equal((await run({})).ok, true);
     assert.deepEqual([seen.at(-1)?.host, seen.at(-1)?.key], ["api.fathom.ai", SECRET]);
@@ -221,14 +279,19 @@ test("C: declining the card leaves nothing behind in the Vault, and the take-bac
     const first = await items();
     const threadId = (await a.call("chat.start", { kind: "chat", agentIds: [h.agentId] })).thread.threadId as string;
     assert.equal(await say(h, a, threadId, "please connect fathom"), "Not yet. Add its key.");
-    const block = (await messages(h, a, threadId)).flatMap((m) => m.blocks ?? []).find((x) => x.type === "vault_request")!;
+    const block = (await messages(h, a, threadId))
+      .flatMap((m) => m.blocks ?? [])
+      .find((x) => x.type === "vault_request")!;
     const requestId = block.data.requestId as string;
     await a.call("vault.requests.decline", { requestId });
     assert.equal((await a.call("vault.connect_card.get", { requestId })).card.state, "later");
     assert.equal(await items(), first, "nothing was saved");
     assert.equal(((await a.call("connections.list", { connector: "fathom" })).connections as unknown[]).length, 0);
     assert.equal(seen.length, 0, "no key was sent anywhere");
-    const refusal = await a.attempt("vault.item.discard_new", { itemId: "vit_00000000000000000000000000000000", requestId });
+    const refusal = await a.attempt("vault.item.discard_new", {
+      itemId: "vit_00000000000000000000000000000000",
+      requestId,
+    });
     assert.equal(refusal.ok, false);
   } finally {
     await h.stop();

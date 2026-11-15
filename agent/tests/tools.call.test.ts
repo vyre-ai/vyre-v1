@@ -49,7 +49,9 @@ test("the default listed set loads every turn (about 60); the rest are found wit
   const set = session.toolsFor(ctx());
   assert.equal(
     set.listed.length,
-    65 + (connectCardOn() ? 1 : 0) - loaded.catalog.all.filter((t) => loaded.defaults.has(t.name) && t.toolset === "engineer").length,
+    65 +
+      (connectCardOn() ? 1 : 0) -
+      loaded.catalog.all.filter((t) => loaded.defaults.has(t.name) && t.toolset === "engineer").length,
   );
   assert.ok(set.searchable.length > 500);
   const notDefault = loaded.catalog.all.find(

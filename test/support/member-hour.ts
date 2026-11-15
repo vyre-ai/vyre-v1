@@ -220,6 +220,23 @@ export const model: OpenSession = async (spec) => {
         yield { type: "done" };
         return;
       }
+      const erase = /ERASE (vit_[A-Za-z0-9]+) (vrq_[A-Za-z0-9]+)/.exec(body);
+      if (erase) {
+        // an agent tries every erase of a Vault item there is, by tool name: the discard (no tool exists) and the Trash delete
+        const found = yield* run("tool_search", { query: "vault item discard delete erase" });
+        const d = yield* run("vault_item_discard_new", {
+          itemId: erase[1],
+          requestId: erase[2],
+          idempotencyKey: "er-1",
+        });
+        const t = yield* run("vault_item_delete", { itemId: erase[1], idempotencyKey: "er-2" });
+        yield {
+          type: "text",
+          text: `ERASE discard=${d.ok ? "ran" : "refused"} delete=${t.ok ? "ran" : "refused"} found=${JSON.stringify(found.content).includes("discard_new") ? "yes" : "no"}`,
+        };
+        yield { type: "done" };
+        return;
+      }
       if (/connect fathom/i.test(body)) {
         const r = yield* run("vault_connect", { service: "Fathom", idempotencyKey: `hour-connect-${++asks}` });
         yield {

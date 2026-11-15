@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Text } from "react-native";
+import { CardDone } from "../../../../../../ui/src/Card/index.tsx";
+import { Glyph } from "./parts.tsx";
 import { ConnectCard } from "../../../../../../ui/src/ConnectCard/index.tsx";
 import type { ConnectState, ConnectWork } from "../../../../../../ui/src/ConnectCard/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -33,8 +35,13 @@ export function ConnectCardLive({
   agent,
   data,
   onOff,
+  asker,
+  service,
 }: {
   requestId: string;
+  /** The person the agent asked for, and the service: what everyone else in the chat reads (one quiet line, never the card). */
+  asker?: string | undefined;
+  service?: string | undefined;
   /** The agent's name, for "Dex will use it for you." */
   agent: string;
   data: Data;
@@ -61,6 +68,12 @@ export function ConnectCardLive({
     [],
   );
 
+  // a person is named by name, never by id: an id the Space cannot name reads as "an admin" and no name
+  const named = (id: string): string => {
+    const n = data.nameOf?.(id) ?? "";
+    return n && rawIdsIn(n).length === 0 && !/^[a-z]{2,4}_[0-9a-z]+$/i.test(n) ? n : "";
+  };
+
   const load = useCallback(async (): Promise<void> => {
     try {
       const got = cardOf(await data.call("vault.connect_card.get", { requestId }));
@@ -76,7 +89,20 @@ export function ConnectCardLive({
   // an admin connecting it, a second ask, another place pressing Not now: the card follows the request
   useFollow(data.changes, load, card !== null && card?.state !== "gone");
 
-  if (card === undefined || card === null || card.state === "gone") return null;
+  if (card === undefined || card.state === "gone") return null;
+  // someone else in the chat: the card is the asked person's own, so all they read is that a connection was asked of them
+  if (card === null) {
+    const who = asker ? named(asker) : "";
+    const what = service ? service.charAt(0).toUpperCase() + service.slice(1) : "a service";
+    return (
+      <CardDone
+        testID={`connect-asked-${requestId}`}
+        ok
+        glyph={<Glyph name="check" size={13} color="var(--ink-3)" />}
+        text={`${agent} asked ${who || "someone"} to connect ${what}`}
+      />
+    );
+  }
   const name = card.service.title;
 
   const put = (field: string, value: string): void => {
@@ -185,11 +211,6 @@ export function ConnectCardLive({
     show(items, at.x, at.y, "other", { label: "Kept in" });
   };
 
-  // a person is named by name, never by id: an id the Space cannot name reads as "an admin" and no name
-  const named = (id: string): string => {
-    const n = data.nameOf?.(id) ?? "";
-    return n && rawIdsIn(n).length === 0 && !/^[a-z]{2,4}_[0-9a-z]+$/i.test(n) ? n : "";
-  };
   const adminName = card.admin ? named(card.admin.id) : "";
   const state: ConnectState =
     (card.state === "wrong" && edited) || (card.state === "have" && other) ? "ask" : card.state;

@@ -864,7 +864,10 @@ test("discard_new erases only the key a connect card saved in its open try, for 
 
   // rule C: an item no card saved is never erased, however new it is and whoever asks; a key a card saved for ANOTHER request is not this request's
   const hand = await put(h, mine, "ByHand");
-  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: hand, requestId: REQ })), "a key typed into the Vault by hand");
+  assert.ok(
+    await refusedWith(v.itemDiscardNew(h.ctx, { itemId: hand, requestId: REQ })),
+    "a key typed into the Vault by hand",
+  );
   const other = await put(h, mine, "OtherCard");
   h.cardSaved(other, "vrq_00000000000000000000000000000002");
   assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: other, requestId: REQ })), "bound to the one request");
@@ -883,7 +886,10 @@ test("discard_new erases only the key a connect card saved in its open try, for 
   const theirs = await put(h, mine, "Theirs");
   h.cardSaved(theirs, REQ);
   h.actAs("person", ROB);
-  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: theirs, requestId: REQ })), "not the person who saved it");
+  assert.ok(
+    await refusedWith(v.itemDiscardNew(h.ctx, { itemId: theirs, requestId: REQ })),
+    "not the person who saved it",
+  );
   h.actAs("agent", AGENT);
   assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: theirs, requestId: REQ })), "never an agent");
 });

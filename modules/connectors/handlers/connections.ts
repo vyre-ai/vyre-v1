@@ -3,7 +3,20 @@
 import { mustUse } from "../../../lib/vault-check.ts";
 import { CONNECTION_KEY_LINE } from "../../../lib/vault-lines.ts";
 import { newPkce, oauthOf, OAUTH_TTL_MS } from "./oauth.ts";
-import { checkEgress, ensureTables, mintShort, nowOf, PAGE, refuse, scrubber, seedBuiltins } from "../projections.ts";
+import {
+  checkEgress,
+  ensureTables,
+  hostFromInput,
+  keyHosts,
+  probeHost,
+  probeOf,
+  mintShort,
+  nowOf,
+  PAGE,
+  refuse,
+  scrubber,
+  seedBuiltins,
+} from "../projections.ts";
 import type { ConnectionDb, ConnectionState, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { clearReconnectTask, executeAction } from "./runtime.ts";
 
@@ -87,24 +100,6 @@ export interface ForService {
   near?: string[];
 }
 
-/** The call that tries a key: the connector's health action, else its first GET that takes nothing from the caller. */
-/** The host a key tried by the connector's check is sent to: the host of that call's own address. */
-/** Every host a key kept for this connector can be sent to: the check's, then each action's own address. */
-export const keyHosts = (def: ConnectorDef): string[] => {
-  const out: string[] = [];
-  const first = probeHost(def);
-  if (first) out.push(first);
-  for (const a of def.actions) {
-    try {
-      const h = a.url ? new URL(a.url.replace(/\{[^}]*\}/g, "x")).hostname : "";
-      if (h && !out.includes(h)) out.push(h);
-    } catch {
-      /* not an address */
-    }
-  }
-  return out;
-};
-
 /** Are the connector's declared domains exactly the hosts its actions call (no wildcard, no extra domain, no action on an undeclared host)? The card's rule for where a key may go. */
 export const hostsEqualDomains = (def: ConnectorDef): boolean => {
   const calls = keyHosts(def).map((h) => h.toLowerCase());
@@ -115,25 +110,6 @@ export const hostsEqualDomains = (def: ConnectorDef): boolean => {
     calls.every((h) => declared.includes(h))
   );
 };
-
-export const probeHost = (def: ConnectorDef): string | undefined => {
-  const name = def.health ?? probeOf(def);
-  const url = def.actions.find((a) => a.name === name)?.url;
-  try {
-    return url ? new URL(url.replace(/\{[^}]*\}/g, "x")).hostname : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
-export const probeOf = (def: ConnectorDef): string | undefined =>
-  def.health ??
-  def.actions.find(
-    (a) =>
-      (a.method ?? "GET") === "GET" &&
-      a.url !== undefined &&
-      !/\{input[.}]/.test(JSON.stringify([a.url, a.query, a.headers, a.body])),
-  )?.name;
 
 /** "Fathom", "fathom.video" and "FATHOM" name one thing: lower case, letters and digits only. */
 const squash = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -320,7 +296,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       );
       // the hosts this connection's key may go to, fixed now: what its actions call, never what the definition says later
       // (an action whose address takes its host from the caller's input has no fixed host to record: such a connection keeps the connector's declared domains as its limit, and the card never connects it)
-      if (!def.actions.some((a) => a.url !== undefined && /^[a-z]+:\/\/[^/]*\{/i.test(a.url)))
+      if (!hostFromInput(def) && keyHosts(def).length > 0)
         tx.run(
           "INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
           id,

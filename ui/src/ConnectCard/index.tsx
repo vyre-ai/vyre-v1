@@ -49,7 +49,7 @@ export interface ConnectCardProps {
   askedAt?: string | undefined;
   /** Connected: what was tested, who can use it, who connected it (an admin did, not you). */
   tested?: string | undefined;
-  /** Ask: the host a typed key is tried against, said when the connector is not built in, so Connect is an informed yes. */
+  /** Ask: the hosts the key is sent to ("a, b"), said before the person saves, built in or not, so Connect is an informed yes. */
   checksWith?: string | undefined;
   /** One line when a typed key was kept but could not be connected ("Your key is saved in Mine. Couldn't connect."). */
   notice?: string | undefined;
@@ -339,7 +339,7 @@ export function ConnectCard(p: ConnectCardProps): ReactElement {
             </View>
           ) : null}
           {p.checksWith && !working ? (
-            <Text style={st.sub} testID={`${id}-checks`}>{`Checks with ${p.checksWith}`}</Text>
+            <Text style={st.sub} testID={`${id}-checks`}>{`Your key is sent only to ${hostsSaid(p.checksWith)}`}</Text>
           ) : null}
           <KeptRow id={id} keptIn={p.keptIn} onOpen={working || state === "offline" ? undefined : p.onKeptIn} />
           {working ? (
@@ -541,3 +541,12 @@ const st = StyleSheet.create({
   },
   smallBtnText: { fontSize: 12.5, color: "var(--ink)" as string },
 });
+
+/** "a", "a and b", "a, b and c": the hosts a key goes to, said as words. */
+export const hostsSaid = (hosts: string): string => {
+  const all = hosts
+    .split(",")
+    .map((h) => h.trim())
+    .filter((h) => h !== "");
+  return all.length < 2 ? (all[0] ?? "") : `${all.slice(0, -1).join(", ")} and ${all[all.length - 1]}`;
+};

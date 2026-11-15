@@ -3,8 +3,8 @@
 // C no capability an agent can reach erases a Vault item. Set VYRE_CONNECT_CARD=0 (or off, false) to turn it off: ten capabilities then answer `internal.not_implemented` and the agent tools are not offered.
 // Read at the moment of each call, never cached, so a test that turns it off for itself needs no restart. Every site that gates the feature reads this one function; nothing else decides.
 
-/** Is the connect card on? Yes unless the variable is exactly "0", "off" or "false". */
-export const connectCardOn = (): boolean => !["0", "off", "false"].includes(process.env["VYRE_CONNECT_CARD"] ?? "");
+/** Is the connect card on? Only the exact value "1" (off by default, as in rc.28; the last commit of this lane turns it on). */
+export const connectCardOn = (): boolean => process.env["VYRE_CONNECT_CARD"] === "1";
 
 /** The one plain refusal every caller gets for a connect capability while the switch is off. */
 export const CONNECT_OFF_MESSAGE = "Connecting a service this way is not available yet.";

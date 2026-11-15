@@ -134,7 +134,10 @@ test("pre-auth capabilities stay off the agent surface and no capability opts ou
 });
 
 test("the frozen default toolset is 60 plus or minus 5 and only lists real, listed, non-engineer tools", () => {
-  assert.ok(defaults.length >= 55 && defaults.length <= 65 + (connectCardOn() ? 1 : 0), `default toolset has ${defaults.length} tools`);
+  assert.ok(
+    defaults.length >= 55 && defaults.length <= 65 + (connectCardOn() ? 1 : 0),
+    `default toolset has ${defaults.length} tools`,
+  );
   assert.equal(new Set(defaults).size, defaults.length, "no tool listed twice");
   for (const [toolset, names] of Object.entries(DEFAULT_TOOLS)) {
     assert.ok(TOOLSETS.includes(toolset) && toolset !== "engineer", toolset);

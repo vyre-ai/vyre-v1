@@ -435,5 +435,63 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
       now,
     );
   }
+  backfillHosts(deps.tx);
   seeded.add(deps.tx);
 }
+
+/** The host record every connection gets when it is made (cn_connection_hosts): a connection from before that table exists gets the same one from its connector's actions, once at start-up (a row that exists is never touched). */
+export function backfillHosts(tx: Tx): void {
+  const rows = tx.all<{ connection_id: string; def: string }>(
+    "SELECT c.connection_id AS connection_id, k.def AS def FROM cn_connections c JOIN cn_connectors k ON k.key = c.connector WHERE NOT EXISTS (SELECT 1 FROM cn_connection_hosts h WHERE h.connection_id = c.connection_id)",
+  );
+  for (const r of rows) {
+    const def = JSON.parse(r.def) as ConnectorDef;
+    if (hostFromInput(def) || keyHosts(def).length === 0) continue;
+    tx.run(
+      "INSERT OR IGNORE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
+      r.connection_id,
+      JSON.stringify(keyHosts(def).map((h) => h.toLowerCase())),
+    );
+  }
+}
+
+/** Does any action take its host from the caller's input (`https://{input.host}/...`)? Such a connection has no fixed host to record. */
+export const hostFromInput = (def: ConnectorDef): boolean =>
+  def.actions.some((a) => a.url !== undefined && /^[a-z]+:\/\/[^/]*\{/i.test(a.url));
+
+/** The call that tries a key: the connector's health action, else its first GET that takes nothing from the caller. */
+/** The host a key tried by the connector's check is sent to: the host of that call's own address. */
+/** Every host a key kept for this connector can be sent to: the check's, then each action's own address. */
+export const keyHosts = (def: ConnectorDef): string[] => {
+  const out: string[] = [];
+  const first = probeHost(def);
+  if (first) out.push(first);
+  for (const a of def.actions) {
+    try {
+      const h = a.url ? new URL(a.url.replace(/\{[^}]*\}/g, "x")).hostname : "";
+      if (h && !out.includes(h)) out.push(h);
+    } catch {
+      /* not an address */
+    }
+  }
+  return out;
+};
+
+export const probeHost = (def: ConnectorDef): string | undefined => {
+  const name = def.health ?? probeOf(def);
+  const url = def.actions.find((a) => a.name === name)?.url;
+  try {
+    return url ? new URL(url.replace(/\{[^}]*\}/g, "x")).hostname : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+export const probeOf = (def: ConnectorDef): string | undefined =>
+  def.health ??
+  def.actions.find(
+    (a) =>
+      (a.method ?? "GET") === "GET" &&
+      a.url !== undefined &&
+      !/\{input[.}]/.test(JSON.stringify([a.url, a.query, a.headers, a.body])),
+  )?.name;
