@@ -132,6 +132,10 @@ test("list: a Journey is a row in the one list; the open Journey is the selected
   const out = page(s, <AutomationsList selectedId="jrn_onboard" query="" onChoose={() => undefined} />);
   const row = (id: string): string => out.match(new RegExp(`<[^>]*data-testid="row-al-${id}"[^>]*>`))?.[0] ?? "";
   assert.ok(row("jrn_onboard") !== "", "the Journey is a row");
-  assert.match(row("jrn_onboard"), /background-color:var\(--sel\)/, "the open Journey takes the quiet selected highlight");
+  assert.match(
+    row("jrn_onboard"),
+    /background-color:var\(--sel\)/,
+    "the open Journey takes the quiet selected highlight",
+  );
   assert.doesNotMatch(row("jrn_matter"), /background-color:var\(--sel\)/);
 });

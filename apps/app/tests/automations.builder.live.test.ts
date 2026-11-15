@@ -83,6 +83,41 @@ for (const look of LOOKS) {
       assert.equal(await page.getByText("Save", { exact: true }).count(), 0, "no Save button");
       assert.deepEqual(errors, [], "no page error");
       void id;
+
+      // Test on the DRAFT with a real past event (round two, item 7): an On Automation with a real earlier start and an edited draft that has a step missing its title
+      const who = JSON.stringify(await api("identity.whoami", {})).match(/usr_[a-z0-9]+/)?.[0];
+      assert.ok(who, "the person's own id");
+      const made2 = await api("automations.create", { name: "Intake" });
+      const intake = (made2.automation ?? made2.data?.automation ?? made2.data ?? made2).id as string;
+      const valid = {
+        triggers: [{ key: "manual" }],
+        nodes: [{ id: "n1", key: "create_task", input: { title: "Call back", assigned: who } }],
+        start: ["n1"],
+      };
+      await api("automations.update", { automationId: intake, definition: valid });
+      await api("automations.set_enabled", { automationId: intake, enabled: true });
+      await api("automations.run", { automationId: intake, payload: { name: "Sam Reyes" } });
+      await page.waitForTimeout(1500);
+      const edited = {
+        ...valid,
+        nodes: [...valid.nodes, { id: "n2", key: "create_task", input: { assigned: who } }],
+        start: ["n1"],
+      };
+      edited.nodes[0] = { ...edited.nodes[0], next: ["n2"] } as never;
+      await api("automations.draft.save", { automationId: intake, definition: edited, expectedVersion: 2 });
+      await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
+      await page.getByText("Intake", { exact: true }).first().click({ timeout: 30_000 });
+      await page.getByTestId("story").waitFor({ timeout: 20_000 });
+      await page.waitForTimeout(1500);
+      assert.ok(await page.getByTestId("sv-bar-Make live").count(), "the bar offers Make live");
+      assert.equal(await page.getByTestId("sv-bar-Save").count(), 0, "no Save");
+      await shot("7-draft-bar");
+      await page.getByTestId("sv-test").click();
+      await page.waitForTimeout(4000);
+      await shot("7-test-on-draft");
+      const body = await page.locator("body").innerText();
+      assert.match(body, /Test with /, "the bar names the past event");
+      assert.match(body, /The test sent nothing/);
     } finally {
       await browser.close();
       web.close();

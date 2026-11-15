@@ -69,10 +69,15 @@ export function TextBox({
             currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
           };
           const r = ev.currentTarget?.getBoundingClientRect?.();
-          words.insert?.(r?.left ?? ev.nativeEvent?.pageX ?? 0, (r?.bottom ?? ev.nativeEvent?.pageY ?? 0) + 4, shown, (next) => {
-            onCommit(next);
-            setDraft(null);
-          });
+          words.insert?.(
+            r?.left ?? ev.nativeEvent?.pageX ?? 0,
+            (r?.bottom ?? ev.nativeEvent?.pageY ?? 0) + 4,
+            shown,
+            (next) => {
+              onCommit(next);
+              setDraft(null);
+            },
+          );
         }}
         style={[f.insertLink, pointer]}
       >

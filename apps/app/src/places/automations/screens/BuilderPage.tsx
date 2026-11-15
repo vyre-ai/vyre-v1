@@ -52,7 +52,7 @@ import { CohortMigration } from "../versions/CohortMigration.tsx";
 import { sendsFromLine } from "../canvas/senders.ts";
 import type { SenderLine } from "../canvas/senders.ts";
 import { pausedWhy } from "../first/from-list.ts";
-import { Page } from "./Page.tsx";
+import { AutomationsPage as Page } from "./Page.tsx";
 import { StoryActions, StoryView } from "./StoryView.tsx";
 import type { StoryAction } from "./StoryView.tsx";
 
@@ -348,6 +348,7 @@ function Body({
         nameOfNode: (id) =>
           id === "trigger" ? "the start" : (full[def.nodes.find((n) => n.id === id)?.key ?? ""]?.title ?? id),
         canUse: (app) => usable.has(app) || !isGatedApp(app),
+        nameOfId: (id) => data.name(id),
         ...(catalog?.checked
           ? { isKnown: (key: string) => full[key] !== undefined || kindOfKey(key) !== "plain" }
           : {}),
@@ -936,7 +937,9 @@ const s = StyleSheet.create({
 });
 
 /** Who a past event was about, in its own words, and when: "Sam Reyes, Tue 9:00 AM". */
-function caseOf(payload: Record<string, unknown>, when: string): string {
+function caseOf(whole: Record<string, unknown>, when: string): string {
+  const inner = whole?.["input"];
+  const payload = inner && typeof inner === "object" ? (inner as Record<string, unknown>) : whole;
   for (const k of ["name", "fullName", "title", "subject", "from", "email", "summary"]) {
     const v = payload?.[k];
     if (typeof v === "string" && v.trim()) return `${v.trim().slice(0, 40)}, ${when}`;

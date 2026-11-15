@@ -56,9 +56,11 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
           }
         let definition = null;
         if (subject?.type === "automation")
-          definition = ((await data.call("automations.get", { automationId: subject.id })) as {
-            automation: { definition: Parameters<typeof fromDefinition>[0] };
-          }).automation.definition;
+          definition = (
+            (await data.call("automations.get", { automationId: subject.id })) as {
+              automation: { definition: Parameters<typeof fromDefinition>[0] };
+            }
+          ).automation.definition;
         const cat = await loadProductCatalog((cap, input) => data.call(cap, input));
         const titles = cat.ok ? Object.fromEntries(cat.catalog.all.map((s) => [s.key, { title: s.title }])) : {};
         if (live) setState({ automationId: subject?.id ?? null, definition, steps, outputs, titles });

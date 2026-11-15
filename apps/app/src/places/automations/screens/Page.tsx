@@ -17,7 +17,7 @@ export interface PageProps {
   children: ReactNode;
 }
 
-export function Page(p: PageProps): ReactElement {
+export function AutomationsPage(p: PageProps): ReactElement {
   // on a phone the buttons take a row of their own under the name, so the name is read whole
   const phone = isPhoneWidth(useWindowDimensions().width);
   const more = p.onMenu ? (

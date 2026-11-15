@@ -16,7 +16,12 @@ test("a failed run is rows numbered as the builder, one plain sentence, one butt
     call: async (cap: string, input: Record<string, unknown>) => {
       if (cap === "runs.get") return { run: { subject: { type: "automation", id: "aut_lead" } } };
       if (cap === "runs.steps")
-        return { steps: [{ step: "find", state: "succeeded" }, { step: "text", state: "failed", error: { message: "The Twilio key is missing" } }] };
+        return {
+          steps: [
+            { step: "find", state: "succeeded" },
+            { step: "text", state: "failed", error: { message: "The Twilio key is missing" } },
+          ],
+        };
       if (cap === "runs.step_io") return { output: { Name: "Sam Reyes", recordId: "rec_1" } };
       return base.call(cap as never, input as never);
     },

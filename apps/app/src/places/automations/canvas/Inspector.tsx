@@ -700,7 +700,7 @@ export function Inspector({
                   </View>
                 </More>
                 <MappingFix nodeIds={nodeIdSet(def)} value={node.input} />
-                  {mine.some((item) => item.severity === "error") ? (
+                {mine.some((item) => item.severity === "error") ? (
                   <AskVyre
                     bundle={{
                       resource: "automation",

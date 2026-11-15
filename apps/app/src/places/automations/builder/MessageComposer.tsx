@@ -69,8 +69,16 @@ function Line({
   };
   // a recipient that comes from data reads as a named chip, never as {{ }}
   if (words && /\{\{[^{}]*\}\}/.test(value))
-    return <ChipText label={label} value={value} onCommit={onCommit} chipLabel={(r) => chipLabel(r, words.titleOf)}
-        compact testID={testID} />;
+    return (
+      <ChipText
+        label={label}
+        value={value}
+        onCommit={onCommit}
+        chipLabel={(r) => chipLabel(r, words.titleOf)}
+        compact
+        testID={testID}
+      />
+    );
   return (
     <View style={s.field}>
       <Text style={s.label}>{label}</Text>
@@ -316,21 +324,21 @@ function SmsStep({
         testID="sms-body"
       />
       <More head="About this message" testID="sms-details">
-      <Text
-        style={s.note}
-        testID="sms-count"
-      >{`${count.segments} ${count.encoding} ${count.segments === 1 ? "segment" : "segments"}, ${count.characters} characters.`}</Text>
-      <Text style={s.note}>{SMS_LINK_POLICY}</Text>
-      <Text style={s.note}>{SMS_QUIET_HOURS}</Text>
-      <Text style={s.note}>{SMS_CONSENT}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Preview with fixture data"
-        testID="sms-preview"
-        onPress={() => setRendered(renderMessage("send_sms", input, values) ?? "Nothing to render yet.")}
-      >
-        <Text style={s.note}>Preview with fixture data</Text>
-      </Pressable>
+        <Text
+          style={s.note}
+          testID="sms-count"
+        >{`${count.segments} ${count.encoding} ${count.segments === 1 ? "segment" : "segments"}, ${count.characters} characters.`}</Text>
+        <Text style={s.note}>{SMS_LINK_POLICY}</Text>
+        <Text style={s.note}>{SMS_QUIET_HOURS}</Text>
+        <Text style={s.note}>{SMS_CONSENT}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Preview with fixture data"
+          testID="sms-preview"
+          onPress={() => setRendered(renderMessage("send_sms", input, values) ?? "Nothing to render yet.")}
+        >
+          <Text style={s.note}>Preview with fixture data</Text>
+        </Pressable>
       </More>
       {rendered ? <Text style={s.note}>{rendered}</Text> : null}
     </View>

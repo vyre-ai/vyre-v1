@@ -230,7 +230,13 @@ export function SettingsTab({
             />
           </Group>
 
-          <Lab right={readOnly ? undefined : <TextButton label="Add" icon="plus" testID="add-access" onPress={() => setShare(true)} />}>
+          <Lab
+            right={
+              readOnly ? undefined : (
+                <TextButton label="Add" icon="plus" testID="add-access" onPress={() => setShare(true)} />
+              )
+            }
+          >
             Access
           </Lab>
           <Group testID="access">
@@ -253,25 +259,25 @@ export function SettingsTab({
           <Lab
             right={
               readOnly ? undefined : (
-              <PickButton
-                label="Add a follower"
-                value="Add"
-                testID="add-follower"
-                onPress={(x, y) =>
-                  show(
-                    roster.length
-                      ? each(
-                          roster.filter((r) => !a.followers.includes(r.id)),
-                          (r) => ({ label: r.name, onSelect: () => follow(r.name, r.id) }),
-                        )
-                      : [{ head: "Nobody to add" }],
-                    x,
-                    y,
-                    "other",
-                    { label: "Add a follower" },
-                  )
-                }
-              />
+                <PickButton
+                  label="Add a follower"
+                  value="Add"
+                  testID="add-follower"
+                  onPress={(x, y) =>
+                    show(
+                      roster.length
+                        ? each(
+                            roster.filter((r) => !a.followers.includes(r.id)),
+                            (r) => ({ label: r.name, onSelect: () => follow(r.name, r.id) }),
+                          )
+                        : [{ head: "Nobody to add" }],
+                      x,
+                      y,
+                      "other",
+                      { label: "Add a follower" },
+                    )
+                  }
+                />
               )
             }
           >

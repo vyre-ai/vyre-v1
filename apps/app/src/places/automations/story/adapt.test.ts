@@ -277,3 +277,16 @@ test("a step kind this version does not know is its own row, with the kind named
     "while the catalogue loads nothing is marked",
   );
 });
+
+test("an id a step names is shown by the name of whoever it is, never as the id (round two)", () => {
+  const r = fromDefinition(
+    { triggers: [{ key: "manual" }], nodes: [{ id: "a", key: "send_email", input: { to: "usr_f914abc8606dfbce65" } }] },
+    ctx({ nameOfId: (id) => (id === "usr_f914abc8606dfbce65" ? "Olivia Owner" : "Chosen") }),
+  );
+  const t = story({ name: "x", on: false, trigger: r.trigger, steps: r.steps, proposed: false, dirty: false, test: null });
+  const row = t.rows.find((x) => x.kind === "step");
+  assert.ok(row && row.kind === "step");
+  const text = JSON.stringify(row.sentence);
+  assert.ok(text.includes("Olivia Owner"));
+  assert.equal(text.includes("usr_"), false);
+});

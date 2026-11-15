@@ -28,6 +28,8 @@ export interface AdaptCtx {
   /** Sample values from a real past event, by `<node>.<path>`. */
   sample?: Readonly<Record<string, string>>;
   canUse(appId: string): boolean;
+  /** A person, group or other thing named by an id in a step's input, as the name people know it by. */
+  nameOfId?(id: string): string;
   noAccess?(appName: string): { line: string; button: string };
   /** The server's missing-thing words for a step, most important first. */
   needsOf(nodeId: string): Need[];
@@ -49,6 +51,8 @@ function valueOf(v: unknown, ctx: AdaptCtx): Value | undefined {
   if (typeof v === "string") {
     const t = v.trim();
     if (t === "") return undefined;
+    // an id never reaches the page: a person or thing a step names is shown by its name
+    if (/^[a-z]{2,6}_[0-9a-f]{8,}$/.test(t)) return { text: ctx.nameOfId?.(t) ?? "Chosen" };
     const whole = new RegExp(`^${REF.source}$`).exec(t);
     if (whole)
       return {
