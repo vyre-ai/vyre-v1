@@ -9,20 +9,32 @@ import type { Ctx, Decision, ResourceRef } from "../../../packages/contracts/src
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 import type { EventName } from "../../../packages/contracts/src/types.ts";
 import { MemoryDb } from "./db.ts";
-import dropboxManifest from "../../../manifests/dropbox.ts";
-import filesManifest from "../../../manifests/files.ts";
-import googleManifest from "../../../manifests/google.ts";
-import microsoftManifest from "../../../manifests/microsoft.ts";
-
 /**
  * The capabilities the host refuses without an idempotency key (host/src/invoke.ts: a "key" capability needs the key), read from the real manifests. The fake provider and Files calls refuse the
  * same way, so a write the engine sends without a key fails here as it does on a booted daemon (15 Nov 2026: every Drive and Graph write the engine made was refused there and passed here).
  */
-export const KEYED: ReadonlySet<string> = new Set(
-  [googleManifest, microsoftManifest, dropboxManifest, filesManifest].flatMap((m) =>
-    (m.capabilities ?? []).filter((c) => c.idempotency === "key").map((c) => String(c.name)),
-  ),
-);
+function capDoc(cap: string): string {
+  try {
+    return readFileSync(join(here, "../../../generated/docs/capabilities", `${cap}.md`), "utf8");
+  } catch {
+    return "";
+  }
+}
+const keyedCache = new Map<string, boolean>();
+/** Whether the host demands an idempotency key for the capability (its generated page says `Idempotency | key`). */
+export function needsKey(cap: string): boolean {
+  let v = keyedCache.get(cap);
+  if (v === undefined) {
+    v = /\| Idempotency \| key \|/.test(capDoc(cap));
+    keyedCache.set(cap, v);
+  }
+  return v;
+}
+/** The events a capability declares it may emit (its generated page). */
+export function emitsOf(cap: string): string[] {
+  const m = /\| Emits \| ([^|\n]*) \|/.exec(capDoc(cap));
+  return m?.[1] ? m[1].split(",").map((x) => x.trim()) : [];
+}
 
 export const NOW = 1_760_000_000_000;
 /** the work address the person who makes a mount is matched to; every Drive and Graph call is made as it */
@@ -799,7 +811,7 @@ export function harness(
     async call(cap, input) {
       calls.push({ cap, input });
       const i = obj(input);
-      if (KEYED.has(cap) && (typeof i["idempotencyKey"] !== "string" || i["idempotencyKey"] === ""))
+      if (needsKey(cap) && (typeof i["idempotencyKey"] !== "string" || i["idempotencyKey"] === ""))
         throw vyreErr("validation.bad_input", `${cap} needs an idempotency key.`);
       if (cap === "settings.get") return { row: { key: i["key"], value: settings[String(i["key"])] } };
       const f = cap.startsWith("files.") ? files.call(cap, i) : undefined;

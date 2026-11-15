@@ -13,11 +13,10 @@ import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import mountsManifest from "../../../manifests/mounts.ts";
 import { handlers } from "../impl.ts";
 import { localChangesConsumer } from "../projections.ts";
 import { movesConsumer } from "../handlers/outbound-moves.ts";
-import { harness, vyreErr } from "../fixtures/world.ts";
+import { emitsOf, harness, vyreErr } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 
 type Row = Record<string, unknown>;
@@ -72,9 +71,9 @@ test("a write with no idempotency key is refused by the fakes, as the host refus
 test("every capability that can run a pass declares every event a pass emits (a booted daemon refuses an undeclared one)", () => {
   const passEvents = ["mount.synced", "mount.failed", "mount.conflict", "mount.file_sent"];
   for (const name of ["mounts.add", "mounts.sync_now", "mounts.nudge", "mounts.company_drive", "mounts.restore"]) {
-    const cap = (mountsManifest.capabilities ?? []).find((c) => c.name === name);
-    assert.ok(cap, name);
-    for (const ev of passEvents) assert.ok(cap.emits.includes(ev as never), `${name} declares ${ev}`);
+    const emits = emitsOf(name);
+    assert.ok(emits.length > 0, `${name} has a generated page with its events`);
+    for (const ev of passEvents) assert.ok(emits.includes(ev), `${name} declares ${ev}`);
   }
 });
 

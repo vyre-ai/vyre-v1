@@ -168,7 +168,7 @@ test("a file that moved on at the provider is never overwritten: the Vyre edit s
   w.google.decorate("f1", { headRevisionId: "r9", lastModifyingUser: MAYA });
   await sync(w, mountId);
   assert.deepEqual(w.google.replaced, [], "the file at Drive was left alone");
-  assert.deepEqual(w.google.uploads, [], "nothing was made at Drive either: the choice is the person's");
+  assert.equal(w.google.uploads.length, 0, "nothing was made at Drive either: the choice is the person's");
   const item = itemFor(w, mountId, "intro.pdf");
   assert.deepEqual([item["conflict"], item["dirty"]], [1, 1], "the edit still waits, and is held");
   assert.deepEqual([item["editor_name"], item["editor_email"]], [MAYA.name, MAYA.email], "who changed it there");

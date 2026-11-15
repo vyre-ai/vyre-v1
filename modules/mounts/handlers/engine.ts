@@ -921,7 +921,7 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
         });
         try {
           const there = provider.stat ? await provider.stat(ctx, m, str(remoteId)) : undefined;
-          if (there) patchItem(ctx, f, metaOf(there));
+          if (there) patchItem(ctx, f, { ...metaOf(there) });
         } catch {
           /* the choice is still offered; the line just names no one */
         }
