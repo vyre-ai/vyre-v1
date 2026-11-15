@@ -72,7 +72,8 @@ test("shell: every place's sidebar has the same width, the same main pane edge a
       rows.push(line);
       fs.appendFileSync(log, line + "\n");
       seen[p] = m;
-      if (["chats", "inbox", "settings", "vault"].includes(p)) await page.screenshot({ path: path.join(shots, `shell-${p}.png`) });
+      if (["chats", "inbox", "settings", "vault"].includes(p))
+        await page.screenshot({ path: path.join(shots, `shell-${p}.png`) });
       // Hide, then Expand
       await page.getByTestId("sidebar-collapse").first().click();
       await page.waitForTimeout(700);
@@ -82,17 +83,28 @@ test("shell: every place's sidebar has the same width, the same main pane edge a
       });
       const expand = await page.getByTestId("sidebar-expand").count();
       fs.appendFileSync(log, `${"".padEnd(12)} hidden: main pane x ${hidden}, Expand control ${expand}\n`);
-      if (["chats", "inbox", "settings", "vault"].includes(p)) await page.screenshot({ path: path.join(shots, `shell-${p}-hidden.png`) });
-      assert.ok(hidden >= 0 && hidden < m.x - 100, `${p}: Hide puts the sidebar away: the main pane moves left (${m.x}, now ${hidden})`);
+      if (["chats", "inbox", "settings", "vault"].includes(p))
+        await page.screenshot({ path: path.join(shots, `shell-${p}-hidden.png`) });
+      assert.ok(
+        hidden >= 0 && hidden < m.x - 100,
+        `${p}: Hide puts the sidebar away: the main pane moves left (${m.x}, now ${hidden})`,
+      );
       assert.ok(expand > 0, `${p}: Expand is there`);
       await page.getByTestId("sidebar-expand").first().click();
       await page.waitForTimeout(700);
       const back = await measure();
-      assert.ok(back !== null && back.w === m.w, `${p}: Expand brings it back at the same width (${m.w}, now ${back?.w})`);
+      assert.ok(
+        back !== null && back.w === m.w,
+        `${p}: Expand brings it back at the same width (${m.w}, now ${back?.w})`,
+      );
     }
     const first = seen["chats"]!;
     for (const [p, m] of Object.entries(seen)) {
-      assert.deepEqual({ w: m.w, x: m.x, gap: m.gap }, { w: first.w, x: first.x, gap: first.gap }, `${p}: the same width, main pane edge and gap as Chats\n${rows.join("\n")}`);
+      assert.deepEqual(
+        { w: m.w, x: m.x, gap: m.gap },
+        { w: first.w, x: first.x, gap: first.gap },
+        `${p}: the same width, main pane edge and gap as Chats\n${rows.join("\n")}`,
+      );
     }
   } finally {
     await page.screenshot({ path: path.join(shots, "end.png") }).catch(() => undefined);
