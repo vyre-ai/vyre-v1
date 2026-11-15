@@ -199,6 +199,16 @@ type Out = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
+    blocked?: {
+      cause: "person" | "limit" | "transient" | "other";
+      what: string;
+      fix: string;
+      short: string;
+      since: number;
+      until?: number;
+      missed: number;
+      code: string;
+    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -352,6 +362,16 @@ type Out = {
   },
   "output": {
     "goal": {
+      "blocked": {
+        "cause": "person",
+        "code": "example",
+        "fix": "example",
+        "missed": 1,
+        "short": "example",
+        "since": 1760000000000,
+        "until": 1760000000000,
+        "what": "example"
+      },
       "budget": {
         "spendMicros": 1,
         "turns": 1

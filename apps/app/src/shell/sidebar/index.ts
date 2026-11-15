@@ -11,6 +11,8 @@ export {
   showSidebar,
   toggleSidebar,
   useSidebarSlot,
+  useOptionalSidebarSlot,
+  useInSidebarColumn,
   useInSidebarSlot,
   SIDEBAR_HOLD_MS,
 } from "./SidebarSlot.tsx";

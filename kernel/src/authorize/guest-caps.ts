@@ -21,6 +21,10 @@ export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({
   "channels.update": "never",
   "chat.answer_block": "never",
   "engine.round.get": "never",
+  // Rewind folds a chat's later messages away for the agents and puts the agent's work folder back: a guest has no work folder of their own on an agent's computer and may not change what a chat's agents read
+  "chat.rewind": "never",
+  "engine.rewind.points": "never",
+  "engine.rewind.to": "never",
   "chat.round.discuss": "never",
   "chat.round.decide": "never",
   "chat.chapters_write": "never",

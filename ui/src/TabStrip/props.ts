@@ -6,6 +6,8 @@ export interface TabSpec {
   title: string;
   icon?: string;
   pinned?: boolean;
+  /** Only the icon is drawn (a pinned tab: icon-only, at the left). The name stays as the tab's label and its hover. */
+  iconOnly?: boolean;
 }
 
 export interface TabStripProps {

@@ -7,6 +7,7 @@
 //   ?view=pane     the review in the side pane of a chat (no rail, Open the full page).
 //   ?view=board    the Board; ?view=board-keys the Board after a keyboard walk (focus on a card in the next column); ?view=board-status the status menu Space opens on that card.
 //   ?view=timeline the Timeline; ?view=timeline-keys the Timeline after a keyboard walk down one row.
+//   ?view=list&paused=vault|limit|kept   (lane f-goalwake) the list with the Needs you item a goal's check-in leaves when it cannot run: the Vault is locked, the AI plan is at its limit, the server kept failing.
 //   ?view=guest    a task given to a guest: the menu that says what the guest will see before it is saved.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -163,12 +164,39 @@ const TASKS: Row[] = [
     updatedAt: NOW - DAY,
   }),
 ];
+// the Needs you item a goal's check-in leaves when it cannot run (modules/goals life.ts tellOwner): one Unblock item, the cause in words and the one thing to do
+const PAUSED: Record<string, string> = {
+  vault:
+    "Lab Desk could not check in on 300 registrations for Lab 8: your Vault key is not on this server. Open Vyre on your computer and unlock your Vault. The check-in runs when that is done.",
+  limit:
+    "Lab Desk could not check in on 300 registrations for Lab 8: your AI account reached its usage limit. It resets Mon 17 Nov, 09:00 (Asia/Karachi). The check-in runs then. To go on sooner, let the agent use another AI account.",
+  kept: "Lab Desk could not check in on 300 registrations for Lab 8: the server stopped while this was running. It kept failing, so check-ins wait. Ask the agent in the goal chat what is wrong, or give the goal another lead agent.",
+};
+const pausedRow = (kind: string): Row =>
+  base({
+    id: "tsk_paused",
+    key: "NW-50",
+    kind: "unblock",
+    title: `${kind === "vault" ? "Vault locked" : kind === "limit" ? "AI plan at its limit" : "Server kept failing"}: check-ins paused on 300 registrations for Lab 8`,
+    assigned: who(ME),
+    createdBy: "svc_goals",
+    yourTurn: true,
+    updatedAt: NOW - 4 * 3_600_000,
+    workingNotes: { summary: PAUSED[kind] ?? "", "goal.id": "gol_lab8" },
+    summary: PAUSED[kind] ?? "",
+  });
+const wantPaused = (): string | null => {
+  const at = (globalThis as { location?: { search?: string } }).location?.search;
+  const p = at ? new URLSearchParams(at).get("paused") : null;
+  return p && PAUSED[p] ? p : null;
+};
 const byId = new Map(TASKS.map((t) => [t.id as string, t] as const));
-const NEEDS = ["tsk_review", "tsk_back", "tsk_team", "tsk_q"].map((id) => ({
-  task: byId.get(id)!,
-  reason: id === "tsk_team" ? "due_today" : "ready",
-  yourTurn: true,
-}));
+const needsOf = (paused: string | null) =>
+  [...(paused ? ["tsk_paused"] : []), "tsk_review", "tsk_back", "tsk_team", "tsk_q"].map((id) => ({
+    task: id === "tsk_paused" ? pausedRow(paused!) : byId.get(id)!,
+    reason: id === "tsk_team" ? "due_today" : "ready",
+    yourTurn: true,
+  }));
 const DIGEST = {
   id: "dgs_1",
   person: ME,
@@ -220,7 +248,8 @@ function answer(cap: string, input: Row): unknown {
   }
 }
 
-function runtime(): unknown {
+function runtime(paused: string | null): unknown {
+  const NEEDS = needsOf(paused);
   // one snapshot object per query, as a live query keeps it: a new object on every read would redraw forever
   const kept = new Map<string, unknown>();
   const live = (data: unknown, key = JSON.stringify(data)) => {
@@ -321,7 +350,7 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
       storage: null,
     });
   }, [skin]);
-  const rt = useMemo(() => runtime() as never, []);
+  const rt = useMemo(() => runtime(wantPaused()) as never, []);
   // the status menu opens after the page has drawn, as a press would open it
   useEffect(() => {
     if (view !== "menu") return undefined;
