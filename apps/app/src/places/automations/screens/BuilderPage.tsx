@@ -150,7 +150,9 @@ function Body({
   const locked = a.kind === "space" && (canEdit === undefined ? data.canSpace === false : !canEdit);
   const [tab, setTab] = useState<Tab>(initialTab);
   // the draft lives on the server, saved as the person edits (AUTOMATIONS-BUILD-RC29 1c); this is the copy being typed into
-  const [draft, setDraft] = useState<Definition | null>(a.status === "on" && serverDraft ? serverDraft.definition : null);
+  const [draft, setDraft] = useState<Definition | null>(
+    a.status === "on" && serverDraft ? serverDraft.definition : null,
+  );
   // the rev of the server's draft this screen last read or wrote: a write carries it
   const rev = useRef<number | null>(a.status === "on" && serverDraft ? serverDraft.rev : null);
   const undo = useRef<Definition[]>([]);
@@ -300,7 +302,9 @@ function Body({
     setSaving(false);
   }, [draft, saving, conflict, locked, data, a.id, a.version]);
   // every edit is saved as a draft after a short pause: no Save button. A On Automation's edit stays a draft until Make live
-  const [savedDraft, setSavedDraft] = useState<Definition | null>(a.status === "on" && serverDraft ? serverDraft.definition : null);
+  const [savedDraft, setSavedDraft] = useState<Definition | null>(
+    a.status === "on" && serverDraft ? serverDraft.definition : null,
+  );
   useEffect(() => {
     if (!draft || draft === savedDraft || locked || conflict) return undefined;
     const t = setTimeout(() => {
@@ -399,12 +403,20 @@ function Body({
     }
     setSaving(true);
     try {
-      if (draft !== savedDraft) await data.call("automations.draft.save", {
+      if (draft !== savedDraft)
+        await data
+          .call("automations.draft.save", {
+            automationId: a.id,
+            definition: draft,
+            ...(rev.current === null ? { expectedVersion: base.current ?? a.version } : { expectedRev: rev.current }),
+          })
+          .then((o) => {
+            rev.current = (o as { draft?: ServerDraft }).draft?.rev ?? null;
+          });
+      await data.call("automations.make_live", {
         automationId: a.id,
-        definition: draft,
-        ...(rev.current === null ? { expectedVersion: base.current ?? a.version } : { expectedRev: rev.current }),
-      }).then((o) => { rev.current = (o as { draft?: ServerDraft }).draft?.rev ?? null; });
-      await data.call("automations.make_live", { automationId: a.id, ...(rev.current !== null ? { expectedRev: rev.current } : {}) });
+        ...(rev.current !== null ? { expectedRev: rev.current } : {}),
+      });
       setDraft(null);
       setSavedDraft(null);
       rev.current = null;
@@ -469,7 +481,11 @@ function Body({
         ...(a.status === "on" && draft ? { draft: true } : {}),
         ...(event ? { eventRunId: event.runId } : {}),
       })) as { runId: string };
-      setTestRun({ runId: started.runId, caseName: event ? caseOf(event.payload, whenText(event.at, Date.now())) : "an example event", results: {} });
+      setTestRun({
+        runId: started.runId,
+        caseName: event ? caseOf(event.payload, whenText(event.at, Date.now())) : "an example event",
+        results: {},
+      });
     } catch (e) {
       flash(e instanceof Error ? e.message : "The test did not start.");
     }
@@ -487,15 +503,16 @@ function Body({
         const results: Record<string, TestResult> = {};
         for (const st of got.steps) {
           if (st.state === "succeeded") {
-            const io = (await data
-              .call("runs.step_io", { runId: testRun.runId, step: st.step })
-              .catch(() => null)) as { output?: unknown } | null;
+            const io = (await data.call("runs.step_io", { runId: testRun.runId, step: st.step }).catch(() => null)) as {
+              output?: unknown;
+            } | null;
             results[st.step] = { status: "ok", line: "Done", values: valuesOf(io?.output) };
           } else if (st.state === "failed" || st.state === "stopped")
             results[st.step] = { status: "stop", line: st.error?.message ?? "Stopped here", values: [] };
         }
         const finished = got.steps.length >= def.nodes.length || got.steps.some((x) => x.state === "failed");
-        if (live) setTestRun((t) => (t && t.runId === testRun.runId ? { ...t, results, done: finished || tries > 25 } : t));
+        if (live)
+          setTestRun((t) => (t && t.runId === testRun.runId ? { ...t, results, done: finished || tries > 25 } : t));
         if (live && !finished && tries <= 25) setTimeout(() => void tick(), 900);
       } catch {
         if (live) setTestRun((t) => (t ? { ...t, done: true } : t));
@@ -550,8 +567,7 @@ function Body({
         !catalog.all.some((st) => st.key === node.key) &&
         kindOfKey(node.key) === "plain";
       if (!foreign) setSel(id === sel ? null : id);
-    }
-    else if (action === "need" && id) {
+    } else if (action === "need" && id) {
       const step = model.rows.find((r) => r.kind === "step" && r.id === id);
       if (step && step.kind === "step" && step.need?.kind === "no_access") askAdmin();
       else if (id && connectNeeds.get(id) && openConnect) {

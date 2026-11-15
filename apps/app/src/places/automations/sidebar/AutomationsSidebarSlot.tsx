@@ -7,7 +7,7 @@ import { SIDEBAR, useScreenQuery } from "../canvas/data.tsx";
 import { needsBadge } from "../chrome.ts";
 import type { StudioView } from "../chrome.ts";
 import { needsYou } from "./model.ts";
-import { AutomationsSidebar } from "./AutomationsSidebar.tsx";
+import { AutomationsList } from "./AutomationsList.tsx";
 
 export type { StudioView };
 
@@ -49,9 +49,8 @@ export function AutomationsSidebarSlot({
               slot.openBody();
             }}
           />
-          <AutomationsSidebar
+          <AutomationsList
             selectedId={selectedId}
-            hosted
             query={query}
             onChoose={() => {
               onView("automations");

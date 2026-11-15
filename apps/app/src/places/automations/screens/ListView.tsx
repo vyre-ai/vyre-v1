@@ -13,39 +13,51 @@ export function ListView({
   onOpen,
   onHome,
   onNew,
+  query,
+  selectedId,
 }: {
   rows: readonly ListRowIn[];
   onOpen(id: string): void;
   onHome(): void;
   onNew?(): void;
+  /** The shell sidebar supplies the one search and its own head: then this draws only the rows. */
+  query?: string;
+  selectedId?: string | null;
 }): ReactElement {
-  const [q, setQ] = useState("");
+  const [own, setOwn] = useState("");
+  const q = query ?? own;
+  const setQ = setOwn;
   const v = listView(rows, q);
   return (
     <View style={s.col} testID="auto-list">
-      <Pressable testID="al-home" accessibilityRole="button" onPress={onHome} style={s.head}>
-        <Text style={s.title}>{v.head.title}</Text>
-        {v.head.count > 0 ? <Text style={s.count}>{String(v.head.count)}</Text> : null}
-        <View style={{ flex: 1 }} />
-        {onNew ? (
-          <Pressable testID="al-new" accessibilityRole="button" accessibilityLabel="New automation" onPress={onNew}>
-            <Text style={s.plus}>+</Text>
+      {query !== undefined ? null : (
+        <>
+          <Pressable testID="al-home" accessibilityRole="button" onPress={onHome} style={s.head}>
+            <Text style={s.title}>{v.head.title}</Text>
+            {v.head.count > 0 ? <Text style={s.count}>{String(v.head.count)}</Text> : null}
+            <View style={{ flex: 1 }} />
+            {onNew ? (
+              <Pressable testID="al-new" accessibilityRole="button" accessibilityLabel="New automation" onPress={onNew}>
+                <Text style={s.plus}>+</Text>
+              </Pressable>
+            ) : null}
           </Pressable>
-        ) : null}
-      </Pressable>
-      <TextInput
-        value={q}
-        onChangeText={setQ}
-        placeholder="Search"
-        placeholderTextColor="var(--ink-3)"
-        accessibilityLabel="Search automations"
-        testID="al-search"
-        style={s.search}
-      />
+          <TextInput
+            value={q}
+            onChangeText={setQ}
+            placeholder="Search"
+            placeholderTextColor="var(--ink-3)"
+            accessibilityLabel="Search automations"
+            testID="al-search"
+            style={s.search}
+          />
+        </>
+      )}
       {v.rows.map((r) => (
         <Row
           key={r.id}
           id={`al-${r.id}`}
+          {...(selectedId === r.id ? { selected: true } : {})}
           title={r.name}
           leading={<View style={[s.dot, { backgroundColor: DOT[r.dot] as string }]} />}
           domProps={{ style: { minHeight: 34 } }}

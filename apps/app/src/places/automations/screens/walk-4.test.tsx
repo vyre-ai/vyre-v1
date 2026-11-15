@@ -4,5 +4,18 @@ import assert from "node:assert/strict";
 import { walk } from "./walk-kit.test.tsx";
 
 test("an Automation of each of these step kinds opens with its form and writes nothing: start_journey, stop, transform, wait_stage, wait, google.dri", async () => {
-  assert.deepEqual(await walk(["start_journey", "stop", "transform", "wait_stage", "wait", "google.drive.create_folder", "google.gmail.send", "microsoft.mail.send"]), [], "no kind writes on open");
+  assert.deepEqual(
+    await walk([
+      "start_journey",
+      "stop",
+      "transform",
+      "wait_stage",
+      "wait",
+      "google.drive.create_folder",
+      "google.gmail.send",
+      "microsoft.mail.send",
+    ]),
+    [],
+    "no kind writes on open",
+  );
 });

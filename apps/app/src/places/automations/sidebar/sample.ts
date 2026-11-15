@@ -617,7 +617,10 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
       }) as CapMap["journeys.list"]["out"],
   );
   // the server's draft per Automation (AUTOMATIONS-BUILD-RC29 1c): what an On Automation's edit is saved as, apart from what is live
-  const drafts = new Map<string, { definition: Definition; rev: number; baseVersion: number; by: string; at: number }>();
+  const drafts = new Map<
+    string,
+    { definition: Definition; rev: number; baseVersion: number; by: string; at: number }
+  >();
   replica.resolve("automations.get", (_t, input) => {
     const r = autos().find((x) => x.id === input.automationId);
     const d = drafts.get(String(input.automationId));
@@ -671,7 +674,9 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
     return next;
   };
   const writes: Record<string, (input: any) => unknown> = {
-    "automations.senders": () => ({ senders: [{ id: "snd_1", channel: "text", address: "+14155550100", usable: true }] }),
+    "automations.senders": () => ({
+      senders: [{ id: "snd_1", channel: "text", address: "+14155550100", usable: true }],
+    }),
     "automations.get": (i: { automationId: string }) => ({ automation: autos().find((x) => x.id === i.automationId) }),
     "automations.update": (i: {
       automationId: string;
@@ -708,7 +713,8 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
         drafts.delete(i.automationId);
         return { automation: patch(i.automationId, { version: Number(cur["version"]) + 1, definition: i.definition }) };
       }
-      if (d ? i.expectedRev !== d.rev : i.expectedVersion !== undefined && i.expectedVersion !== cur["version"]) stale();
+      if (d ? i.expectedRev !== d.rev : i.expectedVersion !== undefined && i.expectedVersion !== cur["version"])
+        stale();
       const next = {
         definition: i.definition,
         rev: (d?.rev ?? 0) + 1,
@@ -729,17 +735,28 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
       if (!cur) throw new Error("no such automation");
       if (!d) return { automation: cur };
       if (i.expectedRev !== undefined && i.expectedRev !== d.rev)
-        throw Object.assign(new Error("Someone else changed this Automation while you were editing. Reload to see their version."), {
-          code: "validation.version_conflict",
-        });
+        throw Object.assign(
+          new Error("Someone else changed this Automation while you were editing. Reload to see their version."),
+          {
+            code: "validation.version_conflict",
+          },
+        );
       drafts.delete(i.automationId);
       return {
-        automation: patch(i.automationId, { version: Number(cur["version"]) + 1, definition: d.definition, draftRev: 0 }),
+        automation: patch(i.automationId, {
+          version: Number(cur["version"]) + 1,
+          definition: d.definition,
+          draftRev: 0,
+        }),
       };
     },
     "automations.test_events": () => ({
       events: [
-        { runId: "run_past1", at: SAMPLE_NOW - 86_400_000, payload: { name: "Sam Reyes", summary: "Intake from Sam Reyes" } },
+        {
+          runId: "run_past1",
+          at: SAMPLE_NOW - 86_400_000,
+          payload: { name: "Sam Reyes", summary: "Intake from Sam Reyes" },
+        },
       ],
       sample: {},
     }),

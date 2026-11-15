@@ -28,13 +28,15 @@ const menu = async (root: Parameters<typeof press>[0] & object, item: string) =>
 };
 const calls = (s: ReturnType<typeof createSampleAutomations>, cap: string) => s.calls.filter((c) => c.cap === cap);
 
-test("Undo last edit takes back the draft: the Save bar goes and nothing was written", async () => {
+// Changed for AUTOMATIONS-BUILD-RC29 (1c): the bar of an On Automation's draft offers Make live, not Save, and the undone draft is dropped on the server.
+test("Undo last edit takes back the draft: the Make live bar goes and nothing went live", async () => {
   const { s, root } = await open("aut_digest", { initialSelected: "post" });
   await press(find(root, "delete-step"));
-  assert.ok(find(root, "sv-bar-Save"), "an edit makes a draft");
+  assert.ok(find(root, "sv-bar-Make live"), "an edit makes a draft");
   await menu(root, "Undo last edit");
-  assert.equal(find(root, "sv-bar-Save"), null, "undone");
+  assert.equal(find(root, "sv-bar-Make live"), null, "undone");
   assert.equal(calls(s, "automations.update").length, 0);
+  assert.equal(calls(s, "automations.make_live").length, 0);
 });
 
 test("Move to Trash sends the Automation to Trash", async () => {

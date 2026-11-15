@@ -153,6 +153,9 @@ export function StepPicker(p: StepPickerProps): ReactElement {
                 placeholderTextColor="var(--ink-3)"
                 accessibilityLabel="Search"
                 testID="pk-search"
+                // a real browser's text box keeps Enter for itself: it never reaches the layer's key handler, so Enter in the search adds the lit row here
+                blurOnSubmit={false}
+                onSubmitEditing={() => send({ key: "Enter" })}
                 style={styles.search}
               />
             </View>

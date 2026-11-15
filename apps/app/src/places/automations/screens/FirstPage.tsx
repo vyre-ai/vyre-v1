@@ -67,7 +67,11 @@ export function FirstPage({
       knownService: true,
       assistant: "cleared",
     }));
-    return firstPage({ needs: needsFromAutomations(rows, reasons), suggestions, today: todayFromAutomations(rows, now) });
+    return firstPage({
+      needs: needsFromAutomations(rows, reasons),
+      suggestions,
+      today: todayFromAutomations(rows, now),
+    });
   }, [rows, offers, now, reasons]);
   const offerOf = (id: string): ConnectorOffer | undefined => offers.find((o) => o.itemId === id);
   const create = (): void => {

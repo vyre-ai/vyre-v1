@@ -38,7 +38,7 @@ import {
 import { AllRuns, TemplateGallery, Watching } from "../../places/automations/operations/StudioViews.tsx";
 import { openAskPane } from "../ask/pane.ts";
 import { AutomationsSidebarSlot } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
-import { AutomationsSidebar } from "../../places/automations/sidebar/AutomationsSidebar.tsx";
+import { AutomationsList } from "../../places/automations/sidebar/AutomationsList.tsx";
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { keysFromAccounts } from "../../places/automations/values/typed.ts";
 import { nameOf } from "./misc-common.ts";
@@ -444,7 +444,7 @@ function PhoneList({ view, onView }: { view: StudioView; onView(next: StudioView
         style={s.phoneSearch}
         testID="automations-phone-search"
       />
-      <AutomationsSidebar hosted query={q} selectedId={null} onChoose={() => onView("automations")} />
+      <AutomationsList query={q} selectedId={null} onChoose={() => onView("automations")} />
     </View>
   );
 }

@@ -208,7 +208,7 @@ test("f-kinds-a pictures", async (t) => {
       // 1. the step card
       await page.goto(`${web.origin}/automations?skin=${skin}`, { waitUntil: "load" });
       await page.getByText("Weekly digest", { exact: true }).first().click({ timeout: 30_000 });
-      await page.getByTestId("canvas-frame").first().waitFor({ timeout: 30_000 });
+      await page.getByTestId("story").first().waitFor({ timeout: 30_000 });
       await page
         .getByTestId("card-n1")
         .waitFor({ timeout: 20_000 })

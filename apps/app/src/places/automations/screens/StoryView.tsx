@@ -7,7 +7,17 @@ import { glyphOf, tintOf } from "../picker/glyphs.ts";
 import type { Sentence, Story } from "../story/model.ts";
 import { look } from "./look.ts";
 
-export type StoryAction = "bar" | "need" | "open" | "add" | "test" | "primary" | "secondary" | "ask" | "insert" | "trigger";
+export type StoryAction =
+  | "bar"
+  | "need"
+  | "open"
+  | "add"
+  | "test"
+  | "primary"
+  | "secondary"
+  | "ask"
+  | "insert"
+  | "trigger";
 
 function Btn({
   id,
@@ -157,7 +167,8 @@ export function StoryView({
               </Text>
             );
           const split = r.kind === "trigger" ? splitHead(r.sentence) : null;
-          const lastTrigger = r.kind === "trigger" && !story.rows.slice(story.rows.indexOf(r) + 1).some((x) => x.kind === "trigger");
+          const lastTrigger =
+            r.kind === "trigger" && !story.rows.slice(story.rows.indexOf(r) + 1).some((x) => x.kind === "trigger");
           return (
             <View key={r.id}>
               <Pressable
@@ -300,7 +311,7 @@ const s = StyleSheet.create({
   },
   proposed: { borderStyle: "dashed", borderColor: "var(--accent-line)" as string },
   no: { width: 36, fontSize: 13, color: "var(--ink-3)" as string, textAlign: "center" },
-  when: { fontWeight: "600", color: "var(--accent)" as string },
+  when: { width: 48, fontWeight: "600", color: "var(--accent)" as string },
   slot: { height: 22, alignItems: "flex-start", justifyContent: "center" },
   add: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 12 },
   addPlus: { width: 36, textAlign: "center", fontSize: 18, color: "var(--ink-3)" as string },

@@ -4,5 +4,19 @@ import assert from "node:assert/strict";
 import { walk } from "./walk-kit.test.tsx";
 
 test("an Automation of each of these step kinds opens with its form and writes nothing: send_email, send_sms, sheet.add_rows, sheet.create, sheet.de", async () => {
-  assert.deepEqual(await walk(["send_email", "send_sms", "sheet.add_rows", "sheet.create", "sheet.delete_rows", "sheet.find_rows", "sheet.read_all", "sheet.update_rows", "sign"]), [], "no kind writes on open");
+  assert.deepEqual(
+    await walk([
+      "send_email",
+      "send_sms",
+      "sheet.add_rows",
+      "sheet.create",
+      "sheet.delete_rows",
+      "sheet.find_rows",
+      "sheet.read_all",
+      "sheet.update_rows",
+      "sign",
+    ]),
+    [],
+    "no kind writes on open",
+  );
 });

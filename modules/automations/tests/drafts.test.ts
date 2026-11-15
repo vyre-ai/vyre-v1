@@ -23,7 +23,11 @@ test("an On Automation keeps an edit as a draft: the live version does not move 
   const h = harness();
   const id = await mk(h);
   await on(h, id);
-  const r = await h.call("automations.draft.save", { automationId: id, definition: edited(), expectedVersion: 1 }, alice);
+  const r = await h.call(
+    "automations.draft.save",
+    { automationId: id, definition: edited(), expectedVersion: 1 },
+    alice,
+  );
   assert.equal(r.automation.version, 1);
   assert.equal(r.automation.definition.nodes.length, 1, "live is as it was");
   assert.equal(r.draft.definition.nodes.length, 2);
@@ -39,7 +43,11 @@ test("an On Automation keeps an edit as a draft: the live version does not move 
 test("an Off Automation has no live side: an edit saves as a version at once", async () => {
   const h = harness();
   const id = await mk(h);
-  const r = await h.call("automations.draft.save", { automationId: id, definition: edited(), expectedVersion: 1 }, alice);
+  const r = await h.call(
+    "automations.draft.save",
+    { automationId: id, definition: edited(), expectedVersion: 1 },
+    alice,
+  );
   assert.equal(r.automation.version, 2);
   assert.equal(r.draft, undefined);
 });
@@ -103,11 +111,7 @@ test("Test with draft: true runs the draft on a real past event, not the saved v
   await h.call("automations.draft.save", { automationId: id, definition: edited(), expectedVersion: 1 }, alice);
   const ev = await h.call("automations.test_events", { automationId: id }, alice);
   assert.equal(ev.events[0].runId, "run_past00000000000000000000000001");
-  const r = await h.call(
-    "automations.test",
-    { automationId: id, draft: true, eventRunId: ev.events[0].runId },
-    alice,
-  );
+  const r = await h.call("automations.test", { automationId: id, draft: true, eventRunId: ev.events[0].runId }, alice);
   const link = findRunLink(h.db, r.runId)!;
   assert.equal(link.test, true);
   assert.deepEqual(link.payload, { recordId: "rec_real", type: "contact" });

@@ -317,7 +317,7 @@ export default defineManifest({
     // the Event log (it was the Automations place's Live Event Explorer): the newest events with their run and Automation; the Console lists it to a person who may read the audit log
     screen("events.log", "console", "ui:EventLog", {
       needs: ["audit.read"],
-      q: { events: ["events.list", { limit: 100 }, true] },
+      q: { events: ["events.list", {}, true] },
       empty: "No events yet",
     }),
     screen("events.webhooks", "console", "ui:WebhooksPage", {

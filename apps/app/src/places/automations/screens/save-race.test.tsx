@@ -37,7 +37,11 @@ test("Off with autosave: another person saves while I hold a draft; mine is refu
   await flush();
   const mine = updates(s).filter((c) => (c.input as { definition?: unknown }).definition !== OTHER);
   assert.equal(mine.length, 1, "one attempt, no retry on the new version");
-  assert.equal((mine[0]!.input as { expectedVersion: number }).expectedVersion, started, "the base is the version the draft started on");
+  assert.equal(
+    (mine[0]!.input as { expectedVersion: number }).expectedVersion,
+    started,
+    "the base is the version the draft started on",
+  );
   assert.deepEqual(stored(s, "aut_lead").definition, OTHER, "their save is still there");
   assert.equal(stored(s, "aut_lead").version, started + 1);
   assert.ok(find(root, "save-conflict"), "the page says someone else changed it");

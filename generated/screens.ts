@@ -4004,9 +4004,7 @@ export const screens: ScreenIndexEntry[] = [
     "queries": {
       "events": {
         "cap": "events.list",
-        "input": {
-          "limit": 100
-        },
+        "input": {},
         "live": true
       }
     },
