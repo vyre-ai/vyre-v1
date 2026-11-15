@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "connections.approve_hosts": async () => ({"hosts":["example"]} as unknown) as never,
   "connections.complete_auth": async () => ({"connectionId":"con_a1b2c3"} as unknown) as never,
   "connections.create": async () => ({"authUrl":"example","connection":{"connectionId":"con_a1b2c3","connector":"hubspot","createdAt":1760000000000,"filled":["example"],"handles":["#Dana_Lawmatics"],"lastSyncAt":1760000000000,"owner":{"id":"example","kind":"person"},"pausedBy":"example","scopes":["example"],"state":"pending","title":"example"}} as unknown) as never,
   "connections.delete": async () => ({"deleted":true} as unknown) as never,

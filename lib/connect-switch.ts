@@ -1,9 +1,9 @@
-// THE switch for the connect card (b-connect, 14 Nov 2026) and everything behind it. ON by default from rc.29 (b-connect2, 15 Nov 2026), after the three items the review r-keyreach-9-b-connect left open were closed:
-// A a saved key is offered only from the card's own stamp and only to the person on their own card, B the key goes only to the hosts the connection's own record lists, checked on the server when it is sent,
-// C no capability an agent can reach erases a Vault item. Set VYRE_CONNECT_CARD=0 (or off, false) to turn it off: ten capabilities then answer `internal.not_implemented` and the agent tools are not offered.
-// Read at the moment of each call, never cached, so a test that turns it off for itself needs no restart. Every site that gates the feature reads this one function; nothing else decides.
+// THE switch for the connect card (b-connect, 14 Nov 2026) and everything behind it. OFF by default, as in rc.28: it is on only when VYRE_CONNECT_CARD is exactly "1". The three items the review r-keyreach-9-b-connect
+// left open (A a saved key offered by name, B the hosts a key goes to, C a general erase) are closed on this branch, and the lead turns the card on in one last commit that changes this function, this comment and the
+// tests that pin the default together. Off: ten capabilities answer `internal.not_implemented` and the agent tools are not offered. Read at the moment of each call, never cached, so a test can set it for itself.
+// Every site that gates the feature reads this one function; nothing else decides.
 
-/** Is the connect card on? Only the exact value "1" (off by default, as in rc.28; the last commit of this lane turns it on). */
+/** Is the connect card on? Only the exact value "1" (the default is off). */
 export const connectCardOn = (): boolean => process.env["VYRE_CONNECT_CARD"] === "1";
 
 /** The one plain refusal every caller gets for a connect capability while the switch is off. */
@@ -18,6 +18,7 @@ export const CONNECT_CAPS: ReadonlySet<string> = new Set([
   "vault.connect_card.get",
   "vault.connect_card.options",
   "vault.connect_card.may_discard",
+  "vault.connect_card.line",
   "vault.connect_card.submit",
   "vault.connect_card.ask_admin",
   "vault.connect_card.reopen",

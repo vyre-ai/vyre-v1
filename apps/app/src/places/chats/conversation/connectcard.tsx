@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 import { Text } from "react-native";
 import { CardDone } from "../../../../../../ui/src/Card/index.tsx";
 import { Glyph } from "./parts.tsx";
-import { ConnectCard } from "../../../../../../ui/src/ConnectCard/index.tsx";
+import { ConnectCard, ConnectKeyGlyph } from "../../../../../../ui/src/ConnectCard/index.tsx";
 import type { ConnectState, ConnectWork } from "../../../../../../ui/src/ConnectCard/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -36,7 +36,6 @@ export function ConnectCardLive({
   data,
   onOff,
   asker,
-  service,
 }: {
   requestId: string;
   /** The person the agent asked for, and the service: what everyone else in the chat reads (one quiet line, never the card). */
@@ -90,19 +89,8 @@ export function ConnectCardLive({
   useFollow(data.changes, load, card !== null && card?.state !== "gone");
 
   if (card === undefined || card?.state === "gone") return null;
-  // someone else in the chat: the card is the asked person's own, so all they read is that a connection was asked of them
-  if (card === null) {
-    const who = asker ? named(asker) : "";
-    const what = service ? service.charAt(0).toUpperCase() + service.slice(1) : "a service";
-    return (
-      <CardDone
-        testID={`connect-asked-${requestId}`}
-        ok
-        glyph={<Glyph name="check" size={13} color="var(--ink-3)" />}
-        text={`${agent} asked ${who || "someone"} to connect ${what}`}
-      />
-    );
-  }
+  // someone else in the chat: the card is the asked person's own, so all they read is one quiet line about how the ask stands
+  if (card === null) return <OthersLine requestId={requestId} agent={agent} asker={asker} data={data} named={named} />;
   const name = card.service.title;
 
   const put = (field: string, value: string): void => {
@@ -261,5 +249,48 @@ function ProblemLine({ text }: { text: string }): ReactElement {
     <Text accessibilityRole="alert" style={{ fontSize: 12.5, color: "var(--danger)" as string, marginTop: 4 }}>
       {text}
     </Text>
+  );
+}
+
+type Line = { state: "asked" | "connected" | "declined"; service: string; asker?: string; connectedBy?: string };
+/** What everyone but the asked person reads: asked (a key glyph), connected (a tick), declined (nothing: the quietest). */
+function OthersLine({
+  requestId,
+  agent,
+  asker,
+  data,
+  named,
+}: {
+  requestId: string;
+  agent: string;
+  asker?: string | undefined;
+  data: Data;
+  named: (id: string) => string;
+}): ReactElement | null {
+  const [line, setLine] = useState<Line | null>(null);
+  const load = useCallback(async (): Promise<void> => {
+    try {
+      setLine((await data.call("vault.connect_card.line", { requestId })) as Line);
+    } catch {
+      /* the line stays as it was */
+    }
+  }, [data, requestId]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  useFollow(data.changes, load, line?.state !== "declined");
+  if (!line || line.state === "declined") return null;
+  const who = (id?: string): string => (id ? named(id) : "") || "someone";
+  return (
+    <CardDone
+      testID={`connect-asked-${requestId}`}
+      ok={line.state === "connected"}
+      glyph={line.state === "connected" ? <Glyph name="check" size={13} color="var(--ink-3)" /> : <ConnectKeyGlyph />}
+      text={
+        line.state === "connected"
+          ? `${who(line.connectedBy ?? line.asker)} connected ${line.service}`
+          : `${agent} asked ${who(asker ?? line.asker)} to connect ${line.service}`
+      }
+    />
   );
 }

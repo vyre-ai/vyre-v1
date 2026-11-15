@@ -8,6 +8,7 @@ import {
   ensureTables,
   hostFromInput,
   keyHosts,
+  recordHosts,
   probeHost,
   probeOf,
   mintShort,
@@ -73,6 +74,7 @@ export interface ConnectionsHandlers {
     ctx: ConnectorsCtx,
     input: { connectionId: string },
   ): Promise<{ state: ConnectionState; stamped: boolean }>;
+  "connections.approve_hosts"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ hosts: string[] }>;
   "connections.delete"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ deleted: boolean }>;
   "connectors.for_service"(ctx: ConnectorsCtx, input: { service: string }): Promise<ForService>;
   "connectors.check_key"(
@@ -300,7 +302,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         tx.run(
           "INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
           id,
-          JSON.stringify(keyHosts(def).map((h) => h.toLowerCase())),
+          JSON.stringify(recordHosts(def)),
         );
       const row = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", id)!;
       const authUrl = authUrlFor(def, row, input.scopes ?? [], false, ctx);
@@ -521,6 +523,23 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
 
     // The connection's own module proved it works without going through the connector runtime (Google delegation reads mail and calendar with a token it mints itself), so nothing else would ever
     // make it active or stamp it used. Only the server's own jobs and people who may change the connection can say so.
+    // The person who owns the connection allows the hosts its connector calls now (it gained one since they approved). A connector that lost a host needs nothing: it just stops calling it.
+    "connections.approve_hosts": async (ctx, input) => {
+      ready();
+      const r = need(ctx, input.connectionId);
+      owned(ctx, r);
+      if (ctx.callerKind !== undefined && ctx.callerKind !== "person")
+        refuse(ctx, "permission.no_grant", "Only a person can allow where a key is sent.");
+      const def = defOf(ctx, r.connector);
+      const hosts = recordHosts(def);
+      tx.run(
+        "INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
+        r.connection_id,
+        JSON.stringify(hosts),
+      );
+      return { hosts };
+    },
+
     "connections.mark_working": async (ctx, input) => {
       const r = need(ctx, input.connectionId);
       // the server's own jobs, or whoever may change this connection: a member cannot mark a failing Space connection active
@@ -553,7 +572,10 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         : [];
       const defs = rows.map((r) => JSON.parse(r.def) as ConnectorDef);
       // the exact name (key or title), never a prefix: "Git" is not GitHub. Several with that name is not a guess either.
-      const exact = defs.filter((d) => squash(d.key) === want || squash(d.title) === want);
+      let exact = defs.filter((d) => squash(d.key) === want || squash(d.title) === want);
+      // a built-in connector wins over an agent-published namesake: an agent cannot switch the card off for a service by publishing one of the same name
+      const builtIn = exact.filter((d) => d.builtin === true);
+      if (exact.length > 1 && builtIn.length === 1) exact = builtIn;
       if (exact.length !== 1)
         return {
           found: false,

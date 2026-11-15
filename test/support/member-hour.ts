@@ -283,7 +283,7 @@ export const model: OpenSession = async (spec) => {
         };
         yield { type: "block", kind: "tool_result", payload: { id: "toolu_b", ok: true, result: "Paid in full." } };
         yield { type: "text", text: "Both subagents finished." };
-      } else if (/Carry on/.test(body)) {
+      } else if (/Carry on|is connected\./.test(body)) {
         const found = yield* run("tool_search", { query: "vault use" });
         // told only that a service is connected (a connect card's answer): ask vault_connect, which says the exact item, as a model does
         let named = /as (#[A-Za-z0-9_]+)/.exec(body)?.[1];

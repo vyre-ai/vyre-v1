@@ -294,7 +294,17 @@ export async function connectService(
   if (!said) raise(trace, "validation.bad_input", "Say which service.");
   const svc = await serviceOf(ctx, said);
   // no connector, or several of that name: the model is told the one next step, never a guess
-  if (!svc) return { status: "no_connector", tell: TELL.no_connector(said) };
+  if (!svc) {
+    // two connectors of equal standing with this name: said as that, never as "there is none to build"
+    const two = asRow(await ctx.call("connectors.for_service", { service: said }));
+    const near = Array.isArray(two?.["near"]) ? (two!["near"] as unknown[]) : [];
+    if (near.length > 1 && new Set(near.map((n) => String(n).toLowerCase())).size === 1)
+      return {
+        status: "no_connector",
+        tell: `More than one connector is called ${String(near[0])}, so none was chosen. Ask an admin to remove the one that should not be there, then call vault_connect again.`,
+      };
+    return { status: "no_connector", tell: TELL.no_connector(said) };
+  }
   // already connected for this person, and working: nothing to ask
   if (svc.connection?.state === "active") {
     // the agent is told, here and only here (a tool answer no one else reads), the exact item the card saved for this connection: by its handle, never by a name another key of this person's may share
@@ -614,6 +624,24 @@ export async function connectSubmit(
     ...(saved ? (svc.checks ? { tested: "Used your saved key" } : {}) : testedLine ? { tested: testedLine } : {}),
   });
   return done("connected");
+}
+
+/** The line everyone in the chat may read: a connection was asked of someone, and how it stands. The request id comes from the card block they can already read; nothing of keys, choices or the Vault is in it. */
+export async function connectLine(ctx: VaultReqCtx, input: { requestId: string }) {
+  const row = requestById(ctx, input.requestId);
+  if (!row || !row.service) raise(ctx.trace.traceId, "validation.not_found", "No such request.");
+  const svc = await serviceOf(ctx, row.service);
+  return {
+    state:
+      row.state === "waiting"
+        ? ("asked" as const)
+        : row.state === "fulfilled"
+          ? ("connected" as const)
+          : ("declined" as const),
+    service: svc?.title ?? row.service,
+    ...(row.asker_id ? { asker: row.asker_id } : {}),
+    ...(row.state === "fulfilled" && row.decided_by ? { connectedBy: row.decided_by } : {}),
+  };
 }
 
 /**
