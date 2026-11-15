@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (96)
+## Capabilities (98)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
@@ -66,6 +66,8 @@ Requires: nothing.
 - [engine.review.mark](../capabilities/engine.review.mark.md): Mark a sampled turn reviewed: fine, or flagged (which opens an incident)
 - [engine.reviewer.get](../capabilities/engine.reviewer.get.md): The reviewer of a chat, if one is set
 - [engine.reviewer.set](../capabilities/engine.reviewer.set.md): Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn ("Asking Reviewer to check this"), a person gets a Review task
+- [engine.rewind.points](../capabilities/engine.rewind.points.md): The points a person can go back to in a private chat with an agent: one per turn of an agent that worked in a folder on this computer for them, newest first, with when, how many files and what they had just asked. Not available in a chat with other people
+- [engine.rewind.to](../capabilities/engine.rewind.to.md): Put an agent's work folder back as it was at a point and have the agents stop reading the chat's messages from afterSeq to uptoSeq; the engine's own session starts again. The chat's messages are untouched. A person's own folder only; use chat.rewind, which also leaves the line in the chat
 - [engine.round.get](../capabilities/engine.round.get.md): Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored
 - [engine.route.preview](../capabilities/engine.route.preview.md): Who will answer a draft message ("Intake will reply" or "No agent will reply, type @ to ask one"); same route() the client runs locally
 - [engine.running_here](../capabilities/engine.running_here.md): System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)

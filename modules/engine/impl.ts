@@ -3,6 +3,7 @@
 //
 // Also here: the runtime that wires the turn engine to this module's SQL (queue, lease, messages, parked tool calls), so a second host that takes a thread over
 // with recover() replays the same message bodies, and a tool call held at the Gate parks the turn on its task (turn.waiting) until resume().
+import { erase as erasePoints } from "./checkpoints.ts";
 import { forgetPlacement } from "./placement-cache.ts";
 import { recallPick } from "./last-pick.ts";
 import { forgetProvider } from "./model-health.ts";
@@ -218,6 +219,23 @@ export const consumers = keptWhileStopping({
             )
             .catch(() => undefined);
       }
+    },
+  },
+  /** What a chat, an agent or a person owned goes, and so do the points of their work folders: a point is a copy of their files (checkpoints.ts erase). */
+  "engine.checkpoints_erased": {
+    on: ["thread.erased", "agent.deleted", "member.removed"],
+    run: async (
+      _ctx: EngineCtx,
+      event: { name: string; payload: { threadId?: string; agentId?: string; personId?: string } },
+    ): Promise<void> => {
+      const dataDir = engineHost()?.dataDir;
+      if (!dataDir) return;
+      const p = event.payload;
+      erasePoints(dataDir, {
+        ...(event.name === "thread.erased" && p.threadId ? { threadId: p.threadId } : {}),
+        ...(event.name === "agent.deleted" && p.agentId ? { agentId: p.agentId } : {}),
+        ...(event.name === "member.removed" && p.personId ? { personId: p.personId } : {}),
+      });
     },
   },
   /** A person left: nothing goes on running on their word or their account. */
