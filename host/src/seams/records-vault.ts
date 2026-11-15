@@ -3,6 +3,8 @@
 // and comes back only through `reveal`, which runs vault.item.reveal as the person asking, so the Vault checks their access and logs the reveal.
 // Layer rule: host never imports a module, so the shape is structural here and the module has its own copy of the types.
 
+import { SEALED_FOLDER } from "../../../lib/company-keys.ts";
+
 export interface RecordsVaultSeam {
   /** Store one value (a new item, or a new value in the item `ref` names) and answer the item's id, the reference a record keeps. */
   put(o: { type: string; recordId: string; field: string; value: string; ref?: string }): Promise<string>;
@@ -22,7 +24,7 @@ export interface RecordsVaultDeps {
   scrub(type: string, field: string): Promise<void>;
 }
 
-export const SEALED_FOLDER = "Sealed fields";
+export { SEALED_FOLDER };
 export const SEALED_KEY = "value";
 
 export function createRecordsVaultHost(d: RecordsVaultDeps): RecordsVaultSeam {

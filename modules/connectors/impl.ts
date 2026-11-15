@@ -11,6 +11,7 @@ import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { hostOnly } from "../../host/src/ctx/host-only.ts";
 import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
+import { CONNECT_OFF_CODE, CONNECT_OFF_MESSAGE, connectCardOn, isConnectCap } from "../../lib/connect-switch.ts";
 import { writeConnectorFolder, writeSourceFolder } from "./handlers/files.ts";
 import { readSource } from "./handlers/source.ts";
 import { createConnectorsHandlers } from "./handlers/index.ts";
@@ -111,6 +112,9 @@ export function setSyncEngine(e: SyncEngine | null): void {
 
 function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
+    // the two reads and writes the connect card stands on refuse for every caller while VYRE_CONNECT_CARD is off (lib/connect-switch.ts), before the connector or connection is looked up
+    if (isConnectCap(name) && !connectCardOn())
+      throw fail(CONNECT_OFF_CODE, ctx.trace.traceId, { message: CONNECT_OFF_MESSAGE });
     const handle = live(ctx as { db?: unknown }),
       port = connectorHost,
       args = input as Record<string, unknown>;
@@ -149,7 +153,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
           "The connector changed while preparing this request. Try again.",
         );
       const resource =
-        name === "connections.complete_auth"
+        name === "connections.complete_auth" || name === "connectors.check_key"
           ? { type: "space", id: ctx.space }
           : name === "connectors.run" || name === "connectors.read"
             ? { type: "connector", id: key! }
@@ -213,6 +217,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       ...(ctx.log ? { log: ctx.log } : {}),
       ...(ctx.schedule ? { schedule: (at, cap, input) => ctx.schedule!(at, cap, input) } : {}),
       ...((ctx.actingFor ?? ctx.principal?.id) ? { actor: ctx.actingFor ?? ctx.principal!.id } : {}),
+      callerKind: ctx.principal?.kind,
       trusted: isTrustedService(ctx.principal),
       canManageSpace: () =>
         ctx.authorize({ perm: "connectors.manage", level: "edit" }, { type: "space", id: ctx.space }).effect ===
@@ -330,6 +335,8 @@ const NAMES = [
   "connectors.export",
   "connectors.remove",
   "connectors.health",
+  "connectors.for_service",
+  "connectors.check_key",
   "connections.list",
   "connections.get",
   "connections.create",

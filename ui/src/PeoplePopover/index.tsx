@@ -57,7 +57,9 @@ export function PeoplePopover({
   const menu = useMenu();
   const [at, setAt] = useState(-1);
   const footer = footerOf(where);
-  const count = rows.length + 1;
+  const mayAdd = perms.add !== false,
+    mayOpen = perms.open !== false;
+  const count = rows.length + (mayAdd ? 1 : 0);
   useEscapeLayer(true, onClose); // one Escape closes the topmost layer: this popover, not the sheet under it
   useEffect(() => {
     if (!web) return undefined;
@@ -78,13 +80,14 @@ export function PeoplePopover({
       }
       if (e.key === "Enter" && at >= 0) {
         e.preventDefault?.();
-        if (at < rows.length) onOpen(rows[at] as MemberRow);
-        else onFooter(footer.id);
+        if (at < rows.length) {
+          if (mayOpen) onOpen(rows[at] as MemberRow);
+        } else if (mayAdd) onFooter(footer.id);
       }
     };
     doc.addEventListener("keydown", key);
     return () => doc.removeEventListener("keydown", key);
-  }, [at, count, rows, footer.id, onClose, onOpen, onFooter]);
+  }, [at, count, rows, footer.id, mayAdd, mayOpen, onClose, onOpen, onFooter]);
   // the prototype's widths: about 215 for a chat, 260 for a project. A phone has no popover: the same rows open as the app's bottom sheet.
   const phone = isPhoneWidth(win.width);
   const spot = placeOf(anchor, win.width || 1024, where);
@@ -123,12 +126,12 @@ export function PeoplePopover({
           accessibilityRole="button"
           accessibilityLabel={`${r.name}, ${r.role}`}
           testID={`people-row-${r.id}`}
-          onPress={() => onOpen(r)}
+          {...(mayOpen ? { onPress: () => onOpen(r) } : {})}
           {...menuTrigger((x, y) => rowMenu(r, x, y))}
           style={({ hovered }: { hovered?: boolean }) => [
             st.row,
             phone && st.rowPhone,
-            (hovered === true || at === i) && st.lit,
+            ((hovered === true && mayOpen) || at === i) && st.lit,
             at === i && st.kb,
           ]}
         >
@@ -157,24 +160,28 @@ export function PeoplePopover({
           )}
         </Pressable>
       ))}
-      <View style={st.rule} />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={footer.label}
-        testID="people-footer"
-        onPress={() => onFooter(footer.id)}
-        style={({ hovered }: { hovered?: boolean }) => [
-          st.row,
-          phone && st.rowPhone,
-          (hovered === true || at === rows.length) && st.lit,
-          at === rows.length && st.kb,
-        ]}
-      >
-        <View style={st.ic}>
-          <AccessIcon name={footer.id === "add" ? "plus" : "people"} size={15} color="var(--ink-2)" />
-        </View>
-        <Text style={st.name}>{footer.label}</Text>
-      </Pressable>
+      {mayAdd ? (
+        <>
+          <View style={st.rule} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={footer.label}
+            testID="people-footer"
+            onPress={() => onFooter(footer.id)}
+            style={({ hovered }: { hovered?: boolean }) => [
+              st.row,
+              phone && st.rowPhone,
+              (hovered === true || at === rows.length) && st.lit,
+              at === rows.length && st.kb,
+            ]}
+          >
+            <View style={st.ic}>
+              <AccessIcon name={footer.id === "add" ? "plus" : "people"} size={15} color="var(--ink-2)" />
+            </View>
+            <Text style={st.name}>{footer.label}</Text>
+          </Pressable>
+        </>
+      ) : null}
     </>
   );
   if (phone) {

@@ -1,9 +1,9 @@
 // Where a person's reading of a chat starts (lane l-addsheet, owner ruling 4 Nov 2026). A person added to a private chat reads from the moment they were added unless "Include earlier messages" was on;
 // the time is chat_thread_member.fromAt on the chat's root, and it holds for the chat and every thread under it. Every read a person (or an agent working for them) makes goes through it:
 // the message list, a single message, pins, reading further back, the catch-up, search, a fork. An agent acting for nobody (its own principal) reads all of it.
-import { askerOf, ensure } from "../projections.ts";
-import type { ChatCtx, ThreadRec } from "../projections.ts";
-import { rootOf } from "./post.ts";
+import { askerOf, ensure, messageBy, threadBy } from "../projections.ts";
+import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
+import { canSpeak, rootOf } from "./post.ts";
 
 type Row = Record<string, unknown>;
 
@@ -48,4 +48,16 @@ export function floorOfPerson(ctx: ChatCtx, rootThread: string, person: string):
   )[0];
   const at = Number(row?.["fromAt"] ?? 0);
   return Number.isFinite(at) && at > 0 ? at : 0;
+}
+
+/**
+ * A message by id, as the person asking (the one lookup every capability that takes a message id uses): its chat must be theirs, and it must not be from before their reading floor. Anything else is null, the
+ * same answer a message that does not exist gets, so a message id teaches nobody that a message is there.
+ */
+export function messageAsMe(ctx: ChatCtx, messageId: string): MessageRec | null {
+  const m = messageBy(ctx.db, messageId);
+  if (!m) return null;
+  const t = threadBy(ctx.db, m.thread);
+  if (!t || !canSpeak(ctx, t)) return null;
+  return m.createdAt < readFloor(ctx, t) ? null : m;
 }

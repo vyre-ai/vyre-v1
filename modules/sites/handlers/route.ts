@@ -439,11 +439,45 @@ async function sitesList(ctx: Ctx, input: unknown): Promise<{ sites: unknown[]; 
   return out;
 }
 
+/** A caller that read the site at updatedAt N is refused when it has changed since (F50): its change is not written over someone else's. Without expectedUpdatedAt nothing is checked. */
+function unchangedSince(ctx: Ctx, site: Row, o: Record<string, unknown>): void {
+  const expected = optInt(ctx, o, "expectedUpdatedAt");
+  if (expected !== undefined && expected !== num(site.updated_at))
+    fail(
+      ctx,
+      "validation.version_conflict",
+      "This changed after it was read, so this change was not saved. Read it again and redo the change.",
+    );
+}
+
 async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  unchangedSince(ctx, site, o);
   const name = optStr(ctx, o, "name");
+  if (
+    o.settings !== null &&
+    typeof o.settings === "object" &&
+    !Array.isArray(o.settings) &&
+    Object.hasOwn(o.settings, "serverFolder")
+  )
+    fail(ctx, "validation.bad_input", "serverFolder is kept by the server and cannot be set.", {
+      field: "settings.serverFolder",
+    });
   const deployed = !isNull(site.source) || (o.source !== undefined && o.source !== null);
+  // who may reach a site is the owner's to say, or whoever manages it (F56 R1, 14 Nov 2026): not a member who may only edit, and not an agent, whose Edit never reaches this (no Gate-held path for an agent exists)
+  if (optStr(ctx, o, "access") !== undefined && o.access !== site.access) {
+    if (
+      ctx.principal.kind !== "person" ||
+      ctx.authorize({ perm: null, level: "manage" }, { type: "site", id: str(site.id) }).effect !== "allow"
+    )
+      fail(
+        ctx,
+        "permission.no_grant",
+        "Only the owner of this site, or someone who manages it, can change who may reach it.",
+        { field: "access" },
+      );
+  }
   const access = accessOf(ctx, optStr(ctx, o, "access"), str(site.access) as Access, deployed);
   // every refusal comes before the first write (ruling 90): the checks, then the source, limits and auto-deploy, then the rest
   const source = o.source !== undefined && o.source !== null ? JSON.stringify(cleanSource(ctx, o.source)) : null;
@@ -459,6 +493,7 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const folderId = optStr(ctx, o, "folderId");
   mustFolder(ctx, folderId);
   const cleanedName = name === undefined ? site.name : cleanName(ctx, name);
+  unchangedSince(ctx, mustSite(ctx, str(site.id)), o); // the awaits above let another change land: check again in the same step as the first write
   if (source !== null) ctx.db.run("UPDATE sites_site SET source = ? WHERE id = ?", source, site.id);
   if (limits !== null) ctx.db.run("UPDATE sites_site SET limits = ? WHERE id = ?", limits, site.id);
   if (auto !== undefined) ctx.db.run("UPDATE sites_site SET auto_deploy = ? WHERE id = ?", auto ? 1 : 0, site.id);
@@ -477,12 +512,21 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
     ctx.now(),
     site.id,
   );
+  // who may reach a site is a decision the kernel makes too (F48, 14 Nov 2026): the change is an event, so the site's registration follows it
+  if (access !== site.access) ctx.emit("site.access_changed", `site/${site.id}`, { siteId: str(site.id), access });
   return { site: siteOut(ctx, mustSite(ctx, str(site.id))) };
 }
 
 async function sitesDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean }> {
   const site = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
   const now = ctx.now();
+  // an artifact's pages are files in a folder: deleting the artifact takes the folder, and so every page in it, out of reach and out of search for everyone, the person it was shared with included (F62). It goes to the
+  // owner's Trash like any deleted folder. It is done first, so a failure leaves the artifact as it was rather than half deleted.
+  if (site.kind === "artifact" && !isNull(site.target_folder)) {
+    await ctx.call("files.folder.delete", { folderId: str(site.target_folder) });
+    // and what it was shared with goes too: a file in Trash still reads for whoever reaches it, and its pages are reached through the artifact, so the artifact's shares end with it
+    await ctx.call("access.unshare", { resource: { type: "site", id: str(site.id) } });
+  }
   await routeDomains(ctx, site, false);
   await host?.hostRoute?.(str(site.id), false).catch(() => undefined);
   await stopDeployed(ctx, site, true);
@@ -651,10 +695,29 @@ async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[]; s
 /** The largest thumbnail kept (a data URL, about 120 by 80 pixels). */
 const THUMB_MAX = 60_000;
 
-async function artifactPublish(
-  ctx: Ctx,
-  input: unknown,
-): Promise<{ artifactId: string; url?: string; updated: boolean; opened: boolean }> {
+type Published = { artifactId: string; url?: string; updatedAt: number; updated: boolean; opened: boolean };
+/** Pages being republished right now by a caller that named the version it read: the check and the write are separated by awaits (the page's files), so a second such republish of the same page meanwhile is refused (F50). */
+const republishing = new Set<string>();
+
+async function artifactPublishGuarded(ctx: Ctx, input: unknown): Promise<Published> {
+  const o = rec(ctx, input);
+  const named = optStr(ctx, o, "artifactId");
+  if (named === undefined || optInt(ctx, o, "expectedUpdatedAt") === undefined) return artifactPublish(ctx, input);
+  if (republishing.has(named))
+    fail(
+      ctx,
+      "validation.version_conflict",
+      "This page is being changed at this moment, so this change was not saved. Read it again and redo the change.",
+    );
+  republishing.add(named);
+  try {
+    return await artifactPublish(ctx, input);
+  } finally {
+    republishing.delete(named);
+  }
+}
+
+async function artifactPublish(ctx: Ctx, input: unknown): Promise<Published> {
   const o = rec(ctx, input);
   const title = cleanName(ctx, reqStr(ctx, o, "title"));
   const html = optStr(ctx, o, "html");
@@ -699,6 +762,30 @@ async function artifactPublish(
     ctx.authorize({ perm: null, level: "edit" }, { type: "site", id: str(row.id) }).effect !== "allow"
   )
     fail(ctx, "permission.no_grant", "You can see that artifact but cannot change it.");
+  if (row) unchangedSince(ctx, row, o); // before anything is written to the page
+  // a server with no artifact store refuses before the first write, so a refused call leaves nothing behind
+  if ((html !== undefined || fileId !== undefined || localPath !== undefined) && !host?.artifacts)
+    fail(ctx, "validation.precondition_failed", "This server cannot keep artifacts yet.");
+  // what is to be published is read before anything is written, so a file or path that cannot be read leaves no new page behind
+  let fromFile: { base64?: string; mime?: string } | undefined;
+  let fromPath: LocalFile[] | undefined;
+  if (fileId !== undefined) {
+    fromFile = (await ctx.call("files.read", { fileId, as: "base64" })) as { base64?: string; mime?: string };
+    if (typeof fromFile.base64 !== "string")
+      fail(ctx, "validation.precondition_failed", "That file could not be read.");
+  } else if (localPath !== undefined) {
+    const got = host?.readLocal ? await host.readLocal(localPath) : null;
+    if (got === null)
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        "That path is not on this machine. Pass html, or save it to Files and pass fileId or folderId.",
+        { field: "path" },
+      );
+    if (got.length === 0 || got.length > FILES_MAX)
+      fail(ctx, "validation.too_large", "A published folder holds 1 to 200 files.", { field: "path" });
+    fromPath = got;
+  }
   const updated = row !== undefined;
   const id = row ? str(row.id) : nid(ctx, "sit");
   const now = ctx.now();
@@ -731,30 +818,20 @@ async function artifactPublish(
     row = mustSite(ctx, id);
   }
   let folderId: string | null = folderIn ?? null;
+  // set when the server itself makes the artifact's folder: only such a folder may be moved under the artifact in the access tree (never one a caller named)
+  let madeFolder = false;
   if (html !== undefined || fileId !== undefined || localPath !== undefined) {
-    const store = host?.artifacts;
-    if (!store) fail(ctx, "validation.precondition_failed", "This server cannot keep artifacts yet.");
-    folderId = isNull(row.target_folder) ? await store.folder(id, title) : str(row.target_folder);
+    const store = host?.artifacts as NonNullable<NonNullable<typeof host>["artifacts"]>; // a server with none was refused above, before anything was written
+    madeFolder = isNull(row.target_folder);
+    folderId = madeFolder ? await store.folder(id, title) : str(row.target_folder);
     const put = (name: string, base64: string, mime: string): Promise<void> =>
       store.put(folderId as string, name, base64, mime);
     if (html !== undefined) await put("index.html", Buffer.from(html, "utf8").toString("base64"), "text/html");
-    else if (fileId !== undefined) {
-      const f = (await ctx.call("files.read", { fileId, as: "base64" })) as { base64?: string; mime?: string };
-      if (typeof f.base64 !== "string") fail(ctx, "validation.precondition_failed", "That file could not be read.");
-      await put("index.html", f.base64, f.mime ?? "text/html");
-    } else {
-      const got = host?.readLocal ? await host.readLocal(localPath as string) : null;
-      if (got === null)
-        fail(
-          ctx,
-          "validation.precondition_failed",
-          "That path is not on this machine. Pass html, or save it to Files and pass fileId or folderId.",
-          { field: "path" },
-        );
-      if (got.length === 0 || got.length > FILES_MAX)
-        fail(ctx, "validation.too_large", "A published folder holds 1 to 200 files.", { field: "path" });
-      if (got.length === 1) await put("index.html", (got[0] as LocalFile).base64, (got[0] as LocalFile).mime);
-      else for (const f of got) await put(f.path.replaceAll("/", "__"), f.base64, f.mime);
+    else if (fromFile !== undefined) await put("index.html", fromFile.base64 as string, fromFile.mime ?? "text/html");
+    else if (fromPath !== undefined) {
+      if (fromPath.length === 1)
+        await put("index.html", (fromPath[0] as LocalFile).base64, (fromPath[0] as LocalFile).mime);
+      else for (const f of fromPath) await put(f.path.replaceAll("/", "__"), f.base64, f.mime);
     }
   }
   ctx.db.run(
@@ -780,6 +857,7 @@ async function artifactPublish(
     kept["thumbAt"] = now;
   }
   if (ctx.thread && kept["chatId"] === undefined) kept["chatId"] = ctx.thread;
+  if (madeFolder && folderId !== null) kept["serverFolder"] = folderId;
   ctx.db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify(kept), id);
   touchActivity(ctx.db, id, "site.published", now);
   const fresh = mustSite(ctx, id);
@@ -790,7 +868,13 @@ async function artifactPublish(
   const asker = askerOf(ctx);
   const openFor = asker !== null && ctx.thread && isViewing(asker, ctx.thread, ctx.now()) ? asker : undefined;
   const posted = await announce(ctx, id, title, openFor);
-  return { artifactId: id, ...(url ? { url } : {}), updated, opened: openFor !== undefined && posted };
+  return {
+    artifactId: id,
+    ...(url ? { url } : {}),
+    updatedAt: num(fresh.updated_at),
+    updated,
+    opened: openFor !== undefined && posted,
+  };
 }
 
 /** A card in the chat the work was asked in. Nothing to say it in is not a failure of the publish. */
@@ -1052,7 +1136,7 @@ export const routeHandlers = {
   "sites.status": (ctx: Ctx, input: unknown) => sitesStatus(ctx, input),
   "sites.host": (ctx: Ctx) => sitesHost(ctx),
   "sites.logs": (ctx: Ctx, input: unknown) => sitesLogs(ctx, input),
-  "sites.artifact_publish": (ctx: Ctx, input: unknown) => artifactPublish(ctx, input),
+  "sites.artifact_publish": (ctx: Ctx, input: unknown) => artifactPublishGuarded(ctx, input),
   "sites.artifact_open": (ctx: Ctx, input: unknown) => artifactOpen(ctx, input),
   "sites.artifact_thumb_set": (ctx: Ctx, input: unknown) => artifactThumbSet(ctx, input),
   "sites.chat_viewing": (ctx: Ctx, input: unknown) => chatViewing(ctx, input),

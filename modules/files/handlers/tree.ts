@@ -1642,11 +1642,31 @@ async function folderCreate(ctx: Ctx, input: unknown): Promise<{ folder: FolderO
   return { folder: folderOut(ctx, mustFolder(ctx, id)) };
 }
 
+/**
+ * The server keeps an artifact's page in Deployments/Artifacts/<name> (<id>), and the access tree keeps that folder under the artifact (F62, 14 Nov 2026): moving or renaming it from Files would put the page where the
+ * Space's members can read it, or lose it. So that folder, and the Artifacts folder above it, stay where they are; their files and their own subfolders are the person's to work with.
+ */
+function keepsArtifact(ctx: Ctx, row: Row): void {
+  const path = String(row.path ?? "");
+  const m = /^Deployments\/Artifacts(?:\/([^/]+))?$/.exec(path);
+  if (!m) return;
+  const name = m[1] === undefined ? undefined : m[1].replace(/ \([0-9a-f]{6}\)$/, "");
+  fail(
+    ctx,
+    "validation.precondition_failed",
+    name === undefined
+      ? "The Artifacts folder stays where it is: it holds the pages artifacts show."
+      : `This folder belongs to the artifact ${name}. Change it from the artifact, not from Files.`,
+    { reason: "artifact_folder" },
+  );
+}
+
 async function folderRename(ctx: Ctx, input: unknown): Promise<{ folder: FolderOut }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
   const row = liveFolder(ctx, reqStr(ctx, o, "folderId"));
   if (isRoot(row)) fail(ctx, "validation.precondition_failed", "A root folder keeps its name.");
+  keepsArtifact(ctx, row);
   const name = cleanName(ctx, reqStr(ctx, o, "name"));
   const from = String(row.name);
   if (name === from) return { folder: folderOut(ctx, row) };
@@ -1684,6 +1704,7 @@ async function folderMove(ctx: Ctx, input: unknown): Promise<{ folder: FolderOut
     dest = up;
   }
   if (isRoot(row)) fail(ctx, "validation.precondition_failed", "A root folder stays where it is.");
+  keepsArtifact(ctx, row);
   if (String(dest.id) === String(row.id) || underPath(dest, row)) {
     fail(ctx, "validation.precondition_failed", "A folder cannot move into itself.");
   }
@@ -1911,7 +1932,12 @@ async function filesWrite(
   await guardAgentSettings(ctx, file);
   const mime = String(file.mime);
   const blob = await resolveBlob(ctx, content, mime);
-  const n = num(file.version) + 1;
+  // The awaits above let another write on this file land. From here to the update there is no await: read the row again, check the base against what is there now, and take the next number from it.
+  const current = liveFile(ctx, String(file.id));
+  if (base !== undefined && base !== num(current.version)) {
+    fail(ctx, "validation.version_conflict", "The file changed since it was read.");
+  }
+  const n = num(current.version) + 1;
   const now = ctx.now();
   ctx.db.run(
     "UPDATE files_file SET blob = ?, size = ?, version = ?, updated_at = ?, updated_by = ? WHERE id = ?",
@@ -2244,7 +2270,7 @@ async function filesRestoreVersion(ctx: Ctx, input: unknown): Promise<{ file: Fi
   if (!version || String(version.file_id) !== String(file.id))
     fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
   await guardAgentSettings(ctx, file);
-  const n = num(file.version) + 1;
+  const n = num(liveFile(ctx, String(file.id)).version) + 1; // read again after the await: a write may have landed
   const blobId = String(version.blob);
   const now = ctx.now();
   const blob = one(ctx, "SELECT * FROM files_blob WHERE id = ?", blobId);

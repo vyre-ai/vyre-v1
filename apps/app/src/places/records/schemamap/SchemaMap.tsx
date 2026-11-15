@@ -525,7 +525,7 @@ function Ctl({
       onHoverOut={() => setOver(false)}
       testID={testID}
       style={[st.ctlBtn, second && st.ctlSecond, over && st.ctlOver]}
-      {...webProps({ title: label })}
+      {...webProps({ dataSet: { tt: label } })}
     >
       <Glyph name={glyph} size={15} color={over ? "var(--ink)" : "var(--ink-2)"} />
     </Pressable>

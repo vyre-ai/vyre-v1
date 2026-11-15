@@ -34,6 +34,9 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
   // the edge listens first and keeps its port; the daemon takes any port and is told the edge's address (a port picked, given back and bound later can be taken in between)
   let daemonUrl = "";
   const web = await edge(dist, () => daemonUrl);
+  // This walk is a person on a computer that cannot run an agent's workspace (its platform answers only docker info). The daemon reads the workspace image name from the env, and a box that happens to
+  // hold the real image would start a workspace here, so the walk names an image that cannot exist: the Terminal step sees "No computer to open a terminal on" on every box, CI included.
+  process.env["VYRE_WORKSPACE_IMAGE"] = "vyre/agent-workspace:walk-no-such-image";
   const daemon = await startDaemon({
     config: loadConfig(
       [
@@ -454,8 +457,16 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
 
     await step("Chats: New agent works in a Personal Space", async () => {
       await go("chat", "chats-place");
-      // the Agents header's plus (New agent)
-      await page.getByTestId("all-agents").first().click({ timeout: 10_000 });
+      // The Chats sidebar of the 13 Nov design (c5da6ccd8, "the product shows the new sidebar") has no "all-agents" tool.
+      // The door to New agent is now the plus on the Agents head (a Personal Space's Team section), which opens that
+      // head's menu; its item "New agent..." opens the same New agent form as before.
+      // the plus shows while the pointer is over the head (and on focus, and always on touch)
+      await page.getByTestId("head-team").hover({ timeout: 10_000 });
+      await page.getByTestId("head-plus-team").first().click({ timeout: 10_000 });
+      await page
+        .getByRole("menuitem", { name: /^New agent/ })
+        .first()
+        .click({ timeout: 10_000 });
       // the New agent form opens at once: a name, then Save
       await page.getByTestId("agent-name").fill("Walk Agent", { timeout: 10_000 });
       await page.getByTestId("agent-save").click({ timeout: 10_000 });
@@ -569,7 +580,8 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
         .getByText(/^hello from the walk/)
         .first()
         .click({ timeout: 15_000 });
-      const tab = page.getByTestId("tab-terminal").or(page.getByTestId("tab-terminal-selected")).first();
+      // one door (owner, 14 Nov): there is no Terminal tab; the Computer tab is where terminals are, and where a Space with no computer to run one says so
+      const tab = page.getByTestId("tab-computer").or(page.getByTestId("tab-computer-selected")).first();
       // Chats opens on the new-chat landing: the pane belongs to a chat, so open the one the walk had earlier
       const earlier = page.locator('[data-testid^="row-c:"]').first();
       await earlier.click({ timeout: 15_000 });
@@ -577,9 +589,11 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
         await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
       await tab.waitFor({ timeout: 15_000 });
       await tab.click({ timeout: 10_000 });
-      await page.getByTestId("pane-body-terminal").waitFor({ timeout: 15_000 });
-      await page.getByTestId("terminal-pane-open").click({ timeout: 10_000 });
+      await page.getByTestId("pane-body-computer").waitFor({ timeout: 15_000 });
+      // there is no Open terminal button any more (terminals open by themselves); the plain line is on the tab itself
       await page.getByText(/No computer to open a terminal on/).waitFor({ timeout: 15_000 }); // a plain line, not a dead button
+      assert.equal(await page.locator('[data-testid^="row-session-"]').count(), 0, "no terminal row that cannot open");
+      assert.equal(await page.getByTestId("browser-picture").count(), 0, "no browser picture that pretends to sleep");
     });
   } finally {
     if (failures.length) {

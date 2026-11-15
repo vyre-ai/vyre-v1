@@ -1,0 +1,1 @@
+- A guest's sidebar lists a channel only while they hold access to it, the same rule the channel list applies: the Space's public channel a guest lands in on joining, and a room whose access was removed, are no longer named to them.

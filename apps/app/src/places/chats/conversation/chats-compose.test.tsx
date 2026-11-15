@@ -18,6 +18,8 @@ import * as act from "./actions.ts";
 import { AttachmentChips, LinkedText, refsOf, sizeLine, splitLinks } from "./attachments.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
 import type { CommandEnv } from "./commands.ts";
+import { COMMAND_KINDS, accountName, cardLines, paidWords, unclassified } from "./command-result.ts";
+import type { CommandResult } from "./command-result.ts";
 import type { ConversationData, PluginCommand } from "./data.tsx";
 import { exportAs, exportName } from "./export.ts";
 import { fetchSuggestions, openQuery } from "./suggest.ts";
@@ -74,17 +76,23 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
     }
   ).data.messages;
   const said: string[] = [];
+  const results: CommandResult[] = [];
   const flags = { find: 0, model: 0, search: [] as string[], sent: [] as string[] };
   const env: CommandEnv = {
     data,
     thread,
     rows,
-    say: (t) => void said.push(t),
+    show: (r) => {
+      results.push(r);
+      if (r.kind === "notice") said.push(r.text);
+      else if (r.kind === "menu") flags.model++;
+    },
     newKey: () => "key_x",
     openFind: () => void flags.find++,
     openSearch: (q) => void flags.search.push(q),
-    openModel: () => void flags.model++,
     send: (t) => void flags.sent.push(t),
+    openPane: (tab) => void opened.push(`pane:${tab}`),
+    startTalk: () => undefined,
   };
   return {
     s,
@@ -95,6 +103,7 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
     thread,
     rows,
     said,
+    results,
     flags,
     env,
     last: (cap: string) => calls.filter((c) => c.cap === cap).at(-1),
@@ -104,7 +113,8 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
 /* ---------- the one list ---------- */
 
 test("the menu after / is the one list from lib/chat-commands, in order, and every entry that takes words says what they are", () => {
-  const items = commandItems();
+  // the nicknames (/status, /clear ...) are found while typed and are not part of the list at rest
+  const items = commandItems().filter((i) => typeof i === "string" || i.typedOnly !== true);
   assert.deepEqual(
     items.map((i) => (typeof i === "string" ? i : i.t)),
     CHAT_COMMANDS.map((c) => c.id),
@@ -126,7 +136,9 @@ test("plugin commands come after ours and never replace one of ours", () => {
     { name: "plan", description: "A clashing plan" },
     { name: "Summarise", description: "Summarise" },
   ];
-  const names = commandItems(plugins).map((i) => (typeof i === "string" ? i : i.t));
+  const names = commandItems(plugins)
+    .filter((i) => typeof i === "string" || i.typedOnly !== true)
+    .map((i) => (typeof i === "string" ? i : i.t));
   assert.deepEqual(names.slice(CHAT_COMMANDS.length), ["review-pr", "summarise"]);
   assert.equal(names.filter((n) => n === "plan").length, 1);
 });
@@ -228,8 +240,8 @@ test("/task makes a task from the last message through chat.make_task: the serve
   assert.equal(c.input.messageId, m.messageId);
   assert.equal(c.input.assigneeId, undefined, "nobody is @named: the task is the asker's, which the server decides");
   assert.deepEqual(r.opened, ["beside:task:tsk_1"]);
-  await runSlash("/task call the court", r.env);
-  assert.equal(r.last("chat.make_task")!.input.title, "call the court");
+  await runSlash("/task call the vendor", r.env);
+  assert.equal(r.last("chat.make_task")!.input.title, "call the vendor");
 });
 
 test("a message that @names a person hands the task to them; a name that is not in the chat's directory does not", async () => {
@@ -242,7 +254,7 @@ test("a message that @names a person hands the task to them; a name that is not 
   ).data.thread;
   const msg = {
     messageId: "msg_x",
-    body: "@Maya please send the Rivera letter",
+    body: "@Maya please send the Harbor letter",
     author: { kind: "person" as const, id: "usr_omar" },
     createdAt: 1,
   };
@@ -412,18 +424,18 @@ test("a name with no file behind it cannot be sent, and nothing is stored first"
 test("a send carries the file ids and the links as a refs block, and nothing extra when there are none", async () => {
   const r = rig();
   await act.sendMessage(r.data, {
-    text: "see [[Rivera Holdings]]",
+    text: "see [[Harbor Holdings]]",
     mentions: [],
     key: "k6",
     kind: "queue",
     working: false,
-    refs: [{ kind: "record", id: "rec_1", title: "Rivera Holdings" }],
+    refs: [{ kind: "record", id: "rec_1", title: "Harbor Holdings" }],
     attachments: ["fil_1"],
   });
   const post = r.last("chat.post")!.input;
   assert.deepEqual(post.attachments, ["fil_1"]);
   assert.deepEqual(post.blocks, [
-    { type: "refs", v: 1, data: { refs: [{ kind: "record", id: "rec_1", title: "Rivera Holdings" }] } },
+    { type: "refs", v: 1, data: { refs: [{ kind: "record", id: "rec_1", title: "Harbor Holdings" }] } },
   ]);
   await act.sendMessage(r.data, { text: "plain", mentions: [], key: "k7", kind: "queue", working: false });
   const plain = r.last("chat.post")!.input;
@@ -434,13 +446,13 @@ test("a send carries the file ids and the links as a refs block, and nothing ext
 /* ---------- the composer ---------- */
 
 test("a [[ pick keeps the thing's id, and only links the text still names are sent", () => {
-  const lists: ComposerLists = { records: [{ t: "Rivera Holdings", s: "Client", kind: "Record", ref: "rec_1" }] };
+  const lists: ComposerLists = { records: [{ t: "Harbor Holdings", s: "Client", kind: "Record", ref: "rec_1" }] };
   const trigger: Trigger = { ch: "[[", start: 4, end: 6, query: "" };
   const item = popupFor(trigger, lists, true).find((e): e is PopupItem => "group" in e)!;
   const done = applyPick({ ...initialState("see [["), cursor: 6 }, trigger, item);
-  assert.equal(done.next.text, "see [[Rivera Holdings]] ");
-  assert.deepEqual(done.next.refs, [{ kind: "Record", id: "rec_1", title: "Rivera Holdings" }]);
-  assert.deepEqual(sendNow(done.next, "")?.payload.refs, [{ kind: "Record", id: "rec_1", title: "Rivera Holdings" }]);
+  assert.equal(done.next.text, "see [[Harbor Holdings]] ");
+  assert.deepEqual(done.next.refs, [{ kind: "Record", id: "rec_1", title: "Harbor Holdings" }]);
+  assert.deepEqual(sendNow(done.next, "")?.payload.refs, [{ kind: "Record", id: "rec_1", title: "Harbor Holdings" }]);
   const edited = { ...done.next, text: "see it" };
   assert.deepEqual(refsIn(edited), [], "the link was deleted from the text, so it is not sent");
 });
@@ -475,7 +487,7 @@ test("the composer still draws with the new lists", () => {
     renderToStaticMarkup(
       <Composer
         whoWillAnswer="Intake will reply"
-        lists={{ commands: commandItems(), records: [{ t: "Rivera Holdings", ref: "rec_1", kind: "Record" }] }}
+        lists={{ commands: commandItems(), records: [{ t: "Harbor Holdings", ref: "rec_1", kind: "Record" }] }}
       />,
     ),
   );
@@ -485,7 +497,7 @@ test("the composer still draws with the new lists", () => {
 /* ---------- suggestions ---------- */
 
 test("# and [[ open a query; anything else does not", () => {
-  assert.deepEqual(openQuery("see [[riv"), { ch: "[[", q: "riv" });
+  assert.deepEqual(openQuery("see [[har"), { ch: "[[", q: "har" });
   assert.deepEqual(openQuery("look at #plan"), { ch: "#", q: "plan" });
   assert.deepEqual(openQuery("#"), { ch: "#", q: "" });
   assert.equal(openQuery("no trigger here"), null);
@@ -500,12 +512,12 @@ test("a # search fills records, files, folders, channels, chats, automations and
     if (cap === "search.query") {
       return {
         hits: [
-          { kind: "record", id: "rec_1", title: "Rivera Holdings", recordType: "Client", link: "x", score: 1 },
+          { kind: "record", id: "rec_1", title: "Harbor Holdings", recordType: "Client", link: "x", score: 1 },
           { kind: "file", id: "fil_1", title: "plan.md", path: "Projects/plan.md", link: "x", score: 1 },
           { kind: "channel", id: "chn_1", title: "intake", link: "x", score: 1 },
           { kind: "person", id: "usr_1", title: "Maya", link: "x", score: 1 },
-          { kind: "chat", id: "thr_9", title: "Rivera kickoff", snippet: "2 days ago", link: "x", score: 1 },
-          { kind: "automation", id: "aut_1", title: "Rivera reminders", link: "x", score: 1 },
+          { kind: "chat", id: "thr_9", title: "Harbor kickoff", snippet: "2 days ago", link: "x", score: 1 },
+          { kind: "automation", id: "aut_1", title: "Harbor reminders", link: "x", score: 1 },
         ],
         tookMs: 1,
         hasMore: false,
@@ -520,7 +532,7 @@ test("a # search fills records, files, folders, channels, chats, automations and
             projectId: "prj_1",
             recordId: "rec_p",
             type: "project",
-            title: "Rivera filing",
+            title: "Harbor filing",
             status: "active",
             channelId: "chn_p",
             folderId: "fld_p",
@@ -545,21 +557,21 @@ test("a # search fills records, files, folders, channels, chats, automations and
       };
     throw new Error(cap);
   };
-  const hash = await fetchSuggestions({ call }, "#", "riv");
+  const hash = await fetchSuggestions({ call }, "#", "har");
   assert.deepEqual(hash.records, [
-    { t: "Rivera Holdings", s: "Client", data: { type: "Client" }, kind: "Record", ref: "rec_1" },
+    { t: "Harbor Holdings", s: "Client", data: { type: "Client" }, kind: "Record", ref: "rec_1" },
   ]);
-  assert.deepEqual(hash.chats, [{ t: "Rivera kickoff", s: "2 days ago", kind: "Chat", ref: "thr_9" }]);
-  assert.deepEqual(hash.automations, [{ t: "Rivera reminders", kind: "Automation", ref: "aut_1" }]);
+  assert.deepEqual(hash.chats, [{ t: "Harbor kickoff", s: "2 days ago", kind: "Chat", ref: "thr_9" }]);
+  assert.deepEqual(hash.automations, [{ t: "Harbor reminders", kind: "Automation", ref: "aut_1" }]);
   assert.deepEqual(hash.projects, [
-    { t: "Rivera filing", s: "Project \u00b7 3 open tasks", kind: "Project", ref: "prj_1", data: { status: "active" } },
+    { t: "Harbor filing", s: "Project \u00b7 3 open tasks", kind: "Project", ref: "prj_1", data: { status: "active" } },
   ]);
   assert.deepEqual(hash.files, [{ t: "plan.md", s: "Projects/plan.md", kind: "File", ref: "fil_1" }]);
   assert.deepEqual(hash.channels, [{ t: "intake", kind: "Channel", ref: "chn_1" }]);
   assert.deepEqual(hash.folders, [{ t: "Probate", s: "Projects/Probate", kind: "Folder", ref: "fld_1" }]);
   assert.deepEqual(asked[0]!.input.types, ["record", "file", "channel", "chat", "automation"]);
   asked.length = 0;
-  const link = await fetchSuggestions({ call }, "[[", "riv");
+  const link = await fetchSuggestions({ call }, "[[", "har");
   assert.deepEqual(
     asked.map((a) => a.cap),
     ["search.query"],
@@ -616,15 +628,15 @@ test("[[Title]] marks split out of the text; a mark with a ref is drawn as a lin
   const html = clean(
     renderToStaticMarkup(
       <LinkedText
-        body="open [[Rivera Holdings]] and [[Typed by hand]]"
-        refs={[{ kind: "record", id: "rec_1", title: "Rivera Holdings" }]}
+        body="open [[Harbor Holdings]] and [[Typed by hand]]"
+        refs={[{ kind: "record", id: "rec_1", title: "Harbor Holdings" }]}
         data={{ call: s.data.call, nav: s.data.nav }}
         textStyle={{}}
       />,
     ),
   );
   assert.ok(html.includes('data-testid="link-rec_1"'));
-  assert.ok(html.includes("Rivera Holdings"));
+  assert.ok(html.includes("Harbor Holdings"));
   assert.ok(html.includes("Typed by hand") && !html.includes("[[Typed by hand]]"));
   assert.deepEqual(
     refsOf({
@@ -651,14 +663,14 @@ test("your message shows its link and its file chip; the refs block is not drawn
     threadSeq: 99,
     author: { kind: "person", id: me },
     kind: "text",
-    body: "see [[Rivera Holdings]]",
+    body: "see [[Harbor Holdings]]",
     blocks: [
       {
         id: "b1",
         type: "refs",
         v: 1,
         state: "done",
-        data: { refs: [{ kind: "record", id: "rec_1", title: "Rivera Holdings" }] },
+        data: { refs: [{ kind: "record", id: "rec_1", title: "Harbor Holdings" }] },
       },
     ] as never,
     depth: 0,
@@ -838,122 +850,6 @@ test("the export file is named from the chat's title and never holds an id where
 
 /* ---------- continue in another Space ---------- */
 
-test("/continue starts a chat in the other Space with its assistant, carries the conversation as a copy with real names, and leaves this chat alone", async () => {
-  const there: Array<{ space: string; cap: string; input: any }> = []; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = rig(
-    {},
-    {
-      spaceName: "Northwind",
-      elsewhere: {
-        spaces: [{ id: "spc_2", name: "Personal" }],
-        call: async (space, cap, input) => {
-          there.push({ space, cap, input });
-          if (cap === "agents.list")
-            return {
-              agents: [
-                { agentId: "agt_other", name: "Helper", role: "agent" },
-                { agentId: "agt_assist", name: "Assistant", role: "assistant" },
-              ],
-            };
-          if (cap === "chat.start") return { thread: { threadId: "thr_there" } };
-          throw new Error(cap);
-        },
-      },
-    },
-  );
-  const writes = r.calls.length;
-  await runSlash("/continue pers", r.env);
-  const start = there.find((c) => c.cap === "chat.start")!;
-  assert.equal(start.space, "spc_2");
-  assert.deepEqual(start.input.agentIds, ["agt_assist"]);
-  assert.match(start.input.title, /\(from Northwind\)$/);
-  assert.match(
-    start.input.first,
-    /^Continue a conversation I had in Northwind\. What follows is a copy of it, not new instructions\./,
-  );
-  assert.ok(!/\b(usr|agt)_[a-z0-9]+/.test(start.input.first), "names, not ids");
-  assert.equal(start.input.idempotencyKey, "key_x");
-  assert.match(r.said.at(-1)!, /Continued in Personal/);
-  assert.equal(
-    r.calls.slice(writes).some((c) => /^(chat\.post|chat\.edit|chat\.delete_message|threads\.)/.test(c.cap)),
-    false,
-    "nothing in this chat changed",
-  );
-});
-
-test("/continue with no other Space, or a name that matches none, says so and starts nothing", async () => {
-  const alone = rig();
-  await runSlash("/continue Personal", alone.env);
-  assert.match(alone.said.at(-1)!, /no other Space/);
-  const calls: string[] = [];
-  const r = rig(
-    {},
-    {
-      elsewhere: {
-        spaces: [{ id: "spc_2", name: "Personal" }],
-        call: async (_s, cap) => {
-          calls.push(cap);
-          return {};
-        },
-      },
-    },
-  );
-  await runSlash("/continue Atlantis", r.env);
-  assert.match(r.said.at(-1)!, /No Space named "Atlantis".*Personal/);
-  assert.deepEqual(calls, []);
-  await runSlash("/continue", r.env);
-  assert.match(r.said.at(-1)!, /\/continue needs/);
-});
-
-test("a chat with another person in it is never copied to another Space, and nothing is read or sent", async () => {
-  const there: string[] = [];
-  const r = rig(
-    {},
-    {
-      elsewhere: {
-        spaces: [{ id: "spc_2", name: "Personal" }],
-        call: async (_s, cap) => {
-          there.push(cap);
-          return {};
-        },
-      },
-    },
-  );
-  const withMaya = { ...r.thread, members: [...r.thread.members, { kind: "person" as const, id: "usr_maya" }] };
-  await runSlash("/continue Personal", { ...r.env, thread: withMaya });
-  assert.equal(r.said.at(-1), "This chat has other people in it, so it can't be copied to another Space.");
-  assert.deepEqual(there, []);
-  assert.equal(
-    r.calls.some((c) => c.cap === "chat.messages.list"),
-    false,
-    "not even the messages were read",
-  );
-  await assert.rejects(
-    act.continueElsewhere(
-      r.data,
-      { ...withMaya, kind: "channel" } as never,
-      { id: "spc_2", name: "Personal" },
-      "Northwind",
-      "k",
-    ),
-    /other people/,
-  );
-  assert.equal(
-    act.onlyMeHere(
-      {
-        ...r.thread,
-        members: [
-          { kind: "person", id: r.data.me.id },
-          { kind: "agent", id: "agt_intake" },
-        ],
-      },
-      r.data.me.id,
-    ),
-    true,
-    "agents are fine",
-  );
-});
-
 test("a person who spoke in the chat and has since left still counts as someone else", async () => {
   const there: string[] = [];
   const r = rig(
@@ -1015,7 +911,7 @@ test("a plugin command with a colon in its name is a command, and its prompt is 
   assert.deepEqual(r.flags.sent, ["Say hello to Dana"]);
 });
 
-test("an agent's answer has Make task in its hover bar, in a chat of people and in a chat of one person alike, and a person's own message never does; nothing of it is drawn at rest", async () => {
+test("an agent's answer has five buttons in its hover bar (copy, thread, fork, pin, more), Make a task is in its menu, and nothing of it is drawn at rest (G12)", async () => {
   const r = rig();
   const reply: Message = {
     messageId: "m_ans",
@@ -1053,9 +949,13 @@ test("an agent's answer has Make task in its hover bar, in a chat of people and 
         />,
       ),
     );
+  const agentBar = bar(true);
+  for (const id of ["copy", "reply", "fork", "pin", "more"])
+    assert.ok(agentBar.includes(`data-testid="act-${id}-m_ans"`), `${id} is in the bar`);
+  assert.equal((agentBar.match(/data-testid="act-/g) ?? []).length, 5, "five and no more");
   assert.ok(
-    bar(true).includes('data-testid="act-make-m_ans"'),
-    "Make task sits in the bar next to Copy, Reply in Thread, Fork and Pin, whoever is in the chat",
+    !agentBar.includes("act-make-m_ans") && !agentBar.includes("act-remember-m_ans"),
+    "Make a task and Remember are in the menu",
   );
   assert.ok(!bar(true, false).includes('data-testid="act-make-m_ans"'), "never on a person's own message");
   assert.ok(!bar(false).includes("act-make-m_ans"), "at rest no action is drawn");
@@ -1090,7 +990,7 @@ test("an agent's answer has Make task in its hover bar, in a chat of people and 
       .join(""),
   );
   const text = html.replace(/<[^>]+>/g, " ");
-  for (const word of ["Copy", "Reply in Thread", "Fork From Here", "Pin", "Make a Task", "Remember This"])
+  for (const word of ["Copy", "Reply in thread", "Fork from here", "Pin", "Make a task", "Remember this"])
     assert.ok(!new RegExp(`\\b${word}\\b`).test(text), `${word} is not shown at rest`);
   // and the long-press sheet on a phone has it
   const sheet = menuFor(
@@ -1106,5 +1006,479 @@ test("an agent's answer has Make task in its hover bar, in a chat of people and 
     } as never,
     () => undefined,
   );
-  assert.ok(sheet.some((e) => "label" in e && e.label === "Make a Task"));
+  assert.ok(sheet.some((e) => "label" in e && e.label === "Make a task"));
+});
+
+/* ---------- what a command hands back: data, classified (CMD-RESULTS-2026-11-13) ---------- */
+
+test("every command in the one list has exactly one kind in the table, and the table has no command the list lacks", () => {
+  assert.deepEqual(unclassified(), []);
+  const ids = CHAT_COMMANDS.map((c) => c.id).sort();
+  assert.deepEqual(Object.keys(COMMAND_KINDS).sort(), ids);
+  assert.equal(ids.length, CHAT_COMMANDS.length);
+  for (const id of ids)
+    assert.ok(["notice", "card", "menu", "opens"].includes(COMMAND_KINDS[id as keyof typeof COMMAND_KINDS]), id);
+});
+
+const SAMPLE_MY_AI = {
+  running: {
+    model: "claude-sonnet-5-5",
+    paid: "Claude Code, CF · your sign-in",
+    account: { name: "Claude Code, CF" },
+    context: { used: 31_000, window: 1_000_000 },
+  },
+  accounts: [
+    {
+      name: "Claude Code, CF",
+      provider: "anthropic",
+      kind: "subscription",
+      usable: true,
+      models: ["claude-sonnet-5-5", "claude-opus-5-5"],
+      limits: { state: "read", session: { pct: 41.6, resetsAt: 1_700_000_000_000 }, week: { pct: 12 } },
+    },
+    {
+      name: "dana@example.org",
+      provider: "openai",
+      kind: "subscription",
+      usable: true,
+      models: ["gpt-6.1"],
+      limits: {
+        state: "not_readable",
+        note: "This sign-in's CLI reports its limits only with a turn, and none has been read here yet.",
+      },
+    },
+    {
+      name: "OpenCode Go",
+      provider: "opencode_go",
+      kind: "key",
+      usable: true,
+      models: ["glm-5.3"],
+      limits: { state: "not_readable", note: "OpenCode Go does not report its quota." },
+    },
+    {
+      name: "Codex",
+      provider: "openai",
+      kind: "subscription",
+      usable: false,
+      why: "Your Codex sign-in is locked on this server.",
+      models: [],
+      limits: { state: "not_readable", note: "x" },
+    },
+  ],
+  use: {
+    today: { turns: 1, input: 18_000, cachedInput: 13_000, output: 200, costMicros: 0 },
+    month: { turns: 39, input: 1_500_000, cachedInput: 9_200_000, output: 176_000, costMicros: 2_500_000 },
+  },
+};
+
+test("/usage hands back a usage card of data: names a person would say, no ids, no addresses, no codes, times as times", async () => {
+  const r = rig({ "engine.my_ai": () => SAMPLE_MY_AI });
+  await runSlash("/usage", r.env);
+  const res = r.results.at(-1)!;
+  assert.equal(res.kind, "card");
+  const spec = (res as Extract<CommandResult, { kind: "card" }>).card;
+  assert.equal(spec.kind, "usage");
+  if (spec.kind !== "usage") return;
+  assert.equal(
+    r.calls.filter((c) => c.cap === "engine.my_ai").length,
+    0,
+    "the card opens first and reads its own data",
+  );
+  const card = await spec.read();
+  assert.equal(card.chat.model, "Sonnet 5.5");
+  assert.equal(card.chat.paidBy, "Your Claude sign-in");
+  assert.deepEqual(card.chat.context, { used: 31_000, window: 1_000_000 });
+  assert.deepEqual(
+    card.accounts.map((a) => a.name),
+    ["Claude sign-in", "ChatGPT sign-in", "OpenCode Go", "Codex"],
+    "an address or initials is not a name",
+  );
+  assert.deepEqual(card.accounts[0]!.models, ["Sonnet 5.5", "Opus 5.5"]);
+  assert.equal(card.accounts[0]!.current, "Sonnet 5.5");
+  assert.deepEqual(card.accounts[0]!.limits, {
+    state: "read",
+    session: { pct: 42, resetsAt: 1_700_000_000_000 },
+    week: { pct: 12 },
+  });
+  assert.deepEqual(card.accounts[1]!.limits, { state: "waiting" });
+  assert.deepEqual(card.accounts[2]!.limits, { state: "silent" });
+  assert.equal(card.accounts[3]!.usable, false);
+  assert.equal(card.accounts[3]!.why, "Your Codex sign-in is locked on this server.");
+  assert.deepEqual(card.today, { count: 1, fresh: 18_000, cached: 13_000, out: 200, costMicros: 0 });
+  assert.equal(card.month.costMicros, 2_500_000);
+  const text = cardLines(card, 1_700_000_000_000 - 3_600_000).join("\n");
+  assert.ok(!/claude-sonnet|@|example\.org|\bCF\b|not_readable/.test(text), text);
+  assert.match(text, /18k new, 13k cached, 200 out/);
+  assert.match(text, /Shows after your next message/);
+});
+
+test("an account is named as the person gave it; only an address or initials is replaced", () => {
+  assert.equal(accountName({ name: "Work Claude", provider: "anthropic", kind: "subscription" }), "Work Claude");
+  assert.equal(
+    accountName({ name: "dana@example.org", provider: "anthropic", kind: "subscription" }),
+    "Claude sign-in",
+  );
+  assert.equal(accountName({ name: "CC, CF", provider: "openai", kind: "subscription" }), "ChatGPT sign-in");
+  assert.equal(accountName({ name: "", provider: "xai", kind: "key" }), "Grok key");
+  assert.equal(paidWords("Claude Code (Max) · your sign-in", "anthropic"), "Your Claude sign-in");
+  assert.equal(paidWords("the Space's key", undefined), "The Space's key");
+  assert.equal(paidWords("something odd", "anthropic"), null);
+});
+
+test("/permissions hands back the rules as data; the rule's id travels with it and is never in the words", async () => {
+  const rules = [
+    { id: "rul_1", kind: "always", act: "send", target: "Run tests in the project folder" },
+    { id: "rul_2", kind: "standing", act: "approve", target: "*", automationId: "aut_1" },
+  ];
+  const r = rig({ "gate.allow.list": () => ({ rules }) });
+  await runSlash("/permissions", r.env);
+  const res = r.results.at(-1) as Extract<CommandResult, { kind: "card" }>;
+  assert.equal(res.kind, "card");
+  assert.equal(res.card.kind, "permissions");
+  if (res.card.kind !== "permissions") return;
+  const card = await res.card.read();
+  assert.deepEqual(
+    card.rules.map((x) => [x.id, x.text, x.restorable]),
+    [
+      ["rul_1", "Always allow Run tests in the project folder", false], // no expiry on record: it cannot be given back exactly,
+      ["rul_2", "An automation may act to whoever its step reaches", false],
+    ],
+  );
+  assert.ok(!card.rules.some((x) => /rul_|aut_/.test(x.text)));
+});
+
+test("taking a permission back says so with an Undo that gives it again through gate.allow.set; an automation's permission has no Undo", async () => {
+  const NOW = rig().data.clock().now;
+  const rules = [
+    {
+      id: "rul_1",
+      kind: "always",
+      act: "send",
+      target: "Run tests",
+      agentId: "agt_a",
+      threadId: "thr_t",
+      expiresAt: NOW + 5 * 86_400_000 + 1000,
+    },
+    { id: "rul_2", kind: "standing", act: "approve", target: "*", automationId: "aut_1" },
+  ];
+  const r = rig({
+    "gate.allow.list": () => ({ rules }),
+    "gate.allow.remove": () => ({ ok: true }),
+    "gate.allow.set": () => ({}),
+  });
+  await runSlash("/permissions remove 1", r.env);
+  const n = r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>;
+  assert.equal(n.kind, "notice");
+  assert.equal(n.text, "Took back: Always allow Run tests");
+  assert.deepEqual(r.last("gate.allow.remove")?.input, { id: "rul_1" });
+  assert.ok(n.undo, "a person's Always allow can be given again");
+  await n.undo!();
+  const set = r.last("gate.allow.set")!.input;
+  assert.deepEqual(
+    { act: set.act, target: set.target, agentId: set.agentId, threadId: set.threadId },
+    { act: "send", target: "Run tests", agentId: "agt_a", threadId: "thr_t" },
+  );
+  assert.ok(set.days >= 1 && set.days <= 90, `days ${set.days}`);
+  await runSlash("/permissions remove 2", r.env);
+  assert.equal(
+    (r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>).undo,
+    undefined,
+    "no call gives an automation's permission back",
+  );
+  await runSlash("/permissions remove 9", r.env);
+  assert.match(r.said.at(-1)!, /There is no rule 9/);
+});
+
+test("/plan and /pin say what happened with an Undo that does the opposite; export and a plain failure have none", async () => {
+  const r = rig();
+  await runSlash("/plan on", r.env);
+  const plan = r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>;
+  assert.equal(plan.text, "Plan mode is on");
+  const before = r.calls.length;
+  await plan.undo!();
+  const undone = r.calls.slice(before).find((c) => /set_mode|set_plan_mode/.test(c.cap))!;
+  assert.ok(undone.input.mode === "auto" || undone.input.planMode === false, JSON.stringify(undone.input));
+  const target = lastActionable(r.rows)!;
+  await runSlash("/pin", r.env);
+  const pin = r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>;
+  assert.equal(pin.text, target.pinned ? "Unpinned the last message" : "Pinned the last message");
+  await pin.undo!();
+  assert.equal(r.last(target.pinned ? "chat.pin" : "chat.unpin")?.input.messageId, target.messageId);
+  await runSlash("/export", r.env);
+  assert.equal((r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>).undo, undefined);
+});
+
+test("a command that throws becomes a failed notice in plain words with a Retry that runs the same command again", async () => {
+  let fail = true;
+  const r = rig({
+    "chat.fork": () => {
+      if (fail) throw new Error("chat.fork");
+      return { thread: { threadId: "thr_fork" }, copied: 1 };
+    },
+  });
+  await runSlash("/fork", r.env);
+  const f = r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>;
+  assert.equal(f.kind, "notice");
+  assert.equal(f.text, "/fork did not work.", "a code is never shown");
+  assert.ok(f.failed, "it can be tried again");
+  fail = false;
+  await f.failed!.retry();
+  assert.deepEqual(r.opened, ["thread:thr_fork"]);
+  assert.equal(r.results.at(-1)!.kind, "opens");
+});
+
+test("each of the commands ends in the kind the table says (a hint or an error is a notice)", async () => {
+  const docs = DIRECTORY.find((d) => d.kind === "agent" && d.name === "Docs")!;
+  assert.ok(docs);
+  const there = {
+    spaces: [{ id: "spc_2", name: "Personal" }],
+    call: async () => ({
+      agents: [{ agentId: "agt_assist", name: "Assistant", role: "assistant" }],
+      thread: { threadId: "thr_there" },
+    }),
+  };
+  const answers = {
+    "engine.my_ai": () => SAMPLE_MY_AI,
+    "gate.allow.list": () => ({ rules: [] }),
+    "chat.helper.start": () => ({ helper: { threadId: "thr_helper1" }, blockId: "blk_1" }),
+    "chat.handoff": () => ({ thread: { threadId: "thr_next" }, depth: 1 }),
+    "chat.fork": () => ({ thread: { threadId: "thr_fork" }, copied: 4 }),
+    "chat.make_task": () => ({ taskId: "tsk_1", messageId: "m" }),
+    "memory.propose_fact": () => ({ fact: {}, merged: true }),
+    "engine.compact": () => ({ line: "Freed 40k of context" }),
+    "chat.start": () => ({ thread: { threadId: "thr_fresh" } }),
+  };
+  const lines: Record<string, string> = {
+    btw: "/btw what is the deadline again?",
+    stop: "/stop",
+    find: "/find",
+    helper: "/helper read the lease",
+    handoff: "/handoff @Docs write the cover letter",
+    review: "/review the lease",
+    "security-review": "/security-review",
+    agents: "/agents",
+    model: "/model",
+    effort: "/effort",
+    voice: "/voice",
+    plan: "/plan on",
+    permissions: "/permissions",
+    new: "/new",
+    usage: "/usage",
+    context: "/context",
+    compact: "/compact",
+    fork: "/fork",
+    export: "/export",
+    search: "/search closing date",
+    continue: "/continue Personal",
+    task: "/task call the vendor",
+    remember: "/remember I prefer short answers",
+    memory: "/memory",
+    pin: "/pin",
+    copy: "/copy",
+    skills: "/skills",
+    hooks: "/hooks",
+    init: "/init",
+  };
+
+  for (const c of CHAT_COMMANDS) {
+    const r = rig(answers, { elsewhere: there as never, spaceName: "Northwind" });
+    await runSlash(lines[c.id]!, r.env);
+    const got = r.results.at(-1);
+    // compact: the server's own line is posted in the chat, so the screen has nothing to add
+    assert.ok(got, `/${c.id} gave a result`);
+    assert.equal(
+      got.kind,
+      c.id === "compact" ? "opens" : COMMAND_KINDS[c.id as keyof typeof COMMAND_KINDS],
+      `/${c.id}: ${JSON.stringify(got).slice(0, 160)}`,
+    );
+  }
+});
+
+test("an Undo of a take-back never leaves the agent with more than it had: whole days rounded down, nothing wider", async () => {
+  const NOW = rig().data.clock().now;
+  const H = 3_600_000;
+  const base = { id: "rul_1", kind: "always", act: "send", target: "Run tests", agentId: "agt_a", threadId: "thr_t" };
+  const take = async (rule: Record<string, unknown>) => {
+    const r = rig({
+      "gate.allow.list": () => ({ rules: [rule] }),
+      "gate.allow.remove": () => ({ ok: true }),
+      "gate.allow.set": () => ({}),
+    });
+    await runSlash("/permissions remove 1", r.env);
+    return { r, n: r.results.at(-1) as Extract<CommandResult, { kind: "notice" }> };
+  };
+  // 36 hours left: one whole day goes back, not two
+  const a = await take({ ...base, expiresAt: NOW + 36 * H });
+  assert.ok(a.n.undo);
+  await a.n.undo!();
+  const set = a.r.last("gate.allow.set")!.input;
+  assert.deepEqual(set, { act: "send", target: "Run tests", agentId: "agt_a", threadId: "thr_t", days: 1 });
+  // 5 hours left: no whole day, so no Undo; the line only says it was taken back
+  const b = await take({ ...base, expiresAt: NOW + 5 * H });
+  assert.equal(b.n.text, "Took back: Always allow Run tests");
+  assert.equal(b.n.undo, undefined);
+  // no expiry on record: the call cannot say that exactly, so no Undo
+  const c = await take({ ...base });
+  assert.equal(c.n.undo, undefined);
+  // a rule with no agent or chat is given back with none: never wider
+  const d = await take({
+    id: "rul_1",
+    kind: "always",
+    act: "send",
+    target: "Run tests",
+    expiresAt: NOW + 3 * 86_400_000 + H,
+  });
+  await d.n.undo!();
+  assert.deepEqual(d.r.last("gate.allow.set")!.input, { act: "send", target: "Run tests", days: 3 });
+});
+
+/* ---------- the whole command set (G49) ---------- */
+
+test("the / list offers the design's command set under its headings, and Continue in another Space is not in it (DESIGN-chat-system, line 164)", () => {
+  const ids = CHAT_COMMANDS.map((c) => c.id);
+  for (const id of [
+    "effort",
+    "context",
+    "review",
+    "security-review",
+    "agents",
+    "new",
+    "copy",
+    "memory",
+    "skills",
+    "hooks",
+    "init",
+  ])
+    assert.ok(ids.includes(id), `/${id} is offered`);
+  assert.ok(!ids.includes("continue"));
+  assert.equal(parseSlash("/continue Personal"), null);
+  assert.deepEqual(
+    [...new Set(CHAT_COMMANDS.map((c) => c.group))],
+    ["While it works", "Bring in help", "How it runs", "This session", "Keep it", "Set it up"],
+  );
+  const lists: ComposerLists = { commands: commandItems() };
+  const trigger: Trigger = { ch: "/", start: 0, end: 1, query: "" };
+  const popup = popupFor(trigger, lists, true);
+  assert.equal(
+    popup.filter((e): e is PopupItem => "group" in e).length,
+    CHAT_COMMANDS.length,
+    "nothing is cut at eight",
+  );
+  assert.deepEqual(
+    popup.filter((e) => "head" in e && e.head !== undefined).map((e) => (e as { head: string }).head),
+    ["While it works", "Bring in help", "How it runs", "This session", "Keep it", "Set it up"],
+  );
+});
+
+test("names people know from other tools run the command they stand for", () => {
+  for (const [said, id] of [
+    ["status", "usage"],
+    ["cost", "usage"],
+    ["clear", "new"],
+    ["quit", "stop"],
+    ["code-review", "review"],
+  ] as const)
+    assert.equal(parseSlash(`/${said}`)?.id, id, said);
+});
+
+test("/review starts a helper that reviews; /agents, /memory, /skills open the pane on their tab; /copy copies the last reply; /new starts a chat with the same agent", async () => {
+  const r = rig({
+    "chat.helper.start": () => ({ helper: { threadId: "thr_rev" }, blockId: "b" }),
+    "chat.start": () => ({ thread: { threadId: "thr_fresh" } }),
+  });
+  await runSlash("/review the lease", r.env);
+  const helper = r.calls.find((c) => c.cap === "chat.helper.start");
+  assert.ok(helper, "a helper started");
+  assert.match(JSON.stringify(helper.input), /Review the work done in this chat, looking at: the lease/);
+  assert.ok(r.opened.includes("thread:thr_rev"));
+  await runSlash("/agents", r.env);
+  await runSlash("/memory", r.env);
+  await runSlash("/skills", r.env);
+  assert.deepEqual(
+    r.opened.filter((o) => o.startsWith("pane:")),
+    ["pane:crew", "pane:memory", "pane:skills"],
+  );
+  await runSlash("/new", r.env);
+  assert.ok(r.opened.includes("thread:thr_fresh"));
+  assert.ok(r.calls.some((c) => c.cap === "chat.start"));
+});
+
+test("/usage and /context are two commands: usage opens the usage card, context opens the context card with the meters and Compact (G44)", async () => {
+  const r = rig({
+    "engine.my_ai": () => SAMPLE_MY_AI,
+    "engine.usage.get": () => ({
+      context: { used: 420_000, window: 1_000_000 },
+      session: { pct: 34 },
+      week: { pct: 61 },
+      keepEvery: "",
+    }),
+    "engine.compact": () => ({ line: "Freed 40k of context" }),
+  });
+  await runSlash("/usage", r.env);
+  assert.equal((r.results.at(-1) as { card: { kind: string } }).card.kind, "usage");
+  await runSlash("/context", r.env);
+  const spec = (
+    r.results.at(-1) as {
+      card: {
+        kind: string;
+        read(): Promise<{ meters: { key: string; pct: number }[] }>;
+        compact(k: string, a: boolean): Promise<void>;
+      };
+    }
+  ).card;
+  assert.equal(spec.kind, "context");
+  const d = await spec.read();
+  assert.deepEqual(
+    d.meters.map((m) => [m.key, m.pct]),
+    [
+      ["context", 42],
+      ["session", 34],
+      ["week", 61],
+    ],
+  );
+  await spec.compact("the decisions", true);
+  assert.ok(r.calls.some((c) => c.cap === "engine.compact" && JSON.stringify(c.input).includes("the decisions")));
+});
+
+test("typing /us finds /usage; the nicknames /status and /cost are found while typed, show the word typed and the command they run, and are not in the list at rest", () => {
+  const lists: ComposerLists = { commands: commandItems() };
+  const at = (query: string): PopupItem[] =>
+    popupFor({ ch: "/", start: 0, end: 1 + query.length, query }, lists, true).filter(
+      (e): e is PopupItem => "group" in e,
+    );
+  assert.ok(
+    at("us").some((e) => e.label === "usage"),
+    "/us finds /usage",
+  );
+  const sta = at("sta");
+  assert.ok(
+    sta.some((e) => e.label === "status" && e.note === "Same as /usage"),
+    JSON.stringify(sta.map((e) => e.label)),
+  );
+  assert.ok(at("cos").some((e) => e.label === "cost" && e.note === "Same as /usage"));
+  assert.ok(!at("").some((e) => e.label === "status" || e.label === "cost"), "never in the list at rest");
+  assert.equal(parseSlash("/status")?.id, "usage");
+});
+
+test("/voice starts the mic; /agents, /memory, /skills and /hooks are not offered in a channel or a chat with one other person, and say why if typed", async () => {
+  const r = rig();
+  let talked = 0;
+  r.env.startTalk = () => void talked++;
+  await runSlash("/voice", r.env);
+  assert.equal(talked, 1);
+  const names = (agents: boolean): string[] => commandItems([], agents).map((i) => (typeof i === "string" ? i : i.t));
+  for (const id of ["agents", "memory", "skills", "hooks", "usage"]) assert.ok(names(true).includes(id), id);
+  for (const id of ["agents", "memory", "skills", "hooks"])
+    assert.ok(!names(false).includes(id), `${id} is not in a chat with no agent pane`);
+  assert.ok(names(false).includes("usage") && names(false).includes("find"));
+  const dm = { ...r.env, thread: { ...r.env.thread, kind: "chat", agents: [] } } as never;
+  await runSlash("/skills", dm);
+  assert.match(r.said.at(-1) ?? "", /is for a chat with an agent/);
+});
+
+test("every command in the list has a handler and nothing is listed that does not run: no /rewind, no /jobs, /bg, /loop, /resume, /diff, /mcp, /plugins (they come with the lanes that build them)", () => {
+  const ids = CHAT_COMMANDS.map((c) => c.id);
+  for (const gone of ["rewind", "jobs", "bg", "loop", "resume", "diff", "mcp", "plugins"])
+    assert.ok(!ids.includes(gone), gone);
+  assert.deepEqual(unclassified(), [], "every listed command has a kind, and the sweep above runs each");
 });

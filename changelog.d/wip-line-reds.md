@@ -1,0 +1,2 @@
+- A Skills card or a hook line pressed in a chat with one other person now opens the pane on Skills or Hooks (the one-to-one pane showed only Files and Kept, so the press did nothing visible).
+- A goal's "Next check-in" line in the sidebar says the time the way a message row does ("Wed 9:00 AM"), on the chat's clock, instead of the device's own format. The lesson mark's hover words use the shared tooltip.

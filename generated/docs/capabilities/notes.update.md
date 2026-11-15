@@ -34,6 +34,7 @@ type In = {
     contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
   }) | null;
   link?: string | null;
+  expectedVersion?: number;
 };
 ```
 
@@ -88,6 +89,7 @@ type Out = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 ```
@@ -99,6 +101,7 @@ type Out = {
 - permission.no_grant
 - validation.bad_input
 - validation.not_found
+- validation.version_conflict
 
 ## Example
 
@@ -108,6 +111,7 @@ type Out = {
   "input": {
     "body": "example",
     "color": "",
+    "expectedVersion": 1,
     "image": {
       "contentType": "image/png",
       "data": "example"
@@ -169,7 +173,8 @@ type Out = {
         "space": "off"
       },
       "title": "example",
-      "updatedAt": 1760000000000
+      "updatedAt": 1760000000000,
+      "version": 1
     }
   }
 }

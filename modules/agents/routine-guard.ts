@@ -16,6 +16,12 @@ function ensure(db: Db): void {
   ready.add(db as object);
 }
 
+/** Has this routine paused itself after repeated failed runs (and not been put back)? */
+export function isSelfPaused(db: Db, routineId: string): boolean {
+  ensure(db);
+  return (db.all('SELECT 1 AS x FROM agents_routine_selfpaused WHERE "routineId" = ?', routineId) as Row[]).length > 0;
+}
+
 /** One run of a routine ended. Returns the routine to pause with the reason, once, on the third failure in a row of one reason. */
 export function noteRun(
   db: Db,

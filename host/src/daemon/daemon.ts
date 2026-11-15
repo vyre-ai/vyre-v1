@@ -1,4 +1,6 @@
 import { workspaceInTurn } from "./workspace-turns.ts";
+import { activeCodeBuiltins } from "../../../lib/builtin-connectors.ts";
+import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
 import { ownsSubject } from "./own-subject.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
@@ -18,7 +20,7 @@ import { createUnsubscribeRoute } from "../routes/unsubscribe.ts";
 import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { authorize, sharedThrough } from "../../../kernel/src/authorize/index.ts";
+import { authorize, mayShareWithEveryone, sharedThrough } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { LogClient } from "../../../kernel/src/log/index.ts";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
@@ -189,6 +191,7 @@ import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
 import { createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
+import { SIGN_IN_FOLDER } from "../../../lib/company-keys.ts";
 import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
@@ -313,16 +316,23 @@ import {
   touchesAccess,
 } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
-import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
+import {
+  announcementVis,
+  createResourceRegistrar,
+  lateEventPlace,
+  missingAgentResources,
+} from "../gateway/resources.ts";
 import {
   createPrincipalRegistrar,
   lowAgentUpgradeEvents,
   missingAgentHomeEvents,
+  oldAgentShareEvents,
   missingAgentPrincipalEvents,
   ownPlaceGrant,
 } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
+import { bindStateKinds } from "../seams/state.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
 import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
@@ -366,9 +376,18 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
  */
 export const HOOKS_STOP_MS = 15_000;
 export const CODE_ROOT = path.resolve(HERE, "../../..");
+/** the subject each event type names (a resource type and a pointer to its id in the payload), for the event log's read rule: an event about a thing is read only by someone who may view the thing */
+const eventSubjects: ReadonlyMap<string, { type: string; id: string }> = new Map(
+  (registry as unknown as { events: Array<{ name: string; subject?: { type: string; id: string } }> }).events.flatMap(
+    (e) => (e.subject ? [[e.name, e.subject] as const] : []),
+  ),
+);
 /** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
 const registryHash = sha256Hex(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
 const ZERO_TRACE = "0".repeat(32);
+/** How long a module's answer to "may this person read this chat or agent" is kept for the event log's read rule. */
+const EVENT_VIEW_TTL_MS = 10_000;
+const eventViewVerdicts = new Map<string, { at: number; ok: boolean }>();
 const RING = 5000;
 /** A probe whose state and detail are unchanged is written again after this long (health calls a scheduler report older than 90 s stale). */
 const PROBE_REFRESH_MS = 60_000;
@@ -1608,6 +1627,144 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   /** The last log seq the access module has been handed (in order) and folded; the next sync reads the log after it. Set after the boot read, which hands the log over up to it. */
   let accessFedTo = 0;
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
+  /** Is this the folder the server made for this artifact? (see adoptArtifactFolder) */
+  const serverMadeFolder = (
+    folderId: string,
+    siteId: string,
+    resource: { owner_id?: string | null | undefined; parent_id?: string | null | undefined },
+  ): boolean => {
+    if (!db) return false;
+    try {
+      const site = db.all(
+        "SELECT settings, target_folder FROM sites_site WHERE id = ? AND kind = 'artifact'",
+        siteId,
+      )[0] as { settings?: string | null; target_folder?: string | null } | undefined;
+      if (!site || site.target_folder !== folderId) return false;
+      // the folder is under the server's own Artifacts path for this artifact (a path alone is not enough: a person can name a folder anything)
+      const f = db.all("SELECT path FROM files_folder WHERE id = ?", folderId)[0] as { path?: string } | undefined;
+      if (!new RegExp(`^Deployments/Artifacts/[^/]+ \\(${siteId.slice(-6)}\\)$`).test(f?.path ?? "")) return false;
+      // and the server made it: either it is still registered as the server's (a service owns it), or it already sits under this artifact (adopted when it was made)
+      if (
+        resource.parent_id !== siteId &&
+        !(typeof resource.owner_id === "string" && resource.owner_id.startsWith("svc_"))
+      )
+        return false;
+      const kept: unknown = JSON.parse(site.settings ?? "{}");
+      const marked =
+        kept !== null && typeof kept === "object" && (kept as { serverFolder?: unknown }).serverFolder === folderId;
+      // an artifact made before the marker has none: the service owner and the path are what only the server can have made
+      return marked || (typeof resource.owner_id === "string" && resource.owner_id.startsWith("svc_"));
+    } catch {
+      return false;
+    }
+  };
+  /**
+   * An artifact's files are the artifact's own (F56, 14 Nov 2026): its folder sits under the site in the access tree, not under the Space, so who may read the files is who may read the artifact (the owner, what it is
+   * shared with, the Space when its access is the Space's). Without this a member found a private artifact's page by searching its words. Returns true when the folder was moved.
+   */
+  const adoptArtifactFolder = async (
+    folderId: string,
+    siteId: string,
+    ownerId: string,
+    via?: LogClient,
+  ): Promise<boolean> => {
+    const row = access.snap.resource(folderId);
+    const into = via ?? log;
+    if (!into || !row || !access.snap.resource(siteId)) return false;
+    // only the folder the server itself made for the artifact is adopted: one a caller named (artifact_publish with a folderId) belongs to its owner and stays as it is. The server marks the folder it makes
+    // in the artifact's own record (settings.serverFolder); an artifact made before the mark is recognised by what a person cannot make: a folder owned by the server (a service) at the server's own path for this artifact.
+    if (!serverMadeFolder(folderId, siteId, row)) return false;
+    // the server has just proven the folder is its own: an artifact made before the marker gets it now, so a later publish is recognised after the folder is registered to the person
+    try {
+      const at = db!.all("SELECT settings FROM sites_site WHERE id = ?", siteId)[0] as
+        | { settings?: string | null }
+        | undefined;
+      const kept: unknown = JSON.parse(at?.settings ?? "{}");
+      if (kept !== null && typeof kept === "object" && (kept as { serverFolder?: unknown }).serverFolder !== folderId)
+        db!.run(
+          "UPDATE sites_site SET settings = ? WHERE id = ?",
+          JSON.stringify({ ...kept, serverFolder: folderId }),
+          siteId,
+        );
+    } catch {
+      /* no sites table, or settings unreadable: the next start tries again */
+    }
+    let changed = false;
+    const person = /^usr_[a-z0-9]+$/.test(ownerId) ? ownerId : null;
+    if (row.parent_id !== siteId) {
+      const r = await into.appendResult({
+        id: `evt_res_artfolder_${folderId.slice(-12)}_${Date.now()}`,
+        type: "resource.created",
+        sv: 1,
+        trace_id: "c0".repeat(16),
+        actor: "svc_host",
+        vis: "space",
+        entity: "resource",
+        entity_id: folderId,
+        payload: {
+          id: folderId,
+          type: row.type,
+          parent_id: siteId,
+          label: row.label,
+          owner_id: person ?? row.owner_id,
+          holds: row.holds,
+        },
+      });
+      if (r.ok && !r.duplicate) {
+        access.fold(r.event);
+        accessPending.push(toAccessEvent(r.event));
+        changed = true;
+      }
+    }
+    // the pages are the server's files (the server wrote them), and ownership is not inherited down the tree: so its owner, who reaches the artifact and its folder by owning them, read none of its pages. Each page
+    // and sub folder of the artifact is registered as the person's, where it sits, so who reads the pages is who reads the artifact (r-auto2 re-run, F62, 14 Nov 2026).
+    if (person !== null && db) {
+      try {
+        const top = db.all("SELECT path FROM files_folder WHERE id = ?", folderId)[0] as { path?: string } | undefined;
+        const like = `${String(top?.path ?? "\u0000").replace(/[\\%_]/g, "\\$&")}/%`;
+        const folders = db.all(
+          "SELECT id FROM files_folder WHERE id = ? OR path LIKE ? ESCAPE '\\'",
+          folderId,
+          like,
+        ) as { id: string }[];
+        const mine: { id: string }[] = [...folders];
+        for (const f of folders)
+          for (const x of db.all("SELECT id FROM files_file WHERE folder_id = ?", f.id) as { id: string }[])
+            mine.push(x);
+        for (const x of mine) {
+          const have = access.snap.resource(x.id);
+          if (!have || have.owner_id === person || x.id === folderId) continue;
+          const w = await into.appendResult({
+            id: `evt_res_artpage_${x.id.slice(-12)}_${Date.now()}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: x.id,
+            payload: {
+              id: x.id,
+              type: have.type,
+              parent_id: have.parent_id,
+              label: have.label,
+              owner_id: person,
+              holds: have.holds,
+            },
+          });
+          if (w.ok && !w.duplicate) {
+            access.fold(w.event);
+            accessPending.push(toAccessEvent(w.event));
+            changed = true;
+          }
+        }
+      } catch {
+        // no files tables yet: nothing to register
+      }
+    }
+    if (changed) await syncAccess(true);
+    return changed;
+  };
   let accessStale = false,
     kicking = false,
     noAccessModule = false;
@@ -1769,7 +1926,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             e.type === "principal.role_set" ||
             e.type === "grant.created" ||
             e.type === "grant.revoked" ||
-            e.type.startsWith("agent.")
+            e.type.startsWith("agent.") ||
+            e.type === "mailbox.privacy_changed"
           )
             agentAccessEvents.push(e);
           access.fold(e);
@@ -1802,6 +1960,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       access.mark(marks);
       for (const id of marks)
         accessPending.push({ seq: -1, type: "resource.created", payload: { id, space_owned: true, mark_only: true } });
+      // Calendars connected to Google or Outlook that were registered before the outside flag existed: flag them (idempotent), so an agent's write there is never taken for a write to the person's own private calendar
+      try {
+        const outside = (
+          db!.all(
+            `SELECT id FROM calendar_list WHERE provider IS NOT NULL AND provider != 'local' AND deleted_at IS NULL`,
+          ) as {
+            id: string;
+          }[]
+        ).map((r) => r.id);
+        access.markOutside(outside);
+        for (const id of outside)
+          accessPending.push({ seq: -1, type: "resource.created", payload: { id, outside_only: true } });
+      } catch {
+        /* a fresh store has no calendars yet */
+      }
       // Ruling 71: an empty log is a fresh install. The host makes the Space once, with an owner who claims it through a one-time link.
       if (!sawSpace) {
         const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });
@@ -1852,6 +2025,146 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               attrs: { owner: row.owner_id },
             });
           }
+        }
+        // A project's teammate lives in its project in the access tree (15 Nov 2026): the teammates made before this build sit under the Space, and are moved at every start (a row already under its project is left).
+        try {
+          for (const t of db!.all(
+            `SELECT "id", "projectId" FROM agents_agent WHERE "kind" = 'teammate' AND "projectId" LIKE 'prj\\_%' ESCAPE '\\' AND "deletedAt" IS NULL`,
+          ) as { id: string; projectId: string }[]) {
+            const row = access.snap.resource(t.id);
+            if (!row || row.parent_id === t.projectId || !access.snap.resource(t.projectId)) continue;
+            const moved = await appendRepair({
+              id: `evt_res_teammate_${t.id.slice(-12)}_${t.projectId.slice(-12)}`,
+              type: "resource.created",
+              sv: 1,
+              trace_id: "c0".repeat(16),
+              actor: "svc_host",
+              vis: "space",
+              entity: "resource",
+              entity_id: t.id,
+              payload: {
+                id: t.id,
+                type: row.type,
+                parent_id: t.projectId,
+                label: row.label,
+                owner_id: row.owner_id,
+                holds: row.holds,
+              },
+            });
+            if (!moved.duplicate) {
+              access.fold(moved.event);
+              accessPending.push(toAccessEvent(moved.event));
+            }
+          }
+        } catch {
+          // no agents table yet: nothing to move
+        }
+        // An inbox a person set to private (or to chosen people) before the setting was enforced is registered under the Space, so every member still reaches it (F48, 14 Nov 2026). Close it from the
+        // event that set it, at every start: an inbox already closed is left as it is, so this is safe to repeat and moves no data.
+        const lastPrivacy = new Map<string, { privacy: string; at: string }>();
+        for (const e of agentAccessEvents)
+          if (e.type === "mailbox.privacy_changed") {
+            const p = (
+              e.payload instanceof Uint8Array ? JSON.parse(new TextDecoder().decode(e.payload)) : e.payload
+            ) as { mailboxId?: unknown; privacy?: unknown };
+            if (typeof p.mailboxId === "string" && typeof p.privacy === "string")
+              lastPrivacy.set(p.mailboxId, { privacy: p.privacy, at: String((e as { seq?: unknown }).seq ?? "") });
+          }
+        for (const [mailboxId, { privacy, at }] of lastPrivacy) {
+          if (privacy !== "private" && privacy !== "people") continue;
+          const row = access.snap.resource(mailboxId);
+
+          if (!row || row.type !== "mailbox" || row.parent_id === null) continue;
+          const closed = await appendRepair({
+            id: `evt_res_private_${mailboxId}_${at}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: mailboxId,
+            payload: {
+              id: mailboxId,
+              type: "mailbox",
+              parent_id: null,
+              label: row.label,
+              owner_id: row.owner_id,
+              holds: row.holds,
+            },
+          });
+          if (!closed.duplicate) {
+            access.fold(closed.event);
+            accessPending.push(toAccessEvent(closed.event));
+            sink.log({
+              space,
+              level: 20,
+              msg: "access.mailbox_privacy_reconciled",
+              place: "boot",
+              entity: "mailbox",
+              entity_id: mailboxId,
+            });
+          }
+        }
+        // A site a person set to private through sites.update, before that change was an event, is registered under the Space too: close it from the module's own row, at every start, the same way.
+        let privateSites: string[] = [];
+        try {
+          privateSites = (
+            db!.all("SELECT id FROM sites_site WHERE access = 'private' AND deleted_at IS NULL") as { id: string }[]
+          ).map((r) => r.id);
+        } catch {
+          // no sites table yet: nothing to close
+        }
+        for (const siteId of privateSites) {
+          const row = access.snap.resource(siteId);
+          if (!row || row.type !== "site" || row.parent_id === null) continue;
+          const closed = await appendRepair({
+            id: `evt_res_private_${siteId.slice(-12)}_${Date.now()}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: siteId,
+            payload: {
+              id: siteId,
+              type: "site",
+              parent_id: null,
+              label: row.label,
+              owner_id: row.owner_id,
+              holds: row.holds,
+            },
+          });
+          if (!closed.duplicate) {
+            access.fold(closed.event);
+            accessPending.push(toAccessEvent(closed.event));
+            sink.log({
+              space,
+              level: 20,
+              msg: "access.site_privacy_reconciled",
+              place: "boot",
+              entity: "site",
+              entity_id: siteId,
+            });
+          }
+        }
+        // An artifact's folder follows the artifact (see adoptArtifactFolder): the ones made before this build, and any whose site was not yet a resource when the folder was made, are moved at every start.
+        try {
+          for (const r of db!.all(
+            "SELECT id, owner, target_folder FROM sites_site WHERE kind = 'artifact' AND target_folder IS NOT NULL AND deleted_at IS NULL",
+          ) as { id: string; owner: string; target_folder: string }[])
+            if (await adoptArtifactFolder(r.target_folder, r.id, r.owner, log))
+              sink.log({
+                space,
+                level: 20,
+                msg: "access.artifact_folder_reconciled",
+                place: "boot",
+                entity: "site",
+                entity_id: r.id,
+              });
+        } catch {
+          // no sites table yet: nothing to move
         }
         const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
           const may = (level: "edit" | "view"): boolean =>
@@ -2037,6 +2350,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             ]
           : [...loaded.moduleExports].map(([id, ns]) => collectHooks(id, ns)),
         log: { read: (q) => log!.read(q), currentHead: () => log!.currentHead() },
+        // a guest is a person with no View on the Space (kernel/src/authorize/snapshot.ts); a consumer reads that from the event, it never asks
+        outsiderOf: (actor) => actor.startsWith("usr_") && access.snap.info(actor)?.guest === true,
         invoke: (cap, input, seed) => invokeRef(cap, input, seed),
         emitsOf: (m) => [
           ...new Set(
@@ -2155,6 +2470,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return true;
         },
       };
+      // the kinds of thing that carry per-person state (modules export `stateKinds`): registered before the scheduler's first state.verify
+      bindStateKinds(db!, loaded.moduleExports);
       boundPorts = bindSpacePorts(loaded.moduleExports, portDeps);
       closers.push(() => unbindSpacePorts(loaded.moduleExports, portDeps));
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
@@ -2318,13 +2635,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 idempotencyKey: "artifacts-root",
               })) as { folder: { folderId: string } }
             ).folder.folderId;
-          return (
+          const made = (
             (await call("files.folder.create", {
               parentId: kept,
               name: `${title.replaceAll("/", "-")} (${siteId.slice(-6)})`,
               idempotencyKey: `artifact-folder-${siteId}`,
             })) as { folder: { folderId: string } }
           ).folder.folderId;
+          return made;
         },
         async put(folderId: string, name: string, base64: string, mime: string): Promise<void> {
           const call = dispatchSystem as (cap: string, input: unknown) => Promise<unknown>;
@@ -2894,6 +3212,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         membership: (principal, actingFor) =>
           isMemberOrGuest(access.snap, principal) &&
           (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        privateAgentWords: (agentId) => {
+          try {
+            const r = db!.all(
+              `SELECT "kind", "runtime" FROM agents_agent WHERE "id" = ? AND "deletedAt" IS NULL`,
+              agentId,
+            )[0] as { kind?: string; runtime?: string } | undefined;
+            return r && (r.kind === "assistant" || r.runtime === "outside")
+              ? "That agent is private to the person it belongs to. Only they can open it, chat with it or @mention it."
+              : null;
+          } catch {
+            return null;
+          }
+        },
         // an agent cut off from the Space (made in a private chat) that this caller may not view: it reads as not found (invoke.ts)
         hidden: (resource, principal, actingFor) => {
           if (resource.type !== "agent" || resource.id === null) return false;
@@ -2966,8 +3297,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }
         },
         ensureResource: async (r) => {
-          if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) {
+          if (
+            (r.type === "conversation" || r.type === "mail_message" || r.type === "calendar_event") &&
+            r.id !== null
+          ) {
             await ensureRow(r.type, r.id);
+            return;
+          }
+          if (r.type === "thread" && r.id !== null) {
+            await ensureThreadInChannel(r.id);
             return;
           }
           const key =
@@ -3218,8 +3556,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           resource: (id) => access.snap.resource(id),
           agentHome: (id) => homeScopeOf(db!, id)?.homeFolder ?? null,
         }),
+        madeFor: {
+          clears: (agentId, resourceId) => {
+            const who = access.snap.info(agentId);
+            return !!who && who.p.status === "active" && access.snap.effectiveLabel(resourceId) <= who.clearance;
+          },
+          inMine: (resourceId) => {
+            const chain = access.snap.chain(resourceId);
+            const root = chain?.[chain.length - 1];
+            return !!root && root.type === "vault_folder" && root.parent_id === null;
+          },
+        },
         principals: createPrincipalRegistrar({
           exists: (id) => access.snap.info(id) !== null,
+          mayShareAll: (person) => mayShareWithEveryone(access.snap, person),
           levelOf: (person, space) => {
             const may = (level: "edit" | "view"): boolean =>
               authorize(access.snap, {
@@ -3245,6 +3595,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }
           headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
           if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
+          // a new artifact's folder follows the artifact in the access tree, now that the artifact is a resource (see adoptArtifactFolder)
+          for (const e of b.events)
+            if (e.type === "site.created" || e.type === "site.published") {
+              const siteId = (e.payload as { siteId?: unknown }).siteId;
+              const row =
+                typeof siteId === "string"
+                  ? (db?.all(
+                      "SELECT owner, target_folder FROM sites_site WHERE id = ? AND kind = 'artifact'",
+                      siteId,
+                    )[0] as { owner?: string; target_folder?: string | null } | undefined)
+                  : undefined;
+              if (typeof siteId === "string" && row?.target_folder)
+                await adoptArtifactFolder(row.target_folder, siteId, row.owner ?? "");
+            }
           for (const e of b.events)
             if (e.type === "agent.created") await grantOwnPlaces?.((e.payload as { ownerId?: string }).ownerId ?? "");
           if (b.audit) recordAudit(b.audit);
@@ -3501,6 +3865,82 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       await syncAccess();
       await healAgents();
+      // Once per Space, at the first start on the build that writes an agent's sharing with its birth (15 Nov 2026): the agents an admin or owner made before it stay shared with Everyone, as every member could use them
+      // until then; a member's become their own. It runs here, after the access log is folded and the snapshot is current: who may share with Everyone and which agents already hold a grant are read from the snapshot, so an agent with ANY
+      // grant is left exactly as it is. The marker says it ran, so an admin who narrows an agent later is never overruled by a start.
+      if (cfg.spaceKind !== "personal" && log && !chainBroken) {
+        try {
+          db!.run(`CREATE TABLE IF NOT EXISTS host_passes ("key" TEXT PRIMARY KEY, "at" INTEGER)`);
+          const done = db!.all(`SELECT 1 FROM host_passes WHERE "key" = 'agent-birth-share'`).length > 0;
+          if (!done) {
+            // a Space with no agents table yet, or with no ordinary agents, has nothing to carry over, ever: the marker is written, so a later start never runs the pass on agents made after this one
+            const hasTable =
+              db!.all(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'agents_agent'`).length > 0;
+            const old = hasTable
+              ? (db!.all(
+                  `SELECT "id", "ownerId" FROM agents_agent WHERE "kind" = 'agent' AND "runtime" = 'vyre' AND "deletedAt" IS NULL`,
+                ) as { id: string; ownerId: string }[])
+              : [];
+            // only an agent born before this build: its agent.created says nothing of `shared` (an agent born on this build says true or false, and is never touched)
+            const bornOnThisBuild = new Set(
+              agentAccessEvents
+                .filter(
+                  (e) =>
+                    e.type === "agent.created" &&
+                    e.payload !== null &&
+                    typeof e.payload === "object" &&
+                    "shared" in (e.payload as object),
+                )
+                .map((e) => String((e.payload as { agentId?: unknown }).agentId)),
+            );
+            const events = oldAgentShareEvents({
+              agents: old
+                .filter((r) => !bornOnThisBuild.has(r.id))
+                .map((r) => ({
+                  id: r.id,
+                  ownerId: r.ownerId,
+                  underSpace: access.snap.resource(r.id)?.parent_id === spaceId,
+                  // the maker's own grant on it (and the agent's on itself) is how every agent is born: only a grant to someone else counts
+                  hasGrant: (access.snap.grantsOn(r.id) ?? []).some(
+                    (g) =>
+                      ![`actor:${r.ownerId}`, `person:${r.ownerId}`, `actor:${r.id}`, `agent:${r.id}`].includes(g.key),
+                  ),
+                })),
+              mayShareAll: (person) => mayShareWithEveryone(access.snap, person),
+            });
+            let wrote = 0;
+            for (const e of events) {
+              const r = await log.appendResult({
+                id: `evt_agent_birthshare_${e.id}`,
+                type: e.type,
+                sv: 1,
+                trace_id: "c0".repeat(16),
+                actor: "svc_host",
+                vis: "space",
+                entity: e.entity,
+                entity_id: e.id,
+                payload: e.payload,
+              });
+              if (r.ok && !r.duplicate) {
+                access.fold(r.event);
+                accessPending.push(toAccessEvent(r.event));
+                wrote++;
+              }
+            }
+            if (wrote > 0) await syncAccess(true);
+            db!.run(`INSERT OR IGNORE INTO host_passes ("key", "at") VALUES ('agent-birth-share', ?)`, now());
+          }
+        } catch (e) {
+          // a busy or damaged database: the marker is NOT written, so the next start tries again, and the failure is said
+          sink.log({
+            space: spaceId,
+            level: 40,
+            msg: "access.agent_birth_share_failed",
+            place: "boot",
+            attrs: { error: e instanceof Error ? e.message : String(e) },
+          });
+        }
+      }
       const personalRuns = new Map<string, Promise<void>>();
       ensurePersonalCalendar = (person) => {
         if (!person || loaded.serving.get("calendar") !== "live") return Promise.resolve();
@@ -3705,7 +4145,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               return r.output;
             };
             const NAME = "GitHub sign-in client secret",
-              FOLDER = "Sign-in",
+              FOLDER = SIGN_IN_FOLDER,
               field = { key: "client_secret", value: secret, secret: true };
             // Owner and Admin only: a Member's role carries Edit over the whole Space, so the folder and the item are labelled Restricted (above a Member's, a Developer's and every agent's clearance) before and after the value goes in
             const restrict = (type: "vault_folder" | "vault_item", id: string): Promise<unknown> =>
@@ -3876,14 +4316,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // authorizes against its connector, and without this every built-in connector answered "not found" to everyone. A connector someone writes becomes a resource when it is created
       // (connector.created). A built-in one is registered the first time a call names it, with an id made from its key, so a restart repeats the same event and a new Space still
       // starts with exactly its bootstrap events (ruling 71).
-      const builtinConnectors = new Set(
-        ((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key),
-      );
+      const builtinConnectors = new Set([
+        ...((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key),
+        // built in as code (modules/connectors/builtin-code.ts): Fathom
+        ...activeCodeBuiltins().map((c) => c.key),
+      ]);
       const ensuringConnector = new Map<string, Promise<void>>();
       // An Inbox conversation and a mail message are resources in access (under the Space), made the first time a call names one that exists. The modules open these rows themselves, and an event whose
       // subject is an `entity` is never registered by the generic registrar, so without this every call that names one answered "not found" to everyone, the owner included. The module's own door
       // (a private mailbox, a private message) still decides who sees the content; this only makes the row nameable for the role grants of the Space.
-      const ROW_TABLES: Record<string, string> = { conversation: "inbox_conversation", mail_message: "mail_message" };
+      const ROW_TABLES: Record<string, string> = {
+        conversation: "inbox_conversation",
+        mail_message: "mail_message",
+        calendar_event: "calendar_event",
+      };
       const ensuringRow = new Map<string, Promise<void>>();
       const ensureRow = (type: string, id: string): Promise<void> => {
         if (access.snap.resource(id)) return Promise.resolve();
@@ -3891,29 +4337,48 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!p) {
           p = (async () => {
             let found = false;
+            // an event lives in its calendar, and is the calendar's owner's (a private Personal calendar's events are that person's alone); a deleted one is still named by Undo
+            let inside: string | null = null;
             try {
-              found =
-                (db!.all(`SELECT id FROM ${ROW_TABLES[type]} WHERE id = ? AND deleted_at IS NULL`, id) as unknown[])
-                  .length > 0;
+              if (type === "calendar_event") {
+                const rows = db!.all(`SELECT "calendarId" AS cal FROM calendar_event WHERE id = ?`, id) as {
+                  cal?: unknown;
+                }[];
+                found = rows.length > 0;
+                inside = typeof rows[0]?.cal === "string" ? rows[0].cal : null;
+              } else
+                found =
+                  (db!.all(`SELECT id FROM ${ROW_TABLES[type]} WHERE id = ? AND deleted_at IS NULL`, id) as unknown[])
+                    .length > 0;
             } catch {
               return;
             }
             if (!found) return;
+            const calendar = inside === null ? undefined : access.snap.resource(inside);
+            const place = lateEventPlace({
+              calendar,
+              spaceId,
+              spaceOwner: access.owner() ?? cfg.owner ?? "usr_owner",
+            });
             const r = await spaceLog.appendResult({
               id: `evt_res_${id}`,
               type: "resource.created",
               sv: 1,
               trace_id: "c0".repeat(16),
               actor: "svc_host",
-              vis: "space",
+              // an event inside a private calendar is announced only to those who can view it (announcementVis)
+              vis: announcementVis(
+                { id, type, parent_id: place.parent_id, label: 0, owner_id: place.owner_id, holds: 0 },
+                (rid) => access.snap.resource(rid),
+              ),
               entity: "resource",
               entity_id: id,
-              payload: spaceOwned({
+              payload: hostOwned(place.hostOwned, {
                 id,
                 type,
-                parent_id: spaceId,
+                parent_id: place.parent_id,
                 label: 0,
-                owner_id: access.owner() ?? cfg.owner ?? "usr_owner",
+                owner_id: place.owner_id /* the calendar's owner, else access.owner() (lateEventPlace) */,
                 holds: 0,
               }),
             });
@@ -3928,6 +4393,66 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           ensuringRow.set(id, p);
         }
         return p;
+      };
+      // A channel's chat and the reply threads under its messages live in the channel (threadHome in host/src/gateway/resources.ts), so what the channel is shared with reaches them. Threads made before that were registered
+      // under the Space: the first call that names one moves it into its channel, once, so a guest invited to an old channel can use it too. The same rule decides both, from the chat's own row.
+      const movingThread = new Map<string, Promise<void>>();
+      const ensureThreadInChannel = async (id: string): Promise<void> => {
+        const have = access.snap.resource(id);
+        if (!have || have.type !== "thread") return;
+        let row:
+          | {
+              kind?: string | null;
+              title?: string | null;
+              channelId?: string | null;
+              parentThreadId?: string | null;
+              parentMessageId?: string | null;
+            }
+          | undefined;
+        try {
+          row = db!.all(
+            `SELECT kind, title, channelId, parentThreadId, parentMessageId FROM chat_thread WHERE id = ? AND deleted_at IS NULL`,
+            id,
+          )[0] as typeof row;
+        } catch {
+          return;
+        }
+        if (!row) return;
+        // a reply thread is a titled-by-nobody thread under a message (a teammate's handoff thread always carries its note as its title)
+        const reply = row.kind === "thread" && !row.title && !!row.parentMessageId;
+        // a reply thread follows the thread it replies in, so that one is moved first
+        if (reply && row.parentThreadId) await ensureThreadInChannel(row.parentThreadId);
+        const home = threadHome(
+          { kind: row.kind, channelId: row.channelId, parentThreadId: row.parentThreadId, replyThread: reply },
+          (t) => underChannelOf((x) => access.snap.resource(x), t),
+        );
+        const moved = threadMoveInto(have, home, home !== null && access.snap.resource(home) !== undefined);
+        if (moved === null) return;
+        let p = movingThread.get(id);
+        if (!p) {
+          p = (async () => {
+            const r = await spaceLog.appendResult({
+              id: `evt_thread_home_${id}`,
+              type: "resource.created",
+              sv: 1,
+              trace_id: "c0".repeat(16),
+              actor: "svc_host",
+              vis: "space",
+              entity: "resource",
+              entity_id: id,
+              payload: moved as unknown as Record<string, unknown>,
+            });
+            if (!r.ok) throw new Error(`could not move the thread ${id} into its channel: ${r.message}`);
+            if (!r.duplicate) {
+              access.fold(r.event);
+              accessPending.push(toAccessEvent(r.event));
+              headSeq = Math.max(headSeq, r.event.seq);
+              await syncAccess();
+            }
+          })().finally(() => movingThread.delete(id));
+          movingThread.set(id, p);
+        }
+        await p;
       };
       const ensureBuiltinConnector = (key: string): Promise<void> => {
         let p = ensuringConnector.get(key);
@@ -4043,7 +4568,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           sv: 1,
           trace_id: "c0".repeat(16),
           actor: "svc_host",
-          vis: "space",
+          // a private root (a Personal files root) is announced to its owner alone
+          vis: privateOwner ? "participants" : "space",
           entity: "resource",
           entity_id: f.id,
           payload: hostOwned(!privateOwner && !old && f.ownerId === undefined, {
@@ -4080,7 +4606,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           sv: 1,
           trace_id: "c0".repeat(16),
           actor: "svc_host",
-          vis: "space",
+          // a Mine folder is a private root: announced to its owner alone
+          vis: mine && owner ? "participants" : "space",
           entity: "resource",
           entity_id: id,
           payload: hostOwned(!mine && !old && spaceFolder, {
@@ -5399,6 +5926,55 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               access: () => access.snap,
               owner: () => access.owner() ?? cfg.owner ?? null,
               now,
+              subjects: (name) => eventSubjects.get(name),
+              // a chat's readers and an agent's visibility (a person's Assistant) are decided by their modules, the same reads the person's own screen makes
+              moduleView: async (person, type, id) => {
+                if (type !== "thread" && type !== "agent" && type !== "channel") return undefined;
+                // kept for a few seconds so a feed read over thousands of events asks each chat once, not once per page; a person removed from a chat stops reading its events within that time
+                const k = `${spaceId}\u0000${person}\u0000${id}`,
+                  t = now();
+                const hit = eventViewVerdicts.get(k);
+                if (hit && t - hit.at < EVENT_VIEW_TTL_MS) return hit.ok;
+                let ok: boolean;
+                try {
+                  const as = {
+                    space: spaceId,
+                    principal: { kind: "person" as const, id: person },
+                    origin: "engine" as const,
+                  };
+                  if (type === "channel") {
+                    // the chat module's own read, as channels.list answers it (not the Console's governance view, which lets an admin see that an invite-only channel exists): a public channel is read
+                    // by whoever channels.get lets in; an invite-only one only by someone who reads its main thread (a member)
+                    const r = await invoke("channels.get", { channelId: id }, as);
+                    const ch =
+                      r.status === "ok"
+                        ? (r.output as { channel?: { visibility?: string; mainThreadId?: string } }).channel
+                        : undefined;
+                    ok = ch !== undefined;
+                    if (ok && ch!.visibility !== "public") {
+                      const m =
+                        ch!.mainThreadId === undefined
+                          ? undefined
+                          : await invoke("threads.get", { threadId: ch!.mainThreadId }, as);
+                      ok = m?.status === "ok";
+                    }
+                  } else {
+                    const r = await invoke(
+                      type === "thread" ? "threads.get" : "agents.get",
+                      type === "thread" ? { threadId: id } : { agentId: id },
+                      as,
+                    );
+                    ok = r.status === "ok";
+                  }
+                } catch {
+                  ok = false;
+                }
+                if (eventViewVerdicts.size > 5000)
+                  for (const [key, v] of eventViewVerdicts)
+                    if (t - v.at >= EVENT_VIEW_TTL_MS) eventViewVerdicts.delete(key);
+                eventViewVerdicts.set(k, { at: t, ok });
+                return ok;
+              },
             },
             post: {
               allow: o.seams?.webhookAllow ?? (() => []),

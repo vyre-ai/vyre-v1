@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { useState } from "react";
+import { Pressable } from "react-native";
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createRoot } from "test-renderer";
@@ -112,7 +113,7 @@ test("the settings icon shows only when an AI will answer: the lead; an @mention
     ),
   );
   assert.match(off, /Intake will answer on Sonnet 5\.5, not available here/, "the label says the pick cannot run here");
-  assert.match(off, /composer-settings-dot/, "and the icon carries the dot");
+  assert.match(off, /Something is not at its default/, "the label says so; no dot is drawn on the icon (G47)");
   const people = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} />));
   assert.doesNotMatch(people, /composer-strip/, "people only: no icon");
   const mentioned = clean(
@@ -176,7 +177,8 @@ test("the settings dot shows only while something is off its default (a mode oth
       />,
     ),
   );
-  assert.doesNotMatch(out, /composer-settings-dot/, "everything at its default: no dot");
+  assert.doesNotMatch(out, /not at its default/, "everything at its default: nothing said");
+  assert.doesNotMatch(out, /composer-settings-dot/, "and never a dot on the icon");
   assert.doesNotMatch(out, /composer-mode|composer-runs/, "no mode or place chips in the composer");
   const asked = clean(
     renderToStaticMarkup(
@@ -190,7 +192,7 @@ test("the settings dot shows only while something is off its default (a mode oth
       />,
     ),
   );
-  assert.match(asked, /composer-settings-dot/, "Ask first is not the default");
+  assert.match(asked, /Something is not at its default/, "Ask first is not the default");
   const runs = clean(
     renderToStaticMarkup(
       <Composer
@@ -204,13 +206,13 @@ test("the settings dot shows only while something is off its default (a mode oth
       />,
     ),
   );
-  assert.match(runs, /composer-settings-dot/, "running somewhere else is not the default");
+  assert.match(runs, /Something is not at its default/, "running somewhere else is not the default");
   const effortHigh = clean(
     renderToStaticMarkup(
       <Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode="auto" onMode={() => undefined} />,
     ),
   );
-  assert.match(effortHigh, /composer-settings-dot/, "a set effort is not the default");
+  assert.match(effortHigh, /Something is not at its default/, "a set effort is not the default");
   await withDom(async () => {
     const modes: ChatMode[] = [];
     function Host(): ReactElement {
@@ -565,7 +567,7 @@ test("the tray shows each file with its size and removes it; From Files puts a k
       <Composer whoWillAnswer="" lists={hashLists} suggest={async () => hashLists} onSubmit={(p) => sent.push(p)} />,
     );
     await press(find(root, "composer-attach"));
-    assert.ok(textOf(find(root, "composer-plus")).includes("Upload files"));
+    assert.ok(textOf(find(root, "composer-plus")).includes("File"));
     await press(find(root, "row-plus-files"));
     await focus(find(root, "composer-field"));
     assert.match(textOf(find(root, "composer-popup")), /Attach/);
@@ -769,12 +771,12 @@ test("a provider with a long model list scrolls inside the Model submenu and can
   });
 });
 
-test("the + menu has Add people and agents under This chat when the place gives onAddPeople, and not otherwise", async () => {
+test("the + menu has Add people and agents when the place gives onAddPeople, and not otherwise", async () => {
   await withDom(async () => {
     const log: string[] = [];
     const root = await mount(createRoot, <Composer whoWillAnswer="" onAddPeople={() => log.push("add")} />);
     await press(find(root, "composer-attach"));
-    assert.match(textOf(find(root, "composer-plus")), /This chat/);
+    assert.match(textOf(find(root, "composer-plus")), /Add people and agents/);
     await press(find(root, "row-plus-people"));
     assert.deepEqual(log, ["add"]);
     assert.equal(find(root, "composer-plus"), null, "the menu closes");
@@ -882,4 +884,105 @@ test("a chat with an agent in it has the settings icon even when nobody will ans
     renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={[]} renderPanel={() => null} />),
   );
   assert.doesNotMatch(alone, /composer-strip/, "no agent in the chat: no icon");
+});
+
+function AskedHost({ log }: { log: string[] }): ReactElement {
+  const [n, setN] = useState(0);
+  return (
+    <Composer
+      whoWillAnswer=""
+      lead="Intake"
+      lists={lists}
+      agents={agents}
+      openPanelAt={n}
+      renderPanel={(_agent, close) => (
+        <ModelPanelStub
+          onClose={() => {
+            log.push("close");
+            close();
+          }}
+        />
+      )}
+      barExtra={<Pressable testID="ask-panel" onPress={() => setN((x) => x + 1)} />}
+    />
+  );
+}
+function ModelPanelStub({ onClose }: { onClose: () => void }): ReactElement {
+  return <Pressable testID="model-panel" onPress={onClose} />;
+}
+
+test("the place can open the model menu itself (/model): the same menu the strip opens, once per ask, and it closes the same way", async () => {
+  await withDom(async () => {
+    const log: string[] = [];
+    const root = await mount(createRoot, <AskedHost log={log} />);
+    assert.equal(find(root, "model-panel"), null, "not open to start with, and a count of 0 opens nothing");
+    await press(find(root, "ask-panel"));
+    assert.ok(find(root, "model-panel"), "asked: open");
+    await press(find(root, "model-panel"));
+    assert.equal(find(root, "model-panel"), null, "closed with its own close");
+    await press(find(root, "ask-panel"));
+    assert.ok(find(root, "model-panel"), "asked again: open again");
+    await press(find(root, "composer-strip"));
+    assert.equal(
+      find(root, "model-panel"),
+      null,
+      "the strip's own press closes it, as it does for a menu it opened itself",
+    );
+  });
+});
+
+test("the plus opens a menu: Photo, File, Record, Link, Add people and agents, then a place's own switch (G48); no mention or command rows, no Mode row", async () => {
+  await withDom(async () => {
+    const calls: string[] = [];
+    const root = await mount(
+      createRoot,
+      <Composer
+        whoWillAnswer=""
+        lists={hashLists}
+        suggest={async () => hashLists}
+        onAddPeople={() => calls.push("people")}
+        plusExtra={() => [
+          {
+            id: "plus-memory",
+            title: "Don't remember this chat",
+            icon: "lock",
+            checked: false,
+            onPress: () => calls.push("memory"),
+          },
+        ]}
+      />,
+    );
+    await press(find(root, "composer-attach"));
+    const rows = ["plus-photo", "plus-upload", "plus-files", "plus-record", "plus-link", "plus-people", "plus-memory"];
+    for (const r of rows) assert.ok(find(root, `row-${r}`) ?? find(root, r), r);
+    const text = textOf(find(root, "composer-plus"));
+    for (const t of ["Photo", "File", "Record", "Link", "Add people and agents", "Don't remember this chat"])
+      assert.ok(text.includes(t), t);
+    for (const gone of ["Mention", "Commands", "Mode:", "Upload files", "Link something"])
+      assert.ok(!text.includes(gone), gone);
+    await press(find(root, "row-plus-people"));
+    await press(find(root, "composer-attach"));
+    await press(find(root, "row-plus-memory"));
+    assert.deepEqual(calls, ["people", "memory"]);
+  });
+});
+
+test("/voice asks the composer for its mic: with a mic it starts, with none it says so once (never nothing)", async () => {
+  await withDom(async () => {
+    const said: string[] = [];
+    let setAt: (n: number) => void = () => undefined;
+    const Wrap = (): ReactElement => {
+      const [n, set] = useState(0);
+      setAt = set;
+      return <Composer whoWillAnswer="" talkAt={n} onTalkUnavailable={() => said.push("no mic")} />;
+    };
+    await mount(createRoot, <Wrap />);
+    assert.deepEqual(said, [], "nothing asked yet");
+    setAt(1);
+    await flush();
+    assert.deepEqual(said, ["no mic"], "no port in the tree: the place is told");
+    setAt(2);
+    await flush();
+    assert.deepEqual(said, ["no mic", "no mic"]);
+  });
 });

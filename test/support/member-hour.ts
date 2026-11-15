@@ -198,11 +198,37 @@ export const model: OpenSession = async (spec) => {
     yield { type: "tool_call", id, name, input };
     return answer;
   }
+  // a line with HOLD keeps its turn running until a Stop cancels it (a walk about who may stop whose turn)
+  let letGo: () => void = () => undefined;
   return {
     warm: true,
     async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
       const body = String(input.trigger?.body ?? "");
-      if (/set up fathom/i.test(body)) {
+      if (/\bHOLD\b/.test(body)) {
+        await new Promise<void>((resolve) => {
+          letGo = resolve;
+        });
+        return;
+      }
+      const stopIt = /\bSTOP (agt_[A-Za-z0-9]+)/.exec(body);
+      if (stopIt) {
+        const found = yield* run("tool_search", { query: "engine stop" });
+        const r = found.ok
+          ? yield* run("engine_stop", { threadId: String(input.threadId), agentId: stopIt[1] })
+          : found;
+        yield { type: "text", text: `RESULT ${JSON.stringify(r.content).slice(0, 300)}` };
+        yield { type: "done" };
+        return;
+      }
+      if (/connect fathom/i.test(body)) {
+        const r = yield* run("vault_connect", { service: "Fathom", idempotencyKey: `hour-connect-${++asks}` });
+        yield {
+          type: "text",
+          text: r.ok ? "Not yet. Add its key." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}`,
+        };
+      } else if (/set up fathom/i.test(body)) {
+        // vault_request is found with tool_search, as a model finds it (vault_connect is the listed tool for a service)
+        yield* run("tool_search", { query: "vault request key" });
         const r = yield* run("vault_request", {
           name: "Fathom",
           fields: ["api_key"],
@@ -213,6 +239,33 @@ export const model: OpenSession = async (spec) => {
           type: "text",
           text: r.ok ? "I asked for the Fathom key." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}`,
         };
+      } else if (/two subagents/i.test(body)) {
+        // what the CLI driver yields for a Claude Code turn that starts two subagents of its own (agent/src/drivers/cli/session.ts): Agent calls as blocks, the lines each subagent works through tagged
+        // with the call that started it, and each call's result with the words it returned
+        const call = (id: string, name: string, parent?: string): DriverEvent => ({
+          type: "block",
+          kind: "tool_call",
+          payload: { id, name, ...(parent ? { parent } : {}) },
+        });
+        yield call("toolu_a", "Agent");
+        yield { type: "block", kind: "tool_input", payload: { id: "toolu_a", detail: "Read the SECRETLEASE file" } };
+        yield call("toolu_b", "Agent");
+        yield { type: "block", kind: "tool_input", payload: { id: "toolu_b", detail: "Check the harbor invoice" } };
+        yield call("tu_1", "Read", "toolu_a");
+        yield {
+          type: "block",
+          kind: "tool_input",
+          payload: { id: "tu_1", detail: "lease-2026.pdf", parent: "toolu_a" },
+        };
+        await new Promise((r) => setTimeout(r, 1500));
+        yield { type: "block", kind: "tool_result", payload: { id: "tu_1", ok: true, parent: "toolu_a" } };
+        yield {
+          type: "block",
+          kind: "tool_result",
+          payload: { id: "toolu_a", ok: true, result: "ANSWERSECRET the lease ends in June." },
+        };
+        yield { type: "block", kind: "tool_result", payload: { id: "toolu_b", ok: true, result: "Paid in full." } };
+        yield { type: "text", text: "Both subagents finished." };
       } else if (/Carry on/.test(body)) {
         const found = yield* run("tool_search", { query: "vault use" });
         // as a model would: the handle the person's line names (another item may hold the name), else the name it asked for
@@ -239,8 +292,12 @@ export const model: OpenSession = async (spec) => {
       waiting.delete(id);
     },
     inject() {},
-    async cancel() {},
-    async close() {},
+    async cancel() {
+      letGo();
+    },
+    async close() {
+      letGo();
+    },
   } as EngineSession;
 };
 
@@ -300,7 +357,7 @@ export function plainWords(message: string): boolean {
   );
 }
 
-export async function bootHour(prefix: string): Promise<Hour> {
+export async function bootHour(prefix: string, extra: Record<string, unknown> = {}): Promise<Hour> {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), `vyre-hour-${prefix}-`)));
   const idp = createIdp({ issuer: ISSUER, clientId: SSO_CLIENT, secret: SSO_SECRET });
   const gg = google();
@@ -360,6 +417,7 @@ export async function bootHour(prefix: string): Promise<Hour> {
     } as never,
     engineOpenSession: model,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+    ...(extra as object),
   });
 
   const edge = (seen?: Answered[]): typeof fetch =>

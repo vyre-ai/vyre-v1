@@ -36,6 +36,16 @@
       "id": "Quarterly planning"
     }
   },
+  "access_clears": {
+    "principal": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    },
+    "target": {
+      "type": "space",
+      "id": "Quarterly planning"
+    }
+  },
   "access_deciders": {
     "resource": {
       "type": "space",
@@ -836,6 +846,9 @@
   "chat_catch_up": {
     "threadId": "thr_a1b2c3"
   },
+  "chat_chapters": {
+    "threadId": "thr_a1b2c3"
+  },
   "chat_composer_suggest": {
     "symbol": "@",
     "q": "quarterly plan"
@@ -962,6 +975,8 @@
     "messageId": "msg_a1b2c3",
     "threadId": "thr_a1b2c3"
   },
+  "chats_presence": {},
+  "chats_sidebar": {},
   "chrome_act": {
     "action": "click"
   },
@@ -1610,6 +1625,12 @@
       "id": "Quarterly planning"
     }
   },
+  "engine_round_get": {
+    "threadId": "thr_a1b2c3",
+    "messageIds": [
+      "msg_a1b2c3"
+    ]
+  },
   "engine_route_preview": {
     "threadId": "thr_a1b2c3"
   },
@@ -1648,6 +1669,11 @@
   },
   "engine_subscription_share_set": {
     "enabled": false
+  },
+  "engine_thread_states": {
+    "threadIds": [
+      "thr_a1b2c3"
+    ]
   },
   "engine_turn_get": {
     "turnId": "trn_a1b2c3"
@@ -3706,6 +3732,7 @@
     "to": "dana@acme.test",
     "kind": "dm"
   },
+  "notifications_unseen_by_thread": {},
   "offer_note": {
     "threadId": "thr_a1b2c3",
     "title": "Quarterly planning",
@@ -4857,6 +4884,38 @@
     },
     "on": false
   },
+  "state_counts": {},
+  "state_get": {
+    "things": [
+      {
+        "type": "Quarterly planning",
+        "id": "Quarterly planning"
+      }
+    ]
+  },
+  "state_layout_get": {},
+  "state_layout_set": {
+    "key": "Plan_Key",
+    "value": "Quarterly planning"
+  },
+  "state_list": {
+    "flag": "starred"
+  },
+  "state_read": {
+    "thing": {
+      "type": "Quarterly planning",
+      "id": "Quarterly planning"
+    }
+  },
+  "state_read_scope": {
+    "scope": "Quarterly planning"
+  },
+  "state_set": {
+    "thing": {
+      "type": "Quarterly planning",
+      "id": "Quarterly planning"
+    }
+  },
   "steps_test": {
     "key": "Plan_Key",
     "input": {}
@@ -5639,6 +5698,27 @@
     "to": "1.0.0"
   },
   "updates_status": {},
+  "vault_connect": {
+    "service": "Quarterly planning"
+  },
+  "vault_connect_card_ask_admin": {
+    "requestId": "vrq_a1b2c3"
+  },
+  "vault_connect_card_disconnect": {
+    "requestId": "vrq_a1b2c3"
+  },
+  "vault_connect_card_get": {
+    "requestId": "vrq_a1b2c3"
+  },
+  "vault_connect_card_options": {
+    "requestId": "vrq_a1b2c3"
+  },
+  "vault_connect_card_reopen": {
+    "requestId": "vrq_a1b2c3"
+  },
+  "vault_connect_card_submit": {
+    "requestId": "vrq_a1b2c3"
+  },
   "vault_export_env": {
     "folderId": "vfd_a1b2c3",
     "expiresIn": "1h"

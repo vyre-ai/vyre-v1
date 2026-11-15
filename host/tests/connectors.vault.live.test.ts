@@ -84,6 +84,25 @@ test("live connector fills only authorized selected slots and scrubs values; del
           level: "manage",
         },
       },
+      // an agent reaches the Space only through its own Space grant, never through a role's (b5cec962a, "an agent reaches the whole Space only through its own Space grant"), and a Space
+      // connection is seen only by one who may view the Space (canViewSpace in modules/connectors/impl.ts): each agent is given the Space at View, so the weak one still sees the connection and
+      // is still held back by its clearance from the restricted key (state "down" below)
+      {
+        id: `evt_cv_spacegrant_${id}`,
+        type: "grant.created",
+        sv: 1,
+        trace_id: "1".repeat(32),
+        actor: "usr_olivia",
+        vis: "space",
+        payload: {
+          id: `gr_cvsp_${id}`,
+          subject_kind: "actor",
+          subject_id: id,
+          resource_type: "space",
+          resource_id: CORE_SPACE,
+          level: "view",
+        },
+      },
     );
   assert.ok(core.store.appendBatch(seed).every((row) => row.ok));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE");

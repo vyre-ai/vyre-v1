@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, press, textOf, typeInto } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
-import { ChatsSidebar } from "../sidebar/ChatsSidebar.tsx";
+import { LegacyChatsSidebar as ChatsSidebar } from "../sidebar/ChatsSidebar.tsx";
 import { createSampleSidebar, northwind, personal } from "../sidebar/sample.ts";
 import type { SampleSpace } from "../sidebar/sample.ts";
 import { gateActions } from "../../../shell/cmdk/gate.ts";

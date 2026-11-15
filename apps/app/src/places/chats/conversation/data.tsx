@@ -23,6 +23,8 @@ export interface ConversationNav {
   openDetails?(threadId: string, messageId: string): void;
   /** Shows or hides the pane on the right (Computer, Threads, Files, Memory, Routines). */
   togglePane(): void;
+  /** Opens the pane on one of its tabs (a slash command such as /agents or /memory). Left out where the shell has no right pane. */
+  openPaneTab?(tab: "crew" | "memory" | "skills" | "hooks" | "kept"): void;
   /** A hook line's Edit or Details: the right pane opens on its Hooks tab at that hook. Left out where the shell has no right pane. */
   openHooks?(threadId: string, hookId?: string): void;
   /** A saved note opens in Notes. Left out where the shell has no Notes. */
@@ -98,6 +100,8 @@ export interface ConversationData {
   };
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
+  /** The viewer holds the permission to start chats (chats.private). Without it the people and agents of this chat are named, not opened, and nobody is added from that list. Absent: yes. */
+  mayChat?: boolean;
   nav: ConversationNav;
   clock(): Clock;
   /** The @ # / tables of the composer. */

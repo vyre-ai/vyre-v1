@@ -37,6 +37,8 @@ type In = {
 type Out = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -136,7 +138,9 @@ type Out = {
       "seriesId": "example",
       "startsAt": 1760000000000,
       "status": "confirmed",
-      "title": "example"
+      "title": "example",
+      "updatedAt": 1760000000000,
+      "version": 1
     }
   }
 }

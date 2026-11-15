@@ -17,3 +17,22 @@ const handleOfName = (name: string): string =>
   }`;
 /** Is an item of this name a company key? The save event names the item, not its handle. */
 export const isCompanyKeyName = (name: string): boolean => isCompanyKey(handleOfName(name));
+
+/**
+ * The shared Vault folders the server keeps for itself, by name, declared once here. Most are labelled Restricted before anything goes in (company keys, the sign-in secret, the Space AI key, Voice), so
+ * no agent can use what is in them; Sealed fields is not labelled. The name is NOT how a key for an agent is refused: that asks the folder's real label against the agent's clearance (access.clears), so a
+ * renamed server folder is still refused and a person's own folder with one of these names is not refused for the name. These names only find the folders (and sort them in the Vault).
+ * There is no flag on a folder that marks it as made by the server; the label is the only real marker.
+ */
+export const COMPANY_FOLDER = "Company connections";
+export const SIGN_IN_FOLDER = "Sign-in";
+export const SPACE_KEY_FOLDER = "Space AI key";
+export const VOICE_FOLDER = "Voice";
+export const SEALED_FOLDER = "Sealed fields";
+export const SERVER_FOLDERS: readonly string[] = [
+  COMPANY_FOLDER,
+  SIGN_IN_FOLDER,
+  SPACE_KEY_FOLDER,
+  VOICE_FOLDER,
+  SEALED_FOLDER,
+];

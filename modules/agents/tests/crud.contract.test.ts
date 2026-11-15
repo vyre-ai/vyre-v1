@@ -43,8 +43,8 @@ const withMarket = async (hn: Harness) => {
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 108 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 109); // 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons), agents.share_class (the Space browser)
+test("the handler table covers exactly the 110 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 110); // 109 and agents.routine.fire (P1 step 4); 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons), agents.share_class (the Space browser)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -499,6 +499,35 @@ const scenarios: Scenario[] = [
     setup: withAgent,
     run: (hn, s) => h["agents.routine.run_now"]!(hn.ctx, { agentId: s.id, routineId: "rtn_none", idempotencyKey: k() }),
     expect: "validation.not_found",
+  },
+  {
+    cap: "agents.routine.fire",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      const r = (
+        await h["agents.routine.save"]!(hn.ctx, {
+          agentId: s.id,
+          title: "D",
+          cron: "0 9 * * *",
+          prompt: "p",
+          idempotencyKey: k(),
+        })
+      ).routine;
+      hn.world.answer("runs.start", () => ({ runId: "run_a1b2c3" }));
+      hn.clear();
+      return { ...s, r };
+    },
+    run: (hn, s) =>
+      h["agents.routine.fire"]!(hn.as({ kind: "service", id: "svc_host" }), {
+        routineId: s.r.routineId,
+        dueKey: String(s.r.nextRunAt),
+      }),
+  },
+  {
+    cap: "agents.routine.fire",
+    setup: withAgent,
+    run: (hn, s) => h["agents.routine.fire"]!(hn.ctx, { routineId: "rtn_none", dueKey: "1" }),
+    expect: "permission.no_grant",
   },
   {
     cap: "agents.routine.delegate",

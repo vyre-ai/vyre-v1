@@ -4,6 +4,7 @@
 // Escape leaves the settings popover, then a sub-view, then the sheet. Enter in the search adds the top match; Backspace on an empty search removes the last chip.
 // Colours are skin tokens (CSS variables on web), so paper and graphite both work.
 
+import { Switch } from "../Switch/index.tsx";
 import { useEscapeLayer } from "../Overlay/escape.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -42,6 +43,7 @@ import {
   shareCalls,
   shareLines,
   showsEarlier,
+  earlierLabel,
   takenFromRows,
   targetNoun,
   targetOwn,
@@ -64,7 +66,6 @@ import {
   Pill,
   each,
   SettingsPopover,
-  Switch,
   ViewHead,
   itemLabelOf,
   pickHowLabel,
@@ -336,11 +337,37 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
   /* ---------- rows ---------- */
 
   const verb = add ? "Add" : "Share with";
+  const barred = (e: AccessEntry): boolean =>
+    share?.agentsBlocked !== undefined && isAgentKind(e.kind) && share.agentsBlocked.ids.includes(e.id);
   const entryRow = (e: AccessEntry): ReactElement => {
     const key = entryKey(e.kind, e.id);
     const name = e.assistant === true ? "Assistant" : e.name;
     const sub =
       e.sub ?? (e.assistant === true ? "Yours, private to you" : e.kind === "outside" ? "Outside agent" : undefined);
+    // F35: listed so a person sees who is affected, but not a button: there is nothing to press and no plus
+    if (barred(e))
+      return (
+        <View
+          key={key}
+          style={[st.row, { opacity: 0.55 }]}
+          testID={`as-row-${key}`}
+          accessibilityState={{ disabled: true }}
+        >
+          <View style={st.rowMain}>
+            <Face kind={e.kind} id={e.id} name={e.name} assistant={e.assistant} />
+            <View style={st.rowText}>
+              <Text style={st.name} numberOfLines={1}>
+                {name}
+              </Text>
+              {sub === undefined ? null : (
+                <Text style={st.sub} numberOfLines={1}>
+                  {sub}
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
+      );
     return (
       <View key={key} style={st.row}>
         <Pressable
@@ -518,7 +545,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
   const idle = lines.length === 0 ? idleLine(props.mode, share?.itemType, share?.itemName) : "";
 
   const noOutside = (props.directory.outside ?? []).length === 0;
-  const showEarlier = add !== null && add.earlierMessages !== false && showsEarlier(picks);
+  const showEarlier = add !== null && add.earlierMessages !== false && showsEarlier(picks, add.earlierRule);
   const label = actionLabel(props.mode, picks, compactLabel);
 
   /* ---------- the views ---------- */
@@ -614,6 +641,19 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
             onCleared={(k) => setCleared((c) => [...c, k])}
           />
         ) : null}
+        {share?.agentsBlocked !== undefined && [...secs.suggested, ...secs.agents, ...secs.outside].some(barred) ? (
+          <View style={st.blocked} testID="as-agents-blocked">
+            <Text style={st.blockedText}>{share.agentsBlocked.line}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={share.agentsBlocked.actionLabel}
+              testID="as-agents-move"
+              onPress={share.agentsBlocked.onAction}
+            >
+              <Text style={st.blockedAction}>{share.agentsBlocked.actionLabel}</Text>
+            </Pressable>
+          </View>
+        ) : null}
         {section("Suggested", secs.suggested, share ? undefined : "You work with these most")}
         {secs.invite === null ? null : (
           <View>
@@ -690,7 +730,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
         ) : null}
         {share && share.notifyPeople === true && picks.length > 0 ? (
           <View style={{ gap: 6 }} testID="as-notify">
-            <Switch label="Notify people" on={notify} onChange={setNotify} testID="as-notify-switch" />
+            <Switch labelled label="Notify people" on={notify} onChange={setNotify} testID="as-notify-switch" />
             {notify ? (
               <TextInput
                 value={message}
@@ -705,7 +745,13 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
           </View>
         ) : null}
         {showEarlier ? (
-          <Switch label="Include earlier messages" on={earlier} onChange={setEarlier} testID="as-earlier" />
+          <Switch
+            labelled
+            label={earlierLabel(add?.earlierRule)}
+            on={earlier}
+            onChange={setEarlier}
+            testID="as-earlier"
+          />
         ) : null}
         <View style={st.footBtns}>
           {share?.records ? <ExportMore rec={share.records} /> : null}

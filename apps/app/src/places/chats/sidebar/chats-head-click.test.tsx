@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import type { Node } from "../../../onboarding/test-dom.ts";
 import { installDom, mount, press, find, flush } from "../../../onboarding/test-dom.ts";
-import { ChatsSidebar } from "./ChatsSidebar.tsx";
+import { LegacyChatsSidebar as ChatsSidebar } from "./ChatsSidebar.tsx";
 import { createSampleSidebar } from "./sample.ts";
 
 test("pressing the Recent head folds its chats and pressing it again brings them back", async () => {

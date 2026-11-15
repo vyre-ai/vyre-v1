@@ -2,13 +2,16 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
+import { draftOf, scopeOf, setDraft } from "./drafts.ts";
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { isLong, sessionItems } from "../session/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
 import { useCrew } from "../crew/context.tsx";
-import { crewChipOf } from "../crew/model.ts";
+import { LiveSubagents } from "../crew/live.tsx";
+import { crewChipOf, liveSubagents, subagentIdsOf, totalsOf } from "../crew/model.ts";
+import { CrewBlock } from "../session/CrewBlock.tsx";
 import { CrewIsland } from "../crew/island.tsx";
 import { AlsoToChat } from "../crew/also.tsx";
 import { readReplyDetails } from "../details/read.ts";
@@ -58,11 +61,17 @@ import { ChatMemoryProvider } from "../memory/thread.tsx";
 import { keepItem, weave } from "../tasks/activity.ts";
 import { useMemoryEntries } from "../memory/menu.tsx";
 import { MessageView } from "./MessageView.tsx";
-import { QueueWaiting } from "./QueueWaiting.tsx";
+import { QueueWatch } from "./QueueWaiting.tsx";
+import { QueueLine } from "./queue-line.tsx";
 import { CatchUpLine } from "./catch-up.tsx";
 import { AsideList } from "./Aside.tsx";
 import type { AsideItem } from "./Aside.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
+import type { CardSpec, CommandResult } from "./command-result.ts";
+import { CommandCard } from "./CommandCard.tsx";
+import { ACTION_NOTICE_MS, notices } from "../../../shell/noticeslot/model.ts";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
+import { useNoticeLive } from "../../../shell/noticeslot/use-notice.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
 import { agentForPerson } from "../../../../../../lib/words/agent-name.ts";
@@ -100,7 +109,8 @@ import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine }
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { notInChatLine } from "./notinchat.ts";
 import { NotInChatBar } from "./NotInChatBar.tsx";
-import { MemorySwitch } from "./memory-switch.tsx";
+import { DeleteAsk } from "./DeleteAsk.tsx";
+import { MemorySwitch, SWITCH_LABEL, chatMemory, flipChatMemory } from "./memory-switch.tsx";
 import { SWITCH_NOTE, SWITCH_TITLE, hasSwitch, repliesOf } from "../thread-replies/model.ts";
 import { useReplySwitch } from "../thread-replies/ThreadSwitch.tsx";
 import type { AgentMeta } from "./askagent.ts";
@@ -109,6 +119,7 @@ import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq, usedTerminal } from "./chapters/index.ts";
 import {
   WINDOW,
   beforeCursor,
@@ -125,7 +136,6 @@ import {
   matchLine,
   mentionsIn,
   mergePages,
-  modelLabel,
   pendingMessage,
   placeholderFor,
   queueNote,
@@ -146,12 +156,14 @@ import {
   workingAgents,
   withoutAnswered,
   faceDoor,
+  peopleIn,
 } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
 import { refusalIsPending } from "../../../shell/session/just-made.ts";
 import { copyLinkText, itemLink, messageLink } from "../../../share/rows.ts";
 import { createMenuApi } from "../menus/actions.ts";
+import { chatMenu } from "../menus/chat.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { chatHeaderEntries, isArchivedIn } from "./chat-header-menu.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
@@ -189,6 +201,16 @@ function useReplies(threadId: string): Map<string, ReplySummary> {
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
 const CompactContext = createContext(false);
+/** A press in the composer (or its menus) or on the notice does not close the card: the person is about to type, or press Undo. */
+function insideComposer(target: unknown): boolean {
+  const t = target as { closest?: (q: string) => unknown } | null;
+  return (
+    t?.closest?.(
+      '[data-testid="composer"],[data-testid="composer-panel"],[data-testid="notice-slot"],[role="menu"],[data-testid="notice-popover"]',
+    ) != null
+  );
+}
+
 const NO_IDS: readonly string[] = [];
 /** The mute lines a teammate has been shown, by message (lane l-agentdm): kept on this device so the line does not come back once seen. */
 const MUTE_SEEN = "vyre.agentdm.mute-seen.v1";
@@ -383,13 +405,24 @@ function ConversationView(): ReactElement {
   }, [data, data.threadId, online]);
   const menu = useMenu();
   const add = useAddSheet(
-    { call: data.call, me: data.me, nameOf: data.nameOf, newKey: data.newKey, toast: data.toast },
+    {
+      call: data.call,
+      me: data.me,
+      nameOf: data.nameOf,
+      newKey: data.newKey,
+      toast: data.toast,
+      ...(data.mayChat === false ? { mayChat: false } : {}),
+    },
     { copy: data.copy },
   );
   // the header "..." carries the chat's own items; what is starred and muted is read when the chat opens and follows what the person does here
   const menuApi = useMemo(() => createMenuApi(data), [data]);
   const [hdr, setHdr] = useState({ starred: false, muted: false, archived: false });
   const [renamingChat, setRenamingChat] = useState(false);
+  // the chapter the chat is in now, drawn in grey after the title (G1); the chapter layer reports it
+  const [chapterNow, setChapterNow] = useState("");
+  const [talkAt, setTalkAt] = useState(0);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const moreAt = useRef<{ x: number; y: number }>({ x: 8, y: 48 });
   useEffect(() => {
     let live = true;
@@ -427,16 +460,22 @@ function ConversationView(): ReactElement {
   const [olderMore, setOlderMore] = useState<boolean | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
-  const [line, setLine] = useState("");
   // the question island: put-away questions (this session) and the one the person stepped to
   const [putAway, setPutAway] = useState<ReadonlySet<string>>(() => new Set());
   const [islandAt, setIslandAt] = useState<string | null>(null);
-  /** A line with an Undo (a drop that shared something): the taking-back runs when it is pressed. */
-  const [undo, setUndo] = useState<(() => void) | null>(null);
+  /** The notice this chat last raised in the title bar's slot, so the next one replaces it and Escape can close it. */
+  const [saidId, setSaidId] = useState<string | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
-  const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({ value: data.fill?.take() ?? "", n: 0 }));
+  const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({
+    value: data.fill?.take() ?? draftOf(data.threadId, scopeOf(data.me?.id)),
+    n: 0,
+  }));
   const [typed, setTyped] = useState(seed.value);
   const typedRef = useRef(seed.value);
+  // the unsent line is kept on this device, per chat; a send or an empty line clears it (the sidebar draws a pencil from it)
+  useEffect(() => {
+    setDraft(data.threadId, typed, scopeOf(data.me?.id));
+  }, [data.threadId, data.me?.id, typed]);
   const emptyRef = useRef(false);
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
@@ -445,6 +484,8 @@ function ConversationView(): ReactElement {
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
   const [asides, setAsides] = useState<AsideItem[]>([]);
+  const asidesRef = useRef<AsideItem[]>([]);
+  asidesRef.current = asides;
   const [focusId, setFocusId] = useState<string | null>(data.focus ?? null);
   /** Messages read around a marked one that is older than the page holds: shown instead of the newest, until "Jump to latest". */
   const [around, setAround] = useState<Message[] | null>(null);
@@ -503,10 +544,77 @@ function ConversationView(): ReactElement {
     [data.fill],
   );
 
-  const say = useCallback((text: string) => {
-    setLine(text);
-    setUndo(null);
+  /** One quiet line in the title bar's notice slot (it clears itself after 6 seconds), with one action where there is one (Undo, Retry). A new line replaces the last. Nothing stays above the composer. */
+  /** The Command card (/usage, /permissions): one at a time, never stored, closed by Escape, its close control, a press outside or the next send. */
+  const [card, setCard] = useState<{ n: number; spec: Exclude<CardSpec, { kind: "aside" }> } | null>(null);
+  const cardN = useRef(1);
+  /** Close the /btw card the way every command card closes: it leaves, and its side thread is cleaned up. */
+  const closeAsides = useCallback(() => {
+    const open = asidesRef.current;
+    if (open.length === 0) return;
+    asidesRef.current = [];
+    setAsides([]);
+    for (const a of open) void act.dismissAside(data, a.id);
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a command card belongs to the chat it was asked in: leaving the chat closes it (and cleans up the side question), with the data of the chat that is being left
+  useEffect(
+    () => () => {
+      setCard(null);
+      closeAsides();
+    },
+    [data.threadId], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  // a press anywhere but the composer, the card or the notice closes the /btw card, as it does a command card
+  const asideOpen = asides.length > 0;
+  useEffect(() => {
+    if (!asideOpen) return undefined;
+    const d = (
+      globalThis as {
+        document?: {
+          addEventListener?: (t: string, f: (e: { target?: unknown }) => void, c?: boolean) => void;
+          removeEventListener?: (t: string, f: (e: { target?: unknown }) => void, c?: boolean) => void;
+        };
+      }
+    ).document;
+    const hear = (e: { target?: unknown }): void => {
+      const t = e.target as { closest?: (q: string) => unknown } | null;
+      if (t?.closest?.('[data-testid="asides"]') != null) return;
+      if (!insideComposer(e.target)) closeAsides();
+    };
+    d?.addEventListener?.("pointerdown", hear, true);
+    return () => d?.removeEventListener?.("pointerdown", hear, true);
+  }, [asideOpen, closeAsides]);
+  /** /model: raised to open the composer's own model menu. */
+  const [panelAt, setPanelAt] = useState(0);
+  const saidRef = useRef<string | null>(null);
+  const speak = useCallback((text: string, action?: { label: string; run: () => void }) => {
+    if (saidRef.current !== null) notices.resolve(saidRef.current);
+    // Undo and Retry fire once: a second press before the line has gone is ignored
+    let fired = false;
+    const once = action
+      ? {
+          label: action.label,
+          run: () => {
+            if (fired) return;
+            fired = true;
+            action.run();
+          },
+        }
+      : undefined;
+    const id = notices.pass(text, once, { ms: ACTION_NOTICE_MS });
+    saidRef.current = id;
+    setSaidId(id);
   }, []);
+  const say = useCallback((text: string) => speak(text), [speak]);
+  const unsay = useCallback(() => {
+    if (saidRef.current === null) return;
+    notices.resolve(saidRef.current);
+    saidRef.current = null;
+    setSaidId(null);
+  }, []);
+  const saidLive = useNoticeLive(saidId);
+  useEscapeLayer(saidLive, unsay, { quiet: true });
+  useEffect(() => unsay, [unsay]);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
   const fail =
     (what: string) =>
@@ -706,6 +814,7 @@ function ConversationView(): ReactElement {
     return () => clearInterval(t);
   }, [notYet]);
   // the first message this window sent is on screen from the thread's own messages now: the held copy has done its job
+  const [stillQueued, setStillQueued] = useState<string[] | null>(null); // the sends the engine still holds: the note sits under the last of them
   const loaded = threadQ.status !== "loading" && messagesQ.status !== "loading";
   useEffect(() => {
     if (loaded) releasePending(data.threadId);
@@ -788,31 +897,59 @@ function ConversationView(): ReactElement {
     );
   };
 
+  /** Where a command's result goes, by its kind (command-result.ts). */
+  const showResult = (r: CommandResult): void => {
+    if (r.kind === "notice") {
+      const { undo: back, failed } = r;
+      const again = back ?? failed?.retry;
+      speak(
+        r.text,
+        again
+          ? {
+              label: back ? "Undo" : "Retry",
+              run: () => {
+                unsay();
+                void Promise.resolve(again()).catch(fail(back ? "Could not undo that." : "Could not do that."));
+              },
+            }
+          : undefined,
+      );
+    } else if (r.kind === "card") {
+      closeAsides();
+      if (r.card.kind === "aside") {
+        setCard(null);
+        const question = r.card.question;
+        void act
+          .startAside(data, thread.threadId, question, data.newKey())
+          .then((a) => setAsides((cur) => [...cur, { id: a.asideThreadId, question }]), fail("Could not ask that."));
+      } else setCard({ n: cardN.current++, spec: r.card });
+    } else if (r.kind === "menu") {
+      if (lead) setPanelAt((n) => n + 1);
+      else add.open({ threadId: data.threadId, name: thread.title ?? "" });
+    }
+  };
+
   const commandEnv = (): CommandEnv => ({
     data,
     thread,
     rows: win.rows,
-    say,
+    show: showResult,
     newKey: data.newKey,
     openFind: () => setFinding(true),
     openSearch: (q) => data.nav.openSearch?.(q),
-    openModel: () => {
-      if (lead) modelMenu(8, 120);
-      else add.open({ threadId: data.threadId, name: thread.title ?? "" });
-    },
     openAdd: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
-    aside: (question) =>
-      void act
-        .startAside(data, thread.threadId, question, data.newKey())
-        .then((r) => setAsides((cur) => [...cur, { id: r.asideThreadId, question }]), fail("Could not ask that.")),
+    ...(data.nav.openPaneTab ? { openPane: data.nav.openPaneTab } : {}),
+    startTalk: () => setTalkAt((n) => n + 1),
     send: (text) =>
       submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
   });
 
   const submit = (payload: ComposerSend, kind: SendKind): void => {
     // a slash command is not a message: it runs, and nothing is posted (a name that is not a command is an ordinary message)
+    setCard(null); // the next send closes the card; a new command opens its own
+    closeAsides();
     if (payload.files.length === 0 && parseSlash(payload.text, pluginNames(data.pluginCommands?.())) !== null) {
-      setLine("");
+      unsay();
       setTyped("");
       void runSlash(payload.text, commandEnv());
       return;
@@ -845,7 +982,7 @@ function ConversationView(): ReactElement {
       setAlso(false);
     }
     setPending((cur) => [...cur, p]);
-    setLine("");
+    unsay();
     setTyped("");
     typedRef.current = "";
     setSeed((x) => (x.value === "" ? x : { value: "", n: x.n }));
@@ -879,7 +1016,7 @@ function ConversationView(): ReactElement {
     ? weave(folded, data.activity.events).filter((m) => keepItem(m, data.activity!.show))
     : folded;
   // a channel, or a chat between people, is shared: its times read in the Space zone; a chat with only you and your agents reads in your own
-  const sharedChat = thread.kind === "channel" || thread.members.filter((p) => p.kind === "person").length >= 2;
+  const sharedChat = thread.kind === "channel" || peopleIn(thread) >= 2;
   const items = timeline(woven, {
     meId: data.me.id,
     nameOf,
@@ -895,10 +1032,19 @@ function ConversationView(): ReactElement {
     openedAt: openedAt.current,
     mentionsMe: (m) => mentionsIn(m.body, [{ kind: "person", id: data.me.id, name: data.me.name }]).length > 0,
   });
+  // a message of the person's that an agent has answered since: the line that says what it taught is then gone (shown once)
+  const answered = new Set<string>();
+  let agentAfter = false;
+  for (let i = timelineMessages.length - 1; i >= 0; i--) {
+    const m = timelineMessages[i]!;
+    if (m.author.kind === "agent") agentAfter = true;
+    else if (m.author.kind === "person" && agentAfter) answered.add(m.messageId);
+  }
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
   const queuedIdsNow = queuedIds(timelineMessages, data.me.id, isWorking);
+  const stillQ = stillQueued === null ? queuedIdsNow : queuedIdsNow.filter((id) => stillQueued.includes(id));
   const leadDriver = entryOf(accounts, leadNow?.accountRef)?.provider;
   // only the person whose turn it is steers it; anyone else's message goes in after it (the engine holds to this; a turn picked up mid-way names nobody until its next start)
   const runningFor = liveTurns.find((t) => t.state === "writing" && t.agentId === leadNow?.agentId)?.asker;
@@ -929,7 +1075,7 @@ function ConversationView(): ReactElement {
           }),
         ),
         { separator: true },
-        { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")) },
+        { label: "Stop everyone", danger: true, onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")) },
       ],
       x,
       y,
@@ -969,169 +1115,137 @@ function ConversationView(): ReactElement {
       data.nav.openThread(id);
     else data.nav.openAgent(id);
   };
+  // the count is everyone who is here, people and agents, as the "Who's here" list names them (G2)
+  const hereCount = new Set([...thread.members.map((m) => m.id), ...thread.agents.map((a) => a.agentId)]).size;
   const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: openFace });
-  const modelMenu = (x: number, y: number): void => {
-    if (!lead) return;
-    void act.listModels(data).then(
-      (models) =>
-        menu.show(
-          [
-            { head: `Model for ${nameOf(lead.agentId)}` } as MenuEntry,
-            ...collect(
-              models,
-              (m): MenuEntry => ({
-                label: m.title,
-                checked:
-                  m.model === lead.model ||
-                  (m.alias !== undefined && m.alias === lead.model) ||
-                  modelLabel(lead.model ?? "") === m.title,
-                onSelect: () => {
-                  if (!m.allowed) {
-                    say(`${m.title} is not allowed here. Ask an admin for access.`);
-                    return;
-                  }
-                  void act
-                    .setModel(data, lead.agentId, m)
-                    .then(
-                      () => say(`${nameOf(lead.agentId)} now answers with ${m.title}`),
-                      fail("Could not switch the model."),
-                    );
-                },
-              }),
-            ),
-          ],
-          x,
-          y,
-          "other",
-          { label: "Model" },
-        ),
-      fail("Could not list the models."),
-    );
+  /** Star, Mute, Add people, Copy link, Leave or Delete: what the sidebar row's menu carries, from the same builder, for the open chat (G4: the head menu's "More"). */
+  const housekeeping = (): MenuEntry[] => {
+    const setMute = (on: boolean): void => {
+      setHdr((h) => ({ ...h, muted: on }));
+      void menuApi.setMute("thread", data.threadId, on).catch(() => {
+        setHdr((h) => ({ ...h, muted: !on }));
+        say("That did not go through.");
+      });
+    };
+    const copyLink = (): void => {
+      const link = itemLink("chat", data.threadId);
+      if (link === "") copyLinkText("");
+      else {
+        data.copy(link);
+        say("Link copied");
+      }
+    };
+    if (thread.kind !== "chat")
+      return [
+        { label: hdr.muted ? "Unmute" : "Mute", onSelect: () => setMute(!hdr.muted) },
+        { label: "Copy link", onSelect: copyLink },
+      ];
+    return chatMenu(
+      {
+        starred: hdr.starred,
+        unread: false,
+        local: false,
+        archived: hdr.archived,
+        withPeople: thread.agents.length === 0,
+        muted: hdr.muted,
+      },
+      {
+        open: () => undefined,
+        rename: () => setRenamingChat(true),
+        star: (on) => {
+          setHdr((h) => ({ ...h, starred: on }));
+          void Promise.resolve(
+            data.call("stars.toggle", { resource: { type: "thread", id: data.threadId }, on }),
+          ).catch(() => {
+            setHdr((h) => ({ ...h, starred: !on }));
+            say("That did not go through.");
+          });
+        },
+        markRead: () => undefined,
+        markUnread: () => undefined,
+        mute: setMute,
+        archive: () => undefined,
+        unarchive: () => undefined,
+        leave: () =>
+          void Promise.resolve(data.call("threads.leave", { threadId: data.threadId })).then(
+            () => say("You left this chat."),
+            fail("Could not leave."),
+          ),
+        remove: () =>
+          menu.show(
+            [
+              { head: "Delete this chat? It is hidden for you and can be restored for a while." },
+              {
+                label: "Delete chat",
+                danger: true,
+                onSelect: () =>
+                  void Promise.resolve(data.call("threads.delete", { threadId: data.threadId })).then(
+                    () => say("Chat deleted."),
+                    fail("Could not delete."),
+                  ),
+              },
+              { label: "Cancel" },
+            ],
+            moreAt.current.x,
+            moreAt.current.y,
+            "other",
+          ),
+        addPeople: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
+        copyLink,
+      },
+      { open: false, read: false },
+    ).filter((e) => !("label" in e && (e.label === "Archive" || e.label === "Unarchive")));
   };
   const moreEntries = (): MenuEntry[] => {
-    const mine: MenuEntry[] =
-      thread.kind === "chat"
-        ? chatHeaderEntries(
-            { ...hdr, withPeople: thread.agents.length === 0 },
-            {
-              rename: () => setRenamingChat(true),
-              star: (on) => {
-                setHdr((h) => ({ ...h, starred: on }));
-                void Promise.resolve(
-                  data.call("stars.toggle", { resource: { type: "thread", id: data.threadId }, on }),
-                ).catch(() => {
-                  setHdr((h) => ({ ...h, starred: !on }));
-                  say("That did not go through.");
-                });
-              },
-              mute: (on) => {
-                setHdr((h) => ({ ...h, muted: on }));
-                void menuApi.setMute("thread", data.threadId, on).catch(() => {
-                  setHdr((h) => ({ ...h, muted: !on }));
-                  say("That did not go through.");
-                });
-              },
-              archive: () =>
-                void Promise.resolve(data.call("threads.archive", { threadId: data.threadId })).then(() => {
-                  setHdr((h) => ({ ...h, archived: true }));
-                  say("Archived. It left your list; an @mention brings it back.");
-                }, fail("Could not archive.")),
-              unarchive: () =>
-                void Promise.resolve(data.call("threads.unarchive", { threadId: data.threadId })).then(() => {
-                  setHdr((h) => ({ ...h, archived: false }));
-                  say("Back in your list.");
-                }, fail("Could not unarchive.")),
-              leave: () =>
-                void Promise.resolve(data.call("threads.leave", { threadId: data.threadId })).then(
-                  () => say("You left this chat."),
-                  fail("Could not leave."),
-                ),
-              remove: () =>
-                menu.show(
-                  [
-                    { head: "Delete this chat? It is hidden for you and can be restored for a while." },
-                    {
-                      label: "Delete chat",
-                      danger: true,
-                      onSelect: () =>
-                        void Promise.resolve(data.call("threads.delete", { threadId: data.threadId })).then(
-                          () => say("Chat deleted."),
-                          fail("Could not delete."),
-                        ),
-                    },
-                    { label: "Cancel" },
-                  ],
-                  moreAt.current.x,
-                  moreAt.current.y,
-                  "other",
-                ),
-              addPeople: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
-              copyLink: () => {
-                const link = itemLink("chat", data.threadId);
-                if (link === "") copyLinkText("");
-                else {
-                  data.copy(link);
-                  say("Link copied");
-                }
-              },
-            },
-          )
-        : [];
-    const items: MenuEntry[] = [
-      ...mine,
-      ...(mine.length > 0 ? [{ separator: true } as MenuEntry] : []),
-      { label: "Find in Chat", hint: "⌘F", onSelect: () => setFinding(true) },
-      { separator: true } as MenuEntry,
-      {
-        label: "Plan Mode",
-        checked: mode === "plan",
-        onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan"),
-      },
-      ...(hasSwitch(thread) && repliesSwitch.on !== null
+    const switchEntry: MenuEntry[] =
+      hasSwitch(thread) && repliesSwitch.on !== null
         ? [
             {
               label: SWITCH_TITLE,
               checked: repliesSwitch.on,
               ...(repliesSwitch.on ? { hint: SWITCH_NOTE } : {}),
               onSelect: () => repliesSwitch.set(!repliesSwitch.on),
-            } as MenuEntry,
+            },
           ]
-        : []),
-      ...(lead
-        ? [
-            {
-              label: `Open ${nameOf(lead.agentId)}'s Page`,
-              onSelect: () => data.nav.openAgent(lead.agentId),
-            } as MenuEntry,
-          ]
-        : []),
-      ...connectEntries(thread, data.nav),
-      { separator: true } as MenuEntry,
-      ...(data.nav.openSearch
-        ? [{ label: "Search All Chats…", onSelect: () => data.nav.openSearch!("") } as MenuEntry]
-        : []),
-      ...collect(
-        act.onlyMeHere(thread, data.me.id) ? (data.elsewhere?.spaces ?? []).slice(0, 6) : [],
-        (sp): MenuEntry => ({
-          label: `Continue in ${sp.name}`,
-          onSelect: () => void runSlash(`/continue ${sp.name}`, commandEnv()),
-        }),
-      ),
-      { label: "Fork This Chat", onSelect: () => void runSlash("/fork", commandEnv()) } as MenuEntry,
-      { label: "Export as Markdown", onSelect: () => void runSlash("/export md", commandEnv()) } as MenuEntry,
-      { label: "Export as JSON", onSelect: () => void runSlash("/export json", commandEnv()) } as MenuEntry,
-      ...(isWorking
-        ? [
-            { separator: true } as MenuEntry,
-            {
-              label: "Stop All",
-              danger: true,
-              onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")),
-            } as MenuEntry,
-          ]
-        : []),
-    ];
-    return items;
+        : [];
+    return chatHeaderEntries(
+      {
+        withAgent: lead !== undefined,
+        withPeople: thread.kind === "chat" && thread.agents.length === 0,
+        planOn: mode === "plan",
+        muted: hdr.muted,
+        archived: hdr.archived,
+        working: isWorking,
+        archivable: thread.kind === "chat",
+      },
+      {
+        plan: () => chooseChatMode(mode === "plan" ? "ask" : "plan"),
+        fork: () => void runSlash("/fork", commandEnv()),
+        find: () => setFinding(true),
+        ...(data.nav.openPaneTab ? { kept: () => data.nav.openPaneTab?.("kept") } : {}),
+        exportMd: () => void runSlash("/export md", commandEnv()),
+        mute: (on) => {
+          setHdr((h) => ({ ...h, muted: on }));
+          void menuApi.setMute("thread", data.threadId, on).catch(() => {
+            setHdr((h) => ({ ...h, muted: !on }));
+            say("That did not go through.");
+          });
+        },
+        archive: () =>
+          void Promise.resolve(data.call("threads.archive", { threadId: data.threadId })).then(() => {
+            setHdr((h) => ({ ...h, archived: true }));
+            say("Archived. It left your list; an @mention brings it back.");
+          }, fail("Could not archive.")),
+        unarchive: () =>
+          void Promise.resolve(data.call("threads.unarchive", { threadId: data.threadId })).then(() => {
+            setHdr((h) => ({ ...h, archived: false }));
+            say("Back in your list.");
+          }, fail("Could not unarchive.")),
+        stopAll: () => void act.stopAll(data).catch(fail("Could not stop.")),
+        more: () => menu.show(housekeeping(), moreAt.current.x, moreAt.current.y, "other", { label: "Chat" }),
+        extra: [...switchEntry, ...connectEntries(thread, data.nav)],
+      },
+    );
   };
   const moreMenu = (x: number, y: number): void => {
     moreAt.current = { x, y };
@@ -1198,6 +1312,29 @@ function ConversationView(): ReactElement {
     return l
       ? `${l.text}|${l.button ?? ""}|${notHereBusy === m.messageId ? "busy" : ""}|${notHereError[m.messageId] ?? ""}`
       : undefined;
+  };
+  // the note for a message still waiting for the agent's next step sits under that message (the last of them when several wait)
+  const queueUnder = (m: Message): ReactElement | null => {
+    const at = stillQ.indexOf(m.messageId);
+    if (!q || at < 0) return null;
+    return (
+      <QueueLine
+        note={queueNote(1, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}
+        onEdit={() => {
+          const id = m.messageId;
+          const words = m.body;
+          void act.takeBackQueued(data, thread.threadId, id).then((ok) => {
+            if (ok) {
+              setPending((cur) => cur.filter((p) => p.messageId !== id));
+              setSeed((sd) => ({ n: sd.n + 1, value: words }));
+            } else say("It was already read, so it cannot be edited now.");
+          }, fail("Could not take it back."));
+        }}
+        onSendNow={() =>
+          void act.sendQueuedNow(data, thread.threadId, m.messageId).catch(fail("Could not send it now."))
+        }
+      />
+    );
   };
   const notHereFor = (m: Message): ReactElement | null => {
     const line = notHereLineOf(m);
@@ -1270,8 +1407,12 @@ function ConversationView(): ReactElement {
       />
     );
   };
+  // a live reply is held for the person when the newest agent message still carries a question or approval waiting for them
+  const lastAgentMsg = [...all].reverse().find((x) => x.author.kind === "agent");
+  const heldForYou = lastAgentMsg?.blocks.some((b) => b.state === "waiting") === true;
   const actions: MessageActions = {
-    belowMine: notHereFor,
+    heldForYou,
+    belowMine: (m) => notHereFor(m) ?? queueUnder(m),
     host,
     copy: (t) => {
       data.copy(t);
@@ -1312,6 +1453,7 @@ function ConversationView(): ReactElement {
           fail("Could not open the replies."),
         ),
     remove: (id) => void act.deleteMessage(data, id).catch(fail("Could not delete it.")),
+    askRemove: (id) => setDeleting(id),
     ...(data.alsoSent ? { alsoSent: data.alsoSent } : {}),
     ...(thread.kind === "thread" ? { faceInThread: true } : {}),
     openAgent: openFace,
@@ -1347,13 +1489,13 @@ function ConversationView(): ReactElement {
       const p = pending.find((x) => `pending:${x.key}` === id);
       if (p) {
         setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x)));
-        setLine("");
+        unsay();
         run(p);
       }
     },
     discardSend: (id) => {
       setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id));
-      setLine("");
+      unsay();
     },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
     ...(lead
@@ -1542,7 +1684,7 @@ function ConversationView(): ReactElement {
       .map((x) => noteFor(x, "agent"))
       .filter((x) => mentionable(x, data.me.guest === true, inThread)),
     people: (data.lists.people ?? []).map((x) => noteFor(x, "person")),
-    commands: commandItems(data.pluginCommands?.()),
+    commands: commandItems(data.pluginCommands?.(), thread.kind === "chat" && thread.agents.length > 0),
   };
   const mode: ChatMode = modeOver ?? modeOf(thread);
   const chooseChatMode = (m: ChatMode): void => {
@@ -1606,9 +1748,12 @@ function ConversationView(): ReactElement {
       return;
     }
     void shareWithAgents(data, items, agents, data.newKey()).then((done) => {
-      setLine(sharedLine(done));
-      setUndo(() => () => {
-        void undoShare(data, done.grants).then(() => say("Taken back."), fail("Could not take it back."));
+      speak(sharedLine(done), {
+        label: "Undo",
+        run: () => {
+          unsay();
+          void undoShare(data, done.grants).then(() => say("Taken back."), fail("Could not take it back."));
+        },
       });
     }, fail("Could not share that."));
   };
@@ -1664,10 +1809,10 @@ function ConversationView(): ReactElement {
                 </Text>
               </Pressable>
             )}
-            {isWorking ? (
-              <View testID="conversation-live" accessibilityLabel="Working" style={st.live}>
-                <View style={st.liveDot} />
-              </View>
+            {chapterNow !== "" ? (
+              <Text numberOfLines={1} testID="conversation-chapter" style={st.chapterNow}>
+                {chapterNow}
+              </Text>
             ) : null}
             <View style={{ flex: 1 }} />
             {online ? null : (
@@ -1706,18 +1851,9 @@ function ConversationView(): ReactElement {
                 onPress={helpersMenu}
               />
             ) : null}
-            {isWorking ? (
-              <IconButton
-                icon="stop"
-                label={stopLabel(working, nameOf)}
-                danger
-                testID="stop-button"
-                onPress={stopMenu}
-              />
-            ) : null}
             <PeopleCount
-              count={thread.members.length}
-              label={`${thread.members.length} in this chat`}
+              count={hereCount}
+              label={`${hereCount} in this chat`}
               testID="participants-button"
               onPress={peopleMenu}
             />
@@ -1851,69 +1987,98 @@ function ConversationView(): ReactElement {
             />
           </View>
         )}
-        <View style={st.feedBox} onLayout={(e) => setGutter(gutterFits(e.nativeEvent.layout.width))}>
-          <GutterContext.Provider value={gutter}>
-            <Feed
-              key={jump}
-              followKey={timelineMessages.length}
-              {...(lastStream ? { store: lastStream } : {})}
-              {...(data.head ? { startAway: true, endKey: sentOnPage } : {})}
-              testID="conversation-feed"
-              contentStyle={st.feedContent}
-              onAtEndChange={setAtEnd}
-            >
-              {data.head ?? null}
-              <View style={st.col}>
-                {hasEarlier ? (
-                  <View style={st.earlier}>
-                    <TextButton
-                      label="Show earlier messages"
-                      testID="earlier-button"
-                      onPress={() => {
-                        if (win.hiddenLocal > 0) setShown((n) => n + WINDOW);
-                        else {
-                          const c = beforeCursor(all);
-                          if (c !== null) setCursor(c);
-                        }
-                      }}
-                    />
+        <ChapterLayer
+          call={data.call}
+          threadId={thread.threadId}
+          size={hasEarlier ? Math.max(all.length, CHAPTER_MIN + 1) : all.length}
+          newest={win.rows[win.rows.length - 1]?.threadSeq ?? 0}
+          focusSeq={activeId ? (all.find((m) => m.messageId === activeId)?.threadSeq ?? null) : null}
+          jobs={{
+            agentIds: thread.agents.map((a) => a.agentId),
+            screens: data.screens,
+            watch: isWorking || usedTerminal(timelineMessages),
+            shared: sharedChat,
+          }}
+          rows={rows}
+          own={ownSeq}
+          clock={{ ...data.clock(), ...(sharedChat ? { zones } : {}) }}
+        >
+          {(laid) => (
+            <View style={st.feedBox} onLayout={(e) => setGutter(gutterFits(e.nativeEvent.layout.width))}>
+              <ChapterNow rows={laid.rows} report={setChapterNow} />
+              <GutterContext.Provider value={gutter}>
+                <Feed
+                  key={jump}
+                  followKey={timelineMessages.length}
+                  {...(lastStream ? { store: lastStream } : {})}
+                  {...(data.head ? { startAway: true, endKey: sentOnPage } : {})}
+                  testID="conversation-feed"
+                  contentStyle={st.feedContent}
+                  onAtEndChange={setAtEnd}
+                >
+                  {data.head ?? null}
+                  <View style={st.col}>
+                    {hasEarlier ? (
+                      <View style={st.earlier}>
+                        <TextButton
+                          label="Show earlier messages"
+                          testID="earlier-button"
+                          onPress={() => {
+                            if (win.hiddenLocal > 0) setShown((n) => n + WINDOW);
+                            else {
+                              const c = beforeCursor(all);
+                              if (c !== null) setCursor(c);
+                            }
+                          }}
+                        />
+                      </View>
+                    ) : null}
+                    {items.length === 0 && !data.head && thread.kind !== "thread" ? (
+                      <States kind="empty" icon="chat" title="Say something to start" />
+                    ) : null}
+                    {collect(laid.rows, (it, at) => {
+                      const key = it.key;
+                      if (it.kind === "chapter") return <ChapterHead key={key} row={it} onToggle={laid.flip} />;
+                      const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
+                      const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
+                      const under =
+                        it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
+                      const row = (
+                        <MessageView
+                          key={key}
+                          item={it}
+                          actions={rowActions}
+                          meId={data.me.id}
+                          stream={stream}
+                          sending={sending}
+                          below={
+                            it.kind === "me"
+                              ? `${notHereSig(it.message) ?? ""}${stillQ.includes(it.message.messageId) ? `|queued${stillQ.indexOf(it.message.messageId)}${q}` : ""}`
+                              : undefined
+                          }
+                          answered={it.kind === "me" ? answered.has(it.message.messageId) : undefined}
+                          mark={markOf(it, matches, activeId, finding)}
+                          replies={under ? { s: under, clock: data.clock() } : undefined}
+                        />
+                      );
+                      // always wrapped on the web, so a row that grows old keeps its state; only the style changes
+                      return Platform.OS === "web" ? (
+                        <View key={key} style={at < laid.rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>
+                          {row}
+                        </View>
+                      ) : (
+                        row
+                      );
+                    })}
+                    {laid.jobs}
+                    {data.tail ?? null}
                   </View>
-                ) : null}
-                {items.length === 0 && !data.head && thread.kind !== "thread" ? (
-                  <States kind="empty" icon="chat" title="Say something to start" />
-                ) : null}
-                {collect(rows, (it, at) => {
-                  const key = it.key;
-                  const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
-                  const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
-                  const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
-                  const row = (
-                    <MessageView
-                      key={key}
-                      item={it}
-                      actions={rowActions}
-                      meId={data.me.id}
-                      stream={stream}
-                      sending={sending}
-                      below={it.kind === "me" ? notHereSig(it.message) : undefined}
-                      mark={markOf(it, matches, activeId, finding)}
-                      replies={under ? { s: under, clock: data.clock() } : undefined}
-                    />
-                  );
-                  // always wrapped on the web, so a row that grows old keeps its state; only the style changes
-                  return Platform.OS === "web" ? (
-                    <View key={key} style={at < rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>
-                      {row}
-                    </View>
-                  ) : (
-                    row
-                  );
-                })}
-                {data.tail ?? null}
-              </View>
-            </Feed>
-          </GutterContext.Provider>
-        </View>
+                </Feed>
+              </GutterContext.Provider>
+              <ChapterRail dots={laid.dots} onJump={laid.jump} />
+            </View>
+          )}
+        </ChapterLayer>
         {/* in its own row under the list, at the right: it never sits over a line of text */}
         {atEnd || data.head ? null : (
           <Pressable
@@ -1957,45 +2122,41 @@ function ConversationView(): ReactElement {
         ) : null}
 
         {data.waitingLine ?? null}
-        <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
-        <QueueWaiting ids={queuedIdsNow} call={data.call} threadId={thread.threadId}>
-          {(waiting) =>
-            q && waiting.length > 0 ? (
-              <View testID="queue-row" style={st.queueRow}>
-                <Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>
-                  {queueNote(waiting.length, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}
-                </Text>
-                {waiting.length > 0 ? (
-                  <TextButton
-                    link
-                    label="Edit"
-                    testID="queue-edit"
-                    onPress={() => {
-                      const id = waiting[waiting.length - 1]!;
-                      const words = timelineMessages.find((m) => m.messageId === id)?.body ?? "";
-                      void act.takeBackQueued(data, thread.threadId, id).then((ok) => {
-                        if (ok) {
-                          setPending((cur) => cur.filter((p) => p.messageId !== id));
-                          setSeed((s) => ({ n: s.n + 1, value: words }));
-                        } else say("It was already read, so it cannot be edited now.");
-                      }, fail("Could not take it back."));
-                    }}
-                  />
-                ) : null}
-                {waiting.length > 0 ? (
-                  <TextButton
-                    link
-                    label="Stop and send"
-                    testID="queue-send-now"
-                    onPress={() =>
-                      void act.sendQueuedNow(data, thread.threadId, waiting[0]!).catch(fail("Could not send it now."))
+        {card ? (
+          <CommandCard
+            key={card.n}
+            spec={card.spec}
+            onClose={() => setCard(null)}
+            onPressOutside={(t) => {
+              if (!insideComposer(t)) setCard(null);
+            }}
+            notify={(text, back) =>
+              speak(
+                text,
+                back
+                  ? {
+                      label: "Undo",
+                      run: () => {
+                        unsay();
+                        back();
+                      },
                     }
-                  />
-                ) : null}
-              </View>
-            ) : null
-          }
-        </QueueWaiting>
+                  : undefined,
+              )
+            }
+            onSettings={(ref) => {
+              setCard(null);
+              if (ref !== undefined && data.nav.openAiAccount) data.nav.openAiAccount(ref);
+              else data.nav.openAiSetup?.();
+            }}
+            onConnect={() => {
+              setCard(null);
+              data.nav.openAiSetup?.();
+            }}
+          />
+        ) : null}
+        <QueueWatch ids={queuedIdsNow} call={data.call} threadId={thread.threadId} onChange={setStillQueued} />
+        <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
         {unanswered ? (
           <View testID="no-agent-line" style={st.lineBox}>
             <Pressable
@@ -2019,12 +2180,6 @@ function ConversationView(): ReactElement {
           <View testID="hop-parked" accessibilityLiveRegion="polite" style={st.lineBox}>
             <Text style={st.lineText}>{parkedLine(hopLimit)}</Text>
             <TextButton label="Continue" testID="hop-continue" onPress={() => commandEnv().send(CONTINUE_TEXT)} />
-          </View>
-        ) : null}
-        {line ? (
-          <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}>
-            <Text style={st.lineText}>{line}</Text>
-            {undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}
           </View>
         ) : null}
         {outsideOffline && !closed ? (
@@ -2069,6 +2224,28 @@ function ConversationView(): ReactElement {
                 onPeople={(x, y) => peopleMenu(x, y)}
               />
             ) : null}
+            <LiveSubagents
+              me={data.me.id}
+              turns={liveTurns}
+              activityOf={data.activityOf ? (id) => data.activityOf!(id) : undefined}
+            />
+            {(() => {
+              // while an agent's engine has subagents of its own at work, they are on screen here (no reply carries them yet); when the reply lands, the same rows sit under it
+              const shown = new Set(timelineMessages.flatMap((m) => subagentIdsOf(m.blocks)));
+              const subs = liveSubagents(crew?.status ?? null, shown);
+              if (!crew || subs.length === 0) return null;
+              return (
+                <View testID="subagents-live" style={st.subagentsLive}>
+                  <CrewBlock
+                    members={subs}
+                    totals={totalsOf(subs)}
+                    selectedId={crew.selected}
+                    onPeek={(x) => crew.show(x.id)}
+                    onOpenPane={() => crew.show(null)}
+                  />
+                </View>
+              );
+            })()}
             {!longChat && crew?.status && crew.status.members.length > 0 ? (
               <CrewIsland status={crew.status} onPress={() => crew.show(null)} />
             ) : null}
@@ -2142,8 +2319,20 @@ function ConversationView(): ReactElement {
               mode={mode}
               onMode={chooseChatMode}
               barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
+              plusExtra={() => [
+                {
+                  id: "plus-memory",
+                  title: SWITCH_LABEL,
+                  icon: "lock",
+                  checked: !chatMemory(thread.threadId).remember,
+                  onPress: () => flipChatMemory(thread.threadId, data.call, say),
+                },
+              ]}
               suggest={composerSuggest(data)}
               preview={(item) => previewOf(data, item)}
+              openPanelAt={panelAt}
+              talkAt={talkAt}
+              onTalkUnavailable={() => say("Talking needs a microphone, and this view has none")}
               renderPanel={(agent, close, narrowPanel) => (
                 <ChatBrain
                   data={data}
@@ -2179,11 +2368,13 @@ function ConversationView(): ReactElement {
               onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
               onSubmit={(p) => submit(p, "queue")}
               onInterrupt={(p) => submit(p, "interrupt")}
-              onStop={() =>
+              onStop={(at) => {
+                // two or more working: one stop per face and Stop everyone, where it was pressed (agents run together, e-parallel)
+                if (working.length > 1 && at) return stopMenu(at.x, at.y - ((working.length + 1) * 34 + 24));
                 void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).catch(
                   fail("Could not stop it."),
-                )
-              }
+                );
+              }}
             />
           </View>
         )}
@@ -2200,6 +2391,16 @@ function ConversationView(): ReactElement {
         ) : null}
         {menu.element}
         {add.element}
+        {deleting !== null ? (
+          <DeleteAsk
+            onClose={() => setDeleting(null)}
+            onDelete={() => {
+              const id = deleting;
+              setDeleting(null);
+              void act.deleteMessage(data, id).catch(fail("Could not delete it."));
+            }}
+          />
+        ) : null}
         {renamingChat ? (
           <TextAsk
             title="Rename chat"
@@ -2221,6 +2422,18 @@ function ConversationView(): ReactElement {
 }
 
 const ROUTE_STYLE = { flex: 1, minHeight: 0 };
+
+/** Tells the head which chapter the chat is in now (the heading row marked current); draws nothing. */
+function ChapterNow({ rows, report }: { rows: readonly unknown[]; report(title: string): void }): null {
+  const now = (rows as { kind?: string; current?: boolean; title?: string }[]).find(
+    (r) => r.kind === "chapter" && r.current === true,
+  );
+  const title = now?.title ?? "";
+  useEffect(() => {
+    report(title);
+  }, [title, report]);
+  return null;
+}
 
 /**
  * Brings a message the page does not hold into it: reads the window around it, widens the page until the row is mounted, leaves it marked for a few seconds, then lets go.
@@ -2339,6 +2552,7 @@ const st = StyleSheet.create({
   },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
+  chapterNow: { flexShrink: 1, minWidth: 0, maxWidth: 260, fontSize: 12.5, color: "var(--ink-3)" as string },
   title: { flexShrink: 1, minWidth: 40, maxWidth: 320, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   titleBtn: {
     flexShrink: 1,
@@ -2383,8 +2597,6 @@ const st = StyleSheet.create({
     outlineStyle: "none",
     outlineWidth: 0,
   } as object,
-  live: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 6 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
   crewChip: {
@@ -2428,17 +2640,6 @@ const st = StyleSheet.create({
     backgroundColor: "var(--win)" as string,
   },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  queueRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "center",
-    columnGap: 10,
-    rowGap: 2,
-    paddingHorizontal: 24,
-    paddingVertical: 4,
-  },
-  queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: {
     paddingHorizontal: 24,
     paddingVertical: 4,
@@ -2462,6 +2663,7 @@ const st = StyleSheet.create({
   },
   typingRow: { height: 20, justifyContent: "center", paddingLeft: 6 },
   typingText: { fontSize: 12, color: "var(--ink-3)" as string },
+  subagentsLive: { alignSelf: "stretch", maxHeight: 220, overflow: "scroll" },
   composerBox: { alignSelf: "center", width: "100%", maxWidth: COLUMN + 48, paddingHorizontal: 24, paddingBottom: 16 },
 });
 

@@ -57,7 +57,10 @@ test("Move to project sets the chat's project for someone who may edit it, refus
   const deny = harness({
     calls: {
       "projects.get": () => ({ project: { projectId: "prj_a", recordId: "rec_a", title: "A" } }),
-      "access.check": () => ({ decision: { effect: "deny" } }),
+      // the person may see the agent (starting the chat asks), and may not edit the project (the move asks)
+      "access.check": (i) => ({
+        decision: { effect: (i as { resource?: { type?: string } }).resource?.type === "agent" ? "allow" : "deny" },
+      }),
     },
   });
   const other = (await h["chat.start"]!(deny.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread

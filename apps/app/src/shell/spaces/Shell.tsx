@@ -23,6 +23,7 @@ import { BREAKPOINTS, bandKey, layoutPanels } from "../../../../../ui/src/SidePa
 import { paneWidths } from "../../../../../ui/src/SidePane/index.tsx";
 import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
 import { installTips } from "../../../../../ui/src/Tooltip/tips.ts";
+import { mark } from "../../startup/marks.ts";
 import { NeedsTeamSpace } from "../../../../../ui/src/NeedsTeamSpace/index.tsx";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
@@ -370,7 +371,15 @@ export function Sheets({
 }
 
 /** A place frame: the first time it draws after a switch it tells the hub, which records the switch time. */
-function PlaceFrame({ hub, epoch, children }: { hub: ShellHub; epoch: number; children?: ReactNode }): ReactElement {
+function PlaceFrame({
+  hub,
+  epoch,
+  children,
+}: {
+  hub: Pick<ShellHub, "placeDrawn">;
+  epoch: number;
+  children?: ReactNode;
+}): ReactElement {
   useEffect(() => {
     hub.placeDrawn(epoch);
   }, [hub, epoch]);
@@ -378,6 +387,83 @@ function PlaceFrame({ hub, epoch, children }: { hub: ShellHub; epoch: number; ch
     <View testID="shell-place" style={styles.place}>
       {children}
     </View>
+  );
+}
+
+/** A screen the shell draws itself (a place that needs a Team Space, a new tab, a failure) is a usable first screen: without this mark the launch frame waits out its 8 s cap, because only a place module marks it (F55). */
+function ScreenUsable(): null {
+  useEffect(() => {
+    mark("app.usable");
+  }, []);
+  return null;
+}
+
+/** What the stage draws: the skeleton, a failure, a new tab, a place that needs a Team Space, or the place itself. Every screen the shell draws itself says the app is usable; a place module says it once it has drawn. */
+export function ShellStage({
+  hub,
+  state,
+  spaceName,
+  kind,
+  ctx,
+  activeTab,
+  compact,
+  renderPlace,
+  renderNewTab,
+  onSpaceAction,
+}: {
+  hub: Pick<ShellHub, "placeDrawn" | "retry">;
+  state: { phase: string; error: string | null; epoch: number; place: PlaceId; hash: string };
+  spaceName: string;
+  kind: string;
+  ctx: PlaceContext;
+  activeTab: { key: string; isNew?: boolean } | undefined;
+  compact: boolean;
+  renderPlace(ctx: PlaceContext): ReactNode;
+  renderNewTab?(ctx: PlaceContext): ReactNode;
+  onSpaceAction?(a: SpaceAction): void;
+}): ReactElement {
+  if (state.phase === "skeleton") return <SpaceSkeleton />;
+  if (state.error !== null)
+    return (
+      <>
+        <ScreenUsable />
+        <States
+          kind="error"
+          message={`Couldn't open ${spaceName}`}
+          cause={state.error}
+          next="Try again"
+          retryable
+          onRetry={() => hub.retry()}
+        />
+      </>
+    );
+  if (activeTab !== undefined && activeTab.isNew === true)
+    return (
+      <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${activeTab.key}`}>
+        <ScreenUsable />
+        {renderNewTab !== undefined ? (
+          renderNewTab(ctx)
+        ) : (
+          <States kind="empty" title="Open anything, or start something" icon="search" />
+        )}
+      </PlaceFrame>
+    );
+  const blocked = kind === "personal" ? teamOnly(state.place, state.hash) : null;
+  return (
+    <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${state.place}`}>
+      {blocked !== null ? (
+        <>
+          <ScreenUsable />
+          <NeedsTeamSpace
+            what={blocked}
+            density={compact ? "compact" : "regular"}
+            onAction={() => onSpaceAction?.("add")}
+          />
+        </>
+      ) : (
+        renderPlace(ctx)
+      )}
+    </PlaceFrame>
   );
 }
 
@@ -498,45 +584,20 @@ export function Shell(props: ShellProps): ReactElement {
   // The place frame is keyed by epoch, Space and place only: an item change (ctx.hash) updates the place in place, so its sidebar scroll, pane and composer keep their state.
   const activeTab = tabs.tabs.find((t) => t.key === tabs.active);
 
-  let stage: ReactNode;
-  if (state.phase === "skeleton") stage = <SpaceSkeleton />;
-  else if (state.error !== null) {
-    stage = (
-      <States
-        kind="error"
-        message={`Couldn't open ${session.def.name}`}
-        cause={state.error}
-        next="Try again"
-        retryable
-        onRetry={() => hub.retry()}
-      />
-    );
-  } else if (activeTab !== undefined && activeTab.isNew === true) {
-    stage = (
-      <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${activeTab.key}`}>
-        {props.renderNewTab !== undefined ? (
-          props.renderNewTab(ctx)
-        ) : (
-          <States kind="empty" title="Open anything, or start something" icon="search" />
-        )}
-      </PlaceFrame>
-    );
-  } else {
-    const blocked = session.def.kind === "personal" ? teamOnly(state.place, state.hash) : null;
-    stage = (
-      <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${state.place}`}>
-        {blocked !== null ? (
-          <NeedsTeamSpace
-            what={blocked}
-            density={compact ? "compact" : "regular"}
-            onAction={() => props.onSpaceAction?.("add")}
-          />
-        ) : (
-          props.renderPlace(ctx)
-        )}
-      </PlaceFrame>
-    );
-  }
+  const stage = (
+    <ShellStage
+      hub={hub}
+      state={state}
+      spaceName={session.def.name}
+      kind={session.def.kind}
+      ctx={ctx}
+      activeTab={activeTab}
+      compact={compact}
+      renderPlace={props.renderPlace}
+      {...(props.renderNewTab !== undefined ? { renderNewTab: props.renderNewTab } : {})}
+      {...(props.onSpaceAction !== undefined ? { onSpaceAction: props.onSpaceAction } : {})}
+    />
+  );
 
   const spaceTile = (
     <SpaceTile
@@ -559,6 +620,9 @@ export function Shell(props: ShellProps): ReactElement {
         }
         onSearch={() => props.onSearch?.()}
         compact={compact}
+        nav={state.nav ?? { back: null, forward: null }}
+        onBack={() => void hub.back()}
+        onForward={() => void hub.forward()}
         call={
           props.phone ? (
             <Suspense fallback={null}>

@@ -460,10 +460,17 @@ export default defineManifest({
           spaceOnly: t.opt(t.bool()),
           injectIntoDeployments: t.opt(t.bool()),
           rotateEveryDays: t.opt(t.nullable(t.int({ minimum: 1 }))),
+          expectedUpdatedAt: t.opt(
+            t.ts({
+              description:
+                "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            }),
+          ),
         },
         out: { item: itemMeta },
         on: ["vault_item", "/itemId"],
         level: "edit",
+        errors: ["validation.version_conflict"],
         emits: ["vault.item_updated"],
         audit: "sensitive",
         tool: "vault",
@@ -502,6 +509,21 @@ export default defineManifest({
       tool: "vault",
       offline: "online",
     }),
+    write(
+      "vault.item.discard_new",
+      "Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it",
+      {
+        in: { itemId: id.vaultItem },
+        out: ok,
+        on: ["vault_item", "/itemId"],
+        level: "manage",
+        audit: "always",
+        // never an agent tool: a general erase has no place in an agent's list (review r-keyreach-9-b-connect, item C2); the connect card calls it
+        agent: false,
+        offline: "online",
+        errors: ["internal.not_implemented"],
+      },
+    ),
     write("vault.item.restore", "Bring an item back from Trash", {
       in: { itemId: id.vaultItem },
       out: { item: itemMeta },

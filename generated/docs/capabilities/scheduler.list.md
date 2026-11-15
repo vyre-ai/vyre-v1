@@ -26,7 +26,7 @@ List schedules by owner, with next and last fire times
 ```ts
 type In = {
   owner?: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   active?: boolean;
@@ -42,7 +42,7 @@ type Out = {
   schedules: Array<{
       id: string;
       owner: {
-        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
         id: string;
       };
       principal: string;
@@ -59,6 +59,9 @@ type Out = {
       nextAt?: number;
       lastFiredAt?: number;
       createdAt: number;
+      zone?: string;
+      scope?: "private" | "shared" | "room";
+      person?: string;
     }>;
   next?: string;
   total?: number;
@@ -102,10 +105,13 @@ type Out = {
           "kind": "automation"
         },
         "pausedReason": "example",
+        "person": "usr_a1b2c3",
         "principal": "example",
+        "scope": "private",
         "when": {
           "at": 1760000000000
-        }
+        },
+        "zone": "Asia/Karachi"
       }
     ],
     "total": 1

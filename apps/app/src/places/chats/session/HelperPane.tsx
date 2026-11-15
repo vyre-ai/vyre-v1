@@ -26,11 +26,16 @@ export const terminalTitle = (m: Pick<CrewMember, "name" | "title">): string =>
   `helper: ${m.name && m.name !== "" ? m.name : m.title}`;
 
 /** The workspace a helper works in, or null: only a coder in a workspace of its own has one. */
-export function useWorkspace(call: Call, threadId: string): Workspace | null | undefined {
+export function useWorkspace(call: Call | undefined, threadId: string): Workspace | null | undefined {
   const [ws, setWs] = useState<Workspace | null | undefined>(undefined);
   useEffect(() => {
     let dead = false;
     setWs(undefined);
+    // no call to ask with, or nothing to ask about (a subagent of the engine has no chat, so no workspace: asking is refused on every open)
+    if (!call) {
+      setWs(null);
+      return undefined;
+    }
     void Promise.resolve(call("engine.crew.workspace", { threadId })).then(
       (r) => {
         if (!dead) setWs((r as { workspace: Workspace | null } | undefined)?.workspace ?? null);
@@ -164,7 +169,7 @@ export function HelperPane({
   onRefresh: () => void;
   terminal?: TerminalData | undefined;
 }): ReactElement {
-  const ws = useWorkspace(call, member.id);
+  const ws = useWorkspace(member.kind === "subagent" ? undefined : call, member.id);
   const [tab, setTab] = useState<"helper" | "term">("helper");
   const hasTerminal = ws !== undefined && ws !== null && terminal !== undefined;
   const shown = hasTerminal ? tab : "helper";

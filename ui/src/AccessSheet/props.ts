@@ -151,6 +151,8 @@ export interface ShareRow {
   canShare?: boolean;
   /** Somebody else's Assistant or private agent. The sheet never lists one by name. */
   privateAgent?: boolean;
+  /** An agent's reach on a thing it made for the person (the grant's source says so): the row reads "Made this for you". */
+  madeBy?: boolean;
 }
 
 export type Audience = "space" | "added" | "me";
@@ -227,6 +229,11 @@ export interface AddSheetProps extends CommonProps {
   target: AddTarget;
   /** False where no capability can give a new member the earlier messages: the "Include earlier messages" switch stays hidden. Default true. */
   earlierMessages?: boolean;
+  /**
+   * Who may give earlier messages to whom (the server's rule): only the chat's owner widens someone who is already in, and anyone else gives a new member what they can read themselves. Without it the switch shows for
+   * every person picked.
+   */
+  earlierRule?: { owner: boolean; members: readonly string[] };
   /** The picks and whether earlier messages go with them. */
   onAdd(picks: readonly AccessPick[], opts: { earlier: boolean }): void;
 }
@@ -276,6 +283,11 @@ export interface ShareSheetProps extends CommonProps {
   onAgents?(on: boolean): void;
   /** Whether agents in the Space may call this item, when the server says (access.shares_of agentsCanCall). Left out: read from the rows. */
   agentsOn?: boolean;
+  /**
+   * Finding F35: where this item is kept an agent cannot use it, and sharing never lifts a label. These agents are listed but cannot be picked; one line above them says why and one action (Move)
+   * is the way out. The server still refuses a share that cannot work: this only says so before a person tries.
+   */
+  agentsBlocked?: { ids: readonly string[]; line: string; actionLabel: string; onAction(): void };
 }
 
 export type AccessSheetProps = AddSheetProps | ShareSheetProps;

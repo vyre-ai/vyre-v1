@@ -384,6 +384,8 @@ export default defineManifest({
             }),
           ),
           threadId: t.opt(id.thread),
+          // who may use it: everyone in a Team Space (the default for an agent a person makes) or only its maker ("me"); the sharing sheet changes it later
+          sharing: t.opt(t.enm("me", "everyone")),
         },
         out: { agent: agentRow },
         perm: "agents.create",
@@ -652,6 +654,17 @@ export default defineManifest({
         emits: ["agent.routine_changed"],
         tool: "agents",
         idem: "key",
+        errors: ["permission.no_grant"],
+      },
+    ),
+    write(
+      "agents.routine.fire",
+      "System: a routine's time has come (its wake made the fire): start its Run under its owner with the routine's key, only if the routine still exists, is on, is not paused and still agrees with the fire. Says why when it starts nothing",
+      {
+        in: { routineId: t.id("rtn"), dueKey: t.str({ examples: ["1793696460000"] }) },
+        out: { started: t.bool(), runId: t.opt(id.run), why: t.opt(t.str()) },
+        emits: ["agent.routine_run_started"],
+        idem: "none",
         errors: ["permission.no_grant"],
       },
     ),
@@ -942,6 +955,14 @@ export default defineManifest({
         folderId: t.str(),
         templateVersion: t.int(),
         private: t.opt(t.bool()),
+        projectId: t.opt(
+          t.str({ description: "The project a teammate belongs to: it is registered under the project in access" }),
+        ),
+        shared: t.opt(
+          t.bool({
+            description: "Made in the open Space by a person: shared with Everyone at use, written with the birth",
+          }),
+        ),
       },
       subject: ["agent", "/agentId"],
       trigger: { title: "An agent is created" },

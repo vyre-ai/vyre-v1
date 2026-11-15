@@ -51,3 +51,17 @@ test("a still copy goes over the view, stays until told, then fades once and lea
   assert.equal(copy.removed, true);
   assert.equal(holdView(null, null), null);
 });
+
+test("a quick second swap does not copy the copy still fading from the first (the cost doubled with every quick Back or Forward)", () => {
+  const live = node();
+  const fading = node();
+  live.querySelectorAll = () => (fading.removed ? [] : [fading]);
+  const first = holdView(live, live);
+  assert.ok(first);
+  const copy = live.kids[0] as ReturnType<typeof node>;
+  live.querySelectorAll = (q: string) => (q === "[data-swap]" && !copy.removed ? [copy] : []);
+  first.fade();
+  const second = holdView(live, live);
+  assert.ok(second);
+  assert.equal(copy.removed, true, "the copy that was still fading is gone before the next one is taken");
+});

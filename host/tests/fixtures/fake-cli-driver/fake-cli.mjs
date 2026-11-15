@@ -11,6 +11,7 @@
 //   send      "send <address> [mailboxId]": calls the mail_send tool over the Vyre MCP server named in --mcp-config (stdio shim or loopback URL, the same ways the real CLI would) and answers with
 //             what the tool said, "mail_send answered: <text>" or "mail_send refused: <text>" (a Gate hold, a refusal) or "mcp error: <message>". Lets a test drive the Gate path end to end.
 //   tool      "tool <name> <json arguments>": calls any tool over the Vyre MCP server and answers "<name> answered: <text>" or "<name> refused: <text>" (or "mcp error: ..."). A model that reads memory through its tools.
+//   toolslow  "toolslow <ms> <name> <json arguments>": waits <ms> (another agent's turn is made in that time), then finds the tool with tool_search and calls it, answering as "tool" does. A model that reads nothing and writes later.
 //   skillscheck  lists the skills in .claude/skills of its folder, where Claude Code looks for its own: "skills: <name>=<description>=<files>; ..." and whether Skill is an allowed tool
 //   anything else answers with the prompt it was given
 // These are picked by the prompt's last line (the person's message comes last, after the turn context and any recent messages a fresh session is given):
@@ -18,6 +19,8 @@
 //   rawecho      answers with the whole prompt it was given, turn context included
 //   whereami     "ran-on=<FAKE_WHERE or space> handover=<yes when the turn went on after its computer slept>"
 //   slowwhere    "first part. " at once, then after FAKE_SLOW_MS the same as whereami
+//   twosubagents  Claude Code starting two subagents of its own (Agent calls), whose own lines carry parent_tool_use_id: the first works with a shell command and says words nobody should read as the
+//                 reply, the second reads a file; each returns its answer at a different time, then the engine answers. A turn of about six seconds
 //   /compact ... compacts the way Claude Code does: a compact_boundary line (42000 tokens before, 2500 after), then an empty success result
 // Sessions are kept the way the real CLI keeps them: a file per session id under $HOME/.fake-claude/sessions, with the last line of every prompt it was sent. `--resume <id>` of a session with no file
 // says so in the real CLI's words on stderr and exits 1 before reading anything.
@@ -694,6 +697,68 @@ async function run(raw) {
     });
     return;
   }
+  if (lastLine === "twosubagents") {
+    const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+    const asst = (parent, content) =>
+      out({
+        type: "assistant",
+        parent_tool_use_id: parent,
+        message: {
+          id: `m_${Math.random().toString(36).slice(2, 8)}`,
+          model: "claude-sonnet-fake",
+          content,
+          usage: { input_tokens: 9, output_tokens: 3 },
+        },
+      });
+    const done = (parent, id, text) =>
+      out({
+        type: "user",
+        parent_tool_use_id: parent,
+        message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: text }] },
+      });
+    init();
+    asst(null, [
+      { type: "text", text: "I will start two subagents." },
+      {
+        type: "tool_use",
+        id: "toolu_a",
+        name: "Agent",
+        input: { description: "Test the terminal", prompt: "run echo hello" },
+      },
+      {
+        type: "tool_use",
+        id: "toolu_b",
+        name: "Agent",
+        input: { description: "Test the browser", prompt: "open the page" },
+      },
+    ]);
+    await sleep(1500);
+    asst("toolu_a", [
+      { type: "text", text: "SUBAGENT-CHATTER-A nobody reads this as the reply" },
+      { type: "tool_use", id: "tu_a1", name: "Bash", input: { command: "echo hello" } },
+    ]);
+    asst("toolu_b", [{ type: "tool_use", id: "tu_b1", name: "Read", input: { file_path: "/work/page.html" } }]);
+    await sleep(2500);
+    done("toolu_a", "tu_a1", "hello");
+    done(null, "toolu_a", [{ type: "text", text: "The terminal works. I ran echo and saw hello." }]);
+    await sleep(1500);
+    done("toolu_b", "tu_b1", "<html>");
+    done(null, "toolu_b", "The browser opened the page and it loaded.");
+    out({ type: "stream_event", event: { type: "message_start", message: { id: "m_fin" } } });
+    out({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Both subagents finished." } },
+    });
+    out({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "Both subagents finished.",
+      session_id: session,
+      usage: { input_tokens: 20, output_tokens: 8 },
+    });
+    return;
+  }
   if (/^\/compact\b/.test(prompt.trim())) {
     out({
       type: "system",
@@ -760,6 +825,16 @@ async function run(raw) {
   }
   // (the wake-up is judged before any "tool" line: a wake-up turn is sent the chat's earlier lines too)
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
+  const slowLine = prompt
+    .split("\n")
+    .reverse()
+    .find((l) => /^toolslow\s+\d+\s+\S+/.test(l));
+  if (slowLine) {
+    const sm = /^toolslow\s+(\d+)\s+(.*)$/s.exec(slowLine);
+    await new Promise((r) => setTimeout(r, Number(sm[1])));
+    await callTool(`tool ${sm[2]}`, true);
+    return;
+  }
   const toolLine = prompt
     .split("\n")
     .reverse()

@@ -689,6 +689,35 @@ export async function counts(ctx: NotifCtx): Promise<{
   return { rail: { needsYou, directConversations: direct }, dots, otherSpaces: [] };
 }
 
+/** The most threads one answer names. Past it `capped` is true and the oldest are left out. */
+export const UNSEEN_THREADS_MAX = 500;
+
+/** My own unseen mentions per thread: the mention and mention.thread notifications filed for me about a thread, not seen, not deleted. Never another person's (the query is always scoped to the asker). */
+export async function unseenByThread(
+  ctx: NotifCtx,
+  input: { threadIds?: string[] },
+): Promise<{ counts: { threadId: string; mentions: number }[]; capped: boolean }> {
+  const only = input.threadIds;
+  if (only !== undefined && only.length === 0) return { counts: [], capped: false };
+  const args: unknown[] = [meOf(ctx)];
+  let narrow = "";
+  if (only !== undefined) {
+    narrow = ` AND subject_id IN (${only.map(() => "?").join(", ")})`;
+    args.push(...only);
+  }
+  const rows = ctx.db.all(
+    `SELECT subject_id AS thread, SUM(MAX(1, count)) AS n, MAX(at) AS last FROM notifications_items
+       WHERE person = ? AND seen_at IS NULL AND deleted_at IS NULL AND subject_type = 'thread' AND kind IN ('mention', 'mention.thread')${narrow}
+       GROUP BY subject_id ORDER BY last DESC, subject_id LIMIT ${UNSEEN_THREADS_MAX + 1}`,
+    ...args,
+  ) as { thread: string; n: number }[];
+  const capped = rows.length > UNSEEN_THREADS_MAX;
+  return {
+    counts: rows.slice(0, UNSEEN_THREADS_MAX).map((r) => ({ threadId: r.thread, mentions: Number(r.n) })),
+    capped,
+  };
+}
+
 export async function markSeen(
   ctx: NotifCtx,
   input: { notificationIds?: string[]; place?: string },

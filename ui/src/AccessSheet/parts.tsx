@@ -359,35 +359,6 @@ export function Picker({
   );
 }
 
-export function Switch({
-  label,
-  on,
-  onChange,
-  testID,
-}: {
-  label: string;
-  on: boolean;
-  onChange(next: boolean): void;
-  testID?: string;
-}): ReactElement {
-  return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityLabel={label}
-      accessibilityState={{ checked: on }}
-      aria-checked={on}
-      testID={testID}
-      onPress={() => onChange(!on)}
-      style={st.switchRow}
-    >
-      <View style={[st.track, on && st.trackOn]}>
-        <View style={[st.knob, on && st.knobOn]} />
-      </View>
-      <Text style={st.switchText}>{label}</Text>
-    </Pressable>
-  );
-}
-
 export function Notes({
   lines,
 }: {
@@ -1130,15 +1101,17 @@ export function AccessList({
               id={`as-acc-${row.subjectId}`}
               title={row.name}
               note={
-                rec
-                  ? inheritedRow
-                    ? `From ${p.folderName ?? "its type"}`
-                    : rowSub({ ...row, via: "grant" })
-                  : row.subjectKind === "person" &&
-                      row.via === "grant" &&
-                      redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") !== null
-                    ? (redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") as string)
-                    : rowSub(row, p.folderName)
+                row.madeBy === true
+                  ? rowSub(row)
+                  : rec
+                    ? inheritedRow
+                      ? `From ${p.folderName ?? "its type"}`
+                      : rowSub({ ...row, via: "grant" })
+                    : row.subjectKind === "person" &&
+                        row.via === "grant" &&
+                        redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") !== null
+                      ? (redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") as string)
+                      : rowSub(row, p.folderName)
               }
               leadWidth={36}
               lead={<SubjectFace row={row} />}
@@ -1586,6 +1559,16 @@ export const st = StyleSheet.create({
     paddingBottom: 4,
   },
   sectText: { color: t("ink-4"), fontSize: 11.5 },
+  blocked: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  blockedText: { color: t("ink-3"), fontSize: 12.5 },
+  blockedAction: { color: t("accent"), fontSize: 12.5 },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -1694,8 +1677,6 @@ export const st = StyleSheet.create({
   line: { color: t("ink-2"), fontSize: 12.5, lineHeight: 18 },
   lockRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   note: { color: t("ink-3"), fontSize: 12.5, lineHeight: 18 },
-  switchRow: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start" },
-  switchText: { color: t("ink-2"), fontSize: 12.5 },
   track: {
     width: 30,
     height: 18,

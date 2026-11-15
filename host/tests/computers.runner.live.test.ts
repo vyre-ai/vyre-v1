@@ -224,8 +224,8 @@ test(
     const rd = await call(d, "computers.files.read", { computerId: dexPc, path: "dex-was-here.txt" });
     assert.equal(rd.status, 200, JSON.stringify(rd.data));
     assert.match(JSON.stringify(rd.data), /from-dex/);
-    const ran = await docker(["exec", box(dexPc), "sh", "-c", "echo ran-in-$(hostname | cut -c1-9)"]);
-    assert.match(ran.out, /ran-in-vyre-comp/);
+    const ran = await docker(["exec", box(dexPc), "sh", "-c", "echo ran-in-$(hostname)"]);
+    assert.match(ran.out, /ran-in-computer\s*$/);
 
     // isolation: the second agent's computer cannot read the first's files, and cannot connect to it
     const others = await call(d, "computers.files.list", { computerId: quillPc });

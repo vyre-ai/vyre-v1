@@ -6,7 +6,8 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { Icon, LeadIcon, PaneList, Switch, TextButton } from "../rightpane/parts.tsx";
+import { Icon, LeadIcon, PaneList, TextButton } from "../rightpane/parts.tsx";
+import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
 import type { Entry } from "../rightpane/parts.tsx";
 import { acceptSuggestion, dismissSuggestion, moveToTrash, pause, resume, setRoutine } from "./actions.ts";
 import type { PageDeps } from "./actions.ts";
@@ -234,7 +235,7 @@ export function SettingsTab({
           on={r.enabled}
           label={`${r.title} on`}
           testID={`routine-switch-${r.routineId}`}
-          onPress={() => void setRoutine(deps, agentId, r, !r.enabled)}
+          onChange={() => void setRoutine(deps, agentId, r, !r.enabled)}
         />
       ),
     });

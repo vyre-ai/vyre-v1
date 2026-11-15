@@ -7,6 +7,7 @@ import { toolSearch, toolDescribe, toolsList, toolsetsList, health } from "../ha
 import { harness } from "../fixtures/harness.ts";
 import { createHash } from "node:crypto";
 import { loadGenerated as moduleGenerated, registryHash } from "../projections.ts";
+import { connectCardOn, isConnectCap } from "../../../lib/connect-switch.ts";
 import { createMcpServer, outsideAllows } from "../../../agent/src/mcp/index.ts";
 import type { McpCaller } from "../../../agent/src/mcp/index.ts";
 import { fakeInvoke, loadGenerated } from "../../../agent/src/tools/harness.ts";
@@ -32,6 +33,10 @@ const optedOut = new Set(reg.capabilities.filter((c) => c.surfaces?.agent === fa
 const mcpCaps = new Set(
   reg.capabilities.filter((c) => c.surfaces?.mcp !== undefined && !optedOut.has(c.name)).map((c) => c.name),
 );
+// The connect card is off by default (lib/connect-switch.ts, VYRE_CONNECT_CARD): the tools that back a connect capability are generated but not offered while it is off.
+// The names are derived from the generated list, never typed, so a new connect tool changes both counts by itself.
+const connectTools = tools.filter((t) => isConnectCap(t.cap as string));
+const offeredWith = (cardOn: boolean): number => (cardOn ? tools.length : tools.length - connectTools.length);
 const wrapped = new Set(
   reg.agentTools.flatMap((a) => (a.cap !== undefined ? [a.cap] : [])).filter((c) => !optedOut.has(c)),
 );
@@ -106,6 +111,8 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
     "threads.delete",
     "threads.leave",
     "threads.restore",
+    // a destructive erase bound to the connect request (b-connect review r-keyreach-9-b-connect): never an agent tool, with the card on or off
+    "vault.item.discard_new",
   ]); // plugins.connection.checked: the host's record of what a connection last did (l-connections), never an agent's
   const pre = reg.capabilities.filter((c) => c.caller === "anonymous" || c.caller === "pending").map((c) => c.name);
   assert.ok(pre.length >= 10);
@@ -126,16 +133,21 @@ test("the default listed set is in the catalog; everything else is found with to
 test("mcp.toolsets.list counts every toolset from the generated list, and engineer is allowed only with engineer.mcp", () => {
   const hn = harness();
   const out = toolsetsList(hn.ctx, {});
+  assert.equal(connectCardOn(), false, "the product default: the connect card is off");
   assert.equal(
     out.toolsets.reduce((n, t) => n + t.tools, 0),
-    tools.length,
+    offeredWith(false),
   );
   assert.equal(
     out.toolsets.reduce((n, t) => n + t.listed, 0),
     g.defaults.size,
   );
   for (const t of out.toolsets) {
-    assert.equal(t.tools, tools.filter((x) => x.toolset === t.toolset).length, t.toolset);
+    assert.equal(
+      t.tools,
+      tools.filter((x) => x.toolset === t.toolset && !isConnectCap(x.cap as string)).length,
+      t.toolset,
+    );
     assert.equal(t.allowed, true);
   }
   hn.allowOnly((a) => a.perm !== "engineer.mcp");
@@ -151,14 +163,36 @@ test("mcp.tools.list: the default set, or with includeDeferred every tool the ca
   assert.deepEqual(new Set(def.tools.map((t) => t.name)), g.defaults);
   assert.ok(def.tools.every((t) => t.deferred === false));
   const all = toolsList(hn.ctx, { includeDeferred: true });
-  assert.equal(all.total, tools.length);
-  assert.equal(all.tools.filter((t) => t.deferred).length, tools.length - g.defaults.size);
+  assert.equal(all.total, offeredWith(false));
+  assert.equal(all.tools.filter((t) => t.deferred).length, offeredWith(false) - g.defaults.size);
   hn.allowOnly((a) => a.perm !== "engineer.mcp");
   const noEng = toolsList(hn.ctx, { includeDeferred: true });
-  assert.equal(noEng.total, tools.length - tools.filter((t) => t.toolset === "engineer").length);
+  assert.equal(
+    noEng.total,
+    offeredWith(false) - tools.filter((t) => t.toolset === "engineer" && !isConnectCap(t.cap as string)).length,
+  );
   assert.ok(noEng.tools.every((t) => t.toolset !== "engineer"));
   const files = toolsList(hn.ctx, { toolset: "files", includeDeferred: true });
   assert.ok(files.tools.length > 20 && files.tools.every((t) => t.toolset === "files"));
+});
+
+test("with the connect card on, the seven connect tools are offered too, and the count is the whole generated list", () => {
+  const was = process.env["VYRE_CONNECT_CARD"];
+  process.env["VYRE_CONNECT_CARD"] = "1";
+  try {
+    const hn = harness();
+    assert.equal(connectCardOn(), true);
+    assert.equal(
+      toolsetsList(hn.ctx, {}).toolsets.reduce((n, t) => n + t.tools, 0),
+      offeredWith(true),
+    );
+    assert.equal(toolsList(hn.ctx, { includeDeferred: true }).total, tools.length);
+    assert.equal(tools.length - offeredWith(false), connectTools.length);
+    assert.ok(connectTools.length > 0 && connectTools.every((t) => t.cap !== "vault.item.discard_new"));
+  } finally {
+    if (was === undefined) delete process.env["VYRE_CONNECT_CARD"];
+    else process.env["VYRE_CONNECT_CARD"] = was;
+  }
 });
 
 test("mcp.tool.search and describe return the schemas, search respects the limit and toolset, describe skips what the caller may not see", () => {

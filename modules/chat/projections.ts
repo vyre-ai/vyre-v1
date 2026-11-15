@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintId as mint } from "../../lib/ids.ts";
+import { stepClass, stepWords } from "../../lib/plain-words.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
 
 export interface Db {
@@ -35,6 +36,11 @@ export interface ChatCtx {
   db: Db;
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call?(cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<unknown>;
+  /** the Space's access answer for the caller (the gateway always supplies it; a context without one refuses what it would have to ask about) */
+  authorize?(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ): { effect: string; reason?: string };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
 
@@ -69,11 +75,18 @@ export function refOf(id: string): { kind: Principal["kind"]; id: string } {
  * A person can only bring in, ask or @mention an agent they may see: the agents module answers "not found" for one they may not (a person's private assistant is one), and so does this.
  * Agents act for themselves (an agent posting is not a person choosing who to talk to), and a host with no agents module to ask keeps the old behaviour.
  */
-export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): Promise<void> {
+export async function refuseUnseenAgents(
+  ctx: ChatCtx,
+  ids: readonly string[],
+  /** the door rule of a chat: an agent that is a member of THIS chat may be asked in it by whoever may post there, whether or not the asker could use it anywhere else (mayAskInChat) */
+  inChat?: (agentId: string) => boolean,
+): Promise<void> {
   if (!ctx.call || ctx.principal.kind !== "person") return;
-  for (const agentId of new Set(ids)) {
+  /** The agents module's answer: "private" for another person's Assistant or outside agent, "gone" for an agent it does not know, else the agent is there. A refusal that is not "not found" is no reason to refuse. */
+  const moduleSays = async (agentId: string): Promise<{ kind: "ok" | "gone" | "private"; message?: string }> => {
     try {
-      await ctx.call("agents.get", { agentId });
+      await ctx.call!("agents.get", { agentId });
+      return { kind: "ok" };
     } catch (e) {
       const x = e as {
         code?: string;
@@ -83,19 +96,52 @@ export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): 
       };
       const code = x.code ?? x.error?.code;
       // someone else's private agent (their assistant, an outside agent they connected) is refused in the agents module's own plain words
-      const priv = (x.details ?? x.error?.details)?.reason === "private";
+      if ((x.details ?? x.error?.details)?.reason === "private")
+        return {
+          kind: "private",
+          message: x.error?.message ?? x.message ?? "That agent is private to the person it belongs to.",
+        };
       // Only "not found" refuses here. A permission refusal from agents.get is NOT a reason to refuse the chat: a member who may talk to a Space agent often may not read its settings,
       // and treating that as "does not exist" stopped ordinary chats with agents (12 Nov, CI on 664e3b157: ten live files). Who may reach a chat's own agent is decided by access.
-      if (code === "validation.not_found")
-        raise(
-          ctx,
-          "validation.not_found",
-          priv
-            ? (x.error?.message ?? x.message ?? "That agent is private to the person it belongs to.")
-            : "That agent does not exist.",
-          { agentId, ...(priv ? { reason: "private" } : {}) },
-        );
+      return code === "validation.not_found" ? { kind: "gone" } : { kind: "ok" };
     }
+  };
+  const refuse = (agentId: string, said: { kind: string; message?: string }): never =>
+    raise(ctx, "validation.not_found", said.kind === "private" ? (said.message ?? "") : "That agent does not exist.", {
+      agentId,
+      ...(said.kind === "private" ? { reason: "private" } : {}),
+    });
+  for (const agentId of new Set(ids)) {
+    const here = inChat?.(agentId) === true;
+    if (!here) {
+      // access first, and it must be a yes (fail closed): a context with no access function asks access.check for the same view, and one that cannot be answered refuses. Access saying there is no such agent
+      // is nothing to reach, and the agents module answers for it below.
+      const seen = { perm: null, level: "view" as const };
+      let effect: string | undefined, reason: string | undefined;
+      try {
+        const said = ctx.authorize
+          ? ctx.authorize(seen, { type: "agent", id: agentId })
+          : (
+              (await ctx.call("access.check", {
+                principal: { kind: ctx.principal.kind, id: askerOf(ctx) },
+                action: { level: seen.level },
+                resource: { type: "agent", id: agentId },
+              })) as { decision?: { effect?: string; reason?: string } }
+            ).decision;
+        effect = said?.effect;
+        reason = (said as { reason?: string } | undefined)?.reason;
+      } catch {
+        effect = undefined;
+      }
+      if (effect !== "allow" && reason !== "not_found") {
+        // not theirs: the same sentence as an agent that is not there, except another person's own Assistant or outside agent, which says whose it is
+        const priv = await moduleSays(agentId);
+        refuse(agentId, priv.kind === "private" ? priv : { kind: "gone" });
+      }
+    }
+    const said = await moduleSays(agentId);
+    // an agent of this chat is asked here whatever the asker could use elsewhere, except one that is its person's alone
+    if (said.kind === "private" || (said.kind === "gone" && !here)) refuse(agentId, said);
   }
 }
 
@@ -132,6 +178,13 @@ const REPLIES_SCHEMA = readFileSync(new URL("./migrations/0007_replies_in.sql", 
   .split(";")
   .map((s) => s.trim())
   .filter((s) => s.length > 0);
+const ASKED_SCHEMA = readFileSync(new URL("./migrations/0011_asked_by.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 
 /** Make sure the chat tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. The per-chat agent settings (0005) are added the same way when their columns are missing. */
@@ -157,6 +210,17 @@ export function ensure(db: Db): void {
     db.all("SELECT fromAt FROM chat_thread_member WHERE id = ?", "probe");
   } catch {
     for (const stmt of HISTORY_SCHEMA) {
+      try {
+        db.run(stmt);
+      } catch {
+        /* the column is already there */
+      }
+    }
+  }
+  try {
+    db.all("SELECT askedBy FROM chat_message WHERE id = ?", "probe");
+  } catch {
+    for (const stmt of ASKED_SCHEMA) {
       try {
         db.run(stmt);
       } catch {
@@ -550,6 +614,7 @@ export interface MessageRec {
   replyTo?: string;
   via?: { routineOwner: string };
   /** The person whose own account this turn ran on; absent when a key of the Space paid. */ paidBy?: string;
+  /** The person an agent's message was written for: whose turn it was, whoever paid. The saved steps of the turn are theirs to read whole (F51). Absent on messages saved before it was kept (paidBy then). */ askedBy?: string;
   depth: number;
   attachments: string[];
   reactions: Array<{ emoji: string; by: string[] }>;
@@ -585,6 +650,8 @@ export function messageOf(r: Row): MessageRec {
   const via = parseJson<{ routineOwner?: string; paidBy?: string } | null>(r["via"], null);
   if (via?.routineOwner) o.via = { routineOwner: via.routineOwner };
   if (via?.paidBy) o.paidBy = via.paidBy;
+  const askedBy = optStr(r["askedBy"]);
+  if (askedBy !== undefined) o.askedBy = askedBy;
   const editedAt = optNum(r["editedAt"]);
   if (editedAt !== undefined) o.editedAt = editedAt;
   return o;
@@ -596,7 +663,47 @@ export function messageBy(db: Db, id: string): MessageRec | null {
 }
 
 /** The message row of the contract. */
-export function messageOut(m: MessageRec, enc: number): Record<string, unknown> {
+/**
+ * What an agent's saved steps tell a reader (F51). The person whose turn wrote the message sees them whole; every other reader sees which kind of step ran, how it went and how long it took: never a file's
+ * name (`label`), the counts of a command's output (`ran`), a helper's description (`detail`) or the tool's own name. Applied when the message is served, so turns saved before this rule are covered too.
+ */
+export function stepsFor(blocks: MessageRec["blocks"], mayDetail: boolean): MessageRec["blocks"] {
+  if (mayDetail) return blocks;
+  return blocks.map((b) => {
+    // the agent's browser: the picture of the page, its site and what a held send says belong to the person whose turn it is; others read that a browser was used (F51)
+    if (
+      b["type"] === "chrome_step" ||
+      b["type"] === "browser_screenshot" ||
+      (b["type"] === "screenshot" && (b["data"] as { live?: unknown } | undefined)?.live === true)
+    )
+      return {
+        type: "turn_status",
+        v: 1,
+        id: b["id"],
+        data: { state: "note", text: "Using a browser" },
+      } as (typeof blocks)[number];
+    if (b["type"] === "chrome_held")
+      return {
+        type: "turn_status",
+        v: 1,
+        id: b["id"],
+        data: { state: "note", text: "Waiting for the person's OK" },
+      } as (typeof blocks)[number];
+    if (b["type"] === "turn_status") {
+      // the account that failed is the asker's: its Vault handle goes to them alone; the others still read that it failed and why
+      const { account: _a, ...rest } = (b["data"] ?? {}) as Record<string, unknown>;
+      return { ...b, data: rest };
+    }
+    if (b["type"] !== "tool_call" && b["type"] !== "tool_result") return b;
+    const d = (b["data"] ?? {}) as Record<string, unknown>;
+    const name = typeof d["name"] === "string" ? d["name"] : "";
+    const keep: Record<string, unknown> = {};
+    for (const k of ["id", "ok", "secs", "turnSecs"]) if (d[k] !== undefined) keep[k] = d[k];
+    return { ...b, data: { ...keep, ...(name ? { name: stepClass(name), words: stepWords(name) } : {}) } };
+  });
+}
+
+export function messageOut(m: MessageRec, enc: number, viewer?: string): Record<string, unknown> {
   return {
     messageId: m.id,
     threadId: m.thread,
@@ -604,7 +711,7 @@ export function messageOut(m: MessageRec, enc: number): Record<string, unknown> 
     author: refOf(m.author),
     kind: m.kind,
     body: m.body,
-    blocks: m.blocks,
+    blocks: viewer === undefined ? m.blocks : stepsFor(m.blocks, (m.askedBy ?? m.paidBy) === viewer),
     ...(m.replyTo !== undefined ? { replyTo: m.replyTo } : {}),
     ...(m.via !== undefined ? { via: m.via } : {}),
     ...(m.paidBy !== undefined ? { paidBy: m.paidBy } : {}),
@@ -672,17 +779,30 @@ export interface NewMessage {
   replyTo?: string | undefined;
   via?: { routineOwner: string } | undefined;
   paidBy?: string | undefined;
+  askedBy?: string | undefined;
   depth?: number;
   attachments?: string[];
 }
 /** Insert one message with the next sequence number. Validate everything before this call: it must not fail half way. */
+const lastReady = new WeakSet<object>();
+/** The time of each chat's newest message, kept apart so the sidebar orders thousands of chats without reading a message for each (the newest of a thread was one index seek per thread). Made once per database handle and filled from the messages that exist. */
+export function ensureLast(db: Db): void {
+  if (lastReady.has(db)) return;
+  db.run('CREATE TABLE IF NOT EXISTS "chat_thread_last" ("thread" TEXT PRIMARY KEY, "at" INTEGER NOT NULL)');
+  db.run(
+    "INSERT OR IGNORE INTO chat_thread_last (thread, at) SELECT thread, MAX(createdAt) FROM chat_message WHERE deleted_at IS NULL GROUP BY thread",
+  );
+  lastReady.add(db);
+}
+
 export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, m: NewMessage): MessageRec {
   const now = ctx.now();
+  ensureLast(ctx.db);
   const id = m.id ?? mintId("msg", now);
   const seq = nextSeq(ctx.db, thread);
   ctx.db.run(
-    `INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, replyTo, via, depth, attachments, pinned, reactions, editedAt, createdAt, version, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', NULL, ?, 0, ?, NULL)`,
+    `INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, replyTo, via, depth, attachments, pinned, reactions, editedAt, createdAt, version, updated_at, deleted_at, askedBy)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', NULL, ?, 0, ?, NULL, ?)`,
     id,
     thread,
     seq,
@@ -695,6 +815,12 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
     m.depth ?? 0,
     JSON.stringify(m.attachments ?? []),
     now,
+    now,
+    m.askedBy ?? null,
+  );
+  ctx.db.run(
+    "INSERT INTO chat_thread_last (thread, at) VALUES (?, ?) ON CONFLICT(thread) DO UPDATE SET at = MAX(at, excluded.at)",
+    thread,
     now,
   );
   return messageBy(ctx.db, id)!;

@@ -67,6 +67,13 @@ test("what the agent is told when its own clearance is short names the agent, no
     "not true when the person is below the label too, or an admin gave the agent a higher role",
   );
   assert.match(e.say, /do not ask for access for me/, "never suggests a request that cannot work");
+  // 14 Nov 2026: the owner shared a restricted key with his Assistant because it asked him to, and the share could never work
+  assert.match(e.say, /do not ask the person to share it/, "never suggests a share that cannot work");
+  assert.match(
+    e.say,
+    /move it to their own keys in the Vault, or to a folder that is not restricted/,
+    "says what does work",
+  );
   const r = modelError({ code: "permission.role_lacks_permission", message: "", traceId: "t" } as never);
   assert.match(r.say, /not allowed for me here, or for the person I work for/);
   assert.doesNotMatch(r.say, /Neither/, "true when only the agent lacks it");
@@ -96,7 +103,7 @@ test("the error envelope an agent receives, as one snapshot", () => {
     JSON.stringify(e, null, 1),
     JSON.stringify(
       {
-        say: "That item is above your clearance. An admin decides who may open it. Tell the person it is restricted, do not ask for access for me, and stop.",
+        say: "That item is above your clearance. An admin decides who may open it. Sharing it with me does not change that, so do not ask the person to share it and do not ask for access for me. If it is a key the person meant me to use, it is kept in a restricted folder: they can move it to their own keys in the Vault, or to a folder that is not restricted, and then I can use it. Tell the person that and stop.",
         reply: REPLY_RULE,
         message: "That item is above your clearance.",
         details: { reason: "above_clearance", tool: "vault_use" },
@@ -115,4 +122,67 @@ test("the same shape reaches a CLI engine through the server's tool result", () 
   };
   assert.equal(Object.keys(out.error)[0], "say");
   assert.equal(out.error.supportCode, "validation.too_large");
+});
+
+test("a thing the caller named that is not there is said by kind and by the name they gave, never by an id", () => {
+  const named = modelError({
+    code: "permission.not_found",
+    message: "There is no connector called google ads that you can see.",
+    traceId: "t",
+    details: { cap: "connections.create", reason: "not_found", thing: "connector", name: "google_ads" },
+  } as never);
+  assert.match(named.say, /^There is no connector called google_ads that I can open\./);
+  assert.deepEqual(named.details, { reason: "not_found", thing: "connector", name: "google_ads" });
+  // a name that is an id is not said back, only the kind
+  const byId = modelError({
+    code: "permission.not_found",
+    message: "x",
+    traceId: "t",
+    details: { thing: "connection", name: "con_a1b2c3d4e5f6a7b8" },
+  } as never);
+  assert.match(byId.say, /^There is no connection by that name that I can open\./);
+  assert.equal(byId.details?.name, undefined);
+  assert.ok(!/con_a1b2/.test(JSON.stringify(byId)));
+  // a code that is not a not-found never takes the sentence
+  const other = modelError({
+    code: "permission.no_grant",
+    message: "No.",
+    traceId: "t",
+    details: { thing: "connector", name: "fathom" },
+  } as never);
+  assert.ok(!/There is no connector/.test(other.say), other.say);
+});
+
+// 14 Nov 2026 (owner rule, made for me): where an agent really cannot do a thing for a person, it is told the true reason and the one next step, not the general "ask for access".
+test("a refusal that is a real exception names the reason and the one next step, in a line", () => {
+  for (const cap of ["skills.add", "connectors.init"]) {
+    const e = modelError({
+      code: "permission.no_grant",
+      message: "You do not have access to that.",
+      traceId: "t",
+      details: { cap, reason: "no_grant" },
+    } as never);
+    assert.doesNotMatch(e.say, /ask for access/i, `${cap}: the general line would loop`);
+    assert.doesNotMatch(e.say, /label|clearance|role/i, `${cap}: no words about labels or roles`);
+    assert.ok(e.say.split(/(?<=[.])\s/).length <= 3, `${cap}: a line, not a page: ${e.say}`);
+  }
+  const plain = modelError({
+    code: "permission.no_grant",
+    message: "",
+    traceId: "t",
+    details: { cap: "files.read" },
+  } as never);
+  assert.match(plain.say, /ask for access/i, "any other refusal keeps the general words");
+});
+
+test("an agent that asks for a desktop computer is told it has others, not to ask for access", () => {
+  const e = modelError({
+    code: "permission.no_grant",
+    message: "Agents no longer get a desktop computer.",
+    traceId: "t",
+    details: { reason: "no_new_desktop", tool: "computers_provision" },
+  } as never);
+  assert.doesNotMatch(e.say, /ask for access/i);
+  assert.match(e.say, /terminal/);
+  assert.equal(e.details?.reason, "no_new_desktop", "the reason word stays");
 });

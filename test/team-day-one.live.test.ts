@@ -76,7 +76,15 @@ test("team day one: #vyre and what is shared with Everyone, nothing private; pre
 
     // what Ada shares with everyone, and what she keeps private
     const intake = await newAgent(d, "Intake");
-    const secret = await newAgent(d, "Ledger");
+    // an agent a person makes in a Team Space is born shared with Everyone; Ada kept this one to herself (sharing "me"), which is what the walk below needs
+    const kept = await call(d, "agents.create", {
+      name: "Ledger",
+      role: "You answer intake questions.",
+      sharing: "me",
+      idempotencyKey: "mc-agent-Ledger",
+    });
+    assert.equal(kept.status, 200, JSON.stringify(kept.data));
+    const secret = { id: kept.data.agent.agentId as string };
     const helper = await newAgent(d, "Paralegal");
     ok(
       await A("access.share", { resource: { type: "agent", id: intake.id }, subject: EVERYONE, level: "use" }),
@@ -184,6 +192,11 @@ test("team day one: #vyre and what is shared with Everyone, nothing private; pre
     assert.equal(await may(intake.id), "allow", "Bea may use the agent shared with everyone");
     assert.equal(await may(helper.id), "allow", "Bea may use the agent her invite picked");
     assert.notEqual(await may(secret.id), "allow", "Bea may not use an agent nobody shared with her");
+    assert.ok(!agents.includes(secret.id), "an agent nobody shared with her is not in Bea's list");
+    const noChat = await B("chat.start", { kind: "chat", agentIds: [secret.id], idempotencyKey: "bea-ledger" });
+    assert.notEqual(noChat.status, 200, "Bea cannot start a chat with it");
+    const why = String((noChat.data as { error?: { message?: string } }).error?.message ?? "");
+    assert.match(why, /^[A-Z][^_]*\.$/, `refused in a plain sentence: ${why}`);
     const adaAssistant = (ok(await A("agents.list"), "Ada agents").agents as { agentId: string; kind?: string }[]).find(
       (a) => a.kind === "assistant",
     );

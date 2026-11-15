@@ -66,7 +66,7 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       await c.fill("LONG plan for the launch week");
       await c.press("Enter");
       // the conversation's field is made while the reply is still being written: it says Steer then
-      await page.getByTestId("stop-button").waitFor({ timeout: 20_000 });
+      await page.locator("[data-testid=composer-send][aria-label=Stop]").waitFor({ timeout: 20_000 });
       await page.waitForFunction(
         () =>
           /^Steer /.test(
@@ -79,8 +79,10 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
         null,
         { timeout: 15_000 },
       );
-      await page.getByTestId("stop-button").click();
-      await page.getByTestId("stop-button").waitFor({ state: "detached", timeout: 30_000 });
+      await page.locator("[data-testid=composer-send][aria-label=Stop]").click();
+      await page
+        .locator("[data-testid=composer-send][aria-label=Stop]")
+        .waitFor({ state: "detached", timeout: 30_000 });
       const field = page.locator('[data-testid="composer-field"]').first();
       await page
         .waitForFunction(
@@ -232,11 +234,11 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       if ((await page.getByTestId("pane-agent").count()) === 0) await page.getByTestId("pane-button").click();
       await page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
       await page.getByTestId("tab-computer").click();
-      const label = page.getByTestId("label-l-browser");
+      const label = page.getByTestId("browser-head");
       await label.waitFor({ timeout: 20_000 });
       const next = page
         .getByTestId("browser-note")
-        .or(page.getByTestId("browser-take"))
+        .or(page.getByTestId("browser-picture"))
         .or(page.getByTestId("browser-none"))
         .or(page.getByTestId("browser-open"))
         .first();

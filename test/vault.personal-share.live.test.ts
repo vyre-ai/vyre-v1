@@ -25,6 +25,8 @@ test("Personal: a key request is fulfilled, the agent uses the key by its handle
   const model = scriptedModel(async function* (input, run) {
     const ask = input.trigger?.body ?? "";
     if (/connect my fathom/.test(ask)) {
+      // vault_request is found with tool_search, as a model finds it (vault_connect is the listed tool for a service)
+      yield* run("tool_search", { query: "vault request key" });
       const r = yield* run("vault_request", {
         name: "Fathom",
         fields: ["api_key"],
@@ -36,12 +38,13 @@ test("Personal: a key request is fulfilled, the agent uses the key by its handle
         text: r.ok ? "I asked for the Fathom key." : `FAILED ${JSON.stringify(r.content).slice(0, 200)}`,
       };
     } else if (/Carry on/.test(ask)) {
-      const found = yield* run("tool_search", { query: "vault item get" });
+      // a key in the person's own Mine is used as an agent uses a key, through vault_use on its turn (never read back with vault_item_get)
+      const found = yield* run("tool_search", { query: "vault use" });
       if (!found.ok) {
         yield { type: "text", text: `FAILED search ${JSON.stringify(found.content).slice(0, 300)}` };
         return;
       }
-      const r = yield* run("vault_item_get", { itemId: fulfilled.itemId });
+      const r = yield* run("vault_use", { item: "Fathom", purpose: "Read the meetings" });
       yield {
         type: "text",
         text: r.ok ? `USED ${JSON.stringify(r.content)}` : `FAILED ${JSON.stringify(r.content).slice(0, 300)}`,
@@ -78,7 +81,7 @@ test("Personal: a key request is fulfilled, the agent uses the key by its handle
     );
     const requestId = card.data.requestId as string;
 
-    // "Add the key" on the card, into a Shared folder: the item is saved and the agent that asked gets Use
+    // "Add the key" on the card: the person asked is the asker, so the key is their own in Mine (14 Nov 2026), whatever folder the card sent, and nothing is shared; their own agent reaches it on their turns
     const done = await call(d, "vault.requests.fulfil", {
       requestId,
       folderId: keys,
@@ -87,14 +90,10 @@ test("Personal: a key request is fulfilled, the agent uses the key by its handle
     assert.equal(done.status, 200, JSON.stringify(done.data));
     fulfilled.itemId = done.data.request.itemId as string;
     assert.match(fulfilled.itemId, /^vit_/);
+    assert.equal((await ok(d, "vault.item.get", { itemId: fulfilled.itemId })).item.scope, "mine");
     const holders = (await ok(d, "access.shares_of", { resource: { type: "vault_item", id: fulfilled.itemId } }))
       .shares as Array<{ grant: { subject: { kind: string; id: string }; level: string } }>;
-    assert.ok(
-      holders.some(
-        (s) => s.grant.subject.kind === "agent" && s.grant.subject.id === agentId && s.grant.level === "use",
-      ),
-      JSON.stringify(holders),
-    );
+    assert.ok(!holders.some((s) => s.grant.subject.kind === "agent"), JSON.stringify(holders));
 
     // the agent carries on and reaches the item as itself, by its handle; the value is never in its hands
     const said = await waitFor(

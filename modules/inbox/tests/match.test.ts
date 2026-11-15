@@ -234,8 +234,9 @@ test("an address the contact learns later folds the stranger's history into the 
 
 test("match: the sender's whole history moves to the record, the address is remembered, and Undo restores both", async () => {
   const h = setup();
-  const a = await linkMessage(h.ctx, link({ address: "sam@fox.test", preview: "one" }));
-  await linkMessage(h.ctx, link({ address: "sam@fox.test", preview: "two" }));
+  // the stranger writes to an inbox the caller can see: unread is a person's own, and only someone the conversation reaches has any
+  const a = await linkMessage(h.ctx, link({ address: "sam@fox.test", preview: "one", mailboxId: "mbx_work1" }));
+  await linkMessage(h.ctx, link({ address: "sam@fox.test", preview: "two", mailboxId: "mbx_work1" }));
   const out = await match(h.ctx, { conversationId: a.conversationId, recordId: DANA.id });
   assert.deepEqual(contractErrors("inbox.match", "out", out), []);
   assert.deepEqual(

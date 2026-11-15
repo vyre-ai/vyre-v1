@@ -133,7 +133,7 @@ export function CommentReply(props: CommentReplyViewProps): ReactElement {
         disabled={!ok}
         onPress={send}
         testID="comment-reply-send"
-        {...webProps({ title: "Send reply" })}
+        {...webProps({ dataSet: { tt: "Send reply" } })}
         style={[styles.send, props.density === "compact" && styles.sendCompact, !ok && styles.sendOff]}
       >
         <Glyph icon={ICON_UP} native={"↑"} size={16} color="var(--accent-ink)" />

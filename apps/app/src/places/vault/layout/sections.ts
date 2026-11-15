@@ -1,6 +1,8 @@
 // The Vault's four sections (owner, 3 Nov: AI providers, Google and Microsoft, and everything else fully separated). An item is shown in its one primary section; the + adds only the kind of
 // the page it is on, and in All it first asks which of the four. The pickers offer only their own section's kinds. Pure: what an item is, where the + goes, what each picker lists.
 
+import { COMPANY_FOLDER } from "../../../../../../lib/company-keys.ts";
+
 /** The four places an item lives. */
 export type Section = "ai" | "google" | "connections" | "other";
 
@@ -14,7 +16,7 @@ export interface Itemish {
 }
 
 /** The folders Vyre keeps for Google and Microsoft (the company connection) and for connections' tokens. */
-export const COMPANY_FOLDER = "Company connections";
+export { COMPANY_FOLDER };
 export const CONNECTIONS_FOLDER = "Connections";
 
 /** Keys of the company connection and of people's own Google or Microsoft sign-ins, by name or handle: Google_DWD, Sso_Google_Secret, Microsoft_App, Ms_Tenant_Secret... */

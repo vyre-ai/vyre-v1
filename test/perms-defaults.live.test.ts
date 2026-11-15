@@ -161,6 +161,13 @@ test("a guest's places list only what is shared with them: the channel they were
   const theirs = (await h.owner.call("channels.create", { name: "client-room", visibility: "invite" })).channel
     .channelId as string;
   await h.owner.call("channels.members.add", { channelId: theirs, personIds: [g.personId] });
+  // a guest is added to a channel the way the invite adds them: in its chat AND with access to it (a list that shows a channel the guest cannot open would lead to a refusal)
+  await h.owner.call("access.share", {
+    resource: { type: "channel", id: theirs },
+    subject: { kind: "person", id: g.personId },
+    level: "use",
+    idempotencyKey: "perms-share-theirs",
+  });
   const channels = (await g.call("channels.list", {})).channels as Array<{ channelId: string }>;
   assert.ok(
     channels.some((c) => c.channelId === theirs),

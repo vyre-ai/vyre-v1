@@ -227,6 +227,7 @@ test("stuck after N flat check-ins: the reason in plain words, the owner hears o
   assert.match(g.statusReason!, /No progress in 3 check-ins; 212 of 300 registrations since/);
   const notices = [...w.state.tasks.values()].filter((t) => t.kind === "unblock" && t.title.startsWith("Stuck:"));
   assert.equal(notices.length, 1, "one notice, however many flat check-ins follow");
+  assert.deepEqual(notices[0]!.source, { kind: "goal", id: goal.id }, "the notice says which goal it is about");
   w.state.count = 230;
   w.tick(20 * 60_000);
   await w.sweep();
@@ -862,6 +863,44 @@ test("an asked agent changes a goal's words, deadline, rhythm and quiet hours, a
   );
 });
 
+test("an asked agent's change carries the version it read (the tool layer fills it in): it is saved when current and refused as stale, never as the owner's own press", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal());
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  w.state.turn = asking(OWNER);
+  const ok = await w.call(
+    "goals.update",
+    { goalId: goal.id, title: "Versioned words", expectedUpdatedAt: getGoal(w.db, goal.id)!.updatedAt },
+    agent,
+  );
+  assert.equal(ok.goal.title, "Versioned words");
+  await assert.rejects(
+    w.call("goals.update", { goalId: goal.id, title: "Stale words", expectedUpdatedAt: 1 }, agent),
+    (e: { error?: { code?: string } }) => e.error?.code === "validation.version_conflict",
+  );
+});
+
+test("a turn ending in the goal's chat counts itself without moving updatedAt, so an agent that read the goal before can still write; a real change still moves it", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal());
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  w.state.turn = asking(OWNER);
+  const read = getGoal(w.db, goal.id)!.updatedAt;
+  w.tick(60_000);
+  // another turn of the chat ends and the server counts it against the budget (onTurn saves the goal)
+  await w.turn("turn.completed", { turnId: "trn_acct", threadId: goal.threadId, agentId: LEAD, costMicros: 5 });
+  const after = getGoal(w.db, goal.id)!;
+  assert.equal(after.turns, 1, "the turn was counted");
+  assert.equal(after.updatedAt, read, "accounting is not a change to the goal");
+  const ok = await w.call(
+    "goals.update",
+    { goalId: goal.id, title: "After the count", expectedUpdatedAt: read },
+    agent,
+  );
+  assert.equal(ok.goal.title, "After the count", "the write on the version it read is saved");
+  assert.ok(getGoal(w.db, goal.id)!.updatedAt > read, "a real change moves updatedAt");
+});
+
 test("an asked agent may slow check-ins freely, and speed them up only on a goal with a budget cap and never past once an hour", async () => {
   const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
   const speed = async (
@@ -1069,4 +1108,39 @@ test("the refusal tells the agent what to do: carry on, mention it once at the n
     w.call("goals.confirm", { goalId: draft.id }, { id: LEAD, kind: "agent", actingFor: OWNER }),
     /Carry on without it and mention it once at your next check-in/,
   );
+});
+
+test("a goal keeps only helpers, records and a project its saver may use; their own and the Space's are fine; a later save leaves what it already holds alone (F47 audit)", async () => {
+  const w = world({ count: 120 });
+  w.state.theirs.add("rec_olivia_private");
+  w.state.theirs.add("prj_theirs");
+  w.state.theirs.add("agt_theirs");
+  const words = /You cannot use the (record|project|agent) it names\. Pick another, or ask for access to it\./;
+  const refused = async (over: Record<string, unknown>) =>
+    w.call("goals.create", labGoal(over)).then(
+      () => null,
+      (e: any) => e, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+  for (const over of [
+    { recordIds: ["rec_olivia_private"] },
+    { projectId: "prj_theirs" },
+    { helpers: [{ kind: "agent", id: "agt_theirs" }] },
+  ]) {
+    const e = await refused(over);
+    assert.ok(e, `accepted ${JSON.stringify(over)}`);
+    assert.match(String(e.message ?? e.error?.message), words);
+  }
+  const { goal } = await w.call("goals.create", labGoal({ recordIds: ["rec_shared"], projectId: "prj_lab8" }));
+  const e = await w.call("goals.update", { goalId: goal.id, recordIds: ["rec_shared", "rec_olivia_private"] }).then(
+    () => null,
+    (x: any) => x, // eslint-disable-line @typescript-eslint/no-explicit-any
+  );
+  assert.ok(
+    e && words.test(String(e.message ?? e.error?.message)),
+    "a record of someone else's was added by an update",
+  );
+  // what the goal already holds is not asked again, even when the person since lost the right
+  w.state.theirs.add("rec_shared");
+  const kept = await w.call("goals.update", { goalId: goal.id, title: "Renamed", recordIds: ["rec_shared"] });
+  assert.equal(kept.goal.title, "Renamed");
 });

@@ -77,6 +77,9 @@ export function missing(ctx: Pick<CalCtx, "trace">, message: string): never {
 export function refuse(ctx: Pick<CalCtx, "trace">, message: string): never {
   throw fail("validation.precondition_failed", ctx.trace.traceId, { message });
 }
+export function changedMeanwhile(ctx: Pick<CalCtx, "trace">, message: string): never {
+  throw fail("validation.version_conflict", ctx.trace.traceId, { message });
+}
 export const codeOf = (e: unknown): string => {
   const shaped = e as { error?: { code?: unknown } } | null;
   return typeof shaped?.error?.code === "string" ? shaped.error.code : "";
@@ -220,6 +223,8 @@ export function toCalendar(row: Row): CalendarOut {
 
 export interface EventOut {
   id: string;
+  version?: number;
+  updatedAt?: number;
   calendarId: string;
   title: string;
   startsAt: number;
@@ -286,6 +291,8 @@ export function toEvent(row: Row): EventOut {
   const status = str(row, "status");
   const out: EventOut = {
     id: str(row, "id"),
+    version: num(row, "version"),
+    updatedAt: num(row, "updated_at"),
     calendarId: str(row, "calendarId"),
     title: str(row, "title"),
     startsAt: num(row, "startsAt"),

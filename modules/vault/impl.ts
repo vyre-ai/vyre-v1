@@ -10,6 +10,8 @@ import * as sk from "./handlers/space-key.ts";
 import { textCheck } from "./handlers/text-check.ts";
 import { Filler, setFiller, setKeyPort } from "./handlers/crypto.ts";
 import type { KeyPort } from "./handlers/crypto.ts";
+import { CONNECT_OFF_CODE, CONNECT_OFF_MESSAGE, gateConnect } from "../../lib/connect-switch.ts";
+import { fail } from "../../host/src/routes/errors.ts";
 import { deferredHandlers } from "../../host/src/routes/deferred.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
@@ -36,6 +38,13 @@ export const handlers: Record<string, Handler> = {
   "vault.item.mark_rotated": (ctx, i) => h.itemMarkRotated(ctx, i),
   "vault.item.delete": (ctx, i) => h.itemDelete(ctx, i),
   "vault.item.restore": (ctx, i) => h.itemRestore(ctx, i),
+  // part of the connect card: refuses for every caller while VYRE_CONNECT_CARD is off (lib/connect-switch.ts)
+  "vault.item.discard_new": gateConnect(
+    (ctx, i) => h.itemDiscardNew(ctx, i),
+    (ctx) => {
+      throw fail(CONNECT_OFF_CODE, ctx.trace.traceId, { message: CONNECT_OFF_MESSAGE });
+    },
+  ),
   "vault.share": (ctx, i) => h.share(ctx, i),
   "vault.unshare": (ctx, i) => h.unshare(ctx, i),
   "vault.folders.list": (ctx, i) => h.foldersList(ctx, i),

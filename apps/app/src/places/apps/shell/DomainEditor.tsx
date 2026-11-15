@@ -5,7 +5,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useAppsData } from "./data.tsx";
 import { actionKey, errorMessage, mutate } from "./mutations.ts";
-import { Button, Card, Field, Frame, Select, s, useOnline, useRead } from "./editor-ui.tsx";
+import { Button, Card, TextBox, Frame, Select, s, useOnline, useRead } from "./editor-ui.tsx";
 import type { AppsRoute } from "./routes.ts";
 export function DomainEditor({ route, back }: { route: AppsRoute; back(): void }): ReactElement {
   const d = useAppsData(),
@@ -56,7 +56,7 @@ export function DomainEditor({ route, back }: { route: AppsRoute; back(): void }
     >
       {!route.id ? (
         <Card title="Send from your domain">
-          <Field
+          <TextBox
             label="Domain name"
             value={name}
             onChange={(v) => {

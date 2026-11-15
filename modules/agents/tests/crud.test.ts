@@ -125,6 +125,8 @@ test("create makes the record, Agents/<name> with the decided tree, AGENT.md and
     ownerId: DANA,
     folderId: a.folderId,
     templateVersion: 1,
+    // an agent a person makes in a Team Space is born shared with Everyone (15 Nov 2026): the birth says so, the gateway writes the grant (birth-share.test.ts)
+    shared: true,
   });
   assert.deepEqual(assertEventsConform(hn), []);
   const got = await call(hn, "agents.get", { agentId: a.agentId });

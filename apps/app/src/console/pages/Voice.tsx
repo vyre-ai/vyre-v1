@@ -8,7 +8,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { IconTile } from "./CiRunners.tsx";
-import { Actions, Button, Field, Note, ReadState, Select, useAction, useRead, QuietButton } from "./shared.tsx";
+import { Actions, Button, TextBox, Note, ReadState, Select, useAction, useRead, QuietButton } from "./shared.tsx";
 import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 
 type SpaceOut = CapMap["talk.space.status"]["out"];
@@ -223,7 +223,7 @@ export function VoiceSettings(): ReactElement {
                     />
                   </View>
                 ) : null}
-                <Field label={`${name} key`} value={key} onChange={setKey} secure testID="voice-key" />
+                <TextBox label={`${name} key`} value={key} onChange={setKey} secure testID="voice-key" />
                 <Text
                   accessibilityRole="status"
                   style={{ fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginVertical: 6 }}

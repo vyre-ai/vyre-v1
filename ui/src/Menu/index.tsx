@@ -520,8 +520,11 @@ function MenuRow({
       testID={report ? "menu-item-report" : `menu-item-${entry.label}`}
       style={[styles.item, wash, entry.disabled === true ? { opacity: 0.45 } : null]}
       {...webProps({
-        ...(report ? { dataSet: { report: "true" } } : {}),
-        ...(entry.disabled === true && entry.reason !== undefined ? { title: entry.reason } : {}),
+        // react-native-web drops a title prop on a Pressable, so the reason a disabled item gives goes to the one tooltip as data-tt
+        dataSet: {
+          ...(report ? { report: "true" } : {}),
+          ...(entry.disabled === true && entry.reason !== undefined ? { tt: entry.reason } : {}),
+        },
       })}
     >
       {entry.leading !== undefined ? (
@@ -610,6 +613,12 @@ function pointOf(event: PointerLike): { x: number; y: number } {
 /** How long a finger rests on a surface before its menu opens (a phone's browser, which has no right-click). */
 export const LONG_PRESS_MS = 450;
 const LONG_PRESS_SLOP = 8;
+
+/** For a surface whose menu is a sheet opened another way (a long press on a touch screen): shuts the browser's own menu without opening one. */
+export function shutNativeMenu(): Record<string, unknown> {
+  if (Platform.OS !== "web") return {};
+  return { onContextMenu: (event: PointerLike): void => event.preventDefault?.() };
+}
 
 /** Handlers that open a menu from a surface: right-click on web, a long press with a finger on a phone's browser, Shift-F10 and the menu key. */
 export function menuTrigger(open: (x: number, y: number) => void): Record<string, unknown> {

@@ -26,6 +26,35 @@ const codeOf = (e: unknown): string =>
   (e as { code?: string } | null)?.code ??
   "";
 
+/**
+ * What the service could not open, and when it asked (F52). A person's private chat or private agent is refused to the Space's own service, which is how the index stays free of it; asking again on every
+ * event of that chat is a refusal on every turn. The answer stands for PRIVATE_FOR_MS, after which one more ask settles whether it is still unreadable (a row that was only late becomes visible then).
+ */
+export const PRIVATE_FOR_MS = 10 * 60_000;
+// keyed by Space: the handle a host gives each call may be a new object every time
+const unreadable = new Map<string, Map<string, number>>();
+const WATCH_PRIVATE = new Set(["thread", "chat", "agent"]);
+
+/** An event says the thing is private (a chat or Ask pane starting, a private agent being made): it is never asked about, for as long as the server runs. */
+export function notePrivate(space: string, e: { type: string; payload: Record<string, unknown> }): void {
+  if (e.type === "agent.privacy_set" && typeof e.payload["agentId"] === "string") {
+    const m = unreadable.get(space) ?? unreadable.set(space, new Map()).get(space)!;
+    const k = `agent\u0000${e.payload["agentId"]}`;
+    if (e.payload["private"] === true) m.set(k, Infinity);
+    else m.delete(k);
+    return;
+  }
+  const entity =
+    e.type === "thread.started" && (e.payload["kind"] === "chat" || e.payload["kind"] === "ask")
+      ? "thread"
+      : e.type === "agent.created" && e.payload["private"] === true
+        ? "agent"
+        : "";
+  const id = e.payload[entity === "thread" ? "threadId" : "agentId"];
+  if (entity === "" || typeof id !== "string") return;
+  (unreadable.get(space) ?? unreadable.set(space, new Map()).get(space)!).set(`${entity}\u0000${id}`, Infinity);
+}
+
 /** Read through a capability; a missing or hidden row is `null`, any other failure is the caller's to handle. */
 async function read<T>(ctx: SearchCtx, cap: string, input: Record<string, unknown>): Promise<T | null> {
   try {
@@ -295,6 +324,40 @@ const setSeen = (ctx: SearchCtx, entity: string, id: string, seq: number): void 
 };
 
 /** Apply one changed entity row. Safe to repeat and to receive late: a sequence at or below the last one applied for the row changes nothing. */
+/**
+ * A folder that goes to Trash takes its files out of the index with it (F62, 14 Nov 2026): the files are not events of their own, so without this a deleted artifact's page stayed findable to whoever it was shared with.
+ * The files of the folder itself, and those below it (found by the folder's path, taken from one of its own files), leave.
+ */
+export function indexDropFolder(ctx: SearchCtx, folderId: string, seq: number): number {
+  ensure(ctx.db);
+  const direct = ctx.db.all(
+    "SELECT entity, id, path FROM search_docs WHERE folder_id = ? AND res_type = 'file'",
+    folderId,
+  ) as {
+    entity: string;
+    id: string;
+    path: string | null;
+  }[];
+  const base = direct.map((r) => String(r.path ?? "")).find((p) => p.includes("/"));
+  const prefix = base === undefined ? null : base.slice(0, base.lastIndexOf("/") + 1);
+  const below =
+    prefix === null
+      ? []
+      : (ctx.db.all(
+          "SELECT entity, id FROM search_docs WHERE res_type = 'file' AND path LIKE ? ESCAPE '\\'",
+          `${prefix.replace(/[\\%_]/g, "\\$&")}%`,
+        ) as {
+          entity: string;
+          id: string;
+        }[]);
+  let n = 0;
+  for (const r of [...direct, ...below]) {
+    if (removeDoc(ctx.db, ctx.space, r.entity, r.id)) n++;
+    setSeen(ctx, r.entity, r.id, seq);
+  }
+  return n;
+}
+
 export async function indexApply(
   ctx: SearchCtx,
   input: { entity: string; id: string; op: "upsert" | "delete"; seq: number },
@@ -304,10 +367,25 @@ export async function indexApply(
   const seen = seenOf(ctx, entity, id);
   if (seen !== null && seq <= seen) return { indexed: false };
   if (op === "delete") {
+    unreadable.get(ctx.space)?.delete(`${entity}\u0000${id}`);
     const had = removeDoc(ctx.db, ctx.space, entity, id);
     setSeen(ctx, entity, id, seq);
     ctx.db.run("DELETE FROM search_failed WHERE entity = ? AND id = ?", entity, id);
     return { indexed: had };
+  }
+  // A person's own agents that nobody shared are theirs alone (owner ruling 4 Nov; agents canSee): the kernel denies the service the view, and agents.get would refuse it, so the service does not ask and remembers
+  // nothing: the next change of the agent after it is shared reads it. (Found by F52: the walk's one late refusal was this, for an ordinary agent.)
+  if (entity === "agent" && ctx.authorize({ perm: null, level: "view" }, { type: "agent", id }).effect !== "allow") {
+    removeDoc(ctx.db, ctx.space, entity, id);
+    setSeen(ctx, entity, id, seq);
+    return { indexed: false };
+  }
+  const memo = unreadable.get(ctx.space) ?? unreadable.set(ctx.space, new Map()).get(ctx.space)!;
+  const key = `${entity}\u0000${id}`;
+  if (WATCH_PRIVATE.has(entity) && (memo.get(key) ?? 0) > ctx.now()) {
+    removeDoc(ctx.db, ctx.space, entity, id); // it may have been indexed before it turned private
+    setSeen(ctx, entity, id, seq);
+    return { indexed: false };
   }
   let r: Resolved | null;
   try {
@@ -329,6 +407,10 @@ export async function indexApply(
   setSeen(ctx, entity, id, seq);
   if ("skip" in r) {
     removeDoc(ctx.db, ctx.space, entity, id);
+    if (WATCH_PRIVATE.has(entity)) {
+      memo.set(key, ctx.now() + PRIVATE_FOR_MS);
+      if (memo.size > 5000) for (const [k, until] of memo) if (until <= ctx.now()) memo.delete(k);
+    }
     return { indexed: false };
   }
   if (r.doc.entity !== entity) r.doc.entity = entity;

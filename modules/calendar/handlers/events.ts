@@ -18,6 +18,7 @@ import {
   allow,
   bad,
   can,
+  changedMeanwhile,
   cleanAttendees,
   codeOf,
   DAY_MS,
@@ -620,6 +621,7 @@ export async function updateEvent(
     joinProvider?: JoinProvider;
     scope?: "this" | "all";
     video?: Video;
+    expectedVersion?: number;
   },
   opts: { push?: boolean } = {},
 ): Promise<{ event: EventOut; changed?: number; notice?: string }> {
@@ -627,6 +629,12 @@ export async function updateEvent(
   if (input.scope !== undefined && input.scope !== "this" && input.scope !== "all")
     bad(ctx, "The scope is this or all.");
   const row = eventRow(ctx, input.eventId, "edit");
+  // a caller that read the event at version N is refused when it has changed since (F50); nothing is checked without it
+  if (input.expectedVersion !== undefined && input.expectedVersion !== num(row, "version"))
+    changedMeanwhile(
+      ctx,
+      "This changed after it was read, so this change was not saved. Read it again and redo the change.",
+    );
   const remote = remoteOf(ctx, str(row, "calendarId"));
   const providerId = strOrNull(row, "providerId");
   const video = input.video === undefined ? "none" : checkVideo(ctx, input.video, remote);

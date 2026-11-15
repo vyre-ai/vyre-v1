@@ -2,7 +2,7 @@
 // A read that fails keeps the query in `loading` with the reason in `error` (client QueryState), so "still loading" and "failed" are told apart here, in one place, not by each screen.
 // Retry asks the Space's session to read again what is on screen: it sends RETRY_LOADS_EVENT, which the session answers by re-reading every watched query.
 import type { ReactElement } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { States } from "./index.tsx";
 
 export {
@@ -29,13 +29,38 @@ export function LoadFailed({
   onRetry = retryLoads,
   testID = "load-failed",
   refusable = true,
+  compact = false,
 }: {
   what: string;
   failure: LoadFailure;
   onRetry?: () => void;
   testID?: string;
-  /** False where a person cannot be refused (the list of what needs them): the read failed, so Retry stays. */ refusable?: boolean;
+  /** False where a person cannot be refused (the list of what needs them): the read failed, so Retry stays. */
+  refusable?: boolean;
+  /** One quiet row-height line (a section of a list that failed): the words and Retry; a refusal says so plainly with no Retry. Same rules as the block; the reason and trace id stay for the block. */
+  compact?: boolean;
 }): ReactElement {
+  if (compact) {
+    const refused = refusable && isRefused(failure);
+    return (
+      <View testID={testID} style={st.line}>
+        <Text numberOfLines={1} style={st.lineText}>
+          {refused ? `You can't open ${what}` : `Couldn't load ${what}`}
+        </Text>
+        {refused ? null : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry"
+            testID={`${testID}-retry`}
+            onPress={onRetry}
+            style={st.lineRetry}
+          >
+            <Text style={st.lineRetryText}>Retry</Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  }
   // a refusal is not a failure to wait out: say so plainly and offer no Retry, which could never work
   if (refusable && isRefused(failure))
     return (
@@ -64,4 +89,10 @@ export function LoadFailed({
   );
 }
 
-const st = StyleSheet.create({ fill: { flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" } });
+const st = StyleSheet.create({
+  line: { height: 32, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8 },
+  lineText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-3)" as string },
+  lineRetry: { paddingHorizontal: 8, height: 22, borderRadius: 6, justifyContent: "center" },
+  lineRetryText: { fontSize: 12, fontWeight: "600", color: "var(--accent)" as string },
+  fill: { flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" },
+});

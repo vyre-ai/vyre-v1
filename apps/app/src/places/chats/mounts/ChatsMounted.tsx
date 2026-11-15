@@ -17,7 +17,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Principal } from "../../../shell/session/runtime-data.ts";
 import { conversationData } from "../../../shell/providers/chats-data.ts";
 import type { ChatsActions } from "../../../shell/providers/chats-data.ts";
-import { allows } from "../../../shell/providers/runtime.tsx";
+import { GATE, allows } from "../../../shell/providers/runtime.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { AgentPage, AgentPageLoading } from "../agentpage/AgentPage.tsx";
 import { ComputerPopup, ComputerPopupLoading } from "../computer/ComputerPopup.tsx";
@@ -76,13 +76,15 @@ import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
 import { ArtifactView } from "./ArtifactView.tsx";
 import { NotesPage } from "../notes/NotesPage.tsx";
+import { NotesArtifactsFrame } from "./NotesArtifactsFrame.tsx";
+import { rememberNotesTab } from "../notes/notes-tab.ts";
 import type { NotesInitial } from "../notes/NotesPage.tsx";
 import { AgentForm } from "../agentform/AgentForm.tsx";
 import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
 import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
-import type { TabKey } from "../rightpane/model.ts";
+import type { PaneKind, TabKey } from "../rightpane/model.ts";
 import { ChatDetails } from "../rightpane/ChatDetails.tsx";
 import { paneAction, paneSubject } from "../rightpane/subject.ts";
 import { ReplyDetailsPane } from "../details/ReplyDetailsPane.tsx";
@@ -217,6 +219,7 @@ export function ChatsMounted({
   routeNow.current = shown.route.view;
   const act = useCallback(
     (a: Act): void => {
+      routeFrom.current = null;
       if (stacked && a.t === "chat" && routeNow.current === "new" && a.threadId !== "") {
         opened?.({ subject: { type: "thread", id: a.threadId } });
         return;
@@ -242,13 +245,22 @@ export function ChatsMounted({
   // an agent form that came in on a link of its own (a tab opened for it) closes that tab when it is done; one opened in this tab from the sidebar's New agent leaves the tab and goes on to the chat in it
   const formTab = useRef(hash !== "" && fromHash(hash).route.view === "agent-form");
   const linked = useRef(hash);
+  // The address the page on screen came from when it followed the tab (a Back, a tab switch, a link), null when the person's own press made it. A page that followed an address the tab has
+  // since left is out of date: it must not write itself back into the tab (two quick Backs made the page and the tab undo each other until React gave up, #185).
+  const routeFrom = useRef<string | null>(null);
+  const hashNow = useRef(hash);
+  hashNow.current = hash;
   useEffect(() => {
     if (hash === linked.current) return;
     linked.current = hash;
     // a person's profile opens beside what is on screen (the right pane), so the page itself stays
     if (personOfHash(hash) !== null) return;
     // a tab switch or a link: the same thing already on screen keeps its pane and its place
-    setShown((s) => linkedTo(s, hash));
+    setShown((s) => {
+      const next = linkedTo(s, hash);
+      if (next !== s) routeFrom.current = hash;
+      return next;
+    });
     forgetLayerLink(hash);
   }, [hash]);
   // A popover or sheet a link opened (the terminal list, All agents, the rules) is not a place: if it stayed in the tab's address, closing it and coming back, or a reload, opened it again, and the landing address
@@ -292,6 +304,8 @@ export function ChatsMounted({
   useEffect(() => {
     const report = openedRef.current;
     if (!report || routeKey === "") return;
+    // this page followed an address the tab has left: the tab is the newer word, and the page is about to follow it
+    if (routeFrom.current !== null && routeFrom.current !== hashNow.current) return;
     if (routeKey === "new") report({});
     else if (routeKey === "tasks") report({ screen: "tasks.my-work" });
     else if (routeKey === "artifacts") report({ screen: "chats.artifacts" });
@@ -678,6 +692,12 @@ export function ChatsMounted({
           act({ t: "pane-open" });
         },
         openDetails: (tid: string, mid: string) => replyDetails(tid, mid),
+        openPaneTab: (tab: "crew" | "memory" | "skills" | "hooks" | "kept") => {
+          setPaneTab(tab);
+          setRightOn(null);
+          selectedFor.current = threadId;
+          go.openPane();
+        },
         openHooks: (_tid: string, hookId?: string) => {
           setPaneTab("hooks");
           setHookSel(hookId ?? null);
@@ -813,16 +833,24 @@ export function ChatsMounted({
     if (subject.kind === "person") {
       profile(subject.id, true);
       autoTab.current = `profile:${subject.id}`;
-    } else if (subject.kind === "agent") {
+    } else {
+      // an agent's chat, a group and a channel keep the chat's own pane (Crew, Threads, Files ... and People in a channel): who is here is a tab of it, not a tab that opens over it (G5)
       setRightOn(null);
       autoTab.current = null;
-    } else {
-      const key = `chat:${threadId}`;
-      setRightTabs((t) => withTab(t, { key, id: threadId, title: "Details", kind: "chat" }));
-      setRightOn(key);
-      autoTab.current = key;
     }
   }, [shown.pane, subject?.kind, subjectKey, threadId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const paneKind: PaneKind =
+    subject === null
+      ? "agent"
+      : subject.kind === "person"
+        ? "dm"
+        : subject.kind === "channel"
+          ? "channel"
+          : subject.kind === "group"
+            ? thread.status === "ready" && thread.data.thread.agents.length > 0
+              ? "group"
+              : "channel"
+            : "agent";
   const agentTabId =
     rightTabNow && (rightTabNow.kind === "agent" || rightTabNow.kind === "assistant") ? rightTabNow.id : null;
   const agentTabData = useMemo(
@@ -980,7 +1008,16 @@ export function ChatsMounted({
           : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf, spaceName: rt.space.name } })}
       />
     );
-  else if (route.view === "artifacts") main = <ArtifactsPage rt={rt} />;
+  else if (route.view === "artifacts")
+    main = (
+      <NotesArtifactsFrame
+        tab="artifacts"
+        onTab={() => act({ t: "notes" })}
+        remember={(t) => rememberNotesTab(t, rt.call)}
+      >
+        <ArtifactsPage rt={rt} />
+      </NotesArtifactsFrame>
+    );
   else if (route.view === "artifact")
     main = (
       <ArtifactView
@@ -992,8 +1029,8 @@ export function ChatsMounted({
         gone={() => act({ t: "artifacts" })}
       />
     );
-  else if (route.view === "notes")
-    main = (
+  else if (route.view === "notes") {
+    const page = (
       <NotesPage
         rt={rt}
         nameOf={nameOf}
@@ -1002,7 +1039,36 @@ export function ChatsMounted({
         {...(notesInitial ? { initial: notesInitial } : {})}
       />
     );
-  else if (route.view === "new") {
+    main = route.noteId ? (
+      page
+    ) : (
+      <NotesArtifactsFrame
+        tab="notes"
+        onTab={() => act({ t: "artifacts" })}
+        remember={(t) => rememberNotesTab(t, rt.call)}
+      >
+        {page}
+      </NotesArtifactsFrame>
+    );
+  } else if (route.view === "new" && !allows(rt, GATE.newChat)) {
+    // a guest of a channel or two starts no chats (chat.start is refused them): the start is a line about where to go, and on a phone the list itself
+    main = (
+      <View testID="chats-guest-start" style={{ flex: 1, minHeight: 0 }}>
+        {stacked ? (
+          <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} />
+        ) : (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: "var(--ink)" as string }}>
+              Pick a channel to read and reply
+            </Text>
+            <Text style={{ fontSize: 13, color: "var(--ink-3)" as string, paddingTop: 6, textAlign: "center" }}>
+              The channels you were added to are on the left.
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  } else if (route.view === "new") {
     main = (
       <Landing
         key={route.with?.agentId ?? "new"}
@@ -1220,6 +1286,21 @@ export function ChatsMounted({
         <AgentPane
           data={paneFull ?? paneCtx}
           open
+          kind={paneKind}
+          {...(paneKind === "channel" && threadId !== null
+            ? {
+                people: (
+                  <ChatDetails
+                    key={`people:${threadId}`}
+                    threadId={threadId}
+                    call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+                    nameOf={nameOf}
+                    meId={rt.me.id}
+                    openProfile={profile}
+                  />
+                ),
+              }
+            : {})}
           onToggle={go.togglePane}
           {...(paneTab ? { tab: paneTab } : {})}
           onTab={(t: TabKey) => {

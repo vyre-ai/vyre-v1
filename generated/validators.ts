@@ -72,6 +72,7 @@ import { validators as m_settings, eventValidators as m_settings_ev } from './va
 import { validators as m_sites, eventValidators as m_sites_ev } from './validators/sites.ts';
 import { validators as m_sources, eventValidators as m_sources_ev } from './validators/sources.ts';
 import { validators as m_spaces, eventValidators as m_spaces_ev } from './validators/spaces.ts';
+import { validators as m_state, eventValidators as m_state_ev } from './validators/state.ts';
 import { validators as m_steps_core, eventValidators as m_steps_core_ev } from './validators/steps-core.ts';
 import { validators as m_stripe, eventValidators as m_stripe_ev } from './validators/stripe.ts';
 import { validators as m_sync, eventValidators as m_sync_ev } from './validators/sync.ts';
@@ -159,6 +160,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
   ...m_sites,
   ...m_sources,
   ...m_spaces,
+  ...m_state,
   ...m_steps_core,
   ...m_stripe,
   ...m_sync,
@@ -245,6 +247,7 @@ export const eventValidators: Record<string, Check> = {
   ...m_sites_ev,
   ...m_sources_ev,
   ...m_spaces_ev,
+  ...m_state_ev,
   ...m_steps_core_ev,
   ...m_stripe_ev,
   ...m_sync_ev,

@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0-rc.27",
+  "version": "1.0.0-rc.28",
   "lines": [
-    "Copy link gives a link that opens, from the desktop app too. Paste a Vyre link in a new tab or the command bar and it opens.",
-    "An artifact that cannot load says why and offers Retry, instead of a blank page.",
-    "An agent's first call to a tool works: no failed first try before it publishes a page or runs a command.",
-    "An agent tells the person asking only what that person may see, in a shared chat too.",
-    "Hover a message's time and its card opens right there. The reaction picker opens by its own button.",
-    "An approval waiting in a private chat is no longer dropped by the hourly clean-up."
+    "Back and Forward work in every tab: the arrows, the keys, the mouse buttons and a swipe all take the same step.",
+    "A message's menu is shorter, deleting a message asks first, and a long press on a phone opens a sheet made for touch.",
+    "Tag several agents in one message and they all start at once. Go with the answer you like, or ask them to discuss.",
+    "Long chats have chapters, and the Chats sidebar is new, with a plus on each section to start something.",
+    "An agent's Computer tab lists its terminals and shows a live picture of its browser. You can watch a terminal.",
+    "Other people's private things no longer show in the activity log, in search or in an agent's step details."
   ]
 }

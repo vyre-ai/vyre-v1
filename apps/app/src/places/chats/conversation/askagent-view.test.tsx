@@ -1,4 +1,4 @@
-// Ask an agent in the conversation (owner ruling, 3 Nov 2026): the quiet line under your unanswered message opens the agent picker, "Ask an Agent…" sits in every message's menu and hover
+// Ask an agent in the conversation (owner ruling, 3 Nov 2026): the quiet line under your unanswered message opens the agent picker, "Ask an agent…" sits in every message's menu and hover
 // bar in a channel, and picking an agent posts your reply to that exact message naming it. Keyboard: the line and the bar are buttons, the picker is ui/Menu. The edit path is driven in the last two tests here, the words in askagent.test.ts, and "once"
 // and the presser's account in test/chat.ask-agent.test.ts and test/chat.ask-agent.team.live.test.ts.
 import test from "node:test";
@@ -80,7 +80,7 @@ test("the quiet line under your unanswered message opens the picker, the room's 
   }
 });
 
-test("every message in a channel, yours or someone else's, has Ask an Agent… in its menu and its hover bar; a chat without the action has neither", () => {
+test("every message in a channel, yours or someone else's, has Ask an agent… in its menu and its hover bar; a chat without the action has neither", () => {
   const theirs = {
     messageId: "c1",
     threadId: "c1",
@@ -118,18 +118,18 @@ test("every message in a channel, yours or someone else's, has Ask an Agent… i
   } as unknown as MessageActions;
   const labels = (mine: boolean, acts: MessageActions) =>
     menuFor(theirs, mine, acts, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
-  assert.ok(labels(false, a).includes("Ask an Agent…"));
-  assert.ok(labels(true, a).includes("Ask an Agent…"));
-  const entry = menuFor(theirs, false, a, () => undefined).find((e) => "label" in e && e.label === "Ask an Agent…") as {
+  assert.ok(labels(false, a).includes("Ask an agent…"));
+  assert.ok(labels(true, a).includes("Ask an agent…"));
+  const entry = menuFor(theirs, false, a, () => undefined).find((e) => "label" in e && e.label === "Ask an agent…") as {
     onSelect(): void;
   };
   entry.onSelect();
   assert.deepEqual(asked, ["c1"]);
   const { askAgent: _drop, ...without } = a as unknown as Record<string, unknown>;
-  assert.ok(!labels(false, without as unknown as MessageActions).includes("Ask an Agent…"));
+  assert.ok(!labels(false, without as unknown as MessageActions).includes("Ask an agent…"));
   const bar = renderToStaticMarkup(<HoverBar m={theirs} mine={false} a={a} onEdit={() => undefined} visible />);
   assert.ok(
-    bar.includes('data-testid="act-ask-c1"') && bar.includes('aria-label="Ask an Agent"'),
+    bar.includes('data-testid="act-ask-c1"') && bar.includes('aria-label="Ask an agent"'),
     "a button in the bar, reachable by keyboard",
   );
   assert.ok(!bar.includes("pill"));
@@ -174,11 +174,11 @@ test("editing your message to add an @mention asks that agent once, as you, and 
     const order = (): string[] => calls.filter((c) => c.cap === "chat.edit" || c.cap === "chat.post").map((c) => c.cap);
 
     // a plain edit names nobody: nothing is asked
-    await editMine(root, "c2", "Can someone check the Rivera dates before Wednesday?");
+    await editMine(root, "c2", "Can someone check the Harbor dates before Wednesday?");
     assert.equal(posts().length, 0, "no mention, no ask");
 
     // the edit adds @Docs: one ask, after the edit saved, as your reply to that exact message
-    await editMine(root, "c2", "@Docs Can someone check the Rivera dates before Wednesday?");
+    await editMine(root, "c2", "@Docs Can someone check the Harbor dates before Wednesday?");
     assert.deepEqual(order(), ["chat.edit", "chat.edit", "chat.post"], "the ask follows the saved edit");
     const ask = posts()[0]!.input;
     assert.deepEqual(
@@ -188,12 +188,12 @@ test("editing your message to add an @mention asks that agent once, as you, and 
     assert.match(String(ask["clientId"]), /^msg_ask[a-z0-9]+$/);
 
     // a later edit that keeps @Docs asks nobody again
-    await editMine(root, "c2", "@Docs Can someone check the Rivera dates before Thursday?");
+    await editMine(root, "c2", "@Docs Can someone check the Harbor dates before Thursday?");
     assert.equal(posts().length, 1, "already named: no second reply");
 
     // take the mention out and put it back: the fixed message id makes it the same ask, which the server answers with the first message
-    await editMine(root, "c2", "Can someone check the Rivera dates before Thursday?");
-    await editMine(root, "c2", "@Docs Can someone check the Rivera dates before Thursday?");
+    await editMine(root, "c2", "Can someone check the Harbor dates before Thursday?");
+    await editMine(root, "c2", "@Docs Can someone check the Harbor dates before Thursday?");
     assert.equal(
       new Set(posts().map((c) => c.input["clientId"])).size,
       1,
@@ -218,8 +218,8 @@ test("an edit that names someone who is not in this channel, or a person, asks n
       },
     };
     const root = await mount(createRoot, <Conversation data={data} />);
-    await editMine(root, "c2", "@Maya can you check the Rivera dates?");
-    await editMine(root, "c2", "@Billing can you check the Rivera dates?");
+    await editMine(root, "c2", "@Maya can you check the Harbor dates?");
+    await editMine(root, "c2", "@Billing can you check the Harbor dates?");
     assert.ok(
       calls.some((c) => c.cap === "chat.edit"),
       "the edits saved",

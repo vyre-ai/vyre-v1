@@ -33,6 +33,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "agents.role_line.set": async (ctx) => { throw new VyreErr(notImplemented("agents.role_line.set", ctx.trace)); },
   "agents.routine.delegate": async (ctx) => { throw new VyreErr(notImplemented("agents.routine.delegate", ctx.trace)); },
   "agents.routine.delete": async (ctx) => { throw new VyreErr(notImplemented("agents.routine.delete", ctx.trace)); },
+  "agents.routine.fire": async (ctx) => { throw new VyreErr(notImplemented("agents.routine.fire", ctx.trace)); },
   "agents.routine.run_now": async (ctx) => { throw new VyreErr(notImplemented("agents.routine.run_now", ctx.trace)); },
   "agents.routine.save": async (ctx) => { throw new VyreErr(notImplemented("agents.routine.save", ctx.trace)); },
   "agents.routines.list": async (ctx) => { throw new VyreErr(notImplemented("agents.routines.list", ctx.trace)); },

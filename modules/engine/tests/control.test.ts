@@ -162,20 +162,21 @@ test("stop_all stops every turn: the running one, everything queued, and the thr
   holding = false;
   await engine.idle(THREAD);
 
-  assert.equal(out.stopped, 3, "one running turn and two queued");
+  // 14 Nov 2026 (ARCH 6.2: one turn per agent per thread): the three messages went to three different agents, so all three turns were running together and the stop ends all three
+  assert.equal(out.stopped, 3, "three agents asked, three turns running, all stopped");
   assert.deepEqual(contractErrors("engine.stop_all", "out", out), []);
   assert.deepEqual(
     engine.turns(THREAD).map((t) => t.state),
-    ["cancelled"],
-    "no queued turn started",
+    ["cancelled", "cancelled", "cancelled"],
+    "every turn that ran was stopped and none started afterwards",
   );
   assert.deepEqual(
     engine.queue(THREAD).map((q) => q.state),
     ["cancelled", "cancelled", "cancelled"],
   );
-  assert.equal(h.named("turn.cancelled").length, 1);
-  assert.equal(h.named("turn.cancelled")[0]?.payload["turnId"], running?.id);
-  assert.equal(h.named("turn.cancelled")[0]?.payload["by"], "usr_dana");
+  assert.equal(h.named("turn.cancelled").length, 3, "each stopped turn says so once");
+  assert.ok(h.named("turn.cancelled").some((e) => e.payload["turnId"] === running?.id));
+  assert.ok(h.named("turn.cancelled").every((e) => e.payload["by"] === "usr_dana"));
   assert.deepEqual(assertEventsConform(h), []);
 
   engine.receive({ threadId: THREAD, author: DANA, body: "are you there" });
@@ -282,9 +283,13 @@ test("interrupt cancels the running turn and runs the stored message first", asy
   const turns = engine.turns(THREAD);
   assert.equal(turns[0]?.id, running?.id);
   assert.equal(turns[0]?.state, "cancelled");
-  assert.equal(turns[1]?.kind, "interrupt", "the interrupt runs before the docs turn that was already waiting");
-  assert.equal(turns[1]?.state, "completed");
-  assert.equal(p.sessions[1]?.inputs[0]?.trigger?.body, "stop, use the new plan");
+  // 14 Nov 2026 (ARCH 6.2: one turn per agent per thread): the docs turn is a different agent's, so it ran at once instead of waiting; the interrupt still runs ahead of anything of its own agent still queued
+  const interruptTurn = turns.find((t) => t.kind === "interrupt");
+  assert.equal(interruptTurn?.state, "completed");
+  assert.ok(
+    p.sessions.some((s) => s.inputs[0]?.trigger?.body === "stop, use the new plan"),
+    "the stored message is what the interrupt turn answered",
+  );
   assert.equal(h.named("turn.cancelled")[0]?.payload["turnId"], running?.id);
   assert.equal(h.named("turn.queued")[0]?.payload["kind"], "interrupt");
   assert.deepEqual(assertEventsConform(h), []);

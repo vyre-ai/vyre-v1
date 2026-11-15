@@ -5,10 +5,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { act as reactAct } from "react";
 import { createRoot } from "test-renderer";
-import { find, installDom, mount, textOf } from "../../../../../../ui/src/testing/dom.ts";
+import { find, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { createSample } from "./sample.ts";
-import { MessageView } from "./MessageView.tsx";
+import { LONG_PRESS_MS, MessageView } from "./MessageView.tsx";
 import { timeline } from "./model.ts";
 import type { Message } from "./model.ts";
 
@@ -55,11 +55,21 @@ const reply: Message = {
   pinned: false,
 } as unknown as Message;
 
-async function rig(m: ReturnType<typeof media>) {
+interface Log {
+  removed: string[];
+  made: string[];
+  reacted: string[];
+  menus: string[][];
+}
+async function rig(m: ReturnType<typeof media>, shown: Message = reply, log: Partial<Log> = {}) {
+  const removed = log.removed ?? [];
+  const made = log.made ?? [];
+  const reacted = log.reacted ?? [];
+  const menus = log.menus ?? [];
   const restore = installDom();
   (globalThis as { matchMedia?: unknown }).matchMedia = m.mm;
   const s = createSample("idle");
-  const items = timeline([reply], {
+  const items = timeline([shown], {
     meId: s.data.me.id,
     nameOf: s.data.nameOf,
     kindOf: s.data.kindOf,
@@ -68,19 +78,20 @@ async function rig(m: ReturnType<typeof media>) {
   const actions = {
     openBeside: () => undefined,
     nameOf: s.data.nameOf,
-    makeTask: () => undefined,
+    makeTask: (id: string) => void made.push(id),
     copy: () => undefined,
     openThread: () => undefined,
     setPinned: () => undefined,
     fork: () => undefined,
-    showMenu: () => undefined,
-    remove: () => undefined,
-    react: () => undefined,
+    showMenu: (items: readonly { label?: string }[]) =>
+      void menus.push(items.flatMap((e) => (e.label ? [e.label] : []))),
+    remove: (id: string) => void removed.push(id),
+    react: (id: string, emoji: string, remove: boolean) => void reacted.push(`${id}:${emoji}:${remove}`),
   } as never;
   const root = await mount(
     createRoot as never,
     <MessageView
-      item={items.find((i) => (i as { message?: Message }).message?.messageId === "m_ans")!}
+      item={items.find((i) => (i as { message?: Message }).message?.messageId === shown.messageId)!}
       actions={actions}
       meId={s.data.me.id}
     />,
@@ -112,9 +123,9 @@ test("a device that hovers and has a touch screen has both: the bar is there, an
   const { root, restore } = await rig(m);
   try {
     assert.ok(find(root, "hover-m_ans"), "the hover bar is drawn where the device hovers");
-    assert.ok(!textOf(root).includes("Make a Task"), "no sheet at rest");
+    assert.ok(!textOf(root).includes("Make a task"), "no sheet at rest");
     await longPress(root);
-    assert.ok(textOf(root).includes("Make a Task"), "the long press opened the sheet with Make a Task");
+    assert.ok(textOf(root).includes("Make a task"), "the long press opened the sheet with Make a task");
     assert.ok(find(root, "hover-m_ans"), "and the hover bar is still there");
   } finally {
     restore();
@@ -133,10 +144,146 @@ test("when the device stops being able to hover the bar goes away, and comes bac
     assert.ok(textOf(root).includes("Three invoices are paid"), "the message itself stays, not remounted into nothing");
     assert.equal(m.state.added, 1, "the same listener: the row was not mounted again");
     await longPress(root);
-    assert.ok(textOf(root).includes("Make a Task"), "and a long press opens the sheet");
+    assert.ok(textOf(root).includes("Make a task"), "and a long press opens the sheet");
     await m.set(false);
     assert.ok(find(root, "hover-m_ans"), "the bar comes back when the device can hover again");
     assert.equal(textOf(root).includes("Three invoices"), before.includes("Three invoices"));
+  } finally {
+    restore();
+  }
+});
+
+test("the sheet a long press opens (G14, phone): no generic title, one line saying what it acts on, reactions on top, the entries with icons in groups, nothing lit, and a message is deleted only after it asks once", async () => {
+  const m = media(true);
+  const { root, restore } = await rig(m);
+  try {
+    await longPress(root);
+    const text = textOf(root);
+    const quote = find(root, "sheet-quote");
+    assert.ok(quote && textOf(quote).includes("Three invoices are paid"), "the quote says what the sheet acts on");
+    assert.ok(find(root, "sheet-reactions"), "frequent reactions on top");
+    assert.ok(!/Add reaction/.test(text), "reactions are a row, not a text entry");
+    for (const l of ["Reply in thread", "Copy", "Make a task", "Fork from here", "Pin"]) assert.ok(text.includes(l), l);
+    assert.ok(!/>Message</.test(text.replace(/\s+/g, ">")), "no generic title");
+    assert.equal(find(root, "sheet-act-delete"), null, "an agent's reply has no Delete");
+  } finally {
+    restore();
+  }
+});
+
+test("on your own message the sheet ends with Delete, alone and in the danger colour; it asks once (Delete this message?) and deletes only on the second press", async () => {
+  const m = media(true);
+  const removed: string[] = [];
+  const mine = {
+    ...reply,
+    messageId: "m_mine",
+    author: { kind: "person", id: "usr_irfad" },
+    kind: "text",
+    body: "Book 2pm.",
+  } as unknown as Message;
+  const { root, restore } = await rig(m, mine, { removed });
+  try {
+    await longPress(root);
+    assert.ok(find(root, "sheet-act-edit"), "Edit is there on your own message");
+    await press(find(root, "sheet-act-delete"));
+    assert.deepEqual(removed, [], "the first press only asks");
+    assert.ok(textOf(find(root, "sheet-delete-ask")!).includes("Delete this message?"));
+    await press(find(root, "sheet-act-cancel"));
+    assert.deepEqual(removed, [], "Cancel keeps it");
+    await press(find(root, "sheet-act-delete"));
+    await press(find(root, "sheet-act-delete"));
+    assert.deepEqual(removed, ["m_mine"], "deleted once, after asking");
+  } finally {
+    restore();
+  }
+});
+
+test("only a held press opens the sheet: a touch that ends early, a finger that moves, or a cancelled touch opens nothing; and a long press never also opens the browser's own menu or selection (the row is not selectable on touch)", async () => {
+  const m = media(true);
+  const { root, restore } = await rig(m);
+  try {
+    const row = rowOf(root)!;
+    const hold = async (end: string, wait: number): Promise<void> => {
+      await reactAct(async () => {
+        (row.props["onTouchStart"] as () => void)();
+        await new Promise((r) => setTimeout(r, wait));
+        if (end !== "hold") (row.props[end] as () => void)();
+        // long enough that a timer the end did not clear would have fired by now
+        await new Promise((r) => setTimeout(r, end === "hold" ? 40 : LONG_PRESS_MS + 100));
+      });
+    };
+    const opened = (): boolean => find(root, "sheet-quote") !== null;
+    assert.ok(LONG_PRESS_MS >= 300, "a delay that is not a tap");
+    await hold("onTouchEnd", 100);
+    assert.equal(opened(), false, "a touch shorter than the delay opens none");
+    await hold("onTouchMove", LONG_PRESS_MS - 150);
+    assert.equal(opened(), false, "a finger that moves inside the delay opens none (it is a scroll)");
+    await hold("onTouchCancel", LONG_PRESS_MS - 150);
+    assert.equal(opened(), false);
+    let prevented = 0;
+    (row.props["onContextMenu"] as (e: { preventDefault(): void }) => void)({ preventDefault: () => void prevented++ });
+    assert.equal(prevented, 1, "the browser's own long-press menu is shut: the sheet is the menu");
+    await hold("hold", LONG_PRESS_MS + 100);
+    assert.equal(opened(), true, "a held press opens the sheet");
+  } finally {
+    restore();
+  }
+});
+
+test("a row of the sheet does what it says, on that message: Make a task calls makeTask with its id, a reaction reacts, and one already given is taken back", async () => {
+  const m = media(true);
+  const made: string[] = [];
+  const reacted: string[] = [];
+  const given = { ...reply, reactions: [{ emoji: "\u{1F44D}", by: ["usr_irfad"] }] } as unknown as Message;
+  const { root, restore } = await rig(m, given, { made, reacted });
+  try {
+    await longPress(root);
+    await press(find(root, "sheet-act-make-a-task"));
+    assert.deepEqual(made, ["m_ans"], "the task is made from THIS message");
+    await longPress(root);
+    const lit = find(root, "sheet-reactions")!;
+    assert.ok(textOf(lit).includes("\u{1F44D}"));
+    const up = find(root, "sheet-react-\u{1F44D}")!;
+    await press(up);
+    assert.deepEqual(reacted, ["m_ans:\u{1F44D}:true"], "pressing one already given takes it back");
+    await longPress(root);
+    await press(find(root, "sheet-react-\u{2764}\u{FE0F}"));
+    assert.equal(reacted.at(-1), "m_ans:\u{2764}\u{FE0F}:false", "a new one is added");
+  } finally {
+    restore();
+  }
+});
+
+test("a narrow window with a mouse keeps its right-click menu: the message menu opens on a context click at 390 px, and nothing else about the row changes", async () => {
+  const m = media(false); // a mouse: the device can hover
+  const { Dimensions } = await import("react-native");
+  const menus: string[][] = [];
+  Dimensions.set({ window: { width: 390, height: 844, scale: 1, fontScale: 1 } });
+  const { root, restore } = await rig(m, reply, { menus });
+  try {
+    const withMenu = (n: Node): Node | null => {
+      if (typeof n.props["onContextMenu"] === "function") return n;
+      for (const c of n.children ?? []) {
+        if (typeof c === "string") continue;
+        const f = withMenu(c);
+        if (f) return f;
+      }
+      return null;
+    };
+    const row = withMenu(root);
+    assert.ok(row, "the row listens for a context click at a narrow width");
+    let prevented = 0;
+    await reactAct(async () => {
+      (row.props["onContextMenu"] as (e: unknown) => void)({
+        preventDefault: () => void prevented++,
+        clientX: 20,
+        clientY: 40,
+        pageX: 20,
+        pageY: 40,
+        nativeEvent: { pageX: 20, pageY: 40 },
+      });
+    });
+    assert.ok(menus.length >= 1 && menus[0]!.includes("Make a task"), `the menu opened: ${JSON.stringify(menus)}`);
   } finally {
     restore();
   }

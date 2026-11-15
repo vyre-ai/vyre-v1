@@ -7,6 +7,7 @@ import type {
   ShareLevel,
   ShareRow,
 } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import { isMadeBySource } from "../../../../../../ui/src/AccessSheet/model.ts";
 
 export type SharesOut = CapMap["access.shares_of"]["out"];
 export type MarksOut = CapMap["access.record_marks"]["out"];
@@ -57,6 +58,7 @@ export function sheetModel(out: SharesOut, name: (id: string) => string): SheetM
       fromFolderId: s.through === "folder" ? g.resource.id : null,
       ...(g.conditions.export === true ? { canExport: true } : {}),
       ...(g.conditions.reshare === true ? { canShare: true } : {}),
+      ...(isMadeBySource(g.source) ? { madeBy: true } : {}),
     });
   }
   return {

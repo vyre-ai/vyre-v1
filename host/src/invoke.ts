@@ -3,7 +3,15 @@
 //   1 resolve  2 validate  3 idempotency  4 rate limit  5 authorize (+ Gate)  6 handler  7 commit (events, audit)  8 publish
 // Everything the pipeline needs from outside is a port in InvokeDeps, so the same code runs against the real kernel (authorize, LogClient idempotency, tx) and against fakes in tests.
 // Errors leave as HostError (a shaped VyreError with its HTTP status); nothing here throws a raw exception to a caller.
-import { PERSON_LACKS_ROLE_LINE, roleLine } from "../../lib/vault-lines.ts";
+import { notFoundLine, sayableName } from "../../lib/words/errors.ts";
+import {
+  AGENT_AND_PERSON_LACK_ROLE_LINE,
+  AGENT_LACKS_CONNECTORS_LINE,
+  AGENT_LACKS_ROLE_LINE,
+  PERSON_LACKS_ONLY_ROLE_LINE,
+  PERSON_LACKS_ROLE_LINE,
+  roleLine,
+} from "../../lib/vault-lines.ts";
 import { formatHlc, tickHlc } from "../../lib/hlc.ts";
 import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
@@ -20,6 +28,7 @@ import {
   OUTSIDE_AGENT_LINE,
   SELF_BINDING_LINE,
   isSelfBound,
+  missingThing,
   resolveResource,
   selfAuditNote,
   selfTarget,
@@ -228,6 +237,8 @@ export interface InvokeDeps {
       trace: string,
     ): Promise<{ finish(): unknown } | null>;
   };
+  /** Can this agent's clearance reach what this resource is labelled (its own label and every folder above it)? Asked once a Vault folder or key an agent made for a person is born (host/src/daemon/daemon.ts). */
+  madeFor?: MadeForFacts;
   preview?: { read(token: string, cap: string, input: unknown, trace: string): Promise<{ finish(): unknown }> };
   caps: CapIndex;
   validateInput(cap: string, v: number, input: unknown): string[];
@@ -236,6 +247,8 @@ export interface InvokeDeps {
   authorize(req: AuthReq): KernelDecision;
   /** True when a refused resource is one this caller may not even know of (an agent a private chat made, cut off from the Space, that they cannot view): the refusal reads as not found */
   hidden?(resource: { type: string; id: string | null }, principal: string, actingFor: string | undefined): boolean;
+  /** The plain words for a person who reaches by id for an agent that is its person's alone (an Assistant, an outside agent), or null for any other agent: access refuses them before the agents module can say it. */
+  privateAgentWords?(agentId: string): string | null;
   /** Is this person (or the person an agent acts for) a member or guest of the Space: any role or any grant. Needed by capabilities at level 'member' (ruling 69); without it they fall back to view on the Space. */
   membership?(principal: string, actingFor?: string): boolean;
   handler(cap: string, v: number): Handler | undefined;
@@ -483,6 +496,56 @@ const memberAllow = (decisionId: string): KernelDecision => ({
   obligations: [],
   decisionId,
 });
+
+/** What the server knows that decides whether an agent needs a grant on a thing it just made (host/src/daemon/daemon.ts, from the access snapshot). */
+export interface MadeForFacts {
+  /** Does the agent's clearance reach the label of this place (its own and every folder above it)? */
+  clears(agentId: string, resourceId: string): boolean;
+  /** Is this place inside a person's Mine (a private root)? */
+  inMine(resourceId: string): boolean;
+}
+
+/**
+ * The one rule for what an agent holds on a thing it just made for the person it acts for (owner ruling, 14 Nov 2026: what an agent makes for me is mine, and that agent can use it at once). Written in the
+ * same commit as the birth (invoke adds the grant to the events of the call that made the thing), so there is no moment when the person owns it and the agent that made it is refused, and no grant for a
+ * thing that was never made. Only the agent that made it, only at its birth, never at a later move, never to another agent. The grant is the person's (`by`), can be removed by them like any grant, and adds no
+ * power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
+ *   record type  Manage, no source (it sets who the type is open to as part of the same work). Until this change the old record-type block granted without the owner and clearance checks; the registrar
+ *                makes the person the owner of what an agent makes for them, so the owner check changes nothing in practice, and a record type in a place above the agent's clearance now gets no grant
+ *   site         Edit, only the site this call created
+ *   vault folder Edit, vault key Use; both carry the source made-by:<agent> so the share list shows who made it
+ * Skipped, not failed (the call still succeeds, the thing is the person's), when: the place is labelled above the agent's clearance (`facts.clears`); the thing is inside a person's Mine (the agent reaches it only
+ * while acting for its owner, so a key there needs no grant; the Mine folder itself gets Edit so the agent can put the key in). The grant is removed again if the thing changes owner or moves above the agent's clearance (modules/access/consumers.ts). The agent gets no
+ * grant, so its next call on it is refused above clearance in the usual words.
+ */
+export function madeForGrant(
+  row: { id: string; type: string; parent_id?: string | null | undefined; owner_id?: string | null | undefined },
+  events: readonly { type: string; payload?: unknown }[],
+  seed: { principal: { kind: string; id: string }; actingFor?: string | undefined },
+  facts?: MadeForFacts,
+): { level: "manage" | "edit" | "use"; source: boolean } | null {
+  if (seed.principal.kind !== "agent" || !seed.actingFor?.startsWith("usr_")) return null;
+  // one order of checks for every kind: what it is and at what level, whose it is, whether the place is within the agent's clearance, then the kind's own skips
+  let level: "manage" | "edit" | "use";
+  if (row.type === "record_type") level = "manage";
+  else if (row.type === "site") {
+    const born = events.some(
+      (e) => e.type === "site.created" && (e.payload as { siteId?: unknown } | undefined)?.siteId === row.id,
+    );
+    if (!born) return null;
+    level = "edit";
+  } else if (row.type === "vault_folder") level = "edit";
+  else if (row.type === "vault_item") level = "use";
+  else return null;
+  if (row.owner_id !== seed.actingFor) return null;
+  if (facts && !facts.clears(seed.principal.id, row.parent_id ?? row.id)) return null;
+  if (level === "manage") return { level, source: false };
+  // a thing inside a person's Mine gets nothing: the agent reaches it while acting for the owner (Use), which is all a key needs. The Mine FOLDER itself (a private root, no parent) does get Edit: the gateway
+  // asks Edit on a folder before the agent may put a key in it, and the kernel gives an agent acting for the owner only Use there. The grant is the person's, and it holds only while the agent acts for them: for
+  // anyone else the call takes the lower of the agent's grants and that person's access, which in someone's Mine is none.
+  if (facts && row.parent_id != null && facts.inMine(row.parent_id)) return null;
+  return { level, source: true };
+}
 
 export function createInvoke(deps: InvokeDeps): Invoke {
   const now = deps.now ?? Date.now;
@@ -910,6 +973,20 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           deps.hidden?.(resource, seed.principal.id, seed.actingFor)
         )
           throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
+        // a person reaching for an agent they may not see (an agent nobody shared with them, an id that is not one): every door says the same sentence, with no id and no "Ask for access", so what exists is not
+        // leaked. An agent that is its person's alone (an Assistant, an outside agent) keeps its own words, which say whose it is.
+        if (
+          resource !== null &&
+          resource.type === "agent" &&
+          resource.id !== null &&
+          seed.principal.kind === "person" &&
+          (d.reason === "no_grant" || d.reason === "not_found")
+        ) {
+          const words = deps.privateAgentWords?.(resource.id);
+          if (words) throw fail("validation.not_found", traceId, { message: words, details: { reason: "private" } });
+          // an agent that exists and is not theirs, and an id that is no agent, answer in exactly the same words: the code access always gave an unknown id, one sentence, no details
+          throw fail("permission.not_found", traceId, { message: "That agent does not exist." });
+        }
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare =
@@ -928,9 +1005,46 @@ export function createInvoke(deps: InvokeDeps): Invoke {
               (resource?.type === "space" || (resource?.type === "connection" && resource.id === null))))
             ? roleLine(c.name)
             : null;
+        // a thing the caller named that the kernel found nothing for (not_found; a thing that exists above the caller's clearance answers above_clearance instead, with its own words) says which kind of thing and the name they gave (never an id), so an agent can tell the person what to look for
+        const missing = d.reason === "not_found" && resource !== null ? missingThing(c, input, resource) : null;
+        const missingName = missing === null ? null : sayableName(missing.name);
+        // an agent refused for a role: say whose role is short. The agent's roles and its person's are separate (an agent never does more than its person may), and the fix differs.
+        let agentLine: string | null = null;
+        if (
+          d.reason === "role_lacks_permission" &&
+          seed.principal.kind === "agent" &&
+          seed.actingFor?.startsWith("usr_") &&
+          c.permission !== null
+        ) {
+          const person = deps.authorize({ ...req, principal: seed.actingFor, actingFor: undefined, approved: false });
+          // authorize judges the agent first and the person only when the agent passed, and its last step names who it refused: the same words in both verdicts mean the person is the one short
+          const personIsShort =
+            person.effect === "deny" &&
+            d.steps.length > 0 &&
+            d.steps[d.steps.length - 1]!.text === person.steps[person.steps.length - 1]?.text;
+          agentLine =
+            person.effect !== "deny"
+              ? c.permission === "connectors.manage"
+                ? AGENT_LACKS_CONNECTORS_LINE
+                : AGENT_LACKS_ROLE_LINE
+              : person.reason !== "role_lacks_permission"
+                ? null
+                : personIsShort
+                  ? PERSON_LACKS_ONLY_ROLE_LINE
+                  : AGENT_AND_PERSON_LACK_ROLE_LINE;
+        }
         throw fail(code, traceId, {
-          details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) },
+          details: {
+            cap: c.name,
+            reason: d.reason,
+            steps: d.steps.map((s) => s.text),
+            ...(missing !== null
+              ? { thing: missing.kind, ...(missingName !== null ? { name: missingName } : {}) }
+              : {}),
+          },
           ...(plain ? { message: plain } : {}),
+          ...(plain === null && agentLine !== null ? { message: agentLine } : {}),
+          ...(missing !== null ? { message: notFoundLine(missing.kind, missing.name) } : {}),
           ...(askShare
             ? {
                 message:
@@ -1069,16 +1183,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         events,
       })) {
         events.push(
-          envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope,
+          envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth, {
+            vis: deps.resources.visOf?.(row) ?? "space",
+          }) as EventEnvelope,
         );
-        // An agent that makes a record type for the person it acts for holds Manage on it (the person owns it): it needs to set who the type is open to as part of the same work. Only a record type, only
-        // an agent acting for a person. This adds no power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
-        if (
-          row.type === "record_type" &&
-          seed.principal.kind === "agent" &&
-          seed.actingFor !== undefined &&
-          seed.actingFor.startsWith("usr_")
-        ) {
+        // What an agent makes for the person it acts for is that person's, and the agent goes on working on it: one rule for all of it (madeForGrant below).
+        const made = madeForGrant(row, events, seed, deps.madeFor);
+        if (made) {
           const id = `gnt_${hex(16)}`;
           events.push(
             envelope(
@@ -1088,10 +1199,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
                 id,
                 subject_kind: "actor",
                 subject_id: seed.principal.id,
-                resource_type: "record_type",
+                resource_type: row.type,
                 resource_id: row.id,
-                level: "manage",
+                level: made.level,
                 by: seed.actingFor,
+                ...(made.source ? { source: `made-by:${seed.principal.id}` } : {}),
               },
               seed,
               trace,
@@ -1213,7 +1325,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       traceId: trace.traceId,
       spanId: trace.spanId,
       actor: seed.principal.id,
-      ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}),
+      ...(opts?.onBehalf ? { onBehalf: opts.onBehalf } : seed.actingFor ? { onBehalf: seed.actingFor } : {}),
       ...(seed.device ? { device: seed.device } : {}),
       ...(seed.run ? { runId: seed.run } : {}),
       ...(opts?.cause ? { cause: opts.cause } : {}),
@@ -1267,6 +1379,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           throw fail("internal.unexpected", trace.traceId, {
             message: "Something went wrong on our side.",
             details: { cap: c.name, event: name, errors: bad.slice(0, 5) },
+          });
+        if (opts?.onBehalf !== undefined && !isHostService(seed.principal))
+          throw fail("internal.unexpected", trace.traceId, {
+            message: "Something went wrong on our side.",
+            details: { cap: c.name, event: name, why: "only the host service may make an event on someone's behalf" },
           });
         const ev = envelope(name, subject, payload, seed, trace, depth, opts);
         buf.push(ev as EventEnvelope);

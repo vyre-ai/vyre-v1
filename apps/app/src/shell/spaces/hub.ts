@@ -5,7 +5,7 @@
 import type { ThemeController } from "../../../../../ui/src/theme/index.ts";
 import { NO_SCREEN_PLACES, PLACE_TITLE, kitById, livePlace, railFor } from "../rail/kits.ts";
 import type { KitDef, PlaceId, RailGroups } from "../rail/kits.ts";
-import { activeEntry, createTabsController, screenTitle, tabKey } from "../tabs/store.ts";
+import { activeEntry, backTarget, createTabsController, forwardTarget, screenTitle, tabKey } from "../tabs/store.ts";
 import type { TabEntry, TabsController, TabsStorage } from "../tabs/store.ts";
 import type { SpaceDef } from "./model.ts";
 
@@ -64,6 +64,13 @@ export interface HubState {
   error: string | null;
   /** A place that just joined the open Space's rail; null once it has settled. */
   fresh: FreshPlace | null;
+  /** Where Back and Forward would go from the tab on screen: the name of that place, or null when there is nowhere. */
+  nav?: NavState;
+}
+
+export interface NavState {
+  back: string | null;
+  forward: string | null;
 }
 
 export interface HubOptions {
@@ -105,7 +112,12 @@ export interface ShellHub {
   placeDrawn(epoch: number): void;
   retry(): void;
   /** Navigate: open a place (or an item in it) as a tab and show it. */
-  go(place: PlaceId, hash?: string, background?: boolean): void;
+  go(place: PlaceId, hash?: string, background?: boolean, link?: boolean): void;
+  /** Back in the tab on screen: a step it took, the tab it was opened from, or one level up. False when there is nowhere to go. */
+  /** `up: false` leaves out the one-level-up step: what the browser's own Back may take (it leaves Vyre when there is nothing else). */
+  back(o?: { up?: boolean }): boolean;
+  /** Forward in the tab on screen, after Back. */
+  forward(): boolean;
   /** The person went somewhere inside the place on screen: the selected tab follows, no tab opens (tabs/store.ts moveTab). */
   move(place: PlaceId, hash?: string): void;
   /** The "+" tab on screen becomes this place and item (a chat started from its search): the same tab, named, no second tab (tabs/store.ts fillTab). */
@@ -223,9 +235,28 @@ export function createShellHub(options: HubOptions): ShellHub {
 
   function build(): HubState {
     const s = open();
-    return { openId, phase, epoch, place: s.place, hash: s.hash, away, online, waiting, status, error, fresh };
+    const tabs = s.tabs.state();
+    const back = backTarget(tabs);
+    const fwd = forwardTarget(tabs);
+    const nav: NavState = { back: back === null ? null : back.title, forward: fwd === null ? null : fwd.title };
+    return { openId, phase, epoch, place: s.place, hash: s.hash, away, online, waiting, status, error, fresh, nav };
   }
   snap = build();
+
+  /** Back or Forward in the tab on screen; the page shows what the tab shows afterwards. */
+  function step(run: (tabs: TabsController) => boolean): boolean {
+    const s = open();
+    holder?.();
+    if (!run(s.tabs)) return false;
+    const now = s.tabs.state();
+    const t = now.tabs.find((x) => x.key === now.active);
+    if (t !== undefined) {
+      s.place = t.place;
+      s.hash = t.hash ?? "";
+    }
+    emit();
+    return true;
+  }
 
   function emit(): void {
     snap = build();
@@ -387,16 +418,26 @@ export function createShellHub(options: HubOptions): ShellHub {
       s.tabs.retitle(key, title, empty);
       emit();
     },
-    go(requested, hash, background = false) {
+    go(requested, hash, background = false, link = false) {
       // a place with no screen (the old Join) opens Chats instead of an empty page; Home's links land in Chats with their hash
       const gone = NO_SCREEN_PLACES.includes(requested);
       const place = gone ? "chats" : livePlace(requested);
       if (gone) hash = undefined;
       const s = open();
+      // A press that opens something inside the place on screen is one step in this tab, not a tab of its own (Back returns to where the person was). A link, a tab made on purpose
+      // (Cmd-press, Open in new tab) and an item in another place are not steps: they open or select a tab.
+      if (!background && !link && hash !== undefined && hash !== "" && !gone) {
+        const now = s.tabs.state();
+        const cur = now.tabs.find((x) => x.key === now.active);
+        if (cur !== undefined && cur.isNew !== true && cur.place === place && (cur.hash ?? "") !== hash) {
+          hub.move(place, hash);
+          return;
+        }
+      }
       if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.();
       // an address with no item (hash "") asks for the place's landing: its own tab shows it. A place asked for with no hash at all (the rail) goes to the tab the place has.
       if (!background && hash === "") s.tabs.land(place);
-      else s.tabs.openPlace(place, hash, screenTitle(hash), background);
+      else s.tabs.openPlace(place, hash, screenTitle(hash), background, link);
       if (!background) {
         // the page shows what the selected tab shows, so a tab never names one thing over another
         const now = s.tabs.state();
@@ -406,6 +447,12 @@ export function createShellHub(options: HubOptions): ShellHub {
         s.hash = same ? (t.hash ?? "") : (hash ?? "");
       }
       emit();
+    },
+    back(o) {
+      return backTarget(open().tabs.state(), o) !== null && step((tabs) => tabs.back(o));
+    },
+    forward() {
+      return forwardTarget(open().tabs.state()) !== null && step((tabs) => tabs.forward());
     },
     move(place, hash) {
       const s = open();

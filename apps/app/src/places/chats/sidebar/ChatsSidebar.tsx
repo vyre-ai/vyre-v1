@@ -109,6 +109,7 @@ import { RenameField } from "../conversation/parts.tsx";
 import { ChannelSheets } from "../channels/Sheets.tsx";
 import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
 import { usePulse } from "./pulse.ts";
+import { SideChats } from "./SideChats.tsx";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { ChannelSheetKind } from "../channels/request.ts";
 
@@ -184,7 +185,7 @@ export function ChatsSidebar({
   if (!value) return <ChatsSidebarLoading />;
   return (
     <ChatsSidebarDataProvider value={value}>
-      <Sidebar
+      <SidebarChoice
         query={query}
         slot={slot}
         {...(window ? { window } : {})}
@@ -225,7 +226,7 @@ export function ChatsSidebarLoading(): ReactElement {
   return <View testID="chats-sidebar-loading" accessibilityLabel="Loading" style={st.root} />;
 }
 
-function Sidebar({
+function LegacySidebar({
   window,
   query,
   slot,
@@ -599,12 +600,12 @@ function Sidebar({
         notes: data.nav.openNotes !== undefined,
         agentUnread: byAgent,
         waitingThreads,
-        assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name },
-        people,
+        ...(canChat ? { assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name } } : {}),
+        people: canChat ? people : [],
         moreRecent: more.recent === true,
         morePeople: more.people === true,
         moreAgents: more.faces === true,
-        faces,
+        faces: canChat ? faces : [],
         workingAgents: working,
         waitingAgents: waiting,
         groups,
@@ -613,7 +614,7 @@ function Sidebar({
         archived: archivedChats,
         archivedOpen,
         closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]),
-        facesMore,
+        facesMore: canChat ? facesMore : 0,
         errors,
         imported,
         archivedImported,
@@ -661,6 +662,7 @@ function Sidebar({
       liveImported,
       archivedChats,
       archivedOpen,
+      canChat,
     ],
   );
   const order = useMemo(() => selectable(entries), [entries]);
@@ -2038,3 +2040,56 @@ const st = StyleSheet.create({
   kind: { fontSize: 11.5, color: "var(--accent)" as string, fontWeight: "500" },
   kindWarn: { color: "var(--warn)" as string },
 });
+
+/** The new sidebar is the product's; the old one stays for the tests that pin its behaviour until it is deleted. One line switches. */
+export const NEW_SIDEBAR = true;
+function SidebarChoice(p: {
+  window?: VirtualWindow;
+  query: string;
+  slot: SidebarSlotApi | undefined;
+  open?: string | null;
+  startFilter?: SideFilter;
+}): ReactElement {
+  return NEW_SIDEBAR ? (
+    <SideChats
+      slot={p.slot}
+      {...(p.open !== undefined ? { open: p.open } : {})}
+      {...(p.window ? { window: p.window } : {})}
+      {...(p.startFilter ? { startFilter: p.startFilter as never } : {})}
+    />
+  ) : (
+    <LegacySidebar {...p} />
+  );
+}
+export function LegacyChatsSidebar(props: Parameters<typeof ChatsSidebar>[0]): ReactElement {
+  const ctx = useOptionalSidebarData();
+  const value = props.data ?? ctx;
+  if (!value) return <ChatsSidebarLoading />;
+  return (
+    <ChatsSidebarDataProvider value={value}>
+      <LegacySidebar
+        query={props.query ?? ""}
+        slot={props.slot}
+        {...(props.window ? { window: props.window } : {})}
+        {...(props.open !== undefined ? { open: props.open } : {})}
+        {...(props.startFilter ? { startFilter: props.startFilter } : {})}
+      />
+    </ChatsSidebarDataProvider>
+  );
+}
+
+export function LegacyChatsSidebarSlot(props: Parameters<typeof ChatsSidebarSlot>[0]): ReactElement {
+  return (
+    <SidebarContent title="Chats" noSearch>
+      {(query, slot) => (
+        <LegacyChatsSidebar
+          query={query}
+          slot={slot}
+          {...(props.data ? { data: props.data } : {})}
+          {...(props.window ? { window: props.window } : {})}
+          {...(props.open !== undefined ? { open: props.open } : {})}
+        />
+      )}
+    </SidebarContent>
+  );
+}

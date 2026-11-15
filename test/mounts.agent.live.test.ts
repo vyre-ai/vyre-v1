@@ -3,7 +3,7 @@
 // The agent lists the mount folder and reads a file through files_list and files_read; a write into a mount that has Review changes on is not applied, it waits as a change for a person to approve.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { boot, call, connect, newAgent, say, seededDir, waitFor } from "./memory-live-kit.ts";
+import { boot, call, clock, connect, newAgent, say, seededDir, waitFor } from "./memory-live-kit.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 let keys = 0;
@@ -44,6 +44,9 @@ test("mounts live: a chat agent lists a mounted folder and reads its file throug
       (await ok(d, "files.list", { folder: added.folderId })).files as Array<{ fileId: string; name: string }>
     ).find((f) => f.name === "nda.txt");
     assert.ok(nda, "the mounted file is in Files");
+    // An agent's write is made on the version it saw when its turn began (4ca7bf1e5, a76358985: "a file with no version from before the turn counts as changed"). The kit's clock stands still, so the file's
+    // first version and the agent's turns would all carry one instant and every write would read as "changed since the turn began". Time passes between the device's report and the agent's work, as it does for a person.
+    clock.t += 60_000;
 
     // an agent reaches what a person shares with it, as for any folder: the mount is shared with the agent the way the sheet's Who can see it shares with a person
     await ok(d, "access.share", {

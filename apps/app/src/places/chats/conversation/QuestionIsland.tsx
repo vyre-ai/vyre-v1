@@ -35,8 +35,8 @@ export function QuestionIsland({
   const [writing, setWriting] = useState<string | null>(null);
   const [text, setText] = useState("");
   if (!q) return null;
-  // two answers are two buttons, the first the primary one (the prototype's "12 px" and "14 px"); more than two, the first is the button and the rest wait under Other
-  const shown = q.options.length <= 2 ? q.options : q.options.slice(0, 1);
+  // the first answer is the one button and the rest wait under Other, with a box for words (prototype: "2 GB  Other")
+  const shown = q.options.slice(0, 1);
   const [first] = shown;
   const rest = q.options.slice(shown.length);
   const send = (answer: string): void => {
@@ -87,7 +87,7 @@ export function QuestionIsland({
                 <TextButton key={o.id} label={o.label} testID={`island-option-${o.id}`} onPress={() => send(o.id)} />
               ))
           : null}
-        {!own && q.options.length > 2 ? (
+        {!own ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Other answers"

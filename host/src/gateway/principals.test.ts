@@ -6,6 +6,7 @@ import { foldEvent } from "../daemon/access.ts";
 import {
   createPrincipalRegistrar,
   missingAgentHomeEvents,
+  oldAgentShareEvents,
   missingAgentPrincipalEvents,
   ownPlaceGrant,
 } from "./principals.ts";
@@ -375,5 +376,84 @@ test("the home repair writes the two ruling 99 grants only for an agent whose ho
       ],
     }),
     [],
+  );
+});
+
+test("an agent born shared gets exactly one Everyone use grant on itself, with the birth; one not born shared gets none", () => {
+  const shared = reg("edit").register({
+    events: [
+      { type: "agent.created", payload: { agentId: "agt_9abc", name: "Intake", ownerId: "usr_a", shared: true } },
+    ],
+    space: "spc_core",
+    maker: "usr_a",
+  });
+  const on = shared.filter((e) => e.payload["resource_type"] === "agent");
+  assert.equal(on.length, 1);
+  assert.deepEqual(
+    {
+      kind: on[0]!.payload["subject_kind"],
+      who: on[0]!.payload["subject_id"],
+      at: on[0]!.payload["resource_id"],
+      level: on[0]!.payload["level"],
+      by: on[0]!.payload["by"],
+    },
+    { kind: "group", who: "grp_everyone", at: "agt_9abc", level: "use", by: "usr_a" },
+  );
+  const alone = reg("edit").register({ events: created("agt_8abc"), space: "spc_core", maker: "usr_a" });
+  assert.equal(alone.filter((e) => e.payload["resource_type"] === "agent").length, 0);
+});
+
+test("an agent a person makes is born shared with Everyone only when that person could share with Everyone themselves", () => {
+  const born = [
+    { type: "agent.created", payload: { agentId: "agt_7abc", name: "Intake", ownerId: "usr_m", shared: true } },
+  ];
+  const mk = (may: boolean) =>
+    createPrincipalRegistrar({ exists: () => false, levelOf: () => "edit", mayShareAll: () => may }).register({
+      events: born,
+      space: "spc_core",
+      maker: "usr_m",
+    });
+  assert.equal(mk(true).filter((e) => e.payload["resource_type"] === "agent").length, 1, "an admin's agent is shared");
+  assert.equal(mk(false).filter((e) => e.payload["resource_type"] === "agent").length, 0, "a member's is her own");
+});
+
+test("a project's teammate is registered under its project", () => {
+  // the resource registrar is exercised in host/tests/resources.created.test.ts; here the birth payload is what carries the project
+  const out = reg("edit").register({
+    events: [
+      {
+        type: "agent.created",
+        payload: { agentId: "agt_6abc", name: "Scribe", ownerId: "usr_a", projectId: "prj_1abc" },
+      },
+    ],
+    space: "spc_core",
+    maker: "usr_a",
+  });
+  assert.equal(out.filter((e) => e.payload["resource_type"] === "agent").length, 0, "no Everyone grant for a teammate");
+});
+
+test("the one-time pass shares an admin's old agent with Everyone once, leaves a member's, one with a grant, and a repeat", () => {
+  const agents = [
+    { id: "agt_1admin", ownerId: "usr_admin", underSpace: true, hasGrant: false },
+    { id: "agt_2member", ownerId: "usr_member", underSpace: true, hasGrant: false },
+    { id: "agt_3granted", ownerId: "usr_admin", underSpace: true, hasGrant: true },
+    { id: "agt_4project", ownerId: "usr_admin", underSpace: false, hasGrant: false },
+  ];
+  const run = () => oldAgentShareEvents({ agents, mayShareAll: (p) => p === "usr_admin" });
+  const out = run();
+  assert.equal(out.length, 1, "exactly one agent is shared");
+  assert.deepEqual(
+    [
+      out[0]!.payload["resource_id"],
+      out[0]!.payload["subject_id"],
+      out[0]!.payload["level"],
+      out[0]!.payload["source"],
+    ],
+    ["agt_1admin", "grp_everyone", "use", "birth:agt_1admin"],
+  );
+  assert.deepEqual(
+    run().map((e) => e.id),
+    out.map((e) => e.id),
+    "the same event id each time, so the log writes it once",
   );
 });

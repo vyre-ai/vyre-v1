@@ -1,9 +1,10 @@
-// A message's menu is in groups (write it, turn it into something, keep it, how it was made, remove it); only your own message has Edit and Delete, and Delete is last and alone.
+// A message's menu (G14, prototype "ctxmenu"): eight short sentence-case rows, then Details; the rest (Copy link, Edit, Retry, Mark unread, Remember, Delete) is behind "More". Only your own message has Edit and Delete.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { menuFor } from "./MessageView.tsx";
 import type { MessageActions } from "./MessageView.tsx";
 import type { Message } from "./model.ts";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 
 const msg = (o: Record<string, unknown> = {}): Message =>
   ({
@@ -22,6 +23,7 @@ const msg = (o: Record<string, unknown> = {}): Message =>
     ...o,
   }) as unknown as Message;
 const calls: string[] = [];
+let second: MenuEntry[] = [];
 const acts = {
   copy: () => calls.push("copy"),
   edit() {},
@@ -29,78 +31,91 @@ const acts = {
   react() {},
   openThread: () => calls.push("thread"),
   remove: () => calls.push("remove"),
-  showMenu() {},
+  showMenu: (items: readonly MenuEntry[]) => {
+    second = [...items];
+  },
   makeTask: () => calls.push("task"),
   share: () => calls.push("share"),
   fork: () => calls.push("fork"),
 } as unknown as MessageActions;
-const shape = (m: Message, mine: boolean): string =>
-  menuFor(m, mine, acts, () => calls.push("edit"))
-    .map((e) => ("separator" in e ? "|" : "head" in e ? "#" : e.label))
+const word = (e: MenuEntry): string => ("separator" in e ? "|" : "head" in e ? "#" : e.label);
+const shape = (m: Message, mine: boolean, a: MessageActions = acts): string =>
+  menuFor(m, mine, a, () => calls.push("edit"))
+    .map(word)
     .join(",");
+/** What sits behind More: press it and read what the menu was handed. */
+const behindMore = (m: Message, mine: boolean, a: MessageActions = acts): string[] => {
+  second = [];
+  const more = menuFor(m, mine, a, () => calls.push("edit")).find((e) => "label" in e && e.label === "More") as
+    | { onSelect(): void }
+    | undefined;
+  more?.onSelect();
+  return second.map(word);
+};
+const agentMsg = (): Message => msg({ author: { kind: "agent", id: "agt_mira" }, kind: "agent" });
 
-test("someone else's message: copy, then thread, task, share and fork, then pin and react; no Edit, no Delete", () => {
-  assert.equal(shape(msg(), false), "Copy,|,Reply in Thread,Make a Task,Share to...,Fork From Here,|,Pin,Add Reaction");
+test("someone else's message: the short list in sentence case, and More only where there is something behind it; nothing in Title Case", () => {
+  assert.equal(shape(msg(), false), "Copy,Reply in thread,Make a task,Share to\u2026,Fork from here,Pin,Add reaction");
+  const withLink = { ...(acts as object), copyLink: () => undefined } as unknown as MessageActions;
+  assert.equal(
+    shape(msg(), false, withLink),
+    "Copy,Reply in thread,Make a task,Share to\u2026,Fork from here,Pin,Add reaction,|,More",
+  );
+  for (const l of shape(msg(), false).split(",")) assert.ok(l === "|" || !/\b[A-Z][a-z]+ [A-Z][a-z]+/.test(l), l);
 });
 
-test("your own message adds Edit beside Copy and Delete last, alone, in the danger colour", () => {
+test("an agent's reply ends in Details, after the eight; nothing in the menu names Rewind (it is not built on this line)", () => {
   assert.equal(
-    shape(msg({ author: { kind: "person", id: "me" } }), true),
-    "Copy,Edit,|,Reply in Thread,Make a Task,Share to...,Fork From Here,|,Pin,Add Reaction,|,Delete",
+    shape(agentMsg(), false, { ...(acts as object), details: { open: () => calls.push("details") } } as never),
+    "Copy,Reply in thread,Make a task,Share to\u2026,Fork from here,Pin,Add reaction,|,Details",
   );
-  const items = menuFor(msg(), true, acts, () => undefined);
-  const last = items.at(-1) as { label: string; danger?: boolean };
-  assert.deepEqual([last.label, last.danger], ["Delete", true]);
-  assert.equal(items.filter((e) => "danger" in e && e.danger).length, 1);
+  assert.ok(!shape(msg(), false).includes("Rewind"));
+});
+
+test("your own message: Edit and Delete are behind More, Delete last, alone, in the danger colour", () => {
+  const m = msg({ author: { kind: "person", id: "me" } });
+  assert.equal(
+    shape(m, true),
+    "Copy,Reply in thread,Make a task,Share to\u2026,Fork from here,Pin,Add reaction,|,More",
+  );
+  assert.deepEqual(behindMore(m, true), ["Edit", "|", "Delete"]);
+  assert.deepEqual([second.at(-1) && (second.at(-1) as { danger?: boolean }).danger], [true]);
+  assert.deepEqual(behindMore(msg(), false), [], "a person's message has nothing behind More here: no More at all");
 });
 
 test("the words follow the state and every item calls what it says", () => {
   assert.ok(shape(msg({ pinned: true }), false).includes("Unpin"));
   calls.length = 0;
-  for (const e of menuFor(msg(), true, acts, () => calls.push("edit"))) if ("onSelect" in e) e.onSelect?.();
-  assert.deepEqual(
-    calls,
-    ["copy", "edit", "thread", "task", "share", "fork", "pin:true", "remove"].filter((x) => x !== "react"),
-  );
+  for (const e of menuFor(msg(), true, acts, () => calls.push("edit")))
+    if ("onSelect" in e && e.label !== "More") e.onSelect?.();
+  assert.deepEqual(calls, ["copy", "thread", "task", "share", "fork", "pin:true"]);
+  calls.length = 0;
+  behindMore(msg({ author: { kind: "person", id: "me" } }), true);
+  for (const e of second) if ("onSelect" in e) e.onSelect?.();
+  assert.deepEqual(calls, ["edit", "remove"]);
 });
 
-test("a system line has no Make a Task, Share or Fork", () => {
-  assert.equal(shape(msg({ kind: "system" }), false), "Copy,|,Reply in Thread,|,Pin,Add Reaction");
+test("a system line has no Make a task, Share or Fork", () => {
+  assert.equal(shape(msg({ kind: "system" }), false), "Copy,Reply in thread,Pin,Add reaction");
 });
 
-test("Edit and Delete are only on your own message; an agent's reply has Retry instead of Edit, and Retry runs its turn again", async () => {
+test("an agent's reply has Retry (behind More) instead of Edit, and Retry runs its turn again", async () => {
   const withRegen = {
     ...(acts as object),
     regenerate: (id: string) => calls.push(`regen:${id}`),
   } as unknown as MessageActions;
-  const agentMsg = msg({ author: { kind: "agent", id: "agt_mira" }, kind: "agent" });
-  const agentLabels = menuFor(agentMsg, false, withRegen, () => undefined).flatMap((e) =>
-    "label" in e ? [e.label] : [],
-  );
+  const behindAgent = behindMore(agentMsg(), false, withRegen);
   assert.ok(
-    agentLabels.includes("Retry") && !agentLabels.includes("Edit") && !agentLabels.includes("Delete"),
-    agentLabels.join("|"),
+    behindAgent.includes("Retry") && !behindAgent.includes("Edit") && !behindAgent.includes("Delete"),
+    behindAgent.join("|"),
   );
-  const theirs = menuFor(msg(), false, withRegen, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
-  assert.ok(
-    !theirs.includes("Edit") && !theirs.includes("Delete") && !theirs.includes("Retry"),
-    "a person's message has none of the three",
-  );
-  const mine = menuFor(msg({ author: { kind: "person", id: "me" } }), true, withRegen, () => undefined).flatMap((e) =>
-    "label" in e ? [e.label] : [],
-  );
-  assert.ok(mine.includes("Edit") && mine.includes("Delete") && !mine.includes("Retry"));
+  assert.deepEqual(behindMore(msg(), false, withRegen), [], "a person's message has none of the three");
+  assert.ok(!behindMore(msg({ author: { kind: "person", id: "me" } }), true, withRegen).includes("Retry"));
   calls.length = 0;
-  (
-    menuFor(agentMsg, false, withRegen, () => undefined).find((e) => "label" in e && e.label === "Retry") as {
-      onSelect(): void;
-    }
-  ).onSelect();
+  behindMore(agentMsg(), false, withRegen);
+  (second.find((e) => "label" in e && e.label === "Retry") as { onSelect(): void }).onSelect();
   assert.deepEqual(calls, ["regen:m1"]);
-  assert.ok(
-    !menuFor(agentMsg, false, acts, () => undefined).some((e) => "label" in e && e.label === "Retry"),
-    "left out where the chat cannot",
-  );
+  assert.ok(!behindMore(agentMsg(), false, acts).includes("Retry"), "left out where the chat cannot");
   const { regenerate } = await import("./actions.ts");
   const sent: { cap: string; input: unknown }[] = [];
   await regenerate(
@@ -120,46 +135,31 @@ test("Edit and Delete are only on your own message; an agent's reply has Retry i
   await assert.rejects(regenerate({ threadId: "thr_1", call: async () => ({}) } as never, "m1"));
 });
 
-test("Copy Link copies the plain link to the message, only where the chat has an address; it sits with Copy", () => {
+test("Copy link copies the plain link to the message, behind More, only where the chat has an address", () => {
   const withLink = {
     ...(acts as object),
     copyLink: (id: string) => calls.push(`link:${id}`),
   } as unknown as MessageActions;
-  const labels = menuFor(msg(), false, withLink, () => undefined).map((e) =>
-    "separator" in e ? "|" : "head" in e ? "#" : e.label,
-  );
-  assert.deepEqual(labels.slice(0, 3), ["Copy", "Copy Link", "|"]);
+  assert.deepEqual(behindMore(msg(), false, withLink), ["Copy link"]);
   calls.length = 0;
-  (
-    menuFor(msg(), false, withLink, () => undefined).find((e) => "label" in e && e.label === "Copy Link") as {
-      onSelect(): void;
-    }
-  ).onSelect();
+  (second.find((e) => "label" in e && e.label === "Copy link") as { onSelect(): void }).onSelect();
   assert.deepEqual(calls, ["link:m1"]);
-  assert.ok(!menuFor(msg(), false, acts, () => undefined).some((e) => "label" in e && e.label === "Copy Link"));
+  assert.ok(!behindMore(msg(), false, acts).includes("Copy link"));
 });
 
-test("Mark Unread From Here is in the keep group where the chat can do it, and runs threads.mark_unread_from with that message's sequence number", async () => {
+test("Mark unread from here is behind More where the chat can do it, and runs threads.mark_unread_from with that message's sequence number", async () => {
   const withIt = {
     ...(acts as object),
     markUnreadFrom: (seq: number) => calls.push(`unread:${seq}`),
   } as unknown as MessageActions;
   const m = msg({ threadSeq: 7 });
-  const item = menuFor(m, false, withIt, () => undefined).find(
-    (e) => "label" in e && e.label === "Mark Unread From Here",
-  ) as { onSelect(): void } | undefined;
-  assert.ok(item, "offered");
+  assert.deepEqual(behindMore(m, false, withIt), ["Mark unread from here"]);
   calls.length = 0;
-  item.onSelect();
+  (second[0] as { onSelect(): void }).onSelect();
   assert.deepEqual(calls, ["unread:7"]);
+  assert.ok(!behindMore(m, false, acts).includes("Mark unread from here"), "left out where the chat cannot");
   assert.ok(
-    !menuFor(m, false, acts, () => undefined).some((e) => "label" in e && e.label === "Mark Unread From Here"),
-    "left out where the chat cannot",
-  );
-  assert.ok(
-    !menuFor(msg({ messageId: "pending:k1" }), false, withIt, () => undefined).some(
-      (e) => "label" in e && e.label === "Mark Unread From Here",
-    ),
+    !behindMore(msg({ messageId: "pending:k1" }), false, withIt).includes("Mark unread from here"),
     "not for a message still sending",
   );
   const { markUnreadFrom } = await import("./actions.ts");
@@ -203,15 +203,55 @@ test("message times in a shared place read in the Space zone, hover names both z
   assert.match(other.timeTitle ?? "", /Pacific Time/);
 });
 
-test("the message menu uses the settled names: Pin, Reply in Thread, Copy Link and Retry", () => {
-  const withAll = {
+test("the touch sheet lists what is behind More in the same sheet (a phone has no second popup to open), for a reply and for your own message", () => {
+  const all = {
     ...(acts as object),
     copyLink: () => undefined,
     regenerate: () => undefined,
+    markUnreadFrom: () => undefined,
   } as unknown as MessageActions;
-  const agentMsg = msg({ author: { kind: "agent", id: "agt_mira" }, kind: "agent" });
-  const labels = menuFor(agentMsg, false, withAll, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
-  for (const word of ["Copy Link", "Reply in Thread", "Retry", "Pin"]) assert.ok(labels.includes(word), word);
-  for (const gone of ["Copy link", "Reply in thread", "Regenerate", "Pin Message"])
-    assert.ok(!labels.includes(gone), `${gone} is retired`);
+  const sheet = (m: Message, mine: boolean) =>
+    menuFor(m, mine, all, () => undefined, { x: 0, y: 0 }, true).flatMap((e) => ("label" in e ? [e.label] : []));
+  const theirs = sheet(agentMsg(), false);
+  assert.ok(!theirs.includes("More"), "no More row to open: it is already open");
+  for (const l of [
+    "Copy",
+    "Reply in thread",
+    "Make a task",
+    "Pin",
+    "Add reaction",
+    "Copy link",
+    "Retry",
+    "Mark unread from here",
+  ])
+    assert.ok(theirs.includes(l), l);
+  const own = sheet(msg({ author: { kind: "person", id: "me" } }), true);
+  for (const l of ["Copy", "Edit", "Delete", "Copy link"]) assert.ok(own.includes(l), l);
+  assert.equal(own.at(-1), "Delete", "Delete stays last");
+});
+
+test("Delete asks once from the desktop menu (askRemove) and runs at once only from the phone sheet, which asks in its own list", () => {
+  const mineMsg = msg({ author: { kind: "person", id: "me" } });
+  const log: string[] = [];
+  const a = {
+    ...(acts as object),
+    remove: (id: string) => log.push(`remove:${id}`),
+    askRemove: (id: string) => log.push(`ask:${id}`),
+  } as unknown as MessageActions;
+  const pressDelete = (flat: boolean): void => {
+    let behind: MenuEntry[] = [];
+    const withShow = {
+      ...(a as object),
+      showMenu: (items: readonly MenuEntry[]) => void (behind = [...items]),
+    } as unknown as MessageActions;
+    const entries = menuFor(mineMsg, true, withShow, () => undefined, { x: 0, y: 0 }, flat);
+    if (!flat) (entries.find((e) => "label" in e && e.label === "More") as { onSelect(): void }).onSelect();
+    const list = flat ? entries : behind;
+    (list.find((e) => "label" in e && e.label === "Delete") as { onSelect(): void }).onSelect();
+  };
+  pressDelete(false);
+  assert.deepEqual(log, ["ask:m1"], "the menu asks; nothing is deleted yet");
+  log.length = 0;
+  pressDelete(true);
+  assert.deepEqual(log, ["remove:m1"], "the sheet has asked already");
 });

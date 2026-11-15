@@ -5,6 +5,7 @@
 //   1 Run this: the agent shows a command, the bar offers Run on the agent's computer, a read-only command runs and its output is shown under the block.
 //   2 The Computer tab (owner ruling 6 Nov 2026, DESIGN-agent-workspaces.md): Terminal and Browser; Take over and Give back act on the agent's Space browser profile, who may is the server's rule, and the state survives a reload.
 //   3 The live card: the agent starts working on its computer for the chat, the message holds the live view, and it freezes to the last picture when the computer sleeps.
+import { encodePng } from "../../lib/png.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { connectClaude, makeAgent, unlockVault, until } from "./mail-world.ts";
@@ -38,6 +39,44 @@ export const modelWithCommand: OpenSession = async (spec) => {
     },
   } as ReturnType<OpenSession> extends Promise<infer S> ? S : never;
 };
+
+/** A page the picture can show: a header bar, a title, three text lines, a drop box with a file in it and a blue button, 640 by 400. Not a 1x1 skeleton. */
+function mockPage(): Uint8Array {
+  const w = 640,
+    h = 400;
+  const data = new Uint8Array(w * h * 4);
+  const fill = (x0: number, y0: number, x1: number, y1: number, c: [number, number, number]): void => {
+    for (let y = y0; y < y1; y++)
+      for (let x = x0; x < x1; x++) {
+        const i = (y * w + x) * 4;
+        data[i] = c[0];
+        data[i + 1] = c[1];
+        data[i + 2] = c[2];
+        data[i + 3] = 255;
+      }
+  };
+  fill(0, 0, w, h, [246, 247, 250]);
+  fill(0, 0, w, 44, [255, 255, 255]);
+  fill(0, 44, w, 45, [227, 229, 234]);
+  fill(24, 14, 36, 26, [86, 70, 236]);
+  fill(44, 16, 120, 24, [40, 44, 56]);
+  fill(500, 12, 616, 32, [86, 70, 236]);
+  fill(40, 80, 260, 98, [30, 34, 46]);
+  fill(40, 112, 420, 122, [150, 156, 170]);
+  fill(40, 130, 360, 140, [190, 194, 204]);
+  fill(40, 170, 600, 300, [255, 255, 255]);
+  fill(40, 170, 600, 172, [200, 204, 214]);
+  fill(40, 298, 600, 300, [200, 204, 214]);
+  fill(40, 170, 42, 300, [200, 204, 214]);
+  fill(598, 170, 600, 300, [200, 204, 214]);
+  fill(60, 190, 580, 232, [238, 240, 246]);
+  fill(72, 206, 220, 216, [60, 64, 80]);
+  fill(60, 250, 440, 258, [86, 70, 236]);
+  fill(60, 262, 580, 270, [226, 228, 236]);
+  fill(40, 330, 150, 362, [86, 70, 236]);
+  return encodePng({ width: w, height: h, data });
+}
+const PIXEL = mockPage();
 
 export function scriptedTerminal(): TerminalHost {
   const screens = new Map<string, string>();
@@ -106,7 +145,8 @@ export function fakeSpaceBrowser(): { sb: SpaceBrowser; rows: Map<string, Profil
       rows.set(id, { ...r, takeover: false });
     },
     async screenshot() {
-      return { bytes: new Uint8Array(), width: 1, height: 1 };
+      // a real one-pixel picture; every call differs a little so the pane has a new frame each time
+      return { bytes: new Uint8Array(PIXEL), width: 640, height: 400 };
     },
     async stream(a) {
       return {
@@ -212,7 +252,14 @@ export function computersJourney(kind: "team" | "personal"): void {
         await me.page.getByTestId("browser-note").innerText(),
         /nowhere to run a browser yet. Add a compute server/,
       );
-      for (const id of ["browser-take", "browser-give", "browser-open", "browser-loading", "terminal-loading"])
+      for (const id of [
+        "browser-picture",
+        "browser-take",
+        "browser-give",
+        "browser-open",
+        "browser-loading",
+        "terminal-loading",
+      ])
         assert.equal(await me.page.getByTestId(id).count(), 0, `${id} is not offered where nothing can run`);
       await shoot(me.page, dir, "no-host");
       bindComputers(machine); // the capable host: a Team Space has one from the start, a Personal Space once a server is added
@@ -264,10 +311,10 @@ export function computersJourney(kind: "team" | "personal"): void {
       };
       await showChat();
       await openComputerTab();
-      await me.page.getByTestId("terminal-card").waitFor({ timeout: 20_000 }); // the tab is Terminal and Browser, one card each
-      await me.page.getByTestId("browser-card").waitFor({ timeout: 20_000 });
-      await me.page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
-      assert.match(await me.page.getByTestId("browser-state").innerText(), /^Open/);
+      await me.page.getByTestId("terminals-head").waitFor({ timeout: 20_000 }); // the tab is Terminals and Browser
+      await me.page.getByTestId("browser-picture").waitFor({ timeout: 20_000 });
+      assert.match(await me.page.getByTestId("browser-head").innerText(), /Live/);
+      assert.equal(await me.page.getByTestId("browser-take").count(), 0, "Take over is not in the pane");
       await shoot(me.page, dir, "pane-working");
       // who may: a team agent's browser is for an owner or an admin, so a member who is neither does not see it nor can take it over
       if (kind === "team") {
@@ -281,20 +328,24 @@ export function computersJourney(kind: "team" | "personal"): void {
         assert.equal(refused.status, 403, `a member cannot take over: ${JSON.stringify(refused)}`);
         assert.match(String(refused.data?.error?.code), /^permission\./);
       }
+      await me.page.getByTestId("browser-picture").click();
+      await me.page.getByTestId("browser-popup").waitFor({ timeout: 10_000 });
       await me.page.getByTestId("browser-take").click();
       await me.page.getByTestId("browser-give").waitFor({ timeout: 20_000 });
-      assert.match(await me.page.getByTestId("browser-state").innerText(), /in control/);
+      assert.match(await me.page.getByTestId("browser-popup-bar").innerText(), /You have the browser/);
       assert.equal(await me.page.getByTestId("browser-take").count(), 0, "while you hold it there is only Give back");
       assert.equal((await profile())?.takeoverBy, w.owner.id, "the browser service has the owner at the controls");
       await shoot(me.page, dir, "pane-in-control");
       // the state is the browser's, not the page's: it is still there after a reload
       await showChat();
       await openComputerTab();
+      await me.page.getByTestId("browser-picture").click();
       await me.page.getByTestId("browser-give").waitFor({ timeout: 20_000 });
       await me.page.getByTestId("browser-give").click();
       await me.page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
       assert.equal((await profile())?.takeoverBy, undefined, "given back, nobody holds it");
-      assert.match(await me.page.getByTestId("browser-state").innerText(), /^Open/);
+      await me.page.getByTestId("browser-popup-close").click();
+      assert.match(await me.page.getByTestId("browser-head").innerText(), /Live/);
       await shoot(me.page, dir, "given-back");
 
       // 3 the live card

@@ -2,9 +2,22 @@
 // how they group into a timeline, how an agent's work folds into "Worked 14s · 3 steps", who leads and who listens, what a send does while an agent works (queue it, or
 // interrupt), and the optimistic message that shows in the same frame as the send.
 import { stepLabel } from "./activity.ts";
+import { MONTHS, WEEKDAYS, dayNumber, local, timeLabel, timeTitle } from "./chat-time.ts";
+import type { Clock } from "./chat-time.ts";
+export {
+  DAY,
+  MONTHS,
+  WEEKDAYS,
+  clockParts,
+  dayNumber,
+  local,
+  timeLabel,
+  timeTitle,
+  weekdayShort,
+  whenLabel,
+} from "./chat-time.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { dayIn, partsIn, titleOf as zoneTitle } from "../../../../../../lib/zones.ts";
-import type { Zones } from "../../../../../../lib/zones.ts";
+import { partsIn } from "../../../../../../lib/zones.ts";
 import { BLOCK_FALLBACKS, isNativeBlockType } from "../../../../../../ui/src/blocks/registry.ts";
 import { applyFallback } from "../../../../../../ui/src/blocks/GenericBlock.tsx";
 import { createIncrementalMarkdown } from "../../../../../../ui/src/stream/markdown.ts";
@@ -21,11 +34,15 @@ export type ThreadAgent = Thread["agents"][number];
 export type Helper = CapMap["chat.helpers.list"]["out"]["helpers"][number];
 export type AgentMode = ThreadAgent["mode"];
 
-export interface Clock {
-  now: number;
-  offsetMin: number;
-  /** the Space's zone and the viewer's, for a shared place; left out for a private one (the device's offset is the clock) */ zones?: Zones;
-}
+export type { Clock } from "./chat-time.ts";
+
+/**
+ * Two different counts, never swapped: `membersIn` is everyone in the chat, people AND agents (what the head's number shows); `peopleIn` is the people alone (what privacy and "shared" rules
+ * count: a chat is shared when two or more PEOPLE read it, never because an agent is in it).
+ */
+export const membersIn = (t: { members: ReadonlyArray<{ kind: string }> }): number => t.members.length;
+export const peopleIn = (t: { members: ReadonlyArray<{ kind: string }> }): number =>
+  t.members.filter((p) => p.kind === "person").length;
 
 /** Resume any chat: the last 50 messages paint first, older ones stream in as the person scrolls up (V1-SPEC speed budgets). */
 export const WINDOW = 50;
@@ -65,35 +82,6 @@ export function beforeCursor(all: readonly Message[]): number | null {
 
 /* ---------- time ---------- */
 
-const DAY = 86_400_000;
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
-
-const local = (ts: number, c: Clock): number => ts + c.offsetMin * 60_000;
-const dayNumber = (ts: number, c: Clock): number =>
-  c.zones ? dayIn(ts, c.zones.space) : Math.floor(local(ts, c) / DAY);
-
-/** What hover says about a message's time: both zones and the full date. Only where there are zones (a shared place). */
-export function timeTitle(ts: number, c: Clock): string | undefined {
-  return c.zones ? zoneTitle(ts, c.zones) : undefined;
-}
-
-/** The hour and minute of a moment in the clock the chat reads in, 24-hour, for code that needs the numbers. */
-export function clockParts(ts: number, c: Clock): { hour: number; minute: number } {
-  if (c.zones) {
-    const p = partsIn(ts, c.zones.space);
-    return { hour: p.hour, minute: p.minute };
-  }
-  const d = new Date(local(ts, c));
-  return { hour: d.getUTCHours(), minute: d.getUTCMinutes() };
-}
-
-/** A time of day the way a person says it: "10:28 PM". One format in every chat (owner, 7 Nov 2026). */
-export function timeLabel(ts: number, c: Clock): string {
-  const { hour, minute } = clockParts(ts, c);
-  return `${hour % 12 === 0 ? 12 : hour % 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
-}
-
 export function dayLabel(ts: number, c: Clock): string {
   const diff = dayNumber(c.now, c) - dayNumber(ts, c);
   if (diff <= 0) return "Today";
@@ -128,7 +116,17 @@ export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 // on_behalf, relay and agent_dm say who an agent's message to a teammate speaks for and carry a reply back (lane l-agentdm): they shape the header and the line, never a card of their own
-const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm", "poke", "poked", "hook"]);
+const QUIET_BLOCKS = new Set([
+  "refs",
+  "fork_origin",
+  "on_behalf",
+  "relay",
+  "agent_dm",
+  "poke",
+  "poked",
+  "hook",
+  "discussion_seed",
+]);
 
 /** The quiet line a poke leaves in the chat: "Sara poked Docs", with the note after it. The block carries the ids, so the words follow each reader's names. */
 export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
@@ -136,6 +134,15 @@ export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => str
   const d = b?.data as { by?: unknown; agentId?: unknown; note?: unknown } | null | undefined;
   if (!d || typeof d.by !== "string" || typeof d.agentId !== "string") return null;
   return `${nameOf(d.by)} poked ${nameOf(d.agentId)}${typeof d.note === "string" && d.note !== "" ? `: ${d.note}` : ""}`;
+}
+
+/** The line a discussion starts with: "Dex and Nova are talking it over". The message holds the agents' instruction too, which is for them and never drawn under a person's name. */
+export function discussionLine(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
+  const b = m.blocks.find((x) => x.type === "discussion_seed");
+  const d = b?.data as { agentIds?: unknown } | null | undefined;
+  if (!d || !Array.isArray(d.agentIds) || d.agentIds.length === 0) return null;
+  const names = d.agentIds.map((id) => nameOf(String(id)).split(" ")[0] ?? "").filter((n) => n !== "");
+  return `${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]} ${names.length > 1 ? "are" : "is"} talking it over`;
 }
 
 /** The quiet line a hook leaves (lane l-hooks): its words, what happened to it, and the hook it is about, so the line can offer Details or Edit. */
@@ -340,6 +347,10 @@ export function cardLine(b: MessageBlock): CardLine {
 export interface QuestionOption {
   id: string;
   label: string;
+  /** What choosing it means, one line, shown on the right of its row. */
+  detail?: string;
+  /** The agent's own pick: its row says "Recommended" in place of the detail. */
+  recommended?: boolean;
 }
 
 /** The options of a question card: single or multi choice, or free text when there are none. */
@@ -349,7 +360,12 @@ export function questionOptions(d: Record<string, unknown>): QuestionOption[] {
   return raw
     .map((o, i) =>
       isRec(o)
-        ? { id: str(o.id) || str(o.key) || String(i), label: str(o.label) || str(o.id) }
+        ? {
+            id: str(o.id) || str(o.key) || String(i),
+            label: str(o.label) || str(o.id),
+            ...(str(o.detail) ? { detail: str(o.detail) } : {}),
+            ...(o.recommended === true ? { recommended: true } : {}),
+          }
         : { id: String(o), label: String(o) },
     )
     .filter((o) => o.label !== "");
@@ -878,7 +894,7 @@ export function postInput(
 export function queueNote(n: number, leadName: string, steers = false, ownTurn = true): string {
   if (n <= 0) return "";
   if (!ownTurn) return "After this: it goes in when this turn ends";
-  if (steers) return "Goes in at the next step";
+  if (steers) return "At the next step";
   return `${n} ${n === 1 ? "message" : "messages"} queued for ${leadName || "the agent"}'s next step`;
 }
 
@@ -1019,3 +1035,7 @@ export function mentionable(
 export function faceDoor(helperThreadIds: readonly string[], id: string): "helper" | "principal" {
   return helperThreadIds.includes(id) ? "helper" : "principal";
 }
+
+/** The words for a send that did not go and a turn that stopped: one wording for the same act. */
+export const NOT_SENT = "Not sent";
+export const TRY_AGAIN = "Try again";

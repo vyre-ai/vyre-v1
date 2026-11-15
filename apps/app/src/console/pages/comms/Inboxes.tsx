@@ -6,7 +6,7 @@ import { ObjectSection } from "../../../../../../ui/src/ObjectPage/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useConsoleData } from "../../shell/data.tsx";
 import { Empty, Group, Section } from "../../shell/ui.tsx";
-import { Help, Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
+import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
 import { useCommsRows, CommsList, CommsObject } from "./common.tsx";
 import { PRIVACY_OPTIONS } from "./model.ts";
 type Mailbox = CapMap["mail.mailbox.get"]["out"]["mailbox"];
@@ -77,8 +77,8 @@ function NewInbox({ onBack, onCreated }: { onBack(): void; onCreated(id: string)
         onBack={onBack}
       >
         <ObjectSection title="Inbox">
-          <Field label="Inbox name" testID="inbox-title" value={title} onChange={setTitle} />
-          <Field label="Email address" testID="inbox-address" value={address} onChange={setAddress} />
+          <TextBox label="Inbox name" testID="inbox-title" value={title} onChange={setTitle} />
+          <TextBox label="Email address" testID="inbox-address" value={address} onChange={setAddress} />
           <Help>This inbox receives mail through routes on your sending domains.</Help>
           <Button
             label="Create inbox"
@@ -238,7 +238,7 @@ function InboxEditor({ inbox, refresh }: { inbox: Mailbox; refresh(): void }): R
   return (
     <View testID="inbox-settings">
       <ObjectSection title="Details">
-        <Field label="Inbox name" testID="inbox-edit-title" value={title} onChange={setTitle} />
+        <TextBox label="Inbox name" testID="inbox-edit-title" value={title} onChange={setTitle} />
         <Button
           label="Save inbox name"
           testID="inbox-save-title"
@@ -283,7 +283,7 @@ function RouteEditor({ mailboxId, refresh }: { mailboxId: string; refresh(): voi
           {choices.length ? (
             <>
               <Select label="Sending domain" value={domainId} options={choices} onChange={setDomain} />
-              <Field label="Address name" testID="inbox-route-local" value={localPart} onChange={setLocalPart} />
+              <TextBox label="Address name" testID="inbox-route-local" value={localPart} onChange={setLocalPart} />
               <Help>Use a name such as support. A single * catches every other address on the domain.</Help>
               <Button
                 label="Add inbound route"

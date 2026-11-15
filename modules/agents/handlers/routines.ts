@@ -4,8 +4,11 @@
 //   suggestions.list / suggestion.propose / .accept / .dismiss   changes to AGENT.md as diffs; accepted ones are applied through files.save as a version; ones that widen access need an admin
 //   template.get / .preview / .apply                the Agent template: add, never remove, never overwrite; changed files become suggestions; try one agent first
 //   guide.get / builtin_skills.list                 Vyre's own text, rewritten by app updates
+import { skillTextFor } from "../../../lib/connect-switch.ts";
 import { readFileSync } from "node:fs";
-import { forgetSelfPause } from "../routine-guard.ts";
+import { forgetSelfPause, isSelfPaused, noteRun } from "../routine-guard.ts";
+import { cannotUse } from "../../../lib/may-use.ts";
+import { tellMissed, tellPaused, withdrawTold } from "../routine-told.ts";
 import {
   BUILTIN_SKILLS,
   GUIDE_MD,
@@ -49,6 +52,8 @@ import {
   walkFolder,
 } from "../projections.ts";
 import type { AgentRec, AgentsCtx, FolderOut, RoutineRec, SuggestionRec } from "../projections.ts";
+import { applyWake, dropOrphanWake, dropWake, mirrorFromWake, wakeNextAt } from "../routine-wake.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : String(v ?? ""));
@@ -115,12 +120,32 @@ export async function routineSave(
     raise(ctx, "validation.bad_input", `The routine needs a prompt of up to ${MAX_PROMPT} characters.`);
   if (input.channelId !== undefined && !input.channelId.startsWith("chn_"))
     raise(ctx, "validation.bad_input", "That is not a channel.", { channelId: input.channelId });
+  // the channel a routine posts into: its owner may use it, or the schedule would put words where they cannot (F47 audit, 14 Nov 2026)
+  // asked only when the channel is new or changed: a person who lost the channel since can still pause or edit the routine, and no longer posts there once they save a different one (r-auto2, 14 Nov 2026)
   const owner = askerOf(ctx);
+  const saved = input.routineId === undefined ? undefined : routineBy(ctx.db, input.routineId);
+  const sameChannel =
+    saved !== undefined && saved !== null && saved.ownerId === owner && saved.channelId === (input.channelId ?? null);
+  const channelWords = input.channelId === undefined || sameChannel ? null : cannotUse(ctx, "channel", input.channelId);
+  if (channelWords) raise(ctx, "permission.no_grant", channelWords, { channelId: input.channelId });
   const now = ctx.now();
   const enabled = input.enabled !== false;
   const cron = watcher ? "" : (input.cron as string).trim();
-  const next = enabled && !watcher ? nextRun(cron, now) : null; // a watcher has no next time: it runs when a message arrives
+  let next = enabled && !watcher ? nextRun(cron, now) : null; // a watcher has no next time: it runs when a message arrives
   let id: string;
+  // the wake is built only from the routine ROW the asker has just been checked to own, never from what was sent: someone else's routine, or a routine of another agent, is answered like one that does not exist
+  if (input.routineId !== undefined) {
+    const mine = routineBy(ctx.db, input.routineId);
+    if (!mine || mine.ownerId !== owner || mine.agentId !== agent.id)
+      raise(ctx, "validation.bad_input", "That routine does not exist.");
+  }
+  const wakeOn = enabled && !watcher && next !== null;
+  const routineId = input.routineId ?? mintId("rtn", now);
+  // starting follows the wake (the wake first); stopping leads it (the row first, below)
+  if (wakeOn) {
+    await applyWake(ctx, { routineId, agentId: agent.id, ownerId: owner, cron, active: true });
+    next = (await wakeNextAt(ctx, routineId)) ?? next; // one source of time: the wake's own answer, never a time of the row's own
+  }
   if (input.routineId !== undefined) {
     // Someone else's routine is answered like one that does not exist.
     const old = routineBy(ctx.db, input.routineId);
@@ -139,8 +164,9 @@ export async function routineSave(
     );
     id = old.id;
     forgetSelfPause(ctx.db, old.id); // a person's own save puts it back in their hands
+    if (enabled) await withdrawTold(ctx, old.id); // and the item of its pause is no longer true
   } else {
-    id = mintId("rtn", now);
+    id = routineId;
     ctx.db.run(
       "INSERT INTO agents_routine (id, agentId, ownerId, title, cron, prompt, channelId, enabled, nextRunAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
@@ -156,6 +182,7 @@ export async function routineSave(
       now,
     );
   }
+  if (!wakeOn) await applyWake(ctx, { routineId: id, agentId: agent.id, ownerId: owner, cron, active: false });
   ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", id);
   if (watcher)
     ctx.db.run("INSERT INTO agents_routine_watch (routineId, channelId) VALUES (?, ?)", id, input.watch!.channelId);
@@ -181,6 +208,7 @@ export async function routineDelete(ctx: AgentsCtx, input: { agentId: string; ro
   ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", r.id);
   ctx.db.run("DELETE FROM agents_routine_by WHERE routineId = ?", r.id);
   ctx.db.run("DELETE FROM agents_routine_last WHERE routineId = ?", r.id);
+  await dropWake(ctx, r.id); // the row went first: nothing new fires even if this is lost (the reconcile cancels the wake)
   ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: r.id, op: "deleted" });
   return { deleted: true };
 }
@@ -219,59 +247,101 @@ export async function routineRunNow(
 }
 
 /** How often the server looks for routines that are due. A routine every minute starts within this long after its minute. */
-export const ROUTINES_DUE_EVERY_MS = 10_000;
-
 /**
- * The schedule: every routine that is on and whose next run has come starts one run, under its owner, the way Run Now does, and its next run is worked out from now.
- *   once      the run's key is the routine and the minute it was due (`routine:<id>:<nextRunAt>`), so a tick that runs twice, or a restart halfway through, starts the same run, not a second.
- *   missed    after the server was off, a routine that missed several minutes runs once, now, never a burst: the next run is counted from now, not from the missed time.
- *   lease     this is a periodic job, and the host runs periodic jobs only on the computer that holds the scheduled-work lease (host/src/peers/service.ts mayRun), so two computers never both fire it.
- *   skipped   a paused routine, a watcher (it runs on messages, not a clock) and a routine of a paused or deleted agent do not run; a paused agent's routine waits for its next time.
+ * A routine's wake made its fire (agents.routine.fire, the server's alone): start the Run, under the routine's owner, with the key the routine has always had (`routine:<id>:<due ms>`, so a retry, a lost
+ * answer or an rc.26 build ticking in the same minute makes one Run). It starts nothing, and says why, unless the routine still exists, is on, is not paused or self-paused, belongs to a live agent, and its
+ * mirrored next time is the fire's: a wake and a routine that disagree are left for the reconcile to repair, never fired.
  */
-export async function runDueRoutines(ctx: AgentsCtx): Promise<string[]> {
+export async function routineFire(ctx: AgentsCtx, input: { routineId: string; dueKey: string }) {
+  if (!isTrustedService(ctx.principal))
+    raise(ctx, "permission.no_grant", "Only the server starts a routine from its schedule.");
   ensure(ctx.db);
-  const now = ctx.now();
-  const due = ctx.db.all(
-    `SELECT r.id AS id FROM agents_routine r WHERE r.enabled = 1 AND r.nextRunAt IS NOT NULL AND r.nextRunAt <= ?
-       AND NOT EXISTS (SELECT 1 FROM agents_routine_watch w WHERE w.routineId = r.id) ORDER BY r.nextRunAt, r.id LIMIT 200`,
-    now,
-  ) as Row[];
-  const fired: string[] = [];
-  for (const row of due) {
-    const r = routineBy(ctx.db, str(row["id"]));
-    if (!r || !r.enabled || r.nextRunAt === undefined) continue;
-    const agent = agentBy(ctx.db, r.agentId);
-    if (!agent || agent.paused) {
-      markRoutineRan(ctx.db, r.id, now, false);
-      continue;
-    }
-    const key = `routine:${r.id}:${r.nextRunAt}`;
-    try {
-      const started = await call<{ runId: string }>(
-        ctx,
-        "runs.start",
-        { idempotencyKey: key, kind: "routine", name: r.title, owner: r.ownerId },
-        { idempotencyKey: key },
-      );
-      markRoutineRan(ctx.db, r.id, now);
-      noteRoutineRun(ctx.db, r.id, started.runId, now);
-      ctx.emit("agent.routine_run_started", agent.id, {
-        agentId: agent.id,
-        routineId: r.id,
-        runId: started.runId,
-        ownerId: r.ownerId,
-        requestedBy: "schedule",
-      });
-      fired.push(started.runId);
-    } catch (e) {
-      // the run could not start (the runs module is not there yet): it is tried again on the next tick, with the same key
-      ctx.log.warn("agents: a due routine did not start", {
-        routineId: r.id,
-        error: e instanceof Error ? e.message.slice(0, 200) : "error",
-      });
-    }
+  const r = routineBy(ctx.db, input.routineId);
+  if (!r) {
+    // a wake nobody owns (the routine was deleted between the wake being made and its mapping being written): the first fire that finds nothing ends it, so it never fires for ever
+    await dropOrphanWake(ctx, input.routineId);
+    return { started: false, why: "That routine is gone." };
   }
-  return fired;
+  if (!r.enabled) return { started: false, why: "The routine is off." };
+  if (isSelfPaused(ctx.db, r.id)) return { started: false, why: "The routine paused itself." };
+  const watcher = (ctx.db.all("SELECT 1 AS x FROM agents_routine_watch WHERE routineId = ?", r.id) as Row[]).length > 0;
+  if (watcher) return { started: false, why: "A watcher runs on messages, not on a clock." };
+  // the fire carries the wake's own time. Only a row that is AHEAD of it has already started that time (an older build's tick moved it on): nothing starts twice. A row that is behind the wake (an older build edited it)
+  // is not a reason to lose the time: the wake is the clock, and the row takes its time from the wake after the Run starts.
+  const due = Number(input.dueKey);
+  if (!Number.isFinite(due) || (r.nextRunAt !== undefined && r.nextRunAt > due))
+    return { started: false, why: "The routine and its schedule do not agree on the time." };
+  const now = ctx.now();
+  const agent = agentBy(ctx.db, r.agentId);
+  if (!agent || agent.paused) {
+    markRoutineRan(ctx.db, r.id, now, false); // a paused agent's routine waits for its next time, as it always did
+    await mirrorFromWake(ctx, r.id);
+    return { started: false, why: "The agent is paused or gone." };
+  }
+  const key = `routine:${r.id}:${input.dueKey}`;
+  let started: { runId: string };
+  try {
+    started = await call<{ runId: string }>(
+      ctx,
+      "runs.start",
+      { idempotencyKey: key, kind: "routine", name: r.title, owner: r.ownerId },
+      { idempotencyKey: key },
+    );
+  } catch (e) {
+    // the fire is tried again after its lease (three tries); the third failed try pauses the routine, tells its owner once, and the fire ends failed
+    const message = e instanceof Error ? e.message : String(e);
+    ctx.log.warn("a routine's Run could not be started", { routineId: r.id, error: message });
+    const paused = noteRun(ctx.db, r.id, false, "start_failed", message, now);
+    if (paused)
+      await tellPaused(ctx, {
+        routineId: r.id,
+        ownerId: r.ownerId,
+        title: paused.title,
+        channelId: paused.threadId,
+        code: "start_failed",
+        at: now,
+      });
+    throw e;
+  }
+  // another path (an rc.27 build's tick) may have started this very time while runs.start was answering: the Run is the same by its key, so it is marked and told once, by whoever moved the time first
+  const moved = routineBy(ctx.db, r.id)?.nextRunAt;
+  if (moved !== undefined && moved > due) return { started: true, runId: started.runId };
+  markRoutineRan(ctx.db, r.id, now);
+  await mirrorFromWake(ctx, r.id); // the wake went on when it made this fire: its time is the routine's next time
+  noteRoutineRun(ctx.db, r.id, started.runId, now);
+  ctx.emit("agent.routine_run_started", agent.id, {
+    agentId: agent.id,
+    routineId: r.id,
+    runId: started.runId,
+    ownerId: r.ownerId,
+    requestedBy: "schedule",
+  });
+  await tellMissed(ctx, { id: r.id, title: r.title, channelId: r.channelId ?? null, cron: r.cron }, due, now);
+  return { started: true, runId: started.runId };
+}
+
+const WHY: Record<string, string> = {
+  cannot_use_agent: "cannot use this agent",
+  cannot_read_channel: "cannot read the channel it posts to",
+  agent_missing: "cannot reach this agent",
+};
+
+/** A routine runs on its owner's account, so it goes only to someone who may use its agent and read its channel (scheduler.can_hold, one answer for every hand-over). Says why not. */
+async function mustBeAbleToHold(ctx: AgentsCtx, r: RoutineRec, person: string): Promise<void> {
+  if (!ctx.call) raise(ctx, "internal.unavailable", "This server cannot check who may take a routine.");
+  const held = (await ctx.call("scheduler.can_hold", {
+    person,
+    agentId: r.agentId,
+    ...(r.channelId ? { channelId: r.channelId } : {}),
+  })) as { ok: boolean; reasons: string[] };
+  if (held.ok) return;
+  if (held.reasons.includes("not_in_space")) raise(ctx, "validation.not_found", "That person is not in this Space.");
+  raise(
+    ctx,
+    "validation.precondition_failed",
+    `That person ${held.reasons.map((x) => WHY[x] ?? x).join(" and ")}, so they cannot take this routine.`,
+    { reasons: held.reasons },
+  );
 }
 
 /** Delegate: the owner hands a routine to another person (they become its owner) or another agent (it runs on that agent); `undo` hands it back. */
@@ -317,6 +387,7 @@ export async function routineDelegate(
   let agentId = r.agentId;
   if (to.kind === "person") {
     if (to.id === r.ownerId) raise(ctx, "validation.bad_input", "You already own this routine.");
+    await mustBeAbleToHold(ctx, r, to.id);
     ownerId = to.id;
   } else {
     const target = agentBy(ctx.db, to.id);
@@ -833,7 +904,10 @@ export async function builtinSkillGet(ctx: AgentsCtx, input: { name: string }) {
     raise(ctx, "validation.not_found", "There is no such built-in skill.", { name: input.name });
   let text: string;
   try {
-    text = readFileSync(new URL(`../../../agent/skills/${input.name}/SKILL.md`, import.meta.url), "utf8");
+    text = skillTextFor(
+      input.name,
+      readFileSync(new URL(`../../../agent/skills/${input.name}/SKILL.md`, import.meta.url), "utf8"),
+    );
   } catch {
     raise(ctx, "validation.not_found", "There is no such built-in skill.", { name: input.name });
   }

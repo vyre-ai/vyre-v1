@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "PAGE_01-page", "route": "/m/PAGE_01?v=page", "proto": "page,{skin}", "waitFor": "[role='tablist']", "note": "A Page: head, subtitle, tabs, action, status line" },
+    { "id": "PAGE_01-failed", "route": "/m/PAGE_01?v=failed", "proto": "page,{skin}", "waitFor": "[role='tablist']", "note": "A failed child inside a Page keeps its head and tabs" }
+  ]
+}

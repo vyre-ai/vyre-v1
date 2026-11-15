@@ -617,6 +617,11 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: SiteOut }>
   if (patch !== undefined && patch !== null) {
     if (typeof patch !== "object" || Array.isArray(patch))
       fail(ctx, "validation.bad_input", "Settings must be an object.", { field: "settings" });
+    // serverFolder is the server's own record of the folder it made for an artifact: no caller writes it (a person could name someone else's folder as theirs)
+    if (Object.hasOwn(patch as object, "serverFolder"))
+      fail(ctx, "validation.bad_input", "serverFolder is kept by the server and cannot be set.", {
+        field: "settings.serverFolder",
+      });
     const merged: Record<string, unknown> = { ...settings, ...(patch as Record<string, unknown>) };
     const branch = merged.defaultBranch;
     if (branch !== undefined && (typeof branch !== "string" || !/^[A-Za-z0-9._/-]{1,100}$/.test(branch))) {

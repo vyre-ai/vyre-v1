@@ -20,6 +20,7 @@ import {
   raise,
   threadBy,
 } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
 import type { ChatCtx, Db, ThreadRec } from "../projections.ts";
 import { canSpeak, deliver } from "./post.ts";
 
@@ -88,7 +89,7 @@ export async function make(
     raise(ctx, "validation.bad_input", `A note offer needs the note's words, at most ${MAX_BODY} characters.`);
   if (topic === "") raise(ctx, "validation.bad_input", "Say what the offer is about, in a few words.");
   if (input.messageId !== undefined) {
-    const m = messageBy(ctx.db, input.messageId);
+    const m = messageAsMe(ctx, input.messageId);
     if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
   }
   if (!(await offersOn(ctx))) return { offered: false, why: "off" };

@@ -21,7 +21,7 @@ import {
   Actions,
   Button,
   QuietButton,
-  Field,
+  TextBox,
   FormSheet,
   Note,
   ReadState,
@@ -551,7 +551,13 @@ function AddHook({ onClose, onSaved }: { onClose: () => void; onSaved: () => voi
         onChange={setEvent}
       />
       <Select label="Do this" value={kind} options={DO_THIS} onChange={(v) => setKind(v as HookKind)} />
-      <Field label={WHAT_LABEL[kind]} value={what} onChange={setWhat} testID="hook-what" multiline={kind === "check"} />
+      <TextBox
+        label={WHAT_LABEL[kind]}
+        value={what}
+        onChange={setWhat}
+        testID="hook-what"
+        multiline={kind === "check"}
+      />
       {ACTION_EVENTS.has(event) ? (
         <Select
           label="Only for"

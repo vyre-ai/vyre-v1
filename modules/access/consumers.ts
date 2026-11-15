@@ -14,7 +14,9 @@ import {
   agentLevel,
   asKeptWriter,
   EVERYONE,
+  LABEL_RANK,
   changed,
+  clearMadeBy,
   kernelResource,
   labelOf,
   loadStore,
@@ -24,6 +26,7 @@ import {
   setPrivate,
   setReadView,
   storeOf,
+  withRoleGrants,
 } from "./projections.ts";
 import type {
   AccessCtx,
@@ -110,7 +113,33 @@ function seededGrant(store: AccessStore, p: Record<string, unknown>, at: number)
     conditions,
     by: str(p["by"]) ?? "svc_host",
     createdAt: at,
+    // a grant a call made for the thing it made (made-by:<agent>) says so, so the share list can show who made it
+    ...(typeof p["source"] === "string" && (p["source"].startsWith("made-by:") || p["source"].startsWith("birth:"))
+      ? { source: p["source"] }
+      : {}),
   };
+}
+
+/** The made-by grants on a thing (source made-by:<agent>) go when the owner changed, or when the place it now sits in is labelled above the clearance of the agent that holds one. A move between places the owner controls leaves them. */
+export function dropMadeBy(store: AccessStore, resourceId: string, ownerChanged: boolean): void {
+  const grants = [...store.grants.entries()].filter(
+    ([, g]) => g.resource.id === resourceId && g.source?.startsWith("made-by:") === true,
+  );
+  if (grants.length === 0) return;
+  let label = 0;
+  for (let at: string | null = resourceId, hops = 0; at !== null && hops < 64; hops++) {
+    const r = store.resources.get(at);
+    if (!r) break;
+    label = Math.max(label, LABEL_RANK[r.label]);
+    at = r.parentId;
+  }
+  for (const [gid, g] of grants) {
+    const clearance = Math.max(
+      0,
+      ...store.rolesOf(g.subject.id).map((rid) => LABEL_RANK[store.roles.get(rid)?.clearance ?? "public"]),
+    );
+    if (ownerChanged || label > clearance) store.grants.delete(gid);
+  }
 }
 
 /**
@@ -239,6 +268,12 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       const row: Record<string, unknown> = { ...(have?.row ?? {}) };
       if (p["space_owned"] === true) row["spaceOwned"] = true;
       else delete row["spaceOwned"];
+      if (p["outside"] === true) row["outside"] = true;
+      // who made it for its owner: set at the first registration, kept by every later one (a move or a label change re-registers without it)
+      if (typeof p["made_by"] === "string" && row["madeBy"] === undefined) {
+        row["madeBy"] = p["made_by"];
+        if (typeof p["made_for"] === "string") row["madeFor"] = p["made_for"];
+      }
       store.resources.set(id, {
         id,
         type,
@@ -248,6 +283,9 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
         holds: Number(p["holds"]) || 0,
         ...(Object.keys(row).length ? { row } : {}),
       });
+      // a made-by grant (what an agent was given on a thing it made for a person) does not outlive the owner, and does not follow the thing above the agent's clearance
+      if (have && (have.ownerId !== (str(p["owner_id"]) ?? null) || have.parentId !== (str(p["parent_id"]) ?? null)))
+        dropMadeBy(store, id, have.ownerId !== (str(p["owner_id"]) ?? null));
       return true;
     }
     case "grant.created": {
@@ -260,6 +298,8 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
     }
     case "grant.revoked": {
       const id = str(p["grantId"]);
+      // the maker's reach taken away (access.unshare on the row "made this for you"): the thing is no longer stamped as made by that agent; idempotent
+      if (id?.startsWith("gnt_made")) return clearMadeBy(store, str(rec(rec(p)["resource"])["id"]) ?? "");
       if (!id || !store.grants.delete(id)) return false;
       return true;
     }
@@ -303,6 +343,15 @@ function apply(
       const id = str(rec(e.payload)["id"]) ?? "",
         have = store.resources.get(id);
       // a mark only (hostOwnedMarks: a registration in the Space owner's name from before the mark): set the mark on a resource that exists, never make one
+      // a calendar connected to an outside service that was registered before the flag existed: set it, change nothing else (idempotent)
+      if (rec(e.payload)["outside_only"] === true) {
+        if (have && have.row?.["outside"] !== true) {
+          store.resources.set(id, { ...have, row: { ...(have.row ?? {}), outside: true } });
+          changed = true;
+          touched.add(id);
+        }
+        continue;
+      }
       if (rec(e.payload)["mark_only"] === true) {
         if (have && have.row?.["spaceOwned"] !== true) {
           store.resources.set(id, { ...have, row: { ...(have.row ?? {}), spaceOwned: true } });
@@ -492,7 +541,6 @@ function keptStore(ctx: AccessCtx): AccessStore | null {
   return kept && stampOf(ctx.db) === kept.stamp ? kept.store : null;
 }
 
-const GRANTED = new WeakSet<AccessSnapshot>();
 /**
  * The rol_* role an older event names by its old built-in name, for the roles a person can be removed from. Not "owner": the Space owner is never removed, and a Space seeded with the old
  * names keeps the owner's grants under "owner".
@@ -503,45 +551,6 @@ const LEGACY_ROLE: Readonly<Record<string, string>> = {
   member: "rol_member",
   temp: "rol_guest",
 };
-/** the Space level each built-in role carries in a Space nothing was seeded in, the same as the seeded roles. Guest (and Temp) get nothing Space-wide: they only hold per-resource grants. */
-const BUILT_IN_LEVEL: Readonly<Record<string, "manage" | "edit">> = {
-  rol_owner: "manage",
-  rol_admin: "manage",
-  rol_developer: "edit",
-  rol_member: "edit",
-};
-
-/**
- * A role carries permissions; the Space-level grant is what lets them act. A role the Space was seeded with (owner, admin, manager, member, temp) arrives with its grants and keeps exactly
- * those. The built-in rol_* roles get their standard level (BUILT_IN_LEVEL). A role made through access.roles.create has none, so one that holds permissions gets an Edit grant on the Space
- * (Manage when it is an elevated role or holds access.manage). A role with no permissions confers nothing.
- */
-function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string): AccessSnapshot {
-  if (GRANTED.has(snap)) return snap;
-  GRANTED.add(snap);
-  const have = new Set<string>();
-  for (const g of store.grants.values())
-    if (g.subject.kind === "role" && g.resource.type === "space") have.add(g.subject.id);
-  for (const r of store.roles.values()) {
-    if (have.has(r.id) || !r.id.startsWith("rol_")) continue;
-    let level = BUILT_IN_LEVEL[r.id];
-    if (!level) {
-      if (r.builtIn || r.permissions.length === 0) continue;
-      level = isElevatedRole(r.id, r.name) || r.permissions.includes("access.manage") ? "manage" : "edit";
-    }
-    snap.putGrant({
-      id: `gr_role_${r.id}`,
-      subject_kind: "role",
-      subject_id: r.id,
-      resource_type: "space",
-      resource_id: space,
-      level,
-      by: "svc_host",
-    });
-  }
-  return snap;
-}
-
 export const hostCalls = {
   /** Who an outside tool is when it presents its long-lived credential: the active actor holding it, or none. Host only; the credential is compared by hash and never stored in clear. */
   "access.actor_by_credential": async (
@@ -617,6 +626,7 @@ export const hostCalls = {
         else delete r.row;
       }
       for (const [id] of held) store.grants.delete(id);
+      dropMadeBy(store, r.id, true);
     } else if (held.length > 0) {
       // not theirs, only a grant of theirs: the grant moves to the heir and the owner stays whoever it was (nobody gains ownership of what they did not own)
       const mine = heldBy(input.to);

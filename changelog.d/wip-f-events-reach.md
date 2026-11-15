@@ -1,0 +1,1 @@
+- Other people's private things no longer show up in what the rest of the Space can read from the activity log: a private record's content, a Personal file's name, a private site's name, a private calendar event's time, and the ids, timing and model counts of a private chat with your Assistant stay with the people who may open them. Admins keep ids and audit details only.

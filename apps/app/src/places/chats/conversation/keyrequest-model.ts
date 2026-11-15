@@ -1,4 +1,4 @@
-// The words and shape of a key request card. "Dana_Lawmatics" reads "Dana Lawmatics key"; a name that already ends in key is not doubled.
+// The words and shape of a key request card. "Dana_Northwind CRM" reads "Dana Northwind CRM key"; a name that already ends in key is not doubled.
 export interface KeyRequest {
   id: string;
   name: string;
@@ -6,6 +6,8 @@ export interface KeyRequest {
   reason: string;
   state: "waiting" | "fulfilled" | "declined" | "canceled";
   folderId?: string;
+  /** the person who is looking is the one the agent asked: they may add the key into their own keys */
+  askedYou?: boolean;
 }
 
 export function keyWords(name: string): string {
@@ -27,6 +29,7 @@ export function requestOf(out: unknown): KeyRequest | null {
     reason: typeof r["reason"] === "string" ? r["reason"] : "",
     state,
     ...(typeof r["folderId"] === "string" ? { folderId: r["folderId"] } : {}),
+    ...(r["askedYou"] === true ? { askedYou: true } : {}),
   };
 }
 

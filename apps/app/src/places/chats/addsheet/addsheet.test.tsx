@@ -47,16 +47,16 @@ const asLead = <T extends { call(cap: string, input: unknown): Promise<unknown> 
   },
 });
 
-test("the composer's + has Add people and agents under This chat, and it opens the sheet", async () => {
+test("the composer's + has Add people and agents, and it opens the sheet", async () => {
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
     await press(find(root, "composer-attach"));
-    assert.match(textOf(find(root, "composer-plus")), /This chat/);
+    assert.match(textOf(find(root, "composer-plus")), /Add people and agents/);
     await press(find(root, "row-plus-people"));
     await flush();
     assert.ok(find(root, SHEET), "the sheet is open");
-    assert.match(textOf(find(root, SHEET)), /Add people and agents\s+to Rivera intake/);
+    assert.match(textOf(find(root, SHEET)), /Add people and agents\s+to Harbor onboarding/);
   });
 });
 
@@ -70,7 +70,7 @@ test("the header + opens the same sheet (the old Add as listening menu is gone)"
     await flush();
     assert.ok(find(root, SHEET));
     assert.equal(find(root, "menu-item-Docs"), null, "no list of agents to add as listening");
-    assert.match(textOf(find(root, SHEET)), /to Rivera intake/);
+    assert.match(textOf(find(root, SHEET)), /to Harbor onboarding/);
   });
 });
 

@@ -1,0 +1,1 @@
+- The agent parity test now lists vault.item.discard_new as never an agent tool, and counts the tools an agent is offered with the connect card off (the default) and on.

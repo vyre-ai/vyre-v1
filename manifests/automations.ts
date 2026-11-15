@@ -405,15 +405,19 @@ export default defineManifest({
       retention: "run_logs",
       trigger: { title: "An automation run starts", fields: ["/automationId"] },
     }),
-    ev("automation.trigger_dropped", "A trigger event was ignored: self-trigger, chain depth 8 or paused", {
-      p: {
-        automationId: id.automation,
-        eventId: id.event,
-        reason: t.enm("self_trigger", "depth_limit", "paused", "filter_error"),
+    ev(
+      "automation.trigger_dropped",
+      "A trigger event was ignored: self-trigger, chain depth 8, paused, or the message was from a guest (not run)",
+      {
+        p: {
+          automationId: id.automation,
+          eventId: id.event,
+          reason: t.enm("self_trigger", "depth_limit", "paused", "filter_error", "outsider"),
+        },
+        subject: ["automation", "/automationId"],
+        retention: "run_logs",
       },
-      subject: ["automation", "/automationId"],
-      retention: "run_logs",
-    }),
+    ),
     ev("automation.group_created", "A Group was created", {
       p: { groupId, name: t.str() },
       subject: ["entity", "/groupId"],

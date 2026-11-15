@@ -37,6 +37,7 @@ type Out = {
       terminalId: string;
       state: "running" | "idle" | "exited";
       lastLine?: string;
+      lastCommand?: string;
       exitCode: number | null;
     }>;
 };
@@ -63,6 +64,7 @@ type Out = {
     "rows": [
       {
         "exitCode": 1,
+        "lastCommand": "example",
         "lastLine": "example",
         "state": "running",
         "terminalId": "trm_a1b2c3"

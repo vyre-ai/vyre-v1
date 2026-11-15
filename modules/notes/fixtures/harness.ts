@@ -12,6 +12,7 @@ const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const migration = readFileSync(new URL("../migrations/0001_notes.sql", import.meta.url), "utf8");
 const picture = readFileSync(new URL("../migrations/0002_link_picture.sql", import.meta.url), "utf8");
 const source = readFileSync(new URL("../migrations/0003_note_source.sql", import.meta.url), "utf8");
+const versioned = readFileSync(new URL("../migrations/0004_note_version.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const NOW = 1_762_160_000_000;
 export const ME = "usr_irfad",
@@ -58,6 +59,7 @@ export function harness(
   sqlite.exec(migration);
   sqlite.exec(picture);
   sqlite.exec(source);
+  sqlite.exec(versioned);
   const norm = (a: unknown): unknown => (a === undefined ? null : a);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),

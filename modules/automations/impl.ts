@@ -93,13 +93,14 @@ export const consumers = {
     on: TRIGGER_EVENTS,
     async run(
       ctx: Ctx,
-      event: { id: string; name: string; payload: Record<string, unknown>; runId?: string },
+      event: { id: string; name: string; payload: Record<string, unknown>; runId?: string; outsider?: boolean },
     ): Promise<void> {
       const parent = event.runId ? loadRunPlan(ctx as unknown as AutoCtx, event.runId) : undefined;
       await consumeEvent(ctx as unknown as AutoCtx, {
         id: event.id,
         type: event.name,
         payload: event.payload,
+        ...(event.outsider === true ? { outsider: true } : {}),
         ...(parent ? { origin: `automation:${parent.link.automationId}`, depth: (parent.link.depth ?? 0) + 1 } : {}),
       });
     },

@@ -3,11 +3,13 @@
 import { archiveHandlers } from "./archive.ts";
 import { messagePerson, mute as agentDmMute, peopleStatus } from "./agent-dm.ts";
 import { catchUp } from "./catch-up.ts";
+import { chaptersRead, chaptersWrite } from "./chapters.ts";
 import { paceOfPerson } from "./pace.ts";
 import { replyDetails } from "./reply-details.ts";
 import { aside, asideKeep } from "./aside.ts";
 import { share } from "./share.ts";
 import { makeTask } from "./make-task.ts";
+import { decideRound, discussRound } from "./round.ts";
 import { flowCard } from "./flow-card.ts";
 import { remember } from "./remember.ts";
 import { noted } from "./noted.ts";
@@ -20,6 +22,7 @@ import { noteOfferHandlers } from "./note-offer.ts";
 import { crewLineHandlers, hookLineHandlers } from "./hook-line.ts";
 import { titleMake } from "./title.ts";
 import { g26Handlers } from "./g26.ts";
+import { sidebarHandlers } from "./sidebar.ts";
 import { historySearch } from "./history.ts";
 import { g27Handlers } from "./g27.ts";
 import { followHandlers } from "./follow.ts";
@@ -44,12 +47,16 @@ export const handlers = {
   "chat.post": guardPrivate(post),
   "chat.start": start,
   "chat.make_task": makeTask,
+  "chat.round.decide": decideRound,
+  "chat.round.discuss": discussRound,
   "chat.reply_details": replyDetails,
   "chat.share": share,
   "chat.aside": aside,
   "chat.aside_keep": asideKeep,
   "chat.flow_card": flowCard,
   "chat.catch_up": catchUp,
+  "chat.chapters": chaptersRead,
+  "chat.chapters_write": chaptersWrite,
   "chat.pace_of": paceOfPerson,
   "chat.remember": remember,
   "chat.noted": noted,
@@ -85,4 +92,5 @@ export const handlers = {
   ...g26Handlers,
   ...g27Handlers,
   ...followHandlers,
+  ...sidebarHandlers,
 };

@@ -11,7 +11,7 @@ Archive a channel (project and Journey channels archive when the record complete
 | Grant level | manage |
 | Risk | medium |
 | Resource | channel (/channelId) |
-| Gate | none |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
