@@ -38281,7 +38281,7 @@ const routes6: Route[] = [
       "type": "terminal",
       "id": "/terminalId"
     },
-    "idempotency": "none",
+    "idempotency": "key",
     "risk": "medium",
     "offline": "online",
     "teamOnly": false,
