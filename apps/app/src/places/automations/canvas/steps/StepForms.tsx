@@ -184,7 +184,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
                   {jsonProblem}
                 </Hint>
               ) : (
-                <Hint>Use {"{{ steps.name.out.field }}"} to put an earlier step's data in.</Hint>
+                <Hint>Bring an earlier step's data in with Insert data on the address or a value.</Hint>
               )}
             </>
           ) : null}
@@ -760,7 +760,7 @@ export function AiForm({
         label="Prompt"
         value={show(input["prompt"])}
         rows={6}
-        placeholder="What should the AI do? Use {{ steps.name.out.field }} to bring an earlier step's data in."
+        placeholder="What should the AI do? Bring an earlier step's data in with Insert data."
         chips
         testID="field-prompt"
         onCommit={(t) => writeInput(withField(input, "prompt", t))}

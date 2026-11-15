@@ -250,7 +250,7 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
     const cfg = Object.entries(t.config ?? {}).find(([, v]) => typeof v === "string" && v !== "");
     trigger = {
       id: "trigger",
-      app: { id: "vyre:trigger", name: title },
+      app: { id: `vyre:trig-${t.key}`, name: title },
       template: cfg ? `${title}: {${cfg[0]}}` : title,
       values: cfg ? { [cfg[0]]: { text: String(cfg[1]) } } : {},
       hand: t.key === "manual" || t.key === "button",
@@ -313,7 +313,8 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
       action: n.title?.trim()
         ? detailOf(n, title, known?.title, ctx)
         : stepSentence(n.key)
-          ? (known?.title ?? human(n.key)).replace(/^[^:·]{1,40}\s*[:·]\s+/, "")
+          ? // the sentence already says what was chosen: the kind's name is never said again under it
+            ""
           : Object.keys(s.values).length > 0
             ? (known?.title ?? human(n.key))
             : "",

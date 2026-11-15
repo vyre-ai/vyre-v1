@@ -191,6 +191,10 @@ test("production Automations: the step row and the step form for each kind and s
     assert.equal(/\{\{|usr_|_id\b/.test(menuText), false, "no brace or id in the Insert data menu");
     await page.getByRole("menuitem").first().click();
     await page.waitForTimeout(900);
+    await page
+      .getByTestId("field-title-chip-1")
+      .waitFor({ timeout: 8_000 })
+      .catch(() => undefined);
     assert.ok(await page.getByTestId("field-title-chip-1").count(), "a chip is in the field");
     await shot("3-insert-data-chosen-d");
 
@@ -222,7 +226,10 @@ test("production Automations: the step row and the step form for each kind and s
     await page.waitForTimeout(2500);
     await page.getByText("Lacking a person", { exact: true }).first().click();
     await page.getByTestId("story").waitFor({ timeout: 20_000 });
-    await page.getByTestId("sv-test").click().catch(() => undefined);
+    await page
+      .getByTestId("sv-test")
+      .click()
+      .catch(() => undefined);
     await page.waitForTimeout(2500);
     await shot("5-stopped-test-d");
     const got = await api("runs.get", { runId });
@@ -249,6 +256,29 @@ test("production Automations: the step row and the step form for each kind and s
     await page.keyboard.press("Escape");
     assert.equal(/\b[a-z]{3}_[a-z0-9]{6,}/.test(await page.locator("body").innerText()), false, "no id on the form");
     void post;
+
+    // round five: the three forms that were once bodies of their own, shown in the one form
+    await make("http-form", [
+      {
+        id: "n1",
+        key: "http_request",
+        input: { method: "POST", url: "https://api.example.com/orders", json: { note: "hello" } },
+      },
+    ]);
+    await make("code-form", [{ id: "n1", key: "code", input: { source: "return { total: 1 };" } }]);
+    for (const kind of ["http", "code"]) {
+      await page.getByText(`${kind}-form`, { exact: true }).first().click();
+      await page.getByTestId("story").waitFor({ timeout: 20_000 });
+      await page.getByTestId("sv-step-n1").click({ position: { x: 120, y: 14 } });
+      await page.waitForTimeout(900);
+      await shot(`6-${kind}-form-d`);
+      assert.equal(
+        /\b[a-z]{3}_[a-z0-9]{6,}|\{\{|Templating/.test(await page.locator("body").innerText()),
+        false,
+        `${kind}: no id or syntax`,
+      );
+    }
+
     console.log("RUN", run?.status, JSON.stringify(failed?.error ?? null));
     assert.deepEqual(errors, [], "no page error");
   } finally {

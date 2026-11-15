@@ -312,3 +312,36 @@ test("an id a step names is shown by the name of whoever it is, never as the id 
   assert.ok(text.includes("Olivia Owner"));
   assert.equal(text.includes("usr_"), false);
 });
+
+test("a step says what was chosen by name and never repeats the kind's name under itself", () => {
+  const names: Record<string, string> = {
+    fil_0123456789abcdef: "Tidy me.md",
+    fld_0123456789abcdef: "Filed",
+  };
+  const out = fromDefinition(
+    {
+      triggers: [{ key: "manual" }],
+      nodes: [
+        { id: "t1", key: "files.move", input: { fileId: "fil_0123456789abcdef", toFolderId: "fld_0123456789abcdef" } },
+      ],
+    },
+    ctx({
+      catalog: { "files.move": { title: "Move a file" } },
+      nameOfId: (id) => names[id] ?? "Chosen",
+    }),
+  );
+  const row = out.steps[0]!;
+  const text = Object.values(row.values)
+    .map((v) => ("text" in v! ? v.text : ""))
+    .join(" ");
+  assert.match(text, /Tidy me\.md/);
+  assert.match(text, /Filed/);
+  assert.equal(row.action, "", "the kind's name is not said again");
+});
+
+test("each trigger kind wears its own mark, never the same one", () => {
+  const mark = (key: string): string =>
+    fromDefinition({ triggers: [{ key }], nodes: [] }, ctx({ triggerTitles: {} })).trigger!.app.id;
+  assert.notEqual(mark("schedule"), mark("webhook"));
+  assert.equal(mark("schedule"), "vyre:trig-schedule");
+});

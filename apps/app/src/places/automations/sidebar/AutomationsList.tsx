@@ -36,6 +36,8 @@ export function AutomationsList({
   const list = useScreenQuery<{ automations: readonly AutoRow[] }>(SIDEBAR, "automations", {});
   // a Journey is a row in the same list (design 2.2), opened in its own record-by-stage view
   const journeys = useScreenQuery<{ journeys: readonly JourneyRow[] }>(SIDEBAR, "journeys", {});
+  const groupsQ = useScreenQuery<{ groups: readonly { id: string; name: string }[] }>(SIDEBAR, "groups", {});
+  const groups = groupsQ.status === "ready" ? groupsQ.data.groups : [];
   if (list.status !== "ready") return null;
   const journeyIds = new Set(journeys.status === "ready" ? journeys.data.journeys.map((j) => j.id) : []);
   const journeyRows: ListRowIn[] =
@@ -99,8 +101,8 @@ export function AutomationsList({
           canRun: canEdit && a.status !== "draft",
           canDelete: canEdit,
           failedRuns: a.failedRuns,
-          group: null,
-          groups: [],
+          group: groups.find((g) => g.id === a.groupId)?.name ?? null,
+          groups: groups.filter((g) => g.id !== a.groupId).map((g) => ({ id: g.id, name: g.name })),
         },
         {
           open: () => {

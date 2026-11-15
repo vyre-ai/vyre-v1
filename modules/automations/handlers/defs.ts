@@ -806,7 +806,13 @@ async function runStats(
     const last = (await ctx.call("runs.list", { scope: "subject", subject, kinds: ["automation"], limit: 1 })) as {
       runs?: { id: string; status: string; startedAt: number }[];
     } | null;
-    const failed = (await ctx.call("runs.list", { scope: "subject", subject, kinds: ["automation"], statuses: ["failed"], limit: 1 })) as {
+    const failed = (await ctx.call("runs.list", {
+      scope: "subject",
+      subject,
+      kinds: ["automation"],
+      statuses: ["failed"],
+      limit: 1,
+    })) as {
       total?: number;
     } | null;
     const r = last?.runs?.[0];

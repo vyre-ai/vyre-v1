@@ -240,11 +240,12 @@ test("f-kinds-a pictures", async (t) => {
         .catch(() => undefined);
       await shot("1-step-cards", skin);
       await page.getByText("Tidy files", { exact: true }).first().click({ timeout: 30_000 });
-      await page.getByTestId("card-t1").waitFor({ timeout: 20_000 });
-      const sub = await page.getByTestId("card-sub-t1").innerText();
+      await page.getByTestId("sv-step-t1").waitFor({ timeout: 20_000 });
+      await page.waitForTimeout(1500);
+      const sub = await page.getByTestId("sv-step-t1").innerText();
       assert.ok(
-        /File|folder/i.test(sub) && !/fil_|fld_|\bid\b/i.test(sub),
-        `the step card names its inputs in words: ${sub}`,
+        /Tidy me\.md/.test(sub) && /Filed/.test(sub) && !/fil_|fld_|\bid\b/i.test(sub),
+        `the step row says the file and the folder by name: ${sub}`,
       );
       await shot("1b-step-cards-generic", skin);
 

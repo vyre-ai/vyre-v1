@@ -391,6 +391,37 @@ function Body({
     }
     return out;
   }, [errors, def, catalog, openConnect, a.kind]);
+  // the files and folders a step names are shown by their names: read once each, kept
+  const [thingNames, setThingNames] = useState<Readonly<Record<string, string>>>({});
+  const wanted = useMemo(() => {
+    const out = new Set<string>();
+    const walk = (v: unknown): void => {
+      if (typeof v === "string") {
+        if (/^(fil|fld)_[0-9a-f]{8,}$/.test(v.trim())) out.add(v.trim());
+      } else if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object") Object.values(v).forEach(walk);
+    };
+    for (const n of def.nodes) walk(n.input);
+    return [...out].sort().join(",");
+  }, [def]);
+  useEffect(() => {
+    let live = true;
+    for (const id of wanted.split(",").filter((x) => x !== "" && thingNames[x] === undefined)) {
+      const folder = id.startsWith("fld_");
+      void data.call(folder ? "files.folder.get" : "files.get", folder ? { folderId: id } : { fileId: id }).then(
+        (out) => {
+          const o = out as { file?: { name?: string }; folder?: { name?: string }; name?: string };
+          const name = (folder ? o.folder?.name : o.file?.name) ?? o.name;
+          if (live && typeof name === "string" && name !== "") setThingNames((cur) => ({ ...cur, [id]: name }));
+        },
+        () => undefined,
+      );
+    }
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wanted, data]);
   const view = useMemo(() => {
     const full = Object.fromEntries(
       (catalog?.all ?? []).map((s) => [s.key, { title: s.title.replace(/^[^:·]{1,40}\s*[:·]\s+/, ""), ...appOf(s) }]),
@@ -412,7 +443,7 @@ function Body({
         nameOfNode: (id) =>
           id === "trigger" ? "Trigger" : (full[def.nodes.find((n) => n.id === id)?.key ?? ""]?.title ?? id),
         canUse: (app) => usable.has(app) || !isGatedApp(app),
-        nameOfId: (id) => data.name(id),
+        nameOfId: (id) => thingNames[id] ?? data.name(id),
         iconOf: (id) =>
           id === "trigger"
             ? "bolt"
@@ -438,7 +469,7 @@ function Body({
         writes: (k) => outward.has(k),
       },
     );
-  }, [def, catalog, pickIn, issues, noAccess, connectNeeds, pastEvent, data]);
+  }, [def, catalog, pickIn, issues, noAccess, connectNeeds, pastEvent, data, thingNames]);
   // each trigger is its own row: When, then Or. The first is "trigger", the others "trigger:1", "trigger:2"
   const triggerRows = useMemo(
     () =>
