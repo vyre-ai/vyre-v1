@@ -138,13 +138,47 @@ test("an agent deleted for good is never adopted again from the access list, and
   );
 });
 
-test("an agent that asks to delete itself for good is refused in one plain sentence", async () => {
+test("an agent, an agent acting for a person and a service are refused in one plain sentence: only a person deletes for good", async () => {
   const hn = world();
   const a = await make(hn);
   await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
-  const asAgent = { ...hn.ctx, principal: { kind: "agent", id: a.agentId } } as Harness["ctx"];
-  await assert.rejects(h["agents.delete_for_good"]!(asAgent, { agentId: a.agentId }), (e: unknown) =>
-    /cannot delete itself/.test(String((e as Error).message)),
-  );
+  for (const who of [
+    { principal: { kind: "agent", id: a.agentId } },
+    { principal: { kind: "agent", id: "agt_other" }, actingFor: DANA },
+    { principal: { kind: "service", id: "svc_aut" } },
+  ]) {
+    const ctx = { ...hn.ctx, ...who } as Harness["ctx"];
+    await assert.rejects(h["agents.delete_for_good"]!(ctx, { agentId: a.agentId }), (e: unknown) =>
+      /Only a person can delete an agent for good\./.test(String((e as Error).message)),
+    );
+  }
   assert.deepEqual(hn.named("agent.erasing"), []);
+});
+
+test("the Trash clock never guesses: a failed retention read, or a value it cannot read, erases nothing; only a missing setting means 30 days", async () => {
+  const hn = world();
+  const a = await make(hn);
+  await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
+  hn.advance(31 * 86_400_000);
+  hn.world.answer("governance.retention.get", () => ({ kinds: [{ key: "trash", value: "forever" }] }));
+  assert.deepEqual(await sweepExpired(hn.ctx as never), [], "forever keeps it");
+  hn.world.answer("governance.retention.get", () => {
+    throw new Error("governance is starting");
+  });
+  assert.deepEqual(await sweepExpired(hn.ctx as never), [], "a failed read at boot keeps it");
+  hn.world.answer("governance.retention.get", () => ({ kinds: [{ key: "trash", value: "soon" }] }));
+  assert.deepEqual(await sweepExpired(hn.ctx as never), [], "a value it cannot read keeps it");
+  hn.world.answer("governance.retention.get", () => {
+    throw Object.assign(new Error("no such capability"), { error: { code: "validation.unknown_capability" } });
+  });
+  assert.deepEqual(await sweepExpired(hn.ctx as never), [a.agentId], "no retention setting at all: the 30 day default");
+});
+
+test("a teammate is not pressed for good by a person (it goes with its project or chat)", async () => {
+  const hn = world();
+  const a = await make(hn, "Helper");
+  hn.ctx.db.run("UPDATE agents_agent SET kind = 'teammate', deletedAt = 1 WHERE id = ?", a.agentId);
+  await assert.rejects(h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId }), (e: unknown) =>
+    /goes with its project or chat/.test(String((e as Error).message)),
+  );
 });

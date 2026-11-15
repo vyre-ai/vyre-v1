@@ -2320,15 +2320,18 @@ export function eraseFolderTree(ctx: Ctx, folderId: string): number {
   return before - many(ctx, "SELECT id FROM files_file").length;
 }
 
-/** A folder in Trash deleted for good: every file and folder under it, with versions and Trash copies. Says what it was (an agent's folder) so the agent follows. */
+/** A folder in Trash deleted for good: every file and folder under it, with versions and Trash copies. */
 function purgeTrashedFolder(ctx: Ctx, folder: Row): void {
-  const subject = subjectOf(ctx, folder);
   const id = String(folder.id);
   purgeFolderRow(ctx, folder);
-  ctx.emit("folder.purged", `folder/${id}`, {
-    folderId: id,
-    ...(subject.kind === "agent" && subject.id ? { subjectKind: "agent", subjectId: subject.id } : {}),
-  });
+  ctx.emit("folder.purged", `folder/${id}`, { folderId: id });
+}
+
+/** Is this folder, or any folder under it, an agent's own folder? An agent is erased by its own Delete for good (agents.delete_for_good, and the Trash clock), never by emptying Trash or purging a folder (F77). */
+function holdsAgentFolder(ctx: Ctx, folder: Row): boolean {
+  const key = isNull(folder.system_key) ? "" : String(folder.system_key);
+  if (/^agent:/.test(key)) return true;
+  return many(ctx, "SELECT * FROM files_folder WHERE parent_id = ?", folder.id).some((c) => holdsAgentFolder(ctx, c));
 }
 
 async function folderPurge(ctx: Ctx, input: unknown): Promise<{ purged: boolean }> {
@@ -2338,6 +2341,10 @@ async function folderPurge(ctx: Ctx, input: unknown): Promise<{ purged: boolean 
   if (!folder) fail(ctx, "validation.not_found", "That folder does not exist.");
   if (isNull(folder.deleted_at))
     fail(ctx, "validation.precondition_failed", "Move the folder to Trash before deleting it for good.");
+  if (holdsAgentFolder(ctx, folder))
+    fail(ctx, "validation.precondition_failed", "An agent is deleted from its own page in Trash.", {
+      reason: "agent_folder",
+    });
   purgeTrashedFolder(ctx, folder);
   return { purged: true };
 }
@@ -2377,6 +2384,7 @@ async function trashEmpty(ctx: Ctx, input: unknown): Promise<{ purged: number }>
         ctx.db.run("DELETE FROM files_trash WHERE id = ?", row.id);
         continue;
       }
+      if (holdsAgentFolder(ctx, folder)) continue; // an agent in Trash stays until its own Delete for good or the Trash clock
       const before = many(ctx, "SELECT * FROM files_file");
       purgeTrashedFolder(ctx, folder);
       const after = new Set(many(ctx, "SELECT * FROM files_file").map((f) => String(f.id)));

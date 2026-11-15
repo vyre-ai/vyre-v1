@@ -314,6 +314,8 @@ async function purgeTrash(ctx: GovCtx, age: number): Promise<{ removed: number; 
     for (const f of list(page["folders"]).map(obj)) {
       const at = typeof f["deletedAt"] === "number" ? f["deletedAt"] : null;
       if (at === null || at > cutoff) continue;
+      // an agent's own folder is not expired here: the agents module erases the agent, and its folder with it, on the same Trash clock (F77)
+      if (obj(f["subject"])["kind"] === "agent") continue;
       try {
         await ctx.call("files.folder.purge", { folderId: text(f["folderId"]) });
         removed++;

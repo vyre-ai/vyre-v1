@@ -1112,7 +1112,9 @@ export const hostCalls = {
       };
     const profile = profileIdOf(i.agentId);
     const sb = spaceBrowser();
-    if (profile && sb && (await sb.available().catch(() => false))) {
+    if (profile && sb) {
+      // the profile (cookies, saved sign-ins, downloads) is really removed or this step fails and the job tries again: a browser host that is bound and not available is not "nothing to remove"
+      if (!(await sb.available().catch(() => false))) throw new Error("The browser host is not available yet, so the profile is kept for the next try.");
       await sb.stop(profile).catch(() => undefined);
       await sb.forget(profile);
     }

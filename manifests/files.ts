@@ -609,7 +609,7 @@ export default defineManifest({
       retention: "trash",
     }),
     ev("folder.purged", "A folder in Trash was deleted for good, with every file in it", {
-      p: { folderId: id.folder, subjectKind: t.opt(t.str()), subjectId: t.opt(t.str()) },
+      p: { folderId: id.folder },
       subject: ["folder", "/folderId"],
     }),
     ev("folder.restored", "A folder came back from Trash", {

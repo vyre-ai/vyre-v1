@@ -62,6 +62,10 @@ export function erasedRow(ctx: Pick<AgentsCtx, "db">, id: string): { state: stri
 }
 
 export function refuseKind(ctx: AgentsCtx, a: AgentRec): void {
+  // ONE RULE for teammates (deleteForGood, trashList, sweepExpired): a teammate belongs to its project or chat, so it is not listed in Trash and no person presses Delete for good on it; the Trash clock alone
+  // erases it, so nothing of it is kept for ever.
+  if (a.kind === "teammate")
+    raise(ctx, "validation.precondition_failed", "A teammate goes with its project or chat.", { reason: "teammate" });
   if (a.kind === "assistant")
     raise(ctx, "validation.precondition_failed", "A person's Assistant stays with them and cannot be deleted.", {
       reason: "assistant_stays",
@@ -71,8 +75,9 @@ export function refuseKind(ctx: AgentsCtx, a: AgentRec): void {
 /** Press "Delete for good" on an agent in Trash: the job is recorded and starts at once; the answer is that it is deleting. Pressing again changes nothing. */
 export async function deleteForGood(ctx: AgentsCtx, input: { agentId: string }): Promise<{ erasing: boolean }> {
   ensure(ctx.db);
-  if (ctx.principal.kind === "agent" && ctx.principal.id === input.agentId)
-    raise(ctx, "validation.precondition_failed", "An agent cannot delete itself for good.", { reason: "self" });
+  // only a person presses this: an agent (acting for a person too), a service, an Automation step or an outside tool is refused before anything else
+  if (ctx.principal.kind !== "person")
+    raise(ctx, "validation.precondition_failed", "Only a person can delete an agent for good.", { reason: "person_only" });
   const have = pending(ctx, input.agentId);
   const a = agentBy(ctx.db, input.agentId, true);
   // whoever manages it (its owner, or an admin) may; anyone else is told the agent does not exist, as for any agent they cannot see
@@ -82,8 +87,6 @@ export async function deleteForGood(ctx: AgentsCtx, input: { agentId: string }):
     raise(ctx, "validation.not_found", "That agent does not exist.");
   if (have) return { erasing: String(have["state"]) === "erasing" };
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
-  if (ctx.principal.kind === "agent" && ctx.principal.id === a.id)
-    raise(ctx, "validation.precondition_failed", "An agent cannot delete itself for good.", { reason: "self" });
   refuseKind(ctx, a);
   if (a.deletedAt === undefined)
     raise(ctx, "validation.precondition_failed", "Move the agent to Trash first, then delete it for good.", {
@@ -187,7 +190,7 @@ export async function trashList(ctx: AgentsCtx) {
       deletedAt: a.deletedAt ?? 0,
       deleting: String(pending(ctx, a.id)?.["state"]) === "erasing",
       ...(a.folderId !== undefined ? { folderId: a.folderId } : {}),
-      ...(keep !== null && a.deletedAt !== undefined ? { erasesAt: a.deletedAt + keep } : {}),
+      ...(typeof keep === "number" && a.deletedAt !== undefined ? { erasesAt: a.deletedAt + keep } : {}),
       canDelete: a.kind !== "assistant" && (a.ownerId === asker || mayManage(ctx, a)),
     });
   }
@@ -316,42 +319,33 @@ export function retentionMs(v: string): number | null | undefined {
   return Number(m[1]) * { d: 1, w: 7, m: 30, y: 365 }[m[2] as "d" | "w" | "m" | "y"] * 86_400_000;
 }
 
-/** The Space's Trash keep time, the one the Files Trash runs on (governance's `trash` retention); null when Trash is kept forever. */
-export async function trashKeepMs(ctx: AgentsCtx): Promise<number | null> {
+/**
+ * The Space's Trash keep time, the one the Files Trash runs on (governance's `trash` retention). null: Trash is kept for ever. undefined: it could not be told (the read failed, or the value is not one governance
+ * writes), and nothing is erased on a guess. The 30 day default is used only where there is no retention setting at all (the capability does not exist, as in a Personal Space).
+ */
+export async function trashKeepMs(ctx: AgentsCtx): Promise<number | null | undefined> {
   try {
     const out = (await ctx.call?.("governance.retention.get", {})) as {
       kinds?: Array<{ key?: string; value?: string }>;
     };
     const v = out?.kinds?.find((k) => k.key === "trash")?.value;
-    const ms = typeof v === "string" ? retentionMs(v) : undefined;
-    if (ms !== undefined) return ms;
-  } catch {
-    /* governance is not in this Space: the default */
+    return typeof v === "string" ? retentionMs(v) : undefined;
+  } catch (e) {
+    return code(e) === "validation.unknown_capability" ? TRASH_KEEP_MS : undefined;
   }
-  return TRASH_KEEP_MS;
 }
 
 /** An agent that has been in Trash as long as Trash keeps things is deleted for good, by the same job (a person's Assistant that went with them included). */
 export async function sweepExpired(ctx: AgentsCtx): Promise<string[]> {
   ensure(ctx.db);
   const keep = await trashKeepMs(ctx);
-  if (keep === null) return [];
+  if (keep === null || keep === undefined) return [];
   const due = ctx.db.all(
     `SELECT * FROM agents_agent WHERE deletedAt IS NOT NULL AND deletedAt <= ? AND id NOT IN (SELECT agentId FROM agents_erase) ORDER BY deletedAt LIMIT 20`,
     ctx.now() - keep,
   ) as Row[];
   for (const r of due) start(ctx, agentOf(r), "system");
   return due.map((r) => String(r["id"]));
-}
-
-/** folder.purged: the agent whose folder it was is deleted for good, when it is in Trash and is not a person's Assistant. */
-export async function folderPurged(ctx: AgentsCtx, p: { subjectKind?: string; subjectId?: string }): Promise<string[]> {
-  if (p.subjectKind !== "agent" || typeof p.subjectId !== "string") return [];
-  ensure(ctx.db);
-  const a = agentBy(ctx.db, p.subjectId, true);
-  if (!a || a.deletedAt === undefined || a.kind === "assistant" || pending(ctx, a.id)) return [];
-  start(ctx, a, "system");
-  return [a.id];
 }
 
 /** How long the Space keeps its backups, when that is a number of days (the setting is words for a rotation policy otherwise). */

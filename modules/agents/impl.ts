@@ -1,6 +1,6 @@
 // agents module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // Also here: what the module reads from the event log. `consumers` lists, by name, the events each one reads and what it does with one; the host runs them after commit, at least once, so each is safe to repeat.
-import { folderPurged, runErase, sweepExpired } from "./handlers/erase.ts";
+import { runErase, sweepExpired } from "./handlers/erase.ts";
 import { followGrant } from "./handlers/install.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
@@ -97,12 +97,6 @@ export { restoreAgentFiles };
 export const hostSeams = { setPluginsHost };
 
 export const consumers = {
-  /** A folder in Trash was deleted for good (Empty Trash, the Trash clock, or Delete for good in Files): when it is an agent's folder the agent is deleted for good with it, through the same job (F77). A person's Assistant is not. */
-  "agents.folder_purged": {
-    on: ["folder.purged"],
-    run: async (ctx: AgentsCtx, event: { payload: { subjectKind?: string; subjectId?: string } }): Promise<string[]> =>
-      folderPurged(ctx, event.payload),
-  },
   /** A grant on a skill changed in access (the shared Share sheet): agents' grants and people's cards follow (handlers/install.ts). */
   "agents.skill_grants": {
     on: ["grant.created", "grant.revoked"],

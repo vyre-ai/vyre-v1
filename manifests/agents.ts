@@ -607,7 +607,7 @@ export default defineManifest({
         level: "member",
         emits: ["agent.erasing", "agent.erased"],
         // an agent deleting ANOTHER agent for good is held for a person's Allow; on itself the handler refuses at once, in one plain sentence
-        gate: { act: "delete", when: "actor.kind != 'person' and actor.id != input.agentId" },
+        gate: { act: "agent_erase", when: "actor.kind != 'person'" },
         tool: "agents",
         audit: "always",
         risk: "high",
