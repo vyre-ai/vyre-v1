@@ -24,8 +24,10 @@ import {
   olderDesktopMenu,
   sessionTitle,
   sessionWords,
+  folderWords,
   sharedWait,
   terminalsHead,
+  whoseSide,
 } from "./work-model.ts";
 import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "./work-model.ts";
 
@@ -285,7 +287,19 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
         });
     } else {
       const asleep = v.state === "asleep";
-      const groups = groupSessions(v.sessions, name, { me: data.me?.id, nameOf: data.nameOf });
+      // whose side of the computer this is: a person who only uses the agent has a space of their own on it, and the terminals of others are a count, never a list
+      const whose = whoseSide(name, v.ownPlace === true, v.others ?? 0);
+      if (whose !== null)
+        entries.push({
+          key: "terminal-whose",
+          type: "block",
+          node: (
+            <Text testID="terminal-whose" style={[st.note, { paddingHorizontal: 24 }]}>
+              {whose}
+            </Text>
+          ),
+        });
+      const groups = groupSessions(v.sessions, name, { me: data.me?.id, nameOf: data.nameOf, ownPlace: v.ownPlace });
       for (const g of groups) {
         entries.push({
           key: `g-${g.key}`,
@@ -298,7 +312,9 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
             key: `session-${sx.terminalId ?? sx.name}`,
             type: "row",
             title: sessionTitle(sx),
-            ...(sx.cwd ? { suffix: sx.cwd } : {}),
+            ...(folderWords(sx.cwd, v.ownPlace === true)
+              ? { suffix: folderWords(sx.cwd, v.ownPlace === true) as string }
+              : {}),
             ...(sx.lastCommand ? { note: `$ ${sx.lastCommand}` } : {}),
             leading: (
               <View style={st.dotLead}>

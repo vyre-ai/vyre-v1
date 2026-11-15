@@ -39,7 +39,7 @@ test("remote Docker: a request becomes one question with its body as text or bas
   await http({
     method: "PUT",
     path: "/containers/x/archive",
-    query: { path: "/home/agent/Vyre" },
+    query: { path: "/shared/Vyre" },
     body: new Uint8Array([1, 2, 3]),
     contentType: "application/x-tar",
   });

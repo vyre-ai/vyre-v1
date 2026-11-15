@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { createSitesRunner } from "./server.ts";
-import { WS_INIT_SCRIPT, workspaceImages } from "./workspaces-policy.ts";
+import { WS_INIT_SCRIPT, workspaceImages, wsArchiveOk } from "./workspaces-policy.ts";
 
 const A = "agt_dex",
   B = "agt_pam";
@@ -599,4 +599,14 @@ test("F33: the runner accepts the workspace host name `workspace` (and still the
   assert.equal(ok(name(A)), true);
   assert.equal(ok("agt_dex"), false);
   assert.equal(ok(name(B)), false);
+});
+
+test("the shared folders under /shared are the ones a workspace mounts and mirrors (round three of the wall): Files and its projects, nothing else of /shared", () => {
+  const ok = (p: string, m = "GET"): boolean => wsArchiveOk(m, new URLSearchParams({ path: p }));
+  assert.equal(ok("/shared/Vyre/."), true);
+  assert.equal(ok("/shared/Vyre/work", "PUT"), true);
+  assert.equal(ok("/shared/projects/prj_site/a/b.txt", "PUT"), true);
+  assert.equal(ok("/shared/projects"), false, "the list of projects is not a folder to mirror");
+  assert.equal(ok("/shared/chats/thr_a"), false);
+  assert.equal(ok("/shared/projects/../x"), false);
 });

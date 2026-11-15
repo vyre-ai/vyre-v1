@@ -255,3 +255,31 @@ test("a picture that cannot be drawn is the quiet 'No picture of this step could
     restore();
   }
 });
+
+// f-agentpc, 14 Nov (H6): a card made in a person's own browser place is that person's: another viewer sees its last picture, never a live view of the wrong browser
+test("a card from another person's own browser place is not drawn live for a different viewer, and is for its own person", async () => {
+  const restore = installDom();
+  try {
+    const other = browserRig({ running: true, busy: true });
+    other.cfg.viewer = "usr_maya";
+    const root = await mount(
+      createRoot,
+      <LiveCard id="b9" agentId="agt_web" person="usr_ben" fileId="fil_1" caption="Opened the page" cfg={other.cfg} />,
+    );
+    await flush();
+    await flush();
+    assert.ok(!find(root, "live-card-stream-b9"), "no live view of Ben's browser for Maya");
+    assert.ok(!other.calls.some(([c]) => c === "computers.browser.stream"), "no stream is asked for");
+    const mine = browserRig({ running: true, busy: true });
+    mine.cfg.viewer = "usr_ben";
+    const own = await mount(
+      createRoot,
+      <LiveCard id="b10" agentId="agt_web" person="usr_ben" fileId="fil_1" caption="Opened the page" cfg={mine.cfg} />,
+    );
+    await flush();
+    await flush();
+    assert.ok(find(own, "live-card-stream-b10"), "Ben sees his own browser live");
+  } finally {
+    restore();
+  }
+});

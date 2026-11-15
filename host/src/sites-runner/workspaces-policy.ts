@@ -173,8 +173,11 @@ export function workspaceBody(
     const ok =
       m !== null &&
       ((src === `${name}-home` && guest === WS_HOME) ||
-        (src === `${name}-files` && guest === `${WS_HOME}/Vyre`) ||
-        (WS_PROJECT_VOLUME.test(src) && guest === `${WS_HOME}/projects/${src.replace(/^vyre-wsproj-/, "")}`));
+        (src === `${name}-files` && (guest === "/shared/Vyre" || guest === `${WS_HOME}/Vyre`)) ||
+        (src === `${name}-people` && guest === "/people") ||
+        (WS_PROJECT_VOLUME.test(src) &&
+          (guest === `/shared/projects/${src.replace(/^vyre-wsproj-/, "")}` ||
+            guest === `${WS_HOME}/projects/${src.replace(/^vyre-wsproj-/, "")}`)));
     if (!ok)
       return {
         why: "host folders are refused: a workspace mounts only its own home and files volumes and its projects' shared volumes",
@@ -343,9 +346,10 @@ export function wsArchiveOk(method: string, query: URLSearchParams): boolean {
   const p = query.get("path") ?? "";
   if (method !== "GET" && method !== "PUT" && method !== "HEAD") return false;
   if (p.includes("..")) return false;
-  if (p === `${WS_HOME}/Vyre` || p === `${WS_HOME}/Vyre/.` || p.startsWith(`${WS_HOME}/Vyre/`)) return true;
+  for (const root of [`${WS_HOME}/Vyre`, "/shared/Vyre"])
+    if (p === root || p === `${root}/.` || p.startsWith(`${root}/`)) return true;
   // a project's shared folder, to mirror it with the project's folder in Files
-  return /^\/home\/agent\/projects\/[A-Za-z0-9_-]{1,64}(\/\.|\/.*)?$/.test(p);
+  return /^\/(home\/agent|shared)\/projects\/[A-Za-z0-9_-]{1,64}(\/\.|\/.*)?$/.test(p);
 }
 
 /** What a workspace container may be asked: start, stop, inspect, remove, logs and exec, and archive inside its Files folder. Not wait. The helper is the one container that is waited for. */
