@@ -747,7 +747,8 @@ export function createBridge(o: BridgeOptions): Bridge {
         ready.delete(`${e.threadId}:${e.authorId}`);
         // words already posted before a card are not said again
         const said = r.posted ?? "";
-        const body = said !== "" && msg.body.startsWith(said) ? msg.body.slice(said.length).replace(/^\s+/, "") : msg.body;
+        const body =
+          said !== "" && msg.body.startsWith(said) ? msg.body.slice(said.length).replace(/^\s+/, "") : msg.body;
         enqueuePost(
           e.threadId,
           e.authorId,
@@ -784,7 +785,12 @@ export function createBridge(o: BridgeOptions): Bridge {
         live.get(c.turnId)?.blocks.push({
           type: "tool_result",
           v: 1,
-          data: { id, name: c.name, ok: result.ok, secs: Math.max(0, Math.round(((o.now ?? Date.now)() - c.at) / 1000)) },
+          data: {
+            id,
+            name: c.name,
+            ok: result.ok,
+            secs: Math.max(0, Math.round(((o.now ?? Date.now)() - c.at) / 1000)),
+          },
         });
         emit({
           kind: "step",

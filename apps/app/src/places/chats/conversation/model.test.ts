@@ -13,5 +13,8 @@ test("the line above the composer names who is typing and who is working", async
   assert.equal(presenceLine([], []), "");
   assert.equal(presenceLine(["Mia"], []), "Mia is typing…");
   assert.equal(presenceLine([], ["Helper"]), "Helper is working…");
-  assert.equal(presenceLine(["Mia", "Omar"], ["Helper", "Scout"]), "Mia and Omar are typing, Helper and Scout are working…");
+  assert.equal(
+    presenceLine(["Mia", "Omar"], ["Helper", "Scout"]),
+    "Mia and Omar are typing, Helper and Scout are working…",
+  );
 });

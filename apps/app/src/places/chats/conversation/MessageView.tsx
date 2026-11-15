@@ -1328,8 +1328,7 @@ function Theirs({
           style={st.via}
         >{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text>
       ) : null}
-      {work &&
-      (!work.live || !(stream && actions.activityOf?.(m.messageId))) ? (
+      {work && (!work.live || !(stream && actions.activityOf?.(m.messageId))) ? (
         <Fold
           testID={`work-${m.messageId}`}
           label={work.live ? "Working" : work.summary}

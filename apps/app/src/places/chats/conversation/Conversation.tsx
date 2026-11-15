@@ -2328,9 +2328,15 @@ function ConversationView(): ReactElement {
         ) : (
           <View style={st.composerBox}>
             <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>
-              {presenceLine(typingNames, working.map((id) => nameOf(id))) !== "" ? (
+              {presenceLine(
+                typingNames,
+                working.map((id) => nameOf(id)),
+              ) !== "" ? (
                 <Text testID="typing-line" style={st.typingText}>
-                  {presenceLine(typingNames, working.map((id) => nameOf(id)))}
+                  {presenceLine(
+                    typingNames,
+                    working.map((id) => nameOf(id)),
+                  )}
                 </Text>
               ) : null}
             </View>

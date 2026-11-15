@@ -11,7 +11,7 @@ test("a task made from a plan shows no chat.block or chat.plan line, and a note 
     "chat.plan": "pln_01a1e0868ea3405fac5c918b4f982b5f",
     "owner.ref": "usr_01a1e0868ea3405fac5c918b4f982b5f",
     brief: "Read the notes",
-    "ticket": "Call the supplier on Monday",
+    ticket: "Call the supplier on Monday",
   };
   const shown = readableNotes(notes);
   assert.deepEqual(shown, [["ticket", "Call the supplier on Monday"]]);

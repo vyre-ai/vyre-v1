@@ -280,7 +280,13 @@ test("an agent's own home in Files (AGENT.md, MAP.md, agent.toml) never comes ba
 
 test("hybrid: a document that has the typed words is listed before one that is only near them in meaning (owner's walk, 15 Nov: the first result did not match what was typed)", async () => {
   const h = harness();
-  seed(h, { id: "rec_near", title: "Quarter budgets review", body: "quarter budgets review plan", kind: "record", updatedAt: 2_000 });
+  seed(h, {
+    id: "rec_near",
+    title: "Quarter budgets review",
+    body: "quarter budgets review plan",
+    kind: "record",
+    updatedAt: 2_000,
+  });
   await embedRun(h.ctx, {});
   // the document that really has the words arrives after the vectors were made (no vector yet) and is older
   seed(h, { id: "rec_words", title: "Notes", body: "the quarterly budget is due", kind: "record", updatedAt: 1_000 });
@@ -288,10 +294,15 @@ test("hybrid: a document that has the typed words is listed before one that is o
   assert.equal(got[0], "rec_words", `got ${got.join(", ")}`);
 });
 
-test("hybrid: a document that only weakly resembles the typed word is not listed (owner's walk, 15 Nov: an unrelated channel came back for \"quarterly\")", async () => {
+test('hybrid: a document that only weakly resembles the typed word is not listed (owner\'s walk, 15 Nov: an unrelated channel came back for "quarterly")', async () => {
   const h = harness();
   seed(h, { id: "rec_vyre", title: "vyre", body: "Everyone in Fresh Co", kind: "record" });
-  seed(h, { id: "rec_q", title: "Tidy the quarterly notes please", body: "Tidy the quarterly notes please", kind: "record" });
+  seed(h, {
+    id: "rec_q",
+    title: "Tidy the quarterly notes please",
+    body: "Tidy the quarterly notes please",
+    kind: "record",
+  });
   await embedRun(h.ctx, {});
   const got = (await query(h.ctx, { q: "quarterly", mode: "hybrid" })).hits.map((x) => x.id);
   assert.deepEqual(got, ["rec_q"], `got ${got.join(", ")}`);
