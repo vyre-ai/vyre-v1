@@ -4059,6 +4059,7 @@
     "key": "Plan_Key"
   },
   "providers_list": {},
+  "providers_local_signins": {},
   "providers_own_people": {},
   "providers_remove": {
     "providerId": "prv_a1b2c3"

@@ -50,6 +50,12 @@ export function inboxAnswer(
   return answered(mail) && answered(cal) && answered(nums) ? false : null;
 }
 
+/** Does this person hold a connected mailbox (their own, or the one a company connection mirrors for them)? A calendar or a number alone is not their mail, so it does not count; false only once the mailbox read has answered with none. */
+export function mailboxAnswer(mail: QueryState<unknown>): boolean | null {
+  if (list<MailboxLite>(mail, "mailboxes").some((m) => m.state !== "disconnected")) return true;
+  return answered(mail) ? false : null;
+}
+
 const NEVER: LiveQuery<unknown> = {
   subscribe: () => () => undefined,
   getSnapshot: () => ({ status: "loading", error: { message: "not in this Space" } }),
@@ -101,6 +107,14 @@ export function useInboxSources(screens: ScreenHooks | null, me: string): boolea
   );
   const read = (): boolean | null =>
     qs ? inboxAnswer([qs[0].getSnapshot(), qs[1].getSnapshot(), qs[2].getSnapshot()], me) : null;
+  return useSyncExternalStore(subscribe, read, read);
+}
+
+/** Does this person hold a connected mailbox: null until the read answers (the member's "your mail, calendar, files are here" row waits for a yes). */
+export function useHasMailbox(screens: ScreenHooks | null): boolean | null {
+  const q = useMemo(() => (screens ? inboxSourceQueries(screens)[0] : null), [screens]);
+  const subscribe = useCallback((l: () => void): (() => void) => (q ? q.subscribe(l) : () => undefined), [q]);
+  const read = (): boolean | null => (q ? mailboxAnswer(q.getSnapshot()) : null);
   return useSyncExternalStore(subscribe, read, read);
 }
 

@@ -35,7 +35,6 @@ test("Console shared Records preview isolates its token, redacts Guest fields an
     ])
       await page.getByTestId(id!).fill(value!);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30000 });

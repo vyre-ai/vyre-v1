@@ -46,7 +46,7 @@ test("with sync live, a committed record and a real agent turn's reply each reac
       ["claim-confirm", "fixture live password123"],
     ] as const)
       await page.getByTestId(id).fill(value);
-    for (const id of ["claim-next", "claim-saved", "claim-create"]) await page.getByTestId(id).click();
+    for (const id of ["claim-next", "claim-create"]) await page.getByTestId(id).click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30000 });
     const stored = await page.evaluate(

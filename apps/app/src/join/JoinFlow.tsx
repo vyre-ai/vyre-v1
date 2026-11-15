@@ -120,7 +120,7 @@ function JoinFlowForHost(props: JoinFlowProps) {
       password: state.pw,
       deviceName: state.device,
       ...(state.rec ? { recoveryCode: state.code } : {}),
-      ai: { choice: state.ai, providerKey: state.aiProvider, ...(state.ai === "key" ? { key: state.key } : {}) },
+      ai: { choice: state.ai === "admin" ? "admin" : "none", providerKey: state.aiProvider },
     };
     const joined = props.onJoin
       ? props.onJoin(values).catch((e: unknown) => {

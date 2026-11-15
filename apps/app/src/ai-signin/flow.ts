@@ -31,8 +31,8 @@ const words = (e: unknown, fallback: string): string => {
 
 /** The sign-ins a Personal Space can take from this computer instead of a fresh sign-in (owner decision D2, 3 Nov 2026). */
 export const LOCAL_SIGNINS: readonly { key: string; button: string }[] = [
-  { key: "claude-code", button: "Use the Claude Code sign-in on this computer" },
-  { key: "codex", button: "Use the Codex sign-in on this computer" },
+  { key: "claude-code", button: "Use Claude on this computer" },
+  { key: "codex", button: "Use ChatGPT on this computer" },
 ];
 
 /**

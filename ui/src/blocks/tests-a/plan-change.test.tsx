@@ -39,10 +39,10 @@ test("when the decline fails there is no draft, the plan stays waiting with its 
   await flush();
   assert.deepEqual(drafts, []);
   assert.match(textOf(find(root, `blk-plan-${SAMPLE_PLAN.id}-problem`)), /still waiting for you/);
-  assert.ok(find(root, `blk-plan-${SAMPLE_PLAN.id}-approve`), "Approve is still offered");
+  assert.ok(find(root, `blk-plan-${SAMPLE_PLAN.id}-approve`), "Allow is still offered");
 });
 
-test("the card has the book mark beside Plan, and Decline is its own muted button (looked at in the pictures)", () => {
+test("the card has the book mark beside Plan, and Deny is its own muted button (looked at in the pictures)", () => {
   const out = renderToStaticMarkup(<BlockViewA block={SAMPLE_PLAN} host={host(false, [], [])} />);
   assert.match(out, /plan-mark/);
   assert.match(out, /blk-plan-blk_plan1-reject/);

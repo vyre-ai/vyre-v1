@@ -69,7 +69,6 @@ export async function projectsShellWalk(
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     const token = await page.evaluate(
@@ -120,9 +119,7 @@ export async function projectsShellWalk(
       await jp.getByTestId("password").fill(PASSWORD);
       await jp.getByTestId("confirm").fill(PASSWORD);
       await jp.getByTestId("next").click();
-      await jp.getByTestId("device").fill("Maya's browser");
-      await jp.getByTestId("next").click();
-      await jp.getByTestId("ai-none").click();
+      // prototype scenes member-1-join and member-4-ai: no device name and no AI question in the join; the optional recovery code step is passed with Continue
       await jp.getByTestId("next").click();
       await dismissOnboarding(jp);
       const mayaId = await jp.evaluate(

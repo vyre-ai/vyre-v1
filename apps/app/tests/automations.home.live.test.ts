@@ -31,7 +31,6 @@ test("production Automations: open a draft, then the Automations row goes back t
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     // a new Space opens the first-run setup over everything; a person closes it with Finish later before using the app
     await dismissOnboarding(page);

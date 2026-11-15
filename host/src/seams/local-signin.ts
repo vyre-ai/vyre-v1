@@ -23,6 +23,8 @@ export interface LocalSigninDeps {
   readFile?: (p: string) => string | null;
   /** The Mac Keychain entry Claude Code keeps its sign-in in; null when there is none. */
   keychain?: (service: string) => string | null;
+  /** Whether that Keychain entry exists, asked without reading it (no "allow access" prompt on a Mac). */
+  keychainHas?: (service: string) => boolean;
 }
 
 const CLAUDE_KEYCHAIN = "Claude Code-credentials";
@@ -56,6 +58,19 @@ function macKeychain(service: string): string | null {
     );
   } catch {
     return null;
+  }
+}
+
+/** The Mac Keychain entry's existence only: `security` without -w prints the entry's attributes, never the secret, and shows no prompt. */
+function macKeychainHas(service: string): boolean {
+  try {
+    execFileSync("/usr/bin/security", ["find-generic-password", "-s", service], {
+      timeout: 10_000,
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -99,4 +114,23 @@ export function readLocalSignin(provider: SigninProvider, deps: LocalSigninDeps 
     state: "failed",
     message: "Only a Claude Code or Codex sign-in on this computer can be used. Sign in instead.",
   };
+}
+
+/**
+ * Which sign-ins are on this computer: yes or no for each engine, nothing else (never a path, an account name or a value). A sign-in counts when the files the CLI keeps hold a token and a refresh
+ * token, the same test readLocalSignin applies when the button is pressed; a CLI that is installed but not signed in has no such file and reads as no. On a Mac Claude Code's Keychain entry is asked
+ * about without being read, so asking never shows the Mac's own prompt (reading it stays with the button).
+ */
+export function localSigninsPresent(deps: LocalSigninDeps = {}): { claudeCode: boolean; codex: boolean } {
+  const codex = readLocalSignin("codex", deps).state === "done";
+  const env = deps.env ?? process.env;
+  const home = deps.home ?? os.homedir();
+  const read = deps.readFile ?? readText;
+  const dir = str(env["CLAUDE_CONFIG_DIR"]) || path.join(home, ".claude");
+  const file = read(path.join(dir, ".credentials.json"));
+  let claudeCode = false;
+  if (file !== null) claudeCode = readLocalSignin("claude-code", deps).state === "done";
+  else if ((deps.platform ?? process.platform) === "darwin")
+    claudeCode = (deps.keychainHas ?? macKeychainHas)(CLAUDE_KEYCHAIN);
+  return { claudeCode, codex };
 }

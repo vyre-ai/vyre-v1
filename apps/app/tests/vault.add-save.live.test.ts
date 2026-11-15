@@ -36,7 +36,6 @@ test("production Vault Add: a pasted key gets a name, Add saves one item to Mine
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page); // the first-run guide covers the page until it is dismissed, as every walk does
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });

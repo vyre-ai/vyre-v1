@@ -119,6 +119,8 @@ export interface SigninPort {
     | { state: "failed"; message: string }
   >;
   cancel(id: string): void;
+  /** Which sign-ins are on this computer: yes or no each, never a path or a name. */
+  localPresent?(): { claudeCode: boolean; codex: boolean };
 }
 let host: VaultHost | null = null;
 export const hostOf = (): VaultHost | null => host;

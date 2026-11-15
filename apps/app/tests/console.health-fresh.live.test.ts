@@ -104,7 +104,6 @@ test("production Console: a fresh Space is Server healthy, a real failure is not
     await page.getByTestId("claim-password").fill("fixture password 123");
     await page.getByTestId("claim-confirm").fill("fixture password 123");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
