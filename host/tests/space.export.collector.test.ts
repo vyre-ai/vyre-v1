@@ -532,7 +532,49 @@ test("a Space with one mounted file that was fetched and one that cannot be: the
     out.manifest.leftOut.map((l: any) => [l.name, l.reason]),
     [["Notes.pdf", "Google Drive could not be reached"]],
   );
-  assert.match(text("files/NOT-EXPORTED.txt") ?? "", /Notes\.pdf: Google Drive could not be reached/);
-  assert.ok(!(text("files/NOT-EXPORTED.txt") ?? "").includes("Plan.pdf"), "the page names only what was left out");
+  assert.match(text("NOT-EXPORTED.txt") ?? "", /Notes\.pdf: Google Drive could not be reached/);
+  assert.ok(!(text("NOT-EXPORTED.txt") ?? "").includes("Plan.pdf"), "the page names only what was left out");
   assert.equal(out.manifest.files.length, 1);
+});
+
+test("a Google Doc that was never opened (size 0, no copy to fetch) is left out and named like any other file, and one such file does not fail the export", async () => {
+  const f = fixture();
+  const read = async (cap: string, input: any): Promise<any> => {
+    if (cap === "files.list" && input.folder)
+      return {
+        ...(await f.read(cap, input)),
+        files: [
+          {
+            fileId: "fil_doc",
+            folderId: "fld_space",
+            name: "Plan (Doc)",
+            kind: "google_native",
+            mime: "application/vnd.google-apps.document",
+            size: 0,
+            version: 1,
+            label: 0,
+            source: { mountId: "mnt_d", provider: "Google Drive" },
+          },
+        ],
+        total: 1,
+      };
+    if (input?.fileId === "fil_doc") {
+      assert.equal(cap, "files.read", `only the fetch is asked (${cap})`);
+      throw Object.assign(new Error("open it in Google Docs"), { error: { code: "validation.unsupported" } });
+    }
+    return f.read(cap, input);
+  };
+  const out = (await collectSpaceExport({
+    space: "spc_fixture",
+    requester: "usr_owner",
+    read,
+    recordScope: async () => "shared",
+    assertOwner: async () => undefined,
+    head: async () => 7,
+    now: () => 1000,
+  })) as { entries: { path: string; bytes: Uint8Array }[]; manifest: any };
+  const page = out.entries.find((e) => e.path === "NOT-EXPORTED.txt");
+  assert.match(Buffer.from(page!.bytes).toString(), /Plan \(Doc\): Google Drive keeps it as its own kind of file/);
+  assert.equal(out.manifest.leftOut[0].name, "Plan (Doc)");
+  assert.ok(!out.entries.some((e) => e.path.includes("fil_doc")));
 });

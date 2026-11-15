@@ -4,7 +4,8 @@
 // The file to open comes from the tab hash (`subject=file:<id>`); this screen never reads the hash itself.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Viewer } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { DocBlock, MarkupBox, Stroke } from "../../../../../../ui/src/Viewer/index.tsx";
@@ -79,6 +80,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const layer = useLayer(d, fileId, load.status === "ready" ? load.data.file.name : undefined);
   const [panel, setPanel] = useState<"redact" | "activity" | null>(null);
   const accessMenu = useMenu();
+  const width = useWindowDimensions().width;
   useEffect(() => {
     if (layer.said) {
       setNote(layer.said);
@@ -374,10 +376,17 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
       () => setNote("Could not copy here."),
     );
   };
-  const openMore = (x: number, y: number): void => {
+  const openMore = (x: number, y: number, hidden: { label: string; onSelect: () => void }[] = []): void => {
     const name = load.status === "ready" ? load.data.file.name : "";
     accessMenu.show(
       [
+        ...hidden,
+        ...(hidden.length > 0
+          ? [
+              { label: "Redact for AI", onSelect: () => toggle("redact") },
+              { label: "Activity", onSelect: () => toggle("activity") },
+            ]
+          : []),
         ...(d.share ? [{ label: "Share…", onSelect: () => d.share?.(fileId, name) }] : []),
         {
           label: "Copy Link",
@@ -502,6 +511,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         onMarkActivity={() => setPanel("activity")}
         onHistory={openHistory}
         onMore={openMore}
+        compact={isPhoneWidth(width)}
         tools={<LayerTools open={panel} onToggle={toggle} />}
         banner={
           <LayerBanner

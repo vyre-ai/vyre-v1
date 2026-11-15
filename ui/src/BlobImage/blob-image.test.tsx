@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
+import { act } from "react";
 import { installDom, mount, flush } from "../testing/dom.ts";
 import { BlobImage, BlobUrlProvider } from "./index.tsx";
 
@@ -47,6 +48,87 @@ test("a Space blob address is drawn from what the fetcher returns, never from th
     await flush();
     assert.ok(srcs(bare).includes("/spaces/spc_1/blobs/blb_x"), "no fetcher: as given (a test or a sample)");
   } finally {
+    restore();
+  }
+});
+
+test("a blob-shaped address on another host is never fetched (the sign-in stays home) and is drawn from its bare address; the Space's own origin and a relative address are fetched", async () => {
+  const restore = installDom();
+  try {
+    const asked: string[] = [];
+    const fetcher = async (p: string): Promise<string> => {
+      asked.push(p);
+      return `blob:got-${asked.length}`;
+    };
+    const draw = async (uri: string): Promise<string[]> => {
+      const r = await mount(
+        createRoot,
+        <BlobUrlProvider fetcher={fetcher} origin="https://space.example">
+          <BlobImage uri={uri} style={style} />
+        </BlobUrlProvider>,
+      );
+      await flush();
+      return srcs(r);
+    };
+    const evil = "https://evil.example/spaces/a/blobs/b1";
+    assert.deepEqual(await draw(evil), [evil], "drawn bare, with no token");
+    assert.deepEqual(asked, [], "not fetched by the app at all");
+    assert.ok((await draw("https://space.example/spaces/a/blobs/b2")).some((s) => s.startsWith("blob:got")));
+    assert.ok((await draw("/spaces/a/blobs/b3")).some((s) => s.startsWith("blob:got")));
+    assert.deepEqual(asked, ["https://space.example/spaces/a/blobs/b2", "/spaces/a/blobs/b3"]);
+  } finally {
+    restore();
+  }
+});
+
+test("another person on the same page never gets the first person's picture: a new sign-in is a new fetcher and a new cache; an object address is given back when its last picture leaves", async () => {
+  const restore = installDom();
+  const revoked: string[] = [];
+  const g = globalThis as { URL: { revokeObjectURL?: (u: string) => void } };
+  const before = g.URL.revokeObjectURL;
+  g.URL.revokeObjectURL = (u) => void revoked.push(u);
+  try {
+    const mk =
+      (who: string) =>
+      async (p: string): Promise<string> =>
+        `blob:${who}-${p}`;
+    const first = mk("ann");
+    const second = mk("bob");
+    const addr = "/spaces/a/blobs/shared1";
+    const a = await mount(
+      createRoot,
+      <BlobUrlProvider fetcher={first}>
+        <BlobImage uri={addr} style={style} />
+      </BlobUrlProvider>,
+    );
+    await flush();
+    assert.ok(srcs(a).includes(`blob:ann-${addr}`));
+    const b = await mount(
+      createRoot,
+      <BlobUrlProvider fetcher={second}>
+        <BlobImage uri={addr} style={style} />
+      </BlobUrlProvider>,
+    );
+    await flush();
+    assert.ok(srcs(b).includes(`blob:bob-${addr}`), "the second person is handed their own fetch");
+    assert.ok(!srcs(b).includes(`blob:ann-${addr}`));
+    // the last picture leaves the screen: its object address goes back to the browser
+    const r = createRoot();
+    await act(async () => {
+      r.render(
+        <BlobUrlProvider fetcher={first}>
+          <BlobImage uri="/spaces/a/blobs/leaves1" style={style} />
+        </BlobUrlProvider>,
+      );
+    });
+    await flush();
+    await act(async () => {
+      r.render(<BlobUrlProvider fetcher={first}>{null}</BlobUrlProvider>);
+    });
+    await new Promise((res) => setTimeout(res, 1200));
+    assert.deepEqual(revoked, ["blob:ann-/spaces/a/blobs/leaves1"]);
+  } finally {
+    if (before) g.URL.revokeObjectURL = before;
     restore();
   }
 });

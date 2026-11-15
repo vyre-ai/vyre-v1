@@ -399,7 +399,9 @@ export interface ViewerViewProps extends ViewerProps {
   /** The versions of the file; the point is where the button was pressed. Left out, the History button is not drawn. */
   onHistory?: (x: number, y: number) => void;
   /** The file's other actions (copy link, download); the point is where the button was pressed. Left out, the More button is not drawn. */
-  onMore?: (x: number, y: number) => void;
+  onMore?: (x: number, y: number, hidden?: { label: string; onSelect: () => void }[]) => void;
+  /** A narrow screen (a phone): the controls that do not fit go behind More, the way the app's other toolbars do. */
+  compact?: boolean;
   /** The line of the quiet "no preview" state, for a file whose app is known ("No preview of this file here. Open it in Word."); without it the line names Open in, or the file's own app. */
   noPreview?: string;
   /** A file that lives at a provider (Google Docs, Word, Excel, Dropbox): one press opens it in the provider's own editor. `label` reads "Open in Google Docs". */
@@ -807,8 +809,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           </Text>
         </Pressable>
       ) : null}
-      {props.tools}
-      {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
+      {props.compact === true ? null : props.tools}
+      {props.compact === true
+        ? null
+        : iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
       {iconBtn(
         "Details",
         ICON.info,
@@ -819,7 +823,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         },
         detailsOpen,
       )}
-      {props.onHistory
+      {props.onHistory && props.compact !== true
         ? iconBtn("History", ICON.history, "vw-history", (e) => {
             const q = pressPoint(e);
             props.onHistory?.(q.x, q.y);
@@ -829,7 +833,16 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {props.onMore
         ? iconBtn("More", ICON.more, "vw-more", (e) => {
             const q = pressPoint(e);
-            props.onMore?.(q.x, q.y);
+            props.onMore?.(
+              q.x,
+              q.y,
+              props.compact === true
+                ? [
+                    { label: "Find in file", onSelect: () => setFindOpen(true) },
+                    ...(props.onHistory ? [{ label: "History", onSelect: () => props.onHistory?.(q.x, q.y) }] : []),
+                  ]
+                : undefined,
+            );
           })
         : null}
     </View>

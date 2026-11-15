@@ -1048,6 +1048,7 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     const errors: string[] = [];
     let skippedNow: Skipped[] = [];
     let skippedKnown = false;
+    let partialWords: string | null = null;
     try {
       if (m.kind === "github") {
         const res = obj(
@@ -1062,6 +1063,7 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
         patchMount(ctx, row, { conflicts });
       } else if (provider.pull) {
         const batch = await provider.pull(ctx, m);
+        partialWords = batch.partial ?? null;
         const applied = await applyBatch(ctx, m, provider, batch, rows);
         pulled = applied.pulled;
         conflicts = applied.conflicts;
@@ -1132,7 +1134,7 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     const leftover = provider.pushes && !m.pullOnly && (held > 0 || waiting(itemsOf(ctx, m.id)) > 0);
     patchMount(ctx, row, {
       state: "idle",
-      error: null,
+      error: partialWords,
       last_sync_at: now,
       ...skippedPatch(skippedKnown, skippedNow),
       stale_since: leftover ? (isNull(row["stale_since"]) ? now : row["stale_since"]) : null,

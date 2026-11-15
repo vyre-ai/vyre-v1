@@ -166,6 +166,8 @@ export default defineManifest({
         name: t.str(),
         sizeBytes: t.int(),
         expiresAt: t.ts(),
+        leftOut: t.opt(t.int()),
+        filesKept: t.opt(t.int()),
       },
       perm: "server.backups",
       level: "manage",

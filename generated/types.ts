@@ -5113,6 +5113,8 @@ export type BackupExportStatusOut = {
   name: string;
   sizeBytes: number;
   expiresAt: number;
+  leftOut?: number;
+  filesKept?: number;
 };
 export type BackupHealthIn = Record<string, unknown>;
 export type BackupHealthOut = {

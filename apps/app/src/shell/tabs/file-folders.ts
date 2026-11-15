@@ -11,3 +11,8 @@ export function rememberFileFolder(fileId: string, folderId: string): void {
 export function folderOfFile(fileId: string): string | undefined {
   return FOLDERS.get(fileId);
 }
+
+/** The person cannot list that folder (a shared file in a private folder, a chat card): Back from the file goes to the Files landing, never to a refusal. */
+export function forgetFileFolder(fileId: string): void {
+  FOLDERS.delete(fileId);
+}

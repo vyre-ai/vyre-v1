@@ -11,28 +11,28 @@ const ALLOW: Record<string, string> = {
   "ui/src/BlobImage/index.tsx": "the component itself",
   "apps/app/src/join/kit.tsx": "the join screens' own static logos",
   "apps/app/src/shell/spaces/SpaceSwitcher.tsx":
-    "a Space's own image: a data address the Space settings store (NOT verified, listed for the lead)",
+    "the Space image is a data: address from spaces.image (shell/spaces/model.ts), never a Space blob address",
   "apps/app/src/places/settings/ui.tsx": "github.com avatars, another site's address",
   "apps/app/src/places/chats/rightpane/BrowserLive.tsx":
-    "a live browser frame (a data address or the stream) from the computer, not a Files blob (NOT verified)",
+    "a live browser frame: an object address made on this page from the stream's own bytes (BrowserLive createObjectURL), never a Space blob address",
   "apps/app/src/places/chats/computer/LiveScreen.tsx": "a live screen stream address with its own ticket",
   "ui/src/LiveSurface/index.tsx":
     "frames of a live computer or browser: object addresses made on this page from the stream's own bytes, never a Space blob address",
   "apps/app/src/places/chats/rightpane/PreviewImage.tsx":
     "a browser preview picture: a data address (data:image/png;base64) the capability returns, never a Space blob address",
-  "apps/app/src/places/chats/conversation/webpage.tsx": "a page's own screenshot data address (NOT verified)",
+  "apps/app/src/places/chats/conversation/webpage.tsx":
+    "a page's screenshot: shown only when it matches ^data:image/(jpeg|png|webp);base64 (the SHOT test in this file), never a Space blob address",
   "apps/app/src/places/chats/conversation/LiveCard.tsx":
-    "a frozen still, a data address read through files.read (NOT verified)",
-  "apps/app/src/places/chats/conversation/chrome-cards.tsx": "a step's thumbnail data address (NOT verified)",
-  "apps/app/src/places/chats/rightpane/WorkSections.tsx":
-    "a step's picture read from Files as a data address (useStepPicture) (NOT verified)",
+    "a frozen still: built here as data:image/png;base64 from a files.read answer (LiveCard setStill), never a Space blob address",
+  "apps/app/src/places/chats/conversation/chrome-cards.tsx":
+    "a step thumbnail: shown only when it matches ^data:image/(jpeg|png|webp);base64 (the THUMB test in this file), never a Space blob address",
   "apps/app/src/onboarding/ProviderLogo.tsx": "static provider logos",
   "apps/app/src/console/pages/SpaceImage.tsx": "the picture being cropped: a local file read to a data address",
   "ui/src/EmailBuilder/index.tsx": "the email's own pictures, addresses the sender typed",
   "ui/src/Composer/index.tsx": "a local object address of a file being attached",
   "ui/src/AppIcon/index.tsx": "static brand marks",
   "ui/src/Avatar/index.tsx":
-    "faces drawn to data addresses, a person's picture read through files.read to a data address, or another site's address (NOT verified for spec.url)",
+    "faces drawn to data addresses; a custom face (spec.url) is parsed only as a data:image address (agentface.ts); a profile photo goes through BlobImage's useBlobSrc",
   "ui/src/Avatar/cache.ts": "text of a comment about its data-address bitmaps",
   "apps/app/src/places/apps/shell/form-preview.ts":
     "an HTML string for a sandboxed form preview, pictures the form author typed",
@@ -68,7 +68,11 @@ test("no image source outside ui/BlobImage: every file that draws a picture uses
 
 test("which addresses are the Space's blobs", () => {
   assert.equal(isSpaceBlob("/spaces/spc_1/blobs/blb_abc"), true);
-  assert.equal(isSpaceBlob("https://x.example/spaces/spc_1/blobs/blb_abc?v=1"), true);
+  // another host is never the Space's blob, whatever the path (a reply can name any host); the Space's own origin is
+  assert.equal(isSpaceBlob("https://x.example/spaces/spc_1/blobs/blb_abc?v=1"), false);
+  assert.equal(isSpaceBlob("https://x.example/spaces/spc_1/blobs/blb_abc?v=1", "https://other.example"), false);
+  assert.equal(isSpaceBlob("https://x.example/spaces/spc_1/blobs/blb_abc?v=1", "https://x.example"), true);
+  assert.equal(isSpaceBlob("//x.example/spaces/spc_1/blobs/blb_abc"), false);
   assert.equal(isSpaceBlob("data:image/png;base64,AAAA"), false);
   assert.equal(isSpaceBlob("https://github.com/x.png"), false);
   assert.equal(isSpaceBlob("blob:http://a/1"), false);
