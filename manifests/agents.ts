@@ -592,6 +592,7 @@ export default defineManifest({
               link: t.str({ description: "Where to open it" }),
             }),
           ),
+          chatPeopleCount: t.int({ minimum: 0 }),
           chatPeople: t.arr(t.obj({ id: id.user, name: t.str() })),
           folderPeople: t.arr(t.obj({ id: id.user, name: t.str() })),
           backups: t.str(),

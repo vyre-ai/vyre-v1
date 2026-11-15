@@ -279,3 +279,32 @@ test("the people with a chat with the agent, or their own folder on its computer
   );
   assert.ok(told().every((t) => t.title === "Desk was deleted for good."));
 });
+
+test("a restore that lands before the Trash notice runs sends nothing about an agent that is no longer in Trash", async () => {
+  const hn = world();
+  const a = await make(hn);
+  hn.world.answer("host.hook.call.chat.erase_agent", ((i: { input?: { dry?: boolean } }) =>
+    i.input?.dry === true ? { chatPeople: ["usr_maya"] } : {}) as never);
+  hn.world.answer("tasks.create", (() => ({ task: { taskId: "tsk_x" } })) as never);
+  await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
+  await h["agents.restore"]!(hn.ctx, { agentId: a.agentId });
+  const told = await onTrashed(hn.ctx as never, { payload: { agentId: a.agentId, name: "Desk", by: DANA } });
+  assert.deepEqual(told, []);
+  assert.equal(hn.world.calls.filter((c) => c.cap === "tasks.create").length, 0, "no notice");
+});
+
+test("the people who chat privately with the agent are named to its owner; an admin who is not the owner sees the count", async () => {
+  const hn = world();
+  const a = await make(hn);
+  hn.world.answer("host.hook.call.chat.erase_agent", ((i: { input?: { dry?: boolean } }) =>
+    i.input?.dry === true ? { chatPeople: ["usr_maya", "usr_leo"] } : {}) as never);
+  hn.world.answer("access.principals.get", ((i: { principal: { id: string } }) => ({
+    principal: { name: i.principal.id.slice(4) },
+  })) as never);
+  await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
+  const owner = await h["agents.delete_preview"]!(hn.ctx, { agentId: a.agentId });
+  assert.deepEqual([owner.chatPeopleCount, owner.chatPeople.length], [2, 2]);
+  const admin = { ...hn.ctx, principal: { kind: "person", id: "usr_admin" } } as Harness["ctx"];
+  const seen = await h["agents.delete_preview"]!(admin, { agentId: a.agentId });
+  assert.deepEqual([seen.chatPeopleCount, seen.chatPeople], [2, []], "the count, no names");
+});

@@ -217,6 +217,7 @@ export function stubs(ctx: CallCtx) {
       },
       analytics: call("automations.analytics"),
       code_reach: call("automations.code_reach"),
+      connect_options: call("automations.connect_options"),
       connector_card: call("automations.connector_card"),
       connector_levels: call("automations.connector_levels"),
       connector_offer: {

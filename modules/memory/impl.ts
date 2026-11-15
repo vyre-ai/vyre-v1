@@ -111,7 +111,7 @@ export const hostCalls = {
     ]);
     // a person's memory is the person's: a fact, page or note of any other layer that carried this agent's id keeps its row and loses only the agent scope
     for (const t of ["memory_facts", "memory_pages", "memory_notes", "memory_graph_nodes", "memory_questions"])
-      tryRun(db, `UPDATE ${t} SET agent_id = NULL WHERE agent_id = ? AND layer <> 'agent'`, i.agentId);
+      tryRun(db, `UPDATE ${t} SET agent_id = NULL WHERE agent_id = ? AND layer IS NOT 'agent'`, i.agentId);
     return { memory: count };
   },
   // "From you": the facts a person contributed to a shared layer, and their own person-layer facts. The first belong to the Space once they are gone; the second go with them (P-L7_21).

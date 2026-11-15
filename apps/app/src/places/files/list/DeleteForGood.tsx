@@ -15,6 +15,7 @@ interface Preview {
   memory: number;
   bytes: number;
   routines: number;
+  chatPeopleCount: number;
   chatPeople: Array<{ id: string; name: string }>;
   folderPeople: Array<{ id: string; name: string }>;
   named: Array<{ kind: "automation" | "task" | "goal" | "project"; id: string; title: string; link: string }>;
@@ -134,9 +135,11 @@ export function DeleteForGoodSheet({
                   )}
                 </Text>
               ) : null}
-              {preview.chatPeople.length > 0 ? (
+              {preview.chatPeopleCount > 0 ? (
                 <Text style={s.line} testID="forgood-chat-people">
-                  {peopleLine(preview.chatPeople, "have a chat with it", "has a chat with it")}
+                  {preview.chatPeople.length > 0
+                    ? peopleLine(preview.chatPeople, "have a chat with it", "has a chat with it")
+                    : `${plural(preview.chatPeopleCount, "person", "people")} ${preview.chatPeopleCount === 1 ? "has" : "have"} a chat with it`}
                 </Text>
               ) : null}
               {preview.named.length > 0 ? (

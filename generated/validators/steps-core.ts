@@ -3,86 +3,49 @@
 import { checkIn, L0, L1, L3, lf, typeOf } from './core.ts';
 import type { Check } from './core.ts';
 
-function c1932_in(v: unknown, p: string, e: string[]): void {
-{
-const x6246 = v;
-const g6246 = typeOf(x6246);
-const b6246: string[] = []; lf(x6246, p, b6246, L0); if (b6246.length) e.push(...b6246);
-if (g6246 === "object") {
-}
-}
-}
-
-function c1932_out(v: unknown, p: string, e: string[]): void {
-{
-const x6247 = v;
-const g6247 = typeOf(x6247);
-const b6247: string[] = []; lf(x6247, p, b6247, L0); if (b6247.length) e.push(...b6247);
-if (g6247 === "object") {
-if (g6247 === 'object') { const o6247 = x6247 as Record<string, unknown>;
-if (!("code" in o6247)) e.push(p + "/code" + ': required');
-if (!("ai" in o6247)) e.push(p + "/ai" + ': required');
-if ("code" in o6247) {
-{
-const x6248 = o6247["code"];
-const g6248 = typeOf(x6248);
-const b6248: string[] = []; lf(x6248, p + "/code", b6248, L0); if (b6248.length) e.push(...b6248);
-if (g6248 === "object") {
-if (g6248 === 'object') { const o6248 = x6248 as Record<string, unknown>;
-if (!("available" in o6248)) e.push(p + "/code" + "/available" + ': required');
-if ("available" in o6248) lf(o6248["available"], p + "/code" + "/available", e, L3);
-if ("reason" in o6248) lf(o6248["reason"], p + "/code" + "/reason", e, L1);
-}
-}
-}
-}
-if ("ai" in o6247) {
-{
-const x6249 = o6247["ai"];
-const g6249 = typeOf(x6249);
-const b6249: string[] = []; lf(x6249, p + "/ai", b6249, L0); if (b6249.length) e.push(...b6249);
-if (g6249 === "object") {
-if (g6249 === 'object') { const o6249 = x6249 as Record<string, unknown>;
-if (!("available" in o6249)) e.push(p + "/ai" + "/available" + ': required');
-if ("available" in o6249) lf(o6249["available"], p + "/ai" + "/available", e, L3);
-if ("reason" in o6249) lf(o6249["reason"], p + "/ai" + "/reason", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-
 function c1933_in(v: unknown, p: string, e: string[]): void {
 {
 const x6250 = v;
 const g6250 = typeOf(x6250);
 const b6250: string[] = []; lf(x6250, p, b6250, L0); if (b6250.length) e.push(...b6250);
 if (g6250 === "object") {
-if (g6250 === 'object') { const o6250 = x6250 as Record<string, unknown>;
-if (!("key" in o6250)) e.push(p + "/key" + ': required');
-if (!("input" in o6250)) e.push(p + "/input" + ': required');
-if ("key" in o6250) lf(o6250["key"], p + "/key", e, L1);
-if ("input" in o6250) {
+}
+}
+}
+
+function c1933_out(v: unknown, p: string, e: string[]): void {
 {
-const x6251 = o6250["input"];
+const x6251 = v;
 const g6251 = typeOf(x6251);
-const b6251: string[] = []; lf(x6251, p + "/input", b6251, L0); if (b6251.length) e.push(...b6251);
+const b6251: string[] = []; lf(x6251, p, b6251, L0); if (b6251.length) e.push(...b6251);
 if (g6251 === "object") {
 if (g6251 === 'object') { const o6251 = x6251 as Record<string, unknown>;
-}
-}
-}
-}
-if ("sample" in o6250) {
+if (!("code" in o6251)) e.push(p + "/code" + ': required');
+if (!("ai" in o6251)) e.push(p + "/ai" + ': required');
+if ("code" in o6251) {
 {
-const x6252 = o6250["sample"];
+const x6252 = o6251["code"];
 const g6252 = typeOf(x6252);
-const b6252: string[] = []; lf(x6252, p + "/sample", b6252, L0); if (b6252.length) e.push(...b6252);
+const b6252: string[] = []; lf(x6252, p + "/code", b6252, L0); if (b6252.length) e.push(...b6252);
 if (g6252 === "object") {
 if (g6252 === 'object') { const o6252 = x6252 as Record<string, unknown>;
+if (!("available" in o6252)) e.push(p + "/code" + "/available" + ': required');
+if ("available" in o6252) lf(o6252["available"], p + "/code" + "/available", e, L3);
+if ("reason" in o6252) lf(o6252["reason"], p + "/code" + "/reason", e, L1);
+}
+}
+}
+}
+if ("ai" in o6251) {
+{
+const x6253 = o6251["ai"];
+const g6253 = typeOf(x6253);
+const b6253: string[] = []; lf(x6253, p + "/ai", b6253, L0); if (b6253.length) e.push(...b6253);
+if (g6253 === "object") {
+if (g6253 === 'object') { const o6253 = x6253 as Record<string, unknown>;
+if (!("available" in o6253)) e.push(p + "/ai" + "/available" + ': required');
+if ("available" in o6253) lf(o6253["available"], p + "/ai" + "/available", e, L3);
+if ("reason" in o6253) lf(o6253["reason"], p + "/ai" + "/reason", e, L1);
 }
 }
 }
@@ -92,27 +55,64 @@ if (g6252 === 'object') { const o6252 = x6252 as Record<string, unknown>;
 }
 }
 
-function c1933_out(v: unknown, p: string, e: string[]): void {
+function c1934_in(v: unknown, p: string, e: string[]): void {
 {
-const x6253 = v;
-const g6253 = typeOf(x6253);
-const b6253: string[] = []; lf(x6253, p, b6253, L0); if (b6253.length) e.push(...b6253);
-if (g6253 === "object") {
-if (g6253 === 'object') { const o6253 = x6253 as Record<string, unknown>;
-if (!("output" in o6253)) e.push(p + "/output" + ': required');
-if (!("stubbed" in o6253)) e.push(p + "/stubbed" + ': required');
-if ("stubbed" in o6253) lf(o6253["stubbed"], p + "/stubbed", e, L3);
-if ("error" in o6253) {
-{
-const x6254 = o6253["error"];
+const x6254 = v;
 const g6254 = typeOf(x6254);
-const b6254: string[] = []; lf(x6254, p + "/error", b6254, L0); if (b6254.length) e.push(...b6254);
+const b6254: string[] = []; lf(x6254, p, b6254, L0); if (b6254.length) e.push(...b6254);
 if (g6254 === "object") {
 if (g6254 === 'object') { const o6254 = x6254 as Record<string, unknown>;
-if (!("code" in o6254)) e.push(p + "/error" + "/code" + ': required');
-if (!("message" in o6254)) e.push(p + "/error" + "/message" + ': required');
-if ("code" in o6254) lf(o6254["code"], p + "/error" + "/code", e, L1);
-if ("message" in o6254) lf(o6254["message"], p + "/error" + "/message", e, L1);
+if (!("key" in o6254)) e.push(p + "/key" + ': required');
+if (!("input" in o6254)) e.push(p + "/input" + ': required');
+if ("key" in o6254) lf(o6254["key"], p + "/key", e, L1);
+if ("input" in o6254) {
+{
+const x6255 = o6254["input"];
+const g6255 = typeOf(x6255);
+const b6255: string[] = []; lf(x6255, p + "/input", b6255, L0); if (b6255.length) e.push(...b6255);
+if (g6255 === "object") {
+if (g6255 === 'object') { const o6255 = x6255 as Record<string, unknown>;
+}
+}
+}
+}
+if ("sample" in o6254) {
+{
+const x6256 = o6254["sample"];
+const g6256 = typeOf(x6256);
+const b6256: string[] = []; lf(x6256, p + "/sample", b6256, L0); if (b6256.length) e.push(...b6256);
+if (g6256 === "object") {
+if (g6256 === 'object') { const o6256 = x6256 as Record<string, unknown>;
+}
+}
+}
+}
+}
+}
+}
+}
+
+function c1934_out(v: unknown, p: string, e: string[]): void {
+{
+const x6257 = v;
+const g6257 = typeOf(x6257);
+const b6257: string[] = []; lf(x6257, p, b6257, L0); if (b6257.length) e.push(...b6257);
+if (g6257 === "object") {
+if (g6257 === 'object') { const o6257 = x6257 as Record<string, unknown>;
+if (!("output" in o6257)) e.push(p + "/output" + ': required');
+if (!("stubbed" in o6257)) e.push(p + "/stubbed" + ': required');
+if ("stubbed" in o6257) lf(o6257["stubbed"], p + "/stubbed", e, L3);
+if ("error" in o6257) {
+{
+const x6258 = o6257["error"];
+const g6258 = typeOf(x6258);
+const b6258: string[] = []; lf(x6258, p + "/error", b6258, L0); if (b6258.length) e.push(...b6258);
+if (g6258 === "object") {
+if (g6258 === 'object') { const o6258 = x6258 as Record<string, unknown>;
+if (!("code" in o6258)) e.push(p + "/error" + "/code" + ': required');
+if (!("message" in o6258)) e.push(p + "/error" + "/message" + ': required');
+if ("code" in o6258) lf(o6258["code"], p + "/error" + "/code", e, L1);
+if ("message" in o6258) lf(o6258["message"], p + "/error" + "/message", e, L1);
 }
 }
 }
@@ -123,8 +123,8 @@ if ("message" in o6254) lf(o6254["message"], p + "/error" + "/message", e, L1);
 }
 
 export const validators: Record<string, { in: Check; out: Check }> = {
-  "steps.support@1": { in: c1932_in, out: c1932_out },
-  "steps.test@1": { in: c1933_in, out: c1933_out },
+  "steps.support@1": { in: c1933_in, out: c1933_out },
+  "steps.test@1": { in: c1934_in, out: c1934_out },
 };
 
 export const eventValidators: Record<string, Check> = {

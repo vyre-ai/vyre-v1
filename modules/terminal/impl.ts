@@ -1,5 +1,5 @@
 import { tryAll, tryRun } from "../../lib/erase-agent.ts";
-import { forgetAgentSecrets } from "./projections.ts";
+import { ensure as ensureTerminalTables, forgetAgentSecrets } from "./projections.ts";
 type Row = Record<string, unknown>;
 // terminal module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // Also here: the tmux adapter every host shares. An agent computer, the Space server and a person's computer each run `tmux` their own way (agentd, a local process, the device daemon), so
@@ -1416,6 +1416,7 @@ export const hostCalls = {
     ctx: TermCtx,
     i: { agentId: string; dry?: boolean },
   ): Promise<{ bytes?: number; folderPeople?: string[] }> => {
+    ensureTerminalTables(ctx.db);
     const ids = (
       tryAll(ctx.db, "SELECT terminal_id FROM terminal_sessions WHERE agent_id = ?", i.agentId) as Row[]
     ).map((r) => String(r["terminal_id"]));
@@ -1423,13 +1424,17 @@ export const hostCalls = {
       // the people who have worked on this computer have their own place on it
       return {
         folderPeople: [
-          ...new Set(
-            tryAll(
+          ...new Set([
+            // a person who has a folder on this computer (terminal_person_places), and, as a backstop, anyone who has had a terminal on it
+            ...tryAll(ctx.db, "SELECT person FROM terminal_person_places WHERE agent_id = ?", i.agentId).map((r) =>
+              String(r["person"]),
+            ),
+            ...tryAll(
               ctx.db,
               "SELECT DISTINCT owner FROM terminal_sessions WHERE agent_id = ? AND owner LIKE 'usr_%'",
               i.agentId,
             ).map((r) => String(r["owner"])),
-          ),
+          ]),
         ],
       };
     // the manager is not bound yet (the daemon is still starting): the container and its volumes are still to be removed, so this step fails and the job tries again, never skips
@@ -1450,6 +1455,7 @@ export const hostCalls = {
       tryRun(ctx.db, "DELETE FROM terminal_sessions WHERE terminal_id = ?", id);
     }
     tryRun(ctx.db, "DELETE FROM terminal_workspace_gone WHERE agent_id = ?", i.agentId);
+    tryRun(ctx.db, "DELETE FROM terminal_person_places WHERE agent_id = ?", i.agentId);
     return {};
   },
   /** terminal_run's new tab, opened and committed before its command runs (only terminal.run may call it: host/src/daemon/consumers.ts MODULE_PATH_CALL). */

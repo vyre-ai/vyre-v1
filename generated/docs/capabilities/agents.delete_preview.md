@@ -48,6 +48,7 @@ type Out = {
       title: string;
       link: string;
     }>;
+  chatPeopleCount: number;
   chatPeople: Array<{
       id: string;
       name: string;
@@ -89,6 +90,7 @@ type Out = {
         "name": "example"
       }
     ],
+    "chatPeopleCount": 1,
     "chats": 1,
     "folderPeople": [
       {

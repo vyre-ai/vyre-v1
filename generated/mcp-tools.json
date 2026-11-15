@@ -5231,6 +5231,21 @@
     },
     {
       "blocks": [],
+      "cap": "automations.connect_options",
+      "deferred": false,
+      "description": "What Connect an app lists for the person: the Vault items they may use whose app their Assistant can set up",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connect_options",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.connector_card",
       "deferred": false,
       "description": "Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.",

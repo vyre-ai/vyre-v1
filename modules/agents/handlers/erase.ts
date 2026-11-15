@@ -162,10 +162,15 @@ export async function deletePreview(ctx: AgentsCtx, input: { agentId: string }) 
     kind: a.kind,
     inTrash: a.deletedAt !== undefined,
     ...out,
-    chatPeople: await peopleNamed(
-      ctx,
-      [...chatPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id)),
-    ),
+    // who chats privately with the agent is named only to its owner; an admin who is not the owner sees the count
+    chatPeopleCount: [...chatPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id)).length,
+    chatPeople:
+      a.ownerId === (ctx.actingFor ?? ctx.principal.id)
+        ? await peopleNamed(
+            ctx,
+            [...chatPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id)),
+          )
+        : [],
     folderPeople: await peopleNamed(
       ctx,
       [...folderPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id)),
@@ -515,7 +520,8 @@ export async function onTrashed(
   if (typeof id !== "string") return [];
   ensure(ctx.db);
   const a = agentBy(ctx.db, id, true);
-  if (!a || a.kind === "teammate") return [];
+  // a restore that landed before this ran: the agent is not in Trash, so nobody is told to take their files out
+  if (!a || a.kind === "teammate" || a.deletedAt === undefined) return [];
   const at = await peopleAt(ctx, id);
   const who = [...new Set([...at.chat, ...at.folder])].filter((p) => p !== event.payload.by);
   if (who.length === 0) return [];
