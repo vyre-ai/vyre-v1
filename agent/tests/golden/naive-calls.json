@@ -267,6 +267,13 @@
   "agents_delete": {
     "agentId": "agt_a1b2c3"
   },
+  "agents_delete_for_good": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_delete_preview": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_erased": {},
   "agents_get": {
     "agentId": "agt_a1b2c3"
   },
@@ -350,6 +357,7 @@
   "agents_template_preview": {
     "scope": "all"
   },
+  "agents_trash_list": {},
   "agents_update": {
     "agentId": "agt_a1b2c3",
     "patch": {}
@@ -1832,6 +1840,9 @@
     "folderId": "fld_a1b2c3"
   },
   "files_folder_move": {
+    "folderId": "fld_a1b2c3"
+  },
+  "files_folder_purge": {
     "folderId": "fld_a1b2c3"
   },
   "files_folder_rename": {
