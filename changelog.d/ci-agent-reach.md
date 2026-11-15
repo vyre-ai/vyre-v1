@@ -1,0 +1,1 @@
+A member can no longer use an agent nobody shared with them. The Member role's Space-wide Edit grant used to reach every agent in the Space; now a role's Space grant below Manage stops at the agent, so an agent is reached by its owner, by what was shared with a person, a group or everyone, and by the Space's admins.
