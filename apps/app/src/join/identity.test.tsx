@@ -310,7 +310,9 @@ test("claim screen: with an account on this device it opens on Continue as, aski
 });
 
 test("claim screen: with no account on this device it is today's form, which says it makes the Vyre account for every Space", () => {
-  const out = renderToStaticMarkup(<ClaimOwner space="Northwind" newCode={() => CODE} onClaim={async () => undefined} />);
+  const out = renderToStaticMarkup(
+    <ClaimOwner space="Northwind" newCode={() => CODE} onClaim={async () => undefined} />,
+  );
   assert.ok(out.includes('data-testid="claim-name"'));
   assert.ok(!out.includes("claim-as"));
   assert.ok(out.includes(NEW_ACCOUNT));

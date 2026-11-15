@@ -26,7 +26,10 @@ test('the sign-in screen names the Space, or "your Space" when the server answer
     signInInvite("https://northwind.vyre.run", { ...opts, name: "spc_2a7c98c337e1dfd2e05e1aab" }).space,
     "your Space",
   );
-  assert.equal(signInInvite("https://northwind.vyre.run", { ...opts, name: "Northwind Academy" }).space, "Northwind Academy");
+  assert.equal(
+    signInInvite("https://northwind.vyre.run", { ...opts, name: "Northwind Academy" }).space,
+    "Northwind Academy",
+  );
   assert.equal(signInInvite("https://northwind.vyre.run", null).space, "your Space");
 });
 
