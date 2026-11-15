@@ -26,8 +26,8 @@ export const ERASE_STEPS = [
   "goals",
   "projects",
   "notifications",
-  "memory",
   "chat",
+  "memory", // after chat: a capture from a chat cannot add facts between the two
   "computers",
   "terminal",
   "machines",

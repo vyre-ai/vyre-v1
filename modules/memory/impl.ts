@@ -60,17 +60,17 @@ export const hostCalls = {
     const db = ctx.db;
     const facts = tryAll(
       db,
-      `SELECT id FROM memory_facts WHERE agent_id = ? OR (proposed_by = ? AND status = 'proposed')`,
+      `SELECT id FROM memory_facts WHERE layer = 'agent' AND (agent_id = ? OR (proposed_by = ? AND status = 'proposed'))`,
       i.agentId,
       i.agentId,
     ).map((r) => String(r["id"]));
-    const pages = tryAll(db, `SELECT page_id AS id FROM memory_pages WHERE agent_id = ?`, i.agentId).map((r) =>
+    const pages = tryAll(db, `SELECT page_id AS id FROM memory_pages WHERE agent_id = ? AND layer = 'agent'`, i.agentId).map((r) =>
       String(r["id"]),
     );
-    const notes = tryAll(db, `SELECT note_id AS id FROM memory_notes WHERE agent_id = ?`, i.agentId).map((r) =>
+    const notes = tryAll(db, `SELECT note_id AS id FROM memory_notes WHERE agent_id = ? AND layer = 'agent'`, i.agentId).map((r) =>
       String(r["id"]),
     );
-    const nodes = tryAll(db, `SELECT node_id AS id FROM memory_graph_nodes WHERE agent_id = ?`, i.agentId).map((r) =>
+    const nodes = tryAll(db, `SELECT node_id AS id FROM memory_graph_nodes WHERE agent_id = ? AND layer = 'agent'`, i.agentId).map((r) =>
       String(r["id"]),
     );
     const count = facts.length + pages.length + notes.length;
@@ -97,12 +97,14 @@ export const hostCalls = {
       tryRun(db, `DELETE FROM memory_graph_links WHERE from_id = ?`, id);
       tryRun(db, `DELETE FROM memory_layouts WHERE node_id = ?`, id);
     }
+    for (const t of ["memory_graph_nodes", "memory_questions"]) tryRun(db, `DELETE FROM ${t} WHERE agent_id = ? AND layer = 'agent'`, i.agentId);
     eraseWhere(db, i.agentId, [
-      ["memory_graph_nodes", "agent_id"],
       ["memory_maps", "agent_id"],
-      ["memory_questions", "agent_id"],
       ["memory_promotions", "agent_id"],
     ]);
+    // a person's memory is the person's: a fact, page or note of any other layer that carried this agent's id keeps its row and loses only the agent scope
+    for (const t of ["memory_facts", "memory_pages", "memory_notes", "memory_graph_nodes", "memory_questions"])
+      tryRun(db, `UPDATE ${t} SET agent_id = NULL WHERE agent_id = ? AND layer <> 'agent'`, i.agentId);
     return { memory: count };
   },
   // "From you": the facts a person contributed to a shared layer, and their own person-layer facts. The first belong to the Space once they are gone; the second go with them (P-L7_21).
