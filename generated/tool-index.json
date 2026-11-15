@@ -1628,6 +1628,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_rewind",
+      "summary": "Go back in a chat with an agent to a point: the agent's work folder is put back, the agents stop reading the messages after it, one line says so. Messages stay; anything sent stays sent. Your own message only; only the person",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_screen_get",
       "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
       "toolset": "chats"
@@ -2962,6 +2968,18 @@
       "deferred": false,
       "name": "engine_reviewer_set",
       "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn (\"Asking Reviewer to check this\"), a person gets a Review task",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_rewind_points",
+      "summary": "The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_rewind_to",
+      "summary": "Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line",
       "toolset": "chats"
     },
     {

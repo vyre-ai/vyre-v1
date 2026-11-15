@@ -92,7 +92,11 @@ export async function eraseAgent(ctx: ChatCtx, i: EraseInput): Promise<Footprint
   if (i.dry) {
     const people = new Set<string>();
     for (const th of own)
-      for (const r of tryAll(ctx.db, `SELECT "principal" FROM chat_thread_member WHERE "thread" = ? AND "deleted_at" IS NULL`, th))
+      for (const r of tryAll(
+        ctx.db,
+        `SELECT "principal" FROM chat_thread_member WHERE "thread" = ? AND "deleted_at" IS NULL`,
+        th,
+      ))
         if (String(r["principal"]).startsWith("usr_")) people.add(String(r["principal"]));
     return { chats: own.length, sharedChats: shared.length, threadIds: own, chatPeople: [...people] };
   }

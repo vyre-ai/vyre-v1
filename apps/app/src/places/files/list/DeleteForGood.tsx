@@ -127,7 +127,11 @@ export function DeleteForGoodSheet({
               ) : null}
               {preview.folderPeople.length > 0 ? (
                 <Text style={s.line} testID="forgood-folder-people">
-                  {peopleLine(preview.folderPeople, "have their own folder on its computer", "has their own folder on its computer")}
+                  {peopleLine(
+                    preview.folderPeople,
+                    "have their own folder on its computer",
+                    "has their own folder on its computer",
+                  )}
                 </Text>
               ) : null}
               {preview.chatPeople.length > 0 ? (

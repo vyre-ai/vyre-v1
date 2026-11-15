@@ -58,10 +58,10 @@ export function AgentTrashRows({
             a.failed !== undefined
               ? `Could not finish deleting: ${a.failed}`
               : a.deleting
-              ? "Deleting"
-              : phone
-                ? "Agent"
-                : `Agent · Moved to Trash ${day(a.deletedAt)}${a.erasesAt !== undefined ? ` · Erased on ${day(a.erasesAt)}` : ""}`
+                ? "Deleting"
+                : phone
+                  ? "Agent"
+                  : `Agent · Moved to Trash ${day(a.deletedAt)}${a.erasesAt !== undefined ? ` · Erased on ${day(a.erasesAt)}` : ""}`
           }
           leading={
             <View style={st.face}>
@@ -74,7 +74,10 @@ export function AgentTrashRows({
                 label="Try again"
                 testID={`trash-retry-${a.agentId}`}
                 onPress={() =>
-                  tellIfRefused(data.call("agents.delete_for_good", { agentId: a.agentId }), `Could not try again for ${a.name}`)
+                  tellIfRefused(
+                    data.call("agents.delete_for_good", { agentId: a.agentId }),
+                    `Could not try again for ${a.name}`,
+                  )
                 }
               />
             ) : a.deleting ? (

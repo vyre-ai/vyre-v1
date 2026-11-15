@@ -540,7 +540,11 @@ export default defineManifest({
             deletedAt: t.ts(),
             deleting: t.bool(),
             folderId: t.opt(id.folder),
-            failed: t.opt(t.str({ description: "What a job that keeps failing could not finish, in words: its computer, its memory" })),
+            failed: t.opt(
+              t.str({
+                description: "What a job that keeps failing could not finish, in words: its computer, its memory",
+              }),
+            ),
             erasesAt: t.opt(
               t.ts({ description: "When Trash will delete it for good by itself; absent when Trash is kept for ever" }),
             ),

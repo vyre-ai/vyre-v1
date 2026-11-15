@@ -11,7 +11,7 @@ Delete an agent in Trash for good: its memory, its one-to-one chats, its compute
 | Grant level | member |
 | Risk | high |
 | Resource | space |
-| Gate | delete when actor.kind != 'person' and actor.id != input.agentId |
+| Gate | agent_erase when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

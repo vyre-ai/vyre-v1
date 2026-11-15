@@ -56,15 +56,14 @@ export const consumers = {
     on: ["terminal.taken", "terminal.given_back"],
     run: (ctx: ChatCtx, event: Parameters<typeof onKeyboardTaken>[1]) => onKeyboardTaken(ctx, event),
   },
-  /** An agent was deleted: it comes off the chats it was in, and each gets one line. */
+  /**
+   * An agent was deleted, or came back from Trash: it comes off the chats it was in (each gets one line), or goes back into them (the line is taken back). One consumer for both, so a delete and a restore
+   * that follow each other are applied in the order they happened, not in the order two consumers happen to run.
+   */
   "chat.agent_deleted": {
-    on: ["agent.deleted"],
-    run: (ctx: ChatCtx, event: Parameters<typeof onAgentDeleted>[1]) => onAgentDeleted(ctx, event),
-  },
-  /** An agent came back from Trash: it is back in the chats it left. */
-  "chat.agent_restored": {
-    on: ["agent.restored"],
-    run: (ctx: ChatCtx, event: Parameters<typeof onAgentRestored>[1]) => onAgentRestored(ctx, event),
+    on: ["agent.deleted", "agent.restored"],
+    run: (ctx: ChatCtx, event: { name?: string; payload: { agentId?: string; name?: string } }) =>
+      event.name === "agent.restored" ? onAgentRestored(ctx, event) : onAgentDeleted(ctx, event),
   },
   /** A teammate wrote in a direct chat an agent messaged them in: it goes back to the chat the person asked in (lane l-agentdm). */
   "chat.agent_dm_reply": {

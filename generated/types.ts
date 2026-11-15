@@ -1511,6 +1511,14 @@ export type AgentsDeletePreviewOut = {
       title: string;
       link: string;
     }>;
+  chatPeople: Array<{
+      id: string;
+      name: string;
+    }>;
+  folderPeople: Array<{
+      id: string;
+      name: string;
+    }>;
   backups: string;
   backupsKeptDays?: number;
   refused?: string;
@@ -2368,6 +2376,7 @@ export type AgentsTrashListOut = {
       deletedAt: number;
       deleting: boolean;
       folderId?: string;
+      failed?: string;
       erasesAt?: number;
       canDelete: boolean;
     }>;
@@ -9578,6 +9587,20 @@ export type ChatReplyDetailsOut = {
       }>;
   };
 };
+export type ChatRewindIn = {
+  threadId: string;
+  pointId: string;
+  idempotencyKey: string;
+};
+export type ChatRewindOut = {
+  restored: number;
+  removed: number;
+  failed: number;
+  failedPaths: Array<string>;
+  during: boolean;
+  at: number;
+  undid: boolean;
+};
 export type ChatRoundDecideIn = {
   threadId: string;
   messageId: string;
@@ -10485,6 +10508,19 @@ export type ComputersBrowserGiveBackOut = {
     paired: boolean;
     access: "owner" | "admin" | "viewer";
   };
+};
+export type ComputersBrowserMySignInsIn = {
+  agentId: string;
+};
+export type ComputersBrowserMySignInsOut = {
+  profile: "own" | "agent";
+  signIns: Array<{
+      kind: "browser";
+      site: string;
+      signedInAs?: string;
+      since: number;
+      lastSeen: number;
+    }>;
 };
 export type ComputersBrowserPreviewIn = {
   agentId: string;
@@ -14360,6 +14396,49 @@ export type EngineReviewerSetOut = {
     id: string;
   }) | null;
 };
+export type EngineRewindPointsIn = {
+  threadId: string;
+};
+export type EngineRewindPointsOut = {
+  available: boolean;
+  why?: string;
+  ownComputer: boolean;
+  points: Array<{
+      pointId: string;
+      agentId: string;
+      at: number;
+      files: number;
+      after?: string;
+      messageId?: string;
+      undo?: boolean;
+      during?: boolean;
+    }>;
+  active: Array<{
+      afterSeq: number;
+      uptoSeq: number;
+      by: string;
+      at: number;
+      undoPointId?: string;
+      interrupted?: boolean;
+    }>;
+};
+export type EngineRewindToIn = {
+  threadId: string;
+  pointId: string;
+};
+export type EngineRewindToOut = {
+  agentId: string;
+  at: number;
+  restored: number;
+  removed: number;
+  failed: number;
+  failedPaths: Array<string>;
+  undoPointId: string;
+  undid: boolean;
+  during: boolean;
+  afterSeq: number;
+  uptoSeq: number;
+};
 export type EngineRoundGetIn = {
   threadId: string;
   messageIds: Array<string>;
@@ -17194,7 +17273,7 @@ export type FormsUpdateOut = {
 export type GateActsListIn = Record<string, unknown>;
 export type GateActsListOut = {
   acts: Array<{
-      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       title: string;
       risk: "low" | "medium" | "high";
       humanToo: boolean;
@@ -17206,7 +17285,7 @@ export type GateAllowListOut = {
   rules: Array<{
       id: string;
       kind: "standing" | "always" | "goal";
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
       agentId?: string;
       threadId?: string;
@@ -17223,7 +17302,7 @@ export type GateAllowRemoveOut = {
   ok: boolean;
 };
 export type GateAllowSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   target: string;
   agentId?: string;
   threadId?: string;
@@ -17234,7 +17313,7 @@ export type GateAllowSetOut = {
   rule: {
     id: string;
     kind: "standing" | "always" | "goal";
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
     target: string;
     agentId?: string;
     threadId?: string;
@@ -17258,7 +17337,7 @@ export type GateEffectiveRuleIn = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   adminOnly?: boolean;
 };
 export type GateEffectiveRuleOut = {
@@ -17286,7 +17365,7 @@ export type GateGrantsAskIn = {
   threadId: string;
   messageId: string;
   asked: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
     }>;
   links?: Array<string>;
@@ -17307,7 +17386,7 @@ export type GateGrantsGoalIn = {
   threads: Array<string>;
   until: number;
   set?: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
     }>;
 };
@@ -17321,7 +17400,7 @@ export type GateGrantsSetIn = {
   press: "save" | "on";
   steps: Array<{
       stepId: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       targets: Array<string>;
       computed: boolean;
       changed: boolean;
@@ -17330,13 +17409,13 @@ export type GateGrantsSetIn = {
 export type GateGrantsSetOut = {
   grants: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
       stepId?: string;
     }>;
 };
 export type GateGrantsTakeIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   targets: Array<string>;
   step?: {
     automationId: string;
@@ -17365,7 +17444,7 @@ export type GateHoldsGetIn = {
 export type GateHoldsGetOut = {
   hold: {
     id: string;
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
     capName: string;
     taskId: string;
     runId?: string;
@@ -17386,7 +17465,7 @@ export type GateHoldsGetOut = {
 };
 export type GateHoldsListIn = {
   states?: Array<"held" | "approved" | "denied" | "expired">;
-  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   runId?: string;
   cursor?: string;
   limit?: number;
@@ -17394,7 +17473,7 @@ export type GateHoldsListIn = {
 export type GateHoldsListOut = {
   holds: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       capName: string;
       taskId: string;
       runId?: string;
@@ -17437,7 +17516,7 @@ export type GateParkIn = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -17487,7 +17566,7 @@ export type GateRulesListIn = {
 };
 export type GateRulesListOut = {
   rules: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
       mode: "hold" | "allow";
       approvers: string;
       peopleOnly: boolean;
@@ -17501,7 +17580,7 @@ export type GateRulesListOut = {
     }>;
 };
 export type GateRulesSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -17513,7 +17592,7 @@ export type GateRulesSetIn = {
 };
 export type GateRulesSetOut = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;
@@ -44223,6 +44302,7 @@ export type TerminalGetOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -44253,6 +44333,7 @@ export type TerminalGiveBackOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -44334,6 +44415,7 @@ export type TerminalListOut = {
       };
       heldBy?: string;
       ownerId?: string;
+      elsewhere?: boolean;
       threadId?: string;
     }>;
   next?: string;
@@ -44375,6 +44457,7 @@ export type TerminalOpenOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -44409,6 +44492,7 @@ export type TerminalOpenServerOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -44449,6 +44533,7 @@ export type TerminalRenameOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
 };
@@ -44562,6 +44647,7 @@ export type TerminalTakeOverOut = {
     };
     heldBy?: string;
     ownerId?: string;
+    elsewhere?: boolean;
     threadId?: string;
   };
   lease?: string;
@@ -44579,6 +44665,7 @@ export type TerminalWorkspaceOut = {
   canAttach: boolean;
   cannotAttach?: string;
   takeOver?: boolean;
+  ownPlace?: boolean;
 };
 export type ThreadsAddAgentIn = {
   threadId: string;
@@ -48022,6 +48109,7 @@ export interface CapMap {
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.reply_details": { in: ChatReplyDetailsIn; out: ChatReplyDetailsOut };
+  "chat.rewind": { in: ChatRewindIn; out: ChatRewindOut };
   "chat.round.decide": { in: ChatRoundDecideIn; out: ChatRoundDecideOut };
   "chat.round.discuss": { in: ChatRoundDiscussIn; out: ChatRoundDiscussOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
@@ -48062,6 +48150,7 @@ export interface CapMap {
   "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
   "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
+  "computers.browser.my_sign_ins": { in: ComputersBrowserMySignInsIn; out: ComputersBrowserMySignInsOut };
   "computers.browser.preview": { in: ComputersBrowserPreviewIn; out: ComputersBrowserPreviewOut };
   "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
   "computers.browser.sessions": { in: ComputersBrowserSessionsIn; out: ComputersBrowserSessionsOut };
@@ -48336,6 +48425,8 @@ export interface CapMap {
   "engine.review.mark": { in: EngineReviewMarkIn; out: EngineReviewMarkOut };
   "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
   "engine.reviewer.set": { in: EngineReviewerSetIn; out: EngineReviewerSetOut };
+  "engine.rewind.points": { in: EngineRewindPointsIn; out: EngineRewindPointsOut };
+  "engine.rewind.to": { in: EngineRewindToIn; out: EngineRewindToOut };
   "engine.round.get": { in: EngineRoundGetIn; out: EngineRoundGetOut };
   "engine.route.preview": { in: EngineRoutePreviewIn; out: EngineRoutePreviewOut };
   "engine.running_here": { in: EngineRunningHereIn; out: EngineRunningHereOut };
@@ -51163,8 +51254,6 @@ export type FolderMovedPayload = {
 };
 export type FolderPurgedPayload = {
   folderId: string;
-  subjectKind?: string;
-  subjectId?: string;
 };
 export type FolderRenamedPayload = {
   folderId: string;
@@ -51229,7 +51318,7 @@ export type FormSubmittedPayload = {
 };
 export type GateApprovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   by: string;
   forPerson?: string;
@@ -51244,7 +51333,7 @@ export type GateApprovedPayload = {
 };
 export type GateApproverMovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   from?: {
     kind: string;
@@ -51259,7 +51348,7 @@ export type GateApproverMovedPayload = {
 };
 export type GateDeniedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   by: string;
   mode: "send_back" | "drop";
@@ -51275,7 +51364,7 @@ export type GateDeniedPayload = {
 };
 export type GateExpiredPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
@@ -51286,7 +51375,7 @@ export type GateExpiredPayload = {
 };
 export type GateRequestedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   capName: string;
   taskId: string;
   principal: {
@@ -51303,14 +51392,14 @@ export type GateRequestedPayload = {
 };
 export type GateRevisedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   by: string;
   was: string;
   now: string;
 };
 export type GateRuleChangedPayload = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   by: string;

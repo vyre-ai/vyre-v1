@@ -57,9 +57,32 @@ test("a folder in Trash is deleted for good with everything under it", async () 
 
 test("an agent's folder is never purged from Files: Empty Trash leaves it, and purging it is refused in one sentence", async () => {
   const w = open();
-  run(w, "INSERT INTO files_folder (id, parent_id, name, path, system_key, deleted_at) VALUES (?, ?, ?, ?, ?, ?)", "fld_ag", null, "Desk", "Agents/Desk", "agent:agt_desk", 1);
-  run(w, "INSERT INTO files_file (id, folder_id, name, deleted_at) VALUES (?, ?, ?, ?)", "fil_y", "fld_ag", "AGENT.md", 1);
-  run(w, "INSERT INTO files_trash (id, kind, root_id, deleted_at) VALUES (?, ?, ?, ?)", "fld_ag", "folder", "fld_ag", 1);
+  run(
+    w,
+    "INSERT INTO files_folder (id, parent_id, name, path, system_key, deleted_at) VALUES (?, ?, ?, ?, ?, ?)",
+    "fld_ag",
+    null,
+    "Desk",
+    "Agents/Desk",
+    "agent:agt_desk",
+    1,
+  );
+  run(
+    w,
+    "INSERT INTO files_file (id, folder_id, name, deleted_at) VALUES (?, ?, ?, ?)",
+    "fil_y",
+    "fld_ag",
+    "AGENT.md",
+    1,
+  );
+  run(
+    w,
+    "INSERT INTO files_trash (id, kind, root_id, deleted_at) VALUES (?, ?, ?, ?)",
+    "fld_ag",
+    "folder",
+    "fld_ag",
+    1,
+  );
   await h["files.trash.empty"]!(w.ctx, {});
   assert.equal(w.db.rows("files_folder").filter((r) => r["id"] === "fld_ag").length, 1, "Empty Trash skips it");
   await assert.rejects(h["files.folder.purge"]!(w.ctx, { folderId: "fld_ag" }), (e: unknown) =>

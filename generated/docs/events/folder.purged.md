@@ -19,7 +19,5 @@ A folder in Trash was deleted for good, with every file in it
 ```ts
 type Payload = {
   folderId: string;
-  subjectKind?: string;
-  subjectId?: string;
 };
 ```

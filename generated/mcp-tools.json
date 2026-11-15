@@ -12639,6 +12639,45 @@
     },
     {
       "blocks": [],
+      "cap": "chat.rewind",
+      "deferred": false,
+      "description": "Go back in a chat with an agent to a point: the agent's work folder is put back, the agents stop reading the messages after it, one line says so. Messages stay; anything sent stays sent. Your own message only; only the person",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "pointId": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "pointId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_rewind",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.screen.get",
       "deferred": false,
       "description": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
@@ -20406,6 +20445,63 @@
     },
     {
       "blocks": [],
+      "cap": "engine.rewind.points",
+      "deferred": false,
+      "description": "The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_rewind_points",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.rewind.to",
+      "deferred": false,
+      "description": "Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "pointId": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "pointId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_rewind_to",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.round.get",
       "deferred": false,
       "description": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
@@ -24810,7 +24906,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -24904,7 +25001,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -24999,7 +25097,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },

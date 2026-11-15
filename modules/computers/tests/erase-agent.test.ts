@@ -26,7 +26,11 @@ test("a browser host that is unavailable once fails the step and keeps the marke
     up = true;
     await erase(h.ctx, { agentId: "agt_desk", dry: false });
     assert.deepEqual(forgotten, ["agt_desk"]);
-    assert.equal(h.rows("SELECT profile_id FROM computers_browser_gone").length, 0, "the marker goes once the profile is gone");
+    assert.equal(
+      h.rows("SELECT profile_id FROM computers_browser_gone").length,
+      0,
+      "the marker goes once the profile is gone",
+    );
   } finally {
     bindSpaceBrowser(null);
   }

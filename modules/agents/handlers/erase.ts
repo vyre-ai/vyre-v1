@@ -78,7 +78,9 @@ export async function deleteForGood(ctx: AgentsCtx, input: { agentId: string }):
   ensure(ctx.db);
   // only a person presses this: an agent (acting for a person too), a service, an Automation step or an outside tool is refused before anything else
   if (ctx.principal.kind !== "person")
-    raise(ctx, "validation.precondition_failed", "Only a person can delete an agent for good.", { reason: "person_only" });
+    raise(ctx, "validation.precondition_failed", "Only a person can delete an agent for good.", {
+      reason: "person_only",
+    });
   const have = pending(ctx, input.agentId);
   const a = agentBy(ctx.db, input.agentId, true);
   // whoever manages it (its owner, or an admin) may; anyone else is told the agent does not exist, as for any agent they cannot see
@@ -88,7 +90,8 @@ export async function deleteForGood(ctx: AgentsCtx, input: { agentId: string }):
     raise(ctx, "validation.not_found", "That agent does not exist.");
   if (have) {
     // pressing again on a job that failed is "Try again": it goes at once instead of waiting for its back-off
-    if (String(have["state"]) === "erasing") tryRun(ctx.db, "DELETE FROM agents_erase_retry WHERE agentId = ?", input.agentId);
+    if (String(have["state"]) === "erasing")
+      tryRun(ctx.db, "DELETE FROM agents_erase_retry WHERE agentId = ?", input.agentId);
     return { erasing: String(have["state"]) === "erasing" };
   }
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
@@ -159,8 +162,14 @@ export async function deletePreview(ctx: AgentsCtx, input: { agentId: string }) 
     kind: a.kind,
     inTrash: a.deletedAt !== undefined,
     ...out,
-    chatPeople: await peopleNamed(ctx, [...chatPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id))),
-    folderPeople: await peopleNamed(ctx, [...folderPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id))),
+    chatPeople: await peopleNamed(
+      ctx,
+      [...chatPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id)),
+    ),
+    folderPeople: await peopleNamed(
+      ctx,
+      [...folderPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id)),
+    ),
     named: out.named.map((n) => ({ ...n, link: `/${LINK[n.kind]}/${n.id}` })),
     backups:
       days === undefined
@@ -254,7 +263,8 @@ export async function runErase(ctx: AgentsCtx): Promise<string[]> {
       for (const x of ids) ctx.db.run("INSERT OR IGNORE INTO agents_erase_ids (agentId, id) VALUES (?, ?)", id, x);
       // the people who lose a chat or their own folder, read now, before those stores are cleared: each is told once it is done
       const at = await peopleAt(ctx, id);
-      for (const p of new Set([...at.chat, ...at.folder])) ctx.db.run("INSERT OR IGNORE INTO agents_erase_people (agentId, personId) VALUES (?, ?)", id, p);
+      for (const p of new Set([...at.chat, ...at.folder]))
+        ctx.db.run("INSERT OR IGNORE INTO agents_erase_people (agentId, personId) VALUES (?, ?)", id, p);
       ctx.db.run("INSERT OR IGNORE INTO agents_erase_ids (agentId, id) VALUES (?, ?)", id, id);
     }
     const ids = (ctx.db.all("SELECT id FROM agents_erase_ids WHERE agentId = ?", id) as Row[]).map((r) =>
@@ -343,7 +353,14 @@ export function eraseOwn(ctx: Pick<AgentsCtx, "db">, id: string): void {
     for (const r of tryAll(db, `SELECT id, agents_json FROM ${t} WHERE agents_json LIKE ?`, `%${id}%`)) {
       try {
         const v = JSON.parse(String(r["agents_json"])) as unknown;
-        const next = Array.isArray(v) ? v.filter((x) => (typeof x === "string" ? x : (x as { id?: string; agentId?: string })?.id ?? (x as { agentId?: string })?.agentId) !== id) : v;
+        const next = Array.isArray(v)
+          ? v.filter(
+              (x) =>
+                (typeof x === "string"
+                  ? x
+                  : ((x as { id?: string; agentId?: string })?.id ?? (x as { agentId?: string })?.agentId)) !== id,
+            )
+          : v;
         tryRun(db, `UPDATE ${t} SET agents_json = ? WHERE id = ?`, JSON.stringify(next), String(r["id"]));
       } catch {
         /* not a list: left as it is */
@@ -445,7 +462,12 @@ function failedOf(ctx: AgentsCtx, id: string): { failed?: string } {
 async function peopleNamed(ctx: AgentsCtx, ids: string[]): Promise<Array<{ id: string; name: string }>> {
   const out: Array<{ id: string; name: string }> = [];
   for (const id of ids) {
-    const who = await tolerant<{ principal?: { name?: string } }>(ctx, "access.principals.get", { principal: { kind: "person", id } }, {});
+    const who = await tolerant<{ principal?: { name?: string } }>(
+      ctx,
+      "access.principals.get",
+      { principal: { kind: "person", id } },
+      {},
+    );
     out.push({ id, name: who.principal?.name ?? "Someone" });
   }
   return out;
@@ -464,7 +486,13 @@ async function tell(ctx: AgentsCtx, people: Iterable<string>, title: string, key
     await tolerant(
       ctx,
       "tasks.create",
-      { kind: "work", title: title.slice(0, 300), assigned: { kind: "person", id: person }, due: ctx.now(), idempotencyKey: `${key}:${person}` },
+      {
+        kind: "work",
+        title: title.slice(0, 300),
+        assigned: { kind: "person", id: person },
+        due: ctx.now(),
+        idempotencyKey: `${key}:${person}`,
+      },
       null,
     );
 }
@@ -479,7 +507,10 @@ async function spaceZone(ctx: AgentsCtx): Promise<string> {
  * agent.deleted: everyone who has a chat with the agent, or their own folder on its computer, is told it is in Trash and the day it will be erased by itself, so they can take their files out. The person who
  * moved it to Trash is not told of what they did. Safe to repeat: one line per person and Trash move.
  */
-export async function onTrashed(ctx: AgentsCtx, event: { payload: { agentId?: string; name?: string; by?: string } }): Promise<string[]> {
+export async function onTrashed(
+  ctx: AgentsCtx,
+  event: { payload: { agentId?: string; name?: string; by?: string } },
+): Promise<string[]> {
   const id = event.payload.agentId;
   if (typeof id !== "string") return [];
   ensure(ctx.db);
@@ -493,6 +524,11 @@ export async function onTrashed(ctx: AgentsCtx, event: { payload: { agentId?: st
     typeof keep === "number" && a.deletedAt !== undefined
       ? `It will be erased on ${dateIn(a.deletedAt + keep, await spaceZone(ctx))}.`
       : "It stays in Trash until it is deleted for good.";
-  await tell(ctx, who, `${a.name} is in Trash. ${when} Take your files out of its computer before then.`, `agent-trashed:${id}:${a.deletedAt ?? 0}`);
+  await tell(
+    ctx,
+    who,
+    `${a.name} is in Trash. ${when} Take your files out of its computer before then.`,
+    `agent-trashed:${id}:${a.deletedAt ?? 0}`,
+  );
   return who;
 }

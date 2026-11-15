@@ -87,6 +87,7 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
     assert.equal((await call(d, "agents.get", { agentId })).status, 404);
     assert.equal((await call(d, "agents.restore", { agentId })).status, 200, "restore brings it back");
     assert.equal((await call(d, "agents.get", { agentId })).status, 200);
+    await new Promise((r) => setTimeout(r, 2500));
     assert.equal((await call(d, "agents.delete", { agentId })).status, 200);
     // one event, one line: Trash, restore and Trash again leave one "was deleted." line in the channel, and delete for good adds none
     const lines = async (): Promise<number> =>
@@ -97,7 +98,11 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
       ).filter((m) => m.body === "Desk was deleted.").length;
     await waitFor(async () => ((await lines()) >= 1 ? true : null), 20_000);
     await new Promise((r) => setTimeout(r, 1500));
-    assert.equal(await lines(), 1, "the channel shows the line once");
+    assert.equal(
+      await lines(),
+      1,
+      `the channel shows the line once (${JSON.stringify(((await call(d, "chat.messages.list", { threadId: ch.data.channel.mainThreadId })).data.messages as Array<{ body?: string; kind?: string }>).map((m) => [m.kind, m.body]))})`,
+    );
 
     results["logEarly"] = hostLog(d);
     const preview = await call(d, "agents.delete_preview", { agentId });

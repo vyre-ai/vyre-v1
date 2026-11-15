@@ -39,6 +39,7 @@ type Out = {
       deletedAt: number;
       deleting: boolean;
       folderId?: string;
+      failed?: string;
       erasesAt?: number;
       canDelete: boolean;
     }>;
@@ -66,6 +67,7 @@ type Out = {
         "deletedAt": 1760000000000,
         "deleting": true,
         "erasesAt": 1760000000000,
+        "failed": "example",
         "folderId": "fld_a1b2c3",
         "kind": "assistant",
         "name": "example",

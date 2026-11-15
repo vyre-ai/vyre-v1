@@ -48,6 +48,14 @@ type Out = {
       title: string;
       link: string;
     }>;
+  chatPeople: Array<{
+      id: string;
+      name: string;
+    }>;
+  folderPeople: Array<{
+      id: string;
+      name: string;
+    }>;
   backups: string;
   backupsKeptDays?: number;
   refused?: string;
@@ -75,7 +83,19 @@ type Out = {
     "backups": "example",
     "backupsKeptDays": 1,
     "bytes": 1,
+    "chatPeople": [
+      {
+        "id": "usr_a1b2c3",
+        "name": "example"
+      }
+    ],
     "chats": 1,
+    "folderPeople": [
+      {
+        "id": "usr_a1b2c3",
+        "name": "example"
+      }
+    ],
     "inTrash": true,
     "kind": "assistant",
     "memory": 1,

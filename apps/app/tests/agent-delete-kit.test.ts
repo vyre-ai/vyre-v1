@@ -173,7 +173,10 @@ export async function agentDeleteWalk(
         };
         ana = await join({ url: web.origin } as never, call as never, "Member", "ana", "Ana Adler");
       }
-      const chat = await as({ url: web.origin } as never, ana.token)("chat.start", { kind: "chat", agentIds: [agentId] });
+      const chat = await as({ url: web.origin } as never, ana.token)("chat.start", {
+        kind: "chat",
+        agentIds: [agentId],
+      });
       assert.equal(chat.status, 200, JSON.stringify(chat.data));
     };
     const walk = async (mode: Mode, name: string, tag: string): Promise<void> => {

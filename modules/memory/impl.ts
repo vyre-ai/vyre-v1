@@ -64,15 +64,21 @@ export const hostCalls = {
       i.agentId,
       i.agentId,
     ).map((r) => String(r["id"]));
-    const pages = tryAll(db, `SELECT page_id AS id FROM memory_pages WHERE agent_id = ? AND layer = 'agent'`, i.agentId).map((r) =>
-      String(r["id"]),
-    );
-    const notes = tryAll(db, `SELECT note_id AS id FROM memory_notes WHERE agent_id = ? AND layer = 'agent'`, i.agentId).map((r) =>
-      String(r["id"]),
-    );
-    const nodes = tryAll(db, `SELECT node_id AS id FROM memory_graph_nodes WHERE agent_id = ? AND layer = 'agent'`, i.agentId).map((r) =>
-      String(r["id"]),
-    );
+    const pages = tryAll(
+      db,
+      `SELECT page_id AS id FROM memory_pages WHERE agent_id = ? AND layer = 'agent'`,
+      i.agentId,
+    ).map((r) => String(r["id"]));
+    const notes = tryAll(
+      db,
+      `SELECT note_id AS id FROM memory_notes WHERE agent_id = ? AND layer = 'agent'`,
+      i.agentId,
+    ).map((r) => String(r["id"]));
+    const nodes = tryAll(
+      db,
+      `SELECT node_id AS id FROM memory_graph_nodes WHERE agent_id = ? AND layer = 'agent'`,
+      i.agentId,
+    ).map((r) => String(r["id"]));
     const count = facts.length + pages.length + notes.length;
     if (i.dry) return { memory: count };
     for (const id of facts) {
@@ -97,7 +103,8 @@ export const hostCalls = {
       tryRun(db, `DELETE FROM memory_graph_links WHERE from_id = ?`, id);
       tryRun(db, `DELETE FROM memory_layouts WHERE node_id = ?`, id);
     }
-    for (const t of ["memory_graph_nodes", "memory_questions"]) tryRun(db, `DELETE FROM ${t} WHERE agent_id = ? AND layer = 'agent'`, i.agentId);
+    for (const t of ["memory_graph_nodes", "memory_questions"])
+      tryRun(db, `DELETE FROM ${t} WHERE agent_id = ? AND layer = 'agent'`, i.agentId);
     eraseWhere(db, i.agentId, [
       ["memory_maps", "agent_id"],
       ["memory_promotions", "agent_id"],
