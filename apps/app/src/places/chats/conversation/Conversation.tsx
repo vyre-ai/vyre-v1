@@ -306,6 +306,14 @@ function useLiveTurns(data: ConversationData): readonly import("../../../shell/s
 }
 
 /** The lead of this chat runs outside Vyre and has gone quiet: said plainly above the composer, because a message here will wait. Only its owner can read it, and only its owner can ask it. */
+/** A menu opened low in the chat opens upward instead of over the composer: its top is pulled up so its bottom stays above the composer's top (the rows are about 28 px each). */
+function aboveComposer(y: number, rows: number): number {
+  const doc = (globalThis as { document?: { querySelector(s: string): { getBoundingClientRect(): { top: number } } | null } }).document;
+  const top = doc?.querySelector('[data-testid="composer"]')?.getBoundingClientRect().top;
+  if (typeof top !== "number" || top <= 0) return y;
+  return y + rows * 28 + 16 > top - 8 ? Math.max(8, top - 8 - (rows * 28 + 16)) : y;
+}
+
 /** The people (ids) typing in this chat now, from the live link; empty where nothing is live. */
 function useTypingIds(data: ConversationData): readonly string[] {
   const live = data.typingLive;
@@ -1636,7 +1644,8 @@ function ConversationView(): ReactElement {
       setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id));
       unsay();
     },
-    showMenu: (entries, x, y, label, source) => menu.show(entries, x, y, source ?? "context", { label }),
+    showMenu: (entries, x, y, label, source) =>
+      menu.show(entries, x, aboveComposer(y, entries.length), source ?? "context", { label }),
     ...(lead
       ? {
           liveCard: {
@@ -2335,15 +2344,9 @@ function ConversationView(): ReactElement {
         ) : (
           <View style={st.composerBox}>
             <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>
-              {presenceLine(
-                typingNames,
-                working.map((id) => nameOf(id)),
-              ) !== "" ? (
+              {presenceLine(typingNames, []) !== "" ? (
                 <Text testID="typing-line" style={st.typingText}>
-                  {presenceLine(
-                    typingNames,
-                    working.map((id) => nameOf(id)),
-                  )}
+                  {presenceLine(typingNames, [])}
                 </Text>
               ) : null}
             </View>

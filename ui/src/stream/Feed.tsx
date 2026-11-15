@@ -111,10 +111,29 @@ export function Feed({
     onAtEndChange?.(true);
   }, [endKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // content that grows after the commit (a card, a block that renders late, a reply streaming in) keeps the end in view while the person is at it
-  const onContentSizeChange = useCallback(() => {
-    if (holdsEnd(follow, atEnd.current)) toEnd();
-  }, [follow, toEnd]);
+  // content that grows after the commit (a card, a block that renders late, a reply streaming in) keeps the end in view while the person is at it. "At it" is measured, not remembered: the scroll event
+  // for a person's own wheel may not have run yet when the content grows, so the position the feed had against its OLD height decides, and a person who scrolled up is never pulled back down.
+  const prevHeight = useRef(0);
+  const onContentSizeChange = useCallback(
+    (_w: number, h: number) => {
+      const node =
+        Platform.OS === "web"
+          ? (ref.current as unknown as { getScrollableNode?: () => ScrollNode } | null)?.getScrollableNode?.()
+          : undefined;
+      const before = prevHeight.current;
+      prevHeight.current = h;
+      if (node && before > 0) {
+        const was = isAtEnd(node.scrollTop, node.clientHeight, before);
+        if (was !== atEnd.current) {
+          atEnd.current = was;
+          setAway(!was);
+          onAtEndChange?.(was);
+        }
+      }
+      if (holdsEnd(follow, atEnd.current)) toEnd();
+    },
+    [follow, toEnd, onAtEndChange],
+  );
 
   // the list got shorter (a notice line, a taller composer, a menu opened under it) while the person was at the end: the end stays in view, so the last card's buttons are not cut off
   const onLayout = useCallback(() => {
