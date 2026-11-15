@@ -137,9 +137,13 @@ test("terminal_open on a workspace names the agent; an agent opens only its own 
 
 // ---- who may enter a workspace -----------------------------------------------------------------------------------------------------------------------
 
-function facts(table: Record<string, { ownerId: string; kind?: string; runtime?: string }>) {
+function facts(
+  table: Record<string, { ownerId: string; kind?: string; runtime?: string }>,
+  shared: { class: string; people: string[] } = { class: "space", people: [] },
+) {
   return (cap: string, input: unknown): Promise<unknown> => {
     if (cap === "host.hook.call.terminal.open_tab") return undefined; // no pipeline here: the handler opens the run's tab itself
+    if (cap === "agents.share_class") return Promise.resolve(shared);
     if (cap !== "agents.get") throw new Error(`unexpected ${cap}`);
     const a = table[(input as { agentId: string }).agentId];
     return Promise.resolve(a ? { agent: { agentId: (input as { agentId: string }).agentId, ...a } } : undefined);
@@ -151,12 +155,15 @@ const AGENTS = {
   agt_lee_outside: { ownerId: "usr_lee", runtime: "outside" },
   agt_dex: { ownerId: "usr_lee", kind: "teammate" },
 };
-const asPerson = (id: string, manage: boolean, raw?: ReturnType<typeof harness>["raw"]): TermCtx => {
-  const hn = harness({ ...(raw ? { raw } : {}), allow: (a) => a.level !== "manage" || manage });
+/** `use`: the person may use the agent (is shared with it at Use), as a person with only that and no more. */
+const asPerson = (id: string, manage: boolean, raw?: ReturnType<typeof harness>["raw"], use = false): TermCtx => {
+  const may = (a: { level: string }, r: { type: string }): boolean =>
+    a.level === "manage" ? manage : a.level === "use" && r.type === "agent" ? manage || use : true;
+  const hn = harness({ ...(raw ? { raw } : {}), allow: (a, r) => may(a, r) });
   return {
     ...hn.as({ kind: "person", id }),
     call: facts(AGENTS) as never,
-    authorize: (a) => ({ effect: a.level !== "manage" || manage ? "allow" : "deny" }),
+    authorize: (a, r) => ({ effect: may(a, r as { type: string }) ? "allow" : "deny" }),
   };
 };
 
@@ -174,6 +181,13 @@ test("who may enter: a person their own Assistant's workspace; an owner or admin
   assert.equal(await mayEnterWorkspace(admin, "agt_lee_outside"), false, "an admin in someone else's outside agent");
   assert.equal(await mayEnterWorkspace(admin, "agt_dex"), true, "an admin in a team agent's");
   assert.equal(await mayEnterWorkspace(member, "agt_dex"), false, "a member in a team agent's");
+  // a person shared with the agent at Use enters its computer in a place of their own, never an Assistant's or an outside agent's
+  const bea = asPerson("usr_bea", false, undefined, true);
+  assert.equal(await mayEnterWorkspace(bea, "agt_dex"), true, "a person who may use a team agent");
+  assert.equal(await mayEnterWorkspace(bea, "agt_dana_assistant"), false, "not another person's Assistant");
+  assert.equal(await mayEnterWorkspace(bea, "agt_lee_outside"), false, "not an outside agent");
+  // the owner of the agent
+  assert.equal(await mayEnterWorkspace(asPerson("usr_lee", false), "agt_dex"), true, "its owner");
   assert.equal(await mayEnterWorkspace(asPerson("usr_lee", false), "agt_dex"), true, "its owner");
   assert.equal(await mayEnterWorkspace(member, "agt_unknown"), false, "an agent nobody can read");
   // 12 Nov (audit item 16): agents.get answers not found to everyone but its person for an Assistant or an outside agent (modules/agents/projections.ts canSee), and to an admin for a person's own
@@ -210,9 +224,19 @@ test("attach, read, type, interrupt, resize and close on a workspace session are
     assert.equal(g.code, "permission.role_lacks_permission", `${cap} for a person who is not its owner`);
   }
   assert.equal(host.calls.length, before, "nothing reached the machine");
-  const att = await call(admin, "terminal.attach", { terminalId: run.terminalId });
+  // Dana, who does not own Dex, works in a place of her own (her own Unix user): an admin does not enter it, whoever they are (F30)
+  assert.equal(
+    (await failure(() => h["terminal.attach"]!(admin, { terminalId: run.terminalId }))).reason,
+    "others_place",
+  );
+  // a session of the agent itself (a turn for nobody) is the agent's own: an admin attaches to a team agent's workspace and sees the same screen
+  const own = await call({ ...hn.as(AGENT, undefined, "run_2"), thread: "thr_chat" }, "terminal.run", {
+    command: "echo hi",
+    idempotencyKey: idem(),
+  });
+  const att = await call(admin, "terminal.attach", { terminalId: own.terminalId });
   assert.match(att.replay, /\$ echo hi\nhi/, "an admin attaches to a team agent's workspace and sees the same screen");
-  assert.equal((await call(admin, "terminal.input", { terminalId: run.terminalId, data: "ls\n" })).ok, true);
+  assert.equal((await call(admin, "terminal.input", { terminalId: own.terminalId, data: "ls\n" })).ok, true);
 });
 
 test("a person attaches to their own Assistant's session and types in it", async () => {
@@ -268,8 +292,7 @@ test("terminal.workspace: the state, where it is and whether this person may att
   assert.deepEqual(others, {
     state: "none",
     canAttach: false,
-    cannotAttach:
-      "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.",
+    cannotAttach: "You do not have access to this agent's computer.",
   });
   const admin = asPerson("usr_admin", true);
   const waiting = await wsOf(admin, { agentId: "agt_dex" });
@@ -370,4 +393,22 @@ test("a workspace that will not start says why in details.reason: no image and n
       reason,
     );
   }
+});
+
+test("terminal.workspace for an admin who manages the agent and is not its owner: shown only when the agent is shared with them, as terminal.get does", async () => {
+  const mk = (shared: { class: string; people: string[] }): TermCtx => {
+    const base = asPerson("usr_admin", true);
+    return { ...base, call: facts(AGENTS, shared) as never };
+  };
+  bindWorkspaces(true);
+  bindPlace(async () => TEAM_ON_MAC);
+  const unshared = await h["terminal.workspace"]!(mk({ class: "personal", people: [] }), { agentId: "agt_dex" });
+  assert.equal(unshared.canAttach, false, "managing is not reading");
+  assert.equal(unshared.ownPlace, undefined, "and no place of their own");
+  const named = await h["terminal.workspace"]!(mk({ class: "shared", people: ["usr_admin"] }), { agentId: "agt_dex" });
+  assert.notEqual(
+    named.cannotAttach,
+    "You do not have access to this agent's computer.",
+    "shared by name: the computer is shown",
+  );
 });

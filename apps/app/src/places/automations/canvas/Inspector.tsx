@@ -947,7 +947,7 @@ const i = StyleSheet.create({
     gap: 10,
     padding: 10,
     borderRadius: 12,
-    backgroundColor: "var(--warn-wash)" as string,
+    backgroundColor: "var(--warn-wash, var(--sel))" as string,
   },
   needText: { flex: 1, fontSize: 13, color: "var(--warn)" as string },
   needBtn: {

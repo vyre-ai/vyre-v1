@@ -176,6 +176,8 @@ test("taking the keyboard from another person: the owner of the terminal or an a
     await rejects(() => h["terminal.take_over"]!(hn.as({ kind: "person", id: "usr_omar" }), { terminalId: id })),
     "permission.role_lacks_permission",
   );
+  // read as someone who may enter the computer: a person who may not is told nothing of its terminals (F30)
+  hn.allowOnly(() => true);
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_sara");
   // an admin (manage on the agent) takes it, and the other person is told
   hn.allowOnly(() => true);
@@ -349,6 +351,8 @@ test("give back: only the holder, the terminal's owner or an admin; someone else
     await rejects(() => h["terminal.give_back"]!(omarCtx(hn), { terminalId: id })),
     "permission.role_lacks_permission",
   );
+  // read as someone who may enter the computer: a person who may not is told nothing of its terminals (F30)
+  hn.allowOnly(() => true);
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_sara");
   // the owner of the terminal may
   hn.allowOnly(() => true);
@@ -365,6 +369,8 @@ test("taking from another person: someone who may enter the workspace but neithe
     await rejects(() => h["terminal.take_over"]!(omarCtx(hn), { terminalId: id })),
     "permission.role_lacks_permission",
   );
+  // read as someone who may enter the computer: a person who may not is told nothing of its terminals (F30)
+  hn.allowOnly(() => true);
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_sara");
 });
 

@@ -6,7 +6,10 @@ import { draftOf, scopeOf, setDraft } from "./drafts.ts";
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
-import { isLong, sessionItems } from "../session/model.ts";
+import { isLong, sessionItems, withFolded } from "../session/model.ts";
+import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
+import { RewindCard, RewindWatch } from "../rewind/RewindCard.tsx";
+import type { ActiveRewind } from "../rewind/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
 import { useCrew } from "../crew/context.tsx";
 import { LiveSubagents } from "../crew/live.tsx";
@@ -564,6 +567,10 @@ function ConversationView(): ReactElement {
   /** One quiet line in the title bar's notice slot (it clears itself after 6 seconds), with one action where there is one (Undo, Retry). A new line replaces the last. Nothing stays above the composer. */
   /** The Command card (/usage, /permissions): one at a time, never stored, closed by Escape, its close control, a press outside or the next send. */
   const [card, setCard] = useState<{ n: number; spec: Exclude<CardSpec, { kind: "aside" }> } | null>(null);
+  // Rewind: the "Go back to" card (opened from the message bar, its menu or /rewind), and the rewinds in force, whose messages are folded away
+  const [rewindCard, setRewindCard] = useState<{ n: number; messageId?: string } | null>(null);
+  const [rewinds, setRewinds] = useState<ActiveRewind[]>([]);
+  const [rewindStamp, setRewindStamp] = useState(0);
   const cardN = useRef(1);
   /** Close the /btw card the way every command card closes: it leaves, and its side thread is cleaned up. */
   const closeAsides = useCallback(() => {
@@ -847,6 +854,8 @@ function ConversationView(): ReactElement {
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
   const all = mergePages(around ?? live, older);
+  const rewindLines = all.filter((m) => m.kind === "system" && /^(Went back|Came back)/.test(m.body)).length;
+  const goesBack = thread.kind === "chat" && thread.agents.length > 0;
   const openQs = openQuestions(all);
   emptyRef.current = all.length === 0;
   const liveView = around === null;
@@ -955,6 +964,7 @@ function ConversationView(): ReactElement {
     openFind: () => setFinding(true),
     openSearch: (q) => data.nav.openSearch?.(q),
     openAdd: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
+    ...(goesBack ? { openRewind: () => setRewindCard({ n: cardN.current++ }) } : {}),
     ...(data.nav.openPaneTab ? { openPane: data.nav.openPaneTab } : {}),
     startTalk: () => setTalkAt((n) => n + 1),
     send: (text) =>
@@ -1022,9 +1032,17 @@ function ConversationView(): ReactElement {
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
   const coders = (crew?.status?.members ?? []).filter((x) => x.kind === "teammate");
   const coderThreads = new Set(coders.map((x) => x.id));
+  const inRewind = (m: Message): boolean =>
+    rewinds.some(
+      (r) =>
+        r.interrupted !== true &&
+        ((m.threadSeq > r.afterSeq && m.threadSeq <= r.uptoSeq) ||
+          // the line the server left ("Went back ...") is the folded row's own: one line while it is in force
+          (m.kind === "system" && m.threadSeq === r.uptoSeq + 1 && /^Went back/.test(m.body))),
+    );
   const folded = mergeCrewAnswer(
     hideCrewPosts(
-      stripFromCoders(groupHelperStrips(foldHelperRows(timelineMessages)), coderThreads),
+      stripFromCoders(groupHelperStrips(foldHelperRows(timelineMessages.filter((m) => !inRewind(m)))), coderThreads),
       coderThreads,
       new Set(coders.flatMap((x) => (x.jobId ? [x.jobId] : []))),
     ),
@@ -1041,7 +1059,7 @@ function ConversationView(): ReactElement {
     clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) },
     shared: sharedChat,
   }).filter((it) => !(thread.kind === "thread" && it.kind === "day")); // a thread has no day dividers: its root row and "N replies" lead
-  const rows = sessionItems(items, all, {
+  const rowsBase = sessionItems(items, all, {
     meId: data.me.id,
     clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) },
     nameOf,
@@ -1049,6 +1067,37 @@ function ConversationView(): ReactElement {
     openedAt: openedAt.current,
     mentionsMe: (m) => mentionsIn(m.body, [{ kind: "person", id: data.me.id, name: data.me.name }]).length > 0,
   });
+  const rows = withFolded(
+    rowsBase,
+    rewinds.map((r) => ({
+      afterSeq: r.afterSeq,
+      uptoSeq: r.uptoSeq,
+      who: nameOf(r.by),
+      mine: r.by === data.me.id,
+      ...(r.interrupted ? { interrupted: true } : {}),
+      ...(r.undoPointId !== undefined
+        ? {
+            undo: () =>
+              void act
+                .rewindTo(data, r.undoPointId!)
+                .then(() => setRewinds((cur) => cur.filter((x) => x !== r)), fail("Could not undo that.")),
+          }
+        : {}),
+      lines: timelineMessages
+        .filter((m) => m.threadSeq > r.afterSeq && m.threadSeq <= r.uptoSeq && m.kind !== "system")
+        .map((m) => ({
+          id: m.messageId,
+          who: m.author.kind === "agent" || m.author.id !== data.me.id ? nameOf(m.author.id) : "You",
+          text:
+            m.body
+              .replace(/[*_`#>]+/g, "")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 240) || "Posted a card",
+          time: timeLabel(m.createdAt, data.clock()),
+        })),
+    })),
+  );
   // a message of the person's that an agent has answered since: the line that says what it taught is then gone (shown once)
   const answered = new Set<string>();
   let agentAfter = false;
@@ -1558,6 +1607,7 @@ function ConversationView(): ReactElement {
             ...(data.spaceUrl ? { spaceUrl: data.spaceUrl } : {}),
             openComputer: (agentId: string) => data.nav.openBeside("computer", agentId),
             agentId: lead.agentId,
+            viewer: data.me.id,
           },
         }
       : {}),
@@ -1590,6 +1640,7 @@ function ConversationView(): ReactElement {
     ...(details ? { details } : {}),
     pickReaction: (id, x, y) => setPicker({ id, x, y }),
     humanChat: thread.agents.length === 0,
+    ...(goesBack ? { rewind: (id: string) => setRewindCard({ n: cardN.current++, messageId: id }) } : {}),
     ...(thread.agents.length === 0 || thread.kind === "channel"
       ? {}
       : {
@@ -2190,6 +2241,45 @@ function ConversationView(): ReactElement {
             }}
           />
         ) : null}
+        {rewindCard ? (
+          <View testID="rewind-anchor" style={st.rewindAnchor} pointerEvents="box-none">
+            <View style={st.rewindFloat} pointerEvents="box-none">
+              <View style={st.rewindCard}>
+                <Dialog
+                  title="Go back to"
+                  anchor="composer"
+                  testID="rewind-dialog"
+                  onClose={() => setRewindCard(null)}
+                  onPressOutside={(t) => {
+                    if (!insideComposer(t)) setRewindCard(null);
+                  }}
+                >
+                  <RewindCard
+                    key={rewindCard.n}
+                    bare
+                    threadId={thread.threadId}
+                    onClose={() => setRewindCard(null)}
+                    shared={peopleIn(thread) >= 2}
+                    onDone={() => {
+                      setRewindCard(null);
+                      setRewinds([]);
+                      setRewindStamp((n) => n + 1);
+                    }}
+                    {...(rewindCard.messageId !== undefined ? { messageId: rewindCard.messageId } : {})}
+                  />
+                </Dialog>
+              </View>
+            </View>
+          </View>
+        ) : null}
+        {goesBack ? (
+          <RewindWatch
+            call={data.call}
+            threadId={thread.threadId}
+            stamp={rewindLines + rewindStamp}
+            onRead={(next) => setRewinds((cur) => (JSON.stringify(cur) === JSON.stringify(next) ? cur : next))}
+          />
+        ) : null}
         <QueueWatch ids={queuedIdsNow} call={data.call} threadId={thread.threadId} onChange={setStillQueued} />
         <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
         {lead && !closed ? <NoAiLine data={data} threadId={thread.threadId} agentId={lead.agentId} /> : null}
@@ -2588,6 +2678,10 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
 }
 
 const st = StyleSheet.create({
+  // the "Go back to" card is anchored like the Command card: no height in the layout, floating up over the foot of the chat, exactly the composer's width
+  rewindAnchor: { height: 0, position: "relative", zIndex: 31, overflow: "visible" },
+  rewindFloat: { position: "absolute", left: 0, right: 0, bottom: 6, alignItems: "center", paddingHorizontal: 24 },
+  rewindCard: { width: "100%", maxWidth: COLUMN },
   /** "Also post to the chat" sits above a thread's composer, as the prototype draws it, so the composer's own bar keeps its room in a narrow pane. */
   alsoRow: { marginLeft: -4, marginBottom: 8 },
   outsideOffline: {

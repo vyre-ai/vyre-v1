@@ -1,0 +1,1 @@
+On a shared agent's computer each person works in a place of their own that the others cannot read: their own folders, shell history and terminals. An older workspace's ~/projects and ~/Vyre are kept as ~/projects.old and ~/Vyre.old after the update.

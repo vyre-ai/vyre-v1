@@ -584,6 +584,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
       .filter((m) => m.threadId === thread.threadId)
       .map(({ id: _id, ...rest }) => rest as Message)
       .sort((a, b) => a.threadSeq - b.threadSeq);
+  let rewound: { afterSeq: number; uptoSeq: number } | null = null;
   const putMsg = (msg: Message): void => replica.put("messages", [{ id: msg.messageId, ...msg }]);
 
   // a thread under a message (agents reply in threads): its own row and its own messages, by id
@@ -735,6 +736,69 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
       };
       putMsg(msg);
       return { message: msg };
+    },
+    // Rewind over the sample: a point for each of your messages, one rewind in force at a time, and the point that undoes it
+    "engine.rewind.points": () => {
+      const mine = msgRows().filter((m) => m.author.id === "usr_irfad" && m.kind === "text");
+      const points = mine
+        .map((m, i) => ({
+          pointId: `agt_intake.pt_${m.messageId}`,
+          agentId: "agt_intake",
+          at: m.createdAt,
+          files: 2 + i * 3,
+          after: m.body.slice(0, 60),
+          messageId: m.messageId,
+        }))
+        .reverse();
+      const undo = rewound
+        ? [{ pointId: "agt_intake.undo", agentId: "agt_intake", at: SAMPLE_NOW, files: 3, undo: true }]
+        : [];
+      return {
+        available: true,
+        points: [...undo, ...points],
+        active: rewound ? [{ ...rewound, by: "usr_irfad", at: SAMPLE_NOW, undoPointId: "agt_intake.undo" }] : [],
+      };
+    },
+    "chat.rewind": (i: { pointId: string }) => {
+      const prev = msgRows();
+      const top = prev[prev.length - 1]?.threadSeq ?? 0;
+      const undoing = i.pointId === "agt_intake.undo";
+      const from = undoing ? undefined : prev.find((m) => `agt_intake.pt_${m.messageId}` === i.pointId);
+      if (!undoing && !from) throw new Error("That point is not in this chat.");
+      const line = undoing ? "Came back to where you were" : `Went back to before "${(from?.body ?? "").slice(0, 60)}"`;
+      if (undoing) rewound = null;
+      else rewound = { afterSeq: Math.max(0, (from?.threadSeq ?? 1) - 1), uptoSeq: top };
+      const msg: Message = {
+        messageId: `srv_${++counter}`,
+        threadId: "c1",
+        threadSeq: top + 1,
+        author: { kind: "person", id: "usr_irfad" },
+        kind: "system",
+        body: line,
+        blocks: [
+          {
+            type: "link_card",
+            v: 1,
+            id: `blk_rw${counter}`,
+            data: {
+              icon: "reply",
+              lead: undoing ? "Came back" : "Went back",
+              title: undoing ? "To where you were before going back" : line.replace("Went back to ", ""),
+              by: "usr_irfad",
+              sub: "Messages stay. Anything already sent stays sent.",
+            },
+            state: "done",
+            traceId: `tr_rw${counter}`,
+          },
+        ],
+        depth: 0,
+        attachments: [],
+        reactions: [],
+        pinned: false,
+        createdAt: SAMPLE_NOW,
+      };
+      putMsg(msg);
+      return { restored: 2, removed: 1, failed: 0, at: SAMPLE_NOW, undid: undoing };
     },
     "chat.edit": (i: { messageId: string; body: string }) => {
       const cur = msgRows().find((m) => m.messageId === i.messageId);

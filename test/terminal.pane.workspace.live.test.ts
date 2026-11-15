@@ -53,7 +53,14 @@ test(
       // one door (owner, 14 Nov): the terminal is reached from the Computer tab by pressing its row, and a person takes the keyboard to type
       await me.page.getByTestId("tab-computer").or(me.page.getByTestId("tab-computer-selected")).first().click();
       await me.page.locator('[data-testid^="row-session-"]').first().click({ timeout: 60_000 });
-      await me.page.getByTestId("terminal-popup").waitFor({ timeout: 60_000 });
+      await me.page
+        .getByTestId("terminal-popup")
+        .waitFor({ timeout: 60_000 })
+        .catch(async (e: unknown) => {
+          await shoot(me.page, dir, "no-popup");
+          t.diagnostic(`page text: ${(await me.page.locator("body").innerText()).slice(0, 1500)}`);
+          throw e;
+        });
       await me.page.getByTestId("terminal-take").click();
       await me.page.getByTestId("terminal-give").waitFor({ timeout: 20_000 });
       await me.page.getByTestId("terminal-screen").waitFor({ timeout: 60_000 });
@@ -127,7 +134,14 @@ test(
       await s.close();
       if (agentId !== "") {
         await docker(["rm", "-f", `vyre-ws-${agentId}`]);
-        await docker(["volume", "rm", "-f", `vyre-ws-${agentId}-home`, `vyre-ws-${agentId}-files`]);
+        await docker([
+          "volume",
+          "rm",
+          "-f",
+          `vyre-ws-${agentId}-home`,
+          `vyre-ws-${agentId}-files`,
+          `vyre-ws-${agentId}-people`,
+        ]);
       }
     }
   },

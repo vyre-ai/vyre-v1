@@ -4,10 +4,11 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "../conversation/parts.tsx";
-import { awayWords } from "./model.ts";
+import { awayWords, foldedWords } from "./model.ts";
 import type { SessionItem } from "./model.ts";
 
 type Away = Extract<SessionItem, { kind: "away" }>;
+type Folded = Extract<SessionItem, { kind: "folded" }>;
 type Jump = Extract<SessionItem, { kind: "jump" }>;
 
 /** The hour spine: the hour in the face gutter, a hairline running on from it. */
@@ -37,6 +38,49 @@ export function JumpRow({ row }: { row: Jump }): ReactElement {
       <Text numberOfLines={1} style={st.jumpSub}>
         {row.sub !== "" ? `${row.sub} · ${row.time}` : row.time}
       </Text>
+    </View>
+  );
+}
+
+/** Rewind (prototype: "Back at 11:42, files too" with Undo): what came after the point is folded into this one line, not destroyed. It opens in place to one line each; Undo is there only for the person who went back. */
+export function FoldedRow({ row }: { row: Folded }): ReactElement {
+  const [open, setOpen] = useState(false);
+  return (
+    <View testID={`folded-${row.key}`} style={st.away}>
+      <View style={st.awayHead}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={foldedWords(row)}
+          testID={`folded-${row.key}-toggle`}
+          onPress={() => setOpen((o) => !o)}
+          style={({ hovered }: { hovered?: boolean }) => [st.foldedMain, hovered === true && st.hover]}
+        >
+          <Glyph name="reply" size={13} color="var(--ink-3)" />
+          <Text numberOfLines={2} style={st.awayText}>
+            {foldedWords(row)}
+          </Text>
+          <Glyph name={open ? "chevd" : "chev"} size={12} color="var(--ink-4)" />
+        </Pressable>
+        {row.undo ? (
+          <Pressable accessibilityRole="button" testID={`folded-${row.key}-undo`} onPress={row.undo}>
+            <Text style={st.undo}>Undo</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {open ? (
+        <View testID={`folded-${row.key}-items`} style={st.lines}>
+          {row.lines.map((l) => (
+            <Row
+              key={l.id}
+              id={`folded-line-${l.id}`}
+              title={l.who !== "" ? `${l.who}  ${l.text}` : l.text}
+              trailing={<Text style={st.lineTime}>{l.time}</Text>}
+              inert
+            />
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -105,6 +149,16 @@ const st = StyleSheet.create({
     marginHorizontal: -8,
     borderRadius: 12,
   },
+  foldedMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 36,
+    borderRadius: 12,
+  },
+  undo: { fontSize: 13, fontWeight: "600", color: "var(--accent)" as string, paddingHorizontal: 8 },
   hover: { backgroundColor: "var(--hover)" as string },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--accent)" as string },
   awayText: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },

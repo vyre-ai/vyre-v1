@@ -1,0 +1,1 @@
+- The screenshot catalogue no longer holds the old Automations screens; the new ones are covered by the Automations walks until their own screenshots land.
