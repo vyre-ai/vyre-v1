@@ -272,7 +272,7 @@ export function boxesOf(comments: readonly FileComment[]): MarkupBox[] {
   return out;
 }
 
-const when = (at: number, now: number): string => {
+export const when = (at: number, now: number): string => {
   const min = Math.max(0, Math.floor((now - at) / 60_000));
   return min < 1
     ? "just now"
@@ -346,3 +346,34 @@ export function fetchFailureWords(code: string, provider: string): { words: stri
 /** The causes the server names for a live file whose content is not here: each gets the failed state, not the "not available" screen. */
 export const FETCH_FAILURE_CODES =
   /^(provider\.(unavailable|network|auth_failed|rate_limited|overloaded)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/;
+
+/** What a file of a connected folder says about itself, as one quiet line (or the choice when it changed there too). */
+export type Connected = NonNullable<ViewerData["connected"]>;
+
+/** "Kim changed this at Google Drive too, 5 min ago. Your edit is kept here." */
+export function changedThereWords(c: Connected, now: number): string {
+  const who = c.changedThere?.by?.name ?? c.changedThere?.by?.email;
+  const at = c.changedThere?.at;
+  return `${who ?? "Someone"} changed this at ${c.provider} too${at !== undefined ? `, ${when(at, now)}` : ""}. Your edit is kept here.`;
+}
+
+/** The History menu's second group: what the provider keeps of the file, newest first, the current one marked. */
+export function providerRevisionRows(
+  revisions: readonly {
+    revisionId: string;
+    at?: number;
+    current: boolean;
+    by?: { name?: string; email?: string; actor?: string };
+  }[],
+  nameOf: (id: string) => string,
+  provider: string,
+): { label: string; revisionId: string | null }[] {
+  return revisions.map((r) => {
+    const who = r.by?.actor !== undefined ? nameOf(r.by.actor) : (r.by?.name ?? r.by?.email ?? provider);
+    const at = r.at !== undefined ? new Date(r.at).toISOString().slice(0, 16).replace("T", " ") : "";
+    return {
+      label: `${provider} · ${who}${at !== "" ? ` · ${at}` : ""}${r.current ? " (now)" : ""}`,
+      revisionId: r.current ? null : r.revisionId,
+    };
+  });
+}

@@ -829,6 +829,17 @@ export default defineManifest({
           previewUrl: t.opt(t.str()),
           sheets: t.opt(t.arr(sheetInfo)),
           snapshot: t.opt(t.obj({ exportedAt: t.ts(), editVia: t.enm("provider_api", "open_in_provider") })),
+          // a file of a connected folder: what its provider says (view only, a change not yet sent, changed there too)
+          connected: t.opt(
+            t.obj({
+              provider: t.str(),
+              viewOnly: t.opt(t.bool()),
+              notSent: t.opt(t.obj({ reason: t.str() })),
+              changedThere: t.opt(
+                t.obj({ by: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })), at: t.opt(t.ts()) }),
+              ),
+            }),
+          ),
           canEdit: t.bool(),
           canMark: t.bool(),
           canComment: t.bool(),

@@ -2,3 +2,5 @@
 - When a connected file changed there while you were editing it, nothing is overwritten: your edit stays in Vyre and you choose Keep both or Use theirs, with a line saying who changed it there.
 - Folders you connected before this update stay read only and show one line offering to turn two-way on; new folders are two-way unless you choose Read only.
 - A connected Google Drive folder with more files than one sync can read now finishes over several syncs, says how many items it has read so far, and only removes a file that is missing once it has read all of the folder.
+- A connected file now shows one quiet line above it: View only when the provider will not let you change it (before you type), Not yet at Google Drive with the reason when a change is waiting, and Keep both or Use theirs when it changed there too. History also lists the provider's own revisions and puts one back.
+- Live folders shows whether each connected folder is two-way or Read only and lets you turn two-way on or off.

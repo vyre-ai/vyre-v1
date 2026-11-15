@@ -1447,7 +1447,13 @@ function unreadable(ctx: Ctx, name: string, size: number, bytes: () => Uint8Arra
  * has content, so an edit made at the provider shows). A placeholder whose content could not be fetched is never handed on as an empty file: the call says the content is not here (provider.unavailable),
  * so a viewer shows "could not get this" with Retry and an agent is not told the file is empty. A file the mounts module does not know, or one that really is empty at its provider, reads as it is.
  */
-export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean): Promise<Row> {
+export async function openAtProvider(
+  ctx: Ctx,
+  fileId: string,
+  refresh: boolean,
+  /** hears what mounts.open answered (the file's place at its provider), when it answered */
+  heard?: (opened: Record<string, unknown>) => void,
+): Promise<Row> {
   const before = mustFile(ctx, fileId);
   const mounted = sourceOfFolder(ctx, String(before.folder_id)) !== undefined;
   if (num(before.size) !== 0 && !(refresh && mounted)) return before;
@@ -1455,6 +1461,7 @@ export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean)
   let failure: unknown;
   try {
     opened = (await ctx.call("mounts.open", { fileId })) as Record<string, unknown>;
+    heard?.(opened);
   } catch (e) {
     failure = e;
   }

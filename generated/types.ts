@@ -15205,6 +15205,20 @@ export type FilesViewerDataOut = {
     exportedAt: number;
     editVia: "provider_api" | "open_in_provider";
   };
+  connected?: {
+    provider: string;
+    viewOnly?: boolean;
+    notSent?: {
+      reason: string;
+    };
+    changedThere?: {
+      by?: {
+        name?: string;
+        email?: string;
+      };
+      at?: number;
+    };
+  };
   canEdit: boolean;
   canMark: boolean;
   canComment: boolean;

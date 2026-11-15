@@ -15,9 +15,11 @@ import type { FileLink } from "../open-in.ts";
 import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
 import { useFilesViewerData } from "./data.tsx";
 import { useFileLinks } from "../links.ts";
+import { ConnectedBar } from "./ConnectedBar.tsx";
 import { FileMarkdownEditor } from "./FileMarkdownEditor.tsx";
 import {
   versionRows,
+  providerRevisionRows,
   boxesOf,
   nodeFor,
   docCommentsOf,
@@ -334,15 +336,46 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   };
   // History: the versions of the file, each one restorable (files.versions, files.restore_version); More: the file's link and name
   const openHistory = (x: number, y: number): void => {
-    void d.call("files.versions", { fileId }).then((out) => {
+    const provider = load.status === "ready" ? load.data.connected?.provider : undefined;
+    void Promise.all([
+      d.call("files.versions", { fileId }),
+      // the provider's own revisions of a file of a connected folder, listed with Vyre's versions; a provider that cannot be asked just leaves its group out
+      provider !== undefined
+        ? d.call("mounts.history", { fileId }).catch(() => ({ revisions: [] }))
+        : Promise.resolve({ revisions: [] }),
+    ]).then(([out, theirs]) => {
       const rows = versionRows(
         (out as { versions: { versionId: string; n: number; by: string; at: number; reason?: string }[] }).versions,
         d.name,
       );
+      const there = providerRevisionRows(
+        (theirs as { revisions: Parameters<typeof providerRevisionRows>[0] }).revisions,
+        d.name,
+        provider ?? "",
+      );
       accessMenu.show(
-        rows.length === 0
+        rows.length === 0 && there.length === 0
           ? [{ head: "No earlier versions yet." }]
           : [
+              ...(there.length > 0
+                ? [
+                    { head: `Kept at ${provider}. Pick one to put it back.` },
+                    ...there.map(
+                      (r): MenuEntry => ({
+                        label: r.label,
+                        ...(r.revisionId === null
+                          ? {}
+                          : {
+                              onSelect: () =>
+                                void d.call("mounts.restore", { fileId, revisionId: r.revisionId }).then(() => {
+                                  setNote("Put back. It goes out like any edit.");
+                                  setRev((x) => x + 1);
+                                }, say),
+                            }),
+                      }),
+                    ),
+                  ]
+                : []),
               { head: "Versions. Pick one to restore it." },
               ...rows.map(
                 (r): MenuEntry => ({
@@ -450,6 +483,22 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const path = d.pathOf?.(file.folderId);
   return (
     <View testID="file-viewer" accessibilityLabel={`Viewer, ${file.name}`} style={s.frame}>
+      {ready.data.connected ? (
+        <ConnectedBar
+          connected={ready.data.connected}
+          now={now}
+          onChoose={(choice) =>
+            void d.call("mounts.resolve", { fileId, choice }).then(() => {
+              setNote(
+                choice === "keep_both"
+                  ? "Both are kept. Your version is saved beside theirs."
+                  : "Theirs is the file now.",
+              );
+              setRev((x) => x + 1);
+            }, say)
+          }
+        />
+      ) : null}
       <Viewer
         key={`${fileId}:${layer.preview && layer.view?.text ? "agent" : "people"}`}
         fileId={fileId}
@@ -459,7 +508,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         kindLabel={kindLabel(file.name)}
         subtitle={subtitleOf(ready.data, now, path)}
         {...(mark !== undefined ? { kindMark: mark } : {})}
-        {...(app !== null || office || file.kind === "pdf" ? { readOnly: true } : {})}
+        {...(app !== null || office || file.kind === "pdf" || ready.data.connected?.viewOnly === true
+          ? { readOnly: true }
+          : {})}
         {...(office
           ? { noPreview: noPreviewWords(file.name) ?? "No preview of this file here. Open it in its own app." }
           : {})}

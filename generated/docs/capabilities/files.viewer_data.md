@@ -70,6 +70,20 @@ type Out = {
     exportedAt: number;
     editVia: "provider_api" | "open_in_provider";
   };
+  connected?: {
+    provider: string;
+    viewOnly?: boolean;
+    notSent?: {
+      reason: string;
+    };
+    changedThere?: {
+      by?: {
+        name?: string;
+        email?: string;
+      };
+      at?: number;
+    };
+  };
   canEdit: boolean;
   canMark: boolean;
   canComment: boolean;
@@ -98,6 +112,20 @@ type Out = {
     "canComment": true,
     "canEdit": true,
     "canMark": true,
+    "connected": {
+      "changedThere": {
+        "at": 1760000000000,
+        "by": {
+          "email": "example",
+          "name": "example"
+        }
+      },
+      "notSent": {
+        "reason": "example"
+      },
+      "provider": "example",
+      "viewOnly": true
+    },
     "file": {
       "conflict": true,
       "createdAt": 1760000000000,

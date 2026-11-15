@@ -857,3 +857,27 @@ test("F20: a Drive CSV of a few thousand rows, not fetched yet, opens through th
   const r = await call(ctx, "sheets.read_rows", { fileId: id });
   assert.equal(r.total, 4000);
 });
+
+test("viewer_data: a connected file the provider will not let this person change is view only before they type, and the connected line carries what is true of it there", async () => {
+  const { ctx, placeholder } = await drive(async (c, fileId) => {
+    await call(c, "files.write", { fileId, content: { text: CSV }, reason: "Fetched from Google Drive" });
+    return {
+      mounted: true,
+      fetched: true,
+      source: { cached: true, provider: "Google Drive", viewOnly: true, notSent: { reason: "Waiting." } },
+    };
+  });
+  const id = await placeholder("locked.csv", "text/csv");
+  const v = await call(ctx, "files.viewer_data", { fileId: id });
+  assert.equal(v.canEdit, false, "view only, before any edit");
+  assert.deepEqual(v.connected, { provider: "Google Drive", viewOnly: true, notSent: { reason: "Waiting." } });
+  // a file the provider says nothing against stays editable, and one outside any mount has no connected line
+  const open = await drive(async (c, fileId) => {
+    await call(c, "files.write", { fileId, content: { text: CSV }, reason: "Fetched" });
+    return { mounted: true, fetched: true, source: { cached: true, provider: "Google Drive" } };
+  });
+  const free = await open.placeholder("mine.csv", "text/csv");
+  const fv = await call(open.ctx, "files.viewer_data", { fileId: free });
+  assert.equal(fv.canEdit, true);
+  assert.deepEqual(fv.connected, { provider: "Google Drive" });
+});

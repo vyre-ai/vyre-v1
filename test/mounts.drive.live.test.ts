@@ -119,3 +119,121 @@ test("an edit saved in Vyre to a connected Drive file reaches Drive as a new rev
     await w.stop();
   }
 });
+
+test("a rename, a move, a delete and a restore made in Vyre reach Drive as the same files: ids stay, nothing is made, the Trash is Drive's own", async () => {
+  const { w, drive, mount, fileNamed, sync } = await bootDriveWorld("drvmove", (d) => {
+    d.put({ id: "d1", name: "Plan.txt", mimeType: "text/plain" }, "plan");
+    d.put({ id: "d2", name: "Notes.txt", mimeType: "text/plain" }, "notes");
+    d.put({ id: "dir1", name: "Reports", mimeType: "application/vnd.google-apps.folder" }, "");
+  });
+  try {
+    const added = await mount();
+    const plan = await fileNamed(added.folderId, "Plan.txt");
+    const notes = await fileNamed(added.folderId, "Notes.txt");
+    assert.ok(plan && notes);
+    const listed = await w.ok(MEMBER, "files.list", { section: "space", folder: added.folderId });
+    const reports = (listed.folders ?? []).find((f: { name: string }) => f.name === "Reports");
+    assert.ok(reports, `the Drive folder is a folder in Files: ${JSON.stringify(listed).slice(0, 300)}`);
+    const sent = (): number => drive.requests.filter((r) => r.method !== "GET").length;
+
+    await w.ok(MEMBER, "files.rename", { fileId: plan.fileId, name: "Plan 2026.txt", idempotencyKey: w.idem() });
+    await sync(added.mountId);
+    assert.equal(drive.files.get("d1")!.name, "Plan 2026.txt", "renamed at Drive");
+    assert.equal(drive.files.get("d1")!.head, 1, "a rename is not a new revision");
+
+    await w.ok(MEMBER, "files.move", {
+      fileId: notes.fileId,
+      toFolderId: reports.folderId,
+      idempotencyKey: w.idem(),
+    });
+    await sync(added.mountId);
+    assert.deepEqual(drive.files.get("d2")!.parents, ["dir1"], "moved at Drive, same file");
+
+    await w.ok(MEMBER, "files.delete", { fileId: plan.fileId, idempotencyKey: w.idem() });
+    await sync(added.mountId);
+    assert.equal(drive.files.get("d1")!.trashed, true, "in Drive's own Trash, not gone");
+    await w.ok(MEMBER, "files.restore", { fileId: plan.fileId, idempotencyKey: w.idem() });
+    await sync(added.mountId);
+    assert.equal(drive.files.get("d1")!.trashed, false, "taken back out of Drive's Trash");
+    await sync(added.mountId);
+
+    assert.deepEqual(drive.creates, [], "no file was ever made at Drive");
+    assert.equal(drive.files.size, 3);
+    const before = sent();
+    await sync(added.mountId);
+    assert.equal(sent(), before, "a pass with nothing changed sends nothing");
+    const row = await w.ok(MEMBER, "mounts.get", { mountId: added.mountId });
+    assert.equal(row.mount.state, "idle", String(row.mount.error ?? ""));
+  } finally {
+    await w.stop();
+  }
+});
+
+test("an edit made in Vyre to a file that changed at Drive is held: Drive is untouched, the choice is Keep both or Use theirs", async () => {
+  const { w, drive, mount, fileNamed, sync } = await bootDriveWorld("drvstale", (d) => {
+    d.put({ id: "d1", name: "Plan.txt", mimeType: "text/plain" }, "first words");
+  });
+  try {
+    const added = await mount();
+    const f = await fileNamed(added.folderId, "Plan.txt");
+    assert.ok(f);
+    await w.ok(MEMBER, "files.read", { fileId: f.fileId });
+    await w.ok(MEMBER, "files.write", {
+      fileId: f.fileId,
+      content: { text: "my words" },
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
+    drive.elsewhere("d1", "kim's words"); // Kim saves at Drive after the listing
+    await sync(added.mountId);
+    assert.equal(drive.text("d1"), "kim's words", "Drive was not overwritten");
+    assert.deepEqual(drive.creates, []);
+    const opened = await w.ok(MEMBER, "mounts.open", { fileId: f.fileId });
+    assert.equal(opened.source.conflict, true);
+    assert.equal(opened.source.changedThere.by.name, "Kim Ito", "who changed it there");
+    assert.ok(opened.source.changedThere.at > 0, "and when");
+
+    const done = await w.ok(MEMBER, "mounts.resolve", { fileId: f.fileId, choice: "keep_both" });
+    assert.equal(done.resolved, true);
+    assert.match(done.copyName, /^Plan \(.+'s edit\)\.txt$/);
+    const copy = drive.byName(done.copyName);
+    assert.ok(copy, "the person's version is saved beside it at Drive");
+    assert.equal(drive.text(copy.id), "my words");
+    assert.equal(drive.text("d1"), "kim's words", "their file is still theirs");
+    const read = await w.ok(MEMBER, "files.read", { fileId: f.fileId });
+    assert.equal(read.text, "kim's words", "the file in Vyre is their version now");
+  } finally {
+    await w.stop();
+  }
+});
+
+test("a Drive file the person may not edit opens as view only before they type; a mount made Read only never sends", async () => {
+  const { w, drive, mount, fileNamed, sync } = await bootDriveWorld("drvview", (d) => {
+    d.put({ id: "d1", name: "Locked.txt", mimeType: "text/plain", canEdit: false }, "theirs");
+    d.put({ id: "d2", name: "Mine.txt", mimeType: "text/plain" }, "mine");
+  });
+  try {
+    const added = await mount({ readOnly: true });
+    const locked = await fileNamed(added.folderId, "Locked.txt");
+    const mine = await fileNamed(added.folderId, "Mine.txt");
+    assert.ok(locked && mine);
+    const a = await w.ok(MEMBER, "mounts.open", { fileId: locked.fileId });
+    assert.equal(a.source.viewOnly, true);
+    const row = await w.ok(MEMBER, "mounts.get", { mountId: added.mountId });
+    assert.equal(row.mount.readOnly, true);
+    await w.ok(MEMBER, "files.read", { fileId: mine.fileId });
+    await w.ok(MEMBER, "files.write", {
+      fileId: mine.fileId,
+      content: { text: "changed" },
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
+    await sync(added.mountId);
+    assert.equal(drive.text("d2"), "mine", "a Read only folder sends nothing");
+    await w.ok(OWNER, "mounts.update", { mountId: added.mountId, pullOnly: false });
+    const b = await w.ok(MEMBER, "mounts.open", { fileId: locked.fileId });
+    assert.equal(b.source.viewOnly, true, "a file the provider locks stays view only even in a two-way folder");
+  } finally {
+    await w.stop();
+  }
+});
