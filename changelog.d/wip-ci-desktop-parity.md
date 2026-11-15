@@ -1,0 +1,1 @@
+- An agent's reply on a computer that keeps its engine running between turns no longer starts with two blank lines from the second turn on.

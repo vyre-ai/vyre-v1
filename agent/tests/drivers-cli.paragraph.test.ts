@@ -56,3 +56,15 @@ test("words of one message stay as they are, and a first message has no leading 
   ];
   assert.equal(texts(out), "Hello.");
 });
+
+test("a warm session's next turn starts clean: the first words of the second turn have no leading break", () => {
+  const d = createClaudeDecoder();
+  const delta = (t: string): string =>
+    line({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: t } } });
+  const start = (id: string): string =>
+    line({ type: "stream_event", event: { type: "message_start", message: { id } } });
+  const end = line({ type: "result", subtype: "success", is_error: false, result: "x", session_id: "s" });
+  const turn = (id: string, t: string) => [...d.push(start(id)), ...d.push(delta(t)), ...d.push(end)];
+  assert.equal(texts(turn("m1", "One.")), "One.");
+  assert.equal(texts(turn("m2", "Two.")), "Two.");
+});

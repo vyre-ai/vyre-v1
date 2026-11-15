@@ -306,6 +306,8 @@ export function createClaudeDecoder(): CliDecoder {
     perMessage.clear();
     current = "";
     sawText = false;
+    // a warm engine session carries on to the next turn with this decoder: that turn's first words are a first message, with no break before them
+    wroteIn = "";
     lastContext = 0;
     if (!failed) {
       out.push({ type: "end" });
