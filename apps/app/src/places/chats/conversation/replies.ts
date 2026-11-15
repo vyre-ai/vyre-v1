@@ -1,6 +1,6 @@
 // The line under a message that has a thread (audit Threads 3): who replied, how many, when the last one came, bold while something in it is new to me. Read from the threads hanging
 // off the chat (threads.list by parent), one read per chat, live. Pure: the view draws what these functions return.
-import { whenLabel } from "./model.ts";
+import { whenLabel } from "./chat-time.ts";
 import type { Clock } from "../rightpane/model.ts";
 
 export interface ReplyFace {

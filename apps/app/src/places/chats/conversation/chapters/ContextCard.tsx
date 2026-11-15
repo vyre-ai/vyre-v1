@@ -53,6 +53,7 @@ export function ContextCard({ meters, keepEvery, onCompact, onKnows }: ContextCa
       <Text accessibilityRole="header" style={st.title}>
         Context
       </Text>
+      {/* ui-rows-lint: not a list (meters, each a bar with its figure, not list rows) */}
       {meters.map((m) => (
         <View key={m.key} testID={`context-meter-${m.key}`} style={st.meter}>
           <View style={st.meterHead}>

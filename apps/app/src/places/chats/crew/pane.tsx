@@ -582,6 +582,7 @@ export function CrewPeek({
       member.state === "needs_you" ? (
         <Text style={st.section}>Steps</Text>
       ) : null}
+      {/* ui-rows-lint: not a list (the steps of one agent's plan on a timeline of dots, not list rows) */}
       {own
         ? (member.steps ?? []).map((x, i) => (
             <View key={`${i}-${x}`} testID={`crew-step-${i}`} style={st.step}>
