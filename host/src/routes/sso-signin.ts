@@ -3,6 +3,7 @@
 // ticket in the URL FRAGMENT (never logged). The app then calls identity.sso_sign_in {provider, code: ticket}. The ticket names a verified address at the firm's domain and nothing else; who that is,
 // and whether they may sign in, is decided there. The return address is the Space's own origin or a loopback address.
 import http from "node:http";
+import { NO_ADDRESS } from "./own-origin.ts";
 import {
   authorizeUrl,
   createJwksCache,
@@ -87,6 +88,8 @@ export interface SsoSignInRouteDeps {
   /** the addresses a name resolves to, for a provider whose issuer an admin typed; only a test replaces it */
   resolve?: (host: string) => Promise<string[]>;
   tickets: SsoTickets;
+  /** the Space's own address for this request (routes/own-origin.ts), never read from the Host header */
+  origin: (req: http.IncomingMessage) => string | null;
   now?: () => number;
   /** bind a provider identity to a signed-in person who started from Connect your company; false when it is someone else's */
   bind?: (key: string, who: { email: string; link: SsoLink }, person: string) => boolean;
@@ -125,13 +128,6 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): {
     string,
     { key: string; ret: string; nonce: string; verifier: string; disc: Discovery; exp: number; person?: string }
   >();
-  const origin = (req: http.IncomingMessage): string => {
-    const proto =
-      String(req.headers["x-forwarded-proto"] ?? "")
-        .split(",")[0]
-        ?.trim() || ((req.socket as { encrypted?: boolean }).encrypted ? "https" : "http");
-    return `${proto === "https" ? "https" : "http"}://${req.headers.host ?? "localhost"}`;
-  };
   const allowedReturn = (own: string, ret: string): string | null => {
     try {
       const u = new URL(ret);
@@ -155,7 +151,8 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): {
     if (!found || !pin || "error" in pin) return page(res, 503, "That sign-in is not set up on this server.");
     const provider = { ...found, issuer: pin.issuer };
     const fetch = pin.free ? guardAddresses(deps.fetch, deps.resolve) : deps.fetch; // an issuer an admin typed is never dialled at a private address
-    const own = origin(req);
+    const own = deps.origin(req);
+    if (own === null) return page(res, 503, NO_ADDRESS);
     const redirect = `${own}${PATH}/${key}/callback`;
     for (const [k, v] of states) if (v.exp < now()) states.delete(k);
     if (leg === "start") {
