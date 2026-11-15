@@ -105,22 +105,22 @@ if (g816 === 'object') { const o816 = x816 as Record<string, unknown>;
 
 function d_s_f0bc3ddf95(v: unknown, p: string, e: string[]): void {
 {
-const x1211 = v;
-const g1211 = typeOf(x1211);
-const b1211: string[] = []; lf(x1211, p, b1211, L0); if (b1211.length) e.push(...b1211);
-if (g1211 === "object") {
-if (g1211 === 'object') { const o1211 = x1211 as Record<string, unknown>;
-if ("person" in o1211) lf(o1211["person"], p + "/person", e, L1);
-if ("agent" in o1211) lf(o1211["agent"], p + "/agent", e, L1);
-if ("place" in o1211) lf(o1211["place"], p + "/place", e, L1);
-if ("recordId" in o1211) lf(o1211["recordId"], p + "/recordId", e, L28);
-if ("runId" in o1211) lf(o1211["runId"], p + "/runId", e, L34);
-if ("traceId" in o1211) lf(o1211["traceId"], p + "/traceId", e, L79);
-if ("cap" in o1211) lf(o1211["cap"], p + "/cap", e, L1);
-if ("level" in o1211) lf(o1211["level"], p + "/level", e, L329);
-if ("result" in o1211) lf(o1211["result"], p + "/result", e, L1);
-if ("sinceMs" in o1211) lf(o1211["sinceMs"], p + "/sinceMs", e, L17);
-if ("untilMs" in o1211) lf(o1211["untilMs"], p + "/untilMs", e, L17);
+const x1205 = v;
+const g1205 = typeOf(x1205);
+const b1205: string[] = []; lf(x1205, p, b1205, L0); if (b1205.length) e.push(...b1205);
+if (g1205 === "object") {
+if (g1205 === 'object') { const o1205 = x1205 as Record<string, unknown>;
+if ("person" in o1205) lf(o1205["person"], p + "/person", e, L1);
+if ("agent" in o1205) lf(o1205["agent"], p + "/agent", e, L1);
+if ("place" in o1205) lf(o1205["place"], p + "/place", e, L1);
+if ("recordId" in o1205) lf(o1205["recordId"], p + "/recordId", e, L28);
+if ("runId" in o1205) lf(o1205["runId"], p + "/runId", e, L34);
+if ("traceId" in o1205) lf(o1205["traceId"], p + "/traceId", e, L79);
+if ("cap" in o1205) lf(o1205["cap"], p + "/cap", e, L1);
+if ("level" in o1205) lf(o1205["level"], p + "/level", e, L329);
+if ("result" in o1205) lf(o1205["result"], p + "/result", e, L1);
+if ("sinceMs" in o1205) lf(o1205["sinceMs"], p + "/sinceMs", e, L17);
+if ("untilMs" in o1205) lf(o1205["untilMs"], p + "/untilMs", e, L17);
 }
 }
 }

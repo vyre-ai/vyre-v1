@@ -474,25 +474,25 @@ if ("id" in o958) lf(o958["id"], p + "/id", e, L1);
 
 function d_s_f51723b25a(v: unknown, p: string, e: string[]): void {
 {
-const x1225 = v;
-const g1225 = typeOf(x1225);
-const b1225: string[] = []; lf(x1225, p, b1225, L4); if (b1225.length) e.push(...b1225);
-if (g1225 === "array") {
-if (g1225 === 'array') { const a1225 = x1225 as unknown[];
-for (let i1225 = 0; i1225 < a1225.length; i1225++) {
+const x1219 = v;
+const g1219 = typeOf(x1219);
+const b1219: string[] = []; lf(x1219, p, b1219, L4); if (b1219.length) e.push(...b1219);
+if (g1219 === "array") {
+if (g1219 === 'array') { const a1219 = x1219 as unknown[];
+for (let i1219 = 0; i1219 < a1219.length; i1219++) {
 {
-const x1226 = a1225[i1225];
-const g1226 = typeOf(x1226);
-const b1226: string[] = []; lf(x1226, p + '/' + i1225, b1226, L0); if (b1226.length) e.push(...b1226);
-if (g1226 === "object") {
-if (g1226 === 'object') { const o1226 = x1226 as Record<string, unknown>;
-if (!("kind" in o1226)) e.push(p + '/' + i1225 + "/kind" + ': required');
-if (!("id" in o1226)) e.push(p + '/' + i1225 + "/id" + ': required');
-if (!("inChat" in o1226)) e.push(p + '/' + i1225 + "/inChat" + ': required');
-if ("kind" in o1226) lf(o1226["kind"], p + '/' + i1225 + "/kind", e, L419);
-if ("id" in o1226) lf(o1226["id"], p + '/' + i1225 + "/id", e, L1);
-if ("inChat" in o1226) lf(o1226["inChat"], p + '/' + i1225 + "/inChat", e, L3);
-if ("error" in o1226) lf(o1226["error"], p + '/' + i1225 + "/error", e, L1);
+const x1220 = a1219[i1219];
+const g1220 = typeOf(x1220);
+const b1220: string[] = []; lf(x1220, p + '/' + i1219, b1220, L0); if (b1220.length) e.push(...b1220);
+if (g1220 === "object") {
+if (g1220 === 'object') { const o1220 = x1220 as Record<string, unknown>;
+if (!("kind" in o1220)) e.push(p + '/' + i1219 + "/kind" + ': required');
+if (!("id" in o1220)) e.push(p + '/' + i1219 + "/id" + ': required');
+if (!("inChat" in o1220)) e.push(p + '/' + i1219 + "/inChat" + ': required');
+if ("kind" in o1220) lf(o1220["kind"], p + '/' + i1219 + "/kind", e, L419);
+if ("id" in o1220) lf(o1220["id"], p + '/' + i1219 + "/id", e, L1);
+if ("inChat" in o1220) lf(o1220["inChat"], p + '/' + i1219 + "/inChat", e, L3);
+if ("error" in o1220) lf(o1220["error"], p + '/' + i1219 + "/error", e, L1);
 }
 }
 }

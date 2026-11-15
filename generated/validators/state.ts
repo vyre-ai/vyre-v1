@@ -128,18 +128,18 @@ if ("scope" in o332) lf(o332["scope"], p + "/scope", e, L1);
 
 function d_s_ed224ca2c6(v: unknown, p: string, e: string[]): void {
 {
-const x1184 = v;
-const g1184 = typeOf(x1184);
-const b1184: string[] = []; lf(x1184, p, b1184, L0); if (b1184.length) e.push(...b1184);
-if (g1184 === "object") {
-if (g1184 === 'object') { const o1184 = x1184 as Record<string, unknown>;
-if (!("key" in o1184)) e.push(p + "/key" + ': required');
-if (!("value" in o1184)) e.push(p + "/value" + ': required');
-if (!("version" in o1184)) e.push(p + "/version" + ': required');
-if (!("at" in o1184)) e.push(p + "/at" + ': required');
-if ("key" in o1184) lf(o1184["key"], p + "/key", e, L1);
-if ("version" in o1184) lf(o1184["version"], p + "/version", e, L17);
-if ("at" in o1184) lf(o1184["at"], p + "/at", e, L17);
+const x1178 = v;
+const g1178 = typeOf(x1178);
+const b1178: string[] = []; lf(x1178, p, b1178, L0); if (b1178.length) e.push(...b1178);
+if (g1178 === "object") {
+if (g1178 === 'object') { const o1178 = x1178 as Record<string, unknown>;
+if (!("key" in o1178)) e.push(p + "/key" + ': required');
+if (!("value" in o1178)) e.push(p + "/value" + ': required');
+if (!("version" in o1178)) e.push(p + "/version" + ': required');
+if (!("at" in o1178)) e.push(p + "/at" + ': required');
+if ("key" in o1178) lf(o1178["key"], p + "/key", e, L1);
+if ("version" in o1178) lf(o1178["version"], p + "/version", e, L17);
+if ("at" in o1178) lf(o1178["at"], p + "/at", e, L17);
 }
 }
 }
