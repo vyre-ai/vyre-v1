@@ -55,7 +55,10 @@ const behindMore = (m: Message, mine: boolean, a: MessageActions = acts): string
 const agentMsg = (): Message => msg({ author: { kind: "agent", id: "agt_mira" }, kind: "agent" });
 
 test("someone else's message: the short list in sentence case, and More only where there is something behind it; nothing in Title Case", () => {
-  assert.equal(shape(msg(), false), "Copy,Reply in thread,Add reaction,Pin,Make a task,Share to\u2026,Fork from here,More");
+  assert.equal(
+    shape(msg(), false),
+    "Copy,Reply in thread,Add reaction,Pin,Make a task,Share to\u2026,Fork from here,More",
+  );
   for (const l of shape(msg(), false).split(",")) assert.ok(l === "|" || !/\b[A-Z][a-z]+ [A-Z][a-z]+/.test(l), l);
 });
 
@@ -72,9 +75,15 @@ test("your own message: Edit and Delete are in the short list, Delete last befor
     shape(m, true),
     "Copy,Reply in thread,Add reaction,Pin,Make a task,Share to\u2026,Fork from here,Edit,Delete,More",
   );
-  const del = menuFor(m, true, acts, () => undefined).find((e) => "label" in e && e.label === "Delete") as { danger?: boolean };
+  const del = menuFor(m, true, acts, () => undefined).find((e) => "label" in e && e.label === "Delete") as {
+    danger?: boolean;
+  };
   assert.equal(del.danger, true);
-  assert.deepEqual(behindMore(m, true), [], "nothing else is behind More here but Report a problem, which the menu adds");
+  assert.deepEqual(
+    behindMore(m, true),
+    [],
+    "nothing else is behind More here but Report a problem, which the menu adds",
+  );
 });
 
 test("the words follow the state and every item calls what it says", () => {
@@ -253,13 +262,22 @@ test("Memory is one row that opens Remember This, Add to a Page and Forget This;
   const shown: Array<{ items: string[]; source: string | undefined; label: string }> = [];
   const withMemory = {
     ...(acts as object),
-    memoryEntries: () => [{ separator: true }, { label: "Remember This" }, { label: "Add to a Page\u2026" }, { label: "Forget This" }],
+    memoryEntries: () => [
+      { separator: true },
+      { label: "Remember This" },
+      { label: "Add to a Page\u2026" },
+      { label: "Forget This" },
+    ],
     showMenu: (items: readonly MenuEntry[], _x: number, _y: number, label: string, source?: string) =>
       shown.push({ items: items.map(word), source, label }),
   } as unknown as MessageActions;
   const top = menuFor(msg(), false, withMemory, () => undefined);
   assert.ok(top.map(word).includes("Memory") && !top.map(word).includes("Remember This"));
   (top.find((e) => "label" in e && e.label === "Memory") as { onSelect(): void }).onSelect();
-  assert.deepEqual(shown[0], { items: ["Remember This", "Add to a Page\u2026", "Forget This"], source: "other", label: "Memory" });
+  assert.deepEqual(shown[0], {
+    items: ["Remember This", "Add to a Page\u2026", "Forget This"],
+    source: "other",
+    label: "Memory",
+  });
   assert.ok(!top.map(word).includes("Report a problem"));
 });

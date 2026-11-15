@@ -120,7 +120,9 @@ test("every message in a channel, yours or someone else's, has Ask an agent… i
     menuFor(theirs, mine, acts, () => undefined, { x: 0, y: 0 }, true).flatMap((e) => ("label" in e ? [e.label] : []));
   assert.ok(labels(false, a).includes("Ask an agent…"));
   assert.ok(labels(true, a).includes("Ask an agent…"));
-  const entry = menuFor(theirs, false, a, () => undefined, { x: 0, y: 0 }, true).find((e) => "label" in e && e.label === "Ask an agent…") as {
+  const entry = menuFor(theirs, false, a, () => undefined, { x: 0, y: 0 }, true).find(
+    (e) => "label" in e && e.label === "Ask an agent…",
+  ) as {
     onSelect(): void;
   };
   entry.onSelect();

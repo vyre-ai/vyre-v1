@@ -156,7 +156,11 @@ test("a person's typing goes only to other people who may read that chat, never 
   const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
   h.typing!("usr_mia", "thr_1");
   await settle();
-  assert.deepEqual(sent[0]?.to, ["usr_sam"], "Sam only: not Mia herself, not the guest who cannot read it, not an agent");
+  assert.deepEqual(
+    sent[0]?.to,
+    ["usr_sam"],
+    "Sam only: not Mia herself, not the guest who cannot read it, not an agent",
+  );
   assert.deepEqual(sent[0]?.frame, { t: "typing", threadId: "thr_1", person: "usr_mia" });
   h.typing!("usr_mia", "thr_1");
   await settle();

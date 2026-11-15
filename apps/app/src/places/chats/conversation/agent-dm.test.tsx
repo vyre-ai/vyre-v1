@@ -168,6 +168,8 @@ test("an approval with no capability behind it is drawn as its plain words, and 
   const { heldOf } = await import("./approval-model.ts");
   const empty = heldOf([{ type: "table", data: { cap: "", act: "", rows: [] } }]);
   assert.deepEqual([empty.cap, empty.plain, empty.what, empty.outward], ["", undefined, undefined, undefined]);
-  const plain = heldOf([{ type: "table", data: { cap: "", act: "", plain: true, ask: { what: "approve the discount" } } }]);
+  const plain = heldOf([
+    { type: "table", data: { cap: "", act: "", plain: true, ask: { what: "approve the discount" } } },
+  ]);
   assert.equal(plain.plain, true);
 });
