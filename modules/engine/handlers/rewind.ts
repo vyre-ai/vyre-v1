@@ -122,8 +122,9 @@ function turnRunning(ctx: EngineCtx, threadId: string, agentId: string): boolean
 
 async function placementOf(ctx: EngineCtx, threadId: string, agentId: string): Promise<string | undefined> {
   try {
-    return ((await ctx.call("engine.placement.decide", { threadId, agentId, kind: "message" })) as { placement?: string })
-      .placement;
+    return (
+      (await ctx.call("engine.placement.decide", { threadId, agentId, kind: "message" })) as { placement?: string }
+    ).placement;
   } catch {
     return undefined;
   }
@@ -220,7 +221,9 @@ function activeIn(ctx: EngineCtx, threadId: string, who: string): ActiveRewind[]
 /** At start-up: a rewind row still "going back" was cut short (the host stopped between the files and the chat). The row is kept and shown with Undo (activeIn); nothing is hidden for it. Returns how many. */
 export function interruptedCount(ctx: EngineCtx): number {
   try {
-    return (ctx.db.all("SELECT COUNT(*) AS n FROM engine_rewind WHERE state = 'going back'") as Array<Record<string, unknown>>)[0]?.["n"] as number;
+    return (
+      ctx.db.all("SELECT COUNT(*) AS n FROM engine_rewind WHERE state = 'going back'") as Array<Record<string, unknown>>
+    )[0]?.["n"] as number;
   } catch {
     return 0;
   }
@@ -291,11 +294,14 @@ export async function rewindIn(
   } else {
     const msgId = /^(?:turn|during) \S+ (\S+)$/.exec(point!.label)?.[1];
     if (!msgId) raise(ctx, "validation.not_found", "That point is not in this chat.");
-    const msg = ((await ctx.call("chat.message.get", { threadId: input.threadId, messageId: msgId })) as {
-      message?: { threadSeq: number; author: { id: string }; threadId?: string };
-    }).message;
+    const msg = (
+      (await ctx.call("chat.message.get", { threadId: input.threadId, messageId: msgId })) as {
+        message?: { threadSeq: number; author: { id: string }; threadId?: string };
+      }
+    ).message;
     if (!msg) raise(ctx, "validation.not_found", "That point is not in this chat.");
-    if (msg!.author.id !== who) raise(ctx, "validation.precondition_failed", "You can only go back to your own message.");
+    if (msg!.author.id !== who)
+      raise(ctx, "validation.precondition_failed", "You can only go back to your own message.");
     const list = (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 5 })) as {
       messages: Array<{ threadSeq: number }>;
     };
@@ -322,7 +328,14 @@ export async function rewindIn(
     )?.lastInsertRowid ?? 0,
   );
   await deps.beforeRestore?.();
-  const r = await restore({ gitDir, workDir: dir, sha, now: ctx.now(), already: undoPoint, ...(deps.rm ? { rm: deps.rm } : {}) });
+  const r = await restore({
+    gitDir,
+    workDir: dir,
+    sha,
+    now: ctx.now(),
+    already: undoPoint,
+    ...(deps.rm ? { rm: deps.rm } : {}),
+  });
   // 4. the chat: the old row goes, the messages are folded (a rewind) or read again (an Undo), and the new row is finished
   try {
     for (const u of undone) ctx.db.run("DELETE FROM engine_rewind WHERE rowid = ?", u.rowid);

@@ -129,14 +129,28 @@ async function namedSecrets(gitDir: string, workDir: string): Promise<string[]> 
 }
 /** Paths of the index whose content is a secret's shape (a private key, a service-account key, a vendor token), in files of any name. Binary files are not read. */
 async function contentSecrets(gitDir: string, workDir: string): Promise<string[]> {
-  const args = ["grep", "--cached", "-l", "-I", "-z", "--no-color", "-E", ...SECRET_CONTENT_ERE.flatMap((e) => ["-e", e])];
+  const args = [
+    "grep",
+    "--cached",
+    "-l",
+    "-I",
+    "-z",
+    "--no-color",
+    "-E",
+    ...SECRET_CONTENT_ERE.flatMap((e) => ["-e", e]),
+  ];
   const r = await git(["--git-dir", gitDir, "--work-tree", workDir, ...IDENTITY, ...args], workDir);
   if (r.code !== 0 && r.code !== 1) return []; // 1 is "no match"
   return r.out.split("\0").filter(Boolean);
 }
 async function unstage(gitDir: string, workDir: string, files: readonly string[]): Promise<void> {
   for (let i = 0; i < files.length; i += 100)
-    await run(gitDir, workDir, ["rm", "--cached", "-q", "-f", "--ignore-unmatch", "--", ...files.slice(i, i + 100)], "A secret could not be left out");
+    await run(
+      gitDir,
+      workDir,
+      ["rm", "--cached", "-q", "-f", "--ignore-unmatch", "--", ...files.slice(i, i + 100)],
+      "A secret could not be left out",
+    );
 }
 
 /**
@@ -195,7 +209,13 @@ export async function points(o: { gitDir: string; workDir: string; limit?: numbe
     const m = /refs\/points\/(\d+)-(\d+)-\d+$/.exec(ref ?? "");
     if (!sha || !m) continue;
     const label = rest.join("\t");
-    list.push({ sha, at: Number(m[1]), label, files: Number(m[2]), ...(label.startsWith("during ") ? { during: true } : {}) });
+    list.push({
+      sha,
+      at: Number(m[1]),
+      label,
+      files: Number(m[2]),
+      ...(label.startsWith("during ") ? { during: true } : {}),
+    });
   }
   return list;
 }
@@ -234,7 +254,8 @@ export async function restore(o: {
   // only a point that is still kept: a made-up commit, or one pruned since, is not here
   if (!(await points({ gitDir: o.gitDir, workDir: o.workDir, limit: 1000 })).some((p) => p.sha === o.sha))
     throw new GitError("validation.bad_input", "That point is not here any more.");
-  const undoPoint = o.already ?? (await snapshot({ gitDir: o.gitDir, workDir: o.workDir, label: "Before going back", now: o.now }));
+  const undoPoint =
+    o.already ?? (await snapshot({ gitDir: o.gitDir, workDir: o.workDir, label: "Before going back", now: o.now }));
   return inOrder(o.gitDir, async () => {
     // what turns the folder as it is now (the point just taken) into the folder at `sha`: one line per path, ":<mode1> <mode2> <blob1> <blob2> <status>\0<path>\0"
     const raw = (
@@ -425,7 +446,8 @@ export function prune(o: {
         for (const r of ref.split("\n").filter(Boolean))
           await run(o.gitDir, o.workDir, ["update-ref", "-d", r], "The point could not be removed");
       }
-      if (o.cheap !== true) await git(["--git-dir", o.gitDir, "gc", "--prune=now", "--quiet"], o.workDir).catch(() => undefined);
+      if (o.cheap !== true)
+        await git(["--git-dir", o.gitDir, "gc", "--prune=now", "--quiet"], o.workDir).catch(() => undefined);
       return drop.length;
     } catch {
       return 0;

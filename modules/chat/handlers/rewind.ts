@@ -61,9 +61,7 @@ export async function chatRewind(ctx: ChatCtx, input: { threadId: string; pointI
           title: point?.after ? `To ${when} "${point.after}"` : "To an earlier point",
           sub: `${said}. ${LEAVES}`,
         },
-    done.undid
-      ? "Came back to where you were"
-      : `Went back${point?.after ? ` to ${when} "${point.after}"` : ""}`,
+    done.undid ? "Came back to where you were" : `Went back${point?.after ? ` to ${when} "${point.after}"` : ""}`,
   );
   return {
     restored: done.restored,
