@@ -132,3 +132,26 @@ test("a save by someone who did not connect the folder says whose connection wri
     await w.stop();
   }
 });
+
+test("a pass the scheduler starts leaves a fresh edit for its quiet time (one revision for a long edit); the person's Sync now sends at once", async () => {
+  const { w, drive, mount, fileNamed } = await bootDriveWorld("drvquiet", (d) => {
+    d.put({ id: "d1", name: "Plan.txt", mimeType: "text/plain" }, "first words");
+  });
+  try {
+    const added = await mount();
+    const f = await fileNamed(added.folderId, "Plan.txt");
+    assert.ok(f);
+    await w.ok(MEMBER, "files.read", { fileId: f.fileId });
+    for (const t of ["one", "two", "three"]) {
+      await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: t }, reason: "Edit", idempotencyKey: w.idem() });
+    }
+    await w.d.hooks?.pump?.();
+    await w.ok(MEMBER, "mounts.sync_now", { mountId: added.mountId, auto: true, idempotencyKey: w.idem() });
+    assert.equal(drive.files.get("d1")!.head, 1, "an edit made a moment ago is not sent by a scheduled pass");
+    await w.ok(MEMBER, "mounts.sync_now", { mountId: added.mountId, idempotencyKey: w.idem() });
+    assert.equal(drive.text("d1"), "three", "Sync now sends it");
+    assert.equal(drive.files.get("d1")!.head, 2, "one revision for three saves");
+  } finally {
+    await w.stop();
+  }
+});

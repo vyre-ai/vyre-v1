@@ -123,10 +123,11 @@ export function onVersionAdded(tx: ProjTx, e: ProjEvent): void {
   const synced = typeof row["synced_version"] === "number" ? row["synced_version"] : 0;
   if (n <= synced) return;
   tx.run(
-    "UPDATE mounts_item SET local_version = ?, dirty = ?, dirty_by = ? WHERE mount_id = ? AND item_key = ?",
+    "UPDATE mounts_item SET local_version = ?, dirty = ?, dirty_by = ?, dirty_at = ? WHERE mount_id = ? AND item_key = ?",
     n,
     1,
     e.actor,
+    e.at,
     row["mount_id"],
     row["item_key"],
   );

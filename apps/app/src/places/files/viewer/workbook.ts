@@ -77,6 +77,7 @@ export function useWorkbook(
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const busy = useRef(false);
   const again = useRef(false);
+  const flushRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const gridRef = useRef<Grid | null>(null);
 
   useEffect(() => {
@@ -126,7 +127,12 @@ export function useWorkbook(
     })();
     return () => {
       live = false;
-      if (timer.current) clearTimeout(timer.current);
+      // leaving the file with a change waiting sends it now, not after the pause
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+        void flushRef.current();
+      }
     };
   }, [d, fileId, on, bump, gs?.text, meta.size]);
 
@@ -220,6 +226,7 @@ export function useWorkbook(
     }
   }, [d, fileId, say, version, gs]);
 
+  flushRef.current = flush;
   const changed = useCallback((): void => {
     setRev((x) => x + 1);
     if (timer.current) clearTimeout(timer.current);

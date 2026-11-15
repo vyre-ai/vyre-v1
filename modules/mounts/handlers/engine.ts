@@ -781,7 +781,12 @@ interface Pushed {
   held: number;
   errors: string[];
   kept: number;
+  /** an edit waits for its quiet time before it goes out: when the earliest of them is due */
+  quietUntil?: number;
 }
+
+/** An edit made in Vyre goes to the provider after this long without another one (a pass the scheduler starts), so a long edit is one revision there. */
+export const PUSH_QUIET_MS = 30_000;
 
 /** The name a Vyre edit is kept under when the file moved on at the provider: "Report (Noah's edit).docx". */
 function copyName(name: string, who: string): string {
@@ -804,7 +809,7 @@ const depthOf = (rows: readonly Row[], row: Row): number => {
   return d;
 };
 
-async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): Promise<Pushed> {
+async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[], quiet = false): Promise<Pushed> {
   const res: Pushed = { pushed: 0, held: 0, errors: [], kept: 0 };
   if (!provider.pushes || m.pullOnly) return res;
   const label = provider.label;
@@ -905,6 +910,12 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
     }
     const parent = parentRemote(f);
     if (parent === undefined || !provider.upload) continue;
+    // a scheduled pass leaves an edit to a file already at the provider until it has been quiet for a while; the person's Sync now, and leaving the file, send it at once
+    if (quiet && !isNull(f["remote_id"]) && !isNull(f["dirty_at"]) && ctx.now() - num(f["dirty_at"]) < PUSH_QUIET_MS) {
+      const due = num(f["dirty_at"]) + PUSH_QUIET_MS;
+      res.quietUntil = res.quietUntil === undefined ? due : Math.min(res.quietUntil, due);
+      continue;
+    }
     try {
       const remoteId = isNull(f["remote_id"]) ? undefined : str(f["remote_id"]);
       // a change to a file that already exists there is sent with the version it was based on
@@ -1134,7 +1145,7 @@ async function scheduleNext(ctx: Ctx, row: Row): Promise<void> {
   // a pass already queued sooner than that stays; one queued later (the app just arrived) is overtaken
   if (!isNull(row["next_sync_at"]) && num(row["next_sync_at"]) > now && num(row["next_sync_at"]) <= at) return;
   try {
-    await ctx.schedule(at, "mounts.sync_now", { mountId: str(row["id"]) });
+    await ctx.schedule(at, "mounts.sync_now", { mountId: str(row["id"]), auto: true });
     patchMount(ctx, row, { next_sync_at: at });
   } catch {
     // no scheduler: the next sync is a person's Sync now
@@ -1181,7 +1192,7 @@ async function ensureWatch(ctx: Ctx, row: Row, m: MountRec, provider: Provider):
 /** Mounts with a pass already waiting behind the running one: a burst of push notices needs one more pass, not one each. */
 const queued = new Set<string>();
 
-async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
+async function runPass(ctx: Ctx, mountId: string, quiet = false): Promise<PassResult> {
   return exclusive(`mount:${mountId}`, async () => {
     queued.delete(mountId);
     const row = mountRow(ctx, mountId);
@@ -1203,6 +1214,7 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     let pushed = 0;
     let held = 0;
     let kept = 0;
+    let quietUntil: number | undefined;
     const errors: string[] = [];
     let skippedNow: Skipped[] = [];
     let skippedKnown = false;
@@ -1297,7 +1309,8 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
         );
         skippedKnown = true;
         if (batch.cursor !== undefined) patchMount(ctx, row, { cursor: batch.cursor });
-        const sent = await pushAll(ctx, m, provider, rows);
+        const sent = await pushAll(ctx, m, provider, rows, quiet);
+        if (sent.quietUntil !== undefined) quietUntil = sent.quietUntil;
         pushed = sent.pushed;
         held = sent.held;
         kept = sent.kept;
@@ -1344,6 +1357,14 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
       ms: Math.max(0, now - started),
     });
     await ensureWatch(ctx, row, recOf(row), provider);
+    if (quietUntil !== undefined) {
+      // an edit is waiting for its quiet time: the pass after it sends it
+      try {
+        await ctx.schedule(quietUntil + 500, "mounts.sync_now", { mountId: m.id, auto: true });
+      } catch {
+        /* the next scheduled pass does it */
+      }
+    }
     if (kept > 0) {
       // a Vyre edit was kept as a copy: one more pass brings in the provider's version and the copy
       try {
@@ -1712,7 +1733,7 @@ async function mountsSyncNow(ctx: Ctx, input: unknown): Promise<{ runId: string 
       "validation.precondition_failed",
       "A folder on your computer syncs when that computer reports. Turn the computer on and open Vyre there.",
     );
-  await runPass(ctx, mountId);
+  await runPass(ctx, mountId, o["auto"] === true);
   return { runId: ctx.run ?? nid(ctx, "run") };
 }
 

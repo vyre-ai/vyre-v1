@@ -73,6 +73,7 @@ export function useOffice(
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const busy = useRef(false);
   const again = useRef(false);
+  const flushRef = useRef<() => Promise<void>>(() => Promise.resolve());
   ref.current = state;
 
   useEffect(() => {
@@ -109,7 +110,12 @@ export function useOffice(
     })();
     return () => {
       live = false;
-      if (timer.current) clearTimeout(timer.current);
+      // leaving the file with a change waiting sends it now, not after the pause
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+        void flushRef.current();
+      }
     };
   }, [d, fileId, kind, bump, size]);
 
@@ -148,6 +154,7 @@ export function useOffice(
     }
   }, [d, fileId, say, version]);
 
+  flushRef.current = flush;
   const changed = useCallback((): void => {
     setRev((x) => x + 1);
     if (timer.current) clearTimeout(timer.current);

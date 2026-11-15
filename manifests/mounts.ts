@@ -285,7 +285,7 @@ export default defineManifest({
       cli: "vyre mounts remove",
     }),
     write("mounts.sync_now", "Sync a mount now (a Run); the provider change feed and the folder both move", {
-      in: { mountId: id.mount },
+      in: { mountId: id.mount, auto: t.opt(t.bool()) },
       out: runStarted,
       perm: null,
       run: { kind: "mount_sync", stoppable: true },

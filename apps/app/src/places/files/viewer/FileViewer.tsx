@@ -151,6 +151,14 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   }, [d, fileId, attempt]);
 
   const mounted = (load.status === "ready" && load.data.file.source !== undefined) || load.status === "failed";
+  // leaving a file of a connected folder sends what waits to the provider at once (the scheduled passes leave a fresh edit for its quiet time, so a long edit is one revision there)
+  const mountId = load.status === "ready" ? load.data.file.source?.mountId : undefined;
+  useEffect(() => {
+    if (mountId === undefined) return undefined;
+    return () => {
+      void d.call("mounts.sync_now", { mountId, idempotencyKey: `leave-${fileId}-${Date.now()}` }).catch(() => undefined);
+    };
+  }, [d, fileId, mountId]);
   useEffect(() => {
     setLink(null);
     if (!mounted || !d.openUrl) return undefined;
