@@ -7,13 +7,13 @@ import { EXT_ID, findChromium, launch, site } from "./e2e/rig.ts";
 
 const found = await findChromium();
 
-const CONTACT = `<!doctype html><meta charset="utf-8"><title>Marisol Vega · Contacts</title>
+const CONTACT = `<!doctype html><meta charset="utf-8"><title>Maya Chen · Contacts</title>
 <style>body{font:15px system-ui,sans-serif;margin:0;background:#F5F7FB;color:#1d2433}header{height:52px;background:#fff;border-bottom:1px solid #E4E8F0;display:flex;align-items:center;padding:0 18px;font-weight:600}
 main{padding:24px;display:grid;grid-template-columns:320px 1fr;gap:20px}.card{background:#fff;border:1px solid #E4E8F0;border-radius:10px;padding:18px}label{display:block;font-size:12px;color:#6B778C;margin:12px 0 4px}
 input{width:100%;box-sizing:border-box;height:34px;border:1px solid #D5DBE6;border-radius:6px;padding:0 10px;font:inherit}</style>
-<header>GoHighLevel · Contacts</header><main><div class="card"><h2>Marisol Vega</h2><p>Vega Family Law · Phoenix</p><p>marisol@vegalaw.com</p>
+<header>Northwind CRM · Contacts</header><main><div class="card"><h2>Maya Chen</h2><p>Northwind Supply · Portland</p><p>maya@northwind.example</p>
 <label>Portal password</label><input id="pw" type="password" value="hunter2-Pa55"></div>
-<div class="card"><h3>Notes</h3><p id="quote">She said her firm loses every lead that comes in after 5 PM, and she wants answers in five minutes.</p><p>Booked a Grow Track Plus discovery call for Thursday at 2:00 PM MST.</p></div></main>`;
+<div class="card"><h3>Notes</h3><p id="quote">She said her team loses every lead that comes in after 5 PM, and she wants answers in five minutes.</p><p>Booked a discovery call for Thursday at 2:00 PM MST.</p></div></main>`;
 
 async function openPanelFor(r: any, pageUrlPrefix: string) {
   const winId = await r.worker.evaluate(async (prefix: string) => {
@@ -61,7 +61,7 @@ test(
           records: [
             {
               id: "rec_1",
-              name: "Marisol Vega",
+              name: "Maya Chen",
               kind: "Contact",
               why: "by email address",
               chats: [
@@ -102,9 +102,9 @@ test(
       const panel = await openPanelFor(r, s.url);
       // the page chip: title and a screenshot
       await panel.waitForSelector(".ch.pg .shot img", { timeout: 8000 });
-      assert.equal(await panel.textContent(".ch.pg .t"), "Marisol Vega · Contacts");
+      assert.equal(await panel.textContent(".ch.pg .t"), "Maya Chen · Contacts");
       await panel.waitForSelector(".recl");
-      assert.match((await panel.textContent(".recl")) ?? "", /Marisol Vega · Contact/);
+      assert.match((await panel.textContent(".recl")) ?? "", /Maya Chen · Contact/);
       // the password field is a black box in the screenshot that leaves Chrome
       const shot = await panel.getAttribute(".ch.pg .shot img", "src");
       const box = await page.evaluate(() => {
@@ -151,7 +151,7 @@ test(
       await page.mouse.move(qb.x + 260, qb.y + 8, { steps: 6 });
       await page.mouse.up();
       await panel.waitForSelector(".ch.selq", { timeout: 5000 });
-      assert.match((await panel.textContent(".ch.selq .t")) ?? "", /^She said her firm loses/);
+      assert.match((await panel.textContent(".ch.selq .t")) ?? "", /^She said her team loses/);
       await page.waitForSelector("[data-vyre-bubble]", { state: "attached" });
       await r.shot(page, "page-selection-bubble");
       await r.shot(panel, "panel-selected-chip");
@@ -163,10 +163,10 @@ test(
       const ask = r.callsTo("chat.ask")[0]!.input;
       assert.equal(ask.agentId, "agt_assist");
       assert.match(ask.page.shot, /^data:image\/jpeg;base64,/);
-      assert.match(ask.selection.text, /^She said her firm/);
+      assert.match(ask.selection.text, /^She said her team/);
       assert.equal(ask.from, "chrome");
       const reply =
-        "Marisol booked a Grow Track Plus discovery call for Thursday at 2:00 PM MST. Before Thursday, send her the Lab 7 replay at 14:20 and one question: how many web leads came in after 5 PM last month?";
+        "Maya booked a discovery call for Thursday at 2:00 PM MST. Before Thursday, send her the Lab 7 replay at 14:20 and one question: how many web leads came in after 5 PM last month?";
       r.bridge.push({ type: "chat.delta", threadId: "thr_1", turnId: "msg_1", text: reply.slice(0, 60), done: false });
       await panel.waitForSelector(".caret");
       r.bridge.push({ type: "chat.delta", threadId: "thr_1", turnId: "msg_1", text: reply, done: true });
@@ -219,9 +219,7 @@ test(
           suggested: { id: "agt_assist", name: "Assistant" },
         }),
         "records.match": () => ({
-          records: [
-            { id: "rec_1", name: "Marisol Vega", kind: "Contact", why: "by email address", chats: [], goals: [] },
-          ],
+          records: [{ id: "rec_1", name: "Maya Chen", kind: "Contact", why: "by email address", chats: [], goals: [] }],
         }),
       },
       caps: { "engine.models.list": () => ({ models: [] }) },

@@ -468,6 +468,20 @@ jobs:
           set -o pipefail
           node scripts/test-run.ts --slow --no-cache --files apps/chrome/tests/ext-agent.real.test.ts 2>&1 | tee chrome-real.out
           grep -q '^ok .*apps/chrome/tests/ext-agent.real.test.ts' chrome-real.out
+      - name: The extension's browser walks in a real Chromium (side panel, recording, in-page, artifact, sign-in, tabs)
+        # These ran in no workflow: a fast shard has no Chromium, so each file skipped itself and nothing proved the side panel opens, a recording keeps no password, or Save to
+        # Notes keeps its picture (V1-WHOLE row 17; the picture was lost about half the time until 15 Nov). Run with node's own runner: test/slow.json is at its cap.
+        # A skip is not a pass: every file must report fail 0 and skipped 0.
+        env:
+          VYRE_REQUIRE_CHROME: "1"
+        run: |
+          set -o pipefail
+          for f in apps/chrome/tests/ext-panel.e2e.test.ts apps/chrome/tests/ext-show.e2e.test.ts apps/chrome/tests/ext-inpage.e2e.test.ts apps/chrome/tests/ext-artifact.e2e.test.ts apps/chrome/tests/ext-core.signin.e2e.test.ts apps/chrome/tests/ext-agent.tabs.e2e.test.ts; do
+            echo "== $f"
+            node --test --test-reporter=spec "$f" 2>&1 | tee chrome-walk.out
+            grep -q '^ℹ fail 0$' chrome-walk.out
+            grep -q '^ℹ skipped 0$' chrome-walk.out
+          done
       - name: Popup and save card in a real Chrome, paper and graphite (ext-core.popup-shot.test.ts)
         # Moved here from the fast shards: a real Chrome with screenshots in two skins does not fit 30 s beside other files on a shared runner. CHROME_BIN comes from the Chromium step above.
         run: |
