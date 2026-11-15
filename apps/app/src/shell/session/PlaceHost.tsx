@@ -10,7 +10,7 @@ import { States } from "../../../../../ui/src/States/index.tsx";
 import { Quiet } from "../../../../../ui/src/States/Quiet.tsx";
 import { screenFromHash, screenOfAsk, setScreenContext } from "../ask/screen.ts";
 import { AskPaneHost } from "../ask/host.tsx";
-import { PlaceHashProvider } from "../hash/context.tsx";
+import { PlaceHashProvider, PlaceHashTextProvider } from "../hash/context.tsx";
 import type { PlaceHash } from "../hash/context.tsx";
 import { mark, takeStartupMs } from "../../startup/marks.ts";
 import { speed } from "../../speed/recorder.ts";
@@ -114,6 +114,7 @@ export function PlaceHost({
   const Place = lazyFor(routeId);
   const body = (
     <PlaceHashProvider hash={hash} opened={stable}>
+     <PlaceHashTextProvider value={hash}>
       <PlaceBoundary key={routeId} place={routeId}>
         <Suspense fallback={<Quiet />}>
           <ScreenSignal place={place} hash={hash} />
@@ -124,6 +125,7 @@ export function PlaceHost({
           <Usable place={routeId} spaceId={runtime?.space.id ?? null} />
         </Suspense>
       </PlaceBoundary>
+     </PlaceHashTextProvider>
     </PlaceHashProvider>
   );
   return runtime ? (

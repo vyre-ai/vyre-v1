@@ -4,6 +4,8 @@
 // Server render and native draw the children in place (there is no body to portal into), so tests render the plain tree.
 
 import { createPortal } from "react-dom";
+import { createElement } from "react";
+import { PlaceGate } from "../SidePane/host.tsx";
 import { useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform } from "react-native";
@@ -54,5 +56,5 @@ export function Overlay({ children }: { children: ReactNode }): ReactElement | n
     ) : null;
   const root = ensureOverlayRoot();
   if (!root) return <>{children}</>;
-  return createPortal(children, root as unknown as Parameters<typeof createPortal>[1]);
+  return createElement(PlaceGate, null, createPortal(children, root as unknown as Parameters<typeof createPortal>[1]));
 }

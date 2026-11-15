@@ -639,6 +639,8 @@ export function ShellHost({
         runtime={session?.runtime ?? null}
         hash={ctx.hash}
         opened={(t) => {
+          // a screen kept alive behind the one on screen never moves the tab that is on screen
+          if (ctx.hidden === true) return;
           const next = formatHash(t);
           if (next !== ctx.hash) hub.move(ctx.place, next);
         }}

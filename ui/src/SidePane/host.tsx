@@ -2,8 +2,8 @@
 // ui/SidePane or ui/ResizableColumn lands in the shell's left or right outlet through a portal (so the place's providers still reach it), wears the sheet shape there, and every place gets
 // the same frame. With no host above it (a test, a mount, the phone) the same component draws inline, as a plain column.
 
-import { createContext, useContext, useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+import { Fragment, createContext, createElement, useContext, useEffect, useRef } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Platform, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
@@ -59,9 +59,18 @@ export const ShellLayoutProvider = LayoutCtx.Provider;
 export const useShellLayout = (): ShellLayoutApi | null => useContext(LayoutCtx);
 export type { Band, Layout };
 
+/** False for a place the shell keeps alive but is not showing (a tab left a moment ago): its effects are off and what it would draw in a panel, a sheet or an overlay is not drawn. */
+const ActiveCtx = createContext(true);
+export const PlaceActiveProvider = ActiveCtx.Provider;
+export const usePlaceActive = (): boolean => useContext(ActiveCtx);
+/** Draws its children only while the place that holds it is the one on screen: a portal escapes the hidden place's own box, so it has to ask. */
+export function PlaceGate({ children }: { children?: ReactNode }): ReactElement | null {
+  return useContext(ActiveCtx) ? createElement(Fragment, null, children) : null;
+}
+
 export function intoSheet(target: unknown, node: ReactNode): ReactNode {
   if (Platform.OS !== "web" || target === null || target === undefined) return null;
-  return createPortal(node, target as Element);
+  return createElement(PlaceGate, null, createPortal(node, target as Element));
 }
 
 /** The shape of a sheet, the clipping box inside the column that holds the resize edge. */

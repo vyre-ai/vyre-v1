@@ -13,6 +13,8 @@ export const TABS_SYNCED = false;
 
 export interface TabEntry {
   key: string;
+  /** What the shell keeps a tab's screen by: it stays the same when the tab moves to another address, so its screen is not made again on a step. Absent on a tab read from storage (the key stands in). */
+  iid?: string;
   title: string;
   /** The place this tab belongs to; a "new" tab belongs to the place it was opened from. */
   place: PlaceId;
@@ -221,8 +223,12 @@ function openTab0(state: TabsState, tab: TabEntry, background: boolean, exact: b
     opener !== undefined
       ? { ...tab, from: opener.key }
       : tab;
-  return { tabs: placedBeside(state, opened), active: background && state.active !== "" ? state.active : tab.key };
+  return { tabs: placedBeside(state, withIid(opened)), active: background && state.active !== "" ? state.active : tab.key };
 }
+
+let iidCounter = 0;
+/** A tab gets the name its screen is kept by when it first opens. */
+const withIid = (t: TabEntry): TabEntry => (t.iid !== undefined ? t : { ...t, iid: `t${++iidCounter}` });
 
 /**
  * A tab opened from the tab on screen sits beside it (D2: "a new tab beside the current one"), after the tabs that one already opened, so a run of Cmd-presses reads in the order pressed.
@@ -277,6 +283,7 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
   const own = cur.key === place;
   const next: TabEntry = {
     key: own ? cur.key : tab.key,
+    ...(cur.iid !== undefined ? { iid: cur.iid } : {}),
     // a place's tab keeps its name; a tab that now shows another item starts from the place's name until that item's name arrives (hub.retitle)
     // the same chat the tab was just opened on (the page reporting its own address) keeps the name it has: the placeholder a chat address carries never replaces a real name
     title: own
@@ -315,7 +322,9 @@ export function fillTab(
   if (other !== undefined)
     return { tabs: state.tabs.filter((t) => t !== cur), active: wasActive ? other.key : state.active };
   return {
-    tabs: state.tabs.map((t) => (t === cur ? { ...tab, ...(cur.pinned === true ? { pinned: true } : {}) } : t)),
+    tabs: state.tabs.map((t) =>
+      t === cur ? { ...tab, ...(cur.iid !== undefined ? { iid: cur.iid } : {}), ...(cur.pinned === true ? { pinned: true } : {}) } : t,
+    ),
     active: wasActive ? tab.key : state.active,
   };
 }
@@ -333,6 +342,7 @@ export function landOn(state: TabsState, place: PlaceId): TabsState {
     return openTab(state, placeTab(place), false, true);
   const next: TabEntry = {
     key,
+    ...(cur.iid !== undefined ? { iid: cur.iid } : {}),
     title: placeTabTitle(place),
     place,
     ...(cur.pinned === true ? { pinned: true } : {}),
@@ -750,7 +760,7 @@ export function readTabs(raw: string | null): TabsState | null {
     });
   }
   const active = renamed.get(data["active"]) ?? data["active"];
-  return { tabs, active: tabs.some((t) => t.key === active) ? active : (tabs[0]?.key ?? "") };
+  return { tabs: tabs.map(withIid), active: tabs.some((t) => t.key === active) ? active : (tabs[0]?.key ?? "") };
 }
 
 /** A tab list without the tabs of places a Space does not show; the selection moves to a neighbour when its tab goes. */

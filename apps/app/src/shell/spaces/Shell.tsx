@@ -2,6 +2,7 @@
 // right rail. A place never draws this frame: its sidebar and its panes land in the sheets through ui/SidePane's host. One Space is open at a time:
 // a switch shows the skeleton as its first frame, unmounts every place, and keys the next place by the new Space, so two Spaces' rows never meet on screen.
 // Places are drawn by `renderPlace`; the shell owns the frame, the tabs, the keys and the Space.
+import * as React from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
@@ -19,6 +20,8 @@ import {
   useSquircle,
 } from "../../../../../ui/src/SidePane/host.tsx";
 import type { ShellLayoutApi } from "../../../../../ui/src/SidePane/host.tsx";
+import { PlaceActiveProvider } from "../../../../../ui/src/SidePane/host.tsx";
+import type { TabEntry } from "../tabs/store.ts";
 import { BREAKPOINTS, bandKey, layoutPanels } from "../../../../../ui/src/SidePane/layout.ts";
 import { paneWidths } from "../../../../../ui/src/SidePane/index.tsx";
 import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
@@ -74,6 +77,8 @@ export interface PlaceContext {
   hash: string;
   epoch: number;
   kit: KitDef;
+  /** The screen is kept alive but is not the one on screen: it must not move the tab or retitle it. */
+  hidden?: boolean;
 }
 
 /** Where Space Settings goes: a Team Space's own settings are Console > Space (offered only to someone who may open the Console); a Personal Space keeps its Space pages in Settings (owner walk, 12 Nov: it opened Your Profile). */
@@ -412,6 +417,7 @@ export function ShellStage({
   kind,
   ctx,
   activeTab,
+  tabs,
   compact,
   renderPlace,
   renderNewTab,
@@ -423,6 +429,8 @@ export function ShellStage({
   kind: string;
   ctx: PlaceContext;
   activeTab: { key: string; isNew?: boolean } | undefined;
+  /** Every open tab: the screens of the most recent are kept alive so a switch back paints at once. */
+  tabs?: readonly TabEntry[];
   compact: boolean;
   renderPlace(ctx: PlaceContext): ReactNode;
   renderNewTab?(ctx: PlaceContext): ReactNode;
@@ -455,6 +463,28 @@ export function ShellStage({
       </PlaceFrame>
     );
   const blocked = kind === "personal" ? teamOnly(state.place, state.hash) : null;
+  const alive = keptTabs(tabs ?? [], activeTab?.key ?? "");
+  // The screens of the last tabs stay mounted, the ones not on screen hidden (display none, their effects off, nothing drawn through a portal): a switch back shows what the tab showed, at once, with its
+  // scroll, pane and layers as they were (owner, 16 Nov 2026, F97). A tab beyond the last KEPT_TABS is dropped and made again when it is chosen, behind the held view.
+  if (blocked === null && activeTab !== undefined && alive.length > 0 && Activity !== undefined) {
+    return (
+      <>
+        {alive.map((t) => {
+          const on = t.key === activeTab.key;
+          const here: PlaceContext = on ? ctx : { ...ctx, place: t.place, hash: t.hash ?? "", hidden: true };
+          return (
+            <Activity key={`${state.epoch}:${ctx.spaceId}:${t.iid ?? t.key}`} mode={on ? "visible" : "hidden"}>
+              <PlaceActiveProvider value={on}>
+                <PlaceFrame hub={hub} epoch={state.epoch}>
+                  {renderPlace(here)}
+                </PlaceFrame>
+              </PlaceActiveProvider>
+            </Activity>
+          );
+        })}
+      </>
+    );
+  }
   return (
     <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${state.place}`}>
       {blocked !== null ? (
@@ -472,6 +502,23 @@ export function ShellStage({
     </PlaceFrame>
   );
 }
+
+/** How many tabs keep their screen alive. */
+export const KEPT_TABS = 6;
+
+/** The tabs whose screens are kept: the selected one and the most recently used, at most KEPT_TABS, in a steady order (so a screen never moves in the tree and is never remounted by a reorder). A "+" tab draws its own page. */
+export function keptTabs(tabs: readonly TabEntry[], active: string): TabEntry[] {
+  const live = tabs.filter((t) => t.isNew !== true);
+  const byUse = [...live].sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
+  const keep = new Set<string>();
+  const on = live.find((t) => t.key === active);
+  if (on !== undefined) keep.add(on.key);
+  for (const t of byUse) if (keep.size < KEPT_TABS) keep.add(t.key);
+  // the order of the strip would remount screens when a tab is dragged: by when each was first kept is not tracked, so the order the tabs were opened in (iid) is used
+  return live.filter((t) => keep.has(t.key)).sort((a, b) => (a.iid ?? a.key).localeCompare(b.iid ?? b.key, undefined, { numeric: true }));
+}
+
+const Activity = (React as unknown as { Activity?: React.ComponentType<{ mode: "visible" | "hidden"; children?: ReactNode }> }).Activity;
 
 export function Shell(props: ShellProps): ReactElement {
   const { hub, theme } = props;
@@ -601,6 +648,7 @@ export function Shell(props: ShellProps): ReactElement {
       kind={session.def.kind}
       ctx={ctx}
       activeTab={activeTab}
+      tabs={tabs.tabs}
       compact={compact}
       renderPlace={props.renderPlace}
       {...(props.renderNewTab !== undefined ? { renderNewTab: props.renderNewTab } : {})}

@@ -9,6 +9,8 @@ import { ConversationLoading } from "../../places/chats/conversation/Conversatio
 import { ChatsMounted, PANE_W, SIDEBAR_W } from "../../places/chats/mounts/ChatsMounted.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import { formatHash } from "../hash/hash.ts";
+import { usePlaceHashText } from "../hash/context.tsx";
+import { usePlaceActive } from "../../../../../ui/src/SidePane/host.tsx";
 import { useHubState, useOptionalHub } from "../spaces/context.tsx";
 import type { ShellHub } from "../spaces/hub.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
@@ -52,14 +54,24 @@ function ChatsLinked({
   hub: ShellHub;
 }): ReactElement {
   const { opened } = usePlaceHash();
+  // this screen's own address, and whether it is the one on screen: a chat kept alive behind another tab must not retitle, close or hold the tab that is on screen
+  const own = usePlaceHashText();
+  const active = usePlaceActive();
+  const global = useHubState(hub).hash;
   return (
     <ChatsMounted
       rt={rt}
-      hash={useHubState(hub).hash}
+      hash={own ?? global}
       opened={opened}
-      onSwitch={hub.hold}
-      onTitle={(title) => hub.retitle(hub.session().tabs.state().active, title)}
-      closeSelf={() => hub.closeTab()}
+      onSwitch={() => {
+        if (active) hub.hold();
+      }}
+      onTitle={(title) => {
+        if (active) hub.retitle(hub.session().tabs.state().active, title);
+      }}
+      closeSelf={() => {
+        if (active) hub.closeTab();
+      }}
       openInNewTab={(h) => hub.go("chats", h, false, false, true)}
     />
   );

@@ -69,7 +69,7 @@ test("tabs: switching back to an open tab paints its content at once, never an e
     const cols = Array.from({ length: 11 }, (_, i) => `Col ${i + 1}`);
     const rows = Array.from(
       { length: 42 },
-      (_, r) => `| ${Array.from({ length: 11 }, (_, c) => `r${r + 1}c${c + 1} value`).join(" | ")} |`,
+      (_, r) => `| ${Array.from({ length: 11 }, (_, c) => `row ${r + 1} col ${c + 1} figure`).join(" | ")} |`,
     );
     const md = `# Quarterly figures\n\n| ${cols.join(" | ")} |\n| ${cols.map(() => "---").join(" | ")} |\n${rows.join("\n")}\n`;
     const fileId = JSON.stringify(
@@ -124,8 +124,16 @@ test("tabs: switching back to an open tab paints its content at once, never an e
           name: e.getAttribute("aria-label") ?? "",
         })),
       );
+    // six tabs: the screens of the last six are the ones kept alive
+    {
+      const first = (await strip())[0]!;
+      await page.locator(`[data-testid="tab-${first.id}"], [data-testid="tab-${first.id}-selected"]`).first().hover();
+      await page.getByTestId(`tab-close-${first.id}`).click();
+      await page.waitForTimeout(800);
+    }
     const tabs = await strip();
     say(`tabs: ${tabs.map((x) => x.name).join(" | ")}`);
+    say(`screens kept: ${await page.evaluate(() => document.querySelectorAll('[data-testid="shell-place"]').length)}`);
     assert.ok(tabs.length >= 6, "a tab for each kind");
     await page.evaluate(`
       window.__sw = function (marker, ms) {
@@ -171,7 +179,7 @@ test("tabs: switching back to an open tab paints its content at once, never an e
         );
         if (!tab) continue;
         // leave for another tab first, so the press is a switch back
-        const other = tabs.find((x) => x.id !== tab.id)!;
+        const other = tabs.find((x) => x.id !== tab.id && (p.name === "chat" ? /Quarterly/ : /Plans/).test(x.name))!;
         await page.locator(`[data-testid="tab-${other.id}"], [data-testid="tab-${other.id}-selected"]`).first().click();
         await page.waitForTimeout(1200);
         const rec = page.evaluate(`window.__sw(${JSON.stringify(p.marker.source)}, 1600)`);

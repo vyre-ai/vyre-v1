@@ -26,6 +26,11 @@ export function PlaceHashProvider({
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+/** The raw address this place was given (its own, not whatever tab is on screen). */
+const TextCtx = createContext<string | null>(null);
+export const PlaceHashTextProvider = TextCtx.Provider;
+export const usePlaceHashText = (): string | null => useContext(TextCtx);
+
 export function usePlaceHash(): PlaceHash {
   return useContext(Ctx);
 }
