@@ -1,5 +1,6 @@
 // governance (lane L7a). The host serves the generated stubs while host/modules.json says `status: 'stub'`; the flip to live is P-L7_LIVE's (ruling 25). Governance reaches the other modules only through
 // ctx.call (files, records, memory, audit, search, inbox, contacts, settings, access); it keeps holds, job state, findings and tombstones in its own tables.
+import { eraseIds } from "./handlers/erase.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import * as h from "./handlers/index.ts";
@@ -43,6 +44,19 @@ export const projections = { inline: {}, consumers: {} };
  * Host call for the removal wizard: how many of these items (ids from the owning modules) are on hold, counting a hold on the person themselves. A legal hold stops a delete, so the wizard asks before it deletes.
  */
 export const hostCalls = {
+  /** Delete for good (F77): the event log and request cache lose what names the agent, its chats and its routines (handlers/erase.ts eraseIds). */
+  "governance.erase_agent": async (
+    _ctx: Ctx,
+    i: { agentId: string; ids?: string[]; dry?: boolean },
+  ): Promise<Record<string, never>> => {
+    if (i.dry === true) return {};
+    const out = await eraseIds([i.agentId, ...(i.ids ?? [])]);
+    (_ctx as unknown as { log: { warn(m: string, a: object): void } }).log.warn(
+      "governance: an agent erased from the log and request cache",
+      { ...out, ids: (i.ids ?? []).length },
+    );
+    return {};
+  },
   "governance.held_among": (ctx: Ctx, i: { person: string; ids: string[] }): number => {
     try {
       const held = new Set(

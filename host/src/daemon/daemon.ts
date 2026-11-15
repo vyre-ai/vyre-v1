@@ -5084,6 +5084,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               scrub({ seqs: out.erased });
               return out;
             },
+            forgetText: async (needles: readonly string[]) => {
+              const n = await spaceLog.forgetText(needles);
+              // the rows are deleted: the write-ahead log still holds their old pages until it is checkpointed away, so it is, here, and the modules database is told to overwrite what it frees from now on
+              try {
+                db?.exec("PRAGMA secure_delete = ON");
+                db?.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+              } catch {
+                /* a busy database is checkpointed by the next write */
+              }
+              return n;
+            },
           };
         },
         // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)

@@ -23,6 +23,8 @@ export type ActKey =
   | "signature_send"
   | "spend_raise"
   | "signin_change"
+  | "github_approval"
+  | "agent_erase"
   | "approve";
 export type Risk = "low" | "medium" | "high";
 export type Mode = "hold" | "allow";
@@ -93,6 +95,11 @@ export const ACTS: readonly ActDef[] = [
   act("spend_raise", "Raise a spend cap", "medium", "table", "role:admin"),
   act("signin_change", "Change how people sign in to the Space", "high", "record_card", "role:admin", {
     alwaysStops: true,
+  }),
+  act("agent_erase", "Delete an agent for good", "high", "record_card", "asker", {
+    alwaysStops: true,
+    personOnly: true,
+    onTimeout: "drop",
   }),
   act("approve", "Allow this step", "medium", "doc_excerpt", "asker"),
   act("github_approval", "Let a session use my GitHub", "high", "table", "asker", {

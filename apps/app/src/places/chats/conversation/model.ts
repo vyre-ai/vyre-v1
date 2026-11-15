@@ -467,7 +467,14 @@ export function bodyBlocks(messageId: string, body: string): readonly MdBlock[] 
 /* ---------- the timeline ---------- */
 
 /** `face`: the person whose face the row wears (an agent writing to a teammate for its person reads as "<Person> (Agent)"); `forPerson` is that person. */
-export type Who = { id: string; name: string; kind: "person" | "agent"; face?: string; forPerson?: string };
+export type Who = {
+  id: string;
+  name: string;
+  kind: "person" | "agent";
+  face?: string;
+  forPerson?: string;
+  gone?: boolean;
+};
 
 /** An agent's message to a teammate for its person (lane l-agentdm): who it speaks for and to whom. Null for any other message. Only the server writes the block. */
 export function onBehalfOf(
@@ -500,7 +507,10 @@ export function muteOfferFor(
 }
 
 /** The header of a row: its author, or for an agent writing for its person, that person marked as their agent and wearing their face. */
-export function whoOf(m: Pick<Message, "author" | "blocks">, ctx: Pick<TimelineCtx, "nameOf" | "kindOf">): Who {
+export function whoOf(
+  m: Pick<Message, "author" | "blocks">,
+  ctx: Pick<TimelineCtx, "nameOf" | "kindOf" | "goneOf">,
+): Who {
   const ob = onBehalfOf(m);
   // one name for an agent writing for its person (lead, 12 Nov): "Maya’s Assistant", or "Maya Lin (Agent)" for an outside agent; the directory names it
   if (ob)
@@ -511,13 +521,19 @@ export function whoOf(m: Pick<Message, "author" | "blocks">, ctx: Pick<TimelineC
       face: ob.person,
       forPerson: ob.person,
     };
-  return { id: m.author.id, name: ctx.nameOf(m.author.id), kind: ctx.kindOf(m.author.id) };
+  return {
+    id: m.author.id,
+    name: ctx.nameOf(m.author.id),
+    kind: ctx.kindOf(m.author.id),
+    ...(ctx.goneOf?.(m.author.id) ? { gone: true } : {}),
+  };
 }
 
 export interface TimelineCtx {
   meId: string;
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
+  goneOf?(id: string): boolean;
   clock: Clock;
   /** More than one person is here, so whose turn each reply ran on is worth saying (hole 7). */
   shared?: boolean;

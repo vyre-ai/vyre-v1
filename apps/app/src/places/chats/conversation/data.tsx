@@ -106,6 +106,8 @@ export interface ConversationData {
   };
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
+  /** An agent deleted for good: its old messages show its name with a quiet "deleted", and the name is not pressable. */
+  goneOf?(id: string): boolean;
   /** The viewer holds the permission to start chats (chats.private). Without it the people and agents of this chat are named, not opened, and nobody is added from that list. Absent: yes. */
   mayChat?: boolean;
   nav: ConversationNav;

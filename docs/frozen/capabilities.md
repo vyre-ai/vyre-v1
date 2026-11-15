@@ -479,6 +479,14 @@ Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9
 
 Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
 
+## 15 Nov 2026: agents.delete_for_good, agents.delete_preview, agents.trash.list and files.folder.purge are new; folderRow gains an optional deletedAt (lane f-agentdel)
+
+`agents.delete_for_good` (write, level member; the handler lets only the agent's owner or an admin through and answers anyone else not found; gated for an agent caller with Gate act delete; refuses an agent on itself, a person's Assistant, and an agent not in Trash) records one durable job and answers `{ erasing }`; pressing again answers the same calm way from the tombstone. `agents.delete_preview` (read, level manage on the agent) answers real counts (one-to-one chats, shared chats, memory items, routines, bytes), the things made by others that name the agent and need someone (each with a `link`), and the backups line. `agents.trash.list` (read, member) lists the agents in Trash and which are being deleted. `files.folder.purge` (write, perm files.delete, gated for an agent caller) deletes a folder in Trash for good with everything under it; an agent's folder takes the agent with it. `folderRow` gains optional `deletedAt`. New events `agent.erasing`, `agent.erased` and `folder.purged`. New host calls (not capabilities) `<module>.erase_agent` in nineteen modules, callable only by the agents erase job and the preview (host/src/daemon/consumers.ts guardCall).
+- Why: F77, the owner's rule that erase means erased. Delete still moves an agent to Trash and restore brings it whole; delete for good clears every store that holds something of it, leaves the audit log, a tombstone (id never reused) and backups.
+- Compatibility: no existing capability changed; `files.trash.empty` and the Trash keep time now also reach agents through `folder.purged`.
+
+Signed: lead, 16 Nov 2026 02:40 PKT, after two data-safety reviews (team/v1/reviews/r-agentdel-2026-11-16.md: six blocking items, then two, all closed by the lane with tests). Left open and known: the phone shows no "in Trash" line on an agent's page; delete, restore and delete within milliseconds can leave a channel without its "was deleted" line.
+
 ## 13 Nov 2026: computers.browser.my_sign_ins added (lane f-agentpc)
 
 `computers.browser.my_sign_ins@1` is a new read (additive; no existing capability changes). In: `agentId`. Out: `profile` (`own` or `agent`) and `signIns`, one `{kind: "browser", site, signedInAs?, since, lastSeen}` per site the browser profile this person's turns of the agent use is signed in to: a person who does not own a shared agent has a profile of their own on it, the agent's owner has the agent's own. Never a value, never another person's. Read as the person asking.
@@ -544,6 +552,23 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11-15.md) and the lane's fourth round; the limits that remain are the ones written above.
 
 
+## 13 Nov 2026: sites.artifact_publish summary reworded to say what is required (lane f-firstcall)
+
+The summary of `sites.artifact_publish@1`, the words a model reads, now begins with what the call needs ("Needs a title and exactly one of html, fileId, folderId, path or port"), gives one example call, and says that a title left out is taken from the page's own `<title>`. No input, output or error changes. The handler's refusal for two sources at once now names the two given, in the same code (`validation.bad_input`, field `html`). The tool layer (agent/src/tools) no longer shows a model the `idempotencyKey` of a `create` capability or the `threadId` of a chat tool as required; the contract is unchanged and the server still validates the full input, so an outside caller sends the key as before.
+
+Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
+
+## 13 Nov 2026: files.create and files.write summaries give the direct-write limit (lane f-firstcall)
+
+The summaries of `files.create@1` and `files.write@1`, the words a model reads, now say a direct write holds at most 256 KB (the limit the handlers already enforce, `MAX_INLINE`). The refusal for a larger one (`validation.too_large`, as before) now says the limit and to split the content into smaller files. No input, output or error code changes.
+
+Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
+
+## 16 Nov 2026: files.create summary says a folder is optional for an agent, and an agent's duplicate name becomes "name (2)" (lane f-firstcall2)
+
+The summary of `files.create@1`, the words a model reads, now says the content goes in `content.text`, that with no folder the file goes in the person's own files, and that a name already taken becomes "name (2)" for an agent. The contract is unchanged: `folderId` stays required on the server, an outside caller still sends it, and `validation.duplicate` is still answered to a person. What changes is behaviour for an agent principal only: the agent tool layer (agent/src/tools/place.ts) fills `folderId` with the person's own Personal root (found with `files.resolve`) when a model names none, reads a folder name or a path as the folder it means, and a `files.create` by an agent whose name is taken makes `name (2)` (`name (3)`, and so on) instead of failing; it never replaces a file. In a Review changes folder the duplicate is still refused (`validation.duplicate`), now with the words "Use another name, or replace that file with files_write.". No input, output or error code changes.
+
+Signed: lead, 16 Nov 2026 02:49 PKT, after reading the note: the contract is unchanged; a file with no folder goes to the person's own files and a taken name becomes "name (2)" for an agent only; the tool-token baseline 575,250 is accepted (the stated limits add 275 characters). the lead, 16 Nov 2026
 ## 16 Nov 2026: a goal says what holds its check-ins back, and a failed turn says when a usage limit lifts (finding F26, lane f-goalwake, brought onto the line by the lead)
 
 - What changed, all additive: the goal row (every `goals.*` answer that carries a goal) gains an optional `blocked` (`cause`: person, limit, transient or other; `what`, `fix` and `short` in words; `since`; `until` when it goes on by itself; `missed`; `code`), present only while something holds the check-ins back. `engine.turn.record` and the event `turn.failed` gain an optional `resetsAt` (when the provider said a usage limit lifts). No input, output or error was removed or made required.
@@ -551,3 +576,11 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 - Proof: test/goals.wake-fail.live.test.ts, modules/goals/tests, lib/words/failure.test.ts, apps/app/src/places/chats/conversation/status.test.ts. Snapshots: docs/frozen/snapshots/goals.json and engine.json.
 
 Signed: lead, 16 Nov 2026 00:42 PKT, after reading the manifest diff: optional, additive fields only.
+
+## 16 Nov 2026: delete for good, round five (lane f-agentdel, after the data-safety review)
+
+`agents.delete_for_good` now refuses every caller that is not a person, before anything else, in one sentence ("Only a person can delete an agent for good."): an agent (acting for a person too), a service, an Automation step and an outside tool. Its Gate act is a new one, `agent_erase`, that always stops (no Space rule, no Always allow lifts it, only a person decides). It is not an Automation step. `agents.trash.list` rows gain optional `failed` (what a job that keeps failing could not finish, in words). `agents.delete_preview` answers `chatPeople` and `folderPeople` (the other people who have a chat with the agent or their own folder on its computer, with their names). `agents.erased` is new (the name an erased agent had, for the "deleted" mark). `files.folder.purge` refuses an agent's folder ("An agent is deleted from its own page in Trash."), `files.trash.empty` skips it, and `folder.purged` carries only the folder id; only `agents.delete_for_good` and the Trash clock erase an agent. A job that fails backs off (3 s, 30 s, 5 min); pressing Delete for good again is Try again.
+- Why: the reviewer's six blocking items (any member could erase another's agent through Files, the gate could be lifted, the clock guessed on a failed read, the browser profile was left behind, other people lost data unannounced, a person's memory was lost).
+- Compatibility: additive outputs; `files.folder.purge` and `files.trash.empty` refuse or skip agent folders.
+
+Signed: lead, 16 Nov 2026 02:40 PKT, after two data-safety reviews (team/v1/reviews/r-agentdel-2026-11-16.md: six blocking items, then two, all closed by the lane with tests). Left open and known: the phone shows no "in Trash" line on an agent's page; delete, restore and delete within milliseconds can leave a channel without its "was deleted" line.

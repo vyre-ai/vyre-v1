@@ -83,6 +83,7 @@ type Out = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -140,6 +141,7 @@ type Out = {
     ],
     "folders": [
       {
+        "deletedAt": 1760000000000,
         "fileCount": 1,
         "folderCount": 1,
         "folderId": "fld_a1b2c3",

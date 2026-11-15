@@ -1104,6 +1104,7 @@ function ConversationView(): ReactElement {
     meId: data.me.id,
     nameOf,
     kindOf: data.kindOf,
+    ...(data.goneOf ? { goneOf: data.goneOf } : {}),
     clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) },
     shared: sharedChat,
   }).filter((it) => !(thread.kind === "thread" && it.kind === "day")); // a thread has no day dividers: its root row and "N replies" lead

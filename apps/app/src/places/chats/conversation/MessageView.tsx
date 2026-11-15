@@ -1215,7 +1215,7 @@ function Theirs({
     person || stream || m.body === "" ? null : <ReplyLessonsMark messageId={m.messageId} threadId={m.threadId} />;
   // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
   const withCard = (kids: ReactElement): ReactElement =>
-    !person && actions.details && !stream && !h.phone && !isSystemLine(m) ? (
+    !person && !item.who.gone && actions.details && !stream && !h.phone && !isSystemLine(m) ? (
       <ReplyHover messageId={m.messageId} details={actions.details}>
         {kids}
       </ReplyHover>
@@ -1290,14 +1290,24 @@ function Theirs({
                   size={FACE}
                 />
               )}
-              <Pressable
-                accessibilityRole="link"
-                accessibilityLabel={`Open ${item.who.name}`}
-                testID={`who-${m.messageId}`}
-                onPress={() => actions.openAgent(item.who.id)}
-              >
-                <Text style={st.who}>{item.who.name}</Text>
-              </Pressable>
+              {item.who.gone ? (
+                // an agent deleted for good: its name as it was, and a quiet word; nothing to press, no profile, no card
+                <Text style={st.who} testID={`who-${m.messageId}`}>
+                  {item.who.name}
+                  <Text style={st.time} testID={`deleted-${m.messageId}`}>
+                    {"  deleted"}
+                  </Text>
+                </Text>
+              ) : (
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open ${item.who.name}`}
+                  testID={`who-${m.messageId}`}
+                  onPress={() => actions.openAgent(item.who.id)}
+                >
+                  <Text style={st.who}>{item.who.name}</Text>
+                </Pressable>
+              )}
             </>,
           )}
           <TimeTip item={item}>

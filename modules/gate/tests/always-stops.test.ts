@@ -7,7 +7,7 @@ import { effectiveRule, ACTS } from "../impl.ts";
 import { findHold, putRule } from "../projections.ts";
 
 const owner = { id: "usr_owner", kind: "person" as const };
-const ACT_KEYS = ["connection_change", "github_approval", "signin_change"] as const;
+const ACT_KEYS = ["connection_change", "github_approval", "signin_change", "agent_erase"] as const;
 
 for (const act of ACT_KEYS) {
   test(`${act} holds for an agent, a service and a Run that runs as a person, with a person of the right role to decide`, () => {
@@ -19,7 +19,7 @@ for (const act of ACT_KEYS) {
       assert.equal(e.peopleOnly, true);
       assert.equal(
         e.approvers,
-        act === "github_approval" ? "asker" : "role:admin",
+        act === "github_approval" || act === "agent_erase" ? "asker" : "role:admin",
         "GitHub is the asker's own: the person the session acts for decides, not an admin",
       );
     }

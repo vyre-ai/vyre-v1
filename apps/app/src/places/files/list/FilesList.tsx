@@ -63,6 +63,10 @@ import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 import { tellIfRefused } from "../tree/refusal.ts";
+import { AgentTrashRows, useTrashAgents } from "./AgentTrash.tsx";
+import type { TrashAgent } from "./AgentTrash.tsx";
+import { DeleteForGoodSheet } from "./DeleteForGood.tsx";
+import type { ForGood } from "./DeleteForGood.tsx";
 
 const DOUBLE_MS = 450;
 const lineKey = (l: Line): string => l.key;
@@ -84,6 +88,8 @@ export function lineMenuEntries(
     rename(l: Line): void;
     trash(ls: readonly Line[]): void;
     restore(ls: readonly Line[]): void;
+    /** From Trash: delete this one for good (it asks first). */
+    forGood?(l: Line): void;
     star?(l: Line): void;
     resolve?(l: Line): void;
     openIn?(l: Line): void;
@@ -94,6 +100,9 @@ export function lineMenuEntries(
   if (inTrash)
     return [
       { label: lines.length === 1 ? "Restore" : `Restore ${lines.length} Items`, onSelect: () => h.restore(lines) },
+      ...(one && h.forGood
+        ? [{ label: "Delete for Good\u2026", danger: true, onSelect: () => h.forGood?.(one) } as MenuEntry]
+        : []),
     ];
   if (one) {
     if (one.conflict === true && h.resolve)
@@ -223,10 +232,18 @@ function List(): ReactElement {
     spring.current = createSpring((id) => dispatch({ type: "go", where: { kind: "folder", id } }));
   useEffect(() => () => spring.current?.cancel(), []);
 
+  const trashAgents = useTrashAgents(state.where.kind === "trash");
+  const [forGood, setForGood] = useState<ForGood | null>(null);
+  // an agent in Trash is one row of its own above the list, with its folder left out of the lines
+  const agentFolders = useMemo(
+    () => new Set(trashAgents.flatMap((a) => (a.folderId ? [a.folderId] : []))),
+    [trashAgents],
+  );
   const lines = useMemo<Line[]>(() => {
     if (src.status !== "ready") return [];
     const all: Line[] = [];
-    for (const f of src.data.folders ?? []) all.push(folderLine(f));
+    for (const f of src.data.folders ?? [])
+      if (!(state.where.kind === "trash" && agentFolders.has(f.folderId))) all.push(folderLine(f));
     for (const f of src.data.files) if (state.where.kind !== "starred" || f.starred === true) all.push(fileLine(f));
     return sortLines(
       state.showHidden ? all : all.filter((l) => !l.name.startsWith(".")),
@@ -234,7 +251,7 @@ function List(): ReactElement {
       state.dir,
       data.nameOf,
     );
-  }, [src, state.sort, state.dir, state.showHidden, state.where.kind, data]);
+  }, [src, state.sort, state.dir, state.showHidden, state.where.kind, data, agentFolders]);
   const order = useMemo(() => lines.map((l) => l.key), [lines]);
   const byKey = useMemo(() => new Map(lines.map((l) => [l.key, l] as const)), [lines]);
   const c = data.clock();
@@ -276,6 +293,7 @@ function List(): ReactElement {
         rename: (t) => data.nav.renameEntry(t.type, t.id, t.name),
         trash: toTrash,
         restore,
+        forGood: (l) => setForGood({ kind: l.type, id: l.id, name: l.name }),
         star: (t) => void data.call("files.star", { fileId: t.id, starred: t.starred !== true }),
         ...(data.nav.resolveConflict ? { resolve: (t: Line) => data.nav.resolveConflict?.(t.id) } : {}),
         ...(data.nav.openExternal
@@ -595,7 +613,7 @@ function List(): ReactElement {
           crumbs={trail}
           count={
             src.status === "ready"
-              ? `${lines.length} item${lines.length === 1 ? "" : "s"}${state.selection.length > 0 ? `, ${state.selection.length} selected` : ""}`
+              ? `${lines.length + (inTrash ? trashAgents.length : 0)} item${lines.length + (inTrash ? trashAgents.length : 0) === 1 ? "" : "s"}${state.selection.length > 0 ? `, ${state.selection.length} selected` : ""}`
               : null
           }
           sortLabel={SORT_LABEL[state.sort]}
@@ -657,7 +675,7 @@ function List(): ReactElement {
         )}
         {src.status !== "ready" ? (
           <ListLoading bare />
-        ) : lines.length === 0 ? (
+        ) : lines.length === 0 && !(inTrash && trashAgents.length > 0) ? (
           <States
             kind="empty"
             title={emptyText(state.where)}
@@ -678,16 +696,30 @@ function List(): ReactElement {
             {...({ onKeyDown, tabIndex: 0 } as object)}
           >
             {grid ? (
-              <VirtualList
-                data={gridRows}
-                rowHeight={layout.height}
-                keyOf={gridKey}
-                renderItem={renderGridRow}
-                scrollMemory={scrollMemory}
-              />
+              <>
+                {inTrash ? (
+                  <AgentTrashRows
+                    agents={trashAgents}
+                    onDelete={(a: TrashAgent) => setForGood({ kind: "agent", id: a.agentId, name: a.name })}
+                  />
+                ) : null}
+                <VirtualList
+                  data={gridRows}
+                  rowHeight={layout.height}
+                  keyOf={gridKey}
+                  renderItem={renderGridRow}
+                  scrollMemory={scrollMemory}
+                />
+              </>
             ) : (
               <>
                 {phone ? null : <ColumnHeader sort={state.sort} dir={state.dir} wide={wide} onSort={sortBy} />}
+                {inTrash ? (
+                  <AgentTrashRows
+                    agents={trashAgents}
+                    onDelete={(a: TrashAgent) => setForGood({ kind: "agent", id: a.agentId, name: a.name })}
+                  />
+                ) : null}
                 <VirtualList
                   data={lines}
                   rowHeight={phone ? PHONE_ROW : LIST_ROW}
@@ -700,6 +732,15 @@ function List(): ReactElement {
           </View>
         )}
         {menu.element}
+        {forGood ? (
+          <DeleteForGoodSheet
+            target={forGood}
+            call={data.call}
+            {...(data.nav.openItem ? { openItem: data.nav.openItem } : {})}
+            onClose={() => setForGood(null)}
+            onDone={() => setForGood(null)}
+          />
+        ) : null}
         {accessOpen && here && agentStates && !phone ? (
           <AccessPopover
             folderId={here}
