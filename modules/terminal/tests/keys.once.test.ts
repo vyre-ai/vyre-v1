@@ -297,7 +297,7 @@ test("a holder who is suspended, removed or signed out gives the keyboard back a
   const { consumers } = await import("../impl.ts");
   const gone = consumers["terminal.holder_gone"];
   assert.deepEqual(gone.on, ["principal.suspended", "member.removed", "session.revoked"]);
-  assert.deepEqual(gone.run(hn.ctx, { payload: { principalId: "usr_dana" } }), [id]);
+  assert.deepEqual(await gone.run(hn.ctx, { payload: { principalId: "usr_dana" } }), [id]);
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined);
   const r = await h["terminal.run"]!(hn.as(AGENT, "usr_dana"), {
     command: "echo hi",
@@ -325,4 +325,140 @@ test("when a manager takes the keyboard the event names the agent and its owner;
   assert.equal(hn.named("terminal.given_back")[0]!.payload["agentOwner"], "usr_dana");
   await call(hn, "terminal.take_over", { terminalId: id }, asked("usr_dana", "usr_dana"));
   assert.equal(hn.named("terminal.taken")[1]!.payload["agentOwner"], undefined, "the owner is not told of their own");
+});
+
+// ---- the second review: every door of a person's own terminal, old rows, orphans, a different text under one number
+
+test("terminal.run into a person's own terminal by its id, and terminal.status of it, tell another person or a manager nothing and type nothing", async () => {
+  const { hn, sent } = world();
+  const own = (
+    await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "own-run" })
+  ).terminal.terminalId as string;
+  const manager = hn.as(SARA);
+  const r = await failure(() =>
+    h["terminal.run"]!(manager, { command: "echo RUNINTO", terminalId: own, idempotencyKey: "run-into" }),
+  );
+  assert.equal(r.code, "permission.role_lacks_permission");
+  const agent = await failure(() =>
+    h["terminal.run"]!(hn.as(AGENT, "usr_dana"), {
+      command: "echo RUNINTO",
+      terminalId: own,
+      idempotencyKey: "run-into-2",
+    }),
+  );
+  assert.ok(agent.code.startsWith("permission."), agent.code);
+  assert.equal(sent.length, 0);
+  // status: the row is there with its state, with no last line or last command
+  bindHost({
+    ...fakeHost({}).host,
+    async status(ids: string[]) {
+      return ids.map((terminalId) => ({
+        terminalId,
+        state: "running" as const,
+        lastLine: "SECRETLINE",
+        exitCode: null,
+      }));
+    },
+  });
+  assert.equal(
+    (await h["terminal.status"]!(hn.ctx, { terminalIds: [own] })).rows[0].lastLine,
+    "SECRETLINE",
+    "its owner reads it",
+  );
+  const theirs = await h["terminal.status"]!(manager, { terminalIds: [own] });
+  assert.equal(theirs.rows.length, 1);
+  assert.equal(theirs.rows[0].lastLine, undefined);
+  assert.equal(theirs.rows[0].lastCommand, undefined);
+});
+
+test("a member cannot rename the agent's terminal: rename needs entry to the computer, like every other door", async () => {
+  const { hn } = world();
+  const id = await open(hn);
+  hn.allowOnly((a) => a.level !== "manage");
+  const member: Harness["ctx"] = {
+    ...hn.as({ kind: "person", id: "usr_ben" }),
+    call: async (cap: string) => (cap === "agents.get" ? { agent: { ownerId: "usr_dana", kind: "agent" } } : {}),
+  };
+  const r = await failure(() => h["terminal.rename"]!(member, { terminalId: id, name: "mine now" }));
+  assert.equal(r.code, "permission.role_lacks_permission");
+  hn.allowOnly(() => true);
+  assert.notEqual((await call(hn, "terminal.get", { terminalId: id })).terminal.name, "mine now");
+});
+
+test("a terminal with no recorded opener is refused to every person; an old row owned by an agent id is still the agent's", async () => {
+  const { hn } = world();
+  const own = (
+    await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "old-1" })
+  ).terminal.terminalId as string;
+  hn.raw.run?.("UPDATE terminal_sessions SET owner = '' WHERE terminal_id = ?", own);
+  for (const who of [hn.ctx, hn.as(SARA)]) {
+    for (const cap of [
+      "terminal.take_over",
+      "terminal.capture",
+      "terminal.read",
+      "terminal.interrupt",
+      "terminal.close",
+    ]) {
+      const r = await failure(() => h[cap]!(who, { terminalId: own }));
+      assert.equal(r.code, "permission.role_lacks_permission", `${cap} with no opener`);
+    }
+  }
+  // an old row made by the agent before tab records: owner is the agent id, a named session: the agent's, entered as before
+  const old = (
+    await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "old-2" })
+  ).terminal.terminalId as string;
+  hn.raw.run?.("UPDATE terminal_sessions SET owner = 'agt_intake', name = 'build' WHERE terminal_id = ?", old);
+  hn.raw.run?.("DELETE FROM terminal_tabs WHERE terminal_id = ?", old);
+  assert.equal((await call(hn, "terminal.capture", { terminalId: old }, hn.as(SARA))).hidden !== undefined, true);
+});
+
+test("a manager closes a terminal whose opener is no longer an active member, and only closes it; a removed or suspended person's own terminals are closed with them", async () => {
+  const { hn } = world();
+  const own = (
+    await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "orph-1" })
+  ).terminal.terminalId as string;
+  const asking = (status: string): Harness["ctx"] => ({
+    ...hn.as({ kind: "person", id: "usr_wes" }),
+    call: async (cap: string) =>
+      cap === "access.principals.get" ? { principal: { status } } : { agent: { ownerId: "usr_x", kind: "agent" } },
+  });
+  // an active opener: a manager may not close it
+  const no = await failure(() => h["terminal.close"]!(asking("active"), { terminalId: own }));
+  assert.equal(no.code, "permission.role_lacks_permission");
+  // never read or type, even then
+  const read = await failure(() => h["terminal.capture"]!(asking("suspended"), { terminalId: own }));
+  assert.equal(read.code, "permission.role_lacks_permission");
+  assert.deepEqual(await h["terminal.close"]!(asking("suspended"), { terminalId: own }), { closed: true });
+  // removal closes the person's own terminals through the consumer, and not the agent's
+  const mine = (
+    await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "orph-2" })
+  ).terminal.terminalId as string;
+  const agents = await open(hn);
+  const { consumers } = await import("../impl.ts");
+  const closed = await consumers["terminal.holder_gone"].run(hn.ctx, {
+    name: "member.removed",
+    payload: { personId: "usr_dana" },
+  });
+  assert.ok(closed.includes(mine) && !closed.includes(agents), JSON.stringify([closed, mine, agents]));
+  assert.equal((await call(hn, "terminal.get", { terminalId: mine })).terminal.state, "exited");
+  // signing out of one device closes nothing
+  const still = await open(hn);
+  const out = await consumers["terminal.holder_gone"].run(hn.ctx, {
+    name: "session.revoked",
+    payload: { person: "usr_dana" },
+  });
+  assert.ok(!out.includes(still));
+});
+
+test("the same key and number with other text is refused in plain words, not answered as the first", async () => {
+  const { hn, sent } = world();
+  const id = await open(hn);
+  const t = await call(hn, "terminal.take_over", { terminalId: id });
+  await call(hn, "terminal.keys", batch(id, t.lease, 1, "k-1", "echo one"));
+  const same = await call(hn, "terminal.keys", batch(id, t.lease, 1, "k-1", "echo one"));
+  assert.deepEqual(same, { ok: true });
+  const other = await failure(() => h["terminal.keys"]!(hn.ctx, batch(id, t.lease, 1, "k-1", "rm -rf build")));
+  assert.equal(other.reason, "keys_differ");
+  assert.match(other.message, /already used for other keys/);
+  assert.equal(sent.length, 1);
 });

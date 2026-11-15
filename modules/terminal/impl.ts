@@ -1384,8 +1384,13 @@ export const consumers = {
     on: ["principal.suspended", "member.removed", "session.revoked"],
     run: (
       ctx: TermCtx,
-      event: { payload: { principalId?: unknown; personId?: unknown; person?: unknown } },
-    ): string[] => onHolderGone(ctx, event.payload.principalId ?? event.payload.personId ?? event.payload.person),
+      event: { name?: string; payload: { principalId?: unknown; personId?: unknown; person?: unknown } },
+    ): Promise<string[]> =>
+      onHolderGone(
+        ctx,
+        event.payload.principalId ?? event.payload.personId ?? event.payload.person,
+        event.name === "principal.suspended" || event.name === "member.removed",
+      ),
   },
   /** An agent came back from Trash: its workspace may be made again, over the volumes it kept. */
   "terminal.agent_restored": {

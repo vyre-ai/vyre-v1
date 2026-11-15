@@ -157,8 +157,8 @@ test(
     await w.d.hooks?.pump?.();
     const mine = (await lines(ada.call)).filter((b) => /keyboard/.test(b));
     assert.deepEqual(mine, [
-      "Wes Wu took the keyboard of Dex's terminal.",
-      "Wes Wu gave back the keyboard of Dex's terminal.",
+      "\u201cWes Wu\u201d took the keyboard of the terminal of \u201cDex\u201d.",
+      "\u201cWes Wu\u201d gave back the keyboard of the terminal of \u201cDex\u201d.",
     ]);
     assert.deepEqual(
       (await lines(w.ben.call)).filter((b) => /keyboard/.test(b)),

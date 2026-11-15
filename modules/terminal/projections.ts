@@ -796,6 +796,7 @@ export function workspaceHolder(db: Db, agentId: string, now: number): string | 
 }
 
 export function setHold(db: Db, terminalId: string, personId: string, now: number): void {
+  typedHashes.delete(terminalId);
   db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
   // a new take-over is a new lease: whatever the last holder had in flight is over, and nothing of it is kept
   db.run("DELETE FROM terminal_lease WHERE terminal_id = ?", terminalId);
@@ -809,7 +810,11 @@ export function setHold(db: Db, terminalId: string, personId: string, now: numbe
   );
 }
 
+/** The keyed hashes of the batches of each live lease (handlers/sessions.ts, keys): memory only, gone when the lease ends. */
+export const typedHashes = new Map<string, Map<string, string>>();
+
 export function dropHold(db: Db, terminalId: string): void {
+  typedHashes.delete(terminalId);
   db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
   db.run("DELETE FROM terminal_lease WHERE terminal_id = ?", terminalId);
   // the lease is over: nothing of its batches is kept

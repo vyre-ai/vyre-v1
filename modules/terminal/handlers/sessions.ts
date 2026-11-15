@@ -4,6 +4,7 @@
 //   run                                                            the terminal_run tool: one command, run in a session, output scrubbed of every Vault value filled into it
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
+import { createHmac, randomBytes } from "node:crypto";
 import { STOPPED_LINE } from "../stop-line.ts";
 import {
   MAX_RULES,
@@ -39,6 +40,7 @@ import {
   scopeOf,
   dropHold,
   leaseOf,
+  typedHashes,
   peekLease,
   takeOverOn,
   holderOf,
@@ -643,8 +645,9 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
   const kept: SessionRow[] = [];
   for (const x of rows0) {
     const may = await mayRead(ctx, x, facts);
-    if (may === "yes") known.push(x);
-    else if (may === "unknown") kept.push(x);
+    // someone else's own terminal shows that it is there and its state, never its last line or last command
+    if (may === "yes" && ownerOk(ctx, x)) known.push(x);
+    else if (may === "yes" || may === "unknown") kept.push(x);
   }
   const host = boundHost();
   let seen = new Map<string, { state: TermState; lastLine?: string; exitCode: number | null }>();
@@ -747,11 +750,19 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
  * A person's own terminal is theirs alone: one on the Space's server or a device, or their own tab in an agent's computer. Nobody else types into it, takes its keyboard, reads its screen or closes it, a manager
  * and the agent included (they still see that it is there and who is typing, in the list). A terminal of the agent's own (opened by the agent) is entered by whoever may enter the agent's computer, as before.
  */
+/** A terminal the agent itself works in: opened by the agent or a helper, the agent's named session, or an old row (before tab records) owned by an agent id. */
+const isAgentsOwn = (x: SessionRow): boolean =>
+  x.by?.kind === "agent" || x.by?.kind === "helper" || x.name === AGENT_SESSION || x.owner.startsWith("agt_");
+
+/** Is this terminal one the caller may use as its own (or an agent's own that the workspace rules decide)? A terminal with no recorded opener is nobody's: refused to every person. */
+function ownerOk(ctx: TermCtx, x: SessionRow): boolean {
+  // an agent's own terminal: opened by the agent, a helper, the agent's named session, or (an old row, before tab records) owned by an agent id
+  if (x.host === "agent_computer" && isAgentsOwn(x)) return true;
+  if (isTrustedService(ctx.principal)) return true;
+  return x.owner !== "" && x.owner === actorOf(ctx) && ctx.principal.kind !== "agent";
+}
 function needOwnTerminal(ctx: TermCtx, x: SessionRow): void {
-  const agents = x.by?.kind === "agent" || x.by?.kind === "helper" || x.name === AGENT_SESSION;
-  if (x.host === "agent_computer" && agents) return;
-  if (isTrustedService(ctx.principal)) return;
-  if (x.owner === actorOf(ctx) && ctx.principal.kind !== "agent") return;
+  if (ownerOk(ctx, x)) return;
   raise(
     ctx,
     "permission.role_lacks_permission",
@@ -760,6 +771,21 @@ function needOwnTerminal(ctx: TermCtx, x: SessionRow): void {
       reason: "terminal_not_yours",
     },
   );
+}
+
+/** Is this a terminal in an agent's computer that a manager of the agent may close because the person who opened it is no longer an active member of the Space? */
+async function orphanClosable(ctx: TermCtx, x: SessionRow): Promise<boolean> {
+  if (x.host !== "agent_computer" || x.agentId === undefined || x.owner === "" || ctx.call === undefined) return false;
+  if (ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow") return false;
+  try {
+    const got = (await ctx.call("access.principals.get", { principal: { kind: "person", id: x.owner } })) as {
+      principal?: { status?: string };
+    } | null;
+    const status = got?.principal?.status;
+    return typeof status === "string" && status !== "active";
+  } catch {
+    return false;
+  }
 }
 
 /** What the agent, or anyone else who is not the holder, is told while a person has the keyboard. */
@@ -883,9 +909,9 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
 
 // ---- acting in a session ------------------------------------------------------------------------------------------------------------------------------
 
-export function rename(ctx: TermCtx, input: { terminalId: string; name: string }) {
+export async function rename(ctx: TermCtx, input: { terminalId: string; name: string }) {
   ensure(ctx.db);
-  const x = live(ctx, input.terminalId);
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
   needOwnTerminal(ctx, x);
   needKeyboard(ctx, x);
   const name = input.name.trim();
@@ -902,7 +928,8 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
   if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
   if (x.closedAt !== undefined) return { closed: true };
   await needAccess(ctx, x);
-  needOwnTerminal(ctx, x);
+  // a manager may CLOSE (never read or type into) a terminal whose opener is no longer an active member: a way to clean up
+  if (!ownerOk(ctx, x) && !(await orphanClosable(ctx, x))) needOwnTerminal(ctx, x);
   needKeyboard(ctx, fresh(ctx, x));
   // The tmux session is killed when the machine can be reached; if it cannot, the row is still closed so the person is not stuck with a session they cannot see.
   const host = boundHost();
@@ -973,6 +1000,13 @@ export async function capture(ctx: TermCtx, input: { terminalId: string; lines?:
 
 /** The most characters one batch of keys holds. */
 const MAX_KEYS_CHARS = 100_000;
+/**
+ * A keyed hash (HMAC, a secret made when the process starts and never written anywhere) of each batch's text, per live lease, in memory only: a repeat of a batch number with other keys is refused in plain words
+ * instead of being answered as if it were the first. Nothing of it reaches a file; after a restart a lease is new anyway.
+ */
+const TYPED_SECRET = randomBytes(32);
+const typedHash = (keys: unknown): string =>
+  createHmac("sha256", TYPED_SECRET).update(JSON.stringify(keys)).digest("hex");
 const BATCH_KEEP_MS = 10 * 60_000;
 /** A batch that has been "being sent" this long was lost with the process that was sending it: it is answered as not known to have arrived, and never sent again. */
 const SENDING_STALE_MS = 15_000;
@@ -1033,6 +1067,9 @@ export async function keys(
   if (seen !== undefined) {
     if (String(seen["person_id"]) !== me || Number(seen["seq"]) !== input.seq)
       refuse(ctx, "Those keys do not belong to this take-over.", "batch_not_yours", tid);
+    const first = typedHashes.get(tid)?.get(`${input.lease}:${input.seq}`);
+    if (first !== undefined && first !== typedHash(input.keys))
+      refuse(ctx, "That batch number was already used for other keys. Nothing new was typed.", "keys_differ", tid);
     if (seen["state"] === "sending") {
       if (now - Number(seen["at"]) < SENDING_STALE_MS)
         refuse(ctx, "Those keys are still being sent.", "in_flight", tid);
@@ -1087,6 +1124,9 @@ export async function keys(
     now,
   );
   ctx.db.run("UPDATE terminal_lease SET next_seq = ? WHERE terminal_id = ?", input.seq + 1, tid);
+  const mineHashes = typedHashes.get(tid) ?? new Map<string, string>();
+  mineHashes.set(`${input.lease}:${input.seq}`, typedHash(input.keys));
+  typedHashes.set(tid, mineHashes);
   const settle = (st: Stored): void => {
     ctx.db.run(
       "UPDATE terminal_key_batch SET state = ?, answer = ? WHERE terminal_id = ? AND lease = ? AND seq = ?",
@@ -1339,7 +1379,9 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
     ) {
       raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: a.terminalId });
     }
-    return needAccess(ctx, x);
+    const entered = await needAccess(ctx, x);
+    needOwnTerminal(ctx, entered);
+    return entered;
   }
   const owner = actorOf(ctx);
   let agentId = a.agentId ?? (ctx.principal.kind === "agent" ? ctx.principal.id : undefined);
@@ -1989,13 +2031,40 @@ export async function forgetExpiredWorkspaces(
 
 export { commandsOf, judge, rulesOf };
 
-/** A person lost their place (suspended, removed from the Space, signed out): every keyboard they held goes back to the agent at once, and nothing of their batches is kept. */
-export function onHolderGone(ctx: TermCtx, personId: unknown): string[] {
+/**
+ * A person lost their place: every keyboard they held goes back to the agent at once, and nothing of their batches is kept. When they were suspended or removed (not merely signed out of one device) the terminals
+ * they opened for themselves are closed too, so nothing of theirs stays open that nobody may use.
+ */
+export async function onHolderGone(ctx: TermCtx, personId: unknown, closeTheirs = false): Promise<string[]> {
   if (typeof personId !== "string" || personId === "") return [];
   ensure(ctx.db);
   const held = (ctx.db.all("SELECT terminal_id FROM terminal_hold WHERE person_id = ?", personId) as Row[]).map((r) =>
     String(r["terminal_id"]),
   );
   for (const id of held) dropHold(ctx.db, id);
+  if (!closeTheirs) return held;
+  const mine = (ctx.db.all(`${SESSION_SELECT} WHERE s.owner = ? AND s.closed_at IS NULL`, personId) as Row[])
+    .map((r) => sessionOf(r))
+    .filter((x) => !(x.host === "agent_computer" && isAgentsOwn(x)));
+  const host = boundHost();
+  for (const x of mine) {
+    if (host) {
+      try {
+        await adoptOn(host, x);
+        await host.close(x.terminalId);
+      } catch {
+        /* the row is closed all the same */
+      }
+    }
+    dropHold(ctx.db, x.terminalId);
+    ctx.db.run(
+      "UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?",
+      ctx.now(),
+      x.terminalId,
+    );
+    forgetSecrets(scopeOf(x));
+    ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: personId });
+    held.push(x.terminalId);
+  }
   return held;
 }
