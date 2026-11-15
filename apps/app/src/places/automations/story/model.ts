@@ -134,6 +134,8 @@ export interface Story {
   rows: StoryRow[];
   /** Steps with their one missing thing showing. */
   needsYou: number;
+  /** What Test did at each step, by step id; empty when no test is showing. */
+  tests: Record<string, TestRow>;
   /** Ids after which a step can be added: every trigger and step row but the last, branches included. */
   slots: string[];
 }
@@ -294,6 +296,7 @@ export function story(i: StoryIn): Story {
     bars,
     rows,
     needsYou,
+    tests: i.test ? Object.fromEntries(testView(i.steps, i.test.results).map((r) => [r.id, r] as const)) : {},
     slots: ids.slice(0, -1),
   };
 }

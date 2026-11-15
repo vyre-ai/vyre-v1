@@ -41,6 +41,8 @@ import { appOfStep, stepId } from "../picker/model.ts";
 import { fromDefinition } from "../story/adapt.ts";
 import { needsFromIssues } from "../story/issues.ts";
 import { story as buildStory } from "../story/model.ts";
+import type { TestResult } from "../story/model.ts";
+import { useWhenText } from "../../../../../../ui/src/Time/index.tsx";
 import { look } from "./look.ts";
 import { More } from "../canvas/fields.tsx";
 import { LiveEvents } from "../operations/EventsView.tsx";
@@ -93,6 +95,7 @@ export function BuilderPage({
       </Page>
     );
   const a = q.data.automation as GetOut["automation"] | undefined;
+  const serverDraft = (q.data as { draft?: ServerDraft }).draft;
   if (!a)
     return (
       <Page title="This Automation is not available">
@@ -105,6 +108,7 @@ export function BuilderPage({
       key={a.id}
       a={a}
       {...(canEdit !== undefined ? { canEdit } : {})}
+      serverDraft={serverDraft ?? null}
       versions={versions.status === "ready" ? versions.data.versions : []}
       runsBody={runsBody}
       initialSelected={initialSelected}
@@ -114,9 +118,16 @@ export function BuilderPage({
   );
 }
 
+interface ServerDraft {
+  definition: Definition;
+  rev: number;
+  baseVersion: number;
+}
+
 function Body({
   a,
   canEdit,
+  serverDraft,
   versions,
   runsBody,
   initialSelected,
@@ -125,6 +136,7 @@ function Body({
 }: {
   a: GetOut["automation"];
   canEdit?: boolean;
+  serverDraft: ServerDraft | null;
   versions: VersionsOut["versions"];
   runsBody: ReactNode;
   initialSelected: string | null;
@@ -137,11 +149,21 @@ function Body({
   const { element, show } = useMenu();
   const locked = a.kind === "space" && (canEdit === undefined ? data.canSpace === false : !canEdit);
   const [tab, setTab] = useState<Tab>(initialTab);
-  const [draft, setDraft] = useState<Definition | null>(null);
+  // the draft lives on the server, saved as the person edits (AUTOMATIONS-BUILD-RC29 1c); this is the copy being typed into
+  const [draft, setDraft] = useState<Definition | null>(a.status === "on" && serverDraft ? serverDraft.definition : null);
+  // the rev of the server's draft this screen last read or wrote: a write carries it
+  const rev = useRef<number | null>(a.status === "on" && serverDraft ? serverDraft.rev : null);
   const undo = useRef<Definition[]>([]);
   // the version a draft was STARTED on: every write sends this base, never the live version, so another person's save is never overwritten
-  const base = useRef<number | null>(null);
+  const base = useRef<number | null>(a.status === "on" && serverDraft ? serverDraft.baseVersion : null);
+  const whenText = useWhenText();
   const [conflict, setConflict] = useState(false);
+  const [testRun, setTestRun] = useState<{
+    runId: string;
+    caseName: string;
+    results: Record<string, TestResult>;
+    done?: boolean;
+  } | null>(null);
   const [confirmTheirs, setConfirmTheirs] = useState(false);
   const def: Definition = draft ?? a.definition;
   const [sel, setSel] = useState<string | null>(initialSelected);
@@ -238,7 +260,7 @@ function Body({
   const edit = useCallback(
     (next: Definition): void => {
       if (locked) return;
-      if (draft === null) base.current = a.version;
+      if (base.current === null) base.current = a.version;
       undo.current.push(def);
       setDraft(next);
     },
@@ -247,20 +269,29 @@ function Body({
   const save = useCallback(async (): Promise<void> => {
     if (!draft || saving || conflict || locked) return;
     setSaving(true);
+    const sent = draft;
     try {
-      await data.call("automations.update", {
+      const out = (await data.call("automations.draft.save", {
         automationId: a.id,
-        definition: draft,
-        expectedVersion: base.current ?? a.version,
-      });
-      setDraft(null);
-      base.current = null;
-      undo.current = [];
+        definition: sent,
+        ...(rev.current === null ? { expectedVersion: base.current ?? a.version } : { expectedRev: rev.current }),
+      })) as { automation: { version: number; status: string }; draft?: ServerDraft };
+      if (out.draft) {
+        // an On Automation: the server holds the draft next to what is live
+        rev.current = out.draft.rev;
+        base.current = out.draft.baseVersion;
+      } else {
+        // an Off one is its own draft: what was sent is now the Automation
+        rev.current = null;
+        base.current = out.automation.version;
+        setDraft((now) => (now === sent ? null : now));
+        if (draft === sent) undo.current = [];
+      }
     } catch (e) {
       const code = (e as { code?: string } | null)?.code;
       if (
         code === "validation.version_conflict" ||
-        /newer version|version_conflict/i.test(String((e as Error)?.message ?? ""))
+        /changed this automation|newer version|version_conflict/i.test(String((e as Error)?.message ?? ""))
       ) {
         // nothing was overwritten and nothing is retried on the new version: the person chooses
         setConflict(true);
@@ -268,13 +299,15 @@ function Body({
     }
     setSaving(false);
   }, [draft, saving, conflict, locked, data, a.id, a.version]);
-  // an Off Automation is saved as you go; an On one waits for Save, because saving it makes the change live
+  // every edit is saved as a draft after a short pause: no Save button. A On Automation's edit stays a draft until Make live
+  const [savedDraft, setSavedDraft] = useState<Definition | null>(a.status === "on" && serverDraft ? serverDraft.definition : null);
   useEffect(() => {
-    if (!draft || a.status === "on" || locked || conflict) return undefined;
-    const t = setTimeout(() => void save(), 900);
+    if (!draft || draft === savedDraft || locked || conflict) return undefined;
+    const t = setTimeout(() => {
+      void save().then(() => setSavedDraft(draft));
+    }, 700);
     return () => clearTimeout(t);
-  }, [draft, a.status, locked, conflict, save]);
-
+  }, [draft, savedDraft, locked, conflict, save]);
   const pickIn = useMemo(() => (catalog ? pickInFromCatalog(catalog.steps) : null), [catalog]);
   const openConnect = useOpenConnect();
   // a step missing an account is fixed where it is missing: its one button connects it and puts the new account on the step
@@ -350,27 +383,63 @@ function Body({
         moreTriggers: triggerRows.slice(1),
         steps: view.steps,
         proposed: false,
-        dirty: draft !== null,
-        saveMode: "local",
-        test: null,
+        dirty: draft !== null && a.status === "on",
+        saveMode: "draft",
+        test: testRun ? { caseName: testRun.caseName, results: testRun.results } : null,
       }),
-    [a, view, draft, def],
+    [a, view, draft, def, triggerRows, testRun],
   );
 
+  const makeLive = useCallback(async (): Promise<void> => {
+    if (!draft || saving) return;
+    if (errors.length > 0) {
+      setNote(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} before this goes live.`);
+      setSel(model.rows.flatMap((r) => (r.kind === "step" && r.need ? [r.id] : []))[0] ?? null);
+      return;
+    }
+    setSaving(true);
+    try {
+      if (draft !== savedDraft) await data.call("automations.draft.save", {
+        automationId: a.id,
+        definition: draft,
+        ...(rev.current === null ? { expectedVersion: base.current ?? a.version } : { expectedRev: rev.current }),
+      }).then((o) => { rev.current = (o as { draft?: ServerDraft }).draft?.rev ?? null; });
+      await data.call("automations.make_live", { automationId: a.id, ...(rev.current !== null ? { expectedRev: rev.current } : {}) });
+      setDraft(null);
+      setSavedDraft(null);
+      rev.current = null;
+      base.current = null;
+      undo.current = [];
+      setNote("It is live. Runs already started finish as they were.");
+    } catch (e) {
+      const code = (e as { code?: string } | null)?.code;
+      if (code === "validation.version_conflict") setConflict(true);
+      else setNote(e instanceof Error ? e.message : "That did not go live. Your draft is still here.");
+    }
+    setSaving(false);
+  }, [draft, savedDraft, saving, data, a.id, a.version, errors, model]);
+
   const flash = (t: string): void => setNote(t);
-  const discardMine = (): void => {
+  // drop this screen's copy only: after a conflict the server's draft may be someone else's and stays
+  const dropLocal = (): void => {
+    rev.current = null;
+    setSavedDraft(null);
     setDraft(null);
     base.current = null;
     undo.current = [];
     setConflict(false);
     setConfirmTheirs(false);
   };
+  const discardMine = (): void => {
+    void data.call("automations.draft.discard", { automationId: a.id }).catch(() => undefined);
+    dropLocal();
+  };
   const keepMineAsCopy = async (): Promise<void> => {
     if (!draft) return;
     try {
       await data.call("automations.create", { name: `${a.name} (my edits)`, definition: draft });
       flash("Your edits are kept as a copy in your Automations");
-      discardMine();
+      dropLocal();
     } catch (e) {
       flash(e instanceof Error ? e.message : "No copy was made. Your edits are still here.");
     }
@@ -387,20 +456,56 @@ function Body({
       flash(e instanceof Error ? e.message : "That did not change.");
     }
   };
+  // Test tries the draft on a real past event, step by step (AUTOMATIONS-BUILD-RC29 1f)
   const test = async (): Promise<void> => {
-    if (errors.length > 0)
-      return flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} first, then test.`);
     try {
-      await data.call("automations.test", { automationId: a.id, sample: {} });
-      flash(
-        draft
-          ? "Test run started on the saved version. Save your changes to test them."
-          : "Test run started with sample data. Nothing was sent.",
-      );
+      if (draft && draft !== savedDraft) await save();
+      const past = (await data.call("automations.test_events", { automationId: a.id })) as {
+        events: { runId: string; at: number; payload: Record<string, unknown> }[];
+      };
+      const event = past.events[0];
+      const started = (await data.call("automations.test", {
+        automationId: a.id,
+        ...(a.status === "on" && draft ? { draft: true } : {}),
+        ...(event ? { eventRunId: event.runId } : {}),
+      })) as { runId: string };
+      setTestRun({ runId: started.runId, caseName: event ? caseOf(event.payload, whenText(event.at, Date.now())) : "an example event", results: {} });
     } catch (e) {
       flash(e instanceof Error ? e.message : "The test did not start.");
     }
   };
+  useEffect(() => {
+    if (!testRun || testRun.done) return undefined;
+    let live = true;
+    let tries = 0;
+    const tick = async (): Promise<void> => {
+      tries += 1;
+      try {
+        const got = (await data.call("runs.steps", { runId: testRun.runId })) as {
+          steps: { step: string; state: string; error?: { message: string } }[];
+        };
+        const results: Record<string, TestResult> = {};
+        for (const st of got.steps) {
+          if (st.state === "succeeded") {
+            const io = (await data
+              .call("runs.step_io", { runId: testRun.runId, step: st.step })
+              .catch(() => null)) as { output?: unknown } | null;
+            results[st.step] = { status: "ok", line: "Done", values: valuesOf(io?.output) };
+          } else if (st.state === "failed" || st.state === "stopped")
+            results[st.step] = { status: "stop", line: st.error?.message ?? "Stopped here", values: [] };
+        }
+        const finished = got.steps.length >= def.nodes.length || got.steps.some((x) => x.state === "failed");
+        if (live) setTestRun((t) => (t && t.runId === testRun.runId ? { ...t, results, done: finished || tries > 25 } : t));
+        if (live && !finished && tries <= 25) setTimeout(() => void tick(), 900);
+      } catch {
+        if (live) setTestRun((t) => (t ? { ...t, done: true } : t));
+      }
+    };
+    void tick();
+    return () => {
+      live = false;
+    };
+  }, [testRun?.runId]);
   const runNow = async (): Promise<void> => {
     try {
       await data.call("automations.run", { automationId: a.id, payload: {} });
@@ -432,12 +537,10 @@ function Body({
       else if (label === "Turn off") void setEnabled(false);
     } else if (action === "secondary") void setEnabled(false);
     else if (action === "bar") {
-      if (id === "Save") void save();
-      else if (id === "Discard") {
-        setDraft(null);
-        base.current = null;
-        undo.current = [];
-      }
+      if (id === "Make live") void makeLive();
+      else if (id === "Done") setTestRun(null);
+      else if (id === "Run again") void test();
+      else if (id === "Discard") discardMine();
     } else if (action === "open" && id) {
       // a step of a kind this version does not know is drawn, never opened: it has no form here, and Save keeps it as it was
       const node = def.nodes.find((n) => n.id === id);
@@ -551,7 +654,10 @@ function Body({
                 if (prev) {
                   const same = JSON.stringify(prev) === JSON.stringify(a.definition);
                   setDraft(same ? null : prev);
-                  if (same) base.current = null;
+                  if (same) {
+                    base.current = null;
+                    discardMine();
+                  }
                 }
               },
             },
@@ -633,7 +739,7 @@ function Body({
           {confirmTheirs ? (
             <View style={s.conflictRow}>
               <Text style={look.quiet}>Seeing theirs discards your changes.</Text>
-              <Pressable testID="conflict-discard" accessibilityRole="button" onPress={discardMine}>
+              <Pressable testID="conflict-discard" accessibilityRole="button" onPress={dropLocal}>
                 <Text style={look.btnText}>Discard mine</Text>
               </Pressable>
             </View>
@@ -804,3 +910,21 @@ const s = StyleSheet.create({
   pane: { flex: 1, padding: 16 },
   note: { paddingHorizontal: 16, paddingBottom: 4 },
 });
+
+/** Who a past event was about, in its own words, and when: "Sam Reyes, Tue 9:00 AM". */
+function caseOf(payload: Record<string, unknown>, when: string): string {
+  for (const k of ["name", "fullName", "title", "subject", "from", "email", "summary"]) {
+    const v = payload?.[k];
+    if (typeof v === "string" && v.trim()) return `${v.trim().slice(0, 40)}, ${when}`;
+  }
+  return `an earlier event, ${when}`;
+}
+
+/** The first few plain facts a step made, for the test line: only text and numbers, never ids or objects. */
+function valuesOf(output: unknown): readonly (readonly [string, string])[] {
+  if (!output || typeof output !== "object" || Array.isArray(output)) return [];
+  return Object.entries(output as Record<string, unknown>)
+    .filter(([k, v]) => (typeof v === "string" || typeof v === "number") && !/(^|_)id$|Id$/.test(k))
+    .slice(0, 3)
+    .map(([k, v]) => [k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), String(v)] as const);
+}

@@ -199,6 +199,17 @@ export function StoryView({
                         onPress={() => on("need", r.id)}
                       />
                     </View>
+                  ) : r.kind === "step" && story.tests[r.id] && story.tests[r.id]!.mark !== "skipped" ? (
+                    <View testID={`sv-test-${r.id}`}>
+                      <Text style={story.tests[r.id]!.mark === "stopped" ? look.warn : look.quiet}>
+                        {story.tests[r.id]!.tag ? `${story.tests[r.id]!.tag}. ` : ""}
+                        {story.tests[r.id]!.line ?? ""}
+                      </Text>
+                      {/* ui-rows-lint: not a list (the real values this step was given or made in the test) */}
+                      {story.tests[r.id]!.values.map(([k, v]) => (
+                        <Text key={k} style={look.quiet}>{`${k}: ${v}`}</Text>
+                      ))}
+                    </View>
                   ) : r.kind === "step" && (r.action !== "" || r.proposed) ? (
                     <Text style={look.quiet}>
                       {r.proposed ? [r.action, "proposed"].filter(Boolean).join(" · ") : r.action}

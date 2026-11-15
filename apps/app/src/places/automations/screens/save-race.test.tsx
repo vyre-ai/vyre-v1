@@ -1,4 +1,5 @@
 // Two people, one Automation: a draft carries the version it started on, every write sends that base, and a refused save overwrites nothing and is not retried on the new version. Plus the gating a person without the right sees.
+// Changed for AUTOMATIONS-BUILD-RC29 (1c): there is no Save button; every edit is a draft write (automations.draft.save) after a short pause, and the refusal is the server's.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
@@ -20,7 +21,8 @@ const open = async (id: string, extra: Record<string, unknown> = {}, tweak: (d: 
   await flush();
   return { s, root };
 };
-const updates = (s: ReturnType<typeof createSampleAutomations>) => s.calls.filter((c) => c.cap === "automations.update");
+const updates = (s: ReturnType<typeof createSampleAutomations>) =>
+  s.calls.filter((c) => c.cap === "automations.update" || c.cap === "automations.draft.save");
 const stored = (s: ReturnType<typeof createSampleAutomations>, id: string) =>
   s.replica.rows("automations").find((r) => r["id"] === id) as unknown as { version: number; definition: unknown };
 
@@ -41,13 +43,13 @@ test("Off with autosave: another person saves while I hold a draft; mine is refu
   assert.ok(find(root, "save-conflict"), "the page says someone else changed it");
 });
 
-test("On with Save: the same two writers; Save is refused, nothing is overwritten, and Keep mine as a copy keeps my edit", async () => {
+test("On, no Save button: the same two writers; my draft write is refused, nothing is overwritten, and Keep mine as a copy keeps my edit", async () => {
   const { s, root } = await open("aut_digest", { initialSelected: "post" });
   const started = stored(s, "aut_digest").version;
   await press(find(root, "delete-step"));
   await s.data.call("automations.update", { automationId: "aut_digest", definition: OTHER, expectedVersion: started });
   await flush();
-  await press(find(root, "sv-bar-Save"));
+  await new Promise((r) => setTimeout(r, 1000));
   await flush();
   const mine = updates(s).filter((c) => (c.input as { definition?: unknown }).definition !== OTHER);
   assert.equal(mine.length, 1);
@@ -56,6 +58,7 @@ test("On with Save: the same two writers; Save is refused, nothing is overwritte
   assert.ok(find(root, "save-conflict"));
   await new Promise((r) => setTimeout(r, 1200));
   assert.equal(updates(s).length, 2, "autosave and retries stay stopped until the person chooses");
+  assert.equal(find(root, "sv-bar-Save"), null, "there is no Save button");
   await press(find(root, "conflict-copy"));
   await flush();
   const made = s.calls.filter((c) => c.cap === "automations.create");
@@ -69,14 +72,14 @@ test("See theirs asks once, then discards my draft", async () => {
   await press(find(root, "delete-step"));
   await s.data.call("automations.update", { automationId: "aut_digest", definition: OTHER, expectedVersion: started });
   await flush();
-  await press(find(root, "sv-bar-Save"));
+  await new Promise((r) => setTimeout(r, 1000));
   await flush();
   await press(find(root, "conflict-theirs"));
   assert.equal(find(root, "conflict-discard") !== null, true, "one confirm first");
   await press(find(root, "conflict-discard"));
   await flush();
   assert.equal(find(root, "save-conflict"), null);
-  assert.equal(find(root, "sv-bar-Save"), null, "the draft is gone");
+  assert.equal(find(root, "sv-bar-Make live"), null, "the draft is gone");
 });
 
 test("a person without the right: no Turn on or off, no +, no Add a step, no step form, no autosave, one line saying why", async () => {

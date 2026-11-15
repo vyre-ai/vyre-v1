@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { find, flush, installDom, mount, press } from "../../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { AutomationsDataProvider } from "../canvas/data.tsx";
 import { createSampleAutomations, northwind } from "../sidebar/sample.ts";
 import { BuilderPage } from "./BuilderPage.tsx";
@@ -27,27 +27,41 @@ test("Ask Vyre opens the assistant with this Automation as its context, in one p
   assert.deepEqual(s.opened, ["ask:aut_lead"]);
 });
 
-test("Test runs the saved version with sample data and says nothing was sent", async () => {
+// Changed for AUTOMATIONS-BUILD-RC29 (1f): Test tries the draft on a real past event and names it in the bar; it no longer sends an empty sample.
+test("Test tries the Automation on a real past event and names it in the bar", async () => {
   const { s, root } = await open("aut_lead");
   await press(find(root, "sv-test"));
   await flush();
   const t = caps(s, "automations.test");
   assert.equal(t.length, 1);
-  assert.equal((t[0]!.input as { automationId: string }).automationId, "aut_lead");
-  assert.ok(find(root, "builder-note"), "the person is told what started");
+  const input = t[0]!.input as { automationId: string; sample?: unknown; eventRunId?: string };
+  assert.equal(input.automationId, "aut_lead");
+  assert.equal(input.sample, undefined, "no empty sample");
+  assert.equal(input.eventRunId, "run_past1", "the last real event");
+  assert.match(textOf(root), /Test with Sam Reyes/);
+  assert.match(textOf(root), /The test sent nothing/);
 });
 
-test("an edit on an On Automation waits for Save, then saves with the version it was made on", async () => {
+// Changed for AUTOMATIONS-BUILD-RC29 (1c): no Save button. An On Automation's edit is saved as a draft as you go, the bar offers Make live, and nothing is live until then.
+test("an edit on an On Automation is saved as a draft as you go; Make live publishes it", async () => {
   const { s, root } = await open("aut_digest", { initialSelected: "post" });
   const del = find(root, "delete-step");
   assert.ok(del, "the step form is open on the step");
   await press(del);
   await new Promise((r) => setTimeout(r, 1100));
   await flush();
-  assert.equal(caps(s, "automations.update").length, 0, "an On Automation is not saved as you go");
-  await press(find(root, "sv-bar-Save"));
+  assert.equal(caps(s, "automations.update").length, 0, "nothing went live");
+  const d = caps(s, "automations.draft.save");
+  assert.equal(d.length, 1, "the edit was saved as a draft");
+  assert.equal((d[0]!.input as { expectedVersion: number }).expectedVersion, 2);
+  assert.equal(find(root, "sv-bar-Save"), null, "there is no Save button");
+  // the sample's Automation still has a step that needs something: Make live says so in one sentence and sends nothing
+  await press(find(root, "sv-bar-Make live"));
   await flush();
-  const u = caps(s, "automations.update");
-  assert.equal(u.length, 1);
-  assert.equal((u[0]!.input as { expectedVersion: number }).expectedVersion, 2);
+  assert.equal(caps(s, "automations.make_live").length, 0, "a draft with something missing does not go live");
+  assert.match(textOf(root), /Fix the problem before this goes live\./);
+  await press(find(root, "sv-bar-Discard"));
+  await flush();
+  assert.equal(caps(s, "automations.draft.discard").length, 1, "Discard drops the draft on the server");
+  assert.equal(find(root, "sv-bar-Make live"), null, "the bar is gone");
 });
