@@ -97,7 +97,7 @@ test(
       else process.env["VYRE_WORKSPACE_IMAGE"] = saved;
       if (name !== "") {
         await docker(["rm", "-f", name]);
-        await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`]);
+        await docker(["volume", "rm", "-f", `${name}-home`, `${name}-files`, `${name}-people`]);
       }
       fs.rmSync(dir, { recursive: true, force: true });
     });

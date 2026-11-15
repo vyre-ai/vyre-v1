@@ -5,6 +5,7 @@ export interface AgentInfo {
   name: string;
   face: string;
   kind: string;
+  runtime?: string;
   ownerId: string;
   folderId: string | null;
 }
@@ -19,7 +20,7 @@ export async function agentInfo(ctx: CompCtx, agentId: string): Promise<AgentInf
   try {
     const a = (
       (await ctx.call("agents.get", { agentId })) as {
-        agent?: { name?: string; face?: string; kind?: string; ownerId?: string; folderId?: string };
+        agent?: { name?: string; face?: string; kind?: string; runtime?: string; ownerId?: string; folderId?: string };
       }
     ).agent;
     if (a)
@@ -27,13 +28,15 @@ export async function agentInfo(ctx: CompCtx, agentId: string): Promise<AgentInf
         name: a.name ?? "Agent",
         face: a.face ?? a.name ?? agentId,
         kind: a.kind ?? "agent",
+        ...(a.runtime === undefined ? {} : { runtime: a.runtime }),
         ownerId: a.ownerId ?? "",
         folderId: a.folderId ?? null,
       };
   } catch {
     info = null;
   }
-  cache.set(key, { at: ctx.now(), info });
+  // a failure is never remembered as an answer: the next call asks again (14 Nov: one timeout put every asker on the owner's profile for five minutes)
+  if (info !== null) cache.set(key, { at: ctx.now(), info });
   return info;
 }
 export const resetAgentInfo = (): void => cache.clear();

@@ -1,0 +1,1 @@
+Rewind's checkpoint store locks only the folders from the store up to the Space's checkpoints folder. It used to lock six folders above the store whatever they were, and from a short path that reached the root of the disk and stopped services that do not run as root.

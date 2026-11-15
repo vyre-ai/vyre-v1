@@ -41,6 +41,7 @@ type Out = {
   canAttach: boolean;
   cannotAttach?: string;
   takeOver?: boolean;
+  ownPlace?: boolean;
 };
 ```
 
@@ -65,6 +66,7 @@ type Out = {
     "host": "space",
     "line": "example",
     "nodeId": "example",
+    "ownPlace": true,
     "projects": [
       "prj_a1b2c3"
     ],

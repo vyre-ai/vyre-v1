@@ -234,8 +234,9 @@ test("f-kinds-a pictures", async (t) => {
       await page.goto(`${web.origin}/automations?skin=${skin}`, { waitUntil: "load" });
       await page.getByText("Weekly digest", { exact: true }).first().click({ timeout: 30_000 });
       await page.getByTestId("story").first().waitFor({ timeout: 30_000 });
+      // rc.29: a step is a sentence row in the builder (sv-step-<id>), not a card on a canvas (AUTOMATIONS-2026-11-13.md, the story of steps)
       await page
-        .getByTestId("card-n1")
+        .getByTestId("sv-step-n1")
         .waitFor({ timeout: 20_000 })
         .catch(() => undefined);
       await shot("1-step-cards", skin);

@@ -311,16 +311,27 @@ test("events: the type filter lists each type once with its count, and a sealed 
 test("events: each row shows its type, time and what it touched; the menu opens the run and the automation", () => {
   const html = text(
     renderToStaticMarkup(
-      <EventList rows={events} onOpenRun={() => undefined} onOpenAutomation={() => undefined} copy={() => undefined} />,
+      <EventList
+        rows={events}
+        names={new Map([["usr_a1", "Ana Reyes"]])}
+        onOpenRun={() => undefined}
+        onOpenAutomation={() => undefined}
+        copy={() => undefined}
+      />,
     ),
   );
   assert.ok(
     html.includes("record.updated") &&
       html.includes("09:00:05") &&
-      html.includes("automation aut_a1") &&
-      html.includes("run run_1") &&
+      html.includes("automation") &&
+      html.includes("in a run") &&
+      html.includes("by Ana Reyes") &&
+      html.includes("by a person") &&
       html.includes("Sealed"),
+    html,
   );
+  // the Console's pages show no raw id: a row says the kind of thing and who, in words (the ids stay in the details and in Copy the event id)
+  assert.doesNotMatch(html.replace(/<[^>]*>/g, " "), /\b(usr|agt|aut|run|evt|cld)_[A-Za-z0-9]+/, "no id in a row");
   assert.ok(html.includes("Event type"));
   const log: string[] = [];
   const menu = eventMenu(events[0]!, {

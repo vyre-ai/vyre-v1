@@ -741,8 +741,14 @@ export function buildOpener(h: OpenerHost): SessionOpener {
       : {}),
     ...(dataDir
       ? {
-          prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) =>
-            prepareWorkFolder(h.call, dataDir, spec, h.sessions?.keep(spec.threadId) ?? ""),
+          prepare: async (spec: {
+            agent: { id: string };
+            asker: string;
+            threadId: string;
+            turnId?: string | undefined;
+          }) => {
+            await prepareWorkFolder(h.call, dataDir, spec, h.sessions?.keep(spec.threadId) ?? "");
+          },
         }
       : {}),
     // A session with tools "none" (an automation's AI step) gets no tools and no agent role: its prompt carries everything it needs.

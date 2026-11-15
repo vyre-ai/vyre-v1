@@ -25,6 +25,30 @@ export function clockWords(at: number): string {
   return Number.isFinite(d.getTime()) ? d.toISOString().replace("T", " ").slice(0, 19) + " UTC" : "";
 }
 
+/** Who did it, in words: the person's or agent's name when the Space lists them, else what kind of doer it was. An id is never the answer (the Console's pages show no raw id). */
+export function whoWords(actor: string, names: ReadonlyMap<string, string> = new Map()): string {
+  const n = names.get(actor);
+  if (n) return n;
+  if (actor.startsWith("usr_")) return "a person";
+  if (actor.startsWith("agt_")) return "an agent";
+  return "the system";
+}
+
+/** What an event is about, as its kind ("automation", "claim"); its id stays in the details and in Copy the event id. */
+export function subjectWords(s: { type: string } | undefined): string {
+  return s ? s.type.replace(/[._]+/g, " ").trim() : "";
+}
+
+/** id -> name from access.principals.list, for the "by" of each row. */
+export function namesOf(out: unknown): Map<string, string> | null {
+  const list = (out as { principals?: unknown } | null)?.principals;
+  if (!Array.isArray(list)) return null;
+  const m = new Map<string, string>();
+  for (const r of list as Array<{ id?: unknown; name?: unknown }>)
+    if (typeof r?.id === "string" && typeof r?.name === "string" && r.name !== "") m.set(r.id, r.name);
+  return m;
+}
+
 export function payloadText(e: EventItem): string {
   if (e.sealed) return "Sealed. The event happened; what is inside it is not shown.";
   try {
@@ -64,7 +88,9 @@ export function EventList({
   onOpenAutomation,
   copy,
   initialPicked = null,
+  names,
 }: {
+  names?: ReadonlyMap<string, string> | undefined;
   rows: readonly EventItem[];
   onOpenRun(id: string): void;
   onOpenAutomation(id: string): void;
@@ -104,11 +130,9 @@ export function EventList({
               id={`event-${e.id}`}
               title={e.type}
               selected={picked === e.id}
-              note={
-                [e.subject ? `${e.subject.type} ${e.subject.id}` : "", e.runId ? `run ${e.runId}` : ""]
-                  .filter(Boolean)
-                  .join(" · ") || e.actor
-              }
+              note={[subjectWords(e.subject), e.runId ? "in a run" : "", `by ${whoWords(e.actor, names)}`]
+                .filter(Boolean)
+                .join(" · ")}
               trailing={
                 <View style={v.actions}>
                   {e.sealed ? <Text style={v.right}>Sealed</Text> : null}
@@ -135,7 +159,7 @@ export function EventList({
           return [
             row,
             <View key={`detail-${e.id}`} testID={`event-detail-${e.id}`} style={[v.detail, { marginLeft: 12 }]}>
-              <Text style={v.dim}>{`${clockWords(e.at)} · by ${e.actor || "the system"}`}</Text>
+              <Text style={v.dim}>{`${clockWords(e.at)} · by ${whoWords(e.actor, names)}`}</Text>
               <Text selectable style={v.mono}>
                 {payloadText(e)}
               </Text>
@@ -173,6 +197,8 @@ export function LiveEvents(): ReactElement {
       .catch(() => undefined);
   };
   const rows = state.phase === "ready" ? state.value : null;
+  const who = useCall("access.principals.list", {}, namesOf);
+  const names = who.phase === "ready" ? who.value : undefined;
   return (
     <Frame
       testID="live-events"
@@ -191,7 +217,13 @@ export function LiveEvents(): ReactElement {
         <Empty testID="events-empty" title="No events yet" next={EMPTY_EVENTS_NEXT} />
       ) : null}
       {rows && rows.length > 0 ? (
-        <EventList rows={rows} onOpenRun={data.nav.openRun} onOpenAutomation={data.nav.openAutomation} copy={copy} />
+        <EventList
+          rows={rows}
+          names={names}
+          onOpenRun={data.nav.openRun}
+          onOpenAutomation={data.nav.openAutomation}
+          copy={copy}
+        />
       ) : null}
     </Frame>
   );

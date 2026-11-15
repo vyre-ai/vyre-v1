@@ -9,11 +9,20 @@ import {
   onAgentGone,
   onHolderGone,
   onAgentRestored,
+  onPersonBack,
+  onPersonLeft,
+  reconcileAccess,
+  forgetExpiredPeople,
   openTabForRun,
   stopRuns,
 } from "./handlers/sessions.ts";
+import type { AccessDeps } from "./handlers/sessions.ts";
+import { chatFolderCommand, chatLinkCommand, grantCommand, removeCommand } from "./asker.ts";
 import {
   bindWorkspaceStatus,
+  bindChatFolder,
+  bindNotes,
+  bindPlaceGrant,
   bindHost,
   bindKit,
   bindMachineHost,
@@ -87,6 +96,8 @@ export interface TmuxOptions {
   maxOutput?: number;
   /** Lines of scrollback read when looking for a command's end. Default 5000. */
   scrollback?: number;
+  /** The command a new session runs instead of the default shell (a workspace: a bash with a private umask). */
+  shell?: readonly string[];
   /** tmux session names are `<prefix><terminalId>`. Default "vyre-". */
   prefix?: string;
   /** How a tab's live read (read with `since`) runs tmux: an exec that neither wakes the machine nor counts as use (a workspace). Default `exec`. */
@@ -225,7 +236,13 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     );
   }
   /** A session's shell keeps no line that starts with a space in its history (agent commands are typed that way). A tmux older than 3.0 has no -e: the session opens without it. */
-  async function newSession(session: string, cols: number, rows: number, cwd: string | undefined): Promise<void> {
+  async function newSession(
+    session: string,
+    cols: number,
+    rows: number,
+    cwd: string | undefined,
+    env: Readonly<Record<string, string>> = {},
+  ): Promise<void> {
     const rest = [
       "-d",
       "-s",
@@ -236,7 +253,9 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       String(rows),
       ...(cwd === undefined ? [] : ["-c", cwd]),
     ];
-    const r = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...rest]);
+    // a person who uses a shared agent without owning it: their shell's home, history and config folders (asker.ts)
+    const own = Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]);
+    const r = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...own, ...rest, ...(o.shell ?? [])]);
     if (r.code === 0) return;
     if (/unknown option|invalid option|usage:/i.test(r.stderr)) {
       await tmux(["new-session", ...rest]);
@@ -473,7 +492,7 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     sweep: sweepBuffers,
     async open(a) {
       const session = nameOf(a.terminalId);
-      await newSession(session, a.cols, a.rows, a.cwd);
+      await newSession(session, a.cols, a.rows, a.cwd ?? a.place?.home, a.place?.env);
       await sweepBuffers();
       const cwd = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_current_path}"])) || a.cwd || "~";
       return { cwd };
@@ -1019,6 +1038,7 @@ export interface WorkspaceConfig
     | "idleMs"
     | "home"
     | "projectsOf"
+    | "projectAccessOf"
     | "admit"
     | "capacity"
     | "log"
@@ -1248,6 +1268,29 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
   // agent commands go to a workspace when there is a machine for this agent's one right now; with none (no runtime, no server) they go where the turn runs, as before
   bindWorkspaces(fleet ? (agentId) => fleet.available(agentId) : false);
   bindWorkspaceStatus(fleet ? (agentId) => fleet.status(agentId) : null);
+  bindNotes(fleet ? (agentId) => fleet.takeNotes(agentId) : null);
+  bindPlaceGrant(
+    fleet
+      ? async (agentId, place) => {
+          const projects = await fleet.projectAccess(agentId, place.person);
+          const g = await fleet.exec(agentId, grantCommand(place, projects));
+          if (g.code !== 0)
+            throw new Error(`What this person may reach could not be set (${g.stderr.trim().slice(0, 160)}).`);
+        }
+      : null,
+  );
+  bindChatFolder(
+    fleet
+      ? async (agentId, thread, place) => {
+          const made = await fleet.exec(agentId, chatFolderCommand(thread, place?.uid));
+          if (made.code !== 0)
+            throw new Error(`the chat's folder could not be made (${made.stderr.trim().slice(0, 120)})`);
+          await fleet.exec(agentId, chatLinkCommand(thread, place?.home ?? "/home/agent"), {
+            ...(place === undefined ? {} : { user: place.uid }),
+          });
+        }
+      : null,
+  );
 }
 
 // Only the setter the daemon wires is a host seam.
@@ -1285,7 +1328,46 @@ export async function workspacesReady(): Promise<void> {
 }
 
 /** Jobs the host runs on a clock. */
+/** What the sweep asks of the host: the access answers (as the host, so any person can be asked about) and the commands in a workspace. */
+function accessDeps(ctx: TermCtx): AccessDeps {
+  const check = async (person: string, level: string, resource: { type: string; id: string }): Promise<boolean> => {
+    const r = (await ctx.call?.("access.check", {
+      principal: { kind: "person", id: person },
+      action: { level },
+      resource,
+    })) as { decision?: { effect?: string } } | undefined;
+    if (r?.decision?.effect === undefined) throw new Error("the access answer could not be read");
+    return r.decision.effect === "allow";
+  };
+  const wm = workspaceManager;
+  return {
+    mayUse: (person, agentId) => check(person, "use", { type: "agent", id: agentId }),
+    // who may read a chat is who is in it: its members (a person who left, or was never in it, has no entry on its folder)
+    mayView: async (person, thread) => {
+      const r = (await ctx.call?.("threads.get", { threadId: thread })) as
+        | { thread?: { members?: Array<{ kind?: string; id?: string }> } }
+        | undefined;
+      if (r?.thread?.members === undefined) throw new Error("the chat could not be read");
+      return r.thread.members.some((m) => m.kind === "person" && m.id === person);
+    },
+    stopFor: async (agentId, place) => {
+      await wm?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
+    },
+    run: wm
+      ? async (agentId, argv, user) => {
+          const r = await wm.exec(agentId, argv, { quiet: true, ...(user === undefined ? {} : { user }) });
+          return { code: r.code };
+        }
+      : null,
+  };
+}
+
 export const periodic = {
+  /** Every 15 seconds: whoever lost the use of an agent in any way (a group, a role, an expiry, a suspension) is out of its computer and their programs there end; chat folders follow chat membership. */
+  "terminal.use_sweep": {
+    everyMs: 15_000,
+    run: (ctx: TermCtx): Promise<string[]> => reconcileAccess(ctx, accessDeps(ctx)),
+  },
   /** Hourly: the home and Files volumes of an agent in Trash longer than the Space's Trash retention are removed (12 Nov, the Space browser's rule for its profiles). */
   "terminal.trash_volumes": {
     everyMs: 60 * 60_000,
@@ -1294,6 +1376,23 @@ export const periodic = {
         ctx,
         workspaceManager ? (agentId) => (workspaceManager as WorkspaceManager).remove(agentId) : null,
         inTrashCheck,
+      ),
+  },
+  /** Hourly: the folders of people who left the Space more than the Trash time ago are removed from the workspaces that are awake. */
+  "terminal.leavers_folders": {
+    everyMs: 60 * 60_000,
+    run: (ctx: TermCtx): Promise<string[]> =>
+      forgetExpiredPeople(
+        ctx,
+        workspaceManager
+          ? async (agentId, place) => {
+              const r = await (workspaceManager as WorkspaceManager).exec(agentId, removeCommand(place), {
+                quiet: true,
+                user: place.uid,
+              });
+              return r.code === 0;
+            }
+          : null,
       ),
   },
 };
@@ -1319,6 +1418,27 @@ export const hostCalls = {
 
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
+  /** A person left the Space: unreachable at once, their processes stopped where they run; their folder is erased at once where it is (and by the hourly pass where the workspace could not be reached). */
+  "terminal.person_left": {
+    on: ["member.removed"],
+    run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): Promise<string[]> =>
+      onPersonLeft(ctx, event, async (agentId, place) => {
+        // as them, and only where it runs: a sleeping workspace has nothing of theirs running and is not woken
+        await workspaceManager?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
+        // and what they made is erased at once (a person who leaves the Space takes nothing of theirs with the next person who gets their user)
+        await workspaceManager?.exec(agentId, removeCommand(place), { user: place.uid });
+      }),
+  },
+  /** What a person may reach on an agent's computer may have changed (a grant, a group, a role, an expiry, a suspension, a chat's members): it is brought back to what they may reach now at once (handlers/sessions.ts reconcileAccess). */
+  "terminal.use_gone": {
+    on: ["grant.revoked", "grant.updated", "access.changed", "principal.suspended", "channel.member_removed"],
+    run: (ctx: TermCtx): Promise<string[]> => reconcileAccess(ctx, accessDeps(ctx)),
+  },
+  /** Back inside the Trash time: their folder is theirs again. */
+  "terminal.person_back": {
+    on: ["member.joined"],
+    run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): boolean => onPersonBack(ctx, event),
+  },
   /** An agent went to Trash (deleted, or the Assistant of a person removed from the Space): its sessions close and its workspace's container and room go; what it kept stays (handlers/sessions.ts onAgentGone). */
   "terminal.agent_gone": {
     on: ["agent.deleted"],
