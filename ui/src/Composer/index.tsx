@@ -1901,7 +1901,7 @@ export function Composer(props: ComposerProps): ReactElement {
         label={trigger?.ch === "@" ? "Mention" : trigger?.ch === ":" ? "Emoji" : "Commands"}
         style={[
           popLeft,
-          { width: trigger?.ch === "@" ? 300 : trigger?.ch === "/" ? 460 : 340, maxWidth: "100%" } as ViewStyle,
+          { width: trigger?.ch === "@" ? 300 : trigger?.ch === "/" ? 540 : 340, maxWidth: "100%" } as ViewStyle,
         ]}
       >
         <View style={styles.scr} accessibilityRole="menu" {...webProps({ role: "listbox" })}>
@@ -2380,7 +2380,7 @@ const styles = StyleSheet.create({
   splitKbd: { fontSize: 11, color: "var(--accent-ink)" as string, opacity: 0.6 },
   lead: { marginRight: 10 },
   cmdLead: { width: 20, alignItems: "center", justifyContent: "center" },
-  cmdNote: { fontSize: 12.5, color: "var(--ink-3)" as string, maxWidth: 230, textAlign: "right" },
+  cmdNote: { fontSize: 12.5, color: "var(--ink-3)" as string, maxWidth: 320, textAlign: "right" },
   rowNote: { fontSize: 11.5, color: "var(--ink-4)" as string },
   scr: { padding: 6, maxHeight: 360, overflow: "scroll" } as object,
   plusPop: { width: 280, maxWidth: "100%" } as object,

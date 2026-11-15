@@ -458,3 +458,9 @@ Signed: pending, the lead
 - Proof: test/shared-agent.wall.heavy.test.ts (the walk: Ada and Bea, a project, a chat of both), test/terminal.wall.heavy.test.ts (twelve ways at the owner's side, refused by the kernel), test/terminal.asker.heavy.test.ts (the grants, revocation at the next command, the known limits), modules/terminal/tests/asker.test.ts, agent/tests/turn-engine.whose-folder.test.ts.
 
 Signed: ______ (lead)
+
+## 15 Nov 2026: chats.sidebar rows gain one optional output field (lane f-shots)
+
+A row of `chats.sidebar` gains `ask` (a boolean), present and true only on a pane that is an ask waiting for a person. The sidebar's Asks filter reads it; before, the server never sent ask panes and the filter was always empty. Optional output only: an older client ignores it.
+
+Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-shots-rc29 747c7008f)

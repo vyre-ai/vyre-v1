@@ -60,6 +60,18 @@ test("kinds-b: pane subject per chat kind, no cut text, one panel at 760", async
       await p.goto(`${web.origin}/chat#subject=thread:${id}`, { waitUntil: "load" });
       await p.getByTestId("composer-field").first().waitFor({ timeout: 30_000 });
     };
+    // rc.28 (chat-chapters / pane tabs by kind): a channel or group pane can open on another tab; the channel's details are the People tab
+    const openPeople = async (p: Page): Promise<void> => {
+      if (
+        await p
+          .getByTestId("chat-details")
+          .isVisible()
+          .catch(() => false)
+      )
+        return;
+      const tab = p.getByTestId("tab-people");
+      if (await tab.isVisible().catch(() => false)) await tab.click();
+    };
     const showPane = async (p: Page): Promise<void> => {
       // the pane may already be open (the place's own default); press the button only when it is not, once the chat has loaded
       const up = (): Promise<boolean> =>
@@ -94,15 +106,19 @@ test("kinds-b: pane subject per chat kind, no cut text, one panel at 760", async
     await page.screenshot({ path: path.join(shots, "1-pane-person.png") });
     await open(page, ch.mainThreadId);
     await showPane(page);
+    await openPeople(page);
     await page.getByTestId("chat-details").waitFor({ state: "visible", timeout: 15_000 });
     assert.equal((await page.getByTestId("chat-details-title").innerText()).trim(), "#launch-week");
     assert.match(await page.getByTestId("chat-details-topic").innerText(), /December launch/);
     await page.screenshot({ path: path.join(shots, "2-pane-channel.png") });
     await open(page, group);
     await showPane(page);
-    await page.getByTestId("chat-details").waitFor({ state: "visible", timeout: 15_000 });
-    assert.match(await page.getByTestId("chat-details-line").innerText(), /Group chat/);
+    // rc.28: a group of agents' pane is the agents' own; who is in the group (and that it is a group) is the header's people button and its popover
+    await page.getByTestId("participants-button").click();
+    await page.getByTestId("people-popover").waitFor({ timeout: 15_000 });
+    assert.match(await page.getByTestId("people-popover").innerText(), /Dex[\s\S]*Nova|Nova[\s\S]*Dex/);
     await page.screenshot({ path: path.join(shots, "3-pane-group.png") });
+    await page.keyboard.press("Escape");
     await open(page, agentChat);
     await showPane(page);
     assert.equal(await page.getByTestId("chat-details").count(), 0, "an agent's chat opens on the agent");

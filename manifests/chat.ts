@@ -169,6 +169,7 @@ const sidebarRow = t.obj({
   archived: t.opt(t.bool()),
   private: t.opt(t.bool()),
   withPeople: t.opt(t.bool()),
+  ask: t.opt(t.bool()),
 });
 const sidebarSection = t.obj({
   total: t.int({ minimum: 0 }),

@@ -5,6 +5,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 
+// b-nav 07f0221a0 (rc.28): the title bar's Back (testid nav-back) carries the same name, "Back to Apps", as the editor's own button; this is the editor's own
+const editorBack = (page: import("playwright-core").Page) =>
+  page
+    .locator('[data-testid="apps-form-detail"], [data-testid="apps-editor"], [data-testid="apps-template-detail"]')
+    .getByRole("button", { name: "Back to Apps", exact: true });
+
 test("production Apps: create a form, reload its real editor, install a saved draft template, and review a sending domain", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) {
@@ -133,7 +139,7 @@ test("production Apps: create a form, reload its real editor, install a saved dr
       fs.mkdirSync(captures, { recursive: true });
       await page.screenshot({ path: path.join(captures, "form-editor-desktop.png") });
     }
-    await page.getByRole("button", { name: "Back to Apps", exact: true }).click();
+    await editorBack(page).click();
     await page.getByTestId("apps-head-templates").click();
     await page.getByTestId("apps-place").waitFor({ timeout: 20_000 });
     await page.getByTestId("apps-title").filter({ hasText: "Templates" }).waitFor();
@@ -157,7 +163,7 @@ test("production Apps: create a form, reload its real editor, install a saved dr
     await page.getByTestId("apps-preview-install").click();
     await page.getByTestId("apps-confirm-install").click();
     await page.getByText(/Installed Browser fixture package\. Added 1 items\./).waitFor();
-    await page.getByRole("button", { name: "Back to Apps", exact: true }).click();
+    await editorBack(page).click();
     await page.getByTestId("apps-head-domains").click();
     await page.getByTestId("apps-new-group").click();
     await page.getByRole("menuitem", { name: "Add sending domain", exact: true }).click();

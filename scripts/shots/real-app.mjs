@@ -166,7 +166,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         await page.getByTestId("claim-password").fill("correct horse battery 9");
         await page.getByTestId("claim-confirm").fill("correct horse battery 9");
         await page.getByTestId("claim-next").click();
-        await page.getByTestId("claim-saved").click();
         await page.getByTestId("claim-create").click();
         await page.getByTestId("shell").waitFor({ timeout: 30000 });
         session = await page.evaluate(() => localStorage.getItem("vyre.session.v1"));
