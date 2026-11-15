@@ -200,7 +200,7 @@ async function tabFor(ctx: TermCtx, scope: WorkScope | undefined): Promise<TabBy
 }
 
 /**
- * Whose workspace this is to enter (owner, 6 Nov): an agent in its own; a person in their own Assistant's (or any agent of theirs); owners and admins (the ones who hold Manage) in a team agent's;
+ * Whose workspace this is to enter (owner, 6 Nov): an agent in its own; a person in their own Assistant's (or any agent of theirs); owners and admins (the ones who hold Manage) in a team agent's; a person who may only use a team agent, in a place of their own that nobody else enters;
  * nobody else, and never in another person's Assistant or outside agent, whatever their role, since that is private to its person.
  */
 export async function mayEnterWorkspace(ctx: TermCtx, agentId: string): Promise<boolean> {
@@ -323,9 +323,14 @@ async function entry(ctx: TermCtx, agentId: string, facts?: Facts): Promise<"yes
   const agent = got.agent;
   if (agent?.ownerId === me) return "yes";
   if (agent !== undefined && (agent.kind === "assistant" || agent.runtime === "outside")) return "no";
-  return ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: agentId }).effect === "allow"
-    ? "yes"
-    : "no";
+  if (ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: agentId }).effect === "allow") return "yes";
+  // a person who may use the agent and does not own it works on its computer in a place of their own (their own Unix user): the computer is theirs to enter, and nothing in it but what is theirs
+  if (
+    hasOwnPlace(agent, agentId, me) &&
+    ctx.authorize({ perm: null, level: "use" }, { type: "agent", id: agentId }).effect === "allow"
+  )
+    return "yes";
+  return "no";
 }
 
 async function needWorkspace(ctx: TermCtx, agentId: string, facts?: Facts): Promise<void> {
@@ -900,10 +905,21 @@ function needOwnTerminal(ctx: TermCtx, x: SessionRow): void {
 export const OTHERS_PLACE = "That terminal is in someone else's own space on this computer. Only they can use it.";
 async function needOwnPlace(ctx: TermCtx, x: SessionRow): Promise<void> {
   if (x.host !== "agent_computer" || x.agentId === undefined) return;
-  const place = await askerPlaceFor(ctx, x.agentId, x.owner);
-  if (place === undefined) return;
-  if (actorOf(ctx) !== x.owner)
+  const me = actorOf(ctx);
+  const refuse = (): never =>
     raise(ctx, "permission.role_lacks_permission", OTHERS_PLACE, { reason: "others_place", terminalId: x.terminalId });
+  const place = await askerPlaceFor(ctx, x.agentId, x.owner);
+  if (place !== undefined) {
+    if (me !== x.owner) refuse();
+    return;
+  }
+  // a terminal in no one's place is in the agent's own home: its owner and those who manage the agent enter it (an agent's turn for them too). A person who may only use the agent, or an agent acting for
+  // one, has a place of their own and no more.
+  if (x.owner === me) return;
+  const mine = await askerPlaceFor(ctx, x.agentId, me);
+  if (mine === undefined) return;
+  if (ctx.principal.kind === "agent" || ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow")
+    refuse();
 }
 
 /** The variables a person's place sets or that point the shell, tmux, ssh or git at another place (also the ones a shell reads before a command: BASH_ENV, PROMPT_COMMAND and the like). */

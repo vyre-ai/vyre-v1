@@ -151,12 +151,15 @@ const AGENTS = {
   agt_lee_outside: { ownerId: "usr_lee", runtime: "outside" },
   agt_dex: { ownerId: "usr_lee", kind: "teammate" },
 };
-const asPerson = (id: string, manage: boolean, raw?: ReturnType<typeof harness>["raw"]): TermCtx => {
-  const hn = harness({ ...(raw ? { raw } : {}), allow: (a) => a.level !== "manage" || manage });
+/** `use`: the person may use the agent (is shared with it at Use), as a person with only that and no more. */
+const asPerson = (id: string, manage: boolean, raw?: ReturnType<typeof harness>["raw"], use = false): TermCtx => {
+  const may = (a: { level: string }, r: { type: string }): boolean =>
+    a.level === "manage" ? manage : a.level === "use" && r.type === "agent" ? manage || use : true;
+  const hn = harness({ ...(raw ? { raw } : {}), allow: (a, r) => may(a, r) });
   return {
     ...hn.as({ kind: "person", id }),
     call: facts(AGENTS) as never,
-    authorize: (a) => ({ effect: a.level !== "manage" || manage ? "allow" : "deny" }),
+    authorize: (a, r) => ({ effect: may(a, r as { type: string }) ? "allow" : "deny" }),
   };
 };
 
@@ -174,6 +177,13 @@ test("who may enter: a person their own Assistant's workspace; an owner or admin
   assert.equal(await mayEnterWorkspace(admin, "agt_lee_outside"), false, "an admin in someone else's outside agent");
   assert.equal(await mayEnterWorkspace(admin, "agt_dex"), true, "an admin in a team agent's");
   assert.equal(await mayEnterWorkspace(member, "agt_dex"), false, "a member in a team agent's");
+  // a person shared with the agent at Use enters its computer in a place of their own, never an Assistant's or an outside agent's
+  const bea = asPerson("usr_bea", false, undefined, true);
+  assert.equal(await mayEnterWorkspace(bea, "agt_dex"), true, "a person who may use a team agent");
+  assert.equal(await mayEnterWorkspace(bea, "agt_dana_assistant"), false, "not another person's Assistant");
+  assert.equal(await mayEnterWorkspace(bea, "agt_lee_outside"), false, "not an outside agent");
+  // the owner of the agent
+  assert.equal(await mayEnterWorkspace(asPerson("usr_lee", false), "agt_dex"), true, "its owner");
   assert.equal(await mayEnterWorkspace(asPerson("usr_lee", false), "agt_dex"), true, "its owner");
   assert.equal(await mayEnterWorkspace(member, "agt_unknown"), false, "an agent nobody can read");
   // 12 Nov (audit item 16): agents.get answers not found to everyone but its person for an Assistant or an outside agent (modules/agents/projections.ts canSee), and to an admin for a person's own

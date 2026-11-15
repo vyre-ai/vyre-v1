@@ -197,7 +197,8 @@ test("who may take the keyboard: the owner of the agent and the Space's managers
   for (const who of ["usr_sara", "usr_guest"]) {
     const r = await failure(() => h["terminal.take_over"]!(asking(who), { terminalId: id }));
     assert.equal(r.code, "permission.role_lacks_permission", who);
-    assert.match(r.message, /not yours to open/);
+    // a person with Use enters the agent's computer in a place of their own, and the agent's own terminal is not in it
+    assert.match(r.message, /someone else's own space/);
     const k = await failure(() => h["terminal.keys"]!(asking(who), batch(id, "lse_x", 1, "g1", "x")));
     assert.ok(k.code.startsWith("permission."), `${who} types nothing: ${k.code}`);
   }

@@ -72,10 +72,10 @@ test("friendly words: another person's folder, the agent's own home, the Files m
 
 function setup(
   agent: { ownerId?: string; kind?: string; runtime?: string; folderId?: string },
-  allow: (type: string, id: string | null) => boolean = () => true,
+  allow: (type: string, id: string | null, level: string) => boolean = () => true,
 ) {
   reset();
-  const hn = harness({ allow: (_a, r) => allow(r.type, r.id) });
+  const hn = harness({ allow: (a, r) => allow(r.type, r.id, a.level) });
   const host = fakeHost({ pwd: { exitCode: 0, output: "/home/agent" }, "echo hi": { exitCode: 0, output: "hi" } });
   bindHost(host.host);
   bindTeam(() => true);
@@ -332,4 +332,36 @@ test("what reaches a person in the agent's home is a list of file-system grants:
   assert.deepEqual(none.slice(4), ["20002", "0"]);
   const script = c[2] ?? "";
   assert.ok(script.includes("chmod 700") && script.includes('--x'), "closed to everyone, then opened by name, execute-only on the way");
+});
+
+test("F30: a person who may only use the agent, and an agent working for them, have their place and no more: the agent's own terminals and the owner's are not theirs to type in or read", async () => {
+  const w = setup({ ownerId: "usr_maya", kind: "agent" }, (type, _id, level) => !(type === "agent" && level === "manage"));
+  // the agent's own terminal (a turn for nobody) and the owner's turn's terminal are in the agent's own home
+  const own = await h["terminal.run"]!(w.turn(undefined), { command: "echo hi", idempotencyKey: idem() });
+  const maya = await h["terminal.run"]!(w.turn("usr_maya"), { command: "echo hi", idempotencyKey: idem() });
+  const refused = async (f: () => unknown): Promise<unknown> => {
+    try {
+      await f();
+    } catch (e) {
+      return (e as { error?: { details?: { reason?: unknown } } }).error?.details?.reason ?? codeOf(e);
+    }
+    return "allowed";
+  };
+  const bea = w.person("usr_bea"); // Bea is shared at Use: no Manage
+  const beaTurn = w.turn("usr_bea");
+  for (const [what, id] of [
+    ["the agent's own terminal", own.terminalId],
+    ["the owner's terminal", maya.terminalId],
+  ] as const) {
+    for (const [who, ctx] of [
+      ["Bea typing", bea],
+      ["Bea's agent turn", beaTurn],
+    ] as const) {
+      assert.equal(await refused(() => h["terminal.input"]!(ctx, { terminalId: id, data: "ls\n" })), "others_place", `${who}: ${what}`);
+      assert.equal(await refused(() => h["terminal.read"]!(ctx, { terminalId: id })), "others_place", `${who} reads: ${what}`);
+    }
+  }
+  // her own terminal, opened by her turn, is hers
+  const hers = await h["terminal.run"]!(beaTurn, { command: "echo hi", idempotencyKey: idem() });
+  assert.equal(await refused(() => h["terminal.input"]!(bea, { terminalId: hers.terminalId, data: "ls\n" })), "allowed");
 });
