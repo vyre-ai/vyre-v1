@@ -24,7 +24,7 @@ const recorder = () => {
 test("a Personal Space offers the sign-ins on this computer first; a Team Space does not", () => {
   assert.deepEqual(
     LOCAL_SIGNINS.map((o) => o.button),
-    ["Use the Claude Code sign-in on this computer", "Use the Codex sign-in on this computer"],
+    ["Use Claude on this computer", "Use ChatGPT on this computer"],
   );
   const personal = renderToStaticMarkup(<ConnectAiCard call={recorder().call} local onConnected={() => undefined} />);
   assert.ok(
