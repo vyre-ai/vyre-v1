@@ -1,0 +1,1 @@
+- The Chats sidebar reads its Ask panes without an extra database read.
