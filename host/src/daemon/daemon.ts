@@ -5084,6 +5084,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               scrub({ seqs: out.erased });
               return out;
             },
+            forgetText: (needles: readonly string[]) => spaceLog.forgetText(needles),
           };
         },
         // identity opens a device session at sign-in: the token is minted here for that devices session, and ending a session stops it at the gateway (P-SEC_05)

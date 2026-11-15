@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { boot, call, connect, makeAgent, scriptedModel, seededDir, waitFor } from "./support/live.ts";
+import { boot, call, hostLog, connect, makeAgent, scriptedModel, seededDir, waitFor } from "./support/live.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 const C = (what: string): string => `CANARY_${what}_9f3a1c`;
@@ -142,6 +142,7 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
     assert.equal((await call(d, "agents.get", { agentId })).status, 200);
     assert.equal((await call(d, "agents.delete", { agentId })).status, 200);
 
+    results["logEarly"] = hostLog(d);
     const preview = await call(d, "agents.delete_preview", { agentId });
     assert.equal(preview.status, 200, JSON.stringify(preview.data));
     results["preview"] = preview.data;
@@ -161,17 +162,23 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
       again.status === 200 || again.status === 404,
       `pressing again on an erased agent is the same as for any gone thing, not a failure (${again.status})`,
     );
+    results["logAfter"] = hostLog(d);
     const t = await call(d, "tasks.get", { taskId });
     results["task"] = t.data;
     assert.ok(!JSON.stringify(t.data).includes(`"id":"${agentId}"`), "the task no longer names the agent");
     assert.equal((await call(d, "agents.get", { agentId })).status, 404, "the id resolves to nothing");
     await d.stop();
 
+    // the log: no event payload names the agent any more, so a replay of any projection (access grants, chat, engine) cannot bring its grants or its name back (kernel isErased makes an erased payload a no-op)
+    const ev = new DatabaseSync(path.join(dir, "events.db"), { readOnly: true });
+    const logHits = (ev.prepare("SELECT type FROM events WHERE instr(CAST(payload AS TEXT), ?) > 0").all(agentId) as { type: string }[]).map((r) => r.type);
+    const cacheHits = (ev.prepare("SELECT key FROM idempotency WHERE instr(CAST(result AS TEXT), ?) > 0").all(agentId) as { key: string }[]).map((r) => r.key);
+    ev.close();
+    results["logHits"] = { logHits, cacheHits };
+    assert.deepEqual([logHits, cacheHits], [["agent.erased"], []], "only the audit record of the erase (agent.erased: id and name at the time) names the agent in the log, and no kept answer does, so a replay cannot bring its grants or its name back");
     const found = scan(dir, Object.values(canaries));
     results["hits"] = Object.fromEntries([...found].map(([k, v]) => [k, [...v]]));
-    // the request cache keeps the inputs of the calls people made (the post, the routine): not the agent's store; reported as a finding for the lead, not hidden
     const bad = [...found]
-      .filter(([where]) => where !== "events.db:idempotency")
       .flatMap(([where, set]) => [...set].filter((c) => c !== canaries.shared).map((c) => `${c} in ${where}`));
     // the shared message may stand in the chat and in the event log that carried it; nothing else may hold any canary
     const sharedOnly = [...found].filter(([, set]) => set.has(canaries.shared));

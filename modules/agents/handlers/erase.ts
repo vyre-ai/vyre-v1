@@ -35,6 +35,7 @@ export const ERASE_STEPS = [
   "vault",
   "search",
   "files",
+  "governance",
 ] as const;
 export const ERASE_JOB = "host.hook.periodic.agents.erase_job";
 const stepCall = (module: string): string => `host.hook.call.${module}.erase_agent`;
@@ -198,11 +199,25 @@ export async function runErase(ctx: AgentsCtx): Promise<string[]> {
     const id = String(j["agentId"]);
     const done = new Set(doneOf(j));
     let stuck = false;
+    // the ids the event log and the request cache are cleared of at the end: its routines and its one-to-one chats, read before the stores that know them are cleared
+    if ((ctx.db.all("SELECT 1 FROM agents_erase_ids WHERE agentId = ? LIMIT 1", id) as Row[]).length === 0 && !done.has("chat")) {
+      const ids = (ctx.db.all("SELECT id FROM agents_routine WHERE agentId = ?", id) as Row[]).map((r) => String(r["id"]));
+      try {
+        const f = (await ctx.call?.(stepCall("chat"), { input: { agentId: id, dry: true } })) as Footprint | undefined;
+        ids.push(...(f?.threadIds ?? []));
+      } catch {
+        /* chat is not in this Space */
+      }
+      if (j["folderId"]) ids.push(String(j["folderId"]));
+      for (const x of ids) ctx.db.run("INSERT OR IGNORE INTO agents_erase_ids (agentId, id) VALUES (?, ?)", id, x);
+      ctx.db.run("INSERT OR IGNORE INTO agents_erase_ids (agentId, id) VALUES (?, ?)", id, id);
+    }
+    const ids = (ctx.db.all("SELECT id FROM agents_erase_ids WHERE agentId = ?", id) as Row[]).map((r) => String(r["id"]));
     for (const m of ERASE_STEPS) {
       if (done.has(m)) continue;
       try {
         await ctx.call?.(stepCall(m), {
-          input: { agentId: id, name: String(j["name"]), folderId: j["folderId"] ?? undefined, dry: false },
+          input: { agentId: id, name: String(j["name"]), folderId: j["folderId"] ?? undefined, ids, dry: false },
         });
       } catch (e) {
         if (!absent(e)) {
@@ -223,6 +238,7 @@ export async function runErase(ctx: AgentsCtx): Promise<string[]> {
       ctx.db.run(`UPDATE agents_erase SET "doneJson" = ? WHERE "agentId" = ?`, JSON.stringify([...done]), id);
     }
     if (stuck) continue;
+    ctx.db.run("DELETE FROM agents_erase_ids WHERE agentId = ?", id);
     eraseOwn(ctx, id);
     ctx.db.run(
       `UPDATE agents_erase SET "state" = 'erased', "finishedAt" = ?, "lastError" = NULL WHERE "agentId" = ?`,

@@ -267,6 +267,8 @@ export interface EventsCompactPort {
     identifiers?: readonly string[];
   }): Promise<{ erased: number[]; already: number }>;
   compactSeqs(seqs: readonly number[]): Promise<{ erased: number[]; already: number }>;
+  /** Delete the kept answers of old requests that carry these ids (the request cache, events.db idempotency). */
+  forgetText?(needles: readonly string[]): Promise<number>;
 }
 let eventsPort: EventsCompactPort | null = null;
 export function setEventsCompact(p: EventsCompactPort | null): void {
@@ -528,4 +530,16 @@ export async function tombstonesReapply(
   }
   ctx.emit("tombstones.reapplied", `entity/${rows.length}`, { count: rows.length });
   return { count: rows.length };
+}
+
+/**
+ * Delete for good (F77, rulings 2 and 3): the event log and the request cache hold copies of what an agent did and what was said to it. The payload of every event that names one of these ids (the agent, its folder,
+ * its one-to-one chats, its routines) becomes the erased tombstone, which a replay treats as a no-op (kernel isErased), so nothing of it is rebuilt; and the kept answers of requests that carry those ids go at once.
+ */
+export async function eraseIds(ids: readonly string[]): Promise<{ events: number; requests: number }> {
+  const list = [...new Set(ids.filter((x) => x.length > 0))];
+  if (!eventsPort || list.length === 0) return { events: 0, requests: 0 };
+  const out = await eventsPort.compact({ entities: list.map((id) => ({ id })) });
+  const requests = eventsPort.forgetText ? await eventsPort.forgetText(list) : 0;
+  return { events: out.erased.length, requests };
 }

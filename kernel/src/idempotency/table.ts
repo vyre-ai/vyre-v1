@@ -47,6 +47,22 @@ export class IdempotencyTable {
     return Number(r.changes) === 1;
   }
 
+  /** Delete the kept answers that carry any of these ids at once (erasing an agent: the calls addressed to it, its chats and its routines), and scrub the freed pages. Returns how many rows went. */
+  forgetText(needles: readonly string[]): number {
+    const list = needles.filter((n) => n.length > 0);
+    if (list.length === 0) return 0;
+    this.db.exec("PRAGMA secure_delete = ON");
+    let n = 0;
+    for (const needle of list)
+      n += Number(this.db.prepare("DELETE FROM idempotency WHERE instr(CAST(result AS TEXT), ?) > 0 OR instr(key, ?) > 0").run(needle, needle).changes);
+    if (n > 0) {
+      this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      this.db.exec("VACUUM");
+      this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    }
+    return n;
+  }
+
   /** Drop everything older than 30 days; returns how many rows went. */
   purge(now: number): number {
     return Number(this.db.prepare("DELETE FROM idempotency WHERE at < ?").run(now - IDEM_TTL_MS).changes);

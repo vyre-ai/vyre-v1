@@ -9,6 +9,8 @@ export interface Footprint {
   memory?: number;
   bytes?: number;
   routines?: number;
+  /** The ids of the one-to-one chats it holds (so the event log and request cache can be cleared of them last). */
+  threadIds?: string[];
   named?: Array<{ kind: "automation" | "task" | "goal" | "project"; id: string; title: string }>;
 }
 export interface EraseInput {
@@ -57,6 +59,8 @@ export type EraseCtx = {
 };
 export interface EraseIn extends EraseInput {
   folderId?: string;
+  /** The ids the job clears at the end: its one-to-one chats and routines. */
+  ids?: string[];
 }
 /** A module whose store is only tables keyed by the agent: one host call that clears (or counts) them, and what else it needs in `more`. */
 export const eraseTables =

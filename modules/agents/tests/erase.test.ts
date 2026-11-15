@@ -1,7 +1,7 @@
 // Delete for good (F77): the rules of the job, on the real agents tables with a fake neighbour per module. Each test names the rule it pins.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers } from "../impl.ts";
+import { handlers, restoreAgentFiles } from "../impl.ts";
 import { ERASE_STEPS, runErase, sweepExpired, retentionMs, TRASH_KEEP_MS } from "../handlers/erase.ts";
 import { DANA, failure, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -18,7 +18,7 @@ const make = async (hn: Harness, name = "Desk"): Promise<any> =>
   (await h["agents.create"]!(hn.ctx, { name, idempotencyKey: `k${++n}` })).agent;
 const stepsCalled = (hn: Harness): string[] =>
   hn.world.calls
-    .filter((c) => c.cap.endsWith(".erase_agent"))
+    .filter((c) => c.cap.endsWith(".erase_agent") && (c.input as { input?: { dry?: boolean } }).input?.dry !== true)
     .map((c) => c.cap.replace("host.hook.call.", "").replace(".erase_agent", ""));
 
 test("an agent that is not in Trash is refused in one plain sentence, and nothing starts", async () => {
@@ -117,4 +117,17 @@ test("Trash's keep time runs out: the agent is started on the Space's own trash 
   assert.deepEqual(await sweepExpired(hn.ctx as never), [a.agentId]);
   assert.equal(TRASH_KEEP_MS, retentionMs("30d"));
   void DANA;
+});
+
+test("an agent deleted for good is never adopted again from the access list, and its id is never reused", async () => {
+  const hn = world();
+  const a = await make(hn);
+  await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
+  await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId });
+  await runErase(hn.ctx as never);
+  hn.world.answer("access.principals.list", () => ({
+    principals: [{ id: a.agentId, kind: "agent", name: "Desk", owner: "usr_dana", status: "active" }],
+  }));
+  await restoreAgentFiles(hn.ctx as never);
+  assert.equal(hn.ctx.db.all("SELECT id FROM agents_agent WHERE id = ?", a.agentId).length, 0, "no ghost record comes back");
 });
