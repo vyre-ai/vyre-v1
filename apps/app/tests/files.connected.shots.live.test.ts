@@ -88,3 +88,80 @@ test("the connected bar's lines in the real app, in both skins", async (t) => {
     await s.close();
   }
 });
+
+test("a Google Sheet's tabs and a Google Doc in the real app, in both skins (the provider's answers are put in on the way, as above)", async (t) => {
+  const s = await session(t, { width: 1280, height: 800 });
+  if (!s) return;
+  const { page } = s;
+  try {
+    const sheet = await s.make("Budget.csv", Buffer.from("Item,Cost\nPaper,12\nInk,30\n"), "text/csv");
+    const doc = await s.make(
+      "Minutes.txt",
+      Buffer.from("Minutes of the meeting.\nThe budget was agreed."),
+      "text/plain",
+    );
+    const native = new Map<string, { mime: string; text: string }>([
+      [
+        sheet.file.fileId as string,
+        { mime: "application/vnd.google-apps.spreadsheet", text: "Item,Cost\nPaper,12\nInk,30\n" },
+      ],
+      [
+        doc.file.fileId as string,
+        { mime: "application/vnd.google-apps.document", text: "Minutes of the meeting.\nThe budget was agreed." },
+      ],
+    ]);
+    await page.route("**/v1/files/viewer_data", async (route) => {
+      const res = await route.fetch();
+      const json = (await res.json()) as { data?: Record<string, any> };
+      const n = native.get((route.request().postDataJSON() as { fileId?: string } | null)?.fileId ?? "");
+      if (json.data && n !== undefined) {
+        json.data["file"] = { ...json.data["file"], kind: "google_native", mime: n.mime };
+        json.data["text"] = n.text;
+        json.data["snapshot"] = { exportedAt: Date.now(), editVia: "provider_api" };
+        json.data["connected"] = { provider: "Google Drive" };
+      }
+      await route.fulfill({ response: res, json });
+    });
+    const TABS: Record<string, string[][]> = {
+      Costs: [
+        ["Item", "Cost"],
+        ["Paper", "12"],
+        ["Ink", "30"],
+      ],
+      "Tax rates": [
+        ["Region", "Rate"],
+        ["North", "0.1"],
+      ],
+    };
+    await page.route("**/v1/mounts/sheet_tabs", (route) =>
+      route.fulfill({ json: { data: { tabs: Object.keys(TABS).map((title) => ({ title, rows: 3, columns: 2 })) } } }),
+    );
+    await page.route("**/v1/mounts/sheet_read", (route) => {
+      const sheetName = (route.request().postDataJSON() as { sheet?: string } | null)?.sheet ?? "";
+      return route.fulfill({ json: { data: { values: TABS[sheetName] ?? [] } } });
+    });
+    const dir = process.env["VYRE_VIEWER_SHOTS"] ?? "/tmp/vyre-viewer-shots";
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto(`${s.web.origin}/files#subject=file:${sheet.file.fileId}`, { waitUntil: "load" });
+      await page.getByTestId("vwg-tab-1").waitFor({ timeout: 40_000 });
+      assert.equal(await page.getByTestId("vwg-tab-0").innerText(), "Costs");
+      assert.equal(await page.getByTestId("vwg-tab-1").innerText(), "Tax rates");
+      await page.screenshot({ path: `${dir}/owner-gsheet-${scheme}-tab-1.png` });
+      await page.getByTestId("vwg-tab-1").click();
+      await page.getByText("North").first().waitFor({ timeout: 10_000 });
+      await page.screenshot({ path: `${dir}/owner-gsheet-${scheme}-tab-2.png` });
+      await page.goto(`${s.web.origin}/files#subject=file:${doc.file.fileId}`, { waitUntil: "load" });
+      await page.getByText("Minutes of the meeting.").first().waitFor({ timeout: 40_000 });
+      await page.screenshot({ path: `${dir}/owner-gdoc-${scheme}-view.png` });
+      await page
+        .getByTestId("vw-mode-edit")
+        .click({ timeout: 10_000 })
+        .catch(() => undefined);
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${dir}/owner-gdoc-${scheme}-edit.png` });
+    }
+  } finally {
+    await s.close();
+  }
+});
