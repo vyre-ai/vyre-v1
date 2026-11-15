@@ -87,7 +87,6 @@ async function main(): Promise<void> {
     await page.getByTestId("claim-password").fill("fixture stream password123");
     await page.getByTestId("claim-confirm").fill("fixture stream password123");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page).catch(async (e: Error) => {
       const ids = await page.evaluate(() =>

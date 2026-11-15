@@ -667,6 +667,7 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
         onPress={d.hasDoc ? () => void openTab(host, "plan", block.data) : undefined}
       />
       <View style={styles.steps}>
+        {/* ui-rows-lint: not a list (a plan's steps are a checklist inside one card: a tick and its text, nothing to press, hover or select) */}
         {steps.map((s, i) => (
           <View key={s.stepId} style={styles.step} testID={`blk-plan-${block.id}-step-${i}`}>
             <View

@@ -1,0 +1,1 @@
+- The browser walks follow the one-card claim step again.

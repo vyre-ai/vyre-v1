@@ -70,7 +70,6 @@ export async function walk(t: { skip(m?: string): void }, only?: readonly string
     await page.getByTestId("claim-password").fill(PASSWORD);
     await page.getByTestId("claim-confirm").fill(PASSWORD);
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     const token = await page.evaluate(
