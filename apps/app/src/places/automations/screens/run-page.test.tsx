@@ -36,9 +36,12 @@ test("a failed run is rows numbered as the builder, one plain sentence, one butt
   const text = textOf(root);
   assert.match(text, /Stopped at step \d/);
   assert.match(text, /The Twilio key is missing\./);
-  assert.ok(find(root, "rv-fix"), "one button opens the step");
+  assert.ok(find(root, "rv-fix"), "one button opens the fix");
+  await press(find(root, "rv-fix"));
+  await flush();
+  assert.ok(find(root, "run-fix"), "the fix opens in place on this page");
   assert.equal(/rec_1/.test(text), false, "no id reaches the page");
   await press(find(root, "run-again"));
   await flush();
-  assert.equal(s.calls.filter((c) => c.cap === "automations.retry").length, 1);
+  assert.equal(s.calls.filter((c) => c.cap === "automations.replay").length, 1, "it runs again on the current version");
 });

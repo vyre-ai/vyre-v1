@@ -34,10 +34,12 @@ import {
   touch,
   versionById,
   dropDraft,
+  versionDefinition,
   findDraft,
   writeDraft,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
+import { shapeIssues } from "../shape.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
 import { accountUseIssues } from "../account-use.ts";
 import { guardKeySteps, recordStepHosts, usableKeyIds } from "../key-steps.ts";
@@ -738,8 +740,10 @@ export async function get(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   const d = findDraft(ctx.db, a.id);
   const p = findProposal(ctx.db, a.id);
+  // a run's page reads the version the run RAN on (pinned), not the definition as it is now
+  const ran = typeof input.version === "number" && input.version !== a.version ? versionDefinition(ctx.db, a.id, input.version) : undefined;
   return {
-    automation: out(a),
+    automation: ran ? { ...out(a), definition: ran } : out(a),
     canEdit: await canChangeSpace(ctx, a),
     ...(d ? { draft: { definition: d.definition, rev: d.rev, baseVersion: d.baseVersion, by: d.by, at: d.at } } : {}),
     ...(p ? { proposal: proposalOut(p) } : {}),
@@ -917,7 +921,10 @@ export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
 const EMPTY: Definition = { triggers: [{ key: "manual" }], nodes: [] };
 
 export function checkStructure(ctx: AutoCtx, def: Definition): void {
-  const bad = structuralIssues(def);
+  const bad = [
+    ...structuralIssues(def),
+    ...shapeIssues(def).map((x) => issue("error", x.message, x.nodeId)),
+  ];
   if (bad.length) raise(ctx, "validation.bad_input", bad[0]!.message, { issues: bad });
 }
 

@@ -4,12 +4,17 @@ import type { ReactElement } from "react";
 import { SIDEBAR, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
 import { firstPage } from "../first/model.ts";
 import type { SuggestionIn } from "../first/model.ts";
-import { needsFromAutomations, summaryLine, todayFromAutomations } from "../first/from-list.ts";
 import type { AutoRow } from "../sidebar/model.ts";
-import { offersOf } from "../first/offers.ts";
 import type { ConnectorOffer } from "../first/offers.ts";
 import { RecoveryRequests } from "../operations/StudioViews.tsx";
 import { FirstPageView } from "./FirstPageView.tsx";
+
+interface HomeOut {
+  needs: { id: string; automation: string; why: string; at: number; runId?: string }[];
+  suggestion?: ConnectorOffer;
+  today: { ran: number; failed: { runId: string }[] };
+  counts: { total: number; on: number; needYou: number };
+}
 
 export function FirstPage({
   onExamples,
@@ -22,44 +27,28 @@ export function FirstPage({
 }): ReactElement {
   const data = useAutomationsData();
   const list = useScreenQuery<{ automations: readonly AutoRow[] }>(SIDEBAR, "automations", {});
-  const [offers, setOffers] = useState<ConnectorOffer[]>([]);
   const [note, setNote] = useState<string | null>(null);
   const fail = (e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work.");
+  // what the page shows is decided on the server and read in one call: what needs the person, at most one suggestion, the Today line, the counts. It is read again whenever the list changes.
+  const rows = list.status === "ready" ? list.data.automations : [];
+  const signature = rows.map((a) => `${a.id}:${a.status}:${a.lastRun?.runId ?? ""}:${a.lastRun?.status ?? ""}:${a.failedRuns}`).join("|");
+  const [home, setHome] = useState<HomeOut | null>(null);
   useEffect(() => {
     let live = true;
-    void data.call("automations.connector_offers", {}).then(
-      (out) => live && setOffers(offersOf(out)),
+    void data.call("automations.home", {}).then(
+      (out) => live && setHome(out as HomeOut),
       () => undefined,
     );
     return () => {
       live = false;
     };
-  }, [data]);
-  const rows = list.status === "ready" ? list.data.automations : [];
-  // the list does not say why an Automation is paused: that is read from the paused ones themselves, so the card says what the builder head says
-  const [reasons, setReasons] = useState<Record<string, string>>({});
-  const pausedIds = rows
-    .filter((a) => a.status === "paused")
-    .map((a) => a.id)
-    .join(",");
-  useEffect(() => {
-    let live = true;
-    for (const id of pausedIds.split(",").filter(Boolean))
-      void data.call("automations.get", { automationId: id }).then(
-        (out) => {
-          const r = (out as { automation?: { pausedReason?: string } })?.automation?.pausedReason;
-          if (live && r) setReasons((all) => ({ ...all, [id]: r }));
-        },
-        () => undefined,
-      );
-    return () => {
-      live = false;
-    };
-  }, [pausedIds, data]);
+  }, [data, signature]);
+  const offers: ConnectorOffer[] = home?.suggestion ? [home.suggestion] : [];
+  const [gone, setGone] = useState<readonly string[]>([]);
+  const shown = offers.filter((o) => !gone.includes(o.itemId));
   const now = data.clock().now;
   const page = useMemo(() => {
-    // the server offers only what the person's Assistant can finish with one approval (never a company key, never one an admin must clear), so each offer is finishable as it arrives
-    const suggestions: SuggestionIn[] = offers.map((o) => ({
+    const suggestions: SuggestionIn[] = shown.map((o) => ({
       id: o.itemId,
       app: { id: o.appName.toLowerCase(), name: o.appName },
       item: o.text,
@@ -68,12 +57,12 @@ export function FirstPage({
       assistant: "cleared",
     }));
     return firstPage({
-      needs: needsFromAutomations(rows, reasons),
+      needs: (home?.needs ?? []).map((n) => ({ ...n, fix: { label: "Open it", kind: "see" as const } })),
       suggestions,
-      today: todayFromAutomations(rows, now),
+      today: { ran: home?.today.ran ?? 0, failed: home?.today.failed ?? [] },
     });
-  }, [rows, offers, now, reasons]);
-  const offerOf = (id: string): ConnectorOffer | undefined => offers.find((o) => o.itemId === id);
+  }, [home, gone]);
+  const offerOf = (id: string): ConnectorOffer | undefined => shown.find((o) => o.itemId === id);
   const create = (): void => {
     setNote(null);
     void data.call("automations.create", { name: "New automation" }).then((out) => {
@@ -85,7 +74,11 @@ export function FirstPage({
     <FirstPageView
       page={page}
       now={now}
-      summary={summaryLine(rows)}
+      summary={
+        home && home.counts.total > 0
+          ? `${home.counts.on === 0 ? "None on" : `${home.counts.on} on`}${home.counts.needYou > 0 ? `, ${home.counts.needYou} ${home.counts.needYou === 1 ? "needs" : "need"} you` : ""}`
+          : ""
+      }
       onFix={(id) => data.nav.openAutomation(id)}
       onSeeRun={(runId) => data.nav.openRun(runId)}
       onSetUp={(id) => {
@@ -97,7 +90,7 @@ export function FirstPage({
           try {
             await data.nav.setUpConnector!(o);
             await data.call("automations.connector_offer.accept", { itemId: o.itemId });
-            setOffers((all) => all.filter((x) => x.itemId !== o.itemId));
+            setGone((all) => [...all, o.itemId]);
           } catch (e) {
             fail(e);
           }
@@ -106,7 +99,7 @@ export function FirstPage({
       onNotNow={(id) =>
         void data
           .call("automations.connector_offer.decline", { itemId: id })
-          .then(() => setOffers((all) => all.filter((x) => x.itemId !== id)), fail)
+          .then(() => setGone((all) => [...all, id]), fail)
       }
       onNew={create}
       onExamples={onExamples}

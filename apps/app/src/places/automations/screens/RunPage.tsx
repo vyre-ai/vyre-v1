@@ -11,6 +11,7 @@ import type { RunResult } from "../run/model.ts";
 import { fromDefinition } from "../story/adapt.ts";
 import { look } from "./look.ts";
 import { RunView } from "./RunView.tsx";
+import { BuilderPage } from "./BuilderPage.tsx";
 
 interface StepLog {
   step: string;
@@ -32,6 +33,8 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
   const data = useAutomationsData();
   const [tick, setTick] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  // the fix opens on this page: the step's own form, in place, then the run goes again on the version it was fixed in
+  const [fixing, setFixing] = useState(false);
   const [state, setState] = useState<{
     automationId: string | null;
     definition: Parameters<typeof fromDefinition>[0] | null;
@@ -43,7 +46,9 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
     let live = true;
     void (async () => {
       try {
-        const run = (await data.call("runs.get", { runId })) as { run: { subject?: { type: string; id: string } } };
+        const run = (await data.call("runs.get", { runId })) as {
+          run: { subject?: { type: string; id: string }; definitionVersion?: number; status?: string };
+        };
         const subject = run.run.subject;
         const steps = ((await data.call("runs.steps", { runId })) as { steps: StepLog[] }).steps;
         const outputs: Record<string, unknown> = {};
@@ -89,7 +94,7 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
         results[st.step] = {
           status: "failed",
           why: plain(st.error?.message ?? "It could not run."),
-          fix: "Open the step",
+          fix: "Fix it here",
         };
       else if (st.state === "waiting") results[st.step] = { status: "waiting", line: "Waiting" };
     }
@@ -101,7 +106,12 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
   const failedStep = state.steps.find((x) => x.state === "failed")?.step;
   return (
     <View testID="run-page" style={s.page}>
-      <RunView view={view} onFix={() => data.nav.openAutomation(state.automationId!)} />
+      <RunView view={view} onFix={() => setFixing((f) => !f)} />
+      {fixing ? (
+        <View testID="run-fix" style={s.fix}>
+          <BuilderPage automationId={state.automationId} {...(failedStep ? { initialSelected: failedStep } : {})} />
+        </View>
+      ) : null}
       {view.banner ? (
         <Pressable
           testID="run-again"
@@ -110,21 +120,19 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
           onPress={() => {
             setNote(null);
             void data
-              .call("automations.retry", {
-                automationId: state.automationId,
-                runId,
-                ...(failedStep ? { fromStep: failedStep } : {}),
-              })
+              .call("automations.replay", { automationId: state.automationId, runId, version: "current", confirm: true })
               .then(
-                () => {
-                  setNote("Started again.");
-                  setTick((t) => t + 1);
+                (o) => {
+                  setFixing(false);
+                  const next = (o as { runId?: string }).runId;
+                  if (next) data.nav.openRun(next);
+                  else setTick((t) => t + 1);
                 },
                 (e: unknown) => setNote(e instanceof Error ? e.message : "It did not start again."),
               );
           }}
         >
-          <Text style={look.btnText}>Run again</Text>
+          <Text style={look.btnText}>{fixing ? "Run again with the fix" : "Run again"}</Text>
         </Pressable>
       ) : null}
       {note ? <Text style={look.quiet}>{note}</Text> : null}
@@ -135,4 +143,5 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
 const s = StyleSheet.create({
   page: { flex: 1, padding: 16, gap: 10 },
   again: { alignSelf: "flex-start" },
+  fix: { minHeight: 420, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 14, overflow: "hidden" },
 });

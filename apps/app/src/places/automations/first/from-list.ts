@@ -16,7 +16,7 @@ export function needsFromAutomations(
   reasons: Readonly<Record<string, string>> = {},
 ): NeedIn[] {
   return rows.filter(needsYou).map((a) => {
-    const failed = a.lastRun?.status === "failed" || a.failedRuns > 0;
+    const failed = a.lastRun?.status === "failed" || (a.failedRuns > 0 && a.lastRun?.status !== "succeeded");
     const reason = a.status === "paused" ? pausedWhy({ pausedReason: reasons[a.id] }) : "";
     // "See the run" only where there is a run, it failed, and that failure is the reason; a pause with its own reason is fixed, not read
     const runId = failed && !reason ? a.lastRun?.runId : undefined;

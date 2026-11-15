@@ -822,6 +822,25 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
     "automations.set_enabled": (i: { automationId: string; enabled: boolean }) => ({
       automation: patch(i.automationId, { status: i.enabled ? "on" : "off" }),
     }),
+    "automations.home": () => {
+      const rows = autos();
+      const lastOf = (a: Row) => a["lastRun"] as { runId: string; status: string; at: number } | undefined;
+      const needs = rows
+        .filter((a) => a["status"] === "paused" || lastOf(a)?.status === "failed")
+        .map((a) => ({
+          id: String(a["id"]),
+          automation: String(a["name"]),
+          why: a["status"] === "paused" ? String(a["pausedReason"] ?? "It is paused.") : "Its last run failed.",
+          at: lastOf(a)?.at ?? Number(a["updatedAt"]),
+          ...(lastOf(a)?.status === "failed" && a["status"] !== "paused" ? { runId: lastOf(a)!.runId } : {}),
+        }));
+      const ran = rows.flatMap((a) => (lastOf(a) ? [lastOf(a)!] : []));
+      return {
+        needs,
+        today: { ran: ran.length, failed: ran.filter((r) => r.status === "failed").map((r) => ({ runId: r.runId })) },
+        counts: { total: rows.length, on: rows.filter((a) => a["status"] === "on").length, needYou: needs.length },
+      };
+    },
     "automations.test": () => ({ runId: "run_test" }),
     "automations.create": (i: { name: string; groupId?: string }) => {
       const id = `aut_new${autos().length + 1}`;

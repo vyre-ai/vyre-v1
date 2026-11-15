@@ -474,6 +474,23 @@ export default defineManifest({
       label: "filter",
       cli: "vyre automations list",
     }),
+    read(
+      "automations.home",
+      "What the Automations first page shows: what needs the person, at most one suggestion the person's Assistant can finish with one approval, the Today line and the header counts",
+      {
+        in: {},
+        out: {
+          needs: t.arr(
+            t.obj({ id: id.automation, automation: t.str(), why: t.str(), at: t.ts(), runId: t.opt(id.run) }),
+          ),
+          suggestion: t.opt(t.obj({ itemId: t.str(), appName: t.str(), text: t.str() })),
+          today: t.obj({ ran: t.int(), failed: t.arr(t.obj({ runId: id.run })) }),
+          counts: t.obj({ total: t.int(), on: t.int(), needYou: t.int() }),
+        },
+        tool: "automations",
+        label: "check",
+      },
+    ),
     read("automations.packages.list", "List portable Automation packages this person has exported", {
       in: {},
       out: { packages: t.arr(packageRow) },
@@ -610,7 +627,7 @@ export default defineManifest({
       "automations.get",
       "Read an Automation with its definition, alerts and followers, and whether the caller may change it (a Space one: owners, admins and people given Edit on it)",
       {
-        in: target,
+        in: { ...target, version: t.opt(t.int({ minimum: 1 })) },
         out: { automation: row, canEdit: t.opt(t.bool()), draft: t.opt(draftRow), proposal: t.opt(proposalRow) },
         on: ["automation", "/automationId"],
         tool: "automations",

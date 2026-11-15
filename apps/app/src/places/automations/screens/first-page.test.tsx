@@ -72,7 +72,8 @@ const offerWorld = (
     data: {
       ...data,
       call: async (cap: string, input: unknown) => {
-        if (cap === "automations.connector_offers") return { offers };
+        // round four: the first page reads one server answer (automations.home); the offer the server judged finishable rides in it
+        if (cap === "automations.home") return { ...((await data.call(cap, input)) as object), ...(offers[0] ? { suggestion: offers[0] } : {}) };
         if (cap.startsWith("automations.connector_offer.")) {
           calls.push({ cap, input });
           return { decision: cap.endsWith("accept") ? "accepted" : "declined" };
@@ -110,12 +111,12 @@ test("a saved Vault item offers a connector: Set up accepts it and starts the se
   assert.equal(find(root2, "fp-notnow-vit_beta"), null);
 });
 
-test("without a connector_offers answer the page is the page", async () => {
+test("without a suggestion in the answer the page is the page", async () => {
   const { data } = wired();
   const none = {
     ...data,
     call: async (cap: string, input: unknown) => {
-      if (cap === "automations.connector_offers") throw new Error("no module");
+      if (cap === "automations.home") return { needs: [], today: { ran: 0, failed: [] }, counts: { total: 0, on: 0, needYou: 0 } };
       return data.call(cap, input);
     },
   };
