@@ -128,7 +128,7 @@ test("migration and module state: two tables, nothing else; the first sync of a 
   // the next sync is queued on the scheduler
   assert.deepEqual(
     w.scheduled.map((s) => [s.cap, s.input, s.at]),
-    [["mounts.sync_now", { mountId }, NOW + SYNC_INTERVAL_MS]],
+    [["mounts.sync_now", { mountId, auto: true }, NOW + SYNC_INTERVAL_MS]],
   );
   assert.equal(w.mountRow(mountId)["next_sync_at"], NOW + SYNC_INTERVAL_MS);
 

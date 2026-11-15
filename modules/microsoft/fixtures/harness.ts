@@ -210,7 +210,7 @@ export function harness(opts: HarnessOptions = {}) {
         throw fail("validation.version_conflict", ctx.trace.traceId, { details: { status: 412, what: "upload" } });
       return {
         id: "up1",
-        name: decodeURIComponent(/:\/([^/]+):\/content$/.exec(a.url)?.[1] ?? ""),
+        name: decodeURIComponent(/:\/([^/]+):\/content(?:\?.*)?$/.exec(a.url)?.[1] ?? ""),
         size: 9,
         eTag: "etag2",
         lastModifiedBy: { user: { displayName: "Maya Lin", email: "maya@vyre.test" } },

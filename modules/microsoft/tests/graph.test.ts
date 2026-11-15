@@ -717,7 +717,7 @@ test("downloads and uploads go through the host with the app token, names are ch
   assert.deepEqual(h.hits(`${U}/drive/items/f1/children`)[0]!.body, {
     name: "Matters",
     folder: {},
-    "@microsoft.graph.conflictBehavior": "rename",
+    "@microsoft.graph.conflictBehavior": "fail",
   });
   await assert.rejects(
     () => driveFolder(h.ctx, { ...act, name: "bad:name" }),
@@ -946,7 +946,7 @@ test("an upload with a remote id replaces the item in place; with ifMatch Graph'
   const fresh = await driveUpload(h.ctx, { ...act, folderId: "f1", name: "Copy.pdf", fileId: "fil_x" });
   assert.deepEqual(
     h.uploads[2],
-    { url: `${U}/drive/items/f1:/Copy.pdf:/content` },
+    { url: `${U}/drive/items/f1:/Copy.pdf:/content?@microsoft.graph.conflictBehavior=fail` },
     "a new file is written by name and is not conditional",
   );
   assert.ok(fresh.item);

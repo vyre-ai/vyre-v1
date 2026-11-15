@@ -9,8 +9,8 @@ const mine = registry.capabilities
   .map((c) => c.name)
   .sort();
 
-test("mounts live: the handler map equals the manifest's 26 capabilities", () => {
-  assert.equal(mine.length, 26); // 24, then mounts.engine_folders (the folders a CLI engine may work in, l-openweb), then mounts.resolve (settle a file that changed at the provider)
+test("mounts live: the handler map equals the manifest's 27 capabilities", () => {
+  assert.equal(mine.length, 27); // 26, then mounts.sheet_tabs (the tabs of a Google Sheet); 26 was 24, then mounts.engine_folders (the folders a CLI engine may work in, l-openweb), then mounts.resolve (settle a file that changed at the provider)
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   for (const name of mine)
     assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
