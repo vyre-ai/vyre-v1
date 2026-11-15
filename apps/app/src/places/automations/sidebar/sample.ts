@@ -621,11 +621,17 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
     string,
     { definition: Definition; rev: number; baseVersion: number; by: string; at: number }
   >();
+  // what an Assistant proposed and a person has not accepted (AUTOMATIONS-BUILD-RC29 phase 2): beside the Automation, never in it
+  const proposals = new Map<
+    string,
+    { definition: Definition; summary: string; by: string; for: string; baseVersion: number; at: number; steps: number }
+  >();
   replica.resolve("automations.get", (_t, input) => {
     const r = autos().find((x) => x.id === input.automationId);
     const d = drafts.get(String(input.automationId));
+    const p = proposals.get(String(input.automationId));
     // a deleted Automation reads as absent; the canvas then says it is not available
-    return { automation: r as unknown as Automation, ...(d ? { draft: d } : {}) };
+    return { automation: r as unknown as Automation, ...(d ? { draft: d } : {}), ...(p ? { proposal: p } : {}) };
   });
   replica.resolve("runs.list", (_t, input) => {
     const id = input.subject?.id;
@@ -728,6 +734,55 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
     "automations.draft.discard": (i: { automationId: string }) => {
       drafts.delete(i.automationId);
       return { automation: patch(i.automationId, { draftRev: 0 }) };
+    },
+    "automations.draft.propose": (i: { automationId: string; definition: Definition; summary: string }) => {
+      const cur = autos().find((x) => x.id === i.automationId);
+      if (!cur) throw new Error("no such automation");
+      const at = Date.now();
+      proposals.set(i.automationId, {
+        definition: i.definition,
+        summary: i.summary,
+        by: "agt_assistant",
+        for: "usr_me",
+        baseVersion: Number(cur["version"]),
+        at,
+        steps: i.definition.nodes.length,
+      });
+      return {
+        automation: patch(i.automationId, { proposalAt: at }),
+        proposal: proposals.get(i.automationId),
+        ok: true,
+        issues: [],
+      };
+    },
+    "automations.proposal.accept": (i: { automationId: string }) => {
+      const p = proposals.get(i.automationId);
+      const cur = autos().find((x) => x.id === i.automationId);
+      if (!cur) throw new Error("no such automation");
+      if (!p) return { automation: cur };
+      proposals.delete(i.automationId);
+      if (cur["status"] === "on") {
+        const next = {
+          definition: p.definition,
+          rev: 1,
+          baseVersion: Number(cur["version"]),
+          by: "usr_me",
+          at: Date.now(),
+        };
+        drafts.set(i.automationId, next);
+        return { automation: patch(i.automationId, { draftRev: next.rev, proposalAt: 0 }), draft: next };
+      }
+      return {
+        automation: patch(i.automationId, {
+          version: Number(cur["version"]) + 1,
+          definition: p.definition,
+          proposalAt: 0,
+        }),
+      };
+    },
+    "automations.proposal.discard": (i: { automationId: string }) => {
+      proposals.delete(i.automationId);
+      return { automation: patch(i.automationId, { proposalAt: 0 }) };
     },
     "automations.make_live": (i: { automationId: string; expectedRev?: number }) => {
       const d = drafts.get(i.automationId);

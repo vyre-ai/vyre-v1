@@ -96,6 +96,8 @@ export function BuilderPage({
     );
   const a = q.data.automation as GetOut["automation"] | undefined;
   const serverDraft = (q.data as { draft?: ServerDraft }).draft;
+  // what the Assistant proposed and nobody has accepted yet (AUTOMATIONS-BUILD-RC29 phase 2): drawn on the page, saved nowhere
+  const proposal = (q.data as { proposal?: ServerProposal }).proposal;
   if (!a)
     return (
       <Page title="This Automation is not available">
@@ -109,6 +111,7 @@ export function BuilderPage({
       a={a}
       {...(canEdit !== undefined ? { canEdit } : {})}
       serverDraft={serverDraft ?? null}
+      proposal={proposal ?? null}
       versions={versions.status === "ready" ? versions.data.versions : []}
       runsBody={runsBody}
       initialSelected={initialSelected}
@@ -123,11 +126,16 @@ interface ServerDraft {
   rev: number;
   baseVersion: number;
 }
+interface ServerProposal {
+  definition: Definition;
+  summary: string;
+}
 
 function Body({
   a,
   canEdit,
   serverDraft,
+  proposal,
   versions,
   runsBody,
   initialSelected,
@@ -137,6 +145,7 @@ function Body({
   a: GetOut["automation"];
   canEdit?: boolean;
   serverDraft: ServerDraft | null;
+  proposal: ServerProposal | null;
   versions: VersionsOut["versions"];
   runsBody: ReactNode;
   initialSelected: string | null;
@@ -167,7 +176,8 @@ function Body({
     done?: boolean;
   } | null>(null);
   const [confirmTheirs, setConfirmTheirs] = useState(false);
-  const def: Definition = draft ?? a.definition;
+  // a proposal is what the page shows until a person accepts or discards it; their own draft and the live steps are untouched underneath
+  const def: Definition = proposal ? proposal.definition : (draft ?? a.definition);
   const [sel, setSel] = useState<string | null>(initialSelected);
   const [note, setNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -262,11 +272,15 @@ function Body({
   const edit = useCallback(
     (next: Definition): void => {
       if (locked) return;
+      if (proposal) {
+        setNote("Accept the draft to change it yourself, or ask for a change.");
+        return;
+      }
       if (base.current === null) base.current = a.version;
       undo.current.push(def);
       setDraft(next);
     },
-    [def, locked, draft, a.version],
+    [def, locked, draft, a.version, proposal],
   );
   const save = useCallback(async (): Promise<void> => {
     if (!draft || saving || conflict || locked) return;
@@ -387,12 +401,12 @@ function Body({
         trigger: triggerRows[0] ? { ...triggerRows[0], hand: startsByHand(def) } : null,
         moreTriggers: triggerRows.slice(1),
         steps: view.steps,
-        proposed: false,
-        dirty: draft !== null && a.status === "on",
+        proposed: proposal !== null,
+        dirty: proposal === null && draft !== null && a.status === "on",
         saveMode: "draft",
         test: testRun ? { caseName: testRun.caseName, results: testRun.results } : null,
       }),
-    [a, view, draft, def, triggerRows, testRun],
+    [a, view, draft, def, triggerRows, testRun, proposal],
   );
 
   const makeLive = useCallback(async (): Promise<void> => {
@@ -442,6 +456,39 @@ function Body({
     undo.current = [];
     setConflict(false);
     setConfirmTheirs(false);
+  };
+  // the Assistant's proposal: Accept writes it as the person's own (an on Automation keeps it as their draft until Make live); Discard throws it away
+  const acceptProposal = async (): Promise<void> => {
+    try {
+      const out = (await data.call("automations.proposal.accept", { automationId: a.id })) as {
+        draft?: ServerDraft;
+      };
+      undo.current = [];
+      setConflict(false);
+      if (out.draft) {
+        setDraft(out.draft.definition);
+        setSavedDraft(out.draft.definition);
+        rev.current = out.draft.rev;
+        base.current = out.draft.baseVersion;
+        setNote("Accepted as your draft. It is not live until you press Make live.");
+      } else {
+        setDraft(null);
+        setSavedDraft(null);
+        rev.current = null;
+        base.current = null;
+        setNote("Accepted. Nothing is on yet.");
+      }
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "That was not accepted. The draft is still here.");
+    }
+  };
+  const discardProposal = async (): Promise<void> => {
+    try {
+      // an empty Automation that proposing made goes to Trash with its proposal: the page then leaves it as it does after Move to Trash
+      await data.call("automations.proposal.discard", { automationId: a.id });
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "That was not discarded.");
+    }
   };
   const discardMine = (): void => {
     void data.call("automations.draft.discard", { automationId: a.id }).catch(() => undefined);
@@ -558,7 +605,12 @@ function Body({
       if (id === "Make live") void makeLive();
       else if (id === "Done") setTestRun(null);
       else if (id === "Run again") void test();
-      else if (id === "Discard") discardMine();
+      else if (id === "Accept") void acceptProposal();
+      else if (id === "Change") data.nav.ask(a.id);
+      else if (id === "Discard") {
+        if (proposal) void discardProposal();
+        else discardMine();
+      }
     } else if (action === "open" && id) {
       // a step of a kind this version does not know is drawn, never opened: it has no form here, and Save keeps it as it was
       const node = def.nodes.find((n) => n.id === id);
