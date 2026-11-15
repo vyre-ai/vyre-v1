@@ -683,7 +683,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         />
       ) : null}
       <Viewer
-        key={`${fileId}:${layer.preview && layer.view?.text ? "agent" : "people"}`}
+        // the viewer keeps the blocks it was first given (it edits them in place), so a PDF that falls back to its words is drawn afresh
+        key={`${fileId}:${layer.preview && layer.view?.text ? "agent" : "people"}${isPdf && pdfGone ? ":words" : ""}`}
         fileId={fileId}
         title={file.name}
         kind={kind}
