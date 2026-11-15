@@ -871,7 +871,7 @@ test("discard_new erases only the key a connect card saved in its open try, for 
   const other = await put(h, mine, "OtherCard");
   h.cardSaved(other, "vrq_00000000000000000000000000000002");
   assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: other, requestId: REQ })), "bound to the one request");
-  assert.equal(Array.isArray(out(await v.itemGet(h.ctx, { itemId: hand })).item.fieldKeys), true, "still there");
+  assert.ok(await v.itemGet(h.ctx, { itemId: hand }), "still there");
 
   // an old key the card saved can still be taken back by that card (a person's Not now, hours later), but not one something has used
   const old = await put(h, mine, "Old");

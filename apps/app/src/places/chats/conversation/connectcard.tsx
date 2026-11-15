@@ -89,7 +89,7 @@ export function ConnectCardLive({
   // an admin connecting it, a second ask, another place pressing Not now: the card follows the request
   useFollow(data.changes, load, card !== null && card?.state !== "gone");
 
-  if (card === undefined || card.state === "gone") return null;
+  if (card === undefined || card?.state === "gone") return null;
   // someone else in the chat: the card is the asked person's own, so all they read is that a connection was asked of them
   if (card === null) {
     const who = asker ? named(asker) : "";

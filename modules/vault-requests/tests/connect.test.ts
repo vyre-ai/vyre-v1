@@ -47,12 +47,13 @@ const card = (w: World, requestId: string, who = "usr_asker") =>
   handlers["vault.connect_card.get"](person(w, who), { requestId } as never).then((r) => r.card);
 const names = (w: World) => w.calls.map((c) => c.cap);
 /** What the card's own save writes on a key (who, and the hosts it goes to). A test says it was saved by the card; a key a person named or typed into the Vault by hand has none. */
-const stamp = (w: World, requestId: string, item = "vit_old", hosts = ["api.fathom.ai"], by = "usr_asker"): void =>
+const stamp = (w: World, requestId: string, item = "vit_old", hosts = ["api.fathom.ai"], by = "usr_asker"): void => {
   w.db.run(
     `UPDATE vault_requests_requests SET saved_json = ? WHERE id = ?`,
     JSON.stringify([{ item, by, hosts }]),
     requestId,
   );
+};
 
 test("an agent names the service and gets a short answer; the person gets one card", async () => {
   const w = room();
