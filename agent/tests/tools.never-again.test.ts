@@ -20,7 +20,7 @@ function setup(code: ErrorCode = "permission.above_clearance") {
     needsYou: (n) => needs.push({ agentId: n.agentId, tool: n.tool, asker: n.asker }),
     invoke: async (_cap, input) => {
       calls++;
-      if ((input as { handle?: string }).handle === "#Open_Key") return { status: "ok", output: {}, traceId: "t" };
+      if ((input as { item?: string }).item === "#Open_Key") return { status: "ok", output: {}, traceId: "t" };
       throw new HostError(makeError(code, "trace_x"));
     },
   });
@@ -35,7 +35,7 @@ function setup(code: ErrorCode = "permission.above_clearance") {
   });
   return { s, ctx, count: () => calls, needs, tick: (_ms: number) => 0 };
 }
-const USE = { handle: "#Company_Key", fields: ["token"] };
+const USE = { item: "#Company_Key", fields: ["token"] };
 
 test("the same refused call in the same turn is answered at once, with the same words, and never reaches the server again", async () => {
   const { s, ctx, count } = setup();
@@ -54,7 +54,7 @@ test("the same refused call in the same turn is answered at once, with the same 
 test("a different call in the same turn still goes through", async () => {
   const { s, ctx, count } = setup();
   await s.call(ctx("trn_1"), "vault_use", USE);
-  const open = await s.call(ctx("trn_1"), "vault_use", { handle: "#Open_Key", fields: ["token"] });
+  const open = await s.call(ctx("trn_1"), "vault_use", { item: "#Open_Key", fields: ["token"] });
   assert.equal(open.kind, "result");
   assert.equal(count(), 2);
 });

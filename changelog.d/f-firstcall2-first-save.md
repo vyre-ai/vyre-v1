@@ -1,0 +1,6 @@
+- Asking the Assistant to put a table in a file in your files now works the first time: with no folder named the file goes in your own files, a folder or a path written by name is understood (the folders are made on the way), the text can come as plain text or as content, and a name with a date and brackets is fine.
+- When an agent makes a file whose name is already taken, the new file is called "name (2)" and the answer says so; it never replaces the file that is there.
+- An agent that writes a file by its path (to read it or replace it) is understood; a path with nothing at it is answered with one sentence that says to make the file with files_create.
+- A call to a tool with an input the tool does not have is no longer let through to do less than it was asked: the agent is told in one sentence which name is not an input and which names the tool takes. Before, such a call could create an empty file and say it worked.
+- When a call is refused, the sentence an agent reads now names the input, says what to change and gives a value to copy; a limit on a text or a list (for example 100,000 characters for a note) is said, both before the call and in the refusal.
+- Every tool's first call is measured: all 1,730 tools accept the call a model writes from the tool's inputs, and the other first calls for files are checked in their own list.

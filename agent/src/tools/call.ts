@@ -20,7 +20,7 @@ import {
 } from "./versions.ts";
 import { canonical, fillInput, shortHash } from "./fill.ts";
 import { findsByPath, placeField, placeInput } from "./place.ts";
-import { parseProblem, rejectWords } from "./reject.ts";
+import { parseProblem, rejectWords, unknownInputs } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
@@ -481,6 +481,21 @@ export function createToolSession(deps: CallDeps): ToolSession {
         isDynamic && deps.dynamic
           ? deps.dynamic.input(ctx, t, input)
           : fillInput(t, limited(t.cap, unstringified(t.inputSchema, given)), ctx).input;
+      // an input the tool does not have is never passed on silently: the server lets it through and no handler reads it, so a model's call would "work" and do less than it asked (F93)
+      if (!isDynamic) {
+        // who a call acts for is never the model's to say: a name that claims it is left to the pipeline, which ignores it
+        const owned = [...(HIDDEN_FROM_MODEL[t.cap] ?? []), "idempotencyKey", "actingFor", "asker", "principal", "as"];
+        const extra = unknownInputs(t.inputSchema, body, owned);
+        // with a stranger among the inputs, the ones the tool needs and the call lacks are said in the same breath, so one refusal tells the model everything
+        if (extra.length > 0 && body !== null && typeof body === "object" && !Array.isArray(body))
+          for (const r of (t.inputSchema as { required?: string[] } | null)?.required ?? [])
+            if (!(r in (body as object)) && !owned.includes(r)) extra.push(`/${r}: required`);
+        if (extra.length > 0)
+          return fail("validation.bad_input", traceId, {
+            message: rejectWords(t, extra, EXAMPLES[t.cap]),
+            details: { tool: t.name, errors: extra, reason: "unknown_input" },
+          });
+      }
       const res = await deps.invoke(t.cap, body, seed);
       if (!isDynamic && res.status === "ok")
         for (const l of learned(t.cap, body, res.output)) seen.set(ctx, l.key, l.version);

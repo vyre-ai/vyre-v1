@@ -352,7 +352,7 @@ test("what a model reads from a failed tool says approval, never Gate or hold", 
   const out = await session.call(ctx(), "mail_send", {
     to: ["maya@northwind.com"],
     subject: "Retainer",
-    body: "Dear Maya, the retainer is attached.",
+    html: "Dear Maya, the retainer is attached.",
   });
   assert.equal(out.kind, "error");
   if (out.kind !== "error") return;

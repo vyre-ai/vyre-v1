@@ -34,8 +34,34 @@ function withoutPlaceholderExamples(v: unknown): unknown {
   return out;
 }
 
+/**
+ * A size limit is part of what a model reads about an input: a text over it is refused, and a model that was never told the limit cannot write a call that fits. Every limit that a call can meet by writing
+ * a longer text or a longer list (500 characters or more, 100 items or more) is said in the input's own description.
+ */
+export function statesLimits(v: unknown): unknown {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return v;
+  const p = v as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...p };
+  if (p["properties"] !== null && typeof p["properties"] === "object")
+    out["properties"] = Object.fromEntries(
+      Object.entries(p["properties"] as Record<string, unknown>).map(([k, x]) => [k, statesLimits(x)]),
+    );
+  if (p["items"] !== undefined) out["items"] = statesLimits(p["items"]);
+  const says: string[] = [];
+  const max = p["maxLength"];
+  if (typeof max === "number" && max >= 500) says.push(`Max ${max} characters.`);
+  const items = p["maxItems"];
+  if (typeof items === "number" && items >= 100) says.push(`Max ${items} items.`);
+  const min = p["minLength"];
+  if (typeof min === "number" && min > 1) says.push(`Min ${min} characters.`);
+  const already = typeof p["description"] === "string" ? (p["description"] as string) : "";
+  const add = says.filter((x) => !already.includes(x));
+  if (add.length > 0) out["description"] = `${already}${already === "" || /[.!?]$/.test(already) ? " " : ". "}${add.join(" ")}`.trim();
+  return out;
+}
+
 export function modelSchema(schema: unknown, cap?: string): { schema: unknown; keyed: boolean } {
-  const raw = withoutPlaceholderExamples(schema) as Obj | null;
+  const raw = statesLimits(withoutPlaceholderExamples(schema)) as Obj | null;
   if (raw === null || typeof raw !== "object" || raw.properties === undefined) return { schema: raw, keyed: false };
   // version inputs the tool layer fills for the model are not shown to it (agent/src/tools/versions.ts)
   const hide = cap === undefined ? undefined : HIDDEN_FROM_MODEL[cap];
@@ -51,8 +77,6 @@ export function modelSchema(schema: unknown, cap?: string): { schema: unknown; k
     required = required.filter((r) => r !== "idempotencyKey");
   }
   if (cap !== undefined && fillsThread({ cap, inputSchema: schema as ToolDef["inputSchema"] })) {
-    const th = props["threadId"] as { description?: string } | undefined;
-    if (th) props["threadId"] = { ...th, description: th.description ?? "The chat. Leave it out for this chat." };
     required = required.filter((r) => r !== "threadId");
   }
   // a folder a new thing goes in is the person's own files unless the model names another (agent/src/tools/place.ts)
@@ -62,7 +86,8 @@ export function modelSchema(schema: unknown, cap?: string): { schema: unknown; k
     props[place] = { ...p, description: p.description ?? "The folder. Leave it out for the person's own files." };
     required = required.filter((r) => r !== place);
   }
-  return { schema: { ...raw, properties: props, required }, keyed };
+  const { required: _was, ...rest } = raw;
+  return { schema: { ...rest, properties: props, ...(required.length > 0 ? { required } : {}) }, keyed };
 }
 
 export function buildCatalog(

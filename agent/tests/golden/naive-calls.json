@@ -1682,10 +1682,7 @@
     "threadId": "thr_a1b2c3"
   },
   "engine_rewind_to": {
-    "threadId": "thr_a1b2c3",
-    "pointId": "Quarterly planning",
-    "afterSeq": 1,
-    "uptoSeq": 1
+    "pointId": "Quarterly planning"
   },
   "engine_round_get": {
     "threadId": "thr_a1b2c3",
