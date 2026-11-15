@@ -61,7 +61,7 @@ test("phone: no tab strip; Inbox, Vault, Settings and the Console open on their 
       await page.getByTestId("row-nav:calendar").first().click();
       await page.waitForTimeout(1800);
       await shot("3-inbox-body");
-      await page.getByRole("button", { name: /Back/ }).first().click();
+      await page.getByTestId("mobile-back").or(page.getByRole("button", { name: /Back|Inbox/ })).first().click();
       await page.waitForTimeout(1200);
       assert.ok(/By contact/.test(await text()), "Back returns to the Inbox list");
     }

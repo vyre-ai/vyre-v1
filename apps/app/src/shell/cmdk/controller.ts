@@ -274,7 +274,17 @@ export class CmdKController {
     // the Ask row is not a place to stay: the highlight starts again at the top, where Ask is for a question and the best hit is not
     const keep = prevKey && prevKey !== "ask" ? rows.findIndex((r) => r.key === prevKey) : -1;
     // in the new tab nothing is selected until the arrows or the pointer move the selection: Enter is the chat until then
-    const active = this.chatDefault(rows) ? -1 : keep >= 0 ? keep : stepActive(rows, -1, "first");
+    // the best match is the result named by the words (a place called Records for "Records"), wherever its group sits; failing that the first result
+    const named = rows.findIndex(
+      (r) => r.type === "hit" && r.hit.title.trim().toLowerCase() === parsed.text.trim().toLowerCase(),
+    );
+    const active = this.chatDefault(rows)
+      ? -1
+      : keep >= 0
+        ? keep
+        : this.opts.enterStartsChat === true && named >= 0
+          ? named
+          : stepActive(rows, -1, "first");
     this.set({ rows, active, counts });
     if (!first) this.syncPreview();
   }
