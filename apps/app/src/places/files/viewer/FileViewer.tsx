@@ -646,12 +646,17 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         <ConnectedBar
           connected={ready.data.connected}
           now={now}
+          nameOf={d.name}
           onChoose={(choice) =>
             void d.call("mounts.resolve", { fileId, choice }).then(() => {
               setNote(
                 choice === "keep_both"
                   ? "Both are kept. Your version is saved beside theirs."
-                  : "Theirs is the file now.",
+                  : choice === "keep_here"
+                    ? "Kept here. It goes back as a new file."
+                    : choice === "discard"
+                      ? "Your changes are discarded."
+                      : "Theirs is the file now.",
               );
               setRev((x) => x + 1);
             }, say)

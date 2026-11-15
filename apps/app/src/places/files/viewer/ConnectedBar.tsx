@@ -10,13 +10,32 @@ export function ConnectedBar({
   connected,
   now,
   onChoose,
+  nameOf,
 }: {
   connected: Connected;
   now: number;
-  /** Settle a file that changed there too: both are kept, or theirs is used. */
-  onChoose(choice: "keep_both" | "use_theirs"): void;
+  /** Settle a file that changed there too (both are kept, or theirs is used), or that was deleted there while an edit waited (keep it here, or discard the edit). */
+  onChoose(choice: "keep_both" | "use_theirs" | "keep_here" | "discard"): void;
+  /** A person by id, as a name. */
+  nameOf?(id: string): string;
 }): ReactElement | null {
   const [open, setOpen] = useState(false);
+  const bar = barOf();
+  // a save by someone who did not connect the folder goes out under the one who did: say whose connection writes
+  const writes =
+    connected.writesAs !== undefined ? (
+      <View style={s.bar} testID="file-connected-writesas">
+        <Text style={s.text}>{`Saves to ${connected.provider} as ${nameOf ? nameOf(connected.writesAs.by) : "the person who connected it"}'s connection.`}</Text>
+      </View>
+    ) : null;
+  if (bar === null && writes === null) return null;
+  return (
+    <>
+      {bar}
+      {writes}
+    </>
+  );
+  function barOf(): ReactElement | null {
   if (connected.changedThere !== undefined)
     return (
       <View style={s.bar} testID="file-connected-changed">
@@ -41,6 +60,18 @@ export function ConnectedBar({
     );
   if (connected.notSent !== undefined) {
     const reason = connected.notSent.reason;
+    if (connected.notSent.goneThere === true)
+      return (
+        <View style={s.bar} testID="file-connected-gone">
+          <Text style={s.text}>{reason}</Text>
+          <Pressable accessibilityRole="button" onPress={() => onChoose("keep_here")} style={s.btn} testID="file-keep-here">
+            <Text style={s.btnText}>Keep it here</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => onChoose("discard")} style={s.btn} testID="file-discard">
+            <Text style={s.btnText}>Discard</Text>
+          </Pressable>
+        </View>
+      );
     return (
       <Pressable
         accessibilityRole="button"
@@ -62,6 +93,7 @@ export function ConnectedBar({
       </View>
     );
   return null;
+  }
 }
 
 const s = StyleSheet.create({

@@ -241,6 +241,7 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
     const connected: Obj = { provider: str(there.provider) };
     if (there.viewOnly === true) connected.viewOnly = true;
     if (isObj(there.notSent)) connected.notSent = there.notSent;
+    if (isObj(there.writesAs)) connected.writesAs = there.writesAs;
     if (isObj(there.changedThere)) connected.changedThere = there.changedThere;
     out.connected = connected;
   }

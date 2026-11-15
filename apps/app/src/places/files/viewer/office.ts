@@ -15,7 +15,9 @@ export const PPTX_MIME = "application/vnd.openxmlformats-officedocument.presenta
 export type OfficeKind = "docx" | "pptx";
 /** The Office kind a file is edited as here: .docx and .pptx only (an old .doc or .ppt, or an OpenDocument file, stays the quiet "no preview" line). */
 export const officeKindOf = (name: string): OfficeKind | null =>
-  /\.docx$/i.test(name) ? "docx" : /\.pptx$/i.test(name) ? "pptx" : null;
+  /\.(docx|docm)$/i.test(name) ? "docx" : /\.(pptx|pptm)$/i.test(name) ? "pptx" : null;
+/** A macro-enabled Word, PowerPoint or Excel file is shown and never changed here. */
+export const isMacroFile = (name: string): boolean => /\.(docm|pptm|xlsm)$/i.test(name);
 
 const MIMES: Record<string, string> = {
   png: "image/png",

@@ -834,7 +834,8 @@ export default defineManifest({
             t.obj({
               provider: t.str(),
               viewOnly: t.opt(t.bool()),
-              notSent: t.opt(t.obj({ reason: t.str() })),
+              notSent: t.opt(t.obj({ reason: t.str(), goneThere: t.opt(t.bool()) })),
+              writesAs: t.opt(t.obj({ by: t.str(), email: t.opt(t.str()) })),
               changedThere: t.opt(
                 t.obj({ by: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })), at: t.opt(t.ts()) }),
               ),

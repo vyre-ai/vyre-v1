@@ -75,6 +75,11 @@ type Out = {
     viewOnly?: boolean;
     notSent?: {
       reason: string;
+      goneThere?: boolean;
+    };
+    writesAs?: {
+      by: string;
+      email?: string;
     };
     changedThere?: {
       by?: {
@@ -121,10 +126,15 @@ type Out = {
         }
       },
       "notSent": {
+        "goneThere": true,
         "reason": "example"
       },
       "provider": "example",
-      "viewOnly": true
+      "viewOnly": true,
+      "writesAs": {
+        "by": "example",
+        "email": "example"
+      }
     },
     "file": {
       "conflict": true,

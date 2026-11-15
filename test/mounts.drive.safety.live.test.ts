@@ -74,3 +74,61 @@ test("a change saved at Drive between the check and the upload is not lost: it i
     await w.stop();
   }
 });
+
+import { OWNER } from "../fixtures/suite/world.ts";
+
+test("a file deleted at Drive while an edit waits: the edit is not lost and not sent, the row says so, and Keep it here puts it back as one new file; Discard drops it", async () => {
+  const { w, drive, mount, fileNamed, sync } = await bootDriveWorld("drvgone", (d) => {
+    d.put({ id: "d1", name: "Plan.txt", mimeType: "text/plain" }, "first words");
+    d.put({ id: "d2", name: "Other.txt", mimeType: "text/plain" }, "other");
+  });
+  try {
+    const added = await mount();
+    const a = await fileNamed(added.folderId, "Plan.txt");
+    const b = await fileNamed(added.folderId, "Other.txt");
+    assert.ok(a && b);
+    for (const f of [a, b]) {
+      await w.ok(MEMBER, "files.read", { fileId: f.fileId });
+      await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: `edited ${f.name}` }, reason: "Edit", idempotencyKey: w.idem() });
+    }
+    drive.files.delete("d1");
+    drive.files.delete("d2");
+    await sync(added.mountId);
+    await sync(added.mountId);
+    assert.deepEqual(drive.creates, [], "nothing was sent: the file is gone there");
+    const open = await w.ok(MEMBER, "mounts.open", { fileId: a.fileId });
+    assert.equal(open.source.notSent?.goneThere, true, JSON.stringify(open.source));
+    assert.match(open.source.notSent.reason, /deleted at Google Drive while you had changes here/);
+    assert.equal((await w.ok(MEMBER, "files.read", { fileId: a.fileId })).text, "edited Plan.txt", "the edit is still here");
+    await w.ok(MEMBER, "mounts.resolve", { fileId: a.fileId, choice: "keep_here" });
+    await w.ok(MEMBER, "mounts.resolve", { fileId: b.fileId, choice: "discard" });
+    await sync(added.mountId);
+    await sync(added.mountId);
+    assert.equal([...drive.files.values()].filter((f) => f.name === "Plan.txt").length, 1, "Keep it here: one new Plan.txt at Drive");
+    assert.equal(drive.text(drive.byName("Plan.txt")!.id), "edited Plan.txt");
+    assert.equal(drive.byName("Other.txt"), undefined, "Discard sends nothing");
+    assert.equal(await fileNamed(added.folderId, "Other.txt"), undefined, "and the file is gone from Files");
+    const row = await w.ok(MEMBER, "mounts.get", { mountId: added.mountId });
+    assert.equal(row.mount.state, "idle", String(row.mount.error ?? ""));
+  } finally {
+    await w.stop();
+  }
+});
+
+test("a save by someone who did not connect the folder says whose connection writes", async () => {
+  const { w, mount, fileNamed } = await bootDriveWorld("drvwho", (d) => {
+    d.put({ id: "d1", name: "Plan.txt", mimeType: "text/plain" }, "first words");
+  });
+  try {
+    const added = await mount(); // Noah (MEMBER) connected it
+    const f = await fileNamed(added.folderId, "Plan.txt");
+    assert.ok(f);
+    const mine = await w.ok(MEMBER, "mounts.open", { fileId: f.fileId });
+    assert.equal(mine.source.writesAs, undefined, "your own connection says nothing");
+    const theirs = await w.ok(OWNER, "mounts.open", { fileId: f.fileId });
+    assert.equal(theirs.source.writesAs?.email, "noah@firm.test");
+    assert.ok(theirs.source.writesAs?.by);
+  } finally {
+    await w.stop();
+  }
+});

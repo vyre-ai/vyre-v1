@@ -24,7 +24,7 @@ Requires: files.
 - [mounts.open](../capabilities/mounts.open.md): Open a file of a mount: ask the provider what it holds now and fetch the content only when the copy in Vyre is not that version
 - [mounts.pause](../capabilities/mounts.pause.md): Pause syncing of a mount
 - [mounts.remove](../capabilities/mounts.remove.md): Remove a mount; keep the files as a plain folder or delete the copy
-- [mounts.resolve](../capabilities/mounts.resolve.md): Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs
+- [mounts.resolve](../capabilities/mounts.resolve.md): Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs; or one deleted there while an edit waited: keep it here (it goes back as a new file) or discard the edit
 - [mounts.restore](../capabilities/mounts.restore.md): Put an earlier revision of a file back as the newest; it goes out like any edit
 - [mounts.resume](../capabilities/mounts.resume.md): Resume a paused mount
 - [mounts.sheet_append](../capabilities/mounts.sheet_append.md): Add rows under the last used row of a mounted Google Sheet or Excel worksheet

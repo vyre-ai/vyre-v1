@@ -83,7 +83,9 @@ const fileSource = t.obj({
   /** the signed-in person may not change this file at the provider: the viewer shows it as view only before they type */
   viewOnly: t.opt(t.bool()),
   /** a change made in Vyre has not reached the provider yet, with the reason in words a person can read */
-  notSent: t.opt(t.obj({ reason: t.str() })),
+  notSent: t.opt(t.obj({ reason: t.str(), goneThere: t.opt(t.bool()) })),
+  /** this person's save goes out under another person's connection (the one who connected the folder): who, so the page can say it */
+  writesAs: t.opt(t.obj({ by: t.str(), email: t.opt(t.str()) })),
   /** the file changed at the provider after the edit's base: who changed it there and when, when the provider says */
   changedThere: t.opt(t.obj({ by: t.opt(person), at: t.opt(t.ts()) })),
 });
@@ -257,9 +259,9 @@ export default defineManifest({
     }),
     write(
       "mounts.resolve",
-      "Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs",
+      "Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs; or one deleted there while an edit waited: keep it here (it goes back as a new file) or discard the edit",
       {
-        in: { fileId: id.file, choice: t.enm("keep_both", "use_theirs") },
+        in: { fileId: id.file, choice: t.enm("keep_both", "use_theirs", "keep_here", "discard") },
         out: { resolved: t.bool(), copyName: t.opt(t.str()) },
         on: ["file", "/fileId"],
         perm: "files.write",

@@ -1,6 +1,6 @@
 # mounts.resolve
 
-Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs
+Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs; or one deleted there while an edit waited: keep it here (it goes back as a new file) or discard the edit
 
 | | |
 |---|---|
@@ -26,7 +26,7 @@ Settle a file that changed at the provider while it was edited in Vyre: keep bot
 ```ts
 type In = {
   fileId: string;
-  choice: "keep_both" | "use_theirs";
+  choice: "keep_both" | "use_theirs" | "keep_here" | "discard";
 };
 ```
 

@@ -52,6 +52,11 @@ type Out = {
     viewOnly?: boolean;
     notSent?: {
       reason: string;
+      goneThere?: boolean;
+    };
+    writesAs?: {
+      by: string;
+      email?: string;
     };
     changedThere?: {
       by?: {
@@ -102,12 +107,17 @@ type Out = {
       "modifiedAt": 1760000000000,
       "mountId": "mnt_a1b2c3",
       "notSent": {
+        "goneThere": true,
         "reason": "example"
       },
       "provider": "example",
       "remoteId": "example",
       "revisionId": "example",
-      "viewOnly": true
+      "viewOnly": true,
+      "writesAs": {
+        "by": "example",
+        "email": "example"
+      }
     }
   }
 }

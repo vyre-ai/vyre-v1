@@ -755,8 +755,13 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     // of the provider's Trash (it is not listed there yet, and it is not a new item)
     if (!isNull(row["trashed_at"])) continue;
     if (flag(row["dirty"]) && !flag(row["deleted"]) && !flag(row["is_folder"])) {
-      // edited in Vyre and not sent yet: keep the file and send it again as a new item
-      patchItem(ctx, row, { remote_id: null, remote_version: null, conflict: 0 });
+      // edited in Vyre and not sent yet, and the file is gone at the provider: the edit goes nowhere by itself. The file stays in Vyre with its edit, the row says so, and the person picks Keep it
+      // here (it goes back to the provider as a new file) or Discard.
+      patchItem(ctx, row, {
+        gone_there: 1,
+        conflict: 0,
+        wait_reason: `This file was deleted at ${provider.label} while you had changes here. Keep it here and it goes back as a new file, or discard your changes.`,
+      });
       continue;
     }
     if (flag(row["deleted"])) {
@@ -811,6 +816,15 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
   const settle = async (e: unknown, row: Row): Promise<void> => {
     if (codeOf(e) === "permission.needs_approval") {
       res.held += 1;
+      return;
+    }
+    // the file is gone at the provider (deleted there since the last pass) and an edit waits: it is not sent anywhere and not lost; the row says so and the person picks Keep it here or Discard
+    if (/not_found/.test(codeOf(e) ?? "") && !isNull(row["remote_id"]) && !flag(row["is_folder"]) && !flag(row["deleted"])) {
+      patchItem(ctx, row, {
+        gone_there: 1,
+        conflict: 0,
+        wait_reason: `This file was deleted at ${label} while you had changes here. Keep it here and it goes back as a new file, or discard your changes.`,
+      });
       return;
     }
     // a refusal on one file (the person may not edit it there) is not the provider refusing Vyre: tell the two apart by whether the item can still be read
@@ -879,6 +893,7 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
       !flag(r["is_folder"]) &&
       !flag(r["deleted"]) &&
       !flag(r["conflict"]) &&
+      !flag(r["gone_there"]) &&
       !flag(r["native"]) &&
       isNull(r["trashed_at"]) &&
       !isNull(r["file_id"]),
@@ -2159,7 +2174,13 @@ function sourceView(ctx: Ctx, item: Row, row: Row): Row {
       ...(isNull(item["modified_at"]) ? {} : { at: num(item["modified_at"]) }),
     };
   } else if (flag(item["dirty"]) || !isNull(item["wait_reason"]))
-    out["notSent"] = { reason: isNull(item["wait_reason"]) ? "Waiting to be sent." : str(item["wait_reason"]) };
+    out["notSent"] = {
+      reason: isNull(item["wait_reason"]) ? "Waiting to be sent." : str(item["wait_reason"]),
+      ...(flag(item["gone_there"]) ? { goneThere: true } : {}),
+    };
+  // a save by someone who did not connect the folder goes out under the connection of the one who did: the page says whose
+  if (isCloud(kind) && !isNull(row["owner"]) && str(row["owner"]) !== ctx.principal.id)
+    out["writesAs"] = { by: str(row["owner"]), ...(isNull(row["account"]) ? {} : { email: str(row["account"]) }) };
   if (!isNull(item["remote_rev"])) out["revisionId"] = str(item["remote_rev"]);
   if (!isNull(item["modified_at"])) out["modifiedAt"] = num(item["modified_at"]);
   const editor = personOut(item["editor_name"], item["editor_email"]);
@@ -2320,8 +2341,8 @@ async function mountsResolve(ctx: Ctx, input: unknown): Promise<Row> {
   const o = record(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
   const choice = reqStr(ctx, o, "choice");
-  if (choice !== "keep_both" && choice !== "use_theirs")
-    fail(ctx, "validation.bad_input", "The choice is keep_both or use_theirs.");
+  if (choice !== "keep_both" && choice !== "use_theirs" && choice !== "keep_here" && choice !== "discard")
+    fail(ctx, "validation.bad_input", "The choice is keep_both, use_theirs, keep_here or discard.");
   const first = itemOfFile(ctx, fileId);
   const owner = first ? mountOfItem(ctx, first) : undefined;
   if (!first || !owner) return fail(ctx, "validation.precondition_failed", "This file is not in a connected folder.");
@@ -2329,6 +2350,26 @@ async function mountsResolve(ctx: Ctx, input: unknown): Promise<Row> {
   if (d.effect === "deny") fail(ctx, "permission.no_grant", d.reason);
   if (d.effect === "hold") fail(ctx, "permission.needs_approval", d.reason);
   const { row, m, provider } = owner;
+  if (choice === "keep_here" || choice === "discard") {
+    if (!flag(first["gone_there"])) return fail(ctx, "validation.precondition_failed", "This file has nothing to settle.");
+    await exclusive(`mount:${m.id}`, async () => {
+      const rows = itemsOf(ctx, m.id);
+      const item = rows.find((r) => r["item_key"] === first["item_key"]) ?? first;
+      if (choice === "keep_here") patchItem(ctx, item, { gone_there: 0, remote_id: null, remote_version: null, remote_rev: null, dirty: 1, wait_reason: null });
+      else {
+        patchItem(ctx, item, { gone_there: 0, dirty: 0, wait_reason: null });
+        await trashLocal(ctx, rows, item);
+      }
+    });
+    if (choice === "keep_here") {
+      try {
+        await ctx.schedule(ctx.now() + 500, "mounts.sync_now", { mountId: m.id });
+      } catch {
+        /* the next scheduled pass sends it */
+      }
+    }
+    return { resolved: true };
+  }
   if (!provider.download || !provider.upload)
     return fail(ctx, "validation.precondition_failed", "This folder cannot send changes.");
   let copy: string | undefined;

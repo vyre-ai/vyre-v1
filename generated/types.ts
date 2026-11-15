@@ -16692,6 +16692,11 @@ export type FilesViewerDataOut = {
     viewOnly?: boolean;
     notSent?: {
       reason: string;
+      goneThere?: boolean;
+    };
+    writesAs?: {
+      by: string;
+      email?: string;
     };
     changedThere?: {
       by?: {
@@ -29160,6 +29165,11 @@ export type MountsOpenOut = {
     viewOnly?: boolean;
     notSent?: {
       reason: string;
+      goneThere?: boolean;
+    };
+    writesAs?: {
+      by: string;
+      email?: string;
     };
     changedThere?: {
       by?: {
@@ -29185,7 +29195,7 @@ export type MountsRemoveOut = {
 };
 export type MountsResolveIn = {
   fileId: string;
-  choice: "keep_both" | "use_theirs";
+  choice: "keep_both" | "use_theirs" | "keep_here" | "discard";
 };
 export type MountsResolveOut = {
   resolved: boolean;

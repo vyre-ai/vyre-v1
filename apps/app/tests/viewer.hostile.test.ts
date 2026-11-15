@@ -217,3 +217,10 @@ test("a zip that unpacks to a gigabyte is refused from its directory in one sent
   assert.equal(tooLargeWords("pdf", 10 * 1024 * 1024), null);
   assert.match(tooLargeWords("xlsx", 1e9) ?? "", /over 40 MB/);
 });
+
+import { pdfText, samplePdfBytes } from "./pdf-text-node.ts";
+test("the text extractor is real: it reads a sample PDF's words (so an empty answer on a redacted copy means something)", async () => {
+  const r = await pdfText(samplePdfBytes([["Section 1 of the report"], ["Second page"]]));
+  assert.equal(r.pages, 2);
+  assert.match(r.text, /Section 1 of the report/);
+});

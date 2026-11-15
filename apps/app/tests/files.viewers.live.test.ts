@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { session } from "./viewers-harness.test.ts";
+import { pdfText } from "./pdf-text-node.ts";
 import { makeDocx, makePdf, makePptx, reportPages, unzip } from "./viewer-fixtures.ts";
 
 type Pg = import("playwright-core").Page;
@@ -125,6 +126,12 @@ test("a 30 page PDF is drawn as pages: find steps through, a comment pins to pag
     assert.doesNotMatch(bytes.toString("latin1"), /\/Font|\bBT\b|\bTj\b/, "no text operators in the copy");
     const text = await s.call("previews.text", { fileId: copy.fileId });
     assert.equal((text.text ?? "").replace(/\s+/g, ""), "", "extracting text from the copy gives nothing");
+    // a real extractor (pdf.js, in node) reads the copy: three pages, and not one word on any of them; the original gives its words
+    const viaPdfjs = await pdfText(new Uint8Array(bytes));
+    assert.equal(viaPdfjs.pages, 30, "the copy keeps its 30 pages");
+    assert.equal(viaPdfjs.text.replace(/\s+/g, ""), "", "pdf.js extracts no text from the copy");
+    const originalBytes = Buffer.from((await s.call("files.read", { fileId, as: "base64" })).base64, "base64");
+    assert.match((await pdfText(new Uint8Array(originalBytes))).text, /Section 3 of the report/);
     const orig = await s.call("previews.text", { fileId });
     assert.match(orig.text, /Section 3 of the report/, "the original keeps its words");
     assert.deepEqual(s.errors, []);
