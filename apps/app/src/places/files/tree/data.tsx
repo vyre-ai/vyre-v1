@@ -19,6 +19,7 @@ export type LiveCap =
   | "files.shared_with_me"
   | "files.knowledge"
   | "files.trash.list"
+  | "agents.trash.list"
   | "files.tree"
   | "changesets.list"
   | "stars.list"
@@ -48,6 +49,8 @@ export interface FilesNav {
   openKnow(route: KnowRoute): void;
   /** The person went back to the notes or a folder, so the Proposed or Graph screen gives the body back to the list. */
   leaveMemory?(): void;
+  /** A new note: the shell opens Notes on its Take a note bar. */
+  takeNote?(): void;
   /** Upload into a folder (null is the top of Files): the shell opens its picker and sends the bytes through files.upload_url. */
   upload?(folderId: string | null): void;
   /** Store files dropped or pasted on the list in a folder (null is the top of Files), the same way Upload does. */
@@ -58,6 +61,8 @@ export interface FilesNav {
   openGoal?(goalId: string): void;
   /** Resolve the two edits of a file (the Conflict tag): the shell opens the conflict choice for it. */
   resolveConflict?(fileId: string): void;
+  /** Open a task, goal, Automation or project in a tab of its own (the Delete for good sheet lists what will need someone). */
+  openItem?(type: "task" | "goal" | "automation" | "project", id: string): void;
   /** Open an address outside Vyre (a mounted file in its provider's editor): the shell's own way of opening a link. */
   openExternal?(url: string): void;
 }

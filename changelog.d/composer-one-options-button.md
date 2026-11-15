@@ -1,0 +1,1 @@
+The message box holds only what it needs: the plus, the field, one options button and Send. The mic appears once voice is set up in Settings or Console, and the chat's memory switch moved to the chat's menu; a chat that is not being remembered says so beside its name.

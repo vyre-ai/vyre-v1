@@ -960,3 +960,28 @@ test("a step that names a Vault key the saver cannot use is refused, and other s
   const made = await h.call("automations.create", seed.create({ name: "Fine", definition: fine }), seed.alice);
   assert.ok(made.automation.id);
 });
+
+test("a step that names an agent deleted for good asks for another one: one error on the step, 'Choose an agent' (F77)", async () => {
+  const h = harness({
+    calls: {
+      "agents.get": () => {
+        throw Object.assign(new Error("gone"), { error: { code: "validation.not_found" } });
+      },
+      "agents.erased": () => ({ agents: [{ agentId: "agt_gone", name: "Desk", erasedAt: 1 }] }),
+    },
+  });
+  const r = await validate(h, {
+    triggers: trig,
+    nodes: [node("a", "ai", { prompt: "Summarise" }, { ai: { agentId: "agt_gone" } })],
+  });
+  assert.equal(r.ok, false);
+  assert.deepEqual(
+    r.issues.map((i) => [i.nodeId, i.severity, i.message]),
+    [["a", "error", "AI step: choose an agent."]],
+  );
+  const other = await validate(h, {
+    triggers: trig,
+    nodes: [node("a", "ai", { prompt: "Summarise" }, { ai: { agentId: "agt_never" } })],
+  });
+  assert.equal(other.ok, true, "an agent that was never deleted for good is found where it matters, as before");
+});

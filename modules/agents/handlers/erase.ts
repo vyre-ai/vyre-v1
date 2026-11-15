@@ -1,0 +1,540 @@
+// Delete an agent for good (F77, lead rulings 15 Nov 2026). Delete moves an agent to Trash and stays whole both ways; this is the other half: from Trash, by whoever manages the agent, or by the Space's own
+// Trash clock, every store that holds something of the agent is cleared by one durable, resumable, idempotent job.
+// DECISION: the job is a list of steps, one per module that keeps something of an agent, each a host call `<module>.erase_agent` (the module clears its own tables; modules never read each other's). The progress is
+// a row in agents_erase, written after each step, so a daemon killed half way finds its place again; a step is safe to run again, so is the whole job. It runs as the server (a periodic pass), never as the
+// person who pressed, because the person may not hold the permissions of every store (only whoever manages the agent may press it). The press only writes the row and says "Deleting".
+// DECISION: what stays, on purpose: the audit log, this row as the tombstone (id, name at the time, who, when), and backups made before.
+// DECISION: a person's Assistant is refused here in one sentence; it goes only with its person (agents.person_left) and, when Trash has kept it as long as Trash keeps things, by the same job.
+import { agentBy, agentOf, allows, canSee, ensure, raise, tolerant } from "../projections.ts";
+import type { AgentRec, AgentsCtx } from "../projections.ts";
+import { eraseWhere, tryAll, tryRun } from "../../../lib/erase-agent.ts";
+import { dateIn } from "../../../lib/zones.ts";
+export { eraseWhere };
+import type { Footprint } from "../../../lib/erase-agent.ts";
+export type { Footprint };
+
+type Row = Record<string, unknown>;
+
+/** The modules that keep something of an agent, in the order they are cleared: the agent's own folder and row go last, so a restart half way can still read what to clear. */
+export const ERASE_STEPS = [
+  "engine",
+  "gate",
+  "mcp",
+  "scheduler-api",
+  "hooks",
+  "automations",
+  "tasks",
+  "goals",
+  "projects",
+  "notifications",
+  "chat",
+  "memory", // after chat: a capture from a chat cannot add facts between the two
+  "computers",
+  "terminal",
+  "machines",
+  "access",
+  "vault",
+  "search",
+  "files",
+  "governance",
+] as const;
+export const ERASE_JOB = "host.hook.periodic.agents.erase_job";
+const stepCall = (module: string): string => `host.hook.call.${module}.erase_agent`;
+
+const code = (e: unknown): string =>
+  (e as { error?: { code?: string } } | null)?.error?.code ?? (e as { code?: string } | null)?.code ?? "";
+/** A module that is not in this Space (a Personal Space has fewer), or has nothing to say: that step is done. */
+const absent = (e: unknown): boolean =>
+  code(e) === "validation.unknown_capability" ||
+  code(e) === "validation.not_found" ||
+  code(e) === "permission.not_found";
+
+const pending = (ctx: AgentsCtx, id: string): Row | undefined =>
+  (ctx.db.all("SELECT * FROM agents_erase WHERE agentId = ?", id) as Row[])[0];
+
+/** Has this agent been erased (or is it being)? Its id is never reused. */
+export function erasedRow(ctx: Pick<AgentsCtx, "db">, id: string): { state: string; name: string } | undefined {
+  try {
+    const r = (ctx.db.all("SELECT state, name FROM agents_erase WHERE agentId = ?", id) as Row[])[0];
+    return r ? { state: String(r["state"]), name: String(r["name"]) } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function refuseKind(ctx: AgentsCtx, a: AgentRec): void {
+  // ONE RULE for teammates (deleteForGood, trashList, sweepExpired): a teammate belongs to its project or chat, so it is not listed in Trash and no person presses Delete for good on it; the Trash clock alone
+  // erases it, so nothing of it is kept for ever.
+  if (a.kind === "teammate")
+    raise(ctx, "validation.precondition_failed", "A teammate goes with its project or chat.", { reason: "teammate" });
+  if (a.kind === "assistant")
+    raise(ctx, "validation.precondition_failed", "A person's Assistant stays with them and cannot be deleted.", {
+      reason: "assistant_stays",
+    });
+}
+
+/** Press "Delete for good" on an agent in Trash: the job is recorded and starts at once; the answer is that it is deleting. Pressing again changes nothing. */
+export async function deleteForGood(ctx: AgentsCtx, input: { agentId: string }): Promise<{ erasing: boolean }> {
+  ensure(ctx.db);
+  // only a person presses this: an agent (acting for a person too), a service, an Automation step or an outside tool is refused before anything else
+  if (ctx.principal.kind !== "person")
+    raise(ctx, "validation.precondition_failed", "Only a person can delete an agent for good.", {
+      reason: "person_only",
+    });
+  const have = pending(ctx, input.agentId);
+  const a = agentBy(ctx.db, input.agentId, true);
+  // whoever manages it (its owner, or an admin) may; anyone else is told the agent does not exist, as for any agent they cannot see
+  const owner = a?.ownerId ?? (have ? String(have["ownerId"]) : undefined);
+  const asker = ctx.actingFor ?? ctx.principal.id;
+  if (owner === undefined || (owner !== asker && !mayManage(ctx, a ?? ({ ownerId: owner } as AgentRec))))
+    raise(ctx, "validation.not_found", "That agent does not exist.");
+  if (have) {
+    // pressing again on a job that failed is "Try again": it goes at once instead of waiting for its back-off
+    if (String(have["state"]) === "erasing")
+      tryRun(ctx.db, "DELETE FROM agents_erase_retry WHERE agentId = ?", input.agentId);
+    return { erasing: String(have["state"]) === "erasing" };
+  }
+  if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
+  refuseKind(ctx, a);
+  if (a.deletedAt === undefined)
+    raise(ctx, "validation.precondition_failed", "Move the agent to Trash first, then delete it for good.", {
+      reason: "not_in_trash",
+    });
+  start(ctx, a, ctx.actingFor ?? ctx.principal.id);
+  return { erasing: true };
+}
+
+function start(ctx: AgentsCtx, a: AgentRec, by: string): void {
+  const now = ctx.now();
+  ctx.db.run(
+    `INSERT INTO agents_erase ("agentId", "name", "ownerId", "kind", "folderId", "requestedBy", "requestedAt", "state", "doneJson", "tries")
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'erasing', '[]', 0) ON CONFLICT ("agentId") DO NOTHING`,
+    a.id,
+    a.name,
+    a.ownerId,
+    a.kind,
+    a.folderId ?? null,
+    by,
+    now,
+  );
+  ctx.emit("agent.erasing", a.id, { agentId: a.id, name: a.name, by });
+}
+
+/** What deleting this agent for good would remove and what would need someone, as real counts from the stores themselves (each module answers its own, without changing anything). */
+export async function deletePreview(ctx: AgentsCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  const a = agentBy(ctx.db, input.agentId, true);
+  if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
+  const out = {
+    chats: 0,
+    sharedChats: 0,
+    memory: 0,
+    bytes: 0,
+    routines: 0,
+    named: [] as NonNullable<Footprint["named"]>,
+  };
+  const chatPeople = new Set<string>();
+  const folderPeople = new Set<string>();
+  for (const m of ERASE_STEPS) {
+    const f = await tolerant<Footprint>(
+      ctx,
+      stepCall(m),
+      { input: { agentId: a.id, name: a.name, folderId: a.folderId, dry: true } },
+      {},
+    );
+    out.chats += f.chats ?? 0;
+    out.sharedChats += f.sharedChats ?? 0;
+    out.memory += f.memory ?? 0;
+    out.bytes += f.bytes ?? 0;
+    out.routines += f.routines ?? 0;
+    out.named.push(...(f.named ?? []));
+    for (const p of f.chatPeople ?? []) chatPeople.add(p);
+    for (const p of f.folderPeople ?? []) folderPeople.add(p);
+  }
+  const routines = (ctx.db.all("SELECT COUNT(*) AS n FROM agents_routine WHERE agentId = ?", a.id) as Row[])[0];
+  out.routines += Number(routines?.["n"] ?? 0);
+  const keepMs = await backupsKeepMs(ctx);
+  const days = keepMs === null || keepMs === undefined ? undefined : Math.round(keepMs / 86_400_000);
+  const LINK = { automation: "automations", task: "tasks", goal: "goals", project: "projects" } as const;
+  return {
+    agentId: a.id,
+    name: a.name,
+    kind: a.kind,
+    inTrash: a.deletedAt !== undefined,
+    ...out,
+    // who chats privately with the agent is named only to its owner; an admin who is not the owner sees the count
+    chatPeopleCount: [...chatPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id)).length,
+    chatPeople:
+      a.ownerId === (ctx.actingFor ?? ctx.principal.id)
+        ? await peopleNamed(
+            ctx,
+            [...chatPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id)),
+          )
+        : [],
+    folderPeople: await peopleNamed(
+      ctx,
+      [...folderPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id)),
+    ),
+    named: out.named.map((n) => ({ ...n, link: `/${LINK[n.kind]}/${n.id}` })),
+    backups:
+      days === undefined
+        ? "Backups made before today still hold a copy until they are rotated out."
+        : `Backups made before today still hold a copy for ${days} days.`,
+    ...(days !== undefined ? { backupsKeptDays: days } : {}),
+    ...(a.kind === "assistant" ? { refused: "A person's Assistant stays with them and cannot be deleted." } : {}),
+  };
+}
+
+/** The agents in Trash, newest first, with what is happening to them: Deleting while the job runs. Whoever may see an agent sees it here; only one who manages it may delete it for good. */
+export async function trashList(ctx: AgentsCtx) {
+  ensure(ctx.db);
+  const rows = ctx.db.all(
+    `SELECT * FROM agents_agent WHERE deletedAt IS NOT NULL AND kind <> 'teammate' ORDER BY deletedAt DESC, id`,
+  ) as Row[];
+  const asker = ctx.actingFor ?? ctx.principal.id;
+  const keep = await trashKeepMs(ctx);
+  const out: Array<{
+    agentId: string;
+    name: string;
+    kind: string;
+    ownerId: string;
+    deletedAt: number;
+    deleting: boolean;
+    folderId?: string;
+    erasesAt?: number;
+    failed?: string;
+    canDelete: boolean;
+  }> = [];
+  for (const r of rows) {
+    const a = agentOf(r);
+    if (!canSee(ctx, a)) continue;
+    out.push({
+      agentId: a.id,
+      name: a.name,
+      kind: a.kind,
+      ownerId: a.ownerId,
+      deletedAt: a.deletedAt ?? 0,
+      deleting: String(pending(ctx, a.id)?.["state"]) === "erasing",
+      ...(a.folderId !== undefined ? { folderId: a.folderId } : {}),
+      ...failedOf(ctx, a.id),
+      ...(typeof keep === "number" && a.deletedAt !== undefined ? { erasesAt: a.deletedAt + keep } : {}),
+      canDelete: a.kind !== "assistant" && (a.ownerId === asker || mayManage(ctx, a)),
+    });
+  }
+  return { agents: out };
+}
+
+const mayManage = (ctx: AgentsCtx, a: AgentRec): boolean => {
+  void a;
+  return ctx.authorize !== undefined && allows(ctx, "access.manage", "manage", "space", ctx.space);
+};
+
+const doneOf = (r: Row): string[] => {
+  try {
+    return JSON.parse(String(r["doneJson"])) as string[];
+  } catch {
+    return [];
+  }
+};
+
+/** One pass of the job over every agent being erased. Each step is saved when it finishes; one that fails is tried again on the next pass, and the ones after it wait. */
+export async function runErase(ctx: AgentsCtx): Promise<string[]> {
+  ensure(ctx.db);
+  const jobs = ctx.db.all(
+    "SELECT * FROM agents_erase WHERE state = 'erasing' ORDER BY requestedAt, agentId LIMIT 5",
+  ) as Row[];
+  const finished: string[] = [];
+  for (const j of jobs) {
+    const id = String(j["agentId"]);
+    const wait = (ctx.db.all("SELECT nextAt FROM agents_erase_retry WHERE agentId = ?", id) as Row[])[0];
+    if (wait && Number(wait["nextAt"]) > ctx.now()) continue; // backing off after a failure
+    const done = new Set(doneOf(j));
+    let stuck = false;
+    // the ids the event log and the request cache are cleared of at the end: its routines and its one-to-one chats, read before the stores that know them are cleared
+    if (
+      (ctx.db.all("SELECT 1 FROM agents_erase_ids WHERE agentId = ? LIMIT 1", id) as Row[]).length === 0 &&
+      !done.has("chat")
+    ) {
+      const ids = (ctx.db.all("SELECT id FROM agents_routine WHERE agentId = ?", id) as Row[]).map((r) =>
+        String(r["id"]),
+      );
+      try {
+        const f = (await ctx.call?.(stepCall("chat"), { input: { agentId: id, dry: true } })) as Footprint | undefined;
+        ids.push(...(f?.threadIds ?? []));
+      } catch {
+        /* chat is not in this Space */
+      }
+      if (j["folderId"]) ids.push(String(j["folderId"]));
+      for (const x of ids) ctx.db.run("INSERT OR IGNORE INTO agents_erase_ids (agentId, id) VALUES (?, ?)", id, x);
+      // the people who lose a chat or their own folder, read now, before those stores are cleared: each is told once it is done
+      const at = await peopleAt(ctx, id);
+      for (const p of new Set([...at.chat, ...at.folder]))
+        ctx.db.run("INSERT OR IGNORE INTO agents_erase_people (agentId, personId) VALUES (?, ?)", id, p);
+      ctx.db.run("INSERT OR IGNORE INTO agents_erase_ids (agentId, id) VALUES (?, ?)", id, id);
+    }
+    const ids = (ctx.db.all("SELECT id FROM agents_erase_ids WHERE agentId = ?", id) as Row[]).map((r) =>
+      String(r["id"]),
+    );
+    for (const m of ERASE_STEPS) {
+      if (done.has(m)) continue;
+      try {
+        await ctx.call?.(stepCall(m), {
+          input: { agentId: id, name: String(j["name"]), folderId: j["folderId"] ?? undefined, ids, dry: false },
+        });
+      } catch (e) {
+        if (!absent(e)) {
+          ctx.db.run(
+            `UPDATE agents_erase SET "tries" = "tries" + 1, "lastError" = ? WHERE "agentId" = ?`,
+            `${m}: ${e instanceof Error ? e.message.slice(0, 200) : code(e) || "error"}`,
+            id,
+          );
+          ctx.log.warn("agents: a store could not be cleared for a deleted agent, the job tries again", {
+            agentId: id,
+            step: m,
+          });
+          const tries = Number(
+            ((ctx.db.all("SELECT tries FROM agents_erase WHERE agentId = ?", id) as Row[])[0] ?? {})["tries"] ?? 1,
+          );
+          // 3 seconds, then 30 seconds, then 5 minutes for every try after
+          const delay = [3_000, 30_000, 300_000][Math.min(Math.max(tries, 1) - 1, 2)]!;
+          ctx.db.run(
+            `INSERT INTO agents_erase_retry ("agentId", "nextAt") VALUES (?, ?) ON CONFLICT ("agentId") DO UPDATE SET "nextAt" = excluded."nextAt"`,
+            id,
+            ctx.now() + delay,
+          );
+          stuck = true;
+          break;
+        }
+      }
+      done.add(m);
+      ctx.db.run(`UPDATE agents_erase SET "doneJson" = ? WHERE "agentId" = ?`, JSON.stringify([...done]), id);
+    }
+    if (stuck) continue;
+    ctx.db.run("DELETE FROM agents_erase_ids WHERE agentId = ?", id);
+    ctx.db.run("DELETE FROM agents_erase_retry WHERE agentId = ?", id);
+    eraseOwn(ctx, id);
+    ctx.db.run(
+      `UPDATE agents_erase SET "state" = 'erased', "finishedAt" = ?, "lastError" = NULL WHERE "agentId" = ?`,
+      ctx.now(),
+      id,
+    );
+    ctx.emit("agent.erased", id, { agentId: id, name: String(j["name"]) });
+    const told = (ctx.db.all("SELECT personId FROM agents_erase_people WHERE agentId = ?", id) as Row[])
+      .map((r) => String(r["personId"]))
+      .filter((p) => p !== String(j["requestedBy"]));
+    await tell(ctx, told, `${String(j["name"])} was deleted for good.`, `agent-erased:${id}`);
+    ctx.db.run("DELETE FROM agents_erase_people WHERE agentId = ?", id);
+    finished.push(id);
+  }
+  return finished;
+}
+
+/** The agent's own tables: its row and profile, every version, its routines and what hangs on them, its skills, plugins and connections, its outside jobs. Safe to run again. */
+export function eraseOwn(ctx: Pick<AgentsCtx, "db">, id: string): void {
+  const db = ctx.db;
+  for (const t of [
+    "agents_routine_watch",
+    "agents_routine_by",
+    "agents_routine_last",
+    "agents_routine_wake",
+    "agents_routine_delegation",
+  ])
+    tryRun(db, `DELETE FROM ${t} WHERE "routineId" IN (SELECT id FROM agents_routine WHERE agentId = ?)`, id);
+  eraseWhere(db, id, [
+    ["agents_routine", "agentId"],
+    ["agents_suggestion", "agentId"],
+    ["agents_snapshot", "agentId"],
+    ["agents_skills", "agent_id"],
+    ["agents_plugins", "agent_id"],
+    ["agents_mcp_connections", "agent_id"],
+    ["agents_outside_jobs", "agentId"],
+    ["agents_skill_grants", "agent_id"],
+    ["agents_install", "agent_id"],
+    ["agents_agent", "id"],
+  ]);
+  tryRun(db, "DELETE FROM agents_meta WHERE key = ?", `assistant:${id}`);
+  // the agent's id comes out of the lists of agents a skill is added for (what people's skills and receipts hold); the skills themselves are the people's
+  for (const t of ["agents_skill_own", "agents_skill_receipts"])
+    for (const r of tryAll(db, `SELECT id, agents_json FROM ${t} WHERE agents_json LIKE ?`, `%${id}%`)) {
+      try {
+        const v = JSON.parse(String(r["agents_json"])) as unknown;
+        const next = Array.isArray(v)
+          ? v.filter(
+              (x) =>
+                (typeof x === "string"
+                  ? x
+                  : ((x as { id?: string; agentId?: string })?.id ?? (x as { agentId?: string })?.agentId)) !== id,
+            )
+          : v;
+        tryRun(db, `UPDATE ${t} SET agents_json = ? WHERE id = ?`, JSON.stringify(next), String(r["id"]));
+      } catch {
+        /* not a list: left as it is */
+      }
+    }
+}
+
+// ---- the Trash clock ---------------------------------------------------------------------------------------------------------------------------------
+
+/** How long Trash keeps an agent when the Space's own setting cannot be read: governance's default for trash (manifests/governance.ts '30d'; test/trash-retention.test.ts holds them together). */
+export const TRASH_KEEP_MS = 30 * 86_400_000;
+
+/** A retention value as governance writes it ("30d", "12w", "6m", "2y", "forever") in ms; null for forever; undefined when it is none of those. */
+export function retentionMs(v: string): number | null | undefined {
+  if (v === "forever") return null;
+  const m = /^(\d{1,5})([dwmy])$/.exec(v.trim());
+  if (!m) return undefined;
+  return Number(m[1]) * { d: 1, w: 7, m: 30, y: 365 }[m[2] as "d" | "w" | "m" | "y"] * 86_400_000;
+}
+
+/**
+ * The Space's Trash keep time, the one the Files Trash runs on (governance's `trash` retention). null: Trash is kept for ever. undefined: it could not be told (the read failed, or the value is not one governance
+ * writes), and nothing is erased on a guess. The 30 day default is used only where there is no retention setting at all (the capability does not exist, as in a Personal Space).
+ */
+export async function trashKeepMs(ctx: AgentsCtx): Promise<number | null | undefined> {
+  try {
+    const out = (await ctx.call?.("governance.retention.get", {})) as {
+      kinds?: Array<{ key?: string; value?: string }>;
+    };
+    const v = out?.kinds?.find((k) => k.key === "trash")?.value;
+    return typeof v === "string" ? retentionMs(v) : undefined;
+  } catch (e) {
+    return code(e) === "validation.unknown_capability" ? TRASH_KEEP_MS : undefined;
+  }
+}
+
+/** An agent that has been in Trash as long as Trash keeps things is deleted for good, by the same job (a person's Assistant that went with them included). */
+export async function sweepExpired(ctx: AgentsCtx): Promise<string[]> {
+  ensure(ctx.db);
+  const keep = await trashKeepMs(ctx);
+  if (keep === null || keep === undefined) return [];
+  const due = ctx.db.all(
+    `SELECT * FROM agents_agent WHERE deletedAt IS NOT NULL AND deletedAt <= ? AND id NOT IN (SELECT agentId FROM agents_erase) ORDER BY deletedAt LIMIT 20`,
+    ctx.now() - keep,
+  ) as Row[];
+  for (const r of due) start(ctx, agentOf(r), "system");
+  return due.map((r) => String(r["id"]));
+}
+
+/** How long the Space keeps its backups, when that is a number of days (the setting is words for a rotation policy otherwise). */
+async function backupsKeepMs(ctx: AgentsCtx): Promise<number | null | undefined> {
+  try {
+    const out = (await ctx.call?.("governance.retention.get", {})) as {
+      kinds?: Array<{ key?: string; value?: string }>;
+    };
+    const v = out?.kinds?.find((k) => k.key === "backups")?.value;
+    return typeof v === "string" ? retentionMs(v) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The agents deleted for good: the name they had and when. A person's Assistant is not listed. */
+export async function erasedList(ctx: AgentsCtx) {
+  ensure(ctx.db);
+  const rows = ctx.db.all(
+    `SELECT agentId, name, finishedAt FROM agents_erase WHERE state = 'erased' AND kind <> 'assistant' ORDER BY finishedAt DESC LIMIT 500`,
+  ) as Row[];
+  return {
+    agents: rows.map((r) => ({
+      agentId: String(r["agentId"]),
+      name: String(r["name"]),
+      erasedAt: Number(r["finishedAt"] ?? 0),
+    })),
+  };
+}
+
+const STEP_WORDS: Readonly<Record<string, string>> = {
+  terminal: "its computer",
+  computers: "its computer and browser",
+  chat: "its chats",
+  memory: "its memory",
+  files: "its files",
+  access: "its access",
+  vault: "its keys",
+  governance: "its record in the log",
+};
+/** A job that failed at least once and is still going: the plain words of what it could not finish. */
+function failedOf(ctx: AgentsCtx, id: string): { failed?: string } {
+  const r = pending(ctx, id);
+  if (!r || String(r["state"]) !== "erasing" || Number(r["tries"]) < 1) return {};
+  const step = String(r["lastError"] ?? "").split(":")[0] ?? "";
+  return { failed: STEP_WORDS[step] ?? "some of what it kept" };
+}
+
+// ---- the people who lose something, and are told --------------------------------------------------------------------------------------------------
+
+/** People by id with the name they have in this Space. */
+async function peopleNamed(ctx: AgentsCtx, ids: string[]): Promise<Array<{ id: string; name: string }>> {
+  const out: Array<{ id: string; name: string }> = [];
+  for (const id of ids) {
+    const who = await tolerant<{ principal?: { name?: string } }>(
+      ctx,
+      "access.principals.get",
+      { principal: { kind: "person", id } },
+      {},
+    );
+    out.push({ id, name: who.principal?.name ?? "Someone" });
+  }
+  return out;
+}
+
+/** Who has a one-to-one chat with this agent, and who has their own folder on its computer: each module answers its own (a dry ask, the same host calls the preview makes). */
+async function peopleAt(ctx: AgentsCtx, id: string): Promise<{ chat: string[]; folder: string[] }> {
+  const ask = async (m: string): Promise<Footprint> =>
+    tolerant<Footprint>(ctx, stepCall(m), { input: { agentId: id, dry: true } }, {});
+  return { chat: (await ask("chat")).chatPeople ?? [], folder: (await ask("terminal")).folderPeople ?? [] };
+}
+
+/** One line, in Needs you, for each person: due now, so it shows today. The key keeps a repeat from making a second. */
+async function tell(ctx: AgentsCtx, people: Iterable<string>, title: string, key: string): Promise<void> {
+  for (const person of people)
+    await tolerant(
+      ctx,
+      "tasks.create",
+      {
+        kind: "work",
+        title: title.slice(0, 300),
+        assigned: { kind: "person", id: person },
+        due: ctx.now(),
+        idempotencyKey: `${key}:${person}`,
+      },
+      null,
+    );
+}
+
+/** The Space's time zone, for a date a person reads. */
+async function spaceZone(ctx: AgentsCtx): Promise<string> {
+  const sp = await tolerant<{ space?: { timezone?: unknown } }>(ctx, "spaces.get", {}, {});
+  return typeof sp.space?.timezone === "string" && sp.space.timezone !== "" ? sp.space.timezone : "UTC";
+}
+
+/**
+ * agent.deleted: everyone who has a chat with the agent, or their own folder on its computer, is told it is in Trash and the day it will be erased by itself, so they can take their files out. The person who
+ * moved it to Trash is not told of what they did. Safe to repeat: one line per person and Trash move.
+ */
+export async function onTrashed(
+  ctx: AgentsCtx,
+  event: { payload: { agentId?: string; name?: string; by?: string } },
+): Promise<string[]> {
+  const id = event.payload.agentId;
+  if (typeof id !== "string") return [];
+  ensure(ctx.db);
+  const a = agentBy(ctx.db, id, true);
+  // a restore that landed before this ran: the agent is not in Trash, so nobody is told to take their files out
+  if (!a || a.kind === "teammate" || a.deletedAt === undefined) return [];
+  const at = await peopleAt(ctx, id);
+  const who = [...new Set([...at.chat, ...at.folder])].filter((p) => p !== event.payload.by);
+  if (who.length === 0) return [];
+  const keep = await trashKeepMs(ctx);
+  const when =
+    typeof keep === "number" && a.deletedAt !== undefined
+      ? `It will be erased on ${dateIn(a.deletedAt + keep, await spaceZone(ctx))}.`
+      : "It stays in Trash until it is deleted for good.";
+  await tell(
+    ctx,
+    who,
+    `${a.name} is in Trash. ${when} Take your files out of its computer before then.`,
+    `agent-trashed:${id}:${a.deletedAt ?? 0}`,
+  );
+  return who;
+}

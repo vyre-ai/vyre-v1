@@ -1,0 +1,14 @@
+- An agent's first call to a tool no longer fails for a key it could not know: Vyre now makes the idempotency key itself, takes the chat a tool names as the chat the agent is in, and takes a published page's title from the page.
+- When an agent's call is refused for its input, it is told which input is wrong and what rule it broke, with a minimal call that would work, instead of a general "something is not right".
+- Tool descriptions that copy an address like example.com are no longer shown to agents: copying one was refused as a placeholder.
+- Publishing a page with two sources at once now says which two were given.
+- An agent that is refused for something it can never do (above its clearance, or a permission its role does not hold) is not allowed to ask again in the same turn or on the next runs for a while; a routine that meets one tells its owner once in Needs you.
+- The server's log row for a call refused for its input now names the inputs that were wrong and the rule each broke (never a value), the tool, and whether it was the first call to that tool in the turn; a retry that worked leaves a row too.
+- An agent's first page load on a cold browser that fails inside Vyre now says the browser is not available and to call it once more, instead of an unexpected error.
+- A file an agent writes that is over the 256 KB limit is now refused with the limit named and what to do (split it into smaller files), and the file tools say the limit in their descriptions.
+- An agent that writes an input under a name the tool does not use (file_id or id for fileId, chatId for threadId) is understood; a name the tool does not have is named back to it with the names the tool does take.
+- A routine whose agent is stopped by an access limit now puts one line in Needs you for its owner, in plain words, naming the agent.
+- An agent's retried call (the same tool call delivered twice) now makes one thing, and two calls it makes on purpose make two.
+- A refusal an agent met is no longer remembered past its turn, so once a person fixes the cause (grants access, shares, unlocks) the agent's next call works at once.
+- An agent's first browser call while the browser is still waking is waited out inside the call instead of handed back as a failure.
+- The agent's Vault line now tells it not to ask again when a key is refused above its clearance, and the server log row of a refused call names the chat and the run it came from.

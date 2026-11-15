@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // engine module entry (lane L2). The host loads the generated stubs while manifests/engine.ts says `status: 'stub'`; the last engine packet flips it to live
 // (host/modules.json, ruling 25) after the contract tests pass against these handlers. Capabilities not listed in `handlers` stay on their stubs until then.
 //
@@ -172,6 +174,28 @@ export const consumers = keptWhileStopping({
       return resumeAgent(ctx, engine, id, async (threadId, asker) => {
         await openAs(ctx, threadId, asker);
       });
+    },
+  },
+  /** A chat was erased for good: the engine's own copy of its words, its queue, waits and per-chat state go with it (F77: an erase left these behind). */
+  "engine.thread_erased": {
+    on: ["thread.erased"],
+    run: async (ctx: EngineCtx, event: { payload: { threadId?: string } }): Promise<string[]> => {
+      const id = event.payload.threadId;
+      if (typeof id !== "string") return [];
+      for (const t of [
+        "engine_messages",
+        "engine_turn_info",
+        "engine_thread_queue",
+        "engine_thread_lease",
+        "engine_waits",
+        "engine_agent_state",
+        "engine_unblock",
+        "engine_typed_message",
+        "engine_step_turns",
+        "engine_task_baton",
+      ])
+        tryRun(ctx.db, `DELETE FROM ${t} WHERE thread_id = ?`, id);
+      return [id];
     },
   },
   /** A routine's Run was stopped: the turn it woke stops too, durably (handlers/routine-run.ts onRoutineRunStopped). */
@@ -723,3 +747,48 @@ export { bindEngine, sqlLeases, sqlMessages, sqlQueue, sqlWaits };
 export function resumeHeld(engine: TurnEngine, taskId: string, approved: boolean): number | null {
   return engine.resume(taskId, { approved });
 }
+
+/** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
+const ENGINE_BY_THREAD = [
+  "engine_messages",
+  "engine_turn_info",
+  "engine_thread_queue",
+  "engine_thread_lease",
+  "engine_waits",
+  "engine_agent_state",
+  "engine_unblock",
+  "engine_typed_message",
+  "engine_step_turns",
+  "engine_task_baton",
+] as const;
+export const hostCalls = {
+  "engine.erase_agent": eraseTables(
+    [
+      ["engine_thread_queue", "agent_id"],
+      ["engine_waits", "agent_id"],
+      ["engine_agent_state", "agent_id"],
+      ["engine_unblock", "agent_id"],
+      ["engine_crew_job", "agent_id"],
+      ["engine_crew_wait", "agent_id"],
+      ["engine_paid_ok", "agent_id"],
+      ["engine_tool_use", "agent_id"],
+      ["engine_own_subagent", "agent_id"],
+      ["engine_incidents", "agent_id"],
+    ],
+    (ctx, i) => {
+      // its words as the engine kept them for its turns (the visible messages stay in the chat; this is the engine's own copy)
+      if (i.dry === true) return {};
+      tryRun(ctx.db, `DELETE FROM engine_messages WHERE author_kind = 'agent' AND author_id = ?`, i.agentId);
+      // what each of its turns recorded: tools used, switches, context (the tool traces and run records behind its messages; the spend rows in engine_usage stay, they are the Space's totals)
+      tryRun(
+        ctx.db,
+        `DELETE FROM engine_turn_info WHERE turn_id IN (SELECT turn_id FROM engine_usage WHERE agent_id = ?)`,
+        i.agentId,
+      );
+      // the engine's own copy of its one-to-one chats, cleared here as well as by the thread.erased consumer, which can come after the log is cleared of that event
+      for (const th of (i as { ids?: string[] }).ids ?? [])
+        for (const t of ENGINE_BY_THREAD) tryRun(ctx.db, `DELETE FROM ${t} WHERE thread_id = ?`, th);
+      return {};
+    },
+  ),
+};

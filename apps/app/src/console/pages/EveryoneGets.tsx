@@ -105,9 +105,12 @@ export function EveryoneGets(): ReactElement {
       for (const i of freeVault)
         items.push({ label: i.name, onSelect: () => share({ type: "vault_item", id: i.id }, i.name) });
     }
-    if (!items.length) items.push({ head: "Every agent and Shared Vault item is shared with everyone already" });
     menu.show(items, x, y, "other", { label: "Share with everyone" });
   };
+  // the button is drawn only when it has something to offer: with nothing left to share it would open an empty menu
+  const shareable =
+    (agents.data?.agents ?? []).some((a) => a.kind !== "assistant" && !by.agents.includes(a.agentId)) ||
+    (vault.data?.items ?? []).some((i) => i.scope === "shared" && !by.vault.some((v) => v.id === i.id));
 
   const rows: ReactElement[] = [];
   const label = (text: string): void => {
@@ -190,7 +193,7 @@ export function EveryoneGets(): ReactElement {
         key={`t:${t.key}`}
         id={`everyone-type-${t.key}`}
         title={t.plural}
-        note="Open to everyone, as their role allows. Set apart from its Share sheet in Records"
+        note="Open to everyone, as their role allows. Change who sees it from its Share button in Records"
       />,
     );
   for (const r of by.records)
@@ -251,7 +254,11 @@ export function EveryoneGets(): ReactElement {
     <View testID="everyone-gets">
       <Section
         title="What everyone gets"
-        right={<LinkButton label="Share with everyone" testID="everyone-add" onPress={() => addMenu(20, 120)} />}
+        right={
+          shareable ? (
+            <LinkButton label="Share with everyone" testID="everyone-add" onPress={(at) => addMenu(at.x, at.y)} />
+          ) : undefined
+        }
       >
         <Group testID="everyone-rows">{rows}</Group>
         {long ? <LinkButton label={open ? "Show fewer" : "Show all"} onPress={() => setOpen(!open)} /> : null}

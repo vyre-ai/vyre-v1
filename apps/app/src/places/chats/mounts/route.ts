@@ -374,7 +374,11 @@ export function fromHash(hash: string): Shown {
     case SCREEN.artifacts:
       return step(START, { t: "artifacts" });
     case SCREEN.notes:
-      return step(START, { t: "notes", ...(arg("noteId") === "" ? {} : { noteId: arg("noteId") }) });
+      return step(START, {
+        t: "notes",
+        ...(arg("noteId") === "" ? {} : { noteId: arg("noteId") }),
+        ...(arg("take") === "1" ? { take: true } : {}),
+      });
     case SCREEN.agentForm:
       return step(START, { t: "agent-form", ...(arg("agentId") === "" ? {} : { agentId: arg("agentId") }) });
     case SCREEN.agent: {

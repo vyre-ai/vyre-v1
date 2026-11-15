@@ -16,6 +16,7 @@ import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
 import type { CtxSeed, Handler, Invoke } from "../invoke.ts";
 import { fail, isKeptForRestart } from "../routes/errors.ts";
 import type { RawDb } from "../ctx/db.ts";
+import { ERASE_CALL, ERASE_CALLERS } from "../../../lib/erase-agent.ts";
 
 export const MAX_TRIES = 5;
 const PAGE = 200;
@@ -53,6 +54,15 @@ export function guardCall(
   name: string,
   ctx: Pick<Ctx, "origin" | "depth" | "trace"> & { principal?: { kind: string; id: string }; callerCap?: string },
 ): void {
+  if (ERASE_CALL.test(name)) {
+    // clearing what a module holds of an agent (F77): only the agents module's erase job, or its preview (which only counts), may ask
+    if (ctx.depth < 1 || ctx.callerCap === undefined || !(ERASE_CALLERS as readonly string[]).includes(ctx.callerCap))
+      throw fail("permission.no_grant", ctx.trace.traceId, {
+        message: "This host call is made only by the call that needs it; it cannot be called from here.",
+        details: { call: name },
+      });
+    return;
+  }
   const only = MODULE_PATH_CALL[name];
   if (only) {
     if (ctx.depth < 1 || ctx.callerCap === undefined || !only.includes(ctx.callerCap))

@@ -528,6 +528,101 @@ export default defineManifest({
       audit: "sensitive",
       errors: ["permission.on_hold"],
     }),
+    read("agents.trash.list", "The agents in Trash, with which are being deleted for good", {
+      in: {},
+      out: {
+        agents: t.arr(
+          t.obj({
+            agentId: id.agent,
+            name: t.str(),
+            kind: t.enm("assistant", "teammate", "agent"),
+            ownerId: id.user,
+            deletedAt: t.ts(),
+            deleting: t.bool(),
+            folderId: t.opt(id.folder),
+            failed: t.opt(
+              t.str({
+                description: "What a job that keeps failing could not finish, in words: its computer, its memory",
+              }),
+            ),
+            erasesAt: t.opt(
+              t.ts({ description: "When Trash will delete it for good by itself; absent when Trash is kept for ever" }),
+            ),
+            canDelete: t.bool({
+              description: "False for a person's Assistant, and for someone who does not manage the agent",
+            }),
+          }),
+        ),
+      },
+      level: "member",
+      tool: "agents",
+      label: "filter",
+    }),
+    read(
+      "agents.erased",
+      "The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant",
+      {
+        in: {},
+        out: { agents: t.arr(t.obj({ agentId: id.agent, name: t.str(), erasedAt: t.ts() })) },
+        level: "member",
+        tool: "agents",
+        label: "filter",
+      },
+    ),
+    read(
+      "agents.delete_preview",
+      "What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone",
+      {
+        in: target,
+        out: {
+          agentId: id.agent,
+          name: t.str(),
+          kind: t.enm("assistant", "teammate", "agent"),
+          inTrash: t.bool(),
+          chats: t.int({ minimum: 0 }),
+          sharedChats: t.int({ minimum: 0 }),
+          memory: t.int({ minimum: 0 }),
+          bytes: t.int({ minimum: 0 }),
+          routines: t.int({ minimum: 0 }),
+          named: t.arr(
+            t.obj({
+              kind: t.enm("automation", "task", "goal", "project"),
+              id: t.str(),
+              title: t.str(),
+              link: t.str({ description: "Where to open it" }),
+            }),
+          ),
+          chatPeopleCount: t.int({ minimum: 0 }),
+          chatPeople: t.arr(t.obj({ id: id.user, name: t.str() })),
+          folderPeople: t.arr(t.obj({ id: id.user, name: t.str() })),
+          backups: t.str(),
+          backupsKeptDays: t.opt(t.int({ minimum: 0 })),
+          refused: t.opt(t.str()),
+        },
+        on: ["agent", "/agentId"],
+        level: "manage",
+        tool: "agents",
+        label: "check",
+      },
+    ),
+    write(
+      "agents.delete_for_good",
+      "Delete an agent in Trash for good: its memory, its one-to-one chats, its computer, its folder, its access and what it ran are erased; what others built that names it asks them to choose another agent. Not an Assistant",
+      {
+        in: target,
+        out: { erasing: t.bool() },
+        // no resource check in the pipeline: once erased the agent is gone from access, and pressing again must answer the same calm way (the handler checks owner or admin against the tombstone)
+        level: "member",
+        emits: ["agent.erasing", "agent.erased"],
+        // an agent deleting ANOTHER agent for good is held for a person's Allow; on itself the handler refuses at once, in one plain sentence
+        gate: { act: "agent_erase", when: "actor.kind != 'person'" },
+        tool: "agents",
+        audit: "always",
+        risk: "high",
+        idem: "natural",
+        errors: ["permission.on_hold", "validation.precondition_failed", "validation.not_found"],
+      },
+    ),
     write(
       "agents.set_owner",
       "Hand an agent to another active person: its home folder and the agent change owner with it and the previous owner keeps nothing on them",
@@ -1011,6 +1106,14 @@ export default defineManifest({
     }),
     ev("agent.deleted", "An agent moved to Trash", {
       p: { agentId: id.agent, name: t.opt(t.str()), by: t.str() },
+      subject: ["agent", "/agentId"],
+    }),
+    ev("agent.erasing", "An agent in Trash is being deleted for good: its stores are cleared one by one", {
+      p: { agentId: id.agent, name: t.opt(t.str()), by: t.str() },
+      subject: ["agent", "/agentId"],
+    }),
+    ev("agent.erased", "An agent was deleted for good: every store is clear; its id is never used again", {
+      p: { agentId: id.agent, name: t.opt(t.str()) },
       subject: ["agent", "/agentId"],
     }),
     ev("agent.restored", "An agent came back from Trash", {

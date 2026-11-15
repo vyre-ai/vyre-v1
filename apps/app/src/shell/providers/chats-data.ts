@@ -250,7 +250,8 @@ export function conversationData(
     openUrl: (url) => rt.openUrl(url),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }), // the same page the Needs you sign-in opens
     openAiAccount: (ref: string) => rt.open({ screen: "settings.page", args: { page: "ai", account: ref } }),
-    openSpaceAiKey: () => rt.open({ screen: "console.ai-models" }),
+    // a Personal Space has no Space key to set: it is one person's own
+    ...(rt.space.kind === "personal" ? {} : { openSpaceAiKey: () => rt.open({ screen: "console.ai-models" }) }),
     ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
   };
   return {
@@ -260,8 +261,9 @@ export function conversationData(
     ...(rt.changes ? { changes: rt.changes } : {}),
     threadId,
     me: { id: rt.me.id, name: rt.me.name, ...(byId.get(rt.me.id)?.guest ? { guest: true } : {}) },
-    nameOf: (id) => nameOr(byId.get(id)?.name, id),
-    kindOf: (id) => kindOf(byId.get(id)),
+    nameOf: (id) => nameOr(byId.get(id)?.name ?? rt.erased?.(id), id),
+    kindOf: (id) => (byId.has(id) ? kindOf(byId.get(id)) : rt.erased?.(id) !== undefined ? "agent" : kindOf(undefined)),
+    goneOf: (id) => !byId.has(id) && rt.erased?.(id) !== undefined,
     nav,
     clock: rt.clock,
     spaceName: rt.space.name,

@@ -1657,7 +1657,7 @@ export function Composer(props: ComposerProps): ReactElement {
         setPlusOpen(false);
         typeSymbol("https://");
       });
-    const voice = talk.port?.on === true;
+    const voice = talk.port?.on === true && talk.port.ready !== false; // voice is offered only once it is set up (Settings or Console)
     const folder = props.onConnectFolder !== undefined;
     if (voice || folder) plusRows.push(<Sep key="s-more" />);
     if (voice)
@@ -2086,7 +2086,9 @@ export function Composer(props: ComposerProps): ReactElement {
     </View>
   );
   // an app's own control beside the model strip (the memory lock) sits in the same 32 px box as the others, centred on the same line
-  const barExtraNode = props.barExtra ? <View style={styles.extraBox}>{props.barExtra}</View> : null;
+  // The place's own control beside the options button. It is put in the row as it is, with no box of the composer's around it: a control that draws nothing (the chat's
+  // memory switch while the chat remembers, which is nearly always) used to leave an empty 32 px box and a second gap between the options button and the mic (owner, 16 Nov 2026).
+  const barExtraNode = props.barExtra ?? null;
   const stripNode_ =
     settingsAgent !== undefined ? (
       <View ref={stripNode as never} style={styles.stripWrap}>
@@ -2336,7 +2338,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 8,
   },
-  extraBox: { minWidth: CTRL, height: CTRL, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   // the field never gives its room to the model chip: past this width the chip is the one that shortens
   fieldLine: { flex: 1, minWidth: FIELD_MIN_LINE },
   field: { width: "100%", color: "var(--ink)" as string, padding: 0, margin: 0, borderWidth: 0 },
