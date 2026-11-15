@@ -122,7 +122,8 @@ test("every step in the catalog has an editable control for each required field"
     for (const name of requiredOf(schema)) {
       checked += 1;
       const candidates = OWNED[step.key]?.[name] ?? [`field-${name}`];
-      if (ACCOUNT_FIELDS.has(name)) candidates.push("choose-account");
+      // round four: when no account exists the needs bar's one button is the control (the empty Account menu is not drawn beside it)
+      if (ACCOUNT_FIELDS.has(name)) candidates.push("choose-account", "step-needs-button");
       const hit = candidates.find((id) => control(out, id));
       if (!hit) without.push(`${step.key}.${name}`);
     }

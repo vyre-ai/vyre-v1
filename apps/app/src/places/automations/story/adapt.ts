@@ -3,6 +3,8 @@
 // A step whose app this person may not use is kept whole with one plain line: an Automation someone else built always opens whole.
 import { appMarkOfStep, glyphKeyOf } from "../picker/model.ts";
 import { sentence } from "./model.ts";
+import { durationWords, parseTemplate, stepSentence, triggerSentence } from "./sentences.ts";
+import type { Clause } from "./sentences.ts";
 import type { Need, StepIn, TriggerIn, Value } from "./model.ts";
 
 export interface DefNodeIn {
@@ -30,6 +32,8 @@ export interface AdaptCtx {
   canUse(appId: string): boolean;
   /** A person, group or other thing named by an id in a step's input, as the name people know it by. */
   nameOfId?(id: string): string;
+  /** The small icon of the step a chip's data comes from ("trigger" for what started it). */
+  iconOf?(nodeId: string): string | undefined;
   noAccess?(appName: string): { line: string; button: string };
   /** The server's missing-thing words for a step, most important first. */
   needsOf(nodeId: string): Need[];
@@ -58,6 +62,7 @@ function refChip(source: string, path: string, ctx: AdaptCtx): Value {
       label: field === "" ? from : `${from} \u00b7 ${human(field)}`,
       from,
       sample: ctx.sample?.[`${node}.${field}`] ?? ctx.sample?.[`${source}.${path}`] ?? "",
+      ...(ctx.iconOf?.(node) ? { icon: ctx.iconOf(node) } : {}),
     },
   };
 }
@@ -144,6 +149,70 @@ function sentenceOf(
   return { template: bits.length === 0 ? title : `${title}: ${bits.join(", ")}`, values };
 }
 
+const present = (v: unknown): boolean =>
+  v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0) && typeof v !== "boolean";
+
+/** A step's sentence from its template: slots become text, names or chips; a group shows only when all its slots hold something. */
+function fromTemplate(
+  tpl: readonly Clause[],
+  input: Record<string, unknown>,
+  ctx: AdaptCtx,
+): { template: string; values: Record<string, Value | undefined> } {
+  const values: Record<string, Value | undefined> = {};
+  let i = 0;
+  const put = (v: Value | undefined): string => {
+    values[`f${i}`] = v;
+    return `{f${i++}}`;
+  };
+  const slotText = (names: string[], dur: boolean): string | null => {
+    const name = names.find((n) => present(input[n]));
+    if (!name) return null;
+    const raw = input[name];
+    if (typeof raw === "string") {
+      if (dur && !/\{\{/.test(raw)) return put({ text: durationWords(raw) });
+      if (/\{\{[^{}]*\}\}/.test(raw) && !new RegExp(`^${REF.source}$`).test(raw.trim())) {
+        let at = 0;
+        let out = "";
+        for (const m of raw.matchAll(new RegExp(REF.source, "g"))) {
+          if ((m.index ?? 0) > at) out += put({ text: raw.slice(at, m.index) });
+          out += put(refChip(m[1]!, m[2]!, ctx));
+          at = (m.index ?? 0) + m[0].length;
+        }
+        if (at < raw.length) out += put({ text: raw.slice(at) });
+        return out;
+      }
+    }
+    const v = Array.isArray(raw)
+      ? valueOf(
+          raw.map((x) => (x && typeof x === "object" && typeof (x as { name?: unknown }).name === "string" ? (x as { name: string }).name : x)),
+          ctx,
+        )
+      : valueOf(raw, ctx);
+    return v ? put(v) : null;
+  };
+  const render = (list: readonly Clause[], optional: boolean): string | null => {
+    let out = "";
+    for (const c of list) {
+      if (c.lit !== undefined) out += c.lit;
+      else if (c.slot) {
+        const t = slotText(c.slot.names, c.slot.dur);
+        if (t === null) {
+          if (optional) return null;
+          out += put(undefined);
+        } else out += t;
+      } else if (c.group) {
+        const mark = i;
+        const g = render(c.group, true);
+        if (g === null) {
+          for (let k = mark; k < i; k++) delete values[`f${k}`];
+        } else out += g;
+      }
+    }
+    return out;
+  };
+  return { template: render(tpl, false) ?? "", values };
+}
+
 /** The quiet second line of a step: what its settings add to the sentence, in words ("to Phone, Message"). Absent when the first line already says it, never the title again. */
 function detailOf(n: DefNodeIn, title: string, catalogTitle: string | undefined, ctx: AdaptCtx): string {
   if (!n.title?.trim()) return "";
@@ -170,7 +239,7 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
   const t = def.triggers[0];
   let trigger: TriggerIn | null = null;
   if (t) {
-    const title = ctx.triggerTitles[t.key] ?? human(t.key);
+    const title = ctx.triggerTitles[t.key] ?? triggerSentence(t.key) ?? human(t.key);
     const cfg = Object.entries(t.config ?? {}).find(([, v]) => typeof v === "string" && v !== "");
     trigger = {
       id: "trigger",
@@ -213,7 +282,9 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
         }
       : n.title?.trim()
         ? { template: title, values: {} }
-        : sentenceOf(title, n.input, ctx);
+        : stepSentence(n.key)
+          ? fromTemplate(parseTemplate(stepSentence(n.key)!), n.input, ctx)
+          : sentenceOf(title, n.input, ctx);
     // the mark a step wears: an app's own for its own steps (the Drive mark for a Drive step), a Vyre glyph for Vyre's
     const own = appMarkOfStep({ key: n.key, title: "" });
     const connector =
@@ -234,9 +305,11 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
       app,
       action: n.title?.trim()
         ? detailOf(n, title, known?.title, ctx)
-        : Object.keys(s.values).length > 0
-          ? (known?.title ?? human(n.key))
-          : "",
+        : stepSentence(n.key)
+          ? (known?.title ?? human(n.key)).replace(/^[^:·]{1,40}\s*[:·]\s+/, "")
+          : Object.keys(s.values).length > 0
+            ? (known?.title ?? human(n.key))
+            : "",
       template: s.template,
       values: s.values,
       ...(needs.length > 0 ? { needs } : {}),

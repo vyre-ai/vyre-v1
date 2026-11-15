@@ -544,7 +544,7 @@ export function Inspector({
                     </Pressable>
                   </View>
                 ) : null}
-                {accountPick ? (
+                {accountPick && !(needLine && menuIsEmpty(accountPick)) ? (
                   <Choice
                     label="Account"
                     value={accountPick.value}
@@ -845,7 +845,7 @@ function Head({
         </View>
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text accessibilityRole="header" numberOfLines={1} style={i.title}>
+        <Text accessibilityRole="header" numberOfLines={2} style={i.title}>
           {title}
         </Text>
         <Text numberOfLines={1} style={i.sub}>
@@ -882,7 +882,7 @@ const i = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     paddingHorizontal: 14,
-    height: 52,
+    minHeight: 52,
     borderBottomWidth: 1,
     borderBottomColor: "var(--line)" as string,
   },

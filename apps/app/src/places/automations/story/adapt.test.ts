@@ -23,8 +23,8 @@ const ctx = (o: Partial<AdaptCtx> = {}): AdaptCtx => ({
 const def: DefIn = {
   triggers: [{ key: "form_submit", config: { form: "Contact" } }],
   nodes: [
-    { id: "s1", key: "sign", input: { file: "Engagement letter.docx", to: "{{trigger.email}}" }, next: ["s2"] },
-    { id: "s2", key: "post_message", input: { channel: "#ops", text: "New request from {{trigger.name}}" } },
+    { id: "s1", key: "sign", input: { fileId: "Engagement letter.docx", signers: "{{trigger.email}}" }, next: ["s2"] },
+    { id: "s2", key: "post_message", input: { channelId: "#ops", text: "New request from {{trigger.name}}" } },
   ],
 };
 
@@ -48,7 +48,7 @@ test("a definition becomes a trigger and steps in the order they run, each a sen
   const rows = m.rows.filter((x) => x.kind === "step");
   assert.equal(
     rows[0]!.kind === "step" && rows[0]!.sentence.text,
-    "Send for signature: Engagement letter.docx, to A form is submitted \u00b7 Email",
+    "Send Engagement letter.docx for signature to A form is submitted \u00b7 Email",
   );
   assert.equal(rows[1]!.kind === "step" && rows[1]!.sentence.text.includes("fileId"), false);
 });
@@ -73,7 +73,7 @@ test("a reference becomes a chip that names its source and shows a sample; a tex
     { ...def, nodes: [{ id: "s1", key: "post_message", input: { text: "{{trigger.name}}" } }] },
     ctx(),
   ).steps[0]!;
-  assert.deepEqual(Object.values(name.values)[0], {
+  assert.deepEqual(Object.values(name.values).find((v) => v !== undefined), {
     chip: { label: "A form is submitted \u00b7 Name", from: "A form is submitted", sample: "Sam Reyes" },
   });
 });

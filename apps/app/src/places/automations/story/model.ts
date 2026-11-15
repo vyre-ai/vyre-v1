@@ -1,7 +1,7 @@
 // The builder as one calm page (owner, 13 Nov 2026, design 2.5). Pure: the screen turns the saved definition into these inputs, and draws what comes back.
 // A step is a sentence with real names; what is missing is one orange line and one button; the trigger is When and steps count from 1.
 
-export type Value = { text: string } | { chip: { label: string; from: string; sample: string } };
+export type Value = { text: string } | { chip: { label: string; from: string; sample: string; icon?: string } };
 
 export interface Need {
   kind: "no_access" | "allow" | "connect" | "ask_admin" | "unclear" | "unmapped" | "channel" | "value";
@@ -37,7 +37,7 @@ export interface TriggerIn {
   hand: boolean;
 }
 
-export type Part = { t: "text"; v: string } | { t: "chip"; label: string; tip: string } | { t: "blank" };
+export type Part = { t: "text"; v: string } | { t: "chip"; label: string; tip: string; icon?: string } | { t: "blank" };
 
 export interface Sentence {
   parts: Part[];
@@ -62,7 +62,12 @@ export function sentence(s: { template: string; values: Record<string, Value | u
     if (!v) push({ t: "blank" }, "…");
     else if ("chip" in v)
       push(
-        { t: "chip", label: v.chip.label, tip: `From: ${v.chip.from}\n${v.chip.label}: ${v.chip.sample}` },
+        {
+          t: "chip",
+          label: v.chip.label,
+          tip: `From: ${v.chip.from}\n${v.chip.label}: ${v.chip.sample}`,
+          ...(v.chip.icon ? { icon: v.chip.icon } : {}),
+        },
         v.chip.label,
       );
     else push({ t: "text", v: v.text }, v.text);

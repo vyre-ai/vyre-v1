@@ -20,6 +20,7 @@ import {
   removeTrigger,
   check,
   describeTrigger,
+  iconOfKey,
   duplicateStep,
   moveStep,
   removeStep,
@@ -384,6 +385,7 @@ function Body({
           id === "trigger" ? "Trigger" : (full[def.nodes.find((n) => n.id === id)?.key ?? ""]?.title ?? id),
         canUse: (app) => usable.has(app) || !isGatedApp(app),
         nameOfId: (id) => data.name(id),
+        iconOf: (id) => (id === "trigger" ? "bolt" : def.nodes.find((n) => n.id === id) ? iconOfKey(def.nodes.find((n) => n.id === id)!.key) : undefined),
         sample: Object.fromEntries(
           Object.entries(pastEvent ?? {}).flatMap(([k, v]) =>
             typeof v === "string" || typeof v === "number" ? [[`trigger.${k}`, String(v)] as const] : [],
