@@ -16,9 +16,10 @@ import {
   openTabForRun,
   stopRuns,
 } from "./handlers/sessions.ts";
-import { removeCommand } from "./asker.ts";
+import { chatFolderCommand, chatLinkCommand, removeCommand } from "./asker.ts";
 import {
   bindWorkspaceStatus,
+  bindChatFolder,
   bindHost,
   bindKit,
   bindMachineHost,
@@ -1264,6 +1265,17 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
   // agent commands go to a workspace when there is a machine for this agent's one right now; with none (no runtime, no server) they go where the turn runs, as before
   bindWorkspaces(fleet ? (agentId) => fleet.available(agentId) : false);
   bindWorkspaceStatus(fleet ? (agentId) => fleet.status(agentId) : null);
+  bindChatFolder(
+    fleet
+      ? async (agentId, thread, place) => {
+          const made = await fleet.exec(agentId, chatFolderCommand(thread, place?.uid));
+          if (made.code !== 0) throw new Error(`the chat's folder could not be made (${made.stderr.trim().slice(0, 120)})`);
+          await fleet.exec(agentId, chatLinkCommand(thread, place?.home ?? "/home/agent"), {
+            ...(place === undefined ? {} : { user: place.uid }),
+          });
+        }
+      : null,
+  );
 }
 
 // Only the setter the daemon wires is a host seam.

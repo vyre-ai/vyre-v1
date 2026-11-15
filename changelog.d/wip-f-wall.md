@@ -14,3 +14,4 @@
 - In a chat with other people, each person's message now runs for that person: the agent works in that person's own folder for the chat, and as that person's own user on a shared agent's computer, even when another person's account or a key of the Space pays for the turn. Who pays is still counted where it was.
 - Taking a person's share of an agent away now ends their programs on its computer and closes their terminals there at once, and their next command is refused.
 - A person who is shared with an agent at Use now gets terminals of their own on its computer, in a place of their own that nobody else enters. The terminal list shows another person's terminal as a row that says it is there, with no folder, chat or words of what is in it.
+- In a chat with other people, the agent keeps one shared folder for the chat on its computer, reached as ~/chat by everyone who works in it (and by the agent), while each person's own files stay in their own folder.

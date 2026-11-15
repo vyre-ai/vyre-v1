@@ -38,6 +38,7 @@ import {
   touch,
   workspacesFor,
   boundWorkspaceStatus,
+  boundChatFolder,
   SESSION_SELECT,
   insertTab,
   scopeOf,
@@ -964,6 +965,48 @@ async function needOwnPlace(ctx: TermCtx, x: SessionRow): Promise<void> {
     refuse();
 }
 
+/**
+ * The shared folder of this chat on the agent's computer, opened to the person whose turn it is and linked as `~/chat` in their place. Made once a minute per person and chat, and never makes a command
+ * fail: a convenience, not a wall (what a person may reach is the file system's ACLs).
+ */
+const chatMade = new Map<string, number>();
+const chatRoots = new Map<string, string>();
+/** The chat a turn's thread belongs to: a reply thread in a channel, and a helper's thread, climb to the chat they hang from, so everyone who works in that chat shares one folder. */
+async function chatRoot(ctx: TermCtx, thread: string): Promise<string> {
+  const known = chatRoots.get(thread);
+  if (known !== undefined) return known;
+  let at = thread;
+  type Th = { kind?: string; parentThreadId?: string };
+  for (let i = 0; i < MAX_HOPS && ctx.call !== undefined; i++) {
+    let t: Th | undefined;
+    try {
+      t = ((await ctx.call("threads.get", { threadId: at })) as { thread?: Th } | undefined)?.thread;
+    } catch {
+      break;
+    }
+    if (t === undefined || (t.kind !== "thread" && t.kind !== "helper") || t.parentThreadId === undefined) break;
+    at = t.parentThreadId;
+  }
+  chatRoots.set(thread, at);
+  return at;
+}
+async function ensureChatFolder(ctx: TermCtx, agentId: string, person: string, turnThread: string): Promise<void> {
+  const make = boundChatFolder();
+  if (make === null) return;
+  const thread = await chatRoot(ctx, turnThread);
+  const key = `${agentId}\u0000${person}\u0000${thread}`;
+  const at = ctx.now();
+  if ((chatMade.get(key) ?? 0) > at - 60_000) return;
+  try {
+    await make(agentId, thread, await askerPlaceFor(ctx, agentId, person));
+    chatMade.set(key, at);
+  } catch (e) {
+    ctx.log.warn("terminal: the chat's shared folder could not be made", {
+      reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+    });
+  }
+}
+
 /** The variables a person's place sets or that point the shell, tmux, ssh or git at another place (also the ones a shell reads before a command: BASH_ENV, PROMPT_COMMAND and the like). */
 const PLACE_ENV = /^(HOME|HISTFILE|HISTSIZE|XDG_.*|TMPDIR|TMUX.*|GIT_SSH.*|GIT_CONFIG.*|SSH_.*|GNUPGHOME|PATH|LD_.*|SHELL|USER|LOGNAME|BASH_ENV|ENV|PROMPT_COMMAND|BASH_FUNC_.*|IFS|CDPATH)$/;
 
@@ -1692,6 +1735,9 @@ export async function run(ctx: TermCtx, a: RunInput) {
     if (place !== undefined) await keepOut(ctx, place, s.agentId, [a.cwd, command]);
   }
   const host = await hostFor(ctx, s);
+  // the chat's shared folder (~/chat) is there for everyone who works in this chat, in their own place or the agent's home
+  if (s.host === "agent_computer" && s.agentId !== undefined && ctx.thread !== undefined)
+    await ensureChatFolder(ctx, s.agentId, owner, ctx.thread);
   const timeoutMs = (a.timeoutSec ?? DEFAULT_TIMEOUT_SEC) * 1000;
 
   const scope = scopeOf(s);

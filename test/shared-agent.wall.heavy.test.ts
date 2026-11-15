@@ -138,6 +138,40 @@ test("Ada shares her agent with Bea at Use: Bea works in a place of her own, Ada
   }, 60_000, () => hostLog(w.d));
   const after = await w.turn(ben, "walk-ben-2", [{ cmd: "echo BEN-STILL-HERE" }]).catch((e: unknown) => String(e));
   assert.doesNotMatch(JSON.stringify(after), /BEN-STILL-HERE/, "Ben's next command is refused");
+  // a chat with both of them and the agent: each asker's turn works as that asker, and the chat's own folder (~/chat) holds what both should see
+  const ch = await ada.call("channels.create", { name: "pair", visibility: "invite", memberIds: [bea.id], agentIds: [w.agent] });
+  assert.equal(ch.status, 200, JSON.stringify(ch.data));
+  const threadId = ch.data.channel.mainThreadId as string;
+  const say = async (who: typeof ada, key: string, steps: unknown[]) => {
+    await who.call("threads.set_mode", { threadId, mode: "auto" });
+    const posted = await who.call("chat.post", { threadId, body: `RUN ${key} ${JSON.stringify(steps)}`, mentions: [{ kind: "agent", id: w.agent }] });
+    assert.equal(posted.status, 200, JSON.stringify(posted.data));
+    return w.waitFor(key);
+  };
+  const a1 = await say(ada, "grp-ada-1", [
+    { cmd: 'echo "$(id -u)"' },
+    { cmd: "echo CHAT-ADA > ~/chat/ada.txt; echo ADA-OWN-FILE > ~/ada-own.txt; echo ok" },
+  ]);
+  assert.equal(a1[0]!.text, "10001", "Ada's message runs as Ada");
+  assert.equal(a1[1]!.text, "ok", JSON.stringify(a1));
+  const b1 = await say(bea, "grp-bea-1", [
+    { cmd: 'echo "$(id -u)"' },
+    { cmd: "cat ~/chat/ada.txt" },
+    { cmd: "echo CHAT-BEA > ~/chat/bea.txt; echo BEA-OWN-FILE > ~/bea-own.txt; echo ok" },
+    { cmd: `${H} cat $H/ada-own.txt 2>&1` },
+  ]);
+  assert.match(b1[0]!.text, /^2\d{4}$/, "Bea's message in Ada's chat runs as Bea's own user, not as Ada's");
+  assert.equal(b1[1]!.text, "CHAT-ADA", "Bea reads what Ada left in the chat's folder");
+  assert.equal(b1[2]!.text, "ok", JSON.stringify(b1));
+  assert.match(b1[3]!.text, KERNEL, "and not what Ada made in her own folder");
+  assert.doesNotMatch(b1[3]!.text, /ADA-OWN/);
+  const a2 = await say(ada, "grp-ada-2", [
+    { cmd: "cat ~/chat/bea.txt" },
+    { cmd: 'P=/peo""ple; cat $P/u20000/bea-own.txt 2>&1' },
+  ]);
+  assert.equal(a2[0]!.text, "CHAT-BEA", "Ada reads what Bea left in the chat's folder");
+  assert.match(a2[1]!.text, KERNEL, "and not what Bea made in her own folder");
+  assert.doesNotMatch(a2[1]!.text, /BEA-OWN/);
   // Bea, still shared, is untouched
   const beaStill = await w.turn(bea, "walk-bea-3", [{ cmd: "echo BEA-STILL-HERE" }]);
   assert.equal(beaStill[0]!.text, "BEA-STILL-HERE");

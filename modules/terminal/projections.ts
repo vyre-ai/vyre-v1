@@ -220,6 +220,14 @@ export function bindWorkspaceStatus(f: WorkspaceStatusOf | null): void {
 }
 export const boundWorkspaceStatus = (): WorkspaceStatusOf | null => statusPort;
 
+/** Makes the shared folder of a chat on an agent's computer and opens it to the person whose turn it is (asker.ts chatFolderCommand); null where this host has no workspaces. */
+export type ChatFolderOf = (agentId: string, thread: string, place: AskerPlace | undefined) => Promise<void>;
+let chatPort: ChatFolderOf | null = null;
+export function bindChatFolder(f: ChatFolderOf | null): void {
+  chatPort = f;
+}
+export const boundChatFolder = (): ChatFolderOf | null => chatPort;
+
 /** Is this a Team Space? Agent computers need one (spec 2.7). The host binds the answer; unbound means team. */
 let teamSpace: (space: string) => boolean = () => true;
 export function bindTeam(f: ((space: string) => boolean) | null): void {

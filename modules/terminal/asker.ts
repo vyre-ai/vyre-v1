@@ -83,6 +83,32 @@ export function grantCommand(p: AskerPlace, projects: ReadonlyArray<{ id: string
   ];
 }
 
+/** The folder of one chat on an agent's computer that every person working in that chat reaches: `~/chat` in each person's place (and the agent's own home) points at it. */
+export const chatFolderPath = (thread: string): string => `/home/agent/chats/${thread.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+
+/**
+ * Makes the shared folder of a chat and opens it to one more person, by the file system (POSIX ACLs, as the agent's own user 10001, which owns the folders): the folder is closed to everyone (0700) and then
+ * opened by name to the people who work in the chat, who may pass through /home/agent and /home/agent/chats and read and write in the chat's own folder; a file made there is readable by everyone named at the
+ * time (default entries). Run at each turn of the chat, so a person who joins gets it at their first turn. Nothing else of the agent's home is opened by it.
+ */
+export function chatFolderCommand(thread: string, uid?: number): string[] {
+  return [
+    "sh",
+    "-c",
+    'd="$1"; u="$2"; mkdir -p -m 700 /home/agent/chats "$d" || exit 1; setfacl -m u:10001:rwx "$d" && setfacl -d -m u:10001:rwX "$d" || exit 1; ' +
+      // what is already there is opened to them too, as far as the agent's own user may change it (a file another person made keeps only the entries its maker gave: that is theirs to share)
+      '[ -z "$u" ] || { setfacl -m "u:$u:--x" /home/agent /home/agent/chats && setfacl -m "u:$u:rwX" "$d" && setfacl -d -m "u:$u:rwX" "$d" && { setfacl -R -m "u:$u:rwX" "$d" 2>/dev/null; true; }; }',
+    "sh",
+    chatFolderPath(thread),
+    uid === undefined ? "" : String(uid),
+  ];
+}
+
+/** Points `~/chat` at the chat's shared folder, as the person it is for (their own user, or the agent's for its owner). */
+export function chatLinkCommand(thread: string, home: string): string[] {
+  return ["sh", "-c", 'ln -sfn "$1" "$2/chat"', "sh", chatFolderPath(thread), home];
+}
+
 /** Takes a person's folder out of a workspace (they left the Space and the Trash time is over). Run as the person's uid: nobody else can. */
 export function removeCommand(p: AskerPlace): string[] {
   return ["sh", "-c", 'rm -rf "$1"; true', "sh", p.home];
