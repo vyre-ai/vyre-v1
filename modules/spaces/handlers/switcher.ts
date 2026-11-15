@@ -21,6 +21,13 @@ export async function switcher(ctx: SpacesCtx, _input: Record<string, never>) {
   };
 }
 
+/** The first week of an account: Getting Started is for a person new to the Space. An account whose age the host cannot tell is treated as new (a fresh test Space), never as old. */
+export const FRESH_DAYS = 7;
+export function isFreshAccount(ctx: SpacesCtx, person: string): boolean {
+  const since = ctx.directory?.createdAt?.(person);
+  return since === undefined || since === null || ctx.now() - since <= FRESH_DAYS * 86_400_000;
+}
+
 export async function onboardingGet(ctx: SpacesCtx, _input: Record<string, never>) {
   const person = me(ctx);
   const done = doneSteps(ctx, person);
@@ -62,7 +69,7 @@ export async function onboardingFlow(ctx: SpacesCtx, input: { flow: string }) {
   ) as { step: string; state: "done" | "later" }[];
   const seen =
     ctx.db.all(`SELECT at FROM spaces_onboarding_seen WHERE person = ? AND flow = ?`, person, flow).length > 0;
-  return { seen, steps: rows.map((r) => ({ key: r.step, state: r.state })) };
+  return { seen, steps: rows.map((r) => ({ key: r.step, state: r.state })), fresh: isFreshAccount(ctx, person) };
 }
 
 export async function onboardingMark(

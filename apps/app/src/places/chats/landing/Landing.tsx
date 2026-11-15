@@ -430,7 +430,7 @@ export function Landing(p: LandingProps): ReactElement {
                 </Pressable>
               )}
             />
-          ) : (
+          ) : belowPhone(width) ? null : ( // the phone's list under this screen has a Tasks section that says the same things: one place, not two
             <>
               {each(items, (n) => (
                 <NeedRow key={n.task.id} item={n} {...p} />

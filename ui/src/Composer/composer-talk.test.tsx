@@ -355,6 +355,27 @@ test("an admin gets the same line and a link to where the Space key is added", a
   });
 });
 
+test("no mic and no Voice note until voice is set up: a port that is not ready draws neither, and the row has no empty box between its controls", async () => {
+  await withDom(async () => {
+    const t = rig({ session: async () => noKey() });
+    const root = await mount(
+      createRoot,
+      tree({ ...t.port, ready: false }, <Composer whoWillAnswer="" barExtra={<Nothing />} />),
+    );
+    assert.equal(find(root, "composer-talk"), null, "the mic is not drawn");
+    await press(find(root, "composer-attach"));
+    await flush();
+    assert.equal(find(root, "plus-voice"), null, "the plus menu offers no Voice note");
+    const ready = await mount(createRoot, tree({ ...t.port, ready: true }, <Composer whoWillAnswer="" />));
+    assert.ok(find(ready, "composer-talk"), "set up: the mic is there");
+  });
+});
+
+/** A place's own control that draws nothing (the chat's memory switch while the chat remembers). */
+function Nothing(): null {
+  return null;
+}
+
 test("with a key covering them nothing changes: a Personal Space or a covered person still gets the first-press sheet when a key is missing", async () => {
   await withDom(async () => {
     const t = rig({ session: async () => noKey() });

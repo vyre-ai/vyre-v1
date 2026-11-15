@@ -129,6 +129,7 @@ import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
+import { useFollow } from "./use-follow.ts";
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq, usedTerminal } from "./chapters/index.ts";
@@ -348,7 +349,7 @@ function NoAiLine({
   threadId,
   agentId,
 }: {
-  data: Pick<ConversationData, "call" | "nav">;
+  data: Pick<ConversationData, "call" | "nav" | "changes">;
   threadId: string;
   agentId: string;
 }): ReactElement | null {
@@ -363,6 +364,15 @@ function NoAiLine({
       live = false;
     };
   }, [data.call, threadId, agentId]);
+  // an account added somewhere else (the Vault, a sign-in on the card) takes this line away without a reload: the Space's own change stream asks again, and it stops asking once there is one
+  useFollow(
+    data.changes,
+    () =>
+      aiReady(data.call, threadId, agentId).then((r) => {
+        setAi(r);
+      }),
+    !ai.ready,
+  );
   if (ai.ready) return null;
   const connect = (): void => {
     if (openConnect) void openConnect({ kind: "ai" });
@@ -1346,7 +1356,15 @@ function ConversationView(): ReactElement {
             }, fail("Could not unarchive.")),
           stopAll: () => void act.stopAll(data).catch(fail("Could not stop.")),
           more: () => menu.show(housekeeping(), moreAt.current.x, moreAt.current.y, "other", { label: "Chat" }),
-          extra: [...switchEntry, ...connectEntries(thread, data.nav)],
+          extra: [
+            ...switchEntry,
+            {
+              label: SWITCH_LABEL,
+              checked: !chatMemory(thread.threadId).remember,
+              onSelect: () => flipChatMemory(thread.threadId, data.call, say),
+            },
+            ...connectEntries(thread, data.nav),
+          ],
         },
       ),
     ];
@@ -1614,6 +1632,9 @@ function ConversationView(): ReactElement {
         )
         .catch(fail("Could not do that.")),
     canSetSpaceKey: spaceKeyAdmin,
+    ...(data.changes ? { changes: data.changes } : {}),
+    // a Personal Space has no Space key and no admin to ask: nothing about one is said there
+    ...(data.nav.openSpaceAiKey ? {} : { noSpaceKey: true }),
     retrySend: (id) => {
       const p = pending.find((x) => `pending:${x.key}` === id);
       if (p) {
@@ -1941,6 +1962,9 @@ function ConversationView(): ReactElement {
                 {chapterNow}
               </Text>
             ) : null}
+            {/* a chat that is not being remembered says so here, beside its name, and a press remembers it again; while it remembers nothing is drawn. The composer holds
+                nothing about memory (owner, 16 Nov 2026: "it doesnt belong there in the composer"): the switch itself is in the chat's menu */}
+            <MemorySwitch threadId={thread.threadId} call={data.call} say={say} />
             <View style={{ flex: 1 }} />
             {/* offline is said once, by the pill at the top of the window: the chat's own header says nothing, so the header never shifts */}
             {crewChip ? (
@@ -2477,16 +2501,6 @@ function ConversationView(): ReactElement {
               agents={composerAgents}
               mode={mode}
               onMode={chooseChatMode}
-              barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
-              plusExtra={() => [
-                {
-                  id: "plus-memory",
-                  title: SWITCH_LABEL,
-                  icon: "lock",
-                  checked: !chatMemory(thread.threadId).remember,
-                  onPress: () => flipChatMemory(thread.threadId, data.call, say),
-                },
-              ]}
               suggest={composerSuggest(data)}
               preview={(item) => previewOf(data, item)}
               openPanelAt={panelAt}

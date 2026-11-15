@@ -136,7 +136,7 @@ test("the tile takes its counts from an attention source that answers later", as
 test("the onboarding screen keeps each flow's steps per person: done, put off, open again, seen once", async () => {
   const h = harness();
   const fresh = await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "personal" });
-  assert.deepEqual(fresh, { seen: false, steps: [] });
+  assert.deepEqual(fresh, { seen: false, steps: [], fresh: true });
   await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "ai", state: "done" });
   await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "interview", state: "later" });
   await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "interview", state: "done" });
@@ -145,15 +145,16 @@ test("the onboarding screen keeps each flow's steps per person: done, put off, o
   assert.deepEqual(await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "personal" }), {
     seen: true,
     steps: [{ key: "interview", state: "done" }],
+    fresh: true,
   });
   assert.deepEqual(
     await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "member" }),
-    { seen: false, steps: [] },
+    { seen: false, steps: [], fresh: true },
     "flows are separate",
   );
   assert.deepEqual(
     await handlers["spaces.onboarding.flow"](h.as(OMAR), { flow: "personal" }),
-    { seen: false, steps: [] },
+    { seen: false, steps: [], fresh: true },
     "people are separate",
   );
   await assert.rejects(
@@ -167,5 +168,40 @@ test("the onboarding screen keeps each flow's steps per person: done, put off, o
   await assert.rejects(
     handlers["spaces.onboarding.flow"](h.anon, { flow: "team" }),
     (e) => codeOf(e) === "auth.unauthenticated",
+  );
+});
+
+test("Getting Started is for a new account: the Space says fresh in the first week and not after, so an existing person never sees it appear after an update", async () => {
+  const h = harness();
+  const DAY = 86_400_000;
+  const at = (createdAt: number | null) => ({
+    ...h.as(MAYA),
+    directory: { roleName: () => "member", createdAt: () => createdAt },
+  });
+  const now = h.as(MAYA).now();
+  assert.equal(
+    (await handlers["spaces.onboarding.flow"](at(now - 1000), { flow: "team" })).fresh,
+    true,
+    "made today: shows",
+  );
+  assert.equal(
+    (await handlers["spaces.onboarding.flow"](at(now - 6 * DAY), { flow: "team" })).fresh,
+    true,
+    "day six: shows",
+  );
+  assert.equal(
+    (await handlers["spaces.onboarding.flow"](at(now - 30 * DAY), { flow: "team" })).fresh,
+    false,
+    "30 days: no chip",
+  );
+  assert.equal(
+    (await handlers["spaces.onboarding.flow"](at(null), { flow: "team" })).fresh,
+    true,
+    "an age the host cannot tell is never read as old",
+  );
+  assert.equal(
+    (await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "team" })).fresh,
+    true,
+    "no directory: a new Space",
   );
 });

@@ -77,9 +77,12 @@ function Landing({ invite, state }: Pick<AcceptInviteProps, "invite" | "state">)
       ) : null}
       {invite.role ? (
         <Text style={[baseText(p), { marginTop: 2, fontSize: 13, lineHeight: 18, color: p.ink3, textAlign: "center" }]}>
-          {invite.role}
+          {`You join as ${/^[aeiou]/i.test(invite.role) ? "an" : "a"} ${invite.role}`}
         </Text>
       ) : null}
+      <Text style={[baseText(p), { marginTop: 18, fontSize: 13, lineHeight: 18, color: p.ink3, textAlign: "center" }]}>
+        It takes a minute: your name, a password, and an optional recovery code.
+      </Text>
     </Step>
   );
 }
@@ -350,6 +353,7 @@ function DeviceStep({ state, dispatch, newCode }: Pick<AcceptInviteProps, "state
           />
         </Row>
       </Group>
+      <Caption>{RECOVERY_WHAT}</Caption>
     </Step>
   );
 }

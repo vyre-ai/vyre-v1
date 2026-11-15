@@ -84,7 +84,10 @@ export function activityRows(
   const out: ActivityRow[] = [];
   const last: { key: string; base: string }[] = [];
   for (const e of events) {
-    const base = activityTitle(name(e.actor), e.action, namedResource(e.resource, name));
+    // the first claim is made with the claim token, which the directory has no name for ("An outside agent claimed this Space"): it is the owner's own act
+    const who =
+      e.action === "identity.claim_owner" && name(e.actor) === "An outside agent" ? "The owner" : name(e.actor);
+    const base = activityTitle(who, e.action, namedResource(e.resource, name));
     const key = `${e.actor}|${base}`;
     const at = out.length - 1;
     if (at >= 0 && last[at]!.key === key) {
