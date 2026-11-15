@@ -4,6 +4,7 @@
 // What it undoes: the files in the agent's work folder, and what the agents read as history. What it never touches: the messages themselves, anything already sent (email, messages, posts), records and tasks, other
 // computers and servers, files outside the work folder. Off in a chat with other people: it is one person's own agent's folder. A person reaches only their own folders (the store is derived from who is calling).
 import { points, restore, snapshot, storeOf } from "../checkpoints.ts";
+import { liveTurns } from "./bridge.ts";
 import { forgetSessions } from "../cli-sessions.ts";
 import { boundEngine, ensure, raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -101,7 +102,7 @@ function person(ctx: EngineCtx): string {
 
 /** What the engine knows of who is working: a turn of this agent in this chat that has not ended. */
 export interface RewindDeps {
-  busy?: (threadId: string, agentId: string) => boolean;
+  busy?: (threadId: string, agentId: string) => boolean | Promise<boolean>;
   /** Where the agent's turns for this person run: "device" is the person's own computer, which has no points here. */
   placement?: (threadId: string, agentId: string) => Promise<string | undefined>;
   /** For tests: runs after the row is written and before the files are put back (where a crash would cut the act short). */
@@ -110,11 +111,9 @@ export interface RewindDeps {
   rm?: (p: string) => void;
 }
 
-function turnRunning(ctx: EngineCtx, threadId: string, agentId: string): boolean {
+async function turnRunning(ctx: EngineCtx, threadId: string, agentId: string): Promise<boolean> {
   try {
-    return boundEngine(ctx)
-      .liveTurns(threadId)
-      .some((t) => t.agentId === agentId);
+    return (await liveTurns(ctx, { threadId })).turns.some((t) => t.agentId === agentId);
   } catch {
     return false; // no engine bound here: nothing is running
   }
@@ -268,7 +267,7 @@ export async function rewindIn(
   const [, agentId, sha] = m as unknown as [string, string, string];
   if (!dataDir) raise(ctx, "validation.precondition_failed", "This computer has no folders to go back in.");
   const busy = deps.busy ?? ((t: string, a: string) => turnRunning(ctx, t, a));
-  if (busy(input.threadId, agentId)) {
+  if (await busy(input.threadId, agentId)) {
     let name = "the agent";
     try {
       name = String(((await ctx.call("agents.get", { agentId })) as { agent?: { name?: string } }).agent?.name || name);
