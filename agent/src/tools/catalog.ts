@@ -2,6 +2,7 @@
 import { connectCardOn, isConnectCap } from "../../../lib/connect-switch.ts";
 import { probeIn } from "../../../lib/probe.ts";
 import { fillsThread } from "./fill.ts";
+import { placeField } from "./place.ts";
 import { HIDDEN_FROM_MODEL } from "./versions.ts";
 import type { AgentToolRow, Catalog, Effects, LocalKind, McpToolRow, RegistryCapRow, ToolDef } from "./types.ts";
 
@@ -53,6 +54,13 @@ export function modelSchema(schema: unknown, cap?: string): { schema: unknown; k
     const th = props["threadId"] as { description?: string } | undefined;
     if (th) props["threadId"] = { ...th, description: th.description ?? "The chat. Leave it out for this chat." };
     required = required.filter((r) => r !== "threadId");
+  }
+  // a folder a new thing goes in is the person's own files unless the model names another (agent/src/tools/place.ts)
+  const place = cap === undefined ? undefined : placeField(cap);
+  if (place !== undefined && place in props) {
+    const p = props[place] as { description?: string };
+    props[place] = { ...p, description: p.description ?? "The folder. Leave it out for the person's own files." };
+    required = required.filter((r) => r !== place);
   }
   return { schema: { ...raw, properties: props, required }, keyed };
 }

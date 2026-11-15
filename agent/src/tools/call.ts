@@ -19,6 +19,7 @@ import {
   rowKey,
 } from "./versions.ts";
 import { canonical, fillInput, shortHash } from "./fill.ts";
+import { findsByPath, placeField, placeInput } from "./place.ts";
 import { parseProblem, rejectWords } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
@@ -443,6 +444,36 @@ export function createToolSession(deps: CallDeps): ToolSession {
           for (const col of Object.keys(values as object)) if (col in was) expect[col] = was[col];
           if (Object.keys(expect).length > 0) given = { ...g, expect };
         }
+      }
+    }
+    // where a model's first file or folder goes: the person's own files when it names none, a path or a folder name read as meant, a file found by its path (agent/src/tools/place.ts)
+    if (!isDynamic && (placeField(t.cap) !== undefined || findsByPath(t.cap))) {
+      const { askFirst: _a, mustAsk: _m, askable: _k, ...lookSeed } = seed;
+      const parked = seed.askFirst === true || seed.mustAsk === true;
+      try {
+        const placed = await placeInput(
+          t.cap,
+          given,
+          async (cap, i) => {
+            const make = cap === "files.folder.create";
+            try {
+              const r = await deps.invoke(
+                cap as CapName,
+                make ? { ...i, idempotencyKey: `ag:pl:${ctx.turnId ?? "t"}:${shortHash(canonical(i))}` } : i,
+                make ? seed : lookSeed,
+              );
+              return r.status === "ok" ? r.output : null;
+            } catch {
+              return null; // not found, or not allowed: the caller says what to do
+            }
+          },
+          !parked,
+        );
+        if (placed.said !== undefined)
+          return fail("validation.not_found", traceId, { message: placed.said, details: { tool: t.name } });
+        given = placed.input;
+      } catch {
+        /* a look that fails changes nothing: the call goes on as the model wrote it and says what is wrong itself */
       }
     }
     try {

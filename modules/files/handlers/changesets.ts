@@ -14,7 +14,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { boundedScope } from "../../../kernel/src/seal/scope.ts";
-import { MAX_INLINE, TOO_LARGE_WORDS, treeHandlers } from "./tree.ts";
+import { MAX_INLINE, TOO_LARGE_WORDS, freeName, treeHandlers } from "./tree.ts";
 import { addMarks, hunksOf, lcsPairs, lineOps, splitLines, splitParagraphs, versionHandlers } from "./versions.ts";
 import type { Hunk } from "./versions.ts";
 
@@ -519,9 +519,14 @@ async function stagedCreate(ctx: Ctx, input: unknown): Promise<CreateResult> {
   const root = live(folder) ? reviewRoot(ctx, folderId) : undefined;
   if (!live(folder) || !root) return treeHandlers["files.create"](ctx, input);
 
-  const name = reqStr(ctx, o, "name");
+  let name = reqStr(ctx, o, "name");
   if (/[\\/]/.test(name) || name === "." || name === "..")
     fail(ctx, "validation.bad_input", "A file name has no slash.", { field: "name" });
+  // an agent never replaces a file by making one with its name: the new file is "name (2)"
+  if (ctx.principal.kind === "agent")
+    name = freeName(name, (n) =>
+      many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND name = ?", folderId, n).some(live),
+    );
   const mime = optStr(ctx, o, "mime") ?? "application/octet-stream";
   const bytes =
     o["content"] === undefined || o["content"] === null ? new Uint8Array() : contentBytes(ctx, o["content"]);

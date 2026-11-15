@@ -204,6 +204,19 @@ function nid(ctx: Ctx, prefix: string): string {
   return `${prefix}_${mintUuid(ctx.now()).replaceAll("-", "")}`;
 }
 
+/** A free name beside a taken one: "plan.md" becomes "plan (2).md", then "plan (3).md". The name itself when it is free. */
+export function freeName(name: string, taken: (n: string) => boolean): string {
+  if (!taken(name)) return name;
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 && name.length - dot <= 9 ? name.slice(dot) : "";
+  const base = ext === "" ? name : name.slice(0, dot);
+  for (let i = 2; i < 200; i++) {
+    const n = `${base} (${i})${ext}`;
+    if (!taken(n)) return n;
+  }
+  return name;
+}
+
 function cleanName(ctx: Ctx, name: string): string {
   const n = name.trim();
   if (
@@ -1914,7 +1927,9 @@ async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; c
   ensureReady(ctx);
   const o = rec(ctx, input);
   const folder = liveFolder(ctx, reqStr(ctx, o, "folderId"));
-  const name = cleanName(ctx, reqStr(ctx, o, "name"));
+  let name = cleanName(ctx, reqStr(ctx, o, "name"));
+  // an agent that makes a file whose name is taken never replaces what is there: the new file is "name (2)" and the answer carries its name (a person is told the name is taken)
+  if (ctx.principal.kind === "agent") name = freeName(name, (n) => nameTaken(ctx, String(folder.id), n));
   if (nameTaken(ctx, String(folder.id), name))
     fail(ctx, "validation.duplicate", "That name is already in this folder.");
   const content = parseContent(ctx, o.content);

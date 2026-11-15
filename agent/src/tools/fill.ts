@@ -118,6 +118,23 @@ export function fillInput(t: ToolDef, input: unknown, ctx: ToolCtx): Filled {
     const missing = (schemaOf(t).required ?? []).filter((r) => /Id$/.test(r) && out[r] === undefined);
     if (missing.length === 1) rename("id", missing[0] as string);
   }
+  // a body written as plain text: `content: "..."`, or `text`, `body`, `markdown` beside the name, for a tool whose `content` holds `{ text }`
+  const body = props["content"] as { type?: string; properties?: Record<string, unknown> } | undefined;
+  if (body?.type === "object" && body.properties !== undefined && "text" in body.properties) {
+    if (typeof out["content"] === "string") {
+      out["content"] = { text: out["content"] };
+      renamed.push(["content", "content.text"]);
+    } else if (out["content"] === undefined) {
+      for (const w of ["text", "body", "markdown", "md", "contents", "data"]) {
+        if (typeof out[w] === "string" && !(w in props)) {
+          out["content"] = { text: out[w] };
+          delete out[w];
+          renamed.push([w, "content.text"]);
+          break;
+        }
+      }
+    }
+  }
   if (
     "threadId" in props &&
     out["threadId"] === undefined &&

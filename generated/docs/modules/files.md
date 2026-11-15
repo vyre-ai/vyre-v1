@@ -26,7 +26,7 @@ Requires: mounts.
 - [files.comments.list](../capabilities/files.comments.list.md): List comments and numbered pins on a file; agents read pins to see what a person marked
 - [files.comments.resolve](../capabilities/files.comments.resolve.md): Resolve or reopen a comment
 - [files.copy](../capabilities/files.copy.md): Copy a file into a folder
-- [files.create](../capabilities/files.create.md): Create a file in a folder from text, base64 or an uploaded blob. A direct write holds at most 256 KB: split larger content into several files
+- [files.create](../capabilities/files.create.md): Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person's own files. A name already taken becomes "name (2)" for an agent. A direct write holds at most 256 KB: split larger content into several files
 - [files.delete](../capabilities/files.delete.md): Move a file to Trash
 - [files.diff](../capabilities/files.diff.md): Compare two versions of a file, or a version with the current one: unified or split hunks, word marks, paragraph diff for docx and md, image blobs for the slider
 - [files.external_links](../capabilities/files.external_links.md): List the outside links of a file

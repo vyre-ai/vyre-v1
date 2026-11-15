@@ -554,3 +554,9 @@ Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff
 The summaries of `files.create@1` and `files.write@1`, the words a model reads, now say a direct write holds at most 256 KB (the limit the handlers already enforce, `MAX_INLINE`). The refusal for a larger one (`validation.too_large`, as before) now says the limit and to split the content into smaller files. No input, output or error code changes.
 
 Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
+
+## 16 Nov 2026: files.create summary says a folder is optional for an agent, and an agent's duplicate name becomes "name (2)" (lane f-firstcall2)
+
+The summary of `files.create@1`, the words a model reads, now says the content goes in `content.text`, that with no folder the file goes in the person's own files, and that a name already taken becomes "name (2)" for an agent. The contract is unchanged: `folderId` stays required on the server, an outside caller still sends it, and `validation.duplicate` is still answered to a person. What changes is behaviour for an agent principal only: the agent tool layer (agent/src/tools/place.ts) fills `folderId` with the person's own Personal root (found with `files.resolve`) when a model names none, reads a folder name or a path as the folder it means, and a `files.create` (also the staged one in a Review changes folder) by an agent whose name is taken makes `name (2)` (`name (3)`, and so on) instead of failing; it never replaces a file. No input, output or error code changes.
+
+Signed: (pending signature) the lead, 16 Nov 2026

@@ -1483,8 +1483,7 @@
     "templateFileId": "fil_a1b2c3"
   },
   "documents_fill": {
-    "templateFileId": "fil_a1b2c3",
-    "intoFolderId": "fld_a1b2c3"
+    "templateFileId": "fil_a1b2c3"
   },
   "documents_mark_template": {
     "fileId": "fil_a1b2c3",
@@ -1822,7 +1821,6 @@
     "toFolderId": "fld_a1b2c3"
   },
   "files_create": {
-    "folderId": "fld_a1b2c3",
     "name": "Quarterly planning"
   },
   "files_delete": {
@@ -1835,7 +1833,6 @@
     "fileId": "fil_a1b2c3"
   },
   "files_folder_create": {
-    "parentId": "fld_a1b2c3",
     "name": "Quarterly planning"
   },
   "files_folder_delete": {
@@ -4632,7 +4629,6 @@
     ]
   },
   "sheets_create": {
-    "folderId": "fld_a1b2c3",
     "name": "Quarterly planning",
     "format": "csv",
     "columns": [

@@ -33,7 +33,7 @@ for (const t of [...catalog.all].sort((a, b) => a.name.localeCompare(b.name))) {
   const call = golden[t.name] ?? {};
   const s = t.inputSchema as { properties?: Record<string, P>; required?: string[] };
   const raw = validateInput(t.cap, t.v, call);
-  const filled = fillInput(t, call, ctx, 0);
+  const filled = fillInput(t, call, ctx);
   const via = validateInput(t.cap, t.v, filled.input);
   if (raw.length > 0) before++;
   if (via.length > 0) after++;

@@ -1,0 +1,67 @@
+{
+  "files_create name and text, no folder": {
+    "tool": "files_create",
+    "input": { "name": "FDE applicants - ranked shortlist (15 Nov 2026).md", "text": "| a | b |" },
+    "sent": { "cap": "files.create", "has": { "folderId": "fld_personal1", "name": "FDE applicants - ranked shortlist (15 Nov 2026).md", "content": { "text": "| a | b |" } }, "lacks": ["text"] }
+  },
+  "files_create name and content as content.text, no folder": {
+    "tool": "files_create",
+    "input": { "name": "a.md", "content": { "text": "words" } },
+    "sent": { "cap": "files.create", "has": { "folderId": "fld_personal1", "content": { "text": "words" } } }
+  },
+  "files_create content as a plain string": {
+    "tool": "files_create",
+    "input": { "name": "a.md", "content": "words" },
+    "sent": { "cap": "files.create", "has": { "folderId": "fld_personal1", "content": { "text": "words" } } }
+  },
+  "files_create body as markdown": {
+    "tool": "files_create",
+    "input": { "name": "a.md", "markdown": "# Plan" },
+    "sent": { "cap": "files.create", "has": { "content": { "text": "# Plan" } }, "lacks": ["markdown"] }
+  },
+  "files_create a path": {
+    "tool": "files_create",
+    "input": { "path": "Personal/a.md", "content": { "text": "words" } },
+    "sent": { "cap": "files.create", "has": { "folderId": "fld_personal1", "name": "a.md" }, "lacks": ["path"] }
+  },
+  "files_create a path with a folder that is made": {
+    "tool": "files_create",
+    "input": { "path": "Reports/a.md", "content": { "text": "words" } },
+    "sent": { "cap": "files.create", "has": { "folderId": "fld_made1", "name": "a.md" } }
+  },
+  "files_create a folder by its name": {
+    "tool": "files_create",
+    "input": { "folder": "Personal", "name": "a.md", "content": { "text": "words" } },
+    "sent": { "cap": "files.create", "has": { "folderId": "fld_personal1" }, "lacks": ["folder"] }
+  },
+  "files_create folderId written as a name": {
+    "tool": "files_create",
+    "input": { "folderId": "My files", "name": "a.md", "content": { "text": "words" } },
+    "sent": { "cap": "files.create", "has": { "folderId": "fld_personal1" } }
+  },
+  "files_create a name with a date written with slashes": {
+    "tool": "files_create",
+    "input": { "name": "applicants 15/11/2026.md", "content": { "text": "words" } },
+    "sent": { "cap": "files.create", "has": { "folderId": "fld_personal1", "name": "applicants 15-11-2026.md" } }
+  },
+  "files_folder_create with no parent": {
+    "tool": "files_folder_create",
+    "input": { "name": "Reports" },
+    "sent": { "cap": "files.folder.create", "has": { "parentId": "fld_personal1", "name": "Reports" } }
+  },
+  "files_write by path": {
+    "tool": "files_write",
+    "input": { "path": "plan.md", "content": "words" },
+    "sent": { "cap": "files.write", "has": { "fileId": "fil_found1", "content": { "text": "words" } }, "lacks": ["path"] }
+  },
+  "files_read by path": {
+    "tool": "files_read",
+    "input": { "path": "Personal/plan.md" },
+    "sent": { "cap": "files.read", "has": { "fileId": "fil_found1" }, "lacks": ["path"] }
+  },
+  "files_get with file_id and id": {
+    "tool": "files_get",
+    "input": { "file_id": "fil_abc123" },
+    "sent": { "cap": "files.get", "has": { "fileId": "fil_abc123" } }
+  }
+}
