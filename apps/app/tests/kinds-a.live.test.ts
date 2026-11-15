@@ -92,7 +92,7 @@ test("kinds: no id, no repeat, no unasked notice", async (t) => {
     await call("channels.create", { name: "launch-week", visibility: "public" });
     await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
-    await page.getByTestId("head-projects").waitFor({ timeout: 20_000 });
+    await page.getByTestId("head-channels").waitFor({ timeout: 20_000 }); // the project row sits among the Channels (c5da6ccd8: no Projects head)
     await page.getByTestId(`row-pj:${pid}`).click();
     await page.getByTestId("project-page").waitFor({ timeout: 25_000 });
     await page.getByTestId("tab-overview").click({ force: true, timeout: 10_000 });

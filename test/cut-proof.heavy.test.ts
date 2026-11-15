@@ -101,14 +101,16 @@ test(
       const first = made[0]!;
       await page.goto(`${web.origin}/chat#subject=thread:${first.thread}`, { waitUntil: "load" });
       await page.getByTestId("composer-field").first().waitFor({ timeout: 60_000 });
-      if ((await page.getByTestId("pane-agent").count()) === 0) await page.getByTestId("pane-button").click();
-      await page.getByTestId("pane-agent").waitFor({ timeout: 30_000 });
+      if ((await page.getByTestId("side-pane").count()) === 0) await page.getByTestId("pane-button").click();
+      await page.getByTestId("side-pane").waitFor({ timeout: 30_000 });
       const tabIds = async (pg: typeof page): Promise<string> =>
         (
           await pg.locator('[data-testid^="tab-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")))
         ).join(" ");
       await page
         .getByTestId("tab-computer")
+        .or(page.getByTestId("tab-computer-selected"))
+        .first()
         .click()
         .catch(async (e) => {
           await shot("1b-no-computer-tab");
@@ -280,11 +282,13 @@ test(
       ).thread.threadId as string;
       await mp.goto(`${web.origin}/chat#subject=thread:${mthread}`, { waitUntil: "load" });
       await mp.getByTestId("composer-field").first().waitFor({ timeout: 60_000 });
-      if ((await mp.getByTestId("pane-agent").count()) === 0) await mp.getByTestId("pane-button").click();
-      await mp.getByTestId("pane-agent").waitFor({ timeout: 30_000 });
+      if ((await mp.getByTestId("side-pane").count()) === 0) await mp.getByTestId("pane-button").click();
+      await mp.getByTestId("side-pane").waitFor({ timeout: 30_000 });
       // a member's own agent: the same Computer tab, a Terminal and a Browser, and no offer of a desktop
       await mp
         .getByTestId("tab-computer")
+        .or(mp.getByTestId("tab-computer-selected"))
+        .first()
         .click()
         .catch(async (e) => {
           await mshot("5a-member-no-computer-tab");
