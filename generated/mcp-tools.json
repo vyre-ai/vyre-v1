@@ -6518,6 +6518,10 @@
             ],
             "pattern": "^aut_[a-z0-9]+$",
             "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
@@ -6630,6 +6634,21 @@
       },
       "name": "automations_groups_rename",
       "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.home",
+      "deferred": false,
+      "description": "What the Automations first page shows: what needs the person, at most one suggestion the person's Assistant can finish with one approval, the Today line and the header counts",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_home",
+      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },

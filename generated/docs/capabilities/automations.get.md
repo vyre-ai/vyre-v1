@@ -26,6 +26,7 @@ Read an Automation with its definition, alerts and followers, and whether the ca
 ```ts
 type In = {
   automationId: string;
+  version?: number;
 };
 ```
 
@@ -276,7 +277,8 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "automationId": "aut_a1b2c3"
+    "automationId": "aut_a1b2c3",
+    "version": 1
   },
   "output": {
     "automation": {

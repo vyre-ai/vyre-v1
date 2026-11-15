@@ -3733,6 +3733,7 @@ export type AutomationsFollowersRemoveOut = {
 };
 export type AutomationsGetIn = {
   automationId: string;
+  version?: number;
 };
 export type AutomationsGetOut = {
   automation: {
@@ -3999,6 +4000,32 @@ export type AutomationsGroupsRenameOut = {
     name: string;
     count: number;
     order: number;
+  };
+};
+export type AutomationsHomeIn = Record<string, unknown>;
+export type AutomationsHomeOut = {
+  needs: Array<{
+      id: string;
+      automation: string;
+      why: string;
+      at: number;
+      runId?: string;
+    }>;
+  suggestion?: {
+    itemId: string;
+    appName: string;
+    text: string;
+  };
+  today: {
+    ran: number;
+    failed: Array<{
+        runId: string;
+      }>;
+  };
+  counts: {
+    total: number;
+    on: number;
+    needYou: number;
   };
 };
 export type AutomationsHttpReadIn = {
@@ -47745,6 +47772,7 @@ export interface CapMap {
   "automations.groups.delete": { in: AutomationsGroupsDeleteIn; out: AutomationsGroupsDeleteOut };
   "automations.groups.list": { in: AutomationsGroupsListIn; out: AutomationsGroupsListOut };
   "automations.groups.rename": { in: AutomationsGroupsRenameIn; out: AutomationsGroupsRenameOut };
+  "automations.home": { in: AutomationsHomeIn; out: AutomationsHomeOut };
   "automations.http_read": { in: AutomationsHttpReadIn; out: AutomationsHttpReadOut };
   "automations.http_send": { in: AutomationsHttpSendIn; out: AutomationsHttpSendOut };
   "automations.key_hosts.allow": { in: AutomationsKeyHostsAllowIn; out: AutomationsKeyHostsAllowOut };

@@ -32,6 +32,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.groups.delete": Handler<"automations.groups.delete", X>;
   "automations.groups.list": Handler<"automations.groups.list", X>;
   "automations.groups.rename": Handler<"automations.groups.rename", X>;
+  "automations.home": Handler<"automations.home", X>;
   "automations.http_read": Handler<"automations.http_read", X>;
   "automations.http_send": Handler<"automations.http_send", X>;
   "automations.key_hosts.allow": Handler<"automations.key_hosts.allow", X>;

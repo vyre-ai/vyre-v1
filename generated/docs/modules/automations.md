@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (80)
+## Capabilities (81)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -33,6 +33,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.groups.delete](../capabilities/automations.groups.delete.md): Delete a Group; its Automations become ungrouped
 - [automations.groups.list](../capabilities/automations.groups.list.md): List Groups with Automation counts
 - [automations.groups.rename](../capabilities/automations.groups.rename.md): Rename a Group
+- [automations.home](../capabilities/automations.home.md): What the Automations first page shows: what needs the person, at most one suggestion the person's Assistant can finish with one approval, the Today line and the header counts
 - [automations.http_read](../capabilities/automations.http_read.md): Make a GET or HEAD request to a public https address for an HTTP request step. A private address is refused. The key comes from a Vault handle and is never returned.
 - [automations.http_send](../capabilities/automations.http_send.md): Make a POST, PUT, PATCH or DELETE request to a public https address for an HTTP request step. Held by the Gate like any send. The key comes from a Vault handle and is never returned.
 - [automations.key_hosts.allow](../capabilities/automations.key_hosts.allow.md): A person who may use a Vault key approves one host it may be sent to. A person only.

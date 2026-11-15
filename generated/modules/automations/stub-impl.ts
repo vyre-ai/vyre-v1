@@ -31,6 +31,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.groups.delete": async () => ({"deleted":true} as unknown) as never,
   "automations.groups.list": async () => ({"groups":[{"count":1,"id":"agr_a1b2c3","name":"example","order":1}]} as unknown) as never,
   "automations.groups.rename": async () => ({"group":{"count":1,"id":"agr_a1b2c3","name":"example","order":1}} as unknown) as never,
+  "automations.home": async () => ({"counts":{"needYou":1,"on":1,"total":1},"needs":[{"at":1760000000000,"automation":"example","id":"aut_a1b2c3","runId":"run_a1b2c3","why":"example"}],"suggestion":{"appName":"example","itemId":"example","text":"example"},"today":{"failed":[{"runId":"run_a1b2c3"}],"ran":1}} as unknown) as never,
   "automations.http_read": async () => ({"body":{},"headers":{},"ok":true,"status":1} as unknown) as never,
   "automations.http_send": async () => ({"body":{},"headers":{},"ok":true,"status":1} as unknown) as never,
   "automations.key_hosts.allow": async () => ({"hosts":[{"at":1,"by":"example","host":"example"}]} as unknown) as never,

@@ -241,6 +241,7 @@ export function stubs(ctx: CallCtx) {
         list: call("automations.groups.list"),
         rename: call("automations.groups.rename"),
       },
+      home: call("automations.home"),
       http_read: call("automations.http_read"),
       http_send: call("automations.http_send"),
       key_hosts: {

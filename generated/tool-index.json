@@ -776,6 +776,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_home",
+      "summary": "What the Automations first page shows: what needs the person, at most one suggestion the person's Assistant can finish with one approval, the Today line and the header counts",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_key_hosts_list",
       "summary": "The hosts a person approved for one Vault key: a key is sent only to these, or to the host of the item's own saved address. Names only, never a value.",
       "toolset": "automations"

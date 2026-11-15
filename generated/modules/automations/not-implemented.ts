@@ -32,6 +32,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.groups.delete": async (ctx) => { throw new VyreErr(notImplemented("automations.groups.delete", ctx.trace)); },
   "automations.groups.list": async (ctx) => { throw new VyreErr(notImplemented("automations.groups.list", ctx.trace)); },
   "automations.groups.rename": async (ctx) => { throw new VyreErr(notImplemented("automations.groups.rename", ctx.trace)); },
+  "automations.home": async (ctx) => { throw new VyreErr(notImplemented("automations.home", ctx.trace)); },
   "automations.http_read": async (ctx) => { throw new VyreErr(notImplemented("automations.http_read", ctx.trace)); },
   "automations.http_send": async (ctx) => { throw new VyreErr(notImplemented("automations.http_send", ctx.trace)); },
   "automations.key_hosts.allow": async (ctx) => { throw new VyreErr(notImplemented("automations.key_hosts.allow", ctx.trace)); },

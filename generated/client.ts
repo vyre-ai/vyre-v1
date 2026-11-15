@@ -241,6 +241,7 @@ export function createClient(transport: Transport) {
         list: call("automations.groups.list", 1),
         rename: call("automations.groups.rename", 1),
       },
+      home: call("automations.home", 1),
       http_read: call("automations.http_read", 1),
       http_send: call("automations.http_send", 1),
       key_hosts: {
