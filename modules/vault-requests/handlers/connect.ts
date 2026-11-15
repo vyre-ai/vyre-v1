@@ -505,7 +505,10 @@ export async function connectSubmit(
   );
   // The card's own stamp on the key it just saved (who, which service, the hosts the key goes to) and the one item of this try that can be taken back: written only here, never from a name a person gave an item.
   if (stored.made) {
-    const kept = [...stampsOf(requestById(ctx, row.id) ?? row), { item: stored.itemId, by: decided.me, hosts: svc.hosts }];
+    const kept = [
+      ...stampsOf(requestById(ctx, row.id) ?? row),
+      { item: stored.itemId, by: decided.me, hosts: svc.hosts },
+    ];
     ctx.db.run(
       `UPDATE ${TABLE} SET saved_json = ?, try_item = ? WHERE id = ?`,
       JSON.stringify(kept),

@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ACME } from "../fixtures/acme.ts";
 import { kit } from "../fixtures/kit.ts";
+import { backfillHosts } from "../projections.ts";
 import type { ConnectorDef } from "../projections.ts";
 
 // the connect card (and the built-in Fathom with it) is off by default (lib/connect-switch.ts); this file tests it, so it turns it on for itself
@@ -239,7 +240,10 @@ test("B: the card names the host the key goes to; a connector whose domains are 
     actions: [{ name: "ping", url: "https://api.fathom.test/p", output: "/ok" }],
   });
   const got = await k.hs["connectors.for_service"](k.ctx, { service: "Exact" });
-  assert.deepEqual([got.found, got.connector?.host, got.connector?.hosts], [true, "api.fathom.test", ["api.fathom.test"]]);
+  assert.deepEqual(
+    [got.found, got.connector?.host, got.connector?.hosts],
+    [true, "api.fathom.test", ["api.fathom.test"]],
+  );
   const outside: ConnectorDef = { ...evil, key: "out", title: "Out", domains: ["api.fathom.test"] };
   k.install(outside);
   await assert.rejects(k.hs["connectors.check_key"](k.ctx, { connector: "out", secrets: { api_key: SECRET } }));
@@ -321,4 +325,34 @@ test("another person's connection is theirs alone: another member, and an agent 
     );
   }
   assert.equal(k.sent.length, 0);
+});
+
+test("B: a connection made before the host record existed (a data folder shaped like rc.28's) gets the same record from its connector's actions at start-up, once, and a request to any other host is then refused", async () => {
+  const k = kit();
+  k.install(FATHOM);
+  const made = await k.hs["connections.create"](k.ctx, {
+    connector: "fathom",
+    title: "Fathom",
+    ownerKind: "person",
+    secrets: {},
+  } as never);
+  const id = made.connection.connectionId;
+  // rc.28 had no host table rows: drop this connection's, as a data folder from before would have it
+  k.tx.run("DELETE FROM cn_connection_hosts WHERE connection_id = ?", id);
+  assert.equal(k.tx.all("SELECT * FROM cn_connection_hosts WHERE connection_id = ?", id).length, 0);
+  backfillHosts(k.tx);
+  backfillHosts(k.tx); // idempotent
+  assert.deepEqual(
+    k.tx
+      .all<{ hosts: string }>("SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?", id)
+      .map((r) => r.hosts),
+    [JSON.stringify(["api.fathom.test"])],
+  );
+  // a row that exists is never rewritten
+  k.tx.run("UPDATE cn_connection_hosts SET hosts = ? WHERE connection_id = ?", '["kept.example"]', id);
+  backfillHosts(k.tx);
+  assert.equal(
+    k.tx.get<{ hosts: string }>("SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?", id)?.hosts,
+    '["kept.example"]',
+  );
 });
