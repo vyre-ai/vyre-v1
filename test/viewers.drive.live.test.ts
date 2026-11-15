@@ -148,8 +148,15 @@ test("a Google Sheet in a connected Drive: every tab is listed and read through 
   const { w, drive, mount, fileNamed } = await bootDriveWorld("vwsheet", (d) => {
     d.put({ id: "s1", name: "Budget", mimeType: "application/vnd.google-apps.spreadsheet" }, "");
     d.sheet("s1", {
-      Costs: [["Item", "Cost"], ["Paper", "12"], ["Ink", "30"]],
-      "Tax rates": [["Region", "Rate"], ["North", "0.1"]],
+      Costs: [
+        ["Item", "Cost"],
+        ["Paper", "12"],
+        ["Ink", "30"],
+      ],
+      "Tax rates": [
+        ["Region", "Rate"],
+        ["North", "0.1"],
+      ],
     });
   });
   try {
@@ -158,11 +165,19 @@ test("a Google Sheet in a connected Drive: every tab is listed and read through 
     assert.ok(f, "the Sheet is listed");
     // what the viewer does on opening: list the tabs, read each one
     const { tabs } = await w.ok(MEMBER, "mounts.sheet_tabs", { fileId: f.fileId });
-    assert.deepEqual(tabs.map((t: { title: string }) => t.title), ["Costs", "Tax rates"]);
+    assert.deepEqual(
+      tabs.map((t: { title: string }) => t.title),
+      ["Costs", "Tax rates"],
+    );
     const sheets = [];
     for (const tab of tabs) {
       const r = await w.ok(MEMBER, "mounts.sheet_read", { fileId: f.fileId, sheet: tab.title, range: "A1:ZZ2000" });
-      sheets.push(...bookFromRows(r.values.map((row: unknown[]) => row.map((v) => String(v ?? ""))), tab.title).sheets);
+      sheets.push(
+        ...bookFromRows(
+          r.values.map((row: unknown[]) => row.map((v) => String(v ?? ""))),
+          tab.title,
+        ).sheets,
+      );
     }
     assert.equal(sheets.length, 2, "both tabs are in the grid");
     // the person types into the second tab and the first
@@ -171,12 +186,34 @@ test("a Google Sheet in a connected Drive: every tab is listed and read through 
     grid.setCell(grid.book.sheets[1]!, 1, 1, "0.2");
     grid.setCell(grid.book.sheets[0]!, 3, 0, "Total");
     for (const wr of cellWrites(grid, was))
-      await w.ok(MEMBER, "mounts.sheet_write", { fileId: f.fileId, sheet: wr.sheet, range: `${"ABCDEFGH"[wr.c]}${wr.r + 1}`, values: [[wr.value]], idempotencyKey: w.idem() });
-    assert.deepEqual(drive.sheetWrites.map((x) => [x.tab, x.range, x.values[0]![0]]), [["Costs", "Costs!A4", "Total"], ["Tax rates", "'Tax rates'!B2", "0.2"]]);
-    assert.equal(drive.sheetTabs.get("s1")!.get("Tax rates")![1]![1], "0.2", "the cell is changed at Google, in the tab it was typed in");
+      await w.ok(MEMBER, "mounts.sheet_write", {
+        fileId: f.fileId,
+        sheet: wr.sheet,
+        range: `${"ABCDEFGH"[wr.c]}${wr.r + 1}`,
+        values: [[wr.value]],
+        idempotencyKey: w.idem(),
+      });
+    assert.deepEqual(
+      drive.sheetWrites.map((x) => [x.tab, x.range, x.values[0]![0]]),
+      [
+        ["Costs", "Costs!A4", "Total"],
+        ["Tax rates", "'Tax rates'!B2", "0.2"],
+      ],
+    );
+    assert.equal(
+      drive.sheetTabs.get("s1")!.get("Tax rates")![1]![1],
+      "0.2",
+      "the cell is changed at Google, in the tab it was typed in",
+    );
     // someone who may not edit the Sheet at Google is refused by Google, in words
     drive.files.get("s1")!.canEdit = false;
-    const refused = await w.call(MEMBER, "mounts.sheet_write", { fileId: f.fileId, sheet: "Costs", range: "B2", values: [["1"]], idempotencyKey: w.idem() });
+    const refused = await w.call(MEMBER, "mounts.sheet_write", {
+      fileId: f.fileId,
+      sheet: "Costs",
+      range: "B2",
+      values: [["1"]],
+      idempotencyKey: w.idem(),
+    });
     assert.notEqual(refused.status, 200);
     assert.equal(drive.sheetTabs.get("s1")!.get("Costs")![1]![1], "12");
   } finally {

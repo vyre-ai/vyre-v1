@@ -6,6 +6,12 @@ const src = fs.readFileSync(new URL("../public/vendor/fflate/fflate.js", import.
 const ctx: Record<string, unknown> = {};
 new Function("self", "module", "exports", src)(ctx);
 export const fflate = ctx["fflate"] as {
-  unzipSync(d: Uint8Array, o?: { filter?: (f: { name: string; size: number; originalSize: number; compression: number }) => boolean }): Record<string, Uint8Array>;
-  zipSync(d: Record<string, Uint8Array | [Uint8Array, { level?: number; mtime?: number }]>, o?: { level?: number }): Uint8Array;
+  unzipSync(
+    d: Uint8Array,
+    o?: { filter?: (f: { name: string; size: number; originalSize: number; compression: number }) => boolean },
+  ): Record<string, Uint8Array>;
+  zipSync(
+    d: Record<string, Uint8Array | [Uint8Array, { level?: number; mtime?: number }]>,
+    o?: { level?: number },
+  ): Uint8Array;
 };

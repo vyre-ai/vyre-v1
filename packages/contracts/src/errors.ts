@@ -110,7 +110,9 @@ export function notImplemented(cap: string, trace: Pick<TraceContext, "traceId">
  */
 export function vyreErrorOf(e: unknown): VyreError | undefined {
   const x = (e as { error?: { code?: unknown; message?: unknown } } | null | undefined)?.error;
-  return x !== undefined && x !== null && typeof x.code === "string" && typeof x.message === "string" ? (x as VyreError) : undefined;
+  return x !== undefined && x !== null && typeof x.code === "string" && typeof x.message === "string"
+    ? (x as VyreError)
+    : undefined;
 }
 
 /** Thrown by handlers (and by generated not-implemented stubs); the gateway maps it to the HTTP status of its code. */

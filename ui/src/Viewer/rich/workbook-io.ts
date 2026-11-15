@@ -209,12 +209,17 @@ export function bookFromRows(
 }
 
 /** The cells (of every sheet) that differ from what was opened, as what to write at the provider: the sheet, the cell's row and column, and what a person would type into it ("" clears it). */
-export function cellWrites(grid: Grid, opened: Map<string, Map<string, string>>): { sheet: string; r: number; c: number; value: string }[] {
+export function cellWrites(
+  grid: Grid,
+  opened: Map<string, Map<string, string>>,
+): { sheet: string; r: number; c: number; value: string }[] {
   const out: { sheet: string; r: number; c: number; value: string }[] = [];
   for (const s of grid.book.sheets) {
     const was = opened.get(s.name) ?? new Map<string, string>();
-    for (const [k, c] of s.cells) if (was.get(k) !== sig(c)) out.push({ sheet: s.name, r: unkey(k)[0], c: unkey(k)[1], value: inputOf(c) });
-    for (const k of was.keys()) if (!s.cells.has(k)) out.push({ sheet: s.name, r: unkey(k)[0], c: unkey(k)[1], value: "" });
+    for (const [k, c] of s.cells)
+      if (was.get(k) !== sig(c)) out.push({ sheet: s.name, r: unkey(k)[0], c: unkey(k)[1], value: inputOf(c) });
+    for (const k of was.keys())
+      if (!s.cells.has(k)) out.push({ sheet: s.name, r: unkey(k)[0], c: unkey(k)[1], value: "" });
   }
   return out;
 }
@@ -281,7 +286,10 @@ const SHEET_MARKS: [RegExp, string][] = [
 const BOOK_MARKS: [RegExp, string][] = [
   [/<externalReferences[\s>]/, "links to other workbooks"],
   [/<pivotCaches[\s>]/, "pivot tables"],
-  [/<(functionGroups|oleSize|customWorkbookViews|fileSharing|webPublishing|smartTagPr)\b/, "settings a save here would drop"],
+  [
+    /<(functionGroups|oleSize|customWorkbookViews|fileSharing|webPublishing|smartTagPr)\b/,
+    "settings a save here would drop",
+  ],
 ];
 
 /**
@@ -290,8 +298,10 @@ const BOOK_MARKS: [RegExp, string][] = [
  * writes back as it was, and the sheets are read for the marks above) is drawn and read, and is changed in its own app. A macro-enabled workbook (.xlsm) is read only on purpose.
  */
 export function editUnsafe(zipBytes: Uint8Array, ff: UnzipApi, fileName = ""): string | null {
-  const say = (what: string): string => `This workbook has ${what} that a save here would drop or change. Open it in its own app to change it.`;
-  if (/\.xlsm$/i.test(fileName)) return "A macro-enabled workbook is shown here and never changed. Open it in Excel to change it.";
+  const say = (what: string): string =>
+    `This workbook has ${what} that a save here would drop or change. Open it in its own app to change it.`;
+  if (/\.xlsm$/i.test(fileName))
+    return "A macro-enabled workbook is shown here and never changed. Open it in Excel to change it.";
   const names: string[] = [];
   const dec = new TextDecoder();
   const found = safeUnzip(ff, zipBytes, (n) => /^xl\/(workbook|worksheets\/sheet\d+)\.xml$/.test(n), names);

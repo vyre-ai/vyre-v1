@@ -383,7 +383,10 @@ export async function pushMoves(
     else {
       patch(row, { wait_reason: waitWords(e, provider.label) });
       // only the provider itself being out of reach or refusing Vyre fails the mount; a change one item cannot take waits on that item
-      if (vyreErrorOf(e) === undefined || /^(provider\.|timeout\.|auth\.|rate_limit\.|internal\.)/.test(vyreErrorOf(e)?.code ?? ""))
+      if (
+        vyreErrorOf(e) === undefined ||
+        /^(provider\.|timeout\.|auth\.|rate_limit\.|internal\.)/.test(vyreErrorOf(e)?.code ?? "")
+      )
         res.errors.push(waitWords(e, provider.label));
     }
   };

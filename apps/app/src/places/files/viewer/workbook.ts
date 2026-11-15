@@ -102,8 +102,15 @@ export function useWorkbook(
               const listed = (await d.call("mounts.sheet_tabs", { fileId })) as { tabs: { title: string }[] };
               const sheets = [];
               for (const tab of listed.tabs) {
-                const r = (await d.call("mounts.sheet_read", { fileId, sheet: tab.title, range: "A1:ZZ2000" })) as { values: unknown[][] };
-                sheets.push(...bookFromRows(r.values.map((row) => row.map((v) => String(v ?? ""))), tab.title).sheets);
+                const r = (await d.call("mounts.sheet_read", { fileId, sheet: tab.title, range: "A1:ZZ2000" })) as {
+                  values: unknown[][];
+                };
+                sheets.push(
+                  ...bookFromRows(
+                    r.values.map((row) => row.map((v) => String(v ?? ""))),
+                    tab.title,
+                  ).sheets,
+                );
               }
               book = { sheets: sheets.length > 0 ? sheets : bookFromRows([[]], "Sheet").sheets };
             } catch {
@@ -121,7 +128,11 @@ export function useWorkbook(
         }
         const big = tooLargeWords("xlsx", meta.size);
         if (big !== null) throw new LimitError(big);
-        const [r, lib, ff] = await Promise.all([d.call("files.read", { fileId, as: "base64" }), loadExcel(), loadFflate()]);
+        const [r, lib, ff] = await Promise.all([
+          d.call("files.read", { fileId, as: "base64" }),
+          loadExcel(),
+          loadFflate(),
+        ]);
         const b64 = (r as { base64?: string }).base64 ?? "";
         const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
         // the zip is checked before ExcelJS opens it: a file that unpacks to far more than it should is refused here, and a workbook with parts a save would drop is read only

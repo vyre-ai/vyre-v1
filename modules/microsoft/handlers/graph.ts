@@ -663,7 +663,10 @@ export async function driveUpload(
   const base = driveBase(sub, a.driveId);
   const where = a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(a.name)}` : `${base}/root:/${enc(a.name)}`;
   // a new file is made with conflictBehavior=fail: a name that is taken is never written over. A create whose answer was lost and is sent again meets its own file, which is then taken (below), not made twice.
-  const url = a.remoteId !== undefined ? `${base}/items/${enc(a.remoteId)}/content` : `${where}:/content?@microsoft.graph.conflictBehavior=fail`;
+  const url =
+    a.remoteId !== undefined
+      ? `${base}/items/${enc(a.remoteId)}/content`
+      : `${where}:/content?@microsoft.graph.conflictBehavior=fail`;
   try {
     return {
       item: mapItem(
@@ -679,13 +682,20 @@ export async function driveUpload(
     };
   } catch (e) {
     if (a.ifMatch !== undefined && codeOf(e) === "validation.version_conflict") return { stale: true };
-    if (a.remoteId === undefined && (codeOf(e) === "validation.precondition_failed" || codeOf(e) === "validation.version_conflict")) {
+    if (
+      a.remoteId === undefined &&
+      (codeOf(e) === "validation.precondition_failed" || codeOf(e) === "validation.version_conflict")
+    ) {
       // the name is taken: if the file there was made by this account a moment ago it is the one a lost answer made, and it is taken
-      const there = await call(ctx, a, "ms.drive.upload_item", { url: where, query: { $select: "id,name,size,eTag,lastModifiedDateTime,lastModifiedBy,parentReference,webUrl,file" } });
+      const there = await call(ctx, a, "ms.drive.upload_item", {
+        url: where,
+        query: { $select: "id,name,size,eTag,lastModifiedDateTime,lastModifiedBy,parentReference,webUrl,file" },
+      });
       const mine = mapItem(there);
       const by = (mine["lastModifiedBy"] as { email?: string } | undefined)?.email?.toLowerCase();
       const at = Date.parse(String(mine["lastModifiedDateTime"] ?? ""));
-      if (there["file"] !== undefined && by !== undefined && by === sub.toLowerCase() && Date.now() - at < 15 * 60_000) return { item: mine };
+      if (there["file"] !== undefined && by !== undefined && by === sub.toLowerCase() && Date.now() - at < 15 * 60_000)
+        return { item: mine };
     }
     throw e;
   }

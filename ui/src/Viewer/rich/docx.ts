@@ -21,7 +21,13 @@ export interface DRun {
   text: string;
   props: RunProps;
   link?: string;
-  image?: { rid: string; w: number; h: number; alt: string; /** the picture lives at another address: it is never fetched, the page shows a placeholder */ external?: boolean };
+  image?: {
+    rid: string;
+    w: number;
+    h: number;
+    alt: string;
+    /** the picture lives at another address: it is never fetched, the page shows a placeholder */ external?: boolean;
+  };
   pageBreak?: boolean;
   lineBreak?: boolean;
   footnote?: string;
@@ -274,7 +280,13 @@ export function readDocx(entries: Record<string, Uint8Array>): DocxModel {
             };
           } else if (attr(blip, "r:link")) {
             // a picture linked from another site: fetching it would tell that site the file was opened (a tracking pixel), so it is never loaded
-            out.image = { rid: "", w: Number(attr(ext, "cx") ?? 0) / 9525, h: Number(attr(ext, "cy") ?? 0) / 9525, alt: "", external: true };
+            out.image = {
+              rid: "",
+              w: Number(attr(ext, "cx") ?? 0) / 9525,
+              h: Number(attr(ext, "cy") ?? 0) / 9525,
+              alt: "",
+              external: true,
+            };
             notDrawn.add("pictures linked from other sites");
           } else notDrawn.add("shapes and charts");
         } else if (c.name === "w:footnoteReference") out.footnote = attr(c, "w:id") ?? "";
@@ -288,7 +300,9 @@ export function readDocx(entries: Record<string, Uint8Array>): DocxModel {
       if (c.name === "w:r") addRun(c);
       else if (c.name === "w:hyperlink") {
         // only web, mail and in-document addresses become links; a javascript:, data: or file: address in a file is plain text
-        const link = safeHref(links[attr(c, "r:id") ?? ""] ?? (attr(c, "w:anchor") ? `#${attr(c, "w:anchor")}` : undefined));
+        const link = safeHref(
+          links[attr(c, "r:id") ?? ""] ?? (attr(c, "w:anchor") ? `#${attr(c, "w:anchor")}` : undefined),
+        );
         for (const r of kids(c, "w:r")) addRun(r, link);
       } else if (c.name === "w:ins" || c.name === "w:del") {
         why = "Tracked changes are shown here and kept as they are. Open it in Word to change them.";

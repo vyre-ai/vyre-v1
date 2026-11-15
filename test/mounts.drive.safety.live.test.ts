@@ -17,7 +17,12 @@ test("one file Drive refuses: the file says it in words and the mount stays heal
     assert.ok(f);
     await w.ok(MEMBER, "files.read", { fileId: f.fileId });
     drive.files.get("d1")!.canEdit = false; // the person's edit right was taken away after the folder was listed
-    await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: "my words" }, reason: "Edit", idempotencyKey: w.idem() });
+    await w.ok(MEMBER, "files.write", {
+      fileId: f.fileId,
+      content: { text: "my words" },
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
     await sync(added.mountId);
     const row = await w.ok(MEMBER, "mounts.get", { mountId: added.mountId });
     assert.equal(row.mount.state, "idle", `the mount is healthy: ${row.mount.error ?? ""}`);
@@ -35,7 +40,12 @@ test("a create whose answer is lost is retried and Drive still has one file (and
   });
   try {
     const added = await mount();
-    await w.ok(MEMBER, "files.create", { folderId: added.folderId, name: "Brief.txt", content: { text: "brief" }, idempotencyKey: w.idem() });
+    await w.ok(MEMBER, "files.create", {
+      folderId: added.folderId,
+      name: "Brief.txt",
+      content: { text: "brief" },
+      idempotencyKey: w.idem(),
+    });
     await w.ok(MEMBER, "files.folder.create", { parentId: added.folderId, name: "Reports", idempotencyKey: w.idem() });
     drive.state.createThen503 = 2; // each create makes the item and answers 503
     for (let i = 0; i < 3; i++) await sync(added.mountId);
@@ -58,7 +68,12 @@ test("a change saved at Drive between the check and the upload is not lost: it i
     const f = await fileNamed(added.folderId, "Plan.txt");
     assert.ok(f);
     await w.ok(MEMBER, "files.read", { fileId: f.fileId });
-    await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: "my words" }, reason: "Edit", idempotencyKey: w.idem() });
+    await w.ok(MEMBER, "files.write", {
+      fileId: f.fileId,
+      content: { text: "my words" },
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
     drive.state.interpose = { id: "d1", text: "kim's words" }; // Kim saves after the check and before the upload
     await sync(added.mountId);
     await sync(added.mountId);
@@ -89,7 +104,12 @@ test("a file deleted at Drive while an edit waits: the edit is not lost and not 
     assert.ok(a && b);
     for (const f of [a, b]) {
       await w.ok(MEMBER, "files.read", { fileId: f.fileId });
-      await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: `edited ${f.name}` }, reason: "Edit", idempotencyKey: w.idem() });
+      await w.ok(MEMBER, "files.write", {
+        fileId: f.fileId,
+        content: { text: `edited ${f.name}` },
+        reason: "Edit",
+        idempotencyKey: w.idem(),
+      });
     }
     drive.files.delete("d1");
     drive.files.delete("d2");
@@ -99,12 +119,20 @@ test("a file deleted at Drive while an edit waits: the edit is not lost and not 
     const open = await w.ok(MEMBER, "mounts.open", { fileId: a.fileId });
     assert.equal(open.source.notSent?.goneThere, true, JSON.stringify(open.source));
     assert.match(open.source.notSent.reason, /deleted at Google Drive while you had changes here/);
-    assert.equal((await w.ok(MEMBER, "files.read", { fileId: a.fileId })).text, "edited Plan.txt", "the edit is still here");
+    assert.equal(
+      (await w.ok(MEMBER, "files.read", { fileId: a.fileId })).text,
+      "edited Plan.txt",
+      "the edit is still here",
+    );
     await w.ok(MEMBER, "mounts.resolve", { fileId: a.fileId, choice: "keep_here" });
     await w.ok(MEMBER, "mounts.resolve", { fileId: b.fileId, choice: "discard" });
     await sync(added.mountId);
     await sync(added.mountId);
-    assert.equal([...drive.files.values()].filter((f) => f.name === "Plan.txt").length, 1, "Keep it here: one new Plan.txt at Drive");
+    assert.equal(
+      [...drive.files.values()].filter((f) => f.name === "Plan.txt").length,
+      1,
+      "Keep it here: one new Plan.txt at Drive",
+    );
     assert.equal(drive.text(drive.byName("Plan.txt")!.id), "edited Plan.txt");
     assert.equal(drive.byName("Other.txt"), undefined, "Discard sends nothing");
     assert.equal(await fileNamed(added.folderId, "Other.txt"), undefined, "and the file is gone from Files");
@@ -143,7 +171,12 @@ test("a pass the scheduler starts leaves a fresh edit for its quiet time (one re
     assert.ok(f);
     await w.ok(MEMBER, "files.read", { fileId: f.fileId });
     for (const t of ["one", "two", "three"]) {
-      await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: t }, reason: "Edit", idempotencyKey: w.idem() });
+      await w.ok(MEMBER, "files.write", {
+        fileId: f.fileId,
+        content: { text: t },
+        reason: "Edit",
+        idempotencyKey: w.idem(),
+      });
     }
     await w.d.hooks?.pump?.();
     await w.ok(MEMBER, "mounts.sync_now", { mountId: added.mountId, auto: true, idempotencyKey: w.idem() });
@@ -162,12 +195,23 @@ import { bootWorld } from "../fixtures/suite/world.ts";
  * The daemon is stopped at the moment Drive has applied one write and before it answers (a crash in the middle of an upload, a rename, a move, a delete or a create), started again over the same data, and
  * the passes run: nothing is lost and nothing is doubled.
  */
-async function crashMidWrite(prefix: string, o: {
-  seed: (d: Parameters<NonNullable<Parameters<typeof bootDriveWorld>[1]>>[0]) => void;
-  act: (w: Awaited<ReturnType<typeof bootDriveWorld>>["w"], added: { folderId: string; mountId: string }, find: (n: string) => Promise<{ fileId: string } | undefined>) => Promise<void>;
-  crashOn: (r: { method: string; path: string }) => boolean;
-  check: (drive: Awaited<ReturnType<typeof bootDriveWorld>>["drive"], w: Awaited<ReturnType<typeof bootDriveWorld>>["w"], added: { folderId: string; mountId: string }) => Promise<void>;
-}): Promise<void> {
+async function crashMidWrite(
+  prefix: string,
+  o: {
+    seed: (d: Parameters<NonNullable<Parameters<typeof bootDriveWorld>[1]>>[0]) => void;
+    act: (
+      w: Awaited<ReturnType<typeof bootDriveWorld>>["w"],
+      added: { folderId: string; mountId: string },
+      find: (n: string) => Promise<{ fileId: string } | undefined>,
+    ) => Promise<void>;
+    crashOn: (r: { method: string; path: string }) => boolean;
+    check: (
+      drive: Awaited<ReturnType<typeof bootDriveWorld>>["drive"],
+      w: Awaited<ReturnType<typeof bootDriveWorld>>["w"],
+      added: { folderId: string; mountId: string },
+    ) => Promise<void>;
+  },
+): Promise<void> {
   const { w, drive, mount, fileNamed, opts } = await bootDriveWorld(prefix, o.seed);
   let w2: Awaited<ReturnType<typeof bootWorld>> | undefined;
   try {
@@ -200,7 +244,8 @@ async function crashMidWrite(prefix: string, o: {
   }
 }
 
-const find = (d: { files: Map<string, { name: string; trashed: boolean; parents: string[] }> }, n: string) => [...d.files.values()].filter((f) => f.name === n && !f.trashed);
+const find = (d: { files: Map<string, { name: string; trashed: boolean; parents: string[] }> }, n: string) =>
+  [...d.files.values()].filter((f) => f.name === n && !f.trashed);
 
 test("the daemon stopped in the middle of an upload: after the restart Drive has the edit once, as one revision, and no copy is made", async () => {
   await crashMidWrite("crashup", {
@@ -208,7 +253,12 @@ test("the daemon stopped in the middle of an upload: after the restart Drive has
     act: async (w, _a, f) => {
       const x = (await f("Plan.txt"))!;
       await w.ok(MEMBER, "files.read", { fileId: x.fileId });
-      await w.ok(MEMBER, "files.write", { fileId: x.fileId, content: { text: "my words" }, reason: "Edit", idempotencyKey: w.idem() });
+      await w.ok(MEMBER, "files.write", {
+        fileId: x.fileId,
+        content: { text: "my words" },
+        reason: "Edit",
+        idempotencyKey: w.idem(),
+      });
     },
     crashOn: (r) => r.path.startsWith("/upload/drive/v3/files/d1"),
     check: async (drive, w2, added) => {
@@ -218,7 +268,11 @@ test("the daemon stopped in the middle of an upload: after the restart Drive has
       // or Use theirs. Nothing is lost and nothing is doubled; the row is flagged where it need not be.
       const listed = await w2.ok(MEMBER, "files.list", { section: "space", folder: added.folderId });
       const mine = listed.files.find((x: { name: string }) => x.name === "Plan.txt");
-      assert.equal((await w2.ok(MEMBER, "files.read", { fileId: mine.fileId })).text, "my words", "the edit is still here");
+      assert.equal(
+        (await w2.ok(MEMBER, "files.read", { fileId: mine.fileId })).text,
+        "my words",
+        "the edit is still here",
+      );
       assert.equal(find(drive, "Plan.txt").length, 1);
       assert.equal([...drive.files.values()].length, 1, "no copy, no second file");
     },
@@ -232,12 +286,20 @@ test("the daemon stopped in the middle of a rename, a move and a delete: after t
   };
   await crashMidWrite("crashrename", {
     seed,
-    act: async (w, _a, f) => void (await w.ok(MEMBER, "files.rename", { fileId: (await f("Plan.txt"))!.fileId, name: "Plan 2026.txt", idempotencyKey: w.idem() })),
+    act: async (w, _a, f) =>
+      void (await w.ok(MEMBER, "files.rename", {
+        fileId: (await f("Plan.txt"))!.fileId,
+        name: "Plan 2026.txt",
+        idempotencyKey: w.idem(),
+      })),
     crashOn: (r) => r.method === "PATCH" && r.path === "/drive/v3/files/d1",
     check: async (drive) => {
       assert.equal(drive.files.get("d1")!.name, "Plan 2026.txt");
       assert.equal(drive.files.get("d1")!.head, 1, "a rename is not a revision");
-      assert.equal([...drive.files.values()].filter((x) => x.mimeType !== "application/vnd.google-apps.folder").length, 1);
+      assert.equal(
+        [...drive.files.values()].filter((x) => x.mimeType !== "application/vnd.google-apps.folder").length,
+        1,
+      );
     },
   });
   await crashMidWrite("crashmove", {
@@ -245,7 +307,11 @@ test("the daemon stopped in the middle of a rename, a move and a delete: after t
     act: async (w, a, f) => {
       const listed = await w.ok(MEMBER, "files.list", { section: "space", folder: a.folderId });
       const dir = (listed.folders ?? []).find((x: { name: string }) => x.name === "Reports");
-      await w.ok(MEMBER, "files.move", { fileId: (await f("Plan.txt"))!.fileId, toFolderId: dir.folderId, idempotencyKey: w.idem() });
+      await w.ok(MEMBER, "files.move", {
+        fileId: (await f("Plan.txt"))!.fileId,
+        toFolderId: dir.folderId,
+        idempotencyKey: w.idem(),
+      });
     },
     crashOn: (r) => r.method === "PATCH" && r.path === "/drive/v3/files/d1",
     check: async (drive) => {
@@ -255,7 +321,8 @@ test("the daemon stopped in the middle of a rename, a move and a delete: after t
   });
   await crashMidWrite("crashdelete", {
     seed,
-    act: async (w, _a, f) => void (await w.ok(MEMBER, "files.delete", { fileId: (await f("Plan.txt"))!.fileId, idempotencyKey: w.idem() })),
+    act: async (w, _a, f) =>
+      void (await w.ok(MEMBER, "files.delete", { fileId: (await f("Plan.txt"))!.fileId, idempotencyKey: w.idem() })),
     crashOn: (r) => r.method === "PATCH" && r.path === "/drive/v3/files/d1",
     check: async (drive) => {
       assert.equal(drive.files.get("d1")!.trashed, true, "in Drive's Trash once");
@@ -267,7 +334,13 @@ test("the daemon stopped in the middle of a rename, a move and a delete: after t
 test("the daemon stopped in the middle of a create: after the restart Drive has one file, not two", async () => {
   await crashMidWrite("crashcreate", {
     seed: (d) => void d.put({ id: "d1", name: "Plan.txt", mimeType: "text/plain" }, "plan"),
-    act: async (w, a) => void (await w.ok(MEMBER, "files.create", { folderId: a.folderId, name: "Brief.txt", content: { text: "brief" }, idempotencyKey: w.idem() })),
+    act: async (w, a) =>
+      void (await w.ok(MEMBER, "files.create", {
+        folderId: a.folderId,
+        name: "Brief.txt",
+        content: { text: "brief" },
+        idempotencyKey: w.idem(),
+      })),
     crashOn: (r) => r.method === "POST" && r.path === "/upload/drive/v3/files",
     check: async (drive) => {
       assert.equal(find(drive, "Brief.txt").length, 1, "one Brief.txt");
@@ -289,7 +362,13 @@ test("a write to a connected file someone changed since it was read is refused i
     assert.equal(read.text, "first words");
     drive.elsewhere("d1", "kim's words"); // Kim saves at Drive after the reader read it
     await sync(added.mountId); // the pass brings her version in
-    const refused = await w.call(MEMBER, "files.write", { fileId: f.fileId, content: { text: "the reader's words" }, baseVersion: seen, reason: "Edit", idempotencyKey: w.idem() });
+    const refused = await w.call(MEMBER, "files.write", {
+      fileId: f.fileId,
+      content: { text: "the reader's words" },
+      baseVersion: seen,
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
     assert.equal(refused.status, 409, refused.text);
     assert.equal(refused.error?.message, "The file changed since it was read.");
     await sync(added.mountId);
@@ -311,7 +390,12 @@ test("a member who connected a folder can make their own mount Read only and bac
     await w.ok(MEMBER, "mounts.update", { mountId: added.mountId, pullOnly: true });
     assert.equal((await w.ok(MEMBER, "mounts.get", { mountId: added.mountId })).mount.readOnly, true);
     await w.ok(MEMBER, "files.read", { fileId: f.fileId });
-    await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: "edited" }, reason: "Edit", idempotencyKey: w.idem() });
+    await w.ok(MEMBER, "files.write", {
+      fileId: f.fileId,
+      content: { text: "edited" },
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
     await sync(added.mountId);
     assert.equal(drive.text("d1"), "first words", "a Read only mount sends nothing");
     await w.ok(MEMBER, "mounts.update", { mountId: added.mountId, pullOnly: false });

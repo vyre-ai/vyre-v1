@@ -361,8 +361,8 @@ async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
     // a page token Drive no longer accepts must not trap the mount: the next pass starts the listing again. Anything else is left to the engine as it was.
     if (
       resuming &&
-      !(
-        /^(provider\.(unavailable|network|rate_limited|overloaded|auth_failed)|timeout\.)/.test(vyreErrorOf(e)?.code ?? "")
+      !/^(provider\.(unavailable|network|rate_limited|overloaded|auth_failed)|timeout\.)/.test(
+        vyreErrorOf(e)?.code ?? "",
       )
     )
       return {
@@ -448,9 +448,9 @@ const google: Provider = {
         return await exported(mime);
       } catch (e) {
         if (
-          ((vyreErrorOf(e)?.code ?? "").startsWith("provider.auth") ||
-            vyreErrorOf(e)?.code === "provider.rate_limited" ||
-            (vyreErrorOf(e)?.code ?? "").startsWith("permission."))
+          (vyreErrorOf(e)?.code ?? "").startsWith("provider.auth") ||
+          vyreErrorOf(e)?.code === "provider.rate_limited" ||
+          (vyreErrorOf(e)?.code ?? "").startsWith("permission.")
         )
           throw e;
         return exported("text/plain");
@@ -478,7 +478,12 @@ const google: Provider = {
     const it = driveItem(obj(res["file"]));
     // Drive has no If-Match on an upload: the check above and the upload are two calls. A revision saved between them was written over; it is still in Drive's revision list, and it is named here.
     let between: Uploaded["between"];
-    if (res["stale"] !== true && a.remoteId !== undefined && a.ifMatch?.revision !== undefined && it?.revision !== undefined) {
+    if (
+      res["stale"] !== true &&
+      a.remoteId !== undefined &&
+      a.ifMatch?.revision !== undefined &&
+      it?.revision !== undefined
+    ) {
       try {
         const revs = list(
           obj(await ctx.call("google.drive.list_revisions", { ...withConnection(m), fileId: a.remoteId }))["revisions"],

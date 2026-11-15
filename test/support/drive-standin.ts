@@ -61,17 +61,29 @@ export function driveStandIn(o: DriveOptions) {
   /** the cells of a Google Sheet by file id and tab, as the Sheets API serves them */
   const tabs = new Map<string, Map<string, string[][]>>();
   const sheetWrites: { id: string; tab: string; range: string; values: string[][] }[] = [];
-  const csvOf = (rows: string[][]): string => rows.map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\n") + "\n";
+  const csvOf = (rows: string[][]): string =>
+    rows.map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\n") + "\n";
   const colNum = (s: string): number => [...s].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
-  const parseRange = (raw: string, first: string): { tab: string; c0: number; r0: number; c1?: number; r1?: number } => {
+  const parseRange = (
+    raw: string,
+    first: string,
+  ): { tab: string; c0: number; r0: number; c1?: number; r1?: number } => {
     const m = /^(?:'((?:[^']|'')+)'|([^!']+))?!?([A-Za-z]+)?(\d+)?(?::([A-Za-z]+)(\d+))?$/.exec(raw) ?? [];
     const quoted = raw.includes("!");
     const tab = quoted ? (m[1] !== undefined ? m[1].replace(/''/g, "'") : (m[2] ?? first)) : first;
-    const a1 = quoted ? { c: m[3], r: m[4], c2: m[5], r2: m[6] } : (() => {
-      const x = /^([A-Za-z]+)(\d+)(?::([A-Za-z]+)(\d+))?$/.exec(raw) ?? [];
-      return { c: x[1], r: x[2], c2: x[3], r2: x[4] };
-    })();
-    return { tab, c0: a1.c ? colNum(a1.c.toUpperCase()) : 0, r0: a1.r ? Number(a1.r) - 1 : 0, ...(a1.c2 ? { c1: colNum(a1.c2.toUpperCase()) } : {}), ...(a1.r2 ? { r1: Number(a1.r2) - 1 } : {}) };
+    const a1 = quoted
+      ? { c: m[3], r: m[4], c2: m[5], r2: m[6] }
+      : (() => {
+          const x = /^([A-Za-z]+)(\d+)(?::([A-Za-z]+)(\d+))?$/.exec(raw) ?? [];
+          return { c: x[1], r: x[2], c2: x[3], r2: x[4] };
+        })();
+    return {
+      tab,
+      c0: a1.c ? colNum(a1.c.toUpperCase()) : 0,
+      r0: a1.r ? Number(a1.r) - 1 : 0,
+      ...(a1.c2 ? { c1: colNum(a1.c2.toUpperCase()) } : {}),
+      ...(a1.r2 ? { r1: Number(a1.r2) - 1 } : {}),
+    };
   };
   function sheetsRoute(method: string, u: URL, headers: Record<string, string>, body: string | Uint8Array | undefined) {
     if (!claims(headers)) return { status: 401, json: { error: { code: 401 } } };
@@ -84,7 +96,13 @@ export function driveStandIn(o: DriveOptions) {
       return {
         json: {
           properties: { title: files.get(id)?.name ?? id },
-          sheets: [...book.entries()].map(([title, rows], i) => ({ properties: { sheetId: i, title, gridProperties: { rowCount: rows.length, columnCount: Math.max(1, ...rows.map((r) => r.length)) } } })),
+          sheets: [...book.entries()].map(([title, rows], i) => ({
+            properties: {
+              sheetId: i,
+              title,
+              gridProperties: { rowCount: rows.length, columnCount: Math.max(1, ...rows.map((r) => r.length)) },
+            },
+          })),
         },
       };
     if (values) {
@@ -93,7 +111,9 @@ export function driveStandIn(o: DriveOptions) {
       const rows = book.get(r.tab);
       if (!rows) return { status: 400, json: { error: { code: 400 } } };
       if (method === "GET") {
-        const slice = rows.slice(r.r0, r.r1 === undefined ? undefined : r.r1 + 1).map((row) => row.slice(r.c0, r.c1 === undefined ? undefined : r.c1 + 1));
+        const slice = rows
+          .slice(r.r0, r.r1 === undefined ? undefined : r.r1 + 1)
+          .map((row) => row.slice(r.c0, r.c1 === undefined ? undefined : r.c1 + 1));
         return { json: { range: raw, values: slice } };
       }
       if (method === "PUT") {
@@ -220,7 +240,8 @@ export function driveStandIn(o: DriveOptions) {
         const f = files.get(decodeURIComponent(m[1]!));
         if (!f) return { status: 404, json: {} };
         if (!f.canEdit) return { status: 403, json: {} };
-        if (meta["appProperties"]) f.props = { ...(f.props ?? {}), ...(meta["appProperties"] as Record<string, string>) };
+        if (meta["appProperties"])
+          f.props = { ...(f.props ?? {}), ...(meta["appProperties"] as Record<string, string>) };
         if (state.interpose && state.interpose.id === f.id) {
           const i = state.interpose;
           state.interpose = null;
@@ -384,7 +405,8 @@ export function driveStandIn(o: DriveOptions) {
     creates,
     state,
     /** a Google Sheet: its tabs and their cells (the file itself is put() with the spreadsheet type) */
-    sheet: (id: string, book: Record<string, string[][]>): void => void tabs.set(id, new Map(Object.entries(book).map(([k, v]) => [k, v.map((r) => [...r])] as const))),
+    sheet: (id: string, book: Record<string, string[][]>): void =>
+      void tabs.set(id, new Map(Object.entries(book).map(([k, v]) => [k, v.map((r) => [...r])] as const))),
     sheetTabs: tabs,
     sheetWrites,
     put,

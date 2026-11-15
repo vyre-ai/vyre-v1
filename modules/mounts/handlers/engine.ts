@@ -824,7 +824,12 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[], q
       return;
     }
     // the file is gone at the provider (deleted there since the last pass) and an edit waits: it is not sent anywhere and not lost; the row says so and the person picks Keep it here or Discard
-    if (/not_found/.test(codeOf(e) ?? "") && !isNull(row["remote_id"]) && !flag(row["is_folder"]) && !flag(row["deleted"])) {
+    if (
+      /not_found/.test(codeOf(e) ?? "") &&
+      !isNull(row["remote_id"]) &&
+      !flag(row["is_folder"]) &&
+      !flag(row["deleted"])
+    ) {
       patchItem(ctx, row, {
         gone_there: 1,
         conflict: 0,
@@ -1032,16 +1037,22 @@ async function keepTheirsBeside(
   label: string,
 ): Promise<void> {
   const who = between.by?.name ?? between.by?.email ?? "Someone";
-  const at = between.at !== undefined ? ` at ${new Date(between.at).toISOString().slice(0, 16).replace("T", " ")} UTC` : "";
+  const at =
+    between.at !== undefined ? ` at ${new Date(between.at).toISOString().slice(0, 16).replace("T", " ")} UTC` : "";
   let beside = "";
   try {
     if (provider.revisionBlob !== undefined) {
-      const blob = await provider.revisionBlob(ctx, m, { remoteId: str(row["remote_id"]), revisionId: between.revisionId });
+      const blob = await provider.revisionBlob(ctx, m, {
+        remoteId: str(row["remote_id"]),
+        revisionId: between.revisionId,
+      });
       const name = str(row["name"]);
       const dot = name.lastIndexOf(".");
       const first = who.split(/[\s@]/)[0] ?? who;
-      beside = dot > 0 ? `${name.slice(0, dot)} (${first}'s version)${name.slice(dot)}` : `${name} (${first}'s version)`;
-      const folder = ((await ctx.call("files.get", { fileId: str(row["file_id"]) })) as { file: { folderId: string } }).file.folderId;
+      beside =
+        dot > 0 ? `${name.slice(0, dot)} (${first}'s version)${name.slice(dot)}` : `${name} (${first}'s version)`;
+      const folder = ((await ctx.call("files.get", { fileId: str(row["file_id"]) })) as { file: { folderId: string } })
+        .file.folderId;
       await ctx.call("files.create", {
         folderId: folder,
         name: beside,
@@ -2373,11 +2384,20 @@ async function mountsResolve(ctx: Ctx, input: unknown): Promise<Row> {
   if (d.effect === "hold") fail(ctx, "permission.needs_approval", d.reason);
   const { row, m, provider } = owner;
   if (choice === "keep_here" || choice === "discard") {
-    if (!flag(first["gone_there"])) return fail(ctx, "validation.precondition_failed", "This file has nothing to settle.");
+    if (!flag(first["gone_there"]))
+      return fail(ctx, "validation.precondition_failed", "This file has nothing to settle.");
     await exclusive(`mount:${m.id}`, async () => {
       const rows = itemsOf(ctx, m.id);
       const item = rows.find((r) => r["item_key"] === first["item_key"]) ?? first;
-      if (choice === "keep_here") patchItem(ctx, item, { gone_there: 0, remote_id: null, remote_version: null, remote_rev: null, dirty: 1, wait_reason: null });
+      if (choice === "keep_here")
+        patchItem(ctx, item, {
+          gone_there: 0,
+          remote_id: null,
+          remote_version: null,
+          remote_rev: null,
+          dirty: 1,
+          wait_reason: null,
+        });
       else {
         patchItem(ctx, item, { gone_there: 0, dirty: 0, wait_reason: null });
         await trashLocal(ctx, rows, item);

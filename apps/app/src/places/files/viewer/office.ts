@@ -104,7 +104,10 @@ export function useOffice(
         if (live)
           setState({
             status: "failed",
-            words: wordsOf(e, kind === "docx" ? "This document could not be opened here." : "This deck could not be opened here."),
+            words: wordsOf(
+              e,
+              kind === "docx" ? "This document could not be opened here." : "This deck could not be opened here.",
+            ),
           });
       }
     })();

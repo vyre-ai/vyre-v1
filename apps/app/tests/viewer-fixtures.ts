@@ -234,4 +234,3 @@ export function zipOfZeros(size: number): Buffer {
   end.writeUInt32LE(30 + name.length + def.length, 16);
   return Buffer.concat([h, name, def, c, name, end]);
 }
-

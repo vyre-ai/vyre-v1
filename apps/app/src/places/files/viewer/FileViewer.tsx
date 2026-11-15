@@ -156,7 +156,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   useEffect(() => {
     if (mountId === undefined) return undefined;
     return () => {
-      void d.call("mounts.sync_now", { mountId, idempotencyKey: `leave-${fileId}-${Date.now()}` }).catch(() => undefined);
+      void d
+        .call("mounts.sync_now", { mountId, idempotencyKey: `leave-${fileId}-${Date.now()}` })
+        .catch(() => undefined);
     };
   }, [d, fileId, mountId]);
   useEffect(() => {
@@ -264,7 +266,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   );
   // a file turned away before it was read or unpacked says why, once
   const refusal =
-    pdfBig ?? (off.state.status === "failed" ? off.state.words : wbk.state.status === "failed" ? wbk.state.words : null);
+    pdfBig ??
+    (off.state.status === "failed" ? off.state.words : wbk.state.status === "failed" ? wbk.state.words : null);
   useEffect(() => {
     if (refusal !== null) setNote(refusal);
   }, [refusal]);
@@ -761,10 +764,10 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
                 const why = isMacroFile(file.name)
                   ? "A macro-enabled file is shown here and never changed. Open it in its own app to change it."
                   : !ready.data.canEdit
-                  ? ready.data.connected?.viewOnly
-                    ? `View only in ${ready.data.connected.provider}.`
-                    : "You can read this file but not change it."
-                  : undefined;
+                    ? ready.data.connected?.viewOnly
+                      ? `View only in ${ready.data.connected.provider}.`
+                      : "You can read this file but not change it."
+                    : undefined;
                 if (offReady.kind === "docx") {
                   const cur = c.hit?.block ?? null;
                   return (

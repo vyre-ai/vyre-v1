@@ -437,7 +437,11 @@ export default defineManifest({
       "List the tabs of a mounted Google Sheet, with their names and sizes, so every tab can be read and edited",
       {
         in: { fileId: id.file },
-        out: { tabs: t.arr(t.obj({ title: t.str(), rows: t.opt(t.int({ minimum: 0 })), columns: t.opt(t.int({ minimum: 0 })) })) },
+        out: {
+          tabs: t.arr(
+            t.obj({ title: t.str(), rows: t.opt(t.int({ minimum: 0 })), columns: t.opt(t.int({ minimum: 0 })) }),
+          ),
+        },
         on: ["file", "/fileId"],
         tool: "files",
         deferred: true,

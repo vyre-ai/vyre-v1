@@ -208,7 +208,9 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
         const d = await t.promise;
         if (d.numPages > MAX_PDF_PAGES) {
           void d.destroy();
-          throw new LimitError(`This PDF has more than ${MAX_PDF_PAGES} pages, which is more than can be drawn here. Open it in its own app.`);
+          throw new LimitError(
+            `This PDF has more than ${MAX_PDF_PAGES} pages, which is more than can be drawn here. Open it in its own app.`,
+          );
         }
         if (!live) return void d.destroy();
         const first = await d.getPage(1);
@@ -335,7 +337,11 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
         if (drawn.current.get(n)?.token !== token) return;
         const vp = pg.getViewport({ scale });
         // a huge page at a high zoom is drawn at fewer pixels rather than as a canvas the browser cannot hold (50 million pixels at most)
-        const ratio = Math.min(2, window.devicePixelRatio || 1, Math.sqrt(50_000_000 / Math.max(1, vp.width * vp.height)));
+        const ratio = Math.min(
+          2,
+          window.devicePixelRatio || 1,
+          Math.sqrt(50_000_000 / Math.max(1, vp.width * vp.height)),
+        );
         const c = document.createElement("canvas");
         c.width = Math.ceil(vp.width * ratio);
         c.height = Math.ceil(vp.height * ratio);

@@ -2,7 +2,12 @@
 // it is read or unpacked, never after the tab has grown. Every cap here is checked from the sizes a file declares (a file's size, a zip's directory, a PDF's page count) before the work is done.
 
 /** The most bytes of a file each viewer reads. */
-export const MAX_FILE_BYTES = { pdf: 150 * 1024 * 1024, xlsx: 40 * 1024 * 1024, docx: 40 * 1024 * 1024, pptx: 100 * 1024 * 1024 } as const;
+export const MAX_FILE_BYTES = {
+  pdf: 150 * 1024 * 1024,
+  xlsx: 40 * 1024 * 1024,
+  docx: 40 * 1024 * 1024,
+  pptx: 100 * 1024 * 1024,
+} as const;
 /** What a zip may unpack to: no one entry over, and no total over; and how many entries it may have. */
 export const MAX_ENTRY_BYTES = 100 * 1024 * 1024;
 export const MAX_UNPACKED_BYTES = 300 * 1024 * 1024;
@@ -25,7 +30,9 @@ const mb = (n: number): string => `${Math.round(n / (1024 * 1024))} MB`;
 /** The sentence for a file over the size its viewer reads, or null when it is within it. */
 export function tooLargeWords(kind: keyof typeof MAX_FILE_BYTES, size: number): string | null {
   const cap = MAX_FILE_BYTES[kind];
-  return size > cap ? `This file is over ${mb(cap)}, which is more than can be drawn here. Open it in its own app.` : null;
+  return size > cap
+    ? `This file is over ${mb(cap)}, which is more than can be drawn here. Open it in its own app.`
+    : null;
 }
 
 export interface UnzipApi {
@@ -52,9 +59,12 @@ export function safeUnzip(
       count += 1;
       total += f.originalSize;
       names?.push(f.name);
-      if (count > MAX_ENTRIES) throw new LimitError("This file has too many parts to open here. Open it in its own app.");
+      if (count > MAX_ENTRIES)
+        throw new LimitError("This file has too many parts to open here. Open it in its own app.");
       if (f.originalSize > MAX_ENTRY_BYTES || total > MAX_UNPACKED_BYTES)
-        throw new LimitError(`This file unpacks to more than ${mb(MAX_UNPACKED_BYTES)}, so it is not opened here. Open it in its own app.`);
+        throw new LimitError(
+          `This file unpacks to more than ${mb(MAX_UNPACKED_BYTES)}, so it is not opened here. Open it in its own app.`,
+        );
       return want(f.name);
     },
   });
