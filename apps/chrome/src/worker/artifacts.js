@@ -88,6 +88,7 @@ export function createArtifacts({ ext, bridge, store, wait = (ms) => new Promise
     for (const quality of [0.7, 0.5, 0.35]) {
       try {
         shot = await maskedShot(/** @type {any} */ (ext), tabId, {
+          wait,
           maxW: 480,
           quality,
           type: "image/webp",
