@@ -96,6 +96,19 @@ export type ResumeOutcome = { approved: boolean; result?: ToolResult };
 export interface EngineOptions {
   /** The one hooks layer (modules/hooks): asked around every turn of every driver (session.start, prompt.submit, helper.start, turn.end, helper.end). A block stops the turn with code hook_blocked. */
   hooks?: HooksPort;
+  /**
+   * Asked as each turn of a CLI engine starts, before its session is sent anything: the host takes a checkpoint of the agent's work folder (Rewind). Never stops a turn: a throw is ignored. It is expected to
+   * return at once (the host waits a moment for a point and lets a slow one finish in the background).
+   */
+  onTurnStart?: (info: {
+    threadId: string;
+    turnId: string;
+    agentId: string;
+    asker: string;
+    messageId: string | null;
+    /** What the thread is: only a chat a person has with an agent can be gone back to, so only that takes a point. */
+    threadKind: string;
+  }) => Promise<void>;
   /** 'host:<space>' or 'device:<id>'. */
   holder: string;
   openSession: OpenSession;
@@ -264,6 +277,8 @@ interface ThreadState {
   launched: Set<string>;
   /** Wakes the worker when something new can start (a message for an agent that is free) while it waits for turns to end. */
   nudge: (() => void) | null;
+  /** Rewind: ranges of the chat's messages the agents no longer read (afterSeq < threadSeq <= upToSeq). The chat still shows them; only what an agent reads as history skips them. */
+  hidden?: Array<{ afterSeq: number; upToSeq: number }>;
 }
 
 /**
@@ -352,6 +367,10 @@ export interface TurnEngine {
   setMode(threadId: string, agentId: string, mode: AgentMode): void;
   /** An agent joined a thread that is already open here (a task's reviewer, an agent added to a chat): it can be woken and mentioned from now on. Nothing changes when it is in already. */
   engage(threadId: string, agent: EngineAgent): void;
+  /** Rewind: from the next turn the agents read no message after `afterSeq` up to `upToSeq`. Kept ranges are the host's to reload when a thread is opened again. */
+  hide(threadId: string, afterSeq: number, upToSeq: number): void;
+  /** Undo a rewind: the agents read that range again. */
+  unhide(threadId: string, afterSeq: number, upToSeq: number): void;
   /** Who a wake on this thread runs for (and whose account pays) when the thread was opened for someone else: a task thread is worked for the person who asked for the task. */
   setStarter(threadId: string, starter: string): void;
   /** Change the model, engine or paying account an agent runs on in this thread, from its next turn. */
@@ -980,7 +999,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       spendRows.push({
         agentId: turn.agentId,
         turnId: turn.id,
-        payer: turn.asker,
+        payer: turn.paidBy ?? turn.asker,
         tokensIn: turn.tokensIn,
         tokensOut: turn.tokensOut,
       });
@@ -1038,7 +1057,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             })
         : undefined;
     // a refused personless turn is recorded for nobody: not the starter, whose access it never had
-    const asker = orphan ? "" : (wait?.asker ?? (account ? account.payer : payer.asker));
+    // who the turn is for (whose folder and user it works in) is the person the engine found, never the account that pays: the account the Space or another person provides may be anyone's (F75)
+    const asker = orphan ? "" : (wait?.asker ?? payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
     // the wake continues a parked turn: that turn is over now, with the usage it had at the hold (the wake is its own row with its own)
     if (wait) {
@@ -1060,6 +1080,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       threadId: st.thread.id,
       agentId: item.agentId,
       asker,
+      ...(account?.payer ? { paidBy: account.payer } : {}),
       payerReason: reason,
       model: agent?.model ?? null,
       state: "running",
@@ -1255,9 +1276,23 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             stop(await ask({ ...base, event: "helper.start", ...(agent.name ? { title: agent.name } : {}) }));
           stop(await ask({ ...base, event: "prompt.submit", prompt: trigger?.body ?? "" }));
         }
+        if (opts.onTurnStart && !wait && CLI_DRIVERS.has(paying?.driver ?? ""))
+          await opts
+            .onTurnStart({
+              threadId: st.thread.id,
+              turnId: turn.id,
+              agentId: item.agentId,
+              asker,
+              messageId: item.messageId ?? null,
+              threadKind: st.thread.kind,
+            })
+            .catch(() => undefined);
         let switchTo: ResolvedAccount | null = null;
         const stoppedTurn = stoppedBefore(st, item);
-        const upTo = st.messages.filter((m) => m.threadSeq <= seen);
+        const upTo = st.messages.filter(
+          (m) =>
+            m.threadSeq <= seen && !(st.hidden ?? []).some((h) => m.threadSeq > h.afterSeq && m.threadSeq <= h.upToSeq),
+        );
         const recent = upTo.slice(-(pokeRows.has(`${st.thread.id}:${item.qseq}`) ? POKE_WINDOW : historyWindow));
         const input = {
           threadId: st.thread.id,
@@ -1994,6 +2029,16 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         .map((w) => ({ turnId: w.turnId, agentId: w.agentId, taskId: w.taskId })),
     setStarter(threadId, starter) {
       need(threadId).thread.starter = starter;
+    },
+    unhide(threadId, afterSeq, upToSeq) {
+      const st = threads.get(threadId);
+      if (!st?.hidden) return;
+      st.hidden = st.hidden.filter((h) => !(h.afterSeq === afterSeq && h.upToSeq === upToSeq));
+    },
+    hide(threadId, afterSeq, upToSeq) {
+      const st = threads.get(threadId);
+      if (!st) return;
+      (st.hidden ??= []).push({ afterSeq, upToSeq });
     },
     engage(threadId, agent) {
       const st = need(threadId);

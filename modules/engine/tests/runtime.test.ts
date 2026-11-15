@@ -635,8 +635,8 @@ test("a person leaving stops what ran for them, drops their parked turns and the
   await until(() => p.specs.length > 0);
   assert.equal(
     p.specs[0]?.asker,
-    "usr_dana",
-    "the host fake answers usr_dana as the payer; the asker it was asked about is the new owner",
+    "usr_maya",
+    "the turn runs for the new owner, the person the resolver was asked about; the host fake answers usr_dana as the payer, and who pays is not whose folder it works in (F75)",
   );
   assert.deepEqual(
     f.calls.filter((c) => c.cap === "engine.account.resolve").map((c) => c.input.askerId),

@@ -168,6 +168,12 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     filesChanged(change) {
       for (const m of all()) m.filesChanged(change);
     },
+    takeNotes(agentId) {
+      return homes.get(agentId)?.takeNotes(agentId) ?? [];
+    },
+    async projectAccess(agentId, person) {
+      return (await managerFor(agentId)).projectAccess(agentId, person);
+    },
     viewed(agentId) {
       const k = homes.get(agentId);
       for (const m of k ? [k] : all()) m.viewed(agentId);

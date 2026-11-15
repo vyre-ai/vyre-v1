@@ -234,17 +234,18 @@ test("f-kinds-a pictures", async (t) => {
       await page.goto(`${web.origin}/automations?skin=${skin}`, { waitUntil: "load" });
       await page.getByText("Weekly digest", { exact: true }).first().click({ timeout: 30_000 });
       await page.getByTestId("story").first().waitFor({ timeout: 30_000 });
+      // rc.29: a step is a sentence row in the builder (sv-step-<id>), not a card on a canvas (AUTOMATIONS-2026-11-13.md, the story of steps)
       await page
-        .getByTestId("card-n1")
+        .getByTestId("sv-step-n1")
         .waitFor({ timeout: 20_000 })
         .catch(() => undefined);
       await shot("1-step-cards", skin);
       await page.getByText("Tidy files", { exact: true }).first().click({ timeout: 30_000 });
-      await page.getByTestId("card-t1").waitFor({ timeout: 20_000 });
-      const sub = await page.getByTestId("card-sub-t1").innerText();
+      await page.getByTestId("sv-step-t1").waitFor({ timeout: 20_000 });
+      const sub = await page.getByTestId("sv-step-t1").innerText();
       assert.ok(
-        /File|folder/i.test(sub) && !/fil_|fld_|\bid\b/i.test(sub),
-        `the step card names its inputs in words: ${sub}`,
+        /file|folder/i.test(sub) && !/fil_|fld_|rec_|\bid\b/i.test(sub),
+        `the step's sentence names its inputs in words: ${sub}`,
       );
       await shot("1b-step-cards-generic", skin);
 

@@ -226,7 +226,10 @@ export async function world(): Promise<World> {
       await stop(w.d);
       if (saved === undefined) delete process.env["VYRE_WORKSPACE_IMAGE"];
       else process.env["VYRE_WORKSPACE_IMAGE"] = saved;
-      for (const n of (await workspaceNames()).filter((x) => !before.has(x))) {
+      // only this world's own workspaces: test files run side by side on one Docker, and another file's workspace is not ours to remove
+      for (const n of (await workspaceNames()).filter(
+        (x) => !before.has(x) && (x.includes(agent) || x.includes(s.assistant)),
+      )) {
         await docker(["rm", "-f", n]);
         await docker(["volume", "rm", "-f", `${n}-home`, `${n}-files`, `${n}-people`]);
       }
