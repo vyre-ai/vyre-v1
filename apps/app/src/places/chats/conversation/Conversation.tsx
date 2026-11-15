@@ -7,6 +7,7 @@ import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { isLong, sessionItems, withFolded } from "../session/model.ts";
+import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
 import { RewindCard, RewindWatch } from "../rewind/RewindCard.tsx";
 import type { ActiveRewind } from "../rewind/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
@@ -535,6 +536,10 @@ function ConversationView(): ReactElement {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
         setFinding(true);
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "\\" && !(e as { shiftKey?: boolean }).shiftKey) {
+        // Cmd-\\ hides or shows the pane beside the chat (the design's key)
+        e.preventDefault();
+        data.nav.togglePane();
       }
     };
     g.addEventListener?.("keydown", onKey);
@@ -1027,7 +1032,13 @@ function ConversationView(): ReactElement {
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
   const coders = (crew?.status?.members ?? []).filter((x) => x.kind === "teammate");
   const coderThreads = new Set(coders.map((x) => x.id));
-  const inRewind = (m: Message): boolean => rewinds.some((r) => m.threadSeq > r.afterSeq && m.threadSeq <= r.uptoSeq);
+  const inRewind = (m: Message): boolean =>
+    rewinds.some(
+      (r) =>
+        (m.threadSeq > r.afterSeq && m.threadSeq <= r.uptoSeq) ||
+        // the line the server left ("Went back ...") is the folded row's own: one line while it is in force
+        (m.kind === "system" && m.threadSeq === r.uptoSeq + 1 && /^Went back/.test(m.body)),
+    );
   const folded = mergeCrewAnswer(
     hideCrewPosts(
       stripFromCoders(groupHelperStrips(foldHelperRows(timelineMessages.filter((m) => !inRewind(m)))), coderThreads),
@@ -1075,7 +1086,12 @@ function ConversationView(): ReactElement {
         .map((m) => ({
           id: m.messageId,
           who: m.author.kind === "agent" || m.author.id !== data.me.id ? nameOf(m.author.id) : "You",
-          text: m.body.replace(/\s+/g, " ").trim().slice(0, 240) || "Posted a card",
+          text:
+            m.body
+              .replace(/[*_`#>]+/g, "")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 240) || "Posted a card",
           time: timeLabel(m.createdAt, data.clock()),
         })),
     })),
@@ -2199,18 +2215,35 @@ function ConversationView(): ReactElement {
           />
         ) : null}
         {rewindCard ? (
-          <RewindCard
-            key={rewindCard.n}
-            threadId={thread.threadId}
-            onClose={() => setRewindCard(null)}
-            shared={peopleIn(thread) >= 2}
-            onDone={() => {
-              setRewindCard(null);
-              setRewinds([]);
-              setRewindStamp((n) => n + 1);
-            }}
-            {...(rewindCard.messageId !== undefined ? { messageId: rewindCard.messageId } : {})}
-          />
+          <View testID="rewind-anchor" style={st.rewindAnchor} pointerEvents="box-none">
+            <View style={st.rewindFloat} pointerEvents="box-none">
+              <View style={st.rewindCard}>
+                <Dialog
+                  title="Go back to"
+                  anchor="composer"
+                  testID="rewind-dialog"
+                  onClose={() => setRewindCard(null)}
+                  onPressOutside={(t) => {
+                    if (!insideComposer(t)) setRewindCard(null);
+                  }}
+                >
+                  <RewindCard
+                    key={rewindCard.n}
+                    bare
+                    threadId={thread.threadId}
+                    onClose={() => setRewindCard(null)}
+                    shared={peopleIn(thread) >= 2}
+                    onDone={() => {
+                      setRewindCard(null);
+                      setRewinds([]);
+                      setRewindStamp((n) => n + 1);
+                    }}
+                    {...(rewindCard.messageId !== undefined ? { messageId: rewindCard.messageId } : {})}
+                  />
+                </Dialog>
+              </View>
+            </View>
+          </View>
         ) : null}
         {goesBack ? (
           <RewindWatch
@@ -2618,6 +2651,10 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
 }
 
 const st = StyleSheet.create({
+  // the "Go back to" card is anchored like the Command card: no height in the layout, floating up over the foot of the chat, exactly the composer's width
+  rewindAnchor: { height: 0, position: "relative", zIndex: 31, overflow: "visible" },
+  rewindFloat: { position: "absolute", left: 0, right: 0, bottom: 6, alignItems: "center", paddingHorizontal: 24 },
+  rewindCard: { width: "100%", maxWidth: COLUMN },
   /** "Also post to the chat" sits above a thread's composer, as the prototype draws it, so the composer's own bar keeps its room in a narrow pane. */
   alsoRow: { marginLeft: -4, marginBottom: 8 },
   outsideOffline: {

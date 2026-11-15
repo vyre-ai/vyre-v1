@@ -69,14 +69,31 @@ for (const [skin, size, w, h] of SCENES) {
     await row.hover();
     await page.locator("[data-testid=act-rewind-m3]").first().click();
   } else {
-    await row.click({ button: "right" }).catch(() => undefined);
-    await row.dispatchEvent("contextmenu").catch(() => undefined);
+    // a finger has no hover: a long press opens the message's sheet (Rewind to here is in it); the /rewind command opens the same card
+    const bb = await row.boundingBox();
+    if (bb) {
+      await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(900);
+      await page.mouse.up();
+    }
     await shot("rw2-menu");
-    await page.getByText("Rewind to here").first().click().catch((e) => say(tag, "no menu entry", String(e).slice(0, 60)));
+    const entry = page.getByText("Rewind to here").first();
+    if (await entry.count()) await entry.click({ timeout: 5000 }).catch(() => undefined);
+    if (!(await count("rewind-card"))) {
+      say(tag, "sheet did not open on a long press; using /rewind");
+      await page.keyboard.press("Escape").catch(() => undefined);
+      await page.locator("[data-testid=composer-field]").first().click();
+      await page.keyboard.type("/rewind");
+      await page.waitForTimeout(300);
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(300);
+      if (!(await count("rewind-card"))) await page.keyboard.press("Enter");
+    }
   }
   await page.waitForSelector("[data-testid=rewind-card]", { timeout: 8000 }).catch(() => say(tag, "no rewind card"));
   await shot("rw3-card");
-  await page.locator("[data-testid=rewind-go]").first().click();
+  await page.locator("[data-testid=rewind-go]").first().click({ timeout: 8000 }).catch(() => say(tag, "no Go back"));
   await page.waitForTimeout(800);
   say(tag, "folded rows:", await count("folded-"));
   await shot("rw4-folded");

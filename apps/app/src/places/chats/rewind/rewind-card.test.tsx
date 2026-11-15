@@ -49,6 +49,8 @@ test("it says what it undoes and never touches before anything is pressed; the n
   await flush();
   assert.match(textOf(find(root, "rewind-leaves")), /Anything already sent stays sent/);
   assert.match(textOf(find(root, "rewind-undoes")), /files back as they were/);
+  assert.equal(find(root, "rewind-not-kept"), null, "the long list of what is not kept is one press away");
+  await press(find(root, "rewind-more"));
   assert.match(textOf(find(root, "rewind-not-kept")), /\.gitignore.*secret files.*git repository/);
   assert.match(textOf(find(root, "rewind-card")), /14 days/);
   assert.equal(find(root, "rewind-point-agt_dex.b")!.props["aria-checked"], true, "the newest is picked");

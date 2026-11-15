@@ -51,7 +51,10 @@ export function RewindCard({
   messageId,
   onDone,
   shared = false,
+  bare = false,
 }: {
+  /** Drawn inside a Dialog (the composer's anchored card): no title, border or padding of its own. */
+  bare?: boolean;
   /** A chat with other people: the agents stop reading everyone's messages after the point, and the chat says who went back. */
   shared?: boolean;
   threadId: string;
@@ -69,6 +72,7 @@ export function RewindCard({
   const [pick, setPick] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [more, setMore] = useState(false);
   useEffect(() => {
     let gone = false;
     try {
@@ -116,10 +120,12 @@ export function RewindCard({
     }
   };
   return (
-    <View testID="rewind-card" style={st.card}>
-      <Text accessibilityRole="header" style={st.title}>
-        Go back to
-      </Text>
+    <View testID="rewind-card" style={bare ? st.bare : st.card}>
+      {bare ? null : (
+        <Text accessibilityRole="header" style={st.title}>
+          Go back to
+        </Text>
+      )}
       {read.state === "off" ? <Text style={st.note}>{whyOff(read.why)}</Text> : null}
       {read.state === "ready" && read.points.length === 0 ? <Text style={st.note}>{NONE}</Text> : null}
       {read.state === "ready" ? (
@@ -159,10 +165,22 @@ export function RewindCard({
       <Text testID="rewind-leaves" style={st.note}>
         {LEAVES}
       </Text>
-      <Text testID="rewind-not-kept" style={st.note}>
-        {NOT_KEPT}
-      </Text>
-      <Text style={st.note}>{`${UNDO_NOTE} ${KEPT_FOR}`}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: more }}
+        testID="rewind-more"
+        onPress={() => setMore((m) => !m)}
+      >
+        <Text style={st.more}>{more ? "Less" : "What is not kept, and for how long"}</Text>
+      </Pressable>
+      {more ? (
+        <>
+          <Text testID="rewind-not-kept" style={st.note}>
+            {NOT_KEPT}
+          </Text>
+          <Text style={st.note}>{`${UNDO_NOTE} ${KEPT_FOR}`}</Text>
+        </>
+      ) : null}
       {failed ? <Text style={st.warn}>It did not go back. Nothing changed.</Text> : null}
       <View style={st.foot}>
         <Pressable
@@ -192,6 +210,8 @@ const st = StyleSheet.create({
     backgroundColor: "var(--surface)" as string,
     maxWidth: 520,
   },
+  bare: { gap: 8 },
+  more: { fontSize: 12.5, color: "var(--accent)" as string },
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   list: { gap: 2 },
   row: {
