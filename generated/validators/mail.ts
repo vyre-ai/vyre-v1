@@ -668,6 +668,7 @@ if (g4343 === "object") {
 if (g4343 === 'object') { const o4343 = x4343 as Record<string, unknown>;
 if ("mailboxId" in o4343) lf(o4343["mailboxId"], p + "/mailboxId", e, L25);
 if ("contactId" in o4343) lf(o4343["contactId"], p + "/contactId", e, L28);
+if ("address" in o4343) lf(o4343["address"], p + "/address", e, L1);
 if ("cursor" in o4343) lf(o4343["cursor"], p + "/cursor", e, L1);
 if ("limit" in o4343) lf(o4343["limit"], p + "/limit", e, L124);
 }

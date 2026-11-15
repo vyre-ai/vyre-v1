@@ -601,7 +601,7 @@ Signed: lead, 16 Nov 2026 00:42 PKT, after reading the manifest diff: optional, 
 - The agent's catalog adds a sentence to `vault_request` while the card is on ("A service the person names (Fathom, Slack): use vault_connect instead"). The frozen description is the rc.27 one and is not changed.
 - Proof: modules/connectors/tests/connect-card.test.ts (the D, E and F tests), modules/connectors/tests/connect-registry.test.ts (every built-in service stated: hosts, key, check), modules/connectors/tests/connect-send.test.ts (the sends of the module), modules/vault-requests/tests/connect.test.ts, agent/tests/connect-tool.test.ts, modules/mcp/tests/server.parity.test.ts.
 
-Signed: pending, the lead
+Signed: lead, 16 Nov 2026 04:00 PKT
 
 ## 16 Nov 2026: delete for good, round five (lane f-agentdel, after the data-safety review)
 

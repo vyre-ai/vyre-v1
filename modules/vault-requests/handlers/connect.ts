@@ -730,6 +730,13 @@ export async function connectDisconnect(ctx: VaultReqCtx, input: { requestId: st
     connectionId: row.connection_id,
     idempotencyKey: `${row.id}:disconnect:${ctx.now()}`,
   });
+  // the key stays in Mine, but its stamp goes: the card never offers it back, so the next card is a clean one
+  if (row.item_id)
+    for (const r of ctx.db.all(`SELECT * FROM ${TABLE} WHERE service = ?`, row.service) as RequestRow[]) {
+      const left = stampsOf(r).filter((x) => x.item !== row.item_id);
+      if (left.length !== stampsOf(r).length)
+        ctx.db.run(`UPDATE ${TABLE} SET saved_json = ? WHERE id = ?`, JSON.stringify(left), r.id);
+    }
   ctx.db.run(
     `UPDATE ${TABLE} SET state = ?, phase = ?, connection_id = ?, tested = ? WHERE id = ?`,
     "declined",

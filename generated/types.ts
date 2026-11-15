@@ -25183,6 +25183,7 @@ export type MailDraftsDiscardOut = {
 export type MailDraftsListIn = {
   mailboxId?: string;
   contactId?: string;
+  address?: string;
   cursor?: string;
   limit?: number;
 };
@@ -39111,7 +39112,6 @@ export type SpacesOnboardingFlowOut = {
       key: string;
       state: "done" | "later";
     }>;
-  fresh: boolean;
 };
 export type SpacesOnboardingGetIn = Record<string, unknown>;
 export type SpacesOnboardingGetOut = {

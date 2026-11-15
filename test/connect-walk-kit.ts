@@ -215,11 +215,11 @@ export async function personalWalk(t: { skip(m: string): void }, SKINS: Skins, l
       const id = (await card.getAttribute("data-testid"))!.replace(/^(connect-vrq_[0-9a-f]+).*$/, "$1");
       const q = (s: string) => page.locator(`[data-testid='${id}${s}']`);
       const shot = async (name: string) => page.screenshot({ path: `${shots}/personal-${name}-${tag}.png` });
-      // asked again after the person disconnected it: a new card, with the key the first card saved offered back (Use your saved key, or a different one)
+      // asked again after the person disconnected it: a clean card, the key field empty and no saved key offered
       if (n > 1) {
-        await q("-have").waitFor({ timeout: 20_000 });
-        await shot("have");
-        await q("-other").click();
+        await q("-kept").waitFor({ timeout: 20_000 });
+        assert.equal(await q("-have").count(), 0, "the key the first card saved is not offered back");
+        assert.equal(await q("-api_key-input").inputValue(), "", "the key field is empty");
       }
       await q("-kept").waitFor({ timeout: 20_000 });
       assert.match(

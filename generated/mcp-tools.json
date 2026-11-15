@@ -33352,7 +33352,7 @@
       "blocks": [],
       "cap": "inbox.counts",
       "deferred": false,
-      "description": "Unread counts for the sidebar: per inbox, per number and the Needs a match total",
+      "description": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -36882,6 +36882,13 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "address": {
+            "description": "Only drafts written to this address (To or Cc): a conversation with someone who is not a contact yet",
+            "examples": [
+              "maya@example.com"
+            ],
+            "type": "string"
+          },
           "contactId": {
             "examples": [
               "rec_a1b2c3"

@@ -176,11 +176,11 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
       "another member cannot open Aina's key",
     );
 
-    // A: after Disconnect the card offers back the key ITS OWN save made (Fathom_2), never the hand-made "Fathom"
+    // A: after Disconnect the key's stamp is gone: the card offers nothing back, neither the key its own save made (Fathom_2) nor the hand-made "Fathom"
     await a.call("vault.connect_card.disconnect", { requestId });
     await a.call("vault.connect_card.reopen", { requestId });
     const again = (await a.call("vault.connect_card.get", { requestId })).card;
-    assert.deepEqual([again.state, again.have?.name, again.have?.keptIn], ["have", "Fathom_2", "Mine"]);
+    assert.deepEqual([again.state, again.have?.name, again.have?.keptIn], ["ask", undefined, undefined]);
     // and Bilal still cannot read it
     assert.equal((await b.attempt("vault.connect_card.get", { requestId })).ok, false);
 
