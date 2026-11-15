@@ -46,8 +46,10 @@ type Out = {
       kind: "automation" | "task" | "goal" | "project";
       id: string;
       title: string;
+      link: string;
     }>;
   backups: string;
+  backupsKeptDays?: number;
   refused?: string;
 };
 ```
@@ -71,6 +73,7 @@ type Out = {
   "output": {
     "agentId": "agt_a1b2c3",
     "backups": "example",
+    "backupsKeptDays": 1,
     "bytes": 1,
     "chats": 1,
     "inTrash": true,
@@ -81,6 +84,7 @@ type Out = {
       {
         "id": "example",
         "kind": "automation",
+        "link": "example",
         "title": "example"
       }
     ],

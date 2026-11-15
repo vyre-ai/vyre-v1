@@ -1509,8 +1509,10 @@ export type AgentsDeletePreviewOut = {
       kind: "automation" | "task" | "goal" | "project";
       id: string;
       title: string;
+      link: string;
     }>;
   backups: string;
+  backupsKeptDays?: number;
   refused?: string;
 };
 export type AgentsGetIn = {

@@ -1648,10 +1648,9 @@ const routes0: Route[] = [
     "module": "agents",
     "effects": "write",
     "permission": null,
-    "level": "manage",
+    "level": "member",
     "resource": {
-      "type": "agent",
-      "id": "/agentId"
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "high",

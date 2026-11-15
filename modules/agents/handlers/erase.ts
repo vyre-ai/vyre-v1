@@ -71,9 +71,16 @@ export function refuseKind(ctx: AgentsCtx, a: AgentRec): void {
 /** Press "Delete for good" on an agent in Trash: the job is recorded and starts at once; the answer is that it is deleting. Pressing again changes nothing. */
 export async function deleteForGood(ctx: AgentsCtx, input: { agentId: string }): Promise<{ erasing: boolean }> {
   ensure(ctx.db);
+  if (ctx.principal.kind === "agent" && ctx.principal.id === input.agentId)
+    raise(ctx, "validation.precondition_failed", "An agent cannot delete itself for good.", { reason: "self" });
   const have = pending(ctx, input.agentId);
-  if (have) return { erasing: String(have["state"]) === "erasing" };
   const a = agentBy(ctx.db, input.agentId, true);
+  // whoever manages it (its owner, or an admin) may; anyone else is told the agent does not exist, as for any agent they cannot see
+  const owner = a?.ownerId ?? (have ? String(have["ownerId"]) : undefined);
+  const asker = ctx.actingFor ?? ctx.principal.id;
+  if (owner === undefined || (owner !== asker && !mayManage(ctx, a ?? ({ ownerId: owner } as AgentRec))))
+    raise(ctx, "validation.not_found", "That agent does not exist.");
+  if (have) return { erasing: String(have["state"]) === "erasing" };
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
   if (ctx.principal.kind === "agent" && ctx.principal.id === a.id)
     raise(ctx, "validation.precondition_failed", "An agent cannot delete itself for good.", { reason: "self" });
@@ -131,14 +138,21 @@ export async function deletePreview(ctx: AgentsCtx, input: { agentId: string }) 
   }
   const routines = (ctx.db.all("SELECT COUNT(*) AS n FROM agents_routine WHERE agentId = ?", a.id) as Row[])[0];
   out.routines += Number(routines?.["n"] ?? 0);
-  const holdsBackups = true;
+  const keepMs = await backupsKeepMs(ctx);
+  const days = keepMs === null || keepMs === undefined ? undefined : Math.round(keepMs / 86_400_000);
+  const LINK = { automation: "automations", task: "tasks", goal: "goals", project: "projects" } as const;
   return {
     agentId: a.id,
     name: a.name,
     kind: a.kind,
     inTrash: a.deletedAt !== undefined,
     ...out,
-    backups: holdsBackups ? "Backups made before today still hold a copy until they are rotated out." : "",
+    named: out.named.map((n) => ({ ...n, link: `/${LINK[n.kind]}/${n.id}` })),
+    backups:
+      days === undefined
+        ? "Backups made before today still hold a copy until they are rotated out."
+        : `Backups made before today still hold a copy for ${days} days.`,
+    ...(days !== undefined ? { backupsKeptDays: days } : {}),
     ...(a.kind === "assistant" ? { refused: "A person's Assistant stays with them and cannot be deleted." } : {}),
   };
 }
@@ -326,4 +340,15 @@ export async function folderPurged(ctx: AgentsCtx, p: { subjectKind?: string; su
   if (!a || a.deletedAt === undefined || a.kind === "assistant" || pending(ctx, a.id)) return [];
   start(ctx, a, "system");
   return [a.id];
+}
+
+/** How long the Space keeps its backups, when that is a number of days (the setting is words for a rotation policy otherwise). */
+async function backupsKeepMs(ctx: AgentsCtx): Promise<number | null | undefined> {
+  try {
+    const out = (await ctx.call?.("governance.retention.get", {})) as { kinds?: Array<{ key?: string; value?: string }> };
+    const v = out?.kinds?.find((k) => k.key === "backups")?.value;
+    return typeof v === "string" ? retentionMs(v) : undefined;
+  } catch {
+    return undefined;
+  }
 }

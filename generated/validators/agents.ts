@@ -2246,9 +2246,11 @@ if (g1484 === 'object') { const o1484 = x1484 as Record<string, unknown>;
 if (!("kind" in o1484)) e.push(p + "/named" + '/' + i1483 + "/kind" + ': required');
 if (!("id" in o1484)) e.push(p + "/named" + '/' + i1483 + "/id" + ': required');
 if (!("title" in o1484)) e.push(p + "/named" + '/' + i1483 + "/title" + ': required');
+if (!("link" in o1484)) e.push(p + "/named" + '/' + i1483 + "/link" + ': required');
 if ("kind" in o1484) lf(o1484["kind"], p + "/named" + '/' + i1483 + "/kind", e, L509);
 if ("id" in o1484) lf(o1484["id"], p + "/named" + '/' + i1483 + "/id", e, L1);
 if ("title" in o1484) lf(o1484["title"], p + "/named" + '/' + i1483 + "/title", e, L1);
+if ("link" in o1484) lf(o1484["link"], p + "/named" + '/' + i1483 + "/link", e, L1);
 }
 }
 }
@@ -2258,6 +2260,7 @@ if ("title" in o1484) lf(o1484["title"], p + "/named" + '/' + i1483 + "/title", 
 }
 }
 if ("backups" in o1482) lf(o1482["backups"], p + "/backups", e, L1);
+if ("backupsKeptDays" in o1482) lf(o1482["backupsKeptDays"], p + "/backupsKeptDays", e, L17);
 if ("refused" in o1482) lf(o1482["refused"], p + "/refused", e, L1);
 }
 }

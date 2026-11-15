@@ -2291,6 +2291,21 @@ async function filesPurge(ctx: Ctx, input: unknown): Promise<{ purged: boolean }
   return { purged: true };
 }
 
+/** How many bytes the files under a folder hold, every version counted (what deleting it for good frees). */
+export function folderTreeBytes(ctx: Ctx, folderId: string): number {
+  let bytes = 0;
+  const walk = (id: string): void => {
+    for (const f of tryMany(ctx, "SELECT * FROM files_file WHERE folder_id = ?", id))
+      for (const v of tryMany(ctx, "SELECT * FROM files_file_version WHERE file_id = ?", f.id)) {
+        const b = one(ctx, "SELECT * FROM files_blob WHERE id = ?", v.blob);
+        bytes += b ? num(b.size) : 0;
+      }
+    for (const c of tryMany(ctx, "SELECT * FROM files_folder WHERE parent_id = ?", id)) walk(String(c.id));
+  };
+  walk(folderId);
+  return bytes;
+}
+
 /** Delete for good (F77): a folder with everything in it, every version, its Trash copy and its blobs, whether or not it is in Trash. The agents job calls this for an agent's own folder; a second call finds nothing. */
 export function eraseFolderTree(ctx: Ctx, folderId: string): number {
   const folder = one(ctx, "SELECT * FROM files_folder WHERE id = ?", folderId);

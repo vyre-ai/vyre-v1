@@ -1096,11 +1096,17 @@ export const hostCalls = {
   "computers.erase_agent": async (
     ctx: CompCtx,
     i: { agentId: string; dry?: boolean },
-  ): Promise<Record<string, never>> => {
+  ): Promise<{ bytes?: number }> => {
     const cids = tryAll(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", i.agentId).map((r) =>
       String(r["computer_id"]),
     );
-    if (i.dry === true) return {};
+    if (i.dry === true)
+      return {
+        bytes: tryAll(ctx.db, "SELECT disk_bytes FROM computers_computers WHERE agent_id = ?", i.agentId).reduce(
+          (n, r) => n + Number(r["disk_bytes"] ?? 0),
+          0,
+        ),
+      };
     const profile = profileIdOf(i.agentId);
     const sb = spaceBrowser();
     if (profile && sb && (await sb.available().catch(() => false))) {

@@ -1,4 +1,4 @@
-import { eraseFolderTree } from "./handlers/tree.ts";
+import { eraseFolderTree, folderTreeBytes } from "./handlers/tree.ts";
 // files (lane L4). The host loads generated stub handlers while status is stub, and this module once the manifest is live.
 
 export { handlers } from "./handlers/index.ts";
@@ -42,7 +42,8 @@ const ownedKept = (r: OwnedRow[], type: string, title: string) => ({
 export const hostCalls = {
   /** Delete for good (F77): the agent's folder, its versions and Trash copy, and what Files keeps for it. The access tree and the search index follow the file.purged events and the access step. */
   "files.erase_agent": (ctx: unknown, i: { agentId: string; folderId?: string; dry?: boolean }) => {
-    if (i.dry === true || !i.folderId) return {};
+    if (i.dry === true) return { bytes: i.folderId ? folderTreeBytes(ctx as never, i.folderId) : 0 };
+    if (!i.folderId) return {};
     eraseFolderTree(ctx as never, i.folderId);
     return {};
   },

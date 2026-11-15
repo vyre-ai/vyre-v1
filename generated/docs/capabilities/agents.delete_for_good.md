@@ -8,9 +8,9 @@ Delete an agent in Trash for good: its memory, its one-to-one chats, its compute
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | manage |
+| Grant level | member |
 | Risk | high |
-| Resource | agent (/agentId) |
+| Resource | space |
 | Gate | delete when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |

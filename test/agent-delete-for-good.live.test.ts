@@ -146,6 +146,9 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
     const preview = await call(d, "agents.delete_preview", { agentId });
     assert.equal(preview.status, 200, JSON.stringify(preview.data));
     results["preview"] = preview.data;
+    assert.ok(preview.data.named.every((n: { link: string }) => /^\/(tasks|goals|automations|projects)\//.test(n.link)), "each name that needs someone has a link");
+    assert.ok(preview.data.chats >= 1 && preview.data.memory >= 1 && preview.data.routines >= 1, "real counts");
+    assert.match(preview.data.backups, /Backups/);
 
     // delete for good, and kill the daemon in the middle of the job
     const pressed = await call(d, "agents.delete_for_good", { agentId });

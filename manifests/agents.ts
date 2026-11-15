@@ -564,8 +564,17 @@ export default defineManifest({
           memory: t.int({ minimum: 0 }),
           bytes: t.int({ minimum: 0 }),
           routines: t.int({ minimum: 0 }),
-          named: t.arr(t.obj({ kind: t.enm("automation", "task", "goal", "project"), id: t.str(), title: t.str() })),
+          named: t.arr(
+            t.obj({
+              kind: t.enm("automation", "task", "goal", "project"),
+              id: t.str(),
+              title: t.str(),
+              link: t.str({ description: "Where to open it" }),
+            }),
+          ),
           backups: t.str(),
+          backupsKeptDays: t.opt(t.int({ minimum: 0 })),
+          backupsKeptDays: t.opt(t.int({ minimum: 0 })),
           refused: t.opt(t.str()),
         },
         on: ["agent", "/agentId"],
@@ -580,15 +589,15 @@ export default defineManifest({
       {
         in: target,
         out: { erasing: t.bool() },
-        on: ["agent", "/agentId"],
-        level: "manage",
+        // no resource check in the pipeline: once erased the agent is gone from access, and pressing again must answer the same calm way (the handler checks owner or admin against the tombstone)
+        level: "member",
         emits: ["agent.erasing", "agent.erased"],
         gate: { act: "delete", when: "actor.kind != 'person'" },
         tool: "agents",
         audit: "always",
         risk: "high",
         idem: "natural",
-        errors: ["permission.on_hold", "validation.precondition_failed"],
+        errors: ["permission.on_hold", "validation.precondition_failed", "validation.not_found"],
       },
     ),
     write(
