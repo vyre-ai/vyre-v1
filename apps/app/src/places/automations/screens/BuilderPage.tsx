@@ -515,7 +515,8 @@ function Body({
   const discardProposal = async (): Promise<void> => {
     try {
       // an empty Automation that proposing made goes to Trash with its proposal: the page then leaves it as it does after Move to Trash
-      await data.call("automations.proposal.discard", { automationId: a.id });
+      const res = (await data.call("automations.proposal.discard", { automationId: a.id })) as { removed?: boolean };
+      if (res?.removed) data.nav.leave?.();
     } catch (e) {
       setNote(e instanceof Error ? e.message : "That was not discarded.");
     }

@@ -183,6 +183,12 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       automationsData(
         rt,
         {
+          leave: () => {
+            setOpenId(null);
+            setLeft(hashed);
+            setStep(null);
+            setSideRun(null);
+          },
           openAutomation: (id) => {
             setView("automations");
             setStep(null);
