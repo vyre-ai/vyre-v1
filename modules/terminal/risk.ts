@@ -252,7 +252,18 @@ const CURL_SENDS =
   /\s(-d|--data\S*|--json|-F|--form\S*|-T|--upload-file|-[a-zA-Z]*[dFT])(\s|=|$)|\s(-X|--request)[\s=]*['"]?(POST|PUT|PATCH|DELETE)\b/;
 
 /** Words that only run another command: the command is the next word that is not one of these, a flag or a number. */
-const WRAPPERS: ReadonlySet<string> = new Set(["sudo", "doas", "xargs", "time", "timeout", "nice", "nohup", "env", "command", "exec"]);
+const WRAPPERS: ReadonlySet<string> = new Set([
+  "sudo",
+  "doas",
+  "xargs",
+  "time",
+  "timeout",
+  "nice",
+  "nohup",
+  "env",
+  "command",
+  "exec",
+]);
 
 /** What one simple command sends out. Null when it reaches nobody. */
 function partOutward(raw: string): Outward | null {

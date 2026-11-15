@@ -320,7 +320,11 @@ export const sessionTitle = (s: Pick<WorkspaceSession, "name" | "owner">): strin
 
 /** The one line that says whose side of a shared agent's computer the Terminals section shows; null when it is all one person's (the agent's own, as its owner sees it). */
 export function whoseSide(agentName: string, ownPlace: boolean, others: number): string | null {
-  const count = others === 1 ? "1 terminal of another person is open here." : `${others} terminals of other people are open here.`;
-  if (ownPlace) return others > 0 ? `Your own space on ${agentName}'s computer. ${count}` : `Your own space on ${agentName}'s computer.`;
+  const count =
+    others === 1 ? "1 terminal of another person is open here." : `${others} terminals of other people are open here.`;
+  if (ownPlace)
+    return others > 0
+      ? `Your own space on ${agentName}'s computer. ${count}`
+      : `Your own space on ${agentName}'s computer.`;
   return others > 0 ? count : null;
 }

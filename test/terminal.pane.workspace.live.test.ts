@@ -127,7 +127,14 @@ test(
       await s.close();
       if (agentId !== "") {
         await docker(["rm", "-f", `vyre-ws-${agentId}`]);
-        await docker(["volume", "rm", "-f", `vyre-ws-${agentId}-home`, `vyre-ws-${agentId}-files`, `vyre-ws-${agentId}-people`]);
+        await docker([
+          "volume",
+          "rm",
+          "-f",
+          `vyre-ws-${agentId}-home`,
+          `vyre-ws-${agentId}-files`,
+          `vyre-ws-${agentId}-people`,
+        ]);
       }
     }
   },

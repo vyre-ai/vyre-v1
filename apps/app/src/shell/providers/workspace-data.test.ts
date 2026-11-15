@@ -286,9 +286,34 @@ test("a row that only says someone else's terminal is there is counted and never
   const { workspaceView } = await import("./workspace-data.ts");
   const AG = "agt_nova";
   const rows = [
-    { terminalId: "trm_mine", name: "bea", host: "agent_computer", agentId: AG, state: "idle" as const, cwd: "/people/u20000", by: { kind: "person" as const }, ownerId: "usr_bea" },
-    { terminalId: "trm_ada", name: "Someone else's terminal", host: "agent_computer", agentId: AG, state: "idle" as const, cwd: "", elsewhere: true },
-    { terminalId: "trm_ada2", name: "Someone else's terminal", host: "agent_computer", agentId: AG, state: "running" as const, cwd: "", elsewhere: true },
+    {
+      terminalId: "trm_mine",
+      name: "bea",
+      host: "agent_computer",
+      agentId: AG,
+      state: "idle" as const,
+      cwd: "/people/u20000",
+      by: { kind: "person" as const },
+      ownerId: "usr_bea",
+    },
+    {
+      terminalId: "trm_ada",
+      name: "Someone else's terminal",
+      host: "agent_computer",
+      agentId: AG,
+      state: "idle" as const,
+      cwd: "",
+      elsewhere: true,
+    },
+    {
+      terminalId: "trm_ada2",
+      name: "Someone else's terminal",
+      host: "agent_computer",
+      agentId: AG,
+      state: "running" as const,
+      cwd: "",
+      elsewhere: true,
+    },
   ];
   const v = workspaceView(AG, { state: "running", canAttach: true, ownPlace: true }, rows);
   assert.deepEqual(

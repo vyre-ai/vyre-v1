@@ -258,10 +258,14 @@ export async function askerPlaceFor(
     raise(ctx, "permission.role_lacks_permission", "This person is no longer in the Space.", { reason: "person_gone" });
   const uid = uidOf(ctx.db, person, ctx.now());
   if (uid === null)
-    raise(ctx, "provider.unavailable", "This computer has no room for more people. Ask an admin.", { reason: "no_uid" });
+    raise(ctx, "provider.unavailable", "This computer has no room for more people. Ask an admin.", {
+      reason: "no_uid",
+    });
   // may they read what Files shows them of the agent's folder (the mirror): Files' own view rule, as them
   const folder = got.agent?.folderId;
-  const files = folder !== undefined && ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: folder }).effect === "allow";
+  const files =
+    folder !== undefined &&
+    ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: folder }).effect === "allow";
   return askerPlace(person, uid, files);
 }
 
@@ -722,7 +726,10 @@ async function foreign(ctx: TermCtx, x: SessionRow, facts: Facts): Promise<boole
   if (hasOwnPlace(got.agent, x.agentId, x.owner)) return true; // someone's own place
   if (!hasOwnPlace(got.agent, x.agentId, me)) return false; // the agent's owner, or no way to tell: as before
   // the caller has a place of their own: the agent's own terminals are not theirs unless they manage the agent (an agent working for them is never a manager)
-  return ctx.principal.kind !== "person" || ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow";
+  return (
+    ctx.principal.kind !== "person" ||
+    ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow"
+  );
 }
 
 /** What a terminal row says about a terminal that is not the caller's to see into. */
@@ -964,7 +971,10 @@ async function needOwnPlace(ctx: TermCtx, x: SessionRow): Promise<void> {
   if (x.owner === me) return;
   const mine = await askerPlaceFor(ctx, x.agentId, me);
   if (mine === undefined) return;
-  if (ctx.principal.kind === "agent" || ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow")
+  if (
+    ctx.principal.kind === "agent" ||
+    ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow"
+  )
     refuse();
 }
 
@@ -989,7 +999,9 @@ async function regrant(ctx: TermCtx, agentId: string, place: AskerPlace): Promis
     raise(
       ctx,
       "provider.unavailable",
-      e instanceof Error && e.message.startsWith("What this person") ? e.message : "What you may reach on this computer could not be set just now. Try again.",
+      e instanceof Error && e.message.startsWith("What this person")
+        ? e.message
+        : "What you may reach on this computer could not be set just now. Try again.",
       { reason: "grant_failed" },
     );
   }
@@ -1033,7 +1045,8 @@ async function ensureChatFolder(ctx: TermCtx, agentId: string, person: string, t
 }
 
 /** The variables a person's place sets or that point the shell, tmux, ssh or git at another place (also the ones a shell reads before a command: BASH_ENV, PROMPT_COMMAND and the like). */
-const PLACE_ENV = /^(HOME|HISTFILE|HISTSIZE|XDG_.*|TMPDIR|TMUX.*|GIT_SSH.*|GIT_CONFIG.*|SSH_.*|GNUPGHOME|PATH|LD_.*|SHELL|USER|LOGNAME|BASH_ENV|ENV|PROMPT_COMMAND|BASH_FUNC_.*|IFS|CDPATH)$/;
+const PLACE_ENV =
+  /^(HOME|HISTFILE|HISTSIZE|XDG_.*|TMPDIR|TMUX.*|GIT_SSH.*|GIT_CONFIG.*|SSH_.*|GNUPGHOME|PATH|LD_.*|SHELL|USER|LOGNAME|BASH_ENV|ENV|PROMPT_COMMAND|BASH_FUNC_.*|IFS|CDPATH)$/;
 
 /** Is this a terminal in an agent's computer that a manager of the agent may close because the person who opened it is no longer an active member of the Space? */
 async function orphanClosable(ctx: TermCtx, x: SessionRow): Promise<boolean> {
@@ -1075,7 +1088,11 @@ function needKeyboard(ctx: TermCtx, x: SessionRow): void {
     }
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
   }
-  if (ctx.principal.kind === "agent" && x.agentId !== undefined && workspaceHolder(ctx.db, x.agentId, now, x.owner) !== null)
+  if (
+    ctx.principal.kind === "agent" &&
+    x.agentId !== undefined &&
+    workspaceHolder(ctx.db, x.agentId, now, x.owner) !== null
+  )
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
 }
 
@@ -1641,7 +1658,11 @@ async function workspaceRead(ctx: TermCtx, input: { agentId: string }) {
       cannotAttach: "There is no workspace to attach to.",
     };
   const own = (await askerPlaceFor(ctx, input.agentId, actorOf(ctx)).catch(() => undefined)) !== undefined;
-  return { ...st, canAttach: st.state === "running" || st.state === "asleep" || st.state === "none", ...(own ? { ownPlace: true } : {}) };
+  return {
+    ...st,
+    canAttach: st.state === "running" || st.state === "asleep" || st.state === "none",
+    ...(own ? { ownPlace: true } : {}),
+  };
 }
 
 /** The session an agent's commands go to when it names none: one per agent, person, host and computer, kept so "Open terminal" shows the same screen. */
@@ -1699,7 +1720,11 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
   const hit = found[0];
   if (hit) return needAccess(ctx, sessionOf(hit));
   // while a person holds any terminal of this workspace, the agent opens no new tab to get around the hold
-  if (ctx.principal.kind === "agent" && agentId !== undefined && workspaceHolder(ctx.db, agentId, ctx.now(), owner) !== null)
+  if (
+    ctx.principal.kind === "agent" &&
+    agentId !== undefined &&
+    workspaceHolder(ctx.db, agentId, ctx.now(), owner) !== null
+  )
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held" });
   const spec: OpenInput = {
     host,
@@ -1806,7 +1831,9 @@ export async function run(ctx: TermCtx, a: RunInput) {
     const mine = await askerPlaceFor(ctx, s.agentId, owner);
     const bad = Object.keys(env).find((k) => PLACE_ENV.test(k));
     if (mine !== undefined && bad !== undefined)
-      raise(ctx, "validation.bad_input", `${bad} is set for you already; it cannot be changed.`, { reason: "place_env" });
+      raise(ctx, "validation.bad_input", `${bad} is set for you already; it cannot be changed.`, {
+        reason: "place_env",
+      });
   }
   const refs: HandleRef[] = [];
   let line = command;
@@ -2246,9 +2273,7 @@ export async function onUseGone(
   const sub = event.payload.subject;
   // a person's own grant names them; a group's or a role's grant may have reached any of the people who work there
   const named = sub?.kind === "person" && typeof sub.id === "string" ? [sub.id] : null;
-  const people = (
-    ctx.db.all("SELECT person FROM terminal_person_places WHERE agent_id = ?", agentId) as Row[]
-  )
+  const people = (ctx.db.all("SELECT person FROM terminal_person_places WHERE agent_id = ?", agentId) as Row[])
     .map((r) => String(r["person"]))
     .filter((p) => named === null || named.includes(p));
   const out: string[] = [];
@@ -2304,9 +2329,9 @@ export async function forgetExpiredPeople(
   if (!removeFrom || (ctx.db.all("SELECT 1 FROM terminal_person_gone LIMIT 1") as Row[]).length === 0) return [];
   const keep = await trashKeepMs(ctx);
   if (keep === null) return [];
-  const due = (
-    ctx.db.all("SELECT person FROM terminal_person_gone WHERE gone_at <= ?", ctx.now() - keep) as Row[]
-  ).map((r) => String(r["person"]));
+  const due = (ctx.db.all("SELECT person FROM terminal_person_gone WHERE gone_at <= ?", ctx.now() - keep) as Row[]).map(
+    (r) => String(r["person"]),
+  );
   const done: string[] = [];
   for (const person of due) {
     const uid = uidOf(ctx.db, person, ctx.now());

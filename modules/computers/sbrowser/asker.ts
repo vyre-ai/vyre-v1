@@ -26,7 +26,8 @@ export async function askerOfTurn(ctx: CompCtx): Promise<string | undefined> {
   if (!ctx.actingFor.startsWith("usr_")) return undefined;
   const who = await agentInfo(ctx, ctx.principal.id);
   // FAIL CLOSED: who owns the agent must be known; a failure to read it opens nothing, never the owner's profile (and is not remembered)
-  if (who === null) raise(ctx, "provider.unavailable", "Could not open the browser. Try again.", { reason: "agent_unreadable" });
+  if (who === null)
+    raise(ctx, "provider.unavailable", "Could not open the browser. Try again.", { reason: "agent_unreadable" });
   return hasOwnPlace(who, ctx.principal.id, ctx.actingFor) ? ctx.actingFor : undefined;
 }
 

@@ -22,7 +22,9 @@ const adaPays: ResolvedAccount = {
 } as ResolvedAccount;
 
 test("a message from Bea in Ada's chat runs for Bea, whoever's account pays; the spend still goes to the payer", async () => {
-  const p = scriptedProvider({ script: () => [{ type: "text", text: "ok" }, { type: "usage", inputTokens: 10, outputTokens: 4 }, { type: "done" }] });
+  const p = scriptedProvider({
+    script: () => [{ type: "text", text: "ok" }, { type: "usage", inputTokens: 10, outputTokens: 4 }, { type: "done" }],
+  });
   const e = createTurnEngine({ holder: "h", openSession: p.openSession, resolveAccount: async () => adaPays });
   e.openThread(thread);
   e.receive({ threadId: "T", author: { kind: "person", id: "ada" }, body: "from Ada" });

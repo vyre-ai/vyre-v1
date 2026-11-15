@@ -851,13 +851,12 @@ export function holderOf(db: Db, terminalId: string, now: number): string | null
  */
 export function workspaceHolder(db: Db, agentId: string, now: number, owner: string): string | null {
   if (!takeOverOn()) return null;
-  const inPlace = db.all("SELECT 1 AS n FROM terminal_person_places WHERE agent_id = ? AND person = ?", agentId, owner).length > 0;
+  const inPlace =
+    db.all("SELECT 1 AS n FROM terminal_person_places WHERE agent_id = ? AND person = ?", agentId, owner).length > 0;
   const r = (
     db.all(
       `SELECT h.person_id FROM terminal_hold h JOIN terminal_sessions t ON t.terminal_id = h.terminal_id WHERE t.agent_id = ? AND t.closed_at IS NULL AND h.seen >= ? AND ${
-        inPlace
-          ? "t.owner = ?"
-          : "t.owner NOT IN (SELECT person FROM terminal_person_places WHERE agent_id = ?)"
+        inPlace ? "t.owner = ?" : "t.owner NOT IN (SELECT person FROM terminal_person_places WHERE agent_id = ?)"
       } LIMIT 1`,
       agentId,
       now - HOLD_IDLE_MS,

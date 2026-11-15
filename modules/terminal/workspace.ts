@@ -129,7 +129,10 @@ export interface WorkspaceOptions {
   /** The projects the agent is on, read when the workspace wakes: a change recreates the container (volumes stay), so the new project's folder is there. */
   projectsOf?: (agentId: string) => Promise<readonly string[]> | readonly string[];
   /** The projects of this agent a person is on, and whether they may write there (their role): what a person who uses the agent without owning it may reach under ~/projects. */
-  projectAccessOf?: (agentId: string, person: string) => Promise<ReadonlyArray<{ id: string; write: boolean }>> | ReadonlyArray<{ id: string; write: boolean }>;
+  projectAccessOf?: (
+    agentId: string,
+    person: string,
+  ) => Promise<ReadonlyArray<{ id: string; write: boolean }>> | ReadonlyArray<{ id: string; write: boolean }>;
   /** Behind the runner (a Team server) each workspace gets a network of its own, so one cannot reach another. */
   runner?: boolean;
   /**
@@ -285,10 +288,9 @@ export interface MountSpec {
 
 /** The label that says what a container was made with: its project folders, and the shared network when it is on it (a workspace made on the default bridge before 12 Nov is made again once, when quiet). */
 const stable = (m: MountSpec, net?: string): string =>
-  sha256Hex(JSON.stringify({ p: [...m.projects].sort(), h: 1, u: 1, ...(net === SHARED_NETWORK ? { n: net } : {}) })).slice(
-    0,
-    16,
-  );
+  sha256Hex(
+    JSON.stringify({ p: [...m.projects].sort(), h: 1, u: 1, ...(net === SHARED_NETWORK ? { n: net } : {}) }),
+  ).slice(0, 16);
 
 /**
  * Where workspaces live on an engine with no runner in front (a Personal Space with Docker Desktop, a Team server on the computers socket option): one network for all of them with traffic between
@@ -426,7 +428,14 @@ export function reviewWorkspaceConfig(c: ContainerConfig, agentId: string): stri
       !(src.startsWith(PROJECT_VOLUME_PREFIX) && PROJECT_ID.test(src.slice(PROJECT_VOLUME_PREFIX.length)))
     )
       bad.push(`volume ${src} is not this workspace's`);
-    if (!(guest === WORKSPACE_HOME || guest === FILES_GUEST || guest === PEOPLE_GUEST || guest.startsWith(`${PROJECTS_GUEST}/`)))
+    if (
+      !(
+        guest === WORKSPACE_HOME ||
+        guest === FILES_GUEST ||
+        guest === PEOPLE_GUEST ||
+        guest.startsWith(`${PROJECTS_GUEST}/`)
+      )
+    )
       bad.push(`binds into ${guest}`);
   }
   if (Object.keys(h.Tmpfs).some((k) => k !== "/tmp")) bad.push("a tmpfs other than /tmp");
@@ -2207,10 +2216,12 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     const r = await m.exec(agentId, ensureCommand(place), { user: place.uid });
     if (r.code === SQUATTED) throw wsError("That folder was made by someone else.", "squatted");
     // what of the agent's home reaches them: the projects they are on and, when Files shows it to them, the mirror (as the agent's own user: it owns those folders)
-    if (r.code !== 0) throw wsError(`The folder of this person could not be made (${r.stderr.trim().slice(0, 120)}).`, "unavailable");
+    if (r.code !== 0)
+      throw wsError(`The folder of this person could not be made (${r.stderr.trim().slice(0, 120)}).`, "unavailable");
     const projects = await m.projectAccess(agentId, place.person);
     const g = await m.exec(agentId, grantCommand(place, projects));
-    if (g.code !== 0) throw wsError(`What this person may reach could not be set (${g.stderr.trim().slice(0, 120)}).`, "unavailable");
+    if (g.code !== 0)
+      throw wsError(`What this person may reach could not be set (${g.stderr.trim().slice(0, 120)}).`, "unavailable");
   }
 
   /** The tmux host of a workspace, or of one person's tmux server in it (a person who uses the shared agent without owning it, asker.ts). */

@@ -221,7 +221,10 @@ test("attach, read, type, interrupt, resize and close on a workspace session are
   }
   assert.equal(host.calls.length, before, "nothing reached the machine");
   // Dana, who does not own Dex, works in a place of her own (her own Unix user): an admin does not enter it, whoever they are (F30)
-  assert.equal((await failure(() => h["terminal.attach"]!(admin, { terminalId: run.terminalId }))).reason, "others_place");
+  assert.equal(
+    (await failure(() => h["terminal.attach"]!(admin, { terminalId: run.terminalId }))).reason,
+    "others_place",
+  );
   // a session of the agent itself (a turn for nobody) is the agent's own: an admin attaches to a team agent's workspace and sees the same screen
   const own = await call({ ...hn.as(AGENT, undefined, "run_2"), thread: "thr_chat" }, "terminal.run", {
     command: "echo hi",

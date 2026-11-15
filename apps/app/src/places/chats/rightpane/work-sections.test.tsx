@@ -664,7 +664,10 @@ test("mounted: a press that fails for another reason says why in one line, never
 test("whose side of the computer the Terminals section shows: a person's own space, and the terminals of others as a count", async () => {
   const { whoseSide } = await import("./work-model.ts");
   assert.equal(whoseSide("Nova", true, 0), "Your own space on Nova's computer.");
-  assert.equal(whoseSide("Nova", true, 2), "Your own space on Nova's computer. 2 terminals of other people are open here.");
+  assert.equal(
+    whoseSide("Nova", true, 2),
+    "Your own space on Nova's computer. 2 terminals of other people are open here.",
+  );
   assert.equal(whoseSide("Nova", false, 1), "1 terminal of another person is open here.");
   assert.equal(whoseSide("Nova", false, 0), null, "the owner of an agent with nobody else on it reads nothing extra");
 });

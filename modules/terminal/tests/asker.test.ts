@@ -38,7 +38,10 @@ test("a place is a Unix user's folder with a history file, config and cache fold
     ensure.includes("mkdir -m 700") && ensure.includes(`exit ${SQUATTED}`),
     "made 0700 by the person's own user; a folder of someone else's is refused",
   );
-  assert.ok(ensure.includes("Your files are in Files. This is your own home on this computer."), "the first line a person reads");
+  assert.ok(
+    ensure.includes("Your files are in Files. This is your own home on this computer."),
+    "the first line a person reads",
+  );
   assert.deepEqual(removeCommand(p).slice(-1), [p.home]);
 });
 
@@ -261,25 +264,50 @@ test("F30: a terminal in a person's own place takes keys, commands, Ctrl-C and t
     ["another person's agent", ana],
     ["a turn for nobody", nobody],
   ] as const) {
-    assert.equal(await reason(() => h["terminal.input"]!(ctx, { terminalId: id, data: "ls\n" })), "others_place", `${who}: keys`);
-    assert.equal(await reason(() => h["terminal.interrupt"]!(ctx, { terminalId: id })), "others_place", `${who}: Ctrl-C`);
+    assert.equal(
+      await reason(() => h["terminal.input"]!(ctx, { terminalId: id, data: "ls\n" })),
+      "others_place",
+      `${who}: keys`,
+    );
+    assert.equal(
+      await reason(() => h["terminal.interrupt"]!(ctx, { terminalId: id })),
+      "others_place",
+      `${who}: Ctrl-C`,
+    );
     assert.equal(
       await reason(() => h["terminal.run"]!(ctx, { command: "echo hi", terminalId: id, idempotencyKey: idem() })),
       "others_place",
       `${who}: a command in that session`,
     );
   }
-  assert.equal(await reason(() => h["terminal.take_over"]!(maya, { terminalId: id })), "others_place", "the owner cannot take the keyboard");
+  assert.equal(
+    await reason(() => h["terminal.take_over"]!(maya, { terminalId: id })),
+    "others_place",
+    "the owner cannot take the keyboard",
+  );
   // Ben's own person, and his agent acting for him, are in
-  assert.equal(await reason(() => h["terminal.input"]!(w.person("usr_ben"), { terminalId: id, data: "ls\n" })), "allowed");
-  assert.equal(await reason(() => h["terminal.input"]!(w.turn("usr_ben"), { terminalId: id, data: "ls\n" })), "allowed");
+  assert.equal(
+    await reason(() => h["terminal.input"]!(w.person("usr_ben"), { terminalId: id, data: "ls\n" })),
+    "allowed",
+  );
+  assert.equal(
+    await reason(() => h["terminal.input"]!(w.turn("usr_ben"), { terminalId: id, data: "ls\n" })),
+    "allowed",
+  );
   // Ben takes the keyboard of his own terminal: still nobody else types in it
   await h["terminal.take_over"]!(w.person("usr_ben"), { terminalId: id });
   assert.notEqual(await reason(() => h["terminal.input"]!(maya, { terminalId: id, data: "ls\n" })), "allowed");
-  assert.equal(await reason(() => h["terminal.input"]!(w.person("usr_ben"), { terminalId: id, data: "ls\n" })), "allowed", "the holder's own keys");
+  assert.equal(
+    await reason(() => h["terminal.input"]!(w.person("usr_ben"), { terminalId: id, data: "ls\n" })),
+    "allowed",
+    "the holder's own keys",
+  );
   // the owner's own session (in the agent's own home) is unchanged: the owner types in it
   const mine = await h["terminal.run"]!(w.turn("usr_maya"), { command: "echo hi", idempotencyKey: idem() });
-  assert.equal(await reason(() => h["terminal.input"]!(maya, { terminalId: mine.terminalId, data: "ls\n" })), "allowed");
+  assert.equal(
+    await reason(() => h["terminal.input"]!(maya, { terminalId: mine.terminalId, data: "ls\n" })),
+    "allowed",
+  );
 });
 
 test("F30: FAIL CLOSED at every terminal door: if the agent's facts cannot be read, keys, Ctrl-C and commands into a session of a person are refused, then work once they can be read", async () => {
@@ -307,10 +335,24 @@ test("F30: FAIL CLOSED at every terminal door: if the agent's facts cannot be re
 
 test("F30: a turn in a person's own place cannot set the variables that point the shell elsewhere", async () => {
   const w = setup({ ownerId: "usr_maya", kind: "agent" });
-  for (const k of ["HOME", "HISTFILE", "XDG_CONFIG_HOME", "TMUX_TMPDIR", "GIT_SSH_COMMAND", "SSH_AUTH_SOCK", "PATH", "BASH_ENV", "PROMPT_COMMAND"]) {
+  for (const k of [
+    "HOME",
+    "HISTFILE",
+    "XDG_CONFIG_HOME",
+    "TMUX_TMPDIR",
+    "GIT_SSH_COMMAND",
+    "SSH_AUTH_SOCK",
+    "PATH",
+    "BASH_ENV",
+    "PROMPT_COMMAND",
+  ]) {
     let r: unknown = "allowed";
     try {
-      await h["terminal.run"]!(w.turn("usr_ben"), { command: "echo hi", env: { [k]: "/home/agent" }, idempotencyKey: idem() });
+      await h["terminal.run"]!(w.turn("usr_ben"), {
+        command: "echo hi",
+        env: { [k]: "/home/agent" },
+        idempotencyKey: idem(),
+      });
     } catch (e) {
       r = (e as { error?: { details?: { reason?: unknown } } }).error?.details?.reason ?? codeOf(e);
     }
@@ -318,7 +360,11 @@ test("F30: a turn in a person's own place cannot set the variables that point th
   }
   // an ordinary variable is fine, and the owner is not bound
   await h["terminal.run"]!(w.turn("usr_ben"), { command: "echo hi", env: { MODE: "x" }, idempotencyKey: idem() });
-  await h["terminal.run"]!(w.turn("usr_maya"), { command: "echo hi", env: { HOME: "/home/agent" }, idempotencyKey: idem() });
+  await h["terminal.run"]!(w.turn("usr_maya"), {
+    command: "echo hi",
+    env: { HOME: "/home/agent" },
+    idempotencyKey: idem(),
+  });
 });
 
 test("what reaches a person in the agent's home is a list of file-system grants: the projects they are on at their level, the Files mirror only when Files shows it, and nothing else", () => {
@@ -331,11 +377,17 @@ test("what reaches a person in the agent's home is a list of file-system grants:
   const none = grantCommand(askerPlace("usr_cy", 20002, false), []);
   assert.deepEqual(none.slice(4), ["20002", "0"]);
   const script = c[2] ?? "";
-  assert.ok(script.includes("chmod 700") && script.includes('--x'), "closed to everyone, then opened by name, execute-only on the way");
+  assert.ok(
+    script.includes("chmod 700") && script.includes("--x"),
+    "closed to everyone, then opened by name, execute-only on the way",
+  );
 });
 
 test("F30: a person who may only use the agent, and an agent working for them, have their place and no more: the agent's own terminals and the owner's are not theirs to type in or read", async () => {
-  const w = setup({ ownerId: "usr_maya", kind: "agent" }, (type, _id, level) => !(type === "agent" && level === "manage"));
+  const w = setup(
+    { ownerId: "usr_maya", kind: "agent" },
+    (type, _id, level) => !(type === "agent" && level === "manage"),
+  );
   // the agent's own terminal (a turn for nobody) and the owner's turn's terminal are in the agent's own home
   const own = await h["terminal.run"]!(w.turn(undefined), { command: "echo hi", idempotencyKey: idem() });
   const maya = await h["terminal.run"]!(w.turn("usr_maya"), { command: "echo hi", idempotencyKey: idem() });
@@ -359,11 +411,18 @@ test("F30: a person who may only use the agent, and an agent working for them, h
     ] as const) {
       // a person is told it is not theirs; an agent working for them, that it is not in their place
       const reason = ctx === bea ? "terminal_not_yours" : "others_place";
-      assert.equal(await refused(() => h["terminal.input"]!(ctx, { terminalId: id, data: "ls\n" })), reason, `${who}: ${what}`);
+      assert.equal(
+        await refused(() => h["terminal.input"]!(ctx, { terminalId: id, data: "ls\n" })),
+        reason,
+        `${who}: ${what}`,
+      );
       assert.equal(await refused(() => h["terminal.read"]!(ctx, { terminalId: id })), reason, `${who} reads: ${what}`);
     }
   }
   // her own terminal, opened by her turn, is hers
   const hers = await h["terminal.run"]!(beaTurn, { command: "echo hi", idempotencyKey: idem() });
-  assert.equal(await refused(() => h["terminal.input"]!(bea, { terminalId: hers.terminalId, data: "ls\n" })), "allowed");
+  assert.equal(
+    await refused(() => h["terminal.input"]!(bea, { terminalId: hers.terminalId, data: "ls\n" })),
+    "allowed",
+  );
 });

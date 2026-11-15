@@ -1280,7 +1280,8 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
     fleet
       ? async (agentId, thread, place) => {
           const made = await fleet.exec(agentId, chatFolderCommand(thread, place?.uid));
-          if (made.code !== 0) throw new Error(`the chat's folder could not be made (${made.stderr.trim().slice(0, 120)})`);
+          if (made.code !== 0)
+            throw new Error(`the chat's folder could not be made (${made.stderr.trim().slice(0, 120)})`);
           await fleet.exec(agentId, chatLinkCommand(thread, place?.home ?? "/home/agent"), {
             ...(place === undefined ? {} : { user: place.uid }),
           });
