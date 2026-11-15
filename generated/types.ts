@@ -16765,6 +16765,25 @@ export type FilesViewerDataOut = {
     exportedAt: number;
     editVia: "provider_api" | "open_in_provider";
   };
+  connected?: {
+    provider: string;
+    viewOnly?: boolean;
+    notSent?: {
+      reason: string;
+      goneThere?: boolean;
+    };
+    writesAs?: {
+      by: string;
+      email?: string;
+    };
+    changedThere?: {
+      by?: {
+        name?: string;
+        email?: string;
+      };
+      at?: number;
+    };
+  };
   canEdit: boolean;
   canMark: boolean;
   canComment: boolean;
@@ -20507,6 +20526,8 @@ export type GoogleDriveCopyFileOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
 };
 export type GoogleDriveCreateFolderIn = {
@@ -20531,6 +20552,8 @@ export type GoogleDriveCreateFolderOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
 };
 export type GoogleDriveDownloadFileIn = {
@@ -20584,6 +20607,8 @@ export type GoogleDriveGetFileOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
 };
 export type GoogleDriveGetPermissionsIn = {
@@ -20623,6 +20648,8 @@ export type GoogleDriveListChangesOut = {
           name?: string;
           email?: string;
         };
+        trashed?: boolean;
+        canEdit?: boolean;
       };
     }>;
   newStartPageToken?: string;
@@ -20652,6 +20679,8 @@ export type GoogleDriveListFilesOut = {
         name?: string;
         email?: string;
       };
+      trashed?: boolean;
+      canEdit?: boolean;
     }>;
   nextPageToken?: string;
 };
@@ -20702,6 +20731,35 @@ export type GoogleDriveTrashFileIn = {
 export type GoogleDriveTrashFileOut = {
   trashed: boolean;
 };
+export type GoogleDriveUpdateFileIn = {
+  connectionId: string;
+  as?: string;
+  fileId: string;
+  name?: string;
+  addParentId?: string;
+  removeParentId?: string;
+  trashed?: boolean;
+  idempotencyKey: string;
+};
+export type GoogleDriveUpdateFileOut = {
+  file: {
+    id: string;
+    name: string;
+    mimeType: string;
+    parents?: Array<string>;
+    modifiedTime?: string;
+    size?: number;
+    webViewLink?: string;
+    driveId?: string;
+    headRevisionId?: string;
+    lastModifyingUser?: {
+      name?: string;
+      email?: string;
+    };
+    trashed?: boolean;
+    canEdit?: boolean;
+  };
+};
 export type GoogleDriveUploadFileIn = {
   connectionId: string;
   as?: string;
@@ -20727,6 +20785,8 @@ export type GoogleDriveUploadFileOut = {
       name?: string;
       email?: string;
     };
+    trashed?: boolean;
+    canEdit?: boolean;
   };
   stale?: boolean;
 };
@@ -29082,6 +29142,7 @@ export type MountsAddIn = {
   name?: string;
   mode?: "server_copy" | "live_only";
   reviewChanges?: boolean;
+  readOnly?: boolean;
   idempotencyKey: string;
 };
 export type MountsAddOut = {
@@ -29188,6 +29249,9 @@ export type MountsGetOut = {
     lastSyncAt?: number;
     pendingChanges: number;
     conflicts: number;
+    readOnly: boolean;
+    twoWayOffer?: boolean;
+    scanned?: number;
     fromDevice?: string;
     error?: string;
     skippedCount?: number;
@@ -29243,6 +29307,9 @@ export type MountsListOut = {
       lastSyncAt?: number;
       pendingChanges: number;
       conflicts: number;
+      readOnly: boolean;
+      twoWayOffer?: boolean;
+      scanned?: number;
       fromDevice?: string;
       error?: string;
       skippedCount?: number;
@@ -29303,6 +29370,22 @@ export type MountsOpenOut = {
       name?: string;
       email?: string;
     };
+    viewOnly?: boolean;
+    notSent?: {
+      reason: string;
+      goneThere?: boolean;
+    };
+    writesAs?: {
+      by: string;
+      email?: string;
+    };
+    changedThere?: {
+      by?: {
+        name?: string;
+        email?: string;
+      };
+      at?: number;
+    };
   };
 };
 export type MountsPauseIn = {
@@ -29317,6 +29400,14 @@ export type MountsRemoveIn = {
 };
 export type MountsRemoveOut = {
   removed: boolean;
+};
+export type MountsResolveIn = {
+  fileId: string;
+  choice: "keep_both" | "use_theirs" | "keep_here" | "discard";
+};
+export type MountsResolveOut = {
+  resolved: boolean;
+  copyName?: string;
 };
 export type MountsRestoreIn = {
   fileId: string;
@@ -29349,6 +29440,16 @@ export type MountsSheetReadIn = {
 export type MountsSheetReadOut = {
   values: Array<Array<unknown>>;
 };
+export type MountsSheetTabsIn = {
+  fileId: string;
+};
+export type MountsSheetTabsOut = {
+  tabs: Array<{
+      title: string;
+      rows?: number;
+      columns?: number;
+    }>;
+};
 export type MountsSheetWriteIn = {
   fileId: string;
   sheet?: string;
@@ -29361,6 +29462,7 @@ export type MountsSheetWriteOut = {
 };
 export type MountsSyncNowIn = {
   mountId: string;
+  auto?: boolean;
   idempotencyKey: string;
 };
 export type MountsSyncNowOut = {
@@ -29388,6 +29490,9 @@ export type MountsUpdateOut = {
     lastSyncAt?: number;
     pendingChanges: number;
     conflicts: number;
+    readOnly: boolean;
+    twoWayOffer?: boolean;
+    scanned?: number;
     fromDevice?: string;
     error?: string;
     skippedCount?: number;
@@ -29936,6 +30041,7 @@ export type MsDriveGetItemOut = {
       email?: string;
     };
   };
+  renamedTo?: string;
 };
 export type MsDriveListItemsIn = {
   connectionId: string;
@@ -29978,6 +30084,29 @@ export type MsDriveListVersionsOut = {
       };
     }>;
 };
+export type MsDriveRestoreItemIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  idempotencyKey: string;
+};
+export type MsDriveRestoreItemOut = {
+  item: {
+    id: string;
+    name: string;
+    size?: number;
+    lastModifiedDateTime?: string;
+    folder?: boolean;
+    webUrl?: string;
+    parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
+  };
+};
 export type MsDriveShareItemIn = {
   connectionId: string;
   as?: string;
@@ -30011,6 +30140,33 @@ export type MsDriveUnsubscribeIn = {
 export type MsDriveUnsubscribeOut = {
   removed: boolean;
 };
+export type MsDriveUpdateItemIn = {
+  connectionId: string;
+  as?: string;
+  driveId?: string;
+  itemId: string;
+  name?: string;
+  parentId?: string;
+  ifMatch?: string;
+  idempotencyKey: string;
+};
+export type MsDriveUpdateItemOut = {
+  item?: {
+    id: string;
+    name: string;
+    size?: number;
+    lastModifiedDateTime?: string;
+    folder?: boolean;
+    webUrl?: string;
+    parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
+  };
+  stale?: boolean;
+};
 export type MsDriveUploadItemIn = {
   connectionId: string;
   as?: string;
@@ -30038,6 +30194,7 @@ export type MsDriveUploadItemOut = {
     };
   };
   stale?: boolean;
+  renamedTo?: string;
 };
 export type MsHealthIn = Record<string, unknown>;
 export type MsHealthOut = {
@@ -48763,6 +48920,7 @@ export interface CapMap {
   "google.drive.share_file": { in: GoogleDriveShareFileIn; out: GoogleDriveShareFileOut };
   "google.drive.stop_watch": { in: GoogleDriveStopWatchIn; out: GoogleDriveStopWatchOut };
   "google.drive.trash_file": { in: GoogleDriveTrashFileIn; out: GoogleDriveTrashFileOut };
+  "google.drive.update_file": { in: GoogleDriveUpdateFileIn; out: GoogleDriveUpdateFileOut };
   "google.drive.upload_file": { in: GoogleDriveUploadFileIn; out: GoogleDriveUploadFileOut };
   "google.drive.watch_changes": { in: GoogleDriveWatchChangesIn; out: GoogleDriveWatchChangesOut };
   "google.dwd.check_key": { in: GoogleDwdCheckKeyIn; out: GoogleDwdCheckKeyOut };
@@ -49207,10 +49365,12 @@ export interface CapMap {
   "mounts.open": { in: MountsOpenIn; out: MountsOpenOut };
   "mounts.pause": { in: MountsPauseIn; out: MountsPauseOut };
   "mounts.remove": { in: MountsRemoveIn; out: MountsRemoveOut };
+  "mounts.resolve": { in: MountsResolveIn; out: MountsResolveOut };
   "mounts.restore": { in: MountsRestoreIn; out: MountsRestoreOut };
   "mounts.resume": { in: MountsResumeIn; out: MountsResumeOut };
   "mounts.sheet_append": { in: MountsSheetAppendIn; out: MountsSheetAppendOut };
   "mounts.sheet_read": { in: MountsSheetReadIn; out: MountsSheetReadOut };
+  "mounts.sheet_tabs": { in: MountsSheetTabsIn; out: MountsSheetTabsOut };
   "mounts.sheet_write": { in: MountsSheetWriteIn; out: MountsSheetWriteOut };
   "mounts.sync_now": { in: MountsSyncNowIn; out: MountsSyncNowOut };
   "mounts.update": { in: MountsUpdateIn; out: MountsUpdateOut };
@@ -49252,9 +49412,11 @@ export interface CapMap {
   "ms.drive.get_item": { in: MsDriveGetItemIn; out: MsDriveGetItemOut };
   "ms.drive.list_items": { in: MsDriveListItemsIn; out: MsDriveListItemsOut };
   "ms.drive.list_versions": { in: MsDriveListVersionsIn; out: MsDriveListVersionsOut };
+  "ms.drive.restore_item": { in: MsDriveRestoreItemIn; out: MsDriveRestoreItemOut };
   "ms.drive.share_item": { in: MsDriveShareItemIn; out: MsDriveShareItemOut };
   "ms.drive.subscribe": { in: MsDriveSubscribeIn; out: MsDriveSubscribeOut };
   "ms.drive.unsubscribe": { in: MsDriveUnsubscribeIn; out: MsDriveUnsubscribeOut };
+  "ms.drive.update_item": { in: MsDriveUpdateItemIn; out: MsDriveUpdateItemOut };
   "ms.drive.upload_item": { in: MsDriveUploadItemIn; out: MsDriveUploadItemOut };
   "ms.health": { in: MsHealthIn; out: MsHealthOut };
   "ms.mail.create_draft": { in: MsMailCreateDraftIn; out: MsMailCreateDraftOut };
@@ -52385,7 +52547,7 @@ export type MountConflictPayload = {
   folderId: string;
   fileId: string;
   name: string;
-  keptAs: string;
+  keptAs?: string;
 };
 export type MountFailedPayload = {
   mountId: string;

@@ -56,6 +56,7 @@ type Out = {
     };
   };
   stale?: boolean;
+  renamedTo?: string;
 };
 ```
 
@@ -100,6 +101,7 @@ type Out = {
       "size": 1,
       "webUrl": "example"
     },
+    "renamedTo": "example",
     "stale": true
   }
 }
