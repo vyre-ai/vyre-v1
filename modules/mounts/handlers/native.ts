@@ -6,7 +6,7 @@
 // agent that must change one does it through the provider's own structured API (Docs batchUpdate, Sheets values, Graph workbook ranges): the change lands in the real file, shows in its version history
 // under the agent's name, and the snapshot follows on the next sync. These go through the provider capabilities as the asker, so the provider's own permissions decide what an agent may do; Vyre adds the
 // Files grant (Edit on the file for a write) and the Gate act of the underlying write.
-import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, VyreError } from "../../../packages/contracts/src/types.ts";
 import { googleAppOf } from "./providers.ts";
@@ -31,7 +31,7 @@ function refuse(ctx: Ctx, code: ErrorCode, message: string): never {
   throw new VyreErr(error);
 }
 
-const codeOf = (e: unknown): string => (e instanceof VyreErr ? e.error.code : "");
+const codeOf = (e: unknown): string => vyreErrorOf(e)?.code ?? "";
 
 export type LinkType =
   | "google_doc"
@@ -184,7 +184,7 @@ export async function fileLink(ctx: Ctx, input: unknown): Promise<Row> {
   try {
     d = await describe(ctx, located);
   } catch (e) {
-    if (e instanceof VyreErr && SOFT.has(codeOf(e))) return { reason: e.error.message };
+    if (SOFT.has(codeOf(e))) return { reason: vyreErrorOf(e)?.message ?? "" };
     throw e;
   }
   if (d.webUrl === undefined) return { reason: "The provider gave no address for this file." };

@@ -20,7 +20,7 @@
 
 import { mintUuid } from "../../../lib/ids.ts";
 import { isHostService } from "../../../lib/trust.ts";
-import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { displayName, freeNames, nameSeries } from "./names.ts";
 export { displayName, freeNames };
@@ -84,9 +84,9 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
   throw new VyreErr(error);
 }
 
-const codeOf = (e: unknown): string | undefined => (e instanceof VyreErr ? e.error.code : undefined);
+const codeOf = (e: unknown): string | undefined => vyreErrorOf(e)?.code;
 const messageOf = (e: unknown): string =>
-  e instanceof VyreErr ? e.error.message : e instanceof Error ? e.message : "The sync failed.";
+  vyreErrorOf(e)?.message ?? (e instanceof Error ? e.message : "The sync failed.");
 
 /** Codes that mean the provider itself cannot be reached or does not allow Vyre in: these stop a pass and make the mount failing. Anything else is about one item. */
 const MOUNT_LEVEL =
@@ -964,6 +964,7 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
           ctx.now(),
         );
       }
+      if (up.between !== undefined) await keepTheirsBeside(ctx, m, provider, f, up.between, label);
       ctx.emit("mount.file_sent", `folder/${m.folderId}`, {
         mountId: m.id,
         folderId: m.folderId,
@@ -990,6 +991,54 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
     }
   }
   return res;
+}
+
+/**
+ * The upload went out, but someone saved another revision at the provider after the one the edit was based on and before the upload landed (the check and the upload are two calls). That revision was
+ * written over, so it is kept: its content comes back as a new file beside this one ("Report (Kim's version).docx"), and the row says who changed it and when. Nothing is lost and nobody is left unaware.
+ */
+async function keepTheirsBeside(
+  ctx: Ctx,
+  m: MountRec,
+  provider: Provider,
+  row: Row,
+  between: { revisionId: string; by?: { name?: string; email?: string }; at?: number },
+  label: string,
+): Promise<void> {
+  const who = between.by?.name ?? between.by?.email ?? "Someone";
+  const at = between.at !== undefined ? ` at ${new Date(between.at).toISOString().slice(0, 16).replace("T", " ")} UTC` : "";
+  let beside = "";
+  try {
+    if (provider.revisionBlob !== undefined) {
+      const blob = await provider.revisionBlob(ctx, m, { remoteId: str(row["remote_id"]), revisionId: between.revisionId });
+      const name = str(row["name"]);
+      const dot = name.lastIndexOf(".");
+      const first = who.split(/[\s@]/)[0] ?? who;
+      beside = dot > 0 ? `${name.slice(0, dot)} (${first}'s version)${name.slice(dot)}` : `${name} (${first}'s version)`;
+      const folder = ((await ctx.call("files.get", { fileId: str(row["file_id"]) })) as { file: { folderId: string } }).file.folderId;
+      await ctx.call("files.create", {
+        folderId: folder,
+        name: beside,
+        content: { blobId: blob.blobId },
+        ...(blob.mime !== undefined ? { mime: blob.mime } : {}),
+        idempotencyKey: `mnt:between:${m.id}:${str(row["item_key"])}:${between.revisionId}`,
+      });
+    }
+  } catch (e) {
+    ctx.log.warn("mounts: their revision could not be kept beside the file", { mountId: m.id, rule: messageOf(e) });
+    beside = "";
+  }
+  patchItem(ctx, row, {
+    wait_reason: `${who} changed this at ${label}${at} while your edit was being sent. ${beside !== "" ? `Their version is saved beside it as "${beside}".` : `Their version is in the revision list at ${label}.`}`,
+    editor_name: between.by?.name ?? null,
+    editor_email: between.by?.email ?? null,
+  });
+  ctx.emit("mount.conflict", `folder/${m.folderId}`, {
+    mountId: m.id,
+    folderId: m.folderId,
+    fileId: str(row["file_id"]),
+    name: str(row["name"]),
+  });
 }
 
 /** Items waiting to go out (conflicted ones wait for a person, not for the next pass; a Google-native document only waits to be deleted, it is never uploaded). */

@@ -104,6 +104,15 @@ export function notImplemented(cap: string, trace: Pick<TraceContext, "traceId">
   };
 }
 
+/**
+ * The shaped error of whatever a call threw: a VyreErr made in this module, or the HostError a call to another module throws in a running daemon (the invoke path wraps it). Both carry `.error`, so a
+ * check for `instanceof VyreErr` on an error that came through ctx.call is wrong in a real daemon; read the code through this.
+ */
+export function vyreErrorOf(e: unknown): VyreError | undefined {
+  const x = (e as { error?: { code?: unknown; message?: unknown } } | null | undefined)?.error;
+  return x !== undefined && x !== null && typeof x.code === "string" && typeof x.message === "string" ? (x as VyreError) : undefined;
+}
+
 /** Thrown by handlers (and by generated not-implemented stubs); the gateway maps it to the HTTP status of its code. */
 export class VyreErr extends Error {
   error: VyreError;

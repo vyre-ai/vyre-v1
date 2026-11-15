@@ -18,6 +18,8 @@ export interface DFile {
   modified: string;
   by: { name: string; email: string };
   canEdit: boolean;
+  /** appProperties: what the creator stored on the file (Vyre keys its creates with one) */
+  props?: Record<string, string>;
 }
 
 const enc = new TextEncoder();
@@ -46,6 +48,12 @@ export function driveStandIn(o: DriveOptions) {
     denyWrites: false,
     /** pages of a list answer, to test a listing larger than one pass reads */
     pageSize: 1000,
+    /** the next N creates make the file and then answer 503 (the answer is lost, the file is there) */
+    createThen503: 0,
+    /** the next upload to this file finds another revision saved first (a change between the check and the upload) */
+    interpose: null as null | { id: string; text: string },
+    /** called with each request before it is answered: a test stops the daemon here */
+    onRequest: null as null | ((r: { method: string; path: string }) => void),
   };
   const stamp = (): string => new Date((clock += 1000)).toISOString();
 
@@ -66,6 +74,7 @@ export function driveStandIn(o: DriveOptions) {
       modified: time,
       by: f.by ?? me,
       canEdit: f.canEdit ?? true,
+      ...(f.props !== undefined ? { props: f.props } : {}),
     };
     files.set(id, file);
     changes.push(id);
@@ -112,6 +121,7 @@ export function driveStandIn(o: DriveOptions) {
       query,
       ...(typeof body === "string" ? { body: safeJson(body) } : {}),
     });
+    state.onRequest?.({ method, path: u.pathname });
     if (!claims(headers)) return { status: 401, json: { error: { code: 401 } } };
     if (state.down) return { status: state.down, json: { error: { code: state.down } } };
     if (u.pathname === "/drive/v3/changes/startPageToken") return { json: { startPageToken: String(changes.length) } };
@@ -147,6 +157,11 @@ export function driveStandIn(o: DriveOptions) {
         const f = files.get(decodeURIComponent(m[1]!));
         if (!f) return { status: 404, json: {} };
         if (!f.canEdit) return { status: 403, json: {} };
+        if (state.interpose && state.interpose.id === f.id) {
+          const i = state.interpose;
+          state.interpose = null;
+          elsewhere(i.id, i.text);
+        }
         f.head += 1;
         f.bytes = new Uint8Array(media);
         f.modified = stamp();
@@ -157,21 +172,33 @@ export function driveStandIn(o: DriveOptions) {
       }
       creates.push(String(meta["name"]));
       const parents = Array.isArray(meta["parents"]) ? (meta["parents"] as string[]) : ["root-folder"];
-      return {
-        json: view(
-          put(
-            { name: String(meta["name"]), parents, mimeType: String(meta["mimeType"] ?? "application/pdf") },
-            new Uint8Array(media),
-          ),
-        ),
-      };
+      const made = put(
+        {
+          name: String(meta["name"]),
+          parents,
+          mimeType: String(meta["mimeType"] ?? "application/pdf"),
+          ...(meta["appProperties"] ? { props: meta["appProperties"] as Record<string, string> } : {}),
+        },
+        new Uint8Array(media),
+      );
+      if (state.createThen503 > 0) {
+        state.createThen503 -= 1;
+        return { status: 503, json: { error: { code: 503 } } };
+      }
+      return { json: view(made) };
     }
     // files collection
     const one = /\/drive\/v3\/files\/([^/]+)(\/(revisions)(\/([^/]+))?|\/export)?$/.exec(u.pathname);
     if (u.pathname === "/drive/v3/files" && method === "GET") {
       const parent = /'([^']+)' in parents/.exec(query["q"] ?? "")?.[1];
       const live = (query["q"] ?? "").includes("trashed = false");
-      const all = [...files.values()].filter((f) => (!parent || f.parents.includes(parent)) && (!live || !f.trashed));
+      const keyed = /appProperties has \{ key='([^']+)' and value='((?:[^'\\]|\\.)*)' \}/.exec(query["q"] ?? "");
+      const all = [...files.values()].filter(
+        (f) =>
+          (!parent || f.parents.includes(parent)) &&
+          (!live || !f.trashed) &&
+          (!keyed || f.props?.[keyed[1]!] === keyed[2]!.replace(/\\(.)/g, "$1")),
+      );
       const at = Number(query["pageToken"] ?? 0);
       const page = all.slice(at, at + state.pageSize);
       return {
@@ -185,15 +212,17 @@ export function driveStandIn(o: DriveOptions) {
       const b = safeJson(typeof body === "string" ? body : "") as Record<string, unknown>;
       if (state.denyWrites) return { status: 403, json: {} };
       creates.push(String(b["name"]));
-      return {
-        json: view(
-          put({
-            name: String(b["name"]),
-            mimeType: String(b["mimeType"] ?? FOLDER),
-            parents: (b["parents"] as string[]) ?? ["root-folder"],
-          }),
-        ),
-      };
+      const made = put({
+        name: String(b["name"]),
+        mimeType: String(b["mimeType"] ?? FOLDER),
+        parents: (b["parents"] as string[]) ?? ["root-folder"],
+        ...(b["appProperties"] ? { props: b["appProperties"] as Record<string, string> } : {}),
+      });
+      if (state.createThen503 > 0) {
+        state.createThen503 -= 1;
+        return { status: 503, json: { error: { code: 503 } } };
+      }
+      return { json: view(made) };
     }
     if (!one) return undefined;
     const f = files.get(decodeURIComponent(one[1]!));

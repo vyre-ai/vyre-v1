@@ -11,7 +11,7 @@
 // Drive keeps a change feed (google.drive.list_changes since a page token) but no capability returns the first start token, so a Drive mount scans (a full listing, compared with what was mapped)
 // until a cursor is stored; once one is, every pass reads the feed. Graph returns a delta link with the first listing, so it is on the feed from the first pass.
 
-import { VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { dropbox } from "./dropbox-provider.ts";
 
@@ -128,6 +128,8 @@ export interface Uploaded {
   editor?: Person;
   /** nothing was written: the item at the provider is no longer the one the write was based on */
   stale?: boolean;
+  /** the write went out, but another revision had been saved there between the one it was based on and this one (the check and the upload are two calls): that revision is named here */
+  between?: { revisionId: string; by?: Person; at?: number };
 }
 
 export interface BrowseItem {
@@ -360,8 +362,7 @@ async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
     if (
       resuming &&
       !(
-        e instanceof VyreErr &&
-        /^(provider\.(unavailable|network|rate_limited|overloaded|auth_failed)|timeout\.)/.test(e.error.code)
+        /^(provider\.(unavailable|network|rate_limited|overloaded|auth_failed)|timeout\.)/.test(vyreErrorOf(e)?.code ?? "")
       )
     )
       return {
@@ -447,10 +448,9 @@ const google: Provider = {
         return await exported(mime);
       } catch (e) {
         if (
-          e instanceof VyreErr &&
-          (e.error.code.startsWith("provider.auth") ||
-            e.error.code === "provider.rate_limited" ||
-            e.error.code.startsWith("permission."))
+          ((vyreErrorOf(e)?.code ?? "").startsWith("provider.auth") ||
+            vyreErrorOf(e)?.code === "provider.rate_limited" ||
+            (vyreErrorOf(e)?.code ?? "").startsWith("permission."))
         )
           throw e;
         return exported("text/plain");
@@ -476,12 +476,36 @@ const google: Provider = {
       }),
     );
     const it = driveItem(obj(res["file"]));
+    // Drive has no If-Match on an upload: the check above and the upload are two calls. A revision saved between them was written over; it is still in Drive's revision list, and it is named here.
+    let between: Uploaded["between"];
+    if (res["stale"] !== true && a.remoteId !== undefined && a.ifMatch?.revision !== undefined && it?.revision !== undefined) {
+      try {
+        const revs = list(
+          obj(await ctx.call("google.drive.list_revisions", { ...withConnection(m), fileId: a.remoteId }))["revisions"],
+        ).map(obj);
+        const from = revs.findIndex((r) => text(r["id"]) === a.ifMatch?.revision);
+        const to = revs.findIndex((r) => text(r["id"]) === it.revision);
+        const mid = from >= 0 && to > from + 1 ? revs[from + 1] : undefined;
+        if (mid !== undefined) {
+          const by = personOf(obj(mid["lastModifyingUser"]), "name", "email");
+          const at = stamp(mid["modifiedTime"]);
+          between = {
+            revisionId: text(mid["id"]) ?? "",
+            ...(by !== undefined ? { by } : {}),
+            ...(at !== undefined ? { at } : {}),
+          };
+        }
+      } catch {
+        /* the revision list is a check on top of the write: a failure of it does not undo the write */
+      }
+    }
     return {
       remoteId: it?.id ?? a.remoteId ?? "",
       ...(it?.version !== undefined ? { version: it.version } : {}),
       ...(it?.revision !== undefined ? { revision: it.revision } : {}),
       ...(it?.editor !== undefined ? { editor: it.editor } : {}),
       ...(res["stale"] === true ? { stale: true } : {}),
+      ...(between !== undefined ? { between } : {}),
     };
   },
   hookPath: "/hooks/google/drive",

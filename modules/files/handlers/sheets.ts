@@ -14,7 +14,7 @@
 // Google Sheets: edited through the Sheets API, rows addressed g<row number> (the API does not give stable row ids, so a row deleted above shifts them); the mount tells which spreadsheet a file is.
 
 import { createRequire } from "node:module";
-import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { MAX_UPLOAD, openAtProvider, treeHandlers } from "./tree.ts";
@@ -571,7 +571,7 @@ async function edit<T>(
           reason: labelOf(ctx, label),
         });
       } catch (e) {
-        if (e instanceof VyreErr && e.error.code === "validation.version_conflict") continue;
+        if (vyreErrorOf(e)?.code === "validation.version_conflict") continue;
         throw e;
       }
       if (wrote.versionId !== undefined) {

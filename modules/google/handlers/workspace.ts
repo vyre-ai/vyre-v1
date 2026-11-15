@@ -1167,6 +1167,29 @@ function mapUser(u: Record<string, unknown>): { name?: string; email?: string } 
 }
 const shared = { supportsAllDrives: true } as const;
 const quote = (s: string): string => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+/**
+ * A create that timed out may have made the file: Drive makes it and the answer is lost, and a retry would make a second one. Every file or folder Vyre creates carries the request's key as an app
+ * property, and a create first looks for one that already has it and takes that one. The key is the same on every retry of one change.
+ */
+const KEY_PROP = "vyre_key";
+async function adopt(ctx: GoogleCtx, a: Act, cap: string, key: string | undefined, parentId: string | undefined) {
+  if (key === undefined || key === "") return undefined;
+  const r = await g(ctx, a, cap, "drive", {
+    url: `${DRIVE}/files`,
+    query: {
+      q: `appProperties has { key='${KEY_PROP}' and value='${quote(key)}' } and trashed = false${parentId ? ` and '${quote(parentId)}' in parents` : ""}`,
+      fields: `files(${FILE_FIELDS})`,
+      pageSize: 1,
+      ...shared,
+    },
+  });
+  const first = list(r.files)[0];
+  return first === undefined ? undefined : mapFile(obj(first));
+}
+const keyOf = (a: unknown): string | undefined => {
+  const k = (a as { idempotencyKey?: unknown }).idempotencyKey;
+  return typeof k === "string" ? k : undefined;
+};
 
 export async function driveList(
   ctx: GoogleCtx,
@@ -1264,6 +1287,11 @@ export async function driveUpload(
     );
     if (now.headRevisionId !== a.ifRevision) return { file: now, stale: true };
   }
+  if (a.remoteId === undefined) {
+    // a create that was sent before and not heard back: the file is there, and it is taken, not made again
+    const there = await adopt(ctx, a, "google.drive.upload_file", keyOf(a), a.parentId);
+    if (there !== undefined) return { file: there };
+  }
   const { token } = await bearer(ctx, {
     cap: "google.drive.upload_file",
     connectionId: a.connectionId,
@@ -1284,7 +1312,11 @@ export async function driveUpload(
           url: `${base}?uploadType=multipart&supportsAllDrives=true&fields=${enc(FILE_FIELDS)}`,
           token,
           fileId: a.fileId,
-          metadata: { name: a.name, ...(a.parentId ? { parents: [a.parentId] } : {}) },
+          metadata: {
+            name: a.name,
+            ...(a.parentId ? { parents: [a.parentId] } : {}),
+            ...(keyOf(a) !== undefined ? { appProperties: { [KEY_PROP]: keyOf(a) } } : {}),
+          },
         });
   return { file: mapFile(obj(answered)) };
 }
@@ -1324,6 +1356,8 @@ export async function driveRevisionDownload(ctx: GoogleCtx, a: Act & { fileId: s
 }
 
 export async function driveCreateFolder(ctx: GoogleCtx, a: Act & { name: string; parentId?: string }) {
+  const there = await adopt(ctx, a, "google.drive.create_folder", keyOf(a), a.parentId);
+  if (there !== undefined) return { file: there };
   const r = await g(ctx, a, "google.drive.create_folder", "drive", {
     method: "POST",
     url: `${DRIVE}/files`,
@@ -1332,6 +1366,7 @@ export async function driveCreateFolder(ctx: GoogleCtx, a: Act & { name: string;
       name: a.name,
       mimeType: "application/vnd.google-apps.folder",
       ...(a.parentId ? { parents: [a.parentId] } : {}),
+      ...(keyOf(a) !== undefined ? { appProperties: { [KEY_PROP]: keyOf(a) } } : {}),
     },
   });
   return { file: mapFile(r) };

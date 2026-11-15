@@ -4,7 +4,7 @@
 // @reads ../migrations/0001_files_tree.sql
 // Agent and UI writes both commit a version here. Changeset staging on Approve is a later packet.
 
-import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx, Sealed } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
@@ -1472,9 +1472,9 @@ export async function openAtProvider(
     // an agent's fetch waiting for approval has no content yet either
     if (!here && opened?.changesetId === undefined) {
       // the provider's own reason travels on when it is one a person can act on (sign-in, rate limit, the file is gone); anything else is the generic "not here just now"
-      const code = failure instanceof VyreErr ? failure.error.code : "";
+      const code = vyreErrorOf(failure)?.code ?? "";
       if (
-        failure instanceof VyreErr &&
+        vyreErrorOf(failure) !== undefined &&
         /^(provider\.(auth_failed|rate_limited|overloaded|network)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/.test(
           code,
         )

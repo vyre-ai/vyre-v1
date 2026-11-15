@@ -19,7 +19,7 @@
 // Limit: a folder moved INTO a mounted folder becomes one folder item; the files inside it are not adopted (they have no items). Move the files instead, or sync from the provider.
 
 import { mintUuid } from "../../../lib/ids.ts";
-import { VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { MountRec, Provider } from "./providers.ts";
 import { displayName, freeNames } from "./names.ts";
@@ -307,7 +307,7 @@ async function lookHere(ctx: Ctx, row: Row): Promise<Here | undefined> {
       ? { name: f.name, folderId: f.folderId }
       : undefined;
   } catch (e) {
-    if (e instanceof VyreErr && (e.error.code === "validation.not_found" || e.error.code === "permission.not_found"))
+    if (vyreErrorOf(e)?.code === "validation.not_found" || vyreErrorOf(e)?.code === "permission.not_found")
       return undefined;
     throw e;
   }
@@ -341,7 +341,7 @@ function namesAPassGives(row: Row, label: string): string[] {
 }
 
 const messageOf = (e: unknown): string =>
-  e instanceof VyreErr ? e.error.message : e instanceof Error ? e.message : "The move failed.";
+  vyreErrorOf(e)?.message ?? (e instanceof Error ? e.message : "The move failed.");
 
 /** The content of the item changed in Vyre and has not gone out (a rename alone never makes it upload a new revision). */
 export const contentWaits = (r: Row): boolean =>
@@ -354,7 +354,7 @@ export const opKey = (m: { id: string }, row: Row, what: string): string =>
 
 /** Why a rename or a move could not go out, in words a person can act on. */
 export function waitWords(e: unknown, label: string): string {
-  const code = e instanceof VyreErr ? e.error.code : "";
+  const code = vyreErrorOf(e)?.code ?? "";
   if (code === "provider.unavailable" || code === "provider.network" || code.startsWith("timeout."))
     return `${label} could not be reached. Vyre keeps this change and tries again by itself.`;
   if (code === "provider.rate_limited" || code === "provider.overloaded")
@@ -379,11 +379,11 @@ export async function pushMoves(
   const res: MovesPushed = { moved: 0, held: 0, errors: [] };
   if (!provider.pushes || m.pullOnly) return res;
   const settle = (row: Row, e: unknown): void => {
-    if (e instanceof VyreErr && e.error.code === "permission.needs_approval") res.held += 1;
+    if (vyreErrorOf(e)?.code === "permission.needs_approval") res.held += 1;
     else {
       patch(row, { wait_reason: waitWords(e, provider.label) });
       // only the provider itself being out of reach or refusing Vyre fails the mount; a change one item cannot take waits on that item
-      if (!(e instanceof VyreErr) || /^(provider\.|timeout\.|auth\.|rate_limit\.|internal\.)/.test(e.error.code))
+      if (vyreErrorOf(e) === undefined || /^(provider\.|timeout\.|auth\.|rate_limit\.|internal\.)/.test(vyreErrorOf(e)?.code ?? ""))
         res.errors.push(waitWords(e, provider.label));
     }
   };
