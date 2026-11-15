@@ -44,10 +44,17 @@ test("going back asks the engine for the point, hides from before the person's m
   assert.equal(out.restored, 2);
   const to = engineCalls.find((c) => c.cap === "engine.rewind.to")!.input;
   assert.equal(to.pointId, pointId);
-  assert.deepEqual(Object.keys(to).sort(), ["pointId", "threadId"], "the range is the engine's to derive: the chat sends none");
+  assert.deepEqual(
+    Object.keys(to).sort(),
+    ["pointId", "threadId"],
+    "the range is the engine's to derive: the chat sends none",
+  );
   const [line] = lines(hn, t);
   assert.equal(line!["body"], 'Went back to before "Add the uploads folder"');
-  assert.match(String(line!["blocks"]), /2 files put back, 1 file removed\. Messages stay\. Nothing already sent, no record and no task changes\./);
+  assert.match(
+    String(line!["blocks"]),
+    /2 files put back, 1 file removed\. Messages stay\. Nothing already sent, no record and no task changes\./,
+  );
 });
 
 test("an agent cannot go back for the person; an unknown point is not found", async () => {
@@ -68,7 +75,11 @@ test("an agent cannot go back for the person; an unknown point is not found", as
 test("in a chat with other people the line names who went back (the rule about whose message is the engine's, tested in modules/engine/tests/rewind.test.ts)", async () => {
   const { hn, t } = await world();
   await h["threads.members.add"]!(hn.ctx, { threadId: t, personId: MAYA });
-  const out = await h["chat.rewind"]!(hn.ctx, { threadId: t, pointId: `${INTAKE}.${"a".repeat(40)}`, idempotencyKey: key() });
+  const out = await h["chat.rewind"]!(hn.ctx, {
+    threadId: t,
+    pointId: `${INTAKE}.${"a".repeat(40)}`,
+    idempotencyKey: key(),
+  });
   assert.equal(out.restored, 2);
   const [line] = lines(hn, t);
   assert.match(String(line!["blocks"]), /"by":"usr_/, "the line names who went back");
@@ -82,10 +93,19 @@ test("a point finished after the agent began is said as during; a path that coul
         available: true,
         points: [{ pointId: `${INTAKE}.${"c".repeat(40)}`, at: 1, files: 1, after: "x", during: true }],
       }),
-      "engine.rewind.to": () => ({ restored: 1, removed: 0, failed: 2, failedPaths: ["a.txt", "b/c.txt"], undid: false, during: true, at: 1 }),
+      "engine.rewind.to": () => ({
+        restored: 1,
+        removed: 0,
+        failed: 2,
+        failedPaths: ["a.txt", "b/c.txt"],
+        undid: false,
+        during: true,
+        at: 1,
+      }),
     },
   });
-  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread
+    .threadId as string;
   await h["chat.rewind"]!(hn.ctx, { threadId: t, pointId: `${INTAKE}.${"c".repeat(40)}`, idempotencyKey: key() });
   const [line] = lines(hn, t);
   assert.equal(line!["body"], 'Went back to during "x"');
