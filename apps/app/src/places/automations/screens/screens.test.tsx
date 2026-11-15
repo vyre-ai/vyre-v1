@@ -161,7 +161,9 @@ test("head: the state in words, Test, and the one primary; a disabled Turn on sa
     find(root, "sv-primary")!.props["aria-disabled"] === true ||
       find(root, "sv-primary")!.props["accessibilityState"] !== undefined,
   );
-  assert.ok(textOf(root).includes("1 step needs you"));
+  // changed for AUTOMATIONS-BUILD-RC29 (round two, item 1): no banner line and no Version in the state line
+  assert.equal(textOf(root).includes("1 step needs you"), false);
+  assert.equal(/Version \d/.test(textOf(root)), false);
 });
 
 test("the run page: numbered rows, the failed step in words with its one fix, Not sent, and Values to open per step", async () => {

@@ -126,7 +126,6 @@ export function StoryView({
           <StoryActions story={story} on={on} />
         </View>
       )}
-      {h.primary?.why ? <Text style={[look.quiet, headless ? s.pad : null]}>{h.primary.why}</Text> : null}
       {/* ui-rows-lint: not a list (the bars above the steps) */}
       {story.bars.map((b) => (
         <View key={b.kind} style={s.bar}>
@@ -167,8 +166,6 @@ export function StoryView({
               </Text>
             );
           const split = r.kind === "trigger" ? splitHead(r.sentence) : null;
-          const lastTrigger =
-            r.kind === "trigger" && !story.rows.slice(story.rows.indexOf(r) + 1).some((x) => x.kind === "trigger");
           return (
             <View key={r.id}>
               <Pressable
@@ -228,17 +225,6 @@ export function StoryView({
                   ) : null}
                 </View>
               </Pressable>
-              {!readOnly && lastTrigger ? (
-                <Pressable
-                  testID="sv-add-trigger"
-                  accessibilityRole="button"
-                  accessibilityLabel="Add another thing that starts this"
-                  onPress={(e) => on("trigger", undefined, e)}
-                  style={s.slot}
-                >
-                  <Text style={look.quiet}>Or</Text>
-                </Pressable>
-              ) : null}
               {!readOnly && story.slots.includes(r.id) ? (
                 <Pressable
                   testID={`sv-slot-${r.id}`}

@@ -660,6 +660,9 @@ function Body({
           ? []
           : [{ label: "Promote to the Space", onSelect: () => setPromoteOpen(true) }]),
       ...(locked ? [{ label: "Ask an admin to change it", onSelect: askAdmin }] : []),
+      ...(locked || !model.rows.some((r) => r.kind === "trigger")
+        ? []
+        : [{ label: "Add another thing that starts this", onSelect: () => onAction("trigger") }]),
       ...(locked
         ? []
         : [
@@ -740,7 +743,7 @@ function Body({
   return (
     <Page
       title={a.name}
-      subtitle={`${a.status === "paused" && pausedWhy(a) ? `Paused. ${pausedWhy(a)}` : model.head.state} · Version ${a.version}`}
+      subtitle={`${a.status === "paused" && pausedWhy(a) ? `Paused. ${pausedWhy(a)}` : model.head.state}`}
       tabs={tabs}
       tab={tab}
       onTab={(t) => setTab(t as Tab)}

@@ -106,7 +106,8 @@ test("a trigger can be added by hand: an empty Automation shows one row, Choose 
     </AutomationsDataProvider>,
   );
   await flush();
-  assert.ok(find(root0, "sv-add-trigger"), "Or is offered after the trigger");
+  // changed for AUTOMATIONS-BUILD-RC29 (round two, item 1): no Or row under When; another trigger is added from the page menu
+  assert.equal(find(root0, "sv-add-trigger"), null, "no Or row");
   assert.equal(find(root0, "sv-choose-trigger"), null, "a trigger exists, so no empty row");
   void row;
   const s2 = createSampleAutomations(northwind);

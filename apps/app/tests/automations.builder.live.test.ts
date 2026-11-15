@@ -39,7 +39,6 @@ for (const look of LOOKS) {
       await page.getByTestId("claim-password").fill(PASSWORD);
       await page.getByTestId("claim-confirm").fill(PASSWORD);
       await page.getByTestId("claim-next").click();
-      await page.getByTestId("claim-saved").click();
       await page.getByTestId("claim-create").click();
       await dismissOnboarding(page);
       if (look.tag === "d") await page.getByTestId("shell").waitFor({ timeout: 30_000 });
@@ -80,7 +79,7 @@ for (const look of LOOKS) {
       await shot("d-picker-search");
       await page.getByTestId("pk-search").press("Enter");
       await page.waitForTimeout(1500);
-      await shot("c-builder-one-step");
+      await shot("1-step-needs-title");
       assert.equal(await page.getByText("Save", { exact: true }).count(), 0, "no Save button");
       assert.deepEqual(errors, [], "no page error");
       void id;
