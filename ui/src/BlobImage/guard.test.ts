@@ -37,6 +37,10 @@ const ALLOW: Record<string, string> = {
   "apps/app/src/places/apps/shell/form-preview.ts":
     "an HTML string for a sandboxed form preview, pictures the form author typed",
   "apps/app/src/places/chats/notes/parts.tsx": "note pictures are data addresses (notes.image)",
+  "ui/src/Viewer/rich/DocPage.tsx":
+    "a picture of a Word file: an object address made on this page from the file's own bytes (URL.createObjectURL in places/files/viewer/office.ts), never a Space blob address",
+  "ui/src/Viewer/rich/SlideView.tsx":
+    "a picture of a PowerPoint file: an object address made on this page from the file's own bytes (URL.createObjectURL in places/files/viewer/office.ts), never a Space blob address",
 };
 const DRAWS = /<Image\b|<img\b|createElement\(\s*"img"/;
 
