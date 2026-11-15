@@ -498,6 +498,12 @@ function List(): ReactElement {
   };
   const gridRows = useMemo(() => chunk(lines, layout.per), [lines, layout.per]);
 
+  // the list leaves when a file opens from it and comes back on Back: it returns scrolled where it was (kept per place and folder, for this session)
+  const memoryKey = `${state.where.kind}:${state.where.kind === "folder" ? (state.where.id ?? "") : ""}:${state.view}`;
+  const scrollMemory = useMemo(
+    () => ({ get: () => SCROLLED.get(memoryKey) ?? 0, set: (y: number) => void SCROLLED.set(memoryKey, y) }),
+    [memoryKey],
+  );
   const title =
     state.where.kind === "folder"
       ? state.where.id === null
@@ -672,7 +678,13 @@ function List(): ReactElement {
             {...({ onKeyDown, tabIndex: 0 } as object)}
           >
             {grid ? (
-              <VirtualList data={gridRows} rowHeight={layout.height} keyOf={gridKey} renderItem={renderGridRow} />
+              <VirtualList
+                data={gridRows}
+                rowHeight={layout.height}
+                keyOf={gridKey}
+                renderItem={renderGridRow}
+                scrollMemory={scrollMemory}
+              />
             ) : (
               <>
                 {phone ? null : <ColumnHeader sort={state.sort} dir={state.dir} wide={wide} onSort={sortBy} />}
@@ -681,6 +693,7 @@ function List(): ReactElement {
                   rowHeight={phone ? PHONE_ROW : LIST_ROW}
                   keyOf={lineKey}
                   renderItem={renderLine}
+                  scrollMemory={scrollMemory}
                 />
               </>
             )}
@@ -702,6 +715,9 @@ function List(): ReactElement {
 }
 
 const ZONE = { flex: 1, minWidth: 0 };
+
+/** Where each list was scrolled to, by place and folder. */
+const SCROLLED = new Map<string, number>();
 
 export function FilesList(): ReactElement {
   const data = useOptionalFilesData();

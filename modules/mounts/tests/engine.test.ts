@@ -406,9 +406,12 @@ test("a folder name already taken is refused; a provider failure marks the mount
   w.google.failWith = vyreErr("provider.auth_failed", "The provider rejected the key or sign-in.");
   const { mountId, folderId } = await addDrive(w);
   const bad = await view(w, mountId);
-  assert.deepEqual([bad["state"], bad["error"]], ["failing", "The provider rejected the key or sign-in."]);
+  assert.deepEqual(
+    [bad["state"], bad["error"]],
+    ["failing", "Google Drive no longer accepts the sign-in. Reconnect it."],
+  );
   assert.deepEqual(w.named("mount.failed"), [
-    { mountId, folderId, error: "The provider rejected the key or sign-in." },
+    { mountId, folderId, error: "Google Drive no longer accepts the sign-in. Reconnect it." },
   ]);
   assert.equal(w.named("mount.synced").length, 0);
   w.advance(120_000);
@@ -822,5 +825,5 @@ test("lag health: healthy when idle, degraded by lag or failures, down at an hou
   h = await call(w, "mounts.lag", {});
   assert.equal(h["state"], "down", "every active mount is failing");
   assert.match(String(h["detail"]), /2 mounts failing/);
-  assert.equal((await view(w, a.mountId))["error"], "The provider or connected app is down.");
+  assert.equal((await view(w, a.mountId))["error"], "Google Drive could not be reached. Vyre tries again by itself.");
 });

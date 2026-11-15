@@ -462,3 +462,119 @@ test("cumulative root and descendant files are bounded before retained arrays gr
     /retained.*item|item.*limit/i,
   );
 });
+
+test("a Space with one mounted file that was fetched and one that cannot be: the first is whole, the second is NOT a 0-byte file, and the export says by name what it left out and why", async () => {
+  const f = fixture();
+  let fetched = false;
+  const live = (fileId: string, name: string) => ({
+    fileId,
+    folderId: "fld_space",
+    name,
+    kind: "pdf",
+    mime: "application/pdf",
+    size: 0,
+    version: 1,
+    label: 0,
+    source: { mountId: "mnt_d", provider: "Google Drive" },
+  });
+  const bytes = Buffer.from("real pdf bytes");
+  const read = async (cap: string, input: any): Promise<any> => {
+    // the two mounted files stand beside nothing else: Plan.pdf can be fetched, Notes.pdf cannot (Drive is down for it)
+    if (cap === "files.list" && input.folder)
+      return {
+        ...(await f.read(cap, input)),
+        files: [live("fil_plan", "Plan.pdf"), live("fil_notes", "Notes.pdf")],
+        total: 2,
+      };
+    if (input?.fileId === "fil_notes") {
+      assert.equal(cap, "files.read", `nothing but the fetch is asked of a file that cannot be fetched (${cap})`);
+      throw Object.assign(new Error("down"), { error: { code: "provider.unavailable" } });
+    }
+    if (input?.fileId === "fil_plan") {
+      if (cap === "files.read" && input.length === 1) {
+        fetched = true;
+        return { base64: "", size: 0, version: 1, mime: "application/pdf", truncated: false };
+      }
+      if (fetched && cap === "files.get")
+        return { file: { ...live("fil_plan", "Plan.pdf"), size: bytes.length, version: 2 } };
+      if (fetched && cap === "files.versions")
+        return { versions: [{ versionId: "ver_2", n: 2, at: 1, by: "usr_owner" }] };
+      if (fetched && cap === "files.read")
+        return {
+          base64: bytes.toString("base64"),
+          size: bytes.length,
+          version: 2,
+          mime: "application/pdf",
+          truncated: false,
+        };
+    }
+    return f.read(cap, input);
+  };
+  const out = (await collectSpaceExport({
+    space: "spc_fixture",
+    requester: "usr_owner",
+    read,
+    recordScope: async () => "shared",
+    assertOwner: async () => undefined,
+    head: async () => 7,
+    now: () => 1000,
+  })) as { entries: { path: string; bytes: Uint8Array }[]; manifest: any };
+  const text = (path: string): string | undefined => {
+    const e = out.entries.find((x) => x.path === path);
+    return e === undefined ? undefined : Buffer.from(e.bytes).toString();
+  };
+  assert.equal(text("files/fil_plan/versions/ver_2.bin"), "real pdf bytes", "the fetched file is whole in the archive");
+  assert.ok(
+    !out.entries.some((e) => e.path.includes("fil_notes")),
+    "the file that could not be fetched is not in the archive at all, so no 0-byte file stands in for it",
+  );
+  assert.deepEqual(
+    out.manifest.leftOut.map((l: any) => [l.name, l.reason]),
+    [["Notes.pdf", "Google Drive could not be reached"]],
+  );
+  assert.match(text("NOT-EXPORTED.txt") ?? "", /Notes\.pdf: Google Drive could not be reached/);
+  assert.ok(!(text("NOT-EXPORTED.txt") ?? "").includes("Plan.pdf"), "the page names only what was left out");
+  assert.equal(out.manifest.files.length, 1);
+});
+
+test("a Google Doc that was never opened (size 0, no copy to fetch) is left out and named like any other file, and one such file does not fail the export", async () => {
+  const f = fixture();
+  const read = async (cap: string, input: any): Promise<any> => {
+    if (cap === "files.list" && input.folder)
+      return {
+        ...(await f.read(cap, input)),
+        files: [
+          {
+            fileId: "fil_doc",
+            folderId: "fld_space",
+            name: "Plan (Doc)",
+            kind: "google_native",
+            mime: "application/vnd.google-apps.document",
+            size: 0,
+            version: 1,
+            label: 0,
+            source: { mountId: "mnt_d", provider: "Google Drive" },
+          },
+        ],
+        total: 1,
+      };
+    if (input?.fileId === "fil_doc") {
+      assert.equal(cap, "files.read", `only the fetch is asked (${cap})`);
+      throw Object.assign(new Error("open it in Google Docs"), { error: { code: "validation.unsupported" } });
+    }
+    return f.read(cap, input);
+  };
+  const out = (await collectSpaceExport({
+    space: "spc_fixture",
+    requester: "usr_owner",
+    read,
+    recordScope: async () => "shared",
+    assertOwner: async () => undefined,
+    head: async () => 7,
+    now: () => 1000,
+  })) as { entries: { path: string; bytes: Uint8Array }[]; manifest: any };
+  const page = out.entries.find((e) => e.path === "NOT-EXPORTED.txt");
+  assert.match(Buffer.from(page!.bytes).toString(), /Plan \(Doc\): Google Drive keeps it as its own kind of file/);
+  assert.equal(out.manifest.leftOut[0].name, "Plan (Doc)");
+  assert.ok(!out.entries.some((e) => e.path.includes("fil_doc")));
+});

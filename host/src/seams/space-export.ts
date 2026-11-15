@@ -32,6 +32,17 @@ export function credentialContent(text: string, secrets: readonly string[] = [])
     /https?:\/\/[^\s/]+:[^\s/]+@/i.test(text)
   );
 }
+/** Why a file that lives at its provider could not be fetched for the archive, in a sentence a person reads. */
+function leftOutReason(code: string, provider: string): string {
+  if (code.startsWith("auth.") || code === "provider.auth_failed") return `the sign-in to ${provider} has expired`;
+  if (code.startsWith("rate_limit.") || code === "provider.rate_limited")
+    return `${provider} asked to wait and try again`;
+  if (code === "validation.not_found") return `it was removed in ${provider}`;
+  if (code === "validation.unsupported")
+    return `${provider} keeps it as its own kind of file and Vyre has no copy of it to save`;
+  return `${provider} could not be reached`;
+}
+
 export async function collectSpaceExport(o: ExportReader): Promise<{
   entries: Entry[];
   manifest: Obj;
@@ -39,6 +50,7 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
   const started = o.now(),
     entries: Entry[] = [],
     exclusions: Obj[] = [],
+    leftOut: Obj[] = [],
     records: Obj[] = [],
     files: Obj[] = [],
     chats: Obj[] = [],
@@ -249,7 +261,8 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
     } while (cursor);
   }
   json("files/folders.json", sanitize(folders, "folder", o.space));
-  for (const file of fileRows) {
+  for (const row0 of fileRows) {
+    let file = row0;
     const id = safeId(file.fileId);
     if (!seenFolders.has(file.folderId)) {
       const folder = (await read("files.folder.get", { folderId: file.folderId })).folder;
@@ -259,6 +272,35 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
       }
     }
     if (file.deletedAt !== undefined) continue;
+    // a file that lives at its provider and was never opened is an empty placeholder here. The archive holds its real bytes, or leaves the file out and says so by name and why; an empty file is never
+    // written where a document should be, and one file the provider cannot give does not stop the whole export. Reading it fetches it; the file is read again so its size and version are the fetched ones.
+    if (file.size === 0 && file.source !== undefined) {
+      try {
+        await read("files.read", { fileId: id, as: "base64", offset: 0, length: 1 });
+        file = (await read("files.get", { fileId: id })).file ?? file;
+        // a Google file (a Doc) that was never opened and still has nothing Vyre can save after the fetch is left out too
+        if (file.kind === "google_native" && file.size === 0)
+          throw Object.assign(new Error("no copy"), { error: { code: "validation.unsupported" } });
+      } catch (e) {
+        const code =
+          (e as { error?: { code?: string }; code?: string } | null)?.error?.code ??
+          (e as { code?: string } | null)?.code;
+        if (
+          !/^(provider\.|timeout\.|auth\.|rate_limit\.|validation\.not_found|validation\.unsupported)/.test(
+            String(code),
+          )
+        )
+          throw e;
+        const provider = String(file.source.provider ?? "its provider");
+        leftOut.push({
+          fileId: id,
+          name: String(file.name ?? id),
+          provider,
+          reason: leftOutReason(String(code), provider),
+        });
+        continue;
+      }
+    }
     const versionsOut = await read("files.versions", { fileId: id });
     if (!Array.isArray(versionsOut.versions) || !versionsOut.versions.length)
       throw new SpaceExportError(`Retained versions are unavailable for ${id}.`);
@@ -459,6 +501,19 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
   await o.assertOwner();
   if (after !== before || o.revision?.() !== mutationBefore)
     throw new SpaceExportError("The Space changed during export. Retry to get a consistent snapshot.");
+  // the files this archive does not hold, by name and why: in the manifest and as a page at the top of the archive's files
+  if (leftOut.length > 0)
+    add(
+      "NOT-EXPORTED.txt",
+      enc.encode(
+        [
+          `${leftOut.length === 1 ? "1 file is" : `${leftOut.length} files are`} not in this export. Each lives in another service and could not be fetched. Export again when it can be reached.`,
+          "",
+          ...leftOut.map((l) => `${String(l.name).replace(/[\r\n]+/g, " ")}: ${String(l.reason)}`),
+          "",
+        ].join("\n"),
+      ),
+    );
   const manifest = {
     format: "vyre-space-export",
     version: 1,
@@ -483,6 +538,7 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
     chats,
     settings: { scope: "space", count: spaceSettings.length },
     exclusions,
+    leftOut,
     privateCategoriesExcluded: [
       "personal_files",
       "private_and_group_chats",

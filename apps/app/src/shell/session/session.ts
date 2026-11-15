@@ -659,13 +659,30 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
         throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
       const send = o.fetch ?? (globalThis as { fetch?: typeof fetch }).fetch;
       if (!send) throw new Error("This device cannot upload");
-      const r = await send(new URL(path, o.baseUrl).toString(), {
+      const to = new URL(path, o.baseUrl);
+      if (to.origin !== new URL(o.baseUrl).origin) throw new Error("The upload did not go through");
+      const r = await send(to.toString(), {
         method: "PUT",
         headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" },
         body: bytes as unknown as BodyInit,
       });
       if (!r.ok)
         throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
+    },
+    blobOrigin: new URL(o.baseUrl).origin,
+    fetchBlobUrl: async (path) => {
+      if (token === null)
+        throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
+      const send = o.fetch ?? (globalThis as { fetch?: typeof fetch }).fetch;
+      if (!send) throw new Error("This device cannot load a picture");
+      // the token goes only to this Space: an address on another host (a reply or a document can name any) is never fetched with it
+      const at = new URL(path, o.baseUrl);
+      if (at.origin !== new URL(o.baseUrl).origin) throw new Error("The picture did not load");
+      const r = await send(at.toString(), { headers: { authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error("The picture did not load");
+      const url = (globalThis as { URL?: { createObjectURL?(b: Blob): string } }).URL;
+      if (!url?.createObjectURL) throw new Error("This device cannot show a picture");
+      return url.createObjectURL(await r.blob());
     },
     ...(aiHome === "here" || door ? { unlockVault } : {}),
     aiHome,
