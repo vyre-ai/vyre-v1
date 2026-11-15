@@ -121,7 +121,8 @@ export function Feed({
     const mark = (): void => {
       lastInput.current = Date.now();
     };
-    const kinds = ["wheel", "touchstart", "touchmove", "keydown", "pointerdown"];
+    // "vyre-restore": the shell putting a remembered position back (apps/app/src/shell/tabs/view-memory.ts); that position is the person's own
+    const kinds = ["wheel", "touchstart", "touchmove", "keydown", "pointerdown", "vyre-restore"];
     for (const k of kinds) node.addEventListener(k, mark, { passive: true });
     return () => {
       for (const k of kinds) node.removeEventListener(k, mark);

@@ -4,6 +4,19 @@
 // enough and gives up when the person scrolls, so it never fights a hand. Held for this session only.
 const MAX_ADDRESSES = 200;
 const END_SLACK = 24;
+/**
+ * A position that is put back is the person's own position. A scroll area that follows its end (a chat's feed) takes a move that comes with no wheel, touch or key
+ * for its own and keeps following; told first, it knows the person is up the page and leaves them there when the page re-wraps (a side pane opening).
+ */
+export const RESTORE_EVENT = "vyre-restore";
+function ownMove(el: { dispatchEvent?: (e: Event) => boolean }): void {
+  try {
+    if (typeof Event === "function") el.dispatchEvent?.(new Event(RESTORE_EVENT));
+  } catch {
+    /* a view with no events keeps its position without it */
+  }
+}
+
 /** How long a returning view may take to fill before it is left alone. */
 export const RESTORE_MS = 1500;
 
@@ -191,10 +204,16 @@ export function startViewMemory(
           let ok = false;
           if (mark !== null && mark !== undefined && el.getBoundingClientRect !== undefined) {
             const drift = mark.getBoundingClientRect().top - el.getBoundingClientRect().top - (w.anchor?.off ?? 0);
-            if (Math.abs(drift) > 1) el.scrollTop = el.scrollTop + drift;
+            if (Math.abs(drift) > 1) {
+              ownMove(el);
+              el.scrollTop = el.scrollTop + drift;
+            }
             ok = true;
           } else if ((w.anchor === undefined || now() - t0 > 600) && el.scrollHeight - el.clientHeight >= w.y - 1) {
-            if (Math.abs(el.scrollTop - w.y) > 1) el.scrollTop = w.y;
+            if (Math.abs(el.scrollTop - w.y) > 1) {
+              ownMove(el);
+              el.scrollTop = w.y;
+            }
             ok = true;
           }
           if (ok) {
