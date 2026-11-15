@@ -36,6 +36,7 @@ export function YouScreen({ data, nav }: { data: YouData; nav: MobileNav }): Rea
       note: data.starred === 0 ? "Nothing starred" : `${data.starred} starred`,
       icon: "star",
     },
+    { key: "automations", title: "Automations", note: "What runs for you", icon: "work" },
     { key: "settings", title: "Settings", note: "Profile, appearance, notifications", icon: "settings" },
   ];
   const list: ReactElement[] = [];

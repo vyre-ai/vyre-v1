@@ -972,3 +972,16 @@ test("a step whose mailbox, number or connection the run's person may not use st
       return true;
     });
 });
+
+// AUTOMATIONS-BUILD-RC29 round three, item 6: "Test this step" on a step that sends or posts changes nothing: the stand-in answers and no call goes out
+test("steps.test on a text and a chat post answers from the stand-in and calls nothing", async () => {
+  const h = harness();
+  for (const [key, input] of [
+    ["send_sms", { to: "+14155550100", body: "hi" }],
+    ["post_message", { channelId: "chn_a1b2c3", text: "hi" }],
+  ] as const) {
+    const r = (await stepsTest(h.ctx, { key, input })) as { stubbed: boolean };
+    assert.equal(r.stubbed, true, `${key} is stubbed`);
+  }
+  assert.equal(h.log.length, 0, "nothing went out");
+});

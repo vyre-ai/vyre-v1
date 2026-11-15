@@ -1,0 +1,1 @@
+- Ask Vyre can build an Automation from a sentence: each action you name becomes its own step, in order, and the steps appear on the page as a proposal that you accept or discard. Nothing is saved or turned on until you accept.

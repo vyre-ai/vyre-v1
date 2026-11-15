@@ -16,10 +16,14 @@ HTTP 422. Retryable: no.
 - agents.routine.delegate
 - agents.routine.run_now
 - agents.suggestion.accept
+- automations.draft.propose
+- automations.draft.save
 - automations.http_read
 - automations.http_send
+- automations.make_live
 - automations.migrate_runs
 - automations.promote
+- automations.proposal.accept
 - automations.replay
 - automations.set_enabled
 - automations.watches.check
@@ -27,7 +31,3 @@ HTTP 422. Retryable: no.
 - changesets.approve
 - changesets.edit
 - chat.answer_block
-- chat.approve_plan
-- chat.aside_keep
-- chat.crew_line
-- chat.fork

@@ -33,8 +33,13 @@ import {
   saveVersion,
   touch,
   versionById,
+  dropDraft,
+  versionDefinition,
+  findDraft,
+  writeDraft,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
+import { shapeIssues } from "../shape.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
 import { accountUseIssues } from "../account-use.ts";
 import { guardKeySteps, recordStepHosts, usableKeyIds } from "../key-steps.ts";
@@ -46,6 +51,7 @@ import { admit, contractOf } from "../val.ts";
 import { containsSecret } from "../trust.ts";
 import { missingMessage } from "../../../lib/words/step-missing.ts";
 import type { Alerts, AutoCtx, Automation, Db, Definition, Grant, Node, Policy } from "../projections.ts";
+import { findProposal, proposalOut } from "../proposals.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -322,7 +328,7 @@ function hasPastedSecret(value: unknown): boolean {
   });
 }
 
-function refuseSecret(ctx: AutoCtx, def: Definition): void {
+export function refuseSecret(ctx: AutoCtx, def: Definition): void {
   if (!hasPastedSecret(def)) return;
   raise(ctx, "validation.bad_input", "A definition cannot hold a secret. Use a connection.", { reason: "secret" });
 }
@@ -732,7 +738,19 @@ async function blocksGoingLive(
 
 export async function get(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
-  return { automation: out(a), canEdit: await canChangeSpace(ctx, a) };
+  const d = findDraft(ctx.db, a.id);
+  const p = findProposal(ctx.db, a.id);
+  // a run's page reads the version the run RAN on (pinned), not the definition as it is now
+  const ran =
+    typeof input.version === "number" && input.version !== a.version
+      ? versionDefinition(ctx.db, a.id, input.version)
+      : undefined;
+  return {
+    automation: ran ? { ...out(a), definition: ran } : out(a),
+    canEdit: await canChangeSpace(ctx, a),
+    ...(d ? { draft: { definition: d.definition, rev: d.rev, baseVersion: d.baseVersion, by: d.by, at: d.at } } : {}),
+    ...(p ? { proposal: proposalOut(p) } : {}),
+  };
 }
 
 /** Who may see an Automation: the owner, a follower, a service caller, or anyone the kernel lets view it. */
@@ -905,8 +923,8 @@ export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
 
 const EMPTY: Definition = { triggers: [{ key: "manual" }], nodes: [] };
 
-function checkStructure(ctx: AutoCtx, def: Definition): void {
-  const bad = structuralIssues(def);
+export function checkStructure(ctx: AutoCtx, def: Definition): void {
+  const bad = [...structuralIssues(def), ...shapeIssues(def).map((x) => issue("error", x.message, x.nodeId))];
   if (bad.length) raise(ctx, "validation.bad_input", bad[0]!.message, { issues: bad });
 }
 
@@ -1014,6 +1032,75 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields });
   await runsAsMoved(ctx, a, wasRunsAs, "save");
   return { automation: out(a) };
+}
+
+const STALE = "Someone else changed this Automation while you were editing. Reload to see their version.";
+const draftOut = (ctx: AutoCtx, a: Automation): Record<string, unknown> => {
+  const d = findDraft(ctx.db, a.id);
+  return {
+    automation: out(a),
+    ...(d ? { draft: { definition: d.definition, rev: d.rev, baseVersion: d.baseVersion, by: d.by, at: d.at } } : {}),
+  };
+};
+
+/**
+ * Save the edit as a draft as the person goes (AUTOMATIONS-BUILD-RC29, 1c). A write carries what it read: the version, and the draft's rev when a draft existed.
+ * An Off Automation has no live side, so its draft is the Automation itself and is saved as a version at once. An On one keeps the draft apart until Make live.
+ */
+export async function draftSave(ctx: AutoCtx, input: In): Promise<unknown> {
+  const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
+  const d = findDraft(ctx.db, a.id);
+  if (a.status !== "on") {
+    if (d) dropDraft(ctx.db, a.id);
+    if (input.expectedVersion !== undefined && input.expectedVersion !== a.version)
+      raise(ctx, "validation.version_conflict", STALE, { current: a.version, expected: input.expectedVersion });
+    await update(ctx, { automationId: a.id, definition: input.definition, expectedVersion: a.version });
+    return draftOut(ctx, getAutomation(ctx, a.id));
+  }
+  const readRev: number | undefined = input.expectedRev;
+  if (d ? readRev !== d.rev : input.expectedVersion !== undefined && input.expectedVersion !== a.version)
+    raise(ctx, "validation.version_conflict", STALE, { current: d?.rev ?? a.version, expected: readRev });
+  if (d && d.baseVersion !== a.version)
+    raise(ctx, "validation.version_conflict", STALE, { current: a.version, expected: d.baseVersion });
+  checkStructure(ctx, input.definition);
+  refuseSecret(ctx, input.definition);
+  if (same(input.definition, a.definition)) {
+    dropDraft(ctx.db, a.id);
+    return draftOut(ctx, a);
+  }
+  writeDraft(ctx.db, a.id, {
+    definition: input.definition,
+    baseVersion: a.version,
+    rev: (d?.rev ?? 0) + 1,
+    by: me(ctx),
+    at: ctx.now(),
+  });
+  emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields: ["draft"] });
+  return draftOut(ctx, a);
+}
+
+export async function draftDiscard(ctx: AutoCtx, input: In): Promise<unknown> {
+  const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
+  dropDraft(ctx.db, a.id);
+  emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields: ["draft"] });
+  return draftOut(ctx, a);
+}
+
+/** Make the draft the next live version. Runs already started finish on the version they started. */
+export async function makeLive(ctx: AutoCtx, input: In): Promise<unknown> {
+  const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
+  const d = findDraft(ctx.db, a.id);
+  if (!d) return draftOut(ctx, a);
+  if (input.expectedRev !== undefined && input.expectedRev !== d.rev)
+    raise(ctx, "validation.version_conflict", STALE, { current: d.rev, expected: input.expectedRev });
+  if (d.baseVersion !== a.version)
+    raise(ctx, "validation.version_conflict", STALE, { current: a.version, expected: d.baseVersion });
+  await update(ctx, { automationId: a.id, definition: d.definition, expectedVersion: a.version });
+  dropDraft(ctx.db, a.id);
+  return draftOut(ctx, getAutomation(ctx, a.id));
 }
 
 export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {

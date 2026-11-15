@@ -46,6 +46,8 @@ import {
   touch,
 } from "../projections.ts";
 import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
+import { missingInput } from "../../../lib/words/step-missing.ts";
+import { registry } from "../../../generated/registry.ts";
 import type {
   Db,
   ResourceRef,
@@ -880,18 +882,33 @@ interface Caught {
   message: string;
   retryable: boolean;
   reason?: string;
+  /** The input the engine refused, when the refusal names one ("/assigned: ..."): a failure sentence says it in words. */
+  field?: string;
 }
+const stepWords = (key: string): string =>
+  (registry.steps.find((x) => x.key === key)?.title ?? key).replace(/^[^:·]{1,40}\s*[:·]\s+/, "");
 function caught(e: unknown): Caught {
   const he = (
-    e as { error?: { code?: unknown; message?: unknown; retryable?: unknown; details?: { reason?: unknown } } } | null
+    e as {
+      error?: {
+        code?: unknown;
+        message?: unknown;
+        retryable?: unknown;
+        details?: { reason?: unknown; errors?: unknown };
+      };
+    } | null
   )?.error;
-  if (he && typeof he.code === "string")
+  if (he && typeof he.code === "string") {
+    const first = Array.isArray(he.details?.errors) ? he.details.errors[0] : undefined;
+    const field = typeof first === "string" ? /^\/([A-Za-z0-9_]+)/.exec(first)?.[1] : undefined;
     return {
       code: he.code,
       message: typeof he.message === "string" ? he.message : he.code,
       retryable: he.retryable !== false,
       ...(typeof he.details?.reason === "string" ? { reason: he.details.reason } : {}),
+      ...(field ? { field } : {}),
     };
+  }
   const m = (e as { message?: unknown } | null)?.message;
   return { code: "step.failed", message: typeof m === "string" && m ? m : "The step failed.", retryable: true };
 }
@@ -1105,7 +1122,12 @@ export async function drive(
           ...(priorAt !== undefined ? { priorAt } : {}),
         });
     } catch (e) {
-      const c = caught(e);
+      const c0 = caught(e);
+      // a refused input is named in a person's words ("Create a task: choose who it is for."), never "Something in what you entered is not right."
+      const c: Caught =
+        c0.field && c0.code === "validation.bad_input"
+          ? { ...c0, message: `${stepWords(step.key ?? step.id)}: ${missingInput(step.key ?? step.id, c0.field).do}.` }
+          : c0;
       const policy = step.retry ?? NO_RETRY;
       run = findRun(ctx.db, runId)!;
       if (waitsForWorkingKey(step, c.code) && !isSandbox(run.kind)) {

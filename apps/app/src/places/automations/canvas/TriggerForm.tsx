@@ -365,7 +365,7 @@ function PickInner({
 }): ReactElement {
   const picks = useRefPicks(field.from ?? "types");
   const text = typeof value === "string" ? value : "";
-  const label = field.required ? `${field.label} (required)` : field.label;
+  const label = field.label;
   if (picks.state !== "ready" || picks.items.length === 0) {
     return (
       <TextBox
@@ -487,7 +487,7 @@ export function TriggerForm({
   const render = (field: TriggerField): ReactElement => {
     const v = triggerValue(trigger, field);
     const id = `trigger-${field.name}`;
-    const label = field.required ? `${field.label} (required)` : field.label;
+    const label = field.label;
     const help =
       problem?.name === field.name ? (
         <Hint danger testID={`${id}-problem`}>

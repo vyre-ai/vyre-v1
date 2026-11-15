@@ -246,3 +246,19 @@ test("the Inbox's Twilio tile reaches the Vault's Add form on the Twilio templat
   });
   assert.deepEqual(vaultRoute({ screen: "vault.layout", args: {} }), { surface: "layout" });
 });
+
+test("a Member's Vault has no way into Connect your company; an admin's has; a Personal Space's goes to its own mail settings", () => {
+  const s = createSampleVault();
+  const rt = sampleRuntime({ screens: s.data.screens, call: s.data.call });
+  const member = { id: "usr_maya", consolePages: new Set<string>() };
+  const admin = { id: "usr_dana", consolePages: new Set<string>(["company"]) };
+  assert.equal(
+    vaultData(rt, undefined, member).nav.openCompany,
+    undefined,
+    "a member is not offered an admin-only setup",
+  );
+  assert.equal(vaultData(rt, undefined, null).nav.openCompany, undefined);
+  assert.equal(typeof vaultData(rt, undefined, admin).nav.openCompany, "function");
+  const personal = { ...rt, space: { ...rt.space, kind: "personal" as const } };
+  assert.equal(typeof vaultData(personal, undefined, member).nav.openCompany, "function");
+});

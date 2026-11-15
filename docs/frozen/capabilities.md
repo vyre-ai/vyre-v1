@@ -443,6 +443,21 @@ Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9
 
 Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
 
+## 15 Nov 2026 (rc.29): Automations: drafts saved as you go, Make live, a test of the draft, and an Assistant's proposal a person accepts (lanes b-auto2 and the lead)
+
+New capabilities, all on the `automations` tool:
+- `automations.draft.save`, `automations.draft.discard`, `automations.make_live`: an edit to an Automation that is on is kept as a draft with a `rev`; a write carries the rev or version it read and is refused in one sentence when someone else wrote first; Make live makes the draft the next version. An off Automation saves at once.
+- `automations.test_events`: real past starts of a trigger, for a test. `automations.test` gains optional `draft` and `eventRunId`.
+- `automations.draft.propose`: an Assistant puts steps on the page as a proposal with a one-line summary. Nothing proposed is saved as the definition, made live or turned on. With no `automationId` an empty Automation that is off is made first. The answer carries `ok` and `issues` (what is still missing).
+- `automations.proposal.accept`: a person takes the proposal (an off Automation saves it; an on one keeps it as their draft until Make live). An agent is refused. A proposal made before the Automation or its draft changed is refused in one sentence and kept.
+- `automations.proposal.discard`: a person who may change the Automation, or the Assistant that proposed it; an empty Automation that proposing made goes to Trash with it.
+- `automations.get` answers two optional fields: `draft` and `proposal`, and takes an optional `version` (an integer): the definition of that version, so a run's page shows what the run RAN.
+- `automations.home`: what the Automations first page shows in one read (what needs the person, at most one suggestion, the Today line, the counts). A new read; nothing an older client sends changes meaning.
+
+All additions; nothing an older client sends changes meaning.
+
+Signed: lead, 15 Nov 2026
+
 ## 15 Nov 2026: chats.sidebar rows gain one optional output field (lane f-shots)
 
 A row of `chats.sidebar` gains `ask` (a boolean), present and true only on a pane that is an ask waiting for a person. The sidebar's Asks filter reads it; before, the server never sent ask panes and the filter was always empty. Optional output only: an older client ignores it.

@@ -1,0 +1,1 @@
+A run opens as numbered rows on the version it ran, with the failure in one sentence and the fix on the same page; the Automations first page reads one server answer; Automations work on a phone; a value of the wrong shape is refused when saved.

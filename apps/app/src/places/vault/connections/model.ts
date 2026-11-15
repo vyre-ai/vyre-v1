@@ -194,7 +194,8 @@ export function assemble(
       accountId: a.connectionId,
       oauth: false,
       share: mine ? [] : ["everyone"],
-      canManage: true,
+      // the Space's own account is an admin's to remove or reconnect; a person's own is theirs
+      canManage: mine || home?.admin === true,
       keys: a.handles,
       needs: [],
     });

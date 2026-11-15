@@ -716,6 +716,24 @@
     },
     {
       "deferred": false,
+      "name": "automations_draft_discard",
+      "summary": "Throw the draft away; the live version stays",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_draft_propose",
+      "summary": "An Assistant puts steps on the page as a proposal for a person to accept: nothing is saved as the definition, made live or turned on. With no automationId an empty Automation that is off is made first",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_draft_save",
+      "summary": "Save the edit as a draft as the person goes; an Off Automation saves at once, an On one keeps it apart until Make live",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_followers_add",
       "summary": "Follow an Automation to get its updates",
       "toolset": "automations"
@@ -758,6 +776,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_home",
+      "summary": "What the Automations first page shows: what needs the person, at most one suggestion the person's Assistant can finish with one approval, the Today line and the header counts",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_key_hosts_list",
       "summary": "The hosts a person approved for one Vault key: a key is sent only to these, or to the host of the item's own saved address. Names only, never a value.",
       "toolset": "automations"
@@ -766,6 +790,12 @@
       "deferred": false,
       "name": "automations_list",
       "summary": "List Automations by section (Personal, Shared with me, Space), folder and Group",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_make_live",
+      "summary": "Make the draft the next live version; runs already started finish as they were",
       "toolset": "automations"
     },
     {
@@ -832,6 +862,18 @@
       "deferred": false,
       "name": "automations_promote",
       "summary": "Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_proposal_accept",
+      "summary": "A person takes the Assistant's proposal: an off Automation saves it, an on one keeps it as their draft until Make live. An agent is refused",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_proposal_discard",
+      "summary": "Throw the Assistant's proposal away; an empty Automation that proposing made goes to Trash with it",
       "toolset": "automations"
     },
     {
@@ -922,6 +964,12 @@
       "deferred": false,
       "name": "automations_test",
       "summary": "Test an Automation with sample data: reads run for real, writes and sends are stubbed (a Run)",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_test_events",
+      "summary": "Real past starts of an Automation's trigger that a test can be tried on",
       "toolset": "automations"
     },
     {
