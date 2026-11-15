@@ -14,7 +14,14 @@ const html = (status: number): Response =>
   });
 const MLA_HEALTH = { ok: true, version: "1.0.0-rc.14", roles: ["space"], space: "spc_01JMLA", head: 12, startedAt: 1 };
 const OPTIONS = {
-  data: { name: "Northwind", fingerprint: "ab12 cd34", password: true, github: false, sso: [], secondFactorRequired: false },
+  data: {
+    name: "Northwind",
+    fingerprint: "ab12 cd34",
+    password: true,
+    github: false,
+    sso: [],
+    secondFactorRequired: false,
+  },
 };
 
 function fake(answer: (url: string, init?: RequestInit) => Response | Promise<Response>): {

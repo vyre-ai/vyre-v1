@@ -182,7 +182,10 @@ test("A relay phone address still gets the browser message, and its pages never 
     underRelayShell({ serviceWorker: { controller: { scriptURL: "https://idris.vyre.run/__vyre/sw.js" } } }),
     true,
   );
-  assert.equal(underRelayShell({ serviceWorker: { controller: { scriptURL: "https://northwind.vyre.run/sw.js" } } }), false);
+  assert.equal(
+    underRelayShell({ serviceWorker: { controller: { scriptURL: "https://northwind.vyre.run/sw.js" } } }),
+    false,
+  );
   assert.equal(underRelayShell({ serviceWorker: { controller: null } }), false);
   assert.equal(underRelayShell(undefined), false);
 });

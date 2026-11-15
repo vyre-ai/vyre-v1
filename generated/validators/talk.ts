@@ -23,34 +23,34 @@ if ("by" in o46) lf(o46["by"], p + "/by", e, L1);
 
 function d_s_915e39e66e(v: unknown, p: string, e: string[]): void {
 {
-const x747 = v;
+const x745 = v;
+const g745 = typeOf(x745);
+const b745: string[] = []; lf(x745, p, b745, L0); if (b745.length) e.push(...b745);
+if (g745 === "object") {
+if (g745 === 'object') { const o745 = x745 as Record<string, unknown>;
+if (!("provider" in o745)) e.push(p + "/provider" + ': required');
+if (!("fields" in o745)) e.push(p + "/fields" + ': required');
+if (!("idempotencyKey" in o745)) e.push(p + "/idempotencyKey" + ': required');
+if ("provider" in o745) lf(o745["provider"], p + "/provider", e, L1);
+if ("fields" in o745) {
+{
+const x746 = o745["fields"];
+const g746 = typeOf(x746);
+const b746: string[] = []; lf(x746, p + "/fields", b746, L4); if (b746.length) e.push(...b746);
+if (g746 === "array") {
+if (g746 === 'array') { const a746 = x746 as unknown[];
+for (let i746 = 0; i746 < a746.length; i746++) {
+{
+const x747 = a746[i746];
 const g747 = typeOf(x747);
-const b747: string[] = []; lf(x747, p, b747, L0); if (b747.length) e.push(...b747);
+const b747: string[] = []; lf(x747, p + "/fields" + '/' + i746, b747, L0); if (b747.length) e.push(...b747);
 if (g747 === "object") {
 if (g747 === 'object') { const o747 = x747 as Record<string, unknown>;
-if (!("provider" in o747)) e.push(p + "/provider" + ': required');
-if (!("fields" in o747)) e.push(p + "/fields" + ': required');
-if (!("idempotencyKey" in o747)) e.push(p + "/idempotencyKey" + ': required');
-if ("provider" in o747) lf(o747["provider"], p + "/provider", e, L1);
-if ("fields" in o747) {
-{
-const x748 = o747["fields"];
-const g748 = typeOf(x748);
-const b748: string[] = []; lf(x748, p + "/fields", b748, L4); if (b748.length) e.push(...b748);
-if (g748 === "array") {
-if (g748 === 'array') { const a748 = x748 as unknown[];
-for (let i748 = 0; i748 < a748.length; i748++) {
-{
-const x749 = a748[i748];
-const g749 = typeOf(x749);
-const b749: string[] = []; lf(x749, p + "/fields" + '/' + i748, b749, L0); if (b749.length) e.push(...b749);
-if (g749 === "object") {
-if (g749 === 'object') { const o749 = x749 as Record<string, unknown>;
-if (!("key" in o749)) e.push(p + "/fields" + '/' + i748 + "/key" + ': required');
-if (!("value" in o749)) e.push(p + "/fields" + '/' + i748 + "/value" + ': required');
-if ("key" in o749) lf(o749["key"], p + "/fields" + '/' + i748 + "/key", e, L1);
-if ("value" in o749) lf(o749["value"], p + "/fields" + '/' + i748 + "/value", e, L1);
-if ("secret" in o749) lf(o749["secret"], p + "/fields" + '/' + i748 + "/secret", e, L3);
+if (!("key" in o747)) e.push(p + "/fields" + '/' + i746 + "/key" + ': required');
+if (!("value" in o747)) e.push(p + "/fields" + '/' + i746 + "/value" + ': required');
+if ("key" in o747) lf(o747["key"], p + "/fields" + '/' + i746 + "/key", e, L1);
+if ("value" in o747) lf(o747["value"], p + "/fields" + '/' + i746 + "/value", e, L1);
+if ("secret" in o747) lf(o747["secret"], p + "/fields" + '/' + i746 + "/secret", e, L3);
 }
 }
 }
@@ -59,7 +59,7 @@ if ("secret" in o749) lf(o749["secret"], p + "/fields" + '/' + i748 + "/secret",
 }
 }
 }
-if ("idempotencyKey" in o747) lf(o747["idempotencyKey"], p + "/idempotencyKey", e, L55);
+if ("idempotencyKey" in o745) lf(o745["idempotencyKey"], p + "/idempotencyKey", e, L55);
 }
 }
 }

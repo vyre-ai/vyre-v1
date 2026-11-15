@@ -127,7 +127,10 @@ function Cards({ call, now }: { call: (cap: string, input: unknown) => Promise<u
           "Post Lab 8 in the community (the last post brought most first-time registrations)",
           "Ask Aliza for two reels from the Lab 7 recording",
         ],
-        permissions: ["Post in the Northwind AI Labs community", "Send email from the Lab template to Lab 8 registrants"],
+        permissions: [
+          "Post in the Northwind AI Labs community",
+          "Send email from the Lab template to Lab 8 registrants",
+        ],
       },
       {
         ...base,
