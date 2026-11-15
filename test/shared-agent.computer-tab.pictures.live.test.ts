@@ -14,8 +14,18 @@ test("the Computer tab as Ada and as Bea on the same shared agent", { timeout: 4
   try {
     const bea = await k.s.world.join("bea");
     // Ada has a terminal of her own on the agent's computer, and Bea has one of hers
-    await k.w.owner.ok("terminal.open", { host: "agent_computer", agentId: k.agentId, name: "ada-notes", idempotencyKey: "ada-term" });
-    await bea.ok("terminal.open", { host: "agent_computer", agentId: k.agentId, name: "bea-notes", idempotencyKey: "bea-term" });
+    await k.w.owner.ok("terminal.open", {
+      host: "agent_computer",
+      agentId: k.agentId,
+      name: "ada-notes",
+      idempotencyKey: "ada-term",
+    });
+    await bea.ok("terminal.open", {
+      host: "agent_computer",
+      agentId: k.agentId,
+      name: "bea-notes",
+      idempotencyKey: "bea-term",
+    });
     const beaSeat = await seat(k.s, bea, "Bea");
     const agentPage = `/chat#screen=chats.agent-page&agentId=${k.agentId}&tab=computer`;
     const tab = async (who: typeof k.me | typeof beaSeat): Promise<void> => {
@@ -31,13 +41,20 @@ test("the Computer tab as Ada and as Bea on the same shared agent", { timeout: 4
       await who.page.setViewportSize(WIDE);
       await tab(who);
       if (name === "bea") {
-        assert.match(await who.page.getByTestId("terminal-whose").innerText(), /Your own space on .*computer/, "Bea's tab says whose it is");
+        assert.match(
+          await who.page.getByTestId("terminal-whose").innerText(),
+          /Your own space on .*computer/,
+          "Bea's tab says whose it is",
+        );
         assert.equal(await who.page.getByTestId("row-session-ada-notes").count(), 0, "Bea does not see Ada's terminal");
         assert.equal(await who.page.getByTestId("row-session-bea-notes").count(), 1, "Bea sees her own");
       } else {
         assert.equal(await who.page.getByTestId("row-session-ada-notes").count(), 1, "Ada sees hers");
         assert.equal(await who.page.getByTestId("row-session-bea-notes").count(), 0, "Ada does not see Bea's");
-        assert.match(await who.page.getByTestId("terminal-whose").innerText(), /1 terminal of another person is open here/);
+        assert.match(
+          await who.page.getByTestId("terminal-whose").innerText(),
+          /1 terminal of another person is open here/,
+        );
       }
       await shoot(who.page, `${DIR}/${name}`, `computer-tab-1440`);
       await who.page.setViewportSize(SIZES.phone);
