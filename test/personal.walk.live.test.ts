@@ -418,7 +418,9 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
 
     await step("Automations: create one from a template", async () => {
       await go("automations", "automations-place");
-      await page.getByText("Weekly digest", { exact: false }).first().click({ timeout: 15_000 });
+      // rc.29: templates are not a place any more, they are a way to start (AUTOMATIONS-2026-11-13.md 2.3: the first page offers New automation and Start from an example)
+      await page.getByTestId("fp-examples").click({ timeout: 15_000 });
+      await page.getByTestId("use-weekly_digest").click({ timeout: 15_000 });
       await page.getByTestId("builder-body").or(page.getByTestId("story")).first().waitFor({ timeout: 20_000 });
     });
 
