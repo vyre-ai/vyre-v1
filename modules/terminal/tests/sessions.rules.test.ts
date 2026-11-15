@@ -214,13 +214,15 @@ test("a deny rule stops a command in the module itself, whoever sends it; allow 
     (await call(hn, "terminal.run", { command: "ls", terminalId: t.terminalId, idempotencyKey: "i3" }, agent)).output,
     "a",
   );
-  // The wall is the acting person's: another person's session is not bound by Dana's rules.
+  // A person's own terminal is theirs alone (15 Nov): another person cannot run a command in it at all, so Dana's rules never have to bind them
   const ravi = hn.as({ kind: "person", id: "usr_ravi" });
   assert.equal(
-    (await call(hn, "terminal.run", { command: "rm -rf build", terminalId: t.terminalId, idempotencyKey: "i4" }, ravi))
-      .exitCode,
-    0,
+    await rejects(() =>
+      h["terminal.run"]!(ravi, { command: "rm -rf build", terminalId: t.terminalId, idempotencyKey: "i4" }),
+    ),
+    "permission.role_lacks_permission",
   );
+  assert.equal(host.count("run"), 2, "nothing of theirs reached the terminal");
 });
 
 test("S4: an Automation or any other service acting for a person may only tighten that person's rules too", async () => {

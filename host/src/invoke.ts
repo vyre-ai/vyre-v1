@@ -713,9 +713,14 @@ export function createInvoke(deps: InvokeDeps): Invoke {
               seed.principal.id,
               c.name,
               key,
-              input,
+              // what a person typed is never kept, not even as a hash of it: the batch is told apart by its key and number (terminal.keys' own ledger), so the stored input leaves the keys out
+              c.name === "terminal.keys" ? withoutTypedKeys(input) : input,
               run,
-              c.name.startsWith("memory.") ? withoutPersonalWords : undefined,
+              c.name.startsWith("memory.")
+                ? withoutPersonalWords
+                : c.name === "terminal.keys"
+                  ? withoutScreen
+                  : undefined,
             )
           : await run();
       if (seed.approval && rawKey && result.status === "ok")
@@ -1509,6 +1514,22 @@ export function withoutPersonalWords(v: unknown): unknown {
 }
 const isPersonPage = (p: unknown): boolean =>
   p !== null && typeof p === "object" && (p as { layer?: unknown }).layer === "person";
+
+/** What a stored repeat of terminal.keys holds: no screen (a pasted token, `cat .env`); the app reads the screen again. */
+export function withoutScreen(v: unknown): unknown {
+  if (v === null || typeof v !== "object") return v;
+  const o = v as { output?: unknown };
+  if (o.output === null || typeof o.output !== "object") return v;
+  const { screen: _gone, ...rest } = o.output as Record<string, unknown>;
+  void _gone;
+  return { ...o, output: rest };
+}
+/** The input of a terminal.keys call as idempotency stores it and hashes it: the typed text left out. */
+export function withoutTypedKeys(input: unknown): unknown {
+  if (input === null || typeof input !== "object") return input;
+  const { keys: typed, ...rest } = input as Record<string, unknown>;
+  return { ...rest, keys: Array.isArray(typed) ? typed.length : 0 };
+}
 
 /** An audit row's targets and, for a self-bound call, where it went (the note's targets join the call's own). */
 function withNote(

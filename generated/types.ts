@@ -42728,7 +42728,10 @@ export type TerminalKeysIn = {
       key?: string;
       paste?: string;
     }>;
+  lease: string;
+  seq: number;
   capture?: boolean;
+  idempotencyKey: string;
 };
 export type TerminalKeysOut = {
   ok: boolean;
@@ -43006,6 +43009,8 @@ export type TerminalTakeOverOut = {
     ownerId?: string;
     threadId?: string;
   };
+  lease?: string;
+  nextSeq?: number;
 };
 export type TerminalWorkspaceIn = {
   agentId: string;
@@ -52265,6 +52270,9 @@ export type TerminalCommandFinishedPayload = {
 export type TerminalGivenBackPayload = {
   terminalId: string;
   by: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 export type TerminalOpenedPayload = {
   terminalId: string;
@@ -52283,6 +52291,9 @@ export type TerminalTakenPayload = {
   terminalId: string;
   by: string;
   from?: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 export type ThreadArchivedPayload = {
   person: string;
