@@ -101,3 +101,35 @@ test("a channel's head menu has no Mute and no Archive (they are the channel's o
   assert.ok(!headLabels.includes("Mute") && !headLabels.includes("Archive"), headLabels.join(", "));
   assert.ok(headLabels.includes("More") && headLabels.includes("Find in this chat"));
 });
+
+test("Cmd-period stops the agent that is working, and does nothing when nobody is (the design's key)", async () => {
+  wide();
+  const g = globalThis as unknown as { addEventListener?: unknown; removeEventListener?: unknown };
+  const handlers: Array<(e: { key: string; metaKey?: boolean; preventDefault(): void }) => void> = [];
+  const had = { add: g.addEventListener, remove: g.removeEventListener };
+  g.addEventListener = (t: string, f: (typeof handlers)[number]) => {
+    if (t === "keydown") handlers.push(f);
+  };
+  g.removeEventListener = () => undefined;
+  try {
+    const press1 = (): void => handlers.forEach((h) => h({ key: ".", metaKey: true, preventDefault: () => undefined }));
+    const idle = createSample("idle");
+    await mount(createRoot, <Conversation data={idle.data} />);
+    await flush();
+    press1();
+    await flush();
+    assert.deepEqual(stopCalls(idle), [], "nobody working: nothing to stop");
+    handlers.length = 0;
+    const s = createSample("streaming");
+    await mount(createRoot, <Conversation data={s.data} />);
+    await flush();
+    press1();
+    await flush();
+    const got = stopCalls(s);
+    assert.equal(got.length, 1);
+    assert.equal(got[0]!.cap, "engine.stop");
+  } finally {
+    g.addEventListener = had.add;
+    g.removeEventListener = had.remove;
+  }
+});
