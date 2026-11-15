@@ -17,14 +17,19 @@ type ListOut = CapMap["automations.list"]["out"];
 export function ListHead({ onHome }: { onHome?: () => void }): ReactElement {
   const list = useScreenQuery<ListOut>(SIDEBAR, "automations", {});
   const badge = needsBadge(list.status === "ready" ? list.data.automations.filter(needsYou).length : null);
+  // the shell's own title already says Automations: this row says only what needs him (round four: the word is not said twice), and returns to the first page
   return (
     <Pressable testID="automations-home" accessibilityRole="button" onPress={onHome} style={n.head}>
-      <Text style={n.title}>Automations</Text>
       {badge ? (
-        <Text testID="nav-needs-count" style={n.count}>
-          {badge}
-        </Text>
-      ) : null}
+        <>
+          <Text style={n.title}>Needs you</Text>
+          <Text testID="nav-needs-count" style={n.count}>
+            {badge}
+          </Text>
+        </>
+      ) : (
+        <Text style={n.title}>Home</Text>
+      )}
     </Pressable>
   );
 }

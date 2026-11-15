@@ -114,7 +114,7 @@ const s = StyleSheet.create({
   rowFailed: {},
   grow: { flex: 1, minWidth: 0, gap: 2 },
   no: { width: 36, textAlign: "center", fontSize: 13, color: "var(--ink-3)" as string },
-  when: { fontWeight: "600", color: "var(--accent)" as string },
+  when: { width: 48, fontWeight: "600", color: "var(--accent)" as string },
   fail: { fontSize: 14.5, fontWeight: "600", color: "var(--danger)" as string },
   values: { marginLeft: 48, marginTop: 4, padding: 8, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
   valueBox: { marginLeft: 48, marginTop: 4, padding: 8, gap: 2 },
