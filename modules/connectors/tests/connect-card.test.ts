@@ -485,7 +485,11 @@ test("D: a connector somebody published cannot name a private, loopback or addre
   ]) {
     const k = kit();
     k.install(exact({ host }));
-    assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Pub" })).found, false, `${host}: not offered`);
+    assert.equal(
+      (await k.hs["connectors.for_service"](k.ctx, { service: "Pub" })).found,
+      false,
+      `${host}: not offered`,
+    );
     await assert.rejects(
       k.hs["connectors.check_key"](k.ctx, { connector: "pub", secrets: { api_key: SECRET } }),
       undefined,
@@ -494,11 +498,21 @@ test("D: a connector somebody published cannot name a private, loopback or addre
     assert.equal(k.sent.length, 0, `${host}: no request left`);
   }
   const plain = kit();
-  plain.install(exact({ host: "api.pub.example", actions: [{ name: "ping", url: "http://api.pub.example/p", output: "/ok" }] }));
-  assert.equal((await plain.hs["connectors.for_service"](plain.ctx, { service: "Pub" })).found, false, "http is never offered");
+  plain.install(
+    exact({ host: "api.pub.example", actions: [{ name: "ping", url: "http://api.pub.example/p", output: "/ok" }] }),
+  );
+  assert.equal(
+    (await plain.hs["connectors.for_service"](plain.ctx, { service: "Pub" })).found,
+    false,
+    "http is never offered",
+  );
   const ok = kit();
   ok.install(exact({ host: "api.pub.example" }));
-  assert.equal((await ok.hs["connectors.for_service"](ok.ctx, { service: "Pub" })).found, true, "a public https host passes");
+  assert.equal(
+    (await ok.hs["connectors.for_service"](ok.ctx, { service: "Pub" })).found,
+    true,
+    "a public https host passes",
+  );
 });
 
 test("D: a connector that is not built in cannot sit on, under or over a built-in connector's host, wildcards counted; a definition that calls itself built in is still not", async () => {
@@ -514,7 +528,11 @@ test("D: a connector that is not built in cannot sit on, under or over a built-i
   });
   for (const host of ["api.fathom.test", "x.api.fathom.test", "fathom.test"]) {
     k.install(exact({ host, key: "squat", title: "Squat" }));
-    assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Squat" })).found, false, `${host} overlaps Fathom`);
+    assert.equal(
+      (await k.hs["connectors.for_service"](k.ctx, { service: "Squat" })).found,
+      false,
+      `${host} overlaps Fathom`,
+    );
     await assert.rejects(k.hs["connectors.check_key"](k.ctx, { connector: "squat", secrets: { api_key: SECRET } }));
   }
   // a definition that says of itself it is built in: the row decides, not the text
@@ -522,9 +540,17 @@ test("D: a connector that is not built in cannot sit on, under or over a built-i
   k.tx.run("UPDATE cn_connectors SET builtin = 0 WHERE key = 'liar'");
   assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Liar" })).found, false);
   k.install(exact({ host: "api.fathom.example", key: "near", title: "Near" }));
-  assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "Near" })).found, true, "a different host is fine");
+  assert.equal(
+    (await k.hs["connectors.for_service"](k.ctx, { service: "Near" })).found,
+    true,
+    "a different host is fine",
+  );
   k.install(exact({ host: "notfathom.test", key: "nf", title: "NF" }));
-  assert.equal((await k.hs["connectors.for_service"](k.ctx, { service: "NF" })).found, true, "a look-alike name is not an overlap");
+  assert.equal(
+    (await k.hs["connectors.for_service"](k.ctx, { service: "NF" })).found,
+    true,
+    "a look-alike name is not an overlap",
+  );
   assert.equal(k.sent.length, 0);
 });
 
@@ -541,12 +567,18 @@ test("E: an app that echoes the typed key back (in an error body, a thrown error
   ] as const) {
     k.state.reply = reply as never;
     try {
-      seen.push(JSON.stringify(await k.hs["connectors.check_key"](person, { connector: "fathom", secrets: { api_key: SECRET } })));
+      seen.push(
+        JSON.stringify(
+          await k.hs["connectors.check_key"](person, { connector: "fathom", secrets: { api_key: SECRET } }),
+        ),
+      );
     } catch (e) {
       seen.push(JSON.stringify(e instanceof Error ? { m: e.message, e } : e));
     }
   }
-  const rows = ["cn_log", "cn_connections", "cn_connection_hosts"].map((t) => JSON.stringify(k.tx.all(`SELECT * FROM ${t}`)));
+  const rows = ["cn_log", "cn_connections", "cn_connection_hosts"].map((t) =>
+    JSON.stringify(k.tx.all(`SELECT * FROM ${t}`)),
+  );
   const all = JSON.stringify([seen, k.events, k.logs, k.calls, rows]);
   assert.equal(all.includes(SECRET), false, "the key is nowhere but in the one request the app got");
   assert.ok(k.sent.length >= 4, "the four tries really went out");
@@ -561,7 +593,12 @@ test("F: a person's press to allow where a key is sent is not an agent's: an age
     actions: [{ name: "ping", url: "https://api.fathom.test/p", output: "/ok" }],
   });
   const person = { ...k.mk("usr_dana"), callerKind: "person" };
-  const made = await k.hs["connections.create"](person, { connector: "wide3", title: "W", ownerKind: "person", secrets: { api_key: "#AcmeKey" } } as never);
+  const made = await k.hs["connections.create"](person, {
+    connector: "wide3",
+    title: "W",
+    ownerKind: "person",
+    secrets: { api_key: "#AcmeKey" },
+  } as never);
   const id = made.connection.connectionId;
   const before = JSON.stringify(k.tx.all("SELECT * FROM cn_connection_hosts"));
   k.install({

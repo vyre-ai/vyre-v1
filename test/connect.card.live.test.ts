@@ -59,10 +59,10 @@ async function defineCrm(who: (cap: string, input: unknown) => Promise<{ status:
   const def = await who("connectors.define", {
     key: "crmapp",
     title: "Crm app",
-    domains: ["api.fathom.ai"],
+    domains: ["api.crmapp.example"],
     auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" },
     secrets: [{ name: "api_key", description: "Your Crm app API key" }],
-    actions: [{ name: "list_things", method: "GET", url: "https://api.fathom.ai/external/v1/meetings" }],
+    actions: [{ name: "list_things", method: "GET", url: "https://api.crmapp.example/v1/things" }],
     idempotencyKey: "cn-def",
   });
   assert.equal(def.status, 200, JSON.stringify(def.data));

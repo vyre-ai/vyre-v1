@@ -23,7 +23,8 @@ interface Stated {
   /** card: false only: why the card is not offered */
   why?: string;
 }
-const NAMED_ONLY = "its registry definition names actions without addresses, so the hosts a key would go to are not exact";
+const NAMED_ONLY =
+  "its registry definition names actions without addresses, so the hosts a key would go to are not exact";
 const STATED: Record<string, Stated> = {
   fathom: {
     card: true,
@@ -31,20 +32,104 @@ const STATED: Record<string, Stated> = {
     key: "API key (header X-Api-Key) and an optional webhook secret",
     check: "GET https://api.fathom.ai/external/v1/meetings (list_meetings): a real call; 401 or 403 is a wrong key",
   },
-  stripe: { card: false, hosts: ["api.stripe.com"], key: "secret key and a webhook secret", check: "cannot be checked from a card yet", why: NAMED_ONLY },
-  resend: { card: false, hosts: ["api.resend.com"], key: "API key and a webhook secret", check: "cannot be checked from a card yet", why: NAMED_ONLY },
-  hubspot: { card: false, hosts: ["api.hubapi.com", "app.hubspot.com"], key: "private app token", check: "cannot be checked from a card yet", why: NAMED_ONLY },
-  mailgun: { card: false, hosts: ["api.mailgun.net", "api.eu.mailgun.net"], key: "API key and a signing key", check: "cannot be checked from a card yet", why: NAMED_ONLY },
-  "dropbox-sign": { card: false, hosts: ["api.hellosign.com"], key: "API key", check: "cannot be checked from a card yet", why: NAMED_ONLY },
-  zoom: { card: false, hosts: ["api.zoom.us", "zoom.us"], key: "server-to-server OAuth credentials and a webhook secret", check: "cannot be checked from a card yet", why: NAMED_ONLY },
-  twilio: { card: false, hosts: ["api.twilio.com", "*.twilio.com"], key: "account SID, auth token, API key", check: "cannot be checked from a card yet", why: "a wildcard domain matches other hosts, and the actions have no addresses" },
-  docusign: { card: false, hosts: ["*.docusign.net", "account.docusign.com"], key: "integration key", check: "cannot be checked from a card yet", why: "a wildcard domain matches other hosts, and the actions have no addresses" },
-  google: { card: false, hosts: ["*.googleapis.com", "oauth2.googleapis.com", "meet.googleapis.com"], key: "domain-wide delegation key (a Google admin's own setup)", check: "its own setup page tests the delegation", why: "a wildcard domain matches other hosts; it is set up by a Google admin, not by pasting a key" },
-  documenso: { card: false, hosts: ["documenso.internal"], key: "API token", check: "cannot be checked from a card yet", why: "its host is a private name (documenso.internal)" },
-  github: { card: false, hosts: ["api.github.com", "github.com"], key: "GitHub App key, id and webhook secret", check: "its own setup creates the App from a manifest", why: "set up by creating a GitHub App, not by pasting a key" },
-  github_signin: { card: false, hosts: ["api.github.com", "github.com"], key: "OAuth client secret", check: "the sign-in itself", why: "a sign-in, not a pasted key" },
-  dropbox: { card: false, hosts: ["api.dropboxapi.com", "notify.dropboxapi.com"], key: "a sign-in (OAuth), no pasted key", check: "the sign-in itself", why: "a sign-in, not a pasted key" },
-  microsoft: { card: false, hosts: ["graph.microsoft.com", "login.microsoftonline.com"], key: "an app registration (a sign-in)", check: "its own consent check", why: "a sign-in, not a pasted key" },
+  stripe: {
+    card: false,
+    hosts: ["api.stripe.com"],
+    key: "secret key and a webhook secret",
+    check: "cannot be checked from a card yet",
+    why: NAMED_ONLY,
+  },
+  resend: {
+    card: false,
+    hosts: ["api.resend.com"],
+    key: "API key and a webhook secret",
+    check: "cannot be checked from a card yet",
+    why: NAMED_ONLY,
+  },
+  hubspot: {
+    card: false,
+    hosts: ["api.hubapi.com", "app.hubspot.com"],
+    key: "private app token",
+    check: "cannot be checked from a card yet",
+    why: NAMED_ONLY,
+  },
+  mailgun: {
+    card: false,
+    hosts: ["api.mailgun.net", "api.eu.mailgun.net"],
+    key: "API key and a signing key",
+    check: "cannot be checked from a card yet",
+    why: NAMED_ONLY,
+  },
+  "dropbox-sign": {
+    card: false,
+    hosts: ["api.hellosign.com"],
+    key: "API key",
+    check: "cannot be checked from a card yet",
+    why: NAMED_ONLY,
+  },
+  zoom: {
+    card: false,
+    hosts: ["api.zoom.us", "zoom.us"],
+    key: "server-to-server OAuth credentials and a webhook secret",
+    check: "cannot be checked from a card yet",
+    why: NAMED_ONLY,
+  },
+  twilio: {
+    card: false,
+    hosts: ["api.twilio.com", "*.twilio.com"],
+    key: "account SID, auth token, API key",
+    check: "cannot be checked from a card yet",
+    why: "a wildcard domain matches other hosts, and the actions have no addresses",
+  },
+  docusign: {
+    card: false,
+    hosts: ["*.docusign.net", "account.docusign.com"],
+    key: "integration key",
+    check: "cannot be checked from a card yet",
+    why: "a wildcard domain matches other hosts, and the actions have no addresses",
+  },
+  google: {
+    card: false,
+    hosts: ["*.googleapis.com", "oauth2.googleapis.com", "meet.googleapis.com"],
+    key: "domain-wide delegation key (a Google admin's own setup)",
+    check: "its own setup page tests the delegation",
+    why: "a wildcard domain matches other hosts; it is set up by a Google admin, not by pasting a key",
+  },
+  documenso: {
+    card: false,
+    hosts: ["documenso.internal"],
+    key: "API token",
+    check: "cannot be checked from a card yet",
+    why: "its host is a private name (documenso.internal)",
+  },
+  github: {
+    card: false,
+    hosts: ["api.github.com", "github.com"],
+    key: "GitHub App key, id and webhook secret",
+    check: "its own setup creates the App from a manifest",
+    why: "set up by creating a GitHub App, not by pasting a key",
+  },
+  github_signin: {
+    card: false,
+    hosts: ["api.github.com", "github.com"],
+    key: "OAuth client secret",
+    check: "the sign-in itself",
+    why: "a sign-in, not a pasted key",
+  },
+  dropbox: {
+    card: false,
+    hosts: ["api.dropboxapi.com", "notify.dropboxapi.com"],
+    key: "a sign-in (OAuth), no pasted key",
+    check: "the sign-in itself",
+    why: "a sign-in, not a pasted key",
+  },
+  microsoft: {
+    card: false,
+    hosts: ["graph.microsoft.com", "login.microsoftonline.com"],
+    key: "an app registration (a sign-in)",
+    check: "its own consent check",
+    why: "a sign-in, not a pasted key",
+  },
 };
 
 test("every built-in connector is stated here, and the card is offered for exactly the ones stated as on it", async () => {
@@ -52,12 +137,18 @@ test("every built-in connector is stated here, and the card is offered for exact
   for (const c of CODE_BUILTINS) k.install(c as unknown as ConnectorDef);
   // reading seeds the registry's connectors
   await k.hs["connectors.for_service"](k.ctx, { service: "nothing" });
-  const rows = k.tx.all<{ key: string; def: string; builtin: number }>("SELECT key, def, builtin FROM cn_connectors WHERE builtin = 1 OR key IN ('fathom')");
+  const rows = k.tx.all<{ key: string; def: string; builtin: number }>(
+    "SELECT key, def, builtin FROM cn_connectors WHERE builtin = 1 OR key IN ('fathom')",
+  );
   const builtins = k.tx
     .all<{ key: string; def: string }>("SELECT key, def FROM cn_connectors")
     .map((r) => JSON.parse(r.def) as ConnectorDef);
   const keys = rows.map((r) => r.key).sort();
-  assert.deepEqual(keys, Object.keys(STATED).sort(), "every built-in connector is stated, and nothing stated is missing");
+  assert.deepEqual(
+    keys,
+    Object.keys(STATED).sort(),
+    "every built-in connector is stated, and nothing stated is missing",
+  );
   for (const r of rows) {
     const def = JSON.parse(r.def) as ConnectorDef;
     const want = STATED[r.key]!;
@@ -74,12 +165,19 @@ test("every built-in connector is stated here, and the card is offered for exact
         assert.ok(def.domains.includes(h), `${r.key}: ${h} is a declared domain`);
       }
       assert.deepEqual(def.domains.slice().sort(), hosts.slice().sort(), `${r.key}: no domain beyond the hosts`);
-      assert.ok(got.connector!.fields.some((f) => !f.optional), `${r.key}: a key to paste`);
+      assert.ok(
+        got.connector!.fields.some((f) => !f.optional),
+        `${r.key}: a key to paste`,
+      );
       assert.equal(got.connector!.checks, !/^cannot/.test(want.check), `${r.key}: the check is as stated`);
     } else {
       assert.ok(want.why && want.why.length > 0, `${r.key}: says why it is not offered`);
       assert.equal(got.older, def.title, `${r.key}: the answer says it keeps its older way`);
-      assert.deepEqual(def.domains.slice().sort(), want.hosts.slice().sort(), `${r.key}: its declared hosts are as stated`);
+      assert.deepEqual(
+        def.domains.slice().sort(),
+        want.hosts.slice().sort(),
+        `${r.key}: its declared hosts are as stated`,
+      );
     }
   }
 });
@@ -100,7 +198,10 @@ test("no listed service's declared domain is a wildcard or a bare suffix that an
       if (a.key === b.key) continue;
       for (const x of a.domains)
         for (const y of b.domains)
-          assert.ok(!(x === y || x.endsWith(`.${y}`) || y.endsWith(`.${x}`)), `${a.key} and ${b.key} share ${x} / ${y}`);
+          assert.ok(
+            !(x === y || x.endsWith(`.${y}`) || y.endsWith(`.${x}`)),
+            `${a.key} and ${b.key} share ${x} / ${y}`,
+          );
     }
   }
 });

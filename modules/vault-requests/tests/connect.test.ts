@@ -268,6 +268,25 @@ test("Disconnect removes the connection, keeps the key and folds the card to Not
   assert.equal(w.called("vault.item.delete").length, 0, "the key stays in the Vault");
 });
 
+test("after Disconnect the agent's next call asks again with a new card, while a card folded with Not now stays folded; the old card stays Not connected and the saved key is offered on the new one", async () => {
+  const w = room();
+  const first = await ask(w);
+  await submit(w, first.requestId!);
+  await handlers["vault.connect_card.disconnect"](person(w), { requestId: first.requestId } as never);
+  const again = await ask(w, "Fathom", "k2");
+  assert.equal(again.status, "waiting_person", "the next call asks again");
+  assert.notEqual(again.requestId, first.requestId, "with a new card");
+  assert.equal((await card(w, first.requestId!)).state, "later", "the old card stays Not connected");
+  assert.equal((await card(w, again.requestId!)).state, "have", "the key the card saved is offered back");
+  assert.ok(w.called("chat.post").length >= 2, "the new card is drawn in the chat");
+  // Not now is the other case: it stays folded however often the agent asks
+  const w2 = room();
+  const f = await ask(w2);
+  await handlers["vault.requests.decline"](person(w2), { requestId: f.requestId } as never);
+  const f2 = await ask(w2, "Fathom", "k2");
+  assert.deepEqual([f2.status, f2.requestId], ["declined", f.requestId]);
+});
+
 test("Kept in: Mine first, the folders an agent can use next, the others listed but not usable", async () => {
   const w = room({ unusable: ["vfd_fin"] });
   const { requestId } = await ask(w);

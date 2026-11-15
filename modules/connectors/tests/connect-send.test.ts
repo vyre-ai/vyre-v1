@@ -21,7 +21,11 @@ test("the sends of the connectors module are exactly the listed ones, and each h
     "syncspec.ts",
   ].filter((f) => f.endsWith(".ts"));
   for (const f of files) {
-    const n = (read(f).replace(/^\s*\/\/.*$/gm, "").match(SEND) ?? []).length;
+    const n = (
+      read(f)
+        .replace(/^\s*\/\/.*$/gm, "")
+        .match(SEND) ?? []
+    ).length;
     if (n > 0) found[f] = n;
   }
   assert.deepEqual(found, {
@@ -36,10 +40,20 @@ test("the sends of the connectors module are exactly the listed ones, and each h
   const egress = run.indexOf("checkEgress(u.toString(), def.domains)");
   const record = run.indexOf("FROM cn_connection_hosts WHERE connection_id");
   const send = run.indexOf("res = await http(url.toString()");
-  assert.ok(egress > 0 && record > egress && send > record, "runtime: domains, then the connection's host record, then the send");
+  assert.ok(
+    egress > 0 && record > egress && send > record,
+    "runtime: domains, then the connection's host record, then the send",
+  );
   const oauth = read("handlers/oauth.ts");
   for (const m of oauth.matchAll(/await ctx\.http\(eg\.url\.toString\(\)/g))
-    assert.ok(oauth.lastIndexOf("checkEgress(", m.index) > oauth.lastIndexOf("async ", m.index) - 4000, "oauth: checkEgress before the send");
+    assert.ok(
+      oauth.lastIndexOf("checkEgress(", m.index) > oauth.lastIndexOf("async ", m.index) - 4000,
+      "oauth: checkEgress before the send",
+    );
   const imp = read("impl.ts");
-  assert.match(imp, /This connector is not live, so it cannot send a Vault key/, "an unpublished connector cannot send a Vault key");
+  assert.match(
+    imp,
+    /This connector is not live, so it cannot send a Vault key/,
+    "an unpublished connector cannot send a Vault key",
+  );
 });

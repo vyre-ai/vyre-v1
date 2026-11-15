@@ -329,7 +329,10 @@ export async function connectService(
     (r) => r.service === svc.key && (r.asker_id ?? null) === (ctx.principal.kind === "person" ? null : person),
   );
   const open = mine.find((r) => r.state === "waiting");
-  const folded = mine.filter((r) => r.state === "declined").sort((a, b) => b.at - a.at)[0];
+  // folded with Not now: stays folded. Folded by Disconnect: that was a connection the person removed, so the next call is a new ask with a new card
+  const folded = mine
+    .filter((r) => r.state === "declined" && r.phase !== "disconnected")
+    .sort((a, b) => b.at - a.at)[0];
   const again = open ?? folded;
   // a card the person (or an admin) folded stays folded: only the person's own press on the card opens it again
   if (again && again.state === "declined")
@@ -730,7 +733,7 @@ export async function connectDisconnect(ctx: VaultReqCtx, input: { requestId: st
   ctx.db.run(
     `UPDATE ${TABLE} SET state = ?, phase = ?, connection_id = ?, tested = ? WHERE id = ?`,
     "declined",
-    null,
+    "disconnected",
     null,
     null,
     row.id,

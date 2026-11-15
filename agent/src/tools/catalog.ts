@@ -89,8 +89,8 @@ export function offerable(catalog: Catalog, refuses: (cap: string) => boolean): 
     get all() {
       // the connect card's tools too, while VYRE_CONNECT_CARD is off (lib/connect-switch.ts): not listed, not found with tool_search, and a call by name still resolves and is refused by the server
       const on = connectCardOn();
-      return catalog
-        .all.filter((t) => !refuses(t.cap) && (on || !isConnectCap(t.cap)))
+      return catalog.all
+        .filter((t) => !refuses(t.cap) && (on || !isConnectCap(t.cap)))
         .map((t) => (on && t.name === "vault_request" ? { ...t, summary: `${t.summary}${POINT_TO_CARD}` } : t));
     },
     byName: catalog.byName,

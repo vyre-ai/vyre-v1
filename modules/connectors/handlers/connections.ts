@@ -576,9 +576,12 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const want = squash(input.service);
       const rows = want
         ? tx
-            .all<{ key: string; def: string; state: string; builtin: number }>(
-              "SELECT key, def, state, builtin FROM cn_connectors ORDER BY key",
-            )
+            .all<{
+              key: string;
+              def: string;
+              state: string;
+              builtin: number;
+            }>("SELECT key, def, state, builtin FROM cn_connectors ORDER BY key")
             .filter((r) => r.state !== "draft")
         : [];
       const defs = rows.map(asStored);
