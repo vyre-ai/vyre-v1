@@ -1346,7 +1346,15 @@ function ConversationView(): ReactElement {
             }, fail("Could not unarchive.")),
           stopAll: () => void act.stopAll(data).catch(fail("Could not stop.")),
           more: () => menu.show(housekeeping(), moreAt.current.x, moreAt.current.y, "other", { label: "Chat" }),
-          extra: [...switchEntry, ...connectEntries(thread, data.nav)],
+          extra: [
+            ...switchEntry,
+            {
+              label: SWITCH_LABEL,
+              checked: !chatMemory(thread.threadId).remember,
+              onSelect: () => flipChatMemory(thread.threadId, data.call, say),
+            },
+            ...connectEntries(thread, data.nav),
+          ],
         },
       ),
     ];
@@ -1941,6 +1949,9 @@ function ConversationView(): ReactElement {
                 {chapterNow}
               </Text>
             ) : null}
+            {/* a chat that is not being remembered says so here, beside its name, and a press remembers it again; while it remembers nothing is drawn. The composer holds
+                nothing about memory (owner, 16 Nov 2026: "it doesnt belong there in the composer"): the switch itself is in the chat's menu */}
+            <MemorySwitch threadId={thread.threadId} call={data.call} say={say} />
             <View style={{ flex: 1 }} />
             {/* offline is said once, by the pill at the top of the window: the chat's own header says nothing, so the header never shifts */}
             {crewChip ? (
@@ -2477,16 +2488,6 @@ function ConversationView(): ReactElement {
               agents={composerAgents}
               mode={mode}
               onMode={chooseChatMode}
-              barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
-              plusExtra={() => [
-                {
-                  id: "plus-memory",
-                  title: SWITCH_LABEL,
-                  icon: "lock",
-                  checked: !chatMemory(thread.threadId).remember,
-                  onPress: () => flipChatMemory(thread.threadId, data.call, say),
-                },
-              ]}
               suggest={composerSuggest(data)}
               preview={(item) => previewOf(data, item)}
               openPanelAt={panelAt}

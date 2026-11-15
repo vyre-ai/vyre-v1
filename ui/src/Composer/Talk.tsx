@@ -14,6 +14,8 @@ import type { TalkDeps, TalkRun, TalkSession } from "./talk.ts";
 export interface TalkPort {
   /** False hides the mic: the person turned Talk off. */
   on: boolean;
+  /** False while no voice key covers this person (their own, or the Space's): the mic is not drawn until voice is set up in Settings or Console. /voice still works and says how to set it up. Left out: drawn (the port of a test, or a shell that does not know). */
+  ready?: boolean;
   session(): Promise<TalkSession>;
   /** The first-press sheet, or Settings' own key. True when a key is saved: from the composer, listening starts at once. */
   setup(only?: "mine" | "space"): Promise<boolean>;
@@ -271,7 +273,8 @@ const WEB_PRESS = { userSelect: "none", touchAction: "none" } as unknown as View
 
 /** The mic. One size in every state. */
 export function TalkButton({ talk }: { talk: TalkControl }): ReactElement | null {
-  if (!talk.port || !talk.port.on) return null;
+  // No mic until voice is set up (owner, 16 Nov 2026: "NO need for voice button there unless voice is configured from settings"). /voice still says how to set it up.
+  if (!talk.port || !talk.port.on || talk.port.ready === false) return null;
   const live = talk.phase !== "idle";
   return (
     <Pressable
