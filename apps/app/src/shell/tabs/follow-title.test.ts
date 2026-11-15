@@ -40,7 +40,7 @@ test("a chat tab starts as New chat, takes the chat's one name as the chat fills
   thread = { ...thread, agents: [{ agentId: "agt_dex" }] };
   listeners.forEach((l) => l());
   await flush();
-  assert.equal(shown.at(-1), "Dex", "untitled: who is in it, the same as the list and the header");
+  assert.equal(shown.at(-1), "New chat", "untitled: New chat the whole time, never the agent's name; the title comes once");
   thread = { ...thread, title: "Rivera renewal" };
   listeners.forEach((l) => l());
   await flush();

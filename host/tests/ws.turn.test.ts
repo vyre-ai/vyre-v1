@@ -39,7 +39,7 @@ async function connect(port: number, token: string) {
       });
     });
   await next(); // hello_ok
-  return { next, close: () => ws.close() };
+  return { next, close: () => ws.close(), send: (f: unknown) => ws.send(JSON.stringify(f)) };
 }
 
 test("a turn frame reaches only the sockets whose person is allowed, in the order published", async () => {
@@ -208,4 +208,41 @@ test("the events that mean someone may no longer read a chat are the ones that m
     assert.ok(READER_LOSS.test(name), name);
   for (const name of ["message.received", "channel.member_added", "thread.started"])
     assert.ok(!READER_LOSS.test(name), name);
+});
+
+test("a typing frame over the socket reaches the people who may read the chat and nobody else; the typist hears nothing back, and a person who cannot read the chat is never sent one", async () => {
+  const readers = new Set(["usr_mia", "usr_sam"]);
+  const invoke: Invoke = async (cap, _input, seed) => {
+    if (cap === "threads.get" && !readers.has(seed.principal.id)) throw fail("permission.role_lacks_permission", "no");
+    return { status: "ok", output: {}, traceId: "a".repeat(32) } as Awaited<ReturnType<Invoke>>;
+  };
+  let seam: ReturnType<typeof createEngineHost> | null = null;
+  const hub = createLiveHub({
+    session: (_h, url) => {
+      const t = url.searchParams.get("token");
+      return t ? { space: SPACE, principal: { kind: "person", id: `usr_${t}` }, device: `${t}-dev` } : null;
+    },
+    typing: (person, threadId) => seam?.typing?.(person, threadId),
+  });
+  seam = createEngineHost({ space: SPACE, invoke, publishTyping: () => hub.publishTurn.bind(hub) });
+  const port = await hub.listen();
+  try {
+    const mia = await connect(port, "mia");
+    const sam = await connect(port, "sam");
+    const guest = await connect(port, "guest");
+    const raw = (ws: Awaited<ReturnType<typeof connect>>, f: unknown): void => ws.send(f);
+    raw(mia, { t: "typing", threadId: "thr_a" });
+    const got = await sam.next();
+    assert.deepEqual(got, { t: "typing", threadId: "thr_a", person: "usr_mia" });
+    await assert.rejects(guest.next(200), /no frame/, "a person who cannot read the chat never receives a frame");
+    await assert.rejects(mia.next(200), /no frame/, "the typist is not told");
+    // the guest typing in a chat they cannot read tells Mia and Sam nothing
+    raw(guest, { t: "typing", threadId: "thr_a" });
+    await assert.rejects(sam.next(200), /no frame/);
+    mia.close();
+    sam.close();
+    guest.close();
+  } finally {
+    await hub.close();
+  }
 });

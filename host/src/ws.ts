@@ -298,6 +298,8 @@ export interface LiveOptions {
    */
   liveFast?(session: LiveSession): boolean;
   invoke?: Invoke;
+  /** A person on an open socket says they are typing in a chat: the host decides who is told (only people who may read it), and how often. Nothing is stored. */
+  typing?(person: string, threadId: string): void;
   /**
    * Sync's live hub (ARCH 5.9). When given, a socket speaks the sync protocol: hello is answered by the hub (hello_ok { ok: { serverVersion, epoch, serverHlc, mode, head, entityVersions } }),
    * `ev` batches are the filtered pull, acks and heartbeats are the hub's. This server keeps the RFC 6455 framing, the session check, `call` frames (low-latency capability calls) and purge.
@@ -337,7 +339,7 @@ export interface LiveHub {
   publish(space: string, events: EventEnvelope[]): void;
   /** A live turn frame (text as it is written) to the sockets whose person `allow` accepts, in the order given. Never replayed, never held for an ack: a device that missed it reads the finished message. */
   publishTurn(
-    frame: { t: "turn"; turn: string; delta: Record<string, unknown> },
+    frame: { t: "turn"; turn: string; delta: Record<string, unknown> } | { t: "typing"; threadId: string; person: string },
     allow: (personId: string) => boolean | Promise<boolean>,
   ): void;
   /** Rows changed with no event of this computer's own (another computer of a Personal Space synced them, host/src/peers): every app on the Space gets the bare `changed` tick and re-reads. */
@@ -504,6 +506,12 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     // a frame from a session that ended goes nowhere: not to sync's session (a push, a pull) and not to the legacy envelope; a call answers that it ended
     if (f["t"] !== "call" && !stillLive(c)) {
       ended(c);
+      return;
+    }
+    // a typing frame is the host's own: it never reaches sync's hub, and only a person's own socket may send one
+    if (f["t"] === "typing") {
+      if (c.session.principal.kind === "person" && typeof f["threadId"] === "string")
+        o.typing?.(c.session.principal.id, f["threadId"]);
       return;
     }
     if (c.link && f["t"] !== "call") {

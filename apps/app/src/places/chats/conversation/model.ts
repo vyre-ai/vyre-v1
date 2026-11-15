@@ -314,7 +314,10 @@ export function workOf(m: Message): Work | null {
     ? `Working, ${count} so far`
     : secs > 0
       ? `Worked ${workTime(secs)} · ${count}`
-      : `Worked ${count}`;
+      : // the host measured the whole turn and it took under a second: say that, rather than nothing
+        steps.some((b) => typeof dataOf(b).turnSecs === "number")
+        ? `Worked under a second · ${count}`
+        : `Worked ${count}`;
   const current = [...lines].reverse().find((l) => l.state === "live");
   return { steps: lines, secs, live, summary, now: current ? current.title : "", short: !live && secs < 30 && n < 5 };
 }

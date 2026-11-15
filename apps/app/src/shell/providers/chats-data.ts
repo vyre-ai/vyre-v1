@@ -281,6 +281,15 @@ export function conversationData(
     directory: candidates(principals, rt.me.id, { id: rt.assistant.id, name: rt.assistant.name }),
     newKey,
     mayChat: allows(rt, GATE.newChat),
+    ...(rt.typing
+      ? {
+          typingLive: {
+            who: (t: string) => rt.typing!.who(t),
+            say: (t: string) => rt.typing!.say(t),
+            subscribe: (l: () => void) => rt.typing!.subscribe(l),
+          },
+        }
+      : {}),
     streamOf: (id) => rt.turns?.streamOf(id),
     activityOf: (id) => rt.turns?.activityOf(id),
     ...(rt.turns

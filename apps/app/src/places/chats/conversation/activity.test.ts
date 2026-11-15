@@ -163,3 +163,23 @@ test("the word is true while a turn is held, setting up, or parked (review, 14 N
     "words coming, nothing held",
   );
 });
+
+test("a turn the host measured at under a second says so: Worked under a second, 1 step; one it never measured says only Worked 1 step", async () => {
+  const { workOf } = await import("./model.ts");
+  const m = (turnSecs?: number) =>
+    ({
+      blocks: [
+        { type: "tool_call", id: "b1", v: 1, state: "done", data: { id: "c1", name: "people_status" } },
+        {
+          type: "tool_result",
+          id: "b2",
+          v: 1,
+          state: "done",
+          data: { id: "c1", name: "people_status", ok: true, secs: 0, ...(turnSecs === undefined ? {} : { turnSecs }) },
+        },
+      ],
+    }) as never;
+  assert.equal(workOf(m(0))!.summary, "Worked under a second · 1 step");
+  assert.equal(workOf(m())!.summary, "Worked 1 step");
+  assert.equal(workOf(m(3))!.summary, "Worked 3s · 1 step");
+});

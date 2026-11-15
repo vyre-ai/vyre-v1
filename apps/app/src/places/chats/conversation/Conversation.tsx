@@ -306,6 +306,15 @@ function useLiveTurns(data: ConversationData): readonly import("../../../shell/s
 }
 
 /** The lead of this chat runs outside Vyre and has gone quiet: said plainly above the composer, because a message here will wait. Only its owner can read it, and only its owner can ask it. */
+/** The people (ids) typing in this chat now, from the live link; empty where nothing is live. */
+function useTypingIds(data: ConversationData): readonly string[] {
+  const live = data.typingLive;
+  const [, tick] = useState(0);
+  useEffect(() => (live ? live.subscribe(() => tick((n) => n + 1)) : undefined), [live]);
+  return live ? live.who(data.threadId) : NONE_TYPING;
+}
+const NONE_TYPING: readonly string[] = [];
+
 export function useOutsideOffline(
   data: Pick<ConversationData, "call">,
   agentId: string | null,
@@ -493,6 +502,7 @@ function ConversationView(): ReactElement {
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
   const [sentOnPage, setSentOnPage] = useState(0);
+  const typingIds = useTypingIds(data);
   // a row that arrives while the chat is open comes in with one quiet motion (the prototype's); rows already there when the chat opened, and every row under reduced motion, do not move
   const readyAt = useRef(0);
   const arrivedRows = useRef(new Map<string, boolean>());
@@ -1196,7 +1206,7 @@ function ConversationView(): ReactElement {
     );
   };
   const island = islandView(openQs, putAway, islandAt, longChat ? new Set<string>() : cardsInView);
-  const typingNames: readonly string[] = data.typing ?? [];
+  const typingNames: readonly string[] = [...(data.typing ?? []), ...typingIds.map((id) => nameOf(id).split(" ")[0] ?? nameOf(id))];
   // a face or a name opens by what it is: a helper (its thread) opens as the helper chat; a person or an agent goes to the host, which opens a profile or an agent page
   const allHelpers = helpersQ.status === "loading" ? [] : helpersQ.data.helpers;
   const openFace = (id: string): void => {
@@ -1626,7 +1636,7 @@ function ConversationView(): ReactElement {
       setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id));
       unsay();
     },
-    showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
+    showMenu: (entries, x, y, label, source) => menu.show(entries, x, y, source ?? "context", { label }),
     ...(lead
       ? {
           liveCard: {
@@ -2523,6 +2533,7 @@ function ConversationView(): ReactElement {
               onChange={(t) => {
                 typedRef.current = t;
                 setTyped(t);
+                if (t.trim() !== "") data.typingLive?.say(data.threadId); // tells the others who may read this chat, at most every 2 seconds
               }}
               onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
               onSubmit={(p) => submit(p, "queue")}

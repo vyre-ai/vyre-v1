@@ -163,3 +163,11 @@ test("the mute line shows once: under the newest message for the reader, until s
   );
   assert.equal(muteOfferFor([older, newer, mine], "usr_maya", none), null, "she wrote after it: she has seen it");
 });
+
+test("an approval with no capability behind it is drawn as its plain words, and a teammate's plain question reads as the question (no Allow for a block that runs nothing)", async () => {
+  const { heldOf } = await import("./approval-model.ts");
+  const empty = heldOf([{ type: "table", data: { cap: "", act: "", rows: [] } }]);
+  assert.deepEqual([empty.cap, empty.plain, empty.what, empty.outward], ["", undefined, undefined, undefined]);
+  const plain = heldOf([{ type: "table", data: { cap: "", act: "", plain: true, ask: { what: "approve the discount" } } }]);
+  assert.equal(plain.plain, true);
+});

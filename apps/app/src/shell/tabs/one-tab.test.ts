@@ -154,8 +154,8 @@ test("a chat is named by its one name (lib/chat-name.ts): a person for a direct 
   );
   assert.equal(
     await resolve({ kind: "chat", agents: [{ agentId: "agt_dex" }], members: [{ kind: "person", id: "usr_me" }] }),
-    "Dex",
-    "untitled: who is in it",
+    "New chat",
+    "untitled with an agent: New chat",
   );
   assert.equal(
     await resolve({ kind: "chat", title: "Rivera renewal", agents: [{ agentId: "agt_dex" }], members: [] }),

@@ -39,6 +39,8 @@ export function chatName(t: NameInput, nameOf: (id: string) => string): string {
   const dm = directPerson(t);
   if (dm !== null) return nameOf(dm);
   if (hasRealTitle(t.title)) return t.title.trim();
+  // a chat with an agent in it has no name until its first exchange is over: it reads "New chat" the whole time, then the real title, so the name never changes twice while you watch
+  if ((t.kind === undefined || t.kind === "chat") && t.agents.length > 0) return "New chat";
   const others = joinNames([...t.agents, ...t.people].map(nameOf));
   return others === "" ? "Chat" : others;
 }

@@ -1,0 +1,1 @@
+A message's menu is short: Copy, Reply in thread, Add reaction, Pin, Make a task, Share, Fork, and for your own message Edit and Delete; Memory opens its three, and Details, Report a problem and the rest are under More.

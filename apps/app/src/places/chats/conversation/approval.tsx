@@ -200,6 +200,13 @@ export function ApprovalCard({
     );
   if (task === undefined || task === null) return null;
   const held = heldOf(task.blocks);
+  // a card with no capability behind it, no ask and no plain question has nothing for a button to do: it is drawn as the plain words it carries, never as an approval
+  if (held.cap === "" && !held.plain && !held.what && !held.outward && outcome === null && outcomeOf(task.state) === null)
+    return (
+      <Text testID={`approval-words-${taskId}`} style={{ fontSize: 13.5, color: "var(--ink-2)" as string, marginVertical: 4 }}>
+        {task.summary ? `${task.title}. ${task.summary}` : task.title}
+      </Text>
+    );
   // a held message, email, text or post: the one held card (held-card.tsx). The Gate writes who, how, when and what into the hold; a hold parked before that is read from its input the same way.
   const ow: Outward | null = held.what || held.plain ? null : (held.outward ?? outwardOf(held.cap, held.input));
   if (ow) {
@@ -422,7 +429,12 @@ export function ApprovalCard({
         ? `${agent} wants to send ${keyRead.handle} (${keyRead.name}) to ${keyRead.host}`
         : `${agent} wants to send a key you cannot see${keyRead?.host ? ` to ${keyRead.host}` : ""}`
       : null);
-  const headline = held.what ? askLine(agent, held.what) : (keyLine ?? wantsLine(agent, held.cap, subject, held.input));
+  // a teammate's plain question (no capability behind it: pressing answers the agent, nothing runs) reads as the question it is, never as "asks you to: approve ..."
+  const headline = held.plain
+    ? `${agent} asks: ${task.title}`
+    : held.what
+      ? askLine(agent, held.what)
+      : (keyLine ?? wantsLine(agent, held.cap, subject, held.input));
   return (
     <Card
       kind="decision"

@@ -167,15 +167,6 @@ const MAIL_HIT = "shell:mail";
 /** Settings, its pages and the Console, found by their names (owner walk, 12 Nov: typing "settings" said No results). The words under each are the page's own line. */
 const SETTINGS_PAGE = "shell:settings:";
 const CONSOLE_HIT = "shell:console";
-/** The places a person can go to by name: "Vault", "Files". Each opens that place (owner walk, 15 Nov: typing "Vault" found rows about Vault but not the Vault). */
-const PLACE_HIT = "shell:place:";
-const PLACE_HITS: readonly { place: PlaceId; title: string; snippet: string }[] = [
-  { place: "vault", title: "Vault", snippet: "Sign-ins and keys" },
-  { place: "files", title: "Files", snippet: "Folders and documents" },
-  { place: "records", title: "Records", snippet: "Projects, people and anything you track" },
-  { place: "automations", title: "Automations", snippet: "Things that run on their own" },
-  { place: "apps", title: "Apps", snippet: "Apps your agents and team use" },
-];
 /** Settings and its pages from the Settings model's own list (one list, so the two never drift apart; review O6): the "you" pages a person has, each with its own line. */
 const SETTINGS_HITS: readonly { page: string; title: string; snippet: string }[] = [
   { page: "", title: "Settings", snippet: "Your profile, AI, notifications and look" },
@@ -252,16 +243,6 @@ export function shellHits(state: { inbox?: boolean }): readonly Hit[] {
         title: x.title,
         snippet: x.snippet,
         link: `vyre://settings${x.page ? `/${x.page}` : ""}`,
-        score: 0.8,
-      }),
-    ),
-    ...PLACE_HITS.map(
-      (x): Hit => ({
-        kind: "setting",
-        id: `${PLACE_HIT}${x.place}`,
-        title: x.title,
-        snippet: x.snippet,
-        link: `vyre://${x.place}`,
         score: 0.8,
       }),
     ),

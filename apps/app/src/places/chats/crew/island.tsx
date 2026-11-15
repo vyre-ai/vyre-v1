@@ -1,5 +1,6 @@
 // The Island above the composer (prototype p-crew): while helpers work, one small pill says so and wears their faces; it says "Needs you" in amber when one waits for a person. It reads the same crew status as the
 // strip, the header chip and the pane, and pressing it opens the pane. It is gone when nobody is working.
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -82,7 +83,17 @@ export function WorkIsland({
 }): ReactElement | null {
   const { label, writing, snap } = useCalmWord(store, stream, held);
   const computer = usesComputer(snap);
+  // how long it has been going, once a second: "Writing · 12s"; with two or more at work the island names them
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    (t as { unref?: () => void }).unref?.(); // a test's process is not held open by a clock
+    return () => clearInterval(t);
+  }, []);
   if (faces.length === 0) return null;
+  const secs = snap.startedAt > 0 ? Math.max(0, Math.round((now - snap.startedAt) / 1000)) : 0;
+  const who = faces.length > 1 ? faces.slice(0, 3).map((f) => f.name.split(" ")[0]).join(" and ") : "";
+  const words = [label, who, secs > 0 ? `${secs}s` : ""].filter((x) => x !== "").join(" \u00b7 ");
   return (
     <View style={st.wrap}>
       <Pressable
@@ -94,7 +105,7 @@ export function WorkIsland({
       >
         <WorkingMark state={writing ? "writing" : "thinking"} step={label} size={18} />
         <Text testID="work-island-text" numberOfLines={1} style={st.text}>
-          {label}
+          {words}
         </Text>
         {/* ui-rows-lint: not a list (the faces of everyone working, a decoration on one pill) */}
         <View style={st.faces}>

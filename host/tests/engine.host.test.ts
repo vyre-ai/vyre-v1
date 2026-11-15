@@ -132,3 +132,41 @@ test("the live text of a turn that read something goes to its asker only (gap 6)
     false,
   );
 });
+
+test("a person's typing goes only to other people who may read that chat, never to the typist, never to an agent, and at most once every 2 s; a person who cannot read the chat tells nobody", async () => {
+  const readers = new Set(["usr_mia", "usr_sam"]);
+  const calls: string[] = [];
+  const invoke: Invoke = async (cap, input, seed) => {
+    calls.push(`${cap}:${seed.principal.id}`);
+    if (cap === "threads.get" && !readers.has(seed.principal.id)) throw new Error("permission.denied");
+    return { status: "ok", output: {}, traceId: "a".repeat(32) } as Awaited<ReturnType<Invoke>>;
+  };
+  const sent: Array<{ frame: unknown; to: string[] }> = [];
+  let t = 1_000_000;
+  const h = createEngineHost({
+    space: "spc_1",
+    invoke,
+    now: () => t,
+    publishTyping: () => async (frame, allow) => {
+      const to: string[] = [];
+      for (const p of ["usr_mia", "usr_sam", "usr_guest", "agt_helper"]) if (await allow(p)) to.push(p);
+      sent.push({ frame, to });
+    },
+  });
+  const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
+  h.typing!("usr_mia", "thr_1");
+  await settle();
+  assert.deepEqual(sent[0]?.to, ["usr_sam"], "Sam only: not Mia herself, not the guest who cannot read it, not an agent");
+  assert.deepEqual(sent[0]?.frame, { t: "typing", threadId: "thr_1", person: "usr_mia" });
+  h.typing!("usr_mia", "thr_1");
+  await settle();
+  assert.equal(sent.length, 1, "a second frame inside 2 s is dropped");
+  t += 2_100;
+  h.typing!("usr_mia", "thr_1");
+  await settle();
+  assert.equal(sent.length, 2);
+  h.typing!("usr_guest", "thr_1");
+  h.typing!("agt_helper", "thr_1");
+  await settle();
+  assert.equal(sent.length, 2, "a person who cannot read the chat, and an agent, tell nobody anything");
+});

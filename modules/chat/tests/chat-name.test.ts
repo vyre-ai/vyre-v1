@@ -27,22 +27,15 @@ test("rule 2: a direct message is named after the person, whatever its stored ti
   assert.equal(chatName({ kind: "chat", title: "Heyy", agents: [], people: ["usr_aliza"] }, nameOf), "Aliza");
 });
 
-test("rule 3: any other chat is named by its title; until it has one, by the others in it", () => {
+test("rule 3: any other chat is named by its title; until it has one, a chat with an agent reads New chat (never the agent's name, then New chat, then the title), a chat of people by the others in it", () => {
   assert.equal(
     chatName({ kind: "chat", title: "GHL onboarding goal", agents: ["agt_dex"], people: [] }, nameOf),
     "GHL onboarding goal",
   );
   for (const placeholder of ["", "New chat", "Chat", undefined])
-    assert.equal(chatName({ kind: "chat", title: placeholder, agents: ["agt_dex"], people: [] }, nameOf), "Dex");
-  assert.equal(chatName({ kind: "chat", agents: ["agt_dex"], people: ["usr_aliza"] }, nameOf), "Dex and Aliza");
-  assert.equal(
-    chatName({ kind: "chat", agents: ["agt_dex", "agt_mira"], people: ["usr_aliza"] }, nameOf),
-    "Dex, Mira and Aliza",
-  );
-  assert.equal(
-    chatName({ kind: "chat", agents: ["agt_dex", "agt_mira"], people: ["usr_aliza", "usr_x", "usr_y"] }, nameOf),
-    "Dex, Mira, Aliza and 2 more",
-  );
+    assert.equal(chatName({ kind: "chat", title: placeholder, agents: ["agt_dex"], people: [] }, nameOf), "New chat");
+  assert.equal(chatName({ kind: "chat", agents: ["agt_dex"], people: ["usr_aliza"] }, nameOf), "New chat");
+  assert.equal(chatName({ kind: "chat", agents: [], people: ["usr_aliza", "usr_x"] }, nameOf), "Aliza and Xan");
   assert.equal(chatName({ kind: "chat", agents: [], people: [] }, nameOf), "Chat");
   assert.equal(
     chatName({ kind: "channel", title: "launch", agents: [], people: ["usr_aliza"] }, nameOf),

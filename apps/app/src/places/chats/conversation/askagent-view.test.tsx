@@ -80,7 +80,7 @@ test("the quiet line under your unanswered message opens the picker, the room's 
   }
 });
 
-test("every message in a channel, yours or someone else's, has Ask an agent… in its menu and its hover bar; a chat without the action has neither", () => {
+test("every message in a channel, yours or someone else's, has Ask an agent… in its menu (behind More; in the phone sheet at once) and its hover bar; a chat without the action has neither", () => {
   const theirs = {
     messageId: "c1",
     threadId: "c1",
@@ -117,10 +117,10 @@ test("every message in a channel, yours or someone else's, has Ask an agent… i
     },
   } as unknown as MessageActions;
   const labels = (mine: boolean, acts: MessageActions) =>
-    menuFor(theirs, mine, acts, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
+    menuFor(theirs, mine, acts, () => undefined, { x: 0, y: 0 }, true).flatMap((e) => ("label" in e ? [e.label] : []));
   assert.ok(labels(false, a).includes("Ask an agent…"));
   assert.ok(labels(true, a).includes("Ask an agent…"));
-  const entry = menuFor(theirs, false, a, () => undefined).find((e) => "label" in e && e.label === "Ask an agent…") as {
+  const entry = menuFor(theirs, false, a, () => undefined, { x: 0, y: 0 }, true).find((e) => "label" in e && e.label === "Ask an agent…") as {
     onSelect(): void;
   };
   entry.onSelect();
