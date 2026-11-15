@@ -68,6 +68,8 @@ function WhoField({
   );
 }
 
+import { ConditionField, EventField } from "./ConditionField.tsx";
+
 function One({
   control,
   input,
@@ -93,6 +95,11 @@ function One({
     onInput(out.input);
   };
   const id = `field-${control.name}`;
+  // a condition is rows, never a text box; what a Wait waits for is an event picked in words (AUTOMATIONS-BUILD-RC29 round five)
+  if (control.name === "condition" || (control.name === "when" && control.kind === "text"))
+    return <ConditionField label={control.label} value={controlText(control, current)} openMenu={openMenu} testID={id} onCommit={(t) => onInput(basicFieldEdit(input, control.name, t))} />;
+  if (control.name === "event" && control.kind === "json")
+    return <EventField value={current} openMenu={openMenu} testID={id} onCommit={(next) => onInput({ ...input, event: next })} />;
   const note = problem ? (
     <Hint danger testID={`${id}-problem`}>
       {problem}

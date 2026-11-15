@@ -73,7 +73,9 @@ const OWNED: Record<string, Record<string, string[]>> = {
   code: { source: ["field-source"] },
   ai: { prompt: ["field-prompt"] },
   // round three: an email and a text are the one step form (To, Subject, Message as chip fields), so their fields are field-<name> like every other step's
-  paths: { paths: ["field-path-0"] },
+  // round five: a condition is rows (a field button, an operator button, a value), never a text box
+  paths: { paths: ["field-path-0-field-0"] },
+  if: { condition: ["field-condition-field-0"] },
   parallel: { branches: ["field-lane-0"] },
 };
 const ACCOUNT_FIELDS = new Set(["connectionId", "mailboxId", "numberId", "connector"]);

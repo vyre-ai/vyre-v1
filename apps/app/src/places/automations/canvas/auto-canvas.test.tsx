@@ -65,7 +65,8 @@ test("a pressed step opens its form beside the page, with its fields", () => {
     has(open, 'data-testid="step-details"') && has(open, 'data-testid="field-path-0"'),
     "the Details (which hold the name) and the path's condition",
   );
-  assert.ok(has(open, "lead.phone is not empty"));
+  // round five: a condition is rows in words: the field, "is not empty"
+  assert.ok(has(open, "Lead \u00b7 Phone") && has(open, "is not empty"));
   assert.ok(
     has(open, 'data-testid="step-details"') && !has(open, "If this step fails"),
     "the failure setting is under a closed Details",
