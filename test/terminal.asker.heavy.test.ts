@@ -259,7 +259,7 @@ test(
 // Review H5 and the lead's ruling (14 Nov): a leaver's data waits for the Trash time. A real member removal on a booted daemon, a real container: at once their programs are stopped and no turn can enter
 // their folder; the folder is still there inside the Trash time (a person removed by mistake gets it back); the pass that removes it works from the container (their own user, an awake workspace).
 test(
-  "a real member removal: the leaver's programs stop and their folder is unreachable at once, kept inside the Trash time, and goes with the leaver's own user when the time is over",
+  "a real member removal: the leaver's programs stop, their folder is unreachable and erased at once, and the folder stays their uid's own",
   { skip, timeout: 900_000 },
   async (t) => {
     const w = await world();
@@ -279,20 +279,13 @@ test(
       await w.d.hooks?.pump?.();
       return (await alive()) === "0" ? true : null;
     }, 60_000);
-    // inside the Trash time the folder is there, for the day he is back
-    const kept = await docker(["exec", "--user", `${uid}:${uid}`, ws, "cat", `/people/u${uid}/keep.txt`]);
-    assert.match(kept.out, /BEN-KEEP/, "the folder is kept inside the Trash time");
-    // the pass that removes it, as it runs it: the leaver's own user, an awake workspace, the exit status checked
-    const rm = await docker([
-      "exec",
-      "--user",
-      `${uid}:${uid}`,
-      ws,
-      "sh",
-      "-c",
-      `rm -rf /people/u${uid}; test ! -e /people/u${uid} && echo gone`,
-    ]);
-    assert.match(rm.out, /gone/);
+    // what he made is erased at once (lead's ruling of 15 Nov): the folder is empty, and still his own uid's, for nobody else to make
+    await waitFor(async () => {
+      await w.d.hooks?.pump?.();
+      const left = await docker(["exec", ws, "sh", "-c", `ls -A /people/u${uid} | wc -l; stat -c %u /people/u${uid}`]);
+      const [n, owner] = left.out.trim().split("\n");
+      return n === "0" && owner === String(uid) ? true : null;
+    }, 60_000);
     const other = await docker(["exec", ws, "ls", "-d", "/home/agent"]);
     assert.match(other.out, /\/home\/agent/, "the agent's own home is untouched");
   },

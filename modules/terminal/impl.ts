@@ -1414,13 +1414,15 @@ export const hostCalls = {
 
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
-  /** A person left the Space: unreachable at once, their processes stopped where they run; their folder is removed after the Space's Trash time (forgetExpiredPeople). */
+  /** A person left the Space: unreachable at once, their processes stopped where they run; their folder is erased at once where it is (and by the hourly pass where the workspace could not be reached). */
   "terminal.person_left": {
     on: ["member.removed"],
     run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): Promise<string[]> =>
       onPersonLeft(ctx, event, async (agentId, place) => {
         // as them, and only where it runs: a sleeping workspace has nothing of theirs running and is not woken
         await workspaceManager?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
+        // and what they made is erased at once (a person who leaves the Space takes nothing of theirs with the next person who gets their user)
+        await workspaceManager?.exec(agentId, removeCommand(place), { user: place.uid });
       }),
   },
   /** What a person may reach on an agent's computer may have changed (a grant, a group, a role, an expiry, a suspension, a chat's members): it is brought back to what they may reach now at once (handlers/sessions.ts reconcileAccess). */

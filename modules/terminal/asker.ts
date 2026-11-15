@@ -135,7 +135,8 @@ export function chatLinkCommand(thread: string, home: string): string[] {
 
 /** Takes a person's folder out of a workspace (they left the Space and the Trash time is over). Run as the person's uid: nobody else can. */
 export function removeCommand(p: AskerPlace): string[] {
-  return ["sh", "-c", 'rm -rf "$1"; true', "sh", p.home];
+  // everything in the folder goes; the folder itself stays (it is the person's uid's own, made by the image, and /people is not writable by anyone)
+  return ["sh", "-c", 'find "$1" -mindepth 1 -delete', "sh", p.home];
 }
 
 /** The `u<uid>` folders under /people that a path names and that are not this person's. Friendly words only: the kernel is the wall. */
