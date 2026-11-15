@@ -1023,6 +1023,7 @@ export default defineManifest({
         stepIndex: t.opt(t.int()),
         at: t.ts(),
         live: t.opt(t.bool()),
+        person: t.opt(id.user),
       },
       "Browser: {{caption}}",
       {

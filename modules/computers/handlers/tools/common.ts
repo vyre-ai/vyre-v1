@@ -382,6 +382,7 @@ async function browserCard(
   caption: string,
   fileId: string | undefined,
   at: number,
+  person?: string,
 ): Promise<void> {
   if (!ctx.thread || ctx.principal.kind !== "agent" || !fileId) return;
   const key = `browser|${agentId}|${ctx.thread}`;
@@ -394,7 +395,13 @@ async function browserCard(
       body: "",
       mentions: [],
       idempotencyKey: `sbrlive:${agentId}:${ctx.thread}:${Math.floor(at / LIVE_GAP_MS)}`,
-      blocks: [{ type: "browser_screenshot", v: 1, data: { agentId, fileId, caption, at, live: true } }],
+      blocks: [
+        {
+          type: "browser_screenshot",
+          v: 1,
+          data: { agentId, fileId, caption, at, live: true, ...(person ? { person } : {}) },
+        },
+      ],
     });
   } catch {
     lastCard.delete(key);
@@ -1000,7 +1007,8 @@ async function browserStep(
       }
     } else words = `${words} · ${cardDue(ctx, ctx.principal.id, at) ? NO_PICTURE_OR_CARD : NO_PICTURE}`;
     const c = { computerId: profileId, agentId: ctx.principal.id } as unknown as ComputerRow;
-    const frameFileId = await keepFrame(ctx, c, frame, at, await askerOfTurn(ctx));
+    const askerNow = await askerOfTurn(ctx);
+    const frameFileId = await keepFrame(ctx, c, frame, at, askerNow);
     addStep(ctx.db, profileId, at, {
       by: "agent",
       caption: words,
@@ -1009,7 +1017,7 @@ async function browserStep(
       ...(ctx.run ? { runId: ctx.run } : {}),
       ...(ctx.thread ? { threadId: ctx.thread } : {}),
     });
-    await browserCard(ctx, ctx.principal.id, words, frameFileId, at);
+    await browserCard(ctx, ctx.principal.id, words, frameFileId, at, askerNow);
   }
   if (REPORTS_DOWNLOADS.has(spec.name)) {
     const saved = await takeDownloads(ctx, sb, profileId, ctx.principal.id, await askerOfTurn(ctx));

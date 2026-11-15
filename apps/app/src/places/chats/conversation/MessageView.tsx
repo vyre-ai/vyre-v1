@@ -1998,6 +1998,7 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
       <LiveCard
         id={line.id}
         agentId={line.data.agentId}
+        person={typeof line.data.person === "string" ? line.data.person : undefined}
         fileId={line.data.fileId}
         caption={typeof line.data.caption === "string" && line.data.caption !== "" ? line.data.caption : line.title}
         cfg={actions.liveCard}
