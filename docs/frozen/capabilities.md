@@ -558,3 +558,11 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 - Proof: test/goals.wake-fail.live.test.ts, modules/goals/tests, lib/words/failure.test.ts, apps/app/src/places/chats/conversation/status.test.ts. Snapshots: docs/frozen/snapshots/goals.json and engine.json.
 
 Signed: lead, 16 Nov 2026 00:42 PKT, after reading the manifest diff: optional, additive fields only.
+
+## 16 Nov 2026: delete for good, round five (lane f-agentdel, after the data-safety review)
+
+`agents.delete_for_good` now refuses every caller that is not a person, before anything else, in one sentence ("Only a person can delete an agent for good."): an agent (acting for a person too), a service, an Automation step and an outside tool. Its Gate act is a new one, `agent_erase`, that always stops (no Space rule, no Always allow lifts it, only a person decides). It is not an Automation step. `agents.trash.list` rows gain optional `failed` (what a job that keeps failing could not finish, in words). `agents.delete_preview` answers `chatPeople` and `folderPeople` (the other people who have a chat with the agent or their own folder on its computer, with their names). `agents.erased` is new (the name an erased agent had, for the "deleted" mark). `files.folder.purge` refuses an agent's folder ("An agent is deleted from its own page in Trash."), `files.trash.empty` skips it, and `folder.purged` carries only the folder id; only `agents.delete_for_good` and the Trash clock erase an agent. A job that fails backs off (3 s, 30 s, 5 min); pressing Delete for good again is Try again.
+- Why: the reviewer's six blocking items (any member could erase another's agent through Files, the gate could be lifted, the clock guessed on a failed read, the browser profile was left behind, other people lost data unannounced, a person's memory was lost).
+- Compatibility: additive outputs; `files.folder.purge` and `files.trash.empty` refuse or skip agent folders.
+
+Signed: for the lead to sign
