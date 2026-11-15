@@ -144,7 +144,9 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       return;
     }
     // the place left: keep the column's room, empty, until the next place fills it or the hold runs out
-    setEntry((cur) => (cur === null ? null : { title: "", searchPlaceholder: cur.searchPlaceholder, noSearch: true, held: true }));
+    setEntry((cur) =>
+      cur === null ? null : { title: "", searchPlaceholder: cur.searchPlaceholder, noSearch: true, held: true },
+    );
     letGo.current = setTimeout(() => {
       letGo.current = null;
       setEntry((cur) => (cur !== null && cur.held === true ? null : cur));
@@ -178,7 +180,9 @@ const OutletContext = createContext<{
 
 /** True where a shell sidebar column exists to draw in (inside the app's shell). A place that can also stand alone draws its own list when this is false. */
 export function useInSidebarSlot(): boolean {
-  return useContext(Reg) !== null && useContext(Ctx) !== null;
+  const reg = useContext(Reg);
+  const slot = useContext(Ctx);
+  return reg !== null && slot !== null;
 }
 
 export function useSidebarSlot(): SidebarSlotApi {

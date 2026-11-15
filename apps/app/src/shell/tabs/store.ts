@@ -167,7 +167,8 @@ function leaveNewTab(before: TabsState, after: TabsState): TabsState {
   };
   const rest = after.tabs.filter((t) => t.key !== was.key).map(unlink);
   const opened = rest.find((t) => t.key === after.active);
-  if (opened === undefined || before.tabs.some((t) => t.key === opened.key)) return { tabs: rest, active: after.active };
+  if (opened === undefined || before.tabs.some((t) => t.key === opened.key))
+    return { tabs: rest, active: after.active };
   const others = rest.filter((t) => t !== opened);
   others.splice(Math.min(at, others.length), 0, opened);
   return { tabs: others, active: after.active };
