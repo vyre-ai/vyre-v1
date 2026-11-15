@@ -264,6 +264,14 @@ function Sidebar({
               dispatch({ type: "open", key: t.key });
               choose();
             },
+            ...(data.nav.openType
+              ? {
+                  openTab: () => {
+                    const openType = data.nav.openType;
+                    if (openType !== undefined) openIn("tab", () => openType(t.key));
+                  },
+                }
+              : {}),
             star: (on) => {
               void Promise.resolve(
                 data.call("stars.toggle", { resource: { type: "record_type", id: t.key }, on }),

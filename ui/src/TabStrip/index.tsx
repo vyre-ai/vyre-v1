@@ -263,6 +263,11 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   useEffect(() => {
     reveal();
   }, [reveal, tabs.length, room]);
+  // the fade follows the tabs: more of them behind either edge, and it shows there (a tab cut at the edge with no fade was the fault)
+  useEffect(() => {
+    const t = setTimeout(() => edges(), 60);
+    return () => clearTimeout(t);
+  }, [tabs.length, room, active]); // eslint-disable-line react-hooks/exhaustive-deps
   const edges = useCallback(() => {
     const { x, w } = view.current,
       more = content.current - (x + w);
@@ -407,8 +412,8 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
             }));
             const box = listNode.current as Focusable | null;
             if (box !== null && typeof box.measureInWindow === "function")
-              box.measureInWindow((x, y, w, h) => show(rows, x + w - 240, y + h + 4, undefined, { label: "All tabs" }));
-            else show(rows, 0, TAB_STRIP_HEIGHT, undefined, { label: "All tabs" });
+              box.measureInWindow((x, y, w, h) => show(rows, x + w - 240, y + h + 4, undefined, { label: "All tabs" }, tabs.length > 12 ? { search: "Find a tab" } : undefined));
+            else show(rows, 0, TAB_STRIP_HEIGHT, undefined, { label: "All tabs" }, tabs.length > 12 ? { search: "Find a tab" } : undefined);
           }}
         />
       ) : null}

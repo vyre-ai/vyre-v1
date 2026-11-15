@@ -23,7 +23,7 @@ export function tabSpecs(tabs: readonly TabEntry[]): TabSpec[] {
     out.push({
       key: t.key,
       title: t.title,
-      icon: iconMarkup(t.place),
+      icon: t.isNew === true ? "plus" : iconMarkup(t.place),
       ...(t.pinned === true ? { pinned: true, iconOnly: true } : {}),
     });
   return out;
