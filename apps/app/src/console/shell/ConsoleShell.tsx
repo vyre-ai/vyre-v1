@@ -1,6 +1,7 @@
 // The Console shell (spec 3.10): a top bar (Space mark and name, "Console", health dot, Cmd-K, Assistant toggle Cmd-J, skin, Open the app, the admin), the left navigation with its groups,
 // and the page. Pages hide by permission; a page opened without its permission, or the whole Console without console.access, shows the shared LockedState with Ask for access.
 // In the app it is a place in the shell, so `embedded` leaves the shell's own bar, theme and search to the shell. Alone (a phone, or console.<space-address>) it draws its own top bar.
+import { openIn, takeOpenHow } from "../../shell/tabs/open-how.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -164,6 +165,12 @@ function ShellBody({
       const id = resolve(raw);
       const d = pageById(id);
       if (!d) return;
+      // Cmd-press, the middle button or a menu's "Open in new tab": the page opens as a tab beside this one (tabs/open-rule.ts), this tab stays where it is
+      const how = takeOpenHow();
+      if (how !== "here") {
+        openIn(how, () => data.nav.openApp({ screen: d.screen, args: { page: id } }));
+        return;
+      }
       setPage(id);
       setPageState(state);
       data.nav.openPage(id, state);

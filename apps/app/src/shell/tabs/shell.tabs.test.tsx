@@ -49,16 +49,16 @@ test("opening a tab selects it, opening it again selects the same one, backgroun
   assert.equal(s.active, "chats");
   s = openTab(s, placeTab("records", "pruitt", "Pruitt matter"), true);
   assert.equal(s.active, "chats", "a background tab does not take the selection");
-  assert.equal(s.tabs[2]?.title, "Pruitt matter");
+  assert.equal(s.tabs[1]?.title, "Pruitt matter", "a new tab sits beside the selected one");
   assert.equal(tabKey("records", "pruitt"), "records:pruitt");
   assert.equal(tabKey("home"), "home");
 });
 
-test("closing the selected tab selects its right neighbour, else the left; a pinned tab stays", () => {
+test("closing the selected tab selects the left neighbour (the one it came from when that is open); a pinned tab stays", () => {
   let s = openTab(openTab(openTab(EMPTY_TABS, placeTab("home")), placeTab("chats")), placeTab("files"));
   s = selectTab(s, "chats");
   s = closeTab(s, "chats");
-  assert.equal(s.active, "files");
+  assert.equal(s.active, "home");
   assert.equal(afterClosing(s.tabs, "files", "files"), "home", "the last tab falls back to the left");
   const pinned = { tabs: [{ ...placeTab("home"), pinned: true }, placeTab("chats")], active: "chats" };
   assert.equal(closeTab(pinned, "home"), pinned, "a pinned tab does not close");

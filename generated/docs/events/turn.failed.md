@@ -23,5 +23,6 @@ type Payload = {
   agentId: string;
   code: string;
   message: string;
+  resetsAt?: number;
 };
 ```

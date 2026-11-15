@@ -13,6 +13,7 @@ export type ShellKey =
   | { type: "space"; index: number }
   | { type: "new-tab" }
   | { type: "close-tab" }
+  | { type: "reopen-tab" }
   | { type: "search" }
   | { type: "report" }
   | { type: "sidebar" }
@@ -31,6 +32,7 @@ export function shellKey(e: KeyLike): ShellKey | null {
       return { type: "space", index: k === "1" || k === "!" ? 0 : k === "2" || k === "@" ? 1 : 2 };
     if (k === "/" || k === "?") return { type: "report" };
     if (k === "\\" || k === "|") return { type: "sidebar" };
+    if (k === "t") return { type: "reopen-tab" };
     return null;
   }
   if (k === "t") return { type: "new-tab" };
@@ -44,6 +46,7 @@ export const SHELL_KEYS: readonly { keys: string; does: string }[] = [
   { keys: "Cmd-K", does: "Search everything" },
   { keys: "Cmd-T", does: "New tab" },
   { keys: "Cmd-W", does: "Close tab" },
+  { keys: "Shift-Cmd-T", does: "Reopen the closed tab" },
   { keys: "Cmd-B", does: "Hide or show the sidebar" },
   { keys: "Shift-Cmd-\\", does: "Hide or show the sidebar" },
   { keys: "Cmd-\\", does: "Hide or show the pane beside the chat" },

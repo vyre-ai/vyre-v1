@@ -323,7 +323,7 @@ function InboxFrame({
       <View testID="inbox-place" style={st.row}>
         {inSlot ? (
           // the list is drawn in the shell's one sidebar column: the same place and width as every other place's list (team/v1/TABS-2026-11-15.md)
-          <SidebarContent title="Inbox" bare noSearch>
+          <SidebarContent title="Inbox" noSearch>
             {() => (
               <View style={st.sideSlot} testID="inbox-sidebar-col">
                 <InboxSidebar />
