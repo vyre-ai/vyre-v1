@@ -300,3 +300,13 @@ test("a thread opened under a bare agent's own message is not its helper: it rea
   w.hold.open();
   await w.engine.idle(THREAD);
 });
+
+test("the app stopping every turn for an update (the host's service principal, no Space role) reaches all of them", async () => {
+  const w = await world();
+  w.h.setManager(false); // the service holds no role in the Space: that is not a guest
+  const host: EngineCtx = { ...w.h.ctx, principal: { kind: "service", id: "svc_host" } };
+  assert.equal((await stopAll(host, { threadId: THREAD, reason: "update" })).stopped, 3);
+  await w.runningIs([]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});

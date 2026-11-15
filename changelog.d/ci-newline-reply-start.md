@@ -1,0 +1,1 @@
+- A warm command-line engine's second reply no longer starts with a blank gap; the break between messages is reset at each turn's end.
