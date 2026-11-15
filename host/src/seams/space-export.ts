@@ -38,6 +38,8 @@ function leftOutReason(code: string, provider: string): string {
   if (code.startsWith("rate_limit.") || code === "provider.rate_limited")
     return `${provider} asked to wait and try again`;
   if (code === "validation.not_found") return `it was removed in ${provider}`;
+  if (code === "validation.unsupported")
+    return `${provider} keeps it as its own kind of file and Vyre has no copy of it to save`;
   return `${provider} could not be reached`;
 }
 
@@ -272,15 +274,23 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
     if (file.deletedAt !== undefined) continue;
     // a file that lives at its provider and was never opened is an empty placeholder here. The archive holds its real bytes, or leaves the file out and says so by name and why; an empty file is never
     // written where a document should be, and one file the provider cannot give does not stop the whole export. Reading it fetches it; the file is read again so its size and version are the fetched ones.
-    if (file.size === 0 && file.source !== undefined && file.kind !== "google_native") {
+    if (file.size === 0 && file.source !== undefined) {
       try {
         await read("files.read", { fileId: id, as: "base64", offset: 0, length: 1 });
         file = (await read("files.get", { fileId: id })).file ?? file;
+        // a Google file (a Doc) that was never opened and still has nothing Vyre can save after the fetch is left out too
+        if (file.kind === "google_native" && file.size === 0)
+          throw Object.assign(new Error("no copy"), { error: { code: "validation.unsupported" } });
       } catch (e) {
         const code =
           (e as { error?: { code?: string }; code?: string } | null)?.error?.code ??
           (e as { code?: string } | null)?.code;
-        if (!/^(provider\.|timeout\.|auth\.|rate_limit\.|validation\.not_found)/.test(String(code))) throw e;
+        if (
+          !/^(provider\.|timeout\.|auth\.|rate_limit\.|validation\.not_found|validation\.unsupported)/.test(
+            String(code),
+          )
+        )
+          throw e;
         const provider = String(file.source.provider ?? "its provider");
         leftOut.push({
           fileId: id,
@@ -494,12 +504,12 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
   // the files this archive does not hold, by name and why: in the manifest and as a page at the top of the archive's files
   if (leftOut.length > 0)
     add(
-      "files/NOT-EXPORTED.txt",
+      "NOT-EXPORTED.txt",
       enc.encode(
         [
           `${leftOut.length === 1 ? "1 file is" : `${leftOut.length} files are`} not in this export. Each lives in another service and could not be fetched. Export again when it can be reached.`,
           "",
-          ...leftOut.map((l) => `${String(l.name)}: ${String(l.reason)}`),
+          ...leftOut.map((l) => `${String(l.name).replace(/[\r\n]+/g, " ")}: ${String(l.reason)}`),
           "",
         ].join("\n"),
       ),

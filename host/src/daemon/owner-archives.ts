@@ -97,6 +97,7 @@ export function createOwnerArchives(o: {
             name: row.name,
             sizeBytes: row.size,
             expiresAt: row.expires_at,
+            ...leftOutOf(blob.bytes),
           };
         },
       });
@@ -211,4 +212,30 @@ export function createOwnerArchives(o: {
     };
   }
   return { forExecution, read, cleanup, has: (id: string) => !!get(id) };
+}
+
+/**
+ * What the archive says about files it could not hold: how many are named on its NOT-EXPORTED.txt page, and how many files it does hold. Read from the archive itself (a stored zip), so the export screen can say it in one
+ * line without a second place that keeps the count. Nothing is added when no file was left out.
+ */
+export function leftOutOf(zip: Uint8Array): { leftOut?: number; filesKept?: number } {
+  const dv = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+  const kept = new Set<string>();
+  let left = 0;
+  for (let at = 0; at + 30 <= zip.length && dv.getUint32(at, true) === 0x04034b50; ) {
+    const size = dv.getUint32(at + 18, true),
+      n = dv.getUint16(at + 26, true),
+      extra = dv.getUint16(at + 28, true);
+    const name = new TextDecoder().decode(zip.subarray(at + 30, at + 30 + n));
+    const body = at + 30 + n + extra;
+    const m = /^files\/([^/]+)\/versions\//.exec(name);
+    if (m) kept.add(m[1]!);
+    if (name === "NOT-EXPORTED.txt")
+      left = new TextDecoder()
+        .decode(zip.subarray(body, body + size))
+        .split("\n")
+        .filter((l) => /^.+: .+$/.test(l)).length;
+    at = body + size;
+  }
+  return left > 0 ? { leftOut: left, filesKept: kept.size } : {};
 }

@@ -187,3 +187,40 @@ test("a save still going after the server's wait is not a bare error: the page s
   assert.equal(saveInProgress("Shared Space data changed during collection. Retry the snapshot."), true);
   assert.equal(saveInProgress("Only the owner can export."), false);
 });
+
+for (const [name, out, expected] of [
+  [
+    "some files left out: one plain line says how many and where the list is",
+    { leftOut: 2, filesKept: 5 },
+    /2 files were left out because the service they live in could not give them\. NOT-EXPORTED\.txt in the zip names them\./,
+  ],
+  [
+    "every file left out: it says so plainly, not only Ready",
+    { leftOut: 3, filesKept: 0 },
+    /Ready: northwind-export\.zip\. Every file was left out/,
+  ],
+] as const)
+  test(`the export screen, ${name}`, async () => {
+    const p = await mountPage(
+      createRoot,
+      <ExportPage />,
+      { "spaces.get": SPACE("usr_sample"), "schema.describe": TYPES },
+      (cap) =>
+        cap === "spaces.export"
+          ? { runId: "run_1" }
+          : cap === "backup.export_status"
+            ? { ...READY, ...out }
+            : cap === "files.get"
+              ? FILE
+              : cap === "files.read"
+                ? BYTES
+                : { ok: true },
+      ME,
+    );
+    try {
+      await p.press("export-all-start");
+      assert.match(p.text(), expected);
+    } finally {
+      p.restore();
+    }
+  });

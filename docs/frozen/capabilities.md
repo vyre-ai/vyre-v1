@@ -421,3 +421,9 @@ All additive: every new input is optional, no input, output or error was removed
 The mount row these three capabilities return gains `skippedCount` (an integer, at least 1) and `skipped` (a list of up to 200 `{ name, reason }`), present only when the last pass could not bring some items in (a name Files cannot hold is now shown under a safe name; an item that still cannot be brought in is skipped, counted and listed with its reason, and the mount stays healthy). Optional output fields only: no input, version or existing field changed. The migration `modules/mounts/migrations/0004_mounts_skipped.sql` is a new additive column. The hashes of the three capabilities in `docs/frozen/snapshots/mounts.json` were written again with `node tools/gen/src/cli.ts --snapshots`.
 
 Signed: (lead, to sign at the merge)
+
+## 15 Nov 2026: backup.export_status gains two optional output fields (lane f-drive-land)
+
+`backup.export_status` answers, besides the archive's file, `leftOut` (an integer: how many files the archive could not hold and names on its `NOT-EXPORTED.txt` page) and `filesKept` (how many files it holds), both present only when at least one file was left out. They are read from the archive itself. The export screen uses them to say in one line how many files were left out and that the list is in the zip.
+
+Signed: (lead, to sign at the merge)

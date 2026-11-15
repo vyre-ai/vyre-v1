@@ -14,18 +14,33 @@ export const EXPORT_POLL_MS = 3000;
 export const saveInProgress = (message: string): boolean =>
   /still in progress|changed during collection/i.test(message);
 
+/** One plain line on files an export could not hold: how many, that the list is in the zip, and when that is every file. */
+export function leftOutLine(left: { n: number; kept: number } | null): string {
+  if (left === null) return "";
+  const one = left.n === 1;
+  const what = one ? "1 file" : `${left.n} files`;
+  const list = `NOT-EXPORTED.txt in the zip names ${one ? "it" : "them"}.`;
+  return left.kept === 0
+    ? `. Every file was left out: the service ${one ? "it lives" : "they live"} in could not give ${one ? "it" : "them"}. ${list}`
+    : `. ${what} ${one ? "was" : "were"} left out because the service ${one ? "it lives" : "they live"} in could not give ${one ? "it" : "them"}. ${list}`;
+}
+
 export function SpaceExport(): ReactElement {
   const data = useConsoleData(),
     space = useRead<CapMap["spaces.get"]["out"]>("spaces.get"),
     download = useFileDownload();
   const [phase, setPhase] = useState<Phase>("idle"),
-    [run, setRun] = useState("");
+    [run, setRun] = useState(""),
+    [left, setLeft] = useState<{ n: number; kept: number } | null>(null);
   const action = useAction(() => undefined);
   const owner = space.data ? space.data.space.owner === data.me.id : false;
   const check = async (runId: string): Promise<boolean> => {
     try {
       const ready = (await data.call("backup.export_status", { runId })) as CapMap["backup.export_status"]["out"];
       await download.read(ready.fileId);
+      setLeft(
+        ready.leftOut !== undefined && ready.leftOut > 0 ? { n: ready.leftOut, kept: ready.filesKept ?? 0 } : null,
+      );
       setPhase("ready");
       return true;
     } catch {
@@ -65,7 +80,7 @@ export function SpaceExport(): ReactElement {
       : phase === "packing"
         ? "Packing the Space…"
         : phase === "ready"
-          ? `Ready: ${download.name || "your export"}`
+          ? `Ready: ${download.name || "your export"}${leftOutLine(left)}`
           : "One zip, logged in the audit log";
   return (
     <Section title="Export everything" testID="space-export">
@@ -89,6 +104,7 @@ export function SpaceExport(): ReactElement {
                   onPress={() => {
                     setPhase("idle");
                     setRun("");
+                    setLeft(null);
                   }}
                 />
               </Actions>
