@@ -893,12 +893,18 @@ test("the worker takes over only a real artifact link, opens what the Space gave
   assert.deepEqual(await a.open({ href: "https://northwind.test/a/sit_abc123" }), { handled: true });
   assert.deepEqual(
     [tabs, ops],
-    [[{ url: "https://northwind-a.vyre.run/x/code1" }], [["artifact.open", { url: "https://northwind.test/a/sit_abc123" }]]],
+    [
+      [{ url: "https://northwind-a.vyre.run/x/code1" }],
+      [["artifact.open", { url: "https://northwind.test/a/sit_abc123" }]],
+    ],
   );
   assert.deepEqual(await a.open({ id: "sit_abc123" }), { handled: true });
   assert.deepEqual(await a.open({ href: "https://northwind.test/pricing" }), { handled: false, why: "not_artifact" });
   fail = Object.assign(new Error("x"), { code: "signed_out" });
-  assert.deepEqual(await a.open({ href: "https://northwind.test/a/sit_abc123" }), { handled: false, why: "signed_out" });
+  assert.deepEqual(await a.open({ href: "https://northwind.test/a/sit_abc123" }), {
+    handled: false,
+    why: "signed_out",
+  });
   assert.equal(tabs.length, 2, "a refusal opens nothing");
   fail = null;
   const bad = createArtifacts({

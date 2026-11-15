@@ -205,10 +205,7 @@ test("screen: an agent's draft shows who drafted it, the inbox it sends from, th
     assert.ok(has(out, `data-testid="${b}"`), b);
   assert.ok(has(out, "Thanks for draft 3. I will read it tonight"));
   assert.ok(!has(tab("priya").out, 'data-testid="draft:'), "no draft, no card");
-  assert.equal(
-    sendsLine("ops@northwind.example"),
-    "Sends from ops@northwind.example when you press Allow",
-  );
+  assert.equal(sendsLine("ops@northwind.example"), "Sends from ops@northwind.example when you press Allow");
 });
 
 test("screen: an agent's text draft says it drafted a text, shows the number and its Gate line, and has no subject", () => {

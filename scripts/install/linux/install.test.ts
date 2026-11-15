@@ -798,14 +798,20 @@ test("the owner's claim link: vyre-server claim-link prints it from the data dir
   const none = sh(SERVER, `DATA_DIR="${dir}"; main claim-link`);
   assert.notEqual(none.status, 0);
   assert.match(none.stderr, /no claim link: the Space is claimed already, or the server has not started yet/);
-  const quiet = sh(INSTALL, `DATA_DIR="${dir}"; DRY=0; REL_VERSION=1.0.0; DOMAIN=northwind.example.com; RELAY=""; finish`);
+  const quiet = sh(
+    INSTALL,
+    `DATA_DIR="${dir}"; DRY=0; REL_VERSION=1.0.0; DOMAIN=northwind.example.com; RELAY=""; finish`,
+  );
   assert.doesNotMatch(quiet.stdout, /claim/, "no claim hint once the Space is claimed (the file is gone)");
   fs.mkdirSync(path.join(dir, "space/logs"), { recursive: true });
   fs.writeFileSync(path.join(dir, "space/logs/claim-link.txt"), `${link}\n`, { mode: 0o600 });
   const got = sh(SERVER, `DATA_DIR="${dir}"; main claim-link`);
   assert.equal(got.status, 0);
   assert.equal(got.stdout, `${link}\n`);
-  const done = sh(INSTALL, `DATA_DIR="${dir}"; DRY=0; REL_VERSION=1.0.0; DOMAIN=northwind.example.com; RELAY=""; finish`);
+  const done = sh(
+    INSTALL,
+    `DATA_DIR="${dir}"; DRY=0; REL_VERSION=1.0.0; DOMAIN=northwind.example.com; RELAY=""; finish`,
+  );
   assert.match(done.stdout, /To claim this Space as its owner, run: sudo vyre-server claim-link/);
   assert.ok(!done.stdout.includes("/claim/"), "the installer's output never holds the link");
   assert.match(

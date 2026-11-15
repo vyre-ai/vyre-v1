@@ -370,7 +370,13 @@ test("Use one account everywhere: the sheet offers the two accounts; the link se
   };
   const sides = [
     { name: "Personal", spaceId: "spc_personal", call: keepCall, username: "imran", publicKey: kept.publicKey },
-    { name: "Northwind", spaceId: "spc_northwind", call: otherCall, username: "imran.northwind", publicKey: other.publicKey },
+    {
+      name: "Northwind",
+      spaceId: "spc_northwind",
+      call: otherCall,
+      username: "imran.northwind",
+      publicKey: other.publicKey,
+    },
   ];
   installDom();
   const sheetText = async (el: Parameters<typeof mount>[1]): Promise<string> =>

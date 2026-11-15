@@ -80,7 +80,10 @@ test("a long chat gets hour marks and a jump row; quiet messages since the last 
     assert.ok(!text.includes("quiet step 3"), "the quiet steps are folded");
     assert.ok(text.includes("Release v1.0.0-rc.22.1 tagged") || find(root, "jump-n20"), "the release is a jump row");
     assert.ok(find(root, "jump-n20"), "a jump row for the release");
-    assert.ok(text.includes("I will not touch Northwind before you say so"), "an agent's longer answer is never folded");
+    assert.ok(
+      text.includes("I will not touch Northwind before you say so"),
+      "an agent's longer answer is never folded",
+    );
     const hours = JSON.stringify(root).match(/"data-testid":"hour-[^"]+"/g) ?? [];
     assert.ok(hours.length >= 3, `an hour mark for each hour (${hours.length})`);
     assert.equal(summary !== null && (summary as SessionSummary).long, true, "the pane is told it is a long session");

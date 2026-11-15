@@ -154,7 +154,10 @@ test("the clean address serves the page with the cookie and says no access witho
     );
     const none = await s.get("/sit_one/");
     assert.equal(none.status, 403);
-    assert.match(await none.text(), /You don&#39;t have access to this page.*https:\/\/northwind\.vyre\.run\/a\/sit_one/s);
+    assert.match(
+      await none.text(),
+      /You don&#39;t have access to this page.*https:\/\/northwind\.vyre\.run\/a\/sit_one/s,
+    );
     assert.equal((await s.get("/sit_two/", { cookie })).status, 403, "that session is for one artifact");
     s.shared.delete("usr_aliza");
     assert.equal((await s.get("/sit_one/", { cookie })).status, 403, "removed from the share: out at once");
@@ -166,7 +169,10 @@ test("the clean address serves the page with the cookie and says no access witho
 test("another host is not ours: the app's origin falls through untouched, with its own rules", async () => {
   const s = await rig();
   try {
-    const r = await raw(s.url, "/a/sit_one/", { host: "northwind.vyre.run", cookie: `${ARTIFACT_COOKIE}=${"c".repeat(48)}` });
+    const r = await raw(s.url, "/a/sit_one/", {
+      host: "northwind.vyre.run",
+      cookie: `${ARTIFACT_COOKIE}=${"c".repeat(48)}`,
+    });
     assert.equal(await r.text(), "the app");
   } finally {
     await s.close();
@@ -182,7 +188,10 @@ test("the host check answers this Space's marker with no cookie and no code, on 
     assert.equal(r.headers.get("cache-control"), "no-store");
     assert.equal(r.headers.get("set-cookie"), null);
     // another host name is not this route's: it falls through to the app
-    assert.equal(await (await s.get("/.well-known/vyre-artifact-host", { host: "northwind.vyre.run" })).text(), "the app");
+    assert.equal(
+      await (await s.get("/.well-known/vyre-artifact-host", { host: "northwind.vyre.run" })).text(),
+      "the app",
+    );
   } finally {
     await s.close();
   }

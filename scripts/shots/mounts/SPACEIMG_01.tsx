@@ -195,7 +195,13 @@ export default function Mount(): ReactNode {
     return (
       <View style={{ flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
         <View style={{ width: 64, alignItems: "center", paddingTop: 14, backgroundColor: "var(--rail)" as string }}>
-          <SpaceTile spaces={[northwind, HARBOR, PERSONAL]} openId="northwind" away={false} onSwitch={noop} onAction={noop} />
+          <SpaceTile
+            spaces={[northwind, HARBOR, PERSONAL]}
+            openId="northwind"
+            away={false}
+            onSwitch={noop}
+            onAction={noop}
+          />
         </View>
       </View>
     );

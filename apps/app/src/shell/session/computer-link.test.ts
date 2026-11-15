@@ -40,7 +40,13 @@ test("every signed-in Team Space elsewhere is linked for chats; a Personal Space
     [
       [
         "link_chrome_space",
-        { id: "spc_northwind", name: "spc_northwind", address: "https://northwind.vyre.run", token: "vst_spc_northwind", compute: true },
+        {
+          id: "spc_northwind",
+          name: "spc_northwind",
+          address: "https://northwind.vyre.run",
+          token: "vst_spc_northwind",
+          compute: true,
+        },
       ],
       [
         "link_chrome_space",

@@ -310,7 +310,9 @@ test("claim screen: with an account on this device it opens on Continue as, aski
 });
 
 test("claim screen: with no account on this device it is today's form, which says it makes the Vyre account for every Space", () => {
-  const out = renderToStaticMarkup(<ClaimOwner space="Northwind" newCode={() => CODE} onClaim={async () => undefined} />);
+  const out = renderToStaticMarkup(
+    <ClaimOwner space="Northwind" newCode={() => CODE} onClaim={async () => undefined} />,
+  );
   assert.ok(out.includes('data-testid="claim-name"'));
   assert.ok(!out.includes("claim-as"));
   assert.ok(out.includes(NEW_ACCOUNT));
@@ -354,7 +356,11 @@ test("claim route: the account signed in on this device is offered; none in a fr
 });
 
 test("a claim link in a browser can hand off to the desktop app, which routes it to its own claim", () => {
-  const link = claimAppLink("https://northwind.example", "clm_abcdefgh", "#fp=9f3c1a2b&s=spc_northwind&n=Northwind%20Team");
+  const link = claimAppLink(
+    "https://northwind.example",
+    "clm_abcdefgh",
+    "#fp=9f3c1a2b&s=spc_northwind&n=Northwind%20Team",
+  );
   assert.equal(
     link,
     "vyre://claim?address=https%3A%2F%2Fnorthwind.example&token=clm_abcdefgh&s=spc_northwind&fp=9f3c1a2b&n=Northwind+Team",
