@@ -250,7 +250,8 @@ export function conversationData(
     openUrl: (url) => rt.openUrl(url),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }), // the same page the Needs you sign-in opens
     openAiAccount: (ref: string) => rt.open({ screen: "settings.page", args: { page: "ai", account: ref } }),
-    openSpaceAiKey: () => rt.open({ screen: "console.ai-models" }),
+    // a Personal Space has no Space key to set: it is one person's own
+    ...(rt.space.kind === "personal" ? {} : { openSpaceAiKey: () => rt.open({ screen: "console.ai-models" }) }),
     ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
   };
   return {
