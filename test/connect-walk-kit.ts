@@ -5,15 +5,14 @@
 // gets the ask, a wrong key stays on her card, the right key finishes Mia's card by itself and the agent goes on, and Disconnect makes the next call ask again. Every state is a picture (VYRE_CONNECT_SHOTS) in
 // both skins, at 1440 and 390 wide. The typed keys are in no page text after the card closes.
 import assert from "node:assert/strict";
-import test from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { claimOnEdge, dismissOnboarding, edge } from "./real-app-harness.test.ts";
-import { loadConfig } from "../../../host/src/daemon/config.ts";
-import { KEY, boot, scriptedModel, stop } from "../../../test/support/eco-live.ts";
-import { SPACE_KEY, vendor } from "../../../test/member-key-kit.ts";
-import type { Daemon } from "../../../host/src/daemon/daemon.ts";
+import { claimOnEdge, dismissOnboarding, edge } from "../apps/app/tests/real-app-harness.test.ts";
+import { loadConfig } from "../host/src/daemon/config.ts";
+import { KEY, boot, scriptedModel, stop } from "./support/eco-live.ts";
+import { SPACE_KEY, vendor } from "./member-key-kit.ts";
+import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 export const GOOD = "fth_real_FAKEkeyVALUE0123456789abcdef"; // secret-scan: fake
 const PASSWORD = "fixture password 123";
@@ -560,14 +559,3 @@ export async function teamWalk(t: { skip(m: string): void }, SKINS: Skins, label
     await stop(d);
   }
 }
-
-test("harness: the stand-in app refuses a key that starts with bad, cannot be reached for offline, and writes down every key that reached it", async () => {
-  const reached: string[] = [];
-  const net = network(reached);
-  const asKey = (key: string) => ({ headers: { "X-Api-Key": key } });
-  const url = new URL("https://api.fathom.ai/external/v1/meetings");
-  assert.equal((await net.request(url, asKey("bad-1"))).status, 401);
-  assert.equal((await net.request(url, asKey("fine-1"))).status, 200);
-  await assert.rejects(net.request(url, asKey("offline-1")));
-  assert.deepEqual(reached, ["bad-1", "fine-1", "offline-1"]);
-});
