@@ -59,25 +59,40 @@ const isLink = (t: unknown): boolean => {
 
 /** Watch presses for the whole window. Returns the stop. */
 export function startOpenHow(doc: Doc, now: () => number = Date.now): () => void {
-  const onClick = (e: PressLike): void => {
+  // a press is taken at the button going down: a row answers when the button comes up, which is before the browser's click, so the ask has to be there by then
+  let synthetic = false;
+  const onDown = (e: PressLike): void => {
+    if (synthetic) return;
     const how = howOfPress(e);
     asked = how === "here" ? null : { how, at: now() };
-  };
-  // the middle button fires no click: take its press, and press the same thing again as a click that asks for a tab (an address in the page keeps the browser's own middle-press)
-  const onDown = (e: PressLike): void => {
+    // the middle button would start the browser's autoscroll
     if (e.button === 1 && !isLink(e.target)) e.preventDefault?.();
   };
+  // the middle button fires no press on a row: press the same thing again as a plain press, which carries the ask that was taken at the button going down
   const onAux = (e: PressLike): void => {
     if (e.button !== 1 || isLink(e.target)) return;
     e.preventDefault?.();
+    const el = e.target as { dispatchEvent?: (ev: unknown) => boolean; click?: () => void } | null;
+    const Ev = (globalThis as { MouseEvent?: new (t: string, o: object) => unknown }).MouseEvent;
+    if (el?.dispatchEvent === undefined || Ev === undefined) {
+      el?.click?.();
+      return;
+    }
     asked = { how: e.shiftKey === true ? "behind" : "tab", at: now() };
-    (e.target as { click?: () => void } | null)?.click?.();
+    synthetic = true;
+    try {
+      const o = { bubbles: true, cancelable: true, button: 0, buttons: 1, view: (globalThis as { window?: unknown }).window };
+      for (const type of ["pointerdown", "mousedown"]) el.dispatchEvent(new Ev(type, o));
+      for (const type of ["pointerup", "mouseup", "click"]) el.dispatchEvent(new Ev(type, { ...o, buttons: 0 }));
+    } finally {
+      synthetic = false;
+    }
   };
-  doc.addEventListener("click", onClick as (e: never) => void, true);
+  doc.addEventListener("pointerdown", onDown as (e: never) => void, true);
   doc.addEventListener("mousedown", onDown as (e: never) => void, true);
   doc.addEventListener("auxclick", onAux as (e: never) => void, true);
   return () => {
-    doc.removeEventListener("click", onClick as (e: never) => void, true);
+    doc.removeEventListener("pointerdown", onDown as (e: never) => void, true);
     doc.removeEventListener("mousedown", onDown as (e: never) => void, true);
     doc.removeEventListener("auxclick", onAux as (e: never) => void, true);
   };

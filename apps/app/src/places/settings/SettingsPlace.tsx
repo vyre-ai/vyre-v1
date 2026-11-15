@@ -1,5 +1,6 @@
 // The Settings place: You, and under the Space's own name what applies to everyone here, with one search (Cmd-F) over all of it. Changes save as they are made. The Console's pages open
 // inside a Space page, with a way back. On a phone the page list and a page are two screens with a back arrow.
+import { openIn, takeOpenHow } from "../../shell/tabs/open-how.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { SidebarContent, useInSidebarSlot, useOptionalSidebarSlot } from "../../shell/sidebar/index.ts";
 import { portalInto } from "../../shell/sidebar/portal.ts";
@@ -121,6 +122,13 @@ function SettingsBody({
   }, [found, page]);
 
   const open = (key: PageKey, row: string | null = null): void => {
+    // Cmd-press or the middle button on a page of the list: that page opens as a tab beside this one (tabs/open-rule.ts)
+    const how = takeOpenHow();
+    if (how !== "here" && data.openPageTab && row === null) {
+      const tab = data.openPageTab;
+      openIn(how, () => tab(key));
+      return;
+    }
     setPage(key);
     setFound(row);
     setView("page");

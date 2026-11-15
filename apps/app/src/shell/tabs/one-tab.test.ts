@@ -33,7 +33,8 @@ test("opening a place that has a tab goes to it: the Chats rail while a chat tab
 });
 
 test("your profile (the avatar, Your Profile) opens in the Settings tab already open, never a second Settings tab", () => {
-  const s = state([tab("chats"), tab("settings", "page=ai", "Settings", 5)], "chats");
+  // the place's own tab (its key is the place) that has moved to a page of Settings
+  const s = state([tab("chats"), { ...tab("settings", undefined, "Settings", 5), hash: "page=ai" }], "chats");
   const next = openTab(s, placeTab("settings", PROFILE_HASH));
   assert.deepEqual(keys(next), ["chats", "settings"], "one Settings tab");
   assert.equal(next.active, "settings");

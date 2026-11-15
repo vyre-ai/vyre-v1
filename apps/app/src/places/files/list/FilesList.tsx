@@ -346,7 +346,9 @@ function List(): ReactElement {
       const l = cur ? byKey.get(cur) : undefined;
       if (l) {
         ev.preventDefault?.();
-        open(l);
+        // Cmd-Enter (Ctrl on Windows and Linux) opens it as a tab beside this one, with Shift left behind; Enter shows it in this tab
+        if (ev.metaKey === true || ev.ctrlKey === true) openAs(l, ev.shiftKey === true ? "behind" : "tab");
+        else open(l);
       }
     } else if ((k === "Delete" || k === "Backspace") && state.selection.length > 0 && !inTrash) {
       ev.preventDefault?.();

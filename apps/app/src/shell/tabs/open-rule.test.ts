@@ -119,23 +119,24 @@ test("the ask is taken once by the next open and lapses after a second", () => {
   assert.equal(takeOpenHow(now), "here", "a press that opened nothing never changes a later open");
 });
 
-test("the window watcher records Cmd-press and middle-press, and a plain press clears the ask", () => {
+test("the window watcher takes the ask at the button going down, and a plain press clears it", () => {
   forgetOpenHow();
   const handlers = new Map<string, (e: unknown) => void>();
   const doc = {
     addEventListener: (t: string, f: (e: never) => void): void => void handlers.set(t, f as (e: unknown) => void),
     removeEventListener: (t: string): void => void handlers.delete(t),
   };
-  let clicked = 0;
   const stop = startOpenHow(doc, () => 5);
-  handlers.get("click")!({ button: 0, metaKey: true });
+  handlers.get("pointerdown")!({ button: 0, metaKey: true });
   assert.equal(takeOpenHow(() => 6), "tab");
-  handlers.get("click")!({ button: 0, metaKey: true, shiftKey: true });
-  handlers.get("click")!({ button: 0 });
+  handlers.get("pointerdown")!({ button: 0, metaKey: true, shiftKey: true });
+  handlers.get("pointerdown")!({ button: 0 });
   assert.equal(takeOpenHow(() => 6), "here", "a plain press after it asks for nothing");
+  handlers.get("mousedown")!({ button: 1, preventDefault: () => undefined });
+  assert.equal(takeOpenHow(() => 6), "tab", "the middle button asks for a tab");
+  let clicked = 0;
   handlers.get("auxclick")!({ button: 1, preventDefault: () => undefined, target: { click: () => void clicked++ } });
-  assert.equal(clicked, 1, "the middle press presses the thing as a click that asks for a tab");
-  assert.equal(takeOpenHow(() => 6), "tab");
+  assert.equal(clicked, 1, "without a way to send events the middle press falls back to a click");
   stop();
   assert.equal(handlers.size, 0);
 });

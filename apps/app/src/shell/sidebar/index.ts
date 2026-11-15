@@ -4,6 +4,7 @@ export {
   escapeGoesBack,
   SidebarContent,
   SidebarExpand,
+  SidebarHide,
   SidebarSlot,
   SidebarSlotProvider,
   hideSidebar,

@@ -341,11 +341,16 @@ export function SideChats({
               ? { type: "goal", id: x.key.slice(2) }
               : rr.kind === "project"
                 ? { type: "project", id: x.key.slice(3) }
-                : rr.kind === "channel"
-                  ? { type: "channel", id: x.key.slice(3) }
-                  : rr.threadId
-                    ? { type: "thread", id: rr.threadId }
+                : rr.threadId
+                  ? { type: "thread", id: rr.threadId }
+                  : rr.kind === "channel"
+                    ? { type: "channel", id: x.key.slice(3) }
                     : null;
+      if (rr?.kind === "agent" && subject === null && data.nav.openAgentChatIn) {
+        data.nav.openAgentChatIn(rr.agentId!, mode);
+        leave();
+        return;
+      }
       if (subject !== null && data.nav.openSubject) {
         const open = data.nav.openSubject;
         openIn(mode, () => open(subject));

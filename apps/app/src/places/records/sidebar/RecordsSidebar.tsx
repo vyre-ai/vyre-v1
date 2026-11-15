@@ -205,6 +205,14 @@ function Sidebar({
   const closed = (k: string): boolean => q === "" && state.closed.includes(k);
   const fold = (k: string) => (): void => dispatch({ type: "section", key: k });
   const choose = (): void => slot?.openBody();
+  // Cmd-press and the middle button open the type's table as a tab beside this one (tabs/open-rule.ts); true when that is what the press asked for
+  const asTab = (typeKey: string): boolean => {
+    const how = takeOpenHow();
+    const openType = data.nav.openType;
+    if (how === "here" || openType === undefined) return false;
+    openIn(how, () => openType(typeKey));
+    return true;
+  };
   const saved = allSaved.filter((v) => hit(v.title));
   const canEdit = data.canEditSchema === true;
   const [making, setMaking] = useState(false);
@@ -308,12 +316,7 @@ function Sidebar({
             }
             onPress={() => {
               // Cmd-press and the middle button open the type's table as a tab beside this one (tabs/open-rule.ts)
-              const how = takeOpenHow();
-              if (how !== "here" && data.nav.openType) {
-                const openType = data.nav.openType;
-                openIn(how, () => openType(t.key));
-                return;
-              }
+              if (asTab(t.key)) return;
               dispatch({ type: "open", key: t.key });
               choose();
             }}
@@ -361,6 +364,7 @@ function Sidebar({
               ),
             })}
         onPress={() => {
+          if (asTab(MANAGE_TYPE)) return;
           dispatch({ type: "open", key: MANAGE_TYPE });
           choose();
         }}

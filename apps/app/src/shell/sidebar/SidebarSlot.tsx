@@ -318,6 +318,24 @@ export function SidebarSlot(): ReactElement | null {
   );
 }
 
+/** The Hide button on a column a place still draws for itself (a ResizableColumn standing in the shell's sidebar spot); the places that use the shell's own column have its head. */
+export function SidebarHide(): ReactElement | null {
+  const slot = useSidebarSlot();
+  const shell = useShellLayout();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Hide the sidebar"
+      testID="sidebar-hide"
+      onPress={() => hideSidebar(slot, shell)}
+      {...webOnly({ title: "Hide the sidebar (⌘\\)" })}
+      style={({ hovered }: { hovered?: boolean }) => [s.hideFloat, hovered === true && s.hover]}
+    >
+      <MenuIcon icon={PANEL} color="var(--ink-3)" />
+    </Pressable>
+  );
+}
+
 /** The button that brings a hidden sidebar back: the shell draws it at the left of the tab strip. */
 export function SidebarExpand(): ReactElement | null {
   const slot = useSidebarSlot();
@@ -469,6 +487,17 @@ const s = StyleSheet.create({
     marginLeft: 8,
     marginTop: 6,
     flexShrink: 0,
+  },
+  hideFloat: {
+    position: "absolute",
+    right: 8,
+    top: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 3,
   },
   back: {
     height: 40,
