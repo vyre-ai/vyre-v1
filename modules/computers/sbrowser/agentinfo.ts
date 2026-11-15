@@ -5,6 +5,7 @@ export interface AgentInfo {
   name: string;
   face: string;
   kind: string;
+  runtime?: string;
   ownerId: string;
   folderId: string | null;
 }
@@ -19,7 +20,7 @@ export async function agentInfo(ctx: CompCtx, agentId: string): Promise<AgentInf
   try {
     const a = (
       (await ctx.call("agents.get", { agentId })) as {
-        agent?: { name?: string; face?: string; kind?: string; ownerId?: string; folderId?: string };
+        agent?: { name?: string; face?: string; kind?: string; runtime?: string; ownerId?: string; folderId?: string };
       }
     ).agent;
     if (a)
@@ -27,6 +28,7 @@ export async function agentInfo(ctx: CompCtx, agentId: string): Promise<AgentInf
         name: a.name ?? "Agent",
         face: a.face ?? a.name ?? agentId,
         kind: a.kind ?? "agent",
+        ...(a.runtime === undefined ? {} : { runtime: a.runtime }),
         ownerId: a.ownerId ?? "",
         folderId: a.folderId ?? null,
       };

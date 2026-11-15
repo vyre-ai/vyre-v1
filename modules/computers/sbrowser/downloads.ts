@@ -45,22 +45,28 @@ export const typeOf = (name: string): { mime: string; kind: string } => {
 };
 
 const folders = new Map<string, string>();
-/** The agent's Downloads folder in Files, made on first use. */
-export async function downloadsFolder(ctx: CompCtx, agentId: string): Promise<string | null> {
-  const key = `${ctx.space}|${agentId}`;
+/**
+ * The agent's Downloads folder in Files, made on first use. For a person who uses a shared agent without owning it (`asker`), the Downloads folder in that person's own Files, as a person's Assistant does:
+ * what their turn downloaded is theirs to see, and Files' own rules keep it from the others (owner, 13 Nov, P7 section 10 item 6).
+ */
+export async function downloadsFolder(ctx: CompCtx, agentId: string, asker?: string): Promise<string | null> {
+  const key = `${ctx.space}|${agentId}|${asker ?? ""}`;
   const have = folders.get(key);
   if (have) return have;
   const who = await agentInfo(ctx, agentId);
   let parent = who?.folderId ?? null;
   // a person's Assistant saves into that person's own Files (their Personal folder), and everyone else's agent into its own folder
-  if (who?.kind === "assistant" && who.ownerId) {
+  if ((who?.kind === "assistant" && who.ownerId) || asker !== undefined) {
     try {
       // files.tree answers an agent working for a person with that person's own Personal root (the files module's personalHolder)
       const tree = (await ctx.call("files.tree", {})) as { roots?: Array<{ key?: string; folderId?: string }> };
       const mine = tree.roots?.find((r) => r.key === "personal" && r.folderId)?.folderId;
       if (mine) parent = mine;
+      // never the agent's shared folder for a person who does not own the agent: their download stays in the browser service until their own Files can be reached
+      else if (asker !== undefined) parent = null;
     } catch {
       /* the Assistant's own folder */
+      if (asker !== undefined) parent = null;
     }
   }
   if (!parent) return null;
@@ -70,7 +76,7 @@ export async function downloadsFolder(ctx: CompCtx, agentId: string): Promise<st
       (await ctx.call("files.folder.create", {
         parentId: parent,
         name: "Downloads",
-        idempotencyKey: `sbdl-folder:${agentId}`,
+        idempotencyKey: `sbdl-folder:${agentId}${asker === undefined ? "" : `:${asker}`}`,
       })) as { folder?: { folderId?: string } }
     ).folder?.folderId;
   } catch {
@@ -95,6 +101,7 @@ export async function takeDownloads(
   sb: SpaceBrowser,
   profileId: string,
   agentId: string,
+  asker?: string,
 ): Promise<SavedDownload[]> {
   let rows;
   try {
@@ -103,7 +110,7 @@ export async function takeDownloads(
     return [];
   }
   if (rows.length === 0) return [];
-  const folderId = await downloadsFolder(ctx, agentId);
+  const folderId = await downloadsFolder(ctx, agentId, asker);
   if (!folderId) return [];
   const saved: SavedDownload[] = [];
   for (const row of rows.slice(0, 10)) {
