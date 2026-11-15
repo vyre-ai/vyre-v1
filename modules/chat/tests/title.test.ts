@@ -158,7 +158,11 @@ test("a notification says where in the chat's one name: who is in an untitled ch
     payload: { threadId: id, messageId: said.message.messageId, personId: MAYA },
   };
   const first = await planNotice(hn.ctx, event);
-  assert.equal(first?.data["where"], "New chat", "an untitled chat with an agent is New chat the whole time, then its title");
+  assert.equal(
+    first?.data["where"],
+    "New chat",
+    "an untitled chat with an agent is New chat the whole time, then its title",
+  );
   await update(hn.ctx, { threadId: id, title: "Lab 8 work" });
   assert.equal((await planNotice(hn.ctx, event))?.data["where"], "Lab 8 work");
 });
