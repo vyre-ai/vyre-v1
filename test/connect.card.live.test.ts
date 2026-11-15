@@ -146,7 +146,7 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
         type: "text",
         text: r.ok ? "Not yet. Add its key and I'll connect it." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}`,
       };
-    } else if (/Carry on/.test(ask)) {
+    } else if (/Carry on|is connected\./.test(ask)) {
       yield { type: "text", text: "Yes, Fathom is connected." };
     } else if (/use fathom/.test(ask)) {
       const r = yield* run("vault_use", { item: "Fathom", purpose: "Read the meetings" });
@@ -254,7 +254,7 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
         type: "text",
         text: r.ok ? "Not yet. An admin can connect it." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}`,
       };
-    } else if (/Carry on/.test(ask)) {
+    } else if (/Carry on|is connected\./.test(ask)) {
       yield { type: "text", text: "Yes, Crm app is connected." };
     } else if (/use fathom/.test(ask)) {
       const r = yield* run("vault_use", { item: "Crm_app", purpose: "Read the meetings" });
