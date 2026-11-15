@@ -20,6 +20,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.create": Handler<"automations.create", X>;
   "automations.delete": Handler<"automations.delete", X>;
   "automations.dependencies": Handler<"automations.dependencies", X>;
+  "automations.draft.discard": Handler<"automations.draft.discard", X>;
+  "automations.draft.save": Handler<"automations.draft.save", X>;
   "automations.draft_connector": Handler<"automations.draft_connector", X>;
   "automations.fire": Handler<"automations.fire", X>;
   "automations.followers.add": Handler<"automations.followers.add", X>;
@@ -37,6 +39,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.key_hosts.pending_bind": Handler<"automations.key_hosts.pending_bind", X>;
   "automations.key_hosts.remove": Handler<"automations.key_hosts.remove", X>;
   "automations.list": Handler<"automations.list", X>;
+  "automations.make_live": Handler<"automations.make_live", X>;
   "automations.make_personal_copy": Handler<"automations.make_personal_copy", X>;
   "automations.migrate_runs": Handler<"automations.migrate_runs", X>;
   "automations.migration_preview": Handler<"automations.migration_preview", X>;
@@ -64,6 +67,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.templates.list": Handler<"automations.templates.list", X>;
   "automations.templates.use": Handler<"automations.templates.use", X>;
   "automations.test": Handler<"automations.test", X>;
+  "automations.test_events": Handler<"automations.test_events", X>;
   "automations.triggers.list": Handler<"automations.triggers.list", X>;
   "automations.try_read": Handler<"automations.try_read", X>;
   "automations.undelete": Handler<"automations.undelete", X>;

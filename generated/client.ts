@@ -223,6 +223,10 @@ export function createClient(transport: Transport) {
       create: call("automations.create", 1),
       delete: call("automations.delete", 1),
       dependencies: call("automations.dependencies", 1),
+      draft: {
+        discard: call("automations.draft.discard", 1),
+        save: call("automations.draft.save", 1),
+      },
       draft_connector: call("automations.draft_connector", 1),
       fire: call("automations.fire", 1),
       followers: {
@@ -246,6 +250,7 @@ export function createClient(transport: Transport) {
         remove: call("automations.key_hosts.remove", 1),
       },
       list: call("automations.list", 1),
+      make_live: call("automations.make_live", 1),
       make_personal_copy: call("automations.make_personal_copy", 1),
       migrate_runs: call("automations.migrate_runs", 1),
       migration_preview: call("automations.migration_preview", 1),
@@ -281,6 +286,7 @@ export function createClient(transport: Transport) {
         use: call("automations.templates.use", 1),
       },
       test: call("automations.test", 1),
+      test_events: call("automations.test_events", 1),
       triggers: {
         list: call("automations.triggers.list", 1),
       },

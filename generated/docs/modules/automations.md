@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (73)
+## Capabilities (77)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -21,6 +21,8 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.create](../capabilities/automations.create.md): Create an Automation; it starts Personal
 - [automations.delete](../capabilities/automations.delete.md): Move an Automation to Trash
 - [automations.dependencies](../capabilities/automations.dependencies.md): What every visible automation names: other automations, connections, mailboxes, forms and more, with who uses each and what is missing or off
+- [automations.draft.discard](../capabilities/automations.draft.discard.md): Throw the draft away; the live version stays
+- [automations.draft.save](../capabilities/automations.draft.save.md): Save the edit as a draft as the person goes; an Off Automation saves at once, an On one keeps it apart until Make live
 - [automations.draft_connector](../capabilities/automations.draft_connector.md): Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.
 - [automations.fire](../capabilities/automations.fire.md): Start a run from a matched trigger event, checking self-trigger origin and the chain depth limit of 8 (called by the trigger consumer)
 - [automations.followers.add](../capabilities/automations.followers.add.md): Follow an Automation to get its updates
@@ -38,6 +40,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.key_hosts.pending_bind](../capabilities/automations.key_hosts.pending_bind.md): What a held key binding would do: the Vault keys (as the server reads them, for the person looking) and every domain of the connector. Names only, never a value.
 - [automations.key_hosts.remove](../capabilities/automations.key_hosts.remove.md): A person who may use a Vault key removes a host it was approved for. The next use of the key there waits for a person again.
 - [automations.list](../capabilities/automations.list.md): List Automations by section (Personal, Shared with me, Space), folder and Group
+- [automations.make_live](../capabilities/automations.make_live.md): Make the draft the next live version; runs already started finish as they were
 - [automations.make_personal_copy](../capabilities/automations.make_personal_copy.md): Make a Personal copy of a Space Automation; it runs with only your access
 - [automations.migrate_runs](../capabilities/automations.migrate_runs.md): Move selected active runs onto a definition version without replaying finished steps
 - [automations.migration_preview](../capabilities/automations.migration_preview.md): Group active runs by the step they are on before moving them to a definition version
@@ -65,6 +68,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.templates.list](../capabilities/automations.templates.list.md): The starter templates: what each one does, what starts it and what to set up
 - [automations.templates.use](../capabilities/automations.templates.use.md): Make a Personal draft from a starter template
 - [automations.test](../capabilities/automations.test.md): Test an Automation with sample data: reads run for real, writes and sends are stubbed (a Run)
+- [automations.test_events](../capabilities/automations.test_events.md): Real past starts of an Automation's trigger that a test can be tried on
 - [automations.triggers.list](../capabilities/automations.triggers.list.md): The trigger palette: every trigger with its payload schema, sample and whether a Personal Space can use it
 - [automations.try_read](../capabilities/automations.try_read.md): Try one read on a documented host. The Vault fills the key when the host sends it. The reply is only the level.
 - [automations.undelete](../capabilities/automations.undelete.md): Restore an Automation from Trash

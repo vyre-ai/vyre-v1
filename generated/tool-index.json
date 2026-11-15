@@ -716,6 +716,18 @@
     },
     {
       "deferred": false,
+      "name": "automations_draft_discard",
+      "summary": "Throw the draft away; the live version stays",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_draft_save",
+      "summary": "Save the edit as a draft as the person goes; an Off Automation saves at once, an On one keeps it apart until Make live",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_followers_add",
       "summary": "Follow an Automation to get its updates",
       "toolset": "automations"
@@ -766,6 +778,12 @@
       "deferred": false,
       "name": "automations_list",
       "summary": "List Automations by section (Personal, Shared with me, Space), folder and Group",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_make_live",
+      "summary": "Make the draft the next live version; runs already started finish as they were",
       "toolset": "automations"
     },
     {
@@ -922,6 +940,12 @@
       "deferred": false,
       "name": "automations_test",
       "summary": "Test an Automation with sample data: reads run for real, writes and sends are stubbed (a Run)",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_test_events",
+      "summary": "Real past starts of an Automation's trigger that a test can be tried on",
       "toolset": "automations"
     },
     {

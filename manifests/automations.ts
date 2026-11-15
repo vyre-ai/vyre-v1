@@ -177,6 +177,14 @@ const accessDiff = t.obj({
   keysToReplace: t.arr(t.obj({ stepId: t.str(), keyId: t.str(), reason: t.str() })),
 });
 const target = { automationId: id.automation };
+const draftRow = t.obj({
+  definition,
+  rev: t.int(),
+  baseVersion: t.int(),
+  by: t.str(),
+  at: t.int(),
+});
+const withDraft = { automation: row, draft: t.opt(draftRow) };
 const jsonSchema = t.rec();
 const httpMethod = t.enm("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE");
 const connectorLevel = t.enm("draft");
@@ -593,7 +601,7 @@ export default defineManifest({
       "Read an Automation with its definition, alerts and followers, and whether the caller may change it (a Space one: owners, admins and people given Edit on it)",
       {
         in: target,
-        out: { automation: row, canEdit: t.opt(t.bool()) },
+        out: { automation: row, canEdit: t.opt(t.bool()), draft: t.opt(draftRow) },
         on: ["automation", "/automationId"],
         tool: "automations",
         label: "check",
@@ -651,6 +659,42 @@ export default defineManifest({
       emits: ["automation.updated", "automation.runs_as_changed"],
       tool: "automations",
       errors: ["validation.version_conflict", "validation.bad_input"],
+    }),
+    write(
+      "automations.draft.save",
+      "Save the edit as a draft as the person goes; an Off Automation saves at once, an On one keeps it apart until Make live",
+      {
+        in: { ...target, definition, expectedVersion: t.opt(t.int()), expectedRev: t.opt(t.int()) },
+        out: withDraft,
+        on: ["automation", "/automationId"],
+        emits: ["automation.updated", "automation.runs_as_changed"],
+        tool: "automations",
+        errors: ["validation.version_conflict", "validation.precondition_failed", "validation.bad_input"],
+      },
+    ),
+    write("automations.draft.discard", "Throw the draft away; the live version stays", {
+      in: target,
+      out: withDraft,
+      on: ["automation", "/automationId"],
+      emits: ["automation.updated"],
+      tool: "automations",
+    }),
+    write("automations.make_live", "Make the draft the next live version; runs already started finish as they were", {
+      in: { ...target, expectedRev: t.opt(t.int()) },
+      out: withDraft,
+      on: ["automation", "/automationId"],
+      emits: ["automation.updated", "automation.runs_as_changed"],
+      tool: "automations",
+      errors: ["validation.version_conflict", "validation.precondition_failed"],
+    }),
+    read("automations.test_events", "Real past starts of an Automation's trigger that a test can be tried on", {
+      in: { ...target, trigger: t.opt(t.str()) },
+      out: {
+        events: t.arr(t.obj({ runId: id.run, at: t.int(), payload: t.any() })),
+        sample: t.rec(),
+      },
+      on: ["automation", "/automationId"],
+      tool: "automations",
     }),
     write(
       "automations.migrate_runs",
@@ -864,7 +908,14 @@ export default defineManifest({
       "automations.test",
       "Test an Automation with sample data: reads run for real, writes and sends are stubbed (a Run)",
       {
-        in: { ...target, trigger: t.opt(t.str()), sample: t.opt(t.rec()), version: t.opt(t.int()) },
+        in: {
+          ...target,
+          trigger: t.opt(t.str()),
+          sample: t.opt(t.rec()),
+          version: t.opt(t.int()),
+          draft: t.opt(t.bool()),
+          eventRunId: t.opt(id.run),
+        },
         out: runStarted,
         on: ["automation", "/automationId"],
         level: "use",

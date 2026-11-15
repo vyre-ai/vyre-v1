@@ -129,6 +129,70 @@ type Out = {
     runsAs?: string;
   };
   canEdit?: boolean;
+  draft?: {
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    rev: number;
+    baseVersion: number;
+    by: string;
+    at: number;
+  };
 };
 ```
 
@@ -264,7 +328,85 @@ type Out = {
       "updatedAt": 1760000000000,
       "version": 1
     },
-    "canEdit": true
+    "canEdit": true,
+    "draft": {
+      "at": 1,
+      "baseVersion": 1,
+      "by": "example",
+      "definition": {
+        "ai": {
+          "backupKeyId": "example",
+          "keyId": "example"
+        },
+        "allowSelfTrigger": true,
+        "nodes": [
+          {
+            "ai": {
+              "agentId": "agt_a1b2c3",
+              "approver": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "assigned": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "backupKeyId": "example",
+              "doneMeans": [
+                "example"
+              ],
+              "escalateTo": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "keyId": "example",
+              "mode": "answer",
+              "nudgeMinutes": 1,
+              "reviewer": {
+                "id": "usr_a1b2c3",
+                "kind": "person"
+              },
+              "timeoutMinutes": 1
+            },
+            "askBeforeSending": true,
+            "branches": [
+              {
+                "label": "example",
+                "to": "example",
+                "when": "example"
+              }
+            ],
+            "id": "step_1",
+            "input": {},
+            "key": "records.update",
+            "next": [
+              "example"
+            ],
+            "onError": {
+              "codes": [
+                "example"
+              ],
+              "max": 1,
+              "mode": "fail",
+              "output": {},
+              "route": "example"
+            },
+            "title": "example"
+          }
+        ],
+        "start": [
+          "example"
+        ],
+        "triggers": [
+          {
+            "config": {},
+            "filter": {},
+            "key": "record_change"
+          }
+        ]
+      },
+      "rev": 1
+    }
   }
 }
 ```

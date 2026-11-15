@@ -223,6 +223,10 @@ export function stubs(ctx: CallCtx) {
       create: call("automations.create"),
       delete: call("automations.delete"),
       dependencies: call("automations.dependencies"),
+      draft: {
+        discard: call("automations.draft.discard"),
+        save: call("automations.draft.save"),
+      },
       draft_connector: call("automations.draft_connector"),
       fire: call("automations.fire"),
       followers: {
@@ -246,6 +250,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("automations.key_hosts.remove"),
       },
       list: call("automations.list"),
+      make_live: call("automations.make_live"),
       make_personal_copy: call("automations.make_personal_copy"),
       migrate_runs: call("automations.migrate_runs"),
       migration_preview: call("automations.migration_preview"),
@@ -281,6 +286,7 @@ export function stubs(ctx: CallCtx) {
         use: call("automations.templates.use"),
       },
       test: call("automations.test"),
+      test_events: call("automations.test_events"),
       triggers: {
         list: call("automations.triggers.list"),
       },

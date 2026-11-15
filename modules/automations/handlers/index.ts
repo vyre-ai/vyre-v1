@@ -19,6 +19,9 @@ import {
   restoreVersion,
   senders,
   setEnabled,
+  draftSave,
+  draftDiscard,
+  makeLive,
   setOwner,
   stepsList,
   triggersList,
@@ -61,7 +64,7 @@ import {
   report as watchReport,
   save as watchSave,
 } from "./watches.ts";
-import { fire, replay, retry, run, stop, test } from "./triggers.ts";
+import { fire, replay, retry, run, stop, test, testEvents } from "./triggers.ts";
 
 export const handlers = {
   "automations.watches.check": watchCheck,
@@ -123,6 +126,10 @@ export const handlers = {
   "automations.steps.list": stepsList,
   "automations.stop": stop,
   "automations.test": test,
+  "automations.test_events": testEvents,
+  "automations.draft.save": draftSave,
+  "automations.draft.discard": draftDiscard,
+  "automations.make_live": makeLive,
   "automations.triggers.list": triggersList,
   "automations.undelete": undelete,
   "automations.update": update,

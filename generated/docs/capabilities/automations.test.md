@@ -29,6 +29,8 @@ type In = {
   trigger?: string;
   sample?: Record<string, unknown>;
   version?: number;
+  draft?: boolean;
+  eventRunId?: string;
 };
 ```
 
@@ -55,6 +57,8 @@ type Out = {
   "name": "example",
   "input": {
     "automationId": "aut_a1b2c3",
+    "draft": true,
+    "eventRunId": "run_a1b2c3",
     "sample": {},
     "trigger": "example",
     "version": 1
