@@ -585,3 +585,31 @@ test("an Unblock task made before tasks named their goal (no source) still hides
   assert.equal(row.line, undefined);
   assert.equal(row.nextCheckinAt, undefined);
 });
+
+test("the Asks filter lists the caller's Ask panes, and they are in no other list (15 Nov 2026: the filter was always empty)", async () => {
+  const hn = harness({
+    calls: {
+      ...world(),
+      "access.check": () => ({ decision: { effect: "allow", reason: "test", steps: [], decisionId: "dec_1" } }),
+      "records.get": () => ({ record: { id: "rec_a1", type: "deal", fields: {} } }),
+    },
+  });
+  await agentChat(hn, "a plain chat");
+  const asked = await h["chat.start"]!(hn.ctx, {
+    kind: "ask",
+    agentIds: [INTAKE],
+    scopeType: "record",
+    scopeId: "rec_a1",
+    idempotencyKey: "ask-1",
+  });
+  const askId = asked.thread.threadId as string;
+  const all = await h["chats.sidebar"]!(hn.ctx, {});
+  assert.ok(
+    !JSON.stringify(all.chats.rows).includes(askId) && !JSON.stringify(all.pinned.rows).includes(askId),
+    "an Ask pane is not a chat in the list",
+  );
+  const asks = await h["chats.sidebar"]!(hn.ctx, { filter: "asks" });
+  assert.deepEqual(contractErrors("chats.sidebar", "out", asks), []);
+  assert.ok(JSON.stringify(asks).includes(askId), "the Asks filter lists it");
+  assert.ok(!JSON.stringify(asks.chats.rows).includes("a plain chat"), "and only Asks");
+});

@@ -76,6 +76,7 @@ type Out = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -108,6 +109,7 @@ type Out = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -140,6 +142,7 @@ type Out = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -172,6 +175,7 @@ type Out = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -204,6 +208,7 @@ type Out = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -239,6 +244,7 @@ type Out = {
         {
           "agentId": "example",
           "archived": true,
+          "ask": true,
           "ended": true,
           "faceIds": [
             "example"
@@ -275,6 +281,7 @@ type Out = {
         {
           "agentId": "example",
           "archived": true,
+          "ask": true,
           "ended": true,
           "faceIds": [
             "example"
@@ -311,6 +318,7 @@ type Out = {
         {
           "agentId": "example",
           "archived": true,
+          "ask": true,
           "ended": true,
           "faceIds": [
             "example"
@@ -359,6 +367,7 @@ type Out = {
         {
           "agentId": "example",
           "archived": true,
+          "ask": true,
           "ended": true,
           "faceIds": [
             "example"
@@ -396,6 +405,7 @@ type Out = {
         {
           "agentId": "example",
           "archived": true,
+          "ask": true,
           "ended": true,
           "faceIds": [
             "example"
