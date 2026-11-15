@@ -26,7 +26,10 @@ test(
       // streaming element browser-live-view-image only exists in the full-screen view, so the steady preview is the picture itself
       await k.me.page.getByTestId("browser-picture").waitFor({ timeout: 20_000 });
       // the preview swaps between two layers, so one of them is hidden at any moment: the element is there (attached), the box is visible
-      await k.me.page.locator('[data-testid^="browser-preview-"]').first().waitFor({ state: "attached", timeout: 20_000 });
+      await k.me.page
+        .locator('[data-testid^="browser-preview-"]')
+        .first()
+        .waitFor({ state: "attached", timeout: 20_000 });
       // watch for 12 s: the picture's box (its size) and whether the picture element is there, sampled every 50 ms
       const log = await k.me.page.evaluate(async () => {
         const out: Array<{ here: boolean; w: number; h: number }> = [];

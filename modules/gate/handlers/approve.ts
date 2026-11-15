@@ -6,6 +6,7 @@ import { actOf, cut, getHold, holdsWhere, raise, saveHold, sha } from "../projec
 import type { Assignee, GateCtx, Hold } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import { addStepTargets } from "./grants.ts";
+import { linkedHold } from "./linked.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -188,9 +189,7 @@ async function decides(ctx: GateCtx, h: Hold, claims: Claims): Promise<boolean> 
 // ---- gate.release ----
 
 export async function release(ctx: GateCtx, input: In): Promise<unknown> {
-  const h = getHold(ctx, input.holdId);
-  if (h.taskId !== input.taskId)
-    raise(ctx, "validation.precondition_failed", "That hold belongs to another task.", { reason: "task_mismatch" });
+  const h = await linkedHold(ctx, input.holdId, input.taskId);
   if (h.state !== "held")
     raise(ctx, "validation.precondition_failed", `This hold is ${h.state} already.`, {
       reason: "not_held",
@@ -305,9 +304,7 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
 // ---- gate.deny ----
 
 export async function deny(ctx: GateCtx, input: In): Promise<unknown> {
-  const h = getHold(ctx, input.holdId);
-  if (h.taskId !== input.taskId)
-    raise(ctx, "validation.precondition_failed", "That hold belongs to another task.", { reason: "task_mismatch" });
+  const h = await linkedHold(ctx, input.holdId, input.taskId);
   if (h.state !== "held")
     raise(ctx, "validation.precondition_failed", `This hold is ${h.state} already.`, {
       reason: "not_held",

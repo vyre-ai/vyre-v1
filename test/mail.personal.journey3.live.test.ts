@@ -45,7 +45,10 @@ test("journey 3, a revoked sign-in: Home shows one Fix item, Fix opens Connect a
       .waitFor({ timeout: 30_000 });
     // the item shows in the sidebar's Tasks too (row-n:<id>, the chat frame's sidebar, c5da6ccd8) and once in the landing's own list: one item in the list this page is about
     assert.equal(
-      await me.page.getByTestId("landing-below").getByText(/Sign in to olivia@gmail.test again/).count(),
+      await me.page
+        .getByTestId("landing-below")
+        .getByText(/Sign in to olivia@gmail.test again/)
+        .count(),
       1,
       "one item",
     );
