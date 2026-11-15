@@ -11,6 +11,7 @@ import type { RuntimeBase } from "../session/runtime-data.ts";
 import { setAssistantId } from "../../../../../ui/src/Avatar/assistant.ts";
 import type { LinkPolicy } from "../../../../../ui/src/reach/index.tsx";
 import type { TurnStreams } from "../session/turn-streams.ts";
+import type { Typing } from "../session/typing.ts";
 
 /** Where a click goes. The shell resolves a screen id (generated/screens.ts) or a subject to a place and a tab. */
 export interface ShellTarget {
@@ -62,6 +63,8 @@ export interface ShellRuntime extends RuntimeBase {
   openUrl(url: string): void;
   /** Agent replies as they are written, from the live socket. Absent where there is no live link (tests, a replica-only shell). */
   turns?: TurnStreams;
+  /** Who is typing in which chat, from the live socket, and what this person's own typing tells it. Absent where there is no live link. */
+  typing?: Typing;
   /** Slash commands that plugins add to chat (name, one line, what to run). Absent until a plugin offers any. */
   pluginCommands?(): readonly {
     name: string;

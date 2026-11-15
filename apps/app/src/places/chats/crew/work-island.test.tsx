@@ -69,7 +69,11 @@ test("in a chat two agents at work show one island; an open question hides it", 
   const a = await mount(createRoot, <Conversation data={busy.data} />);
   await flush();
   assert.ok(find(a, "work-island"), "agents are working: the island is there, though no helper card asked for it");
-  assert.equal(textOf(find(a, "work-island-text")), "Working");
+  assert.equal(
+    textOf(find(a, "work-island-text")),
+    "Working \u00b7 Intake and Docs",
+    "two agents: the island names both",
+  );
   const asking = createSample("plan");
   const b = await mount(createRoot, <Conversation data={asking.data} />);
   await flush();

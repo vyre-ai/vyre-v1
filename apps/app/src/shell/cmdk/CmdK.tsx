@@ -258,23 +258,26 @@ export function CmdKBody({
           onKeyPress={onKey as never}
           {...webOnly({ role: "combobox", "aria-expanded": true, "aria-controls": "cmdk-list" })}
         />
-        <Pressable
-          testID="cmdk-filter"
-          accessibilityRole="button"
-          accessibilityLabel="Filter by type"
-          onPress={(e) => {
-            const n = e.nativeEvent as unknown as { pageX?: number; pageY?: number };
-            openFilters((n.pageX ?? 0) - 90, (n.pageY ?? 0) + 14);
-          }}
-          style={({ hovered }: { hovered?: boolean }) => [
-            styles.filterBtn,
-            hovered === true ? { backgroundColor: "var(--hover)" } : null,
-          ]}
-        >
-          <Text style={[styles.filterText, state.filter.length ? { color: "var(--accent)" } : null]}>
-            {state.filter.length ? `Filter · ${state.filter.length}` : "Filter"}
-          </Text>
-        </Pressable>
+        {/* the type filter is offered only when there is something to filter: results of more than one kind, or a filter already set (a lone chip over an empty list was clutter) */}
+        {state.filter.length > 0 || Object.values(state.counts).filter((n) => n > 0).length > 1 ? (
+          <Pressable
+            testID="cmdk-filter"
+            accessibilityRole="button"
+            accessibilityLabel="Filter by type"
+            onPress={(e) => {
+              const n = e.nativeEvent as unknown as { pageX?: number; pageY?: number };
+              openFilters((n.pageX ?? 0) - 90, (n.pageY ?? 0) + 14);
+            }}
+            style={({ hovered }: { hovered?: boolean }) => [
+              styles.filterBtn,
+              hovered === true ? { backgroundColor: "var(--hover)" } : null,
+            ]}
+          >
+            <Text style={[styles.filterText, state.filter.length ? { color: "var(--accent)" } : null]}>
+              {state.filter.length ? `Filter · ${state.filter.length}` : "Filter"}
+            </Text>
+          </Pressable>
+        ) : null}
         {onClose && !inline ? (
           <Pressable
             accessibilityRole="button"

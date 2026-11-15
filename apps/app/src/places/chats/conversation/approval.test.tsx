@@ -473,3 +473,46 @@ test("a held test read of a Vault key names the key the server resolved, and Alw
     host: "api.notely.example",
   });
 });
+
+test("a card with no capability, no ask and no question is drawn as its plain words: no Allow, no Deny; a plain question reads as the question", async () => {
+  const make = (blockData: Record<string, unknown>) => ({
+    call: async (cap: string) =>
+      cap === "tasks.get"
+        ? {
+            task: {
+              id: "tsk_1",
+              kind: "approve",
+              title: "Send the notes to Mia",
+              summary: "One short message, no files.",
+              state: "awaiting_approval",
+              blocks: [{ type: "table", v: 1, data: blockData }],
+              actions: [
+                { key: "approve", label: "Approve" },
+                { key: "reject", label: "Send back" },
+              ],
+            },
+          }
+        : {},
+    nav: { openBeside: () => undefined },
+  });
+  const empty = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_1" agent="Helper" agentId="agt_1" data={make({ cap: "", act: "", rows: [] }) as never} />,
+  );
+  await flush();
+  const words = textOf(find(empty, "approval-words-tsk_1"));
+  assert.match(words, /Send the notes to Mia/);
+  assert.equal(find(empty, "approval-tsk_1"), null, "no approval card");
+  assert.ok(!/Allow|Deny/.test(textOf(empty)), "no button that runs nothing");
+  const plain = await mount(
+    createRoot,
+    <ApprovalCard
+      taskId="tsk_1"
+      agent="Helper"
+      agentId="agt_1"
+      data={make({ cap: "", act: "", plain: true, ask: { what: "approve the notes" } }) as never}
+    />,
+  );
+  await flush();
+  assert.match(textOf(find(plain, "approval-tsk_1")), /Helper asks: Send the notes to Mia/);
+});

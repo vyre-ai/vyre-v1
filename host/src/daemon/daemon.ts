@@ -848,7 +848,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const liveTickets = createLiveTickets({ now });
   let knownToken: (token: string) => boolean = () => false;
   const liveTicketRoute = createLiveTicketRoute({ tickets: liveTickets, known: (t) => knownToken(t), bearer });
-  let engineSeam: { forgetReaders?: () => void } | null = null;
+  let engineSeam: { forgetReaders?: () => void; typing?: (person: string, threadId: string) => void } | null = null;
   // sign-in files a CLI refreshed during a turn: the engine hands them here, the Vault module's host call takes them by ticket (seams/signin-refresh.ts); the engine's close at shutdown is waited for
   const signinRefresh = createSigninRefresh({
     call: (n, i) => (hooks ? hooks.call(n, i) : Promise.reject(new Error("The Space is not ready."))),
@@ -5852,6 +5852,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 }
               }),
             publishTurn: () => (hub?.publishTurn ? hub.publishTurn.bind(hub) : null),
+            publishTyping: () => (hub?.publishTurn ? hub.publishTurn.bind(hub) : null),
             log: (msg, attrs) =>
               sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }),
             ...(d.vault ? { vault: d.vault } : {}),
@@ -6889,6 +6890,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               ? s.device === ADMIN_DEVICE
               : !endedSessions.has(s.sessionId) && access.snap.principal(s.principal.id)?.status === "active"),
           invoke,
+          typing: (person, threadId) => engineSeam?.typing?.(person, threadId),
           sink,
           eventsSince: (_s, cursor) =>
             recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : [],

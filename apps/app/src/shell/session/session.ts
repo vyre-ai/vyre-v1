@@ -38,6 +38,7 @@ import { createLiveLink } from "./live.ts";
 import { realScheduler } from "../../../../../client/src/connection/scheduler.ts";
 
 import { createTurnStreams } from "./turn-streams.ts";
+import { createTyping } from "./typing.ts";
 import { readStoredSessions } from "./stored.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
 import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
@@ -391,6 +392,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   let lostTimer: (() => void) | null = null;
   const clock = o.scheduler ?? realScheduler;
   const turns = createTurnStreams();
+  let sendFrame: (f: unknown) => boolean = () => false;
+  const typing = createTyping({ send: (f) => sendFrame(f), me: () => who.principal.id });
   const link: LiveLink = createLiveLink({
     baseUrl: o.baseUrl,
     token: () => token,
@@ -420,12 +423,14 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       tell();
     },
     onTurn: (f) => turns.onFrame(f),
+    onTyping: (f) => typing.onFrame(f),
     onPurge: (epoch) => {
       for (const l of [...purgeListeners]) l(epoch);
     },
     ...(o.dial ? { dial: o.dial } : {}),
     ...(o.scheduler ? { scheduler: o.scheduler } : {}),
   });
+  sendFrame = (f) => link.send(f);
   link.start();
   // a Space server that lost the key under an open link (a restart the link did not notice) gets it back from this app within one beat
   const stopKeyWatch = watchKey(o.baseUrl, () => token);
@@ -646,6 +651,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     screens: hooks,
     changes: { subscribe: (l) => hooks.onInvalidate(l) },
     turns,
+    typing,
     call: (cap, input) => call(cap, input),
     callIn: async (spaceId, cap, input) => {
       // another Space this device is signed in to: its own address and its own token, never this Space's
@@ -782,6 +788,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       lostTimer = null;
       link.stop();
       turns.dispose();
+      typing.dispose();
       for (const off of keep) off();
       hooks.close();
       listeners.clear();

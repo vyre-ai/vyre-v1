@@ -98,7 +98,14 @@ test("an agent's reply has Details at the end of its menu, which opens the right
     showMenu: () => undefined,
     details,
   } as unknown as MessageActions;
-  const items = menuFor(msg("msg_r1", { kind: "agent", id: "agt_mira" }), false, a, () => undefined);
+  const items = menuFor(
+    msg("msg_r1", { kind: "agent", id: "agt_mira" }),
+    false,
+    a,
+    () => undefined,
+    { x: 0, y: 0 },
+    true,
+  );
   assert.deepEqual(labels(items).slice(-2), ["-", "Details"]);
   (items.at(-1) as { onSelect: () => void }).onSelect();
   assert.deepEqual(opened, ["msg_r1"]);

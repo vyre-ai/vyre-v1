@@ -33,6 +33,8 @@ export interface LiveLinkOptions {
   onStatus?(s: LiveStatus): void;
   /** A `turn` frame: text of an agent's reply as it is written (apps/app/src/shell/session/turn-streams.ts). */
   onTurn?(frame: unknown): void;
+  /** A `typing` frame: someone who may read a chat is typing in it. */
+  onTyping?(frame: unknown): void;
   /** The server told this device to purge (a revoke or an epoch bump, ARCH 5.7); the manager halts after it. */
   onPurge?(epoch: number): void;
   /** Injectable for tests. */
@@ -41,6 +43,8 @@ export interface LiveLinkOptions {
 }
 
 export interface LiveLink {
+  /** A frame on the live socket (the typing frame); false when there is none. */
+  send(frame: unknown): boolean;
   start(): void;
   stop(): void;
   status(): LiveStatus;
@@ -187,6 +191,7 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
             const t = f as { t?: unknown; seq?: unknown };
             if (t.t === "changed" && typeof t.seq === "number") o.onChange(t.seq);
             else if (t.t === "turn") o.onTurn?.(f);
+            else if (t.t === "typing") o.onTyping?.(f);
           },
           purge: (e) => {
             // Adopt only when all three hold: no agreed epoch yet, an empty local replica (cursor 0, nothing held) and this is the first hello of this session. Anything else is a real purge.
@@ -210,6 +215,7 @@ export function createLiveLink(o: LiveLinkOptions): LiveLink {
       });
       conn.start();
     },
+    send: (f) => conn?.send(f) ?? false,
     stop() {
       conn?.stop();
       conn = null;
