@@ -7,6 +7,8 @@ import { NO_SCREEN_PLACES, PLACE_TITLE, kitById, livePlace, railFor } from "../r
 import type { KitDef, PlaceId, RailGroups } from "../rail/kits.ts";
 import { activeEntry, backTarget, createTabsController, forwardTarget, screenTitle, tabKey } from "../tabs/store.ts";
 import type { TabEntry, TabsController, TabsStorage } from "../tabs/store.ts";
+import { openPlan } from "../tabs/open-rule.ts";
+import type { OpenHow } from "../tabs/open-rule.ts";
 import type { SpaceDef } from "./model.ts";
 
 /** The part of the theme controller the shell uses. */
@@ -112,7 +114,8 @@ export interface ShellHub {
   placeDrawn(epoch: number): void;
   retry(): void;
   /** Navigate: open a place (or an item in it) as a tab and show it. */
-  go(place: PlaceId, hash?: string, background?: boolean, link?: boolean): void;
+  /** `fresh`: a new tab beside the selected one that is shown (Cmd-press, middle-press, Open in new tab); `background`: the same, left behind. */
+  go(place: PlaceId, hash?: string, background?: boolean, link?: boolean, fresh?: boolean): void;
   /** Back in the tab on screen: a step it took, the tab it was opened from, or one level up. False when there is nowhere to go. */
   /** `up: false` leaves out the one-level-up step: what the browser's own Back may take (it leaves Vyre when there is nothing else). */
   back(o?: { up?: boolean }): boolean;
@@ -140,6 +143,8 @@ export interface ShellHub {
   /** Show a tab the strip selected. */
   showTab(tab: TabEntry): void;
   newTab(): TabEntry;
+  /** The tab closed last comes back and is shown (Cmd-Shift-T). */
+  reopenTab(): void;
   /** Close a tab (the selected one when no key) and show the tab that is selected afterwards. */
   closeTab(key?: string): void;
   /** Every query key carries the open Space's id first. */
@@ -418,26 +423,24 @@ export function createShellHub(options: HubOptions): ShellHub {
       s.tabs.retitle(key, title, empty);
       emit();
     },
-    go(requested, hash, background = false, link = false) {
+    go(requested, hash, background = false, link = false, fresh = false) {
       // a place with no screen (the old Join) opens Chats instead of an empty page; Home's links land in Chats with their hash
       const gone = NO_SCREEN_PLACES.includes(requested);
       const place = gone ? "chats" : livePlace(requested);
       if (gone) hash = undefined;
       const s = open();
-      // A press that opens something inside the place on screen is one step in this tab, not a tab of its own (Back returns to where the person was). A link, a tab made on purpose
-      // (Cmd-press, Open in new tab) and an item in another place are not steps: they open or select a tab.
-      if (!background && !link && hash !== undefined && hash !== "" && !gone) {
-        const now = s.tabs.state();
-        const cur = now.tabs.find((x) => x.key === now.active);
-        if (cur !== undefined && cur.isNew !== true && cur.place === place && (cur.hash ?? "") !== hash) {
-          hub.move(place, hash);
-          return;
-        }
+      // ONE rule decides (tabs/open-rule.ts): a press on a row opens it in the tab on screen (a step, Back returns); Cmd-press, middle-press and "Open in new tab" open a tab beside it
+      // ("fresh"; `background` keeps the person where they are); a link, and an item of another place, open or select a tab.
+      const how: OpenHow = background ? "behind" : fresh ? "tab" : "here";
+      const plan = openPlan(s.tabs.state(), { place, hash, how, link });
+      if (plan.do === "step" && hash !== undefined) {
+        hub.move(place, hash);
+        return;
       }
       if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.();
       // an address with no item (hash "") asks for the place's landing: its own tab shows it. A place asked for with no hash at all (the rail) goes to the tab the place has.
-      if (!background && hash === "") s.tabs.land(place);
-      else s.tabs.openPlace(place, hash, screenTitle(hash), background, link);
+      if (plan.do === "land") s.tabs.land(place);
+      else s.tabs.openPlace(place, hash, screenTitle(hash), plan.do === "open" && plan.background, link);
       if (!background) {
         // the page shows what the selected tab shows, so a tab never names one thing over another
         const now = s.tabs.state();
@@ -496,6 +499,19 @@ export function createShellHub(options: HubOptions): ShellHub {
       const s = open();
       holder?.();
       s.tabs.close(key ?? s.tabs.state().active);
+      const now = s.tabs.state();
+      const t = now.tabs.find((x) => x.key === now.active);
+      if (t !== undefined) {
+        s.place = t.place;
+        s.hash = t.hash ?? "";
+      }
+      emit();
+    },
+    reopenTab() {
+      const s = open();
+      if (!s.tabs.canReopen()) return;
+      holder?.();
+      s.tabs.reopen();
       const now = s.tabs.state();
       const t = now.tabs.find((x) => x.key === now.active);
       if (t !== undefined) {

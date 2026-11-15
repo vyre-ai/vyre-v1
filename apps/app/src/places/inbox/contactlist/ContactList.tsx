@@ -30,6 +30,7 @@ import {
   narrow,
   pinned,
   scopeTitle,
+  headTitle,
   showingNames,
   threadEntry,
   unreadMeta,
@@ -501,12 +502,12 @@ function List(): ReactElement {
     <View
       style={styles.main}
       testID="inbox-list"
-      accessibilityLabel={`${scopeTitle(state.scope, mailboxes)}, ${VIEW_LABEL[view]}`}
+      accessibilityLabel={`${headTitle(state.scope, view, mailboxes)}, ${VIEW_LABEL[view]}`}
     >
       <View style={styles.head} testID="inbox-head">
         <View style={styles.tt}>
           <Text accessibilityRole="header" aria-level={1} style={styles.h1} numberOfLines={1}>
-            {scopeTitle(state.scope, mailboxes)}
+            {headTitle(state.scope, view, mailboxes)}
           </Text>
           {meta ? (
             <Text style={styles.metaText} testID="inbox-unread-meta">

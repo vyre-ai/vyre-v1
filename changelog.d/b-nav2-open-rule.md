@@ -1,0 +1,1 @@
+A press that opens something now follows one rule everywhere: a row opens in the tab you are on, Cmd-press, the middle button and Open in New Tab open a new tab beside it (Shift keeps you where you are), a thing already open is shown instead of opened twice, closing a tab goes back to the one you came from, and going Back puts the page and the list at the same scroll position.
