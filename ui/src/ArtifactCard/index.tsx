@@ -1,6 +1,7 @@
 // ui/ArtifactCard: one artifact as a card. A small picture on the left (taken at publish; a drawn stand-in until there is one), the title, one quiet line, and Open, Copy link and "...".
 // The whole card opens the artifact and paints a hover. The same card sits in a chat and in the Artifacts grid (`grid` adds the "From <chat>" link). Colours are skin tokens.
 
+import { BlobImage } from "../BlobImage/index.tsx";
 import { useCallback, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -56,12 +57,7 @@ export function Thumb({ info, size }: { info: ArtifactInfo; size?: { w: number; 
   const box = [st.thumb, { width: w, height: h }];
   if (info.thumb !== undefined && info.thumb !== "")
     return (
-      <Image
-        testID="artifact-thumb"
-        accessibilityIgnoresInvertColors
-        source={{ uri: info.thumb }}
-        style={[...box, st.img]}
-      />
+      <BlobImage testID="artifact-thumb" accessibilityIgnoresInvertColors uri={info.thumb} style={[...box, st.img]} />
     );
   const k = standIn(info.id);
   const bar = (wd: string, strong = false): ReactElement => (

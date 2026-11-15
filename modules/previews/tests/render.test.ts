@@ -820,3 +820,55 @@ test("a converter that hangs or crashes is a timeout or a corrupt file, not a cr
       pages: 1,
     });
   }));
+
+test("a file that lives at its provider and cannot be fetched: every preview door fails or says it is not ready, never an empty page, an empty picture or empty text", async () => {
+  await with_(async (w) => {
+    const png1 = w.files.add("logo.png", "image/png", png(40, 30));
+    const pdf1 = w.files.add("brief.pdf", "application/pdf", pdf([["Hello"]]));
+    const docx1 = w.files.add(
+      "letter.docx",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      docx(["Hi"]),
+    );
+    w.files.failRead = new VyreErr({
+      code: "provider.unavailable",
+      message: "Drive is down.",
+      retryable: true,
+      traceId: "t",
+      next: [],
+    });
+    for (const f of [png1, pdf1, docx1]) {
+      for (const cap of ["previews.get", "previews.text", "previews.pages"] as const) {
+        let out: Row | undefined;
+        let code = "";
+        try {
+          out = await call(w, cap, { fileId: f.fileId });
+        } catch (e) {
+          code = e instanceof VyreErr ? e.error.code : "throw";
+        }
+        const honest =
+          code === "provider.unavailable" ||
+          (out !== undefined &&
+            (out["ready"] === false ||
+              out["text"] === undefined ||
+              out["text"] === null ||
+              out["pages"] === undefined));
+        assert.ok(honest, `${cap} on ${f.name}: ${code || JSON.stringify(out)?.slice(0, 120)}`);
+        if (out !== undefined) {
+          assert.notEqual(out["ready"], true, `${cap} on ${f.name} is not ready`);
+          assert.ok(
+            !(typeof out["text"] === "string" && out["text"] === ""),
+            `${cap} on ${f.name} is not an empty text`,
+          );
+        }
+      }
+    }
+    let thumbs: Row | undefined;
+    try {
+      thumbs = await call(w, "previews.thumbnails", { fileIds: [png1.fileId] });
+    } catch (e) {
+      assert.ok(e instanceof VyreErr);
+    }
+    if (thumbs) assert.equal(((thumbs["items"] as Row[])[0] as Row)["ready"], false);
+  });
+});

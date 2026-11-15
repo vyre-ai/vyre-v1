@@ -61,7 +61,7 @@ export interface Edge {
   close(): void;
 }
 
-/** The app's export on one origin, with the gateway (/v1, /sync, /healthz) and the live socket (/live) passed through to the daemon. */
+/** The app's export on one origin, with the gateway (/v1, /sync, /healthz, the Space's blobs) and the live socket (/live) passed through to the daemon. */
 export function edge(
   dist: string,
   daemonUrl: string | (() => string),
@@ -74,6 +74,7 @@ export function edge(
   const proxied = (p: string): boolean =>
     p.startsWith("/v1/") ||
     p.startsWith("/sync/") ||
+    /^\/spaces\/[^/]+\/blobs\//.test(p) ||
     p === "/healthz" ||
     p.startsWith("/live") ||
     p.startsWith("/local/vault/key/") ||

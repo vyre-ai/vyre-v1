@@ -179,17 +179,17 @@ No capability contract, version, field or error changed, and no snapshot moved. 
 
 Every difference is listed with its justification in `lib/clock-golden-kit.test.ts`; `lib/clock.golden.test.ts` and `test/clock.golden.wrappers.test.ts` fail if any other recorded answer moves.
 
-Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 13 Nov 2026; shipped in rc.28, main 2576811cc)
 
 Added the same day (lead's ruling, 13 Nov 2026): a time zone given as a fixed offset ("+05:00", "-03:30") may already be stored on a live Space, so it keeps its meaning everywhere: `zones.ts` and the clock both read it as a fixed clock with no daylight saving (the clock used to read it as UTC), and `validZone` keeps accepting it; pickers still offer named zones only. And `instantOf` (a deadline typed into a goal, the zone-change example) now settles a time in a gap hour on the instant the gap ends in every zone; it kept the minutes and moved forward an hour west of Greenwich (3:30 AM for 2:30 AM in New York) and landed an hour before the gap east of it. `lib/zones.test.ts` ("a wall clock reading becomes an instant") changed to that rule; nothing else in it changed.
 
-Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 13 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 13 Nov 2026: new read `scheduler.can_hold@1` (lane b-clock, P1 step 3)
 
 `scheduler.can_hold@1` `{ person, agentId, channelId? }` -> `{ ok, reasons: not_in_space | cannot_use_agent | cannot_read_channel | agent_missing }`, level member, no agent tool (system use, as `agents.outside.usable`). It judges the person by their own grants (`ctx.mayAll`), never the caller's: an outside agent takes work from its owner only, a person's Assistant is its person's alone, any other agent needs Can use, and the channel needs view. `agents.routine.delegate@1` calls it before it hands a routine to a person and refuses with `validation.not_found` (not in the Space) or `validation.precondition_failed` with `details.reasons`; both errors were already declared, so that capability's contract is unchanged. Behaviour change: a routine used to go to anyone, `usr_zed` included; `modules/agents/tests/routines.test.ts` ("delegate hands a routine ...") changed to expect the refusal. The count test in `modules/scheduler-api/tests/live.test.ts` moved from 18 to 19 capabilities. Snapshot: docs/frozen/snapshots/scheduler-api.json.
 
-Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 13 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 13 Nov 2026: the Wake table, first half: scheduler.claim, scheduler.report and the wake columns (lane b-clock, P1 step 3a)
 
@@ -199,7 +199,7 @@ Additive; nothing calls it yet. Migration `modules/scheduler-api/migrations/0003
 - A periodic job `scheduler.wakes` (the host runs it where the scheduled-work lease is held) makes the due fire of every wake that is not a plain `call` (INSERT OR IGNORE on the key, so two ticks and two computers make one) and runs one bounded retention pass: a `call` or `baton` wake keeps its last 20 finished fires and any that failed in the last 7 days; routine, watch and goal fires are kept 400 days; a due, claimed, running or waiting fire is never deleted; one pass deletes at most 500 rows. `tick` still fires plain `call` schedules as before.
 The count test in `modules/scheduler-api/tests/live.test.ts` moved from 19 to 21 capabilities. Snapshot: docs/frozen/snapshots/scheduler-api.json.
 
-Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 13 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 14 Nov 2026: scheduler.report carries the attempt; a missed stretch is one fire; a stuck fire is swept (lane b-clock, P1 step 3a, after the review)
 
@@ -207,19 +207,19 @@ Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
 
 What a person notices after the update, in plain words (all decided by the lead, 13 Nov 2026): a repeating task held by someone in a time zone with daylight saving now keeps its wall-clock time across a clock change (it used to drift by an hour); a deadline typed in an hour that does not exist lands when the gap ends; a fixed offset such as "+05:00" is read as a time zone again.
 
-Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 14 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 14 Nov 2026: who makes a wake of another kind, a first time for the backfill, and the tick path (lane b-clock, P1 step 4, scheduler side)
 
 Additive; nothing calls it yet. `scheduler.schedule@1` gains the optional input `nextAt` (a first time carried over exactly from a routine that already had one; refused with `permission.no_grant` for anyone but the host). A schedule whose `kind` is not `call` may name only the capability its kind has in a fixed table in code (`routine` is `agents.routine.fire`, any other is `validation.bad_input`), and only the host or a nested call from `agents.routine.save`, `agents.routine.delete` or `agents.routine.delegate` may make or change one (`reschedule`, `pause`, `resume`, `cancel`); a person, an agent, a tenant service and an outside agent calling `scheduler.*` directly get `permission.no_grant`. `scheduler.report@1`'s `state` gains `skipped` (a fire the target did not start). The periodic pass `scheduler.wakes` now also claims each due fire (and a claim whose lease ran out), calls the wake's capability as module code with the Run key `<kind>:<owner id>:<due ms>`, and reports it running with its Run, or skipped. Snapshot: docs/frozen/snapshots/scheduler-api.json.
 
-Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 14 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 14 Nov 2026: runs.states, and who may touch a wake of another kind (lane b-clock, P1 step 4, after the fourth review)
 
 New read `runs.states@1` `{ runIds }` (at most 200, `maxItems`) -> `{ states: [{ runId, status }] }`: EVERY id asked gets an answer, its status or `gone` for a Run that is not there. The server's alone (`permission.no_grant` for anyone else), no agent tool. It lets the sweep of open fires ask a slice of Runs in one call, and the sweep closes a fire only on an explicit status: an answer of the wrong shape, or one that leaves an id out, closes nothing. Behaviour changes, all on wakes of another kind (none exist on any Space yet): a wake is seen and changed only by the host or by a nested call from the agents module's `agents.routine.save`, `.delete` or `.delegate` (never by the stored principal), so a routine handed to someone else is the new owner's through the door at once; a routine has at most ONE wake (a second is refused with `validation.precondition_failed`, reason `wake_exists`); `scheduler.run_now`, `scheduler.fire` and `scheduler.catch_up` do not act on such a wake; `scheduler.list` shows them only to the host and the doors; `max_attempts` is honoured (a fire that fails past it ends failed with its last reason); a caller who may not make a wake is refused before the idempotency lookup; the sweep closes a fire only if it is still as it read it. Snapshots: docs/frozen/snapshots/runs.json (and scheduler-api.json unchanged by this).
 
-Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 14 Nov 2026; shipped in rc.28, main 2576811cc)
 
 ## 13 Nov 2026: computers.chrome.screenshot answers pageWidth, pageHeight and scale (lane f-computer)
 
@@ -327,7 +327,7 @@ New write `agents.routine.fire@1` `{ routineId, dueKey }` -> `{ started, runId?,
 
 Proved on three data folders made by the rc.26 build (Space zones UTC, Karachi, New York; six routines, a watcher, a self-paused routine): after the first start every enabled cron routine has one UTC wake whose first time equals its stored `nextRunAt`; each time that comes, with the old tick and the new tick both running in the same minute, exactly one Run starts (11 fires, 11 Run keys, the same set, no key twice, most attempts on any fire: 1); the next time after each is the one recorded with the old build; a restart changes nothing.
 
-Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
+Signed: lead, 15 Nov 2026 (written 14 Nov 2026; shipped in rc.28, main 2576811cc)
 
 
 ## 14 Nov 2026: engine.round.get added (lane chat-agents)
@@ -437,3 +437,15 @@ All additive: every new input is optional, no input, output or error was removed
 - Whose files: a person's points come only from their own folder (`work/<person>/<thread>/<agent>`), derived from who is calling; another person's point id is not found. Off in a chat with other people.
 - Symlinks (review of d3e48dcf4, r-agents): going back no longer uses `git checkout` and a text check of paths. It reads the difference between the folder now and the point from git, and for every path walks the real work folder one component at a time with lstat: a component that is a link is never entered, a link or file where a folder is needed is replaced by a real folder (the link itself removed), and a link met while removing a folder is removed, not followed. Tests: the reviewer's setup (a symlink at the point, a real folder later), a link swapped in after the point, and a link inside a removed folder.
 - Off the turn's path: a point waits at most 100 ms; counting the folder (150,000 files or 8 GB, cut short after 3 s, asynchronous) and the snapshot run in the background, one at a time per folder. A folder over the caps is skipped with a reason and never delays or fails a turn.
+
+## 13 Nov 2026: mounts.get, mounts.list and mounts.update gain two optional output fields (lane f-drive)
+
+The mount row these three capabilities return gains `skippedCount` (an integer, at least 1) and `skipped` (a list of up to 200 `{ name, reason }`), present only when the last pass could not bring some items in (a name Files cannot hold is now shown under a safe name; an item that still cannot be brought in is skipped, counted and listed with its reason, and the mount stays healthy). Optional output fields only: no input, version or existing field changed. The migration `modules/mounts/migrations/0004_mounts_skipped.sql` is a new additive column. The hashes of the three capabilities in `docs/frozen/snapshots/mounts.json` were written again with `node tools/gen/src/cli.ts --snapshots`.
+
+Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
+
+## 15 Nov 2026: backup.export_status gains two optional output fields (lane f-drive-land)
+
+`backup.export_status` answers, besides the archive's file, `leftOut` (an integer: how many files the archive could not hold and names on its `NOT-EXPORTED.txt` page) and `filesKept` (how many files it holds), both present only when at least one file was left out. They are read from the archive itself. The export screen uses them to say in one line how many files were left out and that the list is in the zip.
+
+Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)

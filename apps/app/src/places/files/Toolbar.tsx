@@ -12,6 +12,8 @@ export interface Crumb {
   name: string;
   /** The folder this crumb opens; null is the top of Files. Absent for a place that is not a folder (Recent, Trash) or the crumb you are on. */
   id?: string | null;
+  /** Shown as words, not a link: a place or folder the person may not open (a file shared into a folder they cannot see). */
+  plain?: boolean;
 }
 
 export interface ToolbarProps {
@@ -80,6 +82,12 @@ export function Breadcrumb({
           testID="files-title"
           style={styles.cur}
         >
+          {c.name}
+        </Text>,
+      );
+    } else if (c.plain === true) {
+      out.push(
+        <Text key={c.key} numberOfLines={1} testID={`files-crumb-${c.key}`} style={styles.crumbText}>
           {c.name}
         </Text>,
       );
@@ -157,7 +165,7 @@ export function SortButton({ label, onSort }: { label: string; onSort(x: number,
 }
 
 /** A quiet icon button of the header; greyed and inert without a handler. */
-function HeadIcon({
+export function HeadIcon({
   icon,
   label,
   onPress,

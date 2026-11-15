@@ -22,7 +22,7 @@ import { mintUuid } from "../../../lib/ids.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { displayName, freeNames } from "./names.ts";
+import { displayName, freeNames, nameSeries } from "./names.ts";
 export { displayName, freeNames };
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { pushMoves } from "./outbound-moves.ts";
@@ -87,6 +87,88 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
 const codeOf = (e: unknown): string | undefined => (e instanceof VyreErr ? e.error.code : undefined);
 const messageOf = (e: unknown): string =>
   e instanceof VyreErr ? e.error.message : e instanceof Error ? e.message : "The sync failed.";
+
+/** Codes that mean the provider itself cannot be reached or does not allow Vyre in: these stop a pass and make the mount failing. Anything else is about one item. */
+const MOUNT_LEVEL =
+  /^(provider\.(network|unavailable|auth_failed|rate_limited|overloaded)|timeout\.|auth\.|rate_limit\.|internal\.)/;
+const isMountLevel = (e: unknown): boolean => {
+  const code = codeOf(e);
+  return code === undefined || MOUNT_LEVEL.test(code);
+};
+
+/** The sentence a failing mount shows: the provider cannot be reached, or does not allow Vyre in, and what to do about it. Other messages are the provider's own and are kept. */
+function failureSentence(e: unknown, label: string): string {
+  switch (codeOf(e)) {
+    case "provider.network":
+    case "provider.unavailable":
+    case "timeout.provider":
+    case "timeout.deadline":
+      return `${label} could not be reached. Vyre tries again by itself.`;
+    case "provider.rate_limited":
+    case "provider.overloaded":
+    case "rate_limit.exceeded":
+      return `${label} asked Vyre to slow down. Vyre tries again by itself.`;
+    case "provider.auth_failed":
+    case "auth.expired":
+      return /\S/.test(messageOf(e)) && !/^The provider rejected/i.test(messageOf(e))
+        ? messageOf(e)
+        : `${label} no longer accepts the sign-in. Reconnect it.`;
+    default:
+      return messageOf(e);
+  }
+}
+
+/** Why one item could not be shown, in words a person can read. */
+function skipReason(e: unknown): string {
+  switch (codeOf(e)) {
+    case "validation.duplicate":
+      return "Every name Vyre could give it is already taken in its folder.";
+    case "validation.bad_input":
+      return "Files would not accept this item.";
+    case "validation.too_large":
+      return "It is too large to bring in.";
+    case "validation.not_found":
+      return "It was moved or deleted while Vyre was reading the folder. Vyre asks about it again on each sync.";
+    case "permission.needs_approval":
+      return "Adding it to this folder needs someone's approval.";
+    default:
+      return codeOf(e)?.startsWith("permission.")
+        ? "Vyre may not add things to this folder."
+        : "Vyre could not bring it in.";
+  }
+}
+
+const MAX_SKIPPED = 200;
+/** Skipped items asked about again in each pass. */
+const RETRY_PER_PASS = 25;
+
+interface Skipped {
+  remoteId: string;
+  /** where it sat, so asking about it again can place it */
+  parentId?: string;
+  name: string;
+  reason: string;
+}
+
+/** The column patch for the list of skipped items: nothing when this pass did not learn it, null when it is now empty. */
+function skippedPatch(known: boolean, list_: readonly Skipped[]): Row {
+  if (!known) return {};
+  return { skipped: list_.length > 0 ? JSON.stringify(list_) : null };
+}
+
+function skippedOf(row: Row): Skipped[] {
+  if (isNull(row["skipped"])) return [];
+  try {
+    const v: unknown = JSON.parse(str(row["skipped"]));
+    return Array.isArray(v)
+      ? v.filter(
+          (x): x is Skipped => typeof x === "object" && x !== null && typeof (x as Skipped).remoteId === "string",
+        )
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 function record(ctx: Ctx, input: unknown): Row {
   if (input === null || typeof input !== "object" || Array.isArray(input))
@@ -345,10 +427,10 @@ async function withFreeName<T>(
   taken: Set<string>,
   make: (n: string) => Promise<T>,
 ): Promise<{ value: T; renamed: boolean; name: string }> {
-  const names = freeNames(name, label);
-  const first = names.findIndex((n) => !taken.has(n));
-  for (let i = Math.max(0, first); i < names.length; i++) {
-    const n = names[i] as string;
+  let i = -1;
+  for (const n of nameSeries(displayName(name), label)) {
+    i += 1;
+    if (taken.has(n)) continue;
     try {
       const value = await make(n);
       taken.add(n);
@@ -358,7 +440,7 @@ async function withFreeName<T>(
       taken.add(n);
     }
   }
-  return fail(ctx, "validation.duplicate", `Every name for ${name} is taken in its folder.`);
+  return fail(ctx, "validation.duplicate", "Every name Vyre could give it is taken in its folder.");
 }
 
 /** A delete of something that is already gone is not an error. */
@@ -437,6 +519,9 @@ async function backfillShown(ctx: Ctx, rows: Row[]): Promise<void> {
 interface Applied {
   pulled: number;
   conflicts: number;
+  /** Items this pass could not bring in, and the ones it did, so the mount's list of skipped items can be brought up to date. */
+  skipped: Skipped[];
+  touched: Set<string>;
 }
 
 async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: PullBatch, rows: Row[]): Promise<Applied> {
@@ -464,6 +549,9 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     return set;
   };
 
+  const skipped: Skipped[] = [];
+  const skippedIds = new Set<string>();
+  const touched = new Set<string>([...batch.items.map((i) => i.id), ...batch.removed]);
   const gone = new Set(batch.removed);
   if (batch.full) {
     const seen = new Set(batch.items.map((i) => i.id));
@@ -494,9 +582,10 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
         return;
       }
       if (row["name"] !== item.name) {
-        const shown = displayName(item.name);
-        await ctx.call("files.folder.rename", { folderId: str(row["folder_id"]), name: shown });
-        patchItem(ctx, row, { name: item.name, shown_name: shown });
+        const renamed = await withFreeName(ctx, item.name, label, namesIn(parent), (n) =>
+          ctx.call("files.folder.rename", { folderId: str(row["folder_id"]), name: n }),
+        );
+        patchItem(ctx, row, { name: item.name, shown_name: renamed.name });
         pulled += 1;
       }
       if (row["parent_key"] !== parent["item_key"]) {
@@ -543,9 +632,10 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
       return;
     }
     if (row["name"] !== item.name) {
-      const shown = displayName(item.name);
-      await ctx.call("files.rename", { fileId: str(row["file_id"]), name: shown });
-      patchItem(ctx, row, { name: item.name, shown_name: shown });
+      const renamed = await withFreeName(ctx, item.name, label, namesIn(parent), (n) =>
+        ctx.call("files.rename", { fileId: str(row["file_id"]), name: n }),
+      );
+      patchItem(ctx, row, { name: item.name, shown_name: renamed.name });
       pulled += 1;
     }
     if (row["parent_key"] !== parent["item_key"]) {
@@ -601,12 +691,46 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
         later.push(item);
         continue;
       }
-      await applyItem(item, parent);
+      try {
+        await applyItem(item, parent);
+      } catch (e) {
+        // one item Vyre cannot bring in is counted and skipped, never the end of the listing; only a provider that cannot be reached or does not allow Vyre stops the pass
+        if (isMountLevel(e)) throw e;
+        // never the item's name: the kind of item, the refusing rule's code and the module's own message say which rule fired
+        ctx.log.warn("mounts: an item was skipped", {
+          mountId: m.id,
+          itemKind: item.isFolder ? "folder" : "file",
+          code: codeOf(e) ?? "",
+          rule: messageOf(e),
+        });
+        skipped.push({
+          remoteId: item.id,
+          ...(item.parentId !== undefined ? { parentId: item.parentId } : {}),
+          name: item.name,
+          reason: skipReason(e),
+        });
+        skippedIds.add(item.id);
+      }
       progress = true;
     }
     queue = later;
   }
-  // what is left sits outside the mounted folder; if it was mapped, it moved out
+  // what sits inside a folder that was skipped is skipped with it; what else is left sits outside the mounted folder, and if it was mapped, it moved out
+  for (let more = true; more; ) {
+    more = false;
+    for (const item of queue) {
+      if (item.parentId === undefined || !skippedIds.has(item.parentId) || skippedIds.has(item.id)) continue;
+      skipped.push({
+        remoteId: item.id,
+        ...(item.parentId !== undefined ? { parentId: item.parentId } : {}),
+        name: item.name,
+        reason: "Its folder could not be shown.",
+      });
+      skippedIds.add(item.id);
+      more = true;
+    }
+  }
+  queue = queue.filter((i) => !skippedIds.has(i.id));
   for (const item of queue) if (index.has(item.id)) gone.add(item.id);
 
   for (const remoteId of gone) {
@@ -624,7 +748,7 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     await trashLocal(ctx, rows, row);
     pulled += 1;
   }
-  return { pulled, conflicts };
+  return { pulled, conflicts, skipped, touched };
 }
 
 // ---- pushing what changed in Vyre ---------------------------------------------------------------------------
@@ -922,6 +1046,9 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     let held = 0;
     let kept = 0;
     const errors: string[] = [];
+    let skippedNow: Skipped[] = [];
+    let skippedKnown = false;
+    let partialWords: string | null = null;
     try {
       if (m.kind === "github") {
         const res = obj(
@@ -936,9 +1063,48 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
         patchMount(ctx, row, { conflicts });
       } else if (provider.pull) {
         const batch = await provider.pull(ctx, m);
+        partialWords = batch.partial ?? null;
         const applied = await applyBatch(ctx, m, provider, batch, rows);
         pulled = applied.pulled;
         conflicts = applied.conflicts;
+        // the list of skipped items: a full listing starts it again; a feed of changes only names what changed, so the items skipped before are asked about again here (a few each pass): a name
+        // that was fixed or a permission that came back brings the item in by itself, and one that is gone leaves the list
+        let again: Applied | undefined;
+        const handled = new Set<string>();
+        if (!batch.full && provider.stat) {
+          const old = skippedOf(row)
+            .filter((x) => !applied.touched.has(x.remoteId))
+            .slice(0, RETRY_PER_PASS);
+          const items: RemoteItem[] = [];
+          for (const x of old) {
+            try {
+              const it = await provider.stat(ctx, m, x.remoteId);
+              if (it)
+                items.push(
+                  it.parentId === undefined && x.parentId !== undefined ? { ...it, parentId: x.parentId } : it,
+                );
+              else handled.add(x.remoteId);
+            } catch (err) {
+              if (codeOf(err) === "validation.not_found") handled.add(x.remoteId);
+              else if (isMountLevel(err)) throw err;
+            }
+          }
+          if (items.length > 0) {
+            again = await applyBatch(ctx, m, provider, { items, removed: [], full: false }, rows);
+            pulled += again.pulled;
+            conflicts += again.conflicts;
+            for (const it of items) if (rows.some((r) => r["remote_id"] === it.id)) handled.add(it.id);
+          }
+        }
+        const before = batch.full
+          ? []
+          : skippedOf(row).filter((x) => !applied.touched.has(x.remoteId) && !handled.has(x.remoteId));
+        const fresh = [...applied.skipped, ...(again?.skipped ?? [])];
+        skippedNow = [...before.filter((x) => !fresh.some((y) => y.remoteId === x.remoteId)), ...fresh].slice(
+          0,
+          MAX_SKIPPED,
+        );
+        skippedKnown = true;
         if (batch.cursor !== undefined) patchMount(ctx, row, { cursor: batch.cursor });
         const sent = await pushAll(ctx, m, provider, rows);
         pushed = sent.pushed;
@@ -947,7 +1113,7 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
         errors.push(...sent.errors);
       }
     } catch (e) {
-      errors.push(messageOf(e));
+      errors.push(failureSentence(e, provider.label));
     }
     const now = ctx.now();
     if (errors.length > 0) {
@@ -968,8 +1134,9 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     const leftover = provider.pushes && !m.pullOnly && (held > 0 || waiting(itemsOf(ctx, m.id)) > 0);
     patchMount(ctx, row, {
       state: "idle",
-      error: null,
+      error: partialWords,
       last_sync_at: now,
+      ...skippedPatch(skippedKnown, skippedNow),
       stale_since: leftover ? (isNull(row["stale_since"]) ? now : row["stale_since"]) : null,
       updated_at: now,
     });
@@ -1046,6 +1213,11 @@ function viewOf(ctx: Ctx, row: Row): Row {
   if (!isNull(row["last_sync_at"])) out["lastSyncAt"] = num(row["last_sync_at"]);
   if (!isNull(row["device_id"])) out["fromDevice"] = str(row["device_id"]);
   if (!isNull(row["error"])) out["error"] = str(row["error"]);
+  const skipped = skippedOf(row);
+  if (skipped.length > 0) {
+    out["skippedCount"] = skipped.length;
+    out["skipped"] = skipped.map((x) => ({ name: x.name, reason: x.reason }));
+  }
   return out;
 }
 
@@ -1618,7 +1790,10 @@ async function applyLocal(
       const idKey = folder ? "folderId" : "fileId";
       const id = str(row[folder ? "folder_id" : "file_id"]);
       if (leafOf(path) !== row["name"])
-        await ctx.call(folder ? "files.folder.rename" : "files.rename", { [idKey]: id, name: leafOf(path) });
+        await ctx.call(folder ? "files.folder.rename" : "files.rename", {
+          [idKey]: id,
+          name: displayName(leafOf(path)),
+        });
       if (row["parent_key"] !== parent["item_key"])
         await ctx.call(
           folder ? "files.folder.move" : "files.move",
@@ -1701,16 +1876,29 @@ async function localReport(ctx: Ctx, input: unknown): Promise<{ applied: number;
     const rows = itemsOf(ctx, m.id);
     let applied = 0;
     let conflicts = 0;
+    const touchedPaths = new Set<string>();
+    const skippedHere: Skipped[] = [];
+    let skippedKnown = false;
     if (m.mode === "live_only") {
       // no server copy: the index stays on the device and a change is acknowledged, not stored
       applied = changes.length;
     } else {
       try {
         for (const ch of changes) {
-          const r = await applyLocal(ctx, m, rows, ch, deviceId);
-          applied += r.applied;
-          conflicts += r.conflicts;
+          // one change Vyre cannot take in is counted and listed; the rest of the report still goes in
+          try {
+            const r = await applyLocal(ctx, m, rows, ch, deviceId);
+            applied += r.applied;
+            conflicts += r.conflicts;
+            touchedPaths.add(cleanPath(ctx, ch["path"]));
+          } catch (e) {
+            if (isMountLevel(e)) throw e;
+            ctx.log.warn("mounts: a device change could not be taken in", { mountId: m.id, code: codeOf(e) ?? "" });
+            const at = cleanPath(ctx, ch["path"]);
+            skippedHere.push({ remoteId: at, name: leafOf(at), reason: skipReason(e) });
+          }
         }
+        skippedKnown = true;
       } catch (e) {
         patchMount(ctx, row, {
           state: "failing",
@@ -1723,12 +1911,16 @@ async function localReport(ctx: Ctx, input: unknown): Promise<{ applied: number;
       }
     }
     const now = ctx.now();
+    const skippedNow = skippedKnown
+      ? [...skippedOf(row).filter((x) => !touchedPaths.has(x.remoteId)), ...skippedHere].slice(0, MAX_SKIPPED)
+      : undefined;
     patchMount(ctx, row, {
       state: row["state"] === "paused" ? "paused" : "idle",
       error: null,
       last_sync_at: now,
       stale_since: null,
       updated_at: now,
+      ...skippedPatch(skippedNow !== undefined, skippedNow ?? []),
     });
     ctx.emit("mount.synced", `folder/${m.folderId}`, {
       mountId: m.id,

@@ -39,6 +39,8 @@ type Out = {
   name: string;
   sizeBytes: number;
   expiresAt: number;
+  leftOut?: number;
+  filesKept?: number;
 };
 ```
 
@@ -61,6 +63,8 @@ type Out = {
   "output": {
     "expiresAt": 1760000000000,
     "fileId": "fil_a1b2c3",
+    "filesKept": 1,
+    "leftOut": 1,
     "name": "example",
     "runId": "run_a1b2c3",
     "sizeBytes": 1,
