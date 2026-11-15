@@ -1,0 +1,3 @@
+The "Use Claude on this computer" and "Use ChatGPT on this computer" buttons now show only when that sign-in is really on the computer your Personal Space runs on, first and in the main colour; when none is there the card is the three sign-in rows. A new read, providers.local_signins, says yes or no for each, never a path or a name.
+The setup rows and the title bar's count come from one list, so the count is the number of rows you can see: "Name your Space" is gone once the Space has its name, and a member's "your mail, calendar, files" row waits for a mailbox of theirs.
+Joining or signing in to a server by its address shows "Check this code matches the one your admin sees" with the code, and Console, Space, Key fingerprint says who checks it.

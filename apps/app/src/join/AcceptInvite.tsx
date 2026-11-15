@@ -31,7 +31,18 @@ import {
   useJoin,
   RECOVERY_WHAT,
 } from "./kit.tsx";
-import { PASSWORD_MIN, RUN_STEPS, meter, strength, suggestions, usernameOk, valid, cleanUsername } from "./logic.ts";
+import {
+  ADMIN_CODE_LINE,
+  PASSWORD_MIN,
+  RUN_STEPS,
+  adminCode,
+  meter,
+  strength,
+  suggestions,
+  usernameOk,
+  valid,
+  cleanUsername,
+} from "./logic.ts";
 import type { Action, FlowState, JoinInvite, Rules } from "./logic.ts";
 
 export interface AcceptInviteProps {
@@ -61,6 +72,9 @@ function Landing({ invite, state }: Pick<AcceptInviteProps, "invite" | "state">)
   return (
     <Step id="accept" dir={state.dir}>
       <Title title={`Join ${invite.space}`} sub={invite.by ? `${invite.by} invited you` : undefined} />
+      {adminCode(invite, state) ? (
+        <Foot testID="space-code" top={8} centre>{`${ADMIN_CODE_LINE} ${adminCode(invite, state)}`}</Foot>
+      ) : null}
       {invite.role ? (
         <Text style={[baseText(p), { marginTop: 2, fontSize: 13, lineHeight: 18, color: p.ink3, textAlign: "center" }]}>
           {invite.role}

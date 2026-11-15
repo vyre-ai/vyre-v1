@@ -5,7 +5,6 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Checklist } from "./Checklist.tsx";
 import { JoinFlow, makeRecoveryCode } from "./JoinFlow.tsx";
-import { aiOptions } from "./ConnectAI.tsx";
 import { ENTRY } from "./palette.ts";
 import {
   RUN_STEPS,
@@ -417,10 +416,6 @@ test("step 3: the optional recovery code, and its sheet with the code and the bo
 });
 
 test("the join asks no AI question: the AI account is asked once, after joining", () => {
-  assert.deepEqual(
-    aiOptions({ space: "Northwind", adminKey: false }).map((o) => o.id),
-    ["sub", "key"],
-  );
   const last = html({ stage: "steps", step: 2, ...FILLED });
   assert.doesNotMatch(last, /Connect your AI|ai-sub|ai-none/);
 });
@@ -580,5 +575,21 @@ test("late invite metadata cannot replace a resolved destination or reuse anothe
     JoinFlow({ invite: INVITE }).key,
     JoinFlow({ invite: elsewhere }).key,
     "a host change remounts rather than retaining credentials",
+  );
+});
+
+test("a first sign-in or join at an address the person typed shows the server's code in plain words; an invite link, which carries the code itself, does not", () => {
+  const withCode = { ...INVITE, fingerprint: "AB12CD34EF567890" };
+  const typed = { spaceAddress: "northwind.example" };
+  const signin = renderToStaticMarkup(<JoinFlow invite={withCode} initial={{ stage: "signin", ...typed }} hold />);
+  assert.match(signin, /Check this code matches the one your admin sees: ab12 cd34 ef56 7890/);
+  const accept = renderToStaticMarkup(<JoinFlow invite={withCode} initial={{ stage: "accept", ...typed }} hold />);
+  assert.match(accept, /Check this code matches the one your admin sees: ab12 cd34 ef56 7890/);
+  const fromLink = renderToStaticMarkup(<JoinFlow invite={withCode} initial={{ stage: "accept" }} hold />);
+  assert.doesNotMatch(fromLink, /space-code|Check this code/);
+  assert.doesNotMatch(
+    renderToStaticMarkup(<JoinFlow invite={INVITE} initial={{ stage: "signin", ...typed }} hold />),
+    /Check this code/,
+    "a server with no code shows no line",
   );
 });

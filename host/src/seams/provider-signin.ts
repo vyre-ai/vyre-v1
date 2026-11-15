@@ -43,6 +43,8 @@ export interface ProviderSigninPort {
    * A finished flow keeps its answer until cancel (the module saved it) or the 15 minutes run out, so a save that failed can be tried again without spending the code twice. */
   step(p: { id: string; person: string; code?: string }): Promise<SigninStep>;
   cancel(id: string): void;
+  /** Which sign-ins are on this computer: yes or no each. Both no where the server is not the person's own computer. */
+  localPresent(): { claudeCode: boolean; codex: boolean };
 }
 
 // ---- the providers' addresses
@@ -122,6 +124,8 @@ export interface SigninDeps {
   spawnGrok?: () => GrokProc;
   /** Read the sign-in already on this computer (local-signin.ts). Only a Personal Space daemon, whose server is the person's own computer, passes it. */
   localSignin?: (provider: SigninProvider) => SigninStep | Promise<SigninStep>;
+  /** Which sign-ins are on this computer, yes or no each (local-signin.ts); passed with localSignin. */
+  localPresent?: () => { claudeCode: boolean; codex: boolean };
 }
 
 async function postJson(
@@ -401,6 +405,7 @@ export function createProviderSignin(deps: SigninDeps): ProviderSigninPort {
 
   return {
     has: (provider) => provider === "claude-code" || provider === "codex" || provider === "grok",
+    localPresent: () => deps.localPresent?.() ?? { claudeCode: false, codex: false },
     active: (id) => flows.has(id),
     async start({ id, provider, person, local }) {
       sweep();

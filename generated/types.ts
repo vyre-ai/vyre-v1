@@ -31944,6 +31944,11 @@ export type ProvidersListOut = {
       models?: Array<string>;
     }>;
 };
+export type ProvidersLocalSigninsIn = Record<string, unknown>;
+export type ProvidersLocalSigninsOut = {
+  claudeCode: boolean;
+  codex: boolean;
+};
 export type ProvidersMarkSigninNeededIn = {
   handle: string;
   why?: string;
@@ -47736,6 +47741,7 @@ export interface CapMap {
   "providers.custom_list": { in: ProvidersCustomListIn; out: ProvidersCustomListOut };
   "providers.custom_remove": { in: ProvidersCustomRemoveIn; out: ProvidersCustomRemoveOut };
   "providers.list": { in: ProvidersListIn; out: ProvidersListOut };
+  "providers.local_signins": { in: ProvidersLocalSigninsIn; out: ProvidersLocalSigninsOut };
   "providers.mark_signin_needed": { in: ProvidersMarkSigninNeededIn; out: ProvidersMarkSigninNeededOut };
   "providers.own_people": { in: ProvidersOwnPeopleIn; out: ProvidersOwnPeopleOut };
   "providers.remove": { in: ProvidersRemoveIn; out: ProvidersRemoveOut };

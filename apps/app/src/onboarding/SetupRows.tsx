@@ -3,11 +3,10 @@
 import { useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { useWindowDimensions } from "react-native";
-import { detectDevice } from "./device.ts";
+import { detectDevice, rowFacts } from "./device.ts";
 import { setupNote, setupRows, setupTop } from "./setup-rows.ts";
-import type { RowFacts, SetupRow } from "./setup-rows.ts";
+import type { SetupRow } from "./setup-rows.ts";
 import { openOnboarding, readProgress, watchProgress } from "./store.ts";
-import { phoneCanReach } from "../shell/session/reach.ts";
 
 export { setupNote, setupRows, setupTop };
 export type { SetupRow };
@@ -19,6 +18,7 @@ export function SetupRows({
   more,
   extra = null,
   company,
+  unnamed,
 }: {
   render(row: SetupRow, open: () => void, index: number): ReactElement;
   more(count: number, open: () => void): ReactElement;
@@ -26,12 +26,25 @@ export function SetupRows({
   /** a company connection exists (the member's own mail, calendar and files row waits for it); unknown counts as yes */ company?:
     | boolean
     | undefined;
+  /** the Space has no name yet: once it has one, its "name your Space" row is done and not shown */ unnamed?:
+    | boolean
+    | undefined;
 }): ReactElement | null {
   const p = useSyncExternalStore(watchProgress, readProgress, () => null);
   const width = useWindowDimensions().width;
   if (!p) return null;
   const device = detectDevice(width);
-  const top = setupTop(setupRows(p.flow, p.progress, device, rowFacts(p.progress, device, company)));
+  const top = setupTop(
+    setupRows(
+      p.flow,
+      p.progress,
+      device,
+      rowFacts(p.progress, device, {
+        ...(company === undefined ? {} : { company }),
+        ...(unnamed === undefined ? {} : { unnamed }),
+      }),
+    ),
+  );
   return (
     <>
       {top.rows.map((r, i) =>
@@ -53,14 +66,4 @@ export function SetupRows({
   );
 }
 
-/** What is true on this device now, from what the page itself can tell: the AI step is done, the browser can install the extension, a phone can open this address, a company connection exists. */
-export function rowFacts(progress: Readonly<Record<string, string>>, device: string, company?: boolean): RowFacts {
-  const g = globalThis as { navigator?: { userAgent?: string }; location?: { origin?: string } };
-  const ua = g.navigator?.userAgent ?? "";
-  return {
-    ai: progress["ai"] === "done",
-    chrome: device === "mac" || device === "win" || (device === "web" && /Chrome\//.test(ua) && !/Mobile/.test(ua)),
-    phone: g.location?.origin ? phoneCanReach(g.location.origin) : true,
-    ...(company === undefined ? {} : { company }),
-  };
-}
+export { rowFacts };

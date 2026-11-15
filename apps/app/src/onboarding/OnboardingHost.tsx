@@ -7,7 +7,8 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
 import { SpaceAiStatus } from "../ai-signin/SpaceAiStatus.tsx";
 import { ResumeChip, ResumeContext, resumeInfo, startedSetup } from "./ResumeChip.tsx";
-import { detectDevice } from "./device.ts";
+import { detectDevice, rowFacts } from "./device.ts";
+import { useHasMailbox } from "../shell/rail/inbox-sources.ts";
 import { FirstWinCard } from "./FirstWinCard.tsx";
 import { ChromeCard } from "./ChromeCard.tsx";
 import { SessionsCard } from "./SessionsCard.tsx";
@@ -82,6 +83,7 @@ export function OnboardingHost({
   personName = null,
 }: OnboardingHostProps): ReactElement {
   const home = runtime?.aiHome ?? "here";
+  const hasMailbox = useHasMailbox(runtime?.screens ?? null);
   const [flow, setFlow] = useState<FlowKind | null>(null);
   const [progress, setProgress] = useState<Progress>({});
   // the flows this person put away with Hide: their own state on the Space, read with the flow below, so it holds on every device
@@ -355,8 +357,13 @@ export function OnboardingHost({
     ],
   );
 
-  const info = !shown && flow ? resumeInfo(flow, progress, detectDevice()) : null;
   const device = detectDevice();
+  // the count is the rows the person sees: the same facts the Chats checklist draws from (device.ts)
+  const facts = useMemo(
+    () => rowFacts(progress, device, { company: hasMailbox === true, unnamed: readableName(space.name) === "" }),
+    [progress, device, hasMailbox, space.name],
+  );
+  const info = !shown && flow ? resumeInfo(flow, progress, device, facts) : null;
   const resume = useMemo(
     () =>
       info && flow
@@ -369,11 +376,12 @@ export function OnboardingHost({
             },
             // the entry itself, for the title bar to draw: it is never a floating pill over the rail or the page
             pill:
-              startedSetup(flow, progress, device) && hiddenFlows[flow] !== true ? (
+              startedSetup(flow, progress, device, facts) && hiddenFlows[flow] !== true ? (
                 <ResumeChip
                   flow={flow}
                   progress={progress}
                   device={device}
+                  facts={facts}
                   hidden={hiddenFlows[flow] === true}
                   onHide={() => {
                     const next = { ...hiddenFlows, [flow]: true as const };
@@ -388,7 +396,7 @@ export function OnboardingHost({
               ) : null,
           }
         : null,
-    [info?.done, info?.total, info?.step, flow, progress, device, hiddenFlows, call],
+    [info?.done, info?.total, info?.step, flow, progress, device, facts, hiddenFlows, call],
   );
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was

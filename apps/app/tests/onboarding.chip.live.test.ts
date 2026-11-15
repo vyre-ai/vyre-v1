@@ -1,4 +1,4 @@
-// The Finish setup entry in a real browser (lane l-addsheet-22): a brand-new Space has none in the title bar (no "0 of 6"); after a step is done it says "1 of 6"; when every step is done or put off it is gone.
+// The Finish setup entry in a real browser (lane l-addsheet-22): a brand-new Space has none in the title bar (no "0 of 6"); after a step is done it says "1 of 5" (the Space is named, so its naming step is not one of the rows); when every step is done or put off it is gone.
 // Shots of the bar (paper and graphite, 1440 wide) go to VYRE_SETUP_CHIP_SHOTS. A crash or a failed check makes the run red.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -78,19 +78,20 @@ test("Finish setup entry: none on a brand-new Space, a true count once a step is
     assert.equal(await page.getByTestId("resume-chip").count(), 0, "no entry in the bar on a brand-new Space");
     await shoot("setup-1-brand-new");
 
-    await call("spaces.onboarding.mark", { flow: "team", step: "org", state: "done" });
+    // the Space is already named (the owner typed it on the first card), so its "name your Space" step is not shown and not counted; the first step to finish is the next one, AI for the Space
+    await call("spaces.onboarding.mark", { flow: "team", step: "space_ai", state: "done" });
     await page.reload({ waitUntil: "load" });
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
     await dismissOnboarding(page, { wait: 1500 });
     await page.getByTestId("resume-chip").waitFor({ timeout: 15_000 });
     assert.match(
       (await page.getByTestId("resume-open").getAttribute("aria-label")) ?? "",
-      /Finish setup, 1 of 6/,
-      "one step done of the six",
+      /Finish setup, 1 of 5/,
+      "one step done of the five shown",
     );
     await shoot("setup-2-one-done");
 
-    for (const k of TEAM.slice(1))
+    for (const k of TEAM.filter((x) => x !== "space_ai"))
       await call("spaces.onboarding.mark", { flow: "team", step: k, state: k === "win" ? "later" : "done" });
     await page.reload({ waitUntil: "load" });
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });

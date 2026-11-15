@@ -18,7 +18,8 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useResume } from "../../../onboarding/resume-context.ts";
 import { SetupRows, setupNote } from "../../../onboarding/SetupRows.tsx";
 import { openOnboarding } from "../../../onboarding/store.ts";
-import { useInboxSources } from "../../../shell/rail/inbox-sources.ts";
+import { readableName } from "../../../onboarding/flow.ts";
+import { useHasMailbox, useInboxSources } from "../../../shell/rail/inbox-sources.ts";
 import { needsLine, needsRow } from "./needs-row.ts";
 import { useAddSheet, runAfterStart } from "../addsheet/index.ts";
 import { prettyModel, useAccounts } from "../conversation/brain.tsx";
@@ -146,6 +147,8 @@ export function Landing(p: LandingProps): ReactElement {
   const working = workingChats(recent.status === "ready" ? recent.data : undefined);
   const firstDay = resume !== null && needs.status === "ready" && total === 0 && working.length === 0;
   const hasInbox = useInboxSources(rt.screens, rt.me.id);
+  // the member's "your mail, calendar, files are here" row says what is true: it shows only once a mailbox of theirs is connected (a built-in calendar is not their mail)
+  const hasMailbox = useHasMailbox(rt.screens);
   const mailRow =
     hasInbox === false ? (
       <SetupLine
@@ -409,7 +412,8 @@ export function Landing(p: LandingProps): ReactElement {
           {firstDay ? (
             <SetupRows
               extra={mailRow}
-              company={hasInbox === true}
+              company={hasMailbox === true}
+              unnamed={readableName(rt.space.name) === ""}
               render={(row, open) => (
                 <SetupLine
                   key={row.key}

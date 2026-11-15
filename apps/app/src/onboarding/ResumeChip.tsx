@@ -6,12 +6,12 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { COMPACT_BELOW } from "../shell/spaces/Shell.tsx";
 import { countsOn, stateOn, visibleSteps } from "./device.ts";
-import type { Device } from "./device.ts";
+import type { Device, RowFacts } from "./device.ts";
 import type { FlowKind, Progress } from "./flow.ts";
 
 /** Has the person done or put off at least one step of this device's list? Before that the Space is brand new and the bar says nothing. */
-export function startedSetup(flow: FlowKind, progress: Progress, device: Device): boolean {
-  const c = countsOn(flow, progress, device);
+export function startedSetup(flow: FlowKind, progress: Progress, device: Device, facts: RowFacts = {}): boolean {
+  const c = countsOn(flow, progress, device, facts);
   return c.done + c.later > 0;
 }
 
@@ -20,9 +20,10 @@ export function resumeInfo(
   flow: FlowKind,
   progress: Progress,
   device: Device,
+  facts: RowFacts = {},
 ): { done: number; total: number; step: string } | null {
-  const c = countsOn(flow, progress, device);
-  const step = visibleSteps(flow, device).find((st) => stateOn(progress, st, device) === "open");
+  const c = countsOn(flow, progress, device, facts);
+  const step = visibleSteps(flow, device, facts).find((st) => stateOn(progress, st, device) === "open");
   return step ? { done: c.done, total: c.total, step: step.key } : null;
 }
 
@@ -33,6 +34,7 @@ export function ResumeChip({
   flow,
   progress,
   device,
+  facts = {},
   onOpen,
   compact,
   hidden = false,
@@ -41,6 +43,7 @@ export function ResumeChip({
   flow: FlowKind;
   progress: Progress;
   device: Device;
+  /** what is true here, so the count is the rows the person sees (device.ts) */ facts?: RowFacts;
   onOpen(step: string): void;
   compact?: boolean;
   /** This person hid it (read from their state by the host). */
@@ -51,8 +54,8 @@ export function ResumeChip({
   const [pressedHide, setPressedHide] = useState(false);
   const width = useWindowDimensions().width;
   const overBar = compact ?? (width > 0 && width < COMPACT_BELOW);
-  const info = resumeInfo(flow, progress, device);
-  if (!info || hidden || pressedHide || !startedSetup(flow, progress, device)) return null;
+  const info = resumeInfo(flow, progress, device, facts);
+  if (!info || hidden || pressedHide || !startedSetup(flow, progress, device, facts)) return null;
   const R = 9,
     C = 2 * Math.PI * R,
     off = C * (1 - info.done / Math.max(info.total, 1));
