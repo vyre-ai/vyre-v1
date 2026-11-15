@@ -6,8 +6,6 @@ import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { glyphOf, tintOf } from "../picker/glyphs.ts";
 import type { Sentence, Story } from "../story/model.ts";
 import { look } from "./look.ts";
-import { Glyph } from "../canvas/icons.tsx";
-import type { IconKey } from "../canvas/model.ts";
 
 export type StoryAction =
   | "bar"
@@ -65,12 +63,6 @@ function SentenceText({ sentence }: { sentence: Sentence }): ReactElement {
           </Text>
         ) : (
           <Text key={i} accessibilityHint={p.tip} style={s.chip}>
-            {p.icon ? (
-              <>
-                {" "}
-                <Glyph name={p.icon as IconKey} size={11} color="var(--ink-2)" />
-              </>
-            ) : null}
             {` ${p.label} `}
           </Text>
         ),
