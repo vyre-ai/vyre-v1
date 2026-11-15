@@ -99,6 +99,9 @@ test("a message to a person: the recipient and the channel in plain words, the s
     find(root, "approval-tsk_1-send") && find(root, "approval-tsk_1-edit") && find(root, "approval-tsk_1-drop"),
   );
   assert.equal(find(root, "approval-tsk_1-schedule") !== null, true);
+  // the prototype's words for a message held for you (G42): Send, Edit, Don't send
+  assert.equal(textOf(find(root, "approval-tsk_1-send")).trim(), "Send");
+  assert.equal(textOf(find(root, "approval-tsk_1-drop")).trim(), "Don't send");
   const now = world([
     block(
       "chat.message_person",

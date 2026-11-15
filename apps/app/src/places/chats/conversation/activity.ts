@@ -126,3 +126,12 @@ export function calmWord(s: ActivitySnapshot, writing: boolean, heldForYou = fal
   if (live.some((x) => x.name === "engine_setup" || x.name === "sandbox_start")) return "Setting up";
   return live.length > 0 ? "Working" : "Thinking";
 }
+
+/** Whether the working agent is using its computer right now: a live step that runs a command, drives a browser or the screen. The island shows the computer glyph then (prototype p-crew). */
+export function usesComputer(s: ActivitySnapshot): boolean {
+  return s.steps.some(
+    (x) =>
+      x.state === "live" &&
+      /^(bash|shell|terminal|computer|browser|screenshot|mcp__[a-z0-9_-]*(chrome|browser|computer))/i.test(x.name),
+  );
+}
