@@ -176,6 +176,8 @@ export function OnboardingHost({
 
   // With an AI account the How you work step is a talk: the Assistant asks, saves each answer to the person's memory, and "Vyre knows" lists what it holds. The step is done when all three exist.
   const talk = hasAi && runtime !== null && person !== null;
+  // "Fill it in myself": the three questions as the form, when the Assistant cannot answer
+  const [byHand, setByHand] = useState(false);
   const { saved: known, refresh: refreshKnown } = useKnown(call ?? null, shown && flow !== null && talk);
   const knownDone = interviewDone(known);
   const interviewLine = useMemo(() => interviewAsk(known), [known]);
@@ -347,8 +349,16 @@ export function OnboardingHost({
               gate={ctx.gate}
             />
           );
-        if (card === "interview" && call && talk)
-          return <InterviewKnows call={call} saved={known} refresh={refreshKnown} gate={ctx.gate} />;
+        if (card === "interview" && call && talk && !byHand)
+          return (
+            <InterviewKnows
+              call={call}
+              saved={known}
+              refresh={refreshKnown}
+              gate={ctx.gate}
+              onByHand={() => setByHand(true)}
+            />
+          );
         if (card === "interview" && call)
           return <InterviewCard call={call} onSaved={() => ctx.done()} gate={ctx.gate} />;
         return (
@@ -363,6 +373,7 @@ export function OnboardingHost({
       aiProvider,
       hasAi,
       talk,
+      byHand,
       known,
       refreshKnown,
       progress,
@@ -474,16 +485,17 @@ export function OnboardingHost({
             live={hasAi && runtime !== null && person !== null}
             {...(hasAi && runtime && person
               ? {
-                  renderLive: (st, ask) => (
-                    <AssistantThread
-                      rt={runtime}
-                      person={person}
-                      flow={flow}
-                      step={st.key}
-                      progress={progress}
-                      ask={st.card === "interview" ? interviewLine : ask}
-                    />
-                  ),
+                  renderLive: (st, ask) =>
+                    st.card === "interview" && byHand ? null : (
+                      <AssistantThread
+                        rt={runtime}
+                        person={person}
+                        flow={flow}
+                        step={st.key}
+                        progress={progress}
+                        ask={st.card === "interview" ? interviewLine : ask}
+                      />
+                    ),
                 }
               : {})}
             onOpenStep={setStep}
@@ -504,7 +516,7 @@ export function OnboardingHost({
             }}
             renderCard={renderCard}
             renderPreview={(card) =>
-              scriptFor(card, flow).preview === "" || (card === "interview" && talk) ? null : (
+              scriptFor(card, flow).preview === "" || (card === "interview" && talk && !byHand) ? null : (
                 <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />
               )
             }

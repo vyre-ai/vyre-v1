@@ -48,11 +48,14 @@ export function InterviewKnows({
   saved,
   refresh,
   gate,
+  onByHand,
 }: {
   call: CapCall;
   saved: SavedAnswers;
   refresh(): Promise<void>;
   gate?(save: (() => Promise<boolean>) | null, label?: string): void;
+  /** the way out when the Assistant cannot answer (an account whose program is not installed, no connection): the same three questions as a form */
+  onByHand?(): void;
 }): ReactElement {
   const [editing, setEditing] = useState<Question["key"] | null>(null);
   const [text, setText] = useState("");
@@ -173,6 +176,11 @@ export function InterviewKnows({
         Vyre knows
       </Text>
       <View style={s.list}>{rows}</View>
+      {onByHand && !done ? (
+        <Pressable testID="interview-by-hand" accessibilityRole="link" onPress={onByHand}>
+          <Text style={s.hand}>Fill it in myself</Text>
+        </Pressable>
+      ) : null}
       {error ? (
         <Text testID="knows-error" style={s.err}>
           {error}
@@ -200,5 +208,6 @@ const s = StyleSheet.create({
   off: CARD.off,
   ghost: { ...CARD.ghost, height: 36, paddingHorizontal: 12 },
   ghostText: { ...CARD.ghostText, fontSize: 13 },
+  hand: { fontSize: 13, color: "var(--accent)" as string },
   err: CARD.err,
 });
