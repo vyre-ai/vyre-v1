@@ -169,6 +169,12 @@ test(
       await g.nextDay();
       await tickClock(w.d, 0);
       await waitHeld(w.d);
+      // the goal's own status follows the held row a moment later: wait for it (a busy runner read between the two)
+      await waitFor(
+        async () => ((await goalOf(w.d, g.goalId)).status === "waiting" ? true : null),
+        15_000,
+        () => heldRow(w.d),
+      );
 
       // told, in words, once: Needs you, the goal's status, its Activity line
       const goal = await goalOf(w.d, g.goalId);
@@ -260,6 +266,12 @@ test(
       m.mode.fail = { code: "provider.rate_limited", message: "You've hit your weekly limit", resetsAt };
       await tickClock(w.d, 0);
       await waitHeld(w.d);
+      // the goal's own status follows the held row a moment later: wait for it (a busy runner read between the two)
+      await waitFor(
+        async () => ((await goalOf(w.d, g.goalId)).status === "waiting" ? true : null),
+        15_000,
+        () => heldRow(w.d),
+      );
       const goal = await goalOf(w.d, g.goalId);
       assert.equal(goal.status, "waiting");
       assert.equal(goal.blocked.cause, "limit");
@@ -344,6 +356,12 @@ test(
       }
       // the fourth failure: it keeps failing, so the owner is told, once
       await waitHeld(w.d);
+      // the held row is written first and the goal's own status follows it a moment later: on a busy runner the read fell between the two (CI, 16 Nov 2026), so wait for the status
+      await waitFor(
+        async () => ((await goalOf(w.d, g.goalId)).status === "waiting" ? true : null),
+        15_000,
+        () => heldRow(w.d),
+      );
       const goal = await goalOf(w.d, g.goalId);
       assert.equal(goal.blocked.cause, "transient");
       assert.equal(goal.status, "waiting");
