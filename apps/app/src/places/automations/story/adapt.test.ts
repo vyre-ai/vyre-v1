@@ -345,3 +345,24 @@ test("each trigger kind wears its own mark, never the same one", () => {
   assert.notEqual(mark("schedule"), mark("webhook"));
   assert.equal(mark("schedule"), "vyre:trig-schedule");
 });
+
+test("an update names the record and what it sets", () => {
+  const out = fromDefinition(
+    {
+      triggers: [{ key: "manual" }],
+      nodes: [
+        {
+          id: "u1",
+          key: "records.update",
+          input: { type: "company", recordId: "rec_0123456789abcdef", patch: { name: "Tidy Co" } },
+        },
+      ],
+    },
+    ctx({ catalog: { "records.update": { title: "Update a record" } }, nameOfId: () => "Tidy Co" }),
+  );
+  const text = Object.values(out.steps[0]!.values)
+    .map((v) => ("text" in v! ? v.text : ""))
+    .join(" | ");
+  assert.match(text, /Tidy Co/);
+  assert.match(text, /Name to Tidy Co/);
+});

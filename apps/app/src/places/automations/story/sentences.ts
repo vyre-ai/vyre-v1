@@ -10,7 +10,7 @@ const STEPS: Readonly<Record<string, string>> = {
   ai: "Ask AI(: “{prompt}”)",
   "records.find": "Find in {type}( by {filter})",
   "records.create": "Create a {type} record",
-  "records.update": "Update a {type} record",
+  "records.update": "Update {recordId}( and set {patch})",
   "records.relate": "Link two records",
   wait: "Wait {forDuration:dur|until}",
   wait_stage: "Wait for {recordId} to reach {stage}",

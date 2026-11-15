@@ -401,12 +401,32 @@ function Body({
       } else if (Array.isArray(v)) v.forEach(walk);
       else if (v && typeof v === "object") Object.values(v).forEach(walk);
     };
-    for (const n of def.nodes) walk(n.input);
+    for (const n of def.nodes) {
+      walk(n.input);
+      // a record is read with its type, so the pair travels together
+      const rid = n.input?.["recordId"];
+      const rtype = n.input?.["type"];
+      if (typeof rid === "string" && /^rec_[0-9a-f]{8,}$/.test(rid) && typeof rtype === "string")
+        out.add(`${rid}@${rtype}`);
+    }
     return [...out].sort().join(",");
   }, [def]);
   useEffect(() => {
     let live = true;
-    for (const id of wanted.split(",").filter((x) => x !== "" && thingNames[x] === undefined)) {
+    for (const pair of wanted.split(",").filter((x) => x.includes("@"))) {
+      const [rid, rtype] = pair.split("@") as [string, string];
+      if (thingNames[rid] !== undefined) continue;
+      void data.call("records.get", { type: rtype, recordId: rid }).then(
+        (out) => {
+          const rec = (out as { record?: { fields?: Record<string, unknown>; title?: string; name?: string } }).record;
+          const f = rec?.fields ?? {};
+          const name = [f["name"], f["title"], rec?.title, rec?.name].find((x) => typeof x === "string" && x !== "");
+          if (live && typeof name === "string") setThingNames((cur) => ({ ...cur, [rid]: name }));
+        },
+        () => undefined,
+      );
+    }
+    for (const id of wanted.split(",").filter((x) => x !== "" && !x.includes("@") && thingNames[x] === undefined)) {
       const folder = id.startsWith("fld_");
       void data.call(folder ? "files.folder.get" : "files.get", folder ? { folderId: id } : { fileId: id }).then(
         (out) => {

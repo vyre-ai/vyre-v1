@@ -70,6 +70,11 @@ function refChip(source: string, path: string, ctx: AdaptCtx): Value {
   };
 }
 
+const valueText = (x: string | number, ctx: AdaptCtx): string => {
+  const v = valueOf(x, ctx);
+  return v ? ("text" in v ? v.text : v.chip.label) : String(x);
+};
+
 /** A stored value as the page shows it: a lone reference is a chip, a text with references keeps its words. */
 function valueOf(v: unknown, ctx: AdaptCtx): Value | undefined {
   if (typeof v === "string") {
@@ -106,6 +111,11 @@ function valueOf(v: unknown, ctx: AdaptCtx): Value | undefined {
     if (typeof who.id === "string" && Object.keys(v as object).every((k) => k === "id" || k === "kind"))
       return { text: ctx.nameOfId?.(who.id) ?? "Chosen" };
     if (o.kind === "resource" && typeof o.label === "string") return { text: o.label };
+    // a set of fields to write ({ name: "Tidy Co" }): "Name to Tidy Co"
+    const pairs = Object.entries(v as Record<string, unknown>).flatMap(([k, x]) =>
+      typeof x === "string" || typeof x === "number" ? [`${human(k)} to ${valueText(x, ctx)}`] : [],
+    );
+    if (pairs.length > 0) return { text: pairs.join(", ") };
   }
   return undefined;
 }

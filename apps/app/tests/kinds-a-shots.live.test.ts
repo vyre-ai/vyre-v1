@@ -248,6 +248,8 @@ test("f-kinds-a pictures", async (t) => {
         /Tidy me\.md/.test(sub) && /Filed/.test(sub) && !/fil_|fld_|\bid\b/i.test(sub),
         `the step row says the file and the folder by name: ${sub}`,
       );
+      const second = await page.getByTestId("sv-step-t2").innerText();
+      assert.ok(/Tidy Co/.test(second) && !/rec_/.test(second), `the record step names the record: ${second}`);
       await shot("1b-step-cards-generic", skin);
 
       // 2. Console Home: the collapsed run, then the same row opened
