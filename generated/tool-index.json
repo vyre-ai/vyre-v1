@@ -603,7 +603,7 @@
     {
       "deferred": false,
       "name": "artifact_publish",
-      "summary": "THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "summary": "Needs a title and exactly one of html, fileId, folderId, path or port. THE way to show what you made: publishes it privately, the person gets a card to open. Example: artifact_publish {\"title\":\"Q3 plan\",\"html\":\"<h1>Q3</h1>\"}. Same title or artifactId updates the link. No title: its <title> is used",
       "toolset": "sites"
     },
     {
@@ -3243,7 +3243,7 @@
     {
       "deferred": false,
       "name": "files_create",
-      "summary": "Create a file in a folder from text, base64 or an uploaded blob",
+      "summary": "Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person's own files. A name already taken becomes \"name (2)\" for an agent. A direct write holds at most 256 KB: split larger content into several files",
       "toolset": "files"
     },
     {
@@ -3489,7 +3489,7 @@
     {
       "deferred": false,
       "name": "files_write",
-      "summary": "Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
+      "summary": "Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
       "toolset": "files"
     },
     {
