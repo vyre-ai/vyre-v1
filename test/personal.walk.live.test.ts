@@ -379,8 +379,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       const adding = page.getByTestId("records-adding-input");
       await adding.fill("Walk Contact");
       await adding.press("Enter");
-      // the new record opens in its own tab, with its history beside it
-      await page.getByText("Olivia created it").first().waitFor({ timeout: 15_000 });
+      // the new record opens in its own tab; its pane opens on Details, and the history is the Activity tab beside it
       await page
         .getByRole("tab", { name: "Activity", exact: true })
         .or(page.getByRole("button", { name: "Activity", exact: true }))

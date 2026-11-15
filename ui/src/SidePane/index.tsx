@@ -26,6 +26,8 @@ import type { PaneProps, PaneTab, SidePaneProps } from "./props.ts";
 
 export type { PaneProps, PaneTab, PaneToggle, SidePaneProps } from "./props.ts";
 export { PANE_HEADER_ORDER, SIDE_PANE_MAX, SIDE_PANE_MIN, paneToggleLabel } from "./props.ts";
+export { FIRST_TAB, forgetTabs, keepTab, keptTab, openingTab } from "./tab.ts";
+export { usePaneTab } from "./usePaneTab.ts";
 export { SheetHostProvider, useSheetHost, useSquircle, sq } from "./host.tsx";
 
 /* ---------- width memory ---------- */
