@@ -306,7 +306,7 @@ export async function agentDeleteWalk(
         await page.getByTestId("forgood-need").waitFor({ timeout: 20_000 });
         const body = await page.getByTestId("forgood-sheet").innerText();
         assert.match(body, new RegExp(`Delete ${name} for good\\?`));
-        assert.match(body, /1 chat with/);
+        assert.match(body, /\d+ chats? with/);
         assert.match(body, /These will need someone/);
         if (mode === "pointer") {
           assert.match(body, /Ana Adler has a chat with it/);

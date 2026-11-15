@@ -159,8 +159,8 @@ export async function deletePreview(ctx: AgentsCtx, input: { agentId: string }) 
     kind: a.kind,
     inTrash: a.deletedAt !== undefined,
     ...out,
-    chatPeople: await peopleNamed(ctx, [...chatPeople]),
-    folderPeople: await peopleNamed(ctx, [...folderPeople]),
+    chatPeople: await peopleNamed(ctx, [...chatPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id))),
+    folderPeople: await peopleNamed(ctx, [...folderPeople].filter((p) => p !== (ctx.actingFor ?? ctx.principal.id))),
     named: out.named.map((n) => ({ ...n, link: `/${LINK[n.kind]}/${n.id}` })),
     backups:
       days === undefined
