@@ -908,7 +908,12 @@ function Body({
     />
   ) : null;
 
-  if (stepOnly) return <View style={s.fill} testID="step-only">{inspector}</View>;
+  if (stepOnly)
+    return (
+      <View style={s.fill} testID="step-only">
+        {inspector}
+      </View>
+    );
   const tabs = phone
     ? [{ id: "runs", label: "Runs", ...(failedRuns > 0 ? { badge: failedRuns } : {}) }]
     : [
@@ -1055,7 +1060,10 @@ function Body({
           onSetup={(id) => {
             const o = vaultOffers.find((x) => x.appName.toLowerCase() === id);
             setConnectOpen(false);
-            if (o) void Promise.resolve(data.nav.setUpConnector?.({ itemId: o.itemId, appName: o.appName })).catch(() => undefined);
+            if (o)
+              void Promise.resolve(data.nav.setUpConnector?.({ itemId: o.itemId, appName: o.appName })).catch(
+                () => undefined,
+              );
           }}
           onAsk={() => setConnectOpen(false)}
           onDescribe={() => {

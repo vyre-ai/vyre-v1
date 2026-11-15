@@ -399,14 +399,14 @@ export function Inspector({
             onCommit={() => undefined}
           />
         ) : (
-        <ConditionField
-          key={`${node.id}-p${n}`}
-          label={`Path ${n + 1}, if`}
-          value={b.when ?? ""}
-          openMenu={openMenu}
-          testID={`field-path-${n}`}
-          onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { when: t }) }))}
-        />
+          <ConditionField
+            key={`${node.id}-p${n}`}
+            label={`Path ${n + 1}, if`}
+            value={b.when ?? ""}
+            openMenu={openMenu}
+            testID={`field-path-${n}`}
+            onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { when: t }) }))}
+          />
         ),
       );
     } else if (kind === "parallel") {

@@ -131,14 +131,31 @@ test("production Automations: a failed run is fixed in place, and a second sessi
     const inv = (await api("members.invites.create", { role: roles.find((r) => r.name === "Member")!.id })).data;
     const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
     const joined = await context.request.post(`${web.origin}/v1/members/accept`, {
-      data: { code, username: "maya", displayName: "Maya Lin", password: PASSWORD, deviceName: "Maya's laptop", deviceClass: "desktop", keys: KEYS },
+      data: {
+        code,
+        username: "maya",
+        displayName: "Maya Lin",
+        password: PASSWORD,
+        deviceName: "Maya's laptop",
+        deviceClass: "desktop",
+        keys: KEYS,
+      },
     });
     assert.equal(joined.status(), 200, await joined.text());
     const maya = (await joined.json()).data as { personId: string; token: string };
-    await api("access.share", { resource: { type: "automation", id: two }, subject: { kind: "person", id: maya.personId }, level: "edit" });
+    await api("access.share", {
+      resource: { type: "automation", id: two },
+      subject: { kind: "person", id: maya.personId },
+      level: "edit",
+    });
     const r2 = await context.request.post(`${web.origin}/v1/automations/draft/save`, {
       headers: { authorization: `Bearer ${maya.token}` },
-      data: { idempotencyKey: `b-${Math.random()}`, automationId: two, definition: theirs, expectedVersion: au(g).version },
+      data: {
+        idempotencyKey: `b-${Math.random()}`,
+        automationId: two,
+        definition: theirs,
+        expectedVersion: au(g).version,
+      },
     });
     assert.equal(r2.status(), 200, await r2.text());
     await page.getByTestId("sv-add").click();
@@ -151,7 +168,10 @@ test("production Automations: a failed run is fixed in place, and a second sessi
     const kept = await api("automations.get", { automationId: two });
     const nodes = au(kept).definition.nodes as { id: string }[];
     if (conflict > 0) assert.match(await page.getByTestId("save-conflict").innerText(), /Someone else changed this/);
-    assert.ok(nodes.some((n) => n.id === "b"), "Maya's step is still there");
+    assert.ok(
+      nodes.some((n) => n.id === "b"),
+      "Maya's step is still there",
+    );
     assert.deepEqual(errors, [], "no page error");
   } finally {
     await browser.close();

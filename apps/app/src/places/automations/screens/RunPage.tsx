@@ -71,9 +71,27 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
         const cat = await loadProductCatalog((cap, input) => data.call(cap, input));
         const titles = cat.ok ? Object.fromEntries(cat.catalog.all.map((s) => [s.key, { title: s.title }])) : {};
         const outward = new Set(cat.ok ? cat.catalog.all.filter((c) => c.effects === "outward").map((c) => c.key) : []);
-        if (live) setState({ automationId: subject?.id ?? null, definition, steps, outputs, titles, test: run.run.kind === "automation_test", outward });
+        if (live)
+          setState({
+            automationId: subject?.id ?? null,
+            definition,
+            steps,
+            outputs,
+            titles,
+            test: run.run.kind === "automation_test",
+            outward,
+          });
       } catch {
-        if (live) setState({ automationId: null, definition: null, steps: [], outputs: {}, titles: {}, test: false, outward: new Set() });
+        if (live)
+          setState({
+            automationId: null,
+            definition: null,
+            steps: [],
+            outputs: {},
+            titles: {},
+            test: false,
+            outward: new Set(),
+          });
       }
     })();
     return () => {
@@ -93,7 +111,10 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
     for (const st of state.steps) {
       if (st.state === "succeeded")
         results[st.step] = {
-          status: state.test && state.outward.has(state.definition.nodes.find((n) => n.id === st.step)?.key ?? "") ? "held" : "ok",
+          status:
+            state.test && state.outward.has(state.definition.nodes.find((n) => n.id === st.step)?.key ?? "")
+              ? "held"
+              : "ok",
           line: "Done",
           values: valuesOf(state.outputs[st.step]),
         };
@@ -141,9 +162,18 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
           // the one step's form, in a side panel of this page; the rows stay where they are
           <View testID="run-fix" style={s.fix}>
             <View style={s.fixBody}>
-              <BuilderPage automationId={state.automationId} stepOnly {...(failedStep ? { initialSelected: failedStep } : {})} />
+              <BuilderPage
+                automationId={state.automationId}
+                stepOnly
+                {...(failedStep ? { initialSelected: failedStep } : {})}
+              />
             </View>
-            <Pressable testID="run-again" accessibilityRole="button" style={[look.btn, look.primary, s.fixFoot]} onPress={runAgain}>
+            <Pressable
+              testID="run-again"
+              accessibilityRole="button"
+              style={[look.btn, look.primary, s.fixFoot]}
+              onPress={runAgain}
+            >
               <Text style={look.primaryText}>Run again with the fix</Text>
             </Pressable>
           </View>
@@ -160,5 +190,12 @@ const s = StyleSheet.create({
   fixBody: { flex: 1, minHeight: 360 },
   fixFoot: { margin: 12, alignSelf: "stretch", alignItems: "center" },
   again: { alignSelf: "flex-start" },
-  fix: { width: 380, maxWidth: "100%" as unknown as number, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 14, overflow: "hidden" },
+  fix: {
+    width: 380,
+    maxWidth: "100%" as unknown as number,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
 });

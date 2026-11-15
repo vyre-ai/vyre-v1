@@ -13,7 +13,13 @@ const SHOWN = [
   'lead.name == "Sam" && lead.score >= 5',
   "a.b == c.d || a.e != 3",
 ];
-const KEPT = ["x", "wait.resumedBy is event", "max(steps.find.out.rows[0].score, steps.find.out.rows[1].score) > 8", "x  >  1", "a > 1 && b > 2 || c > 3"];
+const KEPT = [
+  "x",
+  "wait.resumedBy is event",
+  "max(steps.find.out.rows[0].score, steps.find.out.rows[1].score) > 8",
+  "x  >  1",
+  "a > 1 && b > 2 || c > 3",
+];
 
 test("a condition the controls can show goes to rows and back to the same text", () => {
   for (const t of SHOWN) {

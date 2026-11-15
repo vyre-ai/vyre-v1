@@ -408,6 +408,7 @@
     }
   },
   "automations_analytics": {},
+  "automations_connect_options": {},
   "automations_connector_card": {
     "threadId": "thr_a1b2c3",
     "title": "Quarterly planning",

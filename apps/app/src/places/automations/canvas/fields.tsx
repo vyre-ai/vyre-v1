@@ -290,13 +290,23 @@ export function ChipText({
               const key = e.nativeEvent?.key ?? e.key;
               const before = segs[i - 1];
               // arrows step over a chip as one character: Left at the start goes to the end of the text before it, Right at the end to the start of the text after it
-              if (key === "ArrowLeft" && caret.current === 0 && before?.kind === "chip" && segs[i - 2]?.kind === "text") {
+              if (
+                key === "ArrowLeft" &&
+                caret.current === 0 &&
+                before?.kind === "chip" &&
+                segs[i - 2]?.kind === "text"
+              ) {
                 const prev = segs[i - 2] as { text: string };
                 boxes.current[i - 2]?.focus();
                 boxes.current[i - 2]?.setSelection?.(prev.text.length, prev.text.length);
                 e.preventDefault?.();
               }
-              if (key === "ArrowRight" && caret.current >= seg.text.length && segs[i + 1]?.kind === "chip" && segs[i + 2]?.kind === "text") {
+              if (
+                key === "ArrowRight" &&
+                caret.current >= seg.text.length &&
+                segs[i + 1]?.kind === "chip" &&
+                segs[i + 2]?.kind === "text"
+              ) {
                 boxes.current[i + 2]?.focus();
                 boxes.current[i + 2]?.setSelection?.(0, 0);
                 e.preventDefault?.();
@@ -368,7 +378,13 @@ export function ChipText({
               ["Link", "Link", "[", "](https://)"],
             ] as const
           ).map(([label, name, l, r]) => (
-            <Pressable key={name} accessibilityRole="button" accessibilityLabel={name} onPress={() => format(l, r)} style={[f.fmtBtn, pointer]}>
+            <Pressable
+              key={name}
+              accessibilityRole="button"
+              accessibilityLabel={name}
+              onPress={() => format(l, r)}
+              style={[f.fmtBtn, pointer]}
+            >
               <Text style={f.fmtText}>{label}</Text>
             </Pressable>
           ))}
@@ -649,7 +665,14 @@ export function Rows({
 export const f = StyleSheet.create({
   insertLink: { alignSelf: "flex-start", paddingVertical: 2 },
   fmtBar: { flexDirection: "row", gap: 4, marginBottom: 4 },
-  fmtBtn: { minWidth: 26, height: 24, paddingHorizontal: 6, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  fmtBtn: {
+    minWidth: 26,
+    height: 24,
+    paddingHorizontal: 6,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   fmtText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   insertInBox: { marginLeft: "auto" as unknown as number, paddingHorizontal: 6, paddingVertical: 2 },
   insertText: { fontSize: 12, color: "var(--accent)" as string },

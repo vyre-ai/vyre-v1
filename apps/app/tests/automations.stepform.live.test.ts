@@ -26,7 +26,9 @@ test("production Automations: the step row and the step form for each kind and s
   const errors: string[] = [];
   const logs: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  page.on("console", (m) => { if (m.type() === "error") logs.push(m.text().slice(0, 300)); });
+  page.on("console", (m) => {
+    if (m.type() === "error") logs.push(m.text().slice(0, 300));
+  });
   const shot = async (name: string): Promise<void> => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
   };
@@ -143,12 +145,21 @@ test("production Automations: the step row and the step form for each kind and s
     await page.getByTestId("first-page").waitFor({ timeout: 30_000 });
     for (const kind of Object.keys(kinds))
       for (const state of ["empty", "filled", "needs", "fail"] as const) {
-        await page.getByTestId("auto-list").getByText(`${kind}-${state}`, { exact: true }).first().click({ timeout: 30_000 }).catch(async (e) => {
-          await shot(`3-debug-${kind}-${state}`);
-          await page.getByText("Details", { exact: true }).first().click().catch(() => undefined);
-          console.log("ERRS", logs.slice(-4).join(" ## "));
-          throw e;
-        });
+        await page
+          .getByTestId("auto-list")
+          .getByText(`${kind}-${state}`, { exact: true })
+          .first()
+          .click({ timeout: 30_000 })
+          .catch(async (e) => {
+            await shot(`3-debug-${kind}-${state}`);
+            await page
+              .getByText("Details", { exact: true })
+              .first()
+              .click()
+              .catch(() => undefined);
+            console.log("ERRS", logs.slice(-4).join(" ## "));
+            throw e;
+          });
         await page.getByTestId("story").waitFor({ timeout: 20_000 });
         await page.getByTestId("sv-step-n1").click({ position: { x: 120, y: 14 } });
         await page.waitForTimeout(900);

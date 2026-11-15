@@ -47,7 +47,11 @@ test("production Automations: the picker with a connected app, Connect an app, a
     const token = await page.evaluate(
       () => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string,
     );
-    const call = async (bearer: string, cap: string, data: Record<string, unknown>): Promise<{ status: number; data: any }> => {
+    const call = async (
+      bearer: string,
+      cap: string,
+      data: Record<string, unknown>,
+    ): Promise<{ status: number; data: any }> => {
       const r = await context.request.post(`${web.origin}/v1/${cap.replace(/\./g, "/")}`, {
         headers: { authorization: `Bearer ${bearer}` },
         data: { idempotencyKey: `${cap}-${Math.random()}`, ...data },
@@ -64,7 +68,15 @@ test("production Automations: the picker with a connected app, Connect an app, a
     const inv = await api("members.invites.create", { role: roles.find((r) => r.name === "Member")!.id });
     const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
     const joined = await context.request.post(`${web.origin}/v1/members/accept`, {
-      data: { code, username: "maya", displayName: "Maya Lin", password: PASSWORD, deviceName: "Maya's laptop", deviceClass: "desktop", keys: KEYS },
+      data: {
+        code,
+        username: "maya",
+        displayName: "Maya Lin",
+        password: PASSWORD,
+        deviceName: "Maya's laptop",
+        deviceClass: "desktop",
+        keys: KEYS,
+      },
     });
     assert.equal(joined.status(), 200, await joined.text());
     const maya = (await joined.json()).data as { personId: string; token: string };
@@ -72,14 +84,27 @@ test("production Automations: the picker with a connected app, Connect an app, a
     // the Vault: an ordinary app key anyone may use, and the company key only the server uses
     const folderId = (await api("vault.folders.create", { name: "Keys", scope: "shared" })).folder.id as string;
     for (const name of ["Google_DWD", "Stripe"])
-      await api("vault.item.put", { folderId, name, kind: "api_key", fields: [{ key: "api_key", value: "plain-fake-value" }] });
+      await api("vault.item.put", {
+        folderId,
+        name,
+        kind: "api_key",
+        fields: [{ key: "api_key", value: "plain-fake-value" }],
+      });
     // a member is never suggested the admin-only company key
     const mayaHome = await call(maya.token, "automations.home", {});
     assert.equal(mayaHome.status, 200, JSON.stringify(mayaHome.data));
-    assert.equal(JSON.stringify(mayaHome.data).includes("Google_DWD"), false, "the company key is never suggested to a member");
+    assert.equal(
+      JSON.stringify(mayaHome.data).includes("Google_DWD"),
+      false,
+      "the company key is never suggested to a member",
+    );
 
     // one app the Space connected
-    const made = await call(token, "connections.create", { connector: "google", title: "Northwind Google", ownerKind: "space" });
+    const made = await call(token, "connections.create", {
+      connector: "google",
+      title: "Northwind Google",
+      ownerKind: "space",
+    });
     console.log("CONNECTION", made.status, JSON.stringify(made.data).slice(0, 200));
     const name = await api("automations.create", { name: "Build me" });
     const id = (name.automation ?? name).id as string;
@@ -106,7 +131,10 @@ test("production Automations: the picker with a connected app, Connect an app, a
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Enter");
     await page.waitForTimeout(1200);
-    assert.ok((await page.getByTestId("story").innerText()).match(/Send|Post|Message|Create|Find/), "Enter in the submenu adds the step");
+    assert.ok(
+      (await page.getByTestId("story").innerText()).match(/Send|Post|Message|Create|Find/),
+      "Enter in the submenu adds the step",
+    );
     await page.keyboard.press("ArrowLeft");
     await page.waitForTimeout(300);
     assert.equal(await page.getByTestId("pk-sub").count(), 0, "Left steps back");

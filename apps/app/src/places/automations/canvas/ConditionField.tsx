@@ -36,11 +36,15 @@ export function ConditionField({
     return (
       <View style={s.wrap} testID={testID}>
         <Text style={s.label}>{label}</Text>
-        <Text style={s.advanced} testID={testID ? `${testID}-advanced` : undefined}>{`Advanced condition: ${value}`}</Text>
+        <Text
+          style={s.advanced}
+          testID={testID ? `${testID}-advanced` : undefined}
+        >{`Advanced condition: ${value}`}</Text>
       </View>
     );
   const write = (next: Parsed): void => onCommit(build(next));
-  const setClause = (i: number, c: Clause): void => write({ ...parsed, clauses: parsed.clauses.map((x, at) => (at === i ? c : x)) });
+  const setClause = (i: number, c: Clause): void =>
+    write({ ...parsed, clauses: parsed.clauses.map((x, at) => (at === i ? c : x)) });
   const titleOf = words?.titleOf ?? ((id: string) => id);
   const rows = parsed.clauses.length === 0 ? [{ left: "", op: "==" as Op, value: "" }] : parsed.clauses;
   return (
@@ -84,7 +88,11 @@ export function ConditionField({
             testID={testID ? `${testID}-op-${i}` : undefined}
             onOpen={(x, y) =>
               openMenu(
-                OPS.map((op) => ({ label: OP_WORDS[op], checked: op === c.op, onSelect: () => setClause(i, { ...c, op }) })),
+                OPS.map((op) => ({
+                  label: OP_WORDS[op],
+                  checked: op === c.op,
+                  onSelect: () => setClause(i, { ...c, op }),
+                })),
                 x,
                 y,
                 "other",
@@ -159,7 +167,11 @@ export function EventField({
         testID={testID ? `${testID}-event` : undefined}
         onOpen={(x, y) =>
           openMenu(
-            [...EVENT_NAMES, ...(v.event && !EVENT_NAMES.includes(v.event) ? [v.event] : [])].map((n) => ({ label: eventWords(n), checked: n === v.event, onSelect: () => onCommit({ ...v, event: n }) })),
+            [...EVENT_NAMES, ...(v.event && !EVENT_NAMES.includes(v.event) ? [v.event] : [])].map((n) => ({
+              label: eventWords(n),
+              checked: n === v.event,
+              onSelect: () => onCommit({ ...v, event: n }),
+            })),
             x,
             y,
             "other",
@@ -176,7 +188,8 @@ export function EventField({
           onCommit={(t) => {
             const p = parse(t);
             const filter: Record<string, string | number> = {};
-            for (const c of p?.clauses ?? []) if (c.op === "==") filter[c.left] = /^-?\d+(\.\d+)?$/.test(c.value) ? Number(c.value) : c.value;
+            for (const c of p?.clauses ?? [])
+              if (c.op === "==") filter[c.left] = /^-?\d+(\.\d+)?$/.test(c.value) ? Number(c.value) : c.value;
             onCommit({ ...v, ...(Object.keys(filter).length > 0 ? { filter } : { filter: undefined }) });
           }}
           {...(testID ? { testID: `${testID}-when` } : {})}
@@ -193,6 +206,12 @@ const s = StyleSheet.create({
   wrap: { gap: 6 },
   label: { fontSize: 12.5, color: "var(--ink-2)" as string },
   row: { gap: 6 },
-  advanced: { fontSize: 13, color: "var(--ink-3)" as string, backgroundColor: "var(--sunk)" as string, padding: 8, borderRadius: 8 },
+  advanced: {
+    fontSize: 13,
+    color: "var(--ink-3)" as string,
+    backgroundColor: "var(--sunk)" as string,
+    padding: 8,
+    borderRadius: 8,
+  },
   add: { fontSize: 12.5, color: "var(--accent)" as string },
 });
