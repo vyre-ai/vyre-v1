@@ -54,6 +54,8 @@ export function driveStandIn(o: DriveOptions) {
     interpose: null as null | { id: string; text: string },
     /** called with each request before it is answered: a test stops the daemon here */
     onRequest: null as null | ((r: { method: string; path: string }) => void),
+    /** the matching request is applied at Drive and then never answered: the daemon is stopped at that moment (a crash in the middle of a write) */
+    crashOn: null as null | { match: (r: { method: string; path: string }) => boolean; stop: () => Promise<unknown> },
   };
   const stamp = (): string => new Date((clock += 1000)).toISOString();
   /** the cells of a Google Sheet by file id and tab, as the Sheets API serves them */
@@ -150,6 +152,7 @@ export function driveStandIn(o: DriveOptions) {
     changes.push(id);
   }
   const view = (f: DFile) => ({
+    ...(f.props ? { appProperties: f.props } : {}),
     id: f.id,
     name: f.name,
     mimeType: f.mimeType,
@@ -217,6 +220,7 @@ export function driveStandIn(o: DriveOptions) {
         const f = files.get(decodeURIComponent(m[1]!));
         if (!f) return { status: 404, json: {} };
         if (!f.canEdit) return { status: 403, json: {} };
+        if (meta["appProperties"]) f.props = { ...(f.props ?? {}), ...(meta["appProperties"] as Record<string, string>) };
         if (state.interpose && state.interpose.id === f.id) {
           const i = state.interpose;
           state.interpose = null;
@@ -313,7 +317,7 @@ export function driveStandIn(o: DriveOptions) {
       const b = safeJson(typeof body === "string" ? body : "") as Record<string, unknown>;
       if (typeof b["name"] === "string") f.name = b["name"];
       if (typeof b["trashed"] === "boolean") f.trashed = b["trashed"];
-      if (query["addParents"]) f.parents = [...f.parents, ...query["addParents"].split(",")];
+      if (query["addParents"]) f.parents = [...new Set([...f.parents, ...query["addParents"].split(",")])];
       if (query["removeParents"]) {
         const gone = new Set(query["removeParents"].split(","));
         f.parents = f.parents.filter((p) => !gone.has(p));
@@ -325,8 +329,21 @@ export function driveStandIn(o: DriveOptions) {
     return undefined;
   }
 
+  /** runs a request, and when it is the one a test crashes on, applies it, stops the daemon and never answers */
+  function crashable<T>(r: { method: string; url: string }, run: () => T): T | Promise<never> {
+    const out = guarded(run);
+    const c = state.crashOn;
+    if (c && c.match({ method: r.method, path: new URL(r.url).pathname })) {
+      state.crashOn = null;
+      // the answer never reaches the daemon: its connection is reset once the daemon is down (the same process holds both lives of the daemon, so the old pass must end for the new one to run)
+      return c.stop().then(() => {
+        throw new Error("connection reset");
+      });
+    }
+    return out;
+  }
   const api = (r: { method: string; url: string; headers: Record<string, string>; body: string | undefined }) =>
-    guarded(() => route(r.method, r.url, r.headers, r.body));
+    crashable(r, () => route(r.method, r.url, r.headers, r.body));
 
   const seam = (r: {
     method: string;
@@ -347,7 +364,7 @@ export function driveStandIn(o: DriveOptions) {
       const c = JSON.parse(Buffer.from(p, "base64url").toString("utf8")) as { sub: string; scope: string };
       return { json: { access_token: `at|${c.sub}|${c.scope.split(" ")[0]!.slice(SCOPE.length)}`, expires_in: 3600 } };
     }
-    return guarded(() => route(r.method, r.url, r.headers, r.body));
+    return crashable(r, () => route(r.method, r.url, r.headers, r.body));
   };
 
   /** A bug in the stand-in must show as itself, not as the daemon's retry of a failed fetch. */

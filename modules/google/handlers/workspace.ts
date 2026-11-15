@@ -1279,12 +1279,13 @@ export async function driveUpload(
   a: Act & { name: string; parentId?: string; fileId: string; remoteId?: string; ifRevision?: string },
 ) {
   if (a.remoteId !== undefined && a.ifRevision !== undefined) {
-    const now = mapFile(
-      await g(ctx, a, "google.drive.upload_file", "drive", {
-        url: `${DRIVE}/files/${enc(a.remoteId)}`,
-        query: { fields: FILE_FIELDS, ...shared },
-      }),
-    );
+    const raw = await g(ctx, a, "google.drive.upload_file", "drive", {
+      url: `${DRIVE}/files/${enc(a.remoteId)}`,
+      query: { fields: `${FILE_FIELDS},appProperties`, ...shared },
+    });
+    const now = mapFile(raw);
+    // this very upload already landed (the daemon stopped before the answer was read): the file carries this request's key, so it is taken as sent, not written again and not taken for someone else's change
+    if (keyOf(a) !== undefined && obj(raw.appProperties)[KEY_PROP] === keyOf(a)) return { file: now };
     if (now.headRevisionId !== a.ifRevision) return { file: now, stale: true };
   }
   if (a.remoteId === undefined) {
@@ -1305,7 +1306,7 @@ export async function driveUpload(
           url: `${base}/${enc(a.remoteId)}?uploadType=multipart&supportsAllDrives=true&fields=${enc(FILE_FIELDS)}`,
           token,
           fileId: a.fileId,
-          metadata: {},
+          metadata: keyOf(a) !== undefined ? { appProperties: { [KEY_PROP]: keyOf(a) } } : {},
           method: "PATCH",
         })
       : await needHost(ctx).upload(ctx, {

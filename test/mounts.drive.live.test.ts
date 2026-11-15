@@ -34,14 +34,15 @@ export async function bootDriveWorld(prefix: string, seed?: (d: ReturnType<typeo
       return { json: { users: [{ primaryEmail: NOAH, name: { fullName: "Noah Berg" } }] } };
     return undefined;
   };
-  const w = await bootWorld({
+  const opts = {
     prefix,
-    api: (r) => drive.api(r) ?? rest(r),
+    api: (r: Parameters<ProviderApi>[0]) => drive.api(r) ?? rest(r),
     seam: drive.seam,
     members: [{ userId: "usr_noah", email: NOAH }],
     secrets: { "#Google_DWD": KEY_JSON },
-    sign: (data) => createSign("RSA-SHA256").update(data).sign(privateKey, "base64url"),
-  });
+    sign: (data: string) => createSign("RSA-SHA256").update(data).sign(privateKey, "base64url"),
+  };
+  const w = await bootWorld(opts);
   const folder = await w.ok(OWNER, "vault.folders.create", {
     name: "Company connections",
     scope: "shared",
@@ -85,7 +86,12 @@ export async function bootDriveWorld(prefix: string, seed?: (d: ReturnType<typeo
     await w.d.hooks?.pump?.();
     return w.ok(MEMBER, "mounts.sync_now", { mountId, idempotencyKey: w.idem() });
   };
-  return { w, drive, mount, fileNamed, sync };
+  /** the daemon is stopped as it stands (its data kept) and started again over the same data directory, as after a crash and a restart */
+  const reboot = async (from: typeof w) => {
+    await from.stop(true);
+    return bootWorld({ ...opts, dir: from.dir });
+  };
+  return { w, drive, mount, fileNamed, sync, reboot, opts };
 }
 
 test("an edit saved in Vyre to a connected Drive file reaches Drive as a new revision of the same file", async () => {

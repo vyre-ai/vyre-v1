@@ -661,12 +661,9 @@ export async function driveUpload(
     ...(a.as ? { as: a.as } : {}),
   });
   const base = driveBase(sub, a.driveId);
-  const url =
-    a.remoteId !== undefined
-      ? `${base}/items/${enc(a.remoteId)}/content`
-      : a.folderId
-        ? `${base}/items/${enc(a.folderId)}:/${enc(a.name)}:/content`
-        : `${base}/root:/${enc(a.name)}:/content`;
+  const where = a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(a.name)}` : `${base}/root:/${enc(a.name)}`;
+  // a new file is made with conflictBehavior=fail: a name that is taken is never written over. A create whose answer was lost and is sent again meets its own file, which is then taken (below), not made twice.
+  const url = a.remoteId !== undefined ? `${base}/items/${enc(a.remoteId)}/content` : `${where}:/content?@microsoft.graph.conflictBehavior=fail`;
   try {
     return {
       item: mapItem(
@@ -682,6 +679,14 @@ export async function driveUpload(
     };
   } catch (e) {
     if (a.ifMatch !== undefined && codeOf(e) === "validation.version_conflict") return { stale: true };
+    if (a.remoteId === undefined && (codeOf(e) === "validation.precondition_failed" || codeOf(e) === "validation.version_conflict")) {
+      // the name is taken: if the file there was made by this account a moment ago it is the one a lost answer made, and it is taken
+      const there = await call(ctx, a, "ms.drive.upload_item", { url: where, query: { $select: "id,name,size,eTag,lastModifiedDateTime,lastModifiedBy,parentReference,webUrl,file" } });
+      const mine = mapItem(there);
+      const by = (mine["lastModifiedBy"] as { email?: string } | undefined)?.email?.toLowerCase();
+      const at = Date.parse(String(mine["lastModifiedDateTime"] ?? ""));
+      if (there["file"] !== undefined && by !== undefined && by === sub.toLowerCase() && Date.now() - at < 15 * 60_000) return { item: mine };
+    }
     throw e;
   }
 }
@@ -731,7 +736,15 @@ export async function driveFolder(ctx: MsCtx, a: Act & { driveId?: string; paren
   const r = await call(ctx, a, "ms.drive.create_folder", {
     method: "POST",
     url: a.parentId ? `${base}/items/${enc(a.parentId)}/children` : `${base}/root/children`,
-    body: { name: a.name, folder: {}, "@microsoft.graph.conflictBehavior": "rename" },
+    body: { name: a.name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" },
+  }).catch(async (e: unknown) => {
+    // a folder of that name is there: the one a lost answer made is taken, not made again as "Reports 1"
+    if (codeOf(e) !== "validation.precondition_failed" && codeOf(e) !== "validation.version_conflict") throw e;
+    const there = await call(ctx, a, "ms.drive.create_folder", {
+      url: a.parentId ? `${base}/items/${enc(a.parentId)}:/${enc(a.name)}` : `${base}/root:/${enc(a.name)}`,
+    });
+    if (there["folder"] === undefined) throw e;
+    return there;
   });
   return { item: mapItem(r) };
 }
