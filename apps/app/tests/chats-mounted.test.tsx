@@ -247,10 +247,8 @@ test("the agent's computer: the pane's door opens the agent's Computer tab, with
     "the agent page, with its Computer tab the selected one",
   );
   assert.ok(has(out, 'data-testid="page-body-computer"'), "the tab's body");
-  assert.ok(
-    has(out, 'data-testid="label-l-terminal"') && has(out, 'data-testid="label-l-browser"'),
-    "Terminal and Browser, the two halves of the computer",
-  );
+  // fcf16b7d2 (the Computer tab as drawn): the two halves are section heads (Terminals, Browser) drawn as blocks of the list, no longer list labels with a label-l-* id; the words are the check
+  assert.ok(has(out, ">Terminals<") && has(out, ">Browser<"), "Terminals and Browser, the two halves of the computer");
   assert.ok(
     has(out, 'data-testid="terminal-loading"') && has(out, 'data-testid="browser-loading"'),
     "each half draws its card once its source answers",
@@ -834,7 +832,10 @@ test("the shipped place, through the shell provider and the runtime's live scree
   assert.ok(has(out, 'data-testid="chats-place"'), "the place itself draws");
   const side = inSlot(s).out;
   assert.ok(
-    has(side, 'data-testid="row-nav:tasks"') && has(side, 'data-testid="count-tasks"'),
+    // the new Chats sidebar (TasksRow in SideEntries.tsx): the fixed Tasks row is row-tasks, its count is the needs-you mark in the row's trailing slot and in the row's label ("Tasks, N need you"); the old nav:tasks and count-tasks ids are gone
+    has(side, 'data-testid="row-tasks"') &&
+      has(side, 'data-testid="mark-mention"') &&
+      /aria-label="Tasks, [1-9]\d* need you"/.test(side),
     "the Tasks entry with its count, read through rt.screens",
   );
   assert.ok(has(side, "vyre-waiting"), "an agent with a request wears the amber ring");
@@ -853,23 +854,23 @@ test("a click on an agent opens its chat with the agent's pane beside it; the pa
     has(out, 'data-testid="chats-right-pane"') && has(out, 'data-testid="conversation"'),
     "the shared side pane beside the chat",
   );
-  for (const tab of ["Computer", "Chats"])
-    assert.ok(
-      has(out, tab),
-      `${tab}: the pane fits its other tabs behind a menu when it is narrow (the Threads tab is called Chats: no chat is called a thread)`,
-    );
+  // 3018873d5 (one pane with the tabs of the chat's kind): the pane's tab that lists chats and replies is titled Threads (pane-kinds.test.tsx pins the word); it was Chats before
+  for (const tab of ["Computer", "Threads"])
+    assert.ok(has(out, tab), `${tab}: the pane fits its other tabs behind a menu when it is narrow`);
   const side = inSlot(s);
   assert.ok(
-    side.title === "Chats" && has(side.out, 'data-testid="sidebar-head"') && !has(side.out, "switch Space"),
+    // c5da6ccd8 (the product shows the new sidebar): the new sidebar's head is its tool row (Filter, New), not the old component's sidebar-head frame; the title Chats is still the slot's
+    side.title === "Chats" && has(side.out, 'data-testid="filter-chats"') && !has(side.out, "switch Space"),
     "the sidebar header reads Chats (the slot's title)",
   );
   assert.ok(
     has(side.out, 'data-testid="new-menu"') && !has(side.out, 'data-testid="sidebar-toggle"'),
     "New stays; the panel toggle is the slot's hide button",
   );
+  // c5da6ccd8: the Chats slot draws no search field (noSearch: the one search is Cmd-K, and the new sidebar narrows by its Filter), so a typed query never reaches the list; the slot offers no search and the rows are all there
   assert.ok(
-    has(inSlot(s, "docs").out, "Docs") && !has(inSlot(s, "docs").out, "Rivera intake"),
-    "the slot's search narrows the rows",
+    side.placeholder === undefined && has(inSlot(s, "docs").out, "Docs") && has(inSlot(s, "docs").out, "Rivera intake"),
+    "the slot has no search field of its own; the rows stay",
   );
   // the pane's menu opens the full page
   wirePane(s.rt, go, "c1", { agentId: "agt_docs", name: "Docs" }).nav.openAgentPage("agt_docs");

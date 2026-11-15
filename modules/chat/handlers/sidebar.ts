@@ -6,6 +6,7 @@ import { askerOf, ensureLast, raise } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { mutedOf } from "./follow.ts";
 import { ensureReadTable } from "./g24a.ts";
+import { mayViewChannel, seesSpace } from "./post.ts";
 import { archivedIds } from "./archive-state.ts";
 
 type PresenceOut = { people?: { personId: string; state: string }[] };
@@ -434,16 +435,20 @@ function chatDetails(ctx: ChatCtx, asker: string, ids: readonly string[]): ChatL
 
 /**
  * The channels the caller is IN (the sidebar lists those; a public one they are not in is for Browse), in the Space's order, with their unread: three set-based reads for the whole list. Membership is the only way in, so
- * what a guest sees is exactly the channels they were added to.
+ * what a guest sees is exactly the channels they were added to. A guest (no View on the Space) also needs a live grant on the channel, the same rule channels.list applies: a member row alone
+ * (the Space's public channel a guest lands in on joining, or a room whose access was removed) is a channel they cannot open, and its name is not told to them.
  */
 export function channelList(ctx: ChatCtx, asker: string): Record<string, unknown>[] {
   ensureReadTable(ctx);
-  const rows = ctx.db.all(
-    `SELECT c.id AS channelId, c.mainThread AS mainThreadId, c.name AS name, c.visibility AS visibility, c.createdAt AS createdAt
+  const whole = seesSpace(ctx);
+  const rows = (
+    ctx.db.all(
+      `SELECT c.id AS channelId, c.mainThread AS mainThreadId, c.name AS name, c.visibility AS visibility, c.createdAt AS createdAt
        FROM chat_channel c JOIN chat_thread_member me ON me.thread = c.mainThread AND me.principal = ? AND me.deleted_at IS NULL
       WHERE c.archived = 0 ORDER BY c.createdAt, c.id`,
-    asker,
-  ) as Record<string, unknown>[];
+      asker,
+    ) as Record<string, unknown>[]
+  ).filter((r) => whole || mayViewChannel(ctx, String(r["channelId"])));
   const unread = new Map<string, number>();
   for (const r of ctx.db.all(
     `SELECT m.thread AS thread, COUNT(*) AS n FROM chat_message m

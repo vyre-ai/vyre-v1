@@ -33,6 +33,7 @@ export function ChapterRail({
       style={st.rail}
       pointerEvents="box-none"
     >
+      {/* ui-rows-lint: not a list (the rail is a column of position marks, not rows of a list) */}
       {shown.map((d) => (
         <View key={d.startSeq} style={st.slot}>
           <Pressable

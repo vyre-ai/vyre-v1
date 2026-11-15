@@ -7,6 +7,7 @@ import { recallPick, rememberPick } from "../last-pick.ts";
 import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, StoppedBy, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import { noteHandoff } from "../context.ts";
 import { engineThreadOf } from "../thread-open.ts";
 import type { ThreadGet } from "../thread-open.ts";
@@ -206,10 +207,10 @@ export async function interrupt(
  * may stop only a turn they asked for, and their Stop all stops only their own turns. An agent may stop its own turn; another agent's turn only when the person it acts for could, so an agent
  * working for a guest reaches only that guest's turns. An agent that names nobody stops itself.
  */
-/** A guest is a person (or an agent for one) without View on the Space. The host itself (the app stopping turns for an update, a service) is no guest: it has no Space role to hold, and reaches every turn. */
+/** A guest is a person (or an agent for one) without View on the Space. The host itself (svc_host, the app stopping turns for an update) is no guest: it has no Space role to hold, and reaches every turn. Any other service is judged like anyone. */
 function isGuest(ctx: EngineCtx): boolean {
   return (
-    ctx.principal.kind !== "service" &&
+    !isHostService(ctx.principal) &&
     ctx.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect !== "allow"
   );
 }

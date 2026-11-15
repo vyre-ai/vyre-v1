@@ -55,6 +55,7 @@ function Round({
   if (shown.length === 0) return null;
   return (
     <View testID={`round-${messageId}`} accessibilityRole="list" style={st.row}>
+      {/* ui-rows-lint: not a list (the faces of the agents that answered, in one line, not list rows) */}
       {shown.map((a) => (
         <View
           key={a.agentId}
