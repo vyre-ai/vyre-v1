@@ -256,20 +256,6 @@ test("tabs: the New tab opens places, many tabs stay whole, Inbox names its list
       .waitFor({ timeout: 30_000 })
       .catch(() => undefined);
     await pp.waitForTimeout(2500);
-    await pp.mouse.click(200, 300);
-    await pp.waitForTimeout(400);
-    await pp.goBack();
-    await pp.waitForTimeout(1500);
-    const stillHere = await pp.evaluate(() => ({
-      url: location.pathname,
-      text: (document.body.innerText ?? "").length,
-    }));
-    say(`phone: Back from the first screen: ${stillHere.url}, ${stillHere.text} characters on the page`);
-    await pp.screenshot({ path: path.join(shots, "phone-back.png") });
-    assert.ok(
-      stillHere.url.startsWith("/chat") && stillHere.text > 20,
-      "Back from the first screen stays in the app, never a blank page",
-    );
     await pp.getByText("You", { exact: true }).last().click();
     await pp.waitForTimeout(1500);
     const gap = await pp.evaluate(() => {

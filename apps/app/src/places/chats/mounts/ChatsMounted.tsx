@@ -82,6 +82,7 @@ import type { NotesInitial } from "../notes/NotesPage.tsx";
 import { AgentForm } from "../agentform/AgentForm.tsx";
 import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
+import { PANE_MEMORY } from "./pane-memory.ts";
 import { ThingPane } from "./ThingPane.tsx";
 import { nextTrail, thingOf } from "./thing-model.ts";
 import type { Thing } from "./thing-model.ts";
@@ -120,9 +121,6 @@ type RecordingOut = CapMap["computers.recording.get"]["out"];
 export const SIDEBAR_W = 264;
 export const PANE_W = 340;
 export const TERMINAL_W = 480;
-/** What each chat's right pane was showing: open or not, and which of its own tabs. */
-const PANE_MEMORY = new Map<string, { open: boolean; tab?: TabKey }>();
-
 /** Under this width the agent's pane and the terminal fill the window (the sidebar is the shell's slot, which has its own phone view). */
 export const WIDE = 640;
 const LINE_MS = 4000;

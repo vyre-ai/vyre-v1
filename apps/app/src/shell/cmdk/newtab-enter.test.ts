@@ -85,21 +85,6 @@ test("words that find nothing keep the chat: nothing is selected and Enter start
   assert.equal(x.c.getState().active, i);
 });
 
-test("a place is found by its name: Records, Files, Vault and Automations open their place, and Enter on one is not a chat", async () => {
-  const { shellHits, shellHitTarget } = await import("./gate.ts");
-  const hits = shellHits({ inbox: true });
-  for (const [title, place] of [
-    ["Records", "records"],
-    ["Files", "files"],
-    ["Vault", "vault"],
-    ["Automations", "automations"],
-  ] as const) {
-    const hit = hits.find((h) => h.title === title && h.id.startsWith("shell:place:"));
-    assert.ok(hit, `${title} is a result`);
-    assert.deepEqual(shellHitTarget(hit!, { inbox: true }), { place, hash: "" });
-  }
-});
-
 test("the Ask is the first row for a phrase, not selected; the arrow lands on it and Enter asks; Alt+Enter asks from the field; a short word has no Ask row and Alt+Enter does nothing", async () => {
   const w = world();
   w.c.setRaw(PHRASE);

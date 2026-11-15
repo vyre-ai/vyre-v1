@@ -118,7 +118,6 @@ export function mergeHits(local: readonly Hit[], server: readonly Hit[]): Hit[] 
 /* ---------- rows ---------- */
 
 export const GROUPS: readonly (readonly [HitKind, string])[] = [
-  ["place" as HitKind, "Places"],
   ["agent", "Agents"],
   ["chat", "Chats"],
   ["channel", "Channels"],

@@ -149,35 +149,6 @@ export function PhoneHost({
     registerGo(go);
     return () => registerGo(null);
   }, [go, registerGo]);
-  // The browser's Back on the phone is the phone's Back: it steps the screens the person went through, and from the first screen it never leaves for a page that is gone (a person who had just joined
-  // went back to a blank white page, owner walk 15 Nov). One guard entry is kept above the app's own: Back lands on it, the phone takes its own step, and the guard is put back. Only a person who
-  // arrived from another site goes back there from the first screen.
-  useEffect(() => {
-    const w = globalThis as unknown as {
-      history?: { pushState(s: unknown, t: string, u?: string): void };
-      location?: { href: string; origin: string };
-      document?: { referrer?: string };
-      addEventListener?(t: string, f: () => void): void;
-      removeEventListener?(t: string, f: () => void): void;
-    };
-    if (w.history === undefined || w.addEventListener === undefined || w.location === undefined) return undefined;
-    const ref = w.document?.referrer ?? "";
-    const fromElsewhere = ref !== "" && !ref.startsWith(w.location.origin);
-    const guard = (): void => w.history?.pushState({ vyrePhone: "guard" }, "", w.location?.href);
-    guard();
-    const onPop = (): void => {
-      const nav = navRef.current;
-      if (nav !== null && nav.origin !== undefined) {
-        nav.back();
-        guard();
-      } else if (nav !== null && !fromElsewhere) {
-        nav.selectTab("chats");
-        guard();
-      }
-    };
-    w.addEventListener("popstate", onPop);
-    return () => w.removeEventListener?.("popstate", onPop);
-  }, []);
   // the first screen comes from where the shell starts; after that a link (the address, Back in a browser, a notification) moves the hub and the phone follows it
   const start = useRef(phoneStart(location?.place ?? "chats", location?.hash ?? ""));
   const seen = useRef(`${location?.place ?? ""}#${location?.hash ?? ""}`);
