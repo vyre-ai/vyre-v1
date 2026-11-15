@@ -71,6 +71,8 @@ export function ListView({
           />
         </View>
       ))}
+      {/* the empty line sits under the list's own heading, never beside the page's Needs you block */}
+      {v.empty && query !== undefined ? <Text style={s.title}>Automations</Text> : null}
       {v.empty ? <Text style={s.quiet}>{v.empty}</Text> : null}
     </View>
   );

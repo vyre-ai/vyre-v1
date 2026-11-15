@@ -135,6 +135,15 @@ test("production Automations: the picker with a connected app, Connect an app, a
       (await page.getByTestId("story").innerText()).match(/Send|Post|Message|Create|Find/),
       "Enter in the submenu adds the step",
     );
+    // round five (walker): a new step's form takes the cursor in its first empty field, and a row says what is needed once
+    const focusedId = await page.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? "");
+    await shot("5-new-step-focus-d");
+    assert.match(focusedId, /^field-/, `the new step's first empty field has the focus (got ${focusedId})`);
+    for (const btn of await page.locator("[data-testid^='sv-need-']").all()) {
+      const label = (await btn.innerText()).trim();
+      const row = (await page.locator("[data-testid^='sv-step-']").filter({ has: btn }).first().innerText()).trim();
+      assert.ok(row.split(label).length - 1 <= 1, `"${label}" is said once on its row`);
+    }
     await page.keyboard.press("ArrowLeft");
     await page.waitForTimeout(300);
     assert.equal(await page.getByTestId("pk-sub").count(), 0, "Left steps back");

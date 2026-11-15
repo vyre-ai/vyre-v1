@@ -220,6 +220,11 @@ test("production Automations: the step row and the step form for each kind and s
     const tried = await api("automations.test", { automationId: lacking });
     const runId = (tried.data ?? tried).runId as string;
     await page.waitForTimeout(2500);
+    await page.getByText("Lacking a person", { exact: true }).first().click();
+    await page.getByTestId("story").waitFor({ timeout: 20_000 });
+    await page.getByTestId("sv-test").click().catch(() => undefined);
+    await page.waitForTimeout(2500);
+    await shot("5-stopped-test-d");
     const got = await api("runs.get", { runId });
     const status = (got.run ?? got.data?.run ?? got.data).status as string;
     assert.equal(status, "failed", "a test that stops on a missing input is not a success");
@@ -238,6 +243,10 @@ test("production Automations: the step row and the step form for each kind and s
     await page.getByTestId("field-channelId").waitFor({ timeout: 20_000 });
     const channelText = await page.getByTestId("field-channelId").innerText();
     assert.match(channelText, /Choose a channel/, "the channel is chosen from a menu");
+    await page.getByTestId("field-channelId").click();
+    await page.waitForTimeout(500);
+    await shot("5-channel-picker-d");
+    await page.keyboard.press("Escape");
     assert.equal(/\b[a-z]{3}_[a-z0-9]{6,}/.test(await page.locator("body").innerText()), false, "no id on the form");
     void post;
     console.log("RUN", run?.status, JSON.stringify(failed?.error ?? null));
