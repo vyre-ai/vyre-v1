@@ -389,8 +389,7 @@ export const consumers = keptWhileStopping({
       // a connect card (b-connect) is answered in the person's own few words: no key, no handle, nothing to explain back
       const text = p.service
         ? event.name === "vault.request_fulfilled"
-          ? // the handle names the exact item the card saved: with another key of the same name in the person's Mine (one made by hand), the name alone would find that one
-            `${p.service} is connected${p.handle ? ` as ${p.handle}` : ""}. Carry on.`
+          ? `${p.service} is connected. Carry on.`
           : `Not now. Carry on without ${p.service}.`
         : event.name === "vault.request_fulfilled"
           ? `I added the ${key} key${p.handle ? ` as ${p.handle}` : ""}. Carry on.`

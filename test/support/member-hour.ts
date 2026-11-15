@@ -285,10 +285,16 @@ export const model: OpenSession = async (spec) => {
         yield { type: "text", text: "Both subagents finished." };
       } else if (/Carry on/.test(body)) {
         const found = yield* run("tool_search", { query: "vault use" });
+        // told only that a service is connected (a connect card's answer): ask vault_connect, which says the exact item, as a model does
+        let named = /as (#[A-Za-z0-9_]+)/.exec(body)?.[1];
+        if (!named && /is connected/.test(body)) {
+          const again = yield* run("vault_connect", { service: "Fathom", idempotencyKey: `hour-again-${++asks}` });
+          named = /(#[A-Za-z0-9_]+)/.exec(JSON.stringify(again.content))?.[1];
+        }
         // as a model would: the handle the person's line names (another item may hold the name), else the name it asked for
         const r = found.ok
           ? yield* run("vault_use", {
-              item: /as (#[A-Za-z0-9_]+)/.exec(body)?.[1] ?? "Fathom",
+              item: named ?? "Fathom",
               purpose: "Read the meetings",
             })
           : found;

@@ -82,6 +82,8 @@ interface Stamp {
   item: string;
   by: string;
   hosts: string[];
+  /** the handle the Vault gave the item when the card saved it: what the agent is told to use */
+  handle?: string;
 }
 const sameHosts = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && [...a].sort().join("\n") === [...b].sort().join("\n");
@@ -294,7 +296,21 @@ export async function connectService(
   // no connector, or several of that name: the model is told the one next step, never a guess
   if (!svc) return { status: "no_connector", tell: TELL.no_connector(said) };
   // already connected for this person, and working: nothing to ask
-  if (svc.connection?.state === "active") return { status: "connected", tell: TELL.connected(svc.title) };
+  if (svc.connection?.state === "active") {
+    // the agent is told, here and only here (a tool answer no one else reads), the exact item the card saved for this connection: by its handle, never by a name another key of this person's may share
+    const made = (ctx.db.all(`SELECT * FROM ${TABLE} WHERE service = ?`, svc.key) as RequestRow[]).find(
+      (r) => r.state === "fulfilled" && r.connection_id === svc.connection!.connectionId && !!r.item_id,
+    );
+    const handle = made
+      ? (ctx.db.all(`SELECT * FROM ${TABLE} WHERE service = ?`, svc.key) as RequestRow[])
+          .flatMap(stampsOf)
+          .find((x) => x.item === made.item_id)?.handle
+      : undefined;
+    return {
+      status: "connected",
+      tell: `${TELL.connected(svc.title)}${handle && /^#[A-Za-z0-9_]+$/.test(handle) ? ` Use it as ${handle}.` : ""}`,
+    };
+  }
 
   const requester = { kind: ctx.principal.kind, id: ctx.principal.id };
   const mine = connectRows(ctx, ctx.principal.id).filter(
@@ -507,7 +523,7 @@ export async function connectSubmit(
   if (stored.made) {
     const kept = [
       ...stampsOf(requestById(ctx, row.id) ?? row),
-      { item: stored.itemId, by: decided.me, hosts: svc.hosts },
+      { item: stored.itemId, by: decided.me, hosts: svc.hosts, ...(stored.handle ? { handle: stored.handle } : {}) },
     ];
     ctx.db.run(
       `UPDATE ${TABLE} SET saved_json = ?, try_item = ? WHERE id = ?`,
