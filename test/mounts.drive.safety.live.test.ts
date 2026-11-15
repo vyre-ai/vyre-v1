@@ -275,3 +275,48 @@ test("the daemon stopped in the middle of a create: after the restart Drive has 
     },
   });
 });
+
+test("a write to a connected file someone changed since it was read is refused in one sentence, and the other person's version is untouched", async () => {
+  const { w, drive, mount, fileNamed, sync } = await bootDriveWorld("drvstaleagent", (d) => {
+    d.put({ id: "d1", name: "Plan.txt", mimeType: "text/plain" }, "first words");
+  });
+  try {
+    const added = await mount();
+    const f = await fileNamed(added.folderId, "Plan.txt");
+    assert.ok(f);
+    const read = await w.ok(MEMBER, "files.read", { fileId: f.fileId });
+    const seen = (await w.ok(MEMBER, "files.get", { fileId: f.fileId })).file.version as number;
+    assert.equal(read.text, "first words");
+    drive.elsewhere("d1", "kim's words"); // Kim saves at Drive after the reader read it
+    await sync(added.mountId); // the pass brings her version in
+    const refused = await w.call(MEMBER, "files.write", { fileId: f.fileId, content: { text: "the reader's words" }, baseVersion: seen, reason: "Edit", idempotencyKey: w.idem() });
+    assert.equal(refused.status, 409, refused.text);
+    assert.equal(refused.error?.message, "The file changed since it was read.");
+    await sync(added.mountId);
+    assert.equal(drive.text("d1"), "kim's words", "nothing was sent over Kim's version");
+    assert.equal((await w.ok(MEMBER, "files.read", { fileId: f.fileId })).text, "kim's words");
+  } finally {
+    await w.stop();
+  }
+});
+
+test("a member who connected a folder can make their own mount Read only and back; nothing is sent while it is read only", async () => {
+  const { w, drive, mount, fileNamed, sync } = await bootDriveWorld("drvromember", (d) => {
+    d.put({ id: "d1", name: "Plan.txt", mimeType: "text/plain" }, "first words");
+  });
+  try {
+    const added = await mount(); // Noah (a member) connected it, two-way
+    const f = await fileNamed(added.folderId, "Plan.txt");
+    assert.ok(f);
+    await w.ok(MEMBER, "mounts.update", { mountId: added.mountId, pullOnly: true });
+    assert.equal((await w.ok(MEMBER, "mounts.get", { mountId: added.mountId })).mount.readOnly, true);
+    await w.ok(MEMBER, "files.read", { fileId: f.fileId });
+    await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: "edited" }, reason: "Edit", idempotencyKey: w.idem() });
+    await sync(added.mountId);
+    assert.equal(drive.text("d1"), "first words", "a Read only mount sends nothing");
+    await w.ok(MEMBER, "mounts.update", { mountId: added.mountId, pullOnly: false });
+    assert.equal((await w.ok(MEMBER, "mounts.get", { mountId: added.mountId })).mount.readOnly, false);
+  } finally {
+    await w.stop();
+  }
+});

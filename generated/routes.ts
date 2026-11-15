@@ -25494,8 +25494,8 @@ const routes4: Route[] = [
     "v": 1,
     "module": "mounts",
     "effects": "write",
-    "permission": "files.write",
-    "level": "manage",
+    "permission": null,
+    "level": "edit",
     "resource": {
       "type": "space"
     },

@@ -1828,7 +1828,8 @@ async function mountsBrowse(ctx: Ctx, input: unknown): Promise<Row> {
 async function mountsUpdate(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
   const o = record(ctx, input);
   const row = mountRow(ctx, reqStr(ctx, o, "mountId"));
-  mayManage(ctx, row);
+  const onlyReadOnly = Object.keys(o).every((k) => k === "mountId" || o[k] === undefined || k === "pullOnly");
+  if (!(onlyReadOnly && !isNull(row["owner"]) && str(row["owner"]) === ctx.principal.id)) mayManage(ctx, row);
   const fields: string[] = [];
   const patch: Row = {};
   const mode = optStr(o, "mode");

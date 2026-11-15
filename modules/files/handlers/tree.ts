@@ -1960,8 +1960,19 @@ async function filesWrite(
 ): Promise<{ file: FileOut; versionId?: string; changesetId?: string }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
-  const file = liveFile(ctx, reqStr(ctx, o, "fileId"));
+  const fileId0 = reqStr(ctx, o, "fileId");
   const base = optInt(ctx, o, "baseVersion");
+  // a write that names the version it was based on, to a file of a connected folder: the provider is asked first, so a change made there since the writer read it is brought in and the write is refused
+  // ("The file changed since it was read.") rather than sent on over it
+  if (base !== undefined) {
+    liveFile(ctx, fileId0);
+    try {
+      await openAtProvider(ctx, fileId0, true);
+    } catch {
+      /* the provider cannot be asked just now: the write goes on, and the push is conditional on the revision it was based on */
+    }
+  }
+  const file = liveFile(ctx, fileId0);
   if (base !== undefined && base !== num(file.version)) {
     fail(ctx, "validation.version_conflict", "The file changed since it was read.");
   }

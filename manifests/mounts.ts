@@ -252,8 +252,8 @@ export default defineManifest({
         name: t.opt(t.str()),
       },
       out: { mount: mountRow },
-      perm: "files.write",
-      level: "manage",
+      // the handler decides: managing the folder changes any option; the person who connected the folder may also make their own mount Read only (or two-way again), and nothing else
+      perm: null,
       emits: ["mount.updated"],
       tool: "files",
     }),

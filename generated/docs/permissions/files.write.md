@@ -43,7 +43,6 @@ Area: files. Risk: low. Applies to: file, folder.
 - mounts.resolve
 - mounts.restore
 - mounts.resume
-- mounts.update
 - runbooks.set_target
 - sheets.add_sheet
 - sheets.append_rows

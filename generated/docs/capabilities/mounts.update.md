@@ -7,8 +7,8 @@ Change mount options: server copy or live only, Review changes, read-only pull
 | Module | mounts |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
-| Permission | files.write |
-| Grant level | manage |
+| Permission | grant only |
+| Grant level | edit |
 | Risk | medium |
 | Resource | space |
 | Gate | none |
@@ -72,7 +72,6 @@ type Out = {
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant
-- permission.role_lacks_permission
 - validation.bad_input
 
 ## Example
