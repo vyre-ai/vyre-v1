@@ -50,7 +50,10 @@ import {
 } from "./model.ts";
 import { SchemaForm } from "./SchemaForm.tsx";
 import { TriggerForm, usePersonZone } from "./TriggerForm.tsx";
-import { controlsFor, humanize, specOf } from "./form-model.ts";
+import { arrangeControls, controlsFor, humanize, specOf } from "./form-model.ts";
+import { actOf } from "../story/issues.ts";
+import type { GiveRow } from "../builder/insert-data.ts";
+import { addChip } from "./steps/edits.ts";
 import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import { LiveStepForm } from "./steps/LiveStepForm.tsx";
@@ -98,6 +101,8 @@ export function Inspector({
   runId,
   runLog,
   heading,
+  autoFocusNeed,
+  given,
   mark,
 }: {
   /** The Automation this panel edits: the web request trigger shows its address. */
@@ -142,6 +147,10 @@ export function Inspector({
   runLog?: unknown;
   /** The step's sentence as its row on the page reads it; the form's head says the same words. */
   heading?: string;
+  /** Opened by a row's orange button: scroll to and focus the control that is needed. */
+  autoFocusNeed?: boolean;
+  /** What the trigger and each earlier step give, for "Insert data" (builder/insert-data.ts). */
+  given?: readonly GiveRow[];
   /** The mark its row wears on the page (an app's logo or the kind's glyph); the form's head wears the same one. */
   mark?: { id: string; name: string };
 }): ReactElement {
@@ -232,15 +241,27 @@ export function Inspector({
   // "Insert data": what an earlier step gives, by its name; a field is never typed as {{ }} by hand
   const dataWords: DataWords = {
     titleOf,
+    iconOf: (id) => {
+      const n = def.nodes.find((x) => x.id === id);
+      return n ? iconOfKey(n.key) : null;
+    },
     insert: (x, y, current, put) => {
-      const rows = shelfRows(samples["trigger"], prior);
+      const rows = given ?? [];
+      const entries: MenuEntry[] = [];
+      let last = "";
+      for (const r of rows) {
+        if (r.source !== last) {
+          entries.push({ head: r.source });
+          last = r.source;
+        }
+        entries.push({
+          label: r.name,
+          ...(r.sample ? { hint: r.sample } : {}),
+          onSelect: () => put(addChip(current, r.ref)),
+        });
+      }
       openMenu(
-        rows.length === 0
-          ? [{ label: "Nothing yet. Test a step to see what it gives.", onSelect: () => undefined }]
-          : rows.map((r) => ({
-              label: `${r.source} · ${r.name}`,
-              onSelect: () => put(withExpression(current, mappingExpression(r.id))),
-            })),
+        entries.length === 0 ? [{ label: "Nothing to bring in yet", onSelect: () => undefined }] : entries,
         x,
         y,
         "other",
@@ -408,8 +429,9 @@ export function Inspector({
     else input[name] = next;
     onChange(updateStep(def, node.id, { input }));
   };
-  const controls = controlsFor(inputSchema);
-  const covered = new Set(controls.map((c) => c.name));
+  const arranged = arrangeControls(node.key, controlsFor(inputSchema));
+  const controls = arranged.main;
+  const covered = new Set([...arranged.main, ...arranged.details].map((c) => c.name));
   const skipControl = (c: { name: string }): boolean => skipField(c.name);
   const stray: ReactElement[] = [];
   for (const k of inputKeys) {
@@ -426,6 +448,17 @@ export function Inspector({
       />,
     );
   }
+  const detailFields = (
+    <SchemaForm
+      key={`${node.id}-schema-details`}
+      idPrefix="details"
+      controls={arranged.details}
+      input={node.input ?? {}}
+      openMenu={openMenu}
+      skip={skipControl}
+      onInput={(next) => onChange(updateStep(def, node.id, { input: next }))}
+    />
+  );
   fields.push(
     <SchemaForm
       key={`${node.id}-schema`}
@@ -437,6 +470,19 @@ export function Inspector({
     />,
   );
   fields.push(...stray);
+  // the one thing this step needs, in the words the row's orange line uses (story/issues actOf): one source for the bar and the row
+  const firstError = mine.find((x) => x.severity === "error");
+  const needLine = firstError ? actOf(firstError.message) : null;
+  const focusFirstNeeded = (): void => {
+    const target = [...arranged.main].find((c) => c.required && !present(node.input?.[c.name])) ?? arranged.main[0];
+    const doc = (globalThis as { document?: { querySelector?: (q: string) => { focus?: () => void; scrollIntoView?: (o: object) => void } | null } }).document;
+    const el = target ? doc?.querySelector?.(`[data-testid="field-${target.name}"]`) : null;
+    el?.scrollIntoView?.({ block: "center" });
+    el?.focus?.();
+  };
+  useEffect(() => {
+    if (autoFocusNeed && needLine) focusFirstNeeded();
+  }, [autoFocusNeed, node.id]);
   return (
     <DataWordsContext.Provider value={dataWords}>
       <MapTargetContext.Provider value={{ set: setMapTarget }}>
@@ -448,7 +494,7 @@ export function Inspector({
         >
           <Head
             title={heading ?? node.title ?? titleOfKey(node.key)}
-            sub={groupOfKey(node.key)}
+            sub={titleOfKey(node.key)}
             icon={iconOfKey(node.key)}
             {...(mark ? { mark } : {})}
             onClose={onClose}
@@ -479,13 +525,19 @@ export function Inspector({
                     })}
                   </View>
                 )}
-                <TextBox
-                  label="Name"
-                  value={node.title ?? ""}
-                  placeholder={titleOfKey(node.key)}
-                  testID="field-title"
-                  onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))}
-                />
+                {needLine ? (
+                  <View style={i.needBar} testID="step-needs-bar">
+                    <Text style={i.needText}>{needLine}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      testID="step-needs-button"
+                      onPress={() => focusFirstNeeded()}
+                      style={[i.needBtn, pointer]}
+                    >
+                      <Text style={i.needBtnText}>{needLine}</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
                 {accountPick ? (
                   <Choice
                     label="Account"
@@ -559,6 +611,13 @@ export function Inspector({
                   />
                 ) : null}
                 {live ? null : fields}
+                <TextBox
+                  label="Name this step"
+                  value={node.title ?? ""}
+                  placeholder={titleOfKey(node.key)}
+                  testID="field-title"
+                  onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))}
+                />
                 {sendsOutward(node.key) &&
                 !(
                   node.key === "http_request" &&
@@ -581,6 +640,7 @@ export function Inspector({
                   onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))}
                 />
                 <More head="Details" testID="step-details" initiallyOpen={section !== "configure" || advanced}>
+                  {detailFields}
                   <Text testID="plain-language" style={i.hint}>
                     {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}
                   </Text>
@@ -732,6 +792,9 @@ export function Inspector({
   );
 }
 
+const present = (v: unknown): boolean =>
+  v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
+
 function Head({
   title,
   sub,
@@ -854,6 +917,17 @@ const i = StyleSheet.create({
   choiceText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
   problem: { flexDirection: "row", alignItems: "flex-start", gap: 7 },
   problemText: { flex: 1, fontSize: 12, lineHeight: 17, color: "var(--ink-2)" as string },
+  needBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "var(--warn-wash)" as string,
+  },
+  needText: { flex: 1, fontSize: 13, color: "var(--warn)" as string },
+  needBtn: { height: 28, paddingHorizontal: 12, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--chip)" as string },
+  needBtnText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink)" as string },
   del: {
     flexDirection: "row",
     alignItems: "center",

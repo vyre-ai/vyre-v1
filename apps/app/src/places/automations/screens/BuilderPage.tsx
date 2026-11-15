@@ -20,6 +20,8 @@ import {
   removeTrigger,
   check,
   describeTrigger,
+  duplicateStep,
+  moveStep,
   removeStep,
   sortedIssues,
   startsByHand,
@@ -41,6 +43,8 @@ import { appOfStep, stepId } from "../picker/model.ts";
 import { fromDefinition } from "../story/adapt.ts";
 import { needsFromIssues } from "../story/issues.ts";
 import { story as buildStory } from "../story/model.ts";
+import { givenBy } from "../builder/insert-data.ts";
+import { inputValues } from "../builder/step-values.ts";
 import type { TestResult } from "../story/model.ts";
 import { useWhenText } from "../../../../../../ui/src/Time/index.tsx";
 import { look } from "./look.ts";
@@ -169,6 +173,23 @@ function Body({
   const [confirmTheirs, setConfirmTheirs] = useState(false);
   const def: Definition = draft ?? a.definition;
   const [sel, setSel] = useState<string | null>(initialSelected);
+  const [focusNeed, setFocusNeed] = useState<string | null>(null);
+  // the last real event of this Automation's trigger: the samples "Insert data" shows beside each name
+  const [pastEvent, setPastEvent] = useState<Record<string, unknown> | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    void data.call("automations.test_events", { automationId: a.id }).then(
+      (o) => {
+        const ev = (o as { events?: { payload?: Record<string, unknown> }[] }).events?.[0]?.payload;
+        const inner = ev && typeof ev["input"] === "object" ? (ev["input"] as Record<string, unknown>) : ev;
+        if (live) setPastEvent(inner);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [data, a.id]);
   const [note, setNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [picker, setPicker] = useState<{ after: string | null; x: number; y: number } | null>(null);
@@ -346,9 +367,14 @@ function Body({
         catalog: full,
         triggerTitles: Object.fromEntries((catalog?.triggers ?? []).map((t) => [t.key, t.title])),
         nameOfNode: (id) =>
-          id === "trigger" ? "the start" : (full[def.nodes.find((n) => n.id === id)?.key ?? ""]?.title ?? id),
+          id === "trigger" ? "Trigger" : (full[def.nodes.find((n) => n.id === id)?.key ?? ""]?.title ?? id),
         canUse: (app) => usable.has(app) || !isGatedApp(app),
         nameOfId: (id) => data.name(id),
+        sample: Object.fromEntries(
+          Object.entries(pastEvent ?? {}).flatMap(([k, v]) =>
+            typeof v === "string" || typeof v === "number" ? [[`trigger.${k}`, String(v)] as const] : [],
+          ),
+        ),
         ...(catalog?.checked
           ? { isKnown: (key: string) => full[key] !== undefined || kindOfKey(key) !== "plain" }
           : {}),
@@ -363,7 +389,7 @@ function Body({
         writes: (k) => outward.has(k),
       },
     );
-  }, [def, catalog, pickIn, issues, noAccess, connectNeeds]);
+  }, [def, catalog, pickIn, issues, noAccess, connectNeeds, pastEvent, data]);
   // each trigger is its own row: When, then Or. The first is "trigger", the others "trigger:1", "trigger:2"
   const triggerRows = useMemo(
     () =>
@@ -547,6 +573,29 @@ function Body({
   };
   const onAction = (action: StoryAction, id?: string, e?: unknown): void => {
     if (action === "ask") data.nav.ask(a.id);
+    else if (action === "rowmenu" && id) {
+      const p = pos(e);
+      show(
+        [
+          { label: "Duplicate", onSelect: () => edit(duplicateStep(def, id).def) },
+          { label: "Move up", onSelect: () => edit(moveStep(def, id, -1)) },
+          { label: "Move down", onSelect: () => edit(moveStep(def, id, 1)) },
+          { separator: true },
+          {
+            label: "Delete",
+            danger: true,
+            onSelect: () => {
+              edit(removeStep(def, id));
+              if (sel === id) setSel(null);
+              flash("Deleted. Undo is in the menu at the top.");
+            },
+          },
+        ],
+        p.x,
+        p.y,
+        "other",
+      );
+    }
     else if (action === "test") void test();
     else if (action === "primary") {
       const label = model.head.primary?.label;
@@ -589,7 +638,10 @@ function Body({
             else if (need.kind === "ai") edit(updateStep(def, node.id, { ai: { ...(node.ai ?? {}), keyId: made.id } }));
             else flash("Connected. Pick it on the step.");
           });
-      } else setSel(id);
+      } else {
+        setFocusNeed(id);
+        setSel(id);
+      }
     } else if (action === "trigger") {
       const p = pos(e);
       const triggers = catalog?.triggers ?? [];
@@ -702,6 +754,18 @@ function Body({
     const r = model.rows.find((x) => x.kind === "step" && x.id === sel);
     return r && r.kind === "step" ? { text: r.sentence.text, app: r.app } : undefined;
   })();
+  const given = useMemo(() => {
+    if (!selNode || !catalog) return [];
+    const at = def.nodes.findIndex((n) => n.id === selNode.id);
+    const trig = catalog.triggers.find((t) => t.key === def.triggers[0]?.key);
+    return givenBy({
+      triggerTitle: trig?.title ?? "What starts this",
+      event: pastEvent ?? trig?.sample,
+      steps: def.nodes.slice(0, Math.max(0, at)),
+      titleOf: (n) => n.title?.trim() || catalog.all.find((c) => c.key === n.key)?.title || n.key,
+      outputOf: (key) => catalog.all.find((c) => c.key === key)?.output,
+    });
+  }, [selNode, catalog, def, pastEvent]);
   const inspect = !locked && (selNode !== null || trigSel);
   const stepSchema = selNode && catalog ? catalog.all.find((s) => s.key === selNode.key)?.input : undefined;
   const inspector = inspect ? (
@@ -715,6 +779,8 @@ function Body({
       def={def}
       node={selNode}
       {...(headingOf ? { heading: headingOf.text, mark: headingOf.app } : {})}
+      autoFocusNeed={focusNeed !== null && focusNeed === sel}
+      given={given}
       trigger={trigIndex !== null ? (def.triggers[trigIndex] ?? null) : null}
       triggerIndex={trigIndex}
       issues={issues}
@@ -742,7 +808,7 @@ function Body({
 
   const tabs = [
     { id: "steps", label: "Steps" },
-    { id: "runs", label: failedRuns > 0 ? `Runs, ${failedRuns} failed` : "Runs" },
+    { id: "runs", label: "Runs", ...(failedRuns > 0 ? { badge: failedRuns } : {}) },
     { id: "settings", label: "Settings" },
     ...(tab === "history" ? [{ id: "history", label: "History" }] : []),
   ];
@@ -947,11 +1013,3 @@ function caseOf(whole: Record<string, unknown>, when: string): string {
   return `an earlier event, ${when}`;
 }
 
-/** The first few plain facts a step made, for the test line: only text and numbers, never ids or objects. */
-function valuesOf(output: unknown): readonly (readonly [string, string])[] {
-  if (!output || typeof output !== "object" || Array.isArray(output)) return [];
-  return Object.entries(output as Record<string, unknown>)
-    .filter(([k, v]) => (typeof v === "string" || typeof v === "number") && !/(^|_)id$|Id$/.test(k))
-    .slice(0, 3)
-    .map(([k, v]) => [k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), String(v)] as const);
-}

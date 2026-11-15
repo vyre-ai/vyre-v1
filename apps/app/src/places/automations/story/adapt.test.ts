@@ -28,6 +28,7 @@ const def: DefIn = {
   ],
 };
 
+// round three: a chip names its source and its field ("A form is submitted · Email")
 test("a definition becomes a trigger and steps in the order they run, each a sentence with names and chips and never a field key", () => {
   const r = fromDefinition(def, ctx());
   assert.equal(r.trigger?.template.includes("{form}"), true);
@@ -47,7 +48,7 @@ test("a definition becomes a trigger and steps in the order they run, each a sen
   const rows = m.rows.filter((x) => x.kind === "step");
   assert.equal(
     rows[0]!.kind === "step" && rows[0]!.sentence.text,
-    "Send for signature: Engagement letter.docx, to Email",
+    "Send for signature: Engagement letter.docx, to A form is submitted \u00b7 Email",
   );
   assert.equal(rows[1]!.kind === "step" && rows[1]!.sentence.text.includes("fileId"), false);
 });
@@ -56,7 +57,7 @@ test("a reference becomes a chip that names its source and shows a sample; a tex
   const r = fromDefinition(def, ctx());
   const s1 = r.steps[0]!;
   const to = Object.values(s1.values).find((v) => v && "chip" in v);
-  assert.deepEqual(to, { chip: { label: "Email", from: "A form is submitted", sample: "" } });
+  assert.deepEqual(to, { chip: { label: "A form is submitted \u00b7 Email", from: "A form is submitted", sample: "" } });
   const s2 = r.steps[1]!;
   const text = Object.values(s2.values)
     .map((v) => (v && "text" in v ? v.text : ""))
@@ -172,7 +173,7 @@ test("a loop is one group under 'For each ... in ...:' and parallel lanes one gr
   assert.deepEqual(
     r.steps.map((s) => [s.id, s.group?.head, s.group?.steps.map((g) => g.id)]),
     [
-      ["lp", "For each item in Rows:", ["b1"]],
+      ["lp", "For each item in A form is submitted \u00b7 Rows:", ["b1"]],
       ["pp", "At the same time:", ["x", "y"]],
     ],
   );
@@ -218,7 +219,7 @@ test("a step someone titled reads as its own title, never followed by a dump of 
   const r = fromDefinition(d, ctx());
   assert.equal(r.steps[0]!.template, "Email the lead a first hello");
   assert.deepEqual(r.steps[0]!.values, {});
-  assert.equal(r.steps[0]!.action, "to Email, Hello", "the second line says what the settings add, in words");
+  assert.equal(r.steps[0]!.action, "to A form is submitted \u00b7 Email, Hello", "the second line says what the settings add, in words");
 });
 
 test("no step shows its title twice: the second line is absent or different from the first", () => {

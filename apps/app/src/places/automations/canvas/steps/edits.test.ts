@@ -275,7 +275,8 @@ test("a template is text and data chips, and goes back to the same string", () =
   );
   assert.equal(
     joinTemplate(segs),
-    "Draft the letter for {{ trigger.name }} using {{ steps.find.out.rows }}, then stop.",
+    t,
+    "round three: a template nobody edited goes back exactly as it was (no spaces added)",
   );
   assert.deepEqual(splitTemplate(""), [{ kind: "text", text: "" }]);
   assert.equal(joinTemplate(splitTemplate("no data here")), "no data here");
@@ -293,4 +294,23 @@ test("chips say what they bring in, by the step's name, and dropping one joins t
   assert.equal(joinTemplate(dropChip(splitTemplate("a {{ trigger }} b"), 1)), "a  b");
   assert.equal(addChip("Draft it", "trigger"), "Draft it {{ trigger }}");
   assert.equal(addChip("", "trigger"), "{{ trigger }}");
+});
+
+test("every template the engine's tests use goes to chips and back unchanged; an expression the chip cannot show stays whole as a formula", () => {
+  for (const t of [
+    "{{ steps.a.out.records }}",
+    "{{ trigger.box }}",
+    "{{ trigger.email }}",
+    "{{ trigger.fileId }}",
+    "{{trigger.host}}",
+    "Hi {{trigger.name}}, {{ steps.find.out.rows[0] }} and {{ trigger.first_name | there }}",
+    "{{ a + b * 2 }} then {{ upper(trigger.name) }}",
+  ])
+    assert.equal(joinTemplate(splitTemplate(t)), t, t);
+  const segs = splitTemplate("a {{ upper(trigger.name) }} b {{ trigger.name }}");
+  const chips = segs.filter((x) => x.kind === "chip");
+  assert.deepEqual(
+    chips.map((c) => (c.kind === "chip" ? Boolean(c.formula) : null)),
+    [true, false],
+  );
 });

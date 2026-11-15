@@ -110,7 +110,7 @@ test("the doors the old canvas had still open: History carries the run migration
 
 test("the head still says the version, the failed count and what the Automation sends from; a step nothing leads to is still a row", async () => {
   const { createRoot } = await import("test-renderer");
-  const { flush, installDom, mount, textOf } = await import("../../../../../../ui/src/testing/dom.ts");
+  const { find, flush, installDom, mount, textOf } = await import("../../../../../../ui/src/testing/dom.ts");
   installDom();
   const s = createSampleAutomations(northwind);
   const row = s.replica.rows("automations").find((r) => r["id"] === "aut_digest")!;
@@ -141,5 +141,7 @@ test("the head still says the version, the failed count and what the Automation 
     </AutomationsDataProvider>,
   );
   for (let i = 0; i < 4; i++) await flush();
-  assert.ok(/Runs, \d+ failed/.test(textOf(root2)), "the failed count");
+  // round three: the count is a small amber dot with the number, not words in the label
+  assert.ok(find(root2, "page-tab-badge-runs"), "the failed count");
+  assert.equal(/Runs, \d+ failed/.test(textOf(root2)), false);
 });
