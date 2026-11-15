@@ -77,33 +77,54 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
 /** The people who may connect a Space service: the Space's owners and admins (the person asking among them, when they are one). */
 const adminsOf = (ctx: VaultReqCtx): Promise<string[]> => managersFor(ctx, undefined, "");
 
-/** The person's own saved key for the service the agent can use: an item named for it, holding every required field. */
+/** What the card stamps on a key it saves: the item, the person who saved it, and the hosts the connector's actions call. Set only by the card's own save. */
+interface Stamp {
+  item: string;
+  by: string;
+  hosts: string[];
+}
+const sameHosts = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && [...a].sort().join("\n") === [...b].sort().join("\n");
+const stampsOf = (row: RequestRow): Stamp[] => {
+  try {
+    const got = JSON.parse(row.saved_json ?? "[]") as unknown;
+    return Array.isArray(got) ? (got as Stamp[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * The person's own saved key for this service, offered only on their own card (a person's press, never an agent's call): a key THIS card saved for the same connector, for this person, with the same hosts
+ * it is sent to now. A key named like the service, or typed by hand into the Vault, is never offered: the name proves nothing. Rule A of the review r-keyreach-9-b-connect.
+ */
 async function savedKey(
   ctx: VaultReqCtx,
-  row: RequestRow,
   svc: Service,
   folders: Map<string, FolderRef>,
   usable: Map<string, boolean>,
 ): Promise<{ itemId: string; name: string; keptIn: string } | null> {
-  let items: Record<string, unknown>[] = [];
-  try {
-    items = ((asRow(await ctx.call("vault.items.list", { q: svc.title }))?.["items"] as unknown[] | undefined) ?? [])
-      .map((i) => asRow(i))
-      .filter((i): i is Record<string, unknown> => !!i);
-  } catch {
-    return null;
-  }
+  const me = personOf(ctx);
+  if (ctx.principal.kind !== "person" || !me || svc.hosts.length === 0) return null;
   const need = svc.fields.filter((f) => !f.optional).map((f) => f.name);
-  const exact = new RegExp(`^${svc.title.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}(_\\d+)?$`, "i");
-  for (const it of items) {
-    const folder = folders.get(String(it["folderId"] ?? ""));
-    // only an item the card itself saved for this service (its own name, or a numbered one), never a name that merely starts alike
-    if (!folder || !exact.test(String(it["name"] ?? ""))) continue;
+  const stamps = (ctx.db.all(`SELECT * FROM ${TABLE} WHERE service = ?`, svc.key) as RequestRow[])
+    .flatMap(stampsOf)
+    .filter((st) => st.by === me && sameHosts(st.hosts, svc.hosts))
+    .reverse();
+  for (const st of stamps) {
+    let it: Record<string, unknown> | undefined;
+    try {
+      it = asRow(asRow(await ctx.call("vault.item.get", { itemId: st.item }))?.["item"]) ?? undefined;
+    } catch {
+      continue; // gone, trashed, or no longer this person's to open
+    }
+    const folder = it ? folders.get(String(it["folderId"] ?? "")) : undefined;
+    if (!it || !folder) continue;
     const keys = Array.isArray(it["fieldKeys"]) ? (it["fieldKeys"] as unknown[]).map(String) : [];
     if (!need.every((k) => keys.includes(k)) || usable.get(folder.id) !== true) continue;
     // only the person's own saved key is offered back to them; a key the team shares is not theirs to attach
     if (folder.scope !== "mine") continue;
-    return { itemId: String(it["id"]), name: String(it["name"]), keptIn: "Mine" };
+    return { itemId: String(it["id"]), name: String(it["name"] ?? ""), keptIn: "Mine" };
   }
   return null;
 }
@@ -161,14 +182,14 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
     else if (phase === "offline") state = "offline";
     else {
       state = "ask";
-      if (askerView && svc.scope === "person") {
+      if (askerView && svc.scope === "person" && ctx.principal.kind === "person") {
         const folders = await foldersOf(ctx);
         const usable = await keptUsable(
           ctx,
           row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined,
           [...folders.values()],
         );
-        have = await savedKey(ctx, row, svc, folders, usable);
+        have = await savedKey(ctx, svc, folders, usable);
         if (have) state = "have";
       }
     }
@@ -204,7 +225,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
       ? { notice: `Your key is saved${svc.scope === "space" ? "" : " in Mine"}. Couldn't connect.` }
       : {}),
     checks: svc.checks,
-    ...(!svc.builtin && svc.hosts.length > 0 && mayFill && ["ask", "wrong", "offline", "have"].includes(state)
+    ...(svc.hosts.length > 0 && mayFill && ["ask", "wrong", "offline", "have"].includes(state)
       ? { checksWith: svc.hosts.join(", ") }
       : {}),
     ...(row.decided_by && row.decided_by !== row.asker_id ? { connectedBy: row.decided_by } : {}),
@@ -340,6 +361,7 @@ async function statusOf(
 }
 
 export async function connectGet(ctx: VaultReqCtx, input: { requestId: string }) {
+  personOnly(ctx);
   return { card: await cardOf(ctx, input.requestId) };
 }
 
@@ -354,6 +376,7 @@ function defaultFolder(own: boolean, folders: readonly FolderRef[], usable: Map<
 
 /** Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot (shown, not choosable). */
 export async function connectOptions(ctx: VaultReqCtx, input: { requestId: string }) {
+  personOnly(ctx);
   const { row, asRequester, asManager } = visible(ctx, input.requestId);
   const svcOf = row.service ? await serviceOf(ctx, row.service) : null;
   // a Space service is kept in the Space's Connections folder and nowhere else: the menu offers that one (or nothing, when it is yet to be made)
@@ -480,8 +503,18 @@ export async function connectSubmit(
           attempt,
         },
   );
-  // A key that was saved in this same call and could not be connected is erased for good (vault.item.discard_new: only one this person saved moments ago and nothing has used), and a connection made from it is removed.
-  // If the erase itself fails the person is told on the card that the key is saved.
+  // The card's own stamp on the key it just saved (who, which service, the hosts the key goes to) and the one item of this try that can be taken back: written only here, never from a name a person gave an item.
+  if (stored.made) {
+    const kept = [...stampsOf(requestById(ctx, row.id) ?? row), { item: stored.itemId, by: decided.me, hosts: svc.hosts }];
+    ctx.db.run(
+      `UPDATE ${TABLE} SET saved_json = ?, try_item = ? WHERE id = ?`,
+      JSON.stringify(kept),
+      stored.itemId,
+      row.id,
+    );
+  }
+  // A key that was saved in this same call and could not be connected is erased for good (vault.item.discard_new, bound to this request and this try: only the one item this card saved and nothing has used),
+  // and a connection made from it is removed. If the erase itself fails the person is told on the card that the key is saved.
   const takeBack = async (connectionId?: string): Promise<boolean> => {
     if (connectionId)
       await ctx
@@ -499,8 +532,12 @@ export async function connectSubmit(
     try {
       await ctx.call("vault.item.discard_new", {
         itemId: stored.itemId,
+        requestId: row.id,
         idempotencyKey: `${row.id}:take-back-key:${attempt}`,
       });
+      // gone: its stamp goes too, so it is never offered back
+      const left = stampsOf(requestById(ctx, row.id) ?? row).filter((x) => x.item !== stored.itemId);
+      ctx.db.run(`UPDATE ${TABLE} SET saved_json = ?, try_item = ? WHERE id = ?`, JSON.stringify(left), null, row.id);
       return true;
     } catch {
       return false;
@@ -551,12 +588,25 @@ export async function connectSubmit(
     return done("offline");
   }
 
-  // 4 Saved: the request closes, and the agent is told to carry on
+  // 4 Saved: the request closes, and the agent is told to carry on. The key is kept now, so nothing of this try is left to take back.
+  ctx.db.run(`UPDATE ${TABLE} SET try_item = ? WHERE id = ?`, null, row.id);
   await finishFulfil(ctx, decided, stored, {
     connectionId,
     ...(saved ? (svc.checks ? { tested: "Used your saved key" } : {}) : testedLine ? { tested: testedLine } : {}),
   });
   return done("connected");
+}
+
+/**
+ * The Vault asks this before it erases a key (vault.item.discard_new): is this item the one key this person's own card saved in its open try, before any connection was made from it? A person only, for their own
+ * request only. Nothing else is ever erased: not an agent's call, not another request's item, not a key a connection already uses.
+ */
+export async function connectMayDiscard(ctx: VaultReqCtx, input: { requestId: string; itemId: string }) {
+  personOnly(ctx);
+  const { row } = visible(ctx, input.requestId);
+  if (!row.service || !row.try_item || row.try_item !== input.itemId)
+    raise(ctx.trace.traceId, "permission.no_grant", "Only the key this card just saved can be taken back.");
+  return { ok: true };
 }
 
 /** The person may not connect this service: ask an admin, by name. The card then says Asked and finishes by itself when the admin connects it. */

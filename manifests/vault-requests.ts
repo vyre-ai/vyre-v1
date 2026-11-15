@@ -215,7 +215,8 @@ export default defineManifest({
         ...V,
         in: { requestId: reqId },
         out: { card: connectCard },
-        tool: "vault",
+        // a person's card, never an agent's tool: the agent learns nothing of what a person has or chooses (review r-keyreach-9-b-connect, item A)
+        agent: false,
         errors: ["internal.not_implemented"],
       },
     ),
@@ -226,7 +227,8 @@ export default defineManifest({
         ...V,
         in: { requestId: reqId },
         out: { folders: t.arr(keptInRow), default: t.opt(id.vaultFolder) },
-        tool: "vault",
+        // a person's card, never an agent's tool: the agent learns nothing of what a person has or chooses (review r-keyreach-9-b-connect, item A)
+        agent: false,
         errors: ["internal.not_implemented"],
       },
     ),
@@ -245,7 +247,8 @@ export default defineManifest({
         out: { result: t.enm("connected", "wrong", "offline"), card: connectCard },
         emits: ["vault.request_fulfilled"],
         audit: "always",
-        tool: "vault",
+        // a person's card, never an agent's tool: the agent learns nothing of what a person has or chooses (review r-keyreach-9-b-connect, item A)
+        agent: false,
         offline: "online",
         errors: [
           "internal.not_implemented",
@@ -255,20 +258,32 @@ export default defineManifest({
         ],
       },
     ),
+    // asked by the Vault before it takes a key back: yes only for the key this person's own card saved in its open try. No tool, never an agent's.
+    read(
+      "vault.connect_card.may_discard",
+      "Is this the one key the person's own connect card saved and has not yet connected? Asked by the Vault before it takes a key back",
+      {
+        ...V,
+        in: { requestId: reqId, itemId: id.vaultItem },
+        out: ok,
+        agent: false,
+        errors: ["internal.not_implemented", "permission.no_grant", "validation.not_found"],
+      },
+    ),
     write("vault.connect_card.ask_admin", "Ask an admin to connect the service when this person may not", {
       ...V,
       in: { requestId: reqId, admin: t.opt(id.user) },
       out: { card: connectCard },
       emits: [],
       audit: "sensitive",
-      tool: "vault",
+      agent: false,
       errors: ["internal.not_implemented", "permission.no_grant", "validation.precondition_failed"],
     }),
     write("vault.connect_card.reopen", "Open a card the person folded with Not now", {
       ...V,
       in: { requestId: reqId },
       out: { card: connectCard },
-      tool: "vault",
+      agent: false,
       errors: ["internal.not_implemented", "permission.no_grant", "validation.precondition_failed"],
     }),
     write("vault.connect_card.disconnect", "Disconnect the service; the key stays in the Vault", {
@@ -276,7 +291,7 @@ export default defineManifest({
       in: { requestId: reqId },
       out: { card: connectCard },
       audit: "always",
-      tool: "vault",
+      agent: false,
       errors: ["internal.not_implemented", "permission.no_grant", "validation.precondition_failed"],
     }),
 

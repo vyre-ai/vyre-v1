@@ -44822,6 +44822,13 @@ export type VaultConnectCardGetOut = {
       }>;
   };
 };
+export type VaultConnectCardMayDiscardIn = {
+  requestId: string;
+  itemId: string;
+};
+export type VaultConnectCardMayDiscardOut = {
+  ok: boolean;
+};
 export type VaultConnectCardOptionsIn = {
   requestId: string;
 };
@@ -45101,6 +45108,7 @@ export type VaultItemDeleteOut = {
 };
 export type VaultItemDiscardNewIn = {
   itemId: string;
+  requestId: string;
 };
 export type VaultItemDiscardNewOut = {
   ok: boolean;
@@ -48284,6 +48292,7 @@ export interface CapMap {
   "vault.connect_card.ask_admin": { in: VaultConnectCardAskAdminIn; out: VaultConnectCardAskAdminOut };
   "vault.connect_card.disconnect": { in: VaultConnectCardDisconnectIn; out: VaultConnectCardDisconnectOut };
   "vault.connect_card.get": { in: VaultConnectCardGetIn; out: VaultConnectCardGetOut };
+  "vault.connect_card.may_discard": { in: VaultConnectCardMayDiscardIn; out: VaultConnectCardMayDiscardOut };
   "vault.connect_card.options": { in: VaultConnectCardOptionsIn; out: VaultConnectCardOptionsOut };
   "vault.connect_card.reopen": { in: VaultConnectCardReopenIn; out: VaultConnectCardReopenOut };
   "vault.connect_card.submit": { in: VaultConnectCardSubmitIn; out: VaultConnectCardSubmitOut };

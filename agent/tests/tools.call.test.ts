@@ -1,4 +1,5 @@
 // The generated catalog, tool_search and the shape of a tool call (ARCH 6.7). The tool count follows generated/mcp-tools.json.
+import { connectCardOn } from "../../lib/connect-switch.ts";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -7,14 +8,14 @@ import { buildCatalog, createToolSession } from "../src/tools/index.ts";
 import type { McpToolRow, RegistryCapRow } from "../src/tools/index.ts";
 import { ctx, loadGenerated, makeSession, thread } from "../src/tools/harness.ts";
 
-test("catalog: every generated tool joins its capability; the frozen default list is 65 real tools", () => {
+test("catalog: every generated tool joins its capability; the frozen default list is 65 real tools, 66 with the connect card on (its one tool, vault_connect)", () => {
   const { catalog, defaults, caps } = loadGenerated();
   // Every generated tool joins the catalog, so the count follows the generated file instead of a literal that each contract change breaks.
   const generated = JSON.parse(readFileSync(new URL("../../generated/mcp-tools.json", import.meta.url), "utf8")) as {
     tools: unknown[];
   };
   assert.equal(catalog.all.length, generated.tools.length);
-  assert.equal(defaults.size, 65);
+  assert.equal(defaults.size, 65 + (connectCardOn() ? 1 : 0));
   for (const n of defaults) assert.ok(catalog.byName(n), `default tool ${n} exists`);
   for (const t of catalog.all) assert.ok(caps.has(t.cap), t.name);
   const stricter = catalog.all.filter((t) => t.effects === "outward").length;
@@ -48,7 +49,7 @@ test("the default listed set loads every turn (about 60); the rest are found wit
   const set = session.toolsFor(ctx());
   assert.equal(
     set.listed.length,
-    65 - loaded.catalog.all.filter((t) => loaded.defaults.has(t.name) && t.toolset === "engineer").length,
+    65 + (connectCardOn() ? 1 : 0) - loaded.catalog.all.filter((t) => loaded.defaults.has(t.name) && t.toolset === "engineer").length,
   );
   assert.ok(set.searchable.length > 500);
   const notDefault = loaded.catalog.all.find(

@@ -3020,6 +3020,7 @@ export function stubs(ctx: CallCtx) {
         ask_admin: call("vault.connect_card.ask_admin"),
         disconnect: call("vault.connect_card.disconnect"),
         get: call("vault.connect_card.get"),
+        may_discard: call("vault.connect_card.may_discard"),
         options: call("vault.connect_card.options"),
         reopen: call("vault.connect_card.reopen"),
         submit: call("vault.connect_card.submit"),

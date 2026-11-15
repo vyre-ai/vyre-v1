@@ -1,0 +1,1 @@
+- Connect a service from one card in the chat: the assistant asks, you paste a key or use the one the card saved for you, and the key is kept in Mine for you and that assistant. The card shows the addresses the key will be sent to before you save, a key is only ever sent to those addresses, and nobody else in the chat sees what you have saved or chosen.

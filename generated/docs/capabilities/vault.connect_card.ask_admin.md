@@ -17,7 +17,7 @@ Ask an admin to connect the service when this person may not
 | Audit | sensitive |
 | Team Space only | no |
 | HTTP | POST /v1/vault/connect_card/ask_admin |
-| MCP tool | vault_connect_card_ask_admin (vault) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

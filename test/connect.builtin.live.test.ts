@@ -48,8 +48,8 @@ const listed = async (): Promise<string[]> => {
   }
 };
 
-test("off: the connector list equals rc.27's built-ins, with no Fathom", async () => {
-  delete process.env["VYRE_CONNECT_CARD"];
+test("off (VYRE_CONNECT_CARD=0): the connector list equals rc.27's built-ins, with no Fathom", async () => {
+  process.env["VYRE_CONNECT_CARD"] = "0";
   assert.deepEqual(await listed(), registry());
   assert.ok(!/fathom/i.test(seen.steps), "the step picker has no Fathom");
   assert.ok(!/fathom/i.test(seen.connections), "the connections flow has no Fathom");
@@ -58,8 +58,8 @@ test("off: the connector list equals rc.27's built-ins, with no Fathom", async (
   assert.ok(seen.forServiceBody.includes("Connecting a service this way is not available yet."), seen.forServiceBody);
 });
 
-test("on: Fathom is built in as well", async () => {
-  process.env["VYRE_CONNECT_CARD"] = "1";
+test("on (the default): Fathom is built in as well", async () => {
+  delete process.env["VYRE_CONNECT_CARD"];
   try {
     assert.deepEqual(await listed(), [...registry(), "fathom"].sort());
     assert.equal(seen.get, 200, "Fathom has its connector page");

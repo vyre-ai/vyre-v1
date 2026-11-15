@@ -22,8 +22,8 @@ test("the file seeds Fathom and nothing else", () => {
   );
 });
 
-test("off: a fresh Space lists exactly the registry's built-ins, and Fathom is not there", async () => {
-  delete process.env["VYRE_CONNECT_CARD"];
+test("off (VYRE_CONNECT_CARD=0): a fresh Space lists exactly the registry's built-ins, and Fathom is not there", async () => {
+  process.env["VYRE_CONNECT_CARD"] = "0";
   const k = kit();
   const all = await k.hs["connectors.list"](k.ctx, {});
   assert.deepEqual(all.connectors.map((c) => c.key).sort(), registry());
@@ -34,8 +34,8 @@ test("off: a fresh Space lists exactly the registry's built-ins, and Fathom is n
   assert.deepEqual((await k.hs["connectors.for_service"](k.ctx, { service: "Fathom" })).found, false);
 });
 
-test("on: Fathom is built in as well", async () => {
-  process.env["VYRE_CONNECT_CARD"] = "1";
+test("on (the default): Fathom is built in as well", async () => {
+  delete process.env["VYRE_CONNECT_CARD"];
   try {
     const k = kit();
     const all = await k.hs["connectors.list"](k.ctx, {});

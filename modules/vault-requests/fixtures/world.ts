@@ -118,6 +118,7 @@ export function world(over: Partial<Script> = {}) {
           return {
             item: {
               id: old.id,
+              name: old.name,
               folderId: old.folderId,
               scope: f?.scope ?? "mine",
               owner: "usr_asker",
@@ -170,7 +171,7 @@ export function world(over: Partial<Script> = {}) {
             mode: "api",
             fields: c.fields,
             ...(c.site ? { site: c.site } : {}),
-            hosts: script.thirdParty ? ["api.example.test", "files.example.test"] : [],
+            hosts: script.thirdParty ? ["api.example.test", "files.example.test"] : ["api.fathom.ai"],
             builtin: script.thirdParty !== true,
             checks: script.noProbe !== true,
             ...(script.thirdParty ? { host: "api.example.test" } : {}),

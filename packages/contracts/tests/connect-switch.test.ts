@@ -46,3 +46,37 @@ test("vault.item.discard_new is not an agent tool: no MCP surface, never visible
     false,
   );
 });
+
+test("the card's own acts are no agent tool: get, options, submit, ask_admin, reopen, disconnect and may_discard have no MCP surface (review r-keyreach-9-b-connect, item A)", () => {
+  const tools = (
+    JSON.parse(readFileSync(new URL("../../../generated/mcp-tools.json", import.meta.url), "utf8")) as {
+      tools: { cap: string | null }[];
+    }
+  ).tools;
+  for (const name of [
+    "vault.connect_card.get",
+    "vault.connect_card.options",
+    "vault.connect_card.submit",
+    "vault.connect_card.ask_admin",
+    "vault.connect_card.reopen",
+    "vault.connect_card.disconnect",
+    "vault.connect_card.may_discard",
+  ]) {
+    assert.equal(caps.get(name)!.surfaces.mcp, undefined, `${name} is an agent tool`);
+    assert.equal(
+      tools.some((t) => t.cap === name),
+      false,
+      `${name} is in the agent tool list`,
+    );
+  }
+});
+
+test("the only connect capability an agent can call is vault.connect, and no capability an agent can reach erases a Vault item for good", () => {
+  const agentConnect = [...caps.values()].filter(
+    (c) => c.surfaces.mcp !== undefined && (c.name.startsWith("vault.connect") || c.name === "vault.item.discard_new"),
+  );
+  assert.deepEqual(
+    agentConnect.map((c) => c.name),
+    ["vault.connect"],
+  );
+});

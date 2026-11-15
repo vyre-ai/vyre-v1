@@ -1,9 +1,10 @@
-// THE switch for the connect card (b-connect, 14 Nov 2026) and everything behind it. Off by default: rc.28 ships without it (the review r-keyreach-9-b-connect found three open items: a saved key offered by name only,
-// the approved hosts not the hosts the actions call, and vault.item.discard_new as a general erase in every agent's list). Set VYRE_CONNECT_CARD=1 to turn it on. Read at the moment of each call, never cached, so a
-// test that turns it on for itself needs no restart. Every site that gates the feature reads this one function; nothing else decides.
+// THE switch for the connect card (b-connect, 14 Nov 2026) and everything behind it. ON by default from rc.29 (b-connect2, 15 Nov 2026), after the three items the review r-keyreach-9-b-connect left open were closed:
+// A a saved key is offered only from the card's own stamp and only to the person on their own card, B the key goes only to the hosts the connection's own record lists, checked on the server when it is sent,
+// C no capability an agent can reach erases a Vault item. Set VYRE_CONNECT_CARD=0 (or off, false) to turn it off: ten capabilities then answer `internal.not_implemented` and the agent tools are not offered.
+// Read at the moment of each call, never cached, so a test that turns it off for itself needs no restart. Every site that gates the feature reads this one function; nothing else decides.
 
-/** Is the connect card on? Only the exact value "1". */
-export const connectCardOn = (): boolean => process.env["VYRE_CONNECT_CARD"] === "1";
+/** Is the connect card on? Yes unless the variable is exactly "0", "off" or "false". */
+export const connectCardOn = (): boolean => !["0", "off", "false"].includes(process.env["VYRE_CONNECT_CARD"] ?? "");
 
 /** The one plain refusal every caller gets for a connect capability while the switch is off. */
 export const CONNECT_OFF_MESSAGE = "Connecting a service this way is not available yet.";
@@ -16,6 +17,7 @@ export const CONNECT_CAPS: ReadonlySet<string> = new Set([
   "vault.connect",
   "vault.connect_card.get",
   "vault.connect_card.options",
+  "vault.connect_card.may_discard",
   "vault.connect_card.submit",
   "vault.connect_card.ask_admin",
   "vault.connect_card.reopen",

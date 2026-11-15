@@ -5701,24 +5701,6 @@
   "vault_connect": {
     "service": "Quarterly planning"
   },
-  "vault_connect_card_ask_admin": {
-    "requestId": "vrq_a1b2c3"
-  },
-  "vault_connect_card_disconnect": {
-    "requestId": "vrq_a1b2c3"
-  },
-  "vault_connect_card_get": {
-    "requestId": "vrq_a1b2c3"
-  },
-  "vault_connect_card_options": {
-    "requestId": "vrq_a1b2c3"
-  },
-  "vault_connect_card_reopen": {
-    "requestId": "vrq_a1b2c3"
-  },
-  "vault_connect_card_submit": {
-    "requestId": "vrq_a1b2c3"
-  },
   "vault_export_env": {
     "folderId": "vfd_a1b2c3",
     "expiresIn": "1h"

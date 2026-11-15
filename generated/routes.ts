@@ -39732,6 +39732,24 @@ const routes7: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/vault/connect_card/may_discard",
+    "cap": "vault.connect_card.may_discard",
+    "v": 1,
+    "module": "vault-requests",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/vault/connect_card/options",
     "cap": "vault.connect_card.options",
     "v": 1,
