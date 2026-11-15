@@ -71,8 +71,7 @@ test("a reply being written says what the agent is doing, from its real steps an
     await me.page.getByTestId("composer-field").click();
     await me.page.getByTestId("composer-field").fill("think 2500");
     await me.page.getByTestId("composer-send").click();
-    await me.page.getByTestId("activity-line").waitFor({ timeout: 10_000 });
-    await me.page.getByTestId("activity-line").waitFor({ timeout: 10_000 }); // 99e53ed9b: the excerpt is in the trail now, the line is the calm word
+    await me.page.getByTestId("work-island").waitFor({ timeout: 10_000 }); // the island says what it is doing, once
     await shoot(me.page, dir, "thinking-on-phone", { only: "phone" });
     assert.deepEqual(me.errors, [], "no page errors");
     passes++;
