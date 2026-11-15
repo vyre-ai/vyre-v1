@@ -27,7 +27,7 @@ import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import { INBOX_TIP, followInboxSources, rememberInbox, seedInbox, takeInboxTip } from "../rail/inbox-sources.ts";
 import type { ShellHub } from "../spaces/hub.ts";
-import { watchPurge, webPurgeClient, wipeBrowserStorage } from "../spaces/purge.ts";
+import { removeSpaceFromBrowser, watchPurge, webPurgeClient } from "../spaces/purge.ts";
 import type { ShellPurge } from "../spaces/purge.ts";
 import { HubProvider, useHubState } from "../spaces/context.tsx";
 import { Shell } from "../spaces/Shell.tsx";
@@ -43,7 +43,7 @@ import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
 import { OnboardingHost } from "../../onboarding/OnboardingHost.tsx";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
-import { clearStored, readStored, verifyStoredSession, writeStored } from "./stored.ts";
+import { readStored, verifyStoredSession, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
 import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
 import { teamActions } from "./team-actions.ts";
@@ -590,16 +590,14 @@ export function ShellHost({
             client: webPurgeClient({
               deviceId: "web",
               call: session.call,
-              wipe: () => {
-                wipeBrowserStorage();
-                clearStored();
-              },
+              // this Space only: the other Spaces signed in on this browser stay signed in (spaces/purge.ts says what is kept on purpose)
+              wipe: () => removeSpaceFromBrowser(stored),
               done: () => onSignedOut(),
             }),
             subscribe: (l) => session.onPurge(l),
           }
         : undefined,
-    [session, onSignedOut],
+    [session, onSignedOut, stored.baseUrl, stored.def.spaceId, stored.personId],
   );
   useEffect(
     () =>
