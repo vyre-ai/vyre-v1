@@ -15,6 +15,8 @@ interface Preview {
   memory: number;
   bytes: number;
   routines: number;
+  chatPeople: Array<{ id: string; name: string }>;
+  folderPeople: Array<{ id: string; name: string }>;
   named: Array<{ kind: "automation" | "task" | "goal" | "project"; id: string; title: string; link: string }>;
   backups: string;
   backupsKeptDays?: number;
@@ -34,6 +36,13 @@ export function bytesText(n: number): string {
   return `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${u[i]}`;
 }
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+/** "3 people have their own folder on its computer", or the names when there are five or fewer: "Noah and Maya have a chat with it". */
+export function peopleLine(people: ReadonlyArray<{ name: string }>, many: string, one: string): string {
+  if (people.length > 5) return `${people.length} people ${many}`;
+  const names = people.map((p) => p.name);
+  const list = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]!}`;
+  return `${list} ${names.length === 1 ? one : many}`;
+}
 const KIND_WORD = { automation: "Automation", task: "Task", goal: "Goal", project: "Project" } as const;
 
 export function DeleteForGoodSheet({
@@ -116,6 +125,16 @@ export function DeleteForGoodSheet({
               {preview.routines > 0 ? (
                 <Text style={s.line}>{plural(preview.routines, "routine", "routines")}</Text>
               ) : null}
+              {preview.folderPeople.length > 0 ? (
+                <Text style={s.line} testID="forgood-folder-people">
+                  {peopleLine(preview.folderPeople, "have their own folder on its computer", "has their own folder on its computer")}
+                </Text>
+              ) : null}
+              {preview.chatPeople.length > 0 ? (
+                <Text style={s.line} testID="forgood-chat-people">
+                  {peopleLine(preview.chatPeople, "have a chat with it", "has a chat with it")}
+                </Text>
+              ) : null}
               {preview.named.length > 0 ? (
                 <View style={s.need} testID="forgood-need">
                   <Text style={s.head}>These will need someone:</Text>
@@ -129,6 +148,9 @@ export function DeleteForGoodSheet({
                   ))}
                 </View>
               ) : null}
+              <Text style={s.warn} testID="forgood-final">
+                This cannot be undone.
+              </Text>
               {preview.backupsKeptDays !== undefined ? (
                 <Text
                   style={s.quiet}
@@ -165,6 +187,7 @@ const s = StyleSheet.create({
   need: { marginTop: 12 },
   head: { fontSize: 13, color: "var(--ink-2)" as string, marginBottom: 4 },
   link: { fontSize: 14, lineHeight: 22, color: "var(--accent)" as string },
+  warn: { fontSize: 13, color: "var(--ink-2)" as string, marginTop: 12 },
   quiet: { fontSize: 12, color: "var(--ink-3)" as string, marginTop: 12 },
   error: { fontSize: 13, color: "var(--danger, #c0392b)" as string, marginTop: 10 },
 });

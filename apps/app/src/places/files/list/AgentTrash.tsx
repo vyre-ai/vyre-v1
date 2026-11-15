@@ -19,6 +19,7 @@ export interface TrashAgent {
   deleting: boolean;
   folderId?: string | undefined;
   erasesAt?: number | undefined;
+  failed?: string | undefined;
   canDelete: boolean;
 }
 
@@ -54,7 +55,9 @@ export function AgentTrashRows({
           id={`trash-agent-${a.agentId}`}
           title={a.name}
           note={
-            a.deleting
+            a.failed !== undefined
+              ? `Could not finish deleting: ${a.failed}`
+              : a.deleting
               ? "Deleting"
               : phone
                 ? "Agent"
@@ -66,7 +69,15 @@ export function AgentTrashRows({
             </View>
           }
           trailing={
-            a.deleting ? (
+            a.failed !== undefined ? (
+              <TextButton
+                label="Try again"
+                testID={`trash-retry-${a.agentId}`}
+                onPress={() =>
+                  tellIfRefused(data.call("agents.delete_for_good", { agentId: a.agentId }), `Could not try again for ${a.name}`)
+                }
+              />
+            ) : a.deleting ? (
               <Text style={st.deleting} testID={`trash-deleting-${a.agentId}`}>
                 Deleting
               </Text>
