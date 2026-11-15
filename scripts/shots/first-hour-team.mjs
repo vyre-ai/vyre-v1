@@ -358,6 +358,17 @@ export const teamSteps = [
 
   // ---- w-first (15 Nov 2026): the walker's first pass, fixed. Each step presses the real thing and says what is on screen when it is wrong.
   {
+    id: "wf-getting-started-fresh",
+    owner: "w-first",
+    run: async (S) => {
+      // a new account in a new Space is in its first week: Getting Started may show; the same read for Dana says the same
+      const mine = await S.api("spaces.onboarding.flow", { flow: "team" });
+      if (mine.fresh !== true) throw new Error(`a new owner is not fresh: ${JSON.stringify(mine)}`);
+      const dana = await S.api("spaces.onboarding.flow", { flow: "member" }, S.state.dana.token);
+      if (dana.fresh !== true) throw new Error(`a new member is not fresh: ${JSON.stringify(dana)}`);
+    },
+  },
+  {
     id: "wf-new-goal",
     owner: "w-first",
     run: async (S) => {
