@@ -1,9 +1,10 @@
 // @tsx
+// The shared walk behind tabs.open-a, tabs.open-b and tabs.open-c (three files, so each stays well inside the 120 s cap of a walk on a busy runner).
 // What opens where (owner, 15 Nov 2026: "What opens as a new tab, how they switch and what opens in the right pane"; the model is D1 to D8 in team/v1/TABS-2026-11-15.md, the rule is
 // apps/app/src/shell/tabs/open-rule.ts). In the real app, one thing of each kind is pressed by pointer, by Cmd-press, by the middle button and by its row menu, and the walk asserts where
 // it opened: a plain press shows it in the tab on screen; Cmd-press, middle-press and "Open in new tab" open a tab beside it and show it; Shift with Cmd opens it behind; a thing already open
 // is shown, not opened twice. Every row measured is written to open-table.txt in the pictures folder.
-import test from "node:test";
+import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -16,7 +17,7 @@ interface TabRow {
   name: string;
 }
 
-test("tabs: a press opens where the model says, by pointer, Cmd-press, the middle button and the menu", async (t) => {
+export async function openWalk(t: TestContext, parts: ReadonlySet<string>, tag: string): Promise<void> {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) {
     if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
@@ -27,7 +28,7 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   const shots = process.env["VYRE_TABS_SHOTS"] ?? "/tmp/vyre-tabs-open";
   fs.mkdirSync(shots, { recursive: true });
-  const table = path.join(shots, "open-table.txt");
+  const table = path.join(shots, `open-table-${tag}.txt`);
   fs.writeFileSync(table, "");
   const space = await bootFreshSpace();
   const web = await edge(dist, space.url);
@@ -154,11 +155,13 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
       if (o.keep !== true) await tidy();
     };
 
-    // ---- Chats: a channel, an agent, a task row ----
-    await place("chats");
     const channelRow = (): import("playwright-core").Locator => page.getByTestId(`row-ch:${ch.channelId}`);
     const launchRow = (): import("playwright-core").Locator =>
       page.locator('[data-testid^="row-ch:chn_"]').filter({ hasText: "Launch" });
+
+    if (parts.has("chats")) {
+    // ---- Chats: a channel, an agent, a task row ----
+    await place("chats");
     await press("chat channel (Chats row)", "plain", channelRow, "here");
     await press("chat channel (Chats row)", "cmd", launchRow, "tab");
     await press("chat channel (Chats row)", "middle", launchRow, "tab");
@@ -169,6 +172,8 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
     await place("chats");
     await press("agent (Chats row)", "plain", () => page.locator('[data-testid^="row-f:agt_"]'), "here");
 
+    }
+    if (parts.has("files")) {
     // ---- Files: a folder and a file in the list ----
     await place("files");
     await page.getByTestId("row-folder-all").click();
@@ -180,17 +185,23 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
     await press("file (Files list)", "menu", fileLine, "tab", { menuText: /open in new tab/i });
     await press("file (Files list)", "plain", fileLine, "here", { dbl: true });
 
+    }
+    if (parts.has("records")) {
     // ---- Records: a type row ----
     await place("records");
     await press("record type (Records row)", "plain", () => page.getByTestId("row-nav:type:agent"), "here");
     await press("record type (Records row)", "cmd", () => page.getByTestId("row-nav:type:contact"), "tab");
     await press("record type (Records row)", "middle", () => page.getByTestId("row-nav:type:contact"), "tab");
 
+    }
+    if (parts.has("automations")) {
     // ---- Automations ----
     await place("automations");
     await press("Automation (list row)", "plain", () => page.getByText("Welcome new leads", { exact: true }), "here");
     await press("Automation (list row)", "cmd", () => page.getByText("Intake review", { exact: true }), "tab");
 
+    }
+    if (parts.has("console")) {
     // ---- Console, Settings, Vault, Inbox ----
     await place("console");
     await press("Console page (row)", "plain", () => page.getByTestId("row-nav-access"), "here");
@@ -203,6 +214,8 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
     await place("inbox");
     await press("Inbox list (row)", "plain", () => page.getByTestId("row-nav:view:thread"), "here");
 
+    }
+    if (parts.has("links")) {
     // ---- links to things inside a message: the right pane beside the chat (D3, D4) ----
     {
       const me = JSON.stringify(await api("identity.whoami", {})).match(/usr_[a-z0-9]+/)![0];
@@ -259,17 +272,53 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
       if (!fileInPane || (await tabsNow()) !== b0) failures.push("file link in a message did not open the pane");
       await page.screenshot({ path: path.join(shots, "link-file-pane.png") });
       // a second thing replaces the first; Back in the pane returns to it
+      const reqs: string[] = [];
+      page.on("response", (r) => {
+        if (r.url().includes("/v1/")) reqs.push(`${r.status()} ${r.url().replace(web.origin, "")}`);
+      });
+      page.on("requestfailed", (r) => reqs.push(`FAILED ${r.url().replace(web.origin, "")} ${r.failure()?.errorText}`));
+      page.on("console", (m) => { if (m.type() === "error") reqs.push(`console: ${m.text().slice(0, 200)}`); });
       await page.getByTestId(`link-${recordId}`).first().click();
-      await page.waitForTimeout(1800);
+      const t0 = Date.now();
+      {
+        const types = ((await api("schema.types.list", {})).types as { key: string }[]).map((x) => x.key);
+        const lines: string[] = [];
+        for (const type of types) {
+          const a = Date.now();
+          const r = await context.request.post(`${web.origin}/v1/records/get`, {
+            headers: { authorization: `Bearer ${token}` },
+            data: { type, recordId },
+            timeout: 20_000,
+          }).then((x) => x.status()).catch((e) => String(e).slice(0, 60));
+          lines.push(`${type}: ${r} in ${Date.now() - a} ms`);
+        }
+        fs.writeFileSync(path.join(shots, "types-probe.txt"), lines.join("\n") + "\nrecordId " + recordId + "\n");
+      }
+      const recordShown = await page
+        .getByTestId("side-pane")
+        .getByText("Everything")
+        .first()
+        .waitFor({ timeout: 40_000 })
+        .then(() => true)
+        .catch(() => false);
+      fs.writeFileSync(path.join(shots, "reqs-probe.txt"), reqs.join("\n"));
+      fs.writeFileSync(path.join(shots, "record-probe.txt"), `the record is in the pane after ${Date.now() - t0} ms: ${recordShown}\n`);
       const backShown = await seen("thing-pane-back");
       note(
         `${"record link (a second thing)".padEnd(34)} ${"plain".padEnd(8)} expected pane+Back got ${backShown ? "pane+Back" : "no Back"}`,
       );
       if (!backShown) failures.push("a second thing in the pane has no Back");
       await page.screenshot({ path: path.join(shots, "link-record-pane.png") });
+      const paneText = (): Promise<string> =>
+        page.getByTestId("side-pane").innerText().catch(() => "no pane");
+      fs.writeFileSync(path.join(shots, "back-probe.txt"), `before Back: ${JSON.stringify((await paneText()).slice(0, 120))}\n`);
       await page.getByTestId("thing-pane-back").click();
+      for (const ms of [400, 1500, 4000]) {
+        await page.waitForTimeout(ms);
+        fs.appendFileSync(path.join(shots, "back-probe.txt"), `after Back +${ms}: ${JSON.stringify((await paneText()).slice(0, 120))} back=${await page.getByTestId("thing-pane-back").count()}\n`);
+      }
       const firstAgain = await page
-        .getByTestId("chats-thing-pane")
+        .getByTestId("side-pane")
         .getByText("Dear client")
         .first()
         .waitFor({ timeout: 10_000 })
@@ -278,6 +327,10 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
       note(
         `${"Back in the pane".padEnd(34)} ${"plain".padEnd(8)} expected the file got ${firstAgain ? "the file" : "something else"}`,
       );
+      if (!firstAgain) {
+        await page.screenshot({ path: path.join(shots, "back-in-pane-failed.png") });
+        fs.writeFileSync(path.join(shots, "back-in-pane-failed.txt"), await page.getByTestId("side-pane").innerText().catch(() => "no pane"));
+      }
       if (!firstAgain) failures.push("Back in the pane did not return to the first thing");
       // Open as a tab: a tab beside this one, shown, the pane closes
       const before = await strip();
@@ -309,6 +362,8 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
       await page.screenshot({ path: path.join(shots, "link-task-pane.png") });
     }
 
+    }
+    if (parts.has("cmdk")) {
     // ---- the search (Cmd-K) ----
     await place("chats");
     const search = async (how: "plain" | "cmd"): Promise<void> => {
@@ -338,6 +393,8 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
     if (after2.length !== before2.length + 1) failures.push(lineB);
     await tidy();
 
+    }
+    if (parts.has("already")) {
     // ---- a thing already open is shown, not opened twice ----
     await place("chats");
     await press("channel (Plans) opened in a tab", "cmd", channelRow, "tab", { keep: true });
@@ -359,9 +416,10 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
     }
     await page.screenshot({ path: path.join(shots, "open-done.png") });
     assert.deepEqual(failures, [], `where things opened differs from the model:\n${failures.join("\n")}`);
+    }
   } finally {
     await browser.close();
     await web.close();
     await space.stop();
   }
-});
+}

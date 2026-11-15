@@ -1,8 +1,9 @@
 // @tsx
+// The shared walk behind tabs.switch-a and tabs.switch-b (two files, so each stays well inside the 120 s cap of a walk on a busy runner).
 // Switching to a tab that is already open shows what it showed, at once (owner, 16 Nov 2026, F97: "switching tab to the opened file takes about 2 seconds of blank screen before details fill in").
 // In the real app a file (a 42-row, 11-column Markdown table), a record, a chat, an Automation, the Console and Settings are each open in a tab; the tabs are switched between five times each way, and every
 // switch is sampled frame by frame: the time from the press to the tab's own first line on screen, and any frame whose page is empty (no still copy of the old view and nothing of the new one yet).
-import test from "node:test";
+import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +14,7 @@ const SWITCH_MAX_MS = 150;
 /** The ceiling this walk holds today. A switch that crosses places still remounts the place and reads its data again (the file and Settings take 150 to 350 ms here); keeping the last places' screens alive is the fix that reaches SWITCH_MAX_MS and is not built. */
 const HOLD_CEILING_MS = 600;
 
-test("tabs: switching back to an open tab paints its content at once, never an empty page", async (t) => {
+export async function switchWalk(t: TestContext, names: readonly string[], tag: string): Promise<void> {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) {
     if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
@@ -24,7 +25,7 @@ test("tabs: switching back to an open tab paints its content at once, never an e
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   const shots = process.env["VYRE_TABS_SHOTS"] ?? "/tmp/vyre-tabs-switch";
   fs.mkdirSync(shots, { recursive: true });
-  const log = path.join(shots, "switch.txt");
+  const log = path.join(shots, `switch-${tag}.txt`);
   fs.writeFileSync(log, "");
   const say = (m: string): void => {
     fs.appendFileSync(log, m + "\n");
@@ -83,7 +84,7 @@ test("tabs: switching back to an open tab paints its content at once, never an e
     )![1]!;
     say(`file ${md.length} bytes`);
 
-    const places: { name: string; open: () => Promise<void>; marker: RegExp }[] = [
+    const all: { name: string; open: () => Promise<void>; marker: RegExp }[] = [
       {
         name: "chat",
         open: () => page.evaluate((h) => void (location.hash = h), `subject=thread:${ch.mainThreadId}`),
@@ -111,6 +112,7 @@ test("tabs: switching back to an open tab paints its content at once, never an e
       },
       { name: "settings", open: () => page.goto(`${web.origin}/settings`).then(() => undefined), marker: /Profile/ },
     ];
+    const places = all.filter((p) => names.includes(p.name));
     // one tab each. A reload keeps the tabs (they are saved on this device), so each is opened by its own address and then left.
     for (const p of places) {
       await p.open();
@@ -126,7 +128,7 @@ test("tabs: switching back to an open tab paints its content at once, never an e
       );
     const tabs = await strip();
     say(`tabs: ${tabs.map((x) => x.name).join(" | ")}`);
-    assert.ok(tabs.length >= 6, "a tab for each kind");
+    assert.ok(tabs.length >= names.length, "a tab for each kind");
     await page.evaluate(`
       window.__sw = function (marker, ms) {
         return new Promise(function (res) {
@@ -196,4 +198,4 @@ test("tabs: switching back to an open tab paints its content at once, never an e
     await web.close();
     await space.stop();
   }
-});
+}
