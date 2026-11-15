@@ -138,7 +138,7 @@ export async function deletePreview(ctx: AgentsCtx, input: { agentId: string }) 
     inTrash: a.deletedAt !== undefined,
     ...out,
     backups: holdsBackups ? "Backups made before today still hold a copy until they are rotated out." : "",
-    refused: a.kind === "assistant" ? "A person's Assistant stays with them and cannot be deleted." : undefined,
+    ...(a.kind === "assistant" ? { refused: "A person's Assistant stays with them and cannot be deleted." } : {}),
   };
 }
 
