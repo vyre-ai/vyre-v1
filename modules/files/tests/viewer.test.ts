@@ -841,3 +841,19 @@ test("a live file that cannot be fetched says why: an expired sign-in, a rate li
   const id = await d.placeholder("fees.csv", "text/csv");
   assert.equal(await code(call(d.ctx, "files.viewer_data", { fileId: id })), "provider.unavailable");
 });
+
+test("F20: a Drive CSV of a few thousand rows, not fetched yet, opens through the mount with every one of its rows (never 0 rows, never cut short)", async () => {
+  const rows = Array.from({ length: 4000 }, (_, i) => `client ${i + 1},${i + 1}`);
+  const big = `client,fee\n${rows.join("\n")}\n`;
+  const { ctx, placeholder } = await drive(async (c, fileId) => {
+    await call(c, "files.write", { fileId, content: { text: big }, reason: "Fetched from Google Drive" });
+    return { mounted: true, fetched: true, source: { cached: true } };
+  });
+  const id = await placeholder("1 - Wallet Recharge.csv", "text/csv");
+  assert.equal((await call(ctx, "files.get", { fileId: id })).file.size, 0, "it starts as the empty placeholder");
+  const v = await call(ctx, "files.viewer_data", { fileId: id });
+  assert.equal(String(v.text).split("\n").length - 1, 4001, "the header and all 4000 rows");
+  assert.ok(String(v.text).includes("client 4000,4000"), "the last row is there");
+  const r = await call(ctx, "sheets.read_rows", { fileId: id });
+  assert.equal(r.total, 4000);
+});

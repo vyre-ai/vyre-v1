@@ -96,7 +96,7 @@ function FilesBody({
     return (
       <AgentFileGate rt={rt} fileId={fileId}>
         <View style={{ flex: 1, minHeight: 0, minWidth: 0 }}>
-          <FileTrail fileId={fileId} onBack={() => opened({})} />
+          <FileTrail fileId={fileId} onGo={(id) => opened(id === null ? {} : { subject: { type: "folder", id } })} />
           <FileDetail rt={rt} fileId={fileId} />
         </View>
       </AgentFileGate>

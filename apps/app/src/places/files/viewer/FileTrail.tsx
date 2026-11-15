@@ -1,10 +1,11 @@
-// Where an open file is and the way out of it: a Back arrow and the path (the same Breadcrumb as the folder list), above the viewer. The path is the place the person came from (Recent, Starred,
-// Shared with me, Trash, Knowledge) or the file's folders; a folder the person may not open is words, never a link. Back returns to the list as it was (the Files state keeps the place,
-// the folder, the selection and the sort; the list keeps its scroll). Esc does the same when nothing else holds it: a field, a menu or dialog, a markup tool (taken first by the Viewer).
+// Where an open file is: the path (the same Breadcrumb as the folder list) above the viewer. The path is the place the person came from (Recent, Starred, Shared with me, Trash, Knowledge) or the
+// file's folders; a folder the person may not open is words, never a link. There is no Back control here: leaving a file is the shell's Back and Forward (the title bar's arrows, Cmd+[ and Cmd+]),
+// the same in every tab. This file tells the shell which folder the file is in, so a file opened cold goes up to its folder.
 import { useEffect, useState } from "react";
+import { rememberFileFolder } from "../../../shell/tabs/file-folders.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import { Breadcrumb, HeadIcon } from "../Toolbar.tsx";
+import { Breadcrumb } from "../Toolbar.tsx";
 import type { Crumb } from "../Toolbar.tsx";
 import { useFilesData, useFolderNodes } from "../tree/data.tsx";
 import { useFilesState } from "../tree/state.tsx";
@@ -33,18 +34,8 @@ export function fileTrail(
   return out;
 }
 
-/** True when an Escape key press should leave the file: nothing else took it (a field, a menu or dialog, a markup tool already took it with preventDefault). */
-export function escapeLeaves(e: {
-  key: string;
-  defaultPrevented: boolean;
-  target?: { tagName?: string; isContentEditable?: boolean } | null;
-}): boolean {
-  if (e.key !== "Escape" || e.defaultPrevented) return false;
-  const tag = (e.target?.tagName ?? "").toUpperCase();
-  return !(tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target?.isContentEditable === true);
-}
-
-export function FileTrail({ fileId, onBack }: { fileId: string; onBack(): void }): ReactElement {
+/** `onGo` opens a folder (its id) or the Files landing (null) as a new step of the tab: choosing a place on the path is an open, like any other. */
+export function FileTrail({ fileId, onGo }: { fileId: string; onGo(folderId: string | null): void }): ReactElement {
   const data = useFilesData();
   const { state, dispatch } = useFilesState();
   const nodes = useFolderNodes();
@@ -53,32 +44,17 @@ export function FileTrail({ fileId, onBack }: { fileId: string; onBack(): void }
     let live = true;
     setFile(null);
     void (data.call("files.get", { fileId }) as Promise<{ file: { name: string; folderId: string } }>).then(
-      (r) => live && setFile({ name: r.file.name, folderId: r.file.folderId }),
+      (r) => {
+        if (!live) return;
+        rememberFileFolder(fileId, r.file.folderId);
+        setFile({ name: r.file.name, folderId: r.file.folderId });
+      },
       () => undefined,
     );
     return () => {
       live = false;
     };
   }, [data, fileId]);
-  useEffect(() => {
-    const doc = (
-      globalThis as {
-        document?: {
-          addEventListener(t: string, f: (e: KeyboardEvent) => void): void;
-          removeEventListener(t: string, f: (e: KeyboardEvent) => void): void;
-          querySelector(q: string): unknown;
-        };
-      }
-    ).document;
-    if (doc === undefined) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (!escapeLeaves(e as never)) return;
-      if (doc.querySelector('[role="menu"],[role="dialog"],[aria-modal="true"]') !== null) return;
-      onBack();
-    };
-    doc.addEventListener("keydown", onKey);
-    return () => doc.removeEventListener("keydown", onKey);
-  }, [onBack]);
   const visible = nodes.status === "ready" ? nodes.data : [];
   const trail = fileTrail(state.where, visible, file).map((c) =>
     // a folder the person cannot open (it is not in the folders they can see) is words
@@ -87,13 +63,16 @@ export function FileTrail({ fileId, onBack }: { fileId: string; onBack(): void }
       : c,
   );
   const go = (id: string | null): void => {
-    if (id !== null && id.startsWith(PLACE)) dispatch({ type: "go", where: { kind: id.slice(PLACE.length) } as Where });
-    else dispatch({ type: "go", where: { kind: "folder", id } });
-    onBack();
+    if (id !== null && id.startsWith(PLACE)) {
+      dispatch({ type: "go", where: { kind: id.slice(PLACE.length) } as Where });
+      onGo(null);
+    } else {
+      dispatch({ type: "go", where: { kind: "folder", id } });
+      onGo(id);
+    }
   };
   return (
     <View style={s.bar} testID="file-trail">
-      <HeadIcon icon="back" label="Back" testID="file-back" onPress={onBack} />
       <Breadcrumb crumbs={trail} onGo={go} />
     </View>
   );

@@ -1,6 +1,6 @@
 // A real file opened in the real app shows its content (13 Nov 2026: every CSV and workbook opened as "0 rows, 0 columns" from the first viewer commit, and nobody opened a real file to see it). Real Chromium
 // against the production export and a claimed daemon: a CSV, a REAL two-sheet workbook (built through the sheets capabilities, not a stub), a PDF, an image, a Markdown and a text file are each opened from the
-// list and their content is asserted on screen; Back returns to the same list; a live file whose fetch fails shows the error with Try again, and Try again shows the content.
+// list and their content is asserted on screen; the shell's Back returns to the same list; a file opened cold goes up to its folder; a live file whose fetch fails shows the error with Try again, and Try again shows the content.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -121,6 +121,12 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
     await make("notes.md", { text: "# Walk heading\n\nA markdown paragraph." });
     await make("plain.txt", { text: "Plain walk text" });
     await make("live.csv", { text: "client,fee\nLive,99\n" }, "text/csv");
+    // a few thousand rows: every one of them opens (F20)
+    await make(
+      "big.csv",
+      { text: `client,fee\n${Array.from({ length: 3000 }, (_, i) => `client ${i + 1},${i + 1}`).join("\n")}\n` },
+      "text/csv",
+    );
 
     const openList = async (): Promise<void> => {
       await page.goto(`${web.origin}/files`, { waitUntil: "load" });
@@ -132,7 +138,9 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
       await page.getByText(name, { exact: true }).first().dblclick();
     };
     const back = async (): Promise<void> => {
-      await page.getByTestId("file-back").click();
+      // the shell's own Back (the title bar's arrow): a file has no second one
+      assert.equal(await page.getByTestId("file-back").count(), 0, "the file has no back control of its own");
+      await page.getByTestId("nav-back").click();
       await page.getByText("fees.csv", { exact: true }).first().waitFor({ timeout: 15_000 });
       assert.equal(
         (await page.getByTestId("files-title").innerText()).trim(),
@@ -144,6 +152,32 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
     const body = async (): Promise<string> => (await page.locator("body").innerText()).replace(/\s+/g, " ");
 
     await openList();
+    // F27: the picture's thumbnail in the list is drawn (an image element sends no sign-in, so a bare address stayed an empty frame)
+    await page
+      .waitForFunction(
+        () =>
+          [...document.querySelectorAll('[data-testid="thumb-image"]')].some(
+            (e) =>
+              (e instanceof HTMLImageElement && e.complete && e.naturalWidth > 1) ||
+              /blob:/.test(getComputedStyle(e).backgroundImage),
+          ),
+        null,
+        { timeout: 20_000 },
+      )
+      .catch(async () => {
+        await shot("thumb-missing");
+        throw new Error("the picture's thumbnail in the Files list is not drawn");
+      });
+    await shot("list-with-pictures");
+    await open("big.csv");
+    await page
+      .getByText("client 3000")
+      .first()
+      .waitFor({ timeout: 30_000 })
+      .catch(() => undefined);
+    assert.match(await body(), /3,?000 rows/, "all 3000 rows of the CSV");
+    await shot("csv-3000");
+    await back();
     // CSV: rows on screen, not "0 rows"
     await open("fees.csv");
     await page.getByText("Acme").first().waitFor({ timeout: 20_000 });
@@ -195,9 +229,21 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
     await open("plain.txt");
     await page.getByText("Plain walk text").first().waitFor({ timeout: 20_000 });
     await shot("text");
-    // Esc leaves the file too
-    await page.keyboard.press("Escape");
+    // a file opened cold (a pasted link) has no history: the shell's Back leads up to the folder the file is in
+    const feesId = (await call("files.list", { folder: folderId })).files.find((f: any) => f.name === "fees.csv")
+      .fileId as string;
+    await page.goto(`${web.origin}/files#subject=file:${feesId}`, { waitUntil: "load" });
+    await page.getByText("Acme").first().waitFor({ timeout: 20_000 });
+    await page.getByTestId("files-path").waitFor({ timeout: 10_000 });
+    assert.match(await page.getByTestId("files-path").innerText(), /Walk/, "the path shows the folder");
+    await page.getByTestId("nav-back").click();
     await page.getByText("fees.csv", { exact: true }).first().waitFor({ timeout: 15_000 });
+    assert.equal(
+      (await page.getByTestId("files-title").innerText()).trim(),
+      "Walk",
+      "a cold file goes up to its folder",
+    );
+    await shot("cold-up");
 
     // a live file whose fetch fails: the error with Try again; Try again shows the content
     const liveId = (await call("files.list", { folder: folderId })).files.find((f: any) => f.name === "live.csv")

@@ -1,10 +1,11 @@
-// An open file always shows where it is and the way out: a Back arrow and the folder list's own Breadcrumb. From a folder the path is the folders; from Recent, Starred, Shared with me, Trash or
-// Knowledge it is that place; a folder the person may not open is words, never a link; Back and Esc leave to the list as it was; Esc is not taken from a field, a menu or a markup tool.
+// An open file always shows where it is: the folder list's own Breadcrumb (the way out is the shell's Back, not a control of the file's own). From a folder the path is the folders; from Recent, Starred, Shared with me, Trash or
+// Knowledge it is that place; a folder the person may not open is words, never a link.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { installDom, mount, find, press, textOf, flush } from "../../../../../../ui/src/testing/dom.ts";
-import { FileTrail, escapeLeaves, fileTrail } from "../viewer/FileTrail.tsx";
+import { FileTrail, fileTrail } from "../viewer/FileTrail.tsx";
+import { upHash } from "../../../shell/tabs/store.ts";
 import { createSampleFiles, northwind } from "../list/sample.ts";
 import { FilesDataProvider, FilesStateProvider } from "../tree/index.ts";
 import type { FilesState, Where } from "../tree/index.ts";
@@ -43,19 +44,6 @@ test("the trail: from a folder it is Files and the folders to the file; from eac
   assert.equal(fileTrail({ kind: "folder", id: null }, nodes, null).at(-1)!.name, "");
 });
 
-test("Esc leaves unless a field, a menu or dialog, or a markup tool has it", () => {
-  assert.equal(escapeLeaves({ key: "Escape", defaultPrevented: false, target: { tagName: "DIV" } }), true);
-  assert.equal(
-    escapeLeaves({ key: "Escape", defaultPrevented: true, target: { tagName: "DIV" } }),
-    false,
-    "taken (Draw mode)",
-  );
-  assert.equal(escapeLeaves({ key: "Escape", defaultPrevented: false, target: { tagName: "TEXTAREA" } }), false);
-  assert.equal(escapeLeaves({ key: "Escape", defaultPrevented: false, target: { tagName: "INPUT" } }), false);
-  assert.equal(escapeLeaves({ key: "Escape", defaultPrevented: false, target: { isContentEditable: true } }), false);
-  assert.equal(escapeLeaves({ key: "a", defaultPrevented: false }), false);
-});
-
 async function rig(where: Where, file: { name: string; folderId: string }) {
   const s = createSampleFiles(northwind);
   const data = {
@@ -68,7 +56,7 @@ async function rig(where: Where, file: { name: string; folderId: string }) {
     createRoot,
     <FilesDataProvider value={data}>
       <FilesStateProvider initial={{ where } as Partial<FilesState>}>
-        <FileTrail fileId="f" onBack={() => left.push("back")} />
+        <FileTrail fileId="f" onGo={(id) => left.push(String(id))} />
       </FilesStateProvider>
     </FilesDataProvider>,
   );
@@ -76,37 +64,22 @@ async function rig(where: Where, file: { name: string; folderId: string }) {
   return { root, left };
 }
 
-test("the Back arrow leaves the file; the path names the place; Esc does the same and leaves a field, a menu and a taken key alone", async () => {
+test("the path names the place and carries no Back control of its own: leaving a file is the shell's Back; the folder is told to the shell so a cold file goes up to it", async () => {
   const restore = installDom();
-  const g = globalThis as { document: Record<string, unknown> };
-  const before = g.document;
-  const keys: ((e: unknown) => void)[] = [];
-  let menuOpen = false;
-  g.document = {
-    ...before,
-    addEventListener: (t: string, f: (e: unknown) => void) => void (t === "keydown" && keys.push(f)),
-    removeEventListener: () => undefined,
-    querySelector: () => (menuOpen ? {} : null),
-  };
   try {
+    assert.equal(upHash("subject=file:f"), "", "a file this page has not read goes up to the Files landing");
     const { root, left } = await rig({ kind: "shared" }, { name: "MLA logo.png", folderId: "unseen" });
     assert.match(textOf(find(root, "files-path")), /Shared with me/);
     assert.match(textOf(find(root, "files-title")), /MLA logo\.png/);
-    await press(find(root, "file-back"));
-    assert.deepEqual(left, ["back"]);
-    const esc = (o: object = {}): void =>
-      keys.forEach((f) => f({ key: "Escape", defaultPrevented: false, target: { tagName: "DIV" }, ...o }));
-    esc();
-    assert.equal(left.length, 2, "Esc leaves");
-    esc({ target: { tagName: "INPUT" } });
-    assert.equal(left.length, 2, "not from a field");
-    esc({ defaultPrevented: true });
-    assert.equal(left.length, 2, "not when a markup tool took it");
-    menuOpen = true;
-    esc();
-    assert.equal(left.length, 2, "not with a menu or dialog open");
+    assert.equal(find(root, "file-back"), null, "no second back control");
+    assert.deepEqual(left, [], "nothing left on its own");
+    assert.equal(
+      upHash("subject=file:f"),
+      "subject=folder:unseen",
+      "read once, a file opened cold goes up to its folder",
+    );
+    assert.equal(upHash("subject=file:other"), "", "another file is not placed by it");
   } finally {
-    g.document = before;
     restore();
   }
 });

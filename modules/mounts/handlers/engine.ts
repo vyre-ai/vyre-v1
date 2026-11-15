@@ -22,7 +22,7 @@ import { mintUuid } from "../../../lib/ids.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { displayName, freeNames } from "./names.ts";
+import { displayName, freeNames, nameSeries } from "./names.ts";
 export { displayName, freeNames };
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { pushMoves } from "./outbound-moves.ts";
@@ -427,10 +427,10 @@ async function withFreeName<T>(
   taken: Set<string>,
   make: (n: string) => Promise<T>,
 ): Promise<{ value: T; renamed: boolean; name: string }> {
-  const names = freeNames(displayName(name), label);
-  const first = names.findIndex((n) => !taken.has(n));
-  for (let i = Math.max(0, first); i < names.length; i++) {
-    const n = names[i] as string;
+  let i = -1;
+  for (const n of nameSeries(displayName(name), label)) {
+    i += 1;
+    if (taken.has(n)) continue;
     try {
       const value = await make(n);
       taken.add(n);
