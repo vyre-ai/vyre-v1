@@ -3,6 +3,7 @@
 // folder and it opens (spring-load). Every line is a ui/Row with an icon in the leading slot and the Modified, Made by, Size and Kind columns in the trailing slot; right-click opens the line's menu.
 // P-L9e_01b: the header is the shared Toolbar (breadcrumb, sort button, list/grid toggle) in ../Toolbar.tsx, the column header and the grid tiles are in ../FileList.tsx. (Path mapping: the
 // packet's FileList.tsx and Toolbar.tsx sit beside the list/ folder, and the wiring is here.)
+import { openIn, takeOpenHow } from "../../../shell/tabs/open-how.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -78,6 +79,8 @@ export function lineMenuEntries(
   inTrash: boolean,
   h: {
     open(l: Line): void;
+    /** Open it as a tab beside this one (D2: the row's menu, Cmd-press, middle-press). Left out where the shell has no tabs. */
+    openTab?(l: Line): void;
     quickLook(l: Line): void;
     share?(l: Line): void;
     /** Who may open a file (the Share sheet); left out where the shell has none. */ shareFile?(l: Line): void;
@@ -101,6 +104,7 @@ export function lineMenuEntries(
     // the keys shown are the keys the list answers to: Enter opens, Space looks, F2 renames, Delete trashes
     out.push(
       { label: "Open", hint: "Enter", onSelect: () => h.open(one) },
+      ...(h.openTab ? [{ label: "Open in New Tab", onSelect: () => h.openTab?.(one) }] : []),
       { label: "Quick Look", hint: "Space", onSelect: () => h.quickLook(one) },
     );
     // a file from a connected folder also opens in the app it lives in (Google Docs, Word, Excel, Dropbox)
@@ -243,9 +247,22 @@ function List(): ReactElement {
   const layout = gridLayout(width === 0 ? 900 : width);
   const inTrash = state.where.kind === "trash";
 
-  const open = (l: Line): void => {
+  const openHere = (l: Line): void => {
     if (l.type === "folder") dispatch({ type: "go", where: { kind: "folder", id: l.id } });
     else data.nav.openFile(l.id);
+  };
+  // a plain press shows it in this tab; Cmd-press, the middle button and the menu's "Open in New Tab" open a tab beside this one (tabs/open-rule.ts)
+  const openAs = (l: Line, how: "tab" | "behind"): void => {
+    if (l.type === "folder" && data.nav.openFolder) {
+      const f = data.nav.openFolder;
+      openIn(how, () => f(l.id));
+    } else if (l.type === "file") openIn(how, () => data.nav.openFile(l.id));
+    else openHere(l);
+  };
+  const open = (l: Line): void => {
+    const how = takeOpenHow();
+    if (how !== "here") openAs(l, how);
+    else openHere(l);
   };
   const toTrash = (ls: readonly Line[]): void => {
     for (const l of ls) {
@@ -269,7 +286,8 @@ function List(): ReactElement {
     const picked = state.selection.includes(l.key) ? selectedLines() : [l];
     menu.show(
       lineMenuEntries(picked, inTrash, {
-        open,
+        open: openHere,
+        openTab: (t) => openAs(t, "tab"),
         quickLook: (t) => dispatch({ type: "quicklook", key: t.key }),
         ...(data.nav.shareFolder ? { share: (t: Line) => data.nav.shareFolder?.(t.id) } : {}),
         ...(data.nav.shareFile ? { shareFile: (t: Line) => data.nav.shareFile?.(t.id, t.name) } : {}),

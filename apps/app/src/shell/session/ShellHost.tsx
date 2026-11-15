@@ -1,3 +1,4 @@
+import { takeOpenHow } from "../tabs/open-how.ts";
 import { lookApplier, startupPlan } from "../providers/settings-look.ts";
 import { sessionTheme } from "./space-theme.ts";
 import { sessionCatalogue } from "./space-catalog.ts";
@@ -204,9 +205,12 @@ export function ShellHost({
         navRef.current?.flash(text);
       },
       navigate: (p, hash, background, into) => {
+        // how the person pressed (Cmd, the middle button, a menu's "Open in new tab") is read here once; no place reads the keyboard (tabs/open-how.ts, open-rule.ts)
+        const how = takeOpenHow();
+        const behind = background === true || how === "behind";
         if (into !== undefined) navRef.current?.fill(p, hash, undefined, into);
-        else navRef.current?.go(p, hash, background);
-        if (phoneGo.current && background !== true) phoneGo.current(p, hash);
+        else navRef.current?.go(p, hash, behind, false, how === "tab");
+        if (phoneGo.current && !behind) phoneGo.current(p, hash);
       },
       shell: (screen, args) => {
         const h = navRef.current;

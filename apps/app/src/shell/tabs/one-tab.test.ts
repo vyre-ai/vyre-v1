@@ -304,8 +304,8 @@ test("the landing asked for by address: the selected tab of the place becomes it
   const opened = landOn(state([files, thr], files.key), "chats");
   assert.deepEqual(
     [keys(opened), opened.active],
-    [["files", "chats:thr_1", "chats"], "chats"],
-    "the chat tab stays; the landing is its own tab",
+    [["files", "chats", "chats:thr_1"], "chats"],
+    "the chat tab stays; the landing is its own tab, opened beside the tab it was asked from",
   );
   const pinned = { ...task, pinned: true };
   assert.equal(landOn(state([pinned], pinned.key), "chats").tabs[0]?.pinned, true, "a pinned tab stays pinned");

@@ -1,5 +1,6 @@
 // Records > sidebar (spec 3.4), drawn in the shell's shared place sidebar slot (P-L9d_22: the slot gives the title, the collapse button, the search field and the phone list): record types in their groups with row counts (Records first, a Sites group for site tables), the saved views of the open type, and Manage
 // (Record types, Schema map). Every row is a ui/Row with a leading glyph and a trailing count; click opens; folded sections stay folded.
+import { openIn, takeOpenHow } from "../../../shell/tabs/open-how.ts";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -306,6 +307,13 @@ function Sidebar({
               </>
             }
             onPress={() => {
+              // Cmd-press and the middle button open the type's table as a tab beside this one (tabs/open-rule.ts)
+              const how = takeOpenHow();
+              if (how !== "here" && data.nav.openType) {
+                const openType = data.nav.openType;
+                openIn(how, () => openType(t.key));
+                return;
+              }
               dispatch({ type: "open", key: t.key });
               choose();
             }}

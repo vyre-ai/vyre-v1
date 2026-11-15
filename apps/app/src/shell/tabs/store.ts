@@ -209,8 +209,22 @@ function openTab0(state: TabsState, tab: TabEntry, background: boolean, exact: b
     opener !== undefined
       ? { ...tab, from: opener.key }
       : tab;
-  const tabs = [...state.tabs, opened];
-  return { tabs, active: background && state.active !== "" ? state.active : tab.key };
+  return { tabs: placedBeside(state, opened), active: background && state.active !== "" ? state.active : tab.key };
+}
+
+/**
+ * A tab opened from the tab on screen sits beside it (D2: "a new tab beside the current one"), after the tabs that one already opened, so a run of Cmd-presses reads in the order pressed.
+ * A "+" tab goes to the end of the strip, and a tab that is not pinned never lands among the pinned ones.
+ */
+function placedBeside(state: TabsState, opened: TabEntry): TabEntry[] {
+  const cur = activeEntry(state);
+  const at = cur === undefined ? -1 : state.tabs.indexOf(cur);
+  if (opened.isNew === true || at < 0 || cur === undefined) return [...state.tabs, opened];
+  let to = at;
+  while (state.tabs[to + 1]?.from === cur.key && state.tabs[to + 1]?.pinned !== true) to++;
+  const out = [...state.tabs];
+  out.splice(to + 1, 0, opened);
+  return out;
 }
 
 /** Whether a move changes the address the tab shows (a step), as against only its name. */
@@ -315,11 +329,14 @@ export function landOn(state: TabsState, place: PlaceId): TabsState {
   return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: key };
 }
 
-/** The tab to select after `closed` goes away: the neighbour on the right, else on the left. */
+/** The tab to select after `closed` goes away: the one the person came from if it is still open (D6), else the neighbour on the left, else the one on the right. */
 export function afterClosing(tabs: readonly TabEntry[], closed: string, active: string): string {
   if (closed !== active) return active;
   const at = tabs.findIndex((t) => t.key === closed);
-  return tabs[at + 1]?.key ?? tabs[at - 1]?.key ?? "";
+  const was = tabs[at];
+  const came = was?.came;
+  if (came !== undefined && came !== closed && tabs.some((t) => t.key === came)) return came;
+  return tabs[at - 1]?.key ?? tabs[at + 1]?.key ?? "";
 }
 
 export function closeTab(state: TabsState, key: string): TabsState {
