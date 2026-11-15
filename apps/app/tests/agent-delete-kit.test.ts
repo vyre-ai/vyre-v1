@@ -11,6 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { guardCrashes } from "./crash-guard.ts";
+import { as, join } from "../../../test/support/people.ts";
 import { vendor } from "../../../fixtures/model-vendor.ts";
 
 const PRELOAD = fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url));
@@ -158,8 +159,26 @@ export async function agentDeleteWalk(
       };
     };
 
+    // a second person in the Space: she has a chat with the agent, so the confirm counts and names her
+    let ana: { id: string; token: string } | null = null;
+    const withAna = async (agentId: string): Promise<void> => {
+      if (ana === null) {
+        const call = async (cap: string, input: Record<string, unknown> = {}) => {
+          const r = await owner.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, {
+            headers: { authorization: `Bearer ${token}` },
+            data: { idempotencyKey: `ad-j-${cap}-${Math.random()}`, ...input },
+          });
+          const body = (await r.json()) as { data?: unknown };
+          return { status: r.status(), data: (body.data ?? body) as never };
+        };
+        ana = await join({ url: web.origin } as never, call as never, "Member", "ana", "Ana Adler");
+      }
+      const chat = await as({ url: web.origin } as never, ana.token)("chat.start", { kind: "chat", agentIds: [agentId] });
+      assert.equal(chat.status, 200, JSON.stringify(chat.data));
+    };
     const walk = async (mode: Mode, name: string, tag: string): Promise<void> => {
       const A = await makeAgent(name, tag);
+      if (mode === "pointer") await withAna(A.agentId);
       const phone = mode === "phone";
       const ctx = await browser.newContext({
         viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 },
@@ -289,6 +308,10 @@ export async function agentDeleteWalk(
         assert.match(body, new RegExp(`Delete ${name} for good\\?`));
         assert.match(body, /1 chat with/);
         assert.match(body, /These will need someone/);
+        if (mode === "pointer") {
+          assert.match(body, /Ana Adler has a chat with it/);
+          assert.match(body, /This cannot be undone\./);
+        }
         // a task it held was handed to someone when it went to Trash (tasks.onAgentDeleted), so it is not listed here; the Automation is
         assert.match(body, new RegExp(`Digest ${tag}`));
         await shot("2-confirm");
