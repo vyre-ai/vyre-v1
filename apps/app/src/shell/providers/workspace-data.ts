@@ -13,6 +13,8 @@ export interface TerminalRowLike {
   cwd?: string | undefined;
   heldBy?: string | undefined;
   ownerId?: string | undefined;
+  /** a row that only says someone else's terminal is there: counted, never drawn */
+  elsewhere?: boolean | undefined;
   lastActiveAt?: number | undefined;
   by?: { kind: "agent" | "helper" | "person"; name?: string | undefined } | undefined;
 }
@@ -27,6 +29,8 @@ export interface WorkspaceRead {
   canAttach: boolean;
   cannotAttach?: string | undefined;
   takeOver?: boolean | undefined;
+  /** this person works in a place of their own on a shared agent's computer */
+  ownPlace?: boolean | undefined;
 }
 
 /**
@@ -40,7 +44,10 @@ export function workspaceView(
   projectNames: readonly string[] = [],
   lastCommands: ReadonlyMap<string, string> = new Map(),
 ): WorkspaceView {
-  const mine = rows.filter((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited");
+  const here = rows.filter((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited");
+  // what is someone else's is counted and never drawn: the tab shows a person their own side of the computer
+  const mine = here.filter((r) => r.elsewhere !== true);
+  const others = here.length - mine.length;
   const sessions: WorkspaceSession[] = mine.map((r) => ({
     name: r.name,
     terminalId: r.terminalId,
@@ -57,6 +64,8 @@ export function workspaceView(
     state,
     sessions,
     canAttach: read.canAttach && read.state !== "unavailable",
+    ...(read.ownPlace === true ? { ownPlace: true } : {}),
+    ...(others > 0 ? { others } : {}),
     ...(read.takeOver === false ? { takeOver: false } : {}),
     // waiting and unavailable say why; running says what keeps it awake past its idle time ("running: tail -f app.log")
     ...(read.state === "waiting" || read.state === "unavailable" || read.state === "running"

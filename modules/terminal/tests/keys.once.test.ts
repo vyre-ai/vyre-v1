@@ -197,7 +197,8 @@ test("who may take the keyboard: the owner of the agent and the Space's managers
   for (const who of ["usr_sara", "usr_guest"]) {
     const r = await failure(() => h["terminal.take_over"]!(asking(who), { terminalId: id }));
     assert.equal(r.code, "permission.role_lacks_permission", who);
-    assert.match(r.message, /not yours to open/);
+    // a person with Use enters the agent's computer in a place of their own, and the agent's own terminal is not theirs: told in one plain sentence
+    assert.match(r.message, /someone else's/);
     const k = await failure(() => h["terminal.keys"]!(asking(who), batch(id, "lse_x", 1, "g1", "x")));
     assert.ok(k.code.startsWith("permission."), `${who} types nothing: ${k.code}`);
   }
@@ -366,9 +367,8 @@ test("terminal.run into a person's own terminal by its id, and terminal.status o
     "its owner reads it",
   );
   const theirs = await h["terminal.status"]!(manager, { terminalIds: [own] });
-  assert.equal(theirs.rows.length, 1);
-  assert.equal(theirs.rows[0].lastLine, undefined);
-  assert.equal(theirs.rows[0].lastCommand, undefined);
+  // a terminal on an agent's computer outside the caller's own place gives nothing at all, not even its state (F30)
+  assert.equal(theirs.rows.length, 0);
 });
 
 test("a member cannot rename the agent's terminal: rename needs entry to the computer, like every other door", async () => {

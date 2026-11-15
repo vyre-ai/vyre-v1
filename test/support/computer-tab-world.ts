@@ -17,21 +17,27 @@ import { realTmuxHost, stopRealTmux } from "./real-tmux.ts";
 /** `noTerminal`: nothing is opened for the person (the pane must open the agent's terminal by itself). `realBrowser`: an image name; the Space browser is then the real one in Docker (the profile of the agent is started with a page open) instead of the stand-in. */
 export async function world(
   t: test.TestContext,
-  o: { realBrowser?: string; noTerminal?: boolean; tmux?: boolean } = {},
+  o: { realBrowser?: string; noTerminal?: boolean; tmux?: boolean; realWorkspace?: boolean } = {},
 ) {
   const env = await browserOrSkip();
   if (typeof env === "string") {
     t.skip(env);
     return null;
   }
+  // the image is read when the daemon starts
+  const savedImage = process.env["VYRE_WORKSPACE_IMAGE"];
+  if (o.realWorkspace === true) process.env["VYRE_WORKSPACE_IMAGE"] = process.env["VYRE_WORKSPACE_TEST_IMAGE"];
   const s = await bootScreens({ kind: "team" }, env);
   const w = s.world;
   const { unlockVault } = await import("./mail-world.ts");
   await unlockVault(w);
   bindComputers(null);
-  bindTerminal(o.tmux === true ? realTmuxHost() : scriptedTerminal());
-  bindWorkspaces(true);
-  bindWorkspaceStatus(async () => ({ state: "running" as const, host: "space" as const }));
+  // `realWorkspace`: the daemon's own terminal host runs the agent's computer as a real container (VYRE_WORKSPACE_TEST_IMAGE); nothing is bound over it, so the folders, users and rows are the product's own
+  if (o.realWorkspace !== true) {
+    bindTerminal(o.tmux === true ? realTmuxHost() : scriptedTerminal());
+    bindWorkspaces(true);
+    bindWorkspaceStatus(async () => ({ state: "running" as const, host: "space" as const }));
+  }
   const browserd = fakeSpaceBrowser();
   let tickets = 0;
   // the live view's address answers with a picture, so the page can draw it (the real one is an MJPEG stream from browserd)
@@ -108,6 +114,19 @@ export async function world(
     await me.page.getByTestId("tab-computer").or(me.page.getByTestId("tab-computer-selected")).first().click();
   };
   const close = async (): Promise<void> => {
+    if (o.realWorkspace === true) {
+      const { execFile } = await import("node:child_process");
+      await new Promise<void>((done) =>
+        execFile(
+          "sh",
+          [
+            "-c",
+            `docker rm -f vyre-ws-${agentId} >/dev/null 2>&1; docker volume rm -f vyre-ws-${agentId}-home vyre-ws-${agentId}-files vyre-ws-${agentId}-people >/dev/null 2>&1; true`,
+          ],
+          () => done(),
+        ),
+      );
+    }
     if (real) {
       await dockerApi.containerStop(dockerName, 5).catch(() => undefined);
       await dockerApi.containerRemove(dockerName).catch(() => undefined);
@@ -118,9 +137,14 @@ export async function world(
     }
     picture.close();
     bindSpaceBrowser(null);
-    bindWorkspaceStatus(null);
-    bindWorkspaces(false);
-    bindTerminal(null);
+    if (o.realWorkspace === true) {
+      if (savedImage === undefined) delete process.env["VYRE_WORKSPACE_IMAGE"];
+      else process.env["VYRE_WORKSPACE_IMAGE"] = savedImage;
+    } else {
+      bindWorkspaceStatus(null);
+      bindWorkspaces(false);
+      bindTerminal(null);
+    }
     if (o.tmux === true) await stopRealTmux();
     await s.close();
   };

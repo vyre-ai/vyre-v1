@@ -549,6 +549,28 @@ export default defineManifest({
       },
     ),
     read(
+      "computers.browser.my_sign_ins",
+      "The sites the browser profile your own turns of this agent use is signed in to, by site and when, never a value: a person who does not own a shared agent has a profile of their own on it. Nothing of another person's",
+      {
+        in: { agentId: id.agent },
+        out: {
+          profile: t.enm("own", "agent"),
+          signIns: t.arr(
+            t.obj({
+              kind: t.lit("browser"),
+              site: t.str({ examples: ["app.example.com"] }),
+              signedInAs: t.opt(t.str()),
+              since: t.ts(),
+              lastSeen: t.ts(),
+            }),
+          ),
+        },
+        label: "check",
+        offline: "online",
+        errors: ["provider.unavailable", "validation.not_found"],
+      },
+    ),
+    read(
       "computers.browser.sessions",
       "The sites an agent's browser is signed in to (cookies the profile holds), by site, never a value. Wakes the browser when it is asleep. Only for a browser you may watch",
       {
@@ -1001,6 +1023,7 @@ export default defineManifest({
         stepIndex: t.opt(t.int()),
         at: t.ts(),
         live: t.opt(t.bool()),
+        person: t.opt(id.user),
       },
       "Browser: {{caption}}",
       {

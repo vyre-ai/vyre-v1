@@ -224,3 +224,113 @@ test("a download brings outside text into the turn; a local command does not", (
   assert.equal(fetchesOutside("npm test"), false);
   assert.equal(fetchesOutside("curl -d x https://example.test"), false, "that one is outward instead");
 });
+
+test("reading the user database is a read, not red: whoami, id, getent passwd and git author look-ups just work; changing a password is still red", () => {
+  for (const c of [
+    "whoami",
+    "id",
+    "id -u",
+    "getent passwd",
+    'getent passwd "$(id -u)"',
+    "getent passwd 20000",
+    "cat /etc/passwd",
+    "grep agent /etc/passwd",
+    "git config user.name",
+    "git config --get user.email",
+  ])
+    assert.equal(riskOf(c), "read", c);
+  for (const c of ["passwd", "passwd -d agent", "sudo passwd root", "echo x | passwd", "ls; passwd", "visudo"])
+    assert.equal(isDangerous(c), true, c);
+  assert.equal(riskOf("git config user.name Ana"), "change", "setting it is a change");
+});
+
+test("a folder or file named like a command is not that command: a sign-in kept in ~/.ssh or ~/.config/rsync is not a message sent out", () => {
+  for (const c of [
+    "mkdir -p ~/.ssh ~/.config/tool && echo k > ~/.ssh/id_ed25519",
+    "cat ~/.ssh/known_hosts",
+    "chmod 600 ~/.ssh/id_ed25519",
+    "ls ~/.config/rsync ~/scp-notes",
+  ])
+    assert.equal(outwardOf(c), null, c);
+  // the commands themselves still go outward
+  assert.equal(outwardOf("ssh deploy@host.example uptime")?.act, "send");
+  assert.equal(outwardOf("/usr/bin/ssh host.example ls")?.act, "send");
+  assert.equal(outwardOf("rsync -a site/ deploy@host.example:/srv/site")?.act, "send");
+  assert.equal(outwardOf("scp f.txt host.example:/tmp")?.act, "send");
+});
+
+test("a remote command is held wherever it stands in the line, behind any wrapper, however it is spelled (review of 15 Nov, item 7); a folder named like it is not", () => {
+  const held = [
+    "ssh host",
+    "if true; then ssh host; fi",
+    "for h in a b; do ssh $h; done",
+    "{ ssh host; }",
+    "! ssh host",
+    "(ssh host)",
+    "echo `ssh host`",
+    "echo $(ssh host)",
+    "\\ssh host",
+    "'ssh' host",
+    '"ssh" host',
+    "eval ssh host",
+    "find . -exec ssh host {} \;",
+    "sudo -u bob ssh host",
+    "sudo -u root -- ssh h",
+    "env -u X ssh h",
+    "timeout -s KILL 5 ssh h",
+    "ionice -c3 ssh h",
+    "setsid ssh h",
+    "stdbuf -o0 ssh h",
+    "busybox ssh h",
+    "watch ssh h uptime",
+    'script -c "ssh h" /dev/null',
+    'su -c "ssh h" bob',
+    "ssh-copy-id user@h",
+    "alias s=ssh; s h",
+    "sh -c 'ssh h'",
+    "nohup ssh -N -L 1:2:3 h &",
+    "rsync -a x deploy@host.example:/srv",
+    "scp f host.example:/tmp",
+    "/usr/bin/ssh h",
+  ];
+  for (const c of held) assert.equal(outwardOf(c)?.act, "send", c);
+  assert.equal(outwardOf("ssh deploy@host.example uptime")?.targets[0], "host.example");
+  const free = [
+    "mkdir -p ~/.ssh && echo k > ~/.ssh/id_ed25519",
+    "cat ~/.ssh/known_hosts",
+    "chmod 600 ~/.ssh/id_ed25519",
+    "ls ~/.config/rsync ~/scp-notes",
+    "cd ~/.ssh && ls",
+    "echo hello",
+  ];
+  for (const c of free) assert.equal(outwardOf(c), null, c);
+});
+
+test("passwd is red as a command wherever it stands and behind any wrapper, and a read of the user database is not (review of 15 Nov, item 7)", () => {
+  const red = [
+    "passwd",
+    "passwd -d agent",
+    "sudo passwd root",
+    "sudo -u root passwd",
+    "echo x | passwd",
+    "ls; passwd",
+    "if true; then passwd; fi",
+    "{ passwd; }",
+    "(passwd)",
+    "\\passwd",
+    "'passwd'",
+    "eval passwd",
+    "env X=1 passwd",
+    "timeout 5 passwd",
+    "echo `passwd`",
+    "echo $(passwd)",
+    "su -c passwd root",
+    "/usr/bin/passwd",
+    "sudo /usr/bin/passwd bob",
+    "/bin/passwd -d x",
+    "visudo",
+  ];
+  for (const c of red) assert.equal(isDangerous(c), true, c);
+  for (const c of ["getent passwd", 'getent passwd "$(id -u)"', "cat /etc/passwd", "grep agent /etc/passwd", "whoami"])
+    assert.equal(riskOf(c), "read", c);
+});

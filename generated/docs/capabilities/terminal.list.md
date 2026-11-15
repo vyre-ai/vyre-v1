@@ -61,6 +61,7 @@ type Out = {
       };
       heldBy?: string;
       ownerId?: string;
+      elsewhere?: boolean;
       threadId?: string;
     }>;
   next?: string;
@@ -104,6 +105,7 @@ type Out = {
         "createdAt": 1760000000000,
         "cwd": "example",
         "deviceId": "dev_a1b2c3",
+        "elsewhere": true,
         "exitCode": 1,
         "heldBy": "usr_a1b2c3",
         "host": "agent_computer",

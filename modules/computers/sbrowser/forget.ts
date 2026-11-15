@@ -6,7 +6,7 @@ import { releaseRoom } from "../capacity.ts";
 import { ensure, rowsOf } from "../projections.ts";
 import type { CompCtx } from "../projections.ts";
 import { dropHold } from "./hold.ts";
-import { profileIdOf } from "./policy.ts";
+import { askerProfileId, profileIdOf } from "./policy.ts";
 import { spaceBrowser } from "./port.ts";
 
 /** How long a profile of an agent in Trash is kept when the Space's own Trash retention cannot be read: governance's default for trash (manifests/governance.ts, '30d'; test/trash-retention.test.ts holds them together). */
@@ -34,6 +34,24 @@ export async function trashKeepMs(ctx: CompCtx): Promise<number | null> {
   return TRASH_KEEP_MS;
 }
 
+/**
+ * The profiles the people who use a shared agent without owning it have on it (asker.ts): one per person of the Space, by the id that person's turns use. A person who has left the Space is not in the list;
+ * their profile is not found here (a profile that was never made is skipped at the service).
+ */
+async function askerProfiles(ctx: CompCtx, agentId: string): Promise<string[]> {
+  try {
+    const out = (await ctx.call("access.principals.list", { kind: "person", limit: 500 })) as {
+      principals?: Array<{ kind?: string; id?: string }>;
+    };
+    return (out.principals ?? [])
+      .filter((p) => p.kind === "person" && typeof p.id === "string")
+      .map((p) => askerProfileId(agentId, p.id as string))
+      .filter((x): x is string => x !== null);
+  } catch {
+    return [];
+  }
+}
+
 /** agent.deleted: the agent is in Trash. Its browser stops and lets go of its hold and room; its folder stays until it has been in Trash TRASH_KEEP_MS. */
 export async function browserOfDeleted(ctx: CompCtx, agentId: unknown): Promise<boolean> {
   if (typeof agentId !== "string") return false;
@@ -49,13 +67,49 @@ export async function browserOfDeleted(ctx: CompCtx, agentId: unknown): Promise<
   );
   const sb = spaceBrowser();
   if (sb && (await sb.available().catch(() => false))) {
-    try {
-      await sb.stop(id);
-    } catch {
-      /* stopped after idle anyway */
+    for (const p of [id, ...(await askerProfiles(ctx, agentId))]) {
+      try {
+        await sb.stop(p);
+      } catch {
+        /* stopped after idle anyway */
+      }
     }
   }
   return true;
+}
+
+/**
+ * member.removed: a person left the Space. The browser profiles they had on shared agents (asker.ts) are marked for removal at the end of Trash time, as their Assistant's is (browserOfDeleted), and stopped now.
+ * Every agent of the Space is asked about, since nothing records which ones they used; a profile that was never made is skipped when it is removed.
+ */
+export async function browserOfLeaver(ctx: CompCtx, personId: unknown): Promise<string[]> {
+  if (typeof personId !== "string" || !personId.startsWith("usr_")) return [];
+  ensure(ctx.db);
+  let agents: string[] = [];
+  try {
+    const out = (await ctx.call("access.principals.list", { kind: "agent", limit: 500 })) as {
+      principals?: Array<{ id?: string }>;
+    };
+    agents = (out.principals ?? []).map((p) => p.id).filter((x): x is string => typeof x === "string");
+  } catch {
+    return [];
+  }
+  const sb = spaceBrowser();
+  const done: string[] = [];
+  for (const agentId of agents) {
+    const id = askerProfileId(agentId, personId);
+    if (!id) continue;
+    dropHold(ctx, id);
+    releaseRoom(ctx, id);
+    ctx.db.run(
+      "INSERT INTO computers_browser_gone (profile_id, deleted_at) VALUES (?, ?) ON CONFLICT (profile_id) DO NOTHING",
+      id,
+      ctx.now(),
+    );
+    if (sb) await sb.stop(id).catch(() => undefined);
+    done.push(id);
+  }
+  return done;
 }
 
 /** agent.restored: back from Trash, so its profile and sign-ins stay. */
@@ -83,6 +137,8 @@ export async function forgetExpired(ctx: CompCtx): Promise<string[]> {
   for (const id of due) {
     try {
       await sb.forget(id);
+      // what the people who use the agent without owning it signed in to goes with it
+      for (const p of await askerProfiles(ctx, id)) await sb.forget(p).catch(() => undefined);
       ctx.db.run("DELETE FROM computers_browser_gone WHERE profile_id = ?", id);
       done.push(id);
     } catch (e) {

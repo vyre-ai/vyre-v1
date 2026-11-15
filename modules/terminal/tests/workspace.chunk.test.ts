@@ -69,7 +69,7 @@ test("a request body of several frames is staged piece by piece and arrives whol
   const res = await r.dh({
     method: "PUT",
     path: "/containers/vyre-ws-x/archive",
-    query: { path: "/home/agent/Vyre" },
+    query: { path: "/shared/Vyre" },
     body,
     contentType: "application/x-tar",
   });
@@ -98,7 +98,7 @@ test("an answer of several frames is fetched piece by piece and comes back whole
   const res = await r.dh({
     method: "GET",
     path: "/containers/vyre-ws-x/archive",
-    query: { path: "/home/agent/Vyre/." },
+    query: { path: "/shared/Vyre/." },
   });
   assert.deepEqual([res.status, res.body.length, sha(res.body)], [200, r.answer.length, sha(r.answer)]);
   assert.equal(r.frames.filter((f) => f["chunk"]).length, 3);

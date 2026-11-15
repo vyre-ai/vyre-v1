@@ -999,7 +999,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       spendRows.push({
         agentId: turn.agentId,
         turnId: turn.id,
-        payer: turn.asker,
+        payer: turn.paidBy ?? turn.asker,
         tokensIn: turn.tokensIn,
         tokensOut: turn.tokensOut,
       });
@@ -1057,7 +1057,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             })
         : undefined;
     // a refused personless turn is recorded for nobody: not the starter, whose access it never had
-    const asker = orphan ? "" : (wait?.asker ?? (account ? account.payer : payer.asker));
+    // who the turn is for (whose folder and user it works in) is the person the engine found, never the account that pays: the account the Space or another person provides may be anyone's (F75)
+    const asker = orphan ? "" : (wait?.asker ?? payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
     // the wake continues a parked turn: that turn is over now, with the usage it had at the hold (the wake is its own row with its own)
     if (wait) {
@@ -1079,6 +1080,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       threadId: st.thread.id,
       agentId: item.agentId,
       asker,
+      ...(account?.payer ? { paidBy: account.payer } : {}),
       payerReason: reason,
       model: agent?.model ?? null,
       state: "running",

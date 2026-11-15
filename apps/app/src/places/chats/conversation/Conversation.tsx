@@ -1607,6 +1607,7 @@ function ConversationView(): ReactElement {
             ...(data.spaceUrl ? { spaceUrl: data.spaceUrl } : {}),
             openComputer: (agentId: string) => data.nav.openBeside("computer", agentId),
             agentId: lead.agentId,
+            viewer: data.me.id,
           },
         }
       : {}),

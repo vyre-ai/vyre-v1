@@ -12,6 +12,7 @@ HTTP 502. Retryable: yes.
 - browser.chrome.act
 - chat.helper.restart
 - computers.browser.give_back
+- computers.browser.my_sign_ins
 - computers.browser.preview
 - computers.browser.profiles
 - computers.browser.sessions
@@ -30,4 +31,3 @@ HTTP 502. Retryable: yes.
 - computers.chrome.open
 - computers.chrome.plan
 - computers.chrome.resume
-- computers.chrome.screenshot

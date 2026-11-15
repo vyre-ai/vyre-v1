@@ -55,6 +55,8 @@ const terminalRow = t.obj({
   heldBy: t.opt(id.user),
   // the person who opened it: a person's own tab says whose it is
   ownerId: t.opt(id.user),
+  // true on a row that only says a terminal of someone else's is there (no folder, chat, name or holder): the app counts these and draws none of them
+  elsewhere: t.opt(t.bool()),
   // the chat it was opened from, when it was opened from one (a background job line in that chat reads it)
   threadId: t.opt(id.thread),
 });
@@ -112,6 +114,12 @@ export default defineManifest({
             t.bool({
               description:
                 "Whether a person may take the keyboard of a terminal here (on by default; the Space server's VYRE_TERMINAL_TAKEOVER=0 turns it off). When false the app draws a watching view and no Take over",
+            }),
+          ),
+          ownPlace: t.opt(
+            t.bool({
+              description:
+                "True when this person works in a place of their own on a shared agent's computer (they do not own the agent): the tab says it is theirs and shows the terminals of others only as a count",
             }),
           ),
         },

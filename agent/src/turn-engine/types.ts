@@ -121,8 +121,13 @@ export interface TurnRow {
   id: string;
   threadId: string;
   agentId: string;
-  /** Who pays: the starter, or the person whose steering message caused this turn. */
+  /**
+   * Who the turn runs for: the starter, or the person whose message caused it. The session opens for them: their work folder for the chat, their own user on a shared agent's computer, their
+   * sign-ins. It is not who pays (F75): the account that pays may be another person's or the Space's.
+   */
   asker: string;
+  /** Who pays, when an account was resolved and it names one (`ResolvedAccount.payer`); absent when none did. Spend is counted here. */
+  paidBy?: string;
   payerReason: AccountReason;
   model: string | null;
   state: TurnState;
