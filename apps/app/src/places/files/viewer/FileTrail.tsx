@@ -2,7 +2,7 @@
 // file's folders; a folder the person may not open is words, never a link. There is no Back control here: leaving a file is the shell's Back and Forward (the title bar's arrows, Cmd+[ and Cmd+]),
 // the same in every tab. This file tells the shell which folder the file is in, so a file opened cold goes up to its folder.
 import { useEffect, useState } from "react";
-import { rememberFileFolder } from "../../../shell/tabs/file-folders.ts";
+import { forgetFileFolder, rememberFileFolder } from "../../../shell/tabs/file-folders.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { Breadcrumb } from "../Toolbar.tsx";
@@ -46,7 +46,6 @@ export function FileTrail({ fileId, onGo }: { fileId: string; onGo(folderId: str
     void (data.call("files.get", { fileId }) as Promise<{ file: { name: string; folderId: string } }>).then(
       (r) => {
         if (!live) return;
-        rememberFileFolder(fileId, r.file.folderId);
         setFile({ name: r.file.name, folderId: r.file.folderId });
       },
       () => undefined,
@@ -56,6 +55,13 @@ export function FileTrail({ fileId, onGo }: { fileId: string; onGo(folderId: str
     };
   }, [data, fileId]);
   const visible = nodes.status === "ready" ? nodes.data : [];
+  // the shell sends Back from a cold file up to its folder, but only a folder this person can list: otherwise Back goes to the Files landing
+  const listable = file !== null && nodes.status === "ready" ? visible.some((n) => n.id === file.folderId) : null;
+  useEffect(() => {
+    if (file === null || listable === null) return;
+    if (listable) rememberFileFolder(fileId, file.folderId);
+    else forgetFileFolder(fileId);
+  }, [fileId, file, listable]);
   const trail = fileTrail(state.where, visible, file).map((c) =>
     // a folder the person cannot open (it is not in the folders they can see) is words
     c.id !== undefined && c.id !== null && !c.id.startsWith(PLACE) && !visible.some((n) => n.id === c.id)

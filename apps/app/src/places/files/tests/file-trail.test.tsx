@@ -68,16 +68,19 @@ test("the path names the place and carries no Back control of its own: leaving a
   const restore = installDom();
   try {
     assert.equal(upHash("subject=file:f"), "", "a file this page has not read goes up to the Files landing");
-    const { root, left } = await rig({ kind: "shared" }, { name: "MLA logo.png", folderId: "unseen" });
+    const { root, left } = await rig({ kind: "shared" }, { name: "MLA logo.png", folderId: "fld_daily" });
     assert.match(textOf(find(root, "files-path")), /Shared with me/);
     assert.match(textOf(find(root, "files-title")), /MLA logo\.png/);
     assert.equal(find(root, "file-back"), null, "no second back control");
     assert.deepEqual(left, [], "nothing left on its own");
     assert.equal(
       upHash("subject=file:f"),
-      "subject=folder:unseen",
-      "read once, a file opened cold goes up to its folder",
+      "subject=folder:fld_daily",
+      "read once, a file opened cold goes up to a folder the person can list",
     );
+    // the same file now sits in a folder the person cannot list (shared into a private folder): it is forgotten, and Back goes to the Files landing
+    await rig({ kind: "shared" }, { name: "MLA logo.png", folderId: "fld_private_elsewhere" });
+    assert.equal(upHash("subject=file:f"), "", "never up to a folder that would refuse");
     assert.equal(upHash("subject=file:other"), "", "another file is not placed by it");
   } finally {
     restore();
