@@ -319,21 +319,27 @@ export function schemaFromFields(pairs: readonly Pair[]): Record<string, unknown
 
 // ---- text with data chips (the Goal of a task step)
 
-export type Seg = { kind: "text"; text: string } | { kind: "chip"; ref: string };
+/** A data chip keeps the exact text it was read from (`raw`), so a template nobody edited goes back unchanged; an expression that is more than a plain reference is a `formula` and is kept whole. */
+export type Seg = { kind: "text"; text: string } | { kind: "chip"; ref: string; raw?: string; formula?: boolean };
+
+const PLAIN_REF = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+|\[\d+\])*$/;
 
 /** A template string as alternating text and data pieces: text, chip, text, chip, text. The string is what is stored; the pieces are what the editor draws. */
 export function splitTemplate(value: string): Seg[] {
   const out: Seg[] = [];
   let at = 0;
   for (const m of value.matchAll(/\{\{\s*([^{}]*?)\s*\}\}/g)) {
-    out.push({ kind: "text", text: value.slice(at, m.index) }, { kind: "chip", ref: m[1]! });
+    out.push(
+      { kind: "text", text: value.slice(at, m.index) },
+      { kind: "chip", ref: m[1]!, raw: m[0], ...(PLAIN_REF.test(m[1]!) ? {} : { formula: true }) },
+    );
     at = (m.index ?? 0) + m[0].length;
   }
   out.push({ kind: "text", text: value.slice(at) });
   return out;
 }
 export const joinTemplate = (segs: readonly Seg[]): string =>
-  segs.map((s) => (s.kind === "text" ? s.text : `{{ ${s.ref} }}`)).join("");
+  segs.map((s) => (s.kind === "text" ? s.text : (s.raw ?? `{{ ${s.ref} }}`))).join("");
 
 /** The fields of what started a run that people know by a plain name. The picker's own words for the trigger are "What started the run"; a field that is only an id is named for what it points at. */
 const FRIENDLY_FIELD: Readonly<Record<string, string>> = {

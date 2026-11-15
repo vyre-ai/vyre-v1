@@ -65,3 +65,34 @@ test("an edit on an On Automation is saved as a draft as you go; Make live publi
   assert.equal(caps(s, "automations.draft.discard").length, 1, "Discard drops the draft on the server");
   assert.equal(find(root, "sv-bar-Make live"), null, "the bar is gone");
 });
+
+// AUTOMATIONS-BUILD-RC29 round three, item 4: after Test each row shows what its step was given, in words, with the real values; "Not reached" never shows for a step that ran
+test("Test shows each step's real values in words and never Not reached for a step that ran", async () => {
+  installDom();
+  const s = createSampleAutomations(northwind);
+  const got = (await s.data.call("automations.get", { automationId: "aut_lead" })) as {
+    automation: { definition: { nodes: { id: string; key: string }[] } };
+  };
+  const ids = got.automation.definition.nodes.map((n) => n.id);
+  const data = {
+    ...s.data,
+    call: async (cap: string, input: Record<string, unknown>) => {
+      if (cap === "runs.steps") return { steps: ids.map((id) => ({ step: id, state: "succeeded" })) };
+      if (cap === "runs.step_io") return { input: { title: "Call back", text: "Hello Sam", body: "Hello Sam" } };
+      return s.data.call(cap as never, input as never);
+    },
+  };
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={data as never}>
+      <BuilderPage automationId="aut_lead" />
+    </AutomationsDataProvider>,
+  );
+  await flush();
+  await press(find(root, "sv-test"));
+  await new Promise((r) => setTimeout(r, 300));
+  await flush();
+  const text = textOf(root);
+  assert.equal(text.includes("Not reached"), false);
+  assert.match(text, /Done/);
+});

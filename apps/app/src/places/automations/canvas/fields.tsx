@@ -1,9 +1,10 @@
 // The small inputs the step panel is made of: a labelled text field (one line or several), a choice that opens a menu, a group with a head, a hint, and rows of name and value. They were the
 // Inspector's own; the HTTP request, Run code and AI forms (steps/) use the same ones so every step panel looks and behaves alike.
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Glyph } from "./icons.tsx";
+import type { IconKey } from "./model.ts";
 import { IconButton, pointer, webOnly } from "./parts.tsx";
 import { chipLabel as chipWords, dropChip, joinTemplate, splitTemplate } from "./steps/edits.ts";
 import type { Pair, Seg } from "./steps/edits.ts";
@@ -24,6 +25,8 @@ export interface DataWords {
   titleOf(stepId: string): string;
   /** Opens the menu of data an earlier step gives; `put` receives the new text for the field. */
   insert?(x: number, y: number, current: string, put: (next: string) => void): void;
+  /** The mark of the step a chip's data comes from (its own icon), by the step's id; null when it is the trigger or unknown. */
+  iconOf?(stepId: string): IconKey | null;
 }
 export const DataWordsContext = createContext<DataWords | null>(null);
 
@@ -41,10 +44,13 @@ export function TextBox({
   rows,
   invalid,
   hint,
+  chips = false,
 }: {
   label: string;
   value: string;
   onCommit(v: string): void;
+  /** A field that takes words and data: its value is words and data chips, with Insert data at its right. */
+  chips?: boolean;
   placeholder?: string;
   mono?: boolean;
   readOnly?: boolean;
@@ -58,7 +64,7 @@ export function TextBox({
   const words = useContext(DataWordsContext);
   const shown = draft ?? value;
   const insertLink =
-    words?.insert && !mono && !readOnly && testID !== "field-title" ? (
+    words?.insert && !mono && !readOnly && testID !== "field-step-name" ? (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Insert data into ${label}`}
@@ -84,7 +90,7 @@ export function TextBox({
         <Text style={f.insertText}>Insert data</Text>
       </Pressable>
     ) : null;
-  if (words && !mono && !readOnly && !rows && /\{\{[^{}]*\}\}/.test(value))
+  if (words && !mono && !readOnly && testID !== "field-step-name" && (chips || /\{\{[^{}]*\}\}/.test(value)))
     return (
       <>
         <ChipText
@@ -93,10 +99,10 @@ export function TextBox({
           onCommit={onCommit}
           chipLabel={(ref) => chipWords(ref, words.titleOf)}
           compact={!rows}
+          {...(placeholder ? { placeholder } : {})}
           {...(testID ? { testID } : {})}
           {...(hint ? { hint } : {})}
         />
-        {insertLink}
       </>
     );
   const done = (): void => {
@@ -208,15 +214,40 @@ export function ChipText({
   hint?: string;
 }): ReactElement {
   const [draft, setDraft] = useState<Seg[] | null>(null);
+  const words = useContext(DataWordsContext);
+  const caret = useRef(0);
   const segs = draft ?? splitTemplate(value);
+  // "Insert data" at the field's right, or "/" typed in it: a menu of what the trigger and earlier steps give; choosing one puts a chip here
+  const openInsert = (x: number, y: number): void =>
+    words?.insert?.(x, y, joinTemplate(segs), (next) => {
+      setDraft(null);
+      onCommit(next);
+    });
+  const here = (): { x: number; y: number } => {
+    const doc = (
+      globalThis as {
+        document?: { activeElement?: { getBoundingClientRect?: () => { left: number; bottom: number } } | null };
+      }
+    ).document;
+    const r = doc?.activeElement?.getBoundingClientRect?.();
+    return { x: r?.left ?? 0, y: (r?.bottom ?? 0) + 4 };
+  };
   const done = (next: readonly Seg[]): void => {
     const text = joinTemplate(next);
     setDraft(null);
     // a line nobody edited is not rewritten: "{{lead.phone}}" stays as it was saved, not "{{ lead.phone }}"
     if (text !== value && text !== joinTemplate(splitTemplate(value))) onCommit(text);
   };
-  const edit = (i: number, text: string): void =>
+  const edit = (i: number, text: string): void => {
+    if (words?.insert && text.endsWith("/")) {
+      // "/" is the keyboard's way to the same menu; the slash itself is not kept
+      setDraft(segs.map((x, at) => (at === i ? { kind: "text", text: text.slice(0, -1) } : x)));
+      const at = here();
+      openInsert(at.x, at.y);
+      return;
+    }
     setDraft(segs.map((x, at) => (at === i ? { kind: "text", text } : x)));
+  };
   const pieces: ReactElement[] = [];
   segs.forEach((seg, i) => {
     if (seg.kind === "text") {
@@ -233,6 +264,20 @@ export function ChipText({
           placeholderTextColor="var(--ink-4)"
           onChangeText={(t) => edit(i, t)}
           onBlur={() => done(segs)}
+          onSelectionChange={(e) => {
+            caret.current = e.nativeEvent.selection.start;
+          }}
+          onKeyPress={
+            ((e: { nativeEvent?: { key?: string }; key?: string; preventDefault?: () => void }) => {
+              // Backspace at the start of a piece of text takes out the chip before it, as one character
+              const key = e.nativeEvent?.key ?? e.key;
+              const before = segs[i - 1];
+              if (key === "Backspace" && caret.current === 0 && before?.kind === "chip") {
+                e.preventDefault?.();
+                done(dropChip(segs, i - 1));
+              }
+            }) as never
+          }
           {...(hint && first ? webOnly({ title: hint }) : {})}
           style={[
             f.chipInput,
@@ -257,11 +302,16 @@ export function ChipText({
         <View
           key={`c${i}`}
           testID={testID ? `${testID}-chip-${i}` : undefined}
-          accessibilityLabel={`Data: ${chipLabel(seg.ref)}`}
-          style={f.chip}
+          accessibilityLabel={`Data: ${seg.formula ? "Formula" : chipLabel(seg.ref)}`}
+          style={[f.chip, seg.formula && { backgroundColor: "var(--sunk)" as string }]}
         >
+          {(() => {
+            const src = /^steps\.([^.\[]+)/.exec(seg.ref)?.[1];
+            const icon = seg.formula ? null : src ? words?.iconOf?.(src) : null;
+            return icon ? <Glyph name={icon} size={11} color="var(--ink-2)" /> : null;
+          })()}
           <Text numberOfLines={1} style={f.chipLabel}>
-            {chipLabel(seg.ref)}
+            {seg.formula ? "Formula" : chipLabel(seg.ref)}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -278,7 +328,26 @@ export function ChipText({
   return (
     <View style={f.field}>
       <Text style={f.label}>{label}</Text>
-      <View style={[f.chipBox, compact && { minHeight: 34 }]}>{pieces}</View>
+      <View style={[f.chipBox, compact && { minHeight: 34 }]}>
+        {pieces}
+        {words?.insert ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Insert data into ${label}`}
+            testID={testID ? `${testID}-insert` : undefined}
+            onPress={(e) => {
+              const ev = e as unknown as {
+                currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+              };
+              const r = ev.currentTarget?.getBoundingClientRect?.();
+              openInsert(r?.left ?? 0, (r?.bottom ?? 0) + 4);
+            }}
+            style={[f.insertInBox, pointer]}
+          >
+            <Text style={f.insertText}>Insert data</Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -533,6 +602,7 @@ export function Rows({
 
 export const f = StyleSheet.create({
   insertLink: { alignSelf: "flex-start", paddingVertical: 2 },
+  insertInBox: { marginLeft: "auto" as unknown as number, paddingHorizontal: 6, paddingVertical: 2 },
   insertText: { fontSize: 12, color: "var(--accent)" as string },
   field: { gap: 4 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },

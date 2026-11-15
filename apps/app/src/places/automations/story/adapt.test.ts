@@ -28,6 +28,7 @@ const def: DefIn = {
   ],
 };
 
+// round three: a chip names its source and its field ("A form is submitted · Email")
 test("a definition becomes a trigger and steps in the order they run, each a sentence with names and chips and never a field key", () => {
   const r = fromDefinition(def, ctx());
   assert.equal(r.trigger?.template.includes("{form}"), true);
@@ -47,7 +48,7 @@ test("a definition becomes a trigger and steps in the order they run, each a sen
   const rows = m.rows.filter((x) => x.kind === "step");
   assert.equal(
     rows[0]!.kind === "step" && rows[0]!.sentence.text,
-    "Send for signature: Engagement letter.docx, to Email",
+    "Send for signature: Engagement letter.docx, to A form is submitted \u00b7 Email",
   );
   assert.equal(rows[1]!.kind === "step" && rows[1]!.sentence.text.includes("fileId"), false);
 });
@@ -56,18 +57,24 @@ test("a reference becomes a chip that names its source and shows a sample; a tex
   const r = fromDefinition(def, ctx());
   const s1 = r.steps[0]!;
   const to = Object.values(s1.values).find((v) => v && "chip" in v);
-  assert.deepEqual(to, { chip: { label: "Email", from: "A form is submitted", sample: "" } });
+  assert.deepEqual(to, {
+    chip: { label: "A form is submitted \u00b7 Email", from: "A form is submitted", sample: "" },
+  });
   const s2 = r.steps[1]!;
   const text = Object.values(s2.values)
     .map((v) => (v && "text" in v ? v.text : ""))
     .join("|");
-  assert.ok(text.includes("New request from Name"));
+  // round three: a text with a reference keeps its words and the reference is a chip beside them
+  assert.ok(text.includes("New request from "));
+  assert.ok(
+    Object.values(s2.values).some((v) => v && "chip" in v && v.chip.label === "A form is submitted \u00b7 Name"),
+  );
   const name = fromDefinition(
     { ...def, nodes: [{ id: "s1", key: "post_message", input: { text: "{{trigger.name}}" } }] },
     ctx(),
   ).steps[0]!;
   assert.deepEqual(Object.values(name.values)[0], {
-    chip: { label: "Name", from: "A form is submitted", sample: "Sam Reyes" },
+    chip: { label: "A form is submitted \u00b7 Name", from: "A form is submitted", sample: "Sam Reyes" },
   });
 });
 
@@ -172,7 +179,7 @@ test("a loop is one group under 'For each ... in ...:' and parallel lanes one gr
   assert.deepEqual(
     r.steps.map((s) => [s.id, s.group?.head, s.group?.steps.map((g) => g.id)]),
     [
-      ["lp", "For each item in Rows:", ["b1"]],
+      ["lp", "For each item in A form is submitted \u00b7 Rows:", ["b1"]],
       ["pp", "At the same time:", ["x", "y"]],
     ],
   );
@@ -218,7 +225,11 @@ test("a step someone titled reads as its own title, never followed by a dump of 
   const r = fromDefinition(d, ctx());
   assert.equal(r.steps[0]!.template, "Email the lead a first hello");
   assert.deepEqual(r.steps[0]!.values, {});
-  assert.equal(r.steps[0]!.action, "to Email, Hello", "the second line says what the settings add, in words");
+  assert.equal(
+    r.steps[0]!.action,
+    "to A form is submitted \u00b7 Email, Hello",
+    "the second line says what the settings add, in words",
+  );
 });
 
 test("no step shows its title twice: the second line is absent or different from the first", () => {
@@ -283,7 +294,15 @@ test("an id a step names is shown by the name of whoever it is, never as the id 
     { triggers: [{ key: "manual" }], nodes: [{ id: "a", key: "send_email", input: { to: "usr_f914abc8606dfbce65" } }] },
     ctx({ nameOfId: (id) => (id === "usr_f914abc8606dfbce65" ? "Olivia Owner" : "Chosen") }),
   );
-  const t = story({ name: "x", on: false, trigger: r.trigger, steps: r.steps, proposed: false, dirty: false, test: null });
+  const t = story({
+    name: "x",
+    on: false,
+    trigger: r.trigger,
+    steps: r.steps,
+    proposed: false,
+    dirty: false,
+    test: null,
+  });
   const row = t.rows.find((x) => x.kind === "step");
   assert.ok(row && row.kind === "step");
   const text = JSON.stringify(row.sentence);

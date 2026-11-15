@@ -22,7 +22,6 @@ import { useOpenConnect } from "../../../shell/connect/context.ts";
 import { connectEntries } from "../../../shell/connect/model.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import { asFixture } from "../builder/fields.ts";
-import { MessageComposer } from "../builder/MessageComposer.tsx";
 import { DataShelf, MappingFix, advancedInputEdit, basicFieldEdit, nodeIdSet } from "../builder/marks.tsx";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { glyphOf, tintOf } from "../picker/glyphs.ts";
@@ -50,11 +49,17 @@ import {
 } from "./model.ts";
 import { SchemaForm } from "./SchemaForm.tsx";
 import { TriggerForm, usePersonZone } from "./TriggerForm.tsx";
-import { controlsFor, humanize, specOf } from "./form-model.ts";
+import { arrangeControls, controlsFor, humanize, specOf } from "./form-model.ts";
+import { actOf } from "../story/issues.ts";
+import { chipForIssue } from "../../../../../../lib/words/step-missing.ts";
+import type { GiveRow } from "../builder/insert-data.ts";
+import { addChip, chipLabel } from "./steps/edits.ts";
+import { inputValues } from "../builder/step-values.ts";
 import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import { LiveStepForm } from "./steps/LiveStepForm.tsx";
 import type { KeysStatus } from "./data.tsx";
+import { useOptionalAutomationsData } from "./data.tsx";
 import { SendApproval, sendsOutward } from "./AskBeforeSending.tsx";
 import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
 
@@ -98,6 +103,10 @@ export function Inspector({
   runId,
   runLog,
   heading,
+  autoFocusNeed,
+  needButton,
+  onNeed,
+  given,
   mark,
 }: {
   /** The Automation this panel edits: the web request trigger shows its address. */
@@ -142,10 +151,18 @@ export function Inspector({
   runLog?: unknown;
   /** The step's sentence as its row on the page reads it; the form's head says the same words. */
   heading?: string;
+  /** Opened by a row's orange button: scroll to and focus the control that is needed. */
+  autoFocusNeed?: boolean;
+  /** The button of the row's orange line, so the bar and the row say one thing, and what it does. */
+  needButton?: string;
+  onNeed?(): void;
+  /** What the trigger and each earlier step give, for "Insert data" (builder/insert-data.ts). */
+  given?: readonly GiveRow[];
   /** The mark its row wears on the page (an app's logo or the kind's glyph); the form's head wears the same one. */
   mark?: { id: string; name: string };
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
+  const autoData = useOptionalAutomationsData();
   const openConnect = useOpenConnect();
   const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
   const zone = usePersonZone();
@@ -232,15 +249,27 @@ export function Inspector({
   // "Insert data": what an earlier step gives, by its name; a field is never typed as {{ }} by hand
   const dataWords: DataWords = {
     titleOf,
+    iconOf: (id) => {
+      const n = def.nodes.find((x) => x.id === id);
+      return n ? iconOfKey(n.key) : null;
+    },
     insert: (x, y, current, put) => {
-      const rows = shelfRows(samples["trigger"], prior);
+      const rows = given ?? [];
+      const entries: MenuEntry[] = [];
+      let last = "";
+      for (const r of rows) {
+        if (r.source !== last) {
+          entries.push({ head: r.source });
+          last = r.source;
+        }
+        entries.push({
+          label: r.name,
+          ...(r.sample ? { hint: r.sample } : {}),
+          onSelect: () => put(addChip(current, r.ref)),
+        });
+      }
       openMenu(
-        rows.length === 0
-          ? [{ label: "Nothing yet. Test a step to see what it gives.", onSelect: () => undefined }]
-          : rows.map((r) => ({
-              label: `${r.source} · ${r.name}`,
-              onSelect: () => put(withExpression(current, mappingExpression(r.id))),
-            })),
+        entries.length === 0 ? [{ label: "Nothing to bring in yet", onSelect: () => undefined }] : entries,
         x,
         y,
         "other",
@@ -375,15 +404,7 @@ export function Inspector({
       );
     }
   }
-  const composer = node.key === "send_email" || node.key === "send_sms";
   const fixedAccount = accountFixedLine(accountPick?.value);
-  const hidden = new Set(
-    node.key === "send_email"
-      ? ["subject", "body", "to", "cc", "fileIds", "message"]
-      : node.key === "send_sms"
-        ? ["body", "to", "message", "mediaFileIds"]
-        : [],
-  );
   const skipAccount = (name: string): boolean =>
     !!accountPick &&
     (name === "connectionId" ||
@@ -401,15 +422,16 @@ export function Inspector({
     return /Ids?$/.test(name) && typeof v === "string" && /^[a-z]{2,6}_[A-Za-z0-9]+$/.test(v) && nameOfId(v) === null;
   };
   const skipField = (name: string): boolean =>
-    skipAccount(name) || onTheStep(name) || (composer && hidden.has(name)) || name === "summary" || opaqueId(name);
+    skipAccount(name) || onTheStep(name) || name === "summary" || opaqueId(name);
   const writeInput = (name: string, next: unknown): void => {
     const input = { ...node.input };
     if (next === undefined) delete input[name];
     else input[name] = next;
     onChange(updateStep(def, node.id, { input }));
   };
-  const controls = controlsFor(inputSchema);
-  const covered = new Set(controls.map((c) => c.name));
+  const arranged = arrangeControls(node.key, controlsFor(inputSchema));
+  const controls = arranged.main;
+  const covered = new Set([...arranged.main, ...arranged.details].map((c) => c.name));
   const skipControl = (c: { name: string }): boolean => skipField(c.name);
   const stray: ReactElement[] = [];
   for (const k of inputKeys) {
@@ -426,6 +448,17 @@ export function Inspector({
       />,
     );
   }
+  const detailFields = (
+    <SchemaForm
+      key={`${node.id}-schema-details`}
+      idPrefix="details"
+      controls={arranged.details}
+      input={node.input ?? {}}
+      openMenu={openMenu}
+      skip={skipControl}
+      onInput={(next) => onChange(updateStep(def, node.id, { input: next }))}
+    />
+  );
   fields.push(
     <SchemaForm
       key={`${node.id}-schema`}
@@ -437,6 +470,25 @@ export function Inspector({
     />,
   );
   fields.push(...stray);
+  // the one thing this step needs, in the words the row's orange line uses (story/issues actOf): one source for the bar and the row
+  const firstError = mine.find((x) => x.severity === "error");
+  const needLine = firstError ? actOf(firstError.message) : null;
+  const focusFirstNeeded = (): void => {
+    const target = [...arranged.main].find((c) => c.required && !present(node.input?.[c.name])) ?? arranged.main[0];
+    const doc = (
+      globalThis as {
+        document?: {
+          querySelector?: (q: string) => { focus?: () => void; scrollIntoView?: (o: object) => void } | null;
+        };
+      }
+    ).document;
+    const el = target ? doc?.querySelector?.(`[data-testid="field-${target.name}"]`) : null;
+    el?.scrollIntoView?.({ block: "center" });
+    el?.focus?.();
+  };
+  useEffect(() => {
+    if (autoFocusNeed && needLine) focusFirstNeeded();
+  }, [autoFocusNeed, node.id]);
   return (
     <DataWordsContext.Provider value={dataWords}>
       <MapTargetContext.Provider value={{ set: setMapTarget }}>
@@ -448,7 +500,7 @@ export function Inspector({
         >
           <Head
             title={heading ?? node.title ?? titleOfKey(node.key)}
-            sub={groupOfKey(node.key)}
+            sub={titleOfKey(node.key)}
             icon={iconOfKey(node.key)}
             {...(mark ? { mark } : {})}
             onClose={onClose}
@@ -479,13 +531,19 @@ export function Inspector({
                     })}
                   </View>
                 )}
-                <TextBox
-                  label="Name"
-                  value={node.title ?? ""}
-                  placeholder={titleOfKey(node.key)}
-                  testID="field-title"
-                  onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))}
-                />
+                {needLine ? (
+                  <View style={i.needBar} testID="step-needs-bar">
+                    <Text style={i.needText}>{firstError ? chipForIssue(firstError.message) : needLine}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      testID="step-needs-button"
+                      onPress={() => (onNeed ? onNeed() : focusFirstNeeded())}
+                      style={[i.needBtn, pointer]}
+                    >
+                      <Text style={i.needBtnText}>{needButton ?? needLine}</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
                 {accountPick ? (
                   <Choice
                     label="Account"
@@ -549,15 +607,6 @@ export function Inspector({
                     keys={keys}
                   />
                 ) : null}
-                {composer ? (
-                  <MessageComposer
-                    stepKey={node.key}
-                    nodeId={node.id}
-                    input={node.input ?? {}}
-                    samples={samples}
-                    onInput={(input) => onChange(updateStep(def, node.id, { input }))}
-                  />
-                ) : null}
                 {live ? null : fields}
                 {sendsOutward(node.key) &&
                 !(
@@ -573,6 +622,12 @@ export function Inspector({
                 ) : null}
                 <StepTest
                   plain
+                  needs={needLine}
+                  shows={inputValues(
+                    node.key,
+                    resolveRefs(node.input ?? {}, given ?? [], titleOf),
+                    (id) => nameOfId(id) ?? autoData?.name(id) ?? "Chosen",
+                  )}
                   stepKey={node.key}
                   nodeId={node.id}
                   input={node.input ?? {}}
@@ -581,6 +636,14 @@ export function Inspector({
                   onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))}
                 />
                 <More head="Details" testID="step-details" initiallyOpen={section !== "configure" || advanced}>
+                  <TextBox
+                    label="Name this step"
+                    value={node.title ?? ""}
+                    placeholder={titleOfKey(node.key)}
+                    testID="field-step-name"
+                    onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))}
+                  />
+                  {detailFields}
                   <Text testID="plain-language" style={i.hint}>
                     {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}
                   </Text>
@@ -714,13 +777,13 @@ export function Inspector({
                 ) : null}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Delete this step"
+                  accessibilityLabel="Delete step"
                   testID="delete-step"
                   onPress={onDelete}
                   style={[i.del, pointer]}
                 >
                   <Glyph name="x" size={13} color="var(--danger)" />
-                  <Text style={i.delText}>Delete this step</Text>
+                  <Text style={i.delText}>Delete step</Text>
                 </Pressable>
               </>
             ) : null}
@@ -731,6 +794,27 @@ export function Inspector({
     </DataWordsContext.Provider>
   );
 }
+
+/** A step's input with each reference put as the sample from the last real event when there is one, else as the chip's words: what Test this step shows is readable, never a brace. */
+function resolveRefs(
+  input: Record<string, unknown>,
+  given: readonly GiveRow[],
+  titleOf: (id: string) => string,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input))
+    out[k] =
+      typeof v === "string"
+        ? v.replace(
+            /\{\{\s*([^{}]*?)\s*\}\}/g,
+            (_m, ref: string) => given.find((g) => g.ref === ref)?.sample || chipLabel(ref, titleOf),
+          )
+        : v;
+  return out;
+}
+
+const present = (v: unknown): boolean =>
+  v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
 
 function Head({
   title,
@@ -854,6 +938,23 @@ const i = StyleSheet.create({
   choiceText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
   problem: { flexDirection: "row", alignItems: "flex-start", gap: 7 },
   problemText: { flex: 1, fontSize: 12, lineHeight: 17, color: "var(--ink-2)" as string },
+  needBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "var(--warn-wash)" as string,
+  },
+  needText: { flex: 1, fontSize: 13, color: "var(--warn)" as string },
+  needBtn: {
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    justifyContent: "center",
+    backgroundColor: "var(--chip)" as string,
+  },
+  needBtnText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink)" as string },
   del: {
     flexDirection: "row",
     alignItems: "center",

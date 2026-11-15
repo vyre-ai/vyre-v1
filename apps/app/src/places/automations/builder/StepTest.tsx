@@ -18,6 +18,8 @@ export function StepTest({
   onUseOutput,
   readyOutput,
   plain = false,
+  shows = [],
+  needs = null,
 }: {
   stepKey: string;
   nodeId: string;
@@ -29,6 +31,10 @@ export function StepTest({
   readyOutput?: unknown;
   /** The page's own step form: one Test this step row, the result in a line, and no engineering notes. */
   plain?: boolean;
+  /** What the step has been given, in words with its real or sample values: shown under the result (round three). */
+  shows?: readonly (readonly [string, string])[];
+  /** What the step still needs, as the one thing to do: the test says it in a sentence instead of running (a step that cannot run). */
+  needs?: string | null;
 }): ReactElement {
   const data = useAutomationsData();
   const [phase, setPhase] = useState<"idle" | "running" | "done" | "error" | "unavailable">(
@@ -38,6 +44,11 @@ export function StepTest({
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
 
   const run = (): void => {
+    if (needs) {
+      setError({ message: `This step cannot run yet. ${needs}.` });
+      setPhase("error");
+      return;
+    }
     setPhase("running");
     setError(null);
     void data
@@ -84,15 +95,18 @@ export function StepTest({
           {rendered}
         </Text>
       ) : null}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Test this step"
-        testID="run-step-test"
-        onPress={run}
-        style={t.btn}
-      >
-        <Text style={t.btnText}>{phase === "running" ? "Testing" : "Test this step"}</Text>
-      </Pressable>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Test this step"
+          testID="run-step-test"
+          onPress={run}
+          style={t.btn}
+        >
+          <Text style={t.btnText}>{phase === "running" ? "Testing" : "Test this step"}</Text>
+        </Pressable>
+        {plain ? <Text style={t.hint}>Nothing is sent</Text> : null}
+      </View>
       {plain ? null : (
         <Text testID="no-outward-effect" style={t.hint}>
           {NO_OUTWARD_EFFECT}
@@ -105,6 +119,7 @@ export function StepTest({
       {phase === "done" ? (
         <View style={t.out}>
           <Text style={t.hint}>{plain ? "It ran. Nothing was sent." : `Output: ${JSON.stringify(output)}`}</Text>
+          {plain ? shows.map(([k, v]) => <Text key={k} style={t.hint}>{`${k}: ${v}`}</Text>) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Use output from test"

@@ -72,8 +72,7 @@ const OWNED: Record<string, Record<string, string[]>> = {
   http_request: { method: ["field-method"], url: ["field-url"] },
   code: { source: ["field-source"] },
   ai: { prompt: ["field-prompt"] },
-  send_email: { to: ["composer-to"], subject: ["em-subject"], body: ["em-plain"] },
-  send_sms: { to: ["composer-to"], body: ["richeditor-host"] },
+  // round three: an email and a text are the one step form (To, Subject, Message as chip fields), so their fields are field-<name> like every other step's
   paths: { paths: ["field-path-0"] },
   parallel: { branches: ["field-lane-0"] },
 };
@@ -118,7 +117,8 @@ test("every step in the catalog has an editable control for each required field"
     const def: Definition = { triggers: [{ key: "manual" }], nodes: [node] };
     const out = page(def, node, schema);
     const have = ids(out);
-    assert.ok(have.has("field-title"), `${step.key} has its Name field`);
+    // round three: the step's own name sits under Details with the rest of what a person rarely changes
+    assert.ok(have.has("step-details"), `${step.key} has its Details`);
     for (const name of requiredOf(schema)) {
       checked += 1;
       const candidates = OWNED[step.key]?.[name] ?? [`field-${name}`];

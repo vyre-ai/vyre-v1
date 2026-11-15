@@ -91,7 +91,7 @@ for (const look of LOOKS) {
       const intake = (made2.automation ?? made2.data?.automation ?? made2.data ?? made2).id as string;
       const valid = {
         triggers: [{ key: "manual" }],
-        nodes: [{ id: "n1", key: "create_task", input: { title: "Call back", assigned: who } }],
+        nodes: [{ id: "n1", key: "create_task", input: { title: "Call back", assigned: { kind: "person", id: who } } }],
         start: ["n1"],
       };
       await api("automations.update", { automationId: intake, definition: valid });
@@ -100,7 +100,7 @@ for (const look of LOOKS) {
       await page.waitForTimeout(1500);
       const edited = {
         ...valid,
-        nodes: [...valid.nodes, { id: "n2", key: "create_task", input: { assigned: who } }],
+        nodes: [...valid.nodes, { id: "n2", key: "create_task", input: { assigned: { kind: "person", id: who } } }],
         start: ["n1"],
       };
       edited.nodes[0] = { ...edited.nodes[0], next: ["n2"] } as never;
@@ -115,6 +115,10 @@ for (const look of LOOKS) {
       await page.getByTestId("sv-test").click();
       await page.waitForTimeout(4000);
       await shot("7-test-on-draft");
+      const tr = await api("runs.list", { scope: "subject", subject: { type: "automation", id: intake } });
+      const trun = (tr.runs ?? tr.data?.runs ?? [])[0];
+      if (trun)
+        console.log("TESTRUN", trun.id, JSON.stringify(await api("runs.steps", { runId: trun.id })).slice(0, 400));
       const body = await page.locator("body").innerText();
       assert.match(body, /Test with /, "the bar names the past event");
       assert.match(body, /The test sent nothing/);

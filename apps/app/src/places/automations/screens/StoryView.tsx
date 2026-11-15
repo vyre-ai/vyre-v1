@@ -17,6 +17,7 @@ export type StoryAction =
   | "secondary"
   | "ask"
   | "insert"
+  | "rowmenu"
   | "trigger";
 
 function Btn({
@@ -199,6 +200,7 @@ export function StoryView({
                   )}
                   {r.kind === "step" && r.need ? (
                     <View style={s.needRow}>
+                      {story.tests[r.id]?.mark === "stopped" ? <Text style={look.warn}>Stopped here</Text> : null}
                       <Text style={[look.warn, { flexShrink: 1 }]}>{r.need.line}</Text>
                       <Btn
                         id={`sv-need-${r.id}`}
@@ -207,11 +209,12 @@ export function StoryView({
                         onPress={() => on("need", r.id)}
                       />
                     </View>
-                  ) : r.kind === "step" && story.tests[r.id] && story.tests[r.id]!.mark !== "skipped" ? (
+                  ) : r.kind === "step" && story.tests[r.id] ? (
                     <View testID={`sv-test-${r.id}`}>
                       <Text style={story.tests[r.id]!.mark === "stopped" ? look.warn : look.quiet}>
-                        {story.tests[r.id]!.tag ? `${story.tests[r.id]!.tag}. ` : ""}
-                        {story.tests[r.id]!.line ?? ""}
+                        {story.tests[r.id]!.mark === "skipped"
+                          ? "Not reached"
+                          : `${story.tests[r.id]!.tag ? `${story.tests[r.id]!.tag}. ` : ""}${story.tests[r.id]!.line ?? ""}`}
                       </Text>
                       {/* ui-rows-lint: not a list (the real values this step was given or made in the test) */}
                       {story.tests[r.id]!.values.map(([k, v]) => (
@@ -224,6 +227,17 @@ export function StoryView({
                     </Text>
                   ) : null}
                 </View>
+                {!readOnly && r.kind === "step" ? (
+                  <Pressable
+                    testID={`sv-row-menu-${r.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel="Step options"
+                    onPress={(e) => on("rowmenu", r.id, e)}
+                    style={s.more}
+                  >
+                    <Text style={look.quiet}>{"…"}</Text>
+                  </Pressable>
+                ) : null}
               </Pressable>
               {!readOnly && story.slots.includes(r.id) ? (
                 <Pressable
@@ -233,7 +247,11 @@ export function StoryView({
                   onPress={(e) => on("insert", r.id, e)}
                   style={s.slot}
                 >
-                  <Text style={s.addPlus}>+</Text>
+                  <View style={s.slotLine}>
+                    <View style={s.slotDot}>
+                      <Text style={s.slotPlus}>+</Text>
+                    </View>
+                  </View>
                 </Pressable>
               ) : null}
             </View>
@@ -298,7 +316,19 @@ const s = StyleSheet.create({
   proposed: { borderStyle: "dashed", borderColor: "var(--accent-line)" as string },
   no: { width: 36, fontSize: 13, color: "var(--ink-3)" as string, textAlign: "center" },
   when: { width: 48, fontWeight: "600", color: "var(--accent)" as string },
-  slot: { height: 22, alignItems: "flex-start", justifyContent: "center" },
+  slot: { height: 22, justifyContent: "center", paddingLeft: 12 },
+  slotLine: { flexDirection: "row", alignItems: "center", paddingLeft: 10 },
+  slotDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  slotPlus: { fontSize: 12, lineHeight: 14, color: "var(--ink-3)" as string },
+  more: { paddingHorizontal: 8, paddingVertical: 2, opacity: 0.45 },
   add: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 12 },
   addPlus: { width: 36, textAlign: "center", fontSize: 18, color: "var(--ink-3)" as string },
   off: { opacity: 0.45 },

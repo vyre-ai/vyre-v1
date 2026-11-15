@@ -46,6 +46,22 @@ const human = (s: string): string => {
   return w === "" ? s : w.charAt(0).toUpperCase() + w.slice(1);
 };
 
+/** One reference as a chip: "Lead · Email", with the step it comes from named and the sample from a real event. */
+function refChip(source: string, path: string, ctx: AdaptCtx): Value {
+  // "steps.find.out.email" names the step find and its field email
+  const st = source === "steps" ? /^([^.]+)\.out\.?(.*)$/.exec(path) : null;
+  const node = st ? st[1]! : source;
+  const field = st ? st[2]! : path;
+  const from = ctx.nameOfNode(node);
+  return {
+    chip: {
+      label: field === "" ? from : `${from} \u00b7 ${human(field)}`,
+      from,
+      sample: ctx.sample?.[`${node}.${field}`] ?? ctx.sample?.[`${source}.${path}`] ?? "",
+    },
+  };
+}
+
 /** A stored value as the page shows it: a lone reference is a chip, a text with references keeps its words. */
 function valueOf(v: unknown, ctx: AdaptCtx): Value | undefined {
   if (typeof v === "string") {
@@ -54,19 +70,20 @@ function valueOf(v: unknown, ctx: AdaptCtx): Value | undefined {
     // an id never reaches the page: a person or thing a step names is shown by its name
     if (/^[a-z]{2,6}_[0-9a-f]{8,}$/.test(t)) return { text: ctx.nameOfId?.(t) ?? "Chosen" };
     const whole = new RegExp(`^${REF.source}$`).exec(t);
-    if (whole)
-      return {
-        chip: {
-          label: human(whole[2]!),
-          from: ctx.nameOfNode(whole[1]!),
-          sample: ctx.sample?.[`${whole[1]}.${whole[2]}`] ?? "",
-        },
-      };
+    if (whole) return refChip(whole[1]!, whole[2]!, ctx);
     return { text: t.replace(REF, (_m, _n, path: string) => human(path)) };
   }
-  if (typeof v === "number" || typeof v === "boolean") return { text: String(v) };
+  // a yes-or-no setting says nothing in a sentence: "Paths: true" is not words
+  if (typeof v === "number") return { text: String(v) };
+  if (typeof v === "boolean") return undefined;
   if (Array.isArray(v)) {
-    const parts = v.map((x) => valueOf(x, ctx)).filter((x): x is Value => x !== undefined);
+    const parts = v
+      .map((x) =>
+        x && typeof x === "object" && typeof (x as { name?: unknown }).name === "string"
+          ? valueOf((x as { name: string }).name, ctx)
+          : valueOf(x, ctx),
+      )
+      .filter((x): x is Value => x !== undefined);
     return parts.length === 0
       ? undefined
       : { text: parts.map((p) => ("text" in p ? p.text : p.chip.label)).join(", ") };
@@ -74,14 +91,12 @@ function valueOf(v: unknown, ctx: AdaptCtx): Value | undefined {
   if (v && typeof v === "object") {
     const o = v as { kind?: unknown; nodeId?: unknown; path?: unknown; value?: unknown; label?: unknown };
     if (o.kind === "ref" && typeof o.nodeId === "string" && typeof o.path === "string")
-      return {
-        chip: {
-          label: human(o.path),
-          from: ctx.nameOfNode(o.nodeId),
-          sample: ctx.sample?.[`${o.nodeId}.${o.path}`] ?? "",
-        },
-      };
+      return refChip(o.nodeId, o.path, ctx);
     if (o.kind === "literal") return valueOf(o.value, ctx);
+    // a person (or another thing) chosen by id is shown by its name
+    const who = v as { id?: unknown };
+    if (typeof who.id === "string" && Object.keys(v as object).every((k) => k === "id" || k === "kind"))
+      return { text: ctx.nameOfId?.(who.id) ?? "Chosen" };
     if (o.kind === "resource" && typeof o.label === "string") return { text: o.label };
   }
   return undefined;
@@ -96,7 +111,30 @@ function sentenceOf(
   const bits: string[] = [];
   let i = 0;
   for (const [k, raw] of Object.entries(input)) {
-    if (i >= 3) break;
+    if (i >= 6) break;
+    // a text that holds references keeps them as chips among its words: "Thanks, [Lead · Name]"
+    if (typeof raw === "string" && /\{\{[^{}]*\}\}/.test(raw) && !new RegExp(`^${REF.source}$`).test(raw.trim())) {
+      const pieces: string[] = [];
+      let at = 0;
+      for (const m of raw.matchAll(new RegExp(REF.source, "g"))) {
+        if ((m.index ?? 0) > at) {
+          values[`f${i}`] = { text: raw.slice(at, m.index) };
+          pieces.push(`{f${i}}`);
+          i++;
+        }
+        values[`f${i}`] = refChip(m[1]!, m[2]!, ctx);
+        pieces.push(`{f${i}}`);
+        i++;
+        at = (m.index ?? 0) + m[0].length;
+      }
+      if (at < raw.length) {
+        values[`f${i}`] = { text: raw.slice(at) };
+        pieces.push(`{f${i}}`);
+        i++;
+      }
+      bits.push(`${PREFIX[k] ?? ""}\u201c${pieces.join("")}\u201d`);
+      continue;
+    }
     const v = valueOf(raw, ctx);
     if (!v) continue;
     values[`f${i}`] = v;
@@ -194,7 +232,11 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
     return {
       id: n.id,
       app,
-      action: detailOf(n, title, known?.title, ctx),
+      action: n.title?.trim()
+        ? detailOf(n, title, known?.title, ctx)
+        : Object.keys(s.values).length > 0
+          ? (known?.title ?? human(n.key))
+          : "",
       template: s.template,
       values: s.values,
       ...(needs.length > 0 ? { needs } : {}),

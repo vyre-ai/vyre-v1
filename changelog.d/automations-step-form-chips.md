@@ -1,0 +1,1 @@
+A step form shows fields in the order a person thinks, with data chips and Insert data; each step row is a sentence with chips and the kind beneath; Test this step says Nothing is sent and shows the values it was given.

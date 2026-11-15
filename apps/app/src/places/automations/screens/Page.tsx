@@ -8,7 +8,11 @@ import { look } from "./look.ts";
 export interface PageProps {
   title: string;
   subtitle?: string;
-  tabs?: readonly { id: string; label: string }[];
+  tabs?: readonly {
+    id: string;
+    label: string;
+    /** A count of what needs a look: a small amber dot with the number. */ badge?: number;
+  }[];
   tab?: string;
   onTab?(id: string): void;
   action?: ReactNode;
@@ -61,6 +65,11 @@ export function AutomationsPage(p: PageProps): ReactElement {
               style={[s.tab, p.tab === t.id ? s.tabOn : null]}
             >
               <Text style={[s.tabText, p.tab === t.id ? s.tabTextOn : null]}>{t.label}</Text>
+              {t.badge ? (
+                <View style={s.badge} testID={`page-tab-badge-${t.id}`}>
+                  <Text style={s.badgeText}>{String(t.badge)}</Text>
+                </View>
+              ) : null}
             </Pressable>
           ))}
         </View>
@@ -71,6 +80,17 @@ export function AutomationsPage(p: PageProps): ReactElement {
 }
 
 const s = StyleSheet.create({
+  badge: {
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    marginLeft: 6,
+    backgroundColor: "var(--warn)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: { fontSize: 10, fontWeight: "700", color: "#fff" },
   page: { flex: 1, minHeight: 0, width: "100%" },
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
   grow: { flex: 1, minWidth: 0 },
@@ -85,7 +105,14 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "var(--line)" as string,
   },
-  tab: { paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  tab: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
   tabOn: { borderBottomColor: "var(--accent)" as string },
   tabText: { fontSize: 13.5, color: "var(--ink-3)" as string },
   tabTextOn: { color: "var(--ink)" as string, fontWeight: "600" },

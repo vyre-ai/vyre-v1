@@ -104,7 +104,11 @@ test("production Automations: missing input in words, and a step menu with only 
       data: {
         name: "Outlook note",
         idempotencyKey: "faults-ms",
-        definition: { triggers: [{ key: "manual" }], nodes: [{ id: "m1", key: "ms.mail.send_message", input: {} }], start: ["m1"] },
+        definition: {
+          triggers: [{ key: "manual" }],
+          nodes: [{ id: "m1", key: "ms.mail.send_message", input: {} }],
+          start: ["m1"],
+        },
       },
     });
     assert.equal(ms.status(), 200, await ms.text());
@@ -112,7 +116,13 @@ test("production Automations: missing input in words, and a step menu with only 
     await page.getByText("Outlook note", { exact: true }).first().click({ timeout: 30_000 });
     await page.getByTestId("sv-step-m1").waitFor({ timeout: 20_000 });
     await shoot("ms-step-kept");
-    assert.match(await page.locator("body").innerText(), /Microsoft 365/, "the step keeps its own name and says whose it is");
+    // the line arrives when the full catalogue has been read: wait for it, never read the page mid-way
+    await page.getByText("You cannot use Microsoft 365", { exact: false }).first().waitFor({ timeout: 20_000 });
+    assert.match(
+      await page.locator("body").innerText(),
+      /Microsoft 365/,
+      "the step keeps its own name and says whose it is",
+    );
 
     // the step picker: this Space connected nothing, so no app's actions are listed
     await page.getByText("Contract to sign", { exact: true }).first().click();
@@ -121,7 +131,8 @@ test("production Automations: missing input in words, and a step menu with only 
     await shoot("step-menu");
     const items = await page.getByTestId("pk-main").innerText();
     assert.match(items, /Messages/, "this is the step picker (Vyre's own groups are in it)");
-    for (const app of ["Microsoft", "GitHub", "Google"]) assert.equal(items.includes(app), false, `${app} is in the picker`);
+    for (const app of ["Microsoft", "GitHub", "Google"])
+      assert.equal(items.includes(app), false, `${app} is in the picker`);
     await page.keyboard.press("Escape");
     assert.deepEqual(errors, [], "no page error");
   } finally {

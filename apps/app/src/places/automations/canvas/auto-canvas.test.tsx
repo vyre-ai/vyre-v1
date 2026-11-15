@@ -62,8 +62,8 @@ test("a pressed step opens its form beside the page, with its fields", () => {
   const open = html(s, "aut_lead", { initialSelected: "mobile" });
   assert.ok(has(open, 'data-testid="inspector"'));
   assert.ok(
-    has(open, 'data-testid="field-title"') && has(open, 'data-testid="field-path-0"'),
-    "name and the path's condition",
+    has(open, 'data-testid="step-details"') && has(open, 'data-testid="field-path-0"'),
+    "the Details (which hold the name) and the path's condition",
   );
   assert.ok(has(open, "lead.phone is not empty"));
   assert.ok(

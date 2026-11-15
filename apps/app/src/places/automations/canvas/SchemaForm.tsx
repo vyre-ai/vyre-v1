@@ -97,7 +97,7 @@ function One({
     <Hint danger testID={`${id}-problem`}>
       {problem}
     </Hint>
-  ) : control.hint ? (
+  ) : control.hint && control.kind !== "text" && control.kind !== "multiline" ? (
     <Hint>{control.hint}</Hint>
   ) : null;
   if (control.kind === "who") {
@@ -163,6 +163,7 @@ function One({
     return (
       <>
         <TextBox
+          chips
           label={`${label}${presence === "null" || presence === "empty" ? ` (${presence})` : ""}`}
           value={controlText(control, current)}
           testID={id}
@@ -207,41 +208,18 @@ export function SchemaForm({
   skip?(c: Control): boolean;
   idPrefix?: string;
 }): ReactElement | null {
-  const [more, setMore] = useState(false);
   const shown = controls.filter((c) => !skip?.(c));
-  // a field that already holds a value stays in view, so nothing a person set is hidden behind the disclosure
-  const open = shown.filter((c) => c.required || Object.prototype.hasOwnProperty.call(input, c.name));
-  const rest = shown.filter((c) => !open.includes(c));
   if (shown.length === 0) return null;
   return (
     <View style={s.wrap} testID={`${idPrefix}-form`}>
       {/* ui-rows-lint: not a list (form fields, one control each) */}
-      {open.map((c) => (
+      {shown.map((c) => (
         <One key={c.name} control={c} input={input} onInput={onInput} openMenu={openMenu} />
       ))}
-      {rest.length > 0 ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: more }}
-          accessibilityLabel={more ? "Hide more options" : `More options, ${rest.length}`}
-          testID={`${idPrefix}-more`}
-          onPress={() => setMore(!more)}
-          style={[s.more, pointer]}
-        >
-          <Glyph name={more ? "chevD" : "chevR"} size={12} color="var(--ink-3)" />
-          <Text style={s.moreText}>{more ? "Fewer options" : `More options (${rest.length})`}</Text>
-        </Pressable>
-      ) : null}
-      {/* ui-rows-lint: not a list (form fields, one control each) */}
-      {more
-        ? rest.map((c) => <One key={c.name} control={c} input={input} onInput={onInput} openMenu={openMenu} />)
-        : null}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   wrap: { gap: 12 },
-  more: { flexDirection: "row", alignItems: "center", gap: 6, height: 26 },
-  moreText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });
