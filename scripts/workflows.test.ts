@@ -556,7 +556,19 @@ test("release: the suite is the only gate that a finished main.yml run can stand
     assert.doesNotMatch(job(n).text, /^ {4}if:/m, `${n} is never skipped`);
   // live needs each gate to have succeeded here; select and suite may be skipped only with a reused run
   const live = job("live");
-  for (const g of ["guard", "reuse", "shots-gate", "package", "select", "suite", "client", "kits", "images", "heavy", "security"])
+  for (const g of [
+    "guard",
+    "reuse",
+    "shots-gate",
+    "package",
+    "select",
+    "suite",
+    "client",
+    "kits",
+    "images",
+    "heavy",
+    "security",
+  ])
     assert.ok(live.needs.includes(g), `live needs ${g}`);
   const c = cond("live");
   for (const g of ["guard", "reuse", "shots-gate", "package", "client", "kits", "images", "heavy", "security"])
@@ -605,7 +617,10 @@ test("release: a tag goes live only when the browser walks (shots.yml) ran green
   const shots = wf("shots");
   for (const n of WALK_JOBS) {
     const base = n.replace(/ \(.*\)$/, "");
-    assert.ok(shots.jobs.some((j) => j.name === base), `shots.yml has the job ${base} that the release requires`);
+    assert.ok(
+      shots.jobs.some((j) => j.name === base),
+      `shots.yml has the job ${base} that the release requires`,
+    );
   }
 });
 

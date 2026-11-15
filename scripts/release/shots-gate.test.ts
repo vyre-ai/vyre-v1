@@ -30,16 +30,42 @@ test("a red walk job, a red screenshot shard, a missing or skipped walk job and 
   assert.match(why(run({ conclusion: "failure" }), green()), /it failure/);
   assert.match(why(run({ status: "in_progress", conclusion: null }), green()), /it is in_progress/);
   assert.match(
-    why(run(), green().map((j) => (j.name === "release-evidence-walks" ? { ...j, conclusion: "failure" } : j))),
+    why(
+      run(),
+      green().map((j) => (j.name === "release-evidence-walks" ? { ...j, conclusion: "failure" } : j)),
+    ),
     /release-evidence-walks is failure.*job release-evidence-walks failure/,
   );
-  assert.match(why(run(), green().map((j) => (j.name === "shots (9)" ? { ...j, conclusion: "failure" } : j))), /job shots \(9\) failure/);
-  assert.match(why(run(), green().filter((j) => j.name !== "release-evidence-clicks (team)")), /release-evidence-clicks \(team\) is missing/);
+  assert.match(
+    why(
+      run(),
+      green().map((j) => (j.name === "shots (9)" ? { ...j, conclusion: "failure" } : j)),
+    ),
+    /job shots \(9\) failure/,
+  );
+  assert.match(
+    why(
+      run(),
+      green().filter((j) => j.name !== "release-evidence-clicks (team)"),
+    ),
+    /release-evidence-clicks \(team\) is missing/,
+  );
   // a short round (workflow_dispatch walks=...) skips release-evidence: not a pass
-  assert.match(why(run(), green().map((j) => (j.name === "release-evidence" ? { ...j, conclusion: "skipped" } : j))), /release-evidence is skipped \(a short round/);
+  assert.match(
+    why(
+      run(),
+      green().map((j) => (j.name === "release-evidence" ? { ...j, conclusion: "skipped" } : j)),
+    ),
+    /release-evidence is skipped \(a short round/,
+  );
 });
 
-function fakeApi(o: { exact: ShotsRun[]; recent: ShotsRun[]; jobs: Record<number, ShotsJob[]>; trees: Record<string, string> }) {
+function fakeApi(o: {
+  exact: ShotsRun[];
+  recent: ShotsRun[];
+  jobs: Record<number, ShotsJob[]>;
+  trees: Record<string, string>;
+}) {
   const urls: string[] = [];
   const get: Getter = async (url) => {
     urls.push(url);
@@ -95,8 +121,17 @@ test("no run for the commit, or only runs on other files, finds nothing and says
   const none = await findShotsRun({ ...common, get: fakeApi({ exact: [], recent: [], jobs: {}, trees: {} }).get });
   assert.equal(none.found, null);
   assert.match(none.refused.join(), /no finished shots run for aaaaaaaaaa or for a commit with the same files/);
-  const other = fakeApi({ exact: [], recent: [run({ id: 20, head_sha: INT })], jobs: { 20: green() }, trees: { [SHA]: "one", [INT]: "two" } });
-  assert.equal((await findShotsRun({ ...common, get: other.get })).found, null, "green on different files proves nothing");
+  const other = fakeApi({
+    exact: [],
+    recent: [run({ id: 20, head_sha: INT })],
+    jobs: { 20: green() },
+    trees: { [SHA]: "one", [INT]: "two" },
+  });
+  assert.equal(
+    (await findShotsRun({ ...common, get: other.get })).found,
+    null,
+    "green on different files proves nothing",
+  );
 });
 
 test("a lookup that keeps failing throws, so the gate stops the release instead of letting it through", async () => {

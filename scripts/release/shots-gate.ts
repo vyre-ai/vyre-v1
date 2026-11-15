@@ -41,7 +41,10 @@ export function whyShotsNotGreen(run: ShotsRun, jobs: ShotsJob[]): string[] {
   const byName = new Map(jobs.map((j) => [j.name, j] as const));
   for (const n of WALK_JOBS) {
     const r = byName.get(n)?.conclusion;
-    if (r !== "success") why.push(`${n} is ${r ?? "missing"}${r === "skipped" ? " (a short round skips the walks it does not name)" : ""}`);
+    if (r !== "success")
+      why.push(
+        `${n} is ${r ?? "missing"}${r === "skipped" ? " (a short round skips the walks it does not name)" : ""}`,
+      );
   }
   const failed = jobs.filter((j) => j.conclusion !== null && !["success", "skipped"].includes(j.conclusion));
   for (const j of failed.slice(0, 6)) why.push(`job ${j.name} ${j.conclusion}`);
@@ -62,7 +65,8 @@ export async function findShotsRun(o: { repo: string; sha: string } & GetOptions
   const { repo, sha, ...api } = o;
   const refused: string[] = [];
   const base = `${API}/repos/${repo}/actions/workflows/shots.yml/runs`;
-  const treeOf = async (s: string) => (await getJson<CommitInfo>(`${API}/repos/${repo}/git/commits/${s}`, api)).tree.sha;
+  const treeOf = async (s: string) =>
+    (await getJson<CommitInfo>(`${API}/repos/${repo}/git/commits/${s}`, api)).tree.sha;
   const exact = await getAll<ShotsRun>(`${base}?head_sha=${sha}&status=completed`, "workflow_runs", api);
   const candidates: Array<{ run: ShotsRun; how: "same commit" | "same files" }> = exact
     .filter((r) => r.head_sha === sha)
@@ -76,7 +80,8 @@ export async function findShotsRun(o: { repo: string; sha: string } & GetOptions
     if ((await treeOf(run.head_sha)) === mine) candidates.push({ run, how: "same files" });
     if (candidates.length >= 12) break;
   }
-  if (candidates.length === 0) refused.push(`no finished shots run for ${sha.slice(0, 10)} or for a commit with the same files`);
+  if (candidates.length === 0)
+    refused.push(`no finished shots run for ${sha.slice(0, 10)} or for a commit with the same files`);
   for (const { run, how } of candidates) {
     const jobs = await getAll<ShotsJob>(`${API}/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest`, "jobs", api);
     const why = whyShotsNotGreen(run, jobs);
