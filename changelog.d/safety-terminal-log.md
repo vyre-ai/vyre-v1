@@ -1,0 +1,1 @@
+An agent's terminal keeps no readable log of what it typed or printed: the live view's file is private to the agent's own user, holds only what has not been read yet, goes with the session, and the internal line that runs a command is never shown.

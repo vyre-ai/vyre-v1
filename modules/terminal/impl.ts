@@ -17,6 +17,7 @@ import {
   bindValues,
   bindWorkspaces,
   boundHost,
+  hideRunLine,
   redeemTicket,
   scopeOfId,
   scrubberFor,
@@ -47,6 +48,7 @@ export function filesChangeOf(p: Record<string, unknown>): { folderIds: string[]
 }
 
 import { STOPPED_LINE } from "./stop-line.ts";
+import { createRunLineFilter } from "./stream-log.ts";
 export { STOPPED_LINE };
 
 /** The reasons a turn's end record carries when work was stopped on purpose: these interrupt the turn's terminal command (closing, lease and anything else never do). */
@@ -685,8 +687,12 @@ export async function openFrames(
   let closed = false;
   // the session's workspace: a value another tab of it filled is taken out too
   const scope = scopeOfId(db, who.terminalId);
-  const stop = host.stream(who.terminalId, (frame) => {
+  // the typed wrapper line of terminal.run is never shown (stream-log.ts), and a frame that holds the start of it waits for its end
+  const runLine = createRunLineFilter(hideRunLine);
+  const stop = host.stream(who.terminalId, (raw) => {
     if (closed) return;
+    const frame = runLine.push(raw);
+    if (frame === "") return;
     const sc = scrubberFor(scope);
     if (!sc) {
       send(carry + frame);

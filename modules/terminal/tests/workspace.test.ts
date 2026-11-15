@@ -1,6 +1,7 @@
 // The agent workspace (6 Nov): made on first use without a grant, kept within its container profile, mounted with the agent's folders and its projects' shared ones, asleep after idle minutes and awake
 // again on the next command, and the terminal in it: an agent's commands and a person's attached tab are the same tmux sessions. The Docker engine is a stand-in (fixtures/fake-docker.ts) behind the
 // real DockerApi; tmux in a container is the stand-in tmux, lost when the container stops.
+import { READ_SCRIPT, START_SCRIPT, STOP_SCRIPT } from "../stream-log.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
@@ -515,16 +516,20 @@ test("live frames: tmux pipe-pane into a file, read back from an offset, handed 
     docker: {
       onExec: (_box, argv) => {
         const script = argv[2] ?? "";
-        if (argv[0] === "sh" && script.includes("pipe-pane") && script.includes("cat >> $2")) {
+        if (argv[0] === "sh" && script === START_SCRIPT) {
           file = Buffer.alloc(0);
           chunks.push("pipe on");
           return { code: 0, stdout: "", stderr: "" };
         }
-        if (argv[0] === "sh" && script.startsWith("tail -c +")) {
-          const from = Number(argv[4]) - 1;
-          return { code: 0, stdout: file.subarray(from, from + 49152).toString("base64"), stderr: "" };
+        if (argv[0] === "sh" && script === READ_SCRIPT) {
+          const from = Number(argv[4]);
+          const got = file.subarray(from, from + 49152);
+          // the real script empties the file once the reader has caught up (stream-log.ts)
+          const emptied = got.length > 0 && from + got.length === file.length;
+          if (emptied) file = Buffer.alloc(0);
+          return { code: 0, stdout: `${got.toString("base64")}\n${emptied ? "T" : "K"}\n`, stderr: "" };
         }
-        if (argv[0] === "sh" && script.includes("rm -f")) {
+        if (argv[0] === "sh" && script === STOP_SCRIPT) {
           chunks.push("pipe off");
           return { code: 0, stdout: "", stderr: "" };
         }
