@@ -11,7 +11,7 @@ interface Row {
   canDelete: boolean;
 }
 
-/** Null while it is asked, and when the agent is not in Trash (the page then shows what it showed before). */
+/** The page of an agent, or, when the agent is in Trash, one calm line with Restore. */
 export function AgentInTrash({
   agentId,
   call,
@@ -33,8 +33,8 @@ export function AgentInTrash({
       live = false;
     };
   }, [agentId, call]);
-  if (row === undefined) return <View />;
-  if (row === null) return fallback;
+  // while it is asked, and when the agent is not in Trash, the page is the page
+  if (row === undefined || row === null) return fallback;
   return (
     <View style={st.box} testID="agent-in-trash">
       <Text style={st.line}>
@@ -48,7 +48,7 @@ export function AgentInTrash({
           onPress={() => {
             setBusy(true);
             call("agents.restore", { agentId }).then(
-              () => undefined,
+              () => setRow(null), // it is back: the page is the page
               () => setBusy(false),
             );
           }}

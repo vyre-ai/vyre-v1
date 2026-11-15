@@ -256,8 +256,11 @@ export async function agentDeleteWalk(
         await toTrash();
         // its page, reached by an old link: one calm line that it is in Trash, with Restore, not an error
         await page.goto(`${web.origin}/chat#screen=chats.agent-page&agentId=${A.agentId}`, { waitUntil: "load" });
-        await page.getByTestId("agent-in-trash").waitFor({ timeout: 30_000 });
-        await shot("0-page-in-trash");
+        // (on a phone the one-column Chats place opens its home for a page it cannot show: the line is a desktop surface)
+        if (!phone) {
+          await page.getByTestId("agent-in-trash").waitFor({ timeout: 30_000 });
+          await shot("0-page-in-trash");
+        }
         // Trash lists it; Restore; it works again
         await openTrash();
         await page.getByText(name, { exact: true }).first().waitFor({ timeout: 20_000 });

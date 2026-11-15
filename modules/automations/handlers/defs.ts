@@ -861,6 +861,22 @@ export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
   return clean({ automations, next: p.next, total: p.total });
 }
 
+/** A step that names an agent deleted for good asks for another one: one error on the step, the same source as every other needs-you line there (F77). */
+async function goneAgentIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
+  if (!ctx.call) return [];
+  const ids = def.nodes.flatMap((n) => {
+    const a =
+      (n.ai as { agentId?: unknown } | undefined)?.agentId ?? (n.input as { agentId?: unknown } | undefined)?.agentId;
+    return n.key === "ai" && typeof a === "string" && a !== "" ? [[n.id, a] as const] : [];
+  });
+  if (ids.length === 0) return [];
+  const erased = (await ctx.call("agents.erased", {}).catch(() => null)) as {
+    agents?: Array<{ agentId: string }>;
+  } | null;
+  const set = new Set((erased?.agents ?? []).map((g) => g.agentId));
+  return ids.filter(([, a]) => set.has(a)).map(([id]) => issue("error", "AI step: choose an agent.", id));
+}
+
 export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const def = input.definition as Definition;
   // a key-bearing step whose host was taken off its key's list shows before the next Run, with the line that Run would fail with
@@ -868,7 +884,8 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
     ? (await blockedKeySteps(ctx, def.nodes)).map((b) => issue("error", b.line, b.nodeId))
     : [];
   const useBlocked = Array.isArray(def?.nodes) ? await accountUseIssues(ctx, def) : [];
-  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked, ...useBlocked];
+  const gone = Array.isArray(def?.nodes) ? await goneAgentIssues(ctx, def) : [];
+  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked, ...useBlocked, ...gone];
   return { ok: !hasErrors(issues), issues };
 }
 export async function triggersList(): Promise<unknown> {

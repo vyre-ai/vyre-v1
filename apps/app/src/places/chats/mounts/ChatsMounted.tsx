@@ -982,19 +982,20 @@ export function ChatsMounted({
     main =
       agentId === "" ? (
         <AgentPageLoading />
-      ) : (agentQ as { error?: unknown }).error ? (
-        // the agent is not found: one in Trash says so, calmly, with Restore
+      ) : (
+        // an agent in Trash says so, calmly, with Restore; any other agent is its page
         <AgentInTrash
+          key={agentId}
           agentId={agentId}
           call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
-          fallback={<AgentPage key={agentId} data={agentPage} {...(window ? { window } : {})} />}
-        />
-      ) : (
-        <AgentPage
-          key={agentId}
-          data={agentPage}
-          {...(route.tab ? { initialTab: route.tab } : {})}
-          {...(window ? { window } : {})}
+          fallback={
+            <AgentPage
+              key={agentId}
+              data={agentPage}
+              {...(route.tab ? { initialTab: route.tab } : {})}
+              {...(window ? { window } : {})}
+            />
+          }
         />
       );
   else if (route.view === "agent-form")
