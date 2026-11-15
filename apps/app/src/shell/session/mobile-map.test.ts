@@ -22,11 +22,14 @@ test("phone: a tab's place is its first screen, an opened item is <type>:<id> un
   assert.equal(entryFor("settings", "")?.tab, "you");
 });
 
-test("phone: Automations and the Console are not places on the phone; a deep link to either is the Chat-about-it screen (owner ruling, 3 Nov)", () => {
+// Changed for AUTOMATIONS-BUILD-RC29 round four (lead, 15 Nov): Automations are on the phone (first page, list, All runs, a run and its fix); building says it opens on a computer. The Console and a Journey still open the Chat-about-it screen.
+test("phone: Automations are a place under You, an automation and a run open in it; the Console and a Journey are the Chat-about-it screen", () => {
+  assert.deepEqual(entryFor("automations", ""), { tab: "you", screen: "you:automations", title: "Automations" });
+  assert.deepEqual(placeOf(entryFor("automations", "")), { place: "automations", hash: "" });
+  assert.equal(desktopOnly(entryFor("automations", "")), null);
+  assert.equal(placeOf(subjectEntry("records", { type: "automation", id: "aut_1" }))?.place, "automations");
+  assert.equal(placeOf(entryFor("home", "subject=run%3Arun_1"))?.place, "automations");
   for (const [place, hash] of [
-    ["automations", ""],
-    ["automations", "subject=automation%3Aaut_1"],
-    ["automations", "screen=automations.journeys"],
     ["console", ""],
     ["console", "members"],
   ] as const) {
@@ -35,14 +38,9 @@ test("phone: Automations and the Console are not places on the phone; a deep lin
     assert.deepEqual(desktopOnly(e), { place, hash }, `${place}#${hash} keeps what it named`);
     assert.equal(e.tab, "chats");
   }
-  // an automation, a run or a Journey opened from another place is the same screen
-  assert.deepEqual(desktopOnly(subjectEntry("records", { type: "automation", id: "aut_1" })), {
+  assert.deepEqual(desktopOnly(subjectEntry("records", { type: "journey", id: "jrn_1" })), {
     place: "automations",
-    hash: "subject=automation%3Aaut_1",
-  });
-  assert.deepEqual(desktopOnly(entryFor("home", "subject=run%3Arun_1")), {
-    place: "automations",
-    hash: "subject=run%3Arun_1",
+    hash: "subject=journey%3Ajrn_1",
   });
   assert.deepEqual(subjectEntry("records", { type: "record", id: "rec_1" }), {
     tab: "records",
@@ -128,14 +126,14 @@ test("Chat about it opens an Ask with the assistant carrying the item, and the p
       opened.push(t);
     },
   } as unknown as Parameters<typeof openAsk>[0];
-  const away = desktopOnly(entryFor("automations", "subject=automation%3Aaut_1"))!;
+  const away = desktopOnly(subjectEntry("records", { type: "journey", id: "jrn_1" }))!;
   openAsk(rt, "assistant", chatAboutOf(away.place, away.hash));
   assert.deepEqual(opened, [
-    { screen: "chats.conversation", args: { with: "agt_assistant", about: "automation:aut_1" } },
+    { screen: "chats.conversation", args: { with: "agt_assistant", about: "journey:jrn_1" } },
   ]);
   const shown = entryFor("chats", formatHash(opened[0]!));
   assert.equal(isAskEntry(shown), true);
-  assert.equal(parseHash(placeOf(shown)!.hash).args["about"], "automation:aut_1");
+  assert.equal(parseHash(placeOf(shown)!.hash).args["about"], "journey:jrn_1");
 });
 
 test("Settings and an open Apps page draw their own top bar, so the phone shows one bar, not the shell's '< You' above Settings' own back (polish audit X2)", async () => {

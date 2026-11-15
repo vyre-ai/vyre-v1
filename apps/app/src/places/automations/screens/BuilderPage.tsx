@@ -162,7 +162,9 @@ function Body({
   const phone = isPhoneWidth(winW);
   const { element, show } = useMenu();
   const locked = a.kind === "space" && (canEdit === undefined ? data.canSpace === false : !canEdit);
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setTab] = useState<Tab>(phone ? "runs" : initialTab);
+  // on a phone a run and its fix work; building (the steps page) says it opens on a computer
+  const phoneFix = phone && initialSelected !== null;
   // the draft lives on the server, saved as the person edits (AUTOMATIONS-BUILD-RC29 1c); this is the copy being typed into
   const [draft, setDraft] = useState<Definition | null>(
     a.status === "on" && serverDraft ? serverDraft.definition : null,
@@ -874,12 +876,14 @@ function Body({
     />
   ) : null;
 
-  const tabs = [
-    { id: "steps", label: "Steps" },
-    { id: "runs", label: "Runs", ...(failedRuns > 0 ? { badge: failedRuns } : {}) },
-    { id: "settings", label: "Settings" },
-    ...(tab === "history" ? [{ id: "history", label: "History" }] : []),
-  ];
+  const tabs = phone
+    ? [{ id: "runs", label: "Runs", ...(failedRuns > 0 ? { badge: failedRuns } : {}) }]
+    : [
+        { id: "steps", label: "Steps" },
+        { id: "runs", label: "Runs", ...(failedRuns > 0 ? { badge: failedRuns } : {}) },
+        { id: "settings", label: "Settings" },
+        ...(tab === "history" ? [{ id: "history", label: "History" }] : []),
+      ];
   return (
     <Page
       title={a.name}
@@ -888,7 +892,7 @@ function Body({
       tab={tab}
       onTab={(t) => setTab(t as Tab)}
       onMenu={openMore}
-      action={<StoryActions story={model} readOnly={locked} on={(x, id) => onAction(x, id)} />}
+      action={phone ? undefined : <StoryActions story={model} readOnly={locked} on={(x, id) => onAction(x, id)} />}
     >
       {conflict ? (
         <View style={s.conflict} testID="save-conflict" accessibilityRole="alert">
@@ -929,7 +933,16 @@ function Body({
           {note}
         </Text>
       ) : null}
-      {tab === "steps" ? (
+      {phone && phoneFix ? <View style={s.fill}>{inspector}</View> : null}
+      {phone && !phoneFix ? (
+        <>
+          <Text style={[look.quiet, s.note]} testID="phone-build-line">
+            Building opens on a computer. Runs and their fixes work here.
+          </Text>
+          {runsBody}
+        </>
+      ) : null}
+      {!phone && tab === "steps" ? (
         <View style={s.split}>
           <View style={s.main}>
             <StoryView story={model} headless readOnly={locked} on={onAction} />
@@ -937,7 +950,7 @@ function Body({
           {inspector ? <View style={phone ? s.fill : s.side}>{inspector}</View> : null}
         </View>
       ) : null}
-      {tab === "runs" ? (
+      {!phone && tab === "runs" ? (
         <View style={s.pane}>
           <AnalyticsPanel automationId={a.id} />
           {runsBody}
@@ -946,7 +959,7 @@ function Body({
           </More>
         </View>
       ) : null}
-      {tab === "settings" ? (
+      {!phone && tab === "settings" ? (
         <View style={s.pane}>
           <AutomationConfig automationId={a.id} embedded readOnly={locked} />
           <Dependencies automationId={a.id} />
