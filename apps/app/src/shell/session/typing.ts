@@ -14,7 +14,11 @@ export interface Typing {
   dispose(): void;
 }
 
-export function createTyping(o: { send(frame: unknown): boolean; now?: () => number; me?: () => string | undefined }): Typing {
+export function createTyping(o: {
+  send(frame: unknown): boolean;
+  now?: () => number;
+  me?: () => string | undefined;
+}): Typing {
   const now = o.now ?? Date.now;
   const seen = new Map<string, Map<string, number>>(); // chat -> person -> when last heard
   const sentAt = new Map<string, number>();

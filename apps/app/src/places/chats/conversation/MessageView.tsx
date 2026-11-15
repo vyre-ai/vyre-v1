@@ -486,9 +486,9 @@ export function menuFor(
   // Memory is one row that opens its three (Remember This, Add to a Page, Forget This)
   const memoryItems: MenuEntry[] =
     m.kind !== "quiet" && a.memoryEntries
-      ? a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu).filter(
-          (e) => !("separator" in e),
-        )
+      ? a
+          .memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu)
+          .filter((e) => !("separator" in e))
       : [];
   if (memoryItems.length > 0)
     first.push({ label: "Memory", onSelect: () => a.showMenu(memoryItems, at.x, at.y, "Memory", "other") });
@@ -945,7 +945,9 @@ function Mine({
       {...h.props}
       {...(h.coarse
         ? {}
-        : menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message", "other")))}
+        : menuTrigger((x, y) =>
+            actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message", "other"),
+          ))}
       style={[
         h.coarse ? st.noSelect : null,
         st.me,
@@ -1352,12 +1354,7 @@ function Theirs({
         </Fold>
       ) : null}
       {stream ? (
-        <LiveBody
-          store={stream}
-          hideEmpty={false}
-          testID={`body-${m.messageId}`}
-          style={st.body}
-        />
+        <LiveBody store={stream} hideEmpty={false} testID={`body-${m.messageId}`} style={st.body} />
       ) : m.body && !crewCard ? (
         <View testID={`body-${m.messageId}`} style={st.body}>
           <MarkdownBlocks

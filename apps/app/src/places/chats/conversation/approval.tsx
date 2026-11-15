@@ -201,9 +201,19 @@ export function ApprovalCard({
   if (task === undefined || task === null) return null;
   const held = heldOf(task.blocks);
   // a card with no capability behind it, no ask and no plain question has nothing for a button to do: it is drawn as the plain words it carries, never as an approval
-  if (held.cap === "" && !held.plain && !held.what && !held.outward && outcome === null && outcomeOf(task.state) === null)
+  if (
+    held.cap === "" &&
+    !held.plain &&
+    !held.what &&
+    !held.outward &&
+    outcome === null &&
+    outcomeOf(task.state) === null
+  )
     return (
-      <Text testID={`approval-words-${taskId}`} style={{ fontSize: 13.5, color: "var(--ink-2)" as string, marginVertical: 4 }}>
+      <Text
+        testID={`approval-words-${taskId}`}
+        style={{ fontSize: 13.5, color: "var(--ink-2)" as string, marginVertical: 4 }}
+      >
         {task.summary ? `${task.title}. ${task.summary}` : task.title}
       </Text>
     );

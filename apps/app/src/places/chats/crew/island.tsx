@@ -92,7 +92,13 @@ export function WorkIsland({
   }, []);
   if (faces.length === 0) return null;
   const secs = snap.startedAt > 0 ? Math.max(0, Math.round((now - snap.startedAt) / 1000)) : 0;
-  const who = faces.length > 1 ? faces.slice(0, 3).map((f) => f.name.split(" ")[0]).join(" and ") : "";
+  const who =
+    faces.length > 1
+      ? faces
+          .slice(0, 3)
+          .map((f) => f.name.split(" ")[0])
+          .join(" and ")
+      : "";
   const words = [label, who, secs > 0 ? `${secs}s` : ""].filter((x) => x !== "").join(" \u00b7 ");
   return (
     <View style={st.wrap}>

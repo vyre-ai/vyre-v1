@@ -308,7 +308,9 @@ function useLiveTurns(data: ConversationData): readonly import("../../../shell/s
 /** The lead of this chat runs outside Vyre and has gone quiet: said plainly above the composer, because a message here will wait. Only its owner can read it, and only its owner can ask it. */
 /** A menu opened low in the chat opens upward instead of over the composer: its top is pulled up so its bottom stays above the composer's top (the rows are about 28 px each). */
 function aboveComposer(y: number, rows: number): number {
-  const doc = (globalThis as { document?: { querySelector(s: string): { getBoundingClientRect(): { top: number } } | null } }).document;
+  const doc = (
+    globalThis as { document?: { querySelector(s: string): { getBoundingClientRect(): { top: number } } | null } }
+  ).document;
   const top = doc?.querySelector('[data-testid="composer"]')?.getBoundingClientRect().top;
   if (typeof top !== "number" || top <= 0) return y;
   return y + rows * 28 + 16 > top - 8 ? Math.max(8, top - 8 - (rows * 28 + 16)) : y;
@@ -1214,7 +1216,10 @@ function ConversationView(): ReactElement {
     );
   };
   const island = islandView(openQs, putAway, islandAt, longChat ? new Set<string>() : cardsInView);
-  const typingNames: readonly string[] = [...(data.typing ?? []), ...typingIds.map((id) => nameOf(id).split(" ")[0] ?? nameOf(id))];
+  const typingNames: readonly string[] = [
+    ...(data.typing ?? []),
+    ...typingIds.map((id) => nameOf(id).split(" ")[0] ?? nameOf(id)),
+  ];
   // a face or a name opens by what it is: a helper (its thread) opens as the helper chat; a person or an agent goes to the host, which opens a profile or an agent page
   const allHelpers = helpersQ.status === "loading" ? [] : helpersQ.data.helpers;
   const openFace = (id: string): void => {

@@ -339,7 +339,9 @@ export interface LiveHub {
   publish(space: string, events: EventEnvelope[]): void;
   /** A live turn frame (text as it is written) to the sockets whose person `allow` accepts, in the order given. Never replayed, never held for an ack: a device that missed it reads the finished message. */
   publishTurn(
-    frame: { t: "turn"; turn: string; delta: Record<string, unknown> } | { t: "typing"; threadId: string; person: string },
+    frame:
+      | { t: "turn"; turn: string; delta: Record<string, unknown> }
+      | { t: "typing"; threadId: string; person: string },
     allow: (personId: string) => boolean | Promise<boolean>,
   ): void;
   /** Rows changed with no event of this computer's own (another computer of a Personal Space synced them, host/src/peers): every app on the Space gets the bare `changed` tick and re-reads. */
