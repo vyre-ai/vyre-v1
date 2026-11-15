@@ -5,3 +5,5 @@
 - The browser answers one new question, which sites your own turns of an agent are signed in to (computers.browser.my_sign_ins).
 - A terminal in a person's own space on a shared agent can no longer be typed into by anyone else, including an owner or admin holding its keyboard, and an agent acting for someone else cannot run commands in it.
 - A person who uses a shared agent without owning it now reads, in their own terminal, that their files are in Files and that this is their own home; they cannot reach the agent's home, its project folders or the Files mirror from it, and use the Files and project tools instead.
+- Honest limits of one shared computer: a person who does not own a shared agent still sees the other people's running programs and their command lines (do not pass a secret as an argument), and can reach web servers the owner runs on the computer's own address (127.0.0.1); neither can be closed without giving up the single shared computer.
+- A person on a shared agent reaches, in their own terminal, the projects they are on (at their project role) and what Files lets them see, and nothing else of the agent's home.

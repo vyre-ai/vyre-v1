@@ -12,7 +12,7 @@ LABEL ai.vyre.image="workspace"
 # tmux: the sessions. git, curl, jq, ripgrep, less, nano, unzip, zip, openssh-client (git over ssh with a key the agent is given; no server): the daily tools. python3 with pip and venv: scripts.
 # build-essential and pkg-config: native modules and small C builds. procps and coreutils: ps, du. No sudo, no su, no docker client, no package manager left to use at run time.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates tmux git curl jq ripgrep less nano unzip zip openssh-client python3 python3-pip python3-venv build-essential pkg-config procps coreutils locales \
+ && apt-get install -y --no-install-recommends ca-certificates tmux git curl jq ripgrep less nano unzip zip openssh-client acl python3 python3-pip python3-venv build-essential pkg-config procps coreutils locales \
  && sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen && locale-gen \
  && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
  && rm -f /usr/bin/su /bin/su /usr/bin/passwd /usr/bin/chsh /usr/bin/chfn /usr/bin/newgrp /usr/bin/gpasswd /usr/bin/mount /usr/bin/umount

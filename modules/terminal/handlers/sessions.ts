@@ -256,7 +256,10 @@ export async function askerPlaceFor(
   const uid = uidOf(ctx.db, person, ctx.now());
   if (uid === null)
     raise(ctx, "provider.unavailable", "This computer has no room for more people. Ask an admin.", { reason: "no_uid" });
-  return askerPlace(person, uid);
+  // may they read what Files shows them of the agent's folder (the mirror): Files' own view rule, as them
+  const folder = got.agent?.folderId;
+  const files = folder !== undefined && ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: folder }).effect === "allow";
+  return askerPlace(person, uid, files);
 }
 
 /**
@@ -821,6 +824,7 @@ export async function read(ctx: TermCtx, input: { terminalId: string; lines?: nu
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   try {
     const r = await (
       await hostFor(ctx, x)
@@ -838,6 +842,7 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   let replay: string;
   try {
     replay = clean(scopeOf(x), (await (await hostFor(ctx, x)).read(input.terminalId, { lines: REPLAY_LINES })).text);
@@ -887,6 +892,23 @@ function needOwnTerminal(ctx: TermCtx, x: SessionRow): void {
   );
 }
 
+/**
+ * A terminal in a person's own place on a shared agent's computer (their own Unix user) takes keys, commands, reads and the keyboard from that person alone, or from an agent acting for them, whoever else
+ * may watch it or manage the agent: what is typed there runs as them and reads what is theirs, and a terminal opened by an agent's turn for them is still theirs. A hold on the keyboard never widens
+ * this (F30, lead 14 Nov: an agent acts for the asker of the call and holds nothing of anyone else's). Fails closed: if who owns the agent cannot be read, nothing is done.
+ */
+export const OTHERS_PLACE = "That terminal is in someone else's own space on this computer. Only they can use it.";
+async function needOwnPlace(ctx: TermCtx, x: SessionRow): Promise<void> {
+  if (x.host !== "agent_computer" || x.agentId === undefined) return;
+  const place = await askerPlaceFor(ctx, x.agentId, x.owner);
+  if (place === undefined) return;
+  if (actorOf(ctx) !== x.owner)
+    raise(ctx, "permission.role_lacks_permission", OTHERS_PLACE, { reason: "others_place", terminalId: x.terminalId });
+}
+
+/** The variables a person's place sets or that point the shell, tmux, ssh or git at another place (also the ones a shell reads before a command: BASH_ENV, PROMPT_COMMAND and the like). */
+const PLACE_ENV = /^(HOME|HISTFILE|HISTSIZE|XDG_.*|TMPDIR|TMUX.*|GIT_SSH.*|GIT_CONFIG.*|SSH_.*|GNUPGHOME|PATH|LD_.*|SHELL|USER|LOGNAME|BASH_ENV|ENV|PROMPT_COMMAND|BASH_FUNC_.*|IFS|CDPATH)$/;
+
 /** Is this a terminal in an agent's computer that a manager of the agent may close because the person who opened it is no longer an active member of the Space? */
 async function orphanClosable(ctx: TermCtx, x: SessionRow): Promise<boolean> {
   if (x.host !== "agent_computer" || x.agentId === undefined || x.owner === "" || ctx.call === undefined) return false;
@@ -927,7 +949,7 @@ function needKeyboard(ctx: TermCtx, x: SessionRow): void {
     }
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
   }
-  if (ctx.principal.kind === "agent" && x.agentId !== undefined && workspaceHolder(ctx.db, x.agentId, now) !== null)
+  if (ctx.principal.kind === "agent" && x.agentId !== undefined && workspaceHolder(ctx.db, x.agentId, now, x.owner) !== null)
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
 }
 
@@ -968,6 +990,7 @@ export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
     raise(ctx, "permission.no_grant", "An agent types in its own terminal; taking the keyboard is for people.");
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   const me = actorOf(ctx);
   const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h !== null && h !== me && !mayTakeFromOther(ctx, x))
@@ -998,6 +1021,7 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
   needTakeOver(ctx);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h === null) return { terminal: terminalRow(x) };
   const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
@@ -1027,6 +1051,7 @@ export async function rename(ctx: TermCtx, input: { terminalId: string; name: st
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   needKeyboard(ctx, x);
   const name = input.name.trim();
   if (name === "" || name.length > 80)
@@ -1072,6 +1097,7 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
   needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   if (a.data === "") raise(ctx, "validation.bad_input", "There is nothing to send.");
   needKeyboard(ctx, x);
   // an agent's keystrokes get the same friendly words as its commands (a person typing in their own tab is free); the wall is the Unix user of the session, not these words
@@ -1106,6 +1132,7 @@ export async function capture(ctx: TermCtx, input: { terminalId: string; lines?:
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   const host = await hostFor(ctx, x);
   if (!host.capture)
     raise(ctx, "validation.precondition_failed", "This terminal draws lines, not a screen.", { reason: "no_screen" });
@@ -1167,6 +1194,7 @@ export async function keys(
   needTakeOver(ctx);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
   needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   // from here to the written-down batch nothing is awaited: two calls of the same batch cannot both pass
   const now = ctx.now();
   const me = actorOf(ctx);
@@ -1321,6 +1349,7 @@ export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
   needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   needKeyboard(ctx, x);
   try {
     await (await hostFor(ctx, x)).interrupt(a.terminalId);
@@ -1335,6 +1364,7 @@ export async function resize(ctx: TermCtx, a: { terminalId: string; cols: number
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
   needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
   needKeyboard(ctx, x);
   try {
     await (await hostFor(ctx, x)).resize(a.terminalId, a.cols, a.rows);
@@ -1501,6 +1531,7 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
     }
     const entered = await needAccess(ctx, x);
     needOwnTerminal(ctx, entered);
+    await needOwnPlace(ctx, entered);
     return entered;
   }
   const owner = actorOf(ctx);
@@ -1542,7 +1573,7 @@ async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
   const hit = found[0];
   if (hit) return needAccess(ctx, sessionOf(hit));
   // while a person holds any terminal of this workspace, the agent opens no new tab to get around the hold
-  if (ctx.principal.kind === "agent" && agentId !== undefined && workspaceHolder(ctx.db, agentId, ctx.now()) !== null)
+  if (ctx.principal.kind === "agent" && agentId !== undefined && workspaceHolder(ctx.db, agentId, ctx.now(), owner) !== null)
     raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held" });
   const spec: OpenInput = {
     host,
@@ -1635,6 +1666,13 @@ export async function run(ctx: TermCtx, a: RunInput) {
   // A handle in the command line never becomes its value in the line (W6): the line names a variable, quoted for where it stands, and the value goes in that variable's environment for this one
   // command. A handle the Vault does not know is left as the text it is (a hashtag, an issue number).
   const env: Record<string, string> = { ...(a.env ?? {}) };
+  // a turn in a person's own place may not set what makes the shell look elsewhere (its home, history, settings, tmux, ssh agent, git settings): the wall is the Unix user, this is the plain word in front of it
+  if (s.host === "agent_computer" && s.agentId !== undefined && Object.keys(env).length > 0) {
+    const mine = await askerPlaceFor(ctx, s.agentId, owner);
+    const bad = Object.keys(env).find((k) => PLACE_ENV.test(k));
+    if (mine !== undefined && bad !== undefined)
+      raise(ctx, "validation.bad_input", `${bad} is set for you already; it cannot be changed.`, { reason: "place_env" });
+  }
   const refs: HandleRef[] = [];
   let line = command;
   if (base) {

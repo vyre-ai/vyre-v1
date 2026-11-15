@@ -829,14 +829,23 @@ export function holderOf(db: Db, terminalId: string, now: number): string | null
   return r ? s(r["person_id"]) : null;
 }
 
-/** Does a person hold any terminal of this agent's workspace now? Who, or null. */
-export function workspaceHolder(db: Db, agentId: string, now: number): string | null {
+/**
+ * Does a person hold any terminal of this agent's workspace that the agent's work for `owner` waits on? Who, or null. A person who uses the agent without owning it works in a place of their own (a Unix
+ * user): a hold in their place stops the agent's work for them and for nobody else, and a hold in the agent's own home is not stopped by it either.
+ */
+export function workspaceHolder(db: Db, agentId: string, now: number, owner: string): string | null {
   if (!takeOverOn()) return null;
+  const inPlace = db.all("SELECT 1 AS n FROM terminal_person_places WHERE agent_id = ? AND person = ?", agentId, owner).length > 0;
   const r = (
     db.all(
-      "SELECT h.person_id FROM terminal_hold h JOIN terminal_sessions t ON t.terminal_id = h.terminal_id WHERE t.agent_id = ? AND t.closed_at IS NULL AND h.seen >= ? LIMIT 1",
+      `SELECT h.person_id FROM terminal_hold h JOIN terminal_sessions t ON t.terminal_id = h.terminal_id WHERE t.agent_id = ? AND t.closed_at IS NULL AND h.seen >= ? AND ${
+        inPlace
+          ? "t.owner = ?"
+          : "t.owner NOT IN (SELECT person FROM terminal_person_places WHERE agent_id = ?)"
+      } LIMIT 1`,
       agentId,
       now - HOLD_IDLE_MS,
+      ...(inPlace ? [owner] : [agentId]),
     ) as Row[]
   )[0];
   return r ? s(r["person_id"]) : null;

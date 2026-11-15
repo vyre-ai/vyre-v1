@@ -1033,6 +1033,7 @@ export interface WorkspaceConfig
     | "idleMs"
     | "home"
     | "projectsOf"
+    | "projectAccessOf"
     | "admit"
     | "capacity"
     | "log"
