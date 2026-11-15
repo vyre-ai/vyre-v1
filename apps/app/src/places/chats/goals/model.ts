@@ -25,6 +25,16 @@ export interface Progress {
   tasksDone: number;
   tasks: number;
 }
+/** What holds a goal's check-ins back, while something does (the server's words: what happened, the one thing to do, a few words for a row). */
+export interface Blocked {
+  cause: "person" | "limit" | "transient" | "other";
+  what: string;
+  fix: string;
+  short: string;
+  since: number;
+  until?: number;
+  missed: number;
+}
 export interface GoalLine {
   id: string;
   title: string;
@@ -37,6 +47,7 @@ export interface GoalLine {
   deadline: number;
   nextCheckinAt?: number;
   progress: Progress;
+  blocked?: Blocked;
   projectId?: string;
   updatedAt: number;
 }
@@ -144,9 +155,10 @@ const MIN = 60_000,
 
 /** The status in words and the colour it is drawn in. Only what changes what you do is coloured: waiting on you, stuck, done. */
 export function statusOf(
-  g: Pick<GoalLine, "status" | "statusReason" | "owner">,
+  g: Pick<GoalLine, "status" | "statusReason" | "owner" | "blocked">,
   me?: string,
 ): { word: string; tone: Tone } {
+  if (g.blocked && (g.status === "waiting" || g.status === "stuck")) return { word: "Not being worked", tone: "need" };
   switch (g.status) {
     case "draft":
       return { word: "Draft", tone: "dim" };
@@ -218,6 +230,8 @@ export function leftWords(deadline: number, now: number): string {
 export function rowNote(g: GoalLine, now: number, z: Zones, me?: string): { lead?: string; tone?: Tone; text: string } {
   const s = statusOf(g, me);
   const num = numberOf(g.progress);
+  // check-ins held back (the Vault is locked, the AI plan is at its limit): said first, in a few words
+  if (g.blocked && LIVE.has(g.status)) return { lead: "Not being worked", tone: "need", text: g.blocked.short };
   if (g.status === "waiting" || g.status === "stuck") return { lead: s.word, tone: s.tone, text: num };
   if (ENDED.has(g.status) || g.status === "paused" || g.status === "draft")
     return { lead: s.word, tone: s.tone, text: num };

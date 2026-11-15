@@ -33,7 +33,8 @@ const LIT = {
   "--ink-3": "rgba(255,255,255,0.74)",
 } as object;
 const SPARK = SVG('<path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l2 2M10 10l2 2M12 4l-2 2M6 10l-2 2"/>');
-const KIND_ICON: Partial<Record<Hit["kind"], string>> = {
+const KIND_ICON: Partial<Record<string, string>> = {
+  place: SVG('<rect x="2.500" y="3" width="11" height="10" rx="1.800"/><path d="M6 3v10"/>'),
   file: SVG('<path d="M4 2.500h5l3 3v8H4z"/><path d="M9 2.500v3h3"/>'),
   record: SVG('<rect x="2.500" y="3" width="11" height="10" rx="1.800"/><path d="M2.500 6.500h11M6.500 6.500v6.500"/>'),
   task: SVG('<circle cx="8" cy="8" r="5.500"/><path d="M5.500 8.200l1.700 1.700 3.300-3.600"/>'),

@@ -21,7 +21,7 @@ const green = (): ShotsJob[] => [
   ...Array.from({ length: 36 }, (_, i) => ({ name: `shots (${i})`, conclusion: "success" })),
 ];
 
-test("a finished green run whose four browser-walk jobs all succeeded counts", () => {
+test("a finished green run whose five browser-walk jobs all succeeded counts", () => {
   assert.deepEqual(whyShotsNotGreen(run(), green()), []);
 });
 

@@ -44,6 +44,7 @@ type In = {
     id: string;
     kind: "person" | "guest" | "agent" | "system";
   };
+  resetsAt?: number;
   info?: {
     effort?: string;
     account?: {
@@ -184,6 +185,7 @@ type Out = {
     "phase": "started",
     "qseq": 1,
     "reason": "example",
+    "resetsAt": 1760000000000,
     "stoppedBy": {
       "id": "example",
       "kind": "person"

@@ -74,6 +74,7 @@ export function YouScreen({ data, nav }: { data: YouData; nav: MobileNav }): Rea
 }
 
 const st = StyleSheet.create({
+  // as tall as its rows, never the screen: a screen-tall block left a hole between the list and the rows under it (owner walk, 15 Nov)
   root: { paddingHorizontal: 12 },
   head: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 20, paddingHorizontal: 4 },
   name: { fontSize: 22, fontWeight: "600", color: "var(--ink)" as string },
