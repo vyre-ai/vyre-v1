@@ -117,3 +117,26 @@ test("after the field scrolls, the wash scrolls with it", async () => {
     restore();
   }
 });
+
+test('picking a mention before a space leaves one space, not two (owner\'s walk, 15 Nov: "@Scout  and @Helper")', async () => {
+  const { applyPick } = await import("./index.tsx");
+  const state = { text: "@Sc and hello", cursor: 3, active: -1, dismissedAt: -1 } as never;
+  const { next } = applyPick(
+    state,
+    { ch: "@", start: 0, end: 3, query: "Sc" } as never,
+    { kind: "Agent", label: "Scout" } as never,
+  );
+  assert.equal((next as { text: string }).text, "@Scout and hello");
+});
+
+test("a space typed after a mention or a picked link does not leave two on send", async () => {
+  const { oneSpaceAfterTokens } = await import("./index.tsx");
+  assert.equal(oneSpaceAfterTokens("@Scout  and @Helper  give me a look"), "@Scout and @Helper give me a look");
+  assert.equal(
+    oneSpaceAfterTokens("See #Sam Sample  thanks", [
+      { kind: "Record", id: "rec_1", title: "Sam Sample", token: "#" } as never,
+    ]),
+    "See #Sam Sample thanks",
+  );
+  assert.equal(oneSpaceAfterTokens("keep    these   spaces"), "keep    these   spaces");
+});

@@ -315,7 +315,7 @@ test("plan: a running plan shows how many ticks are filled and no buttons; a dec
   assert.ok(approved.includes("blk-plan-blk_plan1-tick-0") && approved.includes("Done"));
   assert.ok(!approved.includes("blk-plan-blk_plan1-approve"));
   const rejected = html({ ...SAMPLE_PLAN, data: { ...(SAMPLE_PLAN.data as object), state: "rejected" } });
-  assert.ok(rejected.includes("Plan declined"));
+  assert.ok(rejected.includes("Declined"));
 });
 
 test("plan: Change it puts the plan in the composer as a draft, one numbered line per step", () => {

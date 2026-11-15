@@ -88,9 +88,10 @@ test("the card: a tab per agent, a press on a tab shows its answer, Go with call
     </ConversationDataProvider>,
   );
   await flush();
-  assert.match(textOf(find(root, "round-table-q1-answer")), /Object storage/);
+  // the answers are the messages above the card: the card never says them again
+  assert.equal(find(root, "round-table-q1-answer"), null, "no second copy of an answer in the card");
+  assert.doesNotMatch(textOf(find(root, "round-table-q1")), /Object storage|server disk/);
   await press(find(root, "round-table-q1-tab-agt_nova")!);
-  assert.match(textOf(find(root, "round-table-q1-answer")), /server disk/);
   assert.match(textOf(find(root, "round-table-q1-go")), /Go with Nova/);
   await press(find(root, "round-table-q1-go")!);
   await flush();
