@@ -4,7 +4,7 @@
 // @reads ../migrations/0001_files_tree.sql
 // Agent and UI writes both commit a version here. Changeset staging on Approve is a later packet.
 
-import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { ERROR_CODES, VyreErr, vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx, Sealed } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
@@ -18,6 +18,8 @@ import { rawDbOf } from "../../../host/src/ctx/db.ts";
 export const TRASH_MS = 30 * 24 * 60 * 60 * 1000;
 export const MAX_INLINE = 256 * 1024;
 export const MAX_UPLOAD = 25 * 1024 * 1024;
+/** What a refused direct write says: the limit, and what to do (an agent that was only told "over the size limit" did not know how large was too large or what to try). */
+export const TOO_LARGE_WORDS = `This file is over the ${MAX_INLINE / 1024} KB limit for a direct write. Split the content into smaller files, each under ${MAX_INLINE / 1024} KB.`;
 const UPLOAD_MS = 15 * 60 * 1000;
 const PAGE_DEFAULT = 100;
 /** A deep list reads at most this many files, newest first, before access and paging. */
@@ -102,6 +104,8 @@ export interface FileOut {
 }
 
 export interface FolderOut {
+  /** When it went to Trash, on a folder in Trash. */
+  deletedAt?: number;
   folderId: string;
   parentId?: string;
   name: string;
@@ -200,6 +204,19 @@ export function optInt(ctx: Ctx, o: Record<string, unknown>, key: string): numbe
 
 function nid(ctx: Ctx, prefix: string): string {
   return `${prefix}_${mintUuid(ctx.now()).replaceAll("-", "")}`;
+}
+
+/** A free name beside a taken one: "plan.md" becomes "plan (2).md", then "plan (3).md". The name itself when it is free. */
+export function freeName(name: string, taken: (n: string) => boolean): string {
+  if (!taken(name)) return name;
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 && name.length - dot <= 9 ? name.slice(dot) : "";
+  const base = ext === "" ? name : name.slice(0, dot);
+  for (let i = 2; i < 200; i++) {
+    const n = `${base} (${i})${ext}`;
+    if (!taken(n)) return n;
+  }
+  return name;
 }
 
 function cleanName(ctx: Ctx, name: string): string {
@@ -667,6 +684,7 @@ export function folderOut(ctx: Ctx, row: Row): FolderOut {
   out.subject = subjectOf(ctx, row);
   const source = sourceOfFolder(ctx, String(row.id));
   if (source) out.source = source;
+  if (!isNull(row.deleted_at)) out.deletedAt = num(row.deleted_at);
   return out;
 }
 
@@ -893,8 +911,7 @@ async function blobForPlain(
   plain: Uint8Array,
   mime: string,
 ): Promise<{ id: string; hash: string; size: number }> {
-  if (plain.byteLength > MAX_INLINE)
-    fail(ctx, "validation.too_large", "This file is over the size limit for a direct write.");
+  if (plain.byteLength > MAX_INLINE) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
   const hash = await sha256(plain);
   const existing = one(ctx, "SELECT * FROM files_blob WHERE hash = ?", hash);
   if (existing) return { id: String(existing.id), hash, size: num(existing.size) };
@@ -1447,7 +1464,13 @@ function unreadable(ctx: Ctx, name: string, size: number, bytes: () => Uint8Arra
  * has content, so an edit made at the provider shows). A placeholder whose content could not be fetched is never handed on as an empty file: the call says the content is not here (provider.unavailable),
  * so a viewer shows "could not get this" with Retry and an agent is not told the file is empty. A file the mounts module does not know, or one that really is empty at its provider, reads as it is.
  */
-export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean): Promise<Row> {
+export async function openAtProvider(
+  ctx: Ctx,
+  fileId: string,
+  refresh: boolean,
+  /** hears what mounts.open answered (the file's place at its provider), when it answered */
+  heard?: (opened: Record<string, unknown>) => void,
+): Promise<Row> {
   const before = mustFile(ctx, fileId);
   const mounted = sourceOfFolder(ctx, String(before.folder_id)) !== undefined;
   if (num(before.size) !== 0 && !(refresh && mounted)) return before;
@@ -1455,6 +1478,7 @@ export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean)
   let failure: unknown;
   try {
     opened = (await ctx.call("mounts.open", { fileId })) as Record<string, unknown>;
+    heard?.(opened);
   } catch (e) {
     failure = e;
   }
@@ -1465,9 +1489,9 @@ export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean)
     // an agent's fetch waiting for approval has no content yet either
     if (!here && opened?.changesetId === undefined) {
       // the provider's own reason travels on when it is one a person can act on (sign-in, rate limit, the file is gone); anything else is the generic "not here just now"
-      const code = failure instanceof VyreErr ? failure.error.code : "";
+      const code = vyreErrorOf(failure)?.code ?? "";
       if (
-        failure instanceof VyreErr &&
+        vyreErrorOf(failure) !== undefined &&
         /^(provider\.(auth_failed|rate_limited|overloaded|network)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/.test(
           code,
         )
@@ -1913,7 +1937,9 @@ async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; c
   ensureReady(ctx);
   const o = rec(ctx, input);
   const folder = liveFolder(ctx, reqStr(ctx, o, "folderId"));
-  const name = cleanName(ctx, reqStr(ctx, o, "name"));
+  let name = cleanName(ctx, reqStr(ctx, o, "name"));
+  // an agent that makes a file whose name is taken never replaces what is there: the new file is "name (2)" and the answer carries its name (a person is told the name is taken)
+  if (ctx.principal.kind === "agent") name = freeName(name, (n) => nameTaken(ctx, String(folder.id), n));
   if (nameTaken(ctx, String(folder.id), name))
     fail(ctx, "validation.duplicate", "That name is already in this folder.");
   const content = parseContent(ctx, o.content);
@@ -1953,8 +1979,19 @@ async function filesWrite(
 ): Promise<{ file: FileOut; versionId?: string; changesetId?: string }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
-  const file = liveFile(ctx, reqStr(ctx, o, "fileId"));
+  const fileId0 = reqStr(ctx, o, "fileId");
   const base = optInt(ctx, o, "baseVersion");
+  // a write that names the version it was based on, to a file of a connected folder: the provider is asked first, so a change made there since the writer read it is brought in and the write is refused
+  // ("The file changed since it was read.") rather than sent on over it
+  if (base !== undefined) {
+    liveFile(ctx, fileId0);
+    try {
+      await openAtProvider(ctx, fileId0, true);
+    } catch {
+      /* the provider cannot be asked just now: the write goes on, and the push is conditional on the revision it was based on */
+    }
+  }
+  const file = liveFile(ctx, fileId0);
   if (base !== undefined && base !== num(file.version)) {
     fail(ctx, "validation.version_conflict", "The file changed since it was read.");
   }
@@ -2230,6 +2267,24 @@ async function filesRestore(ctx: Ctx, input: unknown): Promise<{ file: FileOut }
   return { file: fileOutC(ctx, mustFile(ctx, String(file.id))) };
 }
 
+const noTable = (e: unknown): boolean =>
+  /no such (table|column)|unsupported sql|is not a table/i.test(e instanceof Error ? e.message : String(e));
+function tryMany(ctx: Ctx, sql: string, ...a: unknown[]): Row[] {
+  try {
+    return many(ctx, sql, ...a);
+  } catch (e) {
+    if (noTable(e)) return [];
+    throw e;
+  }
+}
+function tryDelete(ctx: Ctx, table: string, col: string, id: string): void {
+  try {
+    ctx.db.run(`DELETE FROM ${table} WHERE ${col} = ?`, id);
+  } catch (e) {
+    if (!noTable(e)) throw e;
+  }
+}
+
 function purgeFile(ctx: Ctx, file: Row): void {
   const versions = many(ctx, "SELECT * FROM files_file_version WHERE file_id = ?", file.id);
   const blobs = versions.map((v) => String(v.blob));
@@ -2238,6 +2293,30 @@ function purgeFile(ctx: Ctx, file: Row): void {
   ctx.db.run("DELETE FROM files_file WHERE id = ?", file.id);
   ctx.db.run("DELETE FROM files_trash WHERE id = ?", file.id);
   dropRecent(ctx.db, String(file.id));
+  // what hung on the file goes with it (F77): its comments, marks, markup, review requests, redaction requests, stars, links, and the changesets that only touched it
+  const touched = tryMany(ctx, "SELECT * FROM files_changeset_file WHERE file_id = ?", file.id).map((r) =>
+    String(r.changeset_id),
+  );
+  for (const [table, col] of [
+    ["files_comment", "file_id"],
+    ["files_markup", "file_id"],
+    ["files_mark", "target_id"],
+    ["files_review", "file_id"],
+    ["files_redact_request", "file_id"],
+    ["files_star", "file_id"],
+    ["files_external_link", "file_id"],
+    ["files_sheet_ids", "file_id"],
+    ["files_changeset_comment", "file_id"],
+    ["files_changeset_file", "file_id"],
+    ["files_agent_access", "target_id"],
+  ] as const)
+    tryDelete(ctx, table, col, String(file.id));
+  for (const cs of touched)
+    if (tryMany(ctx, "SELECT * FROM files_changeset_file WHERE changeset_id = ?", cs).length === 0) {
+      tryDelete(ctx, "files_changeset_comment", "changeset_id", cs);
+      tryDelete(ctx, "files_changeset_review", "changeset_id", cs);
+      tryDelete(ctx, "files_changeset", "id", cs);
+    }
   ctx.emit("file.purged", `file/${String(file.id)}`, { fileId: String(file.id) });
 }
 
@@ -2248,6 +2327,61 @@ async function filesPurge(ctx: Ctx, input: unknown): Promise<{ purged: boolean }
   if (isNull(file.deleted_at))
     fail(ctx, "validation.precondition_failed", "Move the file to Trash before deleting it for good.");
   purgeFile(ctx, file);
+  return { purged: true };
+}
+
+/** How many bytes the files under a folder hold, every version counted (what deleting it for good frees). */
+export function folderTreeBytes(ctx: Ctx, folderId: string): number {
+  let bytes = 0;
+  const walk = (id: string): void => {
+    for (const f of tryMany(ctx, "SELECT * FROM files_file WHERE folder_id = ?", id))
+      for (const v of tryMany(ctx, "SELECT * FROM files_file_version WHERE file_id = ?", f.id)) {
+        const b = one(ctx, "SELECT * FROM files_blob WHERE id = ?", v.blob);
+        bytes += b ? num(b.size) : 0;
+      }
+    for (const c of tryMany(ctx, "SELECT * FROM files_folder WHERE parent_id = ?", id)) walk(String(c.id));
+  };
+  walk(folderId);
+  return bytes;
+}
+
+/** Delete for good (F77): a folder with everything in it, every version, its Trash copy and its blobs, whether or not it is in Trash. The agents job calls this for an agent's own folder; a second call finds nothing. */
+export function eraseFolderTree(ctx: Ctx, folderId: string, agentId: string): number {
+  const folder = one(ctx, "SELECT * FROM files_folder WHERE id = ?", folderId);
+  if (!folder) return 0;
+  // the stored folder id is trusted only when the folder says it is this agent's own (system_key agent:<id>): any other folder is left alone
+  if (String(folder.system_key ?? "") !== `agent:${agentId}`) return 0;
+  const before = many(ctx, "SELECT id FROM files_file").length;
+  purgeFolderRow(ctx, folder);
+  return before - many(ctx, "SELECT id FROM files_file").length;
+}
+
+/** A folder in Trash deleted for good: every file and folder under it, with versions and Trash copies. */
+function purgeTrashedFolder(ctx: Ctx, folder: Row): void {
+  const id = String(folder.id);
+  purgeFolderRow(ctx, folder);
+  ctx.emit("folder.purged", `folder/${id}`, { folderId: id });
+}
+
+/** Is this folder, or any folder under it, an agent's own folder? An agent is erased by its own Delete for good (agents.delete_for_good, and the Trash clock), never by emptying Trash or purging a folder (F77). */
+function holdsAgentFolder(ctx: Ctx, folder: Row): boolean {
+  const key = isNull(folder.system_key) ? "" : String(folder.system_key);
+  if (/^agent:/.test(key)) return true;
+  return many(ctx, "SELECT * FROM files_folder WHERE parent_id = ?", folder.id).some((c) => holdsAgentFolder(ctx, c));
+}
+
+async function folderPurge(ctx: Ctx, input: unknown): Promise<{ purged: boolean }> {
+  ensureReady(ctx);
+  const o = rec(ctx, input);
+  const folder = one(ctx, "SELECT * FROM files_folder WHERE id = ?", reqStr(ctx, o, "folderId"));
+  if (!folder) fail(ctx, "validation.not_found", "That folder does not exist.");
+  if (isNull(folder.deleted_at))
+    fail(ctx, "validation.precondition_failed", "Move the folder to Trash before deleting it for good.");
+  if (holdsAgentFolder(ctx, folder))
+    fail(ctx, "validation.precondition_failed", "An agent is deleted from its own page in Trash.", {
+      reason: "agent_folder",
+    });
+  purgeTrashedFolder(ctx, folder);
   return { purged: true };
 }
 
@@ -2286,8 +2420,9 @@ async function trashEmpty(ctx: Ctx, input: unknown): Promise<{ purged: number }>
         ctx.db.run("DELETE FROM files_trash WHERE id = ?", row.id);
         continue;
       }
+      if (holdsAgentFolder(ctx, folder)) continue; // an agent in Trash stays until its own Delete for good or the Trash clock
       const before = many(ctx, "SELECT * FROM files_file");
-      purgeFolderRow(ctx, folder);
+      purgeTrashedFolder(ctx, folder);
       const after = new Set(many(ctx, "SELECT * FROM files_file").map((f) => String(f.id)));
       purged += before.filter((f) => !after.has(String(f.id))).length;
     }
@@ -2453,6 +2588,7 @@ export const treeHandlers = {
   "files.restore": (ctx: Ctx, input: unknown) => filesRestore(ctx, input),
   "files.purge": (ctx: Ctx, input: unknown) => filesPurge(ctx, input),
   "files.trash.empty": (ctx: Ctx, input: unknown) => trashEmpty(ctx, input),
+  "files.folder.purge": (ctx: Ctx, input: unknown) => folderPurge(ctx, input),
   "files.versions": (ctx: Ctx, input: unknown) => filesVersions(ctx, input),
   "files.restore_version": (ctx: Ctx, input: unknown) => filesRestoreVersion(ctx, input),
   "files.name_version": (ctx: Ctx, input: unknown) => filesNameVersion(ctx, input),

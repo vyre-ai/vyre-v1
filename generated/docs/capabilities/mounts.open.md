@@ -49,6 +49,22 @@ type Out = {
       name?: string;
       email?: string;
     };
+    viewOnly?: boolean;
+    notSent?: {
+      reason: string;
+      goneThere?: boolean;
+    };
+    writesAs?: {
+      by: string;
+      email?: string;
+    };
+    changedThere?: {
+      by?: {
+        name?: string;
+        email?: string;
+      };
+      at?: number;
+    };
   };
 };
 ```
@@ -76,6 +92,13 @@ type Out = {
     "offline": true,
     "source": {
       "cached": true,
+      "changedThere": {
+        "at": 1760000000000,
+        "by": {
+          "email": "example",
+          "name": "example"
+        }
+      },
       "conflict": true,
       "lastEditedBy": {
         "email": "example",
@@ -83,9 +106,18 @@ type Out = {
       },
       "modifiedAt": 1760000000000,
       "mountId": "mnt_a1b2c3",
+      "notSent": {
+        "goneThere": true,
+        "reason": "example"
+      },
       "provider": "example",
       "remoteId": "example",
-      "revisionId": "example"
+      "revisionId": "example",
+      "viewOnly": true,
+      "writesAs": {
+        "by": "example",
+        "email": "example"
+      }
     }
   }
 }

@@ -65,7 +65,7 @@ import {
   report as watchReport,
   save as watchSave,
 } from "./watches.ts";
-import { home } from "./home.ts";
+import { connectOptions, home } from "./home.ts";
 import { fire, replay, retry, run, stop, test, testEvents } from "./triggers.ts";
 
 export const handlers = {
@@ -111,6 +111,7 @@ export const handlers = {
   "automations.groups.rename": groupsRename,
   "automations.list": list,
   "automations.home": (ctx: AutoCtx) => home(ctx),
+  "automations.connect_options": (ctx: AutoCtx) => connectOptions(ctx),
   "automations.make_personal_copy": makePersonalCopy,
   "automations.migrate_runs": migrateRuns,
   "automations.migration_preview": migrationPreview,

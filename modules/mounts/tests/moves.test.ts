@@ -3,7 +3,7 @@
 // @reads /modules/mounts/handlers/engine.ts
 // @reads /modules/mounts/projections.ts
 // @reads /modules/mounts/migrations/0001_mounts_core.sql
-// Outbound moves: a rename or a move made in Vyre inside a mounted folder goes out to the provider, in order, as create-then-remove; moving out deletes there, moving in creates there;
+// Outbound moves: a rename or a move made in Vyre inside a mounted folder goes out to the provider, in order, as a rename or move of the SAME item (its id stays); moving out leaves the provider's file alone, moving in creates there;
 // a local folder and a GitHub mount do their own and send nothing from here. One test per provider kind.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -101,7 +101,7 @@ const item = (w: World, mountId: string, name: string): Row => {
 };
 
 const caps = (w: World): string[] =>
-  w.google.calls.map((c) => c.cap).filter((c) => /upload_file|create_folder|trash_file/.test(c));
+  w.google.calls.map((c) => c.cap).filter((c) => /upload_file|create_folder|trash_file|update_file/.test(c));
 
 function elsewhere(w: World): string {
   const made = w.files.call("files.folder.create", { parentId: "fld_into", name: "Elsewhere" }) as Row & {
@@ -110,7 +110,7 @@ function elsewhere(w: World): string {
   return String(made.folder["folderId"]);
 }
 
-test("Drive: a rename in Vyre is created under the new name and then the old file is removed; the row follows and the content version counts as sent", async () => {
+test("Drive: a rename in Vyre renames the same file at Drive; its id stays, nothing is made or trashed, and no new revision is sent", async () => {
   const w = harness();
   const { mountId } = await addDrive(w);
   const intro = w.files.fileNamed("intro.pdf");
@@ -127,12 +127,11 @@ test("Drive: a rename in Vyre is created under the new name and then the old fil
   w.google.calls.length = 0;
   const out = await push(w, mountId);
   assert.deepEqual(out, { moved: 1, held: 0, errors: [] });
-  assert.deepEqual(caps(w), ["google.drive.upload_file", "google.drive.trash_file"], "create first, remove after");
-  assert.deepEqual(w.google.uploads, [{ fileId: intro.id, name: "intro-v2.pdf", parentId: "root_drv" }]);
-  assert.deepEqual(w.google.trashed, ["f1"]);
+  assert.deepEqual(caps(w), ["google.drive.update_file"], "one rename of the same file");
+  assert.deepEqual(w.google.updates, [{ fileId: "f1", name: "intro-v2.pdf" }]);
+  assert.deepEqual([w.google.uploads, w.google.trashed], [[], []], "nothing made, nothing trashed");
   const done = item(w, mountId, "intro-v2.pdf");
-  assert.deepEqual([done["dirty"], done["remote_id"]], [0, "up1"]);
-  assert.equal(done["synced_version"], done["local_version"]);
+  assert.deepEqual([done["dirty"], done["remote_id"]], [0, "f1"]);
   assert.equal(
     w.items(mountId).some((r) => r["name"] === "intro.pdf"),
     false,
@@ -142,12 +141,13 @@ test("Drive: a rename in Vyre is created under the new name and then the old fil
   assert.deepEqual(again, { moved: 0, held: 0, errors: [] }, "nothing is sent twice");
 });
 
-test("Drive: a move to another folder of the mount creates it there and removes the old one; folders go first and a renamed folder takes its contents with it", async () => {
+test("Drive: a move to another folder is a move of the same file; a renamed folder keeps its contents and every id; folders go first", async () => {
   const w = harness();
   const { mountId, folderId } = await addDrive(w);
   const nda = w.files.fileNamed("nda.docx");
   const contracts = w.files.folderNamed("Contracts");
   const intro = w.files.fileNamed("intro.pdf");
+  const ndaRemote = String(item(w, mountId, "nda.docx")["remote_id"]);
 
   // nda.docx moves up to the mounted folder, intro.pdf is renamed, and the folder Contracts is renamed, in this order
   w.files.call("files.move", { fileId: nda.id, toFolderId: folderId });
@@ -160,70 +160,59 @@ test("Drive: a move to another folder of the mount creates it there and removes 
   w.google.calls.length = 0;
   const out = await push(w, mountId);
   assert.deepEqual(out, { moved: 3, held: 0, errors: [] });
-  assert.deepEqual(caps(w), [
-    "google.drive.create_folder",
-    "google.drive.trash_file", // the folder first, the old one removed right after the new one exists
-    "google.drive.upload_file",
-    "google.drive.trash_file", // then the file that was renamed
-  ]);
-  assert.deepEqual(w.google.folders, [{ name: "Agreements", parentId: "root_drv" }]);
-  assert.deepEqual(w.google.trashed, ["d1", "f1"]);
-  // nda.docx lived in the folder that was just removed: it is not sent here, it is marked to be created at its new place by the normal push
+  assert.deepEqual(caps(w), ["google.drive.update_file", "google.drive.update_file", "google.drive.update_file"]);
+  assert.deepEqual(w.google.updates[0], { fileId: "d1", name: "Agreements" }, "the folder first");
+  assert.deepEqual(
+    w.google.updates.slice(1).sort((x, y) => x.fileId.localeCompare(y.fileId)),
+    [
+      { fileId: "f1", name: "hello.pdf" },
+      { fileId: ndaRemote, addParentId: "root_drv", removeParentId: "d1" },
+    ].sort((x, y) => x.fileId.localeCompare(y.fileId)),
+  );
+  assert.deepEqual([w.google.uploads, w.google.folders, w.google.trashed], [[], [], []], "nothing made or trashed");
   const moved = item(w, mountId, "nda.docx");
-  assert.deepEqual(
-    [moved["parent_key"], moved["remote_id"], moved["dirty"]],
-    ["root", null, 1],
-    "nda.docx now hangs on the mounted folder and waits to be created there",
-  );
-  await call(w, "mounts.sync_now", { mountId });
-  assert.deepEqual(
-    w.google.uploads.find((u) => u.fileId === nda.id),
-    { fileId: nda.id, name: "nda.docx", parentId: "root_drv" },
-  );
+  assert.deepEqual([moved["parent_key"], moved["remote_id"], moved["dirty"]], ["root", ndaRemote, 0]);
   assert.equal(item(w, mountId, "hello.pdf")["dirty"], 0);
-  assert.equal(item(w, mountId, "Agreements")["dirty"], 0);
-  assert.equal(item(w, mountId, "Agreements")["remote_id"], "nf1");
+  assert.equal(item(w, mountId, "Agreements")["remote_id"], "d1", "the folder keeps its id");
+  await call(w, "mounts.sync_now", { mountId });
+  assert.deepEqual(w.google.uploads, [], "no content went out: only names and places changed");
 });
 
-test("Drive: the contents of a renamed folder are marked to be created under it, because removing the old folder removed them", async () => {
+test("Drive: the contents of a renamed folder stay mapped to the same files and are not sent again", async () => {
   const w = harness();
   const { mountId } = await addDrive(w);
   const contracts = w.files.folderNamed("Contracts");
+  const before = item(w, mountId, "nda.docx")["remote_id"];
   w.files.call("files.folder.rename", { folderId: contracts.id, name: "Agreements" });
   feed(w, "folder.renamed", { folderId: contracts.id, from: "Contracts", to: "Agreements" });
   await push(w, mountId);
   const inside = item(w, mountId, "nda.docx");
   assert.deepEqual(
     [inside["remote_id"], inside["dirty"], inside["parent_key"]],
-    [null, 1, item(w, mountId, "Agreements")["item_key"]],
+    [before, 0, item(w, mountId, "Agreements")["item_key"]],
   );
-  // the engine's normal push now creates it under the new folder
   await call(w, "mounts.sync_now", { mountId });
-  assert.deepEqual(
-    w.google.uploads.find((u) => u.name === "nda.docx"),
-    { fileId: w.files.fileNamed("nda.docx").id, name: "nda.docx", parentId: "nf1" },
-  );
-  assert.equal(item(w, mountId, "nda.docx")["dirty"], 0);
+  assert.deepEqual(w.google.uploads, []);
+  assert.deepEqual(w.google.folders, []);
 });
 
-test("moving out of the mounted folder deletes there; moving into it creates there", async () => {
+test("moving out of the mounted folder leaves the provider's file alone; moving into it creates there", async () => {
   const w = harness();
   const { mountId, folderId } = await addDrive(w);
   const out = elsewhere(w);
   const intro = w.files.fileNamed("intro.pdf");
 
-  // out: intro.pdf leaves the mounted folder
+  // out: intro.pdf leaves the mounted folder; nothing of the person's is removed at Drive
   w.files.call("files.move", { fileId: intro.id, toFolderId: out });
   feed(w, "file.moved", { fileId: intro.id, fromFolderId: folderId, toFolderId: out });
-  const queued = item(w, mountId, "intro.pdf");
-  assert.deepEqual([queued["deleted"], queued["dirty"]], [1, 1]);
-  await call(w, "mounts.sync_now", { mountId });
-  assert.deepEqual(w.google.trashed, ["f1"], "trashed at Drive by the engine's delete step");
-  assert.equal(w.files.files.get(intro.id)?.deleted, false, "the Vyre file is where the person put it");
   assert.equal(
     w.items(mountId).some((r) => r["file_id"] === intro.id),
     false,
+    "it stops being mapped",
   );
+  await call(w, "mounts.sync_now", { mountId });
+  assert.deepEqual(w.google.trashed, [], "the file at Drive is still there");
+  assert.equal(w.files.files.get(intro.id)?.deleted, false, "the Vyre file is where the person put it");
 
   // in: a file made elsewhere is moved into the mounted folder
   const made = (
@@ -258,21 +247,20 @@ test("moving out of the mounted folder deletes there; moving into it creates the
   assert.equal(item(w, mountId, "memo.txt")["dirty"], 0);
 });
 
-test("a folder moved out is deleted there with what is in it; a folder moved into the mount becomes one folder item", async () => {
+test("a folder moved out is let go with what is in it and nothing is removed at the provider; a folder moved into the mount becomes one folder item", async () => {
   const w = harness();
   const { mountId, folderId } = await addDrive(w);
   const out = elsewhere(w);
   const contracts = w.files.folderNamed("Contracts");
   w.files.call("files.folder.move", { folderId: contracts.id, toParentId: out });
   feed(w, "folder.moved", { folderId: contracts.id, fromParentId: folderId, toParentId: out });
-  assert.deepEqual([item(w, mountId, "Contracts")["deleted"], item(w, mountId, "Contracts")["dirty"]], [1, 1]);
-  await call(w, "mounts.sync_now", { mountId });
-  assert.ok(w.google.trashed.includes("d1"));
   assert.equal(
-    w.items(mountId).some((r) => r["name"] === "nda.docx"),
+    w.items(mountId).some((r) => r["name"] === "Contracts" || r["name"] === "nda.docx"),
     false,
-    "the items inside go with it",
+    "the folder and the items inside stop being mapped",
   );
+  await call(w, "mounts.sync_now", { mountId });
+  assert.deepEqual(w.google.trashed, [], "nothing trashed at Drive");
 
   const made = w.files.call("files.folder.create", { parentId: out, name: "Notes" }) as Row & { folder: Row };
   const notes = String(made.folder["folderId"]);
@@ -331,7 +319,7 @@ test("an edit without a rename is not a move: pushMoves leaves it for the upload
   assert.equal(item(w, mountId, "intro.pdf")["dirty"], 1, "still waiting for the upload step");
 });
 
-test("SharePoint and OneDrive: create, then remove, through the Graph capabilities", async () => {
+test("SharePoint and OneDrive: a rename is a rename of the same item through the Graph capabilities", async () => {
   for (const kind of ["sharepoint", "onedrive"] as const) {
     const w = harness();
     const add = await call(w, "mounts.add", {
@@ -350,17 +338,14 @@ test("SharePoint and OneDrive: create, then remove, through the Graph capabiliti
     assert.deepEqual(out, { moved: 1, held: 0, errors: [] }, kind);
     assert.deepEqual(
       w.graph.calls.map((c) => c.cap),
-      ["ms.drive.upload_item", "ms.drive.delete_item"],
-      `${kind}: create first, remove after`,
+      ["ms.drive.update_item"],
+      `${kind}: one rename of the same item`,
     );
-    assert.deepEqual(
-      w.graph.uploads.map((u) => [u.fileId, u.name]),
-      [[readme.id, "README.md"]],
-    );
-    assert.deepEqual(w.graph.deleted, [before]);
+    assert.deepEqual(w.graph.updates, [{ itemId: before, name: "README.md" }]);
+    assert.deepEqual([w.graph.uploads, w.graph.deleted], [[], []], "nothing made or deleted");
     assert.equal(w.graph.calls[0]?.input["connectionId"], "con_m");
     assert.equal(w.graph.calls[0]?.input["driveId"], "drv1");
-    assert.equal(item(w, mountId, "README.md")["remote_id"], "mu1");
+    assert.equal(item(w, mountId, "README.md")["remote_id"], before, "the item keeps its id");
   }
 });
 
@@ -460,8 +445,16 @@ test("a move held for approval waits and goes out later; a provider failure is r
 
   w.google.failWith = vyreErr("provider.unavailable", "Drive is not reachable.", true);
   const failed = await push(w, mountId);
-  assert.deepEqual([failed.moved, failed.held, failed.errors], [0, 0, ["Drive is not reachable."]]);
+  assert.deepEqual(
+    [failed.moved, failed.held, failed.errors],
+    [0, 0, ["Google Drive could not be reached. Vyre keeps this change and tries again by itself."]],
+  );
   assert.equal(item(w, mountId, "intro.pdf")["remote_id"], "f1");
+  assert.equal(
+    item(w, mountId, "intro.pdf")["wait_reason"],
+    "Google Drive could not be reached. Vyre keeps this change and tries again by itself.",
+    "the file says why it has not gone out",
+  );
   w.google.failWith = null;
 
   assert.deepEqual(await push(w, mountId), { moved: 1, held: 0, errors: [] });

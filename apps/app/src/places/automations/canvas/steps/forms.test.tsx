@@ -74,7 +74,8 @@ test("HTTP request, a read: method, address, query, headers and authentication; 
     "http-address-note",
   ])
     assert.ok(has(out, `data-testid="${id}"`), id);
-  assert.equal(value(out, "field-url"), "https://api.example.com/v1/items");
+  // round five: the address is a chip field (words and data), so its text is in the field, not a value attribute
+  assert.ok(has(out, "https://api.example.com/v1/items"));
   assert.equal(value(out, "rows-query-key-0"), "page");
   assert.equal(value(out, "rows-query-value-0"), "2");
   assert.equal(value(out, "rows-headers-key-0"), "accept");

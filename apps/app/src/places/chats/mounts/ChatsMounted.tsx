@@ -3,6 +3,7 @@
 // rules) sit over it. Every door is one `Go` function over the pure `step`: a face's "Open Intake's Page", the helper icon, the channel menu's "Connect an Outside Agent", the Computer
 // chip, a face in the sidebar, a request in Needs you all end in the same place. The data comes from the runtime the shell built for the open Space (live queries over the kept copy
 // and `call`), never from sample data. A link from another place arrives as `hash` and becomes the first thing shown.
+import { AgentInTrash } from "../agentpage/AgentInTrash.tsx";
 import { shellTarget, useViewer } from "../../../shell/reach/viewer.ts";
 import { useComputersAvailable } from "../../../shell/computers-available.ts";
 import { ImportedSession } from "../imported/ImportedSession.tsx";
@@ -893,6 +894,16 @@ export function ChatsMounted({
   const agentQ = useLive<AgentOut>(rt.screens, "chats.agent-page", "agent", agentId !== "" ? { agentId } : null);
   const agentRow = agentQ.status === "ready" && agentId !== "" ? agentQ.data.agent : null;
   const agentComputer = computerOf(agentId);
+  // a terminal row on the agent's page opens the same full-screen terminal as beside a chat
+  const agentTerminal = useMemo(
+    () =>
+      terminalData(rt, go, {
+        agent: { agentId, name: agentId === rt.assistant.id ? rt.assistant.name : (agentRow?.name ?? nameOf(agentId)) },
+        nameOf,
+        newKey,
+      }),
+    [rt, go, agentId, agentRow, nameOf],
+  );
   const agentPage = useMemo(
     () =>
       agentPageData(rt, go, {
@@ -904,8 +915,9 @@ export function ChatsMounted({
         canEdit: agentRow !== null && agentRow.ownerId === rt.me.id,
         nameOf,
         fill,
+        terminal: agentTerminal,
       }),
-    [rt, go, agentId, agentRow, agentComputer, nameOf, fill],
+    [rt, go, agentId, agentRow, agentComputer, nameOf, fill, agentTerminal],
   );
 
   /* ---------- the middle ---------- */
@@ -982,11 +994,19 @@ export function ChatsMounted({
       agentId === "" ? (
         <AgentPageLoading />
       ) : (
-        <AgentPage
+        // an agent in Trash says so, calmly, with Restore; any other agent is its page
+        <AgentInTrash
           key={agentId}
-          data={agentPage}
-          {...(route.tab ? { initialTab: route.tab } : {})}
-          {...(window ? { window } : {})}
+          agentId={agentId}
+          call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+          fallback={
+            <AgentPage
+              key={agentId}
+              data={agentPage}
+              {...(route.tab ? { initialTab: route.tab } : {})}
+              {...(window ? { window } : {})}
+            />
+          }
         />
       );
   else if (route.view === "agent-form")

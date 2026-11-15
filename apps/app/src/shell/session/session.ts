@@ -353,7 +353,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
 
   const once: CapCall = async (cap, input, opts) => {
     const r = await reach(cap, input, opts);
-    if (!reads?.has(cap)) refresh();
+    // an Automation made, copied or promoted is in the list at once (not after the quiet 120 ms): a person's own action is read at once
+    if (!reads?.has(cap))
+      /^automations\.(create|templates\.use|promote|make_personal_copy)$/.test(cap) ? reread(true) : refresh();
     return r;
   };
   // where the Space runs (ai-signin/own-ai.ts), for the words of a refusal
@@ -495,10 +497,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const principalsList = hooks.capQuery<Out<"access.principals.list">>("access.principals.list", {});
   const groupsList = hooks.capQuery<Out<"access.groups.list">>("access.groups.list", {});
   const agentsList = hooks.capQuery<Out<"agents.list">>("agents.list", {});
+  const erasedList = hooks.capQuery<Out<"agents.erased">>("agents.erased", {});
   // Keep the shell's own lists warm for the life of the session.
-  const keep = [connections, principalsList, groupsList, agentsList].map((q) => q.subscribe(() => undefined));
+  const keep = [connections, principalsList, groupsList, agentsList, erasedList].map((q) =>
+    q.subscribe(() => undefined),
+  );
 
-  const principals = derived<Principal[]>([principalsList, groupsList, agentsList], ([p, g, ag]) => {
+  const principals = derived<Principal[]>([principalsList, groupsList, agentsList, erasedList], ([p, g, ag]) => {
     const own = assistant();
     const list = new Map<string, Principal>([[me.id, me]]);
     // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Irfad Imtiaz (Agent)") and never offered
@@ -701,6 +706,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       },
     },
     principals,
+    erased: (id) => {
+      const e = erasedList.getSnapshot();
+      return e.status === "ready"
+        ? (e.data as Out<"agents.erased">).agents.find((a) => a.agentId === id)?.name
+        : undefined;
+    },
     recordTitle: () => undefined,
     me,
     clock: () => ({ now: (o.now ?? Date.now)(), offsetMin: -new Date().getTimezoneOffset() }),

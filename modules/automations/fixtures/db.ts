@@ -144,7 +144,8 @@ export function harness(o: HarnessOptions = {}) {
       const rows = runs.filter(
         (r) =>
           (!i.subject || (r.subject?.type === i.subject.type && r.subject.id === i.subject.id)) &&
-          (!i.statuses || i.statuses.includes(r.status)),
+          (!i.statuses || i.statuses.includes(r.status)) &&
+          (!i.kinds || i.kinds.includes(r.kind)),
       );
       return {
         runs: rows

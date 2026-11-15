@@ -311,3 +311,34 @@ test("holds: place on a file, channel, thread, folder or person; one hold per ta
   );
   assert.ok(PARENT.length > 0);
 });
+
+test("a folder in Trash expires on the same clock as a file: an old one is deleted for good, a young one stays (F77)", async () => {
+  const h = harness();
+  const purged: string[] = [];
+  const fld = (folderId: string) => ({
+    folderId,
+    name: "Desk",
+    path: "Agents/Desk",
+    fileCount: 0,
+    folderCount: 0,
+    scope: "space",
+    label: 0,
+    git: false,
+    reviewChanges: false,
+  });
+  h.script("files.trash.list", () => ({
+    files: [],
+    folders: [
+      { ...fld("fld_old"), deletedAt: NOW - 40 * DAY },
+      { ...fld("fld_new"), deletedAt: NOW - 2 * DAY },
+    ],
+    total: 2,
+  }));
+  h.script("files.folder.purge", (i: Record<string, unknown>) => {
+    purged.push(String(i["folderId"]));
+    return { purged: true };
+  });
+  const run = out(await g.jobsRunNow(h.ctx, { kind: "trash", idempotencyKey: "fld-1" }));
+  assert.equal(h.world.runs.get(String(run.runId))?.status, "succeeded");
+  assert.deepEqual(purged, ["fld_old"]);
+});

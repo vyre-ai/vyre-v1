@@ -10,7 +10,7 @@ const mine = registry.capabilities
   .sort();
 
 test("automations live: the handler map equals the manifest capabilities", () => {
-  assert.equal(mine.length, 81); // 80, and automations.home (the first page's one read, AUTOMATIONS-BUILD-RC29 round four); 77, and the three for building by asking (automations.draft.propose, .proposal.accept, .proposal.discard, AUTOMATIONS-BUILD-RC29 phase 2); 73, and the four draft ones (automations.draft.save, .draft.discard, .make_live, .test_events, AUTOMATIONS-BUILD-RC29 1c and 1f); 61, the five Chrome watch capabilities (automations.watches.*, l-chrome2b), automations.set_owner (Make owner, l-share2) and automations.key_hosts.list, .allow, .remove, .pending, .pending_bind (where a Vault key may go, f-auto); and automations.runs_as.get (f-vaultuse, 12 Nov)
+  assert.equal(mine.length, 82); // 81, and automations.connect_options (Connect an app's Vault rows); 80, and automations.home (the first page's one read, AUTOMATIONS-BUILD-RC29 round four); 77, and the three for building by asking (automations.draft.propose, .proposal.accept, .proposal.discard, AUTOMATIONS-BUILD-RC29 phase 2); 73, and the four draft ones (automations.draft.save, .draft.discard, .make_live, .test_events, AUTOMATIONS-BUILD-RC29 1c and 1f); 61, the five Chrome watch capabilities (automations.watches.*, l-chrome2b), automations.set_owner (Make owner, l-share2) and automations.key_hosts.list, .allow, .remove, .pending, .pending_bind (where a Vault key may go, f-auto); and automations.runs_as.get (f-vaultuse, 12 Nov)
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   for (const name of mine)
     assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);

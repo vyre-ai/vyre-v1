@@ -110,6 +110,8 @@ try {
   for (const t of targets)
     for (const skin of skins)
       for (const [sizeName, vp] of sizes) {
+        // a target may name the sizes it is for ("sizes": ["desktop"]): a scene of the desktop's right pane has no phone picture, and its steps would fail there
+        if (Array.isArray(t.sizes) && !t.sizes.includes(sizeName)) continue;
         const dir = path.join(out, t.id);
         fs.mkdirSync(dir, { recursive: true });
         const stem = `${skin}-${sizeName}`;

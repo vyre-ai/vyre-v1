@@ -9,6 +9,32 @@ import type { Ctx, Decision, ResourceRef } from "../../../packages/contracts/src
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 import type { EventName } from "../../../packages/contracts/src/types.ts";
 import { MemoryDb } from "./db.ts";
+/**
+ * The capabilities the host refuses without an idempotency key (host/src/invoke.ts: a "key" capability needs the key), read from the real manifests. The fake provider and Files calls refuse the
+ * same way, so a write the engine sends without a key fails here as it does on a booted daemon (15 Nov 2026: every Drive and Graph write the engine made was refused there and passed here).
+ */
+function capDoc(cap: string): string {
+  try {
+    return readFileSync(join(here, "../../../generated/docs/capabilities", `${cap}.md`), "utf8");
+  } catch {
+    return "";
+  }
+}
+const keyedCache = new Map<string, boolean>();
+/** Whether the host demands an idempotency key for the capability (its generated page says `Idempotency | key`). */
+export function needsKey(cap: string): boolean {
+  let v = keyedCache.get(cap);
+  if (v === undefined) {
+    v = /\| Idempotency \| key \|/.test(capDoc(cap));
+    keyedCache.set(cap, v);
+  }
+  return v;
+}
+/** The events a capability declares it may emit (its generated page). */
+export function emitsOf(cap: string): string[] {
+  const m = /\| Emits \| ([^|\n]*) \|/.exec(capDoc(cap));
+  return m?.[1] ? m[1].split(",").map((x) => x.trim()) : [];
+}
 
 export const NOW = 1_760_000_000_000;
 /** the work address the person who makes a mount is matched to; every Drive and Graph call is made as it */
@@ -299,6 +325,12 @@ export class FakeFiles {
       f.deleted = true;
       return { deleted: true };
     }
+    if (cap === "files.restore") {
+      const f = this.files.get(String(i["fileId"]));
+      if (!f || !f.deleted) return missing("file");
+      f.deleted = false;
+      return { file: { fileId: f.id, folderId: f.folderId, name: f.name, version: f.version } };
+    }
     return undefined;
   }
 }
@@ -316,6 +348,20 @@ export class FakeGoogle {
   readonly uploads: { fileId: string; name: string; parentId: string }[] = [];
   readonly folders: { name: string; parentId: string }[] = [];
   readonly trashed: string[] = [];
+  /** files in Drive's Trash with the folder they sat in, so they can be taken back out */
+  readonly bin = new Map<string, { parentId: string; file: Row }>();
+  /** renames, moves and restores sent in place */
+  readonly updates: {
+    fileId: string;
+    name?: string;
+    addParentId?: string;
+    removeParentId?: string;
+    trashed?: boolean;
+  }[] = [];
+  /** every idempotency key a write carried, so a test can see a retry reuse it */
+  readonly keys: { cap: string; key: string }[] = [];
+  /** the content Drive holds for a file this fake was sent (a file it only listed has none) */
+  readonly content = new Map<string, string>();
   /** modified time per file id, as the last listing or feed said */
   readonly modified = new Map<string, string>();
   /** Drive folders by id: the recorded listing for each */
@@ -407,7 +453,22 @@ export class FakeGoogle {
   call(cap: string, i: Row): unknown {
     if (cap === "google.dwd.my_account") return { email: ME };
     this.calls.push({ cap, input: i });
+    if (typeof i["idempotencyKey"] === "string") this.keys.push({ cap, key: i["idempotencyKey"] });
     if (this.failWith) throw this.failWith;
+    // the host's own rule: a write repeated with the same key returns what the first one returned and runs nothing twice
+    if (typeof i["idempotencyKey"] === "string") {
+      const seen = this.answers.get(`${cap}:${i["idempotencyKey"]}`);
+      if (seen !== undefined) return seen;
+      const answer = this.run(cap, i);
+      if (answer !== undefined) this.answers.set(`${cap}:${i["idempotencyKey"]}`, answer);
+      return answer;
+    }
+    return this.run(cap, i);
+  }
+
+  private readonly answers = new Map<string, unknown>();
+
+  private run(cap: string, i: Row): unknown {
     if (cap === "google.drive.changes_start_token") {
       if (this.startToken === undefined) throw vyreErr("provider.bad_response", "No start token.");
       return { startPageToken: this.startToken };
@@ -481,6 +542,7 @@ export class FakeGoogle {
         ...(typeof i["ifRevision"] === "string" ? { ifRevision: i["ifRevision"] } : {}),
       });
       this.uploads.push({ fileId: String(i["fileId"]), name: String(i["name"]), parentId: String(i["parentId"]) });
+      this.content.set(String(i["remoteId"]), this.files.text(String(i["fileId"])));
       this.decorate(String(i["remoteId"]), {
         modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z`,
         headRevisionId: `rev_up${this.seq}`,
@@ -499,6 +561,7 @@ export class FakeGoogle {
         modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z`,
       };
       this.put(String(i["parentId"]), file);
+      this.content.set(file.id, this.files.text(String(i["fileId"])));
       return { file };
     }
     if (cap === "google.drive.create_folder") {
@@ -514,9 +577,47 @@ export class FakeGoogle {
       return { file };
     }
     if (cap === "google.drive.trash_file") {
-      this.trashed.push(String(i["fileId"]));
-      this.drop(String(i["fileId"]));
+      const id = String(i["fileId"]);
+      this.trashed.push(id);
+      for (const [parentId, pages] of this.listings)
+        for (const page of pages)
+          for (const f of page["files"] as Row[]) if (f["id"] === id) this.bin.set(id, { parentId, file: f });
+      this.drop(id);
       return { trashed: true };
+    }
+    if (cap === "google.drive.update_file") {
+      if (this.holdUploads) throw vyreErr("permission.needs_approval", "Waiting for approval.");
+      const id = String(i["fileId"]);
+      this.updates.push({
+        fileId: id,
+        ...(typeof i["name"] === "string" ? { name: i["name"] } : {}),
+        ...(typeof i["addParentId"] === "string" ? { addParentId: i["addParentId"] } : {}),
+        ...(typeof i["removeParentId"] === "string" ? { removeParentId: i["removeParentId"] } : {}),
+        ...(typeof i["trashed"] === "boolean" ? { trashed: i["trashed"] } : {}),
+      });
+      if (i["trashed"] === false) {
+        const held = this.bin.get(id);
+        if (!held) throw vyreErr("validation.not_found", "Not in the Trash.");
+        this.bin.delete(id);
+        this.put(held.parentId, held.file);
+        return { file: held.file };
+      }
+      const f = this.find(id);
+      if (!f) throw vyreErr("validation.not_found", "No such file.");
+      if (typeof i["name"] === "string") f["name"] = i["name"];
+      if (typeof i["addParentId"] === "string") {
+        const from = typeof i["removeParentId"] === "string" ? i["removeParentId"] : undefined;
+        for (const [parentId, pages] of this.listings)
+          if (from === undefined || parentId === from)
+            for (const page of pages) page["files"] = (page["files"] as Row[]).filter((x) => x["id"] !== id);
+        const pages = this.listings.get(i["addParentId"]) ?? [{ files: [] }];
+        this.listings.set(i["addParentId"], pages);
+        (pages[pages.length - 1]!["files"] as Row[]).push(f);
+      }
+      this.seq += 1;
+      f["modifiedTime"] = `2026-10-10T00:01:${String(this.seq).padStart(2, "0")}.000Z`;
+      this.note(f);
+      return { file: f };
     }
     return undefined;
   }
@@ -529,6 +630,11 @@ export class FakeGraph {
   readonly deltas = new Map<string, Row>();
   readonly uploads: { fileId: string; name: string; folderId: string }[] = [];
   readonly deleted: string[] = [];
+  /** renames and moves sent in place, and restores from the recycle bin */
+  readonly updates: { itemId: string; name?: string; parentId?: string }[] = [];
+  readonly restored: string[] = [];
+  /** every idempotency key a write carried */
+  readonly keys: { cap: string; key: string }[] = [];
   /** drive change subscriptions opened and closed */
   readonly subs: { subscriptionId: string; notificationUrl: string }[] = [];
   readonly unsubscribed: string[] = [];
@@ -557,6 +663,7 @@ export class FakeGraph {
   call(cap: string, i: Row): unknown {
     if (cap === "ms.consent.my_account") return { email: ME };
     this.calls.push({ cap, input: i });
+    if (typeof i["idempotencyKey"] === "string") this.keys.push({ cap, key: i["idempotencyKey"] });
     if (this.failWith) throw this.failWith;
     if (cap === "ms.drive.delta") {
       const page = this.deltas.get(typeof i["deltaLink"] === "string" ? i["deltaLink"] : "");
@@ -618,6 +725,28 @@ export class FakeGraph {
     }
     if (cap === "ms.drive.create_folder")
       return { item: { id: `mf${this.calls.length}`, name: String(i["name"]), folder: true } };
+    if (cap === "ms.drive.update_item") {
+      const id = String(i["itemId"]);
+      if (typeof i["ifMatch"] === "string" && this.etags.get(id) !== i["ifMatch"]) return { stale: true, item: { id } };
+      this.updates.push({
+        itemId: id,
+        ...(typeof i["name"] === "string" ? { name: i["name"] } : {}),
+        ...(typeof i["parentId"] === "string" ? { parentId: i["parentId"] } : {}),
+      });
+      let found: Row | undefined;
+      for (const page of this.deltas.values())
+        for (const it of page["changed"] as Row[])
+          if (it["id"] === id) {
+            if (typeof i["name"] === "string") it["name"] = i["name"];
+            if (typeof i["parentId"] === "string") it["parentId"] = i["parentId"];
+            found = it;
+          }
+      return { item: found ?? { id } };
+    }
+    if (cap === "ms.drive.restore_item") {
+      this.restored.push(String(i["itemId"]));
+      return { item: { id: String(i["itemId"]) } };
+    }
     if (cap === "ms.drive.delete_item") {
       this.deleted.push(String(i["itemId"]));
       return { deleted: true };
@@ -682,6 +811,8 @@ export function harness(
     async call(cap, input) {
       calls.push({ cap, input });
       const i = obj(input);
+      if (needsKey(cap) && (typeof i["idempotencyKey"] !== "string" || i["idempotencyKey"] === ""))
+        throw vyreErr("validation.bad_input", `${cap} needs an idempotency key.`);
       if (cap === "settings.get") return { row: { key: i["key"], value: settings[String(i["key"])] } };
       const f = cap.startsWith("files.") ? files.call(cap, i) : undefined;
       if (f !== undefined) return f;

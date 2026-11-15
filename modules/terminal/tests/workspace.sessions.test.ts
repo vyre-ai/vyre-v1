@@ -309,13 +309,13 @@ test("terminal.workspace: the state, where it is and whether this person may att
     [
       "unavailable",
       false,
-      "Your Assistant runs commands on this computer for now. A workspace of its own needs Docker on this computer, or a server with Docker added in Console > Computers.",
+      "Your Assistant runs commands on this computer for now. For a computer of its own, install Docker here or add a server in Console > Computers.",
     ],
   );
   bindTeamFor(() => true);
   assert.match(
     (await wsOf(admin, { agentId: "agt_dex" })).line,
-    /^This Space can't run agent workspaces yet\. That needs Docker on the Space's server, or another server with Docker added in Console > Computers\.$/,
+    /^No computer is set up for agents yet\. An admin of this Space can add one in Console > Computers\.$/,
   );
   bindWorkspaceStatus(null);
   bindWorkspaces(false);
@@ -350,7 +350,7 @@ test("owner walk: a Space whose Docker does not answer shows its workspace as no
   const admin = asPerson("usr_admin", true);
   const w = await h["terminal.workspace"]!(admin, { agentId: "agt_dex" });
   assert.deepEqual([w.state, w.canAttach], ["unavailable", false]);
-  assert.match(w.line, /^This Space can't run agent workspaces yet\. That needs Docker on the Space's server/);
+  assert.match(w.line, /^No computer is set up for agents yet\. An admin of this Space/);
 });
 
 test("a workspace that will not start says why in details.reason: no image and no Docker (it cannot run here) apart from waiting for room and an agent in Trash (it will, or it is gone), so the app falls through only for the first (r-term P1, 12 Nov)", async () => {

@@ -102,6 +102,7 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
       ...(memory ? { leaveMemory: () => memory.open(null) } : {}),
       resolveConflict: (fileId) =>
         rt.open({ screen: "shell.conflicts-tab", args: { entity: "file", recordId: fileId } }),
+      openItem: (type, id) => rt.open({ subject: { type, id } }),
       openExternal: (url) => rt.openUrl(url),
     },
   };

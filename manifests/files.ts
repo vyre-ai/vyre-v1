@@ -130,6 +130,7 @@ const folderRow = t.obj({
   git: t.bool(),
   reviewChanges: t.bool(),
   subject: t.opt(folderSubject),
+  deletedAt: t.opt(t.ts({ description: "When it went to Trash, on a folder in Trash" })),
 });
 
 const content = t.obj(
@@ -607,6 +608,10 @@ export default defineManifest({
       subject: ["folder", "/folderId"],
       retention: "trash",
     }),
+    ev("folder.purged", "A folder in Trash was deleted for good, with every file in it", {
+      p: { folderId: id.folder },
+      subject: ["folder", "/folderId"],
+    }),
     ev("folder.restored", "A folder came back from Trash", {
       p: { folderId: id.folder },
       subject: ["folder", "/folderId"],
@@ -829,6 +834,18 @@ export default defineManifest({
           previewUrl: t.opt(t.str()),
           sheets: t.opt(t.arr(sheetInfo)),
           snapshot: t.opt(t.obj({ exportedAt: t.ts(), editVia: t.enm("provider_api", "open_in_provider") })),
+          // a file of a connected folder: what its provider says (view only, a change not yet sent, changed there too)
+          connected: t.opt(
+            t.obj({
+              provider: t.str(),
+              viewOnly: t.opt(t.bool()),
+              notSent: t.opt(t.obj({ reason: t.str(), goneThere: t.opt(t.bool()) })),
+              writesAs: t.opt(t.obj({ by: t.str(), email: t.opt(t.str()) })),
+              changedThere: t.opt(
+                t.obj({ by: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })), at: t.opt(t.ts()) }),
+              ),
+            }),
+          ),
           canEdit: t.bool(),
           canMark: t.bool(),
           canComment: t.bool(),
@@ -875,20 +892,30 @@ export default defineManifest({
         errors: ["validation.too_large"],
       },
     ),
-    create("files.create", "Create a file in a folder from text, base64 or an uploaded blob", {
-      in: { folderId: id.folder, name: t.str(), content: t.opt(content), mime: t.opt(t.str()), kind: t.opt(fileKind) },
-      out: { file: fileRow, changesetId: t.opt(id.changeset) },
-      make: ["folder", "/folderId"],
-      perm: "files.write",
-      emits: ["file.created", "file.version_added", "changeset.opened", "changeset.updated"],
-      tool: "files",
-      offline: "queue",
-      cli: "vyre files put",
-      errors: ["validation.duplicate", "validation.too_large"],
-    }),
+    create(
+      "files.create",
+      'Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person\'s own files. A name already taken becomes "name (2)" for an agent. A direct write holds at most 256 KB: split larger content into several files',
+      {
+        in: {
+          folderId: id.folder,
+          name: t.str(),
+          content: t.opt(content),
+          mime: t.opt(t.str()),
+          kind: t.opt(fileKind),
+        },
+        out: { file: fileRow, changesetId: t.opt(id.changeset) },
+        make: ["folder", "/folderId"],
+        perm: "files.write",
+        emits: ["file.created", "file.version_added", "changeset.opened", "changeset.updated"],
+        tool: "files",
+        offline: "queue",
+        cli: "vyre files put",
+        errors: ["validation.duplicate", "validation.too_large"],
+      },
+    ),
     write(
       "files.write",
-      "Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
+      "Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
       {
         in: { fileId: id.file, content, baseVersion: t.opt(t.int({ minimum: 1 })), reason: t.opt(t.str()) },
         out: { file: fileRow, versionId: t.opt(id.version), changesetId: t.opt(id.changeset) },
@@ -995,13 +1022,24 @@ export default defineManifest({
       tool: "files",
       errors: ["permission.on_hold"],
     }),
+    write("files.folder.purge", "Delete a folder in Trash for good, with every file and folder in it", {
+      in: { folderId: id.folder },
+      out: { purged: t.bool() },
+      on: ["folder", "/folderId"],
+      perm: "files.delete",
+      gate: { act: "delete", when: "actor.kind != 'person'" },
+      audit: "always",
+      emits: ["folder.purged", "file.purged"],
+      tool: "files",
+      errors: ["permission.on_hold"],
+    }),
     write("files.trash.empty", "Delete everything in Trash that the caller may delete", {
       in: { olderThanDays: t.opt(t.int({ minimum: 0 })) },
       out: { purged: t.int() },
       perm: "files.delete",
       gate: { act: "delete", when: "actor.kind != 'person'" },
       audit: "always",
-      emits: ["file.purged"],
+      emits: ["file.purged", "folder.purged"],
       tool: "files",
       risk: "high",
     }),

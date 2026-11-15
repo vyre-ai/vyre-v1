@@ -216,6 +216,8 @@ export function ChipText({
   const [draft, setDraft] = useState<Seg[] | null>(null);
   const words = useContext(DataWordsContext);
   const caret = useRef(0);
+  const picked = useRef<{ i: number; a: number; b: number }>({ i: 0, a: 0, b: 0 });
+  const boxes = useRef<Record<number, { focus(): void; setSelection?(a: number, b: number): void } | null>>({});
   const segs = draft ?? splitTemplate(value);
   // "Insert data" at the field's right, or "/" typed in it: a menu of what the trigger and earlier steps give; choosing one puts a chip here
   const openInsert = (x: number, y: number): void =>
@@ -238,6 +240,17 @@ export function ChipText({
     // a line nobody edited is not rewritten: "{{lead.phone}}" stays as it was saved, not "{{ lead.phone }}"
     if (text !== value && text !== joinTemplate(splitTemplate(value))) onCommit(text);
   };
+  // the small formatting bar of a long field: Bold, Italic, List and Link write plain markdown round the selected words
+  const format = (left: string, right: string): void => {
+    const { i, a, b } = picked.current;
+    const seg = segs[i];
+    if (!seg || seg.kind !== "text") return;
+    const text = `${seg.text.slice(0, a)}${left}${seg.text.slice(a, b)}${right}${seg.text.slice(b)}`;
+    const next = segs.map((x, at) => (at === i ? { kind: "text" as const, text } : x));
+    setDraft(null);
+    const out = joinTemplate(next);
+    if (out !== value) onCommit(out);
+  };
   const edit = (i: number, text: string): void => {
     if (words?.insert && text.endsWith("/")) {
       // "/" is the keyboard's way to the same menu; the slash itself is not kept
@@ -255,6 +268,9 @@ export function ChipText({
       pieces.push(
         <TextInput
           key={`t${i}`}
+          ref={(r: unknown) => {
+            boxes.current[i] = r as { focus(): void; setSelection?(a: number, b: number): void } | null;
+          }}
           accessibilityLabel={first ? label : `${label} part ${i / 2 + 1}`}
           testID={first ? testID : testID ? `${testID}-${i}` : undefined}
           value={seg.text}
@@ -266,12 +282,35 @@ export function ChipText({
           onBlur={() => done(segs)}
           onSelectionChange={(e) => {
             caret.current = e.nativeEvent.selection.start;
+            picked.current = { i, a: e.nativeEvent.selection.start, b: e.nativeEvent.selection.end };
           }}
           onKeyPress={
             ((e: { nativeEvent?: { key?: string }; key?: string; preventDefault?: () => void }) => {
               // Backspace at the start of a piece of text takes out the chip before it, as one character
               const key = e.nativeEvent?.key ?? e.key;
               const before = segs[i - 1];
+              // arrows step over a chip as one character: Left at the start goes to the end of the text before it, Right at the end to the start of the text after it
+              if (
+                key === "ArrowLeft" &&
+                caret.current === 0 &&
+                before?.kind === "chip" &&
+                segs[i - 2]?.kind === "text"
+              ) {
+                const prev = segs[i - 2] as { text: string };
+                boxes.current[i - 2]?.focus();
+                boxes.current[i - 2]?.setSelection?.(prev.text.length, prev.text.length);
+                e.preventDefault?.();
+              }
+              if (
+                key === "ArrowRight" &&
+                caret.current >= seg.text.length &&
+                segs[i + 1]?.kind === "chip" &&
+                segs[i + 2]?.kind === "text"
+              ) {
+                boxes.current[i + 2]?.focus();
+                boxes.current[i + 2]?.setSelection?.(0, 0);
+                e.preventDefault?.();
+              }
               if (key === "Backspace" && caret.current === 0 && before?.kind === "chip") {
                 e.preventDefault?.();
                 done(dropChip(segs, i - 1));
@@ -328,6 +367,29 @@ export function ChipText({
   return (
     <View style={f.field}>
       <Text style={f.label}>{label}</Text>
+      {!compact ? (
+        <View style={f.fmtBar} testID={testID ? `${testID}-format` : undefined}>
+          {/* ui-rows-lint: not a list (the four formatting buttons) */}
+          {(
+            [
+              ["B", "Bold", "**", "**"],
+              ["I", "Italic", "_", "_"],
+              ["•", "List", "\n- ", ""],
+              ["Link", "Link", "[", "](https://)"],
+            ] as const
+          ).map(([label, name, l, r]) => (
+            <Pressable
+              key={name}
+              accessibilityRole="button"
+              accessibilityLabel={name}
+              onPress={() => format(l, r)}
+              style={[f.fmtBtn, pointer]}
+            >
+              <Text style={f.fmtText}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       <View style={[f.chipBox, compact && { minHeight: 34 }]}>
         {pieces}
         {words?.insert ? (
@@ -602,6 +664,16 @@ export function Rows({
 
 export const f = StyleSheet.create({
   insertLink: { alignSelf: "flex-start", paddingVertical: 2 },
+  fmtBar: { flexDirection: "row", gap: 4, marginBottom: 4 },
+  fmtBtn: {
+    minWidth: 26,
+    height: 24,
+    paddingHorizontal: 6,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fmtText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   insertInBox: { marginLeft: "auto" as unknown as number, paddingHorizontal: 6, paddingVertical: 2 },
   insertText: { fontSize: 12, color: "var(--accent)" as string },
   field: { gap: 4 },

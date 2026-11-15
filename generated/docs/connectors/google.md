@@ -74,6 +74,7 @@ Key google, module google. Mode dwd, owned by a space. Auth service_account_dwd.
 - google.drive.export_file
 - google.drive.get_permissions
 - google.drive.upload_file
+- google.drive.update_file
 - google.drive.list_revisions
 - google.drive.download_revision
 - google.drive.create_folder

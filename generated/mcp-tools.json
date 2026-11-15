@@ -3304,6 +3304,73 @@
     },
     {
       "blocks": [],
+      "cap": "agents.delete_for_good",
+      "deferred": false,
+      "description": "Delete an agent in Trash for good: its memory, its one-to-one chats, its computer, its folder, its access and what it ran are erased; what others built that names it asks them to choose another agent. Not an Assistant",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_delete_for_good",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.delete_preview",
+      "deferred": false,
+      "description": "What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_delete_preview",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.erased",
+      "deferred": false,
+      "description": "The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_erased",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.get",
       "deferred": false,
       "description": "Read one agent: record, status, limits and the effective configuration",
@@ -4249,6 +4316,21 @@
     },
     {
       "blocks": [],
+      "cap": "agents.trash.list",
+      "deferred": false,
+      "description": "The agents in Trash, with which are being deleted for good",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_trash_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.update",
       "deferred": false,
       "description": "Change an agent: name, model, fallback, account, tools, vault key names, limits, memory capture, handoffs; a broken agent.toml keeps the last good version running",
@@ -4337,7 +4419,7 @@
       "blocks": [],
       "cap": "sites.artifact_publish",
       "deferred": false,
-      "description": "THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "description": "Needs a title and exactly one of html, fileId, folderId, path or port. THE way to show what you made: publishes it privately, the person gets a card to open. Example: artifact_publish {\"title\":\"Q3 plan\",\"html\":\"<h1>Q3</h1>\"}. Same title or artifactId updates the link. No title: its <title> is used",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -5143,6 +5225,21 @@
         "type": "object"
       },
       "name": "automations_analytics",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connect_options",
+      "deferred": false,
+      "description": "What Connect an app lists for the person: the Vault items they may use whose app their Assistant can set up",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connect_options",
       "planMode": "allowed",
       "toolset": "automations",
       "v": 1
@@ -22014,7 +22111,7 @@
       "blocks": [],
       "cap": "files.create",
       "deferred": false,
-      "description": "Create a file in a folder from text, base64 or an uploaded blob",
+      "description": "Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person's own files. A name already taken becomes \"name (2)\" for an agent. A direct write holds at most 256 KB: split larger content into several files",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -22333,6 +22430,32 @@
         "type": "object"
       },
       "name": "files_folder_move",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "files.folder.purge",
+      "deferred": false,
+      "description": "Delete a folder in Trash for good, with every file and folder in it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "folderId"
+        ],
+        "type": "object"
+      },
+      "name": "files_folder_purge",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -23558,7 +23681,7 @@
       "blocks": [],
       "cap": "files.write",
       "deferred": false,
-      "description": "Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
+      "description": "Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -24798,7 +24921,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -24892,7 +25016,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -24987,7 +25112,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -29903,6 +30029,63 @@
         "type": "object"
       },
       "name": "google_drive_trash_file",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.drive.update_file",
+      "deferred": true,
+      "description": "Rename a Drive file or folder, move it between folders, or take it back out of the Trash; the file keeps its id, its links and its sharing",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "addParentId": {
+            "type": "string"
+          },
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "removeParentId": {
+            "type": "string"
+          },
+          "trashed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_drive_update_file",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -42297,6 +42480,10 @@
           "name": {
             "type": "string"
           },
+          "readOnly": {
+            "description": "Never send changes to the provider; the default is two-way",
+            "type": "boolean"
+          },
           "reviewChanges": {
             "type": "boolean"
           },
@@ -42782,6 +42969,42 @@
     },
     {
       "blocks": [],
+      "cap": "mounts.resolve",
+      "deferred": false,
+      "description": "Settle a file that changed at the provider while it was edited in Vyre: keep both (the Vyre edit is saved beside it as a copy there) or use theirs; or one deleted there while an edit waited: keep it here (it goes back as a new file) or discard the edit",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "choice": {
+            "enum": [
+              "keep_both",
+              "use_theirs",
+              "keep_here",
+              "discard"
+            ],
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "choice"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_resolve",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.restore",
       "deferred": false,
       "description": "Put an earlier revision of a file back as the newest; it goes out like any edit",
@@ -42923,6 +43146,32 @@
     },
     {
       "blocks": [],
+      "cap": "mounts.sheet_tabs",
+      "deferred": true,
+      "description": "List the tabs of a mounted Google Sheet, with their names and sizes, so every tab can be read and edited",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_sheet_tabs",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.sheet_write",
       "deferred": true,
       "description": "Write cells of a mounted Google Sheet or Excel workbook in the provider file itself",
@@ -42984,6 +43233,9 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "auto": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -44362,6 +44614,54 @@
     },
     {
       "blocks": [],
+      "cap": "ms.drive.restore_item",
+      "deferred": true,
+      "description": "Bring an item back from the recycle bin (OneDrive personal only; others answer that it cannot be done here)",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_drive_restore_item",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.drive.share_item",
       "deferred": true,
       "description": "Create a sharing link or invite people; Microsoft emails them",
@@ -44422,6 +44722,63 @@
         "type": "object"
       },
       "name": "ms_drive_share_item",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.drive.update_item",
+      "deferred": true,
+      "description": "Rename an item or move it to another folder; the item keeps its id, links and sharing. With ifMatch only if the item still has that eTag",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "ifMatch": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_drive_update_item",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1

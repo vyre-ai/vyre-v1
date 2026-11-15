@@ -19,7 +19,7 @@ test("catalog: every generated tool joins its capability; the frozen default lis
   for (const t of catalog.all) assert.ok(caps.has(t.cap), t.name);
   const stricter = catalog.all.filter((t) => t.effects === "outward").length;
   // 77 until rc.8 added twelve gated outward tools: Dropbox files (create_folder, delete, restore, upload), Google Docs insert/replace text, mounts doc/sheet edits and Excel workbook writes.
-  assert.equal(stricter, 90); // campaigns_launch left with Campaigns; mcp_call (a connection's tool called from a CLI engine, l-skills1) is gated outward; google_gmail_delete_draft (l-chrome2a) is too
+  assert.equal(stricter, 93); // the Drive write-back branch (f-drive2) added three gated outward tools: google.drive.update_file, ms.drive.update_item, ms.drive.restore_item; before that, campaigns_launch left with Campaigns; mcp_call (a connection's tool called from a CLI engine, l-skills1) is gated outward; google_gmail_delete_draft (l-chrome2a) is too
 });
 
 test("catalog: a tool whose capability is missing, or a duplicate name, is a build error not a quiet gap", () => {
@@ -140,6 +140,7 @@ test("the seed names the agent as principal, the asker as who it acts for, and c
     run: "run_9",
     thread: "T1",
     origin: "agent",
+    callMeta: { tool: "records_get", first: true },
     provider: "anthropic",
     approval: undefined,
   });
@@ -351,7 +352,7 @@ test("what a model reads from a failed tool says approval, never Gate or hold", 
   const out = await session.call(ctx(), "mail_send", {
     to: ["maya@northwind.com"],
     subject: "Retainer",
-    body: "Dear Maya, the retainer is attached.",
+    html: "Dear Maya, the retainer is attached.",
   });
   assert.equal(out.kind, "error");
   if (out.kind !== "error") return;

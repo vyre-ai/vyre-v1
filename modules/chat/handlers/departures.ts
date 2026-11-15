@@ -2,6 +2,7 @@
 // member list reads as a ghost. So: the person comes off every thread they were in, a thread they started that still has people gets a new owner, and each chat gets one line saying what happened. A deleted
 // agent comes off the chats it was in the same way, its past messages stay, and the line is what is left of it. A private chat with nobody else in it stays as it is (retention decides that). At least once:
 // a second delivery finds nothing to do.
+import { noteTrashed } from "./erase-agent.ts";
 import { addAgent, addMember, insertMessage, insertThread, membersOf } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { forgetMentions } from "./pace.ts";
@@ -113,6 +114,7 @@ export async function onAgentDeleted(
     ctx.emit("agent.disengaged", id, { threadId: id, agentId: agent, by: agent });
     touched.push(id);
   }
+  noteTrashed(ctx, agent, touched);
   return touched;
 }
 

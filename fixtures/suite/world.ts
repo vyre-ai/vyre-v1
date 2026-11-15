@@ -23,7 +23,7 @@ export const OTHER = "tok-usr_mia";
 const WHO: Record<string, string> = { [OWNER]: "usr_olivia", [MEMBER]: "usr_noah", [OTHER]: "usr_mia" };
 
 /** Provider answers for the module's egress (ctx.http): a status, a JSON body or text. */
-export type Answer = { status?: number; json?: unknown; text?: string } | undefined;
+export type Answer = { status?: number; json?: unknown; text?: string; bytes?: Uint8Array } | undefined;
 export type ProviderApi = (req: {
   method: string;
   url: string;
@@ -81,7 +81,8 @@ export async function bootWorld(o: WorldOptions) {
     return {
       status,
       text: async () => body,
-      arrayBuffer: async () => new TextEncoder().encode(body).buffer as ArrayBuffer,
+      arrayBuffer: async () =>
+        (a?.bytes !== undefined ? a.bytes.slice().buffer : new TextEncoder().encode(body).buffer) as ArrayBuffer,
       headers: { get: () => null as string | null },
     };
   };

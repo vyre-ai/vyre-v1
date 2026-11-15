@@ -49,6 +49,7 @@ import {
 } from "./model.ts";
 import { SchemaForm } from "./SchemaForm.tsx";
 import { TriggerForm, usePersonZone } from "./TriggerForm.tsx";
+import { ConditionField } from "./ConditionField.tsx";
 import { arrangeControls, controlsFor, humanize, specOf } from "./form-model.ts";
 import { actOf } from "../story/issues.ts";
 import { chipForIssue } from "../../../../../../lib/words/step-missing.ts";
@@ -386,16 +387,27 @@ export function Inspector({
     const b = branches[n]!;
     if (kind === "paths") {
       fields.push(
-        <TextBox
-          key={`${node.id}-p${n}`}
-          label={b.when === undefined ? "Otherwise" : `Path ${n + 1}, if`}
-          value={b.when ?? ""}
-          mono
-          readOnly={b.when === undefined}
-          placeholder={b.when === undefined ? "Everything else" : "lead.phone is not empty"}
-          testID={`field-path-${n}`}
-          onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { when: t }) }))}
-        />,
+        b.when === undefined ? (
+          <TextBox
+            key={`${node.id}-p${n}`}
+            label="Otherwise"
+            value=""
+            mono
+            readOnly
+            placeholder="Everything else"
+            testID={`field-path-${n}`}
+            onCommit={() => undefined}
+          />
+        ) : (
+          <ConditionField
+            key={`${node.id}-p${n}`}
+            label={`Path ${n + 1}, if`}
+            value={b.when ?? ""}
+            openMenu={openMenu}
+            testID={`field-path-${n}`}
+            onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { when: t }) }))}
+          />
+        ),
       );
     } else if (kind === "parallel") {
       fields.push(
@@ -491,7 +503,7 @@ export function Inspector({
     el?.scrollIntoView?.({ block: "center" });
     el?.focus?.();
   };
-  focusNeedRef.current = needLine ? focusFirstNeeded : null;
+  focusNeedRef.current = focusFirstNeeded;
   return (
     <DataWordsContext.Provider value={dataWords}>
       <MapTargetContext.Provider value={{ set: setMapTarget }}>

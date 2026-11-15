@@ -412,6 +412,7 @@ export default function Mount(): ReactNode {
           { id: "3", name: "Daily brief", state: "on", scope: "Space" },
           { id: "4", name: "Notes digest", state: "off", scope: "Shared" },
         ]}
+        selectedId="3"
         onOpen={noop}
         onHome={noop}
         onNew={noop}

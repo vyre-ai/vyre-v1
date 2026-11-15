@@ -92,6 +92,29 @@ test("analytics counts the runs it can see, by status, day, automation and faili
   assert.equal(one.totals.runs, 2);
 });
 
+test("test runs stay out of the success rate and the totals, finished or stopped", async () => {
+  const h = harness();
+  const a = (
+    await h.call(
+      "automations.create",
+      { name: "Welcome", definition: { triggers: [{ key: "manual" }], nodes: [note] } },
+      alice,
+    )
+  ).automation.id as string;
+  addRun(h, a, "succeeded", 1_000, { endedAt: h.now() - 500 });
+  addRun(h, a, "failed", 2_000, { kind: "automation_test", endedAt: h.now() - 1_000 });
+  addRun(h, a, "succeeded", 3_000, { kind: "automation_test", endedAt: h.now() - 2_000 });
+  const all = await h.call("automations.analytics", {}, alice);
+  assert.equal(all.totals.runs, 1);
+  assert.equal(all.totals.successRate, 1);
+  const one = await h.call("automations.analytics", { automationId: a }, alice);
+  assert.equal(one.totals.runs, 1);
+  assert.equal(one.totals.failed, 0);
+  const row = (await h.call("automations.list", {}, alice)).automations.find((x: { id: string }) => x.id === a);
+  assert.equal(row.lastRun.status, "succeeded", "the Today line and the list read real runs only");
+  assert.equal(row.failedRuns, 0);
+});
+
 test("analytics for an automation the caller cannot see is not found", async () => {
   const h = harness();
   const a = (

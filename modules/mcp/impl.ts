@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // mcp module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // Also here: the runtime that puts the MCP server (agent/src/mcp) on this module's tables. The host mounts `runtime.handle` at the Space's /mcp address and on loopback for CLI engines, and `runtime.oauth` at /oauth/* and the
 // /.well-known addresses a client signs in through. What an outside agent does is written here too: one activity row per call, its status, and its steps as a message in the chat it is working in.
@@ -10,6 +12,7 @@ import {
   CRM_TOOLS,
 } from "../../lib/connector-chat.ts";
 import { ABOUT_VYRE_TOOLS } from "../../lib/about-vyre.ts";
+import { agentRefusedNeedsYou } from "../../lib/needs-you.ts";
 import { createMcpServer } from "../../agent/src/mcp/server.ts";
 import { modePair } from "../../agent/src/tools/local.ts";
 import { recordWork, sessionWorkKey } from "../../agent/src/tools/work-cards.ts";
@@ -328,6 +331,20 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
     defaults: g.defaults,
     invoke: o.invoke,
     now,
+    // a routine's agent that is refused for something it can never do tells the person it works for, once, in Needs you
+    ...(o.system
+      ? {
+          needsYou: (n: { agentId: string; tool: string; asker: string }): void => {
+            const system = o.system!;
+            void (async () => {
+              const got = (await system("agents.get", { agentId: n.agentId }).catch(() => undefined)) as
+                | { agent?: { name?: string } }
+                | undefined;
+              await agentRefusedNeedsYou(system, { ...n, ...(got?.agent?.name ? { agentName: got.agent.name } : {}) });
+            })();
+          },
+        }
+      : {}),
     ...(o.info ? { info: o.info } : {}),
     ...(o.allowedOrigins ? { allowedOrigins: o.allowedOrigins } : {}),
     challenge,
@@ -549,3 +566,15 @@ export const consumers = {
 };
 
 export { bindEndpoint, bindServer };
+
+/** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
+export const hostCalls = {
+  "mcp.erase_agent": eraseTables([
+    ["mcp_oauth_requests", "agent_id"],
+    ["mcp_oauth_grants", "agent_id"],
+    ["mcp_activity", "agent_id"],
+    ["mcp_setup_grants", "agent_id"],
+    ["mcp_tokens", "actor_id"],
+    ["mcp_sessions", "principal"],
+  ]),
+};

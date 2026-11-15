@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // Scheduler module (lane L6). The host loads these handlers once the module is live (host/modules.json, ARCH 12.4).
 // `tick` is what the host scheduler glue calls on every pass: it fires every schedule that is due. `catch_up`, `waits.match` and `waits.expire` are capabilities the glue calls too.
 import { handlers } from "./handlers/index.ts";
@@ -37,3 +39,24 @@ export const consumers = {
 };
 export { fireWakes, prune, sweepFires, tick, tickWakes } from "./handlers/schedule.ts";
 export { dueSchedules, nextCron, parseCron } from "./projections.ts";
+
+/** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
+export const hostCalls = {
+  "scheduler-api.erase_agent": eraseTables([], (ctx, i) => {
+    if (i.dry === true) return {};
+    const ids = tryAll(
+      ctx.db,
+      `SELECT id FROM scheduler_api_schedules WHERE (owner_kind = 'agent' AND owner_id = ?) OR agent_id = ?`,
+      i.agentId,
+      i.agentId,
+    ).map((r) => String(r["id"]));
+    for (const id of ids) {
+      tryRun(ctx.db, `DELETE FROM scheduler_api_fires WHERE schedule_id = ?`, id);
+      tryRun(ctx.db, `DELETE FROM scheduler_api_missed WHERE schedule_id = ?`, id);
+      tryRun(ctx.db, `DELETE FROM scheduler_api_fires_wake WHERE schedule_id = ?`, id);
+      tryRun(ctx.db, `DELETE FROM scheduler_api_schedules WHERE id = ?`, id);
+    }
+    tryRun(ctx.db, `DELETE FROM scheduler_api_waits WHERE subject_type = 'agent' AND subject_id = ?`, i.agentId);
+    return {};
+  }),
+};

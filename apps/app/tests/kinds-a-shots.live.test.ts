@@ -242,11 +242,14 @@ test("f-kinds-a pictures", async (t) => {
       await shot("1-step-cards", skin);
       await page.getByText("Tidy files", { exact: true }).first().click({ timeout: 30_000 });
       await page.getByTestId("sv-step-t1").waitFor({ timeout: 20_000 });
+      await page.waitForTimeout(1500);
       const sub = await page.getByTestId("sv-step-t1").innerText();
       assert.ok(
-        /file|folder/i.test(sub) && !/fil_|fld_|rec_|\bid\b/i.test(sub),
-        `the step's sentence names its inputs in words: ${sub}`,
+        /Tidy me\.md/.test(sub) && /Filed/.test(sub) && !/fil_|fld_|\bid\b/i.test(sub),
+        `the step row says the file and the folder by name: ${sub}`,
       );
+      const second = await page.getByTestId("sv-step-t2").innerText();
+      assert.ok(/Tidy Co/.test(second) && !/rec_/.test(second), `the record step names the record: ${second}`);
       await shot("1b-step-cards-generic", skin);
 
       // 2. Console Home: the collapsed run, then the same row opened

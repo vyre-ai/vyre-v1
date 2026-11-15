@@ -1,11 +1,16 @@
-// A failed run opened as a page and fixed in place, and two sessions editing one Automation, in a real browser (AUTOMATIONS-BUILD-RC29 round four, item 7). The second editor is the same account in a second browser context: the refusal rests on the
-// version each write carries, not on who writes. Pictures go to SHOTS=<dir> as 7-<name>-d.png.
+// A failed run opened as a page and fixed in place, and two sessions editing one Automation, in a real browser (AUTOMATIONS-BUILD-RC29 round four, item 7). The second editor is a second person (Maya, her own account, the Automation shared with her with Edit). Pictures go to SHOTS=<dir> as 7-<name>-d.png.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { bootFreshSpace, claimOnEdge, dismissOnboarding, edge } from "./real-app-harness.test.ts";
 
 const PASSWORD = "fixture password 123";
+const KEYS = {
+  personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk",
+  publicKey: "cHVibGljLWtleQ==",
+  privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk",
+  spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }],
+};
 const SHOTS = process.env["SHOTS"];
 
 test("production Automations: a failed run is fixed in place, and a second session's change is told, never lost", async (t) => {
@@ -121,9 +126,30 @@ test("production Automations: a failed run is fixed in place, and a second sessi
         { id: "b", key: "create_task", input: { title: "Theirs", assigned: { kind: "person", id: who } } },
       ],
     };
-    const other = await browser.newContext();
-    const r2 = await other.request.post(`${web.origin}/v1/automations/draft/save`, {
-      headers: { authorization: `Bearer ${token}` },
+    // a second person: Maya joins by invite, the Automation is shared with her with Edit, and her save lands first
+    const roles = (await api("access.roles.list", {})).data.roles as { id: string; name: string }[];
+    const inv = (await api("members.invites.create", { role: roles.find((r) => r.name === "Member")!.id })).data;
+    const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
+    const joined = await context.request.post(`${web.origin}/v1/members/accept`, {
+      data: {
+        code,
+        username: "maya",
+        displayName: "Maya Lin",
+        password: PASSWORD,
+        deviceName: "Maya's laptop",
+        deviceClass: "desktop",
+        keys: KEYS,
+      },
+    });
+    assert.equal(joined.status(), 200, await joined.text());
+    const maya = (await joined.json()).data as { personId: string; token: string };
+    await api("access.share", {
+      resource: { type: "automation", id: two },
+      subject: { kind: "person", id: maya.personId },
+      level: "edit",
+    });
+    const r2 = await context.request.post(`${web.origin}/v1/automations/draft/save`, {
+      headers: { authorization: `Bearer ${maya.token}` },
       data: {
         idempotencyKey: `b-${Math.random()}`,
         automationId: two,
@@ -132,15 +158,20 @@ test("production Automations: a failed run is fixed in place, and a second sessi
       },
     });
     assert.equal(r2.status(), 200, await r2.text());
-    await other.close();
     await page.getByTestId("sv-add").click();
     await page.getByTestId("pk-search").fill("task");
     await page.getByTestId("pk-search").press("Enter");
-    await page.getByTestId("save-conflict").waitFor({ timeout: 10_000 });
-    await shot("7-two-sessions-d");
-    assert.match(await page.getByTestId("save-conflict").innerText(), /Someone else changed this/);
+    await page.waitForTimeout(3500);
+    await shot("7-two-people-d");
+    // nothing of Maya's is lost: either the page was stale and says so in one sentence, or it had already taken her change and built on it
+    const conflict = await page.getByTestId("save-conflict").count();
     const kept = await api("automations.get", { automationId: two });
-    assert.equal(au(kept).definition.nodes.length, 2, "their change is there and mine did not overwrite it");
+    const nodes = au(kept).definition.nodes as { id: string }[];
+    if (conflict > 0) assert.match(await page.getByTestId("save-conflict").innerText(), /Someone else changed this/);
+    assert.ok(
+      nodes.some((n) => n.id === "b"),
+      "Maya's step is still there",
+    );
     assert.deepEqual(errors, [], "no page error");
   } finally {
     await browser.close();

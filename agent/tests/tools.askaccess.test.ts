@@ -145,14 +145,14 @@ test("an Ask on one object changes that object and nothing else, at the person's
   const same = await session.call(c, "records_update", {
     type: "contact",
     recordId: "rec_1",
-    fields: { name: "Dana" },
+    patch: { name: "Dana" },
   });
   assert.notEqual(same.kind, "error", "the object it is about");
   const before = calls.length;
   const other = await session.call(c, "records_update", {
     type: "contact",
     recordId: "rec_2",
-    fields: { name: "Dana" },
+    patch: { name: "Dana" },
   });
   assert.equal(other.kind, "error");
   if (other.kind === "error") assert.equal(other.error.details?.["reason"], "ask_scope");
@@ -168,7 +168,7 @@ test("an Ask on one object changes that object and nothing else, at the person's
 test("an Ask on a folder or a place is bounded by the level alone: it holds many things", async () => {
   const { session } = makeSession({ levels: { "per_dana:folder:fld_1": "edit" } });
   const c = ctx({ thread: thread({ kind: "ask", scope: { type: "folder", id: "fld_1" } }) });
-  const out = await session.call(c, "records_update", { type: "contact", recordId: "rec_2", fields: {} });
+  const out = await session.call(c, "records_update", { type: "contact", recordId: "rec_2", patch: {} });
   assert.notEqual(out.kind === "error" ? out.error.details?.["reason"] : "", "ask_scope");
 });
 

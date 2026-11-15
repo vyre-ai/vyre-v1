@@ -214,6 +214,12 @@ test("an exited session shows exited and takes no input; a read-only one says so
   const ro = renderToStaticMarkup(<Terminal {...base} state="running" readonly output={"x\r\n"} />);
   assert.match(ro, /read-only, you do not have access/);
   assert.doesNotMatch(ro, /data-testid="terminal-cursor"/);
+  // an owner who only watches their own agent's terminal is never told they have no access
+  const watching = renderToStaticMarkup(
+    <Terminal {...base} state="running" readonly readonlyWhy="watching, press Take over to type" output={"x\r\n"} />,
+  );
+  assert.match(watching, /watching, press Take over to type/);
+  assert.doesNotMatch(watching, /do not have access/);
 });
 
 test("a locked server shell asks for access and draws no prompt", () => {

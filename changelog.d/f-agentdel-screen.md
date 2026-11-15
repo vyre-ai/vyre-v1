@@ -1,0 +1,1 @@
+An agent in Trash is a row of the Files Trash with Restore and Delete for good; the confirm lists what goes with real counts and what will need someone. In a shared chat an agent deleted for good shows its name with a quiet "deleted".

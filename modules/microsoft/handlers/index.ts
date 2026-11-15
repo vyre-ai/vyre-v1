@@ -4,6 +4,8 @@ export {
   calendarDelta,
   calendars,
   driveDelete,
+  driveRestore,
+  driveUpdate,
   driveDelta,
   driveDownload,
   driveFolder,

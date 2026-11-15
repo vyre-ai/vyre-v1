@@ -95,6 +95,10 @@ const SCHEMA = [
   "0012_install.sql",
   "0013_skill_rev_version.sql",
   "0014_routine_wake.sql",
+  "0015_erase.sql",
+  "0016_erase_ids.sql",
+  "0017_erase_retry.sql",
+  "0018_erase_people.sql",
 ]
   .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
   .join("\n")
@@ -122,6 +126,10 @@ export function ensure(db: Db): void {
     db.all("SELECT routineId FROM agents_routine_by WHERE routineId = ?", "probe");
     db.all("SELECT routineId FROM agents_routine_last WHERE routineId = ?", "probe");
     db.all("SELECT id FROM agents_install WHERE id = ?", "probe");
+    db.all("SELECT agentId, doneJson FROM agents_erase WHERE agentId = ?", "probe");
+    db.all("SELECT id FROM agents_erase_ids WHERE agentId = ?", "probe");
+    db.all("SELECT nextAt FROM agents_erase_retry WHERE agentId = ?", "probe");
+    db.all("SELECT personId FROM agents_erase_people WHERE agentId = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
   }
