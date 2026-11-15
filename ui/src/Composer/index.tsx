@@ -577,6 +577,18 @@ export function refsIn(state: Pick<ComposerState, "text" | "refs">): ComposerRef
   return out;
 }
 
+/** A mention or a picked link brings its own space; a space typed after it is not a second one ("@Scout  and", "#Sam Sample  thanks"). Only the run after a token is touched, so spaces anywhere else stay as written. */
+export function oneSpaceAfterTokens(text: string, refs: readonly ComposerRef[] = []): string {
+  let out = text.replace(/(@[\p{L}\p{N}_.-]+) {2,}/gu, "$1 ");
+  for (const r of refs) {
+    if (r.token !== "#") continue;
+    const token = `#${r.title}`;
+    out = out.split(`${token}  `).join(`${token} `);
+    while (out.includes(`${token}  `)) out = out.split(`${token}  `).join(`${token} `);
+  }
+  return out;
+}
+
 /** The payload and the cleared state in one step: the field empties in the same call, before any server answer. */
 export function sendNow(
   state: ComposerState,
@@ -585,7 +597,7 @@ export function sendNow(
 ): { payload: ComposerSend; next: ComposerState } | null {
   if (!canSend(state)) return null;
   const payload: ComposerSend = {
-    text: state.text.trim(),
+    text: oneSpaceAfterTokens(state.text.trim(), state.refs),
     chips: state.chips.slice(),
     files: state.files.slice(),
     folder: state.folder,

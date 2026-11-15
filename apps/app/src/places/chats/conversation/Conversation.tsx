@@ -1932,11 +1932,7 @@ function ConversationView(): ReactElement {
               </Text>
             ) : null}
             <View style={{ flex: 1 }} />
-            {online ? null : (
-              <Text testID="conversation-offline" style={st.meta}>
-                Offline
-              </Text>
-            )}
+            {/* offline is said once, by the pill at the top of the window: the chat's own header says nothing, so the header never shifts */}
             {crewChip ? (
               crewChip.text !== "" && !narrow ? (
                 <Pressable

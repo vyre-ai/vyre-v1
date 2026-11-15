@@ -315,7 +315,7 @@ export function TalkButton({ talk }: { talk: TalkControl }): ReactElement | null
   );
 }
 
-/** One plain line above the box. It floats, so the box does not move. */
+/** One plain line in the box, under the field. */
 export function TalkLine({ talk }: { talk: TalkControl }): ReactElement | null {
   if (talk.line === null) return null;
   return (
@@ -346,7 +346,8 @@ const s = StyleSheet.create({
     transitionDuration: "110ms",
     transitionTimingFunction: "linear",
   } as object,
-  line: { position: "absolute", left: 14, right: 14, bottom: "100%", marginBottom: 8, gap: 2 } as object,
+  // in the card, under the field, in the flow: it never draws over what sits above the box (the landing's heading, owner walk 15 Nov)
+  line: { paddingHorizontal: 14, paddingTop: 2, paddingBottom: 10, gap: 2 } as object,
   lineText: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
   lineLink: { fontSize: 12.5, lineHeight: 18, color: "var(--accent)" as string, textDecorationLine: "underline" },
   unset: { opacity: 0.55 },

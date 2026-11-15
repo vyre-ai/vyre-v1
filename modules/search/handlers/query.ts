@@ -139,6 +139,8 @@ export const SHORT_QUERY = 2;
 const RRF = 60;
 /** A vector at or under this cosine is not counted as about the query. The spec gives no figure (ARCH 6.9 says only that hybrid search fuses BM25, cosine and recency), so this is the module's own, kept small. */
 const MIN_COSINE = 0.05;
+/** A document found only by meaning (it does not hold the typed words) needs a clearly close vector to be listed at all: a weak one reads as a result that does not match what was typed (owner's walk, 15 Nov). */
+const MIN_COSINE_ALONE = 0.2;
 const MIN_CANDIDATES = 120;
 const MAX_CANDIDATES = 600;
 const SAFE = /^[A-Za-z0-9_.-]+$/;
@@ -400,7 +402,7 @@ export async function query(
   vec.forEach((v, i) => {
     const e = fused.get(v.n);
     if (e) e.score += 1 / (RRF + i);
-    else fused.set(v.n, { score: 1 / (RRF + i) });
+    else if (v.score >= MIN_COSINE_ALONE) fused.set(v.n, { score: 1 / (RRF + i) });
   });
   const docs = docsByRowid(ctx, [...fused.keys()]);
   if (!short) {

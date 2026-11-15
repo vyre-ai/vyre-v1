@@ -287,3 +287,12 @@ test("hybrid: a document that has the typed words is listed before one that is o
   const got = (await query(h.ctx, { q: "quarterly budget", mode: "hybrid" })).hits.map((x) => x.id);
   assert.equal(got[0], "rec_words", `got ${got.join(", ")}`);
 });
+
+test("hybrid: a document that only weakly resembles the typed word is not listed (owner's walk, 15 Nov: an unrelated channel came back for \"quarterly\")", async () => {
+  const h = harness();
+  seed(h, { id: "rec_vyre", title: "vyre", body: "Everyone in Fresh Co", kind: "record" });
+  seed(h, { id: "rec_q", title: "Tidy the quarterly notes please", body: "Tidy the quarterly notes please", kind: "record" });
+  await embedRun(h.ctx, {});
+  const got = (await query(h.ctx, { q: "quarterly", mode: "hybrid" })).hits.map((x) => x.id);
+  assert.deepEqual(got, ["rec_q"], `got ${got.join(", ")}`);
+});

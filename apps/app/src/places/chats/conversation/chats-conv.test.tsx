@@ -375,8 +375,9 @@ test("message writes: edit, pin, react, thread and delete go through their capab
 
 test("states: offline, closed, empty frame before data, and no em dash", () => {
   assert.ok(
-    has(html(createSample("idle", { online: false })), 'data-testid="conversation-offline"') &&
+    !has(html(createSample("idle", { online: false })), 'data-testid="conversation-offline"') &&
       has(html(createSample("idle", { online: false })), "Tuesday has two openings"),
+    "offline is the shell's pill, said once: the chat header does not repeat it",
   );
   assert.ok(
     has(html(createSample("closed")), 'data-testid="conversation-closed"') &&
