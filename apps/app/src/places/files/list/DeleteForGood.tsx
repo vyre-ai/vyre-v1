@@ -101,7 +101,9 @@ export function DeleteForGoodSheet({
         <View testID="forgood-body">
           {preview ? (
             <>
-              <Text style={s.line}>{plural(preview.chats, "chat", "chats")} with {target.name}</Text>
+              <Text style={s.line}>
+                {plural(preview.chats, "chat", "chats")} with {target.name}
+              </Text>
               <Text style={s.line}>Its memory ({plural(preview.memory, "fact", "facts")})</Text>
               <Text style={s.line}>Its computer and files ({bytesText(preview.bytes)})</Text>
               <Text style={s.line}>{plural(preview.routines, "routine", "routines")}</Text>
@@ -124,7 +126,10 @@ export function DeleteForGoodSheet({
                 </View>
               ) : null}
               {preview.backupsKeptDays !== undefined ? (
-                <Text style={s.quiet} testID="forgood-backups">{`Backups made before today keep it for ${preview.backupsKeptDays} days.`}</Text>
+                <Text
+                  style={s.quiet}
+                  testID="forgood-backups"
+                >{`Backups made before today keep it for ${preview.backupsKeptDays} days.`}</Text>
               ) : null}
               {preview.refused ? <Text style={s.error}>{preview.refused}</Text> : null}
             </>
@@ -145,7 +150,9 @@ export function DeleteForGoodSheet({
 }
 
 function sentence(e: unknown): string {
-  const m = (e as { error?: { message?: string }; message?: string } | null)?.error?.message ?? (e as { message?: string } | null)?.message;
+  const m =
+    (e as { error?: { message?: string }; message?: string } | null)?.error?.message ??
+    (e as { message?: string } | null)?.message;
   return m && m.length < 240 ? m : "It could not be deleted. Try again.";
 }
 

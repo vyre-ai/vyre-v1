@@ -219,8 +219,13 @@ export async function runErase(ctx: AgentsCtx): Promise<string[]> {
     const done = new Set(doneOf(j));
     let stuck = false;
     // the ids the event log and the request cache are cleared of at the end: its routines and its one-to-one chats, read before the stores that know them are cleared
-    if ((ctx.db.all("SELECT 1 FROM agents_erase_ids WHERE agentId = ? LIMIT 1", id) as Row[]).length === 0 && !done.has("chat")) {
-      const ids = (ctx.db.all("SELECT id FROM agents_routine WHERE agentId = ?", id) as Row[]).map((r) => String(r["id"]));
+    if (
+      (ctx.db.all("SELECT 1 FROM agents_erase_ids WHERE agentId = ? LIMIT 1", id) as Row[]).length === 0 &&
+      !done.has("chat")
+    ) {
+      const ids = (ctx.db.all("SELECT id FROM agents_routine WHERE agentId = ?", id) as Row[]).map((r) =>
+        String(r["id"]),
+      );
       try {
         const f = (await ctx.call?.(stepCall("chat"), { input: { agentId: id, dry: true } })) as Footprint | undefined;
         ids.push(...(f?.threadIds ?? []));
@@ -231,7 +236,9 @@ export async function runErase(ctx: AgentsCtx): Promise<string[]> {
       for (const x of ids) ctx.db.run("INSERT OR IGNORE INTO agents_erase_ids (agentId, id) VALUES (?, ?)", id, x);
       ctx.db.run("INSERT OR IGNORE INTO agents_erase_ids (agentId, id) VALUES (?, ?)", id, id);
     }
-    const ids = (ctx.db.all("SELECT id FROM agents_erase_ids WHERE agentId = ?", id) as Row[]).map((r) => String(r["id"]));
+    const ids = (ctx.db.all("SELECT id FROM agents_erase_ids WHERE agentId = ?", id) as Row[]).map((r) =>
+      String(r["id"]),
+    );
     for (const m of ERASE_STEPS) {
       if (done.has(m)) continue;
       try {
@@ -350,7 +357,9 @@ export async function folderPurged(ctx: AgentsCtx, p: { subjectKind?: string; su
 /** How long the Space keeps its backups, when that is a number of days (the setting is words for a rotation policy otherwise). */
 async function backupsKeepMs(ctx: AgentsCtx): Promise<number | null | undefined> {
   try {
-    const out = (await ctx.call?.("governance.retention.get", {})) as { kinds?: Array<{ key?: string; value?: string }> };
+    const out = (await ctx.call?.("governance.retention.get", {})) as {
+      kinds?: Array<{ key?: string; value?: string }>;
+    };
     const v = out?.kinds?.find((k) => k.key === "backups")?.value;
     return typeof v === "string" ? retentionMs(v) : undefined;
   } catch {
@@ -364,5 +373,11 @@ export async function erasedList(ctx: AgentsCtx) {
   const rows = ctx.db.all(
     `SELECT agentId, name, finishedAt FROM agents_erase WHERE state = 'erased' AND kind <> 'assistant' ORDER BY finishedAt DESC LIMIT 500`,
   ) as Row[];
-  return { agents: rows.map((r) => ({ agentId: String(r["agentId"]), name: String(r["name"]), erasedAt: Number(r["finishedAt"] ?? 0) })) };
+  return {
+    agents: rows.map((r) => ({
+      agentId: String(r["agentId"]),
+      name: String(r["name"]),
+      erasedAt: Number(r["finishedAt"] ?? 0),
+    })),
+  };
 }

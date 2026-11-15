@@ -129,5 +129,9 @@ test("an agent deleted for good is never adopted again from the access list, and
     principals: [{ id: a.agentId, kind: "agent", name: "Desk", owner: "usr_dana", status: "active" }],
   }));
   await restoreAgentFiles(hn.ctx as never);
-  assert.equal(hn.ctx.db.all("SELECT id FROM agents_agent WHERE id = ?", a.agentId).length, 0, "no ghost record comes back");
+  assert.equal(
+    hn.ctx.db.all("SELECT id FROM agents_agent WHERE id = ?", a.agentId).length,
+    0,
+    "no ghost record comes back",
+  );
 });

@@ -2,7 +2,7 @@
 // runs the row says Deleting and has no buttons; when it is done the row is gone and one line says so. A person's Assistant has no Delete for good (it goes with its person).
 import { useEffect, useRef } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { notices } from "../../../shell/noticeslot/model.ts";
 import { Face } from "../../chats/needsyou/parts.tsx";
@@ -43,6 +43,7 @@ export function AgentTrashRows({
 }): ReactElement | null {
   const data = useFilesData();
   const offset = data.clock().offsetMin;
+  const phone = useWindowDimensions().width < 700;
   const was = useRef<Map<string, { name: string; deleting: boolean }>>(new Map());
   useEffect(() => {
     // a row that said Deleting and is gone: one line says it is done
@@ -63,7 +64,11 @@ export function AgentTrashRows({
               ? "Deleting"
               : `Agent · Moved to Trash ${dayText(a.deletedAt, offset)}${a.erasesAt !== undefined ? ` · Erased on ${dayText(a.erasesAt, offset)}` : ""}`
           }
-          leading={<Face name={a.name} seedId={a.agentId} kind="agent" size={22} />}
+          leading={
+            <View style={st.face}>
+              <Face name={a.name} seedId={a.agentId} kind="agent" size={22} />
+            </View>
+          }
           trailing={
             a.deleting ? (
               <Text style={st.deleting} testID={`trash-deleting-${a.agentId}`}>
@@ -79,7 +84,11 @@ export function AgentTrashRows({
                   }
                 />
                 {a.canDelete ? (
-                  <TextButton label="Delete for good" testID={`trash-forgood-${a.agentId}`} onPress={() => onDelete(a)} />
+                  <TextButton
+                    label="Delete for good"
+                    testID={`trash-forgood-${a.agentId}`}
+                    onPress={() => onDelete(a)}
+                  />
                 ) : null}
               </View>
             )
@@ -92,6 +101,7 @@ export function AgentTrashRows({
 
 const st = StyleSheet.create({
   box: { paddingHorizontal: 6, paddingTop: 6 },
+  face: { marginRight: 6, marginLeft: 4 },
   btns: { flexDirection: "row", alignItems: "center", gap: 4 },
   deleting: { fontSize: 12, color: "var(--ink-3)" as string },
 });

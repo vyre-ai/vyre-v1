@@ -540,7 +540,9 @@ export default defineManifest({
             deletedAt: t.ts(),
             deleting: t.bool(),
             folderId: t.opt(id.folder),
-            erasesAt: t.opt(t.ts({ description: "When Trash will delete it for good by itself; absent when Trash is kept for ever" })),
+            erasesAt: t.opt(
+              t.ts({ description: "When Trash will delete it for good by itself; absent when Trash is kept for ever" }),
+            ),
             canDelete: t.bool({
               description: "False for a person's Assistant, and for someone who does not manage the agent",
             }),
@@ -551,13 +553,17 @@ export default defineManifest({
       tool: "agents",
       label: "filter",
     }),
-    read("agents.erased", "The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant", {
-      in: {},
-      out: { agents: t.arr(t.obj({ agentId: id.agent, name: t.str(), erasedAt: t.ts() })) },
-      level: "member",
-      tool: "agents",
-      label: "filter",
-    }),
+    read(
+      "agents.erased",
+      "The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant",
+      {
+        in: {},
+        out: { agents: t.arr(t.obj({ agentId: id.agent, name: t.str(), erasedAt: t.ts() })) },
+        level: "member",
+        tool: "agents",
+        label: "filter",
+      },
+    ),
     read(
       "agents.delete_preview",
       "What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone",
@@ -600,7 +606,8 @@ export default defineManifest({
         // no resource check in the pipeline: once erased the agent is gone from access, and pressing again must answer the same calm way (the handler checks owner or admin against the tombstone)
         level: "member",
         emits: ["agent.erasing", "agent.erased"],
-        gate: { act: "delete", when: "actor.kind != 'person'" },
+        // an agent deleting ANOTHER agent for good is held for a person's Allow; on itself the handler refuses at once, in one plain sentence
+        gate: { act: "delete", when: "actor.kind != 'person' && actor.id != input.agentId" },
         tool: "agents",
         audit: "always",
         risk: "high",

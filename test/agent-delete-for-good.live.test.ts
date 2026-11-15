@@ -93,7 +93,10 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
     const preview = await call(d, "agents.delete_preview", { agentId });
     assert.equal(preview.status, 200, JSON.stringify(preview.data));
     results["preview"] = preview.data;
-    assert.ok(preview.data.named.every((n: { link: string }) => /^\/(tasks|goals|automations|projects)\//.test(n.link)), "each name that needs someone has a link");
+    assert.ok(
+      preview.data.named.every((n: { link: string }) => /^\/(tasks|goals|automations|projects)\//.test(n.link)),
+      "each name that needs someone has a link",
+    );
     assert.ok(preview.data.chats >= 1 && preview.data.memory >= 1 && preview.data.routines >= 1, "real counts");
     assert.match(preview.data.backups, /Backups/);
 
@@ -121,15 +124,26 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
 
     // the log: no event payload names the agent any more, so a replay of any projection (access grants, chat, engine) cannot bring its grants or its name back (kernel isErased makes an erased payload a no-op)
     const ev = new DatabaseSync(path.join(dir, "events.db"), { readOnly: true });
-    const logHits = (ev.prepare("SELECT type FROM events WHERE instr(CAST(payload AS TEXT), ?) > 0").all(agentId) as { type: string }[]).map((r) => r.type);
-    const cacheHits = (ev.prepare("SELECT key FROM idempotency WHERE instr(CAST(result AS TEXT), ?) > 0").all(agentId) as { key: string }[]).map((r) => r.key);
+    const logHits = (
+      ev.prepare("SELECT type FROM events WHERE instr(CAST(payload AS TEXT), ?) > 0").all(agentId) as { type: string }[]
+    ).map((r) => r.type);
+    const cacheHits = (
+      ev.prepare("SELECT key FROM idempotency WHERE instr(CAST(result AS TEXT), ?) > 0").all(agentId) as {
+        key: string;
+      }[]
+    ).map((r) => r.key);
     ev.close();
     results["logHits"] = { logHits, cacheHits };
-    assert.deepEqual([logHits, cacheHits], [["agent.erased"], []], "only the audit record of the erase (agent.erased: id and name at the time) names the agent in the log, and no kept answer does, so a replay cannot bring its grants or its name back");
+    assert.deepEqual(
+      [logHits, cacheHits],
+      [["agent.erased"], []],
+      "only the audit record of the erase (agent.erased: id and name at the time) names the agent in the log, and no kept answer does, so a replay cannot bring its grants or its name back",
+    );
     const found = scan(dir, Object.values(canaries));
     results["hits"] = Object.fromEntries([...found].map(([k, v]) => [k, [...v]]));
-    const bad = [...found]
-      .flatMap(([where, set]) => [...set].filter((c) => c !== canaries.shared).map((c) => `${c} in ${where}`));
+    const bad = [...found].flatMap(([where, set]) =>
+      [...set].filter((c) => c !== canaries.shared).map((c) => `${c} in ${where}`),
+    );
     // the shared message may stand in the chat and in the event log that carried it; nothing else may hold any canary
     const sharedOnly = [...found].filter(([, set]) => set.has(canaries.shared));
     assert.ok(sharedOnly.length > 0, "the shared channel's message stays");
@@ -153,9 +167,18 @@ test("Trash keeps an agent as long as the Space keeps Trash, and then deletes it
     assert.equal((await call(d, "agents.delete", { agentId })).status, 200);
     clock += 29 * 86_400_000;
     await new Promise((r) => setTimeout(r, 4_500));
-    assert.ok((await call(d, "agents.trash.list", {})).data.agents.some((a: { agentId: string }) => a.agentId === agentId), "29 days in: still in Trash");
+    assert.ok(
+      (await call(d, "agents.trash.list", {})).data.agents.some((a: { agentId: string }) => a.agentId === agentId),
+      "29 days in: still in Trash",
+    );
     clock += 2 * 86_400_000;
-    await waitFor(async () => ((await call(d, "agents.trash.list", {})).data.agents.some((a: { agentId: string }) => a.agentId === agentId) ? null : true), 60_000);
+    await waitFor(
+      async () =>
+        (await call(d, "agents.trash.list", {})).data.agents.some((a: { agentId: string }) => a.agentId === agentId)
+          ? null
+          : true,
+      60_000,
+    );
     assert.equal((await call(d, "agents.get", { agentId })).status, 404);
   } finally {
     await d.stop().catch(() => undefined);

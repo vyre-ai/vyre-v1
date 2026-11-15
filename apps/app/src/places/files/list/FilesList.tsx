@@ -235,11 +235,15 @@ function List(): ReactElement {
   const trashAgents = useTrashAgents(state.where.kind === "trash");
   const [forGood, setForGood] = useState<ForGood | null>(null);
   // an agent in Trash is one row of its own above the list, with its folder left out of the lines
-  const agentFolders = useMemo(() => new Set(trashAgents.flatMap((a) => (a.folderId ? [a.folderId] : []))), [trashAgents]);
+  const agentFolders = useMemo(
+    () => new Set(trashAgents.flatMap((a) => (a.folderId ? [a.folderId] : []))),
+    [trashAgents],
+  );
   const lines = useMemo<Line[]>(() => {
     if (src.status !== "ready") return [];
     const all: Line[] = [];
-    for (const f of src.data.folders ?? []) if (!(state.where.kind === "trash" && agentFolders.has(f.folderId))) all.push(folderLine(f));
+    for (const f of src.data.folders ?? [])
+      if (!(state.where.kind === "trash" && agentFolders.has(f.folderId))) all.push(folderLine(f));
     for (const f of src.data.files) if (state.where.kind !== "starred" || f.starred === true) all.push(fileLine(f));
     return sortLines(
       state.showHidden ? all : all.filter((l) => !l.name.startsWith(".")),

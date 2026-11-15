@@ -464,7 +464,14 @@ export function bodyBlocks(messageId: string, body: string): readonly MdBlock[] 
 /* ---------- the timeline ---------- */
 
 /** `face`: the person whose face the row wears (an agent writing to a teammate for its person reads as "<Person> (Agent)"); `forPerson` is that person. */
-export type Who = { id: string; name: string; kind: "person" | "agent"; face?: string; forPerson?: string; gone?: boolean };
+export type Who = {
+  id: string;
+  name: string;
+  kind: "person" | "agent";
+  face?: string;
+  forPerson?: string;
+  gone?: boolean;
+};
 
 /** An agent's message to a teammate for its person (lane l-agentdm): who it speaks for and to whom. Null for any other message. Only the server writes the block. */
 export function onBehalfOf(
@@ -497,7 +504,10 @@ export function muteOfferFor(
 }
 
 /** The header of a row: its author, or for an agent writing for its person, that person marked as their agent and wearing their face. */
-export function whoOf(m: Pick<Message, "author" | "blocks">, ctx: Pick<TimelineCtx, "nameOf" | "kindOf" | "goneOf">): Who {
+export function whoOf(
+  m: Pick<Message, "author" | "blocks">,
+  ctx: Pick<TimelineCtx, "nameOf" | "kindOf" | "goneOf">,
+): Who {
   const ob = onBehalfOf(m);
   // one name for an agent writing for its person (lead, 12 Nov): "Maya’s Assistant", or "Maya Lin (Agent)" for an outside agent; the directory names it
   if (ob)

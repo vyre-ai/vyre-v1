@@ -497,7 +497,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const agentsList = hooks.capQuery<Out<"agents.list">>("agents.list", {});
   const erasedList = hooks.capQuery<Out<"agents.erased">>("agents.erased", {});
   // Keep the shell's own lists warm for the life of the session.
-  const keep = [connections, principalsList, groupsList, agentsList, erasedList].map((q) => q.subscribe(() => undefined));
+  const keep = [connections, principalsList, groupsList, agentsList, erasedList].map((q) =>
+    q.subscribe(() => undefined),
+  );
 
   const principals = derived<Principal[]>([principalsList, groupsList, agentsList, erasedList], ([p, g, ag]) => {
     const own = assistant();
@@ -704,7 +706,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     principals,
     erased: (id) => {
       const e = erasedList.getSnapshot();
-      return e.status === "ready" ? (e.data as Out<"agents.erased">).agents.find((a) => a.agentId === id)?.name : undefined;
+      return e.status === "ready"
+        ? (e.data as Out<"agents.erased">).agents.find((a) => a.agentId === id)?.name
+        : undefined;
     },
     recordTitle: () => undefined,
     me,
