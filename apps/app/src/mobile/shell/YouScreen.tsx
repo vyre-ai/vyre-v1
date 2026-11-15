@@ -74,7 +74,7 @@ export function YouScreen({ data, nav }: { data: YouData; nav: MobileNav }): Rea
 }
 
 const st = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: 12 },
+  root: { paddingHorizontal: 12 },
   head: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 20, paddingHorizontal: 4 },
   name: { fontSize: 22, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 13, color: "var(--ink-3)" as string, marginTop: 2 },

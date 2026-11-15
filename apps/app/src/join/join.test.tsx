@@ -578,7 +578,7 @@ test("late invite metadata cannot replace a resolved destination or reuse anothe
   );
 });
 
-test("a first sign-in or join at an address the person typed shows the server's code in plain words; an invite link, which carries the code itself, does not", () => {
+test("a first sign-in or join shows the server's code in plain words, at a typed address and from an invite link alike", () => {
   const withCode = { ...INVITE, fingerprint: "AB12CD34EF567890" };
   const typed = { spaceAddress: "northwind.example" };
   const signin = renderToStaticMarkup(<JoinFlow invite={withCode} initial={{ stage: "signin", ...typed }} hold />);
@@ -586,7 +586,7 @@ test("a first sign-in or join at an address the person typed shows the server's 
   const accept = renderToStaticMarkup(<JoinFlow invite={withCode} initial={{ stage: "accept", ...typed }} hold />);
   assert.match(accept, /Check this code matches the one your admin sees: ab12 cd34 ef56 7890/);
   const fromLink = renderToStaticMarkup(<JoinFlow invite={withCode} initial={{ stage: "accept" }} hold />);
-  assert.doesNotMatch(fromLink, /space-code|Check this code/);
+  assert.match(fromLink, /Check this code matches the one your admin sees: ab12 cd34 ef56 7890/, "the link's own code is shown too");
   assert.doesNotMatch(
     renderToStaticMarkup(<JoinFlow invite={INVITE} initial={{ stage: "signin", ...typed }} hold />),
     /Check this code/,
