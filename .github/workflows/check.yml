@@ -420,11 +420,22 @@ jobs:
           VYRE_WORKSPACE_TEST_IMAGE: vyre/agent-workspace:ci-${{ github.run_id }}
         run: |
           set -o pipefail
-          node --test --test-force-exit --test-timeout=1800000 --test-reporter=spec modules/terminal/tests/workspace.isolation.heavy.test.ts modules/terminal/tests/workspace.trash.heavy.test.ts modules/sites/tests/site-networks.heavy.test.ts test/terminal.assistant-attach.heavy.test.ts test/terminal.asker.heavy.test.ts test/terminal.wall.heavy.test.ts test/shared-agent.wall.heavy.test.ts test/terminal.stop.heavy.test.ts test/terminal.restart.heavy.test.ts modules/terminal/tests/workspace.scale.heavy.test.ts 2>&1 | tee workspace-scale.log
+          node --test --test-force-exit --test-timeout=1800000 --test-reporter=spec modules/terminal/tests/workspace.isolation.heavy.test.ts modules/terminal/tests/workspace.trash.heavy.test.ts modules/sites/tests/site-networks.heavy.test.ts test/terminal.assistant-attach.heavy.test.ts test/terminal.stop.heavy.test.ts test/terminal.restart.heavy.test.ts modules/terminal/tests/workspace.scale.heavy.test.ts 2>&1 | tee workspace-scale.log
           grep -a -E "SCALE-NUMBERS|SITES-NUMBERS" workspace-scale.log || true
           # a skip is not a pass: node --test reports skipped tests on its own line
           grep -a -q -E "^ℹ skipped 0$" workspace-scale.log || { echo "a heavy test was skipped (is Docker or the image missing?)" >&2; exit 1; }
           grep -a -q -E "^ℹ fail 0$" workspace-scale.log
+      - name: The wall of a shared agent's computer on real Docker, one file at a time (a person's own user, the grants, the walk of two people and a chat), none skipped
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+          VYRE_WORKSPACE_TEST_IMAGE: vyre/agent-workspace:ci-${{ github.run_id }}
+        run: |
+          set -o pipefail
+          # one file at a time: each boots a daemon and a workspace of its own and measures what a person can reach, and a file that restarts or removes workspaces beside it makes those numbers wrong
+          node --test --test-concurrency=1 --test-force-exit --test-timeout=1800000 --test-reporter=spec test/terminal.wall.heavy.test.ts test/terminal.asker.heavy.test.ts test/shared-agent.wall.heavy.test.ts 2>&1 | tee workspace-wall.log
+          # the rc.26 upgrade test of terminal.asker.heavy needs an image built from the rc.26 tag (VYRE_RC26_WORKSPACE_IMAGE) and skips by name without one: exactly that one test may skip
+          grep -a -q -E "^ℹ skipped [01]$" workspace-wall.log || { echo "a heavy test was skipped (is Docker or the image missing?)" >&2; exit 1; }
+          grep -a -q -E "^ℹ fail 0$" workspace-wall.log
       - name: Images and containers left behind
         if: always()
         run: |
