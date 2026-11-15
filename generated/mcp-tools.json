@@ -3304,6 +3304,73 @@
     },
     {
       "blocks": [],
+      "cap": "agents.delete_for_good",
+      "deferred": false,
+      "description": "Delete an agent in Trash for good: its memory, its one-to-one chats, its computer, its folder, its access and what it ran are erased; what others built that names it asks them to choose another agent. Not an Assistant",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_delete_for_good",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.delete_preview",
+      "deferred": false,
+      "description": "What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_delete_preview",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.erased",
+      "deferred": false,
+      "description": "The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_erased",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.get",
       "deferred": false,
       "description": "Read one agent: record, status, limits and the effective configuration",
@@ -4243,6 +4310,21 @@
         "type": "object"
       },
       "name": "agents_template_preview",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.trash.list",
+      "deferred": false,
+      "description": "The agents in Trash, with which are being deleted for good",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_trash_list",
       "planMode": "allowed",
       "toolset": "agents",
       "v": 1
@@ -22354,6 +22436,32 @@
     },
     {
       "blocks": [],
+      "cap": "files.folder.purge",
+      "deferred": false,
+      "description": "Delete a folder in Trash for good, with every file and folder in it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "folderId"
+        ],
+        "type": "object"
+      },
+      "name": "files_folder_purge",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "files.folder.rename",
       "deferred": false,
       "description": "Rename a folder",
@@ -24813,7 +24921,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -24907,7 +25016,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -25002,7 +25112,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },

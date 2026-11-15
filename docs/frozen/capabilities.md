@@ -485,7 +485,7 @@ Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9
 - Why: F77, the owner's rule that erase means erased. Delete still moves an agent to Trash and restore brings it whole; delete for good clears every store that holds something of it, leaves the audit log, a tombstone (id never reused) and backups.
 - Compatibility: no existing capability changed; `files.trash.empty` and the Trash keep time now also reach agents through `folder.purged`.
 
-Signed: for the lead to sign
+Signed: lead, 16 Nov 2026 02:40 PKT, after two data-safety reviews (team/v1/reviews/r-agentdel-2026-11-16.md: six blocking items, then two, all closed by the lane with tests). Left open and known: the phone shows no "in Trash" line on an agent's page; delete, restore and delete within milliseconds can leave a channel without its "was deleted" line.
 
 ## 13 Nov 2026: computers.browser.my_sign_ins added (lane f-agentpc)
 
@@ -572,4 +572,4 @@ Signed: lead, 16 Nov 2026 00:42 PKT, after reading the manifest diff: optional, 
 - Why: the reviewer's six blocking items (any member could erase another's agent through Files, the gate could be lifted, the clock guessed on a failed read, the browser profile was left behind, other people lost data unannounced, a person's memory was lost).
 - Compatibility: additive outputs; `files.folder.purge` and `files.trash.empty` refuse or skip agent folders.
 
-Signed: for the lead to sign
+Signed: lead, 16 Nov 2026 02:40 PKT, after two data-safety reviews (team/v1/reviews/r-agentdel-2026-11-16.md: six blocking items, then two, all closed by the lane with tests). Left open and known: the phone shows no "in Trash" line on an agent's page; delete, restore and delete within milliseconds can leave a channel without its "was deleted" line.
