@@ -120,6 +120,7 @@ export function createConnectorsHost(o: {
   // object itself), so nothing is ever evicted while the call runs and nothing outlives it
   const filled = new WeakMap<object, Map<string, FilledKey>>();
   const callKey = (c: ConnectorCaller): object => (c.rememberVaultItem as object | undefined) ?? c;
+  const filledAny = (c: ConnectorCaller): boolean => (filled.get(callKey(c))?.size ?? 0) > 0;
   const remember = (c: ConnectorCaller, key: FilledKey): void => {
     const k = callKey(c);
     const set = filled.get(k) ?? new Map<string, FilledKey>();
@@ -240,7 +241,9 @@ export function createConnectorsHost(o: {
             message: "The connector address could not be resolved.",
           });
         }
-        if (!ips.length || ips.some((ip) => blockedAddress(ip, o.own(caller)) !== null))
+        // a request that carries a credential never reaches a private or loopback address, not even for the Space's owner: a service connector has no need of one, and the name it was published under says nothing of where it points
+        const carries = filledAny(caller) || (caller as { carriesCredential?: boolean }).carriesCredential === true;
+        if (!ips.length || ips.some((ip) => blockedAddress(ip, carries ? false : o.own(caller)) !== null))
           throw fail("permission.no_grant", caller.trace.traceId, {
             message: "This connector may not reach that network address.",
           });

@@ -3,6 +3,7 @@
 // @reads /manifests/index.ts
 // Freeze review D (P-PR_37): agent tools. ARCH 3.7 output 6 and 6.7: toolsets, agent parity with the UI, deferred flags,
 // and a default listed toolset of about 60 tools. The frozen default list is the one in docs/frozen/agent-tools.md.
+import { connectCardOn } from "../../../lib/connect-switch.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -133,7 +134,10 @@ test("pre-auth capabilities stay off the agent surface and no capability opts ou
 });
 
 test("the frozen default toolset is 60 plus or minus 5 and only lists real, listed, non-engineer tools", () => {
-  assert.ok(defaults.length >= 55 && defaults.length <= 65, `default toolset has ${defaults.length} tools`);
+  assert.ok(
+    defaults.length >= 55 && defaults.length <= 65 + (connectCardOn() ? 1 : 0),
+    `default toolset has ${defaults.length} tools`,
+  );
   assert.equal(new Set(defaults).size, defaults.length, "no tool listed twice");
   for (const [toolset, names] of Object.entries(DEFAULT_TOOLS)) {
     assert.ok(TOOLSETS.includes(toolset) && toolset !== "engineer", toolset);

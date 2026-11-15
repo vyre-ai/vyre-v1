@@ -4,7 +4,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Text } from "react-native";
-import { ConnectCard } from "../../../../../../ui/src/ConnectCard/index.tsx";
+import { CardDone } from "../../../../../../ui/src/Card/index.tsx";
+import { Glyph } from "./parts.tsx";
+import { ConnectCard, ConnectKeyGlyph } from "../../../../../../ui/src/ConnectCard/index.tsx";
 import type { ConnectState, ConnectWork } from "../../../../../../ui/src/ConnectCard/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -33,8 +35,12 @@ export function ConnectCardLive({
   agent,
   data,
   onOff,
+  asker,
 }: {
   requestId: string;
+  /** The person the agent asked for, and the service: what everyone else in the chat reads (one quiet line, never the card). */
+  asker?: string | undefined;
+  service?: string | undefined;
   /** The agent's name, for "Dex will use it for you." */
   agent: string;
   data: Data;
@@ -61,6 +67,12 @@ export function ConnectCardLive({
     [],
   );
 
+  // a person is named by name, never by id: an id the Space cannot name reads as "an admin" and no name
+  const named = (id: string): string => {
+    const n = data.nameOf?.(id) ?? "";
+    return n && rawIdsIn(n).length === 0 && !/^[a-z]{2,4}_[0-9a-z]+$/i.test(n) ? n : "";
+  };
+
   const load = useCallback(async (): Promise<void> => {
     try {
       const got = cardOf(await data.call("vault.connect_card.get", { requestId }));
@@ -76,7 +88,9 @@ export function ConnectCardLive({
   // an admin connecting it, a second ask, another place pressing Not now: the card follows the request
   useFollow(data.changes, load, card !== null && card?.state !== "gone");
 
-  if (card === undefined || card === null || card.state === "gone") return null;
+  if (card === undefined || card?.state === "gone") return null;
+  // someone else in the chat: the card is the asked person's own, so all they read is one quiet line about how the ask stands
+  if (card === null) return <OthersLine requestId={requestId} agent={agent} asker={asker} data={data} named={named} />;
   const name = card.service.title;
 
   const put = (field: string, value: string): void => {
@@ -94,6 +108,8 @@ export function ConnectCardLive({
     try {
       const out = (await data.call("vault.connect_card.submit", {
         requestId,
+        // the addresses this card said the key goes to: the server refuses when they are no longer the service's
+        hosts: card.checksWith ? card.checksWith.split(", ") : [],
         ...(useSaved
           ? { useSaved: true }
           : {
@@ -185,11 +201,6 @@ export function ConnectCardLive({
     show(items, at.x, at.y, "other", { label: "Kept in" });
   };
 
-  // a person is named by name, never by id: an id the Space cannot name reads as "an admin" and no name
-  const named = (id: string): string => {
-    const n = data.nameOf?.(id) ?? "";
-    return n && rawIdsIn(n).length === 0 && !/^[a-z]{2,4}_[0-9a-z]+$/i.test(n) ? n : "";
-  };
   const adminName = card.admin ? named(card.admin.id) : "";
   const state: ConnectState =
     (card.state === "wrong" && edited) || (card.state === "have" && other) ? "ask" : card.state;
@@ -240,5 +251,48 @@ function ProblemLine({ text }: { text: string }): ReactElement {
     <Text accessibilityRole="alert" style={{ fontSize: 12.5, color: "var(--danger)" as string, marginTop: 4 }}>
       {text}
     </Text>
+  );
+}
+
+type Line = { state: "asked" | "connected" | "declined"; service: string; asker?: string; connectedBy?: string };
+/** What everyone but the asked person reads: asked (a key glyph), connected (a tick), declined (nothing: the quietest). */
+function OthersLine({
+  requestId,
+  agent,
+  asker,
+  data,
+  named,
+}: {
+  requestId: string;
+  agent: string;
+  asker?: string | undefined;
+  data: Data;
+  named: (id: string) => string;
+}): ReactElement | null {
+  const [line, setLine] = useState<Line | null>(null);
+  const load = useCallback(async (): Promise<void> => {
+    try {
+      setLine((await data.call("vault.connect_card.line", { requestId })) as Line);
+    } catch {
+      /* the line stays as it was */
+    }
+  }, [data, requestId]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  useFollow(data.changes, load, line?.state !== "declined");
+  if (!line || line.state === "declined") return null;
+  const who = (id?: string): string => (id ? named(id) : "") || "someone";
+  return (
+    <CardDone
+      testID={`connect-asked-${requestId}`}
+      ok={line.state === "connected"}
+      glyph={line.state === "connected" ? <Glyph name="check" size={13} color="var(--ink-3)" /> : <ConnectKeyGlyph />}
+      text={
+        line.state === "connected"
+          ? `${who(line.connectedBy ?? line.asker)} connected ${line.service}`
+          : `${agent} asked ${who(asker ?? line.asker)} to connect ${line.service}`
+      }
+    />
   );
 }

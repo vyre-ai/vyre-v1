@@ -1,1 +1,0 @@
-- Connecting a service from a chat card is off in this release while three review findings are fixed: a request for a key draws the plain key request card, agents are not offered the connect tool, and every connect capability answers "Connecting a service this way is not available yet." One switch, `VYRE_CONNECT_CARD=1`, turns it back on.

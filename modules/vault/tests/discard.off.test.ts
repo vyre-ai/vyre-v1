@@ -1,9 +1,12 @@
 // vault.item.discard_new is part of the connect card, which is OFF by default (lib/connect-switch.ts, rc.28; review r-keyreach-9-b-connect, item C). With the switch off it refuses for every caller before it reads
-// anything: the context is a trap that fails the test on any use but the trace id. This file never turns the switch on.
+// anything: the context is a trap that fails the test on any use but the trace id. This file never turns the switch on; it sets it to 0.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { CONNECT_OFF_CODE, CONNECT_OFF_MESSAGE } from "../../../lib/connect-switch.ts";
+
+// the switch is on by default from rc.29; this file tests it OFF, so it turns it off for itself (VYRE_CONNECT_CARD=0)
+process.env["VYRE_CONNECT_CARD"] = "0";
 
 const trap = () => {
   const touched: string[] = [];

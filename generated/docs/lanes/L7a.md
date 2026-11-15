@@ -514,13 +514,15 @@ Events:
 
 ### vault-requests
 
-Capabilities to implement: 13. Events to emit: 4. Contract tests that must go green: `generated/tests/vault-requests/`.
+Capabilities to implement: 15. Events to emit: 4. Contract tests that must go green: `generated/tests/vault-requests/`.
 
 Capabilities:
 - vault.connect (write, grant only, level view)
 - vault.connect_card.ask_admin (write, grant only, level view)
 - vault.connect_card.disconnect (write, grant only, level view)
 - vault.connect_card.get (read, grant only, level view)
+- vault.connect_card.line (read, grant only, level view)
+- vault.connect_card.may_discard (read, grant only, level view)
 - vault.connect_card.options (read, grant only, level view)
 - vault.connect_card.reopen (write, grant only, level view)
 - vault.connect_card.submit (write, grant only, level view)

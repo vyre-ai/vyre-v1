@@ -39,6 +39,7 @@ export interface Logged {
 export function harness() {
   const emitted: Emitted[] = [];
   const called: Called[] = [];
+  const cardSaved = new Set<string>();
   const logs: Logged[] = [];
   let clock = NOW;
   const levels = new Map<string, Level>(); // `${principal}|${resourceId}`
@@ -107,6 +108,11 @@ export function harness() {
       // a folder shared with the whole Space (lib/space-folder.ts): recorded so a test can see who it went to
       if (cap === "vault.share") return { granted: true };
       if (cap === "engine.usage.query") return usage(body);
+      // the connect request module's answer: yes only for an (item, request) pair a test has said the card saved
+      if (cap === "vault.connect_card.may_discard") {
+        if (!cardSaved.has(`${body["itemId"]}|${body["requestId"]}`)) throw new Error("not this card's key");
+        return { ok: true };
+      }
       if (cap === "access.labels.set") {
         const r = body["resource"] as { type: string; id: string };
         labels.set(`${r.type}/${r.id}`, String(body["label"]));
@@ -150,6 +156,10 @@ export function harness() {
     ctx,
     emitted,
     called,
+    /** Say that a connect card (request) saved this item in its open try: the request module's answer to the Vault's question before a key is taken back. */
+    cardSaved(itemId: string, requestId: string): void {
+      cardSaved.add(`${itemId}|${requestId}`);
+    },
     logs,
     filler,
     labels,

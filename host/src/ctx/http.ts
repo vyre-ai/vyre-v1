@@ -44,16 +44,20 @@ export function guardedFetch(
   return async (url, init) => {
     let u = check(url);
     let method = init?.method,
-      body = init?.body;
+      body = init?.body,
+      headers = init?.headers;
     for (let hop = 0; hop < 5; hop++) {
       const r = await doFetch(u.toString(), {
         ...(method ? { method } : {}),
-        ...(init?.headers ? { headers: init.headers } : {}),
+        ...(headers ? { headers } : {}),
         ...(body !== undefined ? { body } : {}),
         redirect: "manual",
       });
       if (r.status >= 300 && r.status < 400 && r.headers.get("location")) {
-        u = check(new URL(r.headers.get("location")!, u).toString());
+        const next = check(new URL(r.headers.get("location")!, u).toString());
+        // a redirect to another host drops every header (a key rides in one): the key goes only to the host it was sent to
+        if (next.hostname.toLowerCase() !== u.hostname.toLowerCase()) headers = undefined;
+        u = next;
         if (r.status === 303 || ((r.status === 301 || r.status === 302) && method === "POST")) {
           method = "GET";
           body = undefined;

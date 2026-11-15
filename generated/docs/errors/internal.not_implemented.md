@@ -12,6 +12,8 @@ HTTP 501. Retryable: no.
 - vault.connect_card.ask_admin
 - vault.connect_card.disconnect
 - vault.connect_card.get
+- vault.connect_card.line
+- vault.connect_card.may_discard
 - vault.connect_card.options
 - vault.connect_card.reopen
 - vault.connect_card.submit

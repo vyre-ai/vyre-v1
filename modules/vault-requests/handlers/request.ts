@@ -723,6 +723,19 @@ export async function finishFulfil(
 export async function requestsDecline(ctx: VaultReqCtx, input: { requestId: string; note?: string }) {
   const { row, me, own } = decidable(ctx, input.requestId);
   const note = input.note?.trim() || null;
+  // a connect card declined while a key it saved is still waiting for its connection: that key goes with the card (the person's own press, bound to this request; a refusal leaves it, and the card said it was saved)
+  if (row.service && row.try_item && ctx.principal.kind === "person") {
+    try {
+      await ctx.call("vault.item.discard_new", {
+        itemId: row.try_item,
+        requestId: row.id,
+        idempotencyKey: `${row.id}:decline-key`,
+      });
+      ctx.db.run(`UPDATE ${TABLE} SET try_item = ? WHERE id = ?`, null, row.id);
+    } catch {
+      /* it stays, as the card said */
+    }
+  }
   ctx.db.run(
     `UPDATE ${TABLE} SET state = ?, note = ?, decided_by = ?, decided_at = ? WHERE id = ?`,
     "declined",

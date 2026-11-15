@@ -17,7 +17,7 @@ The connect card of one request: its state, the fields, who can fill it, where t
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/vault/connect_card/get |
-| MCP tool | vault_connect_card_get (vault) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

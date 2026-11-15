@@ -220,6 +220,23 @@ export const model: OpenSession = async (spec) => {
         yield { type: "done" };
         return;
       }
+      const erase = /ERASE (vit_[A-Za-z0-9]+) (vrq_[A-Za-z0-9]+)/.exec(body);
+      if (erase) {
+        // an agent tries every erase of a Vault item there is, by tool name: the discard (no tool exists) and the Trash delete
+        const found = yield* run("tool_search", { query: "vault item discard delete erase" });
+        const d = yield* run("vault_item_discard_new", {
+          itemId: erase[1],
+          requestId: erase[2],
+          idempotencyKey: "er-1",
+        });
+        const t = yield* run("vault_item_delete", { itemId: erase[1], idempotencyKey: "er-2" });
+        yield {
+          type: "text",
+          text: `ERASE discard=${d.ok ? "ran" : "refused"} delete=${t.ok ? "ran" : "refused"} found=${JSON.stringify(found.content).includes("discard_new") ? "yes" : "no"}`,
+        };
+        yield { type: "done" };
+        return;
+      }
       if (/connect fathom/i.test(body)) {
         const r = yield* run("vault_connect", { service: "Fathom", idempotencyKey: `hour-connect-${++asks}` });
         yield {
@@ -266,12 +283,18 @@ export const model: OpenSession = async (spec) => {
         };
         yield { type: "block", kind: "tool_result", payload: { id: "toolu_b", ok: true, result: "Paid in full." } };
         yield { type: "text", text: "Both subagents finished." };
-      } else if (/Carry on/.test(body)) {
+      } else if (/Carry on|is connected\./.test(body)) {
         const found = yield* run("tool_search", { query: "vault use" });
+        // told only that a service is connected (a connect card's answer): ask vault_connect, which says the exact item, as a model does
+        let named = /as (#[A-Za-z0-9_]+)/.exec(body)?.[1];
+        if (!named && /is connected/.test(body)) {
+          const again = yield* run("vault_connect", { service: "Fathom", idempotencyKey: `hour-again-${++asks}` });
+          named = /(#[A-Za-z0-9_]+)/.exec(JSON.stringify(again.content))?.[1];
+        }
         // as a model would: the handle the person's line names (another item may hold the name), else the name it asked for
         const r = found.ok
           ? yield* run("vault_use", {
-              item: /as (#[A-Za-z0-9_]+)/.exec(body)?.[1] ?? "Fathom",
+              item: named ?? "Fathom",
               purpose: "Read the meetings",
             })
           : found;
