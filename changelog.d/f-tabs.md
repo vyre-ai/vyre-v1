@@ -1,2 +1,3 @@
 - Switching tabs cuts cleanly to the new view: the old view is no longer drawn over it for a moment.
 - A tab is the same width selected or not, and its highlight fits its name; Close shows when the pointer is on the tab.
+- The Console's page list sits in the same sidebar column as every other place, so the tab strip and the page no longer slide when you switch to or from a Console tab.
