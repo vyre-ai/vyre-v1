@@ -64,7 +64,7 @@ export function TextBox({
   const words = useContext(DataWordsContext);
   const shown = draft ?? value;
   const insertLink =
-    words?.insert && !mono && !readOnly && testID !== "field-title" ? (
+    words?.insert && !mono && !readOnly && testID !== "field-step-name" ? (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Insert data into ${label}`}
@@ -90,7 +90,7 @@ export function TextBox({
         <Text style={f.insertText}>Insert data</Text>
       </Pressable>
     ) : null;
-  if (words && !mono && !readOnly && testID !== "field-title" && (chips || /\{\{[^{}]*\}\}/.test(value)))
+  if (words && !mono && !readOnly && testID !== "field-step-name" && (chips || /\{\{[^{}]*\}\}/.test(value)))
     return (
       <>
         <ChipText

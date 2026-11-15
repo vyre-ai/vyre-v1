@@ -51,3 +51,11 @@ test("the missing thing is said as the act to do, from the server's words and fr
     "the first shows; the next appears when it is done",
   );
 });
+
+test("the form's needs bar and the row's orange line come from the one message: the bar says what is missing, the line what to do", async () => {
+  const { chipForIssue } = await import("../../../../../../lib/words/step-missing.ts");
+  const m = "Create a task needs a title";
+  assert.equal(chipForIssue(m), "Needs a title");
+  assert.equal(actOf(m), "Add a title");
+  assert.equal(needsFromIssues([{ nodeId: "a", severity: "error", message: m }], "a", new Set())[0]!.line, actOf(m));
+});

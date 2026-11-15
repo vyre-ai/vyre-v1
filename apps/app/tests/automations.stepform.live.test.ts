@@ -73,7 +73,7 @@ test("production Automations: the step row and the step form for each kind and s
         next: ["pause"],
       },
       { id: "pause", key: "wait", input: { forDuration: "2d" }, next: ["post"] },
-      { id: "task", key: "create_task", input: { title: "Call {{ trigger.name }}", assigned: who }, next: ["post"] },
+      { id: "task", key: "create_task", input: { title: "Call {{ trigger.name }}", assigned: { kind: "person", id: who } }, next: ["post"] },
       { id: "post", key: "post_message", input: { text: "New lead: {{ trigger.name }}" } },
     ]);
     void six;
@@ -99,7 +99,7 @@ test("production Automations: the step row and the step form for each kind and s
       lookup: { key: "records.find", filled: { type: "contact", limit: 5 }, needs: {} },
       paths: { key: "paths", filled: { paths: [{ name: "Hot", when: "trigger.score > 80" }] }, needs: {} },
       wait: { key: "wait", filled: { forDuration: "2d" }, needs: {} },
-      task: { key: "create_task", filled: { title: "Call {{ trigger.name }}", assigned: who }, needs: { assigned: who } },
+      task: { key: "create_task", filled: { title: "Call {{ trigger.name }}", assigned: { kind: "person", id: who } }, needs: { assigned: { kind: "person", id: who } } },
       chat: { key: "post_message", filled: { text: "New lead: {{ trigger.name }}" }, needs: {} },
     };
     for (const [kind, k] of Object.entries(kinds))
@@ -128,6 +128,40 @@ test("production Automations: the step row and the step form for each kind and s
         assert.equal(/Templating|\{\{|\(required\)|More options/.test(text), false, `${kind} ${state}: no syntax on the page`);
         assert.equal(/\b(usr|frm|rec|chn|ch)_[a-z0-9]{8,}/.test(text), false, `${kind} ${state}: no id on the page`);
       }
+
+    // Insert data by menu: the menu lists what the trigger and earlier steps give by name with samples, and choosing one puts a chip in the field
+    await page.getByText("task-empty", { exact: true }).first().click();
+    await page.getByTestId("story").waitFor({ timeout: 20_000 });
+    await page.getByTestId("sv-step-n1").click({ position: { x: 120, y: 14 } });
+    await page.getByTestId("field-title-insert").click();
+    await page.waitForTimeout(700);
+    await shot("3-insert-data-d");
+    const menuText = await page.getByRole("menu").last().innerText();
+    assert.equal(/\{\{|usr_|_id\b/.test(menuText), false, "no brace or id in the Insert data menu");
+    await page.getByRole("menuitem").first().click();
+    await page.waitForTimeout(900);
+    assert.ok(await page.getByTestId("field-title-chip-1").count(), "a chip is in the field");
+    await shot("3-insert-data-chosen-d");
+
+    // the row's orange button lands on the control that is needed
+    await page.getByText("task-needs", { exact: true }).first().click();
+    await page.getByTestId("story").waitFor({ timeout: 20_000 });
+    await page.getByTestId("sv-need-n1").click();
+    await page.waitForTimeout(900);
+    const focused = await page.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? "");
+    assert.match(focused, /^field-/, "the needed control has the focus");
+    await shot("3-needs-button-focus-d");
+
+    // why a real run of an Automation can end as failed: its first failed step says it in a sentence
+    const intake = await make("Intake check", [{ id: "n1", key: "create_task", input: { title: "Call back", assigned: { kind: "person", id: who } } }]);
+    await api("automations.set_enabled", { automationId: intake, enabled: true });
+    await api("automations.run", { automationId: intake, payload: { name: "Sam Reyes" } });
+    await page.waitForTimeout(2500);
+    const runs = await api("runs.list", { scope: "subject", subject: { type: "automation", id: intake } });
+    const run = (runs.runs ?? runs.data?.runs ?? [])[0];
+    const steps = run ? await api("runs.steps", { runId: run.id }) : null;
+    const failed = (steps?.steps ?? steps?.data?.steps ?? []).find((x: { state: string }) => x.state === "failed");
+    console.log("RUN", run?.status, JSON.stringify(failed?.error ?? null));
     assert.deepEqual(errors, [], "no page error");
   } finally {
     await browser.close();

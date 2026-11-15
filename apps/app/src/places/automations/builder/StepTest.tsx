@@ -19,6 +19,7 @@ export function StepTest({
   readyOutput,
   plain = false,
   shows = [],
+  needs = null,
 }: {
   stepKey: string;
   nodeId: string;
@@ -32,6 +33,8 @@ export function StepTest({
   plain?: boolean;
   /** What the step has been given, in words with its real or sample values: shown under the result (round three). */
   shows?: readonly (readonly [string, string])[];
+  /** What the step still needs, as the one thing to do: the test says it in a sentence instead of running (a step that cannot run). */
+  needs?: string | null;
 }): ReactElement {
   const data = useAutomationsData();
   const [phase, setPhase] = useState<"idle" | "running" | "done" | "error" | "unavailable">(
@@ -41,6 +44,11 @@ export function StepTest({
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
 
   const run = (): void => {
+    if (needs) {
+      setError({ message: `This step cannot run yet. ${needs}.` });
+      setPhase("error");
+      return;
+    }
     setPhase("running");
     setError(null);
     void data

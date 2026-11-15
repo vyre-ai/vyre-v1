@@ -85,6 +85,10 @@ function valueOf(v: unknown, ctx: AdaptCtx): Value | undefined {
     if (o.kind === "ref" && typeof o.nodeId === "string" && typeof o.path === "string")
       return refChip(o.nodeId, o.path, ctx);
     if (o.kind === "literal") return valueOf(o.value, ctx);
+    // a person (or another thing) chosen by id is shown by its name
+    const who = v as { id?: unknown };
+    if (typeof who.id === "string" && Object.keys(v as object).every((k) => k === "id" || k === "kind"))
+      return { text: ctx.nameOfId?.(who.id) ?? "Chosen" };
     if (o.kind === "resource" && typeof o.label === "string") return { text: o.label };
   }
   return undefined;

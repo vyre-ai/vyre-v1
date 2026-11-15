@@ -51,6 +51,7 @@ import { SchemaForm } from "./SchemaForm.tsx";
 import { TriggerForm, usePersonZone } from "./TriggerForm.tsx";
 import { arrangeControls, controlsFor, humanize, specOf } from "./form-model.ts";
 import { actOf } from "../story/issues.ts";
+import { chipForIssue } from "../../../../../../lib/words/step-missing.ts";
 import type { GiveRow } from "../builder/insert-data.ts";
 import { addChip, chipLabel } from "./steps/edits.ts";
 import { inputValues } from "../builder/step-values.ts";
@@ -58,6 +59,7 @@ import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import { LiveStepForm } from "./steps/LiveStepForm.tsx";
 import type { KeysStatus } from "./data.tsx";
+import { useOptionalAutomationsData } from "./data.tsx";
 import { SendApproval, sendsOutward } from "./AskBeforeSending.tsx";
 import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
 
@@ -160,6 +162,7 @@ export function Inspector({
   mark?: { id: string; name: string };
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
+  const autoData = useOptionalAutomationsData();
   const openConnect = useOpenConnect();
   const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
   const zone = usePersonZone();
@@ -524,7 +527,7 @@ export function Inspector({
                 )}
                 {needLine ? (
                   <View style={i.needBar} testID="step-needs-bar">
-                    <Text style={i.needText}>{needLine}</Text>
+                    <Text style={i.needText}>{firstError ? chipForIssue(firstError.message) : needLine}</Text>
                     <Pressable
                       accessibilityRole="button"
                       testID="step-needs-button"
@@ -613,7 +616,8 @@ export function Inspector({
                 ) : null}
                 <StepTest
                   plain
-                  shows={inputValues(node.key, resolveRefs(node.input ?? {}, given ?? [], titleOf), (id) => nameOfId(id) ?? "Chosen")}
+                  needs={needLine}
+                  shows={inputValues(node.key, resolveRefs(node.input ?? {}, given ?? [], titleOf), (id) => nameOfId(id) ?? autoData?.name(id) ?? "Chosen")}
                   stepKey={node.key}
                   nodeId={node.id}
                   input={node.input ?? {}}
@@ -626,7 +630,7 @@ export function Inspector({
                     label="Name this step"
                     value={node.title ?? ""}
                     placeholder={titleOfKey(node.key)}
-                    testID="field-title"
+                    testID="field-step-name"
                     onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))}
                   />
                   {detailFields}
