@@ -55,7 +55,7 @@ export async function templatesUse(ctx: AutoCtx, input: In): Promise<unknown> {
 async function loadRuns(ctx: AutoCtx, since: number, automationId?: string): Promise<RunRow[]> {
   if (!ctx.call) raise(ctx, "internal.unavailable", "Runs are not available right now.");
   const base = automationId
-    ? { scope: "subject", subject: { type: "automation", id: automationId } }
+    ? { scope: "subject", subject: { type: "automation", id: automationId }, kinds: ["automation"] }
     : { scope: "all", kinds: ["automation"] };
   const rows: RunRow[] = [];
   const seen = new Set<string>();

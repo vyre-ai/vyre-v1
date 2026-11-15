@@ -2682,6 +2682,13 @@ export type AutomationsCodeReachIn = {
 export type AutomationsCodeReachOut = {
   ok: boolean;
 };
+export type AutomationsConnectOptionsIn = Record<string, unknown>;
+export type AutomationsConnectOptionsOut = {
+  vault: Array<{
+      itemId: string;
+      appName: string;
+    }>;
+};
 export type AutomationsConnectorCardIn = {
   threadId: string;
   title: string;
@@ -14835,7 +14842,6 @@ export type EngineTurnRecordIn = {
     id: string;
     kind: "person" | "guest" | "agent" | "system";
   };
-  resetsAt?: number;
   info?: {
     effort?: string;
     account?: {
@@ -18392,16 +18398,6 @@ export type GoalsChecklistTickOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -18521,16 +18517,6 @@ export type GoalsConfirmOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -18725,16 +18711,6 @@ export type GoalsCreateOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -18854,16 +18830,6 @@ export type GoalsExtendOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -18968,16 +18934,6 @@ export type GoalsFinishOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -19089,16 +19045,6 @@ export type GoalsGetOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -19213,16 +19159,6 @@ export type GoalsListOut = {
         tasksDone: number;
         tasks: number;
       };
-      blocked?: {
-        cause: "person" | "limit" | "transient" | "other";
-        what: string;
-        fix: string;
-        short: string;
-        since: number;
-        until?: number;
-        missed: number;
-        code: string;
-      };
       projectId?: string;
       updatedAt: number;
     }>;
@@ -19314,16 +19250,6 @@ export type GoalsMarkStuckOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -19428,16 +19354,6 @@ export type GoalsNumberSetOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -19542,16 +19458,6 @@ export type GoalsPauseOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -19724,16 +19630,6 @@ export type GoalsResumeOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -19890,16 +19786,6 @@ export type GoalsStopOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -20087,16 +19973,6 @@ export type GoalsUpdateOut = {
     };
     nextCheckinAt?: number;
     lastCheckinAt?: number;
-    blocked?: {
-      cause: "person" | "limit" | "transient" | "other";
-      what: string;
-      fix: string;
-      short: string;
-      since: number;
-      until?: number;
-      missed: number;
-      code: string;
-    };
     checkins: number;
     spentMicros: number;
     turns: number;
@@ -47959,6 +47835,7 @@ export interface CapMap {
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
   "automations.code_reach": { in: AutomationsCodeReachIn; out: AutomationsCodeReachOut };
+  "automations.connect_options": { in: AutomationsConnectOptionsIn; out: AutomationsConnectOptionsOut };
   "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
   "automations.connector_levels": { in: AutomationsConnectorLevelsIn; out: AutomationsConnectorLevelsOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
@@ -54125,7 +54002,6 @@ export type TurnFailedPayload = {
   agentId: string;
   code: string;
   message: string;
-  resetsAt?: number;
 };
 export type TurnFallbackUsedPayload = {
   turnId: string;

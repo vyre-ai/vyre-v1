@@ -9,6 +9,7 @@
 // DECISION: a Wait that is resumed and has no way to tell why (no startedAt from the engine) is over; a Wait that is cancelled by one of its cancel-on events is ended by the engine, not here.
 // A relative milestone that is already past succeeds with missed output so later outward steps can be skipped. An anchor id is re-read from the calendar when the wait resumes.
 import { registry } from "../../../generated/registry.ts";
+import { missingInput } from "../../../lib/words/step-missing.ts";
 import { collectItems, groupItems, transformValue } from "./data-steps.ts";
 import { nextOpen } from "./hours.ts";
 import type { OpenHours } from "./hours.ts";
@@ -641,6 +642,17 @@ const pick = (i: In, keys: string[], extra: Record<string, unknown>): Record<str
   for (const k of keys) if (i[k] !== undefined && i[k] !== null) out[k] = i[k];
   return out;
 };
+/** The first required input of a step's schema that is missing or empty once rendered, or null. */
+function emptyRequired(key: string, input: In): string | null {
+  const schema = registry.steps.find((x) => x.key === key)?.input as { required?: unknown } | undefined;
+  const need = Array.isArray(schema?.required) ? (schema!.required as string[]) : [];
+  const rec = input as Record<string, unknown>;
+  for (const f of need) {
+    const v = rec[f];
+    if (v === undefined || v === null || (typeof v === "string" && v.trim() === "")) return f;
+  }
+  return null;
+}
 /** A sandbox answers a step with its sample unless it only reads. An HTTP request step is a read for GET and HEAD. */
 const sandboxStubs = (def: { effects: string; kind: string; key: string }, i: In): boolean =>
   def.key === "http_request" ? !isRead(i) : def.effects !== "read" || def.kind === "wait" || def.key === "approval";
@@ -888,7 +900,16 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
   if (!def) throw stepError("validation.bad_input", `There is no step called ${node.key}.`, false);
   const scope = scopeOf(env, call);
   const input = render(node.input, scope) as In;
-  if (call.sandbox && sandboxStubs(def, input)) return { output: def.sample };
+  if (call.sandbox && sandboxStubs(def, input)) {
+    // a test or replay answers with the sample, but a step whose required input is empty would have been refused for real: it stops here the same way (a stopped test is not a success)
+    const field = emptyRequired(node.key, input);
+    if (field) {
+      // said in words here: the error crosses a call boundary that keeps the code and the message
+      const words = `${def.title.replace(/^[^:·]{1,40}\s*[:·]\s+/, "")}: ${missingInput(node.key, field).do}.`;
+      throw stepError("validation.bad_input", words, false);
+    }
+    return { output: def.sample };
+  }
   switch (node.key) {
     case "if":
       return ifStep(node, input, scope);

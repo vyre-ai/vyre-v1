@@ -151,6 +151,8 @@ export function glyphKeyOf(key: string): string {
   if (key === "wait" || key === "wait_stage") return "wait";
   if (key === "approval" || key === "ask" || key.startsWith("ask_")) return "ask";
   if (key === "loop") return "loop";
+  if (key === "http_request" || key === "connector_request") return "plug";
+  if (key === "code" || key === "transform" || key === "collect" || key === "group_by") return "logic";
   return intentOfKey(key);
 }
 
