@@ -21,6 +21,8 @@ import {
   seedBuiltins,
   takeToken,
   checkEgress,
+  originKey,
+  recordHosts,
   fillString,
   fillValue,
   clone,
@@ -371,11 +373,18 @@ export async function executeAction(
         "SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?",
         conn.connection_id,
       );
-      if (rec && !(JSON.parse(rec.hosts) as string[]).includes(url.hostname.toLowerCase()))
-        refuse(ctx, "permission.no_grant", "This connection may not send its key to that address.", {
-          connector: def.key,
-          action: actionName,
-        });
+      if (rec && !(JSON.parse(rec.hosts) as string[]).includes(originKey(url))) {
+        // a connector that gained a host since the person approved: the key does not go there on its own, and the person is told how to allow it
+        const gained = recordHosts(def).includes(originKey(url));
+        refuse(
+          ctx,
+          "permission.no_grant",
+          gained
+            ? `${def.title} now also sends to ${url.hostname}. Allow it from the connection to send the key there.`
+            : "This connection may not send its key to that address.",
+          { connector: def.key, action: actionName },
+        );
+      }
     }
     headers = {};
     if (def.auth.type === "api_key" && def.auth.secret)

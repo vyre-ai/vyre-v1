@@ -9,6 +9,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "vault.connect_card.ask_admin": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.ask_admin", ctx.trace)); },
   "vault.connect_card.disconnect": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.disconnect", ctx.trace)); },
   "vault.connect_card.get": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.get", ctx.trace)); },
+  "vault.connect_card.line": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.line", ctx.trace)); },
   "vault.connect_card.may_discard": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.may_discard", ctx.trace)); },
   "vault.connect_card.options": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.options", ctx.trace)); },
   "vault.connect_card.reopen": async (ctx) => { throw new VyreErr(notImplemented("vault.connect_card.reopen", ctx.trace)); },

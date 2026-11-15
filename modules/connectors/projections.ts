@@ -450,10 +450,31 @@ export function backfillHosts(tx: Tx): void {
     tx.run(
       "INSERT OR IGNORE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
       r.connection_id,
-      JSON.stringify(keyHosts(def).map((h) => h.toLowerCase())),
+      JSON.stringify(recordHosts(def)),
     );
   }
 }
+
+/** A host with its port, the default when none is given: what a connection's record holds and what a request is compared with, so the same host on another port gets nothing. */
+export const originKey = (u: URL): string =>
+  `${u.hostname.toLowerCase().replace(/\.$/, "")}:${u.port || (u.protocol === "http:" ? "80" : "443")}`;
+/** The hosts (with ports) the connector's actions call now: what a connection's record is written from. */
+export const recordHosts = (def: ConnectorDef): string[] => {
+  const out: string[] = [];
+  const add = (raw: string | undefined): void => {
+    try {
+      if (raw) {
+        const k = originKey(new URL(raw.replace(/\{[^}]*\}/g, "x")));
+        if (!out.includes(k)) out.push(k);
+      }
+    } catch {
+      /* not an address */
+    }
+  };
+  add(def.actions.find((a) => a.name === (def.health ?? probeOf(def)))?.url);
+  for (const a of def.actions) add(a.url);
+  return out;
+};
 
 /** Does any action take its host from the caller's input (`https://{input.host}/...`)? Such a connection has no fixed host to record. */
 export const hostFromInput = (def: ConnectorDef): boolean =>

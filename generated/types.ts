@@ -6925,6 +6925,15 @@ export type ChatComposerSuggestOut = {
       detail?: string;
     }>;
 };
+export type ChatConnectLineIn = {
+  threadId: string;
+  agentId: string;
+  asker: string;
+  body: string;
+};
+export type ChatConnectLineOut = {
+  messageId: string;
+};
 export type ChatCrewLineIn = {
   threadId: string;
   jobId: string;
@@ -10075,6 +10084,12 @@ export type ConflictsUndoIn = {
 };
 export type ConflictsUndoOut = {
   state: "open" | "proposed" | "needs_you" | "resolved" | "undone";
+};
+export type ConnectionsApproveHostsIn = {
+  connectionId: string;
+};
+export type ConnectionsApproveHostsOut = {
+  hosts: Array<string>;
 };
 export type ConnectionsCompleteAuthIn = {
   state: string;
@@ -42728,7 +42743,10 @@ export type TerminalKeysIn = {
       key?: string;
       paste?: string;
     }>;
+  lease: string;
+  seq: number;
   capture?: boolean;
+  idempotencyKey: string;
 };
 export type TerminalKeysOut = {
   ok: boolean;
@@ -43006,6 +43024,8 @@ export type TerminalTakeOverOut = {
     ownerId?: string;
     threadId?: string;
   };
+  lease?: string;
+  nextSeq?: number;
 };
 export type TerminalWorkspaceIn = {
   agentId: string;
@@ -44822,6 +44842,15 @@ export type VaultConnectCardGetOut = {
       }>;
   };
 };
+export type VaultConnectCardLineIn = {
+  requestId: string;
+};
+export type VaultConnectCardLineOut = {
+  state: "asked" | "connected" | "declined";
+  service: string;
+  asker?: string;
+  connectedBy?: string;
+};
 export type VaultConnectCardMayDiscardIn = {
   requestId: string;
   itemId: string;
@@ -46417,6 +46446,7 @@ export interface CapMap {
   "chat.chapters": { in: ChatChaptersIn; out: ChatChaptersOut };
   "chat.chapters_write": { in: ChatChaptersWriteIn; out: ChatChaptersWriteOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
+  "chat.connect_line": { in: ChatConnectLineIn; out: ChatConnectLineOut };
   "chat.crew_line": { in: ChatCrewLineIn; out: ChatCrewLineOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
@@ -46575,6 +46605,7 @@ export interface CapMap {
   "conflicts.redo": { in: ConflictsRedoIn; out: ConflictsRedoOut };
   "conflicts.resolve": { in: ConflictsResolveIn; out: ConflictsResolveOut };
   "conflicts.undo": { in: ConflictsUndoIn; out: ConflictsUndoOut };
+  "connections.approve_hosts": { in: ConnectionsApproveHostsIn; out: ConnectionsApproveHostsOut };
   "connections.complete_auth": { in: ConnectionsCompleteAuthIn; out: ConnectionsCompleteAuthOut };
   "connections.create": { in: ConnectionsCreateIn; out: ConnectionsCreateOut };
   "connections.delete": { in: ConnectionsDeleteIn; out: ConnectionsDeleteOut };
@@ -48292,6 +48323,7 @@ export interface CapMap {
   "vault.connect_card.ask_admin": { in: VaultConnectCardAskAdminIn; out: VaultConnectCardAskAdminOut };
   "vault.connect_card.disconnect": { in: VaultConnectCardDisconnectIn; out: VaultConnectCardDisconnectOut };
   "vault.connect_card.get": { in: VaultConnectCardGetIn; out: VaultConnectCardGetOut };
+  "vault.connect_card.line": { in: VaultConnectCardLineIn; out: VaultConnectCardLineOut };
   "vault.connect_card.may_discard": { in: VaultConnectCardMayDiscardIn; out: VaultConnectCardMayDiscardOut };
   "vault.connect_card.options": { in: VaultConnectCardOptionsIn; out: VaultConnectCardOptionsOut };
   "vault.connect_card.reopen": { in: VaultConnectCardReopenIn; out: VaultConnectCardReopenOut };
@@ -52274,6 +52306,9 @@ export type TerminalCommandFinishedPayload = {
 export type TerminalGivenBackPayload = {
   terminalId: string;
   by: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 export type TerminalOpenedPayload = {
   terminalId: string;
@@ -52292,6 +52327,9 @@ export type TerminalTakenPayload = {
   terminalId: string;
   by: string;
   from?: string;
+  agentId?: string;
+  agentName?: string;
+  agentOwner?: string;
 };
 export type ThreadArchivedPayload = {
   person: string;

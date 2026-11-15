@@ -266,16 +266,18 @@ test("with connecting off on the server, a request that names a service draws th
   }
 });
 
-test("a person who is not the one asked reads one quiet line (who asked, whom, which service) and nothing else", async () => {
+test("a person who is not the one asked reads one quiet line: a key glyph while asked, a tick once connected, nothing once declined", async () => {
   const { createRoot } = await import("test-renderer");
   const { flush, installDom, mount, textOf } = await import("../../../onboarding/test-dom.ts");
   const restore = installDom();
   try {
-    // the server answers the card only to the asked person: for anyone else the read is refused
+    let line: Record<string, unknown> = { state: "asked", service: "Fathom", asker: "usr_maya" };
+    // the server answers the card only to the asked person: for anyone else the read is refused, and the line is all there is
     const h = harness({
       "vault.connect_card.get": () => {
         throw Object.assign(new Error("No such request."), { code: "validation.not_found" });
       },
+      "vault.connect_card.line": () => line,
     });
     const root = await mount(
       createRoot,
@@ -283,6 +285,20 @@ test("a person who is not the one asked reads one quiet line (who asked, whom, w
     );
     await flush();
     assert.equal(textOf(root).trim(), "Dex asked Maya to connect Fathom");
+    line = { state: "connected", service: "Fathom", asker: "usr_maya", connectedBy: "usr_maya" };
+    const again = await mount(
+      createRoot,
+      <ConnectCardLive requestId="vrq_1" agent="Dex" asker="usr_maya" service="fathom" data={h.data} />,
+    );
+    await flush();
+    assert.equal(textOf(again).trim(), "Maya connected Fathom");
+    line = { state: "declined", service: "Fathom", asker: "usr_maya" };
+    const gone = await mount(
+      createRoot,
+      <ConnectCardLive requestId="vrq_1" agent="Dex" asker="usr_maya" service="fathom" data={h.data} />,
+    );
+    await flush();
+    assert.equal(textOf(gone).trim(), "");
   } finally {
     restore();
   }

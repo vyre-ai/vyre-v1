@@ -783,6 +783,19 @@ export default defineManifest({
         errors: ["validation.not_found"],
       },
     ),
+    write(
+      "connections.approve_hosts",
+      "The person who owns a connection allows the hosts its connector now calls (it gained one since they approved): the key may then go there. A person's press on the connection; never an agent's",
+      {
+        in: { connectionId: id.connection },
+        out: { hosts: t.arr(t.str()) },
+        on: ["connection", "/connectionId"],
+        level: "manage",
+        audit: "always",
+        agent: false,
+        errors: ["validation.not_found", "permission.no_grant"],
+      },
+    ),
     write("connections.delete", "Remove a connection; synced types bound to it pause", {
       in: { connectionId: id.connection },
       out: { deleted: t.bool() },

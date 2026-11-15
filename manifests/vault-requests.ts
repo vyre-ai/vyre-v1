@@ -270,6 +270,22 @@ export default defineManifest({
         errors: ["internal.not_implemented", "permission.no_grant", "validation.not_found"],
       },
     ),
+    read(
+      "vault.connect_card.line",
+      "What anyone in the chat may read of a connect card: that a connection was asked of someone, and whether it was connected or not. The service, who asked and whom, and the state; nothing of keys or choices",
+      {
+        ...V,
+        in: { requestId: reqId },
+        out: {
+          state: t.enm("asked", "connected", "declined"),
+          service: t.str(),
+          asker: t.opt(id.user),
+          connectedBy: t.opt(id.user),
+        },
+        agent: false,
+        errors: ["internal.not_implemented", "validation.not_found"],
+      },
+    ),
     write("vault.connect_card.ask_admin", "Ask an admin to connect the service when this person may not", {
       ...V,
       in: { requestId: reqId, admin: t.opt(id.user) },

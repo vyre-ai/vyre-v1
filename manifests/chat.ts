@@ -1686,6 +1686,27 @@ export default defineManifest({
       },
     ),
     write(
+      "chat.connect_line",
+      "The engine only: after a connect card is answered, leave one quiet line (not a message of the person) in the chat that wakes the agent that asked",
+      {
+        in: { ...threadT, agentId: id.agent, asker: id.user, body: t.str({ maxLength: 200 }) },
+        out: { messageId: id.message },
+        on: ["thread", "/threadId"],
+        level: "use",
+        agent: false,
+        idem: "none",
+        emits: [
+          "message.received",
+          "message.direct",
+          "message.mentioned",
+          "thread.replied",
+          "thread.unarchived",
+          "thread.updated",
+        ],
+        errors: ["validation.bad_input", "validation.not_found"],
+      },
+    ),
+    write(
       "chat.hook_resolve",
       "Hooks module only: mark a stop line answered (allowed this time, always allowed, or denied), for everyone in the chat",
       {

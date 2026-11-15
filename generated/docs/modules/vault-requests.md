@@ -4,12 +4,13 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (14)
+## Capabilities (15)
 
 - [vault.connect](../capabilities/vault.connect.md): Is X connected, connect X (Fathom, Slack), or before saying you cannot reach X. The person gets one card; you get connected, waiting or declined.
 - [vault.connect_card.ask_admin](../capabilities/vault.connect_card.ask_admin.md): Ask an admin to connect the service when this person may not
 - [vault.connect_card.disconnect](../capabilities/vault.connect_card.disconnect.md): Disconnect the service; the key stays in the Vault
 - [vault.connect_card.get](../capabilities/vault.connect_card.get.md): The connect card of one request: its state, the fields, who can fill it, where the key is kept
+- [vault.connect_card.line](../capabilities/vault.connect_card.line.md): What anyone in the chat may read of a connect card: that a connection was asked of someone, and whether it was connected or not. The service, who asked and whom, and the state; nothing of keys or choices
 - [vault.connect_card.may_discard](../capabilities/vault.connect_card.may_discard.md): Is this the one key the person's own connect card saved and has not yet connected? Asked by the Vault before it takes a key back
 - [vault.connect_card.options](../capabilities/vault.connect_card.options.md): Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot
 - [vault.connect_card.reopen](../capabilities/vault.connect_card.reopen.md): Open a card the person folded with Not now

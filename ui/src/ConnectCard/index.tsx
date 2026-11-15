@@ -550,3 +550,6 @@ export const hostsSaid = (hosts: string): string => {
     .filter((h) => h !== "");
   return all.length < 2 ? (all[0] ?? "") : `${all.slice(0, -1).join(", ")} and ${all[all.length - 1]}`;
 };
+
+/** The card's own key glyph, for the quiet line other people in the chat read while a connection is asked of someone. */
+export const ConnectKeyGlyph = (): ReactElement => <Glyph icon={KEY} native="k" size={13} color="var(--ink-3)" />;

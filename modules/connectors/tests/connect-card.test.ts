@@ -346,7 +346,7 @@ test("B: a connection made before the host record existed (a data folder shaped 
     k.tx
       .all<{ hosts: string }>("SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?", id)
       .map((r) => r.hosts),
-    [JSON.stringify(["api.fathom.test"])],
+    [JSON.stringify(["api.fathom.test:443"])],
   );
   // a row that exists is never rewritten
   k.tx.run("UPDATE cn_connection_hosts SET hosts = ? WHERE connection_id = ?", '["kept.example"]', id);
@@ -355,4 +355,102 @@ test("B: a connection made before the host record existed (a data folder shaped 
     k.tx.get<{ hosts: string }>("SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?", id)?.hosts,
     '["kept.example"]',
   );
+});
+
+const linkApp = (over: Partial<ConnectorDef> = {}): ConnectorDef => ({
+  ...FATHOM,
+  key: "wide2",
+  title: "Wide2",
+  domains: ["*.fathom.test", "fathom.test"],
+  health: "list",
+  actions: [{ name: "list", url: "https://api.fathom.test/p", shape: { items: "/items", cursor: { kind: "link" } } }],
+  ...over,
+});
+const connect = async (k: ReturnType<typeof kit>, key = "wide2") => {
+  const id = (
+    await k.hs["connections.create"](k.ctx, {
+      connector: key,
+      title: "W",
+      ownerKind: "person",
+      secrets: { api_key: "#AcmeKey" },
+    } as never)
+  ).connection.connectionId;
+  await k.hs["connections.mark_working"](k.ctx, { connectionId: id } as never);
+  return id;
+};
+const run = (k: ReturnType<typeof kit>, id: string, input: unknown, key = "wide2") =>
+  k.hs["connectors.run"](k.ctx, { key, action: "list", connectionId: id, input } as never);
+
+test("B (the reviewer's case): domains *.fathom.test and fathom.test with actions only on api.fathom.test: the key goes to api.fathom.test and to nothing else under those domains", async () => {
+  const k = kit();
+  k.install(linkApp());
+  k.state.reply = () => ({ status: 200, body: { items: [] } });
+  const id = await connect(k);
+  await run(k, id, {});
+  assert.deepEqual(
+    k.sent.map((r) => new URL(r.url).hostname),
+    ["api.fathom.test"],
+  );
+  // every other name under the declared domains: the parent, a sibling, a child; none is sent to
+  for (const next of ["https://fathom.test/x", "https://other.fathom.test/x", "https://deep.api.fathom.test/x"])
+    await assert.rejects(
+      run(k, id, { after: next }),
+      (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.no_grant",
+      next,
+    );
+  assert.equal(k.sent.length, 1, "only the one request left");
+});
+
+test("B: the same host on another port gets no key (the record holds the host and its port)", async () => {
+  const k = kit();
+  k.install(linkApp());
+  k.state.reply = () => ({ status: 200, body: { items: [] } });
+  const id = await connect(k);
+  await assert.rejects(run(k, id, { after: "https://api.fathom.test:8443/x" }));
+  assert.equal(k.sent.length, 0);
+  await run(k, id, { after: "https://api.fathom.test:443/x" });
+  assert.equal(k.sent.length, 1, "the default port written out is the same address");
+});
+
+test("B: a connector that gains a host does not send the key there on its own: the refusal says what to do, and the person's approval adds the host; one that loses a host just stops using it", async () => {
+  const k = kit();
+  k.install(linkApp({ domains: ["api.fathom.test", "api2.fathom.test"] }));
+  const id = await connect(k);
+  // republished with a new action on api2: the existing connection is not approved for it
+  k.install(
+    linkApp({
+      domains: ["api.fathom.test", "api2.fathom.test"],
+      actions: [
+        { name: "list", url: "https://api.fathom.test/p" },
+        { name: "more", url: "https://api2.fathom.test/p" },
+      ],
+    }),
+  );
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, { key: "wide2", action: "more", connectionId: id, input: {} } as never),
+    (e: unknown) => /Wide2 now also sends to api2\.fathom\.test\. Allow it/.test((e as Error).message),
+  );
+  assert.equal(k.sent.length, 0);
+  await k.hs["connections.approve_hosts"](k.ctx, { connectionId: id } as never);
+  await k.hs["connectors.run"](k.ctx, { key: "wide2", action: "more", connectionId: id, input: {} } as never);
+  assert.deepEqual(
+    k.sent.map((r) => new URL(r.url).hostname),
+    ["api2.fathom.test"],
+  );
+  // a connector that lost a host: the old host is simply not called; nothing is refused for it
+  k.install(linkApp({ domains: ["api.fathom.test"], actions: [{ name: "list", url: "https://api.fathom.test/p" }] }));
+  await k.hs["connectors.run"](k.ctx, { key: "wide2", action: "list", connectionId: id, input: {} } as never);
+});
+
+test("a built-in connector wins over an agent-published namesake; two of equal standing answer none, and the agent is told why", async () => {
+  const k = kit();
+  k.install({ ...FATHOM, builtin: true });
+  k.install({ ...FATHOM, key: "fathom2", builtin: false });
+  const got = await k.hs["connectors.for_service"](k.ctx, { service: "Fathom" });
+  assert.deepEqual([got.found, got.connector?.key], [true, "fathom"], "the built-in is the one");
+  const k2 = kit();
+  k2.install({ ...FATHOM, key: "pa", title: "Same", builtin: false });
+  k2.install({ ...FATHOM, key: "pb", title: "Same", builtin: false });
+  const two = await k2.hs["connectors.for_service"](k2.ctx, { service: "Same" });
+  assert.deepEqual([two.found, two.near], [false, ["Same", "Same"]]);
 });

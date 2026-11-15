@@ -348,6 +348,7 @@ const NAMES = [
   "connections.complete_auth",
   "connections.test",
   "connections.mark_working",
+  "connections.approve_hosts",
   "connections.delete",
   "sync_types.list",
   "sync_types.get",

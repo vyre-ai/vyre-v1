@@ -35,6 +35,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "chat.chapters": async () => ({"chapters":[{"by":"extract","count":1,"current":true,"endSeq":1,"startAt":1760000000000,"startMsg":"msg_a1b2c3","startSeq":1,"summary":"example","title":"example"}],"wanted":1} as unknown) as never,
   "chat.chapters_write": async () => ({"written":1} as unknown) as never,
   "chat.composer.suggest": async () => ({"items":[{"detail":"example","group":"example","id":"example","kind":"example","title":"example"}]} as unknown) as never,
+  "chat.connect_line": async () => ({"messageId":"msg_a1b2c3"} as unknown) as never,
   "chat.crew_line": async () => ({"messageId":"msg_a1b2c3"} as unknown) as never,
   "chat.delete_message": async () => ({"deleted":true} as unknown) as never,
   "chat.edit": async () => ({"message":{"attachments":["fil_a1b2c3"],"author":{"id":"usr_a1b2c3","kind":"person"},"blocks":[{"data":{},"id":"blk_a1b2c3","state":"live","traceId":"0123456789abcdef0123456789abcdef","type":"record_card","v":1}],"body":"example","createdAt":1760000000000,"depth":1,"editedAt":1760000000000,"enc":1,"kind":"text","mentions":[{"id":"usr_a1b2c3","kind":"person"}],"messageId":"msg_a1b2c3","paidBy":"usr_a1b2c3","pinned":true,"reactions":[{"by":["example"],"emoji":"thumbs_up"}],"replyTo":"msg_a1b2c3","threadId":"thr_a1b2c3","threadSeq":1,"via":{"routineOwner":"usr_a1b2c3"}}} as unknown) as never,

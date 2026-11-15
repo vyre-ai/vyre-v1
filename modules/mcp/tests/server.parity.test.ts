@@ -82,8 +82,10 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
     "automations.watches.check",
     "automations.watches.remove",
     "automations.watches.save",
+    "chat.connect_line",
     "chat.crew_line",
     "chat.note_offer.answer",
+    "connections.approve_hosts",
     "engine.mcp.oauth_complete",
     "engine.mcp.oauth_start",
     "engine.mcp.oauth_status",
@@ -118,6 +120,7 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
     "vault.connect_card.ask_admin",
     "vault.connect_card.disconnect",
     "vault.connect_card.get",
+    "vault.connect_card.line",
     "vault.connect_card.may_discard",
     "vault.connect_card.options",
     "vault.connect_card.reopen",
@@ -305,4 +308,21 @@ test("mcp.health reports the registry hash served, the live sessions and whether
   assert.equal(out.sessions, 0);
   assert.equal(out.state, "degraded", "no MCP endpoint bound on a bare test host");
   assert.ok(out.detail);
+});
+
+test("the real default, with the variable unset, is what lib/connect-switch.ts says it is: the card is off, and the tools offered are the off count", () => {
+  const was = process.env["VYRE_CONNECT_CARD"];
+  delete process.env["VYRE_CONNECT_CARD"];
+  try {
+    assert.equal(
+      connectCardOn(),
+      false,
+      "unset means off until the switch-on commit changes the code and this test together",
+    );
+    const hn = harness();
+    assert.equal(toolsList(hn.ctx, { includeDeferred: true }).total, offeredWith(false));
+  } finally {
+    if (was === undefined) delete process.env["VYRE_CONNECT_CARD"];
+    else process.env["VYRE_CONNECT_CARD"] = was;
+  }
 });

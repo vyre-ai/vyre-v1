@@ -74,6 +74,14 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
       false,
       "no key name or id",
     );
+    // what anyone in the chat may read: that it was asked, of whom, and how it stands; nothing of keys or choices
+    const asked = await b.attempt("vault.connect_card.line", { requestId });
+    assert.equal(asked.ok, true, JSON.stringify(asked));
+    assert.deepEqual(asked.ok && [asked.data.state, asked.data.service, asked.data.asker], [
+      "asked",
+      "Fathom",
+      a.personId,
+    ]);
     const refused = await b.attempt("vault.connect_card.get", { requestId });
     assert.equal(refused.ok, false, "Bilal cannot read Aina's card");
     assert.equal((await b.attempt("vault.connect_card.options", { requestId })).ok, false);
@@ -113,10 +121,31 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
       "the agent carries on",
     );
     assert.match(used, /^USED #Fathom_2 /, used);
+    const done = await b.attempt("vault.connect_card.line", { requestId });
+    assert.deepEqual(done.ok && [done.data.state, done.data.connectedBy], ["connected", a.personId]);
     // the connection itself points at the item the card saved, by its handle, never at the older key of the same name
     const conn = JSON.stringify((await a.call("connections.list", { connector: "fathom" })).connections);
     assert.equal(conn.includes("#Fathom."), false, conn);
     const itemId = used.split(" ")[2]!;
+    // the carry-on line is a quiet line, not a message of Aina's: no message under her name says it, and the agent's turn still started (it answered)
+    const everything = await messages(h, b, threadId);
+    const line = everything.find((m) => /^Fathom is connected\.$/.test(m.body ?? ""));
+    assert.ok(line, "the quiet line is in the chat");
+    assert.notEqual(line.author?.id, a.personId, "it carries no name of hers");
+    assert.notEqual((line as { kind?: string }).kind, "text", "it is no message");
+    assert.equal(
+      everything.some((m) => m.author?.id === a.personId && /is connected/.test(m.body ?? "")),
+      false,
+      "nothing under Aina's name says it",
+    );
+    // the WHOLE chat as Bilal reads it (everything but the agent's own scripted answers, which may say a handle: a handle is a name, not the key) holds no handle, no item id and no key
+    const wholeChat = JSON.stringify(everything.filter((m) => (m as { kind?: string }).kind !== "agent"));
+    for (const leak of ["#Fathom_2", itemId, SECRET, HAND])
+      assert.equal(
+        wholeChat.includes(leak),
+        false,
+        `the chat shows ${leak} to Bilal: ${wholeChat.slice(Math.max(0, wholeChat.indexOf(leak) - 300), wholeChat.indexOf(leak) + 100)}`,
+      );
     // Mine is "you and the agents working for you" (the lead's ruling): a second agent of Aina's may use her key. An agent working for ANOTHER person may not: the same Space agent, in a turn BILAL asked for,
     // is refused, and nothing of Aina's key (its name, its handle, its id, that it exists) is in what the agent says or what Bilal reads.
     const before = (await messages(h, b, threadId)).length;
