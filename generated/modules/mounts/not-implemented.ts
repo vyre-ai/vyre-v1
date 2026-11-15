@@ -28,6 +28,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mounts.resume": async (ctx) => { throw new VyreErr(notImplemented("mounts.resume", ctx.trace)); },
   "mounts.sheet_append": async (ctx) => { throw new VyreErr(notImplemented("mounts.sheet_append", ctx.trace)); },
   "mounts.sheet_read": async (ctx) => { throw new VyreErr(notImplemented("mounts.sheet_read", ctx.trace)); },
+  "mounts.sheet_tabs": async (ctx) => { throw new VyreErr(notImplemented("mounts.sheet_tabs", ctx.trace)); },
   "mounts.sheet_write": async (ctx) => { throw new VyreErr(notImplemented("mounts.sheet_write", ctx.trace)); },
   "mounts.sync_now": async (ctx) => { throw new VyreErr(notImplemented("mounts.sync_now", ctx.trace)); },
   "mounts.update": async (ctx) => { throw new VyreErr(notImplemented("mounts.update", ctx.trace)); },

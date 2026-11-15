@@ -13,6 +13,7 @@ import {
   sheetCsv,
   writeChanges,
 } from "../../../../../../ui/src/Viewer/rich/workbook-io.ts";
+import type { Book } from "../../../../../../ui/src/Viewer/rich/grid-model.ts";
 import type { XBook } from "../../../../../../ui/src/Viewer/rich/workbook-io.ts";
 import { LimitError, tooLargeWords, wordsOf } from "../../../../../../ui/src/Viewer/rich/limits.ts";
 import { loadExcel, loadFflate } from "../../../../../../ui/src/Viewer/rich/vendor.ts";
@@ -91,14 +92,27 @@ export function useWorkbook(
     void (async () => {
       try {
         if (gs !== null) {
-          const t = parseCsv(gs.text);
-          const grid = new Grid(
-            bookFromRows(
-              [[...t.cols], ...t.rows.map((r) => [...r])],
-              "Sheet",
-              gs.csv === true ? { plain: true, header: true } : {},
-            ),
-          );
+          let book: Book;
+          if (gs.csv === true) {
+            const t = parseCsv(gs.text);
+            book = bookFromRows([[...t.cols], ...t.rows.map((r) => [...r])], "Sheet", { plain: true, header: true });
+          } else {
+            // a Google Sheet: every tab, each read from Google through the Sheets path (never from the export, which is the first tab only); the export is the fallback when the tabs cannot be listed
+            try {
+              const listed = (await d.call("mounts.sheet_tabs", { fileId })) as { tabs: { title: string }[] };
+              const sheets = [];
+              for (const tab of listed.tabs) {
+                const r = (await d.call("mounts.sheet_read", { fileId, sheet: tab.title, range: "A1:ZZ2000" })) as { values: unknown[][] };
+                sheets.push(...bookFromRows(r.values.map((row) => row.map((v) => String(v ?? ""))), tab.title).sheets);
+              }
+              book = { sheets: sheets.length > 0 ? sheets : bookFromRows([[]], "Sheet").sheets };
+            } catch {
+              const t = parseCsv(gs.text);
+              book = bookFromRows([[...t.cols], ...t.rows.map((r) => [...r])], "Sheet");
+            }
+          }
+          if (!live) return;
+          const grid = new Grid(book);
           gridRef.current = grid;
           opened.current = baseline(grid.book);
           setState({ status: "ready", grid });
@@ -178,6 +192,7 @@ export function useWorkbook(
         for (const w of cellWrites(grid, opened.current))
           await d.call("mounts.sheet_write", {
             fileId,
+            sheet: w.sheet,
             range: `${colName(w.c)}${w.r + 1}`,
             values: [[w.value]],
             idempotencyKey: `vw-${fileId}-${w.r}-${w.c}-${Date.now()}-${Math.round(Math.random() * 1e6)}`,

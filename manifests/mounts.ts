@@ -432,6 +432,18 @@ export default defineManifest({
         errors: ["validation.unsupported", "validation.precondition_failed", "provider.auth_failed"],
       },
     ),
+    read(
+      "mounts.sheet_tabs",
+      "List the tabs of a mounted Google Sheet, with their names and sizes, so every tab can be read and edited",
+      {
+        in: { fileId: id.file },
+        out: { tabs: t.arr(t.obj({ title: t.str(), rows: t.opt(t.int({ minimum: 0 })), columns: t.opt(t.int({ minimum: 0 })) })) },
+        on: ["file", "/fileId"],
+        tool: "files",
+        deferred: true,
+        errors: ["validation.unsupported", "validation.precondition_failed", "provider.auth_failed"],
+      },
+    ),
     outward(
       "mounts.sheet_write",
       "Write cells of a mounted Google Sheet or Excel workbook in the provider file itself",

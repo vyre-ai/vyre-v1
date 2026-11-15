@@ -1945,6 +1945,7 @@ export function stubs(ctx: CallCtx) {
       resume: call("mounts.resume"),
       sheet_append: call("mounts.sheet_append"),
       sheet_read: call("mounts.sheet_read"),
+      sheet_tabs: call("mounts.sheet_tabs"),
       sheet_write: call("mounts.sheet_write"),
       sync_now: call("mounts.sync_now"),
       update: call("mounts.update"),

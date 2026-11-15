@@ -56,6 +56,65 @@ export function driveStandIn(o: DriveOptions) {
     onRequest: null as null | ((r: { method: string; path: string }) => void),
   };
   const stamp = (): string => new Date((clock += 1000)).toISOString();
+  /** the cells of a Google Sheet by file id and tab, as the Sheets API serves them */
+  const tabs = new Map<string, Map<string, string[][]>>();
+  const sheetWrites: { id: string; tab: string; range: string; values: string[][] }[] = [];
+  const csvOf = (rows: string[][]): string => rows.map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\n") + "\n";
+  const colNum = (s: string): number => [...s].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+  const parseRange = (raw: string, first: string): { tab: string; c0: number; r0: number; c1?: number; r1?: number } => {
+    const m = /^(?:'((?:[^']|'')+)'|([^!']+))?!?([A-Za-z]+)?(\d+)?(?::([A-Za-z]+)(\d+))?$/.exec(raw) ?? [];
+    const quoted = raw.includes("!");
+    const tab = quoted ? (m[1] !== undefined ? m[1].replace(/''/g, "'") : (m[2] ?? first)) : first;
+    const a1 = quoted ? { c: m[3], r: m[4], c2: m[5], r2: m[6] } : (() => {
+      const x = /^([A-Za-z]+)(\d+)(?::([A-Za-z]+)(\d+))?$/.exec(raw) ?? [];
+      return { c: x[1], r: x[2], c2: x[3], r2: x[4] };
+    })();
+    return { tab, c0: a1.c ? colNum(a1.c.toUpperCase()) : 0, r0: a1.r ? Number(a1.r) - 1 : 0, ...(a1.c2 ? { c1: colNum(a1.c2.toUpperCase()) } : {}), ...(a1.r2 ? { r1: Number(a1.r2) - 1 } : {}) };
+  };
+  function sheetsRoute(method: string, u: URL, headers: Record<string, string>, body: string | Uint8Array | undefined) {
+    if (!claims(headers)) return { status: 401, json: { error: { code: 401 } } };
+    state.onRequest?.({ method, path: u.pathname });
+    const id = decodeURIComponent(/\/v4\/spreadsheets\/([^/:]+)/.exec(u.pathname)?.[1] ?? "");
+    const book = tabs.get(id);
+    if (!book) return { status: 404, json: { error: { code: 404 } } };
+    const values = /\/values\/([^:]+)$/.exec(u.pathname);
+    if (!values && method === "GET")
+      return {
+        json: {
+          properties: { title: files.get(id)?.name ?? id },
+          sheets: [...book.entries()].map(([title, rows], i) => ({ properties: { sheetId: i, title, gridProperties: { rowCount: rows.length, columnCount: Math.max(1, ...rows.map((r) => r.length)) } } })),
+        },
+      };
+    if (values) {
+      const raw = decodeURIComponent(values[1]!);
+      const r = parseRange(raw, [...book.keys()][0]!);
+      const rows = book.get(r.tab);
+      if (!rows) return { status: 400, json: { error: { code: 400 } } };
+      if (method === "GET") {
+        const slice = rows.slice(r.r0, r.r1 === undefined ? undefined : r.r1 + 1).map((row) => row.slice(r.c0, r.c1 === undefined ? undefined : r.c1 + 1));
+        return { json: { range: raw, values: slice } };
+      }
+      if (method === "PUT") {
+        if (!files.get(id)?.canEdit) return { status: 403, json: { error: { code: 403 } } };
+        const b = safeJson(typeof body === "string" ? body : "") as { values?: string[][] };
+        let n = 0;
+        (b.values ?? []).forEach((vals, i) => {
+          const row = (rows[r.r0 + i] ??= []);
+          vals.forEach((v, j) => {
+            while (row.length < r.c0 + j) row.push("");
+            row[r.c0 + j] = String(v);
+            n += 1;
+          });
+        });
+        sheetWrites.push({ id, tab: r.tab, range: raw, values: b.values ?? [] });
+        const f = files.get(id)!;
+        f.modified = stamp();
+        changes.push(id);
+        return { json: { updatedCells: n } };
+      }
+    }
+    return undefined;
+  }
 
   function put(f: Partial<DFile> & { id?: string; name: string }, bytes: Uint8Array | string = ""): DFile {
     n += 1;
@@ -112,6 +171,7 @@ export function driveStandIn(o: DriveOptions) {
     body: string | Uint8Array | undefined,
   ): { status?: number; json?: unknown; text?: string } | undefined {
     const u = new URL(url);
+    if (u.hostname === "sheets.googleapis.com") return sheetsRoute(method, u, headers, body);
     if (!u.pathname.includes("/drive/v3/files") && !u.pathname.includes("/drive/v3/changes")) return undefined;
     const query = Object.fromEntries(u.searchParams.entries());
     const isBytes = u.hostname === "www.googleapis.com" && u.pathname.startsWith("/upload/");
@@ -242,6 +302,10 @@ export function driveStandIn(o: DriveOptions) {
       const r = f.revs.find((x) => x.id === decodeURIComponent(one[5]!));
       return r ? { bytes: r.bytes, text: dec.decode(r.bytes) } : { status: 404, json: {} };
     }
+    if (one[2] === "/export" && f.mimeType === "application/vnd.google-apps.spreadsheet") {
+      const first = [...(tabs.get(f.id)?.values() ?? [])][0] ?? [];
+      return { text: csvOf(first), bytes: enc.encode(csvOf(first)) };
+    }
     if (method === "GET" && query["alt"] === "media") return { bytes: f.bytes, text: dec.decode(f.bytes) };
     if (method === "GET") return { json: view(f) };
     if (method === "PATCH") {
@@ -302,6 +366,10 @@ export function driveStandIn(o: DriveOptions) {
     requests,
     creates,
     state,
+    /** a Google Sheet: its tabs and their cells (the file itself is put() with the spreadsheet type) */
+    sheet: (id: string, book: Record<string, string[][]>): void => void tabs.set(id, new Map(Object.entries(book).map(([k, v]) => [k, v.map((r) => [...r])] as const))),
+    sheetTabs: tabs,
+    sheetWrites,
     put,
     elsewhere,
     api,

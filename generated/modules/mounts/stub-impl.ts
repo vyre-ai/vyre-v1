@@ -27,6 +27,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mounts.resume": async () => ({"ok":true} as unknown) as never,
   "mounts.sheet_append": async () => ({"updatedRows":1} as unknown) as never,
   "mounts.sheet_read": async () => ({"values":[[{}]]} as unknown) as never,
+  "mounts.sheet_tabs": async () => ({"tabs":[{"columns":1,"rows":1,"title":"example"}]} as unknown) as never,
   "mounts.sheet_write": async () => ({"updatedCells":1} as unknown) as never,
   "mounts.sync_now": async () => ({"runId":"run_a1b2c3"} as unknown) as never,
   "mounts.update": async () => ({"mount":{"conflicts":1,"error":"example","folderId":"fld_a1b2c3","fromDevice":"Irfad's MacBook","kind":"google_drive","lagSeconds":1,"lastSyncAt":1760000000000,"live":true,"liveVia":"push","mode":"server_copy","mountId":"mnt_a1b2c3","name":"example","pendingChanges":1,"provider":"Google Drive","readOnly":true,"ref":"example","reviewChanges":true,"scanned":1,"skipped":[{"name":"example","reason":"example"}],"skippedCount":1,"state":"idle","twoWayOffer":true}} as unknown) as never,

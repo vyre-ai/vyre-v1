@@ -271,9 +271,9 @@ test("a Google Sheet's first tab: only the cells a person changed are written, e
   g.setCell(g.book.sheets[0]!, 3, 0, "Total");
   g.setCell(g.book.sheets[0]!, 3, 1, "=SUM(B2:B3)");
   assert.deepEqual(cellWrites(g, was), [
-    { r: 1, c: 1, value: "20" },
-    { r: 3, c: 0, value: "Total" },
-    { r: 3, c: 1, value: "=SUM(B2:B3)" },
+    { sheet: "Sheet", r: 1, c: 1, value: "20" },
+    { sheet: "Sheet", r: 3, c: 0, value: "Total" },
+    { sheet: "Sheet", r: 3, c: 1, value: "=SUM(B2:B3)" },
   ]);
   assert.equal(g.book.sheets[0]!.cells.get(key(3, 1))!.v, 50);
 });

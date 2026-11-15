@@ -29232,6 +29232,16 @@ export type MountsSheetReadIn = {
 export type MountsSheetReadOut = {
   values: Array<Array<unknown>>;
 };
+export type MountsSheetTabsIn = {
+  fileId: string;
+};
+export type MountsSheetTabsOut = {
+  tabs: Array<{
+      title: string;
+      rows?: number;
+      columns?: number;
+    }>;
+};
 export type MountsSheetWriteIn = {
   fileId: string;
   sheet?: string;
@@ -29244,6 +29254,7 @@ export type MountsSheetWriteOut = {
 };
 export type MountsSyncNowIn = {
   mountId: string;
+  auto?: boolean;
   idempotencyKey: string;
 };
 export type MountsSyncNowOut = {
@@ -49136,6 +49147,7 @@ export interface CapMap {
   "mounts.resume": { in: MountsResumeIn; out: MountsResumeOut };
   "mounts.sheet_append": { in: MountsSheetAppendIn; out: MountsSheetAppendOut };
   "mounts.sheet_read": { in: MountsSheetReadIn; out: MountsSheetReadOut };
+  "mounts.sheet_tabs": { in: MountsSheetTabsIn; out: MountsSheetTabsOut };
   "mounts.sheet_write": { in: MountsSheetWriteIn; out: MountsSheetWriteOut };
   "mounts.sync_now": { in: MountsSyncNowIn; out: MountsSyncNowOut };
   "mounts.update": { in: MountsUpdateIn; out: MountsUpdateOut };

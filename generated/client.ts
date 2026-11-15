@@ -1945,6 +1945,7 @@ export function createClient(transport: Transport) {
       resume: call("mounts.resume", 1),
       sheet_append: call("mounts.sheet_append", 1),
       sheet_read: call("mounts.sheet_read", 1),
+      sheet_tabs: call("mounts.sheet_tabs", 1),
       sheet_write: call("mounts.sheet_write", 1),
       sync_now: call("mounts.sync_now", 1),
       update: call("mounts.update", 1),

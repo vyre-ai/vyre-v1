@@ -208,18 +208,14 @@ export function bookFromRows(
   };
 }
 
-/** The cells of the first sheet that differ from what was opened, as what to write at the provider: a cell's A1 name and what a person would type into it ("" clears it). */
-export function cellWrites(
-  grid: Grid,
-  opened: Map<string, Map<string, string>>,
-): { r: number; c: number; value: string }[] {
-  const s = grid.book.sheets[0];
-  if (!s) return [];
-  const was = opened.get(s.name) ?? new Map<string, string>();
-  const out: { r: number; c: number; value: string }[] = [];
-  for (const [k, c] of s.cells)
-    if (was.get(k) !== sig(c)) out.push({ r: unkey(k)[0], c: unkey(k)[1], value: inputOf(c) });
-  for (const k of was.keys()) if (!s.cells.has(k)) out.push({ r: unkey(k)[0], c: unkey(k)[1], value: "" });
+/** The cells (of every sheet) that differ from what was opened, as what to write at the provider: the sheet, the cell's row and column, and what a person would type into it ("" clears it). */
+export function cellWrites(grid: Grid, opened: Map<string, Map<string, string>>): { sheet: string; r: number; c: number; value: string }[] {
+  const out: { sheet: string; r: number; c: number; value: string }[] = [];
+  for (const s of grid.book.sheets) {
+    const was = opened.get(s.name) ?? new Map<string, string>();
+    for (const [k, c] of s.cells) if (was.get(k) !== sig(c)) out.push({ sheet: s.name, r: unkey(k)[0], c: unkey(k)[1], value: inputOf(c) });
+    for (const k of was.keys()) if (!s.cells.has(k)) out.push({ sheet: s.name, r: unkey(k)[0], c: unkey(k)[1], value: "" });
+  }
   return out;
 }
 

@@ -4,7 +4,7 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (26)
+## Capabilities (27)
 
 - [mounts.account_pause](../capabilities/mounts.account_pause.md): The connector stops or restarts everything that syncs as one address; the folders stay
 - [mounts.add](../capabilities/mounts.add.md): Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run
@@ -29,6 +29,7 @@ Requires: files.
 - [mounts.resume](../capabilities/mounts.resume.md): Resume a paused mount
 - [mounts.sheet_append](../capabilities/mounts.sheet_append.md): Add rows under the last used row of a mounted Google Sheet or Excel worksheet
 - [mounts.sheet_read](../capabilities/mounts.sheet_read.md): Read cells of a mounted Google Sheet or Excel workbook from the provider, without downloading the file
+- [mounts.sheet_tabs](../capabilities/mounts.sheet_tabs.md): List the tabs of a mounted Google Sheet, with their names and sizes, so every tab can be read and edited
 - [mounts.sheet_write](../capabilities/mounts.sheet_write.md): Write cells of a mounted Google Sheet or Excel workbook in the provider file itself
 - [mounts.sync_now](../capabilities/mounts.sync_now.md): Sync a mount now (a Run); the provider change feed and the folder both move
 - [mounts.update](../capabilities/mounts.update.md): Change mount options: server copy or live only, Review changes, read-only pull

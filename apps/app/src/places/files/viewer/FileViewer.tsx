@@ -919,11 +919,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
           {`Showing the first of ${sheetCount} sheets. ${link ? openInWords(link.openIn) : "Open it in its own app"} for the rest.`}
         </Text>
       ) : null}
-      {isGSheet && wbk.state.status === "ready" && !note ? (
-        <Text style={[s.note, s.noteHigh]} testID="file-viewer-firsttab">
-          Showing the first tab. Open it in Google Sheets for the others.
-        </Text>
-      ) : null}
+
       {cutShort && !note ? (
         <Text style={s.note} testID="file-viewer-cutshort">
           Showing the first rows of a large file.

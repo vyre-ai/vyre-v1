@@ -26,6 +26,7 @@ Sync a mount now (a Run); the provider change feed and the folder both move
 ```ts
 type In = {
   mountId: string;
+  auto?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -51,6 +52,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "auto": true,
     "idempotencyKey": "idem_1",
     "mountId": "mnt_a1b2c3"
   },

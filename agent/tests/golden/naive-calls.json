@@ -3468,6 +3468,9 @@
     "fileId": "fil_a1b2c3",
     "range": "Quarterly planning"
   },
+  "mounts_sheet_tabs": {
+    "fileId": "fil_a1b2c3"
+  },
   "mounts_sheet_write": {
     "fileId": "fil_a1b2c3",
     "range": "Quarterly planning",
