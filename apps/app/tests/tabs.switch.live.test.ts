@@ -58,26 +58,57 @@ test("tabs: switching back to an open tab paints its content at once, never an e
       assert.equal(r.status(), 200, `${cap}: ${await r.text()}`);
       return (await r.json()).data;
     };
-    const ch = (await api("channels.create", { name: "Plans", visibility: "public", memberIds: [], agentIds: [] })).channel as {
+    const ch = (await api("channels.create", { name: "Plans", visibility: "public", memberIds: [], agentIds: [] }))
+      .channel as {
       mainThreadId: string;
     };
-    for (let i = 1; i <= 12; i++) await api("chat.post", { threadId: ch.mainThreadId, body: `Message ${i}: the plan came back.` });
+    for (let i = 1; i <= 12; i++)
+      await api("chat.post", { threadId: ch.mainThreadId, body: `Message ${i}: the plan came back.` });
     const root = JSON.stringify(await api("files.tree", {})).match(/"(fld_[a-z0-9]+)"/)![1]!;
     // about 12 KB: a heading and a table of 42 rows and 11 columns
     const cols = Array.from({ length: 11 }, (_, i) => `Col ${i + 1}`);
-    const rows = Array.from({ length: 42 }, (_, r) => `| ${Array.from({ length: 11 }, (_, c) => `r${r + 1}c${c + 1} value`).join(" | ")} |`);
+    const rows = Array.from(
+      { length: 42 },
+      (_, r) => `| ${Array.from({ length: 11 }, (_, c) => `r${r + 1}c${c + 1} value`).join(" | ")} |`,
+    );
     const md = `# Quarterly figures\n\n| ${cols.join(" | ")} |\n| ${cols.map(() => "---").join(" | ")} |\n${rows.join("\n")}\n`;
-    const fileId = JSON.stringify(await api("files.create", { folderId: root, name: "Quarterly figures.md", content: { text: md } })).match(/"(fil_[a-z0-9]+)"/)![1]!;
-    const recordId = JSON.stringify(await api("records.create", { type: "contact", fields: { name: "Ada Lovelace" } })).match(/(rec_[a-z0-9]+)/)![1]!;
-    const autoId = JSON.stringify(await api("automations.create", { name: "Welcome new leads" })).match(/(aut_[a-z0-9]+)/)![1]!;
+    const fileId = JSON.stringify(
+      await api("files.create", { folderId: root, name: "Quarterly figures.md", content: { text: md } }),
+    ).match(/"(fil_[a-z0-9]+)"/)![1]!;
+    const recordId = JSON.stringify(
+      await api("records.create", { type: "contact", fields: { name: "Ada Lovelace" } }),
+    ).match(/(rec_[a-z0-9]+)/)![1]!;
+    const autoId = JSON.stringify(await api("automations.create", { name: "Welcome new leads" })).match(
+      /(aut_[a-z0-9]+)/,
+    )![1]!;
     say(`file ${md.length} bytes`);
 
     const places: { name: string; open: () => Promise<void>; marker: RegExp }[] = [
-      { name: "chat", open: () => page.evaluate((h) => void (location.hash = h), `subject=thread:${ch.mainThreadId}`), marker: /Message 12/ },
-      { name: "file", open: () => page.goto(`${web.origin}/files#subject=file:${fileId}`).then(() => undefined), marker: /Quarterly figures/ },
-      { name: "record", open: () => page.goto(`${web.origin}/records#subject=record:${recordId}&type=contact`).then(() => undefined), marker: /Ada Lovelace/ },
-      { name: "automation", open: () => page.goto(`${web.origin}/automations#subject=automation:${autoId}`).then(() => undefined), marker: /Welcome new leads/ },
-      { name: "console", open: () => page.goto(`${web.origin}/console`).then(() => undefined), marker: /Agents|Members|People|Home/ },
+      {
+        name: "chat",
+        open: () => page.evaluate((h) => void (location.hash = h), `subject=thread:${ch.mainThreadId}`),
+        marker: /Message 12/,
+      },
+      {
+        name: "file",
+        open: () => page.goto(`${web.origin}/files#subject=file:${fileId}`).then(() => undefined),
+        marker: /Quarterly figures/,
+      },
+      {
+        name: "record",
+        open: () => page.goto(`${web.origin}/records#subject=record:${recordId}&type=contact`).then(() => undefined),
+        marker: /Ada Lovelace/,
+      },
+      {
+        name: "automation",
+        open: () => page.goto(`${web.origin}/automations#subject=automation:${autoId}`).then(() => undefined),
+        marker: /Welcome new leads/,
+      },
+      {
+        name: "console",
+        open: () => page.goto(`${web.origin}/console`).then(() => undefined),
+        marker: /Agents|Members|People|Home/,
+      },
       { name: "settings", open: () => page.goto(`${web.origin}/settings`).then(() => undefined), marker: /Profile/ },
     ];
     // one tab each. A reload keeps the tabs (they are saved on this device), so each is opened by its own address and then left.
@@ -123,7 +154,21 @@ test("tabs: switching back to an open tab paints its content at once, never an e
     const blanks: string[] = [];
     for (let round = 0; round < 5; round++) {
       for (const p of places) {
-        const tab = tabs.find((x) => x.name.length > 0 && (p.name === "chat" ? /Plans|chat/i.test(x.name) : p.name === "file" ? /Quarterly/i.test(x.name) : p.name === "record" ? /Ada|Contacts|Records/i.test(x.name) : p.name === "automation" ? /Welcome|Automations/i.test(x.name) : p.name === "console" ? /Console/i.test(x.name) : /Settings/i.test(x.name)));
+        const tab = tabs.find(
+          (x) =>
+            x.name.length > 0 &&
+            (p.name === "chat"
+              ? /Plans|chat/i.test(x.name)
+              : p.name === "file"
+                ? /Quarterly/i.test(x.name)
+                : p.name === "record"
+                  ? /Ada|Contacts|Records/i.test(x.name)
+                  : p.name === "automation"
+                    ? /Welcome|Automations/i.test(x.name)
+                    : p.name === "console"
+                      ? /Console/i.test(x.name)
+                      : /Settings/i.test(x.name)),
+        );
         if (!tab) continue;
         // leave for another tab first, so the press is a switch back
         const other = tabs.find((x) => x.id !== tab.id)!;
@@ -134,9 +179,12 @@ test("tabs: switching back to an open tab paints its content at once, never an e
         const r = (await rec) as { info: string; shown: number; blank: number; maxBlank: number; frames: number };
         (results[p.name] ??= []).push(r.shown);
         if (round === 0 && p.name === "file") await page.screenshot({ path: path.join(shots, "switch-file.png") });
-        say(`round ${round + 1} ${p.name}: first line after ${r.shown} ms, empty frames ${r.blank} (longest run ${r.maxBlank} of ${r.frames}) ${r.info}`);
+        say(
+          `round ${round + 1} ${p.name}: first line after ${r.shown} ms, empty frames ${r.blank} (longest run ${r.maxBlank} of ${r.frames}) ${r.info}`,
+        );
         if (r.shown > SWITCH_MAX_MS) say(`  over the ${SWITCH_MAX_MS} ms budget: ${p.name} ${r.shown} ms`);
-        if (r.shown < 0 || r.shown > HOLD_CEILING_MS) blanks.push(`${p.name} round ${round + 1}: first line after ${r.shown} ms`);
+        if (r.shown < 0 || r.shown > HOLD_CEILING_MS)
+          blanks.push(`${p.name} round ${round + 1}: first line after ${r.shown} ms`);
         if (r.maxBlank > 2) blanks.push(`${p.name} round ${round + 1}: ${r.maxBlank} empty frames in a row`);
       }
     }

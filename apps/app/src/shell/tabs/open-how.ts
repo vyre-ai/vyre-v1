@@ -81,7 +81,13 @@ export function startOpenHow(doc: Doc, now: () => number = Date.now): () => void
     asked = { how: e.shiftKey === true ? "behind" : "tab", at: now() };
     synthetic = true;
     try {
-      const o = { bubbles: true, cancelable: true, button: 0, buttons: 1, view: (globalThis as { window?: unknown }).window };
+      const o = {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        buttons: 1,
+        view: (globalThis as { window?: unknown }).window,
+      };
       for (const type of ["pointerdown", "mousedown"]) el.dispatchEvent(new Ev(type, o));
       for (const type of ["pointerup", "mouseup", "click"]) el.dispatchEvent(new Ev(type, { ...o, buttons: 0 }));
     } finally {

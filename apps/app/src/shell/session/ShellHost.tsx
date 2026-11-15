@@ -662,10 +662,7 @@ export function ShellHost({
   };
   const renderNewTab = (): ReactElement => (
     <>
-      <NewTabSidebar
-        places={[...hub.rail().top, ...hub.rail().bottom]}
-        onGo={(place) => navRef.current?.go(place)}
-      />
+      <NewTabSidebar places={[...hub.rail().top, ...hub.rail().bottom]} onGo={(place) => navRef.current?.go(place)} />
       {renderNewTabBody()}
     </>
   );

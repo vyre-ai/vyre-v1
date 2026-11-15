@@ -18,4 +18,3 @@ export function nextTrail(trail: readonly Thing[], to: Thing): readonly Thing[] 
   if (now !== undefined && now.type === to.type && now.id === to.id) return trail;
   return [...trail, to].slice(-20);
 }
-

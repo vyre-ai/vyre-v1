@@ -273,7 +273,9 @@ function SettingsBody({
     <View style={[n.nav, phone && { width: "100%" as unknown as number }]} testID="settings-nav">
       {inColumn ? (
         // the column's own head carries the title; this dot goes in its buttons' spot
-        otherNeeds ? portalInto(slotApi?.actionsOutlet, <View style={n.dot} accessibilityLabel="Another Space needs you" />) : null
+        otherNeeds ? (
+          portalInto(slotApi?.actionsOutlet, <View style={n.dot} accessibilityLabel="Another Space needs you" />)
+        ) : null
       ) : (
         <View style={n.top}>
           <Text numberOfLines={1} accessibilityRole="header" style={n.space}>

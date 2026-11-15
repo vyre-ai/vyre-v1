@@ -62,7 +62,12 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
       });
     // a long list in the sidebar too
     for (let i = 1; i <= 24; i++)
-      await api("channels.create", { name: `Room ${String(i).padStart(2, "0")}`, visibility: "public", memberIds: [], agentIds: [] });
+      await api("channels.create", {
+        name: `Room ${String(i).padStart(2, "0")}`,
+        visibility: "public",
+        memberIds: [],
+        agentIds: [],
+      });
     await page.reload({ waitUntil: "load" });
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
     await page.getByTestId("rail-files").click();
@@ -79,7 +84,9 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
         const f = document.querySelector('[data-testid="conversation-feed"]') as HTMLElement;
         const box = f.getBoundingClientRect();
         // the first message whose top edge is inside the feed
-        const all = [...f.querySelectorAll("*")].filter((e) => /^Message \d+:/.test((e.textContent ?? "").trim()) && e.children.length === 0);
+        const all = [...f.querySelectorAll("*")].filter(
+          (e) => /^Message \d+:/.test((e.textContent ?? "").trim()) && e.children.length === 0,
+        );
         const at = all.find((e) => e.getBoundingClientRect().bottom > box.top + 4);
         return {
           y: Math.round(f.scrollTop),
@@ -97,7 +104,10 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
     await page.screenshot({ path: path.join(shots, "1-chat-scrolled.png") });
 
     // (a) another thing is opened in this tab (a step), then Back
-    await page.getByTestId("rail-chats").click().catch(() => undefined);
+    await page
+      .getByTestId("rail-chats")
+      .click()
+      .catch(() => undefined);
     await page.locator('[data-testid^="row-f:agt_"]').first().click();
     await page.waitForTimeout(2200);
     const away = await page.getByTestId("conversation-feed").count();
@@ -108,7 +118,10 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
     say(`Back: scrollTop ${back.y}, first message ${back.first}`);
     await page.screenshot({ path: path.join(shots, "2-after-back.png") });
     assert.equal(back.first, start.first, "Back returns to the same message");
-    assert.ok(Math.abs(back.off - start.off) <= 4, `Back returns to the same place on screen (${start.off}, now ${back.off})`);
+    assert.ok(
+      Math.abs(back.off - start.off) <= 4,
+      `Back returns to the same place on screen (${start.off}, now ${back.off})`,
+    );
 
     // (b) leave the tab for another and come back
     await page.getByTestId("tab-strip").first().getByTestId("tab-files").click();
@@ -128,7 +141,10 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
     await page.waitForTimeout(800);
     const during = await top();
     say(`the pane opened on Files: page scrollTop ${during.y} (was ${start.y})`);
-    assert.ok(Math.abs(during.off - start.off) <= 4 && during.first === start.first, "opening the pane did not move the page");
+    assert.ok(
+      Math.abs(during.off - start.off) <= 4 && during.first === start.first,
+      "opening the pane did not move the page",
+    );
     await page.screenshot({ path: path.join(shots, "3-pane-on-files.png") });
     await page.getByTestId("tab-strip").first().getByTestId("tab-files").click();
     await page.waitForTimeout(1200);
@@ -137,7 +153,9 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
     const sel = await page.evaluate(() =>
       [...document.querySelectorAll('[data-testid="tab-strip"]')]
         .slice(1)
-        .flatMap((s) => [...s.querySelectorAll('[role="tab"][aria-selected="true"]')].map((e) => e.getAttribute("aria-label"))),
+        .flatMap((s) =>
+          [...s.querySelectorAll('[role="tab"][aria-selected="true"]')].map((e) => e.getAttribute("aria-label")),
+        ),
     );
     say(`tab returned to: pane tabs selected ${JSON.stringify(sel)}, scrollTop ${(await top()).y}`);
     await page.screenshot({ path: path.join(shots, "4-returned-pane.png") });
@@ -151,7 +169,10 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
     await page.waitForTimeout(900);
     const closed = await top();
     say(`pane closed: scrollTop ${closed.y}`);
-    assert.ok(closed.first === start.first && Math.abs(closed.off - start.off) <= 4, "closing the pane did not move the page");
+    assert.ok(
+      closed.first === start.first && Math.abs(closed.off - start.off) <= 4,
+      "closing the pane did not move the page",
+    );
 
     // (d) the sidebar list keeps its place too
     // a short window, so the list scrolls as it is drawn
@@ -173,7 +194,9 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
         (await page.evaluate(() => {
           const l = document.querySelector('[data-testid="sidebar-list"]')!;
           const sc = [l, ...l.querySelectorAll("*")].find((e) => e.scrollTop > 0) as HTMLElement | undefined;
-          return sc ? `${sc.tagName} testid=${sc.getAttribute("data-testid")} parent=${sc.parentElement?.getAttribute("data-testid")}` : "none";
+          return sc
+            ? `${sc.tagName} testid=${sc.getAttribute("data-testid")} parent=${sc.parentElement?.getAttribute("data-testid")}`
+            : "none";
         })),
     );
     const sideStart = await side();
@@ -186,7 +209,10 @@ test("tabs: Back and a returned-to tab restore the scroll of the page and the li
     const sideAgain = await side();
     say(`sidebar list after the tab was returned to: ${sideAgain}`);
     await page.screenshot({ path: path.join(shots, "5-sidebar-returned.png") });
-    assert.ok(Math.abs(sideAgain - sideStart) <= 4, `the sidebar list is where it was (${sideStart}, now ${sideAgain})`);
+    assert.ok(
+      Math.abs(sideAgain - sideStart) <= 4,
+      `the sidebar list is where it was (${sideStart}, now ${sideAgain})`,
+    );
   } finally {
     await page.screenshot({ path: path.join(shots, "end.png") }).catch(() => undefined);
     await browser.close();

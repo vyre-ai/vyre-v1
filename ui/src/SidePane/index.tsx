@@ -353,7 +353,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tabsSlot: { flex: 1, minWidth: 0 },
-  actionsCell: { height: PANE_HEADER_HEIGHT, flexDirection: "row", alignItems: "center", gap: 4, paddingRight: 8, paddingTop: 6 },
+  actionsCell: {
+    height: PANE_HEADER_HEIGHT,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingRight: 8,
+    paddingTop: 6,
+  },
   titleBox: { height: PANE_HEADER_HEIGHT, justifyContent: "center", paddingHorizontal: 8 },
   title: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   pane: {

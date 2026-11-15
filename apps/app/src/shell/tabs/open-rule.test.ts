@@ -44,7 +44,10 @@ test("Cmd-press, middle-press and Open in new tab: a tab beside this one that is
 });
 
 test("the rail goes to the place (no item); an address with no item lands on the place's own tab", () => {
-  assert.deepEqual(openPlan(base(), { place: "files", hash: undefined, how: "here" }), { do: "open", background: false });
+  assert.deepEqual(openPlan(base(), { place: "files", hash: undefined, how: "here" }), {
+    do: "open",
+    background: false,
+  });
   assert.deepEqual(openPlan(base(), { place: "chats", hash: "", how: "here" }), { do: "land" });
 });
 
@@ -128,12 +131,23 @@ test("the window watcher takes the ask at the button going down, and a plain pre
   };
   const stop = startOpenHow(doc, () => 5);
   handlers.get("pointerdown")!({ button: 0, metaKey: true });
-  assert.equal(takeOpenHow(() => 6), "tab");
+  assert.equal(
+    takeOpenHow(() => 6),
+    "tab",
+  );
   handlers.get("pointerdown")!({ button: 0, metaKey: true, shiftKey: true });
   handlers.get("pointerdown")!({ button: 0 });
-  assert.equal(takeOpenHow(() => 6), "here", "a plain press after it asks for nothing");
+  assert.equal(
+    takeOpenHow(() => 6),
+    "here",
+    "a plain press after it asks for nothing",
+  );
   handlers.get("mousedown")!({ button: 1, preventDefault: () => undefined });
-  assert.equal(takeOpenHow(() => 6), "tab", "the middle button asks for a tab");
+  assert.equal(
+    takeOpenHow(() => 6),
+    "tab",
+    "the middle button asks for a tab",
+  );
   let clicked = 0;
   handlers.get("auxclick")!({ button: 1, preventDefault: () => undefined, target: { click: () => void clicked++ } });
   assert.equal(clicked, 1, "without a way to send events the middle press falls back to a click");

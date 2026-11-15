@@ -157,7 +157,8 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
     // ---- Chats: a channel, an agent, a task row ----
     await place("chats");
     const channelRow = (): import("playwright-core").Locator => page.getByTestId(`row-ch:${ch.channelId}`);
-    const launchRow = (): import("playwright-core").Locator => page.locator('[data-testid^="row-ch:chn_"]').filter({ hasText: "Launch" });
+    const launchRow = (): import("playwright-core").Locator =>
+      page.locator('[data-testid^="row-ch:chn_"]').filter({ hasText: "Launch" });
     await press("chat channel (Chats row)", "plain", channelRow, "here");
     await press("chat channel (Chats row)", "cmd", launchRow, "tab");
     await press("chat channel (Chats row)", "middle", launchRow, "tab");
@@ -205,7 +206,11 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
     // ---- links to things inside a message: the right pane beside the chat (D3, D4) ----
     {
       const me = JSON.stringify(await api("identity.whoami", {})).match(/usr_[a-z0-9]+/)![0];
-      const task = await api("tasks.create", { kind: "review", title: "Check the plans", assigned: { kind: "person", id: me } });
+      const task = await api("tasks.create", {
+        kind: "review",
+        title: "Check the plans",
+        assigned: { kind: "person", id: me },
+      });
       const taskId = JSON.stringify(task).match(/tsk_[a-z0-9]+/)![0];
       const launch = (await api("channels.list", {})).channels.find((c: { name: string }) => c.name === "Launch") as {
         mainThreadId: string;
@@ -238,18 +243,28 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
       const tabsNow = async (): Promise<number> => (await strip()).length;
       const b0 = await tabsNow();
       await page.screenshot({ path: path.join(shots, "links-before.png") });
-      fs.writeFileSync(path.join(shots, "links-feed.txt"), await page.getByTestId("conversation-feed").innerText().catch(() => "no feed"));
+      fs.writeFileSync(
+        path.join(shots, "links-feed.txt"),
+        await page
+          .getByTestId("conversation-feed")
+          .innerText()
+          .catch(() => "no feed"),
+      );
       await page.getByTestId(`link-${fileId}`).first().click();
       await page.waitForTimeout(1800);
       const fileInPane = await seen("chats-thing-pane");
-      note(`${"file link in a message".padEnd(34)} ${"plain".padEnd(8)} expected pane    got ${fileInPane && (await tabsNow()) === b0 ? "pane" : "NOT the pane"}`);
+      note(
+        `${"file link in a message".padEnd(34)} ${"plain".padEnd(8)} expected pane    got ${fileInPane && (await tabsNow()) === b0 ? "pane" : "NOT the pane"}`,
+      );
       if (!fileInPane || (await tabsNow()) !== b0) failures.push("file link in a message did not open the pane");
       await page.screenshot({ path: path.join(shots, "link-file-pane.png") });
       // a second thing replaces the first; Back in the pane returns to it
       await page.getByTestId(`link-${recordId}`).first().click();
       await page.waitForTimeout(1800);
       const backShown = await seen("thing-pane-back");
-      note(`${"record link (a second thing)".padEnd(34)} ${"plain".padEnd(8)} expected pane+Back got ${backShown ? "pane+Back" : "no Back"}`);
+      note(
+        `${"record link (a second thing)".padEnd(34)} ${"plain".padEnd(8)} expected pane+Back got ${backShown ? "pane+Back" : "no Back"}`,
+      );
       if (!backShown) failures.push("a second thing in the pane has no Back");
       await page.screenshot({ path: path.join(shots, "link-record-pane.png") });
       await page.getByTestId("thing-pane-back").click();
@@ -260,7 +275,9 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
         .waitFor({ timeout: 10_000 })
         .then(() => true)
         .catch(() => false);
-      note(`${"Back in the pane".padEnd(34)} ${"plain".padEnd(8)} expected the file got ${firstAgain ? "the file" : "something else"}`);
+      note(
+        `${"Back in the pane".padEnd(34)} ${"plain".padEnd(8)} expected the file got ${firstAgain ? "the file" : "something else"}`,
+      );
       if (!firstAgain) failures.push("Back in the pane did not return to the first thing");
       // Open as a tab: a tab beside this one, shown, the pane closes
       const before = await strip();
@@ -270,8 +287,12 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
       const bi = before.findIndex((x) => x.sel);
       const ai = after.findIndex((x) => x.sel);
       // the file is already open in the Files tab from the rows above: Open as a tab then shows that tab (a thing open twice is never made); otherwise a new tab beside this one
-      const opened = (after.length === before.length + 1 && ai === bi + 1) || (after.length === before.length && after[ai]?.name === "Letter.md");
-      note(`${"Open as a tab (pane head)".padEnd(34)} ${"plain".padEnd(8)} expected tab     got ${opened ? "tab" : `odd(${before.length}->${after.length}, ${bi}->${ai})`}`);
+      const opened =
+        (after.length === before.length + 1 && ai === bi + 1) ||
+        (after.length === before.length && after[ai]?.name === "Letter.md");
+      note(
+        `${"Open as a tab (pane head)".padEnd(34)} ${"plain".padEnd(8)} expected tab     got ${opened ? "tab" : `odd(${before.length}->${after.length}, ${bi}->${ai})`}`,
+      );
       if (!opened) failures.push("Open as a tab did not open a tab beside this one");
       await tidy();
       await place("chats");
@@ -281,7 +302,9 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
       await page.getByTestId(`link-${taskId}`).first().click();
       await page.waitForTimeout(1500);
       const taskPane = await seen("chats-task-pane");
-      note(`${"task link in a message".padEnd(34)} ${"plain".padEnd(8)} expected pane    got ${taskPane && (await tabsNow()) === b0 ? "pane" : "NOT the pane"}`);
+      note(
+        `${"task link in a message".padEnd(34)} ${"plain".padEnd(8)} expected pane    got ${taskPane && (await tabsNow()) === b0 ? "pane" : "NOT the pane"}`,
+      );
       if (!taskPane) failures.push("task link in a message did not open the pane");
       await page.screenshot({ path: path.join(shots, "link-task-pane.png") });
     }
@@ -322,7 +345,10 @@ test("tabs: a press opens where the model says, by pointer, Cmd-press, the middl
     {
       const b = await strip();
       await page.getByTestId("tab-strip").first().waitFor();
-      await page.getByTestId(`row-ch:${ch.channelId}`).first().click({ modifiers: ["Meta"] });
+      await page
+        .getByTestId(`row-ch:${ch.channelId}`)
+        .first()
+        .click({ modifiers: ["Meta"] });
       await page.waitForTimeout(1000);
       const a = await strip();
       const line = `${"channel already open".padEnd(34)} ${"cmd".padEnd(8)} expected same    got ${a.length === b.length ? "same" : `grew ${a.length - b.length}`}`;

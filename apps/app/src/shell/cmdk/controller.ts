@@ -258,17 +258,18 @@ export class CmdKController {
           { type: "head", key: "h-ask", title: "Ask" },
           { type: "ask", key: "ask", question: parsed.text.trim() },
         ];
-        rows =
-          isQuestion(parsed.text) || rows.length === 0
-            ? [...ask, ...rows]
-            : [...rows, ...ask];
+        rows = isQuestion(parsed.text) || rows.length === 0 ? [...ask, ...rows] : [...rows, ...ask];
       }
     }
     // Nothing typed and nothing recent is not a search with no results: the field stands alone until there is something to say.
     const asked = parsed.prefix !== null || parsed.text !== "" || filter.length > 0;
     if (!rows.length && asked)
       rows = [
-        { type: "empty", key: "empty", title: this.chatDefault(rows) ? "No results. Enter starts a chat." : "No results" },
+        {
+          type: "empty",
+          key: "empty",
+          title: this.chatDefault(rows) ? "No results. Enter starts a chat." : "No results",
+        },
       ];
     // the Ask row is not a place to stay: the highlight starts again at the top, where Ask is for a question and the best hit is not
     const keep = prevKey && prevKey !== "ask" ? rows.findIndex((r) => r.key === prevKey) : -1;

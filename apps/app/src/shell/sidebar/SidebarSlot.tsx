@@ -221,7 +221,11 @@ export function SidebarContent(props: {
     return () => reg?.register(null);
   }, [reg?.register, props.title, search, props.noSearch]);
   if (reg === null || slot === null) return null;
-  return <>{portalInto(reg.outlet, <InColumn.Provider value={true}>{props.children(slot.query, slot)}</InColumn.Provider>)}</>;
+  return (
+    <>
+      {portalInto(reg.outlet, <InColumn.Provider value={true}>{props.children(slot.query, slot)}</InColumn.Provider>)}
+    </>
+  );
 }
 
 /** What the shell draws beside the body: the chrome, then an empty outlet the place's content portals into. */

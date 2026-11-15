@@ -30,7 +30,9 @@ export interface ScrollerLike {
   getAttribute(name: string): string | null;
   closest(sel: string): unknown;
   getBoundingClientRect?(): { top: number; bottom: number };
-  querySelectorAll?(sel: string): ArrayLike<{ getAttribute(n: string): string | null; getBoundingClientRect(): { top: number; bottom: number } }>;
+  querySelectorAll?(
+    sel: string,
+  ): ArrayLike<{ getAttribute(n: string): string | null; getBoundingClientRect(): { top: number; bottom: number } }>;
   querySelector?(sel: string): { getBoundingClientRect(): { top: number; bottom: number } } | null;
 }
 
@@ -101,8 +103,10 @@ export function startViewMemory(
   subscribe: (l: () => void) => () => void,
   o: { raf?: (f: () => void) => number; caf?: (id: number) => void; now?: () => number } = {},
 ): () => void {
-  const raf = o.raf ?? ((f) => (globalThis as { requestAnimationFrame: (f: () => void) => number }).requestAnimationFrame(f));
-  const caf = o.caf ?? ((id) => (globalThis as { cancelAnimationFrame: (id: number) => void }).cancelAnimationFrame(id));
+  const raf =
+    o.raf ?? ((f) => (globalThis as { requestAnimationFrame: (f: () => void) => number }).requestAnimationFrame(f));
+  const caf =
+    o.caf ?? ((id) => (globalThis as { cancelAnimationFrame: (id: number) => void }).cancelAnimationFrame(id));
   const now = o.now ?? Date.now;
   let current = { tab: "", hash: "" };
   let touched = false;
@@ -110,18 +114,23 @@ export function startViewMemory(
   let stopRestore = (): void => undefined;
 
   const slotOf = (el: ScrollerLike): { region: "body" | "side"; slot: string } | null => {
-    const region = el.closest('[data-testid="place-sidebar"]') !== null
-      ? "side"
-      : el.closest('[data-testid="place-body"]') !== null
-        ? "body"
-        : null;
+    const region =
+      el.closest('[data-testid="place-sidebar"]') !== null
+        ? "side"
+        : el.closest('[data-testid="place-body"]') !== null
+          ? "body"
+          : null;
     if (region === null) return null;
     const id = el.getAttribute("data-testid") ?? "scroll";
     const all = [...Array.from(doc.querySelectorAll(`[data-testid="${id}"]`))].filter((x) => slotRegion(x) === region);
     return { region, slot: `${id}#${Math.max(0, all.indexOf(el))}` };
   };
   const slotRegion = (el: ScrollerLike): "body" | "side" | null =>
-    el.closest('[data-testid="place-sidebar"]') !== null ? "side" : el.closest('[data-testid="place-body"]') !== null ? "body" : null;
+    el.closest('[data-testid="place-sidebar"]') !== null
+      ? "side"
+      : el.closest('[data-testid="place-body"]') !== null
+        ? "body"
+        : null;
 
   const onScroll = (e: { target?: unknown }): void => {
     if (!touched) return;
@@ -219,11 +228,13 @@ export function startViewMemory(
   restore();
   const off = subscribe(changed);
   doc.addEventListener("scroll", onScroll as (e: never) => void, true);
-  for (const t of ["wheel", "pointerdown", "touchstart", "keydown"]) doc.addEventListener(t, onTouch as (e: never) => void, true);
+  for (const t of ["wheel", "pointerdown", "touchstart", "keydown"])
+    doc.addEventListener(t, onTouch as (e: never) => void, true);
   return () => {
     off();
     stopRestore();
     doc.removeEventListener("scroll", onScroll as (e: never) => void, true);
-    for (const t of ["wheel", "pointerdown", "touchstart", "keydown"]) doc.removeEventListener(t, onTouch as (e: never) => void, true);
+    for (const t of ["wheel", "pointerdown", "touchstart", "keydown"])
+      doc.removeEventListener(t, onTouch as (e: never) => void, true);
   };
 }

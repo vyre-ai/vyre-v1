@@ -28,16 +28,22 @@ function world(els: El[]) {
   let frames: (() => void)[] = [];
   let t = 0;
   const doc = {
-    addEventListener: (type: string, f: (e: never) => void): void => void handlers.set(type, [...(handlers.get(type) ?? []), f as (e: unknown) => void]),
+    addEventListener: (type: string, f: (e: never) => void): void =>
+      void handlers.set(type, [...(handlers.get(type) ?? []), f as (e: unknown) => void]),
     removeEventListener: (type: string): void => void handlers.delete(type),
     querySelectorAll: (sel: string) => els.filter((e) => sel === `[data-testid="${e.id}"]`),
   };
   const at = { tab: "chats", hash: "a" };
-  const stop = startViewMemory(doc, () => ({ ...at }), (l) => (listeners.add(l), () => listeners.delete(l)), {
-    raf: (f) => (frames.push(f), frames.length),
-    caf: () => undefined,
-    now: () => t,
-  });
+  const stop = startViewMemory(
+    doc,
+    () => ({ ...at }),
+    (l) => (listeners.add(l), () => listeners.delete(l)),
+    {
+      raf: (f) => (frames.push(f), frames.length),
+      caf: () => undefined,
+      now: () => t,
+    },
+  );
   return {
     stop,
     go(tab: string, hash: string) {
@@ -67,7 +73,11 @@ test("scrolling is remembered per tab and address, and per tab for the list; a v
   const w = world([feed, list]);
   feed.scrollTop = 4500; // the chat filling in jumps to its end
   w.emit("scroll", { target: feed });
-  assert.deepEqual(recalled(bodyKey("chats", "a")), { "stream-list#0": { y: 900 } }, "what was remembered is kept until the person has touched the page");
+  assert.deepEqual(
+    recalled(bodyKey("chats", "a")),
+    { "stream-list#0": { y: 900 } },
+    "what was remembered is kept until the person has touched the page",
+  );
   w.emit("wheel", {});
   feed.scrollTop = 1200;
   w.emit("scroll", { target: feed });
@@ -137,7 +147,9 @@ test("what was at the top edge is put back at the same distance, even when histo
   ];
   mock["querySelector"] = () => ({ getBoundingClientRect: () => ({ top: rowTop(), bottom: rowTop() + 60 }) });
   rememberScroll(bodyKey("chats", "a"), "stream-list#0", feed as never);
-  assert.deepEqual(recalled(bodyKey("chats", "a")), { "stream-list#0": { y: 1612, anchor: { id: "msg-41", off: 30 } } });
+  assert.deepEqual(recalled(bodyKey("chats", "a")), {
+    "stream-list#0": { y: 1612, anchor: { id: "msg-41", off: 30 } },
+  });
   const w = world([feed]);
   w.go("files", "x");
   feed.scrollTop = 0;

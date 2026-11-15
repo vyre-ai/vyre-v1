@@ -95,7 +95,10 @@ test("tabs: the New tab opens places, many tabs stay whole, Inbox names its list
     // words that find nothing still start a chat
     await page.keyboard.press("Control+t");
     await page.waitForTimeout(700);
-    await page.getByPlaceholder(/Open anything/).first().fill("zq xv blorf");
+    await page
+      .getByPlaceholder(/Open anything/)
+      .first()
+      .fill("zq xv blorf");
     await page.waitForTimeout(900);
     await page.screenshot({ path: path.join(shots, "newtab-nothing-matches.png") });
     const hint = await page.getByText(/start a chat/i).count();
@@ -110,26 +113,44 @@ test("tabs: the New tab opens places, many tabs stay whole, Inbox names its list
     }
 
     // ---- C: Inbox's header names its list ----
-    await page.getByTestId("rail-inbox").click().catch(async () => {
-      await page.getByTestId("rail-isle-more").click();
-      await page.getByTestId("rail-inbox").click();
-    });
+    await page
+      .getByTestId("rail-inbox")
+      .click()
+      .catch(async () => {
+        await page.getByTestId("rail-isle-more").click();
+        await page.getByTestId("rail-inbox").click();
+      });
     await page.waitForTimeout(1800);
     await page.getByTestId("row-nav:view:contact").click();
     await page.waitForTimeout(800);
-    const h1 = await page.getByTestId("inbox-head").first().innerText().catch(() => "");
+    const h1 = await page
+      .getByTestId("inbox-head")
+      .first()
+      .innerText()
+      .catch(() => "");
     say(`Inbox, By contact selected: header "${h1.split("\n")[0]}"`);
     assert.match(h1, /By contact/, "the header names By contact");
     await page.screenshot({ path: path.join(shots, "inbox-by-contact.png") });
     await page.getByTestId("row-nav:view:thread").click();
     await page.waitForTimeout(800);
-    const h2 = await page.getByTestId("inbox-head").first().innerText().catch(() => "");
+    const h2 = await page
+      .getByTestId("inbox-head")
+      .first()
+      .innerText()
+      .catch(() => "");
     assert.match(h2, /All inboxes/, "and All inboxes names All inboxes");
 
     // ---- B: many tabs ----
     const mains: string[] = [];
     for (let i = 1; i <= 30; i++) {
-      const c = (await api("channels.create", { name: `Room ${String(i).padStart(2, "0")} planning`, visibility: "public", memberIds: [], agentIds: [] })).channel as { mainThreadId: string };
+      const c = (
+        await api("channels.create", {
+          name: `Room ${String(i).padStart(2, "0")} planning`,
+          visibility: "public",
+          memberIds: [],
+          agentIds: [],
+        })
+      ).channel as { mainThreadId: string };
       mains.push(c.mainThreadId);
     }
     await page.getByTestId("rail-chats").click();
@@ -149,12 +170,24 @@ test("tabs: the New tab opens places, many tabs stay whole, Inbox names its list
       const sel = tabs.find((x) => x.sel)!;
       const box = await page.evaluate(() => {
         const s = document.querySelector('[data-testid="tab-strip"]')!;
-        const sc = [...s.querySelectorAll("*")].find((e) => (e as HTMLElement).scrollWidth > (e as HTMLElement).clientWidth + 2 && getComputedStyle(e).overflowX !== "visible") as HTMLElement | undefined;
+        const sc = [...s.querySelectorAll("*")].find(
+          (e) =>
+            (e as HTMLElement).scrollWidth > (e as HTMLElement).clientWidth + 2 &&
+            getComputedStyle(e).overflowX !== "visible",
+        ) as HTMLElement | undefined;
         const r = sc?.getBoundingClientRect();
-        return { left: r?.left ?? 0, right: r?.right ?? 0, scrolls: !!sc, fade: sc?.getAttribute("data-tabfade") ?? "" };
+        return {
+          left: r?.left ?? 0,
+          right: r?.right ?? 0,
+          scrolls: !!sc,
+          fade: sc?.getAttribute("data-tabfade") ?? "",
+        };
       });
       assert.ok(box.scrolls, "the strip scrolls");
-      assert.ok(sel.x >= box.left - 2 && sel.x + sel.w <= box.right + 2, `the selected tab is in view (${sel.x}..${sel.x + sel.w} in ${box.left}..${box.right})`);
+      assert.ok(
+        sel.x >= box.left - 2 && sel.x + sel.w <= box.right + 2,
+        `the selected tab is in view (${sel.x}..${sel.x + sel.w} in ${box.left}..${box.right})`,
+      );
       say(`  scrolls, fade "${box.fade}", selected ${sel.name} in view`);
       assert.notEqual(box.fade, "none", "a fade at the cut edge");
     };
@@ -183,17 +216,29 @@ test("tabs: the New tab opens places, many tabs stay whole, Inbox names its list
     // closing the selected tab selects the one the person came from
     const before = await strip();
     const came = before.find((x) => x.sel)!;
-    await page.locator(`[data-testid="tab-${before[before.length - 2]!.id}"]`).first().click();
+    await page
+      .locator(`[data-testid="tab-${before[before.length - 2]!.id}"]`)
+      .first()
+      .click();
     await page.waitForTimeout(500);
-    await page.locator(`[data-testid="tab-${before[before.length - 1]!.id}"]`).first().click();
+    await page
+      .locator(`[data-testid="tab-${before[before.length - 1]!.id}"]`)
+      .first()
+      .click();
     await page.waitForTimeout(500);
     const target = (await strip()).find((x) => x.sel)!;
     await page.locator(`[data-testid="tab-${target.id}-selected"]`).hover();
     await page.getByTestId(`tab-close-${target.id}`).click();
     await page.waitForTimeout(700);
     const after = (await strip()).find((x) => x.sel)!;
-    say(`closed ${target.name} (came from ${before[before.length - 2]!.name}, first selected ${came.name}): now ${after.name}`);
-    assert.equal(after.name, before[before.length - 2]!.name, "closing the selected tab returns to the one the person came from");
+    say(
+      `closed ${target.name} (came from ${before[before.length - 2]!.name}, first selected ${came.name}): now ${after.name}`,
+    );
+    assert.equal(
+      after.name,
+      before[before.length - 2]!.name,
+      "closing the selected tab returns to the one the person came from",
+    );
     // Cmd-Shift-T reopens it
     await page.keyboard.press("Control+Shift+t");
     await page.waitForTimeout(900);
@@ -206,16 +251,25 @@ test("tabs: the New tab opens places, many tabs stay whole, Inbox names its list
     await pp.emulateMedia({ colorScheme: "light" });
     await pp.goto(`${web.origin}/healthz`, { waitUntil: "load" });
     await pp.goto(`${web.origin}/chat`, { waitUntil: "load" });
-    await pp.getByTestId("mobile-shell").waitFor({ timeout: 30_000 }).catch(() => undefined);
+    await pp
+      .getByTestId("mobile-shell")
+      .waitFor({ timeout: 30_000 })
+      .catch(() => undefined);
     await pp.waitForTimeout(2500);
     await pp.mouse.click(200, 300);
     await pp.waitForTimeout(400);
     await pp.goBack();
     await pp.waitForTimeout(1500);
-    const stillHere = await pp.evaluate(() => ({ url: location.pathname, text: (document.body.innerText ?? "").length }));
+    const stillHere = await pp.evaluate(() => ({
+      url: location.pathname,
+      text: (document.body.innerText ?? "").length,
+    }));
     say(`phone: Back from the first screen: ${stillHere.url}, ${stillHere.text} characters on the page`);
     await pp.screenshot({ path: path.join(shots, "phone-back.png") });
-    assert.ok(stillHere.url.startsWith("/chat") && stillHere.text > 20, "Back from the first screen stays in the app, never a blank page");
+    assert.ok(
+      stillHere.url.startsWith("/chat") && stillHere.text > 20,
+      "Back from the first screen stays in the app, never a blank page",
+    );
     await pp.getByText("You", { exact: true }).last().click();
     await pp.waitForTimeout(1500);
     const gap = await pp.evaluate(() => {

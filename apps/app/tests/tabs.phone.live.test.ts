@@ -76,7 +76,10 @@ test("phone: no tab strip; Inbox, Vault, Settings and the Console open on their 
     await shot("4-vault-list");
     // the Vault draws (its items, or its empty line) with the way back to You on screen
     assert.ok(/vault is empty|AI accounts|Search/.test(vaultList), "Vault draws on the phone");
-    await page.getByRole("button", { name: /Back|You/ }).first().click();
+    await page
+      .getByRole("button", { name: /Back|You/ })
+      .first()
+      .click();
     await page.waitForTimeout(1200);
 
     // Settings from You
@@ -97,7 +100,10 @@ test("phone: no tab strip; Inbox, Vault, Settings and the Console open on their 
       const c = await text();
       say(`Console on the phone: ${c.slice(0, 80).replace(/\n/g, " | ")}`);
       await shot("8-console");
-      assert.ok(c.trim().length > 20, "the Console draws something on the phone (its list or a line that says it is on the computer)");
+      assert.ok(
+        c.trim().length > 20,
+        "the Console draws something on the phone (its list or a line that says it is on the computer)",
+      );
     } else say("Console: no door from Settings on the phone");
   } finally {
     await shot_end(page, shots);
