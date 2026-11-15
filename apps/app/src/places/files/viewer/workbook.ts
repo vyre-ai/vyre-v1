@@ -8,6 +8,7 @@ import {
   baseline,
   bookFromRows,
   cellWrites,
+  editUnsafe,
   readBook,
   sheetCsv,
   writeChanges,
@@ -45,6 +46,8 @@ export interface Workbook {
   /** Find: the words of each sheet (a cell per line) and the cell of each match, by sheet. */
   texts: readonly string[];
   matchCells: (find: string) => { all: Set<string>[]; list: { sheet: number; r: number; c: number }[] };
+  /** Why the workbook is drawn but not edited here (it has parts a save would drop), or undefined. */
+  lock: string | undefined;
   /** Save now. */
   flush: () => Promise<void>;
 }
@@ -65,6 +68,7 @@ export function useWorkbook(
   const [rev, setRev] = useState(0);
   const [sheet, setSheet] = useState(0);
   const [saved, setSaved] = useState<number | undefined>(undefined);
+  const [lock, setLock] = useState<string | undefined>(undefined);
   const wb = useRef<(XBook & { xlsx: { writeBuffer(): Promise<ArrayBuffer> } }) | null>(null);
   const opened = useRef<ReturnType<typeof baseline>>(new Map());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -100,6 +104,7 @@ export function useWorkbook(
         const [r, lib] = await Promise.all([d.call("files.read", { fileId, as: "base64" }), loadExcel()]);
         const b64 = (r as { base64?: string }).base64 ?? "";
         const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        setLock(editUnsafe(bytes) ?? undefined);
         const book = new (lib as ExcelLib).Workbook();
         await book.xlsx.load(bytes.buffer);
         if (!live) return;
@@ -237,5 +242,5 @@ export function useWorkbook(
     },
     [grid, rev], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  return { state, rev, sheet, setSheet, changed, saved, texts, matchCells, flush };
+  return { state, rev, sheet, setSheet, changed, saved, texts, matchCells, lock, flush };
 }

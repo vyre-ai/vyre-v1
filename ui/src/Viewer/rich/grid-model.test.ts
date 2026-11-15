@@ -252,7 +252,7 @@ test("round trip with an inserted row: the sheet's cells move in the file and fo
   assert.equal(s.getCell(4, 1).result, 13);
 });
 
-import { bookFromRows, cellWrites, sheetCsv } from "./workbook-io.ts";
+import { bookFromRows, cellWrites, editUnsafe, sheetCsv } from "./workbook-io.ts";
 
 test("a Google Sheet's first tab: only the cells a person changed are written, each as what they typed", () => {
   const g = new Grid(
@@ -294,4 +294,18 @@ test("a CSV round trips: quoting, a plain formula-looking cell stays text, and t
   assert.equal(sheetCsv(g), 'name,note\nAda,"says ""hi"", twice"\n=x,7\n');
   g.setCell(g.book.sheets[0]!, 1, 0, "Grace");
   assert.match(sheetCsv(g), /^name,note\nGrace,/);
+});
+
+test("a workbook with charts, pictures or pivot tables is drawn but not edited: a save would drop them", async () => {
+  const wb = new ExcelJS.Workbook();
+  wb.addWorksheet("A").addRow([1]);
+  const plain = Buffer.from(await wb.xlsx.writeBuffer());
+  assert.equal(editUnsafe(plain), null);
+  const img = wb.addImage({
+    base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    extension: "png",
+  });
+  wb.getWorksheet("A")!.addImage(img, "B2:C3");
+  const withPicture = Buffer.from(await wb.xlsx.writeBuffer());
+  assert.match(editUnsafe(withPicture) ?? "", /charts, pictures or pivot tables/);
 });

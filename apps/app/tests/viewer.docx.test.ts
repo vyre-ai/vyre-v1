@@ -4,7 +4,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { makeDocx, unzip } from "./viewer-fixtures.ts";
 import { parseXml, writeXml } from "../../../ui/src/Viewer/rich/ooxml.ts";
-import { applyRunTexts, docAsText, readDocx, setHeading, textRuns, toggleFormat, writeDocx } from "../../../ui/src/Viewer/rich/docx.ts";
+import {
+  applyRunTexts,
+  docAsText,
+  readDocx,
+  setHeading,
+  textRuns,
+  toggleFormat,
+  writeDocx,
+} from "../../../ui/src/Viewer/rich/docx.ts";
 
 const sample = (): { entries: Record<string, Uint8Array>; bytes: Buffer } => {
   const bytes = makeDocx();

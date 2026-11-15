@@ -661,7 +661,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         (office && (offReady === null || !ready.data.canEdit)) ||
         file.kind === "pdf" ||
         ready.data.connected?.viewOnly === true ||
-        (isBook && wbk.state.status === "ready" && !ready.data.canEdit) ||
+        (isBook && wbk.state.status === "ready" && (!ready.data.canEdit || wbk.lock !== undefined)) ||
         (isCsv && wbk.state.status === "ready" && (!ready.data.canEdit || !csvWhole))
           ? { readOnly: true }
           : {})}
@@ -698,13 +698,21 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
                     onSheet={wbk.setSheet}
                     edit={c.edit}
                     {...(isCsv ? { header: true } : {})}
-                    {...((isGSheet ? !providerEdit : isCsv ? !ready.data.canEdit || !csvWhole : !ready.data.canEdit)
+                    {...((
+                      isGSheet
+                        ? !providerEdit
+                        : isCsv
+                          ? !ready.data.canEdit || !csvWhole
+                          : !ready.data.canEdit || wbk.lock !== undefined
+                    )
                       ? {
                           why: ready.data.connected?.viewOnly
                             ? `View only in ${ready.data.connected.provider}.`
-                            : isCsv && ready.data.canEdit && !csvWhole
-                              ? "A large file is shown in part. Open it in its own app to change it."
-                              : "You can read this file but not change it.",
+                            : wbk.lock !== undefined && ready.data.canEdit && isBook
+                              ? wbk.lock
+                              : isCsv && ready.data.canEdit && !csvWhole
+                                ? "A large file is shown in part. Open it in its own app to change it."
+                                : "You can read this file but not change it.",
                         }
                       : {})}
                     {...(isGSheet

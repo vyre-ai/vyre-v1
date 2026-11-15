@@ -240,3 +240,16 @@ export function sheetCsv(grid: Grid): string {
   }
   return `${lines.join("\n")}\n`;
 }
+
+/**
+ * Why a workbook is not edited here, or null when it can be: ExcelJS writes back what it reads, and it does not read charts, pictures, pivot tables, slicers, embedded objects or macros, so a save
+ * would drop them. Such a workbook is drawn and read, and changed in its own app; it is never saved with parts missing.
+ */
+export function editUnsafe(zipBytes: Uint8Array): string | null {
+  // a zip lists its entries' names in the clear, so the names are found without opening it
+  let names = "";
+  for (let i = 0; i < zipBytes.length; i += 0x8000) names += String.fromCharCode(...zipBytes.subarray(i, i + 0x8000));
+  return /xl\/(charts|pivotTables|pivotCache|drawings|slicers|embeddings|media)\/|vbaProject\.bin/.test(names)
+    ? "This workbook has charts, pictures or pivot tables that a save here would drop. Open it in its own app to change it."
+    : null;
+}
