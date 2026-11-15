@@ -67,6 +67,9 @@ function browser() {
       return new TextEncoder().encode("abcd");
     },
     async downloadAck() {},
+    async sessions(profileId: string) {
+      return [{ site: `site-of-${profileId.slice(-8)}.test`, since: 1, lastSeen: 2 }];
+    },
     async profileUsed() {
       return false;
     },
@@ -183,6 +186,29 @@ test("the first call in a person's own profile says in one plain line that what 
     assert.match(String(first.note), /someone else signed in to is not signed in here/);
     const owner = await tool["computers.chrome.open"]!(turn(MAYA, dex, [], AG4), { url: "https://x.test/" });
     assert.equal(owner.note, undefined);
+  } finally {
+    off();
+  }
+});
+
+test("a person's own sign-in list is their own profile's: the agent's own for its owner, theirs for anyone else, never another person's", async () => {
+  browser();
+  const AG5 = "agt_01a1d4e073004405af63151b48dcb555";
+  try {
+    const ask = async (person: string) => {
+      resetAgentInfo();
+      const h = harness({ principal: { kind: "person", id: person } });
+      h.respond["agents.get"] = () => ({
+        agent: { agentId: AG5, name: "Dex", folderId: "f", ownerId: MAYA, kind: "agent" },
+      });
+      return tool["computers.browser.my_sign_ins"]!(h.ctx, { agentId: AG5 });
+    };
+    const ben = await ask(BEN);
+    assert.equal(ben.profile, "own");
+    assert.match(ben.signIns[0].site, new RegExp(`site-of-${askerProfileId(AG5, BEN)!.slice(-8)}`));
+    const maya = await ask(MAYA);
+    assert.equal(maya.profile, "agent");
+    assert.match(maya.signIns[0].site, new RegExp(`site-of-${AG5.slice(-8)}`));
   } finally {
     off();
   }

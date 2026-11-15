@@ -442,3 +442,9 @@ Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9
 `backup.export_status` answers, besides the archive's file, `leftOut` (an integer: how many files the archive could not hold and names on its `NOT-EXPORTED.txt` page) and `filesKept` (how many files it holds), both present only when at least one file was left out. They are read from the archive itself. The export screen uses them to say in one line how many files were left out and that the list is in the zip.
 
 Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
+
+## 13 Nov 2026: computers.browser.my_sign_ins added (lane f-agentpc)
+
+`computers.browser.my_sign_ins@1` is a new read (additive; no existing capability changes). In: `agentId`. Out: `profile` (`own` or `agent`) and `signIns`, one `{kind: "browser", site, signedInAs?, since, lastSeen}` per site the browser profile this person's turns of the agent use is signed in to: a person who does not own a shared agent has a profile of their own on it, the agent's owner has the agent's own. Never a value, never another person's. Read as the person asking.
+
+Signed: pending, the lead
