@@ -1,0 +1,268 @@
+// The Rewind card (chat gap G36, G37): "Go back to", the points of this chat with their time and file count, and, before anything is pressed, what going back undoes and what it never touches. Opened from the
+// chat's menu, a message's menu ("Rewind to here") and /rewind; each opens this one card. One press on a point selects it; "Go back" calls chat.rewind. Off in a chat with other people.
+import { useEffect, useRef, useState } from "react";
+import type { ReactElement } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { timeLabel } from "../conversation/chat-time.ts";
+import { useConversationData } from "../conversation/data.tsx";
+import { LEAVES, NONE, NOT_KEPT, OWN_COMPUTER, SHARED, UNDOES, pointLine, whyOff } from "./model.ts";
+import type { ActiveRewind, RewindPoint } from "./model.ts";
+
+type Read =
+  | { state: "loading" }
+  | { state: "off"; why?: string | undefined }
+  | { state: "ready"; points: RewindPoint[]; ownComputer: boolean };
+
+/** Reads the rewinds in force (which messages are folded away) when the chat opens and each time its stamp changes: a rewind or an undo, by anyone, leaves a line in the chat. Draws nothing. */
+export function RewindWatch({
+  call,
+  threadId,
+  stamp,
+  onRead,
+}: {
+  call(cap: string, input: unknown): Promise<unknown> | unknown;
+  threadId: string;
+  stamp: number;
+  onRead(active: ActiveRewind[]): void;
+}): null {
+  // the caller's `call` may be a new function on every render: the read is keyed on the chat and the stamp alone, never on it, or it would read again after every state change it causes
+  const callRef = useRef(call);
+  callRef.current = call;
+  useEffect(() => {
+    let gone = false;
+    try {
+      void Promise.resolve(callRef.current("engine.rewind.points", { threadId })).then(
+        (r) => !gone && onRead((r as { active?: ActiveRewind[] } | null)?.active ?? []),
+        () => undefined,
+      );
+    } catch {
+      /* the chat reads without folding */
+    }
+    return () => {
+      gone = true;
+    };
+    // the read is keyed on the stamp: onRead is a state setter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId, stamp]);
+  return null;
+}
+
+/** What the server said, when it said it in a plain sentence ("Stop Dex first, then go back."; "The files were put back, but the chat could not be updated ..."); otherwise only what is true when nothing is known. */
+function plainFailure(e: unknown): string {
+  const m = e instanceof Error ? e.message : "";
+  return m !== "" && m.length < 220 && /\s/.test(m) && !/^[a-z]+\.[a-z_.]+$/.test(m)
+    ? m
+    : "It did not go back. If any files were put back, Undo on the line in the chat brings them back.";
+}
+
+export function RewindCard({
+  threadId,
+  onClose,
+  clock,
+  start,
+  messageId,
+  onDone,
+  shared = false,
+  bare = false,
+}: {
+  /** Drawn inside a Dialog (the composer's anchored card): no title, border or padding of its own. */
+  bare?: boolean;
+  /** A chat with other people: the agents stop reading everyone's messages after the point, and the chat says who went back. */
+  shared?: boolean;
+  threadId: string;
+  onClose(): void;
+  /** Called once the chat has gone back (the screen reads the folded messages again). Without it the card just closes. */
+  onDone?(): void;
+  /** Rewind to here: the point of the turn this message began is selected first. */
+  messageId?: string | undefined;
+  clock?(ms: number): string;
+  /** Rewind to here: the point nearest this time is selected first. */
+  start?: number | undefined;
+}): ReactElement {
+  const data = useConversationData();
+  // a time reads in the chat's own clock (the Space's time zone in a shared chat), the one formatter a message row uses
+  const when = clock ?? ((ms: number): string => timeLabel(ms, data.clock()));
+  const [read, setRead] = useState<Read>({ state: "loading" });
+  const [pick, setPick] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    let gone = false;
+    try {
+      void Promise.resolve(data.call("engine.rewind.points", { threadId })).then(
+        (r) => {
+          if (gone) return;
+          const out = r as { available: boolean; why?: string; points: RewindPoint[]; ownComputer?: boolean };
+          if (!out.available) return setRead({ state: "off", why: out.why });
+          setRead({ state: "ready", points: out.points, ownComputer: out.ownComputer === true });
+          const own = messageId !== undefined ? out.points.find((p) => p.messageId === messageId) : undefined;
+          const near =
+            own ??
+            (start !== undefined
+              ? [...out.points].sort((a, b) => Math.abs(a.at - start) - Math.abs(b.at - start))[0]
+              : out.points[0]);
+          if (near) setPick(near.pointId);
+        },
+        () => !gone && setRead({ state: "off" }),
+      );
+    } catch {
+      setRead({ state: "off" });
+    }
+    return () => {
+      gone = true;
+    };
+  }, [data, threadId, start, messageId]);
+  const go = (): void => {
+    if (busy || pick === null) return;
+    setBusy(true);
+    setFailed(null);
+    try {
+      void Promise.resolve(data.call("chat.rewind", { threadId, pointId: pick, idempotencyKey: data.newKey() })).then(
+        () => {
+          onDone?.();
+          onClose();
+        },
+        (e: unknown) => {
+          setBusy(false);
+          setFailed(plainFailure(e));
+        },
+      );
+    } catch (e) {
+      setBusy(false);
+      setFailed(plainFailure(e));
+    }
+  };
+  return (
+    <View testID="rewind-card" style={bare ? st.bare : st.card}>
+      {bare ? null : (
+        <Text accessibilityRole="header" style={st.title}>
+          Go back to
+        </Text>
+      )}
+      {read.state === "off" ? <Text style={st.note}>{whyOff(read.why)}</Text> : null}
+      {read.state === "ready" && read.points.length === 0 ? <Text style={st.note}>{NONE}</Text> : null}
+      {read.state === "ready" && read.ownComputer ? (
+        <Text testID="rewind-own-computer" style={st.note}>
+          {OWN_COMPUTER}
+        </Text>
+      ) : null}
+      {read.state === "ready" ? (
+        <View accessibilityRole="radiogroup" style={st.list}>
+          {/* ui-rows-lint: not a list (a radio group inside one card: the points to go back to, one of which is chosen) */}
+          {read.points.map((p) => {
+            const l = pointLine(p, when);
+            const on = p.pointId === pick;
+            return (
+              <Pressable
+                key={p.pointId}
+                testID={`rewind-point-${p.pointId}`}
+                accessibilityRole="radio"
+                aria-checked={on}
+                onPress={() => setPick(p.pointId)}
+                style={[st.row, on && st.rowOn]}
+              >
+                <View style={[st.dot, on && st.dotOn]} />
+                <Text style={st.when}>{l.when}</Text>
+                <Text numberOfLines={1} style={st.what}>
+                  {l.what}
+                </Text>
+                <Text style={st.files}>{l.files}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+      {/* said before anything is pressed */}
+      <Text testID="rewind-undoes" style={st.note}>
+        {UNDOES}
+      </Text>
+      {shared ? (
+        <Text testID="rewind-shared" style={st.note}>
+          {SHARED}
+        </Text>
+      ) : null}
+      <Text testID="rewind-leaves" style={st.note}>
+        {LEAVES}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: more }}
+        testID="rewind-more"
+        onPress={() => setMore((m) => !m)}
+      >
+        <Text style={st.more}>{more ? "Less" : "What is not kept, and for how long"}</Text>
+      </Pressable>
+      {more ? (
+        <>
+          <Text testID="rewind-not-kept" style={st.note}>
+            {NOT_KEPT}
+          </Text>
+        </>
+      ) : null}
+      {failed !== null ? (
+        <Text testID="rewind-failed" style={st.warn}>
+          {failed}
+        </Text>
+      ) : null}
+      <View style={st.foot}>
+        <Pressable
+          testID="rewind-go"
+          accessibilityRole="button"
+          disabled={busy || pick === null || read.state !== "ready"}
+          onPress={go}
+          style={[st.go, (busy || pick === null) && st.dim]}
+        >
+          <Text style={st.goText}>Go back</Text>
+        </Pressable>
+        <Pressable testID="rewind-cancel" accessibilityRole="button" onPress={onClose} style={st.cancel}>
+          <Text style={st.cancelText}>Cancel</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  card: {
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--surface)" as string,
+    maxWidth: 520,
+  },
+  bare: { gap: 8 },
+  more: { fontSize: 12.5, color: "var(--accent)" as string },
+  title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
+  list: { gap: 2 },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  rowOn: { backgroundColor: "var(--hover)" as string },
+  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5, borderColor: "var(--ink-3)" as string },
+  dotOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent)" as string },
+  when: { fontSize: 13, color: "var(--ink)" as string, minWidth: 64, flexShrink: 0 },
+  what: { fontSize: 13, color: "var(--ink-2)" as string, flexShrink: 1, flexGrow: 1, minWidth: 0 },
+  files: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 0 },
+  note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
+  warn: { fontSize: 12.5, color: "var(--warn)" as string },
+  foot: { flexDirection: "row", gap: 8, marginTop: 4 },
+  go: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: "var(--accent)" as string },
+  dim: { opacity: 0.5 },
+  goText: { fontSize: 13, fontWeight: "600", color: "var(--accent-ink)" as string },
+  cancel: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
+  cancelText: { fontSize: 13, color: "var(--ink)" as string },
+});

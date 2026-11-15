@@ -335,9 +335,6 @@ export function chatListFast(
       WHERE t.deleted_at IS NULL AND t.listed = 1 AND t.closedAt IS NULL AND t.kind = 'chat'
         AND NOT (t.scopeType = 'goal' AND t.scopeId IS NOT NULL)
         AND NOT EXISTS (SELECT 1 FROM chat_thread_archive ar WHERE ar.thread = t.id AND ar.principal = ${ask()})`;
-  const notDm = () => `AND NOT (NOT ${agentsHere} AND ${humans()} = 1)`;
-  const notEmpty = () => `AND NOT (t.title IS NULL AND l.at IS NULL AND ${agentsHere} AND ${humans()} < 1)`;
-  const list = (ids: readonly string[]): string => ids.map(() => "?").join(", ");
   const run = (build: () => string, ...tail: unknown[]): Record<string, unknown>[] => {
     a.length = 0;
     const sql = build();
@@ -345,51 +342,53 @@ export function chatListFast(
   };
   const excl = [...new Set([...o.pinned, ...o.muted])];
   const mutedHere = [...o.muted].filter((m) => !o.pinned.includes(m));
-  const notIn = excl.length > 0 ? `AND t.id NOT IN (${list(excl)})` : "";
-  const nonMuted = Number(
-    run(() => `SELECT COUNT(*) AS n ${base()} ${notDm()} ${notEmpty()} ${notIn}`, ...excl)[0]?.["n"] ?? 0,
-  );
-  const mutedTotal =
-    mutedHere.length === 0
-      ? 0
-      : Number(
-          run(
-            () => `SELECT COUNT(*) AS n ${base()} ${notDm()} ${notEmpty()} AND t.id IN (${list(mutedHere)})`,
-            ...mutedHere,
-          )[0]?.["n"] ?? 0,
-        );
+  const marks = (ids: readonly string[]): string => ids.map(() => "?").join(", ");
+  // ONE scan of the caller's chats, kept inside SQLite, gives every count and every id the page needs. There used to be three scans (the count, the newest page, the
+  // one-to-ones), each working out the same two facts for each of the person's chats; at 5,000 chats they were 31 of the first page's 36 ms and the page sat at its 100 ms
+  // budget on a busy computer (sidebar.read.perf.test.ts; V1-WHOLE row 16). The rules are unchanged: a one-to-one is a team row ('dm'); a chat nobody wrote in is not
+  // listed; pinned and muted chats are kept out of the newest page and the muted ones come at its end. Only the page's rows leave SQLite, so the cost of handing rows to
+  // the caller follows the page too.
   const ids = new Set<string>();
+  const mutedIds: string[] = [];
+  let nonMuted = 0;
   for (const r of run(
     () =>
-      `SELECT t.id AS id ${base()} ${notDm()} ${notEmpty()} ${notIn} ORDER BY COALESCE(l.at, t.createdAt) DESC, t.id LIMIT ?`,
+      `WITH c AS (
+         SELECT t.id AS id, COALESCE(l.at, t.createdAt) AS k, ${agentsHere} AS ag, ${humans()} AS hu,
+                (t.title IS NULL AND l.at IS NULL) AS blank ${base()}
+       ), v AS MATERIALIZED (
+         SELECT id, k,
+                CASE WHEN ag = 0 AND hu = 1 THEN 'dm'
+                     WHEN blank = 1 AND ag = 1 AND hu < 1 THEN 'no'
+                     WHEN id IN (${marks(mutedHere)}) THEN 'muted'
+                     WHEN id IN (${marks(excl)}) THEN 'no'
+                     ELSE 'row' END AS w
+           FROM c
+       )
+       SELECT w, id, 0 AS n FROM v WHERE w IN ('dm', 'muted')
+       UNION ALL SELECT w, id, 0 AS n FROM (SELECT w, id FROM v WHERE w = 'row' ORDER BY k DESC, id LIMIT ?)
+       UNION ALL SELECT 'count' AS w, NULL AS id, COUNT(*) AS n FROM v WHERE w = 'row'`,
+    ...mutedHere,
     ...excl,
     Math.max(1, o.want),
-  ))
-    ids.add(String(r["id"]));
-  if (o.want >= nonMuted && mutedHere.length > 0)
-    for (const r of run(
-      () => `SELECT t.id AS id ${base()} ${notDm()} ${notEmpty()} AND t.id IN (${list(mutedHere)})`,
-      ...mutedHere,
-    ))
-      ids.add(String(r["id"]));
-  // every one-to-one: the team's rows. The caller's Ask panes ride in the same read (askList's rows, newest first, at most 100): the Asks filter needs them, and the
-  // sidebar's first page stays the same handful of reads it was (sidebar.read.perf.test.ts counts them)
+  )) {
+    const w = String(r["w"]);
+    if (w === "count") nonMuted = Number(r["n"] ?? 0);
+    else if (w === "muted") mutedIds.push(String(r["id"]));
+    else ids.add(String(r["id"])); // a one-to-one (the team's rows) or one of the newest page
+  }
+  const mutedTotal = mutedIds.length;
+  if (o.want >= nonMuted) for (const id of mutedIds) ids.add(id);
+  // The caller's Ask panes (askList's rows, newest first, at most 100), in one read with their agents: the Asks filter needs them and they are never in the chats list.
   const asks: ChatListRow[] = [];
   for (const r of run(
     () =>
-      `SELECT t.id AS id, 0 AS isAsk, NULL AS title, NULL AS at, NULL AS agents ${base()} AND NOT ${agentsHere} AND ${humans()} = 1
-       UNION ALL
-       SELECT * FROM (
-         SELECT t.id AS id, 1 AS isAsk, t.title AS title, COALESCE(l.at, t.createdAt) AS at,
-                (SELECT group_concat(x.agentId) FROM (SELECT g.agentId AS agentId FROM chat_thread_agent g WHERE g.thread = t.id AND g.deleted_at IS NULL ORDER BY g.rowid) x) AS agents
-           FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id
-          WHERE t.kind = 'ask' AND t.starter = ${ask()} AND t.deleted_at IS NULL AND t.closedAt IS NULL
-          ORDER BY at DESC, id LIMIT 100)`,
+      `SELECT t.id AS id, t.title AS title, COALESCE(l.at, t.createdAt) AS at,
+              (SELECT group_concat(x.agentId) FROM (SELECT g.agentId AS agentId FROM chat_thread_agent g WHERE g.thread = t.id AND g.deleted_at IS NULL ORDER BY g.rowid) x) AS agents
+         FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id
+        WHERE t.kind = 'ask' AND t.starter = ${ask()} AND t.deleted_at IS NULL AND t.closedAt IS NULL
+        ORDER BY at DESC, t.id LIMIT 100`,
   )) {
-    if (Number(r["isAsk"]) !== 1) {
-      ids.add(String(r["id"]));
-      continue;
-    }
     const title = r["title"];
     const agents = r["agents"];
     asks.push({

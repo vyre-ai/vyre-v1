@@ -1,0 +1,2 @@
+- Save to Notes from the Chrome side panel keeps its picture: a capture Chrome refuses for being too soon after another is tried again.
+- The Chrome extension's browser walks (side panel, recording, in-page, artifact, sign-in, tabs) run in a real browser on every check, and its test samples use made-up names and addresses.

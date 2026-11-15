@@ -3,6 +3,7 @@
 //
 // Also here: the runtime that wires the turn engine to this module's SQL (queue, lease, messages, parked tool calls), so a second host that takes a thread over
 // with recover() replays the same message bodies, and a tool call held at the Gate parks the turn on its task (turn.waiting) until resume().
+import { erase as erasePoints, sweep as sweepPoints } from "./checkpoints.ts";
 import { forgetPlacement } from "./placement-cache.ts";
 import { recallPick } from "./last-pick.ts";
 import { forgetProvider } from "./model-health.ts";
@@ -73,6 +74,16 @@ export const periodic = {
     run: async (ctx: EngineCtx): Promise<void> => {
       const engine = await ensureRuntime(ctx);
       if (engine) await recoverStale(ctx, engine);
+    },
+  },
+  /** The one sweep of Rewind's points (checkpoints.ts sweep): points older than 14 days go, in every chat, touched or not; stores over their cap are cut; the Space's total is held under its cap. A rewind a restart cut short stays listed with Undo. */
+  "engine.checkpoint_sweep": {
+    everyMs: 3_600_000,
+    run: async (ctx: EngineCtx): Promise<string[]> => {
+      const dataDir = engineHost()?.dataDir;
+      if (!dataDir) return [];
+      const r = await sweepPoints(dataDir, ctx.now());
+      return r.pointsDropped + r.storesDropped > 0 ? [`${r.pointsDropped} points, ${r.storesDropped} stores`] : [];
     },
   },
   /** A baton an agent stopped on goes to a person after nudgeMinutes (handlers/task-baton.ts). */
@@ -218,6 +229,23 @@ export const consumers = keptWhileStopping({
             )
             .catch(() => undefined);
       }
+    },
+  },
+  /** What a chat, an agent or a person owned goes, and so do the points of their work folders: a point is a copy of their files (checkpoints.ts erase). */
+  "engine.checkpoints_erased": {
+    // an agent moved to Trash (agent.deleted) keeps its points: it can come back. The product has no permanent delete for an agent (agents.delete is Trash only; no purge capability or expiry exists), so there is no event to erase on: a trashed agent cannot be told from a missing one by the agents module's reads, so nothing erases its points early: the hourly sweep drops every point after 14 days, which is when its Trash would have to have been emptied for the agent to matter.
+    on: ["thread.erased", "member.removed"],
+    run: async (
+      _ctx: EngineCtx,
+      event: { name: string; payload: { threadId?: string; agentId?: string; personId?: string } },
+    ): Promise<void> => {
+      const dataDir = engineHost()?.dataDir;
+      if (!dataDir) return;
+      const p = event.payload;
+      erasePoints(dataDir, {
+        ...(event.name === "thread.erased" && p.threadId ? { threadId: p.threadId } : {}),
+        ...(event.name === "member.removed" && p.personId ? { personId: p.personId } : {}),
+      });
     },
   },
   /** A person left: nothing goes on running on their word or their account. */

@@ -17,14 +17,6 @@
       "note": "A key you may edit: no Share, Move or Trash."
     },
     {
-      "id": "MENUSB_01-auto",
-      "route": "/m/MENUSB_01?part=auto",
-      "proto": "automations,{skin}",
-      "waitFor": "[data-testid^='row-auto-']",
-      "rightClick": "[data-testid^='row-auto-']",
-      "note": "An automation: Run Now, Turn On or Off, Test, Runs, Personal copy, groups, Copy Link, Move to Trash last."
-    },
-    {
       "id": "MENUSB_01-goal",
       "route": "/m/MENUSB_01?part=goal",
       "proto": "chats,{skin}",

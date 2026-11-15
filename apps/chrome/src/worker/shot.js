@@ -131,11 +131,43 @@ export async function paintMask(dataUrl, where, o = {}) {
   return { dataUrl: await dataUrlOf(jpeg), width: out.width, height: out.height, masked: boxes.length };
 }
 
+/** Chrome allows two captures of the visible tab a second; a third in that second is refused. A refused capture waits this long and is tried again. */
+export const CAPTURE_GAP_MS = 550;
+/** How many times one capture is tried. */
+export const CAPTURE_TRIES = 3;
+
+/**
+ * One capture of the visible tab, tried again when Chrome refuses it. The side panel attaches a picture when a selection changes and Save to Notes takes one a moment
+ * later: together they went over Chrome's two-a-second limit, the capture was refused and the note was saved with no picture, about half the time (found 15 Nov 2026 by
+ * running tests/ext-panel.e2e.test.ts in a real Chromium). A capture that is allowed is not delayed at all; only a refused one waits.
+ * @param {{ tabs: { captureVisibleTab(windowId: number, o: any): Promise<string> } }} ext @param {number} windowId
+ * @param {(ms: number) => Promise<void>} [wait] @param {number} [tries]
+ * @returns {Promise<string>}
+ */
+export async function captureSpaced(
+  ext,
+  windowId,
+  wait = (ms) => new Promise((r) => setTimeout(r, ms)),
+  tries = CAPTURE_TRIES,
+) {
+  /** @type {unknown} */
+  let last;
+  for (let i = 0; i < Math.max(1, tries); i++) {
+    if (i > 0) await wait(CAPTURE_GAP_MS);
+    try {
+      return await ext.tabs.captureVisibleTab(windowId, { format: "png" });
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last;
+}
+
 /**
  * Take a masked screenshot of a tab that is visible in its window. Null when the page cannot be asked where its secret fields are (then nothing is captured),
  * or the tab is not the visible one.
  * @param {{ tabs: { captureVisibleTab(windowId: number, o: any): Promise<string>, get(id: number): Promise<any> }, scripting: { executeScript(o: any): Promise<any[]> } }} ext
- * @param {number} tabId @param {{ maxW?: number, quality?: number, type?: string, paint?: typeof paintMask }} [o]
+ * @param {number} tabId @param {{ maxW?: number, quality?: number, type?: string, paint?: typeof paintMask, wait?: (ms: number) => Promise<void>, retry?: boolean }} [o]
  */
 export async function maskedShot(ext, tabId, o = {}) {
   const tab = await ext.tabs.get(tabId);
@@ -151,7 +183,8 @@ export async function maskedShot(ext, tabId, o = {}) {
   if (!where || !Array.isArray(where.rects)) return null;
   let raw;
   try {
-    raw = await ext.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+    // only a picture the person asked for (Save to Notes) waits for Chrome and tries again; every other capture is taken once, as before, so nothing else is held up
+    raw = await captureSpaced(ext, tab.windowId, o.wait, o.retry === true ? CAPTURE_TRIES : 1);
   } catch {
     return null;
   }

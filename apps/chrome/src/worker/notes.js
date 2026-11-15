@@ -145,7 +145,7 @@ export function createNotes({ ext, bridge, privacy, context }) {
       const sel = String(selection || "")
         .trim()
         .slice(0, 4000);
-      const shot = await maskedShot(ext, tab.id, { maxW: 1280, quality: 0.8 });
+      const shot = await maskedShot(ext, tab.id, { maxW: 1280, quality: 0.8, retry: true });
       const page = await context.read(tab.id);
       /** @type {any} */
       let out;

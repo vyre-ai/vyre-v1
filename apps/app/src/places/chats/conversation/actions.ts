@@ -975,3 +975,8 @@ export async function retryHelper(data: ConversationData, helperThreadId: string
     idempotencyKey: key,
   });
 }
+
+/** Rewind: go back to a point of this chat (chat.rewind). The same call undoes a rewind, with the point it took first. */
+export async function rewindTo(data: ConversationData, pointId: string): Promise<void> {
+  await data.call("chat.rewind", { threadId: data.threadId, pointId, idempotencyKey: data.newKey() });
+}
