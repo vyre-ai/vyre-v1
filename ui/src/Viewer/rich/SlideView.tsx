@@ -26,7 +26,12 @@ export interface SlideViewProps {
   pins: readonly PdfPin[];
   marks: readonly PdfMark[];
   onChange: () => void;
-  onArea: (a: { tool: "comment" | "redact"; page: number; box: { x: number; y: number; w: number; h: number }; text: string }) => void;
+  onArea: (a: {
+    tool: "comment" | "redact";
+    page: number;
+    box: { x: number; y: number; w: number; h: number };
+    text: string;
+  }) => void;
 }
 
 const CSS = `
@@ -66,7 +71,8 @@ function pieces(len: number, ds: readonly DecorRange[]): { s: number; e: number;
   }
   const xs = [...cuts].sort((a, b) => a - b);
   const out: { s: number; e: number; d: DecorRange[] }[] = [];
-  for (let i = 0; i + 1 < xs.length; i++) out.push({ s: xs[i]!, e: xs[i + 1]!, d: ds.filter((d) => d.s <= xs[i]! && d.e >= xs[i + 1]!) });
+  for (let i = 0; i + 1 < xs.length; i++)
+    out.push({ s: xs[i]!, e: xs[i + 1]!, d: ds.filter((d) => d.s <= xs[i]! && d.e >= xs[i + 1]!) });
   return out;
 }
 
@@ -79,7 +85,15 @@ interface DrawOpts {
 }
 
 /** One slide drawn at `width` pixels. */
-function slideEl(m: PptxModel, s: PSlide, width: number, o: DrawOpts, imageUrl: (p: string) => string | undefined, extra: ReactNode[] = [], handlers: Record<string, unknown> = {}): ReactElement {
+function slideEl(
+  m: PptxModel,
+  s: PSlide,
+  width: number,
+  o: DrawOpts,
+  imageUrl: (p: string) => string | undefined,
+  extra: ReactNode[] = [],
+  handlers: Record<string, unknown> = {},
+): ReactElement {
   const ratio = width / (m.w / 12700);
   const height = (width * m.h) / m.w;
   let at = 0;
@@ -90,19 +104,37 @@ function slideEl(m: PptxModel, s: PSlide, width: number, o: DrawOpts, imageUrl: 
     const els = pp.runs.map((r, ri) => {
       const a = run0;
       run0 += r.text.length;
-      const ds = o.decor.map((d) => ({ ...d, s: d.s - start - a, e: d.e - start - a })).filter((d) => d.e > 0 && d.s < r.text.length && d.kind !== "comment");
+      const ds = o.decor
+        .map((d) => ({ ...d, s: d.s - start - a, e: d.e - start - a }))
+        .filter((d) => d.e > 0 && d.s < r.text.length && d.kind !== "comment");
       const parts = o.edit ? [{ s: 0, e: r.text.length, d: [] as DecorRange[] }] : pieces(r.text.length, ds);
       const inner = parts.map((pc, k) => {
         const t = r.text.slice(pc.s, pc.e);
         const f = pc.d.find((x) => x.kind === "find" || x.kind === "find-on");
-        return f ? createElement("mark", { key: k, className: f.kind === "find-on" ? "vwf vwf-on" : "vwf", "data-find": f.kind === "find-on" ? "current" : "match" }, t) : t;
+        return f
+          ? createElement(
+              "mark",
+              {
+                key: k,
+                className: f.kind === "find-on" ? "vwf vwf-on" : "vwf",
+                "data-find": f.kind === "find-on" ? "current" : "match",
+              },
+              t,
+            )
+          : t;
       });
       return createElement(
         "span",
         {
           key: ri,
           "data-r": ri,
-          style: { fontSize: (r.sz ?? (sh.title ? 36 : 18)) * ratio, fontWeight: r.b || sh.title ? 700 : 400, fontStyle: r.i ? "italic" : "normal", textDecoration: r.u ? "underline" : "none", color: r.color ?? (sh.fill ? "#fff" : "#111") },
+          style: {
+            fontSize: (r.sz ?? (sh.title ? 36 : 18)) * ratio,
+            fontWeight: r.b || sh.title ? 700 : 400,
+            fontStyle: r.i ? "italic" : "normal",
+            textDecoration: r.u ? "underline" : "none",
+            color: r.color ?? (sh.fill ? "#fff" : "#111"),
+          },
         },
         ...inner,
       );
@@ -113,11 +145,19 @@ function slideEl(m: PptxModel, s: PSlide, width: number, o: DrawOpts, imageUrl: 
         key,
         contentEditable: o.edit,
         suppressContentEditableWarning: true,
-        style: { textAlign: pp.align as never, ...(pp.bullet ? { paddingLeft: 18 * ratio * 2, textIndent: -18 * ratio * 2 } : {}), minHeight: `${18 * ratio}px` },
+        style: {
+          textAlign: pp.align as never,
+          ...(pp.bullet ? { paddingLeft: 18 * ratio * 2, textIndent: -18 * ratio * 2 } : {}),
+          minHeight: `${18 * ratio}px`,
+        },
         onKeyDown: (e: KeyboardEvent) => e.key === "Enter" && e.preventDefault(),
         onInput: (e: { currentTarget: HTMLElement }) => {
           const spans = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-r]"));
-          o.onInput?.(s, pp, pp.runs.map((_, i) => spans.find((x) => x.dataset["r"] === String(i))?.textContent ?? ""));
+          o.onInput?.(
+            s,
+            pp,
+            pp.runs.map((_, i) => spans.find((x) => x.dataset["r"] === String(i))?.textContent ?? ""),
+          );
         },
       },
       ...(pp.bullet ? [createElement("span", { key: "b", contentEditable: false }, "• ")] : []),
@@ -125,24 +165,79 @@ function slideEl(m: PptxModel, s: PSlide, width: number, o: DrawOpts, imageUrl: 
     );
   };
   const shapes = s.shapes.map((sh, i) => {
-    const box = { left: `${(sh.x / m.w) * 100}%`, top: `${(sh.y / m.h) * 100}%`, width: `${(sh.w / m.w) * 100}%`, height: `${(sh.h / m.h) * 100}%` };
+    const box = {
+      left: `${(sh.x / m.w) * 100}%`,
+      top: `${(sh.y / m.h) * 100}%`,
+      width: `${(sh.w / m.w) * 100}%`,
+      height: `${(sh.h / m.h) * 100}%`,
+    };
     if (sh.kind === "pic") {
       const url = sh.pic ? imageUrl(sh.pic.path) : undefined;
-      return createElement("div", { key: i, className: "vws-sh", style: box }, url ? createElement("img", { src: url, alt: sh.pic!.alt, style: { width: "100%", height: "100%", objectFit: "contain" }, "data-testid": "vws-img" }) : null);
+      return createElement(
+        "div",
+        { key: i, className: "vws-sh", style: box },
+        url
+          ? createElement("img", {
+              src: url,
+              alt: sh.pic!.alt,
+              style: { width: "100%", height: "100%", objectFit: "contain" },
+              "data-testid": "vws-img",
+            })
+          : null,
+      );
     }
     if (sh.kind === "table")
       return createElement(
         "div",
         { key: i, className: "vws-sh", style: box, "data-edit": o.edit ? "1" : "0" },
-        createElement("table", null, createElement("tbody", null, ...(sh.table ?? []).map((row, ri) => createElement("tr", { key: ri }, ...row.map((cell, ci) => createElement("td", { key: ci }, ...cell.map((pp, k) => para(pp, sh, `${k}`)))))))),
+        createElement(
+          "table",
+          null,
+          createElement(
+            "tbody",
+            null,
+            ...(sh.table ?? []).map((row, ri) =>
+              createElement(
+                "tr",
+                { key: ri },
+                ...row.map((cell, ci) =>
+                  createElement("td", { key: ci }, ...cell.map((pp, k) => para(pp, sh, `${k}`))),
+                ),
+              ),
+            ),
+          ),
+        ),
       );
     return createElement(
       "div",
-      { key: i, className: "vws-sh", style: { ...box, ...(sh.fill ? { background: sh.fill } : {}), padding: `${6 * ratio}px ${10 * ratio}px`, display: "flex", flexDirection: "column", justifyContent: sh.title ? "center" : "flex-start" }, "data-edit": o.edit ? "1" : "0" },
+      {
+        key: i,
+        className: "vws-sh",
+        style: {
+          ...box,
+          ...(sh.fill ? { background: sh.fill } : {}),
+          padding: `${6 * ratio}px ${10 * ratio}px`,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: sh.title ? "center" : "flex-start",
+        },
+        "data-edit": o.edit ? "1" : "0",
+      },
       ...sh.paras.map((pp, k) => para(pp, sh, `${k}`)),
     );
   });
-  return createElement("div", { className: "vws-slide", style: { width, height }, "data-testid": o.thumb ? `vws-thumbslide-${s.n}` : `vws-slide-${s.n}`, "data-w": Math.round(width), ...handlers }, ...shapes, ...extra);
+  return createElement(
+    "div",
+    {
+      className: "vws-slide",
+      style: { width, height },
+      "data-testid": o.thumb ? `vws-thumbslide-${s.n}` : `vws-slide-${s.n}`,
+      "data-w": Math.round(width),
+      ...handlers,
+    },
+    ...shapes,
+    ...extra,
+  );
 }
 
 export function SlideView(p: SlideViewProps): ReactElement {
@@ -179,7 +274,8 @@ export function SlideView(p: SlideViewProps): ReactElement {
     if (!present) return undefined;
     const key = (e: KeyboardEvent): void => {
       if (e.key === "Escape") setPresent(false);
-      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") p.onSlide(Math.min(m.slides.length, idx + 1));
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown")
+        p.onSlide(Math.min(m.slides.length, idx + 1));
       if (e.key === "ArrowLeft" || e.key === "PageUp") p.onSlide(Math.max(1, idx - 1));
     };
     document.addEventListener("keydown", key);
@@ -190,15 +286,70 @@ export function SlideView(p: SlideViewProps): ReactElement {
     const r = e.currentTarget.getBoundingClientRect();
     return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
   };
-  const pins = p.pins.filter((x) => x.page === idx).map((x) => createElement("div", { key: x.id, className: "vws-pin", "data-testid": `vwp-pin-${x.n}`, style: { left: `${x.box.x * 100}%`, top: `${x.box.y * 100}%`, width: `${x.box.w * 100}%`, height: `${x.box.h * 100}%` }, title: x.text }, createElement("b", null, String(x.n))));
-  const marks = p.marks.filter((x) => x.page === idx).map((x) => createElement("div", { key: x.id, "data-rxbox": "1", "data-mark": x.id, "data-testid": `vwp-rbox-${x.id}`, style: { position: "absolute", zIndex: 3, pointerEvents: "none", left: `${x.box.x * 100}%`, top: `${x.box.y * 100}%`, width: `${x.box.w * 100}%`, height: `${x.box.h * 100}%` } }));
+  const pins = p.pins
+    .filter((x) => x.page === idx)
+    .map((x) =>
+      createElement(
+        "div",
+        {
+          key: x.id,
+          className: "vws-pin",
+          "data-testid": `vwp-pin-${x.n}`,
+          style: {
+            left: `${x.box.x * 100}%`,
+            top: `${x.box.y * 100}%`,
+            width: `${x.box.w * 100}%`,
+            height: `${x.box.h * 100}%`,
+          },
+          title: x.text,
+        },
+        createElement("b", null, String(x.n)),
+      ),
+    );
+  const marks = p.marks
+    .filter((x) => x.page === idx)
+    .map((x) =>
+      createElement("div", {
+        key: x.id,
+        "data-rxbox": "1",
+        "data-mark": x.id,
+        "data-testid": `vwp-rbox-${x.id}`,
+        style: {
+          position: "absolute",
+          zIndex: 3,
+          pointerEvents: "none",
+          left: `${x.box.x * 100}%`,
+          top: `${x.box.y * 100}%`,
+          width: `${x.box.w * 100}%`,
+          height: `${x.box.h * 100}%`,
+        },
+      }),
+    );
   const live = drag ? unitBox(drag.a, drag.b) : null;
-  const dragEl = live ? [createElement("div", { key: "drag", className: "vws-drag", style: { left: `${live.x * 100}%`, top: `${live.y * 100}%`, width: `${live.w * 100}%`, height: `${live.h * 100}%` } })] : [];
+  const dragEl = live
+    ? [
+        createElement("div", {
+          key: "drag",
+          className: "vws-drag",
+          style: {
+            left: `${live.x * 100}%`,
+            top: `${live.y * 100}%`,
+            width: `${live.w * 100}%`,
+            height: `${live.h * 100}%`,
+          },
+        }),
+      ]
+    : [];
   const noteEl = asking
     ? [
         createElement(
           "div",
-          { key: "note", className: "vws-note", style: { left: `${asking.x * 100}%`, top: `${(asking.y + asking.h) * 100}%` }, "data-testid": "vwp-note" },
+          {
+            key: "note",
+            className: "vws-note",
+            style: { left: `${asking.x * 100}%`, top: `${(asking.y + asking.h) * 100}%` },
+            "data-testid": "vwp-note",
+          },
           createElement("input", {
             autoFocus: true,
             placeholder: "Comment on this",
@@ -236,7 +387,12 @@ export function SlideView(p: SlideViewProps): ReactElement {
           onMouseMove: (e: MouseEvent & { currentTarget: HTMLElement }) => drag && setDrag({ a: drag.a, b: unit(e) }),
           onMouseUp: (e: MouseEvent & { currentTarget: HTMLElement }) => {
             if (!drag || p.tool === null) return;
-            const b = unitBox(drag.a, unit(e)) ?? { x: Math.max(0, drag.a[0] - 0.01), y: Math.max(0, drag.a[1] - 0.01), w: 0.02, h: 0.02 };
+            const b = unitBox(drag.a, unit(e)) ?? {
+              x: Math.max(0, drag.a[0] - 0.01),
+              y: Math.max(0, drag.a[1] - 0.01),
+              w: 0.02,
+              h: 0.02,
+            };
             setDrag(null);
             if (p.tool === "redact") p.onArea({ tool: "redact", page: idx, box: b, text: "" });
             else setAsking(b);
@@ -253,7 +409,14 @@ export function SlideView(p: SlideViewProps): ReactElement {
         ...m.slides.map((s) =>
           createElement(
             "button",
-            { key: s.n, className: "vws-th", "data-on": s.n === idx ? "1" : "0", "aria-label": `Slide ${s.n}`, "data-testid": `vws-thumb-${s.n}`, onClick: () => p.onSlide(s.n) },
+            {
+              key: s.n,
+              className: "vws-th",
+              "data-on": s.n === idx ? "1" : "0",
+              "aria-label": `Slide ${s.n}`,
+              "data-testid": `vws-thumb-${s.n}`,
+              onClick: () => p.onSlide(s.n),
+            },
             slideEl(m, s, 120, { thumb: true, edit: false, decor: [] }, p.imageUrl),
             `${s.n}`,
           ),
@@ -262,7 +425,12 @@ export function SlideView(p: SlideViewProps): ReactElement {
     : null;
   return createElement(
     "div",
-    { className: `vws${p.tool !== null ? " vws-tool" : ""}`, "data-testid": "vws", "data-slides": m.slides.length, "data-current": idx },
+    {
+      className: `vws${p.tool !== null ? " vws-tool" : ""}`,
+      "data-testid": "vws",
+      "data-slides": m.slides.length,
+      "data-current": idx,
+    },
     strip,
     createElement(
       "div",
@@ -272,12 +440,32 @@ export function SlideView(p: SlideViewProps): ReactElement {
         "div",
         { className: "vws-foot" },
         createElement("span", { "data-testid": "vws-count" }, `Slide ${idx} of ${m.slides.length}`),
-        createElement("button", { "aria-label": "Present", "data-testid": "vws-present", onClick: () => setPresent(true) }, "Present"),
+        createElement(
+          "button",
+          { "aria-label": "Present", "data-testid": "vws-present", onClick: () => setPresent(true) },
+          "Present",
+        ),
         editable ? null : null,
       ),
     ),
     present
-      ? createElement("div", { className: "vws-full", "data-testid": "vws-full", onClick: () => p.onSlide(Math.min(m.slides.length, idx + 1)) }, slideEl(m, cur, Math.min(window.innerWidth, (window.innerHeight * m.w) / m.h), { edit: false, decor: [] }, p.imageUrl, [], { "data-present": "1" }))
+      ? createElement(
+          "div",
+          {
+            className: "vws-full",
+            "data-testid": "vws-full",
+            onClick: () => p.onSlide(Math.min(m.slides.length, idx + 1)),
+          },
+          slideEl(
+            m,
+            cur,
+            Math.min(window.innerWidth, (window.innerHeight * m.w) / m.h),
+            { edit: false, decor: [] },
+            p.imageUrl,
+            [],
+            { "data-present": "1" },
+          ),
+        )
       : null,
   );
 }

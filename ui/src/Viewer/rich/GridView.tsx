@@ -95,7 +95,10 @@ export function GridView(p: GridViewProps): ReactElement {
     return () => ro?.disconnect();
   }, []);
 
-  const widths = useMemo(() => Array.from({ length: Math.max(s.cols, 1) }, (_, c) => s.widths[c] ?? DEFAULT_COL_W), [s, p.rev]); // eslint-disable-line react-hooks/exhaustive-deps
+  const widths = useMemo(
+    () => Array.from({ length: Math.max(s.cols, 1) }, (_, c) => s.widths[c] ?? DEFAULT_COL_W),
+    [s, p.rev],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
   const lefts = useMemo(() => {
     const out: number[] = [];
     let x = GUTTER;
@@ -120,7 +123,8 @@ export function GridView(p: GridViewProps): ReactElement {
     const hidden = new Set<string>();
     for (const m of s.merges) {
       origin.set(key(m.r, m.c), { r2: m.r2, c2: m.c2 });
-      for (let r = m.r; r <= m.r2; r++) for (let c = m.c; c <= m.c2; c++) if (r !== m.r || c !== m.c) hidden.add(key(r, c));
+      for (let r = m.r; r <= m.r2; r++)
+        for (let c = m.c; c <= m.c2; c++) if (r !== m.r || c !== m.c) hidden.add(key(r, c));
     }
     return { origin, hidden };
   }, [s.merges]);
@@ -146,7 +150,8 @@ export function GridView(p: GridViewProps): ReactElement {
     }
     const l = lefts.lefts[c] ?? 0;
     if (l < el.scrollLeft + GUTTER) el.scrollLeft = Math.max(0, l - GUTTER);
-    else if (l + (widths[c] ?? DEFAULT_COL_W) > el.scrollLeft + el.clientWidth) el.scrollLeft = l + (widths[c] ?? DEFAULT_COL_W) - el.clientWidth;
+    else if (l + (widths[c] ?? DEFAULT_COL_W) > el.scrollLeft + el.clientWidth)
+      el.scrollLeft = l + (widths[c] ?? DEFAULT_COL_W) - el.clientWidth;
   };
   const move = (dr: number, dc: number): void => {
     const r = Math.max(0, Math.min(s.rows - 1 + (dr > 0 ? 0 : 0), sel.r + dr));
@@ -186,9 +191,11 @@ export function GridView(p: GridViewProps): ReactElement {
     if (k === "ArrowDown") return void (e.preventDefault(), move(1, 0));
     if (k === "ArrowUp") return void (e.preventDefault(), move(-1, 0));
     if (k === "ArrowLeft") return void (e.preventDefault(), move(0, -1));
-    if (k === "ArrowRight" || k === "Tab") return void (e.preventDefault(), move(0, k === "Tab" && e.shiftKey ? -1 : 1));
+    if (k === "ArrowRight" || k === "Tab")
+      return void (e.preventDefault(), move(0, k === "Tab" && e.shiftKey ? -1 : 1));
     if (!canType) return;
-    if (k === "Enter" || k === "F2") return void (e.preventDefault(), setDraft(inputOf(s.cells.get(key(sel.r, sel.c)))));
+    if (k === "Enter" || k === "F2")
+      return void (e.preventDefault(), setDraft(inputOf(s.cells.get(key(sel.r, sel.c)))));
     if (k === "Delete" || k === "Backspace") {
       e.preventDefault();
       p.grid.setCell(s, sel.r, sel.c, "");
@@ -219,7 +226,9 @@ export function GridView(p: GridViewProps): ReactElement {
     if (merged.hidden.has(k)) return null;
     const cell = s.cells.get(k);
     const m = merged.origin.get(k);
-    const w = m ? (lefts.lefts[m.c2] ?? 0) + (widths[m.c2] ?? DEFAULT_COL_W) - (lefts.lefts[c] ?? 0) : (widths[c] ?? DEFAULT_COL_W);
+    const w = m
+      ? (lefts.lefts[m.c2] ?? 0) + (widths[m.c2] ?? DEFAULT_COL_W) - (lefts.lefts[c] ?? 0)
+      : (widths[c] ?? DEFAULT_COL_W);
     const h = m ? (m.r2 - r + 1) * ROW_H : ROW_H;
     const shown = display(cell);
     const isSel = sel.r === r && sel.c === c;
@@ -238,7 +247,10 @@ export function GridView(p: GridViewProps): ReactElement {
         "data-sel": isSel ? "1" : "0",
         ...(find ? { "data-find": find } : {}),
         style: { left: (lefts.lefts[c] ?? 0) - GUTTER, width: w, height: h, top: 0, marginLeft: GUTTER },
-        title: cell?.stale === true ? "This formula is not recalculated here. It shows the last value from the file." : undefined,
+        title:
+          cell?.stale === true
+            ? "This formula is not recalculated here. It shows the last value from the file."
+            : undefined,
         onMouseDown: () => {
           if (draft !== null) commit("none");
           setSel({ r, c });
@@ -265,9 +277,17 @@ export function GridView(p: GridViewProps): ReactElement {
   for (let r = first; r <= last; r++) rowsEls.push(rowEl(frozen + r, r * ROW_H));
   const frozenEls: ReactElement[] = [];
   for (let r = 0; r < frozen; r++) frozenEls.push(rowEl(r, r * ROW_H));
-  const headEls: ReactElement[] = [createElement("div", { key: "g", className: "vwg-h", style: { left: 0, width: GUTTER } })];
+  const headEls: ReactElement[] = [
+    createElement("div", { key: "g", className: "vwg-h", style: { left: 0, width: GUTTER } }),
+  ];
   for (let c = c0; c <= c1; c++)
-    headEls.push(createElement("div", { key: c, className: "vwg-h", style: { left: lefts.lefts[c] ?? 0, width: widths[c] ?? DEFAULT_COL_W } }, colName(c)));
+    headEls.push(
+      createElement(
+        "div",
+        { key: c, className: "vwg-h", style: { left: lefts.lefts[c] ?? 0, width: widths[c] ?? DEFAULT_COL_W } },
+        colName(c),
+      ),
+    );
 
   const selCell = s.cells.get(key(sel.r, sel.c));
   const editorBox = (() => {
@@ -279,7 +299,12 @@ export function GridView(p: GridViewProps): ReactElement {
       "data-testid": "vwg-editor",
       "aria-label": `Edit ${colName(sel.c)}${sel.r + 1}`,
       value: draft,
-      style: { left: lefts.lefts[sel.c] ?? 0, top, width: Math.max(widths[sel.c] ?? DEFAULT_COL_W, 120), height: ROW_H },
+      style: {
+        left: lefts.lefts[sel.c] ?? 0,
+        top,
+        width: Math.max(widths[sel.c] ?? DEFAULT_COL_W, 120),
+        height: ROW_H,
+      },
       onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
       onKeyDown: (e: KeyboardEvent) => {
         e.stopPropagation();
@@ -309,7 +334,11 @@ export function GridView(p: GridViewProps): ReactElement {
       },
     }),
     selCell?.stale === true
-      ? createElement("span", { className: "vwg-note", "data-testid": "vwg-stale" }, "Not recalculated here. Shows the last value.")
+      ? createElement(
+          "span",
+          { className: "vwg-note", "data-testid": "vwg-stale" },
+          "Not recalculated here. Shows the last value.",
+        )
       : p.why !== undefined
         ? createElement("span", { className: "vwg-note", "data-testid": "vwg-why" }, p.why)
         : null,
@@ -317,12 +346,76 @@ export function GridView(p: GridViewProps): ReactElement {
       ? createElement(
           "span",
           { style: { display: "flex", gap: 2 } },
-          createElement("button", { className: "vwg-btn", "aria-label": "Undo", "data-testid": "vwg-undo", disabled: !p.grid.canUndo, onClick: () => p.grid.undo() && p.onChange() }, "Undo"),
-          createElement("button", { className: "vwg-btn", "aria-label": "Redo", "data-testid": "vwg-redo", disabled: !p.grid.canRedo, onClick: () => p.grid.redo() && p.onChange() }, "Redo"),
-          createElement("button", { className: "vwg-btn", "aria-label": "Add row", "data-testid": "vwg-add-row", title: block ?? "", disabled: block !== null, onClick: () => (p.grid.insert(s, "row", sel.r + 1), p.onChange()) }, "+ Row"),
-          createElement("button", { className: "vwg-btn", "aria-label": "Delete row", "data-testid": "vwg-del-row", title: block ?? "", disabled: block !== null || s.rows <= 1, onClick: () => (p.grid.remove(s, "row", sel.r), p.onChange()) }, "− Row"),
-          createElement("button", { className: "vwg-btn", "aria-label": "Add column", "data-testid": "vwg-add-col", title: block ?? "", disabled: block !== null, onClick: () => (p.grid.insert(s, "col", sel.c + 1), p.onChange()) }, "+ Col"),
-          createElement("button", { className: "vwg-btn", "aria-label": "Delete column", "data-testid": "vwg-del-col", title: block ?? "", disabled: block !== null || s.cols <= 1, onClick: () => (p.grid.remove(s, "col", sel.c), p.onChange()) }, "− Col"),
+          createElement(
+            "button",
+            {
+              className: "vwg-btn",
+              "aria-label": "Undo",
+              "data-testid": "vwg-undo",
+              disabled: !p.grid.canUndo,
+              onClick: () => p.grid.undo() && p.onChange(),
+            },
+            "Undo",
+          ),
+          createElement(
+            "button",
+            {
+              className: "vwg-btn",
+              "aria-label": "Redo",
+              "data-testid": "vwg-redo",
+              disabled: !p.grid.canRedo,
+              onClick: () => p.grid.redo() && p.onChange(),
+            },
+            "Redo",
+          ),
+          createElement(
+            "button",
+            {
+              className: "vwg-btn",
+              "aria-label": "Add row",
+              "data-testid": "vwg-add-row",
+              title: block ?? "",
+              disabled: block !== null,
+              onClick: () => (p.grid.insert(s, "row", sel.r + 1), p.onChange()),
+            },
+            "+ Row",
+          ),
+          createElement(
+            "button",
+            {
+              className: "vwg-btn",
+              "aria-label": "Delete row",
+              "data-testid": "vwg-del-row",
+              title: block ?? "",
+              disabled: block !== null || s.rows <= 1,
+              onClick: () => (p.grid.remove(s, "row", sel.r), p.onChange()),
+            },
+            "− Row",
+          ),
+          createElement(
+            "button",
+            {
+              className: "vwg-btn",
+              "aria-label": "Add column",
+              "data-testid": "vwg-add-col",
+              title: block ?? "",
+              disabled: block !== null,
+              onClick: () => (p.grid.insert(s, "col", sel.c + 1), p.onChange()),
+            },
+            "+ Col",
+          ),
+          createElement(
+            "button",
+            {
+              className: "vwg-btn",
+              "aria-label": "Delete column",
+              "data-testid": "vwg-del-col",
+              title: block ?? "",
+              disabled: block !== null || s.cols <= 1,
+              onClick: () => (p.grid.remove(s, "col", sel.c), p.onChange()),
+            },
+            "− Col",
+          ),
         )
       : null,
   );
@@ -330,9 +423,25 @@ export function GridView(p: GridViewProps): ReactElement {
     "div",
     { className: "vwg-tabs", "data-testid": "vwg-tabs", role: "tablist" },
     ...(p.grid.book.sheets.length < 2 ? [] : p.grid.book.sheets).map((sh, i) =>
-      createElement("button", { key: sh.name, className: "vwg-tab", role: "tab", "aria-selected": i === p.sheet, "data-on": i === p.sheet ? "1" : "0", "data-testid": `vwg-tab-${i}`, onClick: () => p.onSheet(i) }, sh.name),
+      createElement(
+        "button",
+        {
+          key: sh.name,
+          className: "vwg-tab",
+          role: "tab",
+          "aria-selected": i === p.sheet,
+          "data-on": i === p.sheet ? "1" : "0",
+          "data-testid": `vwg-tab-${i}`,
+          onClick: () => p.onSheet(i),
+        },
+        sh.name,
+      ),
     ),
-    createElement("span", { className: "vwg-foot", "data-testid": "vwg-foot" }, `${(p.header ? Math.max(s.rows - 1, 0) : s.rows).toLocaleString("en-US")} rows · ${s.cols} columns`),
+    createElement(
+      "span",
+      { className: "vwg-foot", "data-testid": "vwg-foot" },
+      `${(p.header ? Math.max(s.rows - 1, 0) : s.rows).toLocaleString("en-US")} rows · ${s.cols} columns`,
+    ),
   );
   return createElement(
     "div",
@@ -355,8 +464,21 @@ export function GridView(p: GridViewProps): ReactElement {
         onCopy,
       },
       createElement("div", { className: "vwg-head", style: { width: lefts.total } }, ...headEls),
-      frozen > 0 ? createElement("div", { className: "vwg-frozen", style: { top: HEAD_H, height: frozen * ROW_H, width: lefts.total, position: "sticky" } }, ...frozenEls) : null,
-      createElement("div", { className: "vwg-body", style: { height: bodyRows * ROW_H, width: lefts.total } }, ...rowsEls),
+      frozen > 0
+        ? createElement(
+            "div",
+            {
+              className: "vwg-frozen",
+              style: { top: HEAD_H, height: frozen * ROW_H, width: lefts.total, position: "sticky" },
+            },
+            ...frozenEls,
+          )
+        : null,
+      createElement(
+        "div",
+        { className: "vwg-body", style: { height: bodyRows * ROW_H, width: lefts.total } },
+        ...rowsEls,
+      ),
       editorBox,
     ),
     tabs,

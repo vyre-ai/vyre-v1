@@ -17,29 +17,51 @@ test("a 30 page PDF is drawn as pages: find steps through, a comment pins to pag
     const pdf = await s.make("quarterly.pdf", makePdf(reportPages(30)), "application/pdf");
     const fileId = pdf.file.fileId as string;
     await s.open("quarterly.pdf");
-    await page.getByTestId("vwp").waitFor({ timeout: 30_000 }).catch(async (e) => {
-      await s.shot("pdf-debug");
-      console.log("BODY", (await page.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 500));
-      throw e;
+    await page
+      .getByTestId("vwp")
+      .waitFor({ timeout: 30_000 })
+      .catch(async (e) => {
+        await s.shot("pdf-debug");
+        console.log("BODY", (await page.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 500));
+        throw e;
+      });
+    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-1"] canvas'), null, {
+      timeout: 20_000,
     });
-    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-1"] canvas'), null, { timeout: 20_000 });
     assert.equal(await page.getByTestId("vwp").getAttribute("data-pages"), "30");
     assert.match(await page.getByTestId("vw-page-count").innerText(), /30/);
     // lazy: the first pages are drawn, the last is not
     assert.equal(await drawn(page, 1), true);
     assert.equal(await drawn(page, 30), false, "page 30 is not drawn until it is near the screen");
     // the words are real, selectable text on the page
-    await page.waitForFunction(() => document.querySelector('[data-testid="vwp-page-1"] .vwp-text')?.textContent?.includes("Section 1 of the report"), null, { timeout: 15_000 });
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-testid="vwp-page-1"] .vwp-text')
+          ?.textContent?.includes("Section 1 of the report"),
+      null,
+      { timeout: 15_000 },
+    );
     await s.shot("pdf-open");
     // find: highlights matches on the page and steps through them
     await page.getByTestId("vw-find-btn").click();
     await page.getByTestId("vw-find-input").fill("quarterly report");
-    await page.waitForFunction(() => /1 of 30/.test(document.querySelector('[data-testid="vw-count"]')?.textContent ?? ""), null, { timeout: 30_000 });
-    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-1"] mark.vwf-on'), null, { timeout: 10_000 });
+    await page.waitForFunction(
+      () => /1 of 30/.test(document.querySelector('[data-testid="vw-count"]')?.textContent ?? ""),
+      null,
+      { timeout: 30_000 },
+    );
+    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-1"] mark.vwf-on'), null, {
+      timeout: 10_000,
+    });
     await s.shot("pdf-find");
     for (let i = 0; i < 11; i++) await page.getByTestId("vw-next").click();
-    await page.waitForFunction(() => /12 of 30/.test(document.querySelector('[data-testid="vw-count"]')?.textContent ?? ""));
-    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-12"] mark.vwf-on'), null, { timeout: 10_000 });
+    await page.waitForFunction(() =>
+      /12 of 30/.test(document.querySelector('[data-testid="vw-count"]')?.textContent ?? ""),
+    );
+    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-12"] mark.vwf-on'), null, {
+      timeout: 10_000,
+    });
     assert.equal(await page.getByTestId("vw-page-input").inputValue(), "12", "the page number follows the match");
     await page.getByTestId("vw-find-input").fill("");
     // jump to page 12 by its number
@@ -72,15 +94,29 @@ test("a 30 page PDF is drawn as pages: find steps through, a comment pins to pag
     await page.mouse.down();
     await page.mouse.move(b3.x + b3.width * 0.9, b3.y + b3.height * 0.2, { steps: 6 });
     await page.mouse.up();
-    await page.waitForFunction(() => document.querySelectorAll('[data-testid^="vwp-rbox-"]').length >= 1, null, { timeout: 10_000 });
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid^="vwp-rbox-"]').length >= 1, null, {
+      timeout: 10_000,
+    });
     const marks = await s.call("files.marks.list", { fileId });
-    assert.ok(marks.marks.some((m: any) => m.shape === "box" && m.page === 3), "the redaction is on page 3");
+    assert.ok(
+      marks.marks.some((m: any) => m.shape === "box" && m.page === 3),
+      "the redaction is on page 3",
+    );
     await page.getByTestId("vw-more").click();
     await page.getByText("Save a redacted copy", { exact: true }).click();
-    await page.getByText(/redacted\)\.pdf beside the original/).waitFor({ timeout: 60_000 }).catch(async (e) => {
-      console.log("NOTE", await page.getByTestId("file-viewer-note").innerText().catch(() => "(none)"));
-      throw e;
-    });
+    await page
+      .getByText(/redacted\)\.pdf beside the original/)
+      .waitFor({ timeout: 60_000 })
+      .catch(async (e) => {
+        console.log(
+          "NOTE",
+          await page
+            .getByTestId("file-viewer-note")
+            .innerText()
+            .catch(() => "(none)"),
+        );
+        throw e;
+      });
     const files = (await s.call("files.list", { folder: s.folderId })).files as { name: string; fileId: string }[];
     const copy = files.find((f) => f.name === "quarterly (redacted).pdf");
     assert.ok(copy, "the copy is a new file beside the original");
@@ -109,14 +145,18 @@ test("a 500 page PDF opens on its first page quickly and a far page draws on dem
     await page.getByText("long.pdf", { exact: true }).first().waitFor({ timeout: 20_000 });
     const t0 = Date.now();
     await page.getByText("long.pdf", { exact: true }).first().dblclick();
-    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-1"] canvas'), null, { timeout: 30_000 });
+    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-1"] canvas'), null, {
+      timeout: 30_000,
+    });
     const open = Date.now() - t0;
     console.log(`SPEED pdf-500-open-ms=${open}`);
     assert.ok(open < 2000, `the first page of a 500 page file draws in under two seconds (took ${open} ms)`);
     await page.getByTestId("vw-page-input").fill("400");
     const t1 = Date.now();
     await page.getByTestId("vw-page-input").press("Enter");
-    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-400"] canvas'), null, { timeout: 15_000 });
+    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-400"] canvas'), null, {
+      timeout: 15_000,
+    });
     console.log(`SPEED pdf-500-jump-ms=${Date.now() - t1}`);
     const canvases = await page.evaluate(() => document.querySelectorAll(".vwp-page canvas").length);
     assert.ok(canvases <= 14, `only the pages near the screen hold a canvas (${canvases})`);
@@ -133,7 +173,9 @@ test("a scan with no text layer still draws and Find says there is no text; a br
     await s.make("blank.pdf", makePdf([[""]]).length ? makePdf([[]]) : makePdf([[]]), "application/pdf");
     await s.make("broken.pdf", Buffer.from("%PDF-1.4\nthis is not a pdf at all"), "application/pdf");
     await s.open("blank.pdf");
-    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-1"] canvas'), null, { timeout: 20_000 });
+    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-1"] canvas'), null, {
+      timeout: 20_000,
+    });
     await page.getByTestId("vw-find-btn").click();
     await page.getByTestId("vw-find-input").fill("anything");
     await page.getByText("No text to search here").waitFor({ timeout: 20_000 });
@@ -170,7 +212,11 @@ test("a three sheet workbook is a real grid: tabs, formats, a cell edit that rec
   if (!s) return;
   const { page } = s;
   try {
-    const f = await s.make("budget.xlsx", await threeSheetBook(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    const f = await s.make(
+      "budget.xlsx",
+      await threeSheetBook(),
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
     const fileId = f.file.fileId as string;
     await s.open("budget.xlsx");
     await page.getByTestId("vwg").waitFor({ timeout: 40_000 });
@@ -193,9 +239,17 @@ test("a three sheet workbook is a real grid: tabs, formats, a cell edit that rec
     assert.equal((await page.getByTestId("vwg-cell-3-3").innerText()).trim(), "122.5");
     // the other sheet follows
     await page.getByTestId("vwg-tab-2").click();
-    await page.waitForFunction(() => document.querySelector('[data-testid="vwg-cell-1-1"]')?.textContent?.trim() === "12.25", null, { timeout: 5000 });
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="vwg-cell-1-1"]')?.textContent?.trim() === "12.25",
+      null,
+      { timeout: 5000 },
+    );
     // saved as a new version
-    await page.waitForFunction(() => /v2/.test(document.querySelector('[data-testid="vw-saved"]')?.textContent ?? ""), null, { timeout: 20_000 });
+    await page.waitForFunction(
+      () => /v2/.test(document.querySelector('[data-testid="vw-saved"]')?.textContent ?? ""),
+      null,
+      { timeout: 20_000 },
+    );
     const versions = (await s.call("files.versions", { fileId })).versions as { n: number }[];
     assert.ok(versions.length >= 2, "History has the new version");
     // History lists the new version
@@ -207,12 +261,17 @@ test("a three sheet workbook is a real grid: tabs, formats, a cell edit that rec
     await page.getByTestId("vwg").waitFor({ timeout: 40_000 });
     assert.equal((await page.getByTestId("vwg-cell-1-3").innerText()).trim(), "62.50");
     await page.getByTestId("vwg-tab-1").click();
-    await page.waitForFunction(() => document.querySelector('[data-testid="vwg-cell-0-1"]')?.textContent?.trim() === "the quarterly figures");
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="vwg-cell-0-1"]')?.textContent?.trim() === "the quarterly figures",
+    );
     const bytes = Buffer.from((await s.call("files.read", { fileId, as: "base64" })).base64, "base64");
     const ExcelJS = (await import("exceljs")).default;
     const re = new ExcelJS.Workbook();
     await re.xlsx.load(bytes as never);
-    assert.deepEqual(re.worksheets.map((w) => w.name), ["Budget", "Notes", "Tax"]);
+    assert.deepEqual(
+      re.worksheets.map((w) => w.name),
+      ["Budget", "Notes", "Tax"],
+    );
     assert.equal(re.getWorksheet("Budget")!.getCell("B2").numFmt, "$#,##0.00");
     assert.equal(re.getWorksheet("Budget")!.getCell("D2").formula, "B2*C2");
     assert.equal(re.getWorksheet("Budget")!.getCell("C2").value, 5);
@@ -220,7 +279,11 @@ test("a three sheet workbook is a real grid: tabs, formats, a cell edit that rec
     // find across sheets steps into another tab
     await page.getByTestId("vw-find-btn").click();
     await page.getByTestId("vw-find-input").fill("quarterly");
-    await page.waitForFunction(() => /1 of 1/.test(document.querySelector('[data-testid="vw-count"]')?.textContent ?? ""), null, { timeout: 10_000 });
+    await page.waitForFunction(
+      () => /1 of 1/.test(document.querySelector('[data-testid="vw-count"]')?.textContent ?? ""),
+      null,
+      { timeout: 10_000 },
+    );
     await s.shot("xlsx-find");
     assert.deepEqual(s.errors, []);
   } finally {
@@ -252,7 +315,9 @@ test("a 50,000 row sheet opens and scrolls: only the rows near the screen are dr
     const drawnRows = await page.evaluate(() => document.querySelectorAll(".vwg-row").length);
     assert.ok(drawnRows < 80, `only the rows near the screen exist (${drawnRows})`);
     await page.getByTestId("vwg-scroll").evaluate((el) => (el.scrollTop = 28 * 40_000));
-    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwg-cell-40010-1"]'), null, { timeout: 10_000 });
+    await page.waitForFunction(() => !!document.querySelector('[data-testid="vwg-cell-40010-1"]'), null, {
+      timeout: 10_000,
+    });
     assert.equal((await page.getByTestId("vwg-cell-40010-1").innerText()).trim(), "row 40010");
   } finally {
     await s.close();
@@ -296,28 +361,67 @@ test("a Word file is drawn as its page, a word is edited and saved back, and eve
     await page.getByTestId("vw-sel-comment").click();
     await page.getByTestId("vw-pick-input").fill("Check this goal");
     await page.getByTestId("vw-pick-post").click();
-    await page.waitForFunction(() => !!document.querySelector('[data-testid^="vw-comment-"]'), null, { timeout: 10_000 });
-    const cm = (await s.call("files.comments.list", { fileId })).comments.find((x: any) => x.text === "Check this goal");
+    await page.waitForFunction(() => !!document.querySelector('[data-testid^="vw-comment-"]'), null, {
+      timeout: 10_000,
+    });
+    const cm = (await s.call("files.comments.list", { fileId })).comments.find(
+      (x: any) => x.text === "Check this goal",
+    );
     assert.ok(cm?.anchor.quote, "the comment is anchored to the words selected");
     await s.shot("docx-comment");
     // edit: a word is replaced
     await page.getByTestId("vw-mode-edit").click();
     const tracked = page.locator('[data-ro="1"]');
-    assert.equal(await tracked.first().getAttribute("contenteditable"), "false", "a paragraph with a tracked change is not edited");
+    assert.equal(
+      await tracked.first().getAttribute("contenteditable"),
+      "false",
+      "a paragraph with a tracked change is not edited",
+    );
     const p1 = page.locator('[data-pid="d1"] [data-r="1"]');
     await p1.dblclick();
     await page.keyboard.type("coming");
     await s.shot("docx-edit");
-    const nt = await page.getByTestId("file-viewer-note").waitFor({ timeout: 4000 }).then(() => page.getByTestId("file-viewer-note").innerText()).catch(() => "(no note)");
+    const nt = await page
+      .getByTestId("file-viewer-note")
+      .waitFor({ timeout: 4000 })
+      .then(() => page.getByTestId("file-viewer-note").innerText())
+      .catch(() => "(no note)");
     console.log("NOTE-AFTER-EDIT", nt);
-    console.log("FFLATE", await page.evaluate(() => { try { const f = (window as any).fflate; const z = f.zipSync({ "a.xml": [new Uint8Array([1, 2]), { level: 6, mtime: 0 }] }); return "ok " + z.length; } catch (e: any) { return "ERR " + e.message; } }));
-    await page.waitForFunction(() => /v2/.test(document.querySelector('[data-testid="vw-saved"]')?.textContent ?? ""), null, { timeout: 20_000 }).catch(async (e) => {
-      console.log("NOTE", await page.getByTestId("file-viewer-note").innerText().catch(() => "(none)"), "SAVED", await page.getByTestId("vw-saved").innerText().catch(() => "(none)"));
-      throw e;
-    });
+    console.log(
+      "FFLATE",
+      await page.evaluate(() => {
+        try {
+          const f = (window as any).fflate;
+          const z = f.zipSync({ "a.xml": [new Uint8Array([1, 2]), { level: 6, mtime: 0 }] });
+          return "ok " + z.length;
+        } catch (e: any) {
+          return "ERR " + e.message;
+        }
+      }),
+    );
+    await page
+      .waitForFunction(() => /v2/.test(document.querySelector('[data-testid="vw-saved"]')?.textContent ?? ""), null, {
+        timeout: 20_000,
+      })
+      .catch(async (e) => {
+        console.log(
+          "NOTE",
+          await page
+            .getByTestId("file-viewer-note")
+            .innerText()
+            .catch(() => "(none)"),
+          "SAVED",
+          await page
+            .getByTestId("vw-saved")
+            .innerText()
+            .catch(() => "(none)"),
+        );
+        throw e;
+      });
     const out = unzip(Buffer.from((await s.call("files.read", { fileId, as: "base64" })).base64, "base64"));
     const was = unzip(original);
-    for (const k of Object.keys(was)) if (k !== "word/document.xml") assert.deepEqual(out[k], was[k], `${k} is the file's own bytes`);
+    for (const k of Object.keys(was))
+      if (k !== "word/document.xml") assert.deepEqual(out[k], was[k], `${k} is the file's own bytes`);
     const docXml = new TextDecoder().decode(out["word/document.xml"]!);
     assert.match(docXml, /coming/, docXml.slice(docXml.indexOf("This plan") - 80, docXml.indexOf("This plan") + 400));
     assert.match(docXml, /<w:ins w:id="5"/, "the tracked change is kept");
@@ -348,14 +452,20 @@ test("a deck is drawn as slides with a filmstrip, find, a comment on a slide, pr
     await page.getByTestId("vws-thumb-2").click();
     await page.getByText("Revenue grew in every region").first().waitFor({ timeout: 10_000 });
     const box = page.locator('[data-testid="vws-slide-2"] .vws-sh').nth(2);
-    assert.equal(await box.evaluate((e) => getComputedStyle(e).backgroundColor), "rgb(79, 129, 189)", "a shape's fill is drawn");
+    assert.equal(
+      await box.evaluate((e) => getComputedStyle(e).backgroundColor),
+      "rgb(79, 129, 189)",
+      "a shape's fill is drawn",
+    );
     await page.getByTestId("vws-thumb-3").click();
     await page.getByText("12 percent").first().waitFor();
-    assert.equal(await page.getByTestId("vws-img").count() >= 1, true, "the picture is drawn");
+    assert.equal((await page.getByTestId("vws-img").count()) >= 1, true, "the picture is drawn");
     // find across slides steps into the slide with the match
     await page.getByTestId("vw-find-btn").click();
     await page.getByTestId("vw-find-input").fill("hiring");
-    await page.waitForFunction(() => document.querySelectorAll('[data-testid="vws"] mark.vwf').length >= 1, null, { timeout: 10_000 });
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="vws"] mark.vwf').length >= 1, null, {
+      timeout: 10_000,
+    });
     assert.equal(await page.getByTestId("vws").getAttribute("data-current"), "2");
     await s.shot("pptx-find");
     await page.getByTestId("vw-find-input").fill("");
@@ -385,10 +495,15 @@ test("a deck is drawn as slides with a filmstrip, find, a comment on a slide, pr
     const target = page.locator('[data-testid="vws-slide-2"] p', { hasText: "Costs stayed flat" }).locator("[data-r]");
     await target.click({ clickCount: 3 });
     await page.keyboard.type("Costs fell slightly");
-    await page.waitForFunction(() => /v2/.test(document.querySelector('[data-testid="vw-saved"]')?.textContent ?? ""), null, { timeout: 20_000 });
+    await page.waitForFunction(
+      () => /v2/.test(document.querySelector('[data-testid="vw-saved"]')?.textContent ?? ""),
+      null,
+      { timeout: 20_000 },
+    );
     const out = unzip(Buffer.from((await s.call("files.read", { fileId, as: "base64" })).base64, "base64"));
     const was = unzip(original);
-    for (const k of Object.keys(was)) if (k !== "ppt/slides/slide2.xml") assert.deepEqual(out[k], was[k], `${k} is the file's own bytes`);
+    for (const k of Object.keys(was))
+      if (k !== "ppt/slides/slide2.xml") assert.deepEqual(out[k], was[k], `${k} is the file's own bytes`);
     assert.match(new TextDecoder().decode(out["ppt/slides/slide2.xml"]!), /Costs fell slightly/);
     assert.deepEqual(s.errors, []);
   } finally {

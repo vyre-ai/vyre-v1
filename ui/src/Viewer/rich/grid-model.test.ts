@@ -11,12 +11,35 @@ import type { XBook } from "./workbook-io.ts";
 
 const sheet = (name: string, rows: (string | number | null)[][]): GSheet => {
   const cells = new Map<string, any>();
-  rows.forEach((r, i) => r.forEach((v, j) => v !== null && cells.set(key(i, j), typeof v === "string" && v.startsWith("=") ? { v: null, f: v.slice(1) } : { v })));
-  return { name, rows: rows.length, cols: Math.max(...rows.map((r) => r.length)), cells, widths: [], frozen: { rows: 0, cols: 0 }, merges: [] };
+  rows.forEach((r, i) =>
+    r.forEach(
+      (v, j) =>
+        v !== null &&
+        cells.set(key(i, j), typeof v === "string" && v.startsWith("=") ? { v: null, f: v.slice(1) } : { v }),
+    ),
+  );
+  return {
+    name,
+    rows: rows.length,
+    cols: Math.max(...rows.map((r) => r.length)),
+    cells,
+    widths: [],
+    frozen: { rows: 0, cols: 0 },
+    merges: [],
+  };
 };
 
 test("formulas: arithmetic, ranges, functions and text", () => {
-  const g = new Grid({ sheets: [sheet("A", [[1, 2, "=A1+B1*2"], [10, 20, "=SUM(A1:B2)"], [5, null, "=IF(A3>3,\"big\",\"small\")"], [null, null, "=AVERAGE(A1:A3)&\"!\""]])] });
+  const g = new Grid({
+    sheets: [
+      sheet("A", [
+        [1, 2, "=A1+B1*2"],
+        [10, 20, "=SUM(A1:B2)"],
+        [5, null, '=IF(A3>3,"big","small")'],
+        [null, null, '=AVERAGE(A1:A3)&"!"'],
+      ]),
+    ],
+  });
   const s = g.book.sheets[0]!;
   assert.equal(s.cells.get(key(0, 2))!.v, 5);
   assert.equal(s.cells.get(key(1, 2))!.v, 33);
@@ -47,7 +70,7 @@ test("a formula this grid does not read keeps its text and its last value, marke
 test("evaluate: the supported list and a function outside it", () => {
   const read = (): number => 4;
   assert.equal(evaluate("ROUND(2.567,2)+MOD(10,3)+POWER(2,3)+SQRT(16)+ABS(-1)", read), 2.57 + 1 + 8 + 4 + 1);
-  assert.equal(evaluate('AND(1<2,OR(1=2,NOT(FALSE)))', read), true);
+  assert.equal(evaluate("AND(1<2,OR(1=2,NOT(FALSE)))", read), true);
   assert.equal(evaluate('UPPER("a")&LEN("abc")&CONCAT("x","y")', read), "A3xy");
   assert.ok(evaluate("1/0", read) instanceof FormulaError);
   assert.throws(() => evaluate("XLOOKUP(1,2,3)", read), /XLOOKUP/);
@@ -111,7 +134,10 @@ test("number formats show numbers, currency, percent and dates", () => {
 });
 
 test("Find reads each cell on a line of its own", () => {
-  const s = sheet("A", [["alpha", 2], [null, "alpha beta"]]);
+  const s = sheet("A", [
+    ["alpha", 2],
+    [null, "alpha beta"],
+  ]);
   const f = sheetFindText(s);
   assert.equal(f.text, "alpha\n2\nalpha beta");
   assert.deepEqual(f.cells[2], [1, 1]);
@@ -186,14 +212,17 @@ test("round trip: open a real workbook, change one cell, save, reopen: the other
   assert.deepEqual(Object.keys(z), ["Budget", "Notes", "Tax"]);
   // the one cell that was changed, and nothing else in cells, in any other sheet, or in layout
   assert.equal(z["Budget"]!.cells["C2"].v, 5);
-  assert.equal((re.getWorksheet("Budget")!.getCell("D2").result as number), 62.5);
-  assert.equal((re.getWorksheet("Tax")!.getCell("A1").result as number), 12.25);
+  assert.equal(re.getWorksheet("Budget")!.getCell("D2").result as number, 62.5);
+  assert.equal(re.getWorksheet("Tax")!.getCell("A1").result as number, 12.25);
   const strip = (o: Record<string, { cells: Record<string, any> }>): unknown =>
-    JSON.parse(JSON.stringify(o, (_k, v) => v), (k, v) => v);
+    JSON.parse(
+      JSON.stringify(o, (_k, v) => v),
+      (k, v) => v,
+    );
   delete (a["Budget"]!.cells as any)["C2"];
   delete (z["Budget"]!.cells as any)["C2"];
   assert.deepEqual(strip(z), strip(a));
-  assert.equal((re.getWorksheet("Budget")!.getCell("B2").numFmt), "$#,##0.00");
+  assert.equal(re.getWorksheet("Budget")!.getCell("B2").numFmt, "$#,##0.00");
   assert.equal(re.getWorksheet("Notes")!.getCell("A1").font?.italic, true);
 });
 
@@ -216,14 +245,26 @@ test("round trip with an inserted row: the sheet's cells move in the file and fo
   const re = new ExcelJS.Workbook();
   await re.xlsx.load(Buffer.from(await out.xlsx.writeBuffer()) as never);
   const s = re.getWorksheet("S")!;
-  assert.deepEqual([1, 2, 3, 4].map((r) => s.getCell(r, 1).type === 6 ? s.getCell(r, 1).formula : s.getCell(r, 1).value), [1, 10, 2, "SUM(A1:A3)"]);
+  assert.deepEqual(
+    [1, 2, 3, 4].map((r) => (s.getCell(r, 1).type === 6 ? s.getCell(r, 1).formula : s.getCell(r, 1).value)),
+    [1, 10, 2, "SUM(A1:A3)"],
+  );
   assert.equal(s.getCell(4, 1).result, 13);
 });
 
 import { bookFromRows, cellWrites, sheetCsv } from "./workbook-io.ts";
 
 test("a Google Sheet's first tab: only the cells a person changed are written, each as what they typed", () => {
-  const g = new Grid(bookFromRows([["Item", "Cost"], ["Paper", "12"], ["Ink", "30"]], "Sheet"));
+  const g = new Grid(
+    bookFromRows(
+      [
+        ["Item", "Cost"],
+        ["Paper", "12"],
+        ["Ink", "30"],
+      ],
+      "Sheet",
+    ),
+  );
   const was = baseline(g.book);
   assert.deepEqual(cellWrites(g, was), []);
   g.setCell(g.book.sheets[0]!, 1, 1, "20");
@@ -238,7 +279,17 @@ test("a Google Sheet's first tab: only the cells a person changed are written, e
 });
 
 test("a CSV round trips: quoting, a plain formula-looking cell stays text, and the saved text is the grid", () => {
-  const g = new Grid(bookFromRows([["name", "note"], ["Ada", "says \"hi\", twice"], ["=x", "7"]], "Sheet", { plain: true, header: true }));
+  const g = new Grid(
+    bookFromRows(
+      [
+        ["name", "note"],
+        ["Ada", 'says "hi", twice'],
+        ["=x", "7"],
+      ],
+      "Sheet",
+      { plain: true, header: true },
+    ),
+  );
   assert.equal(g.book.sheets[0]!.cells.get(key(2, 0))!.f, undefined);
   assert.equal(sheetCsv(g), 'name,note\nAda,"says ""hi"", twice"\n=x,7\n');
   g.setCell(g.book.sheets[0]!, 1, 0, "Grace");

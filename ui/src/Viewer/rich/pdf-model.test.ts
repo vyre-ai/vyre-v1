@@ -60,7 +60,10 @@ test("a scan with no text layer says so; a file with words does not", () => {
 });
 
 test("a password-protected or broken PDF is one plain sentence", () => {
-  assert.equal(pdfFailureWords({ name: "PasswordException" }), "This PDF is protected by a password, so it cannot be shown here.");
+  assert.equal(
+    pdfFailureWords({ name: "PasswordException" }),
+    "This PDF is protected by a password, so it cannot be shown here.",
+  );
   assert.equal(pdfFailureWords(new Error("Invalid PDF structure")), "This PDF is damaged and cannot be shown here.");
 });
 
@@ -71,7 +74,9 @@ test("a box is clamped to the page and a click without a drag is no box", () => 
 });
 
 test("the redacted copy is a picture-only PDF: valid frame, page count, no text operators and no fonts", () => {
-  const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9]);
+  const jpeg = Uint8Array.from([
+    0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9,
+  ]);
   const pdf = imagePdf([
     { w: 612, h: 792, jpeg, iw: 8, ih: 8 },
     { w: 300, h: 400, jpeg, iw: 8, ih: 8 },

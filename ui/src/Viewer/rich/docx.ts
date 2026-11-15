@@ -78,7 +78,8 @@ export interface DocxModel {
 
 const dec = new TextDecoder();
 const enc = new TextEncoder();
-const on = (n: XNode | undefined): boolean => n !== undefined && !["0", "false", "off"].includes(attr(n, "w:val") ?? "true");
+const on = (n: XNode | undefined): boolean =>
+  n !== undefined && !["0", "false", "off"].includes(attr(n, "w:val") ?? "true");
 
 function runProps(rPr: XNode | undefined): RunProps {
   const o: RunProps = {};
@@ -146,23 +147,35 @@ const chain = (styles: Map<string, Style>, id: string | undefined): Style[] => {
   return out;
 };
 
-function readNumbering(xml: string | undefined): (numId: string, level: number) => { fmt: string; text: string } | undefined {
+function readNumbering(
+  xml: string | undefined,
+): (numId: string, level: number) => { fmt: string; text: string } | undefined {
   if (xml === undefined) return () => undefined;
   const root = parseXml(xml).root;
   const abstracts = new Map<string, Map<number, { fmt: string; text: string }>>();
   for (const a of kids(root, "w:abstractNum")) {
     const lv = new Map<number, { fmt: string; text: string }>();
     for (const l of kids(a, "w:lvl"))
-      lv.set(Number(attr(l, "w:ilvl") ?? 0), { fmt: attr(kid(l, "w:numFmt"), "w:val") ?? "decimal", text: attr(kid(l, "w:lvlText"), "w:val") ?? "" });
+      lv.set(Number(attr(l, "w:ilvl") ?? 0), {
+        fmt: attr(kid(l, "w:numFmt"), "w:val") ?? "decimal",
+        text: attr(kid(l, "w:lvlText"), "w:val") ?? "",
+      });
     abstracts.set(attr(a, "w:abstractNumId") ?? "", lv);
   }
   const nums = new Map<string, string>();
-  for (const n of kids(root, "w:num")) nums.set(attr(n, "w:numId") ?? "", attr(kid(n, "w:abstractNumId"), "w:val") ?? "");
+  for (const n of kids(root, "w:num"))
+    nums.set(attr(n, "w:numId") ?? "", attr(kid(n, "w:abstractNumId"), "w:val") ?? "");
   return (numId, level) => abstracts.get(nums.get(numId) ?? "")?.get(level);
 }
 
 const roman = (n: number): string => {
-  const t: [number, string][] = [[10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]];
+  const t: [number, string][] = [
+    [10, "x"],
+    [9, "ix"],
+    [5, "v"],
+    [4, "iv"],
+    [1, "i"],
+  ];
   let s = "";
   for (const [v, r] of t) while (n >= v) ((s += r), (n -= v));
   return s;
@@ -252,10 +265,16 @@ export function readDocx(entries: Record<string, Uint8Array>): DocxModel {
               }
               return undefined;
             })(c);
-            out.image = { rid, w: Number(attr(ext, "cx") ?? 0) / 9525, h: Number(attr(ext, "cy") ?? 0) / 9525, alt: attr(docPr, "descr") ?? "" };
+            out.image = {
+              rid,
+              w: Number(attr(ext, "cx") ?? 0) / 9525,
+              h: Number(attr(ext, "cy") ?? 0) / 9525,
+              alt: attr(docPr, "descr") ?? "",
+            };
           } else notDrawn.add("shapes and charts");
         } else if (c.name === "w:footnoteReference") out.footnote = attr(c, "w:id") ?? "";
-        else if (c.name === "w:sym" || c.name === "w:pict" || c.name === "mc:AlternateContent") notDrawn.add("shapes and charts");
+        else if (c.name === "w:sym" || c.name === "w:pict" || c.name === "mc:AlternateContent")
+          notDrawn.add("shapes and charts");
       }
       out.text = t;
       runs.push(out);
@@ -274,12 +293,22 @@ export function readDocx(entries: Record<string, Uint8Array>): DocxModel {
       } else if (c.name === "w:fldSimple") {
         why = "This is a field. Open it in Word to change it.";
         for (const r of kids(c, "w:r")) addRun(r);
-      } else if (!["w:pPr", "w:proofErr", "w:bookmarkStart", "w:bookmarkEnd", "w:commentRangeStart", "w:commentRangeEnd"].includes(c.name)) {
+      } else if (
+        ![
+          "w:pPr",
+          "w:proofErr",
+          "w:bookmarkStart",
+          "w:bookmarkEnd",
+          "w:commentRangeStart",
+          "w:commentRangeEnd",
+        ].includes(c.name)
+      ) {
         why = "This part holds something that is not edited here.";
       }
     }
     // complex fields (w:fldChar) make the paragraph read only too
-    if (runs.some((r) => kids(r.node).some((k) => k.name === "w:fldChar"))) why ??= "This is a field. Open it in Word to change it.";
+    if (runs.some((r) => kids(r.node).some((k) => k.name === "w:fldChar")))
+      why ??= "This is a field. Open it in Word to change it.";
     const numPr = kid(pPr, "w:numPr");
     let list: DPara["list"];
     const numId = attr(kid(numPr, "w:numId"), "w:val");
@@ -296,7 +325,18 @@ export function readDocx(entries: Record<string, Uint8Array>): DocxModel {
         marker:
           d === undefined || d.fmt === "bullet" || d.text === ""
             ? "•"
-            : d.text.replace(/%\d/, d.fmt === "lowerLetter" ? letter(n) : d.fmt === "upperLetter" ? letter(n).toUpperCase() : d.fmt === "lowerRoman" ? roman(n) : d.fmt === "upperRoman" ? roman(n).toUpperCase() : String(n)),
+            : d.text.replace(
+                /%\d/,
+                d.fmt === "lowerLetter"
+                  ? letter(n)
+                  : d.fmt === "upperLetter"
+                    ? letter(n).toUpperCase()
+                    : d.fmt === "lowerRoman"
+                      ? roman(n)
+                      : d.fmt === "upperRoman"
+                        ? roman(n).toUpperCase()
+                        : String(n),
+              ),
       };
     }
     const sp = kid(pPr, "w:spacing");
@@ -333,7 +373,11 @@ export function readDocx(entries: Record<string, Uint8Array>): DocxModel {
           for (const tc of kids(tr, "w:tc")) {
             const tcPr = kid(tc, "w:tcPr");
             const fill = attr(kid(tcPr, "w:shd"), "w:fill");
-            cells.push({ blocks: blocks(tc, bucket), span: Number(attr(kid(tcPr, "w:gridSpan"), "w:val") ?? 1), ...(fill && fill !== "auto" ? { fill: `#${fill}` } : {}) });
+            cells.push({
+              blocks: blocks(tc, bucket),
+              span: Number(attr(kid(tcPr, "w:gridSpan"), "w:val") ?? 1),
+              ...(fill && fill !== "auto" ? { fill: `#${fill}` } : {}),
+            });
           }
           rows.push(cells);
         }
@@ -384,18 +428,34 @@ export function readDocx(entries: Record<string, Uint8Array>): DocxModel {
     }
   if (text("word/comments.xml") !== undefined) notDrawn.add("Word's own comments");
   if (/<w:txbxContent/.test(docXml)) notDrawn.add("text boxes");
-  return { doc, entries, blocks: bl, paras, header, footer, footnotes, page, media, links, notDrawn: [...notDrawn], headingStyles, dirty: false };
+  return {
+    doc,
+    entries,
+    blocks: bl,
+    paras,
+    header,
+    footer,
+    footnotes,
+    page,
+    media,
+    links,
+    notDrawn: [...notDrawn],
+    headingStyles,
+    dirty: false,
+  };
 }
 
 /** The run's text set, in the file: the first w:t takes it, the others are emptied. A run with no w:t gets one. */
 export function setRunText(r: DRun, value: string): void {
   r.text = value;
   const parts = kids(r.node).filter((c) => c.name === "w:t");
-  const first = parts[0] ?? (() => {
-    const t = el("w:t", [], []);
-    r.node.children.push(t);
-    return t;
-  })();
+  const first =
+    parts[0] ??
+    (() => {
+      const t = el("w:t", [], []);
+      r.node.children.push(t);
+      return t;
+    })();
   first.children = [value];
   delete first.empty;
   setAttr(first, "xml:space", "preserve");
@@ -405,7 +465,8 @@ export function setRunText(r: DRun, value: string): void {
 }
 
 /** The editable runs of a paragraph, in order (a picture, a break or a footnote mark has no words to type into). */
-export const textRuns = (p: DPara): DRun[] => p.runs.filter((r) => r.image === undefined && r.footnote === undefined && !r.pageBreak && r.tracked === undefined);
+export const textRuns = (p: DPara): DRun[] =>
+  p.runs.filter((r) => r.image === undefined && r.footnote === undefined && !r.pageBreak && r.tracked === undefined);
 
 /** A paragraph's words changed by typing: each run's new text, in order. Runs not named are left as they are. */
 export function applyRunTexts(model: DocxModel, p: DPara, texts: readonly string[]): void {

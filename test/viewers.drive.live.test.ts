@@ -16,7 +16,8 @@ import type { XBook } from "../ui/src/Viewer/rich/workbook-io.ts";
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-const rezip = (e: Record<string, Uint8Array>): Buffer => zip(Object.fromEntries(Object.entries(e).map(([k, v]) => [k, Buffer.from(v)])));
+const rezip = (e: Record<string, Uint8Array>): Buffer =>
+  zip(Object.fromEntries(Object.entries(e).map(([k, v]) => [k, Buffer.from(v)])));
 
 async function book(): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
@@ -46,7 +47,12 @@ test("a Word file, a deck and a workbook in a connected Drive are edited in the 
       return { f, bytes: Buffer.from(r.base64, "base64") };
     };
     const write = async (fileId: string, bytes: Buffer) => {
-      await w.ok(MEMBER, "files.write", { fileId, content: { base64: bytes.toString("base64") }, reason: "Edited in the viewer", idempotencyKey: w.idem() });
+      await w.ok(MEMBER, "files.write", {
+        fileId,
+        content: { base64: bytes.toString("base64") },
+        reason: "Edited in the viewer",
+        idempotencyKey: w.idem(),
+      });
       await sync(added.mountId);
     };
     // Word
@@ -55,7 +61,11 @@ test("a Word file, a deck and a workbook in a connected Drive are edited in the 
       assert.deepEqual(bytes, docx, "Vyre holds the Drive file's bytes whole");
       const m = readDocx(unzip(bytes));
       const p = m.paras[1]!;
-      applyRunTexts(m, p, textRuns(p).map((r) => (r.text === "next quarter" ? "coming quarter" : r.text)));
+      applyRunTexts(
+        m,
+        p,
+        textRuns(p).map((r) => (r.text === "next quarter" ? "coming quarter" : r.text)),
+      );
       await write(f.fileId, rezip(writeDocx(m)));
       assert.equal(drive.files.get("w1")!.head, 2, "a new revision of the same file");
       const after = unzip(Buffer.from(drive.files.get("w1")!.bytes));
@@ -71,7 +81,10 @@ test("a Word file, a deck and a workbook in a connected Drive are edited in the 
       setParaRuns(s, s.shapes[1]!.paras.find((q) => q.text === "Costs stayed flat")!, ["Costs fell slightly"]);
       await write(f.fileId, rezip(writePptx(m)));
       assert.equal(drive.files.get("p1")!.head, 2);
-      assert.match(new TextDecoder().decode(unzip(Buffer.from(drive.files.get("p1")!.bytes))["ppt/slides/slide2.xml"]!), /Costs fell slightly/);
+      assert.match(
+        new TextDecoder().decode(unzip(Buffer.from(drive.files.get("p1")!.bytes))["ppt/slides/slide2.xml"]!),
+        /Costs fell slightly/,
+      );
     }
     // Excel
     {
@@ -113,7 +126,12 @@ test("a Word file Drive locks is view only in the viewer, and an edit over a cha
     assert.equal(v.canEdit, false, "the viewer gets no typing for a locked file");
     assert.equal(v.connected.viewOnly, true);
     await w.ok(MEMBER, "files.read", { fileId: mine.fileId, as: "base64" });
-    await w.ok(MEMBER, "files.write", { fileId: mine.fileId, content: { base64: docx.toString("base64") }, reason: "Edit", idempotencyKey: w.idem() });
+    await w.ok(MEMBER, "files.write", {
+      fileId: mine.fileId,
+      content: { base64: docx.toString("base64") },
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
     drive.elsewhere("w2", "kim's words");
     await sync(added.mountId);
     assert.equal(drive.text("w2"), "kim's words", "Drive was not overwritten");

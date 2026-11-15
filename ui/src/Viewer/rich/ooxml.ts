@@ -18,7 +18,9 @@ type Kid = XNode | string;
 const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
 export const unescapeXml = (s: string): string =>
   s.replace(/&(#x[0-9a-fA-F]+|#\d+|amp|lt|gt|quot|apos);/g, (_m, e: string) =>
-    e[0] === "#" ? String.fromCodePoint(e[1] === "x" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : (ENT[e] ?? _m),
+    e[0] === "#"
+      ? String.fromCodePoint(e[1] === "x" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10))
+      : (ENT[e] ?? _m),
   );
 export const escapeText = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 export const escapeAttr = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
@@ -129,8 +131,10 @@ export function writeXml(doc: XDoc): string {
 }
 
 export const isNode = (k: Kid | undefined): k is XNode => typeof k === "object" && k !== null && k.name !== RAW;
-export const kids = (n: XNode, name?: string): XNode[] => n.children.filter((c): c is XNode => isNode(c) && (name === undefined || c.name === name));
-export const kid = (n: XNode | undefined, name: string): XNode | undefined => n?.children.find((c): c is XNode => isNode(c) && c.name === name);
+export const kids = (n: XNode, name?: string): XNode[] =>
+  n.children.filter((c): c is XNode => isNode(c) && (name === undefined || c.name === name));
+export const kid = (n: XNode | undefined, name: string): XNode | undefined =>
+  n?.children.find((c): c is XNode => isNode(c) && c.name === name);
 export const attr = (n: XNode | undefined, name: string): string | undefined => n?.attrs.find(([k]) => k === name)?.[1];
 export const setAttr = (n: XNode, name: string, value: string): void => {
   const a = n.attrs.find(([k]) => k === name);
@@ -138,6 +142,7 @@ export const setAttr = (n: XNode, name: string, value: string): void => {
   else n.attrs.push([name, value]);
 };
 /** The text under a node: its own text children and its descendants', in order. */
-export const textOf = (n: XNode): string => n.children.map((c) => (typeof c === "string" ? c : isNode(c) ? textOf(c) : "")).join("");
+export const textOf = (n: XNode): string =>
+  n.children.map((c) => (typeof c === "string" ? c : isNode(c) ? textOf(c) : "")).join("");
 export const el = (name: string, attrs: [string, string][] = [], children: Kid[] = []): XNode =>
   children.length === 0 ? { name, attrs, children, empty: true } : { name, attrs, children };

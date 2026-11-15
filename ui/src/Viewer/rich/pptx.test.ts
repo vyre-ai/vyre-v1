@@ -9,7 +9,10 @@ test("a deck is read as slides with shapes, a fill, a table and a picture at the
   assert.deepEqual([m.w, m.h, m.slides.length], [9144000, 5143500, 3]);
   const s2 = m.slides[1]!;
   assert.equal(s2.shapes.find((s) => s.fill)?.fill, "#4F81BD");
-  assert.deepEqual(s2.shapes[1]!.paras.map((p) => p.text).filter((t) => t !== ""), ["Revenue grew in every region", "Costs stayed flat", "Hiring starts in January"]);
+  assert.deepEqual(
+    s2.shapes[1]!.paras.map((p) => p.text).filter((t) => t !== ""),
+    ["Revenue grew in every region", "Costs stayed flat", "Hiring starts in January"],
+  );
   const s3 = m.slides[2]!;
   assert.equal(s3.shapes.find((s) => s.kind === "table")!.table![1]![1]![0]!.text, "12 percent");
   assert.equal(s3.shapes.find((s) => s.kind === "pic")!.pic!.path, "ppt/media/image1.png");

@@ -203,12 +203,22 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     };
   }, [d, fileId, isPdf, rev]);
   // an .xlsx opens as a real grid: every sheet, formats, formulas, and typing that is saved back as a new version
-  const isBook = web && ready !== null && ready.data.file.kind === "spreadsheet" && isXlsx(ready.data.file.name, ready.data.file.mime);
+  const isBook =
+    web &&
+    ready !== null &&
+    ready.data.file.kind === "spreadsheet" &&
+    isXlsx(ready.data.file.name, ready.data.file.mime);
   // a Word file or a deck opens as its own pages or slides, and is typed into where the file allows
   const okind = web && ready !== null && isOffice(ready.data.file.kind) ? officeKindOf(ready.data.file.name) : null;
   const off = useOffice(d, fileId, okind, version, say, attempt);
   const offReady = off.state.status === "ready" ? off.state : null;
-  const kind = offReady ? "document" : ready ? (isPdf && pdfData === null ? "other" : viewerKindOf(isPdf ? { ...ready.data, previewUrl: pdfData !== null ? "pdf" : undefined } : ready.data)) : "other";
+  const kind = offReady
+    ? "document"
+    : ready
+      ? isPdf && pdfData === null
+        ? "other"
+        : viewerKindOf(isPdf ? { ...ready.data, previewUrl: pdfData !== null ? "pdf" : undefined } : ready.data)
+      : "other";
   // a Google Doc is kept as Markdown: it is read as a note is, without Drive's escapes
   const app = ready ? googleAppOf(ready.data.file) : null;
   // the text the file holds after the saves of the Markdown editor, so the page reads what was just written once Edit is left
@@ -220,7 +230,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const text = app === "gdocs" ? docsMarkdown(rawText) : rawText;
   // a Google Sheet is the same grid over its export's first tab, and a cell typed there is written at Google by the Sheets path that exists (mounts.sheet_write), never by saving the export over it
   const isGSheet = web && app === "gsheets" && rawText.trim() !== "";
-  const providerEdit = ready !== null && ready.data.snapshot?.editVia === "provider_api" && ready.data.connected?.viewOnly !== true;
+  const providerEdit =
+    ready !== null && ready.data.snapshot?.editVia === "provider_api" && ready.data.connected?.viewOnly !== true;
   // a CSV or TSV opens in the same grid and is written back as a new version; a file read only in part (a large one) is never written, since its rest would be lost
   const isCsv =
     web &&
@@ -259,14 +270,14 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
           ? offReady.doc.paras.map((q) => ({ id: q.id, tag: "p" as const, text: q.text }))
           : offReady.deck.slides.map((sl) => ({ id: `sl${sl.n}`, tag: "p" as const, text: sl.texts }))
         : wbk.state.status === "ready"
-        ? wbk.texts.map((t, i) => ({ id: `sh${i + 1}`, tag: "p" as const, text: t }))
-        : isPdf && kind === "document"
-        ? pdfTexts.map((t, i) => ({ id: `pg${i + 1}`, tag: "p" as const, text: t }))
-        : ready && kind === "document"
-        ? office
-          ? officeBlocks(text)
-          : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)
-        : [],
+          ? wbk.texts.map((t, i) => ({ id: `sh${i + 1}`, tag: "p" as const, text: t }))
+          : isPdf && kind === "document"
+            ? pdfTexts.map((t, i) => ({ id: `pg${i + 1}`, tag: "p" as const, text: t }))
+            : ready && kind === "document"
+              ? office
+                ? officeBlocks(text)
+                : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)
+              : [],
     [ready, kind, text, app, office, isPdf, pdfTexts, wbk.state.status, wbk.texts, offReady, off.rev],
   );
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
@@ -664,15 +675,21 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         {...(fileLinks ? { fileLinks } : {})}
         {...(sheet ? { sheet } : {})}
         comments={
-          layer.preview ? [] : isPdf || offReady?.kind === "pptx" ? pageCommentsOf(ready.comments, d.name, now) : docCommentsOf(ready.comments, d.name, now)
+          layer.preview
+            ? []
+            : isPdf || offReady?.kind === "pptx"
+              ? pageCommentsOf(ready.comments, d.name, now)
+              : docCommentsOf(ready.comments, d.name, now)
         }
         {...(wbk.state.status === "ready"
           ? {
               ...(wbk.saved !== undefined ? { saved: wbk.saved } : {}),
               rich: (c: RichCtx): ReactElement => {
-                const grid = (wbk.state as { grid: import("../../../../../../ui/src/Viewer/rich/grid-model.ts").Grid }).grid;
+                const grid = (wbk.state as { grid: import("../../../../../../ui/src/Viewer/rich/grid-model.ts").Grid })
+                  .grid;
                 const m = wbk.matchCells(c.find);
-                const cur = c.hit === null ? undefined : m.list.filter((x) => x.sheet === c.hit!.block)[c.hit.occurrence];
+                const cur =
+                  c.hit === null ? undefined : m.list.filter((x) => x.sheet === c.hit!.block)[c.hit.occurrence];
                 return (
                   <GridView
                     grid={grid}
@@ -691,7 +708,10 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
                         }
                       : {})}
                     {...(isGSheet
-                      ? { noStructure: "Google Sheets takes cell values here. Open it in Google Sheets to add or remove rows and columns." }
+                      ? {
+                          noStructure:
+                            "Google Sheets takes cell values here. Open it in Google Sheets to add or remove rows and columns.",
+                        }
                       : {})}
                     find={c.find}
                     current={cur ?? null}
@@ -773,7 +793,12 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
                   onArea={(a) => {
                     if (a.tool === "redact") layer.mark({ kind: "redact", shape: "box", box: a.box, page: a.page });
                     else
-                      void commentOnPage(d, fileId, { page: a.page, box: a.box, ...(a.quote ? { quote: a.quote } : {}) }, a.text)
+                      void commentOnPage(
+                        d,
+                        fileId,
+                        { page: a.page, box: a.box, ...(a.quote ? { quote: a.quote } : {}) },
+                        a.text,
+                      )
                         .then(reload)
                         .catch(say);
                   }}
@@ -890,7 +915,12 @@ function SlideHost(p: {
   pins: readonly import("../../../../../../ui/src/Viewer/rich/PdfPages.tsx").PdfPin[];
   marks: readonly import("../../../../../../ui/src/Viewer/rich/PdfPages.tsx").PdfMark[];
   onChange: () => void;
-  onArea: (a: { tool: "comment" | "redact"; page: number; box: { x: number; y: number; w: number; h: number }; text: string }) => void;
+  onArea: (a: {
+    tool: "comment" | "redact";
+    page: number;
+    box: { x: number; y: number; w: number; h: number };
+    text: string;
+  }) => void;
 }): ReactElement {
   const [slide, setSlide] = useState(1);
   const { setPages, setPage } = p.ctx;

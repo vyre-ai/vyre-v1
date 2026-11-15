@@ -34,7 +34,15 @@ for (const [tag, size, scheme] of [
         xlsx: (await s.make("budget.xlsx", Buffer.from(await wb.xlsx.writeBuffer()), XLSX)).file.fileId as string,
         docx: (await s.make("plan.docx", makeDocx(), DOCX)).file.fileId as string,
         pptx: (await s.make("review.pptx", makePptx(), PPTX)).file.fileId as string,
-        csv: (await s.call("files.create", { folderId: s.folderId, name: "fees.csv", content: { text: "client,fee\nAcme,10\nBeta,20\n" }, mime: "text/csv", idempotencyKey: "csv1" })).file.fileId as string,
+        csv: (
+          await s.call("files.create", {
+            folderId: s.folderId,
+            name: "fees.csv",
+            content: { text: "client,fee\nAcme,10\nBeta,20\n" },
+            mime: "text/csv",
+            idempotencyKey: "csv1",
+          })
+        ).file.fileId as string,
       };
       const go = async (id: string, ready: string): Promise<void> => {
         await page.goto(`${s.web.origin}/files#subject=file:${id}`, { waitUntil: "load" });
@@ -43,11 +51,24 @@ for (const [tag, size, scheme] of [
       };
       const fits = async (what: string): Promise<void> => {
         const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-        const who = over > 2 ? await page.evaluate(() => [...document.querySelectorAll("body *")].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 2).slice(0, 4).map((e) => `${e.tagName}.${String((e as HTMLElement).className).slice(0, 40)}[${(e as HTMLElement).dataset?.["testid"] ?? ""}] right=${Math.round(e.getBoundingClientRect().right)}`)) : [];
+        const who =
+          over > 2
+            ? await page.evaluate(() =>
+                [...document.querySelectorAll("body *")]
+                  .filter((e) => e.getBoundingClientRect().right > window.innerWidth + 2)
+                  .slice(0, 4)
+                  .map(
+                    (e) =>
+                      `${e.tagName}.${String((e as HTMLElement).className).slice(0, 40)}[${(e as HTMLElement).dataset?.["testid"] ?? ""}] right=${Math.round(e.getBoundingClientRect().right)}`,
+                  ),
+              )
+            : [];
         assert.ok(over <= 2, `${what}: the page does not scroll sideways (${over}px over) ${who.join(" | ")}`);
       };
       await go(files.pdf, "vwp");
-      await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-1"] canvas'), null, { timeout: 20_000 });
+      await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-1"] canvas'), null, {
+        timeout: 20_000,
+      });
       await s.shot(`${tag}-pdf`);
       await fits("pdf");
       if (tag === "phone") {

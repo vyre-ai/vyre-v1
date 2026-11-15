@@ -738,7 +738,11 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           />
           {find !== "" ? (
             <Text style={s.count} testID="vw-count">
-              {hits.length === 0 ? (props.noText === true ? "No text to search here" : "No matches") : `${at + 1} of ${hits.length}`}
+              {hits.length === 0
+                ? props.noText === true
+                  ? "No text to search here"
+                  : "No matches"
+                : `${at + 1} of ${hits.length}`}
             </Text>
           ) : null}
           {hits.length > 1 ? (
@@ -766,15 +770,15 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {props.paged === true && pageCount > 0 ? (
         <View style={s.zoom} testID="vw-pages">
           {props.compact === true ? null : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={thumbs ? "Hide pages" : "Show pages"}
-            aria-selected={thumbs}
-            testID="vw-thumbs"
-            onPress={() => setThumbs((t) => !t)}
-          >
-            <MenuIcon icon={ICON.pages} />
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={thumbs ? "Hide pages" : "Show pages"}
+              aria-selected={thumbs}
+              testID="vw-thumbs"
+              onPress={() => setThumbs((t) => !t)}
+            >
+              <MenuIcon icon={ICON.pages} />
+            </Pressable>
           )}
           <TextInput
             accessibilityLabel="Page number"
@@ -1625,8 +1629,11 @@ export function Viewer(props: ViewerViewProps): ReactElement {
             const t = texts[bi] ?? "";
             for (const h of hits)
               if (h.block === bi) out.push({ s: h.at, e: h.at + h.len, kind: hits[at] === h ? "find-on" : "find" });
-            for (const sp of spansBy[bi] ?? []) out.push({ s: sp.s, e: sp.e, kind: sp.mark.kind === "redact" ? "redact" : "highlight", id: sp.mark.id });
-            for (const c of shownComments) for (const o of occurrences(t, c.quote)) out.push({ s: o, e: o + c.quote.length, kind: "comment", id: c.id });
+            for (const sp of spansBy[bi] ?? [])
+              out.push({ s: sp.s, e: sp.e, kind: sp.mark.kind === "redact" ? "redact" : "highlight", id: sp.mark.id });
+            for (const c of shownComments)
+              for (const o of occurrences(t, c.quote))
+                out.push({ s: o, e: o + c.quote.length, kind: "comment", id: c.id });
             return out;
           },
           tool: rtool ? "redact" : tool === "comment" ? "comment" : null,

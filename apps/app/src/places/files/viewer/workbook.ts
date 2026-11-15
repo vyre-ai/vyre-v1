@@ -4,7 +4,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Grid, sheetFindText } from "../../../../../../ui/src/Viewer/rich/grid-model.ts";
 import { itemHits } from "../../../../../../ui/src/Viewer/rich/pdf-model.ts";
-import { baseline, bookFromRows, cellWrites, readBook, sheetCsv, writeChanges } from "../../../../../../ui/src/Viewer/rich/workbook-io.ts";
+import {
+  baseline,
+  bookFromRows,
+  cellWrites,
+  readBook,
+  sheetCsv,
+  writeChanges,
+} from "../../../../../../ui/src/Viewer/rich/workbook-io.ts";
 import type { XBook } from "../../../../../../ui/src/Viewer/rich/workbook-io.ts";
 import { loadExcel } from "../../../../../../ui/src/Viewer/rich/vendor.ts";
 import { colName } from "../../../../../../ui/src/Viewer/rich/formula.ts";
@@ -77,7 +84,13 @@ export function useWorkbook(
       try {
         if (gs !== null) {
           const t = parseCsv(gs.text);
-          const grid = new Grid(bookFromRows([[...t.cols], ...t.rows.map((r) => [...r])], "Sheet", gs.csv === true ? { plain: true, header: true } : {}));
+          const grid = new Grid(
+            bookFromRows(
+              [[...t.cols], ...t.rows.map((r) => [...r])],
+              "Sheet",
+              gs.csv === true ? { plain: true, header: true } : {},
+            ),
+          );
           gridRef.current = grid;
           opened.current = baseline(grid.book);
           setState({ status: "ready", grid });
@@ -118,7 +131,12 @@ export function useWorkbook(
       }
       busy.current = true;
       try {
-        const out = (await d.call("files.write", { fileId, content: { text: sheetCsv(grid) }, baseVersion: version.current, reason: "Edited in the viewer" })) as { file?: { version?: number } };
+        const out = (await d.call("files.write", {
+          fileId,
+          content: { text: sheetCsv(grid) },
+          baseVersion: version.current,
+          reason: "Edited in the viewer",
+        })) as { file?: { version?: number } };
         version.current = out.file?.version ?? version.current + 1;
         setSaved(version.current);
       } catch (e) {

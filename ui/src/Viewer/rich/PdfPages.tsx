@@ -50,7 +50,13 @@ export interface PdfPagesProps {
   /** The text of each page, as it is read (all of them at the end), for the viewer's Find. */
   onText: (pages: readonly string[], done: boolean) => void;
   onFailed?: (words: string) => void;
-  onArea: (a: { tool: "comment" | "redact"; page: number; box: { x: number; y: number; w: number; h: number }; text: string; quote?: string }) => void;
+  onArea: (a: {
+    tool: "comment" | "redact";
+    page: number;
+    box: { x: number; y: number; w: number; h: number };
+    text: string;
+    quote?: string;
+  }) => void;
   onSelect?: (a: { quote: string; page: number; box: { x: number; y: number; w: number; h: number } }) => void;
   onZoom: (z: number) => void;
 }
@@ -85,7 +91,13 @@ const CSS = `
 const W = (n: number): number => Math.round(n * 100) / 100;
 
 /** The thumbnails column: small pictures of the pages near the visible one, drawn the same lazy way. */
-function Thumbs(p: { doc: PdfDoc; count: number; ratio: number; page: number; onPick: (n: number) => void }): ReactElement {
+function Thumbs(p: {
+  doc: PdfDoc;
+  count: number;
+  ratio: number;
+  page: number;
+  onPick: (n: number) => void;
+}): ReactElement {
   const col = useRef<HTMLDivElement | null>(null);
   const done = useRef(new Set<number>());
   const draw = useCallback(
@@ -156,7 +168,13 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
   const [colW, setColW] = useState(800);
   const [view, setView] = useState({ top: 0, h: 800 });
   const [drag, setDrag] = useState<{ page: number; a: [number, number]; b: [number, number] } | null>(null);
-  const [bar, setBar] = useState<{ x: number; y: number; quote: string; page: number; box: { x: number; y: number; w: number; h: number } } | null>(null);
+  const [bar, setBar] = useState<{
+    x: number;
+    y: number;
+    quote: string;
+    page: number;
+    box: { x: number; y: number; w: number; h: number };
+  } | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
   const askQuote = useRef("");
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -365,7 +383,9 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
       const sl = window.getSelection();
       if (!sl || sl.isCollapsed || sl.rangeCount === 0) return void setBar(null);
       const range = sl.getRangeAt(0);
-      const start = (range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement) as HTMLElement | null;
+      const start = (
+        range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement
+      ) as HTMLElement | null;
       const n = pageAt(start);
       const f = n === null ? undefined : frames.current.get(n);
       if (n === null || !f) return void setBar(null);
@@ -376,7 +396,10 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
       const t = Math.min(...rects.map((r) => r.top));
       const r = Math.max(...rects.map((q) => q.right));
       const b = Math.max(...rects.map((q) => q.bottom));
-      const box = unitBox([(l - fr.left) / fr.width, (t - fr.top) / fr.height], [(r - fr.left) / fr.width, (b - fr.top) / fr.height]);
+      const box = unitBox(
+        [(l - fr.left) / fr.width, (t - fr.top) / fr.height],
+        [(r - fr.left) / fr.width, (b - fr.top) / fr.height],
+      );
       const sc = scroller.current?.getBoundingClientRect();
       if (!box || !sc) return void setBar(null);
       setBar({
@@ -404,7 +427,12 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
   const up = (e: MouseEvent): void => {
     if (!drag || p.tool === null) return;
     const u = unit(drag.page, e) ?? drag.b;
-    const box = unitBox(drag.a, u) ?? { x: Math.max(0, drag.a[0] - 0.01), y: Math.max(0, drag.a[1] - 0.01), w: 0.02, h: 0.02 };
+    const box = unitBox(drag.a, u) ?? {
+      x: Math.max(0, drag.a[0] - 0.01),
+      y: Math.max(0, drag.a[1] - 0.01),
+      w: 0.02,
+      h: 0.02,
+    };
     const pageNo = drag.page;
     setDrag(null);
     if (p.tool === "redact") p.onArea({ tool: "redact", page: pageNo, box, text: "" });
@@ -420,7 +448,8 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
     if (!el) return undefined;
     let d0 = 0;
     let z0 = 1;
-    const dist = (t: TouchList): number => Math.hypot((t[0]?.clientX ?? 0) - (t[1]?.clientX ?? 0), (t[0]?.clientY ?? 0) - (t[1]?.clientY ?? 0));
+    const dist = (t: TouchList): number =>
+      Math.hypot((t[0]?.clientX ?? 0) - (t[1]?.clientX ?? 0), (t[0]?.clientY ?? 0) - (t[1]?.clientY ?? 0));
     const ts = (e: TouchEvent): void => {
       if (e.touches.length === 2) {
         d0 = dist(e.touches);
@@ -430,7 +459,7 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
     const tm = (e: TouchEvent): void => {
       if (e.touches.length === 2 && d0 > 0) {
         e.preventDefault();
-        p.onZoom(Math.max(0.5, Math.min(4, Math.round((z0 * (dist(e.touches) / d0)) * 100) / 100)));
+        p.onZoom(Math.max(0.5, Math.min(4, Math.round(z0 * (dist(e.touches) / d0) * 100) / 100)));
       }
     };
     el.addEventListener("touchstart", ts, { passive: true });
@@ -509,11 +538,31 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
   };
   const frameEls: ReactElement[] = [];
   for (let n = 1; n <= doc.numPages; n++) frameEls.push(frame(n));
-  const [askPage, askBox] = asking === null ? [0, null] : [Number(asking.split(":")[0]), JSON.parse(asking.slice(asking.indexOf(":") + 1)) as { x: number; y: number; w: number; h: number }];
+  const [askPage, askBox] =
+    asking === null
+      ? [0, null]
+      : [
+          Number(asking.split(":")[0]),
+          JSON.parse(asking.slice(asking.indexOf(":") + 1)) as { x: number; y: number; w: number; h: number },
+        ];
   return createElement(
     "div",
-    { className: `vwp${p.tool !== null ? " vwp-tool" : ""}`, "data-testid": "vwp", "data-pages": doc.numPages, "data-scale": W(scale) },
-    p.thumbs ? createElement(Thumbs, { doc, count: doc.numPages, ratio: base.h / base.w, page, onPick: (n: number) => scroller.current && (scroller.current.scrollTop = Math.max(0, (tops[n - 1] ?? 0) - PAGE_GAP)) }) : null,
+    {
+      className: `vwp${p.tool !== null ? " vwp-tool" : ""}`,
+      "data-testid": "vwp",
+      "data-pages": doc.numPages,
+      "data-scale": W(scale),
+    },
+    p.thumbs
+      ? createElement(Thumbs, {
+          doc,
+          count: doc.numPages,
+          ratio: base.h / base.w,
+          page,
+          onPick: (n: number) =>
+            scroller.current && (scroller.current.scrollTop = Math.max(0, (tops[n - 1] ?? 0) - PAGE_GAP)),
+        })
+      : null,
     createElement(
       "div",
       {
@@ -521,25 +570,69 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
         ref: scroller,
         "data-testid": "vwp-scroll",
         tabIndex: 0,
-        onScroll: (e: { currentTarget: HTMLElement }) => setView({ top: e.currentTarget.scrollTop, h: e.currentTarget.clientHeight }),
+        onScroll: (e: { currentTarget: HTMLElement }) =>
+          setView({ top: e.currentTarget.scrollTop, h: e.currentTarget.clientHeight }),
         onMouseUp,
         onMouseDown: down,
         onMouseMove: move,
         onMouseUpCapture: up,
       },
-      createElement("div", { style: { position: "relative", height: total, minWidth: Math.max(...sizes.map((s) => s.w * scale), 0) + 32 } }, ...frameEls),
+      createElement(
+        "div",
+        {
+          style: { position: "relative", height: total, minWidth: Math.max(...sizes.map((s) => s.w * scale), 0) + 32 },
+        },
+        ...frameEls,
+      ),
       bar && p.tool === null
         ? createElement(
             "div",
-            { className: "vwp-bar", style: { left: bar.x, top: bar.y + (scroller.current?.scrollTop ?? 0) }, "data-testid": "vwp-selbar" },
-            createElement("button", { "data-testid": "vwp-sel-comment", onClick: () => { askQuote.current = bar.quote; setAsking(`${bar.page}:${JSON.stringify(bar.box)}`); p.onSelect?.({ quote: bar.quote, page: bar.page, box: bar.box }); } }, "Comment"),
-            createElement("button", { "data-testid": "vwp-sel-redact", onClick: () => { p.onArea({ tool: "redact", page: bar.page, box: bar.box, text: bar.quote }); setBar(null); window.getSelection()?.removeAllRanges(); } }, "Redact"),
+            {
+              className: "vwp-bar",
+              style: { left: bar.x, top: bar.y + (scroller.current?.scrollTop ?? 0) },
+              "data-testid": "vwp-selbar",
+            },
+            createElement(
+              "button",
+              {
+                "data-testid": "vwp-sel-comment",
+                onClick: () => {
+                  askQuote.current = bar.quote;
+                  setAsking(`${bar.page}:${JSON.stringify(bar.box)}`);
+                  p.onSelect?.({ quote: bar.quote, page: bar.page, box: bar.box });
+                },
+              },
+              "Comment",
+            ),
+            createElement(
+              "button",
+              {
+                "data-testid": "vwp-sel-redact",
+                onClick: () => {
+                  p.onArea({ tool: "redact", page: bar.page, box: bar.box, text: bar.quote });
+                  setBar(null);
+                  window.getSelection()?.removeAllRanges();
+                },
+              },
+              "Redact",
+            ),
           )
         : null,
       askBox
         ? createElement(
             "div",
-            { className: "vwp-bar", style: { left: 24, top: (tops[askPage - 1] ?? 0) + askBox.y * (heights[askPage - 1] ?? 0) + (askBox.h * (heights[askPage - 1] ?? 0)) + 6 }, "data-testid": "vwp-note" },
+            {
+              className: "vwp-bar",
+              style: {
+                left: 24,
+                top:
+                  (tops[askPage - 1] ?? 0) +
+                  askBox.y * (heights[askPage - 1] ?? 0) +
+                  askBox.h * (heights[askPage - 1] ?? 0) +
+                  6,
+              },
+              "data-testid": "vwp-note",
+            },
             createElement("input", {
               autoFocus: true,
               placeholder: "Comment on this",
@@ -548,7 +641,13 @@ export function PdfPages(p: PdfPagesProps): ReactElement {
               onKeyDown: (e: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
                 if (e.key === "Escape") setAsking(null);
                 if (e.key === "Enter" && e.currentTarget.value.trim() !== "") {
-                  p.onArea({ tool: "comment", page: askPage, box: askBox, text: e.currentTarget.value.trim(), quote: askQuote.current });
+                  p.onArea({
+                    tool: "comment",
+                    page: askPage,
+                    box: askBox,
+                    text: e.currentTarget.value.trim(),
+                    quote: askQuote.current,
+                  });
                   setAsking(null);
                   setBar(null);
                   window.getSelection()?.removeAllRanges();

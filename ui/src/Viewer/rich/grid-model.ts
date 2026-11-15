@@ -41,7 +41,20 @@ export const unkey = (k: string): [number, number] => {
 
 /* ---------- number formats ---------- */
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 /** Excel's day 0 is 30 Dec 1899. */
 export const fromSerial = (n: number): Date => new Date(Math.round((n - 25569) * 86_400_000));
@@ -80,13 +93,29 @@ function formatDate(serial: number, fmt: string): string {
     } else if ((m = /^(mmmm|mmm|mm|m)/i.exec(rest))) {
       // m after h or before s is minutes
       const prev = out.trimEnd().slice(-1);
-      const afterH = /h/i.test(f.slice(Math.max(0, i - 3), i)) || /^:?s/i.test(f.slice(i + m[0].length, i + m[0].length + 2));
+      const afterH =
+        /h/i.test(f.slice(Math.max(0, i - 3), i)) || /^:?s/i.test(f.slice(i + m[0].length, i + m[0].length + 2));
       void prev;
       if (afterH && m[0].length <= 2) out += m[0].length === 2 ? p2(mi) : String(mi);
-      else out += m[0].length === 4 ? MONTHS[mo]! : m[0].length === 3 ? MONTHS[mo]!.slice(0, 3) : m[0].length === 2 ? p2(mo + 1) : String(mo + 1);
+      else
+        out +=
+          m[0].length === 4
+            ? MONTHS[mo]!
+            : m[0].length === 3
+              ? MONTHS[mo]!.slice(0, 3)
+              : m[0].length === 2
+                ? p2(mo + 1)
+                : String(mo + 1);
       i += m[0].length;
     } else if ((m = /^(dddd|ddd|dd|d)/i.exec(rest))) {
-      out += m[0].length === 4 ? DAYS[d.getUTCDay()]! : m[0].length === 3 ? DAYS[d.getUTCDay()]!.slice(0, 3) : m[0].length === 2 ? p2(da) : String(da);
+      out +=
+        m[0].length === 4
+          ? DAYS[d.getUTCDay()]!
+          : m[0].length === 3
+            ? DAYS[d.getUTCDay()]!.slice(0, 3)
+            : m[0].length === 2
+              ? p2(da)
+              : String(da);
       i += m[0].length;
     } else if ((m = /^(hh|h)/i.exec(rest))) {
       const hh = ampm ? h % 12 || 12 : h;
@@ -115,7 +144,10 @@ function formatNumber(n: number, fmt: string): string {
   if (/^General$/i.test(sec)) return String(n);
   const percent = /%/.test(sec.replace(/"[^"]*"/g, ""));
   if (percent) v *= 100;
-  const lit = sec.replace(/\[\$([^\]-]*)[^\]]*\]/g, (_m, s: string) => `"${s}"`).replace(/\[[^\]]*\]/g, "").replace(/_.|\*./g, "");
+  const lit = sec
+    .replace(/\[\$([^\]-]*)[^\]]*\]/g, (_m, s: string) => `"${s}"`)
+    .replace(/\[[^\]]*\]/g, "")
+    .replace(/_.|\*./g, "");
   const dec = /\.([0#?]+)/.exec(lit.replace(/"[^"]*"/g, ""))?.[1]?.length ?? 0;
   const grouped = /[#0],[#0]/.test(lit.replace(/"[^"]*"/g, ""));
   const fixed = v.toFixed(dec);
@@ -130,7 +162,10 @@ function formatNumber(n: number, fmt: string): string {
   if (grouped) ip = ip.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const body = fp !== "" ? `${ip}.${fp}` : ip;
   // put the digits where the pattern's number part is, keeping its literal text ("$", "kg", parentheses)
-  const out = lit.replace(/"([^"]*)"/g, "$1").replace(/[#0?,.]+/, "\u0000").replace(/%/g, percent ? "%" : "%");
+  const out = lit
+    .replace(/"([^"]*)"/g, "$1")
+    .replace(/[#0?,.]+/, "\u0000")
+    .replace(/%/g, percent ? "%" : "%");
   const done = out.includes("\u0000") ? out.replace("\u0000", body) : body;
   return neg ? `-${done}` : done;
 }
@@ -167,7 +202,17 @@ export function parseInput(input: string, prev?: GCell): GCell | undefined {
 
 /** What the formula bar shows for a cell: the formula with its "=", or the value as typed. */
 export const inputOf = (cell: GCell | undefined): string =>
-  cell === undefined ? "" : cell.f !== undefined ? `=${cell.f}` : cell.v === null ? "" : typeof cell.v === "boolean" ? (cell.v ? "TRUE" : "FALSE") : String(cell.v);
+  cell === undefined
+    ? ""
+    : cell.f !== undefined
+      ? `=${cell.f}`
+      : cell.v === null
+        ? ""
+        : typeof cell.v === "boolean"
+          ? cell.v
+            ? "TRUE"
+            : "FALSE"
+          : String(cell.v);
 
 /* ---------- the workbook ---------- */
 
@@ -197,7 +242,9 @@ export class Grid {
   }
   /** Why rows and columns of this sheet cannot be added or removed here, or null when they can: a merge would be left where it was. */
   structureBlock(s: GSheet): string | null {
-    return s.merges.length > 0 ? "This sheet has merged cells. Open it in its own app to add or remove rows and columns." : null;
+    return s.merges.length > 0
+      ? "This sheet has merged cells. Open it in its own app to add or remove rows and columns."
+      : null;
   }
 
   private push(e: Edit): void {
@@ -259,7 +306,8 @@ export class Grid {
     }
     // formulas anywhere that point at the moved cells move with them
     for (const sh of this.book.sheets)
-      for (const cell of sh.cells.values()) if (cell.f !== undefined) cell.f = shiftFormula(cell.f, sh.name, s.name, axis, at, delta);
+      for (const cell of sh.cells.values())
+        if (cell.f !== undefined) cell.f = shiftFormula(cell.f, sh.name, s.name, axis, at, delta);
   }
 
   /** Insert `count` rows (or columns) before `at`. */
@@ -355,7 +403,13 @@ export class Grid {
 
 type Snap = { name: string; rows: number; cols: number; cells: [string, GCell][]; widths: (number | undefined)[] }[];
 const snapshot = (b: Book): Snap =>
-  b.sheets.map((s) => ({ name: s.name, rows: s.rows, cols: s.cols, cells: [...s.cells].map(([k, v]) => [k, { ...v }]), widths: s.widths.slice() }));
+  b.sheets.map((s) => ({
+    name: s.name,
+    rows: s.rows,
+    cols: s.cols,
+    cells: [...s.cells].map(([k, v]) => [k, { ...v }]),
+    widths: s.widths.slice(),
+  }));
 function restore(b: Book, snap: Snap): void {
   for (const sn of snap) {
     const s = b.sheets.find((x) => x.name === sn.name);

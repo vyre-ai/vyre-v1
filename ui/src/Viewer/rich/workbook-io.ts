@@ -41,10 +41,16 @@ const scalarOf = (v: unknown): { v: GCell["v"]; err?: string; date?: boolean } =
   if (v === null || v === undefined) return { v: null };
   if (v instanceof Date) return { v: toSerial(v), date: true };
   if (typeof v === "number" || typeof v === "string" || typeof v === "boolean") return { v };
-  const o = v as { richText?: { text: string }[]; text?: unknown; hyperlink?: string; error?: string; result?: unknown };
+  const o = v as {
+    richText?: { text: string }[];
+    text?: unknown;
+    hyperlink?: string;
+    error?: string;
+    result?: unknown;
+  };
   if (o.richText) return { v: o.richText.map((t) => t.text).join("") };
   if (o.error) return { v: null, err: o.error };
-  if (o.text !== undefined) return { v: String(typeof o.text === "object" ? scalarOf(o.text).v ?? "" : o.text) };
+  if (o.text !== undefined) return { v: String(typeof o.text === "object" ? (scalarOf(o.text).v ?? "") : o.text) };
   return { v: String(v) };
 };
 
@@ -73,7 +79,8 @@ export function readBook(wb: XBook): Book {
         }
         if (cell.numFmt !== undefined && out.fmt === undefined && cell.numFmt !== "General") out.fmt = cell.numFmt;
         if (cell.font?.bold === true) out.b = true;
-        if (out.v === null && out.f === undefined && out.err === undefined && out.fmt === undefined && out.b !== true) return;
+        if (out.v === null && out.f === undefined && out.err === undefined && out.fmt === undefined && out.b !== true)
+          return;
         cells.set(key(rn - 1, cn - 1), out);
         rows = Math.max(rows, rn);
         cols = Math.max(cols, cn);
@@ -114,7 +121,8 @@ export function writeChanges(grid: Grid, wb: XBook, opened: Map<string, Map<stri
     const ws = wb.worksheets.find((w) => w.name === op.sheet);
     if (!ws) continue;
     const spliceN = (n: number): unknown[][] => Array.from({ length: n }, () => []);
-    if (op.axis === "row") op.delta > 0 ? ws.spliceRows(op.at + 1, 0, ...spliceN(op.delta)) : ws.spliceRows(op.at + 1, -op.delta);
+    if (op.axis === "row")
+      op.delta > 0 ? ws.spliceRows(op.at + 1, 0, ...spliceN(op.delta)) : ws.spliceRows(op.at + 1, -op.delta);
     else op.delta > 0 ? ws.spliceColumns(op.at + 1, 0, ...spliceN(op.delta)) : ws.spliceColumns(op.at + 1, -op.delta);
   }
   const moved = new Set(grid.structure.map((o) => o.sheet));
@@ -129,7 +137,8 @@ export function writeChanges(grid: Grid, wb: XBook, opened: Map<string, Map<stri
         return;
       }
       if (cell.f !== undefined) x.value = { formula: cell.f, result: cell.v ?? undefined } as never;
-      else if (typeof cell.v === "number" && isDateFormat(cell.fmt)) x.value = new Date(Math.round((cell.v - 25569) * 86_400_000));
+      else if (typeof cell.v === "number" && isDateFormat(cell.fmt))
+        x.value = new Date(Math.round((cell.v - 25569) * 86_400_000));
       else x.value = cell.v as never;
       if (cell.fmt !== undefined && x.numFmt !== cell.fmt) x.numFmt = cell.fmt;
     };
@@ -161,9 +170,12 @@ export function bookAsText(book: Book, maxRows = 200): string {
 }
 export { DEFAULT_COL_W };
 
-
 /** A sheet of values (a Google Sheet's export, a CSV) as a one-sheet book: each cell is read as a person would have typed it. */
-export function bookFromRows(rows: readonly (readonly string[])[], name = "Sheet1", opts: { plain?: boolean; header?: boolean } = {}): Book {
+export function bookFromRows(
+  rows: readonly (readonly string[])[],
+  name = "Sheet1",
+  opts: { plain?: boolean; header?: boolean } = {},
+): Book {
   const cells = new Map<string, GCell>();
   let cols = 1;
   rows.forEach((row, r) =>
@@ -174,20 +186,37 @@ export function bookFromRows(rows: readonly (readonly string[])[], name = "Sheet
       cols = Math.max(cols, c + 1);
     }),
   );
-  if (opts.header) for (let c = 0; c < cols; c++) {
-    const h = cells.get(key(0, c));
-    if (h) h.b = true;
-  }
-  return { sheets: [{ name, rows: Math.max(rows.length, 1), cols, cells, widths: [], frozen: { rows: opts.header ? 1 : 0, cols: 0 }, merges: [] }] };
+  if (opts.header)
+    for (let c = 0; c < cols; c++) {
+      const h = cells.get(key(0, c));
+      if (h) h.b = true;
+    }
+  return {
+    sheets: [
+      {
+        name,
+        rows: Math.max(rows.length, 1),
+        cols,
+        cells,
+        widths: [],
+        frozen: { rows: opts.header ? 1 : 0, cols: 0 },
+        merges: [],
+      },
+    ],
+  };
 }
 
 /** The cells of the first sheet that differ from what was opened, as what to write at the provider: a cell's A1 name and what a person would type into it ("" clears it). */
-export function cellWrites(grid: Grid, opened: Map<string, Map<string, string>>): { r: number; c: number; value: string }[] {
+export function cellWrites(
+  grid: Grid,
+  opened: Map<string, Map<string, string>>,
+): { r: number; c: number; value: string }[] {
   const s = grid.book.sheets[0];
   if (!s) return [];
   const was = opened.get(s.name) ?? new Map<string, string>();
   const out: { r: number; c: number; value: string }[] = [];
-  for (const [k, c] of s.cells) if (was.get(k) !== sig(c)) out.push({ r: unkey(k)[0], c: unkey(k)[1], value: inputOf(c) });
+  for (const [k, c] of s.cells)
+    if (was.get(k) !== sig(c)) out.push({ r: unkey(k)[0], c: unkey(k)[1], value: inputOf(c) });
   for (const k of was.keys()) if (!s.cells.has(k)) out.push({ r: unkey(k)[0], c: unkey(k)[1], value: "" });
   return out;
 }

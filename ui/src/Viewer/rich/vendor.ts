@@ -52,7 +52,10 @@ export interface PdfTextItem {
 }
 export interface PdfPage {
   getViewport(o: { scale: number }): PdfViewport;
-  render(o: { canvasContext: CanvasRenderingContext2D; viewport: PdfViewport }): { promise: Promise<void>; cancel(): void };
+  render(o: { canvasContext: CanvasRenderingContext2D; viewport: PdfViewport }): {
+    promise: Promise<void>;
+    cancel(): void;
+  };
   getTextContent(): Promise<{ items: PdfTextItem[] }>;
   streamTextContent(): unknown;
   cleanup(): void;
@@ -91,7 +94,10 @@ export function loadExcel(): Promise<unknown> {
 
 export function loadFflate(): Promise<{
   unzipSync(d: Uint8Array): Record<string, Uint8Array>;
-  zipSync(d: Record<string, Uint8Array | [Uint8Array, { level?: number; mtime?: number }]>, o?: { level?: number }): Uint8Array;
+  zipSync(
+    d: Record<string, Uint8Array | [Uint8Array, { level?: number; mtime?: number }]>,
+    o?: { level?: number },
+  ): Uint8Array;
   strFromU8(d: Uint8Array): string;
   strToU8(s: string): Uint8Array;
 }> {

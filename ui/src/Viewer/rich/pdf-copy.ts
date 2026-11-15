@@ -34,7 +34,13 @@ export async function redactedCopy(data: Uint8Array, marks: readonly CopyMark[])
         if (m.page === n) ctx.fillRect(m.box.x * c.width, m.box.y * c.height, m.box.w * c.width, m.box.h * c.height);
       const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/jpeg", 0.88));
       if (!blob) throw new Error("no picture");
-      pages.push({ w: pt.width, h: pt.height, jpeg: new Uint8Array(await blob.arrayBuffer()), iw: c.width, ih: c.height });
+      pages.push({
+        w: pt.width,
+        h: pt.height,
+        jpeg: new Uint8Array(await blob.arrayBuffer()),
+        iw: c.width,
+        ih: c.height,
+      });
       pg.cleanup();
     }
   } finally {

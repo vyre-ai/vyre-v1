@@ -69,7 +69,8 @@ function pieces(len: number, ds: readonly DecorRange[]): { s: number; e: number;
   }
   const xs = [...cuts].sort((a, b) => a - b);
   const out: { s: number; e: number; d: DecorRange[] }[] = [];
-  for (let i = 0; i + 1 < xs.length; i++) out.push({ s: xs[i]!, e: xs[i + 1]!, d: ds.filter((d) => d.s <= xs[i]! && d.e >= xs[i + 1]!) });
+  for (let i = 0; i + 1 < xs.length; i++)
+    out.push({ s: xs[i]!, e: xs[i + 1]!, d: ds.filter((d) => d.s <= xs[i]! && d.e >= xs[i + 1]!) });
   return out;
 }
 const attrsOf = (d: DecorRange[]): Record<string, string> => {
@@ -100,97 +101,144 @@ interface ParaProps {
 let typing: string | null = null;
 
 function ParaView({ q, hf, ds, m, z, editable, imageUrl, onChange }: ParaProps): ReactElement {
-    const bi = ds === null ? -1 : 0;
-    ds = ds ?? [];
-    const runs = textRuns(q);
-    let at = 0;
-    const kidsEls: ReactNode[] = [];
-    if (q.list) kidsEls.push(createElement("span", { key: "mk", className: "vww-mk", contentEditable: false }, q.list.marker));
-    q.runs.forEach((r, ri) => {
-      if (r.image) {
-        const path = m.media[r.image.rid];
-        const url = path ? imageUrl(path) : undefined;
-        kidsEls.push(createElement("img", { key: ri, src: url, alt: r.image.alt, width: r.image.w * z, height: r.image.h * z, contentEditable: false, "data-testid": "vww-img" }));
-        return;
-      }
-      if (r.footnote !== undefined) {
-        kidsEls.push(createElement("sup", { key: ri, contentEditable: false }, String(Number(r.footnote))));
-        return;
-      }
-      if (r.pageBreak) kidsEls.push(createElement("hr", { key: ri, className: "vww-pb", contentEditable: false }));
-      if (r.lineBreak) kidsEls.push(createElement("br", { key: ri }));
-      const idx = runs.indexOf(r);
-      const start = at;
-      at += r.text.length;
-      if (r.text === "" && idx < 0) return;
-      const parts = pieces(r.text.length, ds.map((d) => ({ ...d, s: d.s - start, e: d.e - start })).filter((d) => d.e > 0 && d.s < r.text.length));
-      const inner: ReactNode[] =
-        r.text === ""
-          ? []
-          : parts.map((pc, k) => {
-              const txt = r.text.slice(pc.s, pc.e);
-              if (pc.d.length === 0) return txt;
-              const find = pc.d.find((x) => x.kind === "find" || x.kind === "find-on");
-              const at2 = attrsOf(pc.d);
-              return createElement(find ? "mark" : "span", { key: k, ...(find ? { className: find.kind === "find-on" ? "vwf vwf-on" : "vwf", "data-find": find.kind === "find-on" ? "current" : "match" } : {}), ...at2 }, txt);
-            });
-      const style = css({ ...r.props, ...(q.heading && !r.props.sz ? {} : {}) }, z);
-      const span = createElement("span", { key: ri, style, ...(idx >= 0 && q.why === undefined ? { "data-r": idx } : {}), ...(r.tracked ? { "data-tracked": r.tracked } : {}) }, ...inner);
+  const bi = ds === null ? -1 : 0;
+  ds = ds ?? [];
+  const runs = textRuns(q);
+  let at = 0;
+  const kidsEls: ReactNode[] = [];
+  if (q.list)
+    kidsEls.push(createElement("span", { key: "mk", className: "vww-mk", contentEditable: false }, q.list.marker));
+  q.runs.forEach((r, ri) => {
+    if (r.image) {
+      const path = m.media[r.image.rid];
+      const url = path ? imageUrl(path) : undefined;
       kidsEls.push(
-        r.link
-          ? createElement("a", { key: ri, href: r.link, target: "_blank", rel: "noopener noreferrer", style: { color: "#0563c1" }, onClick: (e: MouseEvent) => editable && !(e.metaKey || e.ctrlKey) && e.preventDefault() }, span)
-          : r.tracked === "del"
-            ? createElement("span", { key: ri, style: { textDecoration: "line-through", color: "#b42318" } }, span)
-            : r.tracked === "ins"
-              ? createElement("span", { key: ri, style: { textDecoration: "underline", color: "#067647" } }, span)
-              : span,
+        createElement("img", {
+          key: ri,
+          src: url,
+          alt: r.image.alt,
+          width: r.image.w * z,
+          height: r.image.h * z,
+          contentEditable: false,
+          "data-testid": "vww-img",
+        }),
       );
-    });
-    const ro = q.why !== undefined;
-    return createElement(
-      "div",
-      {
-        key: q.id,
-        className: `vww-p${hf ? " vww-hf" : ""}`,
-        "data-pid": q.id,
-        "data-testid": bi >= 0 ? `vw-block-${q.id}` : undefined,
-        "data-tag": q.heading ? `h${q.heading > 1 ? 2 : 1}` : "p",
-        "data-ro": ro ? "1" : "0",
-        "data-edit": editable ? "1" : "0",
-        ...(ro && q.why ? { "data-why": q.why } : {}),
-        contentEditable: editable && !ro && !hf,
-        suppressContentEditableWarning: true,
-        spellCheck: true,
-        style: {
-          textAlign: q.align as never,
-          marginLeft: ((q.indent ?? 0) + (q.list ? 18 * (q.list.level + 1) : 0)) * z,
-          marginTop: (q.before ?? 0) * z,
-          marginBottom: (q.after ?? 8) * z,
-          ...css({ ...q.base, ...(q.heading && !q.base.sz ? { sz: q.heading === 1 ? 20 : 15, b: true } : {}) }, z),
-        },
-        onKeyDown: (e: KeyboardEvent) => {
-          // a new paragraph is not made here: it would have to be written into the file's structure
-          if (e.key === "Enter") e.preventDefault();
-        },
-        onPaste: (e: ClipboardEvent) => {
-          e.preventDefault();
-          const t = e.clipboardData?.getData("text/plain")?.replace(/\s*\n\s*/g, " ") ?? "";
-          if (t !== "") document.execCommand("insertText", false, t);
-        },
-        onBlur: () => {
-            if (typing === q.id) typing = null;
-          },
-          onInput: (e: { currentTarget: HTMLElement }) => {
-            typing = q.id;
-          const spans = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-r]"));
-          const texts: string[] = runs.map((_, i) => spans.find((s) => s.dataset["r"] === String(i))?.textContent ?? "");
-          applyRunTexts(m, q, texts);
-          onChange();
-        },
-      },
-      ...kidsEls,
+      return;
+    }
+    if (r.footnote !== undefined) {
+      kidsEls.push(createElement("sup", { key: ri, contentEditable: false }, String(Number(r.footnote))));
+      return;
+    }
+    if (r.pageBreak) kidsEls.push(createElement("hr", { key: ri, className: "vww-pb", contentEditable: false }));
+    if (r.lineBreak) kidsEls.push(createElement("br", { key: ri }));
+    const idx = runs.indexOf(r);
+    const start = at;
+    at += r.text.length;
+    if (r.text === "" && idx < 0) return;
+    const parts = pieces(
+      r.text.length,
+      ds.map((d) => ({ ...d, s: d.s - start, e: d.e - start })).filter((d) => d.e > 0 && d.s < r.text.length),
     );
-  }
+    const inner: ReactNode[] =
+      r.text === ""
+        ? []
+        : parts.map((pc, k) => {
+            const txt = r.text.slice(pc.s, pc.e);
+            if (pc.d.length === 0) return txt;
+            const find = pc.d.find((x) => x.kind === "find" || x.kind === "find-on");
+            const at2 = attrsOf(pc.d);
+            return createElement(
+              find ? "mark" : "span",
+              {
+                key: k,
+                ...(find
+                  ? {
+                      className: find.kind === "find-on" ? "vwf vwf-on" : "vwf",
+                      "data-find": find.kind === "find-on" ? "current" : "match",
+                    }
+                  : {}),
+                ...at2,
+              },
+              txt,
+            );
+          });
+    const style = css({ ...r.props, ...(q.heading && !r.props.sz ? {} : {}) }, z);
+    const span = createElement(
+      "span",
+      {
+        key: ri,
+        style,
+        ...(idx >= 0 && q.why === undefined ? { "data-r": idx } : {}),
+        ...(r.tracked ? { "data-tracked": r.tracked } : {}),
+      },
+      ...inner,
+    );
+    kidsEls.push(
+      r.link
+        ? createElement(
+            "a",
+            {
+              key: ri,
+              href: r.link,
+              target: "_blank",
+              rel: "noopener noreferrer",
+              style: { color: "#0563c1" },
+              onClick: (e: MouseEvent) => editable && !(e.metaKey || e.ctrlKey) && e.preventDefault(),
+            },
+            span,
+          )
+        : r.tracked === "del"
+          ? createElement("span", { key: ri, style: { textDecoration: "line-through", color: "#b42318" } }, span)
+          : r.tracked === "ins"
+            ? createElement("span", { key: ri, style: { textDecoration: "underline", color: "#067647" } }, span)
+            : span,
+    );
+  });
+  const ro = q.why !== undefined;
+  return createElement(
+    "div",
+    {
+      key: q.id,
+      className: `vww-p${hf ? " vww-hf" : ""}`,
+      "data-pid": q.id,
+      "data-testid": bi >= 0 ? `vw-block-${q.id}` : undefined,
+      "data-tag": q.heading ? `h${q.heading > 1 ? 2 : 1}` : "p",
+      "data-ro": ro ? "1" : "0",
+      "data-edit": editable ? "1" : "0",
+      ...(ro && q.why ? { "data-why": q.why } : {}),
+      contentEditable: editable && !ro && !hf,
+      suppressContentEditableWarning: true,
+      spellCheck: true,
+      style: {
+        textAlign: q.align as never,
+        marginLeft: ((q.indent ?? 0) + (q.list ? 18 * (q.list.level + 1) : 0)) * z,
+        marginTop: (q.before ?? 0) * z,
+        marginBottom: (q.after ?? 8) * z,
+        ...css({ ...q.base, ...(q.heading && !q.base.sz ? { sz: q.heading === 1 ? 20 : 15, b: true } : {}) }, z),
+      },
+      onKeyDown: (e: KeyboardEvent) => {
+        // a new paragraph is not made here: it would have to be written into the file's structure
+        if (e.key === "Enter") e.preventDefault();
+      },
+      onPaste: (e: ClipboardEvent) => {
+        e.preventDefault();
+        const t = e.clipboardData?.getData("text/plain")?.replace(/\s*\n\s*/g, " ") ?? "";
+        if (t !== "") document.execCommand("insertText", false, t);
+      },
+      onBlur: () => {
+        if (typing === q.id) typing = null;
+      },
+      onInput: (e: { currentTarget: HTMLElement }) => {
+        typing = q.id;
+        const spans = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-r]"));
+        const texts: string[] = runs.map((_, i) => spans.find((s) => s.dataset["r"] === String(i))?.textContent ?? "");
+        applyRunTexts(m, q, texts);
+        onChange();
+      },
+    },
+    ...kidsEls,
+  );
+}
 
 const Para = memo(ParaView, (a, b) => {
   if (a.rev !== b.rev || a.z !== b.z || a.editable !== b.editable || a.m !== b.m || a.hf !== b.hf) return false;
@@ -216,7 +264,19 @@ export function DocPage(p: DocPageProps): ReactElement {
   const paraEl = (q: DPara, hf = false): ReactElement => {
     const bi = order.get(q.id) ?? -1;
     const ds = bi >= 0 ? p.decor(bi).filter((d) => !(editable && (d.kind === "find" || d.kind === "find-on"))) : null;
-    return createElement(Para, { key: q.id, q, hf, ds, m, z, editable, imageUrl: p.imageUrl, onChange: p.onChange, rev: p.rev, sig: JSON.stringify(ds) });
+    return createElement(Para, {
+      key: q.id,
+      q,
+      hf,
+      ds,
+      m,
+      z,
+      editable,
+      imageUrl: p.imageUrl,
+      onChange: p.onChange,
+      rev: p.rev,
+      sig: JSON.stringify(ds),
+    });
   };
   const blocks = (bs: readonly DBlock[], hf = false): ReactNode[] =>
     bs.map((b, i) =>
@@ -229,7 +289,17 @@ export function DocPage(p: DocPageProps): ReactElement {
               "tbody",
               null,
               ...b.tbl.rows.map((row, ri) =>
-                createElement("tr", { key: ri }, ...row.map((c, ci) => createElement("td", { key: ci, colSpan: c.span, style: c.fill ? { background: c.fill } : undefined }, ...blocks(c.blocks)))),
+                createElement(
+                  "tr",
+                  { key: ri },
+                  ...row.map((c, ci) =>
+                    createElement(
+                      "td",
+                      { key: ci, colSpan: c.span, style: c.fill ? { background: c.fill } : undefined },
+                      ...blocks(c.blocks),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -249,7 +319,11 @@ export function DocPage(p: DocPageProps): ReactElement {
     const sl = window.getSelection();
     if (!sl || sl.rangeCount === 0 || !root.current) return null;
     const range = sl.getRangeAt(0);
-    const host = ((range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement) as HTMLElement | null)?.closest<HTMLElement>("[data-pid]");
+    const host = (
+      (range.startContainer.nodeType === 1
+        ? range.startContainer
+        : range.startContainer.parentElement) as HTMLElement | null
+    )?.closest<HTMLElement>("[data-pid]");
     if (!host || !root.current.contains(host)) return null;
     const para = m.paras.find((q) => q.id === host.dataset["pid"]);
     if (!para || para.why !== undefined) return null;
@@ -266,7 +340,11 @@ export function DocPage(p: DocPageProps): ReactElement {
       }
       return total;
     };
-    return { para, from: offset(range.startContainer, range.startOffset), to: offset(range.endContainer, range.endOffset) };
+    return {
+      para,
+      from: offset(range.startContainer, range.startOffset),
+      to: offset(range.endContainer, range.endOffset),
+    };
   };
   const fmt = (f: "b" | "i" | "u"): void => {
     const s = selection();
@@ -289,35 +367,104 @@ export function DocPage(p: DocPageProps): ReactElement {
     ? createElement(
         "div",
         { className: "vww-fmt", "data-testid": "vww-fmt" },
-        createElement("button", { "aria-label": "Bold", "data-testid": "vww-bold", onMouseDown: (e: MouseEvent) => e.preventDefault(), onClick: () => fmt("b") }, "Bold"),
-        createElement("button", { "aria-label": "Italic", "data-testid": "vww-italic", onMouseDown: (e: MouseEvent) => e.preventDefault(), onClick: () => fmt("i") }, "Italic"),
-        createElement("button", { "aria-label": "Underline", "data-testid": "vww-underline", onMouseDown: (e: MouseEvent) => e.preventDefault(), onClick: () => fmt("u") }, "Underline"),
+        createElement(
+          "button",
+          {
+            "aria-label": "Bold",
+            "data-testid": "vww-bold",
+            onMouseDown: (e: MouseEvent) => e.preventDefault(),
+            onClick: () => fmt("b"),
+          },
+          "Bold",
+        ),
+        createElement(
+          "button",
+          {
+            "aria-label": "Italic",
+            "data-testid": "vww-italic",
+            onMouseDown: (e: MouseEvent) => e.preventDefault(),
+            onClick: () => fmt("i"),
+          },
+          "Italic",
+        ),
+        createElement(
+          "button",
+          {
+            "aria-label": "Underline",
+            "data-testid": "vww-underline",
+            onMouseDown: (e: MouseEvent) => e.preventDefault(),
+            onClick: () => fmt("u"),
+          },
+          "Underline",
+        ),
         levels.length > 0
           ? createElement(
               "select",
-              { "aria-label": "Text style", "data-testid": "vww-style", value: "", onMouseDown: (e: MouseEvent) => void e, onChange: (e: { target: { value: string } }) => head(Number(e.target.value)) },
+              {
+                "aria-label": "Text style",
+                "data-testid": "vww-style",
+                value: "",
+                onMouseDown: (e: MouseEvent) => void e,
+                onChange: (e: { target: { value: string } }) => head(Number(e.target.value)),
+              },
               createElement("option", { value: "", disabled: true }, "Style"),
               createElement("option", { value: "0" }, "Body text"),
               ...levels.map((l) => createElement("option", { key: l, value: String(l) }, `Heading ${l}`)),
             )
           : null,
-        createElement("span", { className: "vww-why" }, "A paragraph with tracked changes or a field is kept as it is."),
+        createElement(
+          "span",
+          { className: "vww-why" },
+          "A paragraph with tracked changes or a field is kept as it is.",
+        ),
       )
     : p.why !== undefined && p.edit
-      ? createElement("div", { className: "vww-fmt" }, createElement("span", { className: "vww-why", "data-testid": "vww-why" }, p.why))
+      ? createElement(
+          "div",
+          { className: "vww-fmt" },
+          createElement("span", { className: "vww-why", "data-testid": "vww-why" }, p.why),
+        )
       : null;
   // the page is built again only when something that shows changes: typing edits the file's model and the DOM already shows it, so a redraw then would move the caret
   const card = useMemo(
     () =>
       createElement(
         "div",
-        { className: "vww-card", style: { width: w * PX, paddingLeft: `min(${m.page.ml * z * PX}px, 7%)`, paddingRight: `min(${m.page.mr * z * PX}px, 7%)`, paddingTop: `min(${m.page.mt * z * PX * 0.7}px, 9%)`, paddingBottom: `min(${m.page.mb * z * PX * 0.7}px, 9%)` }, "data-testid": "vww-card" },
-        ...(m.header.length > 0 ? [createElement("div", { key: "h", "data-testid": "vww-header" }, ...m.header.map((q) => paraEl(q, true)))] : []),
+        {
+          className: "vww-card",
+          style: {
+            width: w * PX,
+            paddingLeft: `min(${m.page.ml * z * PX}px, 7%)`,
+            paddingRight: `min(${m.page.mr * z * PX}px, 7%)`,
+            paddingTop: `min(${m.page.mt * z * PX * 0.7}px, 9%)`,
+            paddingBottom: `min(${m.page.mb * z * PX * 0.7}px, 9%)`,
+          },
+          "data-testid": "vww-card",
+        },
+        ...(m.header.length > 0
+          ? [createElement("div", { key: "h", "data-testid": "vww-header" }, ...m.header.map((q) => paraEl(q, true)))]
+          : []),
         ...blocks(m.blocks),
         ...(m.footnotes.length > 0
-          ? [createElement("div", { key: "fn", className: "vww-fn", "data-testid": "vww-footnotes" }, ...m.footnotes.map((f, i) => createElement("div", { key: f.id }, `${i + 1}. ${f.paras.map((q) => q.text).join(" ")}`)))]
+          ? [
+              createElement(
+                "div",
+                { key: "fn", className: "vww-fn", "data-testid": "vww-footnotes" },
+                ...m.footnotes.map((f, i) =>
+                  createElement("div", { key: f.id }, `${i + 1}. ${f.paras.map((q) => q.text).join(" ")}`),
+                ),
+              ),
+            ]
           : []),
-        ...(m.footer.length > 0 ? [createElement("div", { key: "f", "data-testid": "vww-footer", style: { marginTop: 24 } }, ...m.footer.map((q) => paraEl(q, true)))] : []),
+        ...(m.footer.length > 0
+          ? [
+              createElement(
+                "div",
+                { key: "f", "data-testid": "vww-footer", style: { marginTop: 24 } },
+                ...m.footer.map((q) => paraEl(q, true)),
+              ),
+            ]
+          : []),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [m, p.rev, z, editable, p.decor, order],

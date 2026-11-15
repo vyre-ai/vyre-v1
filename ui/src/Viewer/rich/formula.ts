@@ -44,7 +44,8 @@ type Tok =
   | { t: "id"; v: string }
   | { t: "op"; v: string };
 
-const REF = /^(?:(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_.]*))!)?\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?/;
+const REF =
+  /^(?:(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_.]*))!)?\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?/;
 
 function tokenize(src: string): Tok[] {
   const out: Tok[] = [];
@@ -115,12 +116,41 @@ const num = (v: Val | FormulaError): number | FormulaError => {
   const n = Number(v);
   return Number.isFinite(n) ? n : new FormulaError("#VALUE!");
 };
-const text = (v: Val | FormulaError): string => (isErr(v) ? v.code : v === null ? "" : typeof v === "boolean" ? (v ? "TRUE" : "FALSE") : String(v));
+const text = (v: Val | FormulaError): string =>
+  isErr(v) ? v.code : v === null ? "" : typeof v === "boolean" ? (v ? "TRUE" : "FALSE") : String(v);
 const truthy = (v: Val | FormulaError): boolean | FormulaError =>
-  isErr(v) ? v : typeof v === "boolean" ? v : typeof v === "number" ? v !== 0 : v === null || v === "" ? false : new FormulaError("#VALUE!");
+  isErr(v)
+    ? v
+    : typeof v === "boolean"
+      ? v
+      : typeof v === "number"
+        ? v !== 0
+        : v === null || v === ""
+          ? false
+          : new FormulaError("#VALUE!");
 
 export const FUNCTIONS = [
-  "SUM", "AVERAGE", "MIN", "MAX", "COUNT", "COUNTA", "PRODUCT", "ROUND", "ABS", "SQRT", "MOD", "POWER", "IF", "AND", "OR", "NOT", "LEN", "UPPER", "LOWER", "CONCAT", "CONCATENATE",
+  "SUM",
+  "AVERAGE",
+  "MIN",
+  "MAX",
+  "COUNT",
+  "COUNTA",
+  "PRODUCT",
+  "ROUND",
+  "ABS",
+  "SQRT",
+  "MOD",
+  "POWER",
+  "IF",
+  "AND",
+  "OR",
+  "NOT",
+  "LEN",
+  "UPPER",
+  "LOWER",
+  "CONCAT",
+  "CONCATENATE",
 ] as const;
 
 /** The numbers among the arguments (cells that hold text or nothing are skipped when they come from a range, as a spreadsheet does). */
@@ -143,7 +173,8 @@ function nums(a: Arg[]): number[] | FormulaError {
 }
 
 function call(name: string, a: Arg[]): Val | FormulaError {
-  const first = (): Val | FormulaError => (Array.isArray(a[0]) ? (a[0][0] ?? null) : (a[0] as Val | FormulaError) ?? null);
+  const first = (): Val | FormulaError =>
+    Array.isArray(a[0]) ? (a[0][0] ?? null) : ((a[0] as Val | FormulaError) ?? null);
   switch (name) {
     case "SUM": {
       const n = nums(a);
@@ -175,7 +206,7 @@ function call(name: string, a: Arg[]): Val | FormulaError {
       if (isErr(x)) return x;
       if (isErr(d)) return d;
       const k = 10 ** Math.trunc(d);
-      return Math.sign(x) * Math.round(Math.abs(x) * k + Number.EPSILON) / k;
+      return (Math.sign(x) * Math.round(Math.abs(x) * k + Number.EPSILON)) / k;
     }
     case "ABS": {
       const x = num(first());
@@ -256,7 +287,11 @@ export function evaluate(src: string, read: Reader): Val | FormulaError {
   let p = 0;
   const peek = (): Tok | undefined => toks[p];
   const isOp = (v: string): boolean => peek()?.t === "op" && (peek() as { v: string }).v === v;
-  const arith = (l: Val | FormulaError, r: Val | FormulaError, f: (a: number, b: number) => number | FormulaError): Val | FormulaError => {
+  const arith = (
+    l: Val | FormulaError,
+    r: Val | FormulaError,
+    f: (a: number, b: number) => number | FormulaError,
+  ): Val | FormulaError => {
     const a = num(l);
     const b = num(r);
     if (isErr(a)) return a;
@@ -271,12 +306,18 @@ export function evaluate(src: string, read: Reader): Val | FormulaError {
     const a = both ? l : text(l).toLowerCase();
     const b = both ? r : text(r).toLowerCase();
     switch (op) {
-      case "=": return a === b;
-      case "<>": return a !== b;
-      case "<": return a < b;
-      case ">": return a > b;
-      case "<=": return a <= b;
-      default: return a >= b;
+      case "=":
+        return a === b;
+      case "<>":
+        return a !== b;
+      case "<":
+        return a < b;
+      case ">":
+        return a > b;
+      case "<=":
+        return a <= b;
+      default:
+        return a >= b;
     }
   }
   const one = (v: Arg): Val | FormulaError => (Array.isArray(v) ? (v[0] ?? null) : v);
@@ -398,25 +439,38 @@ export function evaluate(src: string, read: Reader): Val | FormulaError {
 }
 
 /** Moves the references of a formula when rows or columns are inserted (delta > 0) or deleted (delta < 0) at `at` on the formula's own sheet (or on `sheet` when the reference names it). A reference to a deleted cell becomes #REF!. */
-export function shiftFormula(src: string, own: string, target: string, axis: "row" | "col", at: number, delta: number): string {
-  return src.replace(/(?:(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_.]*))!)?(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?::(\$?)([A-Za-z]{1,3})(\$?)(\d+))?/g, (m, q, plain, d1, c1, d2, r1, e1, c2, e2, r2, off: number, whole: string) => {
-    // not inside a string and not the tail of a longer name
-    if (off > 0 && /[A-Za-z0-9_.$]/.test(whole[off - 1]!) && q === undefined && plain === undefined) return m;
-    const sheet = q !== undefined ? q.replace(/''/g, "'") : (plain ?? own);
-    if (sheet !== target) return m;
-    const move = (r: number, c: number): { r: number; c: number } | null => {
-      const v = axis === "row" ? r : c;
-      if (delta > 0) return v >= at ? (axis === "row" ? { r: r + delta, c } : { r, c: c + delta }) : { r, c };
-      if (v >= at && v < at - delta) return null;
-      return v >= at - delta ? (axis === "row" ? { r: r + delta, c } : { r, c: c + delta }) : { r, c };
-    };
-    const prefix = m.slice(0, m.length - `${d1}${c1}${d2}${r1}${r2 !== undefined ? `:${e1}${c2}${e2}${r2}` : ""}`.length);
-    const a = move(Number(r1) - 1, colIndex(c1));
-    if (r2 === undefined) return a === null ? "#REF!" : `${prefix}${d1}${colName(a.c)}${d2}${a.r + 1}`;
-    const b = move(Number(r2) - 1, colIndex(c2));
-    if (a === null && b === null) return "#REF!";
-    const aa = a ?? { r: Number(r1) - 1, c: colIndex(c1) };
-    const bb = b ?? (axis === "row" ? { r: at - 1, c: colIndex(c2) } : { r: Number(r2) - 1, c: at - 1 });
-    return `${prefix}${d1}${colName(aa.c)}${d2}${aa.r + 1}:${e1}${colName(bb.c)}${e2}${bb.r + 1}`;
-  });
+export function shiftFormula(
+  src: string,
+  own: string,
+  target: string,
+  axis: "row" | "col",
+  at: number,
+  delta: number,
+): string {
+  return src.replace(
+    /(?:(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_.]*))!)?(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?::(\$?)([A-Za-z]{1,3})(\$?)(\d+))?/g,
+    (m, q, plain, d1, c1, d2, r1, e1, c2, e2, r2, off: number, whole: string) => {
+      // not inside a string and not the tail of a longer name
+      if (off > 0 && /[A-Za-z0-9_.$]/.test(whole[off - 1]!) && q === undefined && plain === undefined) return m;
+      const sheet = q !== undefined ? q.replace(/''/g, "'") : (plain ?? own);
+      if (sheet !== target) return m;
+      const move = (r: number, c: number): { r: number; c: number } | null => {
+        const v = axis === "row" ? r : c;
+        if (delta > 0) return v >= at ? (axis === "row" ? { r: r + delta, c } : { r, c: c + delta }) : { r, c };
+        if (v >= at && v < at - delta) return null;
+        return v >= at - delta ? (axis === "row" ? { r: r + delta, c } : { r, c: c + delta }) : { r, c };
+      };
+      const prefix = m.slice(
+        0,
+        m.length - `${d1}${c1}${d2}${r1}${r2 !== undefined ? `:${e1}${c2}${e2}${r2}` : ""}`.length,
+      );
+      const a = move(Number(r1) - 1, colIndex(c1));
+      if (r2 === undefined) return a === null ? "#REF!" : `${prefix}${d1}${colName(a.c)}${d2}${a.r + 1}`;
+      const b = move(Number(r2) - 1, colIndex(c2));
+      if (a === null && b === null) return "#REF!";
+      const aa = a ?? { r: Number(r1) - 1, c: colIndex(c1) };
+      const bb = b ?? (axis === "row" ? { r: at - 1, c: colIndex(c2) } : { r: Number(r2) - 1, c: at - 1 });
+      return `${prefix}${d1}${colName(aa.c)}${d2}${aa.r + 1}:${e1}${colName(bb.c)}${e2}${bb.r + 1}`;
+    },
+  );
 }

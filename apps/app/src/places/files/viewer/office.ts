@@ -13,9 +13,18 @@ export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordproc
 export const PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 export type OfficeKind = "docx" | "pptx";
 /** The Office kind a file is edited as here: .docx and .pptx only (an old .doc or .ppt, or an OpenDocument file, stays the quiet "no preview" line). */
-export const officeKindOf = (name: string): OfficeKind | null => (/\.docx$/i.test(name) ? "docx" : /\.pptx$/i.test(name) ? "pptx" : null);
+export const officeKindOf = (name: string): OfficeKind | null =>
+  /\.docx$/i.test(name) ? "docx" : /\.pptx$/i.test(name) ? "pptx" : null;
 
-const MIMES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", svg: "image/svg+xml", webp: "image/webp", bmp: "image/bmp" };
+const MIMES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  svg: "image/svg+xml",
+  webp: "image/webp",
+  bmp: "image/bmp",
+};
 
 export type OfficeState =
   | { status: "off" }
@@ -76,10 +85,18 @@ export function useOffice(
         const bytes = Uint8Array.from(atob((r as { base64?: string }).base64 ?? ""), (c) => c.charCodeAt(0));
         const entries = ff.unzipSync(bytes);
         if (!live) return;
-        setState(kind === "docx" ? { status: "ready", kind, doc: readDocx(entries) } : { status: "ready", kind, deck: readPptx(entries) });
+        setState(
+          kind === "docx"
+            ? { status: "ready", kind, doc: readDocx(entries) }
+            : { status: "ready", kind, deck: readPptx(entries) },
+        );
         setRev((x) => x + 1);
       } catch {
-        if (live) setState({ status: "failed", words: kind === "docx" ? "This document could not be opened here." : "This deck could not be opened here." });
+        if (live)
+          setState({
+            status: "failed",
+            words: kind === "docx" ? "This document could not be opened here." : "This deck could not be opened here.",
+          });
       }
     })();
     return () => {
@@ -100,10 +117,16 @@ export function useOffice(
       const ff = await loadFflate();
       const entries = st.kind === "docx" ? writeDocx(st.doc) : writePptx(st.deck);
       const files: Record<string, [Uint8Array, { level: 0 | 6; mtime: number }]> = {};
-      for (const [k, v] of Object.entries(entries)) files[k] = [v, { level: /\.(png|jpe?g|gif|webp)$/i.test(k) ? 0 : 6, mtime: 946684800000 }];
+      for (const [k, v] of Object.entries(entries))
+        files[k] = [v, { level: /\.(png|jpe?g|gif|webp)$/i.test(k) ? 0 : 6, mtime: 946684800000 }];
       const bytes = ff.zipSync(files as never);
       const content = await contentFor(d, bytes, st.kind === "docx" ? DOCX_MIME : PPTX_MIME);
-      const out = (await d.call("files.write", { fileId, content, baseVersion: version.current, reason: "Edited in the viewer" })) as { file?: { version?: number } };
+      const out = (await d.call("files.write", {
+        fileId,
+        content,
+        baseVersion: version.current,
+        reason: "Edited in the viewer",
+      })) as { file?: { version?: number } };
       version.current = out.file?.version ?? version.current + 1;
       setSaved(version.current);
     } catch (e) {
@@ -125,23 +148,29 @@ export function useOffice(
   const redraw = useCallback((): void => setRedrawRev((x) => x + 1), []);
 
   const texts = useMemo(
-    () => (state.status !== "ready" ? [] : state.kind === "docx" ? paraTexts(state.doc) : state.deck.slides.map((s) => s.texts)),
+    () =>
+      state.status !== "ready"
+        ? []
+        : state.kind === "docx"
+          ? paraTexts(state.doc)
+          : state.deck.slides.map((s) => s.texts),
     [state, rev], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const imageUrl = useCallback(
-    (path: string): string | undefined => {
-      const st = ref.current;
-      if (st.status !== "ready") return undefined;
-      const have = urls.current.get(path);
-      if (have) return have;
-      const bytes = (st.kind === "docx" ? st.doc.entries : st.deck.entries)[path];
-      if (!bytes) return undefined;
-      const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: MIMES[path.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream" }));
-      urls.current.set(path, url);
-      return url;
-    },
-    [],
-  );
+  const imageUrl = useCallback((path: string): string | undefined => {
+    const st = ref.current;
+    if (st.status !== "ready") return undefined;
+    const have = urls.current.get(path);
+    if (have) return have;
+    const bytes = (st.kind === "docx" ? st.doc.entries : st.deck.entries)[path];
+    if (!bytes) return undefined;
+    const url = URL.createObjectURL(
+      new Blob([bytes as BlobPart], {
+        type: MIMES[path.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream",
+      }),
+    );
+    urls.current.set(path, url);
+    return url;
+  }, []);
   const asText = useCallback((): string => {
     const st = ref.current;
     return st.status !== "ready" ? "" : st.kind === "docx" ? docAsText(st.doc) : deckAsText(st.deck);

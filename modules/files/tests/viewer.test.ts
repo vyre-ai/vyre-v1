@@ -165,7 +165,12 @@ test("comments: a comment on a passage is anchored by the quoted words alone (th
   ).comment;
   assert.deepEqual(c.anchor, { kind: "range", quote: "Ship the release" });
   await assert.rejects(
-    call(ctx, "files.comments.add", { fileId: f, anchor: { kind: "range", quote: "  " }, text: "x", idempotencyKey: "q2" }),
+    call(ctx, "files.comments.add", {
+      fileId: f,
+      anchor: { kind: "range", quote: "  " },
+      text: "x",
+      idempotencyKey: "q2",
+    }),
     /anchor is not valid/,
   );
   await assert.rejects(

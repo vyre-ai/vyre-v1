@@ -27,7 +27,11 @@ export async function session(t: { skip(m?: string): void }, size = { width: 144
     if (m.type() === "error" || m.type() === "warning") console.log(`BROWSER ${m.type()}: ${m.text().slice(0, 300)}`);
   });
   page.on("response", (r) => {
-    if (r.status() >= 400 && /\/v1\//.test(r.url())) void r.text().then((b) => console.log(`HTTP ${r.status()} ${r.url().replace(/^.*\/v1\//, "")} ${b.slice(0, 300)}`)).catch(() => undefined);
+    if (r.status() >= 400 && /\/v1\//.test(r.url()))
+      void r
+        .text()
+        .then((b) => console.log(`HTTP ${r.status()} ${r.url().replace(/^.*\/v1\//, "")} ${b.slice(0, 300)}`))
+        .catch(() => undefined);
   });
   page.on("requestfailed", (r) => console.log(`REQFAIL ${r.url().slice(0, 120)} ${r.failure()?.errorText}`));
   await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
@@ -52,8 +56,8 @@ export async function session(t: { skip(m?: string): void }, size = { width: 144
     return body.data;
   };
   const root = JSON.stringify(await call("files.tree", {})).match(/"(fld_[a-z0-9]+)"/)![1]!;
-  const folderId = (await call("files.folder.create", { parentId: root, name: "Viewers", idempotencyKey: "vw" }))
-    .folder.folderId as string;
+  const folderId = (await call("files.folder.create", { parentId: root, name: "Viewers", idempotencyKey: "vw" })).folder
+    .folderId as string;
   const shots = process.env["VYRE_VIEWER_SHOTS"] ?? "/tmp/vyre-viewer-shots";
   fs.mkdirSync(shots, { recursive: true });
   return {
@@ -92,4 +96,3 @@ export async function session(t: { skip(m?: string): void }, size = { width: 144
     },
   };
 }
-

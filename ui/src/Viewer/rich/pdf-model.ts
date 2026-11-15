@@ -44,7 +44,12 @@ export function pagesToDraw(
 }
 
 /** The 1-based page that holds the middle of the screen: the page number shown in the toolbar. */
-export function currentPage(tops: readonly number[], heights: readonly number[], scrollTop: number, viewH: number): number {
+export function currentPage(
+  tops: readonly number[],
+  heights: readonly number[],
+  scrollTop: number,
+  viewH: number,
+): number {
   const mid = scrollTop + viewH / 3;
   let page = 1;
   for (let i = 0; i < tops.length; i++) {
@@ -81,12 +86,16 @@ export const noTextLayer = (pages: readonly string[], done: boolean): boolean =>
 export function pdfFailureWords(e: unknown): string {
   const name = (e as { name?: string } | null)?.name ?? "";
   const msg = (e as { message?: string } | null)?.message ?? "";
-  if (name === "PasswordException" || /password/i.test(msg)) return "This PDF is protected by a password, so it cannot be shown here.";
+  if (name === "PasswordException" || /password/i.test(msg))
+    return "This PDF is protected by a password, so it cannot be shown here.";
   return "This PDF is damaged and cannot be shown here.";
 }
 
 /** A box in unit coordinates of a page from two corners, clamped to the page. */
-export function unitBox(a: readonly [number, number], b: readonly [number, number]): { x: number; y: number; w: number; h: number } | null {
+export function unitBox(
+  a: readonly [number, number],
+  b: readonly [number, number],
+): { x: number; y: number; w: number; h: number } | null {
   const c = (n: number): number => Math.max(0, Math.min(1, n));
   const x = c(Math.min(a[0], b[0]));
   const y = c(Math.min(a[1], b[1]));

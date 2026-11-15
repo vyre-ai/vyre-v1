@@ -163,7 +163,11 @@ test("a Google Doc opens as its words, under the Google Docs tile, with Open in 
   assert.equal(find(root, "vw-tile"), null);
   assert.equal(textOf(find(root, "vw-open-in")).trim(), "Open in Google Docs");
   assert.ok(find(root, "vw-mode"), "its words are edited in the Doc itself (mounts.doc_replace_text)");
-  const locked = await openGoogle(`${NATIVE}document`, { text: DOC, connected: { provider: "Google Drive", viewOnly: true } }, "Google Docs");
+  const locked = await openGoogle(
+    `${NATIVE}document`,
+    { text: DOC, connected: { provider: "Google Drive", viewOnly: true } },
+    "Google Docs",
+  );
   assert.equal(find(locked, "vw-mode"), null, "a Doc Drive says is view only is not edited here");
 });
 

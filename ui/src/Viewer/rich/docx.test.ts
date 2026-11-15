@@ -18,17 +18,30 @@ test("the XML reader and writer give back the same document", () => {
     const x = txt(entries[name]!);
     assert.equal(writeXml(parseXml(x)), x, name);
   }
-  assert.equal(writeXml(parseXml('<?xml version="1.0"?>\n<a x="1&amp;2"><b/><!-- c --><![CDATA[<z>]]>t &lt; u</a>\n')), '<?xml version="1.0"?>\n<a x="1&amp;2"><b/><!-- c --><![CDATA[<z>]]>t &lt; u</a>\n');
+  assert.equal(
+    writeXml(parseXml('<?xml version="1.0"?>\n<a x="1&amp;2"><b/><!-- c --><![CDATA[<z>]]>t &lt; u</a>\n')),
+    '<?xml version="1.0"?>\n<a x="1&amp;2"><b/><!-- c --><![CDATA[<z>]]>t &lt; u</a>\n',
+  );
 });
 
 test("a Word file is read as its structure", () => {
   const m = readDocx(sample().entries);
   assert.equal(m.page.w, 612);
   assert.equal(m.page.ml, 72);
-  assert.deepEqual(m.paras.slice(0, 3).map((p) => [p.text, p.heading]), [["Quarterly plan", 1], ["This plan covers the next quarter and links to the sample site.", undefined], ["Goals", 2]]);
+  assert.deepEqual(
+    m.paras.slice(0, 3).map((p) => [p.text, p.heading]),
+    [
+      ["Quarterly plan", 1],
+      ["This plan covers the next quarter and links to the sample site.", undefined],
+      ["Goals", 2],
+    ],
+  );
   assert.equal(m.paras[3]!.list?.marker, "•");
   assert.equal(m.blocks.filter((b) => b.t === "tbl").length, 1);
-  const tbl = m.blocks.find((b) => b.t === "tbl")! as { t: "tbl"; tbl: { rows: { blocks: unknown[]; fill?: string }[][] } };
+  const tbl = m.blocks.find((b) => b.t === "tbl")! as {
+    t: "tbl";
+    tbl: { rows: { blocks: unknown[]; fill?: string }[][] };
+  };
   assert.equal(tbl.tbl.rows.length, 2);
   assert.equal(tbl.tbl.rows[0]![0]!.fill, "#DDEEFF");
   const link = m.paras[1]!.runs.find((r) => r.link)!;
@@ -49,14 +62,22 @@ test("change one word: every other part of the file is identical and only that r
   const m = readDocx(entries);
   const p = m.paras[1]!;
   const runs = textRuns(p);
-  applyRunTexts(m, p, runs.map((r) => (r.text === "next quarter" ? "coming quarter" : r.text)));
+  applyRunTexts(
+    m,
+    p,
+    runs.map((r) => (r.text === "next quarter" ? "coming quarter" : r.text)),
+  );
   const out = writeDocx(m);
-  for (const k of Object.keys(entries)) if (k !== "word/document.xml") assert.deepEqual(out[k], entries[k], `${k} is carried over byte for byte`);
+  for (const k of Object.keys(entries))
+    if (k !== "word/document.xml") assert.deepEqual(out[k], entries[k], `${k} is carried over byte for byte`);
   const before = txt(entries["word/document.xml"]!);
   const after = txt(out["word/document.xml"]!);
   assert.equal(after, before.replace("<w:t>next quarter</w:t>", '<w:t xml:space="preserve">coming quarter</w:t>'));
   const re = readDocx(out);
-  assert.deepEqual(re.paras.map((q) => q.text).filter((_, i) => i !== 1), m.paras.map((q) => q.text).filter((_, i) => i !== 1));
+  assert.deepEqual(
+    re.paras.map((q) => q.text).filter((_, i) => i !== 1),
+    m.paras.map((q) => q.text).filter((_, i) => i !== 1),
+  );
   assert.match(re.paras[1]!.text, /coming quarter/);
   assert.deepEqual(re.footnotes, m.footnotes);
   assert.equal(re.blocks.length, m.blocks.length);
@@ -78,7 +99,10 @@ test("bold over part of a run splits it and writes real run properties; toggling
 test("a heading level is a real style; a paragraph with a tracked change is never rewritten", () => {
   const m = readDocx(sample().entries);
   assert.equal(setHeading(m, m.paras[1]!, 2), true);
-  assert.match(txt(writeDocx(m)["word/document.xml"]!), /<w:pPr><w:pStyle w:val="Heading2"\/><\/w:pPr><w:r><w:t xml:space="preserve">This plan/);
+  assert.match(
+    txt(writeDocx(m)["word/document.xml"]!),
+    /<w:pPr><w:pStyle w:val="Heading2"\/><\/w:pPr><w:r><w:t xml:space="preserve">This plan/,
+  );
   const tracked = m.paras.find((p) => p.why)!;
   const before = JSON.stringify(tracked.node);
   applyRunTexts(m, tracked, ["something else"]);

@@ -135,8 +135,13 @@ export function driveStandIn(o: DriveOptions) {
       const text = Buffer.from(raw).toString("latin1");
       const boundary = /^--(\S+)\r\n/.exec(text)?.[1] ?? "";
       const parts = text.split(`--${boundary}`).filter((p) => p.trim() !== "" && p.trim() !== "--");
-      const meta = JSON.parse(Buffer.from(/\r\n\r\n([\s\S]*?)\r\n$/.exec(parts[0] ?? "")?.[1] ?? "{}", "latin1").toString("utf8")) as Record<string, unknown>;
-      const media = Buffer.from((parts[1] ?? "").replace(/^\r\nContent-Type:[^\r]*\r\n\r\n/, "").replace(/\r\n$/, ""), "latin1");
+      const meta = JSON.parse(
+        Buffer.from(/\r\n\r\n([\s\S]*?)\r\n$/.exec(parts[0] ?? "")?.[1] ?? "{}", "latin1").toString("utf8"),
+      ) as Record<string, unknown>;
+      const media = Buffer.from(
+        (parts[1] ?? "").replace(/^\r\nContent-Type:[^\r]*\r\n\r\n/, "").replace(/\r\n$/, ""),
+        "latin1",
+      );
       const m = /\/upload\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname);
       if (m) {
         const f = files.get(decodeURIComponent(m[1]!));
@@ -154,7 +159,10 @@ export function driveStandIn(o: DriveOptions) {
       const parents = Array.isArray(meta["parents"]) ? (meta["parents"] as string[]) : ["root-folder"];
       return {
         json: view(
-          put({ name: String(meta["name"]), parents, mimeType: String(meta["mimeType"] ?? "application/pdf") }, new Uint8Array(media)),
+          put(
+            { name: String(meta["name"]), parents, mimeType: String(meta["mimeType"] ?? "application/pdf") },
+            new Uint8Array(media),
+          ),
         ),
       };
     }

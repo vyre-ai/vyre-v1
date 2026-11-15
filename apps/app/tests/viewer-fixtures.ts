@@ -9,8 +9,11 @@ export function makePdf(pages: readonly (readonly string[])[]): Buffer {
   objs[2] = `<</Type/Pages/Kids[${pages.map((_, i) => `${4 + i * 2} 0 R`).join(" ")}]/Count ${n}>>`;
   objs[3] = "<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>";
   pages.forEach((lines, i) => {
-    const content = lines.map((l, k) => `BT /F1 16 Tf 56 ${720 - k * 28} Td (${l.replace(/[()\\]/g, "\\$&")}) Tj ET`).join("\n");
-    objs[4 + i * 2] = `<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents ${5 + i * 2} 0 R/Resources<</Font<</F1 3 0 R>>>>>>`;
+    const content = lines
+      .map((l, k) => `BT /F1 16 Tf 56 ${720 - k * 28} Td (${l.replace(/[()\\]/g, "\\$&")}) Tj ET`)
+      .join("\n");
+    objs[4 + i * 2] =
+      `<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents ${5 + i * 2} 0 R/Resources<</Font<</F1 3 0 R>>>>>>`;
     objs[5 + i * 2] = `<</Length ${content.length}>>\nstream\n${content}\nendstream`;
   });
   let out = "%PDF-1.4\n";
@@ -142,16 +145,44 @@ export function makeDocx(): Buffer {
 
 /** A sample deck of three slides: a title, a bullet text box with a rectangle, and a table and a picture. */
 export function makePptx(): Buffer {
-  const A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
-  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
-  const sp = (id: number, name: string, x: number, y: number, w: number, h: number, paras: string[], fill?: string, size = 1800, bold = false): string =>
+  const A =
+    'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"';
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  const sp = (
+    id: number,
+    name: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    paras: string[],
+    fill?: string,
+    size = 1800,
+    bold = false,
+  ): string =>
     `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${name}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm>${fill ? `<a:solidFill><a:srgbClr val="${fill}"/></a:solidFill>` : ""}</p:spPr><p:txBody><a:bodyPr/><a:p>${paras.length ? "" : ""}</a:p>${paras.map((t) => `<a:p><a:r><a:rPr lang="en-US" sz="${size}"${bold ? ' b="1"' : ""}/><a:t>${t}</a:t></a:r></a:p>`).join("")}</p:txBody></p:sp>`;
   const slide = (shapes: string): string =>
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld ${A}><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>${shapes}</p:spTree></p:cSld></p:sld>`;
-  const s1 = slide(sp(2, "Title", 685800, 1600200, 7772400, 1200000, ["Quarterly review"], undefined, 4400, true) + sp(3, "Sub", 685800, 3000000, 7772400, 600000, ["Sample company, November"], undefined, 2000));
+  const s1 = slide(
+    sp(2, "Title", 685800, 1600200, 7772400, 1200000, ["Quarterly review"], undefined, 4400, true) +
+      sp(3, "Sub", 685800, 3000000, 7772400, 600000, ["Sample company, November"], undefined, 2000),
+  );
   const s2 = slide(
     sp(2, "Heading", 457200, 300000, 8229600, 800000, ["Highlights"], undefined, 3200, true) +
-      sp(3, "Body", 457200, 1300000, 5000000, 3000000, ["Revenue grew in every region", "Costs stayed flat", "Hiring starts in January"], undefined, 2000) +
+      sp(
+        3,
+        "Body",
+        457200,
+        1300000,
+        5000000,
+        3000000,
+        ["Revenue grew in every region", "Costs stayed flat", "Hiring starts in January"],
+        undefined,
+        2000,
+      ) +
       sp(4, "Box", 5800000, 1500000, 2800000, 1800000, ["Target met"], "4F81BD", 2400, true),
   );
   const s3 = slide(

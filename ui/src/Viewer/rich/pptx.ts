@@ -85,7 +85,13 @@ function para(p: XNode): PPara {
   }
   const pPr = kid(p, "a:pPr");
   const algn = attr(pPr, "algn");
-  return { node: p, runs, ...(algn ? { align: algn === "ctr" ? "center" : algn === "r" ? "right" : "left" } : {}), ...(kid(pPr, "a:buChar") || kid(pPr, "a:buAutoNum") ? { bullet: true } : {}), text: runs.map((r) => r.text).join("") };
+  return {
+    node: p,
+    runs,
+    ...(algn ? { align: algn === "ctr" ? "center" : algn === "r" ? "right" : "left" } : {}),
+    ...(kid(pPr, "a:buChar") || kid(pPr, "a:buAutoNum") ? { bullet: true } : {}),
+    text: runs.map((r) => r.text).join(""),
+  };
 }
 
 const xfrmOf = (n: XNode | undefined): { x: number; y: number; w: number; h: number } | undefined => {
@@ -93,7 +99,12 @@ const xfrmOf = (n: XNode | undefined): { x: number; y: number; w: number; h: num
   const off = kid(x, "a:off");
   const ext = kid(x, "a:ext");
   if (!off || !ext) return undefined;
-  return { x: Number(attr(off, "x")), y: Number(attr(off, "y")), w: Number(attr(ext, "cx")), h: Number(attr(ext, "cy")) };
+  return {
+    x: Number(attr(off, "x")),
+    y: Number(attr(off, "y")),
+    w: Number(attr(ext, "cx")),
+    h: Number(attr(ext, "cy")),
+  };
 };
 
 export function readPptx(entries: Record<string, Uint8Array>): PptxModel {
@@ -125,7 +136,11 @@ export function readPptx(entries: Record<string, Uint8Array>): PptxModel {
       const tree = kid(kid(layout, "p:cSld"), "p:spTree");
       for (const sp of kids(tree ?? layout, "p:sp")) {
         const lp = kid(kid(kid(sp, "p:nvSpPr"), "p:nvPr"), "p:ph");
-        if (lp && ((attr(ph, "idx") !== undefined && attr(lp, "idx") === attr(ph, "idx")) || (attr(ph, "type") !== undefined && attr(lp, "type") === attr(ph, "type"))))
+        if (
+          lp &&
+          ((attr(ph, "idx") !== undefined && attr(lp, "idx") === attr(ph, "idx")) ||
+            (attr(ph, "type") !== undefined && attr(lp, "type") === attr(ph, "type")))
+        )
           return xfrmOf(sp);
       }
       return undefined;
@@ -139,7 +154,8 @@ export function readPptx(entries: Record<string, Uint8Array>): PptxModel {
           visit(c);
         } else if (c.name === "p:sp") {
           const ph = kid(kid(kid(c, "p:nvSpPr"), "p:nvPr"), "p:ph");
-          const pos = xfrmOf(c) ?? phPos(ph) ?? { x: 457200, y: 300000 + stacked++ * 1100000, w: w - 914400, h: 1000000 };
+          const pos = xfrmOf(c) ??
+            phPos(ph) ?? { x: 457200, y: 300000 + stacked++ * 1100000, w: w - 914400, h: 1000000 };
           const body = kid(c, "p:txBody");
           const fill = attr(kid(kid(kid(c, "p:spPr"), "a:solidFill"), "a:srgbClr"), "val");
           if (kid(kid(c, "p:spPr"), "a:gradFill")) notDrawn.add("gradients");
@@ -157,7 +173,14 @@ export function readPptx(entries: Record<string, Uint8Array>): PptxModel {
           const pos = xfrmOf(c);
           const t = rid ? sr[rid] : undefined;
           if (pos && t)
-            shapes.push({ id: attr(kid(kid(c, "p:nvPicPr"), "p:cNvPr"), "id") ?? "", kind: "pic", ...pos, paras: [], title: false, pic: { path: resolve(path, t), alt: attr(kid(kid(c, "p:nvPicPr"), "p:cNvPr"), "descr") ?? "" } });
+            shapes.push({
+              id: attr(kid(kid(c, "p:nvPicPr"), "p:cNvPr"), "id") ?? "",
+              kind: "pic",
+              ...pos,
+              paras: [],
+              title: false,
+              pic: { path: resolve(path, t), alt: attr(kid(kid(c, "p:nvPicPr"), "p:cNvPr"), "descr") ?? "" },
+            });
         } else if (c.name === "p:graphicFrame") {
           const tbl = kid(kid(kid(c, "a:graphic"), "a:graphicData"), "a:tbl");
           const pos = xfrmOf(c);
@@ -168,7 +191,9 @@ export function readPptx(entries: Record<string, Uint8Array>): PptxModel {
               ...pos,
               paras: [],
               title: false,
-              table: kids(tbl, "a:tr").map((tr) => kids(tr, "a:tc").map((tc) => kids(kid(tc, "a:txBody") ?? tc, "a:p").map(para))),
+              table: kids(tbl, "a:tr").map((tr) =>
+                kids(tr, "a:tc").map((tc) => kids(kid(tc, "a:txBody") ?? tc, "a:p").map(para)),
+              ),
             });
           else notDrawn.add("charts and diagrams");
         }
@@ -182,8 +207,13 @@ export function readPptx(entries: Record<string, Uint8Array>): PptxModel {
   return { entries, w, h, slides, notDrawn: [...notDrawn] };
 }
 
-export const paraTexts = (s: PShape): string[] => (s.kind === "table" ? (s.table ?? []).flat(2).map((p) => p.text) : s.paras.map((p) => p.text));
-export const slideText = (shapes: readonly PShape[]): string => shapes.flatMap(paraTexts).filter((t) => t !== "").join("\n");
+export const paraTexts = (s: PShape): string[] =>
+  s.kind === "table" ? (s.table ?? []).flat(2).map((p) => p.text) : s.paras.map((p) => p.text);
+export const slideText = (shapes: readonly PShape[]): string =>
+  shapes
+    .flatMap(paraTexts)
+    .filter((t) => t !== "")
+    .join("\n");
 
 /** The runs' new words, in order, for one paragraph. */
 export function setParaRuns(s: PSlide, p: PPara, texts: readonly string[]): void {
