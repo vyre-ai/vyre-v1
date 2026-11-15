@@ -41,7 +41,13 @@ test("the Computer tab as Ada and as Bea on the same shared agent", { timeout: 4
       }
       await shoot(who.page, `${DIR}/${name}`, `computer-tab-1440`);
       await who.page.setViewportSize(SIZES.phone);
-      await tab(who).catch(() => undefined);
+      await open(who, k.s, agentPage);
+      await who.page.getByTestId("agent-page").waitFor({ timeout: 30_000 });
+      // on a phone the page's tabs after Files are behind More
+      await who.page.getByText("More", { exact: true }).first().click();
+      await who.page.getByText("Computer", { exact: true }).last().click();
+      await who.page.getByTestId("terminals-head").waitFor({ timeout: 30_000 });
+      await who.page.waitForTimeout(1500);
       await shoot(who.page, `${DIR}/${name}`, `computer-tab-390`);
     }
   } finally {
