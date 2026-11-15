@@ -12,7 +12,8 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 
 type OpenMenu = (entries: MenuEntry[], x: number, y: number, source: "other") => void;
 
-const tid = (testID: string | undefined, suffix: string): { testID?: string } => (testID ? { testID: `${testID}-${suffix}` } : {});
+const tid = (testID: string | undefined, suffix: string): { testID?: string } =>
+  testID ? { testID: `${testID}-${suffix}` } : {};
 
 const refOf = (put: string): string | null => {
   const seg = splitTemplate(put).find((x) => x.kind === "chip");

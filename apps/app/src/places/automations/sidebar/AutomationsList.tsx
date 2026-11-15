@@ -49,7 +49,13 @@ export function AutomationsList({
     if (jr) {
       show(
         tidy([
-          { label: "Open", onSelect: () => { data.nav.openJourney(id); onChoose(); } },
+          {
+            label: "Open",
+            onSelect: () => {
+              data.nav.openJourney(id);
+              onChoose();
+            },
+          },
           { separator: true },
           { label: "Copy Link", onSelect: () => copyToClipboard(vyreLink("journey", id)) },
           { separator: true },
@@ -57,7 +63,20 @@ export function AutomationsList({
             label: "Move to Trash…",
             danger: true,
             onSelect: () =>
-              show([{ head: "Move this Journey to Trash?" }, { label: "Move to Trash", danger: true, onSelect: () => once(() => data.call("journeys.delete", { journeyId: id }).then(() => undefined)) }, { label: "Cancel" }], x, y, "other"),
+              show(
+                [
+                  { head: "Move this Journey to Trash?" },
+                  {
+                    label: "Move to Trash",
+                    danger: true,
+                    onSelect: () => once(() => data.call("journeys.delete", { journeyId: id }).then(() => undefined)),
+                  },
+                  { label: "Cancel" },
+                ],
+                x,
+                y,
+                "other",
+              ),
           },
         ]),
         x,
@@ -72,9 +91,22 @@ export function AutomationsList({
     const canEdit = !(a.kind === "space" && data.canSpace === false);
     show(
       automationMenu(
-        { name: a.name, enabled: a.status === "on", space: a.kind === "space", canEdit, canRun: canEdit && a.status !== "draft", canDelete: canEdit, failedRuns: a.failedRuns, group: null, groups: [] },
         {
-          open: () => { data.nav.openAutomation(a.id); onChoose(); },
+          name: a.name,
+          enabled: a.status === "on",
+          space: a.kind === "space",
+          canEdit,
+          canRun: canEdit && a.status !== "draft",
+          canDelete: canEdit,
+          failedRuns: a.failedRuns,
+          group: null,
+          groups: [],
+        },
+        {
+          open: () => {
+            data.nav.openAutomation(a.id);
+            onChoose();
+          },
           run: () => once(() => api.automationRun(a.id)),
           setEnabled: (on) => once(() => api.automationSetEnabled(a.id, on)),
           test: () => once(() => api.automationTest(a.id)),
@@ -82,7 +114,17 @@ export function AutomationsList({
           move: (groupId) => once(() => api.automationMove(a.id, groupId)),
           runs: () => (a.failedRuns > 0 ? data.nav.openFailedRuns() : (data.nav.openAutomation(a.id), onChoose())),
           copyLink: () => copyToClipboard(vyreLink("automation", a.id)),
-          remove: () => show([{ head: "Move this Automation to Trash?" }, { label: "Move to Trash", danger: true, onSelect: () => once(() => api.automationTrash(a.id)) }, { label: "Cancel" }], x, y, "other"),
+          remove: () =>
+            show(
+              [
+                { head: "Move this Automation to Trash?" },
+                { label: "Move to Trash", danger: true, onSelect: () => once(() => api.automationTrash(a.id)) },
+                { label: "Cancel" },
+              ],
+              x,
+              y,
+              "other",
+            ),
         },
       ),
       x,
@@ -93,20 +135,20 @@ export function AutomationsList({
   };
   return (
     <>
-    {note ? <Text testID="al-note">{note}</Text> : null}
-    <ListView
-      rows={[...list.data.automations.map((a) => listRowOf(a, data.me.id)), ...journeyRows]}
-      query={query}
-      selectedId={selectedId}
-      onMenu={rowMenu}
-      onHome={onChoose}
-      onOpen={(id) => {
-        if (journeyIds.has(id)) data.nav.openJourney(id);
-        else data.nav.openAutomation(id);
-        onChoose();
-      }}
-    />
-    {element}
+      {note ? <Text testID="al-note">{note}</Text> : null}
+      <ListView
+        rows={[...list.data.automations.map((a) => listRowOf(a, data.me.id)), ...journeyRows]}
+        query={query}
+        selectedId={selectedId}
+        onMenu={rowMenu}
+        onHome={onChoose}
+        onOpen={(id) => {
+          if (journeyIds.has(id)) data.nav.openJourney(id);
+          else data.nav.openAutomation(id);
+          onChoose();
+        }}
+      />
+      {element}
     </>
   );
 }

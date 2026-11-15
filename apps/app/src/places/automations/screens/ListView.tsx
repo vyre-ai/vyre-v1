@@ -59,15 +59,15 @@ export function ListView({
       )}
       {v.rows.map((r) => (
         <View key={r.id} {...(onMenu ? menuTrigger((x, y) => onMenu(r.id, x, y)) : {})}>
-        <Row
-          id={`${r.scope === "Journey" ? "journey" : "auto"}-${r.id}`}
-          {...(selectedId === r.id ? { selected: true } : {})}
-          title={r.name}
-          leading={<View style={[s.dot, { backgroundColor: DOT[r.dot] as string }]} />}
-          domProps={{ style: { minHeight: 34 } }}
-          {...(r.scope ? { trailing: <Text style={s.quiet}>{r.scope}</Text> } : {})}
-          onPress={() => onOpen(r.id)}
-        />
+          <Row
+            id={`${r.scope === "Journey" ? "journey" : "auto"}-${r.id}`}
+            {...(selectedId === r.id ? { selected: true } : {})}
+            title={r.name}
+            leading={<View style={[s.dot, { backgroundColor: DOT[r.dot] as string }]} />}
+            domProps={{ style: { minHeight: 34 } }}
+            {...(r.scope ? { trailing: <Text style={s.quiet}>{r.scope}</Text> } : {})}
+            onPress={() => onOpen(r.id)}
+          />
         </View>
       ))}
       {v.empty ? <Text style={s.quiet}>{v.empty}</Text> : null}
