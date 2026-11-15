@@ -102,6 +102,8 @@ export interface FileOut {
 }
 
 export interface FolderOut {
+  /** When it went to Trash, on a folder in Trash. */
+  deletedAt?: number;
   folderId: string;
   parentId?: string;
   name: string;
@@ -2231,7 +2233,8 @@ async function filesRestore(ctx: Ctx, input: unknown): Promise<{ file: FileOut }
   return { file: fileOutC(ctx, mustFile(ctx, String(file.id))) };
 }
 
-const noTable = (e: unknown): boolean => /no such (table|column)|unsupported sql|is not a table/i.test(e instanceof Error ? e.message : String(e));
+const noTable = (e: unknown): boolean =>
+  /no such (table|column)|unsupported sql|is not a table/i.test(e instanceof Error ? e.message : String(e));
 function tryMany(ctx: Ctx, sql: string, ...a: unknown[]): Row[] {
   try {
     return many(ctx, sql, ...a);
@@ -2257,7 +2260,9 @@ function purgeFile(ctx: Ctx, file: Row): void {
   ctx.db.run("DELETE FROM files_trash WHERE id = ?", file.id);
   dropRecent(ctx.db, String(file.id));
   // what hung on the file goes with it (F77): its comments, marks, markup, review requests, redaction requests, stars, links, and the changesets that only touched it
-  const touched = tryMany(ctx, "SELECT * FROM files_changeset_file WHERE file_id = ?", file.id).map((r) => String(r.changeset_id));
+  const touched = tryMany(ctx, "SELECT * FROM files_changeset_file WHERE file_id = ?", file.id).map((r) =>
+    String(r.changeset_id),
+  );
   for (const [table, col] of [
     ["files_comment", "file_id"],
     ["files_markup", "file_id"],

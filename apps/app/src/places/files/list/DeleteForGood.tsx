@@ -2,7 +2,8 @@
 // Cancel takes focus first and Escape closes it; the one danger button names the thing. No typed name. The sentence a refusal brings shows in the sheet.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
 
 export type ForGood =
@@ -111,17 +112,12 @@ export function DeleteForGoodSheet({
                 <View style={s.need} testID="forgood-need">
                   <Text style={s.head}>These will need someone:</Text>
                   {preview.named.map((n) => (
-                    <Pressable
+                    <Row
                       key={`${n.kind}:${n.id}`}
-                      accessibilityRole="link"
-                      accessibilityLabel={`Open ${KIND_WORD[n.kind]} ${n.title}`}
-                      testID={`forgood-open-${n.id}`}
+                      id={`forgood-open-${n.id}`}
+                      title={`${KIND_WORD[n.kind]}: ${n.title}`}
                       onPress={() => openItem?.(n.kind, n.id)}
-                    >
-                      <Text style={s.link}>
-                        {KIND_WORD[n.kind]}: {n.title}
-                      </Text>
-                    </Pressable>
+                    />
                   ))}
                 </View>
               ) : null}

@@ -13,5 +13,9 @@ test("every module's fallback for how long Trash keeps an agent's things is gove
   );
   assert.ok(trash, "governance has a trash retention");
   assert.equal(TRASH_KEEP_MS, retentionMs(trash.default), `the Space browser's fallback is ${trash.default}`);
-  assert.equal(AGENTS_KEEP_MS, retentionMs(trash.default), `the agents module deleting an agent for good uses ${trash.default}`);
+  assert.equal(
+    AGENTS_KEEP_MS,
+    retentionMs(trash.default),
+    `the agents module deleting an agent for good uses ${trash.default}`,
+  );
 });

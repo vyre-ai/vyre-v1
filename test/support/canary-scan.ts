@@ -56,4 +56,3 @@ export function scan(dir: string, canaries: string[]): Map<string, Set<string>> 
   }
   return hits;
 }
-

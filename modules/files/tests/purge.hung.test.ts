@@ -22,9 +22,32 @@ test("a file deleted for good takes its comments, marks and changeset rows with 
 
 test("a folder in Trash is deleted for good with everything under it, and says whose folder it was", async () => {
   const w = open();
-  run(w, "INSERT INTO files_folder (id, parent_id, name, path, system_key, deleted_at) VALUES (?, ?, ?, ?, ?, ?)", "fld_ag", null, "Desk", "Agents/Desk", "agent:agt_desk", 1);
-  run(w, "INSERT INTO files_file (id, folder_id, name, deleted_at) VALUES (?, ?, ?, ?)", "fil_y", "fld_ag", "AGENT.md", 1);
-  run(w, "INSERT INTO files_trash (id, kind, root_id, deleted_at) VALUES (?, ?, ?, ?)", "fld_ag", "folder", "fld_ag", 1);
+  run(
+    w,
+    "INSERT INTO files_folder (id, parent_id, name, path, system_key, deleted_at) VALUES (?, ?, ?, ?, ?, ?)",
+    "fld_ag",
+    null,
+    "Desk",
+    "Agents/Desk",
+    "agent:agt_desk",
+    1,
+  );
+  run(
+    w,
+    "INSERT INTO files_file (id, folder_id, name, deleted_at) VALUES (?, ?, ?, ?)",
+    "fil_y",
+    "fld_ag",
+    "AGENT.md",
+    1,
+  );
+  run(
+    w,
+    "INSERT INTO files_trash (id, kind, root_id, deleted_at) VALUES (?, ?, ?, ?)",
+    "fld_ag",
+    "folder",
+    "fld_ag",
+    1,
+  );
   assert.deepEqual(await h["files.folder.purge"]!(w.ctx, { folderId: "fld_ag" }), { purged: true });
   assert.equal(w.db.rows("files_folder").filter((r) => r["id"] === "fld_ag").length, 0);
   assert.equal(w.db.rows("files_file").filter((r) => r["id"] === "fil_y").length, 0);

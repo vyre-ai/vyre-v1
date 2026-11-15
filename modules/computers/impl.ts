@@ -1093,10 +1093,7 @@ export const hostCalls = {
    * Delete for good (F77): the agent's computer rows, its screen steps and recordings, its sign-in notes, its jobs on enrolled computers, and its Space browser profile (cookies, saved sign-ins, downloads),
    * removed from the browser host. A browser host that does not answer fails the step, so the job tries again.
    */
-  "computers.erase_agent": async (
-    ctx: CompCtx,
-    i: { agentId: string; dry?: boolean },
-  ): Promise<{ bytes?: number }> => {
+  "computers.erase_agent": async (ctx: CompCtx, i: { agentId: string; dry?: boolean }): Promise<{ bytes?: number }> => {
     const cids = tryAll(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", i.agentId).map((r) =>
       String(r["computer_id"]),
     );

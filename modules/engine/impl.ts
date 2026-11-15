@@ -744,7 +744,11 @@ export const hostCalls = {
       if (i.dry === true) return {};
       tryRun(ctx.db, `DELETE FROM engine_messages WHERE author_kind = 'agent' AND author_id = ?`, i.agentId);
       // what each of its turns recorded: tools used, switches, context (the tool traces and run records behind its messages; the spend rows in engine_usage stay, they are the Space's totals)
-      tryRun(ctx.db, `DELETE FROM engine_turn_info WHERE turn_id IN (SELECT turn_id FROM engine_usage WHERE agent_id = ?)`, i.agentId);
+      tryRun(
+        ctx.db,
+        `DELETE FROM engine_turn_info WHERE turn_id IN (SELECT turn_id FROM engine_usage WHERE agent_id = ?)`,
+        i.agentId,
+      );
       // the engine's own copy of its one-to-one chats, cleared here as well as by the thread.erased consumer, which can come after the log is cleared of that event
       for (const th of (i as { ids?: string[] }).ids ?? [])
         for (const t of ENGINE_BY_THREAD) tryRun(ctx.db, `DELETE FROM ${t} WHERE thread_id = ?`, th);

@@ -315,7 +315,17 @@ test("holds: place on a file, channel, thread, folder or person; one hold per ta
 test("a folder in Trash expires on the same clock as a file: an old one is deleted for good, a young one stays (F77)", async () => {
   const h = harness();
   const purged: string[] = [];
-  const fld = (folderId: string) => ({ folderId, name: "Desk", path: "Agents/Desk", fileCount: 0, folderCount: 0, scope: "space", label: 0, git: false, reviewChanges: false });
+  const fld = (folderId: string) => ({
+    folderId,
+    name: "Desk",
+    path: "Agents/Desk",
+    fileCount: 0,
+    folderCount: 0,
+    scope: "space",
+    label: 0,
+    git: false,
+    reviewChanges: false,
+  });
   h.script("files.trash.list", () => ({
     files: [],
     folders: [

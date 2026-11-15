@@ -45,10 +45,16 @@ export const projections = { inline: {}, consumers: {} };
  */
 export const hostCalls = {
   /** Delete for good (F77): the event log and request cache lose what names the agent, its chats and its routines (handlers/erase.ts eraseIds). */
-  "governance.erase_agent": async (_ctx: Ctx, i: { agentId: string; ids?: string[]; dry?: boolean }): Promise<Record<string, never>> => {
+  "governance.erase_agent": async (
+    _ctx: Ctx,
+    i: { agentId: string; ids?: string[]; dry?: boolean },
+  ): Promise<Record<string, never>> => {
     if (i.dry === true) return {};
     const out = await eraseIds([i.agentId, ...(i.ids ?? [])]);
-    (_ctx as unknown as { log: { warn(m: string, a: object): void } }).log.warn("governance: an agent erased from the log and request cache", { ...out, ids: (i.ids ?? []).length });
+    (_ctx as unknown as { log: { warn(m: string, a: object): void } }).log.warn(
+      "governance: an agent erased from the log and request cache",
+      { ...out, ids: (i.ids ?? []).length },
+    );
     return {};
   },
   "governance.held_among": (ctx: Ctx, i: { person: string; ids: string[] }): number => {

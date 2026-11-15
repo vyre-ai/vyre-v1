@@ -7,15 +7,9 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { notices } from "../../../shell/noticeslot/model.ts";
 import { Face } from "../../chats/needsyou/parts.tsx";
 import { TextButton } from "../../chats/rightpane/parts.tsx";
+import { useDueText } from "../../../../../../ui/src/Time/index.tsx";
 import { useFilesData, useLive } from "../tree/data.tsx";
 import { tellIfRefused } from "../tree/refusal.ts";
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-/** A day in the Space's time: "14 Dec". */
-export function dayText(ms: number, offsetMin: number): string {
-  const d = new Date(ms + offsetMin * 60_000);
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
-}
 
 export interface TrashAgent {
   agentId: string;
@@ -42,7 +36,7 @@ export function AgentTrashRows({
   onDelete(a: TrashAgent): void;
 }): ReactElement | null {
   const data = useFilesData();
-  const offset = data.clock().offsetMin;
+  const day = useDueText();
   const phone = useWindowDimensions().width < 700;
   const was = useRef<Map<string, { name: string; deleting: boolean }>>(new Map());
   useEffect(() => {
@@ -62,7 +56,7 @@ export function AgentTrashRows({
           note={
             a.deleting
               ? "Deleting"
-              : `Agent · Moved to Trash ${dayText(a.deletedAt, offset)}${a.erasesAt !== undefined ? ` · Erased on ${dayText(a.erasesAt, offset)}` : ""}`
+              : `Agent · Moved to Trash ${day(a.deletedAt)}${a.erasesAt !== undefined ? ` · Erased on ${day(a.erasesAt)}` : ""}`
           }
           leading={
             <View style={st.face}>

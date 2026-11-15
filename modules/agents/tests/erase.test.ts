@@ -61,7 +61,9 @@ test("delete for good records one job, pressing again changes nothing, and the j
     "the row and profile are gone",
   );
   assert.equal(
-    hn.ctx.db.all("SELECT state FROM agents_erase WHERE agentId = ?", a.agentId)[0]!["state"],
+    (hn.ctx.db.all("SELECT state FROM agents_erase WHERE agentId = ?", a.agentId)[0] as Record<string, unknown>)[
+      "state"
+    ],
     "erased",
     "the tombstone stays",
   );

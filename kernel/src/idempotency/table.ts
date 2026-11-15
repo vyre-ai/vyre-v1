@@ -54,7 +54,11 @@ export class IdempotencyTable {
     this.db.exec("PRAGMA secure_delete = ON");
     let n = 0;
     for (const needle of list)
-      n += Number(this.db.prepare("DELETE FROM idempotency WHERE instr(CAST(result AS TEXT), ?) > 0 OR instr(key, ?) > 0").run(needle, needle).changes);
+      n += Number(
+        this.db
+          .prepare("DELETE FROM idempotency WHERE instr(CAST(result AS TEXT), ?) > 0 OR instr(key, ?) > 0")
+          .run(needle, needle).changes,
+      );
     if (n > 0) {
       this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
       this.db.exec("VACUUM");
