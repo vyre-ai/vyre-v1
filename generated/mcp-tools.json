@@ -33352,7 +33352,7 @@
       "blocks": [],
       "cap": "inbox.counts",
       "deferred": false,
-      "description": "Unread counts for the sidebar: per inbox, per number and the Needs a match total",
+      "description": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
       "effects": "read",
       "inputSchema": {
         "properties": {},

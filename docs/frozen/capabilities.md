@@ -593,3 +593,9 @@ Signed: lead, 16 Nov 2026 02:40 PKT, after two data-safety reviews (team/v1/revi
 - Proof: modules/mail/tests/drafts.test.ts (two new cases), modules/inbox/tests/match.test.ts. Snapshot: docs/frozen/snapshots/mail.json.
 
 Signed: lead, 16 Nov 2026 03:01 PKT (written and read by the lead: one optional, additive input).
+
+## 16 Nov 2026: inbox.counts counts conversations, not messages (the lead's Inbox work)
+
+`inbox.counts@1` keeps its shape. Its numbers change meaning: `total` and each `byInbox[].unread` are now the number of conversations that hold unread messages for the caller (not marked done), not the number of unread messages. Reason: the owner's Inbox read "551" beside By contact and beside the mailbox and the number told him nothing; a badge beside a list of conversations counts conversations. A conversation's own `unreadCount` still counts messages. Only the description text of the capability changed in the manifest.
+
+Signed: lead, 16 Nov 2026 03:36 PKT (written and read by the lead: no shape change, a change of meaning in two numbers).
