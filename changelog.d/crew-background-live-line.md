@@ -1,0 +1,1 @@
+While helpers or jobs work in the background after the Assistant's reply, the chat shows one live line above the message box ("3 helpers working, 1 of 4 done, 2 min") with Stop, the chat keeps its working ring in the sidebar, and both go the moment the last one ends.

@@ -23,6 +23,8 @@ import { screenAnswer, settleAnswer } from "./answer-audience.ts";
 import { ANSWER_HELD } from "../../agent/src/turn-engine/engine.ts";
 import { clearReads } from "../../host/src/seams/answer-reads.ts";
 import { createCrewWatcher } from "./crew-watch.ts";
+import { createBackground } from "./background.ts";
+import { backgroundLine } from "./own-subagents.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
@@ -817,9 +819,18 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   const access = (asker: string) => engineAccessFor(h.call, asker);
   // the Space's git address, answered inside the egress proxy of a walled engine (sandbox-default.ts)
   setGitLocal(h.gitProxy ? { host: GIT_LOCAL_HOST, handle: (req, res) => h.gitProxy!.serve(req, res) } : null);
+  // the agent woken when the last background helper of its chat has ended: the turn engine is built later, so the call goes through this
+  let wakeAgent: ((threadId: string, agentId: string, asker: string) => void) | null = null;
+  const background = createBackground({
+    db: ctx.db,
+    now: now0,
+    wake: (threadId, agentId, asker) => wakeAgent?.(threadId, agentId, asker),
+    ...(h.log ? { log: h.log } : {}),
+  });
   const opener = host.openSession
     ? null
     : buildOpener({
+        background,
         sessions,
         egress,
         access,
@@ -1090,10 +1101,15 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           );
         },
       },
-      waiting: (threadId, agentId) =>
-        (running?.waiting(threadId) ?? [])
+      waiting: (threadId, agentId) => [
+        ...(running?.waiting(threadId) ?? [])
           .filter((w) => w.agentId === agentId)
           .map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
+        ...((): string[] => {
+          const line = backgroundLine(ctx.db, threadId);
+          return line === null ? [] : [line];
+        })(),
+      ],
     });
     const limitSwitch = createLimitSwitch({
       call: h.call,
@@ -1322,6 +1338,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         : {}),
     });
     running = engine;
+    wakeAgent = (threadId, agentId, asker) => {
+      engine.wake(threadId, agentId, { from: asker });
+    };
     // A turn parked because the person's Vault is locked runs once when this host holds their key (the Unlock a person presses lands here): one look at the keys every few seconds, no turn is started to find out.
     if (h.keyOpen ?? h.keyHeld) {
       const held = (h.keyOpen ?? h.keyHeld)!;

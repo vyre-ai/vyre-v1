@@ -5,6 +5,8 @@ import { extraHandlers } from "../handlers/extra/index.ts";
 import { GENERIC_FAILURE, failedLineOf } from "../handlers/extra/thread-states.ts";
 import { contractErrors, harness } from "../fixtures/harness.ts";
 import type { EngineCtx } from "../projections.ts";
+import { noteOwn, noteTask } from "../own-subagents.ts";
+import { now as engineNow } from "../handlers/now.ts";
 
 const H = extraHandlers;
 const A = "agt_intake";
@@ -107,4 +109,47 @@ test("bounded and plain: at most 200 ids by the contract; a failure with no word
   assert.equal(failedLineOf("{not json"), GENERIC_FAILURE);
   assert.equal(failedLineOf(JSON.stringify({ code: "x" })), GENERIC_FAILURE);
   assert.equal(failedLineOf(JSON.stringify({ message: "a".repeat(500) })).length, 160);
+});
+
+test("helpers working in the background keep their chat running and on engine.now after its turn ended, and it stops the moment the last one ends (owner's rc.28 report)", async () => {
+  const h = harness();
+  turn(h, "thr_bgr", { state: "completed" });
+  const e = { threadId: "thr_bgr", turnId: "trn_x", agentId: A, asker: "usr_dana" };
+  noteOwn(
+    h.ctx.db,
+    e,
+    [
+      { phase: "call", id: "c1", name: "Agent" },
+      { phase: "result", id: "c1", ok: true, launched: true },
+    ],
+    10,
+  );
+  const stateOf = (): string | undefined =>
+    H["engine.thread_states"](h.ctx, { threadIds: ["thr_bgr"] }).states.find((s) => s.threadId === "thr_bgr")?.state;
+  assert.equal(stateOf(), "running", "its last turn is done, its helper is not");
+  noteTask(h.ctx.db, e, { state: "end", id: "c1", taskId: "", ok: true }, 20);
+  assert.equal(stateOf(), "done");
+  // engine.now: a chat with no running turn but a helper working in the background is on it, and off it when the helper ends
+  const ctx = { ...h.ctx, call: async () => ({ thread: { title: "Applicants" } }) } as unknown as EngineCtx;
+  const e2 = { ...e, threadId: "thr_bgn" };
+  noteOwn(
+    h.ctx.db,
+    e2,
+    [
+      { phase: "call", id: "d1", name: "Agent" },
+      { phase: "result", id: "d1", ok: true, launched: true },
+    ],
+    30,
+  );
+  assert.deepEqual(
+    (await engineNow(ctx, {})).working
+      .filter((w) => w.threadId === "thr_bgn")
+      .map((w) => [w.agentId, w.title, w.forPerson]),
+    [[A, "Applicants", "usr_dana"]],
+  );
+  noteTask(h.ctx.db, e2, { state: "end", id: "d1", taskId: "", ok: true }, 40);
+  assert.deepEqual(
+    (await engineNow(ctx, {})).working.filter((w) => w.threadId === "thr_bgn"),
+    [],
+  );
 });

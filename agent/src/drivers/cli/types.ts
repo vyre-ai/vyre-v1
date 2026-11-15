@@ -110,6 +110,27 @@ export type CliEvent =
       parent?: string;
       /** What a subagent returned to the engine that started it (its call's result), redacted and cut: the words of the answer, for the crew row. Only for the call that starts a subagent. */ result?: string;
       /** The end of what the tool printed, short: a test run says how many passed in its last lines. */ output?: string;
+      /**
+       * The result only says the work STARTED (a helper or shell job launched in the background: "Async agent launched successfully."): the call is not finished, its own end comes later as a `task` event.
+       * The text of such a result is never passed on. `name` is the tool, `detail` what it touches, when the decoder knew.
+       */
+      launched?: boolean;
+      name?: string;
+      detail?: string;
+    }
+  /**
+   * A background task of the engine (a helper it started with run_in_background, a shell job) at a later time than its launch: it started, it is on a step, it ended. `id` is the id of the call that
+   * started it when the engine said (else the task's own id); `taskId` is the engine's id for the task. `text` is a plain step line (start and progress) or what it returned (end); `ok` is false when it failed
+   * and `stopped` when it was stopped. These come any time, also after the turn that started the task ended.
+   */
+  | {
+      type: "task";
+      state: "start" | "progress" | "end";
+      id: string;
+      taskId: string;
+      text?: string;
+      ok?: boolean;
+      stopped?: boolean;
     }
   /** What a call touches, in safe words (a file name, a search query): only for the live line, never saved. */
   | { type: "tool"; phase: "input"; id: string; detail: string; parent?: string }

@@ -83,6 +83,15 @@ export interface CliSessionDeps {
   onClose?: () => Promise<void> | void;
   /** The engine's session id changed: learned from the engine, or null when the one it was asked to resume was gone. The host keeps it so a later session resumes it. Never throws into the turn. */
   checkpoint?: (sessionId: string | null) => Promise<void> | void;
+  /**
+   * A background task of the engine (a helper it started in the background, a shell job) started, is on a step, or ended, at any time: in the turn that started it or long after that turn ended.
+   * Never throws into the turn.
+   */
+  onTask?: (e: Extract<CliEvent, { type: "task" }>) => void;
+  /** Every background task has ended and the turn that started them ended long before: the host wakes the agent, once. The engine usually wakes itself; the next turn then reads that. */
+  onBackgroundDone?: () => void;
+  /** How long a woken turn waits for the engine to continue by itself before it writes the wake message itself. Default 4 s. */
+  attachMs?: number;
 }
 
 export interface CliSessionStats {
@@ -98,6 +107,8 @@ export interface CliSession extends EngineSession {
   /** Start the process ahead of the first message (persistent engines only). */
   prewarm(): Promise<void>;
   stats(): CliSessionStats;
+  /** How many background tasks of the engine are still running (helpers, shell jobs): such a session is not idle, whatever its last turn did. */
+  readonly background: number;
 }
 
 type Item = CliEvent | { type: "eof" };
@@ -155,6 +166,18 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   const steer: StoredMessage[] = [];
   /** The turn-context sections this engine session already holds (id to hash), so a resumed turn is sent only what changed. */
   const sentContext = new Map<string, string>();
+  /** The background tasks the engine started and that have not ended (the id of the call that started each, and the engine's own id for it when known). */
+  const open = new Map<string, string>();
+  /** What the engine said after a turn ended and before the next turn read it (its own continuation when a background task ended), in order. */
+  const held: Item[] = [];
+  let tail: { stop: AbortController; done: Promise<void> } | null = null;
+  /** The engine wakes itself when a task ends: its continuation is in `held` or on the way. Set when every task has ended; the next turn is the wake that reads it. */
+  let attach = false;
+  /** The engine is in the middle of a turn of its own that nobody asked for (seen from content lines without their end). */
+  let midTurn = false;
+  /** Results of turns the engine ran on its own that a turn written now must not take for its own end. */
+  let skipEnds = 0;
+  const attachMs = deps.attachMs ?? 4000;
 
   const secrets = (): string[] => [deps.endpoint.token];
   /** Hand the engine's session id to the host when it changed. A host that cannot keep it costs only the resume after a restart, never the turn. */
@@ -168,6 +191,79 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     }
   }
   const clean = (text: string): string => redact(scrub(text, secrets()));
+
+  const told = (e: Extract<CliEvent, { type: "task" }>): void => {
+    try {
+      deps.onTask?.(e);
+    } catch {
+      /* the host's bookkeeping never reaches the turn */
+    }
+  };
+  /** Keep the list of running tasks from a task line or a launch result; true when this made the list empty. */
+  function noteTask(item: Extract<CliEvent, { type: "task" }>): boolean {
+    if (item.state === "start") {
+      if (!open.has(item.id)) open.set(item.id, item.taskId);
+      told(item);
+      return false;
+    }
+    if (item.state === "progress") {
+      told(item);
+      return false;
+    }
+    const key = open.has(item.id)
+      ? item.id
+      : ([...open].find(([, t]) => t !== "" && t === item.taskId)?.[0] ?? item.id);
+    const had = open.delete(key);
+    told({ ...item, id: key });
+    return had && open.size === 0;
+  }
+
+  /** Between turns the engine's lines still come: task lines are kept and told, the engine's own continuation is held for the turn that is the wake. */
+  function watch(r: Run): void {
+    const stop = new AbortController();
+    const done = (async () => {
+      for (;;) {
+        const item = await r.chan.next(60_000, stop.signal);
+        if (item === null) return;
+        if (item === "idle") continue;
+        if (item.type === "eof") {
+          endAll();
+          held.length = 0;
+          return;
+        }
+        if (item.type === "task") {
+          if (noteTask(item)) {
+            attach = true;
+            try {
+              deps.onBackgroundDone?.();
+            } catch {
+              /* as above */
+            }
+          }
+          continue;
+        }
+        if (item.type === "tool" && item.phase === "result" && item.launched === true && !open.has(item.id))
+          open.set(item.id, "");
+        if (item.type === "end") {
+          midTurn = false;
+          // a reply of the engine to one helper's end while others still work is not the answer: it is dropped, so the person hears the engine once, when the last one is back
+          if (open.size > 0 && !attach) {
+            held.length = 0;
+            continue;
+          }
+        } else if (item.type === "text" || item.type === "thinking" || item.type === "tool") midTurn = true;
+        held.push(item);
+      }
+    })();
+    tail = { stop, done };
+  }
+  async function unwatch(): Promise<void> {
+    const t = tail;
+    tail = null;
+    if (t === null) return;
+    t.stop.abort();
+    await t.done;
+  }
 
   async function pump(r: Run): Promise<void> {
     try {
@@ -226,8 +322,20 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   }
 
   /** End a process: TERM now, or after it has had `graceMs` to leave by itself; KILL if it is still there after another `graceMs`. */
+  /** The engine's process ended: the tasks it was running ended with it. */
+  function endAll(): void {
+    for (const [id, taskId] of [...open]) told({ type: "task", state: "end", id, taskId, ok: false, stopped: true });
+    open.clear();
+  }
   async function stop(r: Run, waitFirst: boolean): Promise<void> {
     if (run === r) run = null;
+    try {
+      await stopProcess(r, waitFirst);
+    } finally {
+      endAll();
+    }
+  }
+  async function stopProcess(r: Run, waitFirst: boolean): Promise<void> {
     const leave = async (ms: number): Promise<boolean> => {
       const t = pause(ms);
       try {
@@ -262,7 +370,15 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     asker: string,
     signal: AbortSignal,
     compacting = false,
+    wake = false,
   ): AsyncGenerator<DriverEvent, "done" | "stop" | "gone"> {
+    await unwatch();
+    // a wake reads what the engine said by itself; any other turn starts clean (what was held was the engine's reply to a helper, not an answer to this)
+    const woken = wake && attach;
+    attach = false;
+    if (!woken) held.length = 0;
+    skipEnds = !woken && midTurn ? 1 : 0;
+    midTurn = false;
     let r: Run | null = a.persistent && run !== null && run.alive ? run : null;
     if (r === null) r = await start();
     if (signal.aborted) {
@@ -279,11 +395,31 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     const gone = (message: string): boolean => r !== null && r.resumed !== null && !said && sessionGone(message);
     // Before the write: a steering message may be injected the moment the text is on its way, and it counts on top of this one.
     outstanding = 1;
-    unread = a.steers ? ["first"] : [];
+    unread = a.steers && !woken ? ["first"] : [];
+    // the engine wakes itself when its last background task ends: this turn is that continuation, and nothing is written. If it has not started within a few seconds, the wake is written here.
+    let continues = false;
+    if (woken && r.alive) {
+      if (held.length > 0 || r.chan.size > 0) continues = true;
+      else {
+        const ac = new AbortController();
+        const first = await r.chan.next(attachMs, ac.signal);
+        if (first !== null && first !== "idle") {
+          held.push(first);
+          continues = true;
+        }
+      }
+    }
     try {
       try {
         live = r;
-        await r.proc.write(a.encode(text));
+        if (!continues)
+          await r.proc.write(
+            a.encode(
+              woken
+                ? `${text}\n\n(Vyre: every helper you started in the background has finished. Carry on with what they found.)`
+                : text,
+            ),
+          );
       } catch {
         // A persistent process that died since it was last used: replace it once, resuming the engine's session.
         await stop(r, false);
@@ -304,7 +440,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
         // which limit this wait runs to is decided here, by state, not by reading the clock again when it fires: a timer may fire a millisecond early on a busy computer, and a silent
         // engine must then hear the first-token line, never the idle one (CI fast-22, 12 Nov)
         const toFirstToken = left <= idleMs;
-        const item = await r.chan.next(Math.min(idleMs, Math.max(1, left)), signal);
+        const item = held.length > 0 ? held.shift()! : await r.chan.next(Math.min(idleMs, Math.max(1, left)), signal);
         if (item === null) return "stop";
         if (item === "idle" && !said && !compacting && toFirstToken) {
           (deps.onNoFirstToken ?? logNoFirstToken)({
@@ -359,8 +495,12 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             said = true;
             yield { type: "thinking", text: item.text };
             break;
+          case "task":
+            noteTask(item);
+            break;
           case "tool":
             said = true;
+            if (item.phase === "result" && item.launched === true && !open.has(item.id)) open.set(item.id, "");
             yield item.phase === "call"
               ? {
                   type: "block",
@@ -379,6 +519,9 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
                     payload: {
                       id: item.id,
                       ok: item.ok,
+                      ...(item.launched ? { launched: true } : {}),
+                      ...(item.launched && item.name ? { name: item.name } : {}),
+                      ...(item.launched && item.detail ? { title: item.detail } : {}),
                       ...(item.output ? { detail: item.output } : {}),
                       ...(item.parent ? { parent: item.parent } : {}),
                       ...(item.result ? { result: item.result } : {}),
@@ -411,6 +554,11 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             unread.shift();
             break;
           case "end":
+            if (skipEnds > 0) {
+              // the end of a reply the engine made to a helper by itself, before this turn's message was read
+              skipEnds -= 1;
+              break;
+            }
             outstanding -= 1;
             if (item.error) {
               if (gone(item.error.message)) {
@@ -430,6 +578,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             if (a.steers ? !unread.includes("steer") : outstanding <= 0) return "done";
             break;
           case "eof": {
+            endAll();
             // stderr may still be arriving when stdout closes: the process is gone once both are.
             const t = pause(graceMs);
             try {
@@ -516,7 +665,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
       const first = steer.splice(0, steer.length);
       let prompt = build(first);
       for (;;) {
-        let outcome = yield* turn(prompt, input.asker, ac.signal);
+        let outcome = yield* turn(prompt, input.asker, ac.signal, false, input.wake === true);
         if (outcome === "gone") {
           // The engine's own session is not there any more (its files went, or it never was): start a new one from the chat's summary and recent messages, and say so once.
           sessionId = null;
@@ -536,6 +685,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           .map((m) => label(m, input.asker))
           .join("\n\n");
       }
+      // the engine's turn is over but its helpers are not: what it says from now on is read here, between turns
+      if (open.size > 0 && run !== null && run.alive && tail === null) watch(run);
       yield { type: "done" };
     } finally {
       running = false;
@@ -590,5 +741,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
       if (a.persistent && !closed && (run === null || !run.alive)) await start();
     },
     stats: () => ({ spawns, resumes, turns }),
+    get background() {
+      return open.size;
+    },
   };
 }
