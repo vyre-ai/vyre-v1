@@ -14,6 +14,7 @@ HTTP 403. Retryable: no.
 - conflicts.resolve
 - files.delete
 - files.folder.delete
+- files.folder.purge
 - files.purge
 - files.write
 - google.dwd.connect_all
@@ -30,4 +31,3 @@ HTTP 403. Retryable: no.
 - ms.consent.map_member
 - ms.consent.set_data
 - ms.consent.set_excluded
-- ms.consent.setup

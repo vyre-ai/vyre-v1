@@ -14217,6 +14217,7 @@ export type FilesFolderCreateOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 export type FilesFolderDeleteIn = {
@@ -14248,6 +14249,7 @@ export type FilesFolderGetOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 export type FilesFolderMoveIn = {
@@ -14274,7 +14276,14 @@ export type FilesFolderMoveOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
+};
+export type FilesFolderPurgeIn = {
+  folderId: string;
+};
+export type FilesFolderPurgeOut = {
+  purged: boolean;
 };
 export type FilesFolderRenameIn = {
   folderId: string;
@@ -14300,6 +14309,7 @@ export type FilesFolderRenameOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 export type FilesFolderRestoreIn = {
@@ -14325,6 +14335,7 @@ export type FilesFolderRestoreOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 export type FilesFolderSearchIn = {
@@ -14352,6 +14363,7 @@ export type FilesFolderSearchOut = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
 };
 export type FilesFolderSettingsIn = {
@@ -14383,6 +14395,7 @@ export type FilesFolderSettingsOut = {
       kind: "agent" | "project" | "space";
       id?: string;
     };
+    deletedAt?: number;
   };
 };
 export type FilesGetIn = {
@@ -14466,6 +14479,7 @@ export type FilesKnowledgeOut = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
   views: Array<{
       key: "memory" | "graph";
@@ -14553,6 +14567,7 @@ export type FilesListOut = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -15066,6 +15081,7 @@ export type FilesSharedWithMeOut = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -15152,6 +15168,7 @@ export type FilesTrashListOut = {
         kind: "agent" | "project" | "space";
         id?: string;
       };
+      deletedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -46883,6 +46900,7 @@ export interface CapMap {
   "files.folder.delete": { in: FilesFolderDeleteIn; out: FilesFolderDeleteOut };
   "files.folder.get": { in: FilesFolderGetIn; out: FilesFolderGetOut };
   "files.folder.move": { in: FilesFolderMoveIn; out: FilesFolderMoveOut };
+  "files.folder.purge": { in: FilesFolderPurgeIn; out: FilesFolderPurgeOut };
   "files.folder.rename": { in: FilesFolderRenameIn; out: FilesFolderRenameOut };
   "files.folder.restore": { in: FilesFolderRestoreIn; out: FilesFolderRestoreOut };
   "files.folder.search": { in: FilesFolderSearchIn; out: FilesFolderSearchOut };
@@ -49639,6 +49657,11 @@ export type FolderMovedPayload = {
   folderId: string;
   fromParentId?: string;
   toParentId: string;
+};
+export type FolderPurgedPayload = {
+  folderId: string;
+  subjectKind?: string;
+  subjectId?: string;
 };
 export type FolderRenamedPayload = {
   folderId: string;
@@ -52989,6 +53012,7 @@ export interface EventMap {
   "folder.deleted": FolderDeletedPayload;
   "folder.mounted": FolderMountedPayload;
   "folder.moved": FolderMovedPayload;
+  "folder.purged": FolderPurgedPayload;
   "folder.renamed": FolderRenamedPayload;
   "folder.restored": FolderRestoredPayload;
   "folder.settings_changed": FolderSettingsChangedPayload;

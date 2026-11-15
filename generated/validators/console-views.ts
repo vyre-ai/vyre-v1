@@ -5,25 +5,25 @@ import type { Check } from './core.ts';
 
 function d_s_4c3990d0f8(v: unknown, p: string, e: string[]): void {
 {
-const x361 = v;
-const g361 = typeOf(x361);
-const b361: string[] = []; lf(x361, p, b361, L4); if (b361.length) e.push(...b361);
-if (g361 === "array") {
-if (g361 === 'array') { const a361 = x361 as unknown[];
-for (let i361 = 0; i361 < a361.length; i361++) {
+const x360 = v;
+const g360 = typeOf(x360);
+const b360: string[] = []; lf(x360, p, b360, L4); if (b360.length) e.push(...b360);
+if (g360 === "array") {
+if (g360 === 'array') { const a360 = x360 as unknown[];
+for (let i360 = 0; i360 < a360.length; i360++) {
 {
-const x362 = a361[i361];
-const g362 = typeOf(x362);
-const b362: string[] = []; lf(x362, p + '/' + i361, b362, L0); if (b362.length) e.push(...b362);
-if (g362 === "object") {
-if (g362 === 'object') { const o362 = x362 as Record<string, unknown>;
-if (!("at" in o362)) e.push(p + '/' + i361 + "/at" + ': required');
-if (!("actor" in o362)) e.push(p + '/' + i361 + "/actor" + ': required');
-if (!("action" in o362)) e.push(p + '/' + i361 + "/action" + ': required');
-if ("at" in o362) lf(o362["at"], p + '/' + i361 + "/at", e, L17);
-if ("actor" in o362) lf(o362["actor"], p + '/' + i361 + "/actor", e, L1);
-if ("action" in o362) lf(o362["action"], p + '/' + i361 + "/action", e, L1);
-if ("resource" in o362) lf(o362["resource"], p + '/' + i361 + "/resource", e, L1);
+const x361 = a360[i360];
+const g361 = typeOf(x361);
+const b361: string[] = []; lf(x361, p + '/' + i360, b361, L0); if (b361.length) e.push(...b361);
+if (g361 === "object") {
+if (g361 === 'object') { const o361 = x361 as Record<string, unknown>;
+if (!("at" in o361)) e.push(p + '/' + i360 + "/at" + ': required');
+if (!("actor" in o361)) e.push(p + '/' + i360 + "/actor" + ': required');
+if (!("action" in o361)) e.push(p + '/' + i360 + "/action" + ': required');
+if ("at" in o361) lf(o361["at"], p + '/' + i360 + "/at", e, L17);
+if ("actor" in o361) lf(o361["actor"], p + '/' + i360 + "/actor", e, L1);
+if ("action" in o361) lf(o361["action"], p + '/' + i360 + "/action", e, L1);
+if ("resource" in o361) lf(o361["resource"], p + '/' + i360 + "/resource", e, L1);
 }
 }
 }
@@ -35,27 +35,27 @@ if ("resource" in o362) lf(o362["resource"], p + '/' + i361 + "/resource", e, L1
 
 function d_s_d61161dbe1(v: unknown, p: string, e: string[]): void {
 {
-const x1032 = v;
-const g1032 = typeOf(x1032);
-const b1032: string[] = []; lf(x1032, p, b1032, L4); if (b1032.length) e.push(...b1032);
-if (g1032 === "array") {
-if (g1032 === 'array') { const a1032 = x1032 as unknown[];
-for (let i1032 = 0; i1032 < a1032.length; i1032++) {
+const x1031 = v;
+const g1031 = typeOf(x1031);
+const b1031: string[] = []; lf(x1031, p, b1031, L4); if (b1031.length) e.push(...b1031);
+if (g1031 === "array") {
+if (g1031 === 'array') { const a1031 = x1031 as unknown[];
+for (let i1031 = 0; i1031 < a1031.length; i1031++) {
 {
-const x1033 = a1032[i1032];
-const g1033 = typeOf(x1033);
-const b1033: string[] = []; lf(x1033, p + '/' + i1032, b1033, L0); if (b1033.length) e.push(...b1033);
-if (g1033 === "object") {
-if (g1033 === 'object') { const o1033 = x1033 as Record<string, unknown>;
-if (!("kind" in o1033)) e.push(p + '/' + i1032 + "/kind" + ': required');
-if (!("title" in o1033)) e.push(p + '/' + i1032 + "/title" + ': required');
-if (!("since" in o1033)) e.push(p + '/' + i1032 + "/since" + ': required');
-if (!("next" in o1033)) e.push(p + '/' + i1032 + "/next" + ': required');
-if ("kind" in o1033) lf(o1033["kind"], p + '/' + i1032 + "/kind", e, L418);
-if ("title" in o1033) lf(o1033["title"], p + '/' + i1032 + "/title", e, L1);
-if ("ref" in o1033) lf(o1033["ref"], p + '/' + i1032 + "/ref", e, L1);
-if ("since" in o1033) lf(o1033["since"], p + '/' + i1032 + "/since", e, L17);
-if ("next" in o1033) lf(o1033["next"], p + '/' + i1032 + "/next", e, L1);
+const x1032 = a1031[i1031];
+const g1032 = typeOf(x1032);
+const b1032: string[] = []; lf(x1032, p + '/' + i1031, b1032, L0); if (b1032.length) e.push(...b1032);
+if (g1032 === "object") {
+if (g1032 === 'object') { const o1032 = x1032 as Record<string, unknown>;
+if (!("kind" in o1032)) e.push(p + '/' + i1031 + "/kind" + ': required');
+if (!("title" in o1032)) e.push(p + '/' + i1031 + "/title" + ': required');
+if (!("since" in o1032)) e.push(p + '/' + i1031 + "/since" + ': required');
+if (!("next" in o1032)) e.push(p + '/' + i1031 + "/next" + ': required');
+if ("kind" in o1032) lf(o1032["kind"], p + '/' + i1031 + "/kind", e, L418);
+if ("title" in o1032) lf(o1032["title"], p + '/' + i1031 + "/title", e, L1);
+if ("ref" in o1032) lf(o1032["ref"], p + '/' + i1031 + "/ref", e, L1);
+if ("since" in o1032) lf(o1032["since"], p + '/' + i1031 + "/since", e, L17);
+if ("next" in o1032) lf(o1032["next"], p + '/' + i1031 + "/next", e, L1);
 }
 }
 }

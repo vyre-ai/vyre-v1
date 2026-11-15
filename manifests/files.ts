@@ -130,6 +130,7 @@ const folderRow = t.obj({
   git: t.bool(),
   reviewChanges: t.bool(),
   subject: t.opt(folderSubject),
+  deletedAt: t.opt(t.ts({ description: "When it went to Trash, on a folder in Trash" })),
 });
 
 const content = t.obj(
@@ -607,6 +608,10 @@ export default defineManifest({
       subject: ["folder", "/folderId"],
       retention: "trash",
     }),
+    ev("folder.purged", "A folder in Trash was deleted for good, with every file in it", {
+      p: { folderId: id.folder, subjectKind: t.opt(t.str()), subjectId: t.opt(t.str()) },
+      subject: ["folder", "/folderId"],
+    }),
     ev("folder.restored", "A folder came back from Trash", {
       p: { folderId: id.folder },
       subject: ["folder", "/folderId"],
@@ -995,13 +1000,24 @@ export default defineManifest({
       tool: "files",
       errors: ["permission.on_hold"],
     }),
+    write("files.folder.purge", "Delete a folder in Trash for good, with every file and folder in it", {
+      in: { folderId: id.folder },
+      out: { purged: t.bool() },
+      on: ["folder", "/folderId"],
+      perm: "files.delete",
+      gate: { act: "delete", when: "actor.kind != 'person'" },
+      audit: "always",
+      emits: ["folder.purged", "file.purged"],
+      tool: "files",
+      errors: ["permission.on_hold"],
+    }),
     write("files.trash.empty", "Delete everything in Trash that the caller may delete", {
       in: { olderThanDays: t.opt(t.int({ minimum: 0 })) },
       out: { purged: t.int() },
       perm: "files.delete",
       gate: { act: "delete", when: "actor.kind != 'person'" },
       audit: "always",
-      emits: ["file.purged"],
+      emits: ["file.purged", "folder.purged"],
       tool: "files",
       risk: "high",
     }),

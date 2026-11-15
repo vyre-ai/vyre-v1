@@ -317,3 +317,13 @@ export async function sweepExpired(ctx: AgentsCtx): Promise<string[]> {
   for (const r of due) start(ctx, agentOf(r), "system");
   return due.map((r) => String(r["id"]));
 }
+
+/** folder.purged: the agent whose folder it was is deleted for good, when it is in Trash and is not a person's Assistant. */
+export async function folderPurged(ctx: AgentsCtx, p: { subjectKind?: string; subjectId?: string }): Promise<string[]> {
+  if (p.subjectKind !== "agent" || typeof p.subjectId !== "string") return [];
+  ensure(ctx.db);
+  const a = agentBy(ctx.db, p.subjectId, true);
+  if (!a || a.deletedAt === undefined || a.kind === "assistant" || pending(ctx, a.id)) return [];
+  start(ctx, a, "system");
+  return [a.id];
+}

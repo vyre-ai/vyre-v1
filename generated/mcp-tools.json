@@ -21487,6 +21487,32 @@
     },
     {
       "blocks": [],
+      "cap": "files.folder.purge",
+      "deferred": false,
+      "description": "Delete a folder in Trash for good, with every file and folder in it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "folderId"
+        ],
+        "type": "object"
+      },
+      "name": "files_folder_purge",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "files.folder.rename",
       "deferred": false,
       "description": "Rename a folder",

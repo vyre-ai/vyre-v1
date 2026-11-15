@@ -1028,6 +1028,7 @@ export function stubs(ctx: CallCtx) {
         delete: call("files.folder.delete"),
         get: call("files.folder.get"),
         move: call("files.folder.move"),
+        purge: call("files.folder.purge"),
         rename: call("files.folder.rename"),
         restore: call("files.folder.restore"),
         search: call("files.folder.search"),

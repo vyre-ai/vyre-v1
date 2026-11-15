@@ -33,6 +33,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "files.folder.delete": async (ctx) => { throw new VyreErr(notImplemented("files.folder.delete", ctx.trace)); },
   "files.folder.get": async (ctx) => { throw new VyreErr(notImplemented("files.folder.get", ctx.trace)); },
   "files.folder.move": async (ctx) => { throw new VyreErr(notImplemented("files.folder.move", ctx.trace)); },
+  "files.folder.purge": async (ctx) => { throw new VyreErr(notImplemented("files.folder.purge", ctx.trace)); },
   "files.folder.rename": async (ctx) => { throw new VyreErr(notImplemented("files.folder.rename", ctx.trace)); },
   "files.folder.restore": async (ctx) => { throw new VyreErr(notImplemented("files.folder.restore", ctx.trace)); },
   "files.folder.search": async (ctx) => { throw new VyreErr(notImplemented("files.folder.search", ctx.trace)); },

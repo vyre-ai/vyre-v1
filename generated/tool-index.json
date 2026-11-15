@@ -3212,6 +3212,12 @@
     },
     {
       "deferred": false,
+      "name": "files_folder_purge",
+      "summary": "Delete a folder in Trash for good, with every file and folder in it",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "files_folder_rename",
       "summary": "Rename a folder",
       "toolset": "files"

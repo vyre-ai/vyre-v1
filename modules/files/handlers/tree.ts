@@ -667,6 +667,7 @@ export function folderOut(ctx: Ctx, row: Row): FolderOut {
   out.subject = subjectOf(ctx, row);
   const source = sourceOfFolder(ctx, String(row.id));
   if (source) out.source = source;
+  if (!isNull(row.deleted_at)) out.deletedAt = num(row.deleted_at);
   return out;
 }
 
@@ -2230,6 +2231,23 @@ async function filesRestore(ctx: Ctx, input: unknown): Promise<{ file: FileOut }
   return { file: fileOutC(ctx, mustFile(ctx, String(file.id))) };
 }
 
+const noTable = (e: unknown): boolean => /no such (table|column)|unsupported sql|is not a table/i.test(e instanceof Error ? e.message : String(e));
+function tryMany(ctx: Ctx, sql: string, ...a: unknown[]): Row[] {
+  try {
+    return many(ctx, sql, ...a);
+  } catch (e) {
+    if (noTable(e)) return [];
+    throw e;
+  }
+}
+function tryDelete(ctx: Ctx, table: string, col: string, id: string): void {
+  try {
+    ctx.db.run(`DELETE FROM ${table} WHERE ${col} = ?`, id);
+  } catch (e) {
+    if (!noTable(e)) throw e;
+  }
+}
+
 function purgeFile(ctx: Ctx, file: Row): void {
   const versions = many(ctx, "SELECT * FROM files_file_version WHERE file_id = ?", file.id);
   const blobs = versions.map((v) => String(v.blob));
@@ -2238,6 +2256,28 @@ function purgeFile(ctx: Ctx, file: Row): void {
   ctx.db.run("DELETE FROM files_file WHERE id = ?", file.id);
   ctx.db.run("DELETE FROM files_trash WHERE id = ?", file.id);
   dropRecent(ctx.db, String(file.id));
+  // what hung on the file goes with it (F77): its comments, marks, markup, review requests, redaction requests, stars, links, and the changesets that only touched it
+  const touched = tryMany(ctx, "SELECT * FROM files_changeset_file WHERE file_id = ?", file.id).map((r) => String(r.changeset_id));
+  for (const [table, col] of [
+    ["files_comment", "file_id"],
+    ["files_markup", "file_id"],
+    ["files_mark", "target_id"],
+    ["files_review", "file_id"],
+    ["files_redact_request", "file_id"],
+    ["files_star", "file_id"],
+    ["files_external_link", "file_id"],
+    ["files_sheet_ids", "file_id"],
+    ["files_changeset_comment", "file_id"],
+    ["files_changeset_file", "file_id"],
+    ["files_agent_access", "target_id"],
+  ] as const)
+    tryDelete(ctx, table, col, String(file.id));
+  for (const cs of touched)
+    if (tryMany(ctx, "SELECT * FROM files_changeset_file WHERE changeset_id = ?", cs).length === 0) {
+      tryDelete(ctx, "files_changeset_comment", "changeset_id", cs);
+      tryDelete(ctx, "files_changeset_review", "changeset_id", cs);
+      tryDelete(ctx, "files_changeset", "id", cs);
+    }
   ctx.emit("file.purged", `file/${String(file.id)}`, { fileId: String(file.id) });
 }
 
@@ -2258,6 +2298,28 @@ export function eraseFolderTree(ctx: Ctx, folderId: string): number {
   const before = many(ctx, "SELECT id FROM files_file").length;
   purgeFolderRow(ctx, folder);
   return before - many(ctx, "SELECT id FROM files_file").length;
+}
+
+/** A folder in Trash deleted for good: every file and folder under it, with versions and Trash copies. Says what it was (an agent's folder) so the agent follows. */
+function purgeTrashedFolder(ctx: Ctx, folder: Row): void {
+  const subject = subjectOf(ctx, folder);
+  const id = String(folder.id);
+  purgeFolderRow(ctx, folder);
+  ctx.emit("folder.purged", `folder/${id}`, {
+    folderId: id,
+    ...(subject.kind === "agent" && subject.id ? { subjectKind: "agent", subjectId: subject.id } : {}),
+  });
+}
+
+async function folderPurge(ctx: Ctx, input: unknown): Promise<{ purged: boolean }> {
+  ensureReady(ctx);
+  const o = rec(ctx, input);
+  const folder = one(ctx, "SELECT * FROM files_folder WHERE id = ?", reqStr(ctx, o, "folderId"));
+  if (!folder) fail(ctx, "validation.not_found", "That folder does not exist.");
+  if (isNull(folder.deleted_at))
+    fail(ctx, "validation.precondition_failed", "Move the folder to Trash before deleting it for good.");
+  purgeTrashedFolder(ctx, folder);
+  return { purged: true };
 }
 
 function purgeFolderRow(ctx: Ctx, folder: Row): void {
@@ -2296,7 +2358,7 @@ async function trashEmpty(ctx: Ctx, input: unknown): Promise<{ purged: number }>
         continue;
       }
       const before = many(ctx, "SELECT * FROM files_file");
-      purgeFolderRow(ctx, folder);
+      purgeTrashedFolder(ctx, folder);
       const after = new Set(many(ctx, "SELECT * FROM files_file").map((f) => String(f.id)));
       purged += before.filter((f) => !after.has(String(f.id))).length;
     }
@@ -2462,6 +2524,7 @@ export const treeHandlers = {
   "files.restore": (ctx: Ctx, input: unknown) => filesRestore(ctx, input),
   "files.purge": (ctx: Ctx, input: unknown) => filesPurge(ctx, input),
   "files.trash.empty": (ctx: Ctx, input: unknown) => trashEmpty(ctx, input),
+  "files.folder.purge": (ctx: Ctx, input: unknown) => folderPurge(ctx, input),
   "files.versions": (ctx: Ctx, input: unknown) => filesVersions(ctx, input),
   "files.restore_version": (ctx: Ctx, input: unknown) => filesRestoreVersion(ctx, input),
   "files.name_version": (ctx: Ctx, input: unknown) => filesNameVersion(ctx, input),

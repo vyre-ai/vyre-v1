@@ -1028,6 +1028,7 @@ export function createClient(transport: Transport) {
         delete: call("files.folder.delete", 1),
         get: call("files.folder.get", 1),
         move: call("files.folder.move", 1),
+        purge: call("files.folder.purge", 1),
         rename: call("files.folder.rename", 1),
         restore: call("files.folder.restore", 1),
         search: call("files.folder.search", 1),

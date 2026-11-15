@@ -310,6 +310,17 @@ async function purgeTrash(ctx: GovCtx, age: number): Promise<{ removed: number; 
         if (codeOf(e) !== "validation.not_found") throw e;
       }
     }
+    // a folder in Trash expires on the same clock as a file (F77): it goes with everything under it; an agent's folder takes the agent with it
+    for (const f of list(page["folders"]).map(obj)) {
+      const at = typeof f["deletedAt"] === "number" ? f["deletedAt"] : null;
+      if (at === null || at > cutoff) continue;
+      try {
+        await ctx.call("files.folder.purge", { folderId: text(f["folderId"]) });
+        removed++;
+      } catch (e) {
+        if (codeOf(e) !== "validation.not_found") throw e;
+      }
+    }
     cursor = typeof page["next"] === "string" ? page["next"] : undefined;
     if (!cursor) break;
   }
