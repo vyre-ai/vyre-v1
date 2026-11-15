@@ -305,6 +305,7 @@ export function createClaudeDecoder(): CliDecoder {
     subagents.clear();
     perMessage.clear();
     current = "";
+    wroteIn = ""; // a warm engine's next turn is a new reply: its first words follow no earlier words
     sawText = false;
     lastContext = 0;
     if (!failed) {
