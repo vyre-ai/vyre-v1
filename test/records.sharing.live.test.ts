@@ -237,11 +237,14 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     );
 
     // a real chat turn for Dee: her agent runs a real tool call as her, and finds nothing; Bea's agent, asked the same, finds the deals
+    // Dee's own chats with her agent, by thread: the lines she typed to drive the agent's tools (a private chat is found by its own person in search, 12fa48ac9, so her own line "TOOL search_query {"q":"Acme"}" is a hit for her: it is her own words, not a deal)
+    const deeDrivingChats = new Map<string, string>();
     const sayAs = async (who: Person, agentId: string, body: string): Promise<string> => {
       const ask = as(d, who);
       const started = await ask("chat.start", { kind: "chat", agentIds: [agentId] });
       assert.equal(started.status, 200, JSON.stringify(started.data));
       const threadId = started.data.thread.threadId as string;
+      if (who === dee) deeDrivingChats.set(threadId, body);
       assert.equal(
         (await ask("chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }] })).status,
         200,
@@ -344,9 +347,20 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
       ["schema.describe", {}],
       ["schema.map", { type: "rt_note" }],
     );
+    // the only search hit allowed to carry a word of Deals is Dee's own chat showing the very line she typed; any other hit, or the same chat showing more than that line, still counts
+    const dropOwnLine = (cap: string, r: { status: number; data: unknown }): void => {
+      if (cap !== "search.query" || r.status !== 200) return;
+      const out = r.data as { hits?: Array<{ kind?: string; id?: string; snippet?: string }> };
+      out.hits = (out.hits ?? []).filter((h) => {
+        if (h.kind !== "chat" || !deeDrivingChats.has(h.id ?? "")) return true;
+        assert.equal(h.snippet, deeDrivingChats.get(h.id!), `Dee's own chat shows only her own line: ${h.snippet}`);
+        return false;
+      });
+    };
     const leaks: string[] = [];
     for (const [cap, input] of probes) {
       const r = await D(cap, input);
+      dropOwnLine(cap, r);
       if (r.status === 200 && /rt_deal|Acme|Birch|Cedar|Dune|\bDeals?\b/.test(JSON.stringify(r.data)))
         leaks.push(`${cap} ${JSON.stringify(input).slice(0, 60)} -> ${JSON.stringify(r.data).slice(0, 160)}`);
     }
@@ -380,6 +394,7 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
       ["access.lists", { type: "folder", section: "space" }],
     ] as const) {
       const r = await D(cap, input as never);
+      dropOwnLine(cap, r);
       assert.ok(
         r.status !== 200 || !/Acme|rt_deal/.test(JSON.stringify(r.data)),
         `${cap} shows Dee the deal's folder: ${JSON.stringify(r.data).slice(0, 200)}`,
