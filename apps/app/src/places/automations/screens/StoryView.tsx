@@ -1,11 +1,14 @@
 // The builder as one calm page (design 2.5), drawn from story()'s model: the head (name, state in words, Test, one primary), the bars, then When and the numbered sentences. A missing thing is one orange line with
 // one button, in place. Nothing here saves or runs: every press goes out through `on`, and the page's owner decides.
+import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { glyphOf, tintOf } from "../picker/glyphs.ts";
 import type { Sentence, Story } from "../story/model.ts";
 import { look } from "./look.ts";
+import { Glyph } from "../canvas/icons.tsx";
+import type { IconKey } from "../canvas/model.ts";
 
 export type StoryAction =
   | "bar"
@@ -62,9 +65,15 @@ function SentenceText({ sentence }: { sentence: Sentence }): ReactElement {
             {"…"}
           </Text>
         ) : (
-          <Text key={i} accessibilityHint={p.tip} style={s.chip}>
-            {` ${p.label} `}
-          </Text>
+          // the pill is one inline box with a fixed 14 px icon cell, so an icon never changes the row's height
+          <View key={i} accessibilityHint={p.tip} style={s.pill}>
+            {p.icon ? (
+              <View style={s.pillIcon}>
+                <Glyph name={p.icon as IconKey} size={12} color="var(--accent)" />
+              </View>
+            ) : null}
+            <Text style={s.chip}>{p.label}</Text>
+          </View>
         ),
       )}
     </Text>
@@ -115,6 +124,8 @@ export function StoryView({
   /** No "+" and no Add a step for a person who may not edit. */
   readOnly?: boolean;
 }): ReactElement {
+  // the row's "..." shows on hover and on keyboard focus only
+  const [hot, setHot] = useState<string | null>(null);
   const h = story.head;
   return (
     <View style={s.page} testID="story">
@@ -173,6 +184,9 @@ export function StoryView({
                 testID={`sv-step-${r.id}`}
                 accessibilityRole="button"
                 onPress={() => on("open", r.id)}
+                onHoverIn={() => setHot(r.id)}
+                onHoverOut={() => setHot(null)}
+                onFocus={() => setHot(r.id)}
                 style={[
                   s.row,
                   r.kind === "step" ? { marginLeft: r.depth * 20 } : null,
@@ -233,7 +247,9 @@ export function StoryView({
                     accessibilityRole="button"
                     accessibilityLabel="Step options"
                     onPress={(e) => on("rowmenu", r.id, e)}
-                    style={s.more}
+                    onFocus={() => setHot(r.id)}
+                    onBlur={() => setHot(null)}
+                    style={[s.more, { opacity: hot === r.id ? 1 : 0 }]}
                   >
                     <Text style={look.quiet}>{"…"}</Text>
                   </Pressable>
@@ -284,11 +300,23 @@ const s = StyleSheet.create({
   grow: { flex: 1, minWidth: 0, gap: 2 },
   sentence: { fontSize: 15, lineHeight: 22, color: "var(--ink)" as string },
   barText: { fontSize: 14, color: "var(--ink)" as string },
+  pill: {
+    display: "inline-flex" as unknown as undefined,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 7,
+    backgroundColor: "var(--accent-wash)" as string,
+    marginHorizontal: 2,
+    verticalAlign: "middle" as unknown as undefined,
+  },
+  pillIcon: { width: 14, height: 14, alignItems: "center", justifyContent: "center" },
   chip: {
     fontSize: 13.5,
     fontWeight: "500",
     color: "var(--accent)" as string,
-    backgroundColor: "var(--accent-wash)" as string,
   },
   needRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
   bar: {
@@ -328,7 +356,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   slotPlus: { fontSize: 12, lineHeight: 14, color: "var(--ink-3)" as string },
-  more: { paddingHorizontal: 8, paddingVertical: 2, opacity: 0.45 },
+  more: { paddingHorizontal: 8, paddingVertical: 2 },
   add: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 12 },
   addPlus: { width: 36, textAlign: "center", fontSize: 18, color: "var(--ink-3)" as string },
   off: { opacity: 0.45 },
