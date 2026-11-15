@@ -27,7 +27,7 @@ Requires: nothing.
 - [terminal.rules.set](../capabilities/terminal.rules.set.md): Change your allow, ask and deny rules and the extra folders (a Personal Space terminal is locked to its own folder plus these)
 - [terminal.run](../capabilities/terminal.run.md): Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns
 - [terminal.status](../capabilities/terminal.status.md): Live status of terminals for Home (state and last line read from tmux)
-- [terminal.take_over](../capabilities/terminal.take_over.md): Take the keyboard of a terminal: the agent's commands and everyone else's keys wait until you hand it back. Only the owner of the terminal or an admin can take it from another person
+- [terminal.take_over](../capabilities/terminal.take_over.md): Take the keyboard of a terminal: the agent's commands and everyone else's keys are refused until you hand it back. Only the owner of the terminal or an admin can take it from another person
 - [terminal.workspace](../capabilities/terminal.workspace.md): An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line
 
 ## Events (7)
@@ -38,4 +38,4 @@ Requires: nothing.
 - [terminal.opened](../events/terminal.opened.md): A terminal session was opened
 - [terminal.renamed](../events/terminal.renamed.md): A terminal session was renamed
 - [terminal.rules_changed](../events/terminal.rules_changed.md): A person changed their terminal rules
-- [terminal.taken](../events/terminal.taken.md): A person took the keyboard of a terminal (the agent is told, its commands wait)
+- [terminal.taken](../events/terminal.taken.md): A person took the keyboard of a terminal (the agent is told, its commands are refused until it is handed back). When it is someone other than the agent's owner, the payload names the agent and its owner so the owner is told in their chat

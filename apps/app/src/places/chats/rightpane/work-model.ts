@@ -295,7 +295,12 @@ export function terminalBar(i: BarIn): TermBar {
       tone: "mine",
     };
   if (i.mine)
-    return { title: "You have the keyboard", note: `${i.agentName}'s commands wait.`, action: "give", tone: "mine" };
+    return {
+      title: "You have the keyboard",
+      note: `${i.agentName} cannot type here meanwhile. Anyone watching sees what you type.`,
+      action: "give",
+      tone: "mine",
+    };
   if (i.otherHolds) return { title: `${i.otherHolds} has the keyboard`, action: "ask", tone: "wait" };
   if (i.lost)
     return { title: `The keyboard went back to ${i.agentName} after 15 quiet minutes.`, action: "take", tone: "wait" };

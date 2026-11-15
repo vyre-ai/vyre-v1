@@ -174,3 +174,33 @@ test("15 Nov: a manager answering someone else's ask, with no shared folder the 
     restore();
   }
 });
+
+test("the card's words are the prototype's (G38): the key's name with who is waiting, Paste it, it stays in your Vault, Save, and after it Key saved in your Vault", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { find, flush, installDom, mount, press, textOf, typeInto } = await import("../../../onboarding/test-dom.ts");
+  const restore = installDom();
+  try {
+    let state = "waiting";
+    const call = async (cap: string): Promise<unknown> => {
+      if (cap === "vault.requests.get")
+        return { request: { id: "vrq_1", name: "Storage", fields: ["api_key"], state, folderId: "vfd_1" } };
+      if (cap === "vault.requests.list") return { requests: [{ id: "vrq_1" }] };
+      if (cap === "vault.requests.fulfil") state = "fulfilled";
+      return {};
+    };
+    const root = await mount(
+      createRoot,
+      <KeyRequestCard requestId="vrq_1" agent="Sol" agentId="agt_1" data={{ call } as never} />,
+    );
+    const t = textOf(root);
+    assert.ok(t.includes("Storage key") && t.includes("Sol is waiting"), t);
+    assert.ok(!t.includes("Add the key"));
+    await typeInto(find(root, "keyreq-field-vrq_1-api_key"), "sk_test");
+    assert.match(textOf(root), /\bSave\b/, "the button says Save");
+    await press(find(root, "keyreq-add-vrq_1"));
+    await flush();
+    assert.match(textOf(root), /Key saved in your Vault/);
+  } finally {
+    restore();
+  }
+});

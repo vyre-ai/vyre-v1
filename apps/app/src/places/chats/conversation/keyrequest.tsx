@@ -139,7 +139,7 @@ function PlainKeyRequestCard({
         testID={`keyreq-done-${requestId}`}
         ok={ok}
         glyph={<Glyph name={ok ? "check" : "x"} size={13} color={ok ? "var(--ok)" : "var(--ink-3)"} />}
-        text={ok ? `Added · ${words}` : `Declined · ${words}`}
+        text={ok ? "Key saved in your Vault" : `Declined · ${words}`}
       />
     );
   }
@@ -227,8 +227,13 @@ function PlainKeyRequestCard({
       {...(canDecide && !declining && ready && !nowhere && !busy ? { onEnter: () => void add() } : {})}
     >
       <CardHead
-        title={`${agent} needs the ${words}`}
+        title={words.charAt(0).toUpperCase() + words.slice(1)}
         lead={<Face name={agent} seedId={agentId} kind="agent" size={20} />}
+        trailing={
+          <Text testID={`keyreq-waiting-${requestId}`} style={st.reason}>
+            {`${agent} is waiting`}
+          </Text>
+        }
       />
       {req.reason ? <Text style={st.reason}>{req.reason}</Text> : null}
       {!canDecide ? (
@@ -257,9 +262,9 @@ function PlainKeyRequestCard({
               testID={`keyreq-field-${requestId}-${k}`}
               value={values[k] ?? ""}
               onChange={(v) => setValues({ ...values, [k]: v })}
-              placeholder={req.fields.length === 1 ? "Paste the key" : k}
+              placeholder={req.fields.length === 1 ? "Paste it, it stays in your Vault" : k}
               secure
-              hint={i === 0 ? "It goes straight to the Vault. No message holds it." : " "}
+              hint={i === 0 ? "No message holds it." : " "}
               error={null}
               disabled={busy}
             />
@@ -317,7 +322,7 @@ function PlainKeyRequestCard({
               { label: "Deny", onPress: () => setDeclining(true), testID: `keyreq-decline-${requestId}` },
             ]}
             primary={{
-              label: "Add the key",
+              label: "Save",
               disabled: !ready || nowhere,
               onPress: () => void add(),
               testID: `keyreq-add-${requestId}`,
