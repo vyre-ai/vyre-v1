@@ -593,3 +593,25 @@ test("a run started by an event carries what woke it, and runs.get, list and the
 });
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
 // run on the final commit
+
+// AUTOMATIONS-BUILD-RC29 round five, item 6: a step refused for the shape of one input says which in a person's words, never "Something in what you entered is not right."
+test("a step whose input the engine refused is failed with a sentence that names the field", async () => {
+  const h = harness();
+  const id = await started(h);
+  const exec: Executor = async () => {
+    throw Object.assign(new Error("Something in what you entered is not right."), {
+      error: {
+        code: "validation.bad_input",
+        message: "Something in what you entered is not right.",
+        retryable: false,
+        details: { errors: ["/assigned: expected an object"] },
+      },
+    });
+  };
+  const r = await h.engineRun(engine, (ctx) => drive(ctx, id, [step("make", { key: "create_task" })], exec));
+  assert.deepEqual(r, { status: "failed", failedStep: "make" });
+  const failed = h.allEvents.find((e) => e.name === "run.failed")!;
+  assert.equal(failed.payload.message, "Create a task: choose who it is for.");
+  const row = allSteps(h.db, id).find((s) => s.step === "make")!;
+  assert.equal(row.error?.message, "Create a task: choose who it is for.");
+});
