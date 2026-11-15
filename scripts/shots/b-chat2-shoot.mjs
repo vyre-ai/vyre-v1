@@ -47,8 +47,12 @@ for (const [skin, size, w, h] of SCENES) {
   const page = await ctx.newPage();
   const go = async (v) => {
     const url = routeUrl(real.origin, `/m/P-L9b_04?v=${v}`, skin);
-    await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
-    await page.waitForSelector("[data-testid=composer-field]", { timeout: 20000 }).catch(() => say(tag, "missing composer", v));
+    await page
+      .goto(url, { waitUntil: "load", timeout: 60000 })
+      .catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
+    await page
+      .waitForSelector("[data-testid=composer-field]", { timeout: 20000 })
+      .catch(() => say(tag, "missing composer", v));
     await page.waitForTimeout(1000);
   };
   const shot = async (n) => {
@@ -93,13 +97,25 @@ for (const [skin, size, w, h] of SCENES) {
   }
   await page.waitForSelector("[data-testid=rewind-card]", { timeout: 8000 }).catch(() => say(tag, "no rewind card"));
   await shot("rw3-card");
-  await page.locator("[data-testid=rewind-go]").first().click({ timeout: 8000 }).catch(() => say(tag, "no Go back"));
+  await page
+    .locator("[data-testid=rewind-go]")
+    .first()
+    .click({ timeout: 8000 })
+    .catch(() => say(tag, "no Go back"));
   await page.waitForTimeout(800);
   say(tag, "folded rows:", await count("folded-"));
   await shot("rw4-folded");
-  await page.locator("[data-testid^='folded-'][data-testid$='-toggle']").first().click().catch(() => say(tag, "no toggle"));
+  await page
+    .locator("[data-testid^='folded-'][data-testid$='-toggle']")
+    .first()
+    .click()
+    .catch(() => say(tag, "no toggle"));
   await shot("rw5-opened");
-  await page.locator("[data-testid^='folded-'][data-testid$='-undo']").first().click().catch(() => say(tag, "no undo"));
+  await page
+    .locator("[data-testid^='folded-'][data-testid$='-undo']")
+    .first()
+    .click()
+    .catch(() => say(tag, "no undo"));
   await page.waitForTimeout(800);
   say(tag, "folded rows after Undo:", await count("folded-"));
   await shot("rw6-undone");
@@ -107,14 +123,43 @@ for (const [skin, size, w, h] of SCENES) {
   await go("plan");
   await page.waitForSelector("[data-testid^='blk-plan-']", { timeout: 8000 }).catch(() => say(tag, "no plan card"));
   await shot("plan1-card");
-  await page.locator("[data-testid^='blk-plan-'][data-testid$='-edit']").first().click().catch(() => say(tag, "no Change it"));
+  await page
+    .locator("[data-testid^='blk-plan-'][data-testid$='-edit']")
+    .first()
+    .click()
+    .catch(() => say(tag, "no Change it"));
   await page.waitForTimeout(600);
-  say(tag, "draft after Change it:", JSON.stringify((await page.locator("[data-testid=composer-field]").first().inputValue().catch(() => "")).slice(0, 80)));
+  say(
+    tag,
+    "draft after Change it:",
+    JSON.stringify(
+      (
+        await page
+          .locator("[data-testid=composer-field]")
+          .first()
+          .inputValue()
+          .catch(() => "")
+      ).slice(0, 80),
+    ),
+  );
   await shot("plan2-changed");
   // ---- the island
   for (const v of ["streaming", "busy"]) {
     await go(v);
-    say(tag, v, "island:", await count("work-island"), "crew island:", await count("crew-island"), "text:", await page.locator("[data-testid=work-island-text]").first().innerText().catch(() => "-"));
+    say(
+      tag,
+      v,
+      "island:",
+      await count("work-island"),
+      "crew island:",
+      await count("crew-island"),
+      "text:",
+      await page
+        .locator("[data-testid=work-island-text]")
+        .first()
+        .innerText()
+        .catch(() => "-"),
+    );
     await shot(`island-${v}`);
   }
   await ctx.close();

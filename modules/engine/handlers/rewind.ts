@@ -173,12 +173,7 @@ export async function rewindIn(
   ensure(ctx.db);
   const who = person(ctx);
   const chat = await privateChat(ctx, input.threadId);
-  if (!chat.ok)
-    raise(
-      ctx,
-      "validation.precondition_failed",
-      "Only a chat with an agent goes back.",
-    );
+  if (!chat.ok) raise(ctx, "validation.precondition_failed", "Only a chat with an agent goes back.");
   const m = POINT.exec(input.pointId);
   if (!m || !chat.agents.includes(m[1]!)) raise(ctx, "validation.not_found", "That point is not in this chat.");
   const [, agentId, sha] = m as unknown as [string, string, string];

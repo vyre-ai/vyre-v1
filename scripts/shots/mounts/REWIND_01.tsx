@@ -13,7 +13,13 @@ export const title = "Rewind";
 
 const NOW = Date.UTC(2025, 9, 24, 11, 50);
 const POINTS = [
-  { pointId: "agt_dex.c", agentId: "agt_dex", at: NOW - 8 * 60_000, files: 41, after: "Move the upload form into its own page" },
+  {
+    pointId: "agt_dex.c",
+    agentId: "agt_dex",
+    at: NOW - 8 * 60_000,
+    files: 41,
+    after: "Move the upload form into its own page",
+  },
   { pointId: "agt_dex.b", agentId: "agt_dex", at: NOW - 45 * 60_000, files: 14, after: "Split the sign-in page" },
   { pointId: "agt_dex.a", agentId: "agt_dex", at: NOW - 106 * 60_000, files: 2, after: "Start a client portal" },
 ];
@@ -43,7 +49,9 @@ export default function Mount(): ReactNode {
         <RewindCard
           threadId="c1"
           onClose={() => undefined}
-          clock={(ms) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}
+          clock={(ms) =>
+            new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
+          }
         />
       </ConversationDataProvider>
     </View>

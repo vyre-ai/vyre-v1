@@ -59,7 +59,14 @@ test("your own message's hover bar carries the rewind icon, beside Copy and Edit
   const mine = renderToStaticMarkup(<HoverBar m={msg()} mine a={acts} onEdit={() => undefined} visible />);
   assert.match(mine, /act-rewind-m1/);
   const theirs = renderToStaticMarkup(
-    <HoverBar m={msg({ author: { kind: "agent", id: "agt_a" } })} mine={false} byAgent a={acts} onEdit={() => undefined} visible />,
+    <HoverBar
+      m={msg({ author: { kind: "agent", id: "agt_a" } })}
+      mine={false}
+      byAgent
+      a={acts}
+      onEdit={() => undefined}
+      visible
+    />,
   );
   assert.doesNotMatch(theirs, /act-rewind/);
 });

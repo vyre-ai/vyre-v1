@@ -72,6 +72,9 @@ test("rewind: messages the person went back over are not read as history by the 
   const read = last.history.map((m) => m.body);
   assert.ok(read.includes("first ask"));
   assert.ok(!read.includes("second ask"), "hidden from the agent");
-  assert.ok(engine.messages("T").some((m) => m.body === "second ask"), "still in the chat");
+  assert.ok(
+    engine.messages("T").some((m) => m.body === "second ask"),
+    "still in the chat",
+  );
   void first;
 });

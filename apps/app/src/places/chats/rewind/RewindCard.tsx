@@ -228,7 +228,7 @@ const st = StyleSheet.create({
   rowOn: { backgroundColor: "var(--hover)" as string },
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5, borderColor: "var(--ink-3)" as string },
   dotOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent)" as string },
-  when: { fontSize: 13, color: "var(--ink)" as string, width: 64 },
+  when: { fontSize: 13, color: "var(--ink)" as string, minWidth: 64, flexShrink: 0 },
   what: { fontSize: 13, color: "var(--ink-2)" as string, flexShrink: 1, flexGrow: 1, minWidth: 0 },
   files: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 0 },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },

@@ -100,7 +100,13 @@ export interface EngineOptions {
    * Asked as each turn of a CLI engine starts, before its session is sent anything: the host takes a checkpoint of the agent's work folder (Rewind). Never stops a turn: a throw is ignored. It is expected to
    * return at once (the host waits a moment for a point and lets a slow one finish in the background).
    */
-  onTurnStart?: (info: { threadId: string; turnId: string; agentId: string; asker: string; messageId: string | null }) => Promise<void>;
+  onTurnStart?: (info: {
+    threadId: string;
+    turnId: string;
+    agentId: string;
+    asker: string;
+    messageId: string | null;
+  }) => Promise<void>;
   /** 'host:<space>' or 'device:<id>'. */
   holder: string;
   openSession: OpenSession;
@@ -1279,7 +1285,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         let switchTo: ResolvedAccount | null = null;
         const stoppedTurn = stoppedBefore(st, item);
         const upTo = st.messages.filter(
-          (m) => m.threadSeq <= seen && !(st.hidden ?? []).some((h) => m.threadSeq > h.afterSeq && m.threadSeq <= h.upToSeq),
+          (m) =>
+            m.threadSeq <= seen && !(st.hidden ?? []).some((h) => m.threadSeq > h.afterSeq && m.threadSeq <= h.upToSeq),
         );
         const recent = upTo.slice(-(pokeRows.has(`${st.thread.id}:${item.qseq}`) ? POKE_WINDOW : historyWindow));
         const input = {

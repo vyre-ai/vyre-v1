@@ -111,7 +111,11 @@ test("points list a turn each, named by what the person had just asked; going ba
 
 test("outside a chat with an agent it is off; a point of someone else's folder is not found; an agent cannot go back", async () => {
   const group = setup({ members: [DANA, "usr_maya"] });
-  assert.equal((await pointsIn(group.ctx, { threadId: T }, group.data)).available, true, "a chat with other people goes back too, through each person's own points");
+  assert.equal(
+    (await pointsIn(group.ctx, { threadId: T }, group.data)).available,
+    true,
+    "a chat with other people goes back too, through each person's own points",
+  );
   const chan = setup({ kind: "channel" });
   const solo = setup();
   try {

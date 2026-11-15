@@ -742,7 +742,16 @@ const SHEET_ICON: Readonly<Record<string, GlyphName>> = {
 /** The sheet's groups, top to bottom, split by a hairline; an entry that is in none (a memory entry, Details, a mute) joins the middle one. */
 const SHEET_GROUPS: readonly (readonly string[])[] = [
   ["Reply in thread", "Copy", "Copy link"],
-  ["Ask an agent\u2026", "Make a task", "Share to\u2026", "Fork from here", "Rewind to here", "Pin", "Unpin", "Mark unread from here"],
+  [
+    "Ask an agent\u2026",
+    "Make a task",
+    "Share to\u2026",
+    "Fork from here",
+    "Rewind to here",
+    "Pin",
+    "Unpin",
+    "Mark unread from here",
+  ],
   ["Edit", "Retry"],
 ];
 /** The groups kept below the scrolling list, always in view. */
