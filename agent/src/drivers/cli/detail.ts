@@ -1,7 +1,7 @@
 // What a tool call touches, in a few safe words, for the live line ("Reading model.ts", "Searching the web: stream pacing"). The engine's tool input is the person's work and may hold secrets, so only a few
 // shapes are ever read and everything else is "": a file's basename, a search query or pattern, a page's host. A Bash command, a URL's path or query, and anything that looks like a secret are never shown.
 import { redact } from "../../transcript/sanitize.ts";
-import { isSecretPath } from "../../../../lib/secret-files.ts";
+import { looksSecretyName } from "../../../../lib/secret-files.ts";
 
 const MAX = 60;
 const SECRETY_TEXT =
@@ -29,7 +29,7 @@ export function toolDetail(name: string, input: unknown): string {
     case "NotebookEdit": {
       const p = str(i["file_path"]) || str(i["notebook_path"]) || str(i["path"]);
       const base = p.split(/[\\/]/).filter(Boolean).pop() ?? "";
-      return base === "" || isSecretPath(base) ? "" : clean(base);
+      return base === "" || looksSecretyName(base) ? "" : clean(base);
     }
     case "Agent":
     case "Task":

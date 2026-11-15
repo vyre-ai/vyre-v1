@@ -1145,11 +1145,20 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
               messageId: string | null;
               threadKind: string;
             }): Promise<void> => {
-              // while a rewind is putting this agent's folder back in this chat, its turn waits here (rewind-gate.ts), then says so plainly if the wait ran out
-              if ((await turnMayStart(i.threadId, i.agentId)) === "timeout")
+              // while a rewind is putting this agent's folder back in this chat, its turn start waits here (rewind-gate.ts): the message stays where it is, one plain line says so, and the turn starts by itself when the
+              // rewind is over; a rewind that made no progress for minutes is given up on (listed interrupted, with Undo) and the turn starts
+              const gate = await turnMayStart(i.threadId, i.agentId, {
+                onWait: () =>
+                  noteLine(i.agentId, i.asker, i.threadId, {
+                    state: "going_back",
+                    text: "Going back is still running. Your message will start when it finishes.",
+                    threadId: i.threadId,
+                  }),
+              });
+              if (gate === "gave_up")
                 noteLine(i.agentId, i.asker, i.threadId, {
                   state: "going_back",
-                  text: "Going back is taking long, so this turn started without waiting for it.",
+                  text: "Going back stopped responding. It is listed on the chat with Undo.",
                   threadId: i.threadId,
                 });
               // a point only where a rewind can be offered: a chat with an agent (not a crew, task, helper or one-shot thread), and a turn that runs on this server. A turn on the person's own computer takes none

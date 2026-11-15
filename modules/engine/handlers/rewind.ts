@@ -5,7 +5,8 @@
 // computers and servers, files outside the work folder. Off in a chat with other people: it is one person's own agent's folder. A person reaches only their own folders (the store is derived from who is calling).
 import { points, restore, snapshot, storeOf } from "../checkpoints.ts";
 import { liveTurns } from "./bridge.ts";
-import { holdTurns } from "../rewind-gate.ts";
+import { HUNG_MS, holdTurns } from "../rewind-gate.ts";
+import type { Rewinding } from "../rewind-gate.ts";
 import { forgetSessions } from "../cli-sessions.ts";
 import { boundEngine, ensure, raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -269,13 +270,17 @@ export async function rewindIn(
   if (!dataDir) raise(ctx, "validation.precondition_failed", "This computer has no folders to go back in.");
   const busy = deps.busy ?? ((t: string, a: string) => turnRunning(ctx, t, a));
   // turn starts of this agent in this chat wait from here until the rewind is over (rewind-gate.ts); then "is it busy" is read, and read again after the point of now is taken
-  const release = holdTurns(input.threadId, agentId);
+  // one rewind at a time for this agent here: the gate (this process) and the rows (a row "going back", not stale, that is not the one being undone)
+  const rowsNow = rowsOf(ctx, input.threadId);
+  const running = rowsNow.some((r) => r.state === "going back" && ctx.now() - r.at < HUNG_MS && r.undo_sha !== sha);
+  const hold = running ? null : holdTurns(input.threadId, agentId);
+  if (!hold) raise(ctx, "validation.precondition_failed", "Going back is already running here.");
   try {
-    return await go(release);
+    return await go(hold!);
   } finally {
-    release();
+    hold!.release();
   }
-  async function go(_release: () => void) {
+  async function go(hold: Rewinding) {
     const stop = async (): Promise<never> => {
       let name = "the agent";
       try {
@@ -328,6 +333,7 @@ export async function rewindIn(
     const undoPoint = await snapshot({ gitDir, workDir: dir, label: "Before going back", now: ctx.now() });
     // read again: a turn that started in the gap between the first look and now (it was queued behind this rewind) is running, and would write while the files move
     if (await busy(input.threadId, agentId)) await stop();
+    hold.progress();
     const rowId = Number(
       (
         ctx.db.run(
@@ -342,7 +348,9 @@ export async function rewindIn(
         ) as unknown as { lastInsertRowid?: number | bigint }
       )?.lastInsertRowid ?? 0,
     );
+    hold.progress();
     await deps.beforeRestore?.();
+    hold.progress();
     const r = await restore({
       gitDir,
       workDir: dir,

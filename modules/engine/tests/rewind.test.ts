@@ -527,22 +527,22 @@ test("4: when the placement cannot be read or answers nothing, no point is taken
   assert.equal(pointWanted("chat", "host"), true);
 });
 
-test("7: while a rewind holds an agent, that agent's turn start waits until the rewind is over (and says so if its limit passes); a queued turn that started in the gap refuses the rewind", async () => {
+test("7: while a rewind holds an agent, that agent's turn start waits and does NOT start when the wait slice passes (one plain line, once); it starts by itself when the gate opens", async () => {
   const { holdTurns, turnMayStart } = await import("../rewind-gate.ts");
   assert.equal(await turnMayStart(T, AGENT), "free");
-  const release = holdTurns(T, AGENT);
+  const rw = holdTurns(T, AGENT)!;
   let started = false;
-  const start = turnMayStart(T, AGENT, 5_000).then((r) => {
+  let told = 0;
+  const start = turnMayStart(T, AGENT, { sliceMs: 40, onWait: () => told++ }).then((r) => {
     started = true;
     return r;
   });
-  await new Promise((r) => setTimeout(r, 100));
-  assert.equal(started, false, "the turn start is held while the rewind is going back");
-  release();
-  assert.equal(await start, "waited");
-  const stuck = holdTurns(T, AGENT);
-  assert.equal(await turnMayStart(T, AGENT, 50), "timeout", "a stuck rewind never holds a chat for long");
-  stuck();
+  await new Promise((r) => setTimeout(r, 250));
+  assert.equal(started, false, "the wait ran out of its slice and the turn has NOT started");
+  assert.equal(told, 1, "one plain line, once");
+  rw.release();
+  assert.equal(await start, "waited", "the turn starts by itself when the gate opens");
+  assert.equal(await turnMayStart(T, AGENT), "free");
   // a turn that began between the first look and the point of now: the second look refuses, and the files are untouched
   const s = setup();
   try {
@@ -560,6 +560,146 @@ test("7: while a rewind holds an agent, that agent's turn start waits until the 
     assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "two", "nothing was put back");
     assert.deepEqual(s.h.rows("SELECT * FROM engine_rewind"), [], "no row was written");
     assert.equal(await turnMayStart(T, AGENT), "free", "the hold is released after a refusal");
+  } finally {
+    done(s);
+  }
+});
+
+test("2c: a rewind that made no progress for minutes is given up on: the gate opens and the turn starts, and the rewind is listed as interrupted with Undo", async () => {
+  const s = setup();
+  try {
+    const { turnMayStart, HUNG_MS } = await import("../rewind-gate.ts");
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    fs.writeFileSync(path.join(dir, "a.txt"), "one");
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    fs.writeFileSync(path.join(dir, "a.txt"), "two");
+    const l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    // the rewind hangs between its row and its restore
+    void rewindIn(s.ctx, { threadId: T, pointId: l.points[0]!.pointId }, s.data, {
+      beforeRestore: () => new Promise(() => undefined),
+    }).catch(() => undefined);
+    await new Promise((r) => setTimeout(r, 400));
+    let clock = Date.now();
+    const gate = await turnMayStart(T, AGENT, { sliceMs: 20, now: () => (clock += HUNG_MS + 1) });
+    assert.equal(gate, "gave_up", "a hung rewind is given up on");
+    assert.equal(await turnMayStart(T, AGENT), "free", "the gate is open: the turn starts");
+    const after = await pointsIn(s.ctx, { threadId: T }, s.data);
+    assert.equal(after.active[0]?.interrupted, true);
+    assert.ok(after.active[0]?.undoPointId, "it is listed with Undo");
+    await rewindIn(s.ctx, { threadId: T, pointId: after.active[0]!.undoPointId! }, s.data);
+    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "two", "Undo brings the folder back");
+  } finally {
+    done(s);
+  }
+});
+
+test("1: two rewinds of one agent started together: one runs, the other is refused in plain words, and the folder ends as the first left it", async () => {
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    fs.writeFileSync(path.join(dir, "a.txt"), "one");
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    fs.writeFileSync(path.join(dir, "a.txt"), "two");
+    await turn(s, DANA, "trn_2", "msg_ask1", BASE + 2_000);
+    fs.writeFileSync(path.join(dir, "a.txt"), "three");
+    const l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    const [newest, oldest] = [l.points[0]!, l.points[1]!];
+    const res = await Promise.allSettled([
+      rewindIn(s.ctx, { threadId: T, pointId: oldest.pointId }, s.data),
+      rewindIn(s.ctx, { threadId: T, pointId: newest.pointId }, s.data),
+    ]);
+    assert.deepEqual(res.map((r) => r.status).sort(), ["fulfilled", "rejected"]);
+    const bad = res.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    assert.match(String(bad.reason?.message ?? bad.reason), /Going back is already running here\./);
+    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "one", "the first one's result: the oldest point");
+    assert.equal(s.h.rows("SELECT state FROM engine_rewind").length, 1, "only one row was written");
+    // and by the row: a row still going back and not stale refuses another
+    s.h.ctx.db.run(
+      "INSERT INTO engine_rewind (thread_id, after_seq, upto_seq, by_person, at, undo_sha, kind, state) VALUES (?, 0, 3, ?, ?, ?, 'rewind', 'going back')",
+      T,
+      DANA,
+      s.h.ctx.now(),
+      "f".repeat(40),
+    );
+    await assert.rejects(rewindIn(s.ctx, { threadId: T, pointId: newest.pointId }, s.data), /already running here/);
+  } finally {
+    done(s);
+  }
+});
+
+test("3: a source file is not a secret by its stem: token.ts, keys.ts, env.ts, secret.ts with ordinary code are stored and restored; with a real-looking key inside they are left alone and named, several at once", async () => {
+  const { isSecretPath } = await import("../../../lib/secret-files.ts");
+  for (const f of [
+    "token.ts",
+    "keys.ts",
+    "env.ts",
+    "secret.ts",
+    "src/token.js",
+    "auth/keys.py",
+    "secrets.go",
+    "main.rs",
+  ])
+    assert.equal(isSecretPath(f), false, f);
+  for (const f of [
+    ".env",
+    ".env.local",
+    "a.pem",
+    "b.key",
+    "c.p12",
+    "d.pfx",
+    "e.p8",
+    "f.kdbx",
+    "id_rsa",
+    "id_ed25519.pub",
+    "id_ecdsa",
+    ".npmrc",
+    ".netrc",
+    ".git-credentials",
+    "credentials.json",
+    "service-account-prod.json",
+    "token.json",
+    "secrets.yaml",
+    "secrets.yml",
+    "kubeconfig",
+    ".aws/credentials",
+  ])
+    assert.equal(isSecretPath(f), true, f);
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    for (const f of ["token.ts", "keys.ts", "env.ts", "secret.ts"])
+      fs.writeFileSync(path.join(dir, f), `export const ${f.split(".")[0]} = 1;\n`);
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    const gitDir = storeOf(s.data, dir);
+    const { execFileSync } = await import("node:child_process");
+    const p = (await points({ gitDir, workDir: dir }))[0]!;
+    const tree = execFileSync("git", ["--git-dir", gitDir, "ls-tree", "-r", "--name-only", p.sha], { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean)
+      .sort();
+    assert.deepEqual(tree, ["env.ts", "keys.ts", "secret.ts", "token.ts"], "ordinary code under these names is stored");
+    for (const f of ["token.ts", "keys.ts", "env.ts", "secret.ts"]) fs.writeFileSync(path.join(dir, f), "changed");
+    let l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    await rewindIn(s.ctx, { threadId: T, pointId: l.points[0]!.pointId }, s.data);
+    for (const f of ["token.ts", "keys.ts", "env.ts", "secret.ts"])
+      assert.equal(
+        fs.readFileSync(path.join(dir, f), "utf8"),
+        `export const ${f.split(".")[0]} = 1;\n`,
+        `${f} was restored`,
+      );
+    // now three of them hold a real-looking key: a restore leaves them alone and names every one
+    const key = "-----BEGIN RSA PRIVATE KEY-----\nSECRETBYTES\n-----END RSA PRIVATE KEY-----\n";
+    for (const f of ["token.ts", "keys.ts", "env.ts"]) fs.writeFileSync(path.join(dir, f), key);
+    fs.writeFileSync(path.join(dir, "secret.ts"), "changed again");
+    l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    const r = await rewindIn(s.ctx, { threadId: T, pointId: l.points.find((q) => !q.undo)!.pointId }, s.data);
+    assert.deepEqual(r.failedPaths.sort(), [
+      "env.ts (left as it is: it holds a secret)",
+      "keys.ts (left as it is: it holds a secret)",
+      "token.ts (left as it is: it holds a secret)",
+    ]);
+    assert.equal(fs.readFileSync(path.join(dir, "token.ts"), "utf8"), key);
+    assert.equal(fs.readFileSync(path.join(dir, "secret.ts"), "utf8"), "export const secret = 1;\n");
   } finally {
     done(s);
   }
