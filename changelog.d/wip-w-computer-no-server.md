@@ -1,0 +1,1 @@
+When a server cannot run computers for agents, the Computer tab says so in one line that names who can add one and where: "No computer is set up for agents yet. An admin of this Space can add one in Console > Computers."

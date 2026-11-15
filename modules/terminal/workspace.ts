@@ -493,7 +493,8 @@ const wsError = (message: string, code = "unavailable"): Error =>
     workspace: true,
   });
 
-export const IMAGE_MISSING_LINE = "This server can't start agent workspaces yet.";
+export const IMAGE_MISSING_LINE =
+  "This server has no computer ready for agents. An admin of this Space can set one up in Console > Computers.";
 /** A command run before the workspace's copy of Files caught up (it took longer than a few seconds): its first line. */
 export const FILES_LATE_LINE =
   "Files changed in the last few seconds may not be in the workspace yet: copying them from Files is taking longer than usual.";

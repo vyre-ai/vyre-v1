@@ -77,6 +77,8 @@ export function edge(
     /^\/spaces\/[^/]+\/blobs\//.test(p) ||
     p === "/healthz" ||
     p.startsWith("/live") ||
+    // the live view of an agent's browser: the daemon's own stream and socket, a ticket in the address (the app asks for them at the Space's address)
+    /^\/browsers\/[^/]+\/(stream|ws)$/.test(p) ||
     p.startsWith("/local/vault/key/") ||
     p === "/mcp" ||
     p.startsWith("/.well-known/oauth-") ||
@@ -103,6 +105,8 @@ export function edge(
         res.writeHead(502);
         res.end("daemon unreachable");
       });
+      // a viewer that goes away ends the request it made to the daemon, as a gateway does (a live view's stream would otherwise stay open and count as someone watching)
+      res.on("close", () => up.destroy());
       req.pipe(up);
       return;
     }
