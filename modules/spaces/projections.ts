@@ -26,7 +26,7 @@ export interface SpacesCtx {
   /** May this person see the thing (a chat that is not theirs is not found)? Supplied by the host from the module that owns the thing; absent: everything is visible. */
   visible?(personId: string, r: ResourceRef): boolean | Promise<boolean>;
   /** The person's role name in this Space. Supplied by the host from the access projection. */
-  directory?: { roleName(personId: string): string };
+  directory?: { roleName(personId: string): string; createdAt?(personId: string): number | null };
 }
 
 export type Step = "photo_title" | "connect_mailbox" | "meet_assistant" | "first_project" | "import";

@@ -150,10 +150,13 @@ export function moreMenuEntries(h: {
 /** The New menu: a folder, and an upload where the place has one. Each opens the shell's sheet for it. */
 export function newMenuEntries(h: {
   newFolder(): void;
+  newNote?: (() => void) | undefined;
   upload?: (() => void) | undefined;
   connect?: (() => void) | undefined;
 }): MenuEntry[] {
-  const out: MenuEntry[] = [{ label: "New Folder", onSelect: h.newFolder }];
+  const out: MenuEntry[] = [];
+  if (h.newNote) out.push({ label: "New Note", onSelect: h.newNote });
+  out.push({ label: "New Folder", onSelect: h.newFolder });
   if (h.upload) out.push({ label: "Upload Files…", onSelect: h.upload });
   if (h.connect) out.push({ label: "Connect a Folder…", onSelect: h.connect });
   return out;
@@ -547,11 +550,13 @@ function List(): ReactElement {
           menu.show(
             newMenuEntries({
               newFolder: () => data.nav.newFolder(scopeHere, here),
+              ...(data.nav.takeNote ? { newNote: () => data.nav.takeNote?.() } : {}),
               upload,
               ...(data.nav.connectFolder ? { connect: () => data.nav.connectFolder?.(here) } : {}),
             }),
             x,
             y,
+            "other",
           );
         }
       : undefined;
@@ -566,6 +571,7 @@ function List(): ReactElement {
       }),
       x,
       y,
+      "other",
     );
   // On the phone the header keeps New and one "..." menu: sort, the list or grid view, upload, then the folder's own options.
   const phoneMenu = (x: number, y: number): void =>
@@ -589,6 +595,7 @@ function List(): ReactElement {
       ],
       x,
       y,
+      "other",
     );
   const ql = state.quickLook !== null ? byKey.get(state.quickLook) : undefined;
 
@@ -629,6 +636,7 @@ function List(): ReactElement {
               ),
               x,
               y,
+              "other",
             )
           }
           onView={(view) => dispatch({ type: "view", view })}

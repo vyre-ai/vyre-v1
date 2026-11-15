@@ -38,6 +38,7 @@ type Out = {
       key: string;
       state: "done" | "later";
     }>;
+  fresh: boolean;
 };
 ```
 
@@ -57,6 +58,7 @@ type Out = {
     "flow": "personal"
   },
   "output": {
+    "fresh": true,
     "seen": true,
     "steps": [
       {
