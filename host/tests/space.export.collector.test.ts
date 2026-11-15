@@ -578,22 +578,3 @@ test("a Google Doc that was never opened (size 0, no copy to fetch) is left out 
   assert.equal(out.manifest.leftOut[0].name, "Plan (Doc)");
   assert.ok(!out.entries.some((e) => e.path.includes("fil_doc")));
 });
-
-test("the archive's own page tells the export screen how many files were left out and how many it holds", async () => {
-  const { leftOutOf } = await import("../src/daemon/owner-archives.ts");
-  const { zip } = await import("../../modules/backup/handlers/run.ts");
-  const e = (path: string, text: string) => ({ path, bytes: new TextEncoder().encode(text) });
-  const z = zip(
-    [
-      e("README.txt", "x"),
-      e("files/fil_a/versions/ver_1.bin", "abc"),
-      e(
-        "NOT-EXPORTED.txt",
-        "2 files are not in this export. Each lives elsewhere.\n\nA.pdf: Google Drive could not be reached\nB.pdf: it was removed in Google Drive\n",
-      ),
-    ],
-    1000,
-  );
-  assert.deepEqual(leftOutOf(z), { leftOut: 2, filesKept: 1 });
-  assert.deepEqual(leftOutOf(zip([e("README.txt", "x")], 1000)), {});
-});

@@ -172,6 +172,8 @@ if ("fileId" in o1856) lf(o1856["fileId"], p + "/fileId", e, L35);
 if ("name" in o1856) lf(o1856["name"], p + "/name", e, L1);
 if ("sizeBytes" in o1856) lf(o1856["sizeBytes"], p + "/sizeBytes", e, L2);
 if ("expiresAt" in o1856) lf(o1856["expiresAt"], p + "/expiresAt", e, L17);
+if ("leftOut" in o1856) lf(o1856["leftOut"], p + "/leftOut", e, L2);
+if ("filesKept" in o1856) lf(o1856["filesKept"], p + "/filesKept", e, L2);
 }
 }
 }

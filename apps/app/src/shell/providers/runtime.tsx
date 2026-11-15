@@ -98,7 +98,9 @@ export function ShellRuntimeProvider({ value, children }: { value: ShellRuntime;
   setAssistantId(value.assistant.id, value.assistant.name);
   return (
     <Ctx.Provider value={value}>
-      <BlobUrlProvider fetcher={value.fetchBlobUrl} origin={value.blobOrigin}>{children}</BlobUrlProvider>
+      <BlobUrlProvider fetcher={value.fetchBlobUrl} origin={value.blobOrigin}>
+        {children}
+      </BlobUrlProvider>
     </Ctx.Provider>
   );
 }

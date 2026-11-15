@@ -181,7 +181,8 @@ const withConnection = (m: { connectionId?: string; account?: string }): Row => 
 export const MAX_PAGES = 200;
 
 /** What a mount says when one pass could not read the whole listing. */
-export const PARTIAL_WORDS = "This folder is larger than one sync reads, so only the first part of it is here. Nothing was removed.";
+export const PARTIAL_WORDS =
+  "This folder is larger than one sync reads, so only the first part of it is here. Nothing was removed.";
 
 // ---- Google Drive -------------------------------------------------------------------------------------------
 
