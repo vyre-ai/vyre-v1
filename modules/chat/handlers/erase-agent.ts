@@ -89,7 +89,13 @@ function chatsOf(ctx: ChatCtx, agentId: string): { own: string[]; shared: string
 export async function eraseAgent(ctx: ChatCtx, i: EraseInput): Promise<Footprint> {
   ensure(ctx.db);
   const { own, shared } = chatsOf(ctx, i.agentId);
-  if (i.dry) return { chats: own.length, sharedChats: shared.length, threadIds: own };
+  if (i.dry) {
+    const people = new Set<string>();
+    for (const th of own)
+      for (const r of tryAll(ctx.db, `SELECT "principal" FROM chat_thread_member WHERE "thread" = ? AND "deleted_at" IS NULL`, th))
+        if (String(r["principal"]).startsWith("usr_")) people.add(String(r["principal"]));
+    return { chats: own.length, sharedChats: shared.length, threadIds: own, chatPeople: [...people] };
+  }
   for (const th of own) await threadErase(ctx, { threadId: th, idempotencyKey: `agent-erase:${i.agentId}:${th}` });
   // shared: the messages stay, what was private behind them goes
   for (const th of shared) {

@@ -8,6 +8,7 @@
 import { agentBy, agentOf, allows, canSee, ensure, raise, tolerant } from "../projections.ts";
 import type { AgentRec, AgentsCtx } from "../projections.ts";
 import { eraseWhere, tryAll, tryRun } from "../../../lib/erase-agent.ts";
+import { dateIn } from "../../../lib/zones.ts";
 export { eraseWhere };
 import type { Footprint } from "../../../lib/erase-agent.ts";
 export type { Footprint };
@@ -129,6 +130,8 @@ export async function deletePreview(ctx: AgentsCtx, input: { agentId: string }) 
     routines: 0,
     named: [] as NonNullable<Footprint["named"]>,
   };
+  const chatPeople = new Set<string>();
+  const folderPeople = new Set<string>();
   for (const m of ERASE_STEPS) {
     const f = await tolerant<Footprint>(
       ctx,
@@ -142,6 +145,8 @@ export async function deletePreview(ctx: AgentsCtx, input: { agentId: string }) 
     out.bytes += f.bytes ?? 0;
     out.routines += f.routines ?? 0;
     out.named.push(...(f.named ?? []));
+    for (const p of f.chatPeople ?? []) chatPeople.add(p);
+    for (const p of f.folderPeople ?? []) folderPeople.add(p);
   }
   const routines = (ctx.db.all("SELECT COUNT(*) AS n FROM agents_routine WHERE agentId = ?", a.id) as Row[])[0];
   out.routines += Number(routines?.["n"] ?? 0);
@@ -154,6 +159,8 @@ export async function deletePreview(ctx: AgentsCtx, input: { agentId: string }) 
     kind: a.kind,
     inTrash: a.deletedAt !== undefined,
     ...out,
+    chatPeople: await peopleNamed(ctx, [...chatPeople]),
+    folderPeople: await peopleNamed(ctx, [...folderPeople]),
     named: out.named.map((n) => ({ ...n, link: `/${LINK[n.kind]}/${n.id}` })),
     backups:
       days === undefined
@@ -245,6 +252,9 @@ export async function runErase(ctx: AgentsCtx): Promise<string[]> {
       }
       if (j["folderId"]) ids.push(String(j["folderId"]));
       for (const x of ids) ctx.db.run("INSERT OR IGNORE INTO agents_erase_ids (agentId, id) VALUES (?, ?)", id, x);
+      // the people who lose a chat or their own folder, read now, before those stores are cleared: each is told once it is done
+      const at = await peopleAt(ctx, id);
+      for (const p of new Set([...at.chat, ...at.folder])) ctx.db.run("INSERT OR IGNORE INTO agents_erase_people (agentId, personId) VALUES (?, ?)", id, p);
       ctx.db.run("INSERT OR IGNORE INTO agents_erase_ids (agentId, id) VALUES (?, ?)", id, id);
     }
     const ids = (ctx.db.all("SELECT id FROM agents_erase_ids WHERE agentId = ?", id) as Row[]).map((r) =>
@@ -294,6 +304,11 @@ export async function runErase(ctx: AgentsCtx): Promise<string[]> {
       id,
     );
     ctx.emit("agent.erased", id, { agentId: id, name: String(j["name"]) });
+    const told = (ctx.db.all("SELECT personId FROM agents_erase_people WHERE agentId = ?", id) as Row[])
+      .map((r) => String(r["personId"]))
+      .filter((p) => p !== String(j["requestedBy"]));
+    await tell(ctx, told, `${String(j["name"])} was deleted for good.`, `agent-erased:${id}`);
+    ctx.db.run("DELETE FROM agents_erase_people WHERE agentId = ?", id);
     finished.push(id);
   }
   return finished;
@@ -422,4 +437,62 @@ function failedOf(ctx: AgentsCtx, id: string): { failed?: string } {
   if (!r || String(r["state"]) !== "erasing" || Number(r["tries"]) < 1) return {};
   const step = String(r["lastError"] ?? "").split(":")[0] ?? "";
   return { failed: STEP_WORDS[step] ?? "some of what it kept" };
+}
+
+// ---- the people who lose something, and are told --------------------------------------------------------------------------------------------------
+
+/** People by id with the name they have in this Space. */
+async function peopleNamed(ctx: AgentsCtx, ids: string[]): Promise<Array<{ id: string; name: string }>> {
+  const out: Array<{ id: string; name: string }> = [];
+  for (const id of ids) {
+    const who = await tolerant<{ principal?: { name?: string } }>(ctx, "access.principals.get", { principal: { kind: "person", id } }, {});
+    out.push({ id, name: who.principal?.name ?? "Someone" });
+  }
+  return out;
+}
+
+/** Who has a one-to-one chat with this agent, and who has their own folder on its computer: each module answers its own (a dry ask, the same host calls the preview makes). */
+async function peopleAt(ctx: AgentsCtx, id: string): Promise<{ chat: string[]; folder: string[] }> {
+  const ask = async (m: string): Promise<Footprint> =>
+    tolerant<Footprint>(ctx, stepCall(m), { input: { agentId: id, dry: true } }, {});
+  return { chat: (await ask("chat")).chatPeople ?? [], folder: (await ask("terminal")).folderPeople ?? [] };
+}
+
+/** One line, in Needs you, for each person: due now, so it shows today. The key keeps a repeat from making a second. */
+async function tell(ctx: AgentsCtx, people: Iterable<string>, title: string, key: string): Promise<void> {
+  for (const person of people)
+    await tolerant(
+      ctx,
+      "tasks.create",
+      { kind: "work", title: title.slice(0, 300), assigned: { kind: "person", id: person }, due: ctx.now(), idempotencyKey: `${key}:${person}` },
+      null,
+    );
+}
+
+/** The Space's time zone, for a date a person reads. */
+async function spaceZone(ctx: AgentsCtx): Promise<string> {
+  const sp = await tolerant<{ space?: { timezone?: unknown } }>(ctx, "spaces.get", {}, {});
+  return typeof sp.space?.timezone === "string" && sp.space.timezone !== "" ? sp.space.timezone : "UTC";
+}
+
+/**
+ * agent.deleted: everyone who has a chat with the agent, or their own folder on its computer, is told it is in Trash and the day it will be erased by itself, so they can take their files out. The person who
+ * moved it to Trash is not told of what they did. Safe to repeat: one line per person and Trash move.
+ */
+export async function onTrashed(ctx: AgentsCtx, event: { payload: { agentId?: string; name?: string; by?: string } }): Promise<string[]> {
+  const id = event.payload.agentId;
+  if (typeof id !== "string") return [];
+  ensure(ctx.db);
+  const a = agentBy(ctx.db, id, true);
+  if (!a || a.kind === "teammate") return [];
+  const at = await peopleAt(ctx, id);
+  const who = [...new Set([...at.chat, ...at.folder])].filter((p) => p !== event.payload.by);
+  if (who.length === 0) return [];
+  const keep = await trashKeepMs(ctx);
+  const when =
+    typeof keep === "number" && a.deletedAt !== undefined
+      ? `It will be erased on ${dateIn(a.deletedAt + keep, await spaceZone(ctx))}.`
+      : "It stays in Trash until it is deleted for good.";
+  await tell(ctx, who, `${a.name} is in Trash. ${when} Take your files out of its computer before then.`, `agent-trashed:${id}:${a.deletedAt ?? 0}`);
+  return who;
 }

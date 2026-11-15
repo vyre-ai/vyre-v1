@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers, restoreAgentFiles } from "../impl.ts";
-import { ERASE_STEPS, runErase, sweepExpired, retentionMs, TRASH_KEEP_MS } from "../handlers/erase.ts";
+import { ERASE_STEPS, onTrashed, runErase, sweepExpired, retentionMs, TRASH_KEEP_MS } from "../handlers/erase.ts";
 import { DANA, failure, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -210,4 +210,31 @@ test("a step that keeps failing backs off (3 s, 30 s, 5 min), the Trash row says
   assert.equal(row.failed, "its memory", "the row says what it could not finish");
   await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId }); // Try again
   assert.equal(hn.ctx.db.all("SELECT nextAt FROM agents_erase_retry WHERE agentId = ?", a.agentId).length, 0, "it goes at once");
+});
+
+test("the people with a chat with the agent, or their own folder on its computer, are told when it goes to Trash (with the day it will be erased) and again when it is erased; the confirm counts and names them", async () => {
+  const hn = world();
+  const a = await make(hn);
+  const dry = (who: Record<string, string[]>) => (i: { input?: { dry?: boolean } }) => (i.input?.dry === true ? who : {});
+  hn.world.answer("host.hook.call.chat.erase_agent", dry({ chatPeople: ["usr_maya", "usr_leo"] }) as never);
+  hn.world.answer("host.hook.call.terminal.erase_agent", dry({ folderPeople: ["usr_leo", "usr_noah"] }) as never);
+  hn.world.answer("access.principals.get", ((i: { principal: { id: string } }) => ({ principal: { name: i.principal.id.slice(4) } })) as never);
+  hn.world.answer("tasks.create", (() => ({ task: { taskId: "tsk_x" } })) as never);
+  hn.world.answer("governance.retention.get", () => ({ kinds: [{ key: "trash", value: "30d" }] }));
+  await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
+  const told = (): Array<{ to: string; title: string }> =>
+    hn.world.calls
+      .filter((c) => c.cap === "tasks.create")
+      .map((c) => ({ to: (c.input as { assigned: { id: string } }).assigned.id, title: (c.input as { title: string }).title }));
+  await onTrashed(hn.ctx as never, { payload: { agentId: a.agentId, name: "Desk", by: DANA } });
+  assert.deepEqual(told().map((t) => t.to).sort(), ["usr_leo", "usr_maya", "usr_noah"]);
+  assert.match(told()[0]!.title, /Desk is in Trash\. It will be erased on .+ Take your files out of its computer before then\./);
+  const preview = await h["agents.delete_preview"]!(hn.ctx, { agentId: a.agentId });
+  assert.deepEqual(preview.chatPeople.map((p: { name: string }) => p.name), ["maya", "leo"]);
+  assert.deepEqual(preview.folderPeople.map((p: { name: string }) => p.name), ["leo", "noah"]);
+  await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId });
+  hn.world.calls.length = 0;
+  await runErase(hn.ctx as never);
+  assert.deepEqual(told().map((t) => t.to).sort(), ["usr_leo", "usr_maya", "usr_noah"]);
+  assert.ok(told().every((t) => t.title === "Desk was deleted for good."));
 });

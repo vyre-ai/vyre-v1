@@ -11,6 +11,9 @@ export interface Footprint {
   routines?: number;
   /** The ids of the one-to-one chats it holds (so the event log and request cache can be cleared of them last). */
   threadIds?: string[];
+  /** The people (ids) who have a one-to-one chat with the agent, and the people who have their own folder on its computer: they are told, and the confirm counts them. */
+  chatPeople?: string[];
+  folderPeople?: string[];
   named?: Array<{ kind: "automation" | "task" | "goal" | "project"; id: string; title: string }>;
 }
 export interface EraseInput {
@@ -20,7 +23,11 @@ export interface EraseInput {
 }
 /** The host calls that clear an agent's data are the agents job's alone (host/src/daemon/consumers.ts guardCall). */
 export const ERASE_CALL = /\.erase_agent$/;
-export const ERASE_CALLERS = ["host.hook.periodic.agents.erase_job", "agents.delete_preview"] as const;
+export const ERASE_CALLERS = [
+  "host.hook.periodic.agents.erase_job",
+  "host.hook.consumer.agents.trashed_notice",
+  "agents.delete_preview",
+] as const;
 
 const missing = (e: unknown): boolean => /no such (table|column)/i.test(e instanceof Error ? e.message : String(e));
 

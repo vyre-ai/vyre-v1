@@ -1412,11 +1412,24 @@ export const hostCalls = {
    * Delete for good (F77): the agent's terminals and their commands, tabs, keys and holds go; its workspace container and both volumes (its home, and its Files with every person's own place on it, with the
    * terminals' tmux state, browser profile files and downloads that live there) are removed from every machine. A machine that does not answer fails the step, so the job tries again; none is skipped.
    */
-  "terminal.erase_agent": async (ctx: TermCtx, i: { agentId: string; dry?: boolean }): Promise<{ bytes?: number }> => {
+  "terminal.erase_agent": async (
+    ctx: TermCtx,
+    i: { agentId: string; dry?: boolean },
+  ): Promise<{ bytes?: number; folderPeople?: string[] }> => {
     const ids = (
       tryAll(ctx.db, "SELECT terminal_id FROM terminal_sessions WHERE agent_id = ?", i.agentId) as Row[]
     ).map((r) => String(r["terminal_id"]));
-    if (i.dry === true) return {};
+    if (i.dry === true)
+      // the people who have worked on this computer have their own place on it
+      return {
+        folderPeople: [
+          ...new Set(
+            tryAll(ctx.db, "SELECT DISTINCT owner FROM terminal_sessions WHERE agent_id = ? AND owner LIKE 'usr_%'", i.agentId).map((r) =>
+              String(r["owner"]),
+            ),
+          ),
+        ],
+      };
     // the manager is not bound yet (the daemon is still starting): the container and its volumes are still to be removed, so this step fails and the job tries again, never skips
     if (!workspaceManager && !hostBound) throw new Error("The workspace manager is not ready yet, so the computer is kept for the next try.");
     if (workspaceManager) await (workspaceManager as WorkspaceManager).remove(i.agentId);
