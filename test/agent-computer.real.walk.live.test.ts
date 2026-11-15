@@ -208,6 +208,22 @@ test(
       );
       assert.match(await text("browser-caption"), /Asleep\. Last seen/, "asleep says when it was last seen");
       await shoot(page, DIR, "browser-asleep-last-seen");
+      // woken from the tab: pressing the sleeping picture opens the sheet, which starts the browser and shows it live
+      await page.getByTestId("browser-picture").click();
+      await page.getByTestId("browser-popup").waitFor({ timeout: 15_000 });
+      let g = await frame();
+      const wk0 = Date.now();
+      while (!(g.tag === "CANVAS" ? g.w !== 300 : (g.nat ?? 0) > 1 || g.bg === true) && Date.now() - wk0 < 30_000) {
+        await page.waitForTimeout(250);
+        g = await frame();
+      }
+      assert.ok(
+        g.tag === "CANVAS" ? g.w !== 300 : (g.nat ?? 0) > 1 || g.bg === true,
+        `pressing the sleeping browser did not wake it to a live view: ${JSON.stringify(g)}`,
+      );
+      await shoot(page, DIR, "browser-woken-from-the-tab");
+      await page.getByTestId("browser-popup-close").click();
+      await page.getByTestId("browser-popup").waitFor({ state: "detached", timeout: 10_000 });
 
     } finally {
       await k.close();
