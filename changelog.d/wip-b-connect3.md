@@ -1,3 +1,4 @@
 - Connecting a service from one card is on for everyone. It is offered only for services whose addresses are exact and public: a connector somebody made can no longer name a private or local address, a plain http address, or an address a built-in connector already uses, and a key is tried only where the card could send it.
 - A service that keeps its own place under Connections (Stripe, HubSpot and the rest of the built-in list) says so when an assistant asks for it, instead of being offered a connector to build.
 - A plain key request now points an assistant to the card for any service the person names.
+- After you disconnect a service, the next time an assistant needs it you get a new card with the key you saved offered back; a card you folded with Not now still stays folded.
