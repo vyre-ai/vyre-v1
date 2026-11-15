@@ -1,0 +1,1 @@
+- An agent's archive of a channel or a project that waits for a yes now says "archive a channel you can bring back" or "archive a project you can bring back" on its card.

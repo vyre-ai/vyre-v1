@@ -70,7 +70,7 @@ const lessons = async (
     text: string;
     status: string;
     kind?: string;
-    lesson?: { how?: string; used: number; scope: string };
+    lesson?: { how?: string; used: number; scope: string; sent?: boolean };
   }>
 > => (await call(d, "memory.facts.list", { agentId, kind: "lesson", status })).data.facts ?? [];
 const waitLessons = (d: Daemon, agentId: string, n: number) =>
@@ -98,7 +98,8 @@ test("lessons live: a correction in chat makes one lesson; the next chat uses it
     const made = await waitLessons(d, mira, 1);
     assert.equal(made.length, 1, JSON.stringify(made));
     assert.equal(made[0]!.text, LESSON);
-    assert.deepEqual(made[0]!.lesson, { how: "refuse", used: 0, scope: "you" });
+    // sent: true is deliberate (ca49c8fcb, "every lesson that fits is sent and Knows says which are not"): a new lesson fits, so it is put in front of the agent in every chat
+    assert.deepEqual(made[0]!.lesson, { how: "refuse", used: 0, scope: "you", sent: true });
     const line = second.messages.find((m) => m.author?.kind === "person" && String(m.body).startsWith("No, keep"))!;
     const feed = await call(d, "memory.learned", { threadId });
     assert.equal(feed.status, 200, JSON.stringify(feed.data));
