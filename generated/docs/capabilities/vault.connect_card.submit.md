@@ -33,7 +33,7 @@ type In = {
   useSaved?: boolean;
   folderId?: string;
   audience?: "asker" | "anyone";
-  hosts?: Array<string>;
+  hosts: Array<string>;
 };
 ```
 

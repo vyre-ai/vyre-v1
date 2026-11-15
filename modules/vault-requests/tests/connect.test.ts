@@ -42,7 +42,13 @@ const submit = (
   fields: { key: string; value: string }[] = [{ key: "api_key", value: KEY }],
   who = "usr_asker",
   extra = {},
-) => handlers["vault.connect_card.submit"](person(w, who), { requestId, fields, ...extra } as never);
+) =>
+  handlers["vault.connect_card.submit"](person(w, who), {
+    hosts: ["api.fathom.ai"],
+    requestId,
+    fields,
+    ...extra,
+  } as never);
 const card = (w: World, requestId: string, who = "usr_asker") =>
   handlers["vault.connect_card.get"](person(w, who), { requestId } as never).then((r) => r.card);
 const names = (w: World) => w.calls.map((c) => c.cap);
@@ -198,7 +204,11 @@ test("a key the person already saved is offered back, and Use it connects withou
   const c = await card(w, requestId!);
   assert.equal(c.state, "have");
   assert.deepEqual(c.have, { itemId: "vit_old", name: "Fathom", keptIn: "Mine" });
-  const out = await handlers["vault.connect_card.submit"](person(w), { requestId, useSaved: true } as never);
+  const out = await handlers["vault.connect_card.submit"](person(w), {
+    hosts: ["api.fathom.ai"],
+    requestId,
+    useSaved: true,
+  } as never);
   assert.equal(out.result, "connected");
   assert.equal(w.called("vault.item.put").length, 0, "no second copy of the key");
   assert.equal(w.called("connectors.check_key").length, 0, "the connection's own probe tries it");
@@ -342,7 +352,7 @@ test("the card's own acts are a person's: an agent, even one acting for the aske
   const { requestId } = await ask(w, "HubSpot");
   const as = dex(w);
   for (const [cap, input] of [
-    ["vault.connect_card.submit", { requestId, useSaved: true }],
+    ["vault.connect_card.submit", { hosts: ["api.fathom.ai"], requestId, useSaved: true }],
     ["vault.connect_card.ask_admin", { requestId }],
     ["vault.connect_card.reopen", { requestId }],
     ["vault.connect_card.disconnect", { requestId }],
@@ -397,7 +407,11 @@ test("a saved key whose connection fails its probe leaves the connection removed
   });
   const { requestId } = await ask(w);
   stamp(w, requestId!);
-  const out = await handlers["vault.connect_card.submit"](person(w), { requestId, useSaved: true } as never);
+  const out = await handlers["vault.connect_card.submit"](person(w), {
+    hosts: ["api.fathom.ai"],
+    requestId,
+    useSaved: true,
+  } as never);
   assert.notEqual(out.result, "connected");
   assert.equal(w.called("connections.delete").length, 1);
   assert.equal(w.called("vault.item.delete").length, 0);
@@ -465,6 +479,7 @@ test("a Space service is kept in the Connections folder even when the admin is t
     "no Mine, no team folders; the folder is made on first use",
   );
   const out = await admin("vault.connect_card.submit", {
+    hosts: ["api.fathom.ai"],
     requestId: r.requestId,
     fields: [{ key: "token", value: KEY }],
     folderId: "vfd_mine",
@@ -483,11 +498,15 @@ test("an agent cannot connect a person's saved key with no press: submit useSave
   const { requestId } = await ask(w);
   stamp(w, requestId!);
   await assert.rejects(
-    handlers["vault.connect_card.submit"](dex(w), { requestId, useSaved: true } as never),
+    handlers["vault.connect_card.submit"](dex(w), { hosts: ["api.fathom.ai"], requestId, useSaved: true } as never),
     (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.no_grant",
   );
   await assert.rejects(
-    handlers["vault.connect_card.submit"](dex(w), { requestId, fields: [{ key: "api_key", value: KEY }] } as never),
+    handlers["vault.connect_card.submit"](dex(w), {
+      hosts: ["api.fathom.ai"],
+      requestId,
+      fields: [{ key: "api_key", value: KEY }],
+    } as never),
   );
   assert.equal(w.called("connections.create").length, 0);
   assert.equal(w.called("connectors.check_key").length, 0);
@@ -497,6 +516,7 @@ test("a second key for the same service gets its own item name, never a raw dupl
   const w = room({ saved: [{ id: "vit_old", name: "Fathom", folderId: "vfd_mine", fieldKeys: ["api_key"] }] });
   const { requestId } = await ask(w);
   await handlers["vault.connect_card.submit"](person(w), {
+    hosts: ["api.fathom.ai"],
     requestId,
     useSaved: false,
     fields: [{ key: "api_key", value: KEY }],

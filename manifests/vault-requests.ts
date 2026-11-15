@@ -243,12 +243,10 @@ export default defineManifest({
           useSaved: t.opt(t.bool({ description: "Use the key the person already has instead of a typed one" })),
           folderId: t.opt(id.vaultFolder),
           audience: t.opt(t.enm("asker", "anyone")),
-          hosts: t.opt(
-            t.arr(t.str(), {
-              description:
-                "The addresses the card showed the key would be sent to; refused when the service's addresses are no longer exactly these",
-            }),
-          ),
+          hosts: t.arr(t.str(), {
+            description:
+              "The addresses the card showed the key would be sent to; refused when the service's addresses are no longer exactly these",
+          }),
         },
         out: { result: t.enm("connected", "wrong", "offline"), card: connectCard },
         emits: ["vault.request_fulfilled"],

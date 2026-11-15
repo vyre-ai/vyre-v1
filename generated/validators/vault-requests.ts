@@ -380,6 +380,7 @@ const b6852: string[] = []; lf(x6852, p, b6852, L0); if (b6852.length) e.push(..
 if (g6852 === "object") {
 if (g6852 === 'object') { const o6852 = x6852 as Record<string, unknown>;
 if (!("requestId" in o6852)) e.push(p + "/requestId" + ': required');
+if (!("hosts" in o6852)) e.push(p + "/hosts" + ': required');
 if ("requestId" in o6852) lf(o6852["requestId"], p + "/requestId", e, L443);
 if ("fields" in o6852) d_s_5a34561c27(o6852["fields"], p + "/fields", e);
 if ("useSaved" in o6852) lf(o6852["useSaved"], p + "/useSaved", e, L3);

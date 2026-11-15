@@ -444,7 +444,7 @@ export async function connectSubmit(
     useSaved?: boolean;
     folderId?: string;
     audience?: KeyAudience;
-    hosts?: string[];
+    hosts: string[];
   },
 ) {
   personOnly(ctx);
@@ -456,7 +456,7 @@ export async function connectSubmit(
     (await serviceOf(ctx, row.service)) ?? raise(trace, "validation.not_found", "That service is no longer set up.");
   // the key goes only where the card said it would: a service republished since the card was drawn has other addresses, and nothing is sent or kept
   if (
-    input.hosts &&
+    !Array.isArray(input.hosts) ||
     !sameHosts(
       input.hosts.map((h) => h.toLowerCase()),
       svc.hosts.map((h) => h.toLowerCase()),

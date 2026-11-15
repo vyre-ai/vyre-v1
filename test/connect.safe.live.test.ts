@@ -5,6 +5,8 @@
 //   B: a key goes only to the connection's recorded hosts: a call to a listed host carries it, a look-alike host and a redirect to another host never receive it.
 //   C: no erase is reachable: the take-back refuses a key no card saved, and a finished request's key; declining a card leaves nothing in the Vault.
 import test from "node:test";
+import fs from "node:fs";
+import path from "node:path";
 import assert from "node:assert/strict";
 import { bootHour, say, twoMembers, messages, waitFor } from "./support/member-hour.ts";
 
@@ -86,7 +88,13 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
     assert.equal(refused.ok, false, "Bilal cannot read Aina's card");
     assert.equal((await b.attempt("vault.connect_card.options", { requestId })).ok, false);
     assert.equal(
-      (await b.attempt("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] })).ok,
+      (
+        await b.attempt("vault.connect_card.submit", {
+          hosts: ["api.fathom.ai"],
+          requestId,
+          fields: [{ key: "api_key", value: SECRET }],
+        })
+      ).ok,
       false,
     );
 
@@ -99,6 +107,7 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
 
     // a wrong key keeps nothing; the right one connects
     const wrong = await a.call("vault.connect_card.submit", {
+      hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: "bad-key-1" }],
     });
@@ -109,7 +118,11 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
       1,
       "only the hand-made key is in the Vault",
     );
-    const good = await a.call("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] });
+    const good = await a.call("vault.connect_card.submit", {
+      hosts: ["api.fathom.ai"],
+      requestId,
+      fields: [{ key: "api_key", value: SECRET }],
+    });
     assert.equal(good.result, "connected", JSON.stringify(good));
     assert.equal(good.card.keptIn, "Mine");
     // made for me: the agent that asked uses it at once, with no second approval
@@ -203,6 +216,30 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
       `every request went to the listed host: ${JSON.stringify(seen)}`,
     );
     assert.ok(!JSON.stringify(await messages(h, a, threadId)).includes(SECRET));
+    // the typed key reaches no store at all, audit and trace included: a check_key (the key in `secrets`) and a submit (the key in `value`) leave it in no file of the data folder
+    const TYPED = "fth_scan_FAKEsecretVALUE9876543210zyxwvu"; // secret-scan: fake
+    await a.attempt("connectors.check_key", { connector: "fathom", secrets: { api_key: TYPED } });
+    await a.attempt("vault.connect_card.submit", {
+      hosts: ["api.fathom.ai"],
+      requestId,
+      fields: [{ key: "api_key", value: TYPED }],
+      hosts: ["api.fathom.ai"],
+    });
+    await h.d.hooks?.pump?.();
+    const found: string[] = [];
+    const walk = (dir: string): void => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const f = path.join(dir, e.name);
+        if (e.isDirectory()) walk(f);
+        else if (e.isFile()) {
+          const bytes = fs.readFileSync(f);
+          for (const needle of [TYPED, SECRET])
+            if (bytes.includes(needle)) found.push(`${f} holds ${needle.slice(0, 8)}`);
+        }
+      }
+    };
+    walk(h.dir);
+    assert.deepEqual(found, [], "no audit row, trace, log, event or database file holds a typed key");
   } finally {
     await h.stop();
   }

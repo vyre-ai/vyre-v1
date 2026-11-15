@@ -109,7 +109,7 @@ export function ConnectCardLive({
       const out = (await data.call("vault.connect_card.submit", {
         requestId,
         // the addresses this card said the key goes to: the server refuses when they are no longer the service's
-        ...(card.checksWith ? { hosts: card.checksWith.split(", ") } : {}),
+        hosts: card.checksWith ? card.checksWith.split(", ") : [],
         ...(useSaved
           ? { useSaved: true }
           : {

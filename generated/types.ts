@@ -46861,7 +46861,7 @@ export type VaultConnectCardSubmitIn = {
   useSaved?: boolean;
   folderId?: string;
   audience?: "asker" | "anyone";
-  hosts?: Array<string>;
+  hosts: Array<string>;
 };
 export type VaultConnectCardSubmitOut = {
   result: "connected" | "wrong" | "offline";

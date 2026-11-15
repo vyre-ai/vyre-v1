@@ -182,6 +182,7 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
 
     // a wrong key: tried first, refused, nothing kept, nothing connected
     const wrong = await ok(d, "vault.connect_card.submit", {
+      hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: "bad-key-0001" }],
     });
@@ -191,7 +192,11 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
     assert.equal(((await ok(d, "connections.list", { connector: "fathom" })).connections as unknown[]).length, 0);
 
     // the right key
-    const good = await ok(d, "vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] });
+    const good = await ok(d, "vault.connect_card.submit", {
+      hosts: ["api.fathom.ai"],
+      requestId,
+      fields: [{ key: "api_key", value: SECRET }],
+    });
     assert.equal(good.result, "connected");
     assert.equal(good.card.state, "connected");
     assert.equal(good.card.keptIn, "Mine");
@@ -214,7 +219,11 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
     // a real Vault: disconnect, then type the key again. The first item already holds the name, so the second gets its own and the card connects (no raw duplicate, a fresh key per try)
     await ok(d, "vault.connect_card.disconnect", { requestId });
     await ok(d, "vault.connect_card.reopen", { requestId });
-    const again = await ok(d, "vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] });
+    const again = await ok(d, "vault.connect_card.submit", {
+      hosts: ["api.fathom.ai"],
+      requestId,
+      fields: [{ key: "api_key", value: SECRET }],
+    });
     assert.equal(again.result, "connected", JSON.stringify(again));
     const names = ((await ok(d, "vault.items.list", {})).items as Array<{ name: string }>)
       .map((i) => i.name)
@@ -329,7 +338,11 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
     const hers = (await mia("vault.connect_card.get", { requestId })).data.card;
     assert.deepEqual([hers.state, hers.mayFill], ["admin", false]);
     assert.ok(hers.admin?.id, "an admin to ask, by id: the screen says the name");
-    const refused = await mia("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] });
+    const refused = await mia("vault.connect_card.submit", {
+      hosts: ["api.crmapp.example"],
+      requestId,
+      fields: [{ key: "api_key", value: SECRET }],
+    });
     assert.ok(refused.status >= 400 && refused.status < 500, JSON.stringify(refused.data));
     assert.ok(!JSON.stringify(refused.data).includes(SECRET));
     assert.equal(seen.length, 0, "a key a person may not use never reached the app");
@@ -348,6 +361,7 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
     assert.deepEqual([theirs.state, theirs.mayFill], ["ask", true]);
     const itemsBefore = ((await olivia("vault.items.list", {})).data.items as unknown[]).length;
     const wrong = await olivia("vault.connect_card.submit", {
+      hosts: ["api.crmapp.example"],
       requestId,
       fields: [{ key: "api_key", value: "bad-admin-key" }],
     });
@@ -362,7 +376,11 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
       opts.every((f) => f.name === "Connections"),
       "a Space service is kept in the Connections folder only: no Mine, no team folder",
     );
-    const good = await olivia("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] });
+    const good = await olivia("vault.connect_card.submit", {
+      hosts: ["api.crmapp.example"],
+      requestId,
+      fields: [{ key: "api_key", value: SECRET }],
+    });
     assert.equal(good.data.result, "connected", JSON.stringify(good.data));
     assert.equal(
       (await mia("vault.connect_card.get", { requestId })).data.card.state,
@@ -421,7 +439,11 @@ test("Team: a member connects their OWN Fathom with no admin, the key in their o
       "api.fathom.ai",
       "the hosts the key goes to are said before she saves, built in or not",
     );
-    const good = await a.call("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] });
+    const good = await a.call("vault.connect_card.submit", {
+      hosts: ["api.fathom.ai"],
+      requestId,
+      fields: [{ key: "api_key", value: SECRET }],
+    });
     assert.equal(good.result, "connected", JSON.stringify(good));
     const conns = (await a.call("connections.list", { connector: "fathom" })).connections as Array<{
       owner: { kind: string };

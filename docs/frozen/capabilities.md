@@ -634,11 +634,11 @@ Signed: lead, 16 Nov 2026 03:36 PKT (written and read by the lead: no shape chan
 
 Signed: lead, 16 Nov 2026 04:20 PKT
 
-## 16 Nov 2026: connections.approve_hosts takes the addresses the person was shown; vault.connect_card.submit may carry them (lane b-connect3, review of 77603b1d6, item 5), for the lead to sign
+## 16 Nov 2026: connections.approve_hosts takes the addresses the person was shown; vault.connect_card.submit and vault.connect_card.submit requires them (lane b-connect3, review of 77603b1d6, item 5)
 
 - `connections.approve_hosts` gains a required input `hosts` (the addresses with ports the person was shown). It records the connector's current addresses only when they are exactly those, else `validation.precondition_failed` ("changed since you looked"). Nothing in the app called it; the connect card does not use it.
-- `vault.connect_card.submit` gains an optional input `hosts` (what the card said the key goes to). When given and the service's addresses are no longer exactly those, it refuses with `validation.precondition_failed` before anything is sent or kept. The app's card always sends it.
+- `vault.connect_card.submit` gains a REQUIRED input `hosts` (what the card said the key goes to). When missing, or when the service's addresses are no longer exactly those, it refuses with `validation.precondition_failed` before anything is sent or kept. The app's card always sends it.
 - Not a contract change: a built-in key that a person-made connector already holds is taken over at seed (the person-made one moves to `<key>-yours` with its connections); a request that carries a credential is refused when the server has no connector port; a request that carries a credential never reaches a private or loopback address, even for the Space owner.
 - Snapshots: docs/frozen/snapshots/connectors.json, vault-requests.json.
 
-Signed: pending, the lead
+Signed: lead, 16 Nov 2026 04:45 PKT
