@@ -3,7 +3,11 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
+import { useCalmWord } from "../conversation/ActivityLine.tsx";
 import { counts, faceSeed, islandText, nameOf } from "./model.ts";
+import type { ActivityStore } from "../../../shell/session/turn-streams.ts";
+import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import type { CrewStatusOut } from "./model.ts";
 
 export function CrewIsland({ status, onPress }: { status: CrewStatusOut; onPress: () => void }): ReactElement | null {
@@ -30,6 +34,69 @@ export function CrewIsland({ status, onPress }: { status: CrewStatusOut; onPress
         <View style={st.faces}>
           {active.slice(0, 5).map((m) => (
             <Avatar key={m.id} name={nameOf(m)} seedId={faceSeed(m)} kind="agent" size={20} />
+          ))}
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
+let lastBlocks: { key: string; store: ActivityStore } | null = null;
+/**
+ * A reply whose work shows as live blocks (no activity stream reaches this screen) gives the island the same snapshot shape the reply line reads: one live step per live block. The snapshot is kept
+ * while its key stands, so a render never makes a new one.
+ */
+export function blocksActivity(key: string, live: number): ActivityStore | undefined {
+  if (live === 0) return undefined;
+  const k = `${key}:${live}`;
+  if (lastBlocks?.key === k) return lastBlocks.store;
+  const snap = {
+    startedAt: 0,
+    thinking: "",
+    version: 1,
+    steps: Array.from({ length: live }, (_, i) => ({ id: `b${i}`, name: "step", state: "live" as const })),
+  } as ReturnType<ActivityStore["get"]>;
+  lastBlocks = { key: k, store: { get: () => snap, subscribe: () => () => undefined } };
+  return lastBlocks.store;
+}
+
+/**
+ * The island of anyone working (prototype p-crew, scene "live"): one pill above the composer that says "Thinking" or "Writing" (the same one word the reply line shows: useCalmWord), wears the faces of everyone
+ * working, and opens the crew when pressed. For any working agent, the lead alone included. The screen hides it while a question is open and shows the amber helper pill when one waits for a person.
+ */
+export function WorkIsland({
+  store,
+  stream,
+  held = false,
+  faces,
+  onPress,
+}: {
+  /** The live reply of the lead, when there is one: its activity and its streamed words. */
+  store?: ActivityStore | undefined;
+  stream?: StreamStore | undefined;
+  held?: boolean;
+  faces: ReadonlyArray<{ id: string; name: string; seed: string }>;
+  onPress: () => void;
+}): ReactElement | null {
+  const { label, writing } = useCalmWord(store, stream, held);
+  if (faces.length === 0) return null;
+  return (
+    <View style={st.wrap}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}. Open the crew`}
+        testID="work-island"
+        onPress={onPress}
+        style={st.pill}
+      >
+        <WorkingMark state={writing ? "writing" : "thinking"} step={label} size={18} />
+        <Text testID="work-island-text" numberOfLines={1} style={st.text}>
+          {label}
+        </Text>
+        {/* ui-rows-lint: not a list (the faces of everyone working, a decoration on one pill) */}
+        <View style={st.faces}>
+          {faces.slice(0, 5).map((f) => (
+            <Avatar key={f.id} name={f.name} seedId={f.seed} kind="agent" size={20} />
           ))}
         </View>
       </Pressable>

@@ -1,0 +1,3 @@
+- A plan an agent proposes is now a card headed "Plan" with its steps and ticks that fill as the work goes on ("2 of 4"), and the buttons Approve, Change it and Decline. Change it puts the plan back in the message box as a draft you can edit, and declines the plan so nothing runs meanwhile.
+- A small pill above the message box says "Thinking" or "Writing" (the same word the reply line shows) with the faces of everyone working, whenever any agent is at work, not only when helpers exist. Pressing it opens the crew; it steps aside while a question is open.
+- The message column no longer carries the "Times here use ..." line (it is at the top of the chat's menu) or the "No agent will reply. @mention one" line (Ask an agent is on each message's menu).

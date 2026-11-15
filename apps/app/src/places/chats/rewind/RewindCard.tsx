@@ -5,12 +5,43 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useConversationData } from "../conversation/data.tsx";
 import { KEPT_FOR, LEAVES, SHARED, NONE, NOT_KEPT, UNDOES, UNDO_NOTE, pointLine, whyOff } from "./model.ts";
-import type { RewindPoint } from "./model.ts";
+import type { ActiveRewind, RewindPoint } from "./model.ts";
 
 type Read =
   | { state: "loading" }
   | { state: "off"; why?: string | undefined }
   | { state: "ready"; points: RewindPoint[] };
+
+/** Reads the rewinds in force (which messages are folded away) when the chat opens and each time its stamp changes: a rewind or an undo, by anyone, leaves a line in the chat. Draws nothing. */
+export function RewindWatch({
+  call,
+  threadId,
+  stamp,
+  onRead,
+}: {
+  call(cap: string, input: unknown): Promise<unknown> | unknown;
+  threadId: string;
+  stamp: number;
+  onRead(active: ActiveRewind[]): void;
+}): null {
+  useEffect(() => {
+    let gone = false;
+    try {
+      void Promise.resolve(call("engine.rewind.points", { threadId })).then(
+        (r) => !gone && onRead((r as { active?: ActiveRewind[] } | null)?.active ?? []),
+        () => undefined,
+      );
+    } catch {
+      /* the chat reads without folding */
+    }
+    return () => {
+      gone = true;
+    };
+    // the read is keyed on the stamp: onRead is a state setter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [call, threadId, stamp]);
+  return null;
+}
 
 export function RewindCard({
   threadId,
@@ -69,9 +100,7 @@ export function RewindCard({
     setBusy(true);
     setFailed(false);
     try {
-      void Promise.resolve(
-        data.call("chat.rewind", { threadId, pointId: pick, idempotencyKey: data.newKey() }),
-      ).then(
+      void Promise.resolve(data.call("chat.rewind", { threadId, pointId: pick, idempotencyKey: data.newKey() })).then(
         () => {
           onDone?.();
           onClose();

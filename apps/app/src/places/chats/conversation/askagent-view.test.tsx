@@ -48,15 +48,22 @@ const walk = (n: Node, out: Node[] = []): Node[] => {
 };
 const idOf = (n: Node): unknown => n.props["data-testid"] ?? n.props.testID;
 
-test("the quiet line under your unanswered message opens the picker, the room's agents; picking one asks it about that exact message as you", async () => {
+test("Ask an agent… in your message's menu opens the picker, the room's agents; picking one asks it about that exact message as you; the column carries no extra line", async () => {
   const restore = installDom();
   try {
     const { data, calls } = rig();
     const root = await mount(createRoot, <Conversation data={data} />);
-    const line = find(root, "no-agent-ask");
-    assert.ok(line, "the line is a button under your message");
-    assert.ok(textOf(line).includes("No agent will reply. @mention one"));
-    await press(line);
+    assert.equal(find(root, "no-agent-line"), null, "no extra line in the message column");
+    await act(async () => {
+      (find(root, "msg-c2")!.props["onMouseEnter"] as () => void)();
+    });
+    const more = find(root, "act-more-c2");
+    assert.ok(more, "the hover bar has More");
+    await press(more);
+    await flush();
+    const entry = find(root, "menu-item-Ask an agent…");
+    assert.ok(entry, "Ask an agent… is in the message's menu");
+    await press(entry);
     await flush();
     const items = [
       ...new Set(

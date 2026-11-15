@@ -32,14 +32,12 @@ import {
   lagLine,
   mountTitle,
   openTab,
-  planEdits,
-  planProgress,
-  planTitle,
+  planCount,
+  planDraft,
   planWaiting,
   runAction,
   safeUrl,
   starTerminal,
-  STEP_MARK,
   tailLines,
   terminalActions,
   terminalTitle,
@@ -584,21 +582,20 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
 export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
   const d = planData(block.data);
   const [state, setState] = useState(d.state);
-  const [editing, setEditing] = useState(false);
-  const [texts, setTexts] = useState<Record<string, string>>({});
-  const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const waiting = planWaiting(state);
   const approve = useCallback(() => {
-    const edits = planEdits(d.steps, texts, removed);
     setState("approved");
-    setEditing(false);
-    void perform(host, "plan", "approve", block, edits.length > 0 ? { edits } : {});
-  }, [host, block, d.steps, texts, removed]);
+    void perform(host, "plan", "approve", block, {});
+  }, [host, block]);
   const reject = useCallback(() => {
     setState("rejected");
-    setEditing(false);
     void perform(host, "plan", "reject", block);
   }, [host, block]);
+  // "Change it": the plan goes back into the composer as an editable draft, and the plan itself is declined so nothing runs while it is being changed
+  const change = useCallback(() => {
+    if (host.draft) host.draft(planDraft(d.steps));
+    reject();
+  }, [host, d.steps, reject]);
   const run = useCallback((key: string) => (key === "approve" ? approve() : reject()), [approve, reject]);
   const menu = useCallback(
     () =>
@@ -608,92 +605,51 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
         block,
         waiting
           ? [
-              { key: "approve", label: "Allow" },
-              { key: "reject", label: "Deny", danger: true },
+              { key: "approve", label: "Approve" },
+              { key: "reject", label: "Decline", danger: true },
             ]
           : [],
         run,
       ),
     [host, block, waiting, run],
   );
-  const toggleRemoved = (id: string): void =>
-    setRemoved((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   const steps: PlanStepData[] = d.steps;
-  const stepRows: ReactNode[] = [];
-  for (const [i, s] of steps.entries()) {
-    const gone = removed.has(s.stepId);
-    stepRows.push(
-      <View key={s.stepId} style={styles.step} testID={`blk-plan-${block.id}-step-${i}`}>
-        <Text style={styles.stepMark}>{waiting ? `${i + 1}.` : STEP_MARK[s.state]}</Text>
-        {editing && waiting ? (
-          <>
-            <TextInput
-              accessibilityLabel={`Step ${i + 1}`}
-              value={texts[s.stepId] ?? s.text}
-              onChangeText={(t) => setTexts((prev) => ({ ...prev, [s.stepId]: t }))}
-              testID={`blk-plan-${block.id}-edit-${i}`}
-              style={[styles.input, styles.grow, gone && styles.struck]}
-            />
-            <Btn
-              id={`blk-plan-${block.id}-remove-${i}`}
-              label={gone ? "Keep" : "Remove"}
-              quiet
-              onPress={() => toggleRemoved(s.stepId)}
-            />
-          </>
-        ) : (
-          <View style={styles.grow}>
-            <Text style={[styles.stepText, s.state === "skipped" && styles.struck]}>{s.text}</Text>
-            {s.detail ? <Text style={styles.sub}>{s.detail}</Text> : null}
-          </View>
-        )}
-      </View>,
-    );
-  }
+  const running = state !== "proposed" && state !== "rejected";
   return (
     <Card type="plan" block={block} testID={`blk-plan-${block.id}`} menu={menu}>
       <Head
         testID={`blk-plan-${block.id}`}
-        title={planTitle(d.title, steps.length)}
-        tag={waiting ? "Plan mode on" : undefined}
+        title="Plan"
+        tag={running ? planCount(steps) : undefined}
         onPress={d.hasDoc ? () => void openTab(host, "plan", block.data) : undefined}
       />
-      <View style={styles.steps}>{stepRows}</View>
+      <View style={styles.steps}>
+        {steps.map((s, i) => (
+          <View key={s.stepId} style={styles.step} testID={`blk-plan-${block.id}-step-${i}`}>
+            <View
+              testID={`blk-plan-${block.id}-tick-${i}`}
+              accessibilityLabel={s.state === "done" ? "Done" : s.state === "doing" ? "In progress" : "Not yet"}
+              style={[styles.tick, s.state === "done" && styles.tickDone, s.state === "doing" && styles.tickDoing]}
+            >
+              {s.state === "done" ? <Text style={styles.tickMark}>{"\u2713"}</Text> : null}
+              {s.state === "skipped" ? <Text style={styles.stepMark}>{"\u2013"}</Text> : null}
+            </View>
+            <View style={styles.grow}>
+              <Text style={[styles.stepText, s.state === "skipped" && styles.struck]}>{s.text}</Text>
+              {s.detail ? <Text style={styles.sub}>{s.detail}</Text> : null}
+            </View>
+          </View>
+        ))}
+      </View>
       {waiting ? (
         <View style={styles.acts}>
-          <Btn
-            id={`blk-plan-${block.id}-approve`}
-            label={editing ? "Allow with edits" : "Allow"}
-            primary
-            onPress={approve}
-          />
-          <Btn
-            id={`blk-plan-${block.id}-edit`}
-            label={editing ? "Cancel" : "Edit"}
-            onPress={() => {
-              setEditing((e) => !e);
-              setTexts({});
-              setRemoved(new Set());
-            }}
-          />
-          <Btn id={`blk-plan-${block.id}-reject`} label="Deny" quiet danger onPress={reject} />
+          <Btn id={`blk-plan-${block.id}-approve`} label="Approve" primary onPress={approve} />
+          <Btn id={`blk-plan-${block.id}-edit`} label="Change it" onPress={change} />
+          <Btn id={`blk-plan-${block.id}-reject`} label="Decline" quiet onPress={reject} />
         </View>
-      ) : state === "approved" ? (
-        <StatusLine
-          tone="ok"
-          testID={`blk-plan-${block.id}-state`}
-          text={`Approved · plan mode is off · ${planProgress(steps)}`}
-        />
       ) : state === "rejected" ? (
-        <StatusLine tone="bad" testID={`blk-plan-${block.id}-state`} text="Rejected · tell it what to change" />
-      ) : (
-        <StatusLine tone="ok" testID={`blk-plan-${block.id}-state`} text={`Done · ${planProgress(steps)}`} />
-      )}
+        <StatusLine tone="bad" testID={`blk-plan-${block.id}-state`} text="Plan declined" />
+      ) : null}
     </Card>
   );
 }
@@ -1138,7 +1094,20 @@ const styles = StyleSheet.create({
   },
   steps: { gap: 3, marginBottom: 2 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  stepMark: { width: 18, color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, textAlign: "right" },
+  stepMark: { color: "var(--ink-3)" as string, fontSize: 11, lineHeight: 14, textAlign: "center" },
+  tick: {
+    width: 16,
+    height: 16,
+    marginTop: 2,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "var(--ink-4)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tickDone: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+  tickDoing: { borderColor: "var(--accent)" as string },
+  tickMark: { color: "var(--accent-ink)" as string, fontSize: 10, lineHeight: 12, fontWeight: "700" },
   stepText: { ...textBase },
   struck: { textDecorationLine: "line-through", color: "var(--ink-3)" as string },
   dep: { flexDirection: "row", alignItems: "center", gap: 8 },

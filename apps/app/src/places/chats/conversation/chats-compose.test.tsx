@@ -92,6 +92,7 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
     openSearch: (q) => void flags.search.push(q),
     send: (t) => void flags.sent.push(t),
     openPane: (tab) => void opened.push(`pane:${tab}`),
+    openRewind: () => void opened.push("rewind"),
     startTalk: () => undefined,
   };
   return {
@@ -1278,6 +1279,7 @@ test("each of the commands ends in the kind the table says (a hint or an error i
     skills: "/skills",
     hooks: "/hooks",
     init: "/init",
+    rewind: "/rewind",
   };
 
   for (const c of CHAT_COMMANDS) {
@@ -1476,9 +1478,8 @@ test("/voice starts the mic; /agents, /memory, /skills and /hooks are not offere
   assert.match(r.said.at(-1) ?? "", /is for a chat with an agent/);
 });
 
-test("every command in the list has a handler and nothing is listed that does not run: no /rewind, no /jobs, /bg, /loop, /resume, /diff, /mcp, /plugins (they come with the lanes that build them)", () => {
+test("every command in the list has a handler and nothing is listed that does not run: no /jobs, /bg, /loop, /resume, /diff, /mcp, /plugins (they come with the lanes that build them)", () => {
   const ids = CHAT_COMMANDS.map((c) => c.id);
-  for (const gone of ["rewind", "jobs", "bg", "loop", "resume", "diff", "mcp", "plugins"])
-    assert.ok(!ids.includes(gone), gone);
+  for (const gone of ["jobs", "bg", "loop", "resume", "diff", "mcp", "plugins"]) assert.ok(!ids.includes(gone), gone);
   assert.deepEqual(unclassified(), [], "every listed command has a kind, and the sweep above runs each");
 });
