@@ -38,6 +38,8 @@ export function askerPlace(person: string): AskerPlace {
       XDG_CACHE_HOME: `${home}/.cache`,
       XDG_DATA_HOME: `${home}/.local/share`,
       XDG_STATE_HOME: `${home}/.local/state`,
+      // programs write their scratch files here, not in the /tmp every person's turn shares
+      TMPDIR: `${home}/.tmp`,
       TMUX_TMPDIR: `${TMUX_DIR}/${f}`,
       // ssh looks for its keys and settings in the home the system lists for the user id (the agent's home), never in $HOME: so git over ssh is told, by name, to use this person's own and nothing else
       GIT_SSH_COMMAND: `ssh -F ${home}/.ssh/config -o IdentitiesOnly=yes -o IdentityFile=${home}/.ssh/id_ed25519 -o IdentityFile=${home}/.ssh/id_rsa -o UserKnownHostsFile=${home}/.ssh/known_hosts`,
@@ -54,12 +56,24 @@ export function ensureCommand(p: AskerPlace): string[] {
   return [
     "sh",
     "-c",
-    'h="$1"; t="$2"; mkdir -p "$h/.config" "$h/.cache" "$h/.local/share" "$h/.local/state" "$h/.ssh" "$t" && chmod 700 "$h/.ssh" && cp -rn /etc/skel/. "$h"/ 2>/dev/null; ' +
+    'h="$1"; t="$2"; mkdir -p "$h/.config" "$h/.cache" "$h/.local/share" "$h/.local/state" "$h/.ssh" "$h/.tmp" "$t" && chmod 700 "$h/.ssh" "$h/.tmp" "$t" && cp -rn /etc/skel/. "$h"/ 2>/dev/null; ' +
       '[ -e "$h/.ssh/config" ] || : > "$h/.ssh/config"; ' +
       'for n in Vyre projects; do [ -e "$h/$n" ] || ln -s "/home/agent/$n" "$h/$n"; done; true',
     "sh",
     p.home,
     p.tmuxEnv["TMUX_TMPDIR"] ?? "",
+  ];
+}
+
+/** Takes a person's folder, their tmux server folder and their tmux sessions' scratch out of a workspace (they left the Space). `sh -c`, the folders as arguments; the tmux server of theirs is stopped first. */
+export function removeCommand(p: AskerPlace): string[] {
+  return [
+    "sh",
+    "-c",
+    'TMUX_TMPDIR="$2" tmux kill-server 2>/dev/null; rm -rf "$1" "$2"; true',
+    "sh",
+    p.home,
+    p.tmuxEnv["TMUX_TMPDIR"] ?? "/tmp/vyre-tmux/none",
   ];
 }
 
@@ -79,6 +93,24 @@ export function otherFolders(text: string, person: string): string[] {
 export function inOtherFolder(dir: string, person: string): boolean {
   return otherFolders(dir.replace(/^~(?=\/|$)/, HOME), person).length > 0 || otherFolders(dir, person).length > 0;
 }
+
+/**
+ * What the agent's home itself holds that a path names in the plain spelling `/home/agent/<name>`: the agent's own dotfiles, keys and tokens (the owner's sign-ins live there), `.bash_history`, and so on. A
+ * person's own folder, the people folder (checked by otherFolders), the project folders, and the Files mirror `Vyre` are other rules; this lists the rest, and `""` for the home folder itself.
+ */
+export function ownersHomeRefs(text: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/\/home\/agent(?![A-Za-z0-9_.-])(?:\/([^\s\/'"`;|&)<>]*))?/g)) {
+    const seg = m[1] ?? "";
+    if (seg === "people" || seg === "projects" || seg === "Vyre") continue;
+    out.push(seg);
+  }
+  return out;
+}
+
+/** Does a path name the Files mirror (`~/Vyre`, `$HOME/Vyre`, `/home/agent/Vyre`)? */
+export const namesMirror = (text: string): boolean =>
+  /(?:\/home\/agent|~|\$HOME|\$\{HOME\})\/Vyre(?![A-Za-z0-9_-])/.test(text);
 
 /** The project folders a path names: `/home/agent/projects/<id>` or `~/projects/<id>`. */
 export function projectsNamed(text: string): string[] {

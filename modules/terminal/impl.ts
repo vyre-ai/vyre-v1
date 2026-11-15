@@ -9,9 +9,11 @@ import {
   onAgentGone,
   onHolderGone,
   onAgentRestored,
+  onPersonGone,
   openTabForRun,
   stopRuns,
 } from "./handlers/sessions.ts";
+import { removeCommand } from "./asker.ts";
 import {
   bindWorkspaceStatus,
   bindHost,
@@ -1327,6 +1329,19 @@ export const hostCalls = {
 
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
+  /** A person left the Space: their folder in every shared agent's workspace is removed with the rest of their data (asker.ts). */
+  "terminal.person_gone": {
+    on: ["member.removed"],
+    run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): Promise<string[]> =>
+      onPersonGone(
+        ctx,
+        event,
+        async () => (workspaceManager ? (await workspaceManager.list()).map((w) => w.agentId) : []),
+        async (agentId, place) => {
+          await workspaceManager?.exec(agentId, removeCommand(place), { quiet: true });
+        },
+      ),
+  },
   /** An agent went to Trash (deleted, or the Assistant of a person removed from the Space): its sessions close and its workspace's container and room go; what it kept stays (handlers/sessions.ts onAgentGone). */
   "terminal.agent_gone": {
     on: ["agent.deleted"],
