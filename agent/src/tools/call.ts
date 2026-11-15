@@ -8,7 +8,6 @@ import { modelError } from "./model-error.ts";
 import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { limited, shapeOutput } from "./compact.ts";
-import { fillKey } from "./fill.ts";
 import { turnStartOf } from "./turn-start.ts";
 import {
   HIDDEN_FROM_MODEL,
@@ -19,7 +18,9 @@ import {
   learnedRows,
   rowKey,
 } from "./versions.ts";
-import { rejectWords } from "./reject.ts";
+import { canonical, fillInput, shortHash } from "./fill.ts";
+import { findsByPath, placeField, placeInput } from "./place.ts";
+import { parseProblem, rejectWords, unknownInputs } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
@@ -38,6 +39,14 @@ const TIMED = /^(?:calendar|mail|inbox|tasks|meetings|events|goals)\./;
 const EXAMPLES: Readonly<Record<string, string>> = {
   "sites.artifact_publish": 'artifact_publish {"title":"Q3 plan","html":"<h1>Q3 plan</h1>"}',
 };
+
+/** Refusals that retrying cannot change: the agent is above its clearance for the thing, or its role does not hold the permission. */
+const NEVER_AGAIN: ReadonlySet<string> = new Set(["permission.above_clearance", "permission.role_lacks_permission"]);
+/**
+ * A refusal is remembered only to the end of the turn that met it (13 Nov: a remembered refusal must never outlive its cause). A person can grant a permission, share a file, unlock the Vault or connect an app between
+ * two turns, and no event reaches this layer to say so; so across turns the server is asked again every time. Within one turn nothing can have changed for this agent but a person's act in the chat, and the loop
+ * is what costs.
+ */
 
 export type ToolOutcome =
   /** `parkOn`: a question asked of the person (ask_question): the turn waits on its block and makes no further model call until it is answered. */
@@ -70,6 +79,8 @@ export interface CallDeps extends AccessDeps {
   dynamic?: DynamicTools;
   hooks?: CallHooks;
   invoke: Invoke;
+  /** A routine (a run, not a chat) met a refusal its agent can never fix: say so once to the person it works for, as a Needs-you line. Best effort; never fails a call. */
+  needsYou?(n: { agentId: string; tool: string; asker: string; code: string }): void;
   /** The asker's time zone, when known: a calendar, mail, inbox or task result then carries each time in it as well (lib/time-convert.ts withLocalTimes). */
   zoneOf?(ctx: ToolCtx): string | undefined;
   /** Name the tool that reads one item after a list result, and list it at once. For a session whose model sees a live tool list (the API driver); a CLI engine through MCP lists once, so it is left out there. */
@@ -103,6 +114,36 @@ export function createToolSession(deps: CallDeps): ToolSession {
   const newTrace = deps.traceId ?? ((): string => hex(16));
   /** The versions this session's agents have seen of the files, records and tasks they read or wrote (agent/src/tools/versions.ts). */
   const seen = new SeenVersions();
+  /** How many times each tool has been called in each turn (the key of a repeat on purpose differs from the key of a replay) and what its last call came to, for the first-call record. */
+  const turnCalls = new Map<string, Map<string, { n: number; rejected: boolean }>>();
+  const countCall = (
+    ctx: ToolCtx,
+    tool: string,
+    input: unknown,
+  ): { n: number; first: boolean; afterReject: boolean } => {
+    const turn = ctx.turnId ?? ctx.trace?.traceId ?? "none";
+    let m = turnCalls.get(turn);
+    if (!m) {
+      m = new Map();
+      turnCalls.set(turn, m);
+      if (turnCalls.size > 200) turnCalls.delete(turnCalls.keys().next().value as string);
+    }
+    const key = `${tool}:${shortHash(canonical(input))}`;
+    const was = m.get(tool);
+    const same = m.get(key);
+    m.set(key, { n: (same?.n ?? 0) + 1, rejected: false });
+    m.set(tool, { n: (was?.n ?? 0) + 1, rejected: was?.rejected ?? false });
+    return { n: same?.n ?? 0, first: was === undefined, afterReject: was?.rejected === true };
+  };
+  /** Refusals an agent cannot fix, by agent, tool and input: answered at once the next time, without the server. */
+  const refusals = new Map<string, { error: VyreError; turn: string }>();
+  /** Routines that were told once about a refusal (a notice only: it never stops a call). */
+  const told = new Set<string>();
+  const markRejected = (ctx: ToolCtx, tool: string, v: boolean): void => {
+    const m = turnCalls.get(ctx.turnId ?? ctx.trace?.traceId ?? "none");
+    const w = m?.get(tool);
+    if (m && w) m.set(tool, { ...w, rejected: v });
+  };
   const loadedSet = (threadId: string): Set<string> => {
     let s = loadedBy.get(threadId);
     if (!s) {
@@ -305,6 +346,11 @@ export function createToolSession(deps: CallDeps): ToolSession {
           details: { tool: t.name, reason: "hook" },
         });
     }
+    const refusalKey = `${ctx.agentId}|${ctx.asker}|${t.name}|${shortHash(canonical(input))}`;
+    const known = refusals.get(refusalKey);
+    if (known && ctx.turnId !== undefined && known.turn === ctx.turnId)
+      return { kind: "error", error: known.error, result: { ok: false, content: { error: modelError(known.error) } } };
+    const tally = countCall(ctx, t.name, input);
     const seed: CtxSeed = {
       space: ctx.space,
       principal: { kind: "agent", id: ctx.agentId },
@@ -313,6 +359,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
       run: ctx.runId,
       thread: ctx.thread.threadId,
       origin: "agent",
+      callMeta: { tool: t.name, first: tally.first, ...(tally.afterReject ? { afterReject: true } : {}) },
       provider: ctx.provider,
       approval: opts.approval,
       ...(ctx.thread.mode !== undefined ? { chatMode: ctx.thread.mode } : {}),
@@ -399,17 +446,63 @@ export function createToolSession(deps: CallDeps): ToolSession {
         }
       }
     }
+    // where a model's first file or folder goes: the person's own files when it names none, a path or a folder name read as meant, a file found by its path (agent/src/tools/place.ts)
+    if (!isDynamic && (placeField(t.cap) !== undefined || findsByPath(t.cap))) {
+      const { askFirst: _a, mustAsk: _m, askable: _k, ...lookSeed } = seed;
+      const parked = seed.askFirst === true || seed.mustAsk === true;
+      try {
+        const placed = await placeInput(
+          t.cap,
+          given,
+          async (cap, i) => {
+            const make = cap === "files.folder.create";
+            try {
+              const r = await deps.invoke(
+                cap as CapName,
+                make ? { ...i, idempotencyKey: `ag:pl:${ctx.turnId ?? "t"}:${shortHash(canonical(i))}` } : i,
+                make ? seed : lookSeed,
+              );
+              return r.status === "ok" ? r.output : null;
+            } catch {
+              return null; // not found, or not allowed: the caller says what to do
+            }
+          },
+          !parked,
+        );
+        if (placed.said !== undefined)
+          return fail("validation.not_found", traceId, { message: placed.said, details: { tool: t.name } });
+        given = placed.input;
+      } catch {
+        /* a look that fails changes nothing: the call goes on as the model wrote it and says what is wrong itself */
+      }
+    }
     try {
       const body =
         isDynamic && deps.dynamic
           ? deps.dynamic.input(ctx, t, input)
-          : fillKey(t, limited(t.cap, unstringified(t.inputSchema, given)), ctx);
+          : fillInput(t, limited(t.cap, unstringified(t.inputSchema, given)), ctx).input;
+      // an input the tool does not have is never passed on silently: the server lets it through and no handler reads it, so a model's call would "work" and do less than it asked (F93)
+      if (!isDynamic) {
+        // who a call acts for is never the model's to say: a name that claims it is left to the pipeline, which ignores it
+        const owned = [...(HIDDEN_FROM_MODEL[t.cap] ?? []), "idempotencyKey", "actingFor", "asker", "principal", "as"];
+        const extra = unknownInputs(t.inputSchema, body, owned);
+        // with a stranger among the inputs, the ones the tool needs and the call lacks are said in the same breath, so one refusal tells the model everything
+        if (extra.length > 0 && body !== null && typeof body === "object" && !Array.isArray(body))
+          for (const r of (t.inputSchema as { required?: string[] } | null)?.required ?? [])
+            if (!(r in (body as object)) && !owned.includes(r)) extra.push(`/${r}: required`);
+        if (extra.length > 0)
+          return fail("validation.bad_input", traceId, {
+            message: rejectWords(t, extra, EXAMPLES[t.cap]),
+            details: { tool: t.name, errors: extra, reason: "unknown_input" },
+          });
+      }
       const res = await deps.invoke(t.cap, body, seed);
       if (!isDynamic && res.status === "ok")
         for (const l of learned(t.cap, body, res.output)) seen.set(ctx, l.key, l.version);
       if (!isDynamic && res.status === "ok")
         for (const r of learnedRows(t.cap, body, res.output, (k) => seen.getCells(ctx, k)))
           seen.setCells(ctx, r.key, r.cells);
+      markRejected(ctx, t.name, false);
       if (res.status === "held") {
         recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {
@@ -479,12 +572,36 @@ export function createToolSession(deps: CallDeps): ToolSession {
         return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
       }
       if (e instanceof HostError && e.error.code === "validation.bad_input") {
-        // the input was not accepted: say which input and what rule, and show a minimal call. The server's list holds paths and rules, never a value; details.errors stays on the error for the log.
+        // the input was not accepted: say which input and what rule, and show a minimal call. The field paths and rules are kept in the error's details for the log, never a value.
         const problems = (e.error.details as { errors?: unknown } | undefined)?.errors;
         const list = Array.isArray(problems) ? problems.filter((p): p is string => typeof p === "string") : [];
+        markRejected(ctx, t.name, true);
         if (list.length > 0) {
-          const error = { ...e.error, message: rejectWords(t, list, EXAMPLES[t.cap]) };
+          const error = {
+            ...e.error,
+            message: rejectWords(
+              t,
+              list,
+              EXAMPLES[t.cap],
+              input !== null && typeof input === "object" && !Array.isArray(input) ? Object.keys(input) : [],
+            ),
+          };
           return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
+        }
+      }
+      if (e instanceof HostError && NEVER_AGAIN.has(e.error.code)) {
+        // the agent cannot fix this itself: remember it, so the same call is not made again this turn or on the next run of a routine, and tell the person a routine works for, once
+        if (refusals.size >= 1_000) refusals.delete(refusals.keys().next().value as string);
+        if (ctx.turnId !== undefined) refusals.set(refusalKey, { error: e.error, turn: ctx.turnId });
+        const already = told.has(refusalKey);
+        if (told.size >= 1_000) told.clear();
+        told.add(refusalKey);
+        if (!already && (ctx.thread.kind === "run" || ctx.runId !== undefined)) {
+          try {
+            deps.needsYou?.({ agentId: ctx.agentId, tool: t.name, asker: ctx.asker, code: e.error.code });
+          } catch {
+            /* a line that cannot be raised never fails the call */
+          }
         }
       }
       if (e instanceof HostError)

@@ -558,6 +558,24 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 - Proof: modules/spaces/tests/switcher.test.ts (made today, day six, 30 days, unknown age).
 
 Signed: lead, 16 Nov 2026 02:19 PKT, after reading the manifest diff: one optional, additive output field. To watch: the age is taken from the person's earliest session, so a person whose old sessions were all removed may read as new again.
+
+## 13 Nov 2026: sites.artifact_publish summary reworded to say what is required (lane f-firstcall)
+
+The summary of `sites.artifact_publish@1`, the words a model reads, now begins with what the call needs ("Needs a title and exactly one of html, fileId, folderId, path or port"), gives one example call, and says that a title left out is taken from the page's own `<title>`. No input, output or error changes. The handler's refusal for two sources at once now names the two given, in the same code (`validation.bad_input`, field `html`). The tool layer (agent/src/tools) no longer shows a model the `idempotencyKey` of a `create` capability or the `threadId` of a chat tool as required; the contract is unchanged and the server still validates the full input, so an outside caller sends the key as before.
+
+Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
+
+## 13 Nov 2026: files.create and files.write summaries give the direct-write limit (lane f-firstcall)
+
+The summaries of `files.create@1` and `files.write@1`, the words a model reads, now say a direct write holds at most 256 KB (the limit the handlers already enforce, `MAX_INLINE`). The refusal for a larger one (`validation.too_large`, as before) now says the limit and to split the content into smaller files. No input, output or error code changes.
+
+Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
+
+## 16 Nov 2026: files.create summary says a folder is optional for an agent, and an agent's duplicate name becomes "name (2)" (lane f-firstcall2)
+
+The summary of `files.create@1`, the words a model reads, now says the content goes in `content.text`, that with no folder the file goes in the person's own files, and that a name already taken becomes "name (2)" for an agent. The contract is unchanged: `folderId` stays required on the server, an outside caller still sends it, and `validation.duplicate` is still answered to a person. What changes is behaviour for an agent principal only: the agent tool layer (agent/src/tools/place.ts) fills `folderId` with the person's own Personal root (found with `files.resolve`) when a model names none, reads a folder name or a path as the folder it means, and a `files.create` by an agent whose name is taken makes `name (2)` (`name (3)`, and so on) instead of failing; it never replaces a file. In a Review changes folder the duplicate is still refused (`validation.duplicate`), now with the words "Use another name, or replace that file with files_write.". No input, output or error code changes.
+
+Signed: lead, 16 Nov 2026 02:49 PKT, after reading the note: the contract is unchanged; a file with no folder goes to the person's own files and a taken name becomes "name (2)" for an agent only; the tool-token baseline 575,250 is accepted (the stated limits add 275 characters). the lead, 16 Nov 2026
 ## 16 Nov 2026: a goal says what holds its check-ins back, and a failed turn says when a usage limit lifts (finding F26, lane f-goalwake, brought onto the line by the lead)
 
 - What changed, all additive: the goal row (every `goals.*` answer that carries a goal) gains an optional `blocked` (`cause`: person, limit, transient or other; `what`, `fix` and `short` in words; `since`; `until` when it goes on by itself; `missed`; `code`), present only while something holds the check-ins back. `engine.turn.record` and the event `turn.failed` gain an optional `resetsAt` (when the provider said a usage limit lifts). No input, output or error was removed or made required.

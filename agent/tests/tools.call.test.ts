@@ -140,6 +140,7 @@ test("the seed names the agent as principal, the asker as who it acts for, and c
     run: "run_9",
     thread: "T1",
     origin: "agent",
+    callMeta: { tool: "records_get", first: true },
     provider: "anthropic",
     approval: undefined,
   });
@@ -351,7 +352,7 @@ test("what a model reads from a failed tool says approval, never Gate or hold", 
   const out = await session.call(ctx(), "mail_send", {
     to: ["maya@northwind.com"],
     subject: "Retainer",
-    body: "Dear Maya, the retainer is attached.",
+    html: "Dear Maya, the retainer is attached.",
   });
   assert.equal(out.kind, "error");
   if (out.kind !== "error") return;

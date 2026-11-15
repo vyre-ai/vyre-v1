@@ -1492,8 +1492,7 @@
     "templateFileId": "fil_a1b2c3"
   },
   "documents_fill": {
-    "templateFileId": "fil_a1b2c3",
-    "intoFolderId": "fld_a1b2c3"
+    "templateFileId": "fil_a1b2c3"
   },
   "documents_mark_template": {
     "fileId": "fil_a1b2c3",
@@ -1692,7 +1691,6 @@
     "threadId": "thr_a1b2c3"
   },
   "engine_rewind_to": {
-    "threadId": "thr_a1b2c3",
     "pointId": "Quarterly planning"
   },
   "engine_round_get": {
@@ -1829,7 +1827,6 @@
     "toFolderId": "fld_a1b2c3"
   },
   "files_create": {
-    "folderId": "fld_a1b2c3",
     "name": "Quarterly planning"
   },
   "files_delete": {
@@ -1842,7 +1839,6 @@
     "fileId": "fil_a1b2c3"
   },
   "files_folder_create": {
-    "parentId": "fld_a1b2c3",
     "name": "Quarterly planning"
   },
   "files_folder_delete": {
@@ -4661,7 +4657,6 @@
     ]
   },
   "sheets_create": {
-    "folderId": "fld_a1b2c3",
     "name": "Quarterly planning",
     "format": "csv",
     "columns": [
@@ -5392,11 +5387,7 @@
   },
   "tasks_count_needs_you": {},
   "tasks_create": {
-    "title": "Quarterly planning",
-    "assigned": {
-      "kind": "person",
-      "id": "Quarterly planning"
-    }
+    "title": "Quarterly planning"
   },
   "tasks_delegate": {
     "taskId": "tsk_a1b2c3",
