@@ -276,7 +276,7 @@ test("a person's own terminal is theirs alone: another person, a manager and the
   ] as const)
     for (const [who, ctx] of [
       ["a manager", sara],
-      ["the agent", hn.as(AGENT, "usr_dana")],
+      ["an agent acting for someone else", hn.as(AGENT, "usr_sara")],
     ] as const) {
       const r = await failure(() => h[cap]!(ctx, input));
       assert.ok(r.code.startsWith("permission."), `${cap} by ${who}: ${r.code}`);

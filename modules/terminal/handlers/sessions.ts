@@ -759,7 +759,7 @@ function ownerOk(ctx: TermCtx, x: SessionRow): boolean {
   // an agent's own terminal: opened by the agent, a helper, the agent's named session, or (an old row, before tab records) owned by an agent id
   if (x.host === "agent_computer" && isAgentsOwn(x)) return true;
   if (isTrustedService(ctx.principal)) return true;
-  return x.owner !== "" && x.owner === actorOf(ctx) && ctx.principal.kind !== "agent";
+  return x.owner !== "" && x.owner === actorOf(ctx);
 }
 function needOwnTerminal(ctx: TermCtx, x: SessionRow): void {
   if (ownerOk(ctx, x)) return;
