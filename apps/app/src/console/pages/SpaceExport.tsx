@@ -21,8 +21,8 @@ export function leftOutLine(left: { n: number; kept: number } | null): string {
   const what = one ? "1 file" : `${left.n} files`;
   const list = `NOT-EXPORTED.txt in the zip names ${one ? "it" : "them"}.`;
   return left.kept === 0
-    ? `. Every file was left out: the service ${one ? "it lives" : "they live"} in could not give ${one ? "it" : "them"}. ${list}`
-    : `. ${what} ${one ? "was" : "were"} left out because the service ${one ? "it lives" : "they live"} in could not give ${one ? "it" : "them"}. ${list}`;
+    ? `Every file was left out: the service ${one ? "it lives" : "they live"} in could not give ${one ? "it" : "them"}. ${list}`
+    : `${what} ${one ? "was" : "were"} left out because the service ${one ? "it lives" : "they live"} in could not give ${one ? "it" : "them"}. ${list}`;
 }
 
 export function SpaceExport(): ReactElement {
@@ -80,7 +80,7 @@ export function SpaceExport(): ReactElement {
       : phase === "packing"
         ? "Packing the Space…"
         : phase === "ready"
-          ? `Ready: ${download.name || "your export"}${leftOutLine(left)}`
+          ? `Ready: ${download.name || "your export"}`
           : "One zip, logged in the audit log";
   return (
     <Section title="Export everything" testID="space-export">
@@ -131,6 +131,7 @@ export function SpaceExport(): ReactElement {
           }
         />
       </Group>
+      {phase === "ready" && left !== null ? <Note>{leftOutLine(left)}</Note> : null}
       {action.note && phase !== "ready" && phase !== "waiting" ? <Note>{action.note}</Note> : null}
     </Section>
   );

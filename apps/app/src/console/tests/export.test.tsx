@@ -194,11 +194,7 @@ for (const [name, out, expected] of [
     { leftOut: 2, filesKept: 5 },
     /2 files were left out because the service they live in could not give them\. NOT-EXPORTED\.txt in the zip names them\./,
   ],
-  [
-    "every file left out: it says so plainly, not only Ready",
-    { leftOut: 3, filesKept: 0 },
-    /Ready: northwind-export\.zip\. Every file was left out/,
-  ],
+  ["every file left out: it says so plainly, not only Ready", { leftOut: 3, filesKept: 0 }, /Every file was left out/],
 ] as const)
   test(`the export screen, ${name}`, async () => {
     const p = await mountPage(

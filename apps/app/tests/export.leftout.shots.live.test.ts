@@ -18,12 +18,16 @@ test("pictures: the export screen when some files were left out and when every f
   const space = await bootFreshSpace(),
     web = await edge(dist, space.url),
     browser = await chromium.launch({ executablePath, args: ["--no-sandbox"] }),
-    context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark", acceptDownloads: true }),
+    context = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      colorScheme: "dark",
+      acceptDownloads: true,
+    }),
     page = await context.newPage();
   const guard = guardCrashes(page);
   const shot = async (name: string, ids?: "space-id") => {
     await guard.check("before screenshot " + name, ids ? { idsOnPurpose: ids } : undefined);
-    const out = process.env.VYRE_FILES_SHOTS;
+    const out = process.env.VYRE_CONSOLE_SHOTS;
     if (out) {
       fs.mkdirSync(out, { recursive: true });
       await page.waitForFunction(() => document.querySelectorAll("[role=progressbar]").length === 0);
@@ -65,26 +69,33 @@ test("pictures: the export screen when some files were left out and when every f
       if (json?.data) json.data = { ...json.data, ...counts };
       await route.fulfill({ response: res, json });
     });
-    const take = async (tag: string, phone: boolean, kept: number): Promise<void> => {
+    const dir = process.env["VYRE_FILES_SHOTS"] ?? "/tmp/vyre-export-shots";
+    fs.mkdirSync(dir, { recursive: true });
+    const take = async (tag: string, kept: number): Promise<void> => {
       counts = { leftOut: kept === 0 ? 3 : 2, filesKept: kept };
-      await page.emulateMedia({ colorScheme: phone ? "light" : "dark" });
-      await page.setViewportSize(phone ? { width: 390, height: 844 } : { width: 1440, height: 900 });
+      await page.emulateMedia({ colorScheme: "dark" });
+      await page.setViewportSize({ width: 1440, height: 900 });
       await page.goto(`${consoleOrigin}/console`, { waitUntil: "load" });
       await page.getByTestId("console").waitFor({ timeout: 30000 });
       await openConsolePage(page, "export");
       await page.getByTestId("console-export").waitFor();
       await page.getByTestId("export-all-start").click();
-      await page.getByText(/left out/).first().waitFor({ timeout: 60000 });
+      await page
+        .getByText(/left out/)
+        .first()
+        .waitFor({ timeout: 60000 });
       const text = await page.getByTestId("console-export").innerText();
       assert.match(text, kept === 0 ? /Every file was left out/ : /2 files were left out/);
       assert.match(text, /NOT-EXPORTED\.txt/);
-      await page.screenshot({ path: path.join(process.env.VYRE_FILES_SHOTS ?? "/tmp/vyre-export-shots", `export-${tag}.png`) });
+      await page.screenshot({ path: path.join(dir, `export-${tag}-desktop-dark.png`) });
+      // the same screen on a phone, light (the Console's own list of places is not walked on a phone; the page is already open)
+      await page.emulateMedia({ colorScheme: "light" });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: path.join(dir, `export-${tag}-phone-light.png`) });
     };
-    fs.mkdirSync(process.env.VYRE_FILES_SHOTS ?? "/tmp/vyre-export-shots", { recursive: true });
-    await take("some-left-out-desktop-dark", false, 5);
-    await take("some-left-out-phone-light", true, 5);
-    await take("every-file-left-out-desktop-dark", false, 0);
-    await take("every-file-left-out-phone-light", true, 0);
+    await take("some-left-out", 5);
+    await take("every-file-left-out", 0);
   } finally {
     await context.close();
     await browser.close();
