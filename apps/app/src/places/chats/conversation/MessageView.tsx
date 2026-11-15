@@ -17,7 +17,7 @@ import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
-import { menuTrigger, reportProblem, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { menuTrigger, reportProblem, shutNativeMenu, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -663,7 +663,7 @@ function useHover(onLong?: () => void): {
     onTouchCancel: stop,
     // a long press on a touch screen also asks the browser for its own menu (Android) and its selection handles (iOS): the sheet is the menu, so neither opens. Only on a real touch screen:
     // a narrow window with a mouse keeps its right-click menu.
-    ...(noHover ? { onContextMenu: (e: { preventDefault?: () => void }) => e.preventDefault?.() } : {}),
+    ...(noHover ? shutNativeMenu() : {}),
   };
   if (touch) {
     return {
@@ -811,6 +811,7 @@ function ActionSheet({
               {quote}
             </Text>
             <View style={st.sheetReacts} testID="sheet-reactions">
+              {/* ui-rows-lint: not a list (the quick reactions of the sheet are a row of emoji buttons) */}
               {FREQUENT.map((em) => (
                 <Pressable
                   key={em}
@@ -841,6 +842,7 @@ function ActionSheet({
                 </Pressable>
               ) : null}
             </View>
+            {/* ui-rows-lint: not a list (the groups of the sheet are containers; each row inside is drawn by row()) */}
             {groups
               .filter((g) => !FOOT.has(g[0]?.label ?? ""))
               .map((g, i) => (
@@ -852,6 +854,7 @@ function ActionSheet({
         )}
       </ScrollView>
       {/* Edit and Retry, then Delete, stay in view whatever the list's length: Delete last, alone, in the danger colour, and it asks once */}
+      {/* ui-rows-lint: not a list (the footer groups of the sheet are containers; each row inside is drawn by row()) */}
       {asking
         ? null
         : groups

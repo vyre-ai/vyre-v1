@@ -79,6 +79,7 @@ function Table({
   return (
     <View testID={`round-table-${messageId}`} style={st.card}>
       <View accessibilityRole="tablist" style={st.tabs}>
+        {/* ui-rows-lint: not a list (the tabs of the answers, one per agent, not list rows) */}
         {answers.map((a) => (
           <Pressable
             key={a.agentId}

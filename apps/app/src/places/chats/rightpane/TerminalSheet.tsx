@@ -304,9 +304,11 @@ export function TerminalSheet({
         <View style={[st.body, narrow && { flexDirection: "column" }]}>
           {sessions.length > 1 ? (
             <View testID="terminal-rail" accessibilityRole="tablist" style={[st.rail, narrow && st.railTop]}>
+              {/* ui-rows-lint: not a list (the rail groups terminal tabs under an agent or person name; the groups are containers) */}
               {groups.map((g) => (
                 <View key={g.key}>
                   <GroupHead name={g.name} tag={g.tag} agent={g.kind !== "person"} />
+                  {/* ui-rows-lint: not a list (the terminal sessions are tabs of a tablist, not list rows) */}
                   {g.rows.map((s) => {
                     const x = sessionWords(s, asleep);
                     const on = s.terminalId === sel;

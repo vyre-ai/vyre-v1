@@ -19,12 +19,14 @@ export function JobLines({
   if (running.length === 0 && finished.length === 0) return null;
   return (
     <View testID="job-lines" style={st.box}>
+      {/* ui-rows-lint: not a list (one quiet status line per background job, not list rows) */}
       {finished.map((f) => (
         <View key={`f-${f.id}`} testID={`job-done-${f.id}`} accessibilityRole="text" style={st.line}>
           <View style={[st.dot, f.ok ? st.ok : st.bad]} />
           <Text style={st.words}>{plain ? finishedWords({ ...f, title: "Background work" }) : finishedWords(f)}</Text>
         </View>
       ))}
+      {/* ui-rows-lint: not a list (one quiet status line per background job, not list rows) */}
       {running.map((j) => {
         const w = plain ? { ...runningWords(j, now), title: "Working in the background" } : runningWords(j, now);
         return (

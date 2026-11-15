@@ -1,0 +1,1 @@
+- Stop and update now ends every running reply again: the app's own stop is no longer treated as a guest's, which reaches only turns that guest asked for.

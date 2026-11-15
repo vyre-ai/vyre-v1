@@ -2,10 +2,22 @@
 // how they group into a timeline, how an agent's work folds into "Worked 14s · 3 steps", who leads and who listens, what a send does while an agent works (queue it, or
 // interrupt), and the optimistic message that shows in the same frame as the send.
 import { stepLabel } from "./activity.ts";
-import { chatWhen } from "../rightpane/model.ts";
+import { MONTHS, WEEKDAYS, dayNumber, local, timeLabel, timeTitle } from "./chat-time.ts";
+import type { Clock } from "./chat-time.ts";
+export {
+  DAY,
+  MONTHS,
+  WEEKDAYS,
+  clockParts,
+  dayNumber,
+  local,
+  timeLabel,
+  timeTitle,
+  weekdayShort,
+  whenLabel,
+} from "./chat-time.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { dayIn, partsIn, titleOf as zoneTitle } from "../../../../../../lib/zones.ts";
-import type { Zones } from "../../../../../../lib/zones.ts";
+import { partsIn } from "../../../../../../lib/zones.ts";
 import { BLOCK_FALLBACKS, isNativeBlockType } from "../../../../../../ui/src/blocks/registry.ts";
 import { applyFallback } from "../../../../../../ui/src/blocks/GenericBlock.tsx";
 import { createIncrementalMarkdown } from "../../../../../../ui/src/stream/markdown.ts";
@@ -22,11 +34,7 @@ export type ThreadAgent = Thread["agents"][number];
 export type Helper = CapMap["chat.helpers.list"]["out"]["helpers"][number];
 export type AgentMode = ThreadAgent["mode"];
 
-export interface Clock {
-  now: number;
-  offsetMin: number;
-  /** the Space's zone and the viewer's, for a shared place; left out for a private one (the device's offset is the clock) */ zones?: Zones;
-}
+export type { Clock } from "./chat-time.ts";
 
 /**
  * Two different counts, never swapped: `membersIn` is everyone in the chat, people AND agents (what the head's number shows); `peopleIn` is the people alone (what privacy and "shared" rules
@@ -73,46 +81,6 @@ export function beforeCursor(all: readonly Message[]): number | null {
 }
 
 /* ---------- time ---------- */
-
-const DAY = 86_400_000;
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
-
-const local = (ts: number, c: Clock): number => ts + c.offsetMin * 60_000;
-const dayNumber = (ts: number, c: Clock): number =>
-  c.zones ? dayIn(ts, c.zones.space) : Math.floor(local(ts, c) / DAY);
-
-/** What hover says about a message's time: both zones and the full date. Only where there are zones (a shared place). */
-export function timeTitle(ts: number, c: Clock): string | undefined {
-  return c.zones ? zoneTitle(ts, c.zones) : undefined;
-}
-
-/** The hour and minute of a moment in the clock the chat reads in, 24-hour, for code that needs the numbers. */
-export function clockParts(ts: number, c: Clock): { hour: number; minute: number } {
-  if (c.zones) {
-    const p = partsIn(ts, c.zones.space);
-    return { hour: p.hour, minute: p.minute };
-  }
-  const d = new Date(local(ts, c));
-  return { hour: d.getUTCHours(), minute: d.getUTCMinutes() };
-}
-
-/** The weekday of a moment in the clock the chat reads in, short: "Wed". Works for a moment ahead as well as behind. */
-export function weekdayShort(ts: number, c: Clock): string {
-  const dow = c.zones ? partsIn(ts, c.zones.space).dow : new Date(local(ts, c)).getUTCDay();
-  return (WEEKDAYS[dow] ?? "").slice(0, 3);
-}
-
-/** A time of day the way a person says it: "10:28 PM". One format in every chat (owner, 7 Nov 2026). */
-export function timeLabel(ts: number, c: Clock): string {
-  const { hour, minute } = clockParts(ts, c);
-  return `${hour % 12 === 0 ? 12 : hour % 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
-}
-
-/** When something happened, in a chat: a time of day today, exactly as a message row says it (the one formatter above); an earlier day as "Yesterday", the weekday or the date (the same words as the lists). */
-export function whenLabel(ts: number, c: Clock): string {
-  return dayNumber(c.now, c) - dayNumber(ts, c) <= 0 ? timeLabel(ts, c) : chatWhen(ts, c);
-}
 
 export function dayLabel(ts: number, c: Clock): string {
   const diff = dayNumber(c.now, c) - dayNumber(ts, c);

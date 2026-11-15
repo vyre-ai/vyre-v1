@@ -56,3 +56,13 @@ test("words of one message stay as they are, and a first message has no leading 
   ];
   assert.equal(texts(out), "Hello.");
 });
+
+test("a warm engine's second turn starts with its words, not a blank gap: the paragraph break is between messages of one turn only", () => {
+  const d = createClaudeDecoder();
+  const turn = (id: string, words: string): Array<{ type: string; text?: string }> => [
+    ...d.push(line({ type: "assistant", message: { id, content: [{ type: "text", text: words }] } })),
+    ...d.push(line({ type: "result", subtype: "success", result: words, session_id: "s1" })),
+  ];
+  assert.equal(texts(turn("m1", "First.")), "First.");
+  assert.equal(texts(turn("m2", "Second.")), "Second.");
+});
