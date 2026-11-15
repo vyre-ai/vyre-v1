@@ -311,7 +311,7 @@ export function DocPage(p: DocPageProps): ReactElement {
     () =>
       createElement(
         "div",
-        { className: "vww-card", style: { width: w * PX, paddingLeft: m.page.ml * z * PX, paddingRight: m.page.mr * z * PX, paddingTop: m.page.mt * z * PX * 0.7, paddingBottom: m.page.mb * z * PX * 0.7 }, "data-testid": "vww-card" },
+        { className: "vww-card", style: { width: w * PX, paddingLeft: `min(${m.page.ml * z * PX}px, 7%)`, paddingRight: `min(${m.page.mr * z * PX}px, 7%)`, paddingTop: `min(${m.page.mt * z * PX * 0.7}px, 9%)`, paddingBottom: `min(${m.page.mb * z * PX * 0.7}px, 9%)` }, "data-testid": "vww-card" },
         ...(m.header.length > 0 ? [createElement("div", { key: "h", "data-testid": "vww-header" }, ...m.header.map((q) => paraEl(q, true)))] : []),
         ...blocks(m.blocks),
         ...(m.footnotes.length > 0

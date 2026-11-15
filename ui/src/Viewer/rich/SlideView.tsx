@@ -38,7 +38,8 @@ const CSS = `
 .vws-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:auto}
 .vws-stage{flex:1;display:flex;align-items:center;justify-content:center;padding:24px 20px;min-height:0}
 .vws-slide{position:relative;background:#fff;color:#111;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.2)}
-.vws-sh{position:absolute;box-sizing:border-box;overflow:hidden}
+.vws-sh{position:absolute;box-sizing:border-box;overflow:visible}
+.vws-sh img{overflow:hidden}
 .vws-sh p{margin:0;white-space:pre-wrap;outline:0}
 .vws-sh[data-edit="1"] p:focus{background:rgba(91,91,214,.08)}
 .vws-sh table{border-collapse:collapse;width:100%;height:100%}
