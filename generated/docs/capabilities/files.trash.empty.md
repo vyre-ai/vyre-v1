@@ -19,7 +19,7 @@ Delete everything in Trash that the caller may delete
 | HTTP | POST /v1/files/trash/empty |
 | MCP tool | files_trash_empty (files) |
 | CLI | none |
-| Emits | file.purged |
+| Emits | file.purged, folder.purged |
 
 ## Input
 

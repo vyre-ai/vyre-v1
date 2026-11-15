@@ -479,6 +479,14 @@ Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9
 
 Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
 
+## 15 Nov 2026: agents.delete_for_good, agents.delete_preview, agents.trash.list and files.folder.purge are new; folderRow gains an optional deletedAt (lane f-agentdel)
+
+`agents.delete_for_good` (write, level member; the handler lets only the agent's owner or an admin through and answers anyone else not found; gated for an agent caller with Gate act delete; refuses an agent on itself, a person's Assistant, and an agent not in Trash) records one durable job and answers `{ erasing }`; pressing again answers the same calm way from the tombstone. `agents.delete_preview` (read, level manage on the agent) answers real counts (one-to-one chats, shared chats, memory items, routines, bytes), the things made by others that name the agent and need someone (each with a `link`), and the backups line. `agents.trash.list` (read, member) lists the agents in Trash and which are being deleted. `files.folder.purge` (write, perm files.delete, gated for an agent caller) deletes a folder in Trash for good with everything under it; an agent's folder takes the agent with it. `folderRow` gains optional `deletedAt`. New events `agent.erasing`, `agent.erased` and `folder.purged`. New host calls (not capabilities) `<module>.erase_agent` in nineteen modules, callable only by the agents erase job and the preview (host/src/daemon/consumers.ts guardCall).
+- Why: F77, the owner's rule that erase means erased. Delete still moves an agent to Trash and restore brings it whole; delete for good clears every store that holds something of it, leaves the audit log, a tombstone (id never reused) and backups.
+- Compatibility: no existing capability changed; `files.trash.empty` and the Trash keep time now also reach agents through `folder.purged`.
+
+Signed: for the lead to sign
+
 ## 13 Nov 2026: computers.browser.my_sign_ins added (lane f-agentpc)
 
 `computers.browser.my_sign_ins@1` is a new read (additive; no existing capability changes). In: `agentId`. Out: `profile` (`own` or `agent`) and `signIns`, one `{kind: "browser", site, signedInAs?, since, lastSeen}` per site the browser profile this person's turns of the agent use is signed in to: a person who does not own a shared agent has a profile of their own on it, the agent's owner has the agent's own. Never a value, never another person's. Read as the person asking.
@@ -557,3 +565,11 @@ Signed: lead, 16 Nov 2026 02:19 PKT, after reading the manifest diff: one option
 - Proof: test/goals.wake-fail.live.test.ts, modules/goals/tests, lib/words/failure.test.ts, apps/app/src/places/chats/conversation/status.test.ts. Snapshots: docs/frozen/snapshots/goals.json and engine.json.
 
 Signed: lead, 16 Nov 2026 00:42 PKT, after reading the manifest diff: optional, additive fields only.
+
+## 16 Nov 2026: delete for good, round five (lane f-agentdel, after the data-safety review)
+
+`agents.delete_for_good` now refuses every caller that is not a person, before anything else, in one sentence ("Only a person can delete an agent for good."): an agent (acting for a person too), a service, an Automation step and an outside tool. Its Gate act is a new one, `agent_erase`, that always stops (no Space rule, no Always allow lifts it, only a person decides). It is not an Automation step. `agents.trash.list` rows gain optional `failed` (what a job that keeps failing could not finish, in words). `agents.delete_preview` answers `chatPeople` and `folderPeople` (the other people who have a chat with the agent or their own folder on its computer, with their names). `agents.erased` is new (the name an erased agent had, for the "deleted" mark). `files.folder.purge` refuses an agent's folder ("An agent is deleted from its own page in Trash."), `files.trash.empty` skips it, and `folder.purged` carries only the folder id; only `agents.delete_for_good` and the Trash clock erase an agent. A job that fails backs off (3 s, 30 s, 5 min); pressing Delete for good again is Try again.
+- Why: the reviewer's six blocking items (any member could erase another's agent through Files, the gate could be lifted, the clock guessed on a failed read, the browser profile was left behind, other people lost data unannounced, a person's memory was lost).
+- Compatibility: additive outputs; `files.folder.purge` and `files.trash.empty` refuse or skip agent folders.
+
+Signed: for the lead to sign

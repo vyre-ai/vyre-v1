@@ -4,7 +4,7 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: mounts.
 
-## Capabilities (78)
+## Capabilities (79)
 
 - [changesets.approve](../capabilities/changesets.approve.md): Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push
 - [changesets.comments.add](../capabilities/changesets.comments.add.md): Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)
@@ -34,6 +34,7 @@ Requires: mounts.
 - [files.folder.delete](../capabilities/files.folder.delete.md): Move a folder and its files to Trash
 - [files.folder.get](../capabilities/files.folder.get.md): Read one folder with counts, source mark, git state and Review changes flag
 - [files.folder.move](../capabilities/files.folder.move.md): Move a folder under another folder, or to the top of its tree when no folder is given (its sharing follows the new parent)
+- [files.folder.purge](../capabilities/files.folder.purge.md): Delete a folder in Trash for good, with every file and folder in it
 - [files.folder.rename](../capabilities/files.folder.rename.md): Rename a folder
 - [files.folder.restore](../capabilities/files.folder.restore.md): Bring a folder back from Trash
 - [files.folder.search](../capabilities/files.folder.search.md): Find folders by name for the # picker and the Into picker
@@ -85,7 +86,7 @@ Requires: mounts.
 - [sheets.update_row](../capabilities/sheets.update_row.md): Update one row by row id or by a key column value
 - [sheets.upsert_row](../capabilities/sheets.upsert_row.md): Update the row that matches the given columns, or append a new one
 
-## Events (42)
+## Events (43)
 
 - [changeset.approved](../events/changeset.approved.md): A changeset was approved and committed
 - [changeset.changes_requested](../events/changeset.changes_requested.md): The reviewer asked the agent for changes
@@ -123,6 +124,7 @@ Requires: mounts.
 - [folder.created](../events/folder.created.md): A folder was created
 - [folder.deleted](../events/folder.deleted.md): A folder and its files moved to Trash
 - [folder.moved](../events/folder.moved.md): A folder moved
+- [folder.purged](../events/folder.purged.md): A folder in Trash was deleted for good, with every file in it
 - [folder.renamed](../events/folder.renamed.md): A folder was renamed
 - [folder.restored](../events/folder.restored.md): A folder came back from Trash
 - [folder.settings_changed](../events/folder.settings_changed.md): Review changes, label or branch protection of a folder changed
