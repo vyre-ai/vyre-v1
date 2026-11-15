@@ -281,7 +281,30 @@ function remoteOutward(command: string): Outward | null {
 }
 
 /** `passwd` as a command (it changes a password), wherever it stands in the line and behind any wrapper; as a word after getent, cat, grep and the like it only reads the user database. */
-const READERS = new Set(["getent", "cat", "grep", "egrep", "fgrep", "head", "tail", "less", "more", "wc", "awk", "sed", "cut", "stat", "ls", "file", "diff", "sort", "uniq", "tee", "echo", "printf"]);
+const READERS = new Set([
+  "getent",
+  "cat",
+  "grep",
+  "egrep",
+  "fgrep",
+  "head",
+  "tail",
+  "less",
+  "more",
+  "wc",
+  "awk",
+  "sed",
+  "cut",
+  "stat",
+  "ls",
+  "file",
+  "diff",
+  "sort",
+  "uniq",
+  "tee",
+  "echo",
+  "printf",
+]);
 export function passwdCommand(command: string): boolean {
   for (const seg of command.split(/[;&|\n(){}`]|\$\(/)) {
     const t = nameTokens(seg);

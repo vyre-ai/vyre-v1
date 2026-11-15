@@ -119,7 +119,10 @@ export async function world(
       await new Promise<void>((done) =>
         execFile(
           "sh",
-          ["-c", `docker rm -f vyre-ws-${agentId} >/dev/null 2>&1; docker volume rm -f vyre-ws-${agentId}-home vyre-ws-${agentId}-files vyre-ws-${agentId}-people >/dev/null 2>&1; true`],
+          [
+            "-c",
+            `docker rm -f vyre-ws-${agentId} >/dev/null 2>&1; docker volume rm -f vyre-ws-${agentId}-home vyre-ws-${agentId}-files vyre-ws-${agentId}-people >/dev/null 2>&1; true`,
+          ],
           () => done(),
         ),
       );

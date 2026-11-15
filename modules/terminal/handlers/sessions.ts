@@ -368,12 +368,9 @@ async function needWorkspace(ctx: TermCtx, agentId: string, facts?: Facts): Prom
       { reason: "agent_unreadable" },
     );
   if (e === "no")
-    raise(
-      ctx,
-      "permission.role_lacks_permission",
-      "You do not have access to this agent's computer.",
-      { reason: "workspace_private" },
-    );
+    raise(ctx, "permission.role_lacks_permission", "You do not have access to this agent's computer.", {
+      reason: "workspace_private",
+    });
 }
 
 /** A session in a workspace is entered only by who may enter that workspace. */
@@ -623,12 +620,17 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
   };
   insertSession(ctx.db, row);
   if (a.by !== undefined) insertTab(ctx.db, terminalId, a.by, ctx.principal.id, ctx.thread);
-  ctx.emit("terminal.opened", terminalId, {
+  ctx.emit(
+    "terminal.opened",
     terminalId,
-    host: a.host,
-    ...(a.agentId === undefined ? {} : { agentId: a.agentId }),
-    by: owner,
-  }, emitOpts(ctx, terminalId));
+    {
+      terminalId,
+      host: a.host,
+      ...(a.agentId === undefined ? {} : { agentId: a.agentId }),
+      by: owner,
+    },
+    emitOpts(ctx, terminalId),
+  );
   return row;
 }
 
@@ -1070,7 +1072,11 @@ async function ensureChatFolder(ctx: TermCtx, agentId: string, person: string, t
   try {
     await make(agentId, thread, await askerPlaceFor(ctx, agentId, person));
     chatMade.set(key, at);
-    ctx.db.run("INSERT INTO terminal_chat_folders (agent_id, thread) VALUES (?, ?) ON CONFLICT (agent_id, thread) DO NOTHING", agentId, thread);
+    ctx.db.run(
+      "INSERT INTO terminal_chat_folders (agent_id, thread) VALUES (?, ?) ON CONFLICT (agent_id, thread) DO NOTHING",
+      agentId,
+      thread,
+    );
   } catch (e) {
     ctx.log.warn("terminal: the chat's shared folder could not be made", {
       reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
@@ -1181,12 +1187,17 @@ export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
     );
   if (h !== me) {
     setHold(ctx.db, x.terminalId, me, ctx.now());
-    ctx.emit("terminal.taken", x.terminalId, {
-      terminalId: x.terminalId,
-      by: me,
-      ...(h === null ? {} : { from: h }),
-      ...(await ownerNote(ctx, x, me)),
-    }, emitOpts(ctx, x.terminalId));
+    ctx.emit(
+      "terminal.taken",
+      x.terminalId,
+      {
+        terminalId: x.terminalId,
+        by: me,
+        ...(h === null ? {} : { from: h }),
+        ...(await ownerNote(ctx, x, me)),
+      },
+      emitOpts(ctx, x.terminalId),
+    );
   } else touchHold(ctx.db, x.terminalId, me, ctx.now());
   // the take-over's lease and the number of the next batch of keys: a screen that reloads while it holds the keyboard asks again and carries on from here
   const { lease, nextSeq } = leaseOf(ctx.db, x.terminalId, ctx.now());
@@ -1212,11 +1223,16 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
       },
     );
   dropHold(ctx.db, x.terminalId);
-  ctx.emit("terminal.given_back", x.terminalId, {
-    terminalId: x.terminalId,
-    by: me ?? "agent",
-    ...(me === undefined ? {} : await ownerNote(ctx, x, me)),
-  }, emitOpts(ctx, x.terminalId));
+  ctx.emit(
+    "terminal.given_back",
+    x.terminalId,
+    {
+      terminalId: x.terminalId,
+      by: me ?? "agent",
+      ...(me === undefined ? {} : await ownerNote(ctx, x, me)),
+    },
+    emitOpts(ctx, x.terminalId),
+  );
   const { heldBy: _gone, ...rest } = x;
   void _gone;
   return { terminal: terminalRow(rest) };
@@ -1266,7 +1282,12 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
     x.terminalId,
   );
   forgetSecrets(scopeOf(x));
-  ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: actorOf(ctx) }, emitOpts(ctx, x.terminalId));
+  ctx.emit(
+    "terminal.closed",
+    x.terminalId,
+    { terminalId: x.terminalId, by: actorOf(ctx) },
+    emitOpts(ctx, x.terminalId),
+  );
   return { closed: true };
 }
 
@@ -1670,8 +1691,7 @@ export async function workspace(ctx: TermCtx, input: { agentId: string }) {
 async function workspaceRead(ctx: TermCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const may = await mayEnterWorkspace(ctx, input.agentId);
-  const cannot =
-    "You do not have access to this agent's computer.";
+  const cannot = "You do not have access to this agent's computer.";
   if (!may) return { state: "none" as const, canAttach: false, cannotAttach: cannot };
   const probe = boundWorkspaceStatus();
   const available = probe !== null && (await workspacesFor(input.agentId));
@@ -2051,13 +2071,18 @@ export async function run(ctx: TermCtx, a: RunInput) {
       ctx.now(),
       s.terminalId,
     );
-    ctx.emit("terminal.command_finished", s.terminalId, {
-      terminalId: s.terminalId,
-      exitCode,
-      durationMs,
-      by: owner,
-      ...(ctx.run === undefined ? {} : { runId: ctx.run }),
-    }, emitOpts(ctx, s.terminalId));
+    ctx.emit(
+      "terminal.command_finished",
+      s.terminalId,
+      {
+        terminalId: s.terminalId,
+        exitCode,
+        durationMs,
+        by: owner,
+        ...(ctx.run === undefined ? {} : { runId: ctx.run }),
+      },
+      emitOpts(ctx, s.terminalId),
+    );
   };
 
   if (!out.ok) {
@@ -2324,8 +2349,8 @@ export async function reconcileAccess(ctx: TermCtx, d: AccessDeps): Promise<stri
     }
     const at = ctx.now();
     const uid = uidOf(ctx.db, person, at);
-    const chats = (ctx.db.all("SELECT thread FROM terminal_chat_folders WHERE agent_id = ?", agentId) as Row[]).map((c) =>
-      String(c["thread"]),
+    const chats = (ctx.db.all("SELECT thread FROM terminal_chat_folders WHERE agent_id = ?", agentId) as Row[]).map(
+      (c) => String(c["thread"]),
     );
     if (may) {
       ctx.db.run("DELETE FROM terminal_use_lost WHERE agent_id = ? AND person = ?", agentId, person);
@@ -2366,14 +2391,17 @@ export async function reconcileAccess(ctx: TermCtx, d: AccessDeps): Promise<stri
       } catch {
         /* asleep or gone: nothing of theirs is running */
       }
-      if (d.run) for (const thread of chats) await d.run(agentId, chatRevokeCommand(thread, uid)).catch(() => undefined);
+      if (d.run)
+        for (const thread of chats) await d.run(agentId, chatRevokeCommand(thread, uid)).catch(() => undefined);
     }
     if (first || open.length > 0) out.push(person);
     // kept for 30 days, then erased
     const lostAt = Number(
-      (ctx.db.all("SELECT lost_at FROM terminal_use_lost WHERE agent_id = ? AND person = ?", agentId, person)[0] as Row | undefined)?.[
-        "lost_at"
-      ] ?? at,
+      (
+        ctx.db.all("SELECT lost_at FROM terminal_use_lost WHERE agent_id = ? AND person = ?", agentId, person)[0] as
+          | Row
+          | undefined
+      )?.["lost_at"] ?? at,
     );
     if (uid !== null && d.run && at - lostAt >= USE_LOST_KEEP_MS) {
       const gone = await d.run(agentId, removeCommand(askerPlace(person, uid)), uid).catch(() => ({ code: 1 }));

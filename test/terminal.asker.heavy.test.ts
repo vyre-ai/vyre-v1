@@ -302,8 +302,10 @@ async function oldImage(): Promise<string> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-oldws-"));
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const tar = await new Promise<{ code: number; out: string }>((resolve) =>
-    execFile("sh", ["-c", `git -C "${root}" archive ${OLD_TAG} images/agent-workspace | tar -x -C "${dir}"`], (err, so, se) =>
-      resolve({ code: err ? 1 : 0, out: `${so}${se}` }),
+    execFile(
+      "sh",
+      ["-c", `git -C "${root}" archive ${OLD_TAG} images/agent-workspace | tar -x -C "${dir}"`],
+      (err, so, se) => resolve({ code: err ? 1 : 0, out: `${so}${se}` }),
     ),
   );
   assert.equal(tar.code, 0, `the tag ${OLD_TAG} is not in this checkout (the job fetches tags): ${tar.out}`);

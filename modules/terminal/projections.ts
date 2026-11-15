@@ -28,7 +28,12 @@ export interface TermCtx {
   trace: { traceId: string };
   now(): number;
   db: Db;
-  emit(name: EventName, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: EventName,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   /** Another module's capability, as the caller (the chat card of terminal.request). */
   call?(cap: string, input: unknown): Promise<unknown>;
   authorize(

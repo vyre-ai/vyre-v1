@@ -432,10 +432,18 @@ test("F30: a person who may only use the agent, and an agent working for them, h
 // ---- review of 15 Nov: the three mutants the Docker tests alone caught (foreign() always false, onUseGone doing nothing, REGRANT_MS huge)
 
 test("mutant: a person who only uses the agent sees the agent's terminal as a row that says it is there, and a person the agent cannot be read for sees nothing of it", async () => {
-  const w = setup({ ownerId: "usr_maya", kind: "agent" }, (type, _id, level) => !(type === "agent" && level === "manage"));
+  const w = setup(
+    { ownerId: "usr_maya", kind: "agent" },
+    (type, _id, level) => !(type === "agent" && level === "manage"),
+  );
   const own = await h["terminal.run"]!(w.turn("usr_maya"), { command: "echo hi", idempotencyKey: idem() });
   const bea = w.person("usr_bea");
-  const rows = (await h["terminal.list"]!(bea, {})).terminals as Array<{ terminalId: string; elsewhere?: boolean; cwd: string; name: string }>;
+  const rows = (await h["terminal.list"]!(bea, {})).terminals as Array<{
+    terminalId: string;
+    elsewhere?: boolean;
+    cwd: string;
+    name: string;
+  }>;
   const row = rows.find((x) => x.terminalId === own.terminalId)!;
   assert.equal(row.elsewhere, true, "a row that only says it is there");
   assert.equal(row.cwd, "", "no folder");
@@ -448,12 +456,19 @@ test("mutant: a person who only uses the agent sees the agent's terminal as a ro
     }) as never,
   };
   assert.deepEqual(
-    ((await h["terminal.list"]!(none, {})).terminals as Array<{ terminalId: string }>).filter((x) => x.terminalId === own.terminalId),
+    ((await h["terminal.list"]!(none, {})).terminals as Array<{ terminalId: string }>).filter(
+      (x) => x.terminalId === own.terminalId,
+    ),
     [],
   );
   assert.equal(await codeOf2(() => h["terminal.get"]!(none, { terminalId: own.terminalId })), "validation.not_found");
   // and when the answer cannot be had at all, the same: nothing
-  const broken: TermCtx = { ...bea, call: (async () => { throw new Error("down"); }) as never };
+  const broken: TermCtx = {
+    ...bea,
+    call: (async () => {
+      throw new Error("down");
+    }) as never,
+  };
   assert.deepEqual(((await h["terminal.list"]!(broken, {})).terminals as unknown[]).length, 0);
 });
 async function codeOf2(f: () => unknown): Promise<string> {
@@ -493,7 +508,14 @@ test("mutant: when a person loses the use of an agent their terminals close, the
   assert.deepEqual(out, ["usr_bea"]);
   assert.ok(calls.includes("stop agt_dex"));
   assert.equal(calls.filter((c) => c.includes("thr_")).length, 2);
-  assert.equal((db.all("SELECT closed_at FROM terminal_sessions WHERE terminal_id = ?", ran.terminalId)[0] as { closed_at: unknown }).closed_at !== null, true);
+  assert.equal(
+    (
+      db.all("SELECT closed_at FROM terminal_sessions WHERE terminal_id = ?", ran.terminalId)[0] as {
+        closed_at: unknown;
+      }
+    ).closed_at !== null,
+    true,
+  );
   assert.equal(db.all("SELECT 1 FROM terminal_use_lost").length, 1);
   assert.equal(db.all("SELECT 1 FROM terminal_person_places").length, 1, "the home is kept");
   // 29 days on: still kept; 31 days on: erased

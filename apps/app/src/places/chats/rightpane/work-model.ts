@@ -186,7 +186,9 @@ export function groupSessions(
 ): SessionGroup[] {
   // a person in their own place on a shared agent sees one group, theirs: what the agent opened for them is theirs too, and nothing sits under the agent's name
   if (who.ownPlace === true)
-    return list.length === 0 ? [] : [{ key: "person:yours", name: "Your terminals", kind: "person", rows: orderSessions(list) }];
+    return list.length === 0
+      ? []
+      : [{ key: "person:yours", name: "Your terminals", kind: "person", rows: orderSessions(list) }];
   const out: SessionGroup[] = [];
   for (const s of orderSessions(list)) {
     const o = s.owner;

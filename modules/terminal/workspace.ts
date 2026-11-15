@@ -1571,7 +1571,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   ): Promise<ExecResult> {
     // an exec runs as the agent's own user (10001), or as the Unix user of a person who uses the agent without owning it (asker.ts)
     // a person's tmux server keeps its socket in their own folder: no other person can make the folder in /tmp first and stop it from starting
-    const own = user !== undefined && user >= 20000 && env?.["TMUX_TMPDIR"] === undefined ? { TMUX_TMPDIR: `/people/u${user}/.tmux` } : {};
+    const own =
+      user !== undefined && user >= 20000 && env?.["TMUX_TMPDIR"] === undefined
+        ? { TMUX_TMPDIR: `/people/u${user}/.tmux` }
+        : {};
     const r = await api.exec(workspaceName(agentId), {
       cmd: argv,
       env: Object.entries({ ...(env ?? {}), ...own }).map(([k, v]) => `${k}=${v}`),

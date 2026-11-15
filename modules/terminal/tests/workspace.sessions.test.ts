@@ -288,8 +288,7 @@ test("terminal.workspace: the state, where it is and whether this person may att
   assert.deepEqual(others, {
     state: "none",
     canAttach: false,
-    cannotAttach:
-      "You do not have access to this agent's computer.",
+    cannotAttach: "You do not have access to this agent's computer.",
   });
   const admin = asPerson("usr_admin", true);
   const waiting = await wsOf(admin, { agentId: "agt_dex" });

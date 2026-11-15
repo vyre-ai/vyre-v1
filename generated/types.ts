@@ -8436,6 +8436,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8468,6 +8469,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8500,6 +8502,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8532,6 +8535,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };
@@ -8564,6 +8568,7 @@ export type ChatsSidebarOut = {
         archived?: boolean;
         private?: boolean;
         withPeople?: boolean;
+        ask?: boolean;
       }>;
     next?: string;
   };

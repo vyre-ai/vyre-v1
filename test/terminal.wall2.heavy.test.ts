@@ -112,7 +112,10 @@ test(
     const group = await w.owner.call("access.groups.create", { name: "Helpers", idempotencyKey: "w2-grp" });
     assert.equal(group.status, 200, JSON.stringify(group.data));
     const groupId = group.data.group.id as string;
-    assert.equal((await w.owner.call("access.groups.add_member", { groupId, member: { kind: "person", id: w.ana.id } })).status, 200);
+    assert.equal(
+      (await w.owner.call("access.groups.add_member", { groupId, member: { kind: "person", id: w.ana.id } })).status,
+      200,
+    );
     await shareUse(w, { kind: "group", id: groupId });
     await shareUse(w, { kind: "person", id: w.ben.id }, { expiresAt: Date.now() + 40_000 });
     const start = async (who: World["ana"], key: string, n: number): Promise<number> => {
@@ -126,16 +129,27 @@ test(
     assert.notEqual(await running(beaUid), "0", "Bea's programs run");
     assert.notEqual(await running(benUid), "0", "Ben's programs run");
     // the group loses her
-    assert.equal((await w.owner.call("access.groups.remove_member", { groupId, member: { kind: "person", id: w.ana.id } })).status, 200);
-    await waitFor(async () => {
-      await w.d.hooks?.pump?.();
-      return (await running(beaUid)) === "0" ? true : null;
-    }, 60_000, () => hostLog(w.d));
+    assert.equal(
+      (await w.owner.call("access.groups.remove_member", { groupId, member: { kind: "person", id: w.ana.id } })).status,
+      200,
+    );
+    await waitFor(
+      async () => {
+        await w.d.hooks?.pump?.();
+        return (await running(beaUid)) === "0" ? true : null;
+      },
+      60_000,
+      () => hostLog(w.d),
+    );
     // Ben's share runs out: the sweep ends his programs without any event
-    await waitFor(async () => {
-      await w.d.hooks?.pump?.();
-      return (await running(benUid)) === "0" ? true : null;
-    }, 120_000, () => hostLog(w.d));
+    await waitFor(
+      async () => {
+        await w.d.hooks?.pump?.();
+        return (await running(benUid)) === "0" ? true : null;
+      },
+      120_000,
+      () => hostLog(w.d),
+    );
     const after = await w.turn(w.ana, "w2-2c", [{ cmd: "echo STILL" }]).catch((e: unknown) => String(e));
     assert.doesNotMatch(JSON.stringify(after), /STILL/, "Bea's next command is refused");
   },
@@ -159,7 +173,11 @@ test(
       { cmd: "ls /people 2>&1; echo END" },
     ]);
     assert.equal(squat[0]!.text, "20000");
-    assert.match(squat[1]!.text, /exists|denied|not permitted/i, "Ben's folder cannot be made: it is there, and not hers");
+    assert.match(
+      squat[1]!.text,
+      /exists|denied|not permitted/i,
+      "Ben's folder cannot be made: it is there, and not hers",
+    );
     assert.match(squat[3]!.text, KERNEL, "/people cannot be listed by a guest");
     // Ben arrives: his uid is the next one, never another, and his terminal works
     const ben = await w.turn(w.ben, "w2-3b", [{ cmd: "id -u; echo $TMUX_TMPDIR" }, { cmd: "echo hello" }]);
@@ -180,13 +198,22 @@ async function chatWorld(t: { after(f: () => unknown): void }) {
   await private_(w);
   const grant = await shareUse(w, { kind: "person", id: w.ana.id });
   const ws = `vyre-ws-${w.agent}`;
-  const ch = await w.owner.call("channels.create", { name: "pair", visibility: "invite", memberIds: [w.ana.id], agentIds: [w.agent] });
+  const ch = await w.owner.call("channels.create", {
+    name: "pair",
+    visibility: "invite",
+    memberIds: [w.ana.id],
+    agentIds: [w.agent],
+  });
   assert.equal(ch.status, 200, JSON.stringify(ch.data));
   const channelId = ch.data.channel.channelId as string;
   const threadId = ch.data.channel.mainThreadId as string;
   const say = async (who: World["owner"], key: string, steps: unknown[]) => {
     await who.call("threads.set_mode", { threadId, mode: "auto" });
-    const posted = await who.call("chat.post", { threadId, body: `RUN ${key} ${JSON.stringify(steps)}`, mentions: [{ kind: "agent", id: w.agent }] });
+    const posted = await who.call("chat.post", {
+      threadId,
+      body: `RUN ${key} ${JSON.stringify(steps)}`,
+      mentions: [{ kind: "agent", id: w.agent }],
+    });
     assert.equal(posted.status, 200, JSON.stringify(posted.data));
     return w.waitFor(key);
   };
@@ -197,32 +224,42 @@ async function chatWorld(t: { after(f: () => unknown): void }) {
   return { w, ws, grant, channelId, say, chatDir };
 }
 
-test(
-  "4 a person who left a chat has no access to its shared folder",
-  { skip, timeout: 900_000 },
-  async (t) => {
-    const { w, ws, channelId, say, chatDir } = await chatWorld(t);
-    const rm = await w.owner.call("channels.members.remove", { channelId, personId: w.ana.id });
-    assert.equal(rm.status, 200, JSON.stringify(rm.data));
-    await say(w.owner, "w2-4c", [{ cmd: "echo AFTER > ~/chat/after.txt; echo ok" }]);
-    const gone = async (): Promise<boolean> => {
-      await w.d.hooks?.pump?.();
-      const r = await docker(["exec", "--user", "20000:20000", ws, "sh", "-c", `cat ${chatDir}/after.txt 2>&1; echo X > ${chatDir}/bea2.txt 2>&1; echo END`]);
-      return KERNEL.test(r.out) && !/AFTER/.test(r.out);
-    };
-    await waitFor(async () => ((await gone()) ? true : null), 60_000, () => hostLog(w.d));
-    // Ada still has it
-    const mine = await say(w.owner, "w2-4d", [{ cmd: "cat ~/chat/after.txt ~/chat/bea.txt" }]);
-    assert.match(mine[0]!.text, /AFTER[\s\S]*BEA/);
-  },
-);
+test("4 a person who left a chat has no access to its shared folder", { skip, timeout: 900_000 }, async (t) => {
+  const { w, ws, channelId, say, chatDir } = await chatWorld(t);
+  const rm = await w.owner.call("channels.members.remove", { channelId, personId: w.ana.id });
+  assert.equal(rm.status, 200, JSON.stringify(rm.data));
+  await say(w.owner, "w2-4c", [{ cmd: "echo AFTER > ~/chat/after.txt; echo ok" }]);
+  const gone = async (): Promise<boolean> => {
+    await w.d.hooks?.pump?.();
+    const r = await docker([
+      "exec",
+      "--user",
+      "20000:20000",
+      ws,
+      "sh",
+      "-c",
+      `cat ${chatDir}/after.txt 2>&1; echo X > ${chatDir}/bea2.txt 2>&1; echo END`,
+    ]);
+    return KERNEL.test(r.out) && !/AFTER/.test(r.out);
+  };
+  await waitFor(
+    async () => ((await gone()) ? true : null),
+    60_000,
+    () => hostLog(w.d),
+  );
+  // Ada still has it
+  const mine = await say(w.owner, "w2-4d", [{ cmd: "cat ~/chat/after.txt ~/chat/bea.txt" }]);
+  assert.match(mine[0]!.text, /AFTER[\s\S]*BEA/);
+});
 
 test(
   "5 a person with no access to the agent is told nothing of its terminals and gets a plain sentence that is not a fault to try again",
   { skip, timeout: 900_000 },
   async (t) => {
     const { w, grant } = await chatWorld(t);
-    const adaTerms = ((await w.owner.call("terminal.list", {})).data.terminals as Array<{ terminalId: string; elsewhere?: boolean }>).filter((x) => x.elsewhere !== true);
+    const adaTerms = (
+      (await w.owner.call("terminal.list", {})).data.terminals as Array<{ terminalId: string; elsewhere?: boolean }>
+    ).filter((x) => x.elsewhere !== true);
     assert.ok(adaTerms.length > 0);
     assert.equal((await w.owner.call("access.unshare", { grantId: grant })).status, 200);
     const list = await w.ana.call("terminal.list", {});
@@ -251,13 +288,21 @@ test(
   async (t) => {
     const { w } = await chatWorld(t);
     const rows = (await w.ana.call("terminal.list", {})).data.terminals as Array<Record<string, unknown>>;
-    const adaTerms = ((await w.owner.call("terminal.list", {})).data.terminals as Array<{ terminalId: string; elsewhere?: boolean }>).filter((x) => x.elsewhere !== true);
+    const adaTerms = (
+      (await w.owner.call("terminal.list", {})).data.terminals as Array<{ terminalId: string; elsewhere?: boolean }>
+    ).filter((x) => x.elsewhere !== true);
     assert.ok(adaTerms.length > 0);
     await w.owner.call("terminal.rename", { terminalId: adaTerms[0]!.terminalId, name: "ADA-RENAMED-SECRET" });
-    const ev = await w.ana.call("events.list", { types: ["terminal.opened", "terminal.renamed", "terminal.command_finished", "terminal.closed"] });
+    const ev = await w.ana.call("events.list", {
+      types: ["terminal.opened", "terminal.renamed", "terminal.command_finished", "terminal.closed"],
+    });
     assert.equal(ev.status, 200, JSON.stringify(ev.data));
     const seen = JSON.stringify(ev.data);
-    for (const t0 of adaTerms) assert.ok(!seen.includes(t0.terminalId), `Bea reads an event about Ada's terminal ${t0.terminalId}: ${seen.slice(0, 1200)}`);
+    for (const t0 of adaTerms)
+      assert.ok(
+        !seen.includes(t0.terminalId),
+        `Bea reads an event about Ada's terminal ${t0.terminalId}: ${seen.slice(0, 1200)}`,
+      );
     assert.doesNotMatch(seen, /ADA-RENAMED-SECRET/);
     // the row that only says a terminal is there
     for (const t0 of adaTerms) {

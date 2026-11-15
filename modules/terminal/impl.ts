@@ -1329,9 +1329,11 @@ export async function workspacesReady(): Promise<void> {
 /** What the sweep asks of the host: the access answers (as the host, so any person can be asked about) and the commands in a workspace. */
 function accessDeps(ctx: TermCtx): AccessDeps {
   const check = async (person: string, level: string, resource: { type: string; id: string }): Promise<boolean> => {
-    const r = (await ctx.call?.("access.check", { principal: { kind: "person", id: person }, action: { level }, resource })) as
-      | { decision?: { effect?: string } }
-      | undefined;
+    const r = (await ctx.call?.("access.check", {
+      principal: { kind: "person", id: person },
+      action: { level },
+      resource,
+    })) as { decision?: { effect?: string } } | undefined;
     if (r?.decision?.effect === undefined) throw new Error("the access answer could not be read");
     return r.decision.effect === "allow";
   };
@@ -1427,13 +1429,7 @@ export const consumers = {
   },
   /** What a person may reach on an agent's computer may have changed (a grant, a group, a role, an expiry, a suspension, a chat's members): it is brought back to what they may reach now at once (handlers/sessions.ts reconcileAccess). */
   "terminal.use_gone": {
-    on: [
-      "grant.revoked",
-      "grant.updated",
-      "access.changed",
-      "principal.suspended",
-      "channel.member_removed",
-    ],
+    on: ["grant.revoked", "grant.updated", "access.changed", "principal.suspended", "channel.member_removed"],
     run: (ctx: TermCtx): Promise<string[]> => reconcileAccess(ctx, accessDeps(ctx)),
   },
   /** Back inside the Trash time: their folder is theirs again. */

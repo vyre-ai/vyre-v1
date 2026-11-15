@@ -675,8 +675,21 @@ test("whose side of the computer the Terminals section shows: a person's own spa
 test("a person in their own place sees one group, Your terminals, and their folder as ~ (never /people/u<number>)", async () => {
   const { groupSessions, folderWords } = await import("./work-model.ts");
   const list = [
-    { name: "main", terminalId: "trm_1", state: "idle" as const, cwd: "/people/u20000", owner: { kind: "agent" as const } },
-    { name: "notes", terminalId: "trm_2", state: "idle" as const, cwd: "/people/u20000/work", owner: { kind: "person" as const }, ownerId: "usr_bea" },
+    {
+      name: "main",
+      terminalId: "trm_1",
+      state: "idle" as const,
+      cwd: "/people/u20000",
+      owner: { kind: "agent" as const },
+    },
+    {
+      name: "notes",
+      terminalId: "trm_2",
+      state: "idle" as const,
+      cwd: "/people/u20000/work",
+      owner: { kind: "person" as const },
+      ownerId: "usr_bea",
+    },
   ];
   const g = groupSessions(list, "Nova", { me: "usr_bea", ownPlace: true });
   assert.equal(g.length, 1);

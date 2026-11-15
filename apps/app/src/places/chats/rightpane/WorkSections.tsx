@@ -312,7 +312,9 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
             key: `session-${sx.terminalId ?? sx.name}`,
             type: "row",
             title: sessionTitle(sx),
-            ...(folderWords(sx.cwd, v.ownPlace === true) ? { suffix: folderWords(sx.cwd, v.ownPlace === true) as string } : {}),
+            ...(folderWords(sx.cwd, v.ownPlace === true)
+              ? { suffix: folderWords(sx.cwd, v.ownPlace === true) as string }
+              : {}),
             ...(sx.lastCommand ? { note: `$ ${sx.lastCommand}` } : {}),
             leading: (
               <View style={st.dotLead}>
