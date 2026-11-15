@@ -52,7 +52,12 @@ test("production Automations: the step row and the step form for each kind and s
     const idOf = (o: any): string => (o.automation ?? o.data?.automation ?? o.data ?? o).id;
     const who = JSON.stringify(await api("identity.whoami", {})).match(/usr_[a-z0-9]+/)?.[0]!;
     const make = async (name: string, nodes: unknown[], triggers: unknown[] = [{ key: "manual" }]): Promise<string> =>
-      idOf(await api("automations.create", { name, definition: { triggers, nodes, start: [(nodes[0] as { id: string }).id] } }));
+      idOf(
+        await api("automations.create", {
+          name,
+          definition: { triggers, nodes, start: [(nodes[0] as { id: string }).id] },
+        }),
+      );
 
     // the six-step Automation with an If, like the prototype's "Lead reply follow-up"
     const six = await make("Lead reply follow-up", [
@@ -69,11 +74,20 @@ test("production Automations: the step row and the step form for each kind and s
       {
         id: "mail",
         key: "send_email",
-        input: { to: "{{ trigger.email }}", subject: "Thanks for getting in touch", body: "Thanks for getting in touch, {{ trigger.name }}" },
+        input: {
+          to: "{{ trigger.email }}",
+          subject: "Thanks for getting in touch",
+          body: "Thanks for getting in touch, {{ trigger.name }}",
+        },
         next: ["pause"],
       },
       { id: "pause", key: "wait", input: { forDuration: "2d" }, next: ["post"] },
-      { id: "task", key: "create_task", input: { title: "Call {{ trigger.name }}", assigned: { kind: "person", id: who } }, next: ["post"] },
+      {
+        id: "task",
+        key: "create_task",
+        input: { title: "Call {{ trigger.name }}", assigned: { kind: "person", id: who } },
+        next: ["post"],
+      },
       { id: "post", key: "post_message", input: { text: "New lead: {{ trigger.name }}" } },
     ]);
     void six;
@@ -88,18 +102,33 @@ test("production Automations: the step row and the step form for each kind and s
     assert.match(rows, /Otherwise/);
 
     // each kind in its four states
-    const kinds: Record<string, { key: string; filled: Record<string, unknown>; needs: Record<string, unknown>; empty?: Record<string, unknown> }> = {
+    const kinds: Record<
+      string,
+      { key: string; filled: Record<string, unknown>; needs: Record<string, unknown>; empty?: Record<string, unknown> }
+    > = {
       email: {
         key: "send_email",
-        filled: { to: "{{ trigger.email }}", subject: "Thanks for getting in touch", body: "Thanks, {{ trigger.name }}" },
+        filled: {
+          to: "{{ trigger.email }}",
+          subject: "Thanks for getting in touch",
+          body: "Thanks, {{ trigger.name }}",
+        },
         needs: { subject: "Thanks for getting in touch", body: "Hello" },
       },
-      sms: { key: "send_sms", filled: { to: "{{ trigger.phone }}", body: "Hi {{ trigger.name }}" }, needs: { body: "Hi" } },
+      sms: {
+        key: "send_sms",
+        filled: { to: "{{ trigger.phone }}", body: "Hi {{ trigger.name }}" },
+        needs: { body: "Hi" },
+      },
       ai: { key: "ai", filled: { prompt: "Write a short reply to {{ trigger.name }}" }, needs: {} },
       lookup: { key: "records.find", filled: { type: "contact", limit: 5 }, needs: {} },
       paths: { key: "paths", filled: { paths: [{ name: "Hot", when: "trigger.score > 80" }] }, needs: {} },
       wait: { key: "wait", filled: { forDuration: "2d" }, needs: {} },
-      task: { key: "create_task", filled: { title: "Call {{ trigger.name }}", assigned: { kind: "person", id: who } }, needs: { assigned: { kind: "person", id: who } } },
+      task: {
+        key: "create_task",
+        filled: { title: "Call {{ trigger.name }}", assigned: { kind: "person", id: who } },
+        needs: { assigned: { kind: "person", id: who } },
+      },
       chat: { key: "post_message", filled: { text: "New lead: {{ trigger.name }}" }, needs: {} },
     };
     for (const [kind, k] of Object.entries(kinds))
@@ -125,7 +154,11 @@ test("production Automations: the step row and the step form for each kind and s
         }
         await shot(`3-${kind}-${state}-d`);
         const text = await page.locator("body").innerText();
-        assert.equal(/Templating|\{\{|\(required\)|More options/.test(text), false, `${kind} ${state}: no syntax on the page`);
+        assert.equal(
+          /Templating|\{\{|\(required\)|More options/.test(text),
+          false,
+          `${kind} ${state}: no syntax on the page`,
+        );
         assert.equal(/\b(usr|frm|rec|chn|ch)_[a-z0-9]{8,}/.test(text), false, `${kind} ${state}: no id on the page`);
       }
 
@@ -153,7 +186,9 @@ test("production Automations: the step row and the step form for each kind and s
     await shot("3-needs-button-focus-d");
 
     // why a real run of an Automation can end as failed: its first failed step says it in a sentence
-    const intake = await make("Intake check", [{ id: "n1", key: "create_task", input: { title: "Call back", assigned: { kind: "person", id: who } } }]);
+    const intake = await make("Intake check", [
+      { id: "n1", key: "create_task", input: { title: "Call back", assigned: { kind: "person", id: who } } },
+    ]);
     await api("automations.set_enabled", { automationId: intake, enabled: true });
     await api("automations.run", { automationId: intake, payload: { name: "Sam Reyes" } });
     await page.waitForTimeout(2500);

@@ -11,7 +11,9 @@ export function inputValues(
   nameOfId: (id: string) => string,
 ): readonly (readonly [string, string])[] {
   if (!isRec(input)) return [];
-  const order = fieldsOf(key)?.map((f) => ({ name: f.name, label: f.label })) ?? Object.keys(input).map((k) => ({ name: k, label: wordsOf(k) ?? "" }));
+  const order =
+    fieldsOf(key)?.map((f) => ({ name: f.name, label: f.label })) ??
+    Object.keys(input).map((k) => ({ name: k, label: wordsOf(k) ?? "" }));
   const out: (readonly [string, string])[] = [];
   for (const f of order) {
     const v = input[f.name];

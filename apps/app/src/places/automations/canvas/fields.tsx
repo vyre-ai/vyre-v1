@@ -224,7 +224,11 @@ export function ChipText({
       onCommit(next);
     });
   const here = (): { x: number; y: number } => {
-    const doc = (globalThis as { document?: { activeElement?: { getBoundingClientRect?: () => { left: number; bottom: number } } | null } }).document;
+    const doc = (
+      globalThis as {
+        document?: { activeElement?: { getBoundingClientRect?: () => { left: number; bottom: number } } | null };
+      }
+    ).document;
     const r = doc?.activeElement?.getBoundingClientRect?.();
     return { x: r?.left ?? 0, y: (r?.bottom ?? 0) + 4 };
   };
@@ -332,7 +336,9 @@ export function ChipText({
             accessibilityLabel={`Insert data into ${label}`}
             testID={testID ? `${testID}-insert` : undefined}
             onPress={(e) => {
-              const ev = e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } };
+              const ev = e as unknown as {
+                currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+              };
               const r = ev.currentTarget?.getBoundingClientRect?.();
               openInsert(r?.left ?? 0, (r?.bottom ?? 0) + 4);
             }}

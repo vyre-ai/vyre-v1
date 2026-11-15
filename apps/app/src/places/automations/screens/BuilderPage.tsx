@@ -602,8 +602,7 @@ function Body({
         p.y,
         "other",
       );
-    }
-    else if (action === "test") void test();
+    } else if (action === "test") void test();
     else if (action === "primary") {
       const label = model.head.primary?.label;
       if (label === "Turn on") void setEnabled(true);
@@ -764,7 +763,9 @@ function Body({
   // the row's own orange line and button: the form's bar says the same and does the same
   const needOfRow = (nodeId: string): { needButton?: string; onNeed?: () => void } => {
     const r = model.rows.find((x) => x.kind === "step" && x.id === nodeId);
-    return r && r.kind === "step" && r.need ? { needButton: r.need.button, onNeed: () => onAction("need", nodeId) } : {};
+    return r && r.kind === "step" && r.need
+      ? { needButton: r.need.button, onNeed: () => onAction("need", nodeId) }
+      : {};
   };
   const given = useMemo(() => {
     if (!selNode || !catalog) return [];
@@ -1025,4 +1026,3 @@ function caseOf(whole: Record<string, unknown>, when: string): string {
   }
   return `an earlier event, ${when}`;
 }
-

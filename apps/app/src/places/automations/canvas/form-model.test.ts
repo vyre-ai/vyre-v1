@@ -20,7 +20,12 @@ test("the form table has an entry for every step kind the server lists, or names
 
 test("a step's controls come in a person's order with their words, and a needed field is never under Details", () => {
   const schema = {
-    properties: { cc: { type: "string" }, body: { type: "string" }, subject: { type: "string" }, to: { type: "string" } },
+    properties: {
+      cc: { type: "string" },
+      body: { type: "string" },
+      subject: { type: "string" },
+      to: { type: "string" },
+    },
     required: ["to", "body"],
   };
   const { main, details } = arrangeControls("send_email", controlsFor(schema));

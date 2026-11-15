@@ -50,7 +50,8 @@ test("every step kind the server lists renders a form with no id, brace, schema 
     assert.deepEqual(rawIdsIn(out), [], `${s.key}: no raw id`);
     assert.equal(/\{\{|\(required\)|Templating|More options/.test(out), false, `${s.key}: no syntax`);
     for (const key of Object.keys((s.input as { properties?: object } | undefined)?.properties ?? {}))
-      if (/[a-z][A-Z]|_/.test(key)) assert.equal(out.includes(` ${key} `), false, `${s.key}: the key ${key} is not a label`);
+      if (/[a-z][A-Z]|_/.test(key))
+        assert.equal(out.includes(` ${key} `), false, `${s.key}: the key ${key} is not a label`);
   }
 });
 
@@ -69,7 +70,13 @@ test("the chip field: Insert data opens the menu, Backspace after a chip takes i
         },
       }}
     >
-      <ChipText label="To" testID="field-to" value="a {{ trigger.name }} b {{ upper(trigger.x) }}" onCommit={(v) => committed.push(v)} chipLabel={(r) => r} />
+      <ChipText
+        label="To"
+        testID="field-to"
+        value="a {{ trigger.name }} b {{ upper(trigger.x) }}"
+        onCommit={(v) => committed.push(v)}
+        chipLabel={(r) => r}
+      />
     </DataWordsContext.Provider>,
   );
   await flush();
@@ -77,6 +84,10 @@ test("the chip field: Insert data opens the menu, Backspace after a chip takes i
   assert.ok(find(root, "field-to-chip-3"), "the formula is a chip too");
   await press(find(root, "field-to-insert"));
   await flush();
-  assert.deepEqual(calls, ["a {{ trigger.name }} b {{ upper(trigger.x) }}"], "the menu got the field as it was stored, unchanged");
+  assert.deepEqual(
+    calls,
+    ["a {{ trigger.name }} b {{ upper(trigger.x) }}"],
+    "the menu got the field as it was stored, unchanged",
+  );
   assert.equal(committed.at(-1), "a {{ trigger.name }} b {{ upper(trigger.x) }}{{ trigger.email }}");
 });

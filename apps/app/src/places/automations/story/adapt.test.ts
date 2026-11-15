@@ -57,14 +57,18 @@ test("a reference becomes a chip that names its source and shows a sample; a tex
   const r = fromDefinition(def, ctx());
   const s1 = r.steps[0]!;
   const to = Object.values(s1.values).find((v) => v && "chip" in v);
-  assert.deepEqual(to, { chip: { label: "A form is submitted \u00b7 Email", from: "A form is submitted", sample: "" } });
+  assert.deepEqual(to, {
+    chip: { label: "A form is submitted \u00b7 Email", from: "A form is submitted", sample: "" },
+  });
   const s2 = r.steps[1]!;
   const text = Object.values(s2.values)
     .map((v) => (v && "text" in v ? v.text : ""))
     .join("|");
   // round three: a text with a reference keeps its words and the reference is a chip beside them
   assert.ok(text.includes("New request from "));
-  assert.ok(Object.values(s2.values).some((v) => v && "chip" in v && v.chip.label === "A form is submitted \u00b7 Name"));
+  assert.ok(
+    Object.values(s2.values).some((v) => v && "chip" in v && v.chip.label === "A form is submitted \u00b7 Name"),
+  );
   const name = fromDefinition(
     { ...def, nodes: [{ id: "s1", key: "post_message", input: { text: "{{trigger.name}}" } }] },
     ctx(),
@@ -221,7 +225,11 @@ test("a step someone titled reads as its own title, never followed by a dump of 
   const r = fromDefinition(d, ctx());
   assert.equal(r.steps[0]!.template, "Email the lead a first hello");
   assert.deepEqual(r.steps[0]!.values, {});
-  assert.equal(r.steps[0]!.action, "to A form is submitted \u00b7 Email, Hello", "the second line says what the settings add, in words");
+  assert.equal(
+    r.steps[0]!.action,
+    "to A form is submitted \u00b7 Email, Hello",
+    "the second line says what the settings add, in words",
+  );
 });
 
 test("no step shows its title twice: the second line is absent or different from the first", () => {
@@ -286,7 +294,15 @@ test("an id a step names is shown by the name of whoever it is, never as the id 
     { triggers: [{ key: "manual" }], nodes: [{ id: "a", key: "send_email", input: { to: "usr_f914abc8606dfbce65" } }] },
     ctx({ nameOfId: (id) => (id === "usr_f914abc8606dfbce65" ? "Olivia Owner" : "Chosen") }),
   );
-  const t = story({ name: "x", on: false, trigger: r.trigger, steps: r.steps, proposed: false, dirty: false, test: null });
+  const t = story({
+    name: "x",
+    on: false,
+    trigger: r.trigger,
+    steps: r.steps,
+    proposed: false,
+    dirty: false,
+    test: null,
+  });
   const row = t.rows.find((x) => x.kind === "step");
   assert.ok(row && row.kind === "step");
   const text = JSON.stringify(row.sentence);

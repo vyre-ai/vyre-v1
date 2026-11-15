@@ -475,7 +475,13 @@ export function Inspector({
   const needLine = firstError ? actOf(firstError.message) : null;
   const focusFirstNeeded = (): void => {
     const target = [...arranged.main].find((c) => c.required && !present(node.input?.[c.name])) ?? arranged.main[0];
-    const doc = (globalThis as { document?: { querySelector?: (q: string) => { focus?: () => void; scrollIntoView?: (o: object) => void } | null } }).document;
+    const doc = (
+      globalThis as {
+        document?: {
+          querySelector?: (q: string) => { focus?: () => void; scrollIntoView?: (o: object) => void } | null;
+        };
+      }
+    ).document;
     const el = target ? doc?.querySelector?.(`[data-testid="field-${target.name}"]`) : null;
     el?.scrollIntoView?.({ block: "center" });
     el?.focus?.();
@@ -617,7 +623,11 @@ export function Inspector({
                 <StepTest
                   plain
                   needs={needLine}
-                  shows={inputValues(node.key, resolveRefs(node.input ?? {}, given ?? [], titleOf), (id) => nameOfId(id) ?? autoData?.name(id) ?? "Chosen")}
+                  shows={inputValues(
+                    node.key,
+                    resolveRefs(node.input ?? {}, given ?? [], titleOf),
+                    (id) => nameOfId(id) ?? autoData?.name(id) ?? "Chosen",
+                  )}
                   stepKey={node.key}
                   nodeId={node.id}
                   input={node.input ?? {}}
@@ -795,7 +805,10 @@ function resolveRefs(
   for (const [k, v] of Object.entries(input))
     out[k] =
       typeof v === "string"
-        ? v.replace(/\{\{\s*([^{}]*?)\s*\}\}/g, (_m, ref: string) => given.find((g) => g.ref === ref)?.sample || chipLabel(ref, titleOf))
+        ? v.replace(
+            /\{\{\s*([^{}]*?)\s*\}\}/g,
+            (_m, ref: string) => given.find((g) => g.ref === ref)?.sample || chipLabel(ref, titleOf),
+          )
         : v;
   return out;
 }
@@ -934,7 +947,13 @@ const i = StyleSheet.create({
     backgroundColor: "var(--warn-wash)" as string,
   },
   needText: { flex: 1, fontSize: 13, color: "var(--warn)" as string },
-  needBtn: { height: 28, paddingHorizontal: 12, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--chip)" as string },
+  needBtn: {
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    justifyContent: "center",
+    backgroundColor: "var(--chip)" as string,
+  },
   needBtnText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink)" as string },
   del: {
     flexDirection: "row",
