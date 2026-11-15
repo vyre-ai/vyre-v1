@@ -207,7 +207,7 @@ export async function interrupt(
  * may stop only a turn they asked for, and their Stop all stops only their own turns. An agent may stop its own turn; another agent's turn only when the person it acts for could, so an agent
  * working for a guest reaches only that guest's turns. An agent that names nobody stops itself.
  */
-/** A guest is a person (or an agent for one) without View on the Space. The host itself (svc_host, the app stopping turns for an update) is no guest; a tenant or other service is judged like anyone: it has no Space role to hold, and reaches every turn. */
+/** A guest is a person (or an agent for one) without View on the Space. The host itself (svc_host, the app stopping turns for an update) is no guest: it has no Space role to hold, and reaches every turn. Any other service is judged like anyone. */
 function isGuest(ctx: EngineCtx): boolean {
   return (
     !isHostService(ctx.principal) &&
