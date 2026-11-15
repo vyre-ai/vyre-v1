@@ -90,6 +90,8 @@ export interface PullBatch {
   cursor?: string;
   /** items is the whole mounted tree, so a mapped item that is missing is gone */
   full: boolean;
+  /** The pass stopped at its page limit: what came is only the start of the listing. Nothing is treated as gone, and the mount says this in plain words. */
+  partial?: string;
   /** the remote id of the mounted root when the provider reveals it (Graph delta) */
   rootId?: string;
 }
@@ -177,6 +179,9 @@ const withConnection = (m: { connectionId?: string; account?: string }): Row => 
 
 /** Most pages one pass reads, so a runaway feed cannot hold the pass forever. */
 export const MAX_PAGES = 200;
+
+/** What a mount says when one pass could not read the whole listing. */
+export const PARTIAL_WORDS = "This folder is larger than one sync reads, so only the first part of it is here. Nothing was removed.";
 
 // ---- Google Drive -------------------------------------------------------------------------------------------
 
@@ -283,7 +288,8 @@ async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
   const items: RemoteItem[] = [];
   const queue: string[] = [root];
   let pages = 0;
-  for (let folder = queue.shift(); folder !== undefined; folder = queue.shift()) {
+  let partial = false;
+  for (let folder = queue.shift(); folder !== undefined && !partial; folder = queue.shift()) {
     let pageToken: string | undefined;
     do {
       const res = obj(
@@ -302,13 +308,20 @@ async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
       }
       pageToken = text(res["nextPageToken"]);
       pages += 1;
-    } while (pageToken !== undefined && pages < MAX_PAGES);
+      // the page limit with more still to read (another page of this folder, or folders not yet opened): the listing is not whole
+      if (pages >= MAX_PAGES && (pageToken !== undefined || queue.length > 0)) {
+        partial = true;
+        break;
+      }
+    } while (pageToken !== undefined);
   }
+  // a partial listing keeps no feed cursor (the next pass lists again) and removes nothing
   return {
     items,
     removed: [],
-    full: true,
-    ...(cursor !== undefined ? { cursor } : {}),
+    full: !partial,
+    ...(partial ? { partial: PARTIAL_WORDS } : {}),
+    ...(cursor !== undefined && !partial ? { cursor } : {}),
     ...(rootId !== undefined ? { rootId } : {}),
   };
 }
@@ -332,6 +345,8 @@ async function driveFeed(ctx: Ctx, m: MountRec, cursor: string): Promise<PullBat
     next = text(res["newStartPageToken"]) ?? next;
     token = text(res["nextPageToken"]);
   }
+  // the page limit with more changes waiting: the next pass resumes from where this one stopped, never from the feed's end
+  if (token !== undefined) return { items, removed, full: false, cursor: token };
   return { items, removed, full: false, ...(next !== undefined ? { cursor: next } : {}) };
 }
 

@@ -41,3 +41,38 @@ test("a Drive folder of three pages with odd names and doubles on every page lis
   assert.equal(w.files.paths().length, PAGES * PER, `listed ${w.files.paths().length} of ${PAGES * PER}`);
   assert.equal(mount["skippedCount"], undefined, "nothing was skipped");
 });
+
+test("a listing that never stops giving a next page is partial: nothing already in Files is removed, the mount says so in plain words, and a later whole listing clears it", async () => {
+  const w = harness();
+  w.google.listings.set("root_drv", [{ files: [item("keep", "keep.pdf")] }]);
+  const added = await call(w, "mounts.add", {
+    into: "fld_into",
+    source: { kind: "google_drive", connectionId: "con_g", ref: "root_drv" },
+    name: "Drive",
+  });
+  const mountId = String(added["mountId"]);
+  const view = async (): Promise<Row> => (await call(w, "mounts.get", { mountId }))["mount"] as Row;
+  assert.deepEqual(w.files.paths(), ["Drive/keep.pdf"]);
+  // the provider now answers an endless run of pages, and keep.pdf is not on any of them
+  const real = w.google.call.bind(w.google);
+  let endless = true;
+  w.google.call = (cap: string, i: Row): unknown => {
+    if (endless && cap === "google.drive.list_files") {
+      const n = i["pageToken"] === undefined ? 0 : Number(String(i["pageToken"]).replace("page", ""));
+      return { files: [item(`p${n}`, `page ${n}.pdf`)], nextPageToken: `page${n + 1}` };
+    }
+    return real(cap, i);
+  };
+  await call(w, "mounts.sync_now", { mountId });
+  const v = await view();
+  assert.equal(v["state"], "idle", "a partial listing is not a failing Drive");
+  assert.match(String(v["error"]), /larger than one sync reads/);
+  assert.ok(w.files.paths().includes("Drive/keep.pdf"), "nothing is removed on a partial listing");
+  assert.ok(w.files.paths().length > 100, "what was read came in");
+  // a whole listing later: the words go, and what is truly gone from the Drive is removed
+  endless = false;
+  await call(w, "mounts.sync_now", { mountId });
+  const done = await view();
+  assert.equal(done["error"], undefined);
+  assert.ok(w.files.paths().includes("Drive/keep.pdf"));
+});
