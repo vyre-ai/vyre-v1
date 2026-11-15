@@ -371,7 +371,7 @@ async function needWorkspace(ctx: TermCtx, agentId: string, facts?: Facts): Prom
     raise(
       ctx,
       "permission.role_lacks_permission",
-      "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.",
+      "You do not have access to this agent's computer.",
       { reason: "workspace_private" },
     );
 }
@@ -1671,7 +1671,7 @@ async function workspaceRead(ctx: TermCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const may = await mayEnterWorkspace(ctx, input.agentId);
   const cannot =
-    "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.";
+    "You do not have access to this agent's computer.";
   if (!may) return { state: "none" as const, canAttach: false, cannotAttach: cannot };
   const probe = boundWorkspaceStatus();
   const available = probe !== null && (await workspacesFor(input.agentId));

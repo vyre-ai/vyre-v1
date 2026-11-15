@@ -289,7 +289,7 @@ test("terminal.workspace: the state, where it is and whether this person may att
     state: "none",
     canAttach: false,
     cannotAttach:
-      "That workspace is not yours to open. A person opens their own Assistant's; an owner or admin opens a team agent's.",
+      "You do not have access to this agent's computer.",
   });
   const admin = asPerson("usr_admin", true);
   const waiting = await wsOf(admin, { agentId: "agt_dex" });
