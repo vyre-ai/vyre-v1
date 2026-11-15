@@ -348,6 +348,19 @@ test("console.nav hides pages the caller may not open, and empty groups", async 
   assert.deepEqual(none, []);
 });
 
+test("the Event log and Automation usage are listed only to a person who may read the audit log", async () => {
+  const pages = async (perms: string[]) =>
+    (await handlers["console.nav"](world(quiet, perms).ctx, {})).groups
+      .flatMap((g) => g.pages.map((p) => p.key))
+      .filter((k) => k === "events.log" || k === "automations.usage");
+  assert.deepEqual(await pages(["console.access", "audit.read"]), ["events.log", "automations.usage"]);
+  assert.deepEqual(
+    await pages(["console.access", "access.manage"]),
+    [],
+    "a member without audit.read is not shown them",
+  );
+});
+
 test("an unhealthy overview still answers when every other source is down", async () => {
   const e = new Error("down");
   const w = world({

@@ -1687,6 +1687,12 @@ export default defineManifest({
     ),
   ],
   screens: [
+    // Automation usage (it was the Automations place's Analytics): outcomes across every Automation, in the Console for a person who may read the audit log
+    screen("automations.usage", "console", "ui:AutomationUsage", {
+      needs: ["audit.read"],
+      q: { analytics: ["automations.analytics", {}, true] },
+      empty: "No completed runs yet",
+    }),
     screen("automations.sidebar", "automations", "ui:AutomationsSidebar", {
       slot: "sidebar",
       q: {

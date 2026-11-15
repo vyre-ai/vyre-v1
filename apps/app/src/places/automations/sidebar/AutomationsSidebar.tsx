@@ -15,7 +15,7 @@ import { Glyph } from "../canvas/icons.tsx";
 import { Badge, Dot, IconButton, SubTabs, pointer, webOnly } from "../canvas/parts.tsx";
 import type { KeyEventLike } from "../canvas/parts.tsx";
 import { initials } from "../journeys/model.ts";
-import { allGroupKeys, failedTotal, journeyNote, nextId, noteOf, sectionsOf, visibleOrder } from "./model.ts";
+import { allGroupKeys, journeyNote, nextId, noteOf, sectionsOf, visibleOrder } from "./model.ts";
 import type { AutoRow, GroupBlock, GroupRow, JourneyRow, Section, SectionKey } from "./model.ts";
 
 type ListOut = CapMap["automations.list"]["out"];
@@ -86,7 +86,6 @@ export function AutomationsSidebar({
     () => visibleOrder(sections, q ? allGroupKeys(sections) : open, collapsed),
     [sections, open, collapsed, q],
   );
-  const failed = failedTotal(autos);
 
   useEffect(() => {
     if (!note) return undefined;
@@ -498,17 +497,6 @@ export function AutomationsSidebar({
       <ScrollView style={sb.scroll} contentContainerStyle={sb.scrollIn} keyboardShouldPersistTaps="handled">
         {tab === "automations" ? (
           <>
-            <Row
-              id="failed-runs"
-              title="Failed runs"
-              onPress={() => data.nav.openFailedRuns()}
-              leading={
-                <View style={sb.lead}>
-                  <Glyph name="warn" size={15} color="var(--danger)" />
-                </View>
-              }
-              trailing={failed > 0 ? <Badge n={failed} tone="danger" testID="failed-count" /> : undefined}
-            />
             {body}
             {autos.length === 0 && list.status === "ready" ? <Text style={sb.empty}>No automations yet</Text> : null}
           </>

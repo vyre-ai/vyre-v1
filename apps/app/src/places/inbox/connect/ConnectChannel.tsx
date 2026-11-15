@@ -62,7 +62,9 @@ export function ConnectChannel({ onPick, connect, inline = false, only }: Connec
       )}
       <View style={[s.grid, inline && s.gridInline]}>
         {/* ui-rows-lint: not a list (channel tiles laid out in a wrapping grid) */}
-        {CONNECT_TILES.filter((tile) => only === undefined || only.includes(tile.kind)).map((tile) => (
+        {CONNECT_TILES.filter(
+          (tile) => (only === undefined || only.includes(tile.kind)) && (tile.kind !== "twilio" || data?.canBuyNumbers === true),
+        ).map((tile) => (
           <Pressable
             key={tile.kind}
             accessibilityRole="button"
