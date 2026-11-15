@@ -117,7 +117,8 @@ test("every step in the catalog has an editable control for each required field"
     const def: Definition = { triggers: [{ key: "manual" }], nodes: [node] };
     const out = page(def, node, schema);
     const have = ids(out);
-    assert.ok(have.has("field-title"), `${step.key} has its Name field`);
+    // round three: the step's own name sits under Details with the rest of what a person rarely changes
+    assert.ok(have.has("step-details"), `${step.key} has its Details`);
     for (const name of requiredOf(schema)) {
       checked += 1;
       const candidates = OWNED[step.key]?.[name] ?? [`field-${name}`];

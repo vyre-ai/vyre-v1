@@ -97,7 +97,7 @@ function One({
     <Hint danger testID={`${id}-problem`}>
       {problem}
     </Hint>
-  ) : control.hint ? (
+  ) : control.hint && control.kind !== "text" && control.kind !== "multiline" ? (
     <Hint>{control.hint}</Hint>
   ) : null;
   if (control.kind === "who") {

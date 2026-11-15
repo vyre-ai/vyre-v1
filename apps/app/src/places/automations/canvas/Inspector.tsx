@@ -52,7 +52,8 @@ import { TriggerForm, usePersonZone } from "./TriggerForm.tsx";
 import { arrangeControls, controlsFor, humanize, specOf } from "./form-model.ts";
 import { actOf } from "../story/issues.ts";
 import type { GiveRow } from "../builder/insert-data.ts";
-import { addChip } from "./steps/edits.ts";
+import { addChip, chipLabel } from "./steps/edits.ts";
+import { inputValues } from "../builder/step-values.ts";
 import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import { LiveStepForm } from "./steps/LiveStepForm.tsx";
@@ -598,13 +599,6 @@ export function Inspector({
                   />
                 ) : null}
                 {live ? null : fields}
-                <TextBox
-                  label="Name this step"
-                  value={node.title ?? ""}
-                  placeholder={titleOfKey(node.key)}
-                  testID="field-title"
-                  onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))}
-                />
                 {sendsOutward(node.key) &&
                 !(
                   node.key === "http_request" &&
@@ -619,6 +613,7 @@ export function Inspector({
                 ) : null}
                 <StepTest
                   plain
+                  shows={inputValues(node.key, resolveRefs(node.input ?? {}, given ?? [], titleOf), (id) => nameOfId(id) ?? "Chosen")}
                   stepKey={node.key}
                   nodeId={node.id}
                   input={node.input ?? {}}
@@ -627,6 +622,13 @@ export function Inspector({
                   onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))}
                 />
                 <More head="Details" testID="step-details" initiallyOpen={section !== "configure" || advanced}>
+                  <TextBox
+                    label="Name this step"
+                    value={node.title ?? ""}
+                    placeholder={titleOfKey(node.key)}
+                    testID="field-title"
+                    onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))}
+                  />
                   {detailFields}
                   <Text testID="plain-language" style={i.hint}>
                     {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}
@@ -761,13 +763,13 @@ export function Inspector({
                 ) : null}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Delete this step"
+                  accessibilityLabel="Delete step"
                   testID="delete-step"
                   onPress={onDelete}
                   style={[i.del, pointer]}
                 >
                   <Glyph name="x" size={13} color="var(--danger)" />
-                  <Text style={i.delText}>Delete this step</Text>
+                  <Text style={i.delText}>Delete step</Text>
                 </Pressable>
               </>
             ) : null}
@@ -777,6 +779,21 @@ export function Inspector({
       </MapTargetContext.Provider>
     </DataWordsContext.Provider>
   );
+}
+
+/** A step's input with each reference put as the sample from the last real event when there is one, else as the chip's words: what Test this step shows is readable, never a brace. */
+function resolveRefs(
+  input: Record<string, unknown>,
+  given: readonly GiveRow[],
+  titleOf: (id: string) => string,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input))
+    out[k] =
+      typeof v === "string"
+        ? v.replace(/\{\{\s*([^{}]*?)\s*\}\}/g, (_m, ref: string) => given.find((g) => g.ref === ref)?.sample || chipLabel(ref, titleOf))
+        : v;
+  return out;
 }
 
 const present = (v: unknown): boolean =>
