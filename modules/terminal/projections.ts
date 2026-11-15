@@ -2,6 +2,7 @@
 // @reads /modules/terminal/migrations/0003_gone.sql
 // @reads /modules/terminal/migrations/0004_hold.sql
 // @reads /modules/terminal/migrations/0006_people.sql
+// @reads /modules/terminal/migrations/0007_use.sql
 // Durable rows of the terminal module (sessions, commands, rules, attach tickets), the port to the machine a session lives on, the rule matcher and the per-session secret scrubbers.
 // Every statement names a terminal_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -27,7 +28,7 @@ export interface TermCtx {
   trace: { traceId: string };
   now(): number;
   db: Db;
-  emit(name: EventName, subject: string, payload: unknown): unknown;
+  emit(name: EventName, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
   /** Another module's capability, as the caller (the chat card of terminal.request). */
   call?(cap: string, input: unknown): Promise<unknown>;
   authorize(
@@ -287,6 +288,13 @@ const PEOPLE_SCHEMA = readFileSync(new URL("./migrations/0006_people.sql", impor
   .split(";")
   .map((x) => x.trim())
   .filter((x) => x.length > 0);
+const USE_SCHEMA = readFileSync(new URL("./migrations/0007_use.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -325,6 +333,12 @@ export function ensure(db: Db): void {
     db.all("SELECT person FROM terminal_people WHERE person = ?", "probe");
   } catch {
     for (const stmt of PEOPLE_SCHEMA) db.run(stmt);
+  }
+  // and before a person's loss of an agent was kept
+  try {
+    db.all("SELECT person FROM terminal_use_lost WHERE person = ?", "probe");
+  } catch {
+    for (const stmt of USE_SCHEMA) db.run(stmt);
   }
   ready.add(db);
 }

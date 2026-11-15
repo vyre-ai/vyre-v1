@@ -129,7 +129,7 @@ const DANGER: ReadonlyArray<RegExp> = [
   /\b(iptables|ufw|nft)\b/,
   /\bcrontab\s+-r\b/,
   // `passwd` is red as a command (it changes a password); as a word after getent, cat or grep it only reads the user database
-  /(^|[|;&(`]|\b(sudo|doas|xargs|exec|env|command)\s)\s*passwd\b|\bvisudo\b|\buserdel\b|\bdeluser\b/,
+  /\bvisudo\b|\buserdel\b|\bdeluser\b/,
   /\bkill\s+-9\s+(-1|1)\b|\bkillall\b|\bpkill\s+-9\b/,
   /\bsystemctl\s+(stop|disable|mask)\b/,
 ];
@@ -183,7 +183,7 @@ function partRisk(p: string): Risk {
 export function riskOf(command: string): Risk {
   const whole = command.trim();
   if (whole === "") return "read";
-  if (DANGER.some((re) => re.test(whole))) return "danger";
+  if (DANGER.some((re) => re.test(whole)) || passwdCommand(whole)) return "danger";
   return segmentsOf(whole).reduce<Risk>((r, p) => worse(r, partRisk(p)), "read");
 }
 
@@ -251,19 +251,45 @@ const repoFlag = (p: string): string[] => {
 const CURL_SENDS =
   /\s(-d|--data\S*|--json|-F|--form\S*|-T|--upload-file|-[a-zA-Z]*[dFT])(\s|=|$)|\s(-X|--request)[\s=]*['"]?(POST|PUT|PATCH|DELETE)\b/;
 
-/** Words that only run another command: the command is the next word that is not one of these, a flag or a number. */
-const WRAPPERS: ReadonlySet<string> = new Set([
-  "sudo",
-  "doas",
-  "xargs",
-  "time",
-  "timeout",
-  "nice",
-  "nohup",
-  "env",
-  "command",
-  "exec",
-]);
+/** The words of a command line as a shell would split them into names: quotes, a backslash, brackets, braces, backticks, `$(`, `=` and the separators are not part of a name. */
+const nameTokens = (c: string): string[] => c.split(/[\s;&|(){}`'"\\!=<>,$]+/).filter((x) => x !== "");
+
+const REMOTE = new Set(["ssh", "scp", "sftp", "rsync", "ssh-copy-id"]);
+/** Is this word the remote-shell or copy command: its bare name, or an absolute path to it in a bin folder. A folder or file named like it (~/.ssh, ~/.config/rsync, ./ssh) is not. */
+const isRemoteWord = (t: string): boolean =>
+  REMOTE.has(t) || (t.startsWith("/") && /\/s?bin\//.test(t) && REMOTE.has(t.split("/").pop() ?? ""));
+
+/**
+ * A command that reaches another computer (ssh, scp, sftp, rsync, ssh-copy-id), wherever it stands in the line: after `if`, `then`, `do`, `!`, a brace, a bracket, a backtick, `$(`, a backslash or a quote, inside `eval`,
+ * `-exec`, `sh -c` or `su -c`, behind any wrapper (sudo -u bob, env -u X, timeout -s KILL 5, ionice, setsid, stdbuf, busybox, watch, script -c, an alias). The words are read, not run: what hides from them is not caught here.
+ */
+function remoteOutward(command: string): Outward | null {
+  const t = nameTokens(command);
+  for (let i = 0; i < t.length; i++) {
+    if (!isRemoteWord(t[i]!)) continue;
+    const name = t[i]!.split("/").pop()!;
+    const rest = t.slice(i + 1).filter((x) => !x.startsWith("-"));
+    // scp and rsync reach another computer only when a path names one (host:path)
+    if ((name === "scp" || name === "rsync") && !/\S+@?\S*:\S*/.test(command)) continue;
+    const named = rest
+      .map((x) => /^(?:[\w.-]+@)?([\w.-]+):/.exec(x)?.[1] ?? /^[\w.-]+@([\w.-]+)$/.exec(x)?.[1])
+      .find((x) => x !== undefined);
+    const host = named ?? (name === "scp" || name === "rsync" ? undefined : rest[0]);
+    return { act: "send", targets: host ? [host.toLowerCase()] : [] };
+  }
+  return null;
+}
+
+/** `passwd` as a command (it changes a password), wherever it stands in the line and behind any wrapper; as a word after getent, cat, grep and the like it only reads the user database. */
+const READERS = new Set(["getent", "cat", "grep", "egrep", "fgrep", "head", "tail", "less", "more", "wc", "awk", "sed", "cut", "stat", "ls", "file", "diff", "sort", "uniq", "tee", "echo", "printf"]);
+export function passwdCommand(command: string): boolean {
+  for (const seg of command.split(/[;&|\n(){}`]|\$\(/)) {
+    const t = nameTokens(seg);
+    const at = t.indexOf("passwd");
+    if (at >= 0 && !t.slice(0, at).some((x) => READERS.has(x.split("/").pop() ?? ""))) return true;
+  }
+  return false;
+}
 
 /** What one simple command sends out. Null when it reaches nobody. */
 function partOutward(raw: string): Outward | null {
@@ -302,18 +328,6 @@ function partOutward(raw: string): Outward | null {
   if (/\bcurl\b/.test(p) && CURL_SENDS.test(` ${p}`)) return { act: "send", targets: hostsIn(p) };
   if (/\bwget\b/.test(p) && /\s--(post-data|post-file|body-data|body-file|method)\b/.test(p))
     return { act: "send", targets: hostsIn(p) };
-  // the command itself, not a folder or file named like it (~/.ssh, ~/.config/rsync): the first word that is not a wrapper (sudo, timeout 5, xargs -n1 ...), by its name even when it is spelled as a path
-  const lead = w.findIndex((x, i) => !(WRAPPERS.has(x) || x.startsWith("-") || (i > 0 && /^\d+$/.test(x))));
-  const cmdName = lead < 0 ? "" : (w[lead]!.split("/").pop() ?? "");
-  const remote = /^(ssh|scp|sftp|rsync)$/.test(cmdName) ? cmdName : null;
-  if (remote && (remote === "ssh" || remote === "sftp" || /\S+@?\S*:\S*/.test(p))) {
-    const rest = w.slice(lead + 1).filter((x) => x !== "" && !x.startsWith("-"));
-    const named = rest
-      .map((x) => /^(?:[\w.-]+@)?([\w.-]+):/.exec(x)?.[1] ?? /^[\w.-]+@([\w.-]+)$/.exec(x)?.[1])
-      .find((x) => x !== undefined);
-    const host = named ?? (remote === "ssh" || remote === "sftp" ? rest[0] : undefined);
-    return { act: "send", targets: host ? [host.toLowerCase()] : [] };
-  }
   if (/\b(sendmail|mutt|mailx)\b/.test(p) || /^mail\s/.test(p)) return { act: "send", targets: [] };
   return null;
 }
@@ -321,6 +335,8 @@ function partOutward(raw: string): Outward | null {
 /** The first outward part of a command line, read through `sh -c "..."`. A reading of the words: a command hidden from it (an encoded script, a program that sends on its own) is not caught here. */
 export function outwardOf(command: string): Outward | null {
   const inner = command.replace(/\b(?:ba|z|da)?sh\s+-[a-z]*c\s+(['"])(.*?)\1/g, "$2");
+  const remote = remoteOutward(inner);
+  if (remote) return remote;
   for (const part of segmentsOf(inner)) {
     const o = partOutward(part);
     if (o) return o;

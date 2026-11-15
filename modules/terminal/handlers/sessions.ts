@@ -8,7 +8,16 @@ import { randomHex } from "../../../kernel/src/log/hash.ts";
 import { hmac } from "../../../kernel/src/seal/wire.ts";
 import { STOPPED_LINE } from "../stop-line.ts";
 import { hasOwnPlace } from "../../../lib/asker-place.ts";
-import { askerPlace, inOtherFolder, namesMirror, otherFolders, ownersHomeRefs, projectsNamed } from "../asker.ts";
+import {
+  askerPlace,
+  chatRevokeCommand,
+  inOtherFolder,
+  namesMirror,
+  otherFolders,
+  ownersHomeRefs,
+  projectsNamed,
+  removeCommand,
+} from "../asker.ts";
 import type { AskerPlace } from "../asker.ts";
 import {
   MAX_RULES,
@@ -55,7 +64,6 @@ import {
   HOLD_IDLE_MS,
   touchHold,
   uidOf,
-  burnUid,
 } from "../projections.ts";
 import { classify, QuotedHereDoc, referHandles, UnsurePlace } from "../fill.ts";
 import type { HandleRef } from "../fill.ts";
@@ -120,6 +128,14 @@ export function terminalRow(x: SessionRow) {
     ...(x.threadId === undefined ? {} : { threadId: x.threadId }),
     ...(x.owner === "" || x.by?.kind !== "person" ? {} : { ownerId: x.owner }),
   };
+}
+
+/**
+ * What an event about a terminal on an agent's computer says (who opened it, its name, the exit code and time of a command, who holds the keyboard) is said to the person it is for, never to everyone who may view the
+ * agent: the people who use a shared agent each work in a place of their own (F30).
+ */
+function emitOpts(ctx: TermCtx, terminalId: string): { vis: "private" } | undefined {
+  return sessionBy(ctx.db, terminalId)?.host === "agent_computer" ? { vis: "private" } : undefined;
 }
 
 /** A session that is still there. A closed one is gone for every action but `get`. */
@@ -228,7 +244,9 @@ const lookup = (
         failed:
           (e as { error?: { code?: unknown } } | null)?.error?.code === "validation.not_found"
             ? ("not_found" as const)
-            : ("error" as const),
+            : String((e as { error?: { code?: unknown } } | null)?.error?.code ?? "").startsWith("permission.")
+              ? ("not_found" as const) // an agent a person may not read is one they may not enter: no access, not a fault to try again
+              : ("error" as const),
       };
     }
   })();
@@ -568,12 +586,11 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
         ...(place === undefined ? {} : { place }),
       });
     } catch (e) {
-      // someone made this uid's folder first (a squatter): that uid is never used, the person gets the next
-      if (place !== undefined && tries < 3 && (e as { code?: unknown } | null)?.code === "squatted") {
-        burnUid(ctx.db, place.person, place.uid);
-        place = await askerPlaceFor(ctx, a.agentId as string, owner);
-        continue;
-      }
+      // a folder of this uid that is someone else's is a fault, never a reason to give the person another uid: a person keeps one uid in the whole Space, and their files on other agents stay theirs
+      if ((e as { code?: unknown } | null)?.code === "squatted")
+        raise(ctx, "provider.unavailable", "Your space on this computer could not be opened. Ask an admin.", {
+          reason: "place_unavailable",
+        });
       return mapHostError(e);
     }
   }
@@ -611,7 +628,7 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
     host: a.host,
     ...(a.agentId === undefined ? {} : { agentId: a.agentId }),
     by: owner,
-  });
+  }, emitOpts(ctx, terminalId));
   return row;
 }
 
@@ -722,14 +739,23 @@ async function foreign(ctx: TermCtx, x: SessionRow, facts: Facts): Promise<boole
   if (x.host !== "agent_computer" || x.agentId === undefined || isTrustedService(ctx.principal)) return false;
   const me = actorOf(ctx);
   if (x.owner === me) return false;
+  // fails closed: a caller who may not enter this agent's computer, or whom that cannot be told for, is shown nothing of it
+  if ((await entry(ctx, x.agentId, facts)) !== "yes") return true;
   const got = ctx.call === undefined ? {} : await lookup(ctx, x.agentId, facts);
+  if (got.failed !== undefined) return true;
   if (hasOwnPlace(got.agent, x.agentId, x.owner)) return true; // someone's own place
-  if (!hasOwnPlace(got.agent, x.agentId, me)) return false; // the agent's owner, or no way to tell: as before
+  if (!hasOwnPlace(got.agent, x.agentId, me)) return false; // the agent's owner: as before
   // the caller has a place of their own: the agent's own terminals are not theirs unless they manage the agent (an agent working for them is never a manager)
   return (
     ctx.principal.kind !== "person" ||
     ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow"
   );
+}
+
+/** May the caller be told even that this terminal exists: not on an agent's computer they may not enter. */
+async function mayKnow(ctx: TermCtx, x: SessionRow, facts: Facts): Promise<boolean> {
+  if (x.host !== "agent_computer" || x.agentId === undefined || isTrustedService(ctx.principal)) return true;
+  return (await entry(ctx, x.agentId, facts)) === "yes";
 }
 
 /** What a terminal row says about a terminal that is not the caller's to see into. */
@@ -738,17 +764,17 @@ export function terminalHint(x: SessionRow) {
     terminalId: x.terminalId,
     name: "Someone else's terminal",
     host: x.host,
-    hostTitle: x.hostTitle,
+    hostTitle: TITLE[x.host],
     ...(x.agentId === undefined ? {} : { agentId: x.agentId }),
     cwd: "",
-    state: x.state,
+    state: "idle" as const,
     exitCode: null,
     named: false,
+    cols: 0,
+    rows: 0,
+    createdAt: 0,
+    lastActiveAt: 0,
     elsewhere: true,
-    cols: x.cols,
-    rows: x.rows,
-    createdAt: x.createdAt,
-    lastActiveAt: x.lastActiveAt,
   };
 }
 
@@ -794,8 +820,11 @@ export async function list(
   const next = offset + page.length < mine.length ? String(offset + page.length) : undefined;
   const facts: Facts = new Map();
   const rows = [];
-  for (const x of page) rows.push((await foreign(ctx, x, facts)) ? terminalHint(x) : terminalRow(x));
-  return { terminals: rows, ...(next === undefined ? {} : { next }), total: mine.length };
+  for (const x of page) {
+    if (!(await mayKnow(ctx, x, facts))) continue; // a person with no access to the agent is told nothing of its terminals
+    rows.push((await foreign(ctx, x, facts)) ? terminalHint(x) : terminalRow(x));
+  }
+  return { terminals: rows, ...(next === undefined ? {} : { next }), total: mine.length - (page.length - rows.length) };
 }
 
 export async function get(ctx: TermCtx, input: { terminalId: string }) {
@@ -803,7 +832,10 @@ export async function get(ctx: TermCtx, input: { terminalId: string }) {
   const x = sessionBy(ctx.db, input.terminalId);
   if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
   const f = fresh(ctx, x);
-  return { terminal: (await foreign(ctx, f, new Map())) ? terminalHint(f) : terminalRow(f) };
+  const facts: Facts = new Map();
+  if (!(await mayKnow(ctx, f, facts)))
+    raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
+  return { terminal: (await foreign(ctx, f, facts)) ? terminalHint(f) : terminalRow(f) };
 }
 
 export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
@@ -816,8 +848,9 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
   const kept: SessionRow[] = [];
   for (const x of rows0) {
     const may = await mayRead(ctx, x, facts);
-    // someone else's own terminal shows that it is there and its state, never its last line or last command
-    if (may === "yes" && ownerOk(ctx, x) && !(await foreign(ctx, x, facts))) known.push(x);
+    // a terminal on an agent's computer outside the caller's own place gives nothing at all; elsewhere someone else's own terminal shows that it is there and its state, never its last line or last command
+    if (x.host === "agent_computer" && may === "yes" && (!ownerOk(ctx, x) || (await foreign(ctx, x, facts)))) continue;
+    if (may === "yes" && ownerOk(ctx, x)) known.push(x);
     else if (may === "yes" || may === "unknown") kept.push(x);
   }
   const host = boundHost();
@@ -1037,6 +1070,7 @@ async function ensureChatFolder(ctx: TermCtx, agentId: string, person: string, t
   try {
     await make(agentId, thread, await askerPlaceFor(ctx, agentId, person));
     chatMade.set(key, at);
+    ctx.db.run("INSERT INTO terminal_chat_folders (agent_id, thread) VALUES (?, ?) ON CONFLICT (agent_id, thread) DO NOTHING", agentId, thread);
   } catch (e) {
     ctx.log.warn("terminal: the chat's shared folder could not be made", {
       reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
@@ -1152,7 +1186,7 @@ export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
       by: me,
       ...(h === null ? {} : { from: h }),
       ...(await ownerNote(ctx, x, me)),
-    });
+    }, emitOpts(ctx, x.terminalId));
   } else touchHold(ctx.db, x.terminalId, me, ctx.now());
   // the take-over's lease and the number of the next batch of keys: a screen that reloads while it holds the keyboard asks again and carries on from here
   const { lease, nextSeq } = leaseOf(ctx.db, x.terminalId, ctx.now());
@@ -1182,7 +1216,7 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
     terminalId: x.terminalId,
     by: me ?? "agent",
     ...(me === undefined ? {} : await ownerNote(ctx, x, me)),
-  });
+  }, emitOpts(ctx, x.terminalId));
   const { heldBy: _gone, ...rest } = x;
   void _gone;
   return { terminal: terminalRow(rest) };
@@ -1200,7 +1234,7 @@ export async function rename(ctx: TermCtx, input: { terminalId: string; name: st
   if (name === "" || name.length > 80)
     raise(ctx, "validation.bad_input", "Give the session a name of up to 80 characters.");
   ctx.db.run("UPDATE terminal_sessions SET name = ?, named = 1 WHERE terminal_id = ?", name, x.terminalId);
-  ctx.emit("terminal.renamed", x.terminalId, { terminalId: x.terminalId, name });
+  ctx.emit("terminal.renamed", x.terminalId, { terminalId: x.terminalId, name }, emitOpts(ctx, x.terminalId));
   return { terminal: terminalRow({ ...x, name, named: true }) };
 }
 
@@ -1232,7 +1266,7 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
     x.terminalId,
   );
   forgetSecrets(scopeOf(x));
-  ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: actorOf(ctx) });
+  ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: actorOf(ctx) }, emitOpts(ctx, x.terminalId));
   return { closed: true };
 }
 
@@ -2023,7 +2057,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
       durationMs,
       by: owner,
       ...(ctx.run === undefined ? {} : { runId: ctx.run }),
-    });
+    }, emitOpts(ctx, s.terminalId));
   };
 
   if (!out.ok) {
@@ -2238,7 +2272,7 @@ export async function onPersonLeft(
   const at = ctx.now();
   for (const id of open) {
     ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
-    ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
+    ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" }, emitOpts(ctx, id));
   }
   const uid = uidOf(ctx.db, person, ctx.now());
   const stopped: string[] = [];
@@ -2256,55 +2290,98 @@ export async function onPersonLeft(
   return stopped;
 }
 
+/** How long a person's home on an agent's computer is kept after they lost the use of the agent (30 days), then erased; it is theirs again if they are shared with the agent before. */
+export const USE_LOST_KEEP_MS = 30 * 24 * 60 * 60_000;
+
+export interface AccessDeps {
+  /** May this person use this agent now (access.check as the host)? Throws when it cannot be told: nothing is cut on a guess. */
+  mayUse(person: string, agentId: string): Promise<boolean>;
+  /** May this person read this chat now? */
+  mayView(person: string, thread: string): Promise<boolean>;
+  /** Stop everything of this person's that runs on the agent's computer. */
+  stopFor(agentId: string, place: AskerPlace): Promise<void>;
+  /** Run a command in the agent's computer (as the agent's own user, or as a person's user); null where this host has no workspaces. */
+  run: ((agentId: string, argv: readonly string[], user?: number) => Promise<{ code: number }>) | null;
+}
+
 /**
- * A grant on an agent was removed (grant.revoked): a person who had a place on that agent's computer and may no longer use the agent is out at once. Their terminals there close and what they have running
- * is stopped where it runs; their next call is refused at the door (entry). Their folder stays, like a leaver's, for the day they are shared again. `mayUse` is the access answer for that person now.
+ * Brings what the people who work on agents' computers may reach back to what they may reach now, for every person who has a place on any agent (run by a sweep and by the events that can change it: a grant, a
+ * group, a role, an expiry, a suspension, a chat's members). A person who may no longer use an agent has their terminals closed and their programs stopped there, and loses every chat folder of it; their home is kept
+ * for 30 days and erased after (it is theirs again if they are shared with the agent first). A person who may use it keeps the chat folders of the chats they may read and loses the others.
  */
-export async function onUseGone(
-  ctx: TermCtx,
-  event: { payload: { subject?: { kind?: unknown; id?: unknown }; resource?: { type?: unknown; id?: unknown } } },
-  mayUse: (person: string, agentId: string) => Promise<boolean>,
-  stopFor: (agentId: string, place: AskerPlace) => Promise<void>,
-): Promise<string[]> {
+export async function reconcileAccess(ctx: TermCtx, d: AccessDeps): Promise<string[]> {
   ensure(ctx.db);
-  const res = event.payload.resource;
-  if (res?.type !== "agent" || typeof res.id !== "string") return [];
-  const agentId = res.id;
-  const sub = event.payload.subject;
-  // a person's own grant names them; a group's or a role's grant may have reached any of the people who work there
-  const named = sub?.kind === "person" && typeof sub.id === "string" ? [sub.id] : null;
-  const people = (ctx.db.all("SELECT person FROM terminal_person_places WHERE agent_id = ?", agentId) as Row[])
-    .map((r) => String(r["person"]))
-    .filter((p) => named === null || named.includes(p));
   const out: string[] = [];
-  for (const person of people) {
-    let may = true;
+  const places = ctx.db.all("SELECT agent_id, person FROM terminal_person_places") as Row[];
+  for (const r of places) {
+    const agentId = String(r["agent_id"]);
+    const person = String(r["person"]);
+    let may: boolean;
     try {
-      may = await mayUse(person, agentId);
+      may = await d.mayUse(person, agentId);
     } catch {
       continue; // not told: nothing is cut on a guess
     }
-    if (may) continue;
     const at = ctx.now();
-    for (const r of ctx.db.all(
+    const uid = uidOf(ctx.db, person, at);
+    const chats = (ctx.db.all("SELECT thread FROM terminal_chat_folders WHERE agent_id = ?", agentId) as Row[]).map((c) =>
+      String(c["thread"]),
+    );
+    if (may) {
+      ctx.db.run("DELETE FROM terminal_use_lost WHERE agent_id = ? AND person = ?", agentId, person);
+      if (uid !== null && d.run)
+        for (const thread of chats) {
+          let view = false;
+          try {
+            view = await d.mayView(person, thread);
+          } catch {
+            continue;
+          }
+          if (!view) await d.run(agentId, chatRevokeCommand(thread, uid)).catch(() => undefined);
+        }
+      continue;
+    }
+    const first =
+      ctx.db.run(
+        "INSERT INTO terminal_use_lost (agent_id, person, lost_at) VALUES (?, ?, ?) ON CONFLICT (agent_id, person) DO NOTHING",
+        agentId,
+        person,
+        at,
+      ).changes > 0;
+    const open = ctx.db.all(
       "SELECT terminal_id FROM terminal_sessions WHERE owner = ? AND agent_id = ? AND closed_at IS NULL",
       person,
       agentId,
-    ) as Row[]) {
-      const id = String(r["terminal_id"]);
+    ) as Row[];
+    for (const t of open) {
+      const id = String(t["terminal_id"]);
       ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
       dropHold(ctx.db, id);
-      ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
+      ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" }, emitOpts(ctx, id));
     }
-    const uid = uidOf(ctx.db, person, at);
     if (uid !== null) {
+      // every sweep ends what a person without use has running (a program started in the seconds before), not only the first
       try {
-        await stopFor(agentId, askerPlace(person, uid));
+        await d.stopFor(agentId, askerPlace(person, uid));
       } catch {
         /* asleep or gone: nothing of theirs is running */
       }
+      if (d.run) for (const thread of chats) await d.run(agentId, chatRevokeCommand(thread, uid)).catch(() => undefined);
     }
-    out.push(person);
+    if (first || open.length > 0) out.push(person);
+    // kept for 30 days, then erased
+    const lostAt = Number(
+      (ctx.db.all("SELECT lost_at FROM terminal_use_lost WHERE agent_id = ? AND person = ?", agentId, person)[0] as Row | undefined)?.[
+        "lost_at"
+      ] ?? at,
+    );
+    if (uid !== null && d.run && at - lostAt >= USE_LOST_KEEP_MS) {
+      const gone = await d.run(agentId, removeCommand(askerPlace(person, uid)), uid).catch(() => ({ code: 1 }));
+      if (gone.code === 0) {
+        ctx.db.run("DELETE FROM terminal_person_places WHERE agent_id = ? AND person = ?", agentId, person);
+        ctx.db.run("DELETE FROM terminal_use_lost WHERE agent_id = ? AND person = ?", agentId, person);
+      }
+    }
   }
   return out;
 }
@@ -2377,7 +2454,7 @@ export async function onAgentGone(
   for (const id of open) {
     ctx.db.run("UPDATE terminal_sessions SET closed_at = ?, state = 'exited' WHERE terminal_id = ?", at, id);
     forgetSecrets(scopeOf({ terminalId: id, host: "agent_computer", agentId }));
-    ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" });
+    ctx.emit("terminal.closed", id, { terminalId: id, by: "svc_host" }, emitOpts(ctx, id));
   }
   // what its workspace remembered of Vault values goes from memory with it (review S2)
   forgetAgentSecrets(agentId);
@@ -2530,7 +2607,7 @@ export async function onHolderGone(ctx: TermCtx, personId: unknown, closeTheirs 
       x.terminalId,
     );
     forgetSecrets(scopeOf(x));
-    ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: personId });
+    ctx.emit("terminal.closed", x.terminalId, { terminalId: x.terminalId, by: personId }, emitOpts(ctx, x.terminalId));
     held.push(x.terminalId);
   }
   return held;

@@ -1394,8 +1394,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       // the panes of the people who use the agent without owning it are on tmux servers of their own Unix users: each is asked as that user, and its pids are told to the process scan
       const skipT: string[] = [];
       const skipPanes: string[] = [];
-      const listed = await execIn(agentId, ["sh", "-c", "ls -d /tmp/tmux-* 2>/dev/null; true"], undefined);
-      for (const m of listed.stdout.matchAll(/\/tmp\/tmux-(\d+)/g)) {
+      // the people who have programs running: each has a tmux server of their own (its socket is in their own folder, which only they can list)
+      const listed = await execIn(agentId, ["sh", "-c", "ps -eo uid= | sort -u; true"], undefined);
+      for (const m of listed.stdout.matchAll(/^\s*(\d+)\s*$/gm)) {
+        if (Number(m[1]) < 20000) continue;
         const uid = Number(m[1]);
         if (uid === WORKSPACE_UID) continue;
         const theirs = await execIn(
@@ -1568,9 +1570,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     user?: number,
   ): Promise<ExecResult> {
     // an exec runs as the agent's own user (10001), or as the Unix user of a person who uses the agent without owning it (asker.ts)
+    // a person's tmux server keeps its socket in their own folder: no other person can make the folder in /tmp first and stop it from starting
+    const own = user !== undefined && user >= 20000 && env?.["TMUX_TMPDIR"] === undefined ? { TMUX_TMPDIR: `/people/u${user}/.tmux` } : {};
     const r = await api.exec(workspaceName(agentId), {
       cmd: argv,
-      env: Object.entries(env ?? {}).map(([k, v]) => `${k}=${v}`),
+      env: Object.entries({ ...(env ?? {}), ...own }).map(([k, v]) => `${k}=${v}`),
       ...(user === undefined ? {} : { user: `${user}:${user}` }),
     });
     return { code: r.exitCode ?? 1, stdout: r.stdout, stderr: r.stderr };

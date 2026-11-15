@@ -37,11 +37,13 @@ export function askerPlace(person: string, uid: number, files = false): AskerPla
       XDG_DATA_HOME: `${home}/.local/share`,
       XDG_STATE_HOME: `${home}/.local/state`,
       TMPDIR: `${home}/.tmp`,
+      // the person's own tmux server keeps its socket in their own folder, never in the /tmp every person shares, where another person could make the folder first and stop it from starting
+      TMUX_TMPDIR: `${home}/.tmux`,
     },
   };
 }
 
-/** The exit status of `ensureCommand` when the folder of this uid was made by someone else first: the uid is burned and the person gets the next. */
+/** The exit status of `ensureCommand` when the folder of this uid belongs to someone else. The image makes every folder for its own uid, so this is a fault: the uid is never given to another person (a person keeps one uid for the whole Space) and the call says so. */
 export const SQUATTED = 77;
 
 /**
@@ -53,7 +55,7 @@ export function ensureCommand(p: AskerPlace): string[] {
     "sh",
     "-c",
     'h="$1"; u="$2"; umask 077; if [ -e "$h" ]; then [ "$(stat -c %u "$h")" = "$u" ] || exit 77; else mkdir -m 700 "$h" || exit 77; [ "$(stat -c %u "$h")" = "$u" ] || exit 77; fi; ' +
-      'mkdir -p "$h/.config" "$h/.cache" "$h/.local/share" "$h/.local/state" "$h/.ssh" "$h/.tmp" && cp -rn /etc/skel/. "$h"/ 2>/dev/null; ' +
+      'mkdir -p "$h/.config" "$h/.cache" "$h/.local/share" "$h/.local/state" "$h/.ssh" "$h/.tmp" "$h/.tmux" && cp -rn /etc/skel/. "$h"/ 2>/dev/null; ' +
       // the first line this person reads in their terminal (lead, 14 Nov): where their files are, and that this is their own home; the agent's own home and the Files mirror are not offered to them
       '[ -e "$h/.vyre-hello" ] || { printf "%s\\n" "echo \\"Your files are in Files. This is your own home on this computer.\\"" >> "$h/.bashrc"; : > "$h/.vyre-hello"; }; true',
     "sh",
@@ -78,6 +80,10 @@ export function grantCommand(p: AskerPlace, projects: ReadonlyArray<{ id: string
       'setfacl -m "u:$u:--x" "$H" "$H/projects" || fail "the agent computer"; ' +
       'for d in "$H"/projects/* "$H/Vyre"; do [ -d "$d" ] && { chmod 700 "$d"; setfacl -R -x "u:$u" "$d" 2>/dev/null; setfacl -R -d -x "u:$u" "$d" 2>/dev/null; }; done; ' +
       '[ "$files" = 1 ] && [ -d "$H/Vyre" ] && { setfacl -m "u:$u:rX" "$H/Vyre" && setfacl -d -m "u:$u:rX" "$H/Vyre" || fail "the Files folder"; setfacl -R -m "u:$u:rX" "$H/Vyre" 2>/dev/null; setfacl -R -d -m "u:$u:rX" "$H/Vyre" 2>/dev/null; }; ' +
+      // the agent's home is not walkable by a guest: whatever a program of the agent's wrote with a loose umask (an engine, an exec outside the session shell, every file of an older workspace) has its group and
+      // other bits taken off at each grant, so the --x a guest holds on the home reaches only the folders opened to them by name
+      'find "$H" -mindepth 1 -maxdepth 1 ! -name projects ! -name chats ! -name Vyre ! -type l -exec chmod go-rwx {} + 2>/dev/null; ' +
+      '[ -z "$(find "$H" -mindepth 1 -maxdepth 1 ! -name projects ! -name chats ! -name Vyre ! -type l -perm /077 2>/dev/null | head -n 1)" ] || fail "the agent home"; ' +
       'for p in "$@"; do id="${p%%:*}"; m="${p##*:}"; d="$H/projects/$id"; [ -d "$d" ] || continue; perm=rX; [ "$m" = rw ] && perm=rwX; ' +
       'setfacl -m "u:$u:$perm" "$d" && setfacl -d -m "u:$u:$perm" "$d" && setfacl -d -m u:10001:rwX "$d" || fail "project $id"; ' +
       'setfacl -R -m "u:$u:$perm" "$d" 2>/dev/null; setfacl -R -d -m "u:$u:$perm" "$d" 2>/dev/null; setfacl -R -d -m u:10001:rwX "$d" 2>/dev/null; done; exit $rc',
@@ -92,9 +98,9 @@ export function grantCommand(p: AskerPlace, projects: ReadonlyArray<{ id: string
 export const chatFolderPath = (thread: string): string => `/home/agent/chats/${thread.replace(/[^A-Za-z0-9_-]/g, "_")}`;
 
 /**
- * Makes the shared folder of a chat and opens it to one more person, by the file system (POSIX ACLs, as the agent's own user 10001, which owns the folders): the folder is closed to everyone (0700) and then
- * opened by name to the people who work in the chat, who may pass through /home/agent and /home/agent/chats and read and write in the chat's own folder; a file made there is readable by everyone named at the
- * time (default entries). Run at each turn of the chat, so a person who joins gets it at their first turn. Nothing else of the agent's home is opened by it.
+ * Makes the shared folder of a chat (closed to everyone, 0700, the agent's own user keeping it) and, when a uid is named, opens it to that person: they may pass through /home/agent and /home/agent/chats and
+ * read and write in the chat's own folder; what is made there is readable by everyone named at the time (default entries). Run at each command of a person in the chat. Who is still allowed is decided by
+ * `chatReconcileCommand`, which takes the entry away again from a person who left the chat.
  */
 export function chatFolderCommand(thread: string, uid?: number): string[] {
   return [
@@ -106,6 +112,18 @@ export function chatFolderCommand(thread: string, uid?: number): string[] {
     "sh",
     chatFolderPath(thread),
     uid === undefined ? "" : String(uid),
+  ];
+}
+
+/** Takes one person's entries off the shared folder of a chat they are no longer in (the folder, what is in it and the default entries); a folder that is not there is nothing to do. */
+export function chatRevokeCommand(thread: string, uid: number): string[] {
+  return [
+    "sh",
+    "-c",
+    'd="$1"; u="$2"; [ -d "$d" ] || exit 0; setfacl -x "u:$u" "$d" && setfacl -d -x "u:$u" "$d" || exit 1; setfacl -R -x "u:$u" "$d" 2>/dev/null; setfacl -R -d -x "u:$u" "$d" 2>/dev/null; true',
+    "sh",
+    chatFolderPath(thread),
+    String(uid),
   ];
 }
 

@@ -27,10 +27,11 @@ RUN groupadd --gid 10001 agent \
  && chmod 0700 /home/agent
 
 # People who use a shared agent without owning it work as Unix users of their own (modules/terminal/asker.ts): uids 20000 to 20999, named u<uid>, each with a home /people/u<uid> that the person makes
-# themselves (0700, so nobody else, the agent's own user 10001 included, can enter). /people is a volume of its own, sticky and world-writable like /tmp, so a person can make their folder and cannot remove
+# themselves (0700, so nobody else, the agent's own user 10001 included, can enter). The image makes every one of these folders for its own uid, 0700, and /people itself is 0711: nobody can list it or make or
+# remove a folder in it, so nobody can make another person's folder first. /people is a volume of its own (a new volume is filled from the image on its first use);
 # another's; no capability is needed anywhere. The agent's home /home/agent stays 0700 owned by 10001, which is what keeps these users out of it (and out of ~/Vyre and ~/projects under it).
-RUN mkdir -p -m 1777 /people \
- && for i in $(seq 20000 20999); do echo "u$i:x:$i:$i:person $i:/people/u$i:/bin/bash" >> /etc/passwd; echo "u$i:x:$i:" >> /etc/group; done
+RUN mkdir -p -m 0711 /people \
+ && for i in $(seq 20000 20999); do echo "u$i:x:$i:$i:person $i:/people/u$i:/bin/bash" >> /etc/passwd; echo "u$i:x:$i:" >> /etc/group; mkdir -m 0700 /people/u$i; chown $i:$i /people/u$i; done
 
 # One tmux config for every session: a big scrollback (the terminal tab reads it back), no status bar (the tab has its own chrome), no escape delay.
 COPY tmux.conf /etc/tmux.conf

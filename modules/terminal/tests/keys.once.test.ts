@@ -367,9 +367,8 @@ test("terminal.run into a person's own terminal by its id, and terminal.status o
     "its owner reads it",
   );
   const theirs = await h["terminal.status"]!(manager, { terminalIds: [own] });
-  assert.equal(theirs.rows.length, 1);
-  assert.equal(theirs.rows[0].lastLine, undefined);
-  assert.equal(theirs.rows[0].lastCommand, undefined);
+  // a terminal on an agent's computer outside the caller's own place gives nothing at all, not even its state (F30)
+  assert.equal(theirs.rows.length, 0);
 });
 
 test("a member cannot rename the agent's terminal: rename needs entry to the computer, like every other door", async () => {

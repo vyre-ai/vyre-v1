@@ -11,11 +11,12 @@ import {
   onAgentRestored,
   onPersonBack,
   onPersonLeft,
-  onUseGone,
+  reconcileAccess,
   forgetExpiredPeople,
   openTabForRun,
   stopRuns,
 } from "./handlers/sessions.ts";
+import type { AccessDeps } from "./handlers/sessions.ts";
 import { chatFolderCommand, chatLinkCommand, grantCommand, removeCommand } from "./asker.ts";
 import {
   bindWorkspaceStatus,
@@ -1325,7 +1326,37 @@ export async function workspacesReady(): Promise<void> {
 }
 
 /** Jobs the host runs on a clock. */
+/** What the sweep asks of the host: the access answers (as the host, so any person can be asked about) and the commands in a workspace. */
+function accessDeps(ctx: TermCtx): AccessDeps {
+  const check = async (person: string, level: string, resource: { type: string; id: string }): Promise<boolean> => {
+    const r = (await ctx.call?.("access.check", { principal: { kind: "person", id: person }, action: { level }, resource })) as
+      | { decision?: { effect?: string } }
+      | undefined;
+    if (r?.decision?.effect === undefined) throw new Error("the access answer could not be read");
+    return r.decision.effect === "allow";
+  };
+  const wm = workspaceManager;
+  return {
+    mayUse: (person, agentId) => check(person, "use", { type: "agent", id: agentId }),
+    mayView: (person, thread) => check(person, "view", { type: "thread", id: thread }),
+    stopFor: async (agentId, place) => {
+      await wm?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
+    },
+    run: wm
+      ? async (agentId, argv, user) => {
+          const r = await wm.exec(agentId, argv, { quiet: true, ...(user === undefined ? {} : { user }) });
+          return { code: r.code };
+        }
+      : null,
+  };
+}
+
 export const periodic = {
+  /** Every 15 seconds: whoever lost the use of an agent in any way (a group, a role, an expiry, a suspension) is out of its computer and their programs there end; chat folders follow chat membership. */
+  "terminal.use_sweep": {
+    everyMs: 15_000,
+    run: (ctx: TermCtx): Promise<string[]> => reconcileAccess(ctx, accessDeps(ctx)),
+  },
   /** Hourly: the home and Files volumes of an agent in Trash longer than the Space's Trash retention are removed (12 Nov, the Space browser's rule for its profiles). */
   "terminal.trash_volumes": {
     everyMs: 60 * 60_000,
@@ -1385,29 +1416,16 @@ export const consumers = {
         await workspaceManager?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
       }),
   },
-  /** A person's share of an agent was removed: they are out of its computer at once, their programs there are stopped (handlers/sessions.ts onUseGone). */
+  /** What a person may reach on an agent's computer may have changed (a grant, a group, a role, an expiry, a suspension, a chat's members): it is brought back to what they may reach now at once (handlers/sessions.ts reconcileAccess). */
   "terminal.use_gone": {
-    on: ["grant.revoked"],
-    run: (
-      ctx: TermCtx,
-      event: { payload: { subject?: { kind?: unknown; id?: unknown }; resource?: { type?: unknown; id?: unknown } } },
-    ): Promise<string[]> =>
-      onUseGone(
-        ctx,
-        event,
-        async (person, agentId) => {
-          const r = (await ctx.call?.("access.check", {
-            principal: { kind: "person", id: person },
-            action: { level: "use" },
-            resource: { type: "agent", id: agentId },
-          })) as { decision?: { effect?: string } } | undefined;
-          if (r?.decision?.effect === undefined) throw new Error("the access answer could not be read");
-          return r.decision.effect === "allow";
-        },
-        async (agentId, place) => {
-          await workspaceManager?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
-        },
-      ),
+    on: [
+      "grant.revoked",
+      "grant.updated",
+      "access.changed",
+      "principal.suspended",
+      "channel.member_removed",
+    ],
+    run: (ctx: TermCtx): Promise<string[]> => reconcileAccess(ctx, accessDeps(ctx)),
   },
   /** Back inside the Trash time: their folder is theirs again. */
   "terminal.person_back": {
