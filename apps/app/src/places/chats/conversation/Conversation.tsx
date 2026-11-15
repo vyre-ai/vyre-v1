@@ -1586,8 +1586,6 @@ function ConversationView(): ReactElement {
         )
         .catch(fail("Could not do that.")),
     canSetSpaceKey: spaceKeyAdmin,
-    // a Personal Space has no Space key and no admin to ask: nothing about one is said there
-    ...(data.nav.openSpaceAiKey ? {} : { noSpaceKey: true }),
     retrySend: (id) => {
       const p = pending.find((x) => `pending:${x.key}` === id);
       if (p) {

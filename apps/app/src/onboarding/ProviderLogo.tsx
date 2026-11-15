@@ -135,35 +135,9 @@ export function markKey(id: string): string | null {
   return ALIAS[id] ?? (LOGO[id] ? id : null);
 }
 
-export function Mark({ k, size = 18, letter }: { k: string; size?: number; letter?: string }): ReactElement | null {
+export function Mark({ k, size = 18 }: { k: string; size?: number }): ReactElement | null {
   const L = LOGO[markKey(k) ?? ""];
-  if (Platform.OS !== "web") return null;
-  // a provider with no brand mark of its own (OpenCode Go, OpenRouter) is its first letter on a quiet disc: a row never has a blank where the others have a mark
-  if (!L)
-    return letter
-      ? createElement(
-          "span",
-          {
-            "aria-hidden": true,
-            "data-mark-letter": "",
-            style: {
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flex: "none",
-              width: size,
-              height: size,
-              borderRadius: size,
-              background: "var(--line-2)",
-              color: "var(--ink-2)",
-              fontSize: Math.round(size * 0.6),
-              fontWeight: 600,
-              lineHeight: 1,
-            },
-          },
-          letter.charAt(0).toUpperCase(),
-        )
-      : null;
+  if (!L || Platform.OS !== "web") return null;
   const color = L[1] === "currentColor" ? "var(--ink)" : L[1];
   return createElement(
     "svg",

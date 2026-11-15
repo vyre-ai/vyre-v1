@@ -354,7 +354,7 @@ export const groupFingerprint = (raw: string): string =>
       .match(/.{1,4}/g) ?? []
   ).join(" ");
 
-/** The line under a first sign-in or join: the code is how a person knows it is the right server, so it is shown wherever the Space has one, an invite link's included (the walker, 15 Nov, saw no code on the join screens). */
+/** The line under a first sign-in or join by address: the code is how a person knows it is the right server. Only where they typed an address; an invite link carries the code itself. */
 export const ADMIN_CODE_LINE = "Check this code matches the one your admin sees:";
-export const adminCode = (invite: { fingerprint?: string }, _state?: { spaceAddress: string }): string | null =>
-  invite.fingerprint ? groupFingerprint(invite.fingerprint) : null;
+export const adminCode = (invite: { fingerprint?: string }, state: { spaceAddress: string }): string | null =>
+  invite.fingerprint && state.spaceAddress.trim() !== "" ? groupFingerprint(invite.fingerprint) : null;

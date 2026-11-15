@@ -5,7 +5,7 @@
 import { PhoneNotices } from "../noticeslot/PhoneNotices.tsx";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { useResume } from "../../onboarding/ResumeChip.tsx";
 import { DesktopOnly, InstallRow, MobileShell, YouScreen } from "../../mobile/shell/index.ts";
@@ -58,7 +58,7 @@ function You({
   const recent = useLive(session.hooks.capQuery<CapMap["chat.recent"]["out"]>("chat.recent", { filter: "all" }));
   const threadsNew = recent.status === "ready" ? (recent.data.threadsUnread ?? 0) : 0;
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }}>
+    <View style={{ flex: 1 }}>
       <YouScreen
         nav={nav}
         data={{
@@ -110,7 +110,7 @@ function You({
         <Row id="you-add-space" title="Add a Space" note="Create or join another Space" onPress={onAddSpace} />
       ) : null}
       <Row id="you-sign-out" title="Sign out" note={`Of ${session.def.name} on this device`} onPress={onSignOut} />
-    </ScrollView>
+    </View>
   );
 }
 

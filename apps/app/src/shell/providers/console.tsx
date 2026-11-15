@@ -101,7 +101,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "support") return <Support />;
   if (id === "backups") return <Backups />;
   if (id === "sessions") return <Devices />;
-  if (id === "people") return <People {...(args.personId ? { initialPersonId: args.personId } : {})} {...(args["invite"] === "1" ? { openInvite: true } : {})} />;
+  if (id === "people") return <People {...(args.personId ? { initialPersonId: args.personId } : {})} />;
   if (id === "policies") return <Policies {...(args.policyId ? { initialId: args.policyId } : {})} />;
   if (id === "reviews") return <Reviews {...(args.reviewId ? { initialId: args.reviewId } : {})} />;
   if (id === "permissions") return <Permissions />;

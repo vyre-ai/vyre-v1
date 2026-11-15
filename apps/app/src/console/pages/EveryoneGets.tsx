@@ -193,7 +193,7 @@ export function EveryoneGets(): ReactElement {
         key={`t:${t.key}`}
         id={`everyone-type-${t.key}`}
         title={t.plural}
-        note="Open to everyone, as their role allows. Change who sees it from its Share button in Records"
+        note="Open to everyone, as their role allows. Set apart from its Share sheet in Records"
       />,
     );
   for (const r of by.records)

@@ -89,12 +89,12 @@ export function titleFromRequest(text: string): string | null {
   // a greeting in front of the real request ("Hello! Can you ...") is not what the chat is about
   let t = words((text.split("\n").find((l) => l.trim() !== "") ?? "").replace(OPENING_GREETING, "")).join(" ");
   for (let i = 0; i < 3 && LEAD.test(t); i++) t = t.replace(LEAD, "");
-  const all = t.split(" ").filter((x) => x !== "");
-  const w = all.slice(0, 5);
+  const w = t
+    .split(" ")
+    .filter((x) => x !== "")
+    .slice(0, 5);
   if (w.length < 2) return null;
-  const title = tidyTitle(w.join(" "));
-  // a request longer than the title is cut at a word and says so: "Look around and do some" read as a whole sentence
-  return title !== null && all.length > w.length ? `${title}\u2026` : title;
+  return tidyTitle(w.join(" "));
 }
 
 const DANGLING: ReadonlySet<string> = new Set([

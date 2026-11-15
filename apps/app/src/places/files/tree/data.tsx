@@ -48,8 +48,6 @@ export interface FilesNav {
   openKnow(route: KnowRoute): void;
   /** The person went back to the notes or a folder, so the Proposed or Graph screen gives the body back to the list. */
   leaveMemory?(): void;
-  /** A new note: the shell opens Notes on its Take a note bar. */
-  takeNote?(): void;
   /** Upload into a folder (null is the top of Files): the shell opens its picker and sends the bytes through files.upload_url. */
   upload?(folderId: string | null): void;
   /** Store files dropped or pasted on the list in a folder (null is the top of Files), the same way Upload does. */
