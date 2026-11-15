@@ -1,0 +1,1 @@
+- Stop-all before an update treats only the host's own service (svc_host) as no guest; any other service is judged like a person (through lib/trust.ts).
