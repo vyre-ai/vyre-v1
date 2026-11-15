@@ -82,6 +82,10 @@ import type { NotesInitial } from "../notes/NotesPage.tsx";
 import { AgentForm } from "../agentform/AgentForm.tsx";
 import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
+import { ThingPane } from "./ThingPane.tsx";
+import { nextTrail, thingOf } from "./thing-model.ts";
+import type { Thing } from "./thing-model.ts";
+import { openIn } from "../../../shell/tabs/open-how.ts";
 import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
 import type { PaneKind, TabKey } from "../rightpane/model.ts";
@@ -116,6 +120,9 @@ type RecordingOut = CapMap["computers.recording.get"]["out"];
 export const SIDEBAR_W = 264;
 export const PANE_W = 340;
 export const TERMINAL_W = 480;
+/** What each chat's right pane was showing: open or not, and which of its own tabs. */
+const PANE_MEMORY = new Map<string, { open: boolean; tab?: TabKey }>();
+
 /** Under this width the agent's pane and the terminal fill the window (the sidebar is the shell's slot, which has its own phone view). */
 export const WIDE = 640;
 const LINE_MS = 4000;
@@ -397,15 +404,37 @@ export function ChatsMounted({
   // each chat opens on what it is: a tab asked for in one chat (Hooks, Knows, Skills) is not carried to the next
   // the task open beside the chat it was pressed in; it closes when the chat changes
   const [sideTask, setSideTask] = useState<string | null>(null);
-  const openSideTask = useCallback((id: string): void => setSideTask(id), []);
+  // a file or a record named in the chat opens beside it too (D3): one thing at a time, the ones it replaced kept for Back in the pane
+  const [thingTrail, setThingTrail] = useState<readonly Thing[]>([]);
+  const openSideTask = useCallback((id: string): void => {
+    setThingTrail([]);
+    setSideTask(id);
+  }, []);
   const chatShown = shown.route.view === "chat" ? shown.route.threadId : null;
   useEffect(() => {
     setSideTask(null);
+    setThingTrail([]);
   }, [chatShown]);
+  // each chat keeps its pane: whether it is open and on which tab, for as long as the app is open, so leaving the tab and coming back (or Back) finds the pane as it was (NAV-2026-11-14 rules 1 and 5)
+  const savedPane = useRef<string | null>(null);
+  const skipSave = useRef(false);
   useEffect(() => {
-    setPaneTab(undefined);
+    const mem = chatShown === null ? undefined : PANE_MEMORY.get(chatShown);
+    setPaneTab(mem?.tab);
     setHookSel(null);
-  }, [chatShown]);
+    savedPane.current = chatShown;
+    // the commit that brings a chat in still carries the last chat's pane flag: what it says is not this chat's
+    skipSave.current = true;
+    if (mem?.open === true && !shown.pane) act({ t: "pane-open" });
+  }, [chatShown]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (skipSave.current) {
+      skipSave.current = false;
+      return;
+    }
+    if (chatShown === null || savedPane.current !== chatShown) return;
+    PANE_MEMORY.set(chatShown, { open: shown.pane, ...(paneTab !== undefined ? { tab: paneTab } : {}) });
+  }, [chatShown, shown.pane, paneTab]);
   const profile = useCallback(
     (id: string, asPerson = false): void => {
       const agent =
@@ -677,8 +706,12 @@ export function ChatsMounted({
     });
     // a task link in the chat opens beside it, where it was pressed
     const openBeside = (kind: string, id: string): void => {
+      const thing = thingOf(kind, id);
       if (kind === "task") openSideTask(id);
-      else wired.nav.openBeside(kind, id);
+      else if (thing !== null) {
+        setSideTask(null);
+        setThingTrail((t) => nextTrail(t, thing));
+      } else wired.nav.openBeside(kind, id);
     };
     return {
       ...wired,
@@ -1233,6 +1266,20 @@ export function ChatsMounted({
       <View testID="chats-thread-side" style={st.pane}>
         {beside}
       </View>
+    );
+  } else if (thingTrail.length > 0 && route.view === "chat" && shown.terminalId === null) {
+    right = (
+      <ThingPane
+        rt={rt}
+        trail={thingTrail}
+        narrow={narrow}
+        onBack={() => setThingTrail((t) => t.slice(0, -1))}
+        onClose={() => setThingTrail([])}
+        onOpenTab={(t) => {
+          setThingTrail([]);
+          openIn("tab", () => rt.open({ subject: { type: t.type, id: t.id } }));
+        }}
+      />
     );
   } else if (sideTask !== null && route.view === "chat" && shown.terminalId === null) {
     // a task pressed in a chat opens beside it, in the right pane; Open full page takes it to its own page

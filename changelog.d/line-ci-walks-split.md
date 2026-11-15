@@ -1,0 +1,1 @@
+CI: the browser walks run as two jobs of 35 minutes each (one job had reached its cap at 115 files and was cancelled), and the release gate requires both. Five Automations walks that sat after the pipe on the command line, and so never ran, run now. The container job installs the workspace packages the wall's tests import. A guest cannot use Rewind.

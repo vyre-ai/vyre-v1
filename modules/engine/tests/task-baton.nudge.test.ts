@@ -195,6 +195,20 @@ test("after nudgeMinutes without a hand-over the task goes to the person who ask
   assert.deepEqual(await sweepBaton(s.h.ctx, s.host, s.engine), [], "only once");
 });
 
+test("an agent that could not work because the Vault is locked goes to the person with that cause in words, not just 'it stopped'", async () => {
+  const s = scene(task(), [{ type: "error", code: "engine.vault_locked", message: "locked" }]);
+  await s.wake();
+  await s.settle();
+  s.h.advance(31 * MIN);
+  assert.deepEqual(await sweepBaton(s.h.ctx, s.host, s.engine), ["tsk_t1"]);
+  const summary = String(s.sent.find((c) => c.cap === "tasks.create")!.input.summary);
+  assert.match(
+    summary,
+    /^The agent doing it could not work on it: your Vault key is not on this server\. Open Vyre on your computer and unlock your Vault\. Then press "Done, continue" to start it again\.$/,
+  );
+  assert.doesNotMatch(summary, /engine\.|vault_locked/);
+});
+
 test("the step's nudgeMinutes and escalateTo are the clock and the person", async () => {
   const s = scene(
     task({
