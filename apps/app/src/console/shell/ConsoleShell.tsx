@@ -27,6 +27,7 @@ import { NeedsHere } from "./NeedsHere.tsx";
 import { RowWrapContext } from "../../../../../ui/src/Row/index.tsx";
 import { Info } from "../../../../../ui/src/Tip/index.tsx";
 import { openOnboarding } from "../../onboarding/store.ts";
+import { SidebarContent, useInSidebarSlot } from "../../shell/sidebar/index.ts";
 
 export const TOP_BAR_HEIGHT = 44;
 export const NAV_WIDTH = 232;
@@ -118,6 +119,7 @@ function ShellBody({
   const data = useConsoleData();
   const measured = useWindowDimensions().width;
   const narrow = (given ?? measured) < 900;
+  const inSlot = useInSidebarSlot();
   const [page, setPage] = useState<string>(pageById(resolve(initialPage)) ? resolve(initialPage) : DEFAULT_PAGE);
   const [pageState, setPageState] = useState<Record<string, unknown>>({});
   const [assistantOn, setAssistantOn] = useState(assistantOpen);
@@ -528,7 +530,22 @@ function ShellBody({
         </View>
       )}
       <View style={s.below}>
-        {narrow ? null : (
+        {narrow ? null : inSlot ? (
+          // inside the app the pages list is drawn in the shell's one sidebar column, like every other place's list: the same place, the same width, and the tab strip
+          // does not move when a tab of another place is chosen (team/v1/TABS-2026-11-15.md)
+          <SidebarContent title="Console" noSearch>
+            {() => (
+              <ScrollView
+                style={s.navSlot}
+                contentContainerStyle={s.navScroll}
+                testID="console-nav"
+                accessibilityLabel="Console navigation"
+              >
+                {navRows}
+              </ScrollView>
+            )}
+          </SidebarContent>
+        ) : (
           <ScrollView
             style={s.nav}
             contentContainerStyle={s.navScroll}
@@ -659,6 +676,7 @@ const s = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: "var(--line)" as string,
   },
+  navSlot: { flex: 1 },
   navScroll: { padding: 8, paddingBottom: 24 },
   indent: { paddingLeft: 10 },
   groupHead: { flexDirection: "row", alignItems: "center", gap: 6, height: 28, paddingHorizontal: 8, marginTop: 6 },

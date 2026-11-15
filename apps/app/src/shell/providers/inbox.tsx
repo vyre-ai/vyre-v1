@@ -31,7 +31,7 @@ import { useInboxSources } from "../rail/inbox-sources.ts";
 import { capLive } from "./records-live.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { openAskPane } from "../ask/pane.ts";
-import { SIDEBAR_DEFAULT } from "../sidebar/index.ts";
+import { SIDEBAR_DEFAULT, SidebarContent, useInSidebarSlot } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -306,6 +306,7 @@ function InboxFrame({
 }): ReactElement {
   const winW = useWindowDimensions().width;
   const phone = isPhoneWidth(winW);
+  const inSlot = useInSidebarSlot();
   const { state } = useInboxState();
   const { target } = usePlaceHash();
   const [entered, setEntered] = useState(false);
@@ -320,18 +321,29 @@ function InboxFrame({
   if (!phone) {
     return (
       <View testID="inbox-place" style={st.row}>
-        <ResizableColumn
-          paneKey="place-sidebar"
-          defaultWidth={SIDEBAR_DEFAULT}
-          grow="right"
-          min={200}
-          maxFraction={0.5}
-          maxWidth={380}
-          style={st.sideCol}
-          testID="inbox-sidebar-col"
-        >
-          <InboxSidebar />
-        </ResizableColumn>
+        {inSlot ? (
+          // the list is drawn in the shell's one sidebar column: the same place and width as every other place's list (team/v1/TABS-2026-11-15.md)
+          <SidebarContent title="Inbox" bare noSearch>
+            {() => (
+              <View style={st.sideSlot} testID="inbox-sidebar-col">
+                <InboxSidebar />
+              </View>
+            )}
+          </SidebarContent>
+        ) : (
+          <ResizableColumn
+            paneKey="place-sidebar"
+            defaultWidth={SIDEBAR_DEFAULT}
+            grow="right"
+            min={200}
+            maxFraction={0.5}
+            maxWidth={380}
+            style={st.sideCol}
+            testID="inbox-sidebar-col"
+          >
+            <InboxSidebar />
+          </ResizableColumn>
+        )}
         <View style={st.main}>
           <Main rt={rt} openId={openId} close={close} />
         </View>
@@ -422,6 +434,7 @@ const st = StyleSheet.create({
   row: { flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string },
   side: { width: SIDEBAR_W, minHeight: 0 },
   sideCol: { minHeight: 0 },
+  sideSlot: { flex: 1, minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
   backChip: { alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 10 },
   backText: { fontSize: 14, color: "var(--accent)" as string },

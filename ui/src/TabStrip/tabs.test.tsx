@@ -182,13 +182,14 @@ test("the main strip's lone tab has no Close (it would only reopen the start pla
   assert.match(two, /tab-close-x/);
 });
 
-test("the open tab keeps its width and the others give up room evenly, down to a width that still reads", () => {
+// Changed 15 Nov 2026 (team/v1/TABS-2026-11-15.md): the open tab used to be let wider than the others, so choosing a tab changed its width and pushed the rest sideways.
+test("every tab gets the same cap, the open one too: an even share of the strip, never less than a place's whole name, and past that the strip scrolls", () => {
   assert.equal(tabCap(1100, 3), 200, "room for all: nobody is cut");
   assert.equal(tabCap(1100, 1), 200);
   assert.equal(tabCap(0, 8), 200, "not measured yet");
-  const eight = tabCap(1000, 8);
-  assert.ok(eight < 200 && eight >= 112 && 200 + 7 * (eight + 2) <= 1000, `${eight}`);
-  assert.equal(tabCap(600, 20), 112, "past that the strip scrolls, it never crushes a title");
+  assert.equal(tabCap(1400, 8), 173, "an even share: 1400 over 8, less the gap");
+  assert.equal(tabCap(1000, 8), 124, "never under the width that shows a place's name whole");
+  assert.equal(tabCap(600, 20), 124, "past that the strip scrolls, it never crushes a title");
 });
 
 test("a tab keeps its hover while the pointer is on its close button: hover is enter and leave of the tab, so moving onto the x does not end it", async () => {
