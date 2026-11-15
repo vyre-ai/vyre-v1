@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { listView } from "../list/model.ts";
 import type { ListRowIn } from "../list/model.ts";
 
@@ -15,6 +16,7 @@ export function ListView({
   onNew,
   query,
   selectedId,
+  onMenu,
 }: {
   rows: readonly ListRowIn[];
   onOpen(id: string): void;
@@ -23,6 +25,8 @@ export function ListView({
   /** The shell sidebar supplies the one search and its own head: then this draws only the rows. */
   query?: string;
   selectedId?: string | null;
+  /** The row's own menu: right-click, the keyboard's menu key, a long press on a phone. */
+  onMenu?(id: string, x: number, y: number): void;
 }): ReactElement {
   const [own, setOwn] = useState("");
   const q = query ?? own;
@@ -54,9 +58,9 @@ export function ListView({
         </>
       )}
       {v.rows.map((r) => (
+        <View key={r.id} {...(onMenu ? menuTrigger((x, y) => onMenu(r.id, x, y)) : {})}>
         <Row
-          key={r.id}
-          id={`al-${r.id}`}
+          id={`${r.scope === "Journey" ? "journey" : "auto"}-${r.id}`}
           {...(selectedId === r.id ? { selected: true } : {})}
           title={r.name}
           leading={<View style={[s.dot, { backgroundColor: DOT[r.dot] as string }]} />}
@@ -64,6 +68,7 @@ export function ListView({
           {...(r.scope ? { trailing: <Text style={s.quiet}>{r.scope}</Text> } : {})}
           onPress={() => onOpen(r.id)}
         />
+        </View>
       ))}
       {v.empty ? <Text style={s.quiet}>{v.empty}</Text> : null}
     </View>
