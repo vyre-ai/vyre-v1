@@ -4,7 +4,7 @@ import { SIDEBAR, useAutomationsData, useScreenQuery } from "../canvas/data.tsx"
 import type { ListRowIn } from "../list/model.ts";
 import { ListView } from "../screens/ListView.tsx";
 import { needsYou } from "./model.ts";
-import type { AutoRow } from "./model.ts";
+import type { AutoRow, JourneyRow } from "./model.ts";
 
 export const listRowOf = (a: AutoRow, me: string): ListRowIn => ({
   id: a.id,
@@ -24,15 +24,23 @@ export function AutomationsList({
 }): ReactElement | null {
   const data = useAutomationsData();
   const list = useScreenQuery<{ automations: readonly AutoRow[] }>(SIDEBAR, "automations", {});
+  // a Journey is a row in the same list (design 2.2), opened in its own record-by-stage view
+  const journeys = useScreenQuery<{ journeys: readonly JourneyRow[] }>(SIDEBAR, "journeys", {});
   if (list.status !== "ready") return null;
+  const journeyIds = new Set(journeys.status === "ready" ? journeys.data.journeys.map((j) => j.id) : []);
+  const journeyRows: ListRowIn[] =
+    journeys.status === "ready"
+      ? journeys.data.journeys.map((j) => ({ id: j.id, name: j.name, state: "off", scope: "Journey" }))
+      : [];
   return (
     <ListView
-      rows={list.data.automations.map((a) => listRowOf(a, data.me.id))}
+      rows={[...list.data.automations.map((a) => listRowOf(a, data.me.id)), ...journeyRows]}
       query={query}
       selectedId={selectedId}
       onHome={onChoose}
       onOpen={(id) => {
-        data.nav.openAutomation(id);
+        if (journeyIds.has(id)) data.nav.openJourney(id);
+        else data.nav.openAutomation(id);
         onChoose();
       }}
     />

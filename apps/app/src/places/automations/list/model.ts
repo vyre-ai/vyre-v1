@@ -4,13 +4,13 @@ export interface ListRowIn {
   id: string;
   name: string;
   state: "needs" | "on" | "off";
-  scope: "Space" | "Shared" | null;
+  scope: "Space" | "Shared" | "Journey" | null;
 }
 export interface ListRow {
   id: string;
   name: string;
   dot: "amber" | "green" | "grey";
-  scope: "Space" | "Shared" | null;
+  scope: "Space" | "Shared" | "Journey" | null;
 }
 
 const DOT = { needs: "amber", on: "green", off: "grey" } as const;
