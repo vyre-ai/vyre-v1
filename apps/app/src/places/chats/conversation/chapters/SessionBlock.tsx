@@ -89,6 +89,7 @@ export function SessionBlock({
       <Text accessibilityRole="header" style={st.caption}>
         Session
       </Text>
+      {/* ui-rows-lint: not a list (label and value facts of the session, not list rows) */}
       {rows.map((r) => (
         <View key={r.key} testID={`session-${r.key}`} style={st.row}>
           <Text style={st.label}>{r.label}</Text>

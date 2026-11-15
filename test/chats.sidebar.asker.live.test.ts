@@ -53,6 +53,13 @@ before(async () => {
   guestChannel = room.channelId as string;
   guestChannelThread = room.mainThreadId as string;
   await h.owner.call("channels.members.add", { channelId: guestChannel, personIds: [g.personId] });
+  // a guest is added to a channel the way the invite adds them: in its chat AND with access to it (a list that shows a channel the guest cannot open would lead to a refusal; perms-defaults does the same)
+  await h.owner.call("access.share", {
+    resource: { type: "channel", id: guestChannel },
+    subject: { kind: "person", id: g.personId },
+    level: "use",
+    idempotencyKey: "sidebar-share-guest-room",
+  });
   await b.call("channels.join", { channelId: sharedChannel });
   // a private chat of each member, an agent only Aina may use, a pinned and a muted chat of hers, a goal only the owner has
   ainaAgent = (await m.call("agents.create", { name: "Aina's helper", role: "Helps Aina." })).agent.agentId as string;
@@ -72,6 +79,8 @@ before(async () => {
     finish: { kind: "owner", line: "The owner says it is done" },
     deadline: Date.now() + 30 * 86_400_000,
     leadAgentId: h.agentId,
+    // no quiet hours: a goal's Unblock task is held until its quiet hours end (22:00 to 08:00 by default), so with them the task is in Needs you only by day and this test failed on any run at night
+    quiet: null,
   });
   ownerGoal = goal.goal.id as string;
 });
@@ -116,6 +125,11 @@ test("a guest gets only the channel they were added to: no public channel, no go
     "exactly the channels the guest may list themselves",
   );
   assert.ok(keys.includes(`ch:${guestChannel}`));
+  assert.deepEqual(
+    keys.filter((k) => k.startsWith("ch:")),
+    [`ch:${guestChannel}`],
+    "the one channel they were added to, and not the Space's public channel they land in on joining",
+  );
   assert.ok(!keys.includes(`ch:${sharedChannel}`), "not the public channel they are not in");
   assert.ok(!keys.includes(`c:${privateThread}`));
   assert.equal(out.goals.total, 0);

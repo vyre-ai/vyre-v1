@@ -614,6 +614,12 @@ function pointOf(event: PointerLike): { x: number; y: number } {
 export const LONG_PRESS_MS = 450;
 const LONG_PRESS_SLOP = 8;
 
+/** For a surface whose menu is a sheet opened another way (a long press on a touch screen): shuts the browser's own menu without opening one. */
+export function shutNativeMenu(): Record<string, unknown> {
+  if (Platform.OS !== "web") return {};
+  return { onContextMenu: (event: PointerLike): void => event.preventDefault?.() };
+}
+
 /** Handlers that open a menu from a surface: right-click on web, a long press with a finger on a phone's browser, Shift-F10 and the menu key. */
 export function menuTrigger(open: (x: number, y: number) => void): Record<string, unknown> {
   const onLongPress = (event: PointerLike): void => {
