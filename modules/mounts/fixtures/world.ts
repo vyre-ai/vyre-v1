@@ -313,6 +313,12 @@ export class FakeFiles {
       f.deleted = true;
       return { deleted: true };
     }
+    if (cap === "files.restore") {
+      const f = this.files.get(String(i["fileId"]));
+      if (!f || !f.deleted) return missing("file");
+      f.deleted = false;
+      return { file: { fileId: f.id, folderId: f.folderId, name: f.name, version: f.version } };
+    }
     return undefined;
   }
 }
@@ -342,6 +348,8 @@ export class FakeGoogle {
   }[] = [];
   /** every idempotency key a write carried, so a test can see a retry reuse it */
   readonly keys: { cap: string; key: string }[] = [];
+  /** the content Drive holds for a file this fake was sent (a file it only listed has none) */
+  readonly content = new Map<string, string>();
   /** modified time per file id, as the last listing or feed said */
   readonly modified = new Map<string, string>();
   /** Drive folders by id: the recorded listing for each */
@@ -435,6 +443,20 @@ export class FakeGoogle {
     this.calls.push({ cap, input: i });
     if (typeof i["idempotencyKey"] === "string") this.keys.push({ cap, key: i["idempotencyKey"] });
     if (this.failWith) throw this.failWith;
+    // the host's own rule: a write repeated with the same key returns what the first one returned and runs nothing twice
+    if (typeof i["idempotencyKey"] === "string") {
+      const seen = this.answers.get(`${cap}:${i["idempotencyKey"]}`);
+      if (seen !== undefined) return seen;
+      const answer = this.run(cap, i);
+      if (answer !== undefined) this.answers.set(`${cap}:${i["idempotencyKey"]}`, answer);
+      return answer;
+    }
+    return this.run(cap, i);
+  }
+
+  private readonly answers = new Map<string, unknown>();
+
+  private run(cap: string, i: Row): unknown {
     if (cap === "google.drive.changes_start_token") {
       if (this.startToken === undefined) throw vyreErr("provider.bad_response", "No start token.");
       return { startPageToken: this.startToken };
@@ -508,6 +530,7 @@ export class FakeGoogle {
         ...(typeof i["ifRevision"] === "string" ? { ifRevision: i["ifRevision"] } : {}),
       });
       this.uploads.push({ fileId: String(i["fileId"]), name: String(i["name"]), parentId: String(i["parentId"]) });
+      this.content.set(String(i["remoteId"]), this.files.text(String(i["fileId"])));
       this.decorate(String(i["remoteId"]), {
         modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z`,
         headRevisionId: `rev_up${this.seq}`,
@@ -526,6 +549,7 @@ export class FakeGoogle {
         modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z`,
       };
       this.put(String(i["parentId"]), file);
+      this.content.set(file.id, this.files.text(String(i["fileId"])));
       return { file };
     }
     if (cap === "google.drive.create_folder") {

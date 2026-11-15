@@ -228,20 +228,17 @@ export function onFolderRestored(tx: ProjTx, e: ProjEvent): void {
 function revive(tx: ProjTx, row: Row, at: number): void {
   const mount = liveMount(tx, str(row["mount_id"]));
   if (!mount || !goesOut(mount)) return;
-  const trashed = !isNull(row["trashed_at"]);
-  const content =
-    !flag(row["is_folder"]) && Number(row["local_version"] ?? 0) > Number(row["synced_version"] ?? 0) ? 1 : 0;
+  // The item is looked at again by the next pass, whatever waited on it (a move or rename made before the delete, an edit, the provider's Trash): the push compares and clears what turns out to be nothing.
   tx.run(
     "UPDATE mounts_item SET deleted = ?, dirty = ?, op_seq = ? WHERE mount_id = ? AND item_key = ?",
     0,
-    trashed || content ? 1 : 0,
+    1,
     (typeof row["op_seq"] === "number" ? row["op_seq"] : 0) + 1,
     row["mount_id"],
     row["item_key"],
   );
-  if (trashed || content) startClock(tx, mount, at);
+  startClock(tx, mount, at);
 }
-
 export function onFolderRenamed(tx: ProjTx, e: ProjEvent): void {
   const p = payloadOf(e.payload);
   const row = folderItem(tx, str(p["folderId"]));
@@ -463,6 +460,9 @@ export async function pushMoves(
             : {}),
           key: opKey(m, row, "mv"),
         });
+        // a rename or move changes the provider's modified time (and Graph's eTag) though not the content: the row takes the new ones, or the next listing would read the item as changed there
+        // and flag an edit still waiting as a conflict with the person's own rename
+        const current = !isNull(row["remote_version"]) && row["cached_version"] === row["remote_version"];
         patch(row, {
           name: here.name,
           shown_name: here.name,
@@ -470,6 +470,10 @@ export async function pushMoves(
           remote_id: done.remoteId,
           dirty: content,
           wait_reason: null,
+          ...(done.version !== undefined
+            ? { remote_version: done.version, ...(current ? { cached_version: done.version } : {}) }
+            : {}),
+          ...(done.revision !== undefined ? { remote_rev: done.revision } : {}),
         });
         res.moved += 1;
         continue;

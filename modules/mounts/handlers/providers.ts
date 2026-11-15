@@ -37,6 +37,15 @@ export interface MountRec {
   reviewChanges: boolean;
   pullOnly: boolean;
   cursor?: string;
+  /** a listing the last pass left unfinished: the folders still to read (the first with the page token it stopped at), the change token taken when the listing began, and how many items were read */
+  scan?: Scan;
+}
+
+/** Where a listing larger than one pass stopped, kept with the mount so the next pass resumes there. */
+export interface Scan {
+  queue: { folder: string; token?: string }[];
+  startToken?: string;
+  count: number;
 }
 
 export interface RemoteItem {
@@ -98,6 +107,12 @@ export interface PullBatch {
   partial?: string;
   /** the remote id of the mounted root when the provider reveals it (Graph delta) */
   rootId?: string;
+  /** where an unfinished listing stopped, to be kept with the mount (an empty queue clears it, so the next pass starts again) */
+  scan?: Scan;
+  /** this pass read the last of a listing that took several passes: the engine adds the ids it kept from the earlier ones before it treats anything as gone */
+  scanDone?: boolean;
+  /** the ids the earlier passes of this listing saw (filled by the engine) */
+  seenBefore?: ReadonlySet<string>;
 }
 
 export interface Downloaded {
@@ -201,9 +216,9 @@ const withConnection = (m: { connectionId?: string; account?: string }): Row => 
 /** Most pages one pass reads, so a runaway feed cannot hold the pass forever. */
 export const MAX_PAGES = 200;
 
-/** What a mount says when one pass could not read the whole listing. */
-export const PARTIAL_WORDS =
-  "This folder is larger than one sync reads, so only the first part of it is here. Nothing was removed.";
+/** What a mount says while a listing larger than one sync is still being read. */
+export const scanWords = (count: number): string =>
+  `Reading this folder: ${count.toLocaleString("en-US")} items so far. It carries on at the next sync, and nothing is removed until all of it has been read.`;
 
 // ---- Google Drive -------------------------------------------------------------------------------------------
 
@@ -289,10 +304,11 @@ function driveItem(f: Row, parentId?: string): RemoteItem | undefined {
 export const DRIVE_ROOT_ALIAS = "root";
 
 async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
+  const resuming = m.scan !== undefined && m.scan.queue.length > 0;
   let root = m.ref;
-  if (root === undefined) return { items: [], removed: [], full: true };
+  if (root === undefined && !resuming) return { items: [], removed: [], full: true };
   let rootId: string | undefined;
-  if (root === DRIVE_ROOT_ALIAS) {
+  if (!resuming && root === DRIVE_ROOT_ALIAS) {
     try {
       rootId = text(
         obj(obj(await ctx.call("google.drive.get_file", { ...withConnection(m), fileId: root }))["file"])["id"],
@@ -302,50 +318,78 @@ async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
     }
     if (rootId !== undefined) root = rootId;
   }
-  // The feed's start token is taken before the listing, so a change made while the listing runs is read by the next pass. Without one the mount rescans every time.
-  let cursor: string | undefined;
-  try {
-    cursor = text(obj(await ctx.call("google.drive.changes_start_token", withConnection(m)))["startPageToken"]);
-  } catch {
-    /* no token: the next pass scans again */
+  // The feed's start token is taken before the first page of a listing and kept until the listing is whole (it may take several passes), so a change made meanwhile is read by the feed after it.
+  // Without one the mount rescans every time.
+  let cursor: string | undefined = m.scan?.startToken;
+  if (!resuming) {
+    try {
+      cursor = text(obj(await ctx.call("google.drive.changes_start_token", withConnection(m)))["startPageToken"]);
+    } catch {
+      /* no token: the next pass scans again */
+    }
   }
+  const queue: { folder: string; token?: string }[] = resuming
+    ? m.scan!.queue.map((q) => ({ ...q }))
+    : [{ folder: root as string }];
   const items: RemoteItem[] = [];
-  const queue: string[] = [root];
   let pages = 0;
-  let partial = false;
-  for (let folder = queue.shift(); folder !== undefined && !partial; folder = queue.shift()) {
-    let pageToken: string | undefined;
-    do {
+  try {
+    while (queue.length > 0 && pages < MAX_PAGES) {
+      const head = queue[0]!;
       const res = obj(
         await ctx.call("google.drive.list_files", {
           ...withConnection(m),
-          parentId: folder,
+          parentId: head.folder,
           pageSize: 1000,
-          ...(pageToken !== undefined ? { pageToken } : {}),
+          ...(head.token !== undefined ? { pageToken: head.token } : {}),
         }),
       );
       for (const f of list(res["files"])) {
-        const it = driveItem(obj(f), folder);
+        const it = driveItem(obj(f), head.folder);
         if (!it) continue;
         items.push(it);
-        if (it.isFolder) queue.push(it.id);
+        if (it.isFolder) queue.push({ folder: it.id });
       }
-      pageToken = text(res["nextPageToken"]);
       pages += 1;
-      // the page limit with more still to read (another page of this folder, or folders not yet opened): the listing is not whole
-      if (pages >= MAX_PAGES && (pageToken !== undefined || queue.length > 0)) {
-        partial = true;
-        break;
-      }
-    } while (pageToken !== undefined);
+      const next = text(res["nextPageToken"]);
+      if (next !== undefined) head.token = next;
+      else queue.shift();
+    }
+  } catch (e) {
+    // a page token Drive no longer accepts must not trap the mount: the next pass starts the listing again. Anything else is left to the engine as it was.
+    if (
+      resuming &&
+      !(
+        e instanceof VyreErr &&
+        /^(provider\.(unavailable|network|rate_limited|overloaded|auth_failed)|timeout\.)/.test(e.error.code)
+      )
+    )
+      return {
+        items: [],
+        removed: [],
+        full: false,
+        partial: scanWords(m.scan?.count ?? 0),
+        scan: { queue: [], count: 0 },
+      };
+    throw e;
   }
-  // a partial listing keeps no feed cursor (the next pass lists again) and removes nothing
+  const count = (m.scan?.count ?? 0) + items.length;
+  if (queue.length > 0)
+    // not everything has been read: nothing is removed, and the next pass resumes where this one stopped
+    return {
+      items,
+      removed: [],
+      full: false,
+      partial: scanWords(count),
+      scan: { queue, ...(cursor !== undefined ? { startToken: cursor } : {}), count },
+      ...(rootId !== undefined ? { rootId } : {}),
+    };
   return {
     items,
     removed: [],
-    full: !partial,
-    ...(partial ? { partial: PARTIAL_WORDS } : {}),
-    ...(cursor !== undefined && !partial ? { cursor } : {}),
+    full: true,
+    scanDone: true,
+    ...(cursor !== undefined ? { cursor } : {}),
     ...(rootId !== undefined ? { rootId } : {}),
   };
 }

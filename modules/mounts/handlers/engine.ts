@@ -559,7 +559,7 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
   const touched = new Set<string>([...batch.items.map((i) => i.id), ...batch.removed]);
   const gone = new Set(batch.removed);
   if (batch.full) {
-    const seen = new Set(batch.items.map((i) => i.id));
+    const seen = new Set([...batch.items.map((i) => i.id), ...(batch.seenBefore ?? [])]);
     for (const r of rows)
       if (r !== root && !isNull(r["remote_id"]) && !seen.has(str(r["remote_id"]))) gone.add(str(r["remote_id"]));
   }
@@ -751,8 +751,9 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
   for (const remoteId of gone) {
     const row = index.get(remoteId);
     if (!row || row === root) continue;
-    // a tombstone (what Vyre put in the provider's Trash) is how a restore from Vyre's Trash finds the item again: it stays
-    if (flag(row["deleted"]) && !isNull(row["trashed_at"])) continue;
+    // a tombstone (what Vyre put in the provider's Trash) is how a restore from Vyre's Trash finds the item again: it stays, and so does one brought back from Vyre's Trash that waits to be taken out
+    // of the provider's Trash (it is not listed there yet, and it is not a new item)
+    if (!isNull(row["trashed_at"])) continue;
     if (flag(row["dirty"]) && !flag(row["deleted"]) && !flag(row["is_folder"])) {
       // edited in Vyre and not sent yet: keep the file and send it again as a new item
       patchItem(ctx, row, { remote_id: null, remote_version: null, conflict: 0 });
@@ -833,23 +834,24 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[]): 
     if (isMountLevel(e)) res.errors.push(words);
   };
 
-  // renames and moves made in Vyre go out first, so a folder is where it should be before anything new is sent into it
-  const mv = await pushMoves(ctx, m, provider, rows, (row, fields) => patchItem(ctx, row, fields));
-  res.pushed += mv.moved;
-  res.held += mv.held;
-  res.errors.push(...mv.errors);
-
   // restores: an item the provider put in its own Trash, brought back from Vyre's Trash
   for (const r of rows.filter((x) => !flag(x["deleted"]) && !isNull(x["trashed_at"]) && flag(x["dirty"]))) {
     if (!provider.restore) continue;
     try {
       await provider.restore(ctx, m, str(r["remote_id"]), opKey(m, r, "un"));
-      patchItem(ctx, r, { trashed_at: null, dirty: contentWaits(r) ? 1 : 0, wait_reason: null });
+      // whatever else waited on the item (a rename, a move made while it was in the Trash, a new edit) is looked at next, by the moves below
+      patchItem(ctx, r, { trashed_at: null, dirty: 1, wait_reason: null });
       res.pushed += 1;
     } catch (e) {
       await settle(e, r);
     }
   }
+
+  // renames and moves made in Vyre go out first, so a folder is where it should be before anything new is sent into it
+  const mv = await pushMoves(ctx, m, provider, rows, (row, fields) => patchItem(ctx, row, fields));
+  res.pushed += mv.moved;
+  res.held += mv.held;
+  res.errors.push(...mv.errors);
 
   // new folders, parents first
   const folders = rows
@@ -1009,6 +1011,20 @@ function recOf(row: Row): MountRec {
   const localPath = opt("local_path");
   const cursor = opt("cursor");
   const account = opt("account");
+  let scan: MountRec["scan"];
+  if (!isNull(row["scan_queue"])) {
+    try {
+      const q: unknown = JSON.parse(str(row["scan_queue"]));
+      if (Array.isArray(q) && q.length > 0)
+        scan = {
+          queue: q as { folder: string; token?: string }[],
+          count: num(row["scan_count"]),
+          ...(opt("scan_cursor") !== undefined ? { startToken: opt("scan_cursor") as string } : {}),
+        };
+    } catch {
+      /* an unreadable position: the listing starts again */
+    }
+  }
   return {
     id: str(row["id"]),
     folderId: str(row["folder_id"]),
@@ -1025,6 +1041,7 @@ function recOf(row: Row): MountRec {
     reviewChanges: flag(row["review_changes"]),
     pullOnly: flag(row["pull_only"]),
     ...(cursor !== undefined ? { cursor } : {}),
+    ...(scan !== undefined ? { scan } : {}),
   };
 }
 
@@ -1141,7 +1158,40 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
       } else if (provider.pull) {
         const batch = await provider.pull(ctx, m);
         partialWords = batch.partial ?? null;
+        // the last pass of a listing that took several: what the earlier ones saw counts as seen, so only what no pass saw is treated as gone
+        if (batch.scanDone === true && m.scan !== undefined)
+          batch.seenBefore = new Set(
+            (ctx.db.all("SELECT * FROM mounts_scan_seen WHERE mount_id = ?", m.id) as Row[]).map((r) =>
+              str(r["remote_id"]),
+            ),
+          );
         const applied = await applyBatch(ctx, m, provider, batch, rows);
+        // the position of a listing larger than one pass is kept after its page was applied, so a pass that fails resumes from the same page
+        if (batch.scan !== undefined) {
+          const known = new Set(
+            (ctx.db.all("SELECT * FROM mounts_scan_seen WHERE mount_id = ?", m.id) as Row[]).map((r) =>
+              str(r["remote_id"]),
+            ),
+          );
+          for (const it of batch.items)
+            if (!known.has(it.id)) {
+              known.add(it.id);
+              ctx.db.run("INSERT INTO mounts_scan_seen (mount_id, remote_id) VALUES (?, ?)", m.id, it.id);
+            }
+          if (batch.scan.queue.length > 0)
+            patchMount(ctx, row, {
+              scan_queue: JSON.stringify(batch.scan.queue),
+              scan_count: batch.scan.count,
+              scan_cursor: batch.scan.startToken ?? null,
+            });
+          else {
+            ctx.db.run("DELETE FROM mounts_scan_seen WHERE mount_id = ?", m.id);
+            patchMount(ctx, row, { scan_queue: null, scan_count: 0, scan_cursor: null });
+          }
+        } else if (batch.scanDone === true) {
+          ctx.db.run("DELETE FROM mounts_scan_seen WHERE mount_id = ?", m.id);
+          patchMount(ctx, row, { scan_queue: null, scan_count: 0, scan_cursor: null });
+        }
         pulled = applied.pulled;
         conflicts = applied.conflicts;
         // the list of skipped items: a full listing starts it again; a feed of changes only names what changed, so the items skipped before are asked about again here (a few each pass): a name
@@ -1192,6 +1242,9 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     } catch (e) {
       ctx.log.warn("mounts: a pass failed", { mountId: m.id, code: codeOf(e) ?? "", rule: messageOf(e) });
       errors.push(failureSentence(e, provider.label));
+      // every change that waits says why it has not gone out
+      for (const r of rows)
+        if (flag(r["dirty"]) && !flag(r["conflict"])) patchItem(ctx, r, { wait_reason: errors[0] ?? null });
     }
     const now = ctx.now();
     if (errors.length > 0) {
