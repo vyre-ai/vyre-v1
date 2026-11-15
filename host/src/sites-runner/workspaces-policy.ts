@@ -174,6 +174,7 @@ export function workspaceBody(
       m !== null &&
       ((src === `${name}-home` && guest === WS_HOME) ||
         (src === `${name}-files` && guest === `${WS_HOME}/Vyre`) ||
+        (src === `${name}-people` && guest === "/people") ||
         (WS_PROJECT_VOLUME.test(src) && guest === `${WS_HOME}/projects/${src.replace(/^vyre-wsproj-/, "")}`));
     if (!ok)
       return {

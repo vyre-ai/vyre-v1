@@ -2,6 +2,7 @@
 // turn acting for nobody (so what was signed in before this rule is the owner's, found again after an update); a profile of its own for each other person who uses the agent, so person B's turn never browses
 // as person A in a site A signed in to. The rule of who gets a place is lib/asker-place.ts, the terminal's too.
 import { hasOwnPlace } from "../../../lib/asker-place.ts";
+import { raise } from "../projections.ts";
 import type { CompCtx } from "../projections.ts";
 import { agentInfo } from "./agentinfo.ts";
 import { askerProfileId, profileIdOf } from "./policy.ts";
@@ -22,7 +23,10 @@ export async function askerFolder(ctx: CompCtx): Promise<string | null> {
 /** The person whose own profile this agent turn uses, or undefined when it uses the agent's own. Facts that cannot be read leave the agent's own profile (nothing changes for it). */
 export async function askerOfTurn(ctx: CompCtx): Promise<string | undefined> {
   if (ctx.principal.kind !== "agent" || ctx.actingFor === undefined) return undefined;
+  if (!ctx.actingFor.startsWith("usr_")) return undefined;
   const who = await agentInfo(ctx, ctx.principal.id);
+  // FAIL CLOSED: who owns the agent must be known; a failure to read it opens nothing, never the owner's profile (and is not remembered)
+  if (who === null) raise(ctx, "provider.unavailable", "Could not open the browser. Try again.", { reason: "agent_unreadable" });
   return hasOwnPlace(who, ctx.principal.id, ctx.actingFor) ? ctx.actingFor : undefined;
 }
 
