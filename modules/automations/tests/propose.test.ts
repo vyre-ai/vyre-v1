@@ -129,7 +129,9 @@ test("a second proposal replaces the first; a person who cannot see the Automati
   assert.equal(r.proposal.steps, 1);
   assert.equal(r.proposal.summary, "second");
   for (const cap of ["automations.get", "automations.proposal.accept", "automations.proposal.discard"])
-    await assert.rejects(h.call(cap, { automationId: id }, bob), (e: unknown) => String(codeOf(e)).startsWith("permission."));
+    await assert.rejects(h.call(cap, { automationId: id }, bob), (e: unknown) =>
+      String(codeOf(e)).startsWith("permission."),
+    );
 });
 
 test("a proposal needs a one-line summary, real steps and no secret: each is refused and nothing is written", async () => {

@@ -119,7 +119,9 @@ export function StepTest({
       {phase === "done" ? (
         <View style={t.out}>
           <Text style={t.hint}>{plain ? "It ran. Nothing was sent." : `Output: ${JSON.stringify(output)}`}</Text>
-          {plain ? shows.map(([k, v]) => <Text key={k} style={t.hint}>{`${k}: ${v}`}</Text>) : null}
+          {plain && shows.length > 0 ? (
+            <Text style={t.hint}>{shows.map(([k, v]) => `${k}: ${v}`).join("\n")}</Text>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Use output from test"

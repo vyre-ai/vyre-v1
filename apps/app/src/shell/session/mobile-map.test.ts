@@ -128,9 +128,7 @@ test("Chat about it opens an Ask with the assistant carrying the item, and the p
   } as unknown as Parameters<typeof openAsk>[0];
   const away = desktopOnly(subjectEntry("records", { type: "journey", id: "jrn_1" }))!;
   openAsk(rt, "assistant", chatAboutOf(away.place, away.hash));
-  assert.deepEqual(opened, [
-    { screen: "chats.conversation", args: { with: "agt_assistant", about: "journey:jrn_1" } },
-  ]);
+  assert.deepEqual(opened, [{ screen: "chats.conversation", args: { with: "agt_assistant", about: "journey:jrn_1" } }]);
   const shown = entryFor("chats", formatHash(opened[0]!));
   assert.equal(isAskEntry(shown), true);
   assert.equal(parseHash(placeOf(shown)!.hash).args["about"], "journey:jrn_1");

@@ -890,7 +890,12 @@ const stepWords = (key: string): string =>
 function caught(e: unknown): Caught {
   const he = (
     e as {
-      error?: { code?: unknown; message?: unknown; retryable?: unknown; details?: { reason?: unknown; errors?: unknown } };
+      error?: {
+        code?: unknown;
+        message?: unknown;
+        retryable?: unknown;
+        details?: { reason?: unknown; errors?: unknown };
+      };
     } | null
   )?.error;
   if (he && typeof he.code === "string") {
