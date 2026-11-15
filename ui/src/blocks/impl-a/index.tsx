@@ -625,19 +625,12 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
     setState("rejected");
     void perform(host, "plan", "reject", block);
   }, [host, block]);
-  // "Change it": the plan is declined first, and only when that went through does it come back in the composer as a draft. When the decline fails the plan is still waiting for the person, no draft is left beside it, and the card says so.
-  const [problem, setProblem] = useState<string | null>(null);
-  const change = useCallback(async () => {
-    setProblem(null);
-    try {
-      await perform(host, "plan", "reject", block);
-    } catch {
-      setProblem("Could not change the plan. It is still waiting for you.");
-      return;
-    }
-    setState("rejected");
+  // "Change it": the plan goes into the composer to change, and the card says "Changing". Nothing is declined and nothing is sent to the agent: the plan is still the person's to decide until the changes go.
+  const [changing, setChanging] = useState(false);
+  const change = useCallback(() => {
+    setChanging(true);
     host.draft?.(planDraft(d.steps));
-  }, [host, block, d.steps]);
+  }, [host, d.steps]);
   const run = useCallback((key: string) => (key === "approve" ? approve() : reject()), [approve, reject]);
   const menu = useCallback(
     () =>
@@ -666,6 +659,11 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
         tag={running ? planCount(steps) : undefined}
         onPress={d.hasDoc ? () => void openTab(host, "plan", block.data) : undefined}
       />
+      {d.title !== "" && d.title !== "Plan" ? (
+        <Text testID={`blk-plan-${block.id}-title`} style={styles.planTitle}>
+          {d.title}
+        </Text>
+      ) : null}
       <View style={styles.steps}>
         {/* ui-rows-lint: not a list (a plan's steps are a checklist inside one card: a tick and its text, nothing to press, hover or select) */}
         {steps.map((s, i) => (
@@ -685,15 +683,16 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
           </View>
         ))}
       </View>
-      {problem ? <StatusLine tone="bad" testID={`blk-plan-${block.id}-problem`} text={problem} /> : null}
-      {waiting ? (
+      {waiting && !changing ? (
         <View style={styles.acts}>
           <Btn id={`blk-plan-${block.id}-approve`} label="Allow" primary onPress={approve} />
-          <Btn id={`blk-plan-${block.id}-edit`} label="Change it" onPress={() => void change()} />
+          <Btn id={`blk-plan-${block.id}-edit`} label="Change it" onPress={change} />
           <Btn id={`blk-plan-${block.id}-reject`} label="Deny" muted onPress={reject} />
         </View>
+      ) : waiting ? (
+        <StatusLine tone="plain" testID={`blk-plan-${block.id}-state`} text="Changing" />
       ) : state === "rejected" ? (
-        <StatusLine tone="bad" testID={`blk-plan-${block.id}-state`} text="Plan declined" />
+        <StatusLine tone="bad" testID={`blk-plan-${block.id}-state`} text="Declined" />
       ) : null}
     </Card>
   );
@@ -1138,6 +1137,7 @@ const styles = StyleSheet.create({
     color: "var(--ink)" as string,
     fontSize: 13,
   },
+  planTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, marginBottom: 4 },
   steps: { gap: 3, marginBottom: 2 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   stepMark: { color: "var(--ink-3)" as string, fontSize: 11, lineHeight: 14, textAlign: "center" },

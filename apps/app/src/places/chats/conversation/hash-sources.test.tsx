@@ -244,3 +244,22 @@ async function settle(): Promise<void> {
   });
   await flush();
 }
+
+test("# asks for everything at once: the projects, the folders and the company Drive start before the search has answered (owner's walk, 15 Nov: a record took seconds to show)", async () => {
+  const log: string[] = [];
+  const call = async (cap: string): Promise<unknown> => {
+    log.push(`start ${cap}`);
+    await new Promise((r) => setTimeout(r, 20));
+    log.push(`end ${cap}`);
+    if (cap === "search.query") return { hits: [] };
+    if (cap === "projects.list") return { projects: [] };
+    if (cap === "files.folder.search") return { folders: [] };
+    if (cap === "mounts.list") return { mounts: [], total: 0 };
+    return {};
+  };
+  await fetchSuggestions({ call } as never, "#", "sam");
+  const firstEnd = log.findIndex((l) => l.startsWith("end "));
+  const started = log.slice(0, firstEnd).map((l) => l.replace("start ", ""));
+  for (const cap of ["search.query", "projects.list", "files.folder.search", "mounts.company_drive"])
+    assert.ok(started.includes(cap), `${cap} started before anything finished: ${log.join(", ")}`);
+});

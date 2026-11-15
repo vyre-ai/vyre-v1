@@ -168,8 +168,6 @@ const TAB_MIN_WIDTH = 124;
 const TAB_GAP = 2;
 /** The strip's padding and its two buttons, which stay beside the tabs. */
 const STRIP_CHROME = 8 + 8 + 30 + 30;
-/** The "tabs" button, when the strip has one. */
-const LIST_BUTTON = 30;
 
 export interface TabStripViewProps extends TabStripProps {
   /** Accessible name for the strip. */
@@ -184,8 +182,6 @@ export interface TabStripViewProps extends TabStripProps {
   hideLoneClose?: boolean;
   /** No options button at the end: the strip's menu is the right-click on a tab. */
   noOptions?: boolean;
-  /** A "tabs" button at the strip's end lists every open tab, the selected one ticked: with many tabs it is the way to any of them (the main strip). */
-  listAll?: boolean;
   /** A row of page sections, not documents: no tab has a close button, so none holds room for one. */
   noClose?: boolean;
   /** The whole menu of a tab, built by the host from its own state (Close, Pin, Reopen). It replaces the standard Close entries and `menu`'s extras. */
@@ -197,7 +193,6 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   const { element, show } = useMenu();
   const nodes = useRef<Record<string, unknown>>({});
   const moreNode = useRef<unknown>(null);
-  const listNode = useRef<unknown>(null);
   const scroller = useRef<{ scrollTo?: (options: { x: number; animated: boolean }) => void } | null>(null);
   const spans = useRef<Record<string, { x: number; w: number }>>({});
   const view = useRef<{ x: number; w: number }>({ x: 0, w: 0 });
@@ -312,7 +307,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
     setDrag(null);
   };
 
-  const cap = tabCap(room - STRIP_CHROME - (props.listAll === true ? LIST_BUTTON : 0), tabs.length);
+  const cap = tabCap(room - STRIP_CHROME, tabs.length);
   const tabNodes: ReactNode[] = [];
   for (const tab of tabs) {
     const on = tab.key === active;
@@ -391,27 +386,6 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         </View>
       </ScrollView>
       {onPlus === undefined ? null : <IconButton name="plus" label={plusTitle ?? "Open"} onPress={() => onPlus()} />}
-      {props.listAll === true ? (
-        <IconButton
-          name="tabs"
-          label="All tabs"
-          nodeRef={(node) => {
-            listNode.current = node;
-          }}
-          onPress={() => {
-            const rows: MenuEntry[] = tabs.map((t) => ({
-              label: t.title,
-              ...(t.icon !== undefined && t.icon.length > 0 ? { icon: t.icon } : {}),
-              ...(t.key === active ? { checked: true } : {}),
-              onSelect: () => select(t.key),
-            }));
-            const box = listNode.current as Focusable | null;
-            if (box !== null && typeof box.measureInWindow === "function")
-              box.measureInWindow((x, y, w, h) => show(rows, x + w - 240, y + h + 4, undefined, { label: "All tabs" }));
-            else show(rows, 0, TAB_STRIP_HEIGHT, undefined, { label: "All tabs" });
-          }}
-        />
-      ) : null}
       <View style={styles.spacer} />
       {props.noOptions === true ? null : (
         <IconButton
@@ -604,13 +578,11 @@ const styles = StyleSheet.create({
   strip: { height: TAB_STRIP_HEIGHT, flexDirection: "row", alignItems: "center", paddingTop: 6, paddingRight: 8 },
   stripBare: { paddingTop: 0, height: 34 },
   scroll: { flexGrow: 0, flexShrink: 1, minWidth: 0 },
-  content: { alignItems: "center", paddingLeft: 8, paddingRight: 4, flexShrink: 0 },
-  tabs: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
+  content: { alignItems: "center", paddingLeft: 8, paddingRight: 4 },
+  tabs: { flexDirection: "row", alignItems: "center", gap: 2 },
   spacer: { flexGrow: 1 },
   tab: {
     height: TAB_HEIGHT,
-    // a tab is never squeezed by its neighbours: it is as wide as its icon and name up to the one cap, and past that the strip scrolls (owner walk, 15 Nov: with eight tabs the last one shrank to an icon)
-    flexShrink: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 7,

@@ -422,6 +422,13 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await page.getByTestId("fp-examples").click({ timeout: 15_000 });
       await page.getByTestId("use-weekly_digest").click({ timeout: 15_000 });
       await page.getByTestId("builder-body").or(page.getByTestId("story")).first().waitFor({ timeout: 20_000 });
+      // the list at the left takes the new Automation at once and no longer says there are none
+      await page
+        .locator("[data-testid^='row-auto-']")
+        .filter({ hasText: "Weekly digest" })
+        .first()
+        .waitFor({ timeout: 15_000 });
+      assert.equal(await page.getByText("No automations yet.").count(), 0, "the empty line is gone");
     });
 
     await step("Settings: change the theme", async () => {

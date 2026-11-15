@@ -72,8 +72,7 @@ const PLACE_OF: Record<HitKind, PlaceId> = {
   setting: "settings",
   memory: "home",
   note: "chats",
-  place: "chats",
-} as Record<HitKind, PlaceId>;
+};
 
 const SKIN = "appearance.skin";
 
@@ -167,6 +166,15 @@ const MAIL_HIT = "shell:mail";
 /** Settings, its pages and the Console, found by their names (owner walk, 12 Nov: typing "settings" said No results). The words under each are the page's own line. */
 const SETTINGS_PAGE = "shell:settings:";
 const CONSOLE_HIT = "shell:console";
+/** The places a person can go to by name: "Vault", "Files". Each opens that place (owner walk, 15 Nov: typing "Vault" found rows about Vault but not the Vault). */
+const PLACE_HIT = "shell:place:";
+const PLACE_HITS: readonly { place: PlaceId; title: string; snippet: string }[] = [
+  { place: "vault", title: "Vault", snippet: "Sign-ins and keys" },
+  { place: "files", title: "Files", snippet: "Folders and documents" },
+  { place: "records", title: "Records", snippet: "Projects, people and anything you track" },
+  { place: "automations", title: "Automations", snippet: "Things that run on their own" },
+  { place: "apps", title: "Apps", snippet: "Apps your agents and team use" },
+];
 /** Settings and its pages from the Settings model's own list (one list, so the two never drift apart; review O6): the "you" pages a person has, each with its own line. */
 const SETTINGS_HITS: readonly { page: string; title: string; snippet: string }[] = [
   { page: "", title: "Settings", snippet: "Your profile, AI, notifications and look" },
@@ -177,17 +185,6 @@ const SETTINGS_HITS: readonly { page: string; title: string; snippet: string }[]
   })),
 ];
 const SETTINGS_ROW = "shell:setting-row:";
-/** The places themselves, found by name ("Records", "Files", "Vault", "Automations"): the new tab opens a place the way the rail does (owner walk, 15 Nov: typing "Records" started a chat with that word). */
-const PLACE_HIT = "shell:place:";
-/** A result of its own kind: the places are not a kind the Space's search knows, so they are made here and listed under "Places". */
-export const PLACE_KIND = "place" as unknown as HitKind;
-const PLACE_HITS: readonly { place: PlaceId; title: string; snippet: string }[] = [
-  { place: "chats", title: "Chats", snippet: "Conversations, channels and agents" },
-  { place: "records", title: "Records", snippet: "Contacts, companies and projects" },
-  { place: "files", title: "Files", snippet: "Documents and folders" },
-  { place: "automations", title: "Automations", snippet: "What runs for you" },
-  { place: "vault", title: "Vault", snippet: "Keys, logins and cards" },
-];
 
 /** Rows inside Settings found by their name ("Passkeys", "Password"), through the Settings page's own search; each opens its page. */
 export function settingRowHits(text: string): Hit[] {
@@ -209,17 +206,6 @@ export function settingRowHits(text: string): Hit[] {
 /** Inbox and Connect email as results of their own. With nothing connected Inbox is off the rail, and both open the Email and calendar screen in Settings. Settings, its pages and the Console too. */
 export function shellHits(state: { inbox?: boolean }): readonly Hit[] {
   return [
-    ...PLACE_HITS.map(
-      (x): Hit =>
-        ({
-          kind: PLACE_KIND,
-          id: `${PLACE_HIT}${x.place}`,
-          title: x.title,
-          snippet: x.snippet,
-          link: `vyre://open?kind=place&id=${x.place}`,
-          score: 0.9,
-        }) as Hit,
-    ),
     {
       kind: "inbox",
       id: INBOX_HIT,
@@ -243,6 +229,16 @@ export function shellHits(state: { inbox?: boolean }): readonly Hit[] {
         title: x.title,
         snippet: x.snippet,
         link: `vyre://settings${x.page ? `/${x.page}` : ""}`,
+        score: 0.8,
+      }),
+    ),
+    ...PLACE_HITS.map(
+      (x): Hit => ({
+        kind: "setting",
+        id: `${PLACE_HIT}${x.place}`,
+        title: x.title,
+        snippet: x.snippet,
+        link: `vyre://${x.place}`,
         score: 0.8,
       }),
     ),
@@ -271,7 +267,6 @@ export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: P
     return { place: "settings", hash: page ? `page=${page}` : "" };
   }
   if (hit.id === CONSOLE_HIT) return { place: "console", hash: "" };
-  if (hit.id.startsWith(PLACE_HIT)) return { place: hit.id.slice(PLACE_HIT.length) as PlaceId, hash: "" };
   return null;
 }
 

@@ -1,1 +1,0 @@
-Switching to a tab that is already open never shows a blank page: the view you left stays on screen until the new one has something to show, so a file or record that takes a moment to read no longer leaves an empty screen.

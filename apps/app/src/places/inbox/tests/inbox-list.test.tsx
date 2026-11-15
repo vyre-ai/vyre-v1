@@ -74,8 +74,8 @@ test("screen: By contact lists one line per person, newest first, unmatched send
     "nina",
   ]);
   assert.ok(
-    has(out, "By contact") && has(out, "8 unread of 13"),
-    "the header names what the sidebar selected (By contact) and counts what is unread",
+    has(out, "All inboxes") && has(out, "8 unread of 13"),
+    "the header names the scope and counts what is unread",
   );
   assert.ok(
     has(out, "Elena Rivera") && has(out, "Lease documents for Thursday"),
@@ -524,11 +524,4 @@ test("a lock on a mailbox row means a private mailbox in a shared group, never a
   assert.equal(showsLock("mine", { lock: true }), false);
   assert.equal(showsLock("team", { lock: true }), true);
   assert.equal(showsLock("team", { lock: false }), false);
-});
-
-test("the header names what the sidebar has selected: By contact, All inboxes, a mailbox", async () => {
-  const { headTitle } = await import("../sidebar/model.ts");
-  assert.equal(headTitle({ kind: "all" }, "contact", northwind.mailboxes), "By contact");
-  assert.equal(headTitle({ kind: "all" }, "thread", northwind.mailboxes), "All inboxes");
-  assert.equal(headTitle({ kind: "starred" }, "contact", northwind.mailboxes), "Starred");
 });

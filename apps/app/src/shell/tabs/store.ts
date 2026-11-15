@@ -5,8 +5,6 @@ import type { PlaceId } from "../rail/kits.ts";
 import { PLACE_TITLE, livePlace } from "../rail/kits.ts";
 import { parseHash, subjectOf } from "../hash/hash.ts";
 import { folderOfFile } from "./file-folders.ts";
-import { PAGES as CONSOLE_PAGES } from "../../console/shell/nav.ts";
-import { PAGES as SETTINGS_PAGES } from "../../places/settings/model.ts";
 
 /** Tabs are device state. Starred is the synced one (spec 3.0). */
 export const TABS_SYNCED = false;
@@ -73,10 +71,6 @@ export function tabKey(place: PlaceId, hash?: string): string {
   // an agent's page is that agent's tab, never the place's: opened from a chat it is a step in the chat's tab (or its own tab), so Back returns to the chat
   if (t.screen === "chats.agent-page" && t.args["agentId"]) return `${place}:subject=agent:${t.args["agentId"]}`;
   if (t.screen !== undefined && OWN_TAB[t.screen] !== undefined) return `${place}:${t.screen}`;
-  // a page of the Console or of Settings is a tab of its own when opened beside (Cmd-press, Open in new tab); the place's own tab keeps the place's key however far it moves. Your profile is the Settings tab itself.
-  const page = t.args["page"];
-  if ((place === "console" || place === "settings") && typeof page === "string" && page !== "" && page !== "profile")
-    return `${place}:page=${page}`;
   const type = t.args["type"];
   if (type !== undefined && type !== "") return `${place}:type=${type}`;
   return place;
@@ -112,12 +106,6 @@ export function screenTitle(hash: string | undefined): string | undefined {
   )
     return t.screen === "chats.agent-form" ? "Edit agent" : "Agent";
   if (t.subject !== undefined && t.subject.type === "agent") return "Agent";
-  // a page of the Console or of Settings is named for the page
-  const page = t.args["page"];
-  if (typeof page === "string" && page !== "") {
-    if (t.screen?.startsWith("console.") === true) return CONSOLE_PAGES.find((x) => x.id === page)?.title;
-    if (t.screen === "settings.page") return SETTINGS_PAGES.find((x) => x.key === page)?.title;
-  }
   return t.screen === undefined ? undefined : OWN_TAB[t.screen];
 }
 
@@ -221,22 +209,8 @@ function openTab0(state: TabsState, tab: TabEntry, background: boolean, exact: b
     opener !== undefined
       ? { ...tab, from: opener.key }
       : tab;
-  return { tabs: placedBeside(state, opened), active: background && state.active !== "" ? state.active : tab.key };
-}
-
-/**
- * A tab opened from the tab on screen sits beside it (D2: "a new tab beside the current one"), after the tabs that one already opened, so a run of Cmd-presses reads in the order pressed.
- * A "+" tab goes to the end of the strip, and a tab that is not pinned never lands among the pinned ones.
- */
-function placedBeside(state: TabsState, opened: TabEntry): TabEntry[] {
-  const cur = activeEntry(state);
-  const at = cur === undefined ? -1 : state.tabs.indexOf(cur);
-  if (opened.isNew === true || at < 0 || cur === undefined) return [...state.tabs, opened];
-  let to = at;
-  while (state.tabs[to + 1]?.from === cur.key && state.tabs[to + 1]?.pinned !== true) to++;
-  const out = [...state.tabs];
-  out.splice(to + 1, 0, opened);
-  return out;
+  const tabs = [...state.tabs, opened];
+  return { tabs, active: background && state.active !== "" ? state.active : tab.key };
 }
 
 /** Whether a move changes the address the tab shows (a step), as against only its name. */
@@ -341,36 +315,23 @@ export function landOn(state: TabsState, place: PlaceId): TabsState {
   return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: key };
 }
 
-/**
- * The tab to select after `closed` goes away (D6): the one the person was on before it (`recent`, the tabs selected before, latest first) when it is still open, else the one it was opened or
- * selected from, else the neighbour on the left, else the one on the right.
- */
-export function afterClosing(
-  tabs: readonly TabEntry[],
-  closed: string,
-  active: string,
-  recent: readonly string[] = [],
-): string {
+/** The tab to select after `closed` goes away: the neighbour on the right, else on the left. */
+export function afterClosing(tabs: readonly TabEntry[], closed: string, active: string): string {
   if (closed !== active) return active;
-  const open = (k: string | undefined): k is string => k !== undefined && k !== closed && tabs.some((t) => t.key === k);
-  const back = recent.find(open);
-  if (back !== undefined) return back;
   const at = tabs.findIndex((t) => t.key === closed);
-  const came = tabs[at]?.came;
-  if (open(came)) return came;
-  return tabs[at - 1]?.key ?? tabs[at + 1]?.key ?? "";
+  return tabs[at + 1]?.key ?? tabs[at - 1]?.key ?? "";
 }
 
-export function closeTab(state: TabsState, key: string, recent: readonly string[] = []): TabsState {
+export function closeTab(state: TabsState, key: string): TabsState {
   const tab = findTab(state, key);
   if (tab === undefined || tab.pinned === true) return state;
-  const active = afterClosing(state.tabs, key, state.active, recent);
+  const active = afterClosing(state.tabs, key, state.active);
   return { tabs: state.tabs.filter((t) => t.key !== key), active };
 }
 
-export function closeTabs(state: TabsState, keys: readonly string[], recent: readonly string[] = []): TabsState {
+export function closeTabs(state: TabsState, keys: readonly string[]): TabsState {
   let next = state;
-  for (const k of keys) next = closeTab(next, k, recent);
+  for (const k of keys) next = closeTab(next, k);
   return next;
 }
 
@@ -834,8 +795,6 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     }
   };
 
-  /** The tabs selected before this one, latest first: closing the selected tab returns to the one the person was on (D6). */
-  const recent: string[] = [];
   /** Back and Forward select tabs without that being a new step. */
   let navigating = false;
   const set = (given: TabsState): void => {
@@ -863,12 +822,6 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
         active: next.active,
       };
     if (next === state) return;
-    if (next.active !== state.active && state.active !== "") {
-      const at = recent.indexOf(state.active);
-      if (at >= 0) recent.splice(at, 1);
-      recent.unshift(state.active);
-      recent.length = Math.min(recent.length, 30);
-    }
     state = next;
     try {
       options.storage?.setItem(storeKey, writeTabs(state));
@@ -931,11 +884,11 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     },
     close(key) {
       remember([key]);
-      set(closeTab(state, key, recent));
+      set(closeTab(state, key));
     },
     closeMany(keys) {
       remember(keys);
-      set(closeTabs(state, keys, recent));
+      set(closeTabs(state, keys));
     },
     pin(key, on) {
       set(pinTab(state, key, on));
@@ -943,7 +896,7 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     closeRight(key) {
       const keys = keysToTheRight(state, key);
       remember(keys);
-      set(closeTabs(state, keys, recent));
+      set(closeTabs(state, keys));
     },
     reopen() {
       const tab = closed.pop();

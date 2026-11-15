@@ -1055,3 +1055,16 @@ export function faceDoor(helperThreadIds: readonly string[], id: string): "helpe
 /** The words for a send that did not go and a turn that stopped: one wording for the same act. */
 export const NOT_SENT = "Not sent";
 export const TRY_AGAIN = "Try again";
+
+/** The quiet line above the composer: "Mia is typing…" for people, "Helper is working…" for agents, both when both are true. Empty when nobody is. */
+export function presenceLine(typing: readonly string[], working: readonly string[]): string {
+  const list = (names: readonly string[]): string =>
+    names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const first = (n: string): string => n;
+  const parts: string[] = [];
+  const t = typing.map(first);
+  const w = working.map(first);
+  if (t.length > 0) parts.push(`${list(t)} ${t.length === 1 ? "is" : "are"} typing`);
+  if (w.length > 0) parts.push(`${list(w)} ${w.length === 1 ? "is" : "are"} working`);
+  return parts.length === 0 ? "" : `${parts.join(", ")}\u2026`;
+}

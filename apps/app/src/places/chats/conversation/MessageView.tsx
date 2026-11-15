@@ -550,6 +550,9 @@ export function HoverBar({
 }): ReactElement {
   const bar: { icon: GlyphName; label: string; run: (x: number, y: number) => void }[] = [];
   const talk = m.kind !== "system" && m.kind !== "quiet";
+  // React, Reply and More are on every message, an agent's and your own too (owner's walk, 15 Nov); the rest of what a message can do is behind More
+  if (a.pickReaction && talk && (byAgent || (mine && a.humanChat !== true)))
+    bar.push({ icon: "smile", label: "Add reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
   if (byAgent) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
@@ -557,6 +560,7 @@ export function HoverBar({
     if (talk)
       bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
   } else if (mine && a.humanChat !== true) {
+    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
     if (a.rewind && m.kind === "text" && !m.messageId.startsWith("pending:"))
@@ -1308,17 +1312,6 @@ function Theirs({
           <TimeTip item={item}>
             <Text style={st.time}>{item.time}</Text>
           </TimeTip>
-          {work?.short ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={work.summary}
-              testID={`work-short-${m.messageId}`}
-              onPress={() => setWorkOpen((o) => !o)}
-              style={{ opacity: h.over || workOpen ? 1 : 0 }}
-            >
-              <Text style={st.time}>{work.summary}</Text>
-            </Pressable>
-          ) : null}
           {lessonMark}
         </View>
       ) : (
@@ -1345,9 +1338,7 @@ function Theirs({
           style={st.via}
         >{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text>
       ) : null}
-      {work &&
-      (!work.live || !(stream && actions.activityOf?.(m.messageId))) &&
-      (!work.short || !item.newgroup || workOpen) ? (
+      {work && (!work.live || !(stream && actions.activityOf?.(m.messageId))) ? (
         <Fold
           testID={`work-${m.messageId}`}
           label={work.live ? "Working" : work.summary}
@@ -2399,7 +2390,8 @@ export const st = StyleSheet.create({
   stepSub: { flexShrink: 1, fontSize: 12, color: "var(--ink-4)" as string },
   hover: {
     position: "absolute",
-    top: -10,
+    // above the message's top-right corner: the bar's own height (28) sits over the gap between messages, never over the words
+    top: -26,
     flexDirection: "row",
     alignItems: "center",
     gap: 0,

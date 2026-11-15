@@ -375,8 +375,9 @@ test("message writes: edit, pin, react, thread and delete go through their capab
 
 test("states: offline, closed, empty frame before data, and no em dash", () => {
   assert.ok(
-    has(html(createSample("idle", { online: false })), 'data-testid="conversation-offline"') &&
+    !has(html(createSample("idle", { online: false })), 'data-testid="conversation-offline"') &&
       has(html(createSample("idle", { online: false })), "Tuesday has two openings"),
+    "offline is the shell's pill, said once: the chat header does not repeat it",
   );
   assert.ok(
     has(html(createSample("closed")), 'data-testid="conversation-closed"') &&
@@ -636,15 +637,17 @@ test("the hover bar draws Copy, Edit (yours only) and More while the row is hove
   assert.ok(
     has(mine, 'data-testid="act-copy-m3"') &&
       has(mine, 'data-testid="act-edit-m3"') &&
-      !has(mine, 'data-testid="act-reply-m3"') &&
+      has(mine, 'data-testid="act-reply-m3"') &&
       has(mine, 'data-testid="act-more-m3"'),
-    "copy, edit, more: reply in thread is in the menu",
+    "copy, edit, reply, more (React is there where reactions are offered)",
   );
   const theirs = bar(m4, false, true);
   assert.ok(
     has(theirs, 'data-testid="act-copy-m4"') &&
       !has(theirs, 'data-testid="act-edit-m4"') &&
+      has(theirs, 'data-testid="act-reply-m4"') &&
       has(theirs, 'data-testid="act-more-m4"'),
+    "an agent's message has Reply and More too",
   );
   const idle = bar(m3, true, false);
   assert.ok(has(idle, 'data-testid="hover-m3"') && !has(idle, "act-copy-m3") && !has(idle, "<svg"));

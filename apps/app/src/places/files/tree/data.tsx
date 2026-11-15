@@ -31,8 +31,6 @@ export type LiveCap =
 export interface FilesNav {
   /** Double click or Enter on a file: the viewer tab. */
   openFile(fileId: string): void;
-  /** A folder as a page of its own (a tab beside this one: the row's Open in New Tab). Left out where there is none. */
-  openFolder?(folderId: string): void;
   /** Share a folder: the shell opens ui/ShareSheet for it. Left out where there is no one to share with (a Personal Space), and then no Share item shows. */
   shareFolder?(folderId: string): void;
   /** Share a file: the same sheet, on the file. Left out where there is no one to share with. */

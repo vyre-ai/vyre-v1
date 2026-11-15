@@ -809,10 +809,16 @@ async function runStats(
   if (!ctx.call) return { failedRuns: 0 };
   try {
     const subject = { type: "automation", id };
-    const last = (await ctx.call("runs.list", { scope: "subject", subject, limit: 1 })) as {
+    const last = (await ctx.call("runs.list", { scope: "subject", subject, kinds: ["automation"], limit: 1 })) as {
       runs?: { id: string; status: string; startedAt: number }[];
     } | null;
-    const failed = (await ctx.call("runs.list", { scope: "subject", subject, statuses: ["failed"], limit: 1 })) as {
+    const failed = (await ctx.call("runs.list", {
+      scope: "subject",
+      subject,
+      kinds: ["automation"],
+      statuses: ["failed"],
+      limit: 1,
+    })) as {
       total?: number;
     } | null;
     const r = last?.runs?.[0];
