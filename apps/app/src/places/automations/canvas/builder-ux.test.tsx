@@ -391,7 +391,7 @@ test("each kind of field writes the right value: text, number, yes or no, a list
   assert.deepEqual(controlValue(by["all"]!, "false"), { value: false });
   assert.deepEqual(controlValue(by["tags"]!, "a, b\nc"), { value: ["a", "b", "c"] });
   assert.deepEqual(controlValue(by["ids"]!, "1, 2"), { value: [1, 2] });
-  assert.deepEqual(controlValue(by["ids"]!, "1, x"), { problem: "Ids must be numbers." });
+  assert.deepEqual(controlValue(by["ids"]!, "1, x"), { problem: "References must be numbers." });
   assert.deepEqual(controlValue(by["extra"]!, '{"a":1}'), { value: { a: 1 } });
   assert.deepEqual(controlValue(by["extra"]!, "{oops"), { problem: "That is not valid JSON." });
   assert.deepEqual(
@@ -536,9 +536,9 @@ test("the trigger panel can remove its trigger, and its Test and Data tabs say w
     panelOf({ key: "manual" }, "configure", { onRemoveTrigger: noop }).includes('data-testid="remove-trigger"'),
   );
   assert.equal(panelOf({ key: "manual" }).includes('data-testid="remove-trigger"'), false, "no handler, no button");
-  const test_ = panelOf({ key: "manual" }, "test");
-  assert.ok(test_.includes("Press Test at the top"), "the Test tab of a trigger explains itself");
-  assert.ok(panelOf({ key: "manual" }, "data").includes("data-shelf-empty"), "the Data tab says why it is empty");
+  // changed for AUTOMATIONS-BUILD-RC29 (round two, item 2): one form, no Configure, Data or Test tabs
+  const one = panelOf({ key: "manual" });
+  assert.ok(!one.includes("section-row") && !one.includes("trigger-test-note"), "one form, no tabs");
 });
 
 test("Advanced adds the trigger as JSON, so the switch shows something on a trigger too", () => {

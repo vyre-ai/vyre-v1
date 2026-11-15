@@ -15,8 +15,9 @@ export function present(v: unknown): boolean {
   return true;
 }
 
+/** A field's name as a person reads it. No label is a raw key: "numberId" is Number, "fileIds" is Files, a lone "id" is Reference. */
 export const humanize = (k: string): string =>
-  k
+  (/^id$/i.test(k) ? "reference" : /^ids$/i.test(k) ? "references" : k.replace(/Ids$/, "s").replace(/Id$/, ""))
     .replace(/([A-Z])/g, " $1")
     .replace(/[_.]+/g, " ")
     .replace(/^./, (x) => x.toUpperCase())
@@ -104,8 +105,14 @@ export function controlsFor(schema: unknown): Control[] {
     const options = Array.isArray(prop["enum"]) ? prop["enum"].filter((x): x is string => typeof x === "string") : [];
     const examples = Array.isArray(prop["examples"]) ? prop["examples"] : [];
     const example = typeof examples[0] === "string" ? examples[0] : "";
+    // templating syntax is never shown to a person: data comes in by "Insert data" (AUTOMATIONS-BUILD-RC29, round two, item 2)
     const description =
-      typeof prop["description"] === "string" && prop["description"] !== "Any JSON value" ? prop["description"] : "";
+      typeof prop["description"] === "string" && prop["description"] !== "Any JSON value"
+        ? prop["description"]
+            .replace(/\s*Templating\b.*$/is, "")
+            .replace(/\{\{[^}]*\}\}/g, "")
+            .trim()
+        : "";
     const items = isRec(prop["items"]) ? prop["items"] : {};
     const itemType = typeName(items);
     let kind: ControlKind = "json";

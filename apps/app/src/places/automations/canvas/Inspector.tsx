@@ -23,8 +23,12 @@ import { connectEntries } from "../../../shell/connect/model.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import { asFixture } from "../builder/fields.ts";
 import { MessageComposer } from "../builder/MessageComposer.tsx";
-import { DataShelf, MappingFix, SectionRow, advancedInputEdit, basicFieldEdit, nodeIdSet } from "../builder/marks.tsx";
-import { Choice, TextBox, MapTargetContext } from "./fields.tsx";
+import { DataShelf, MappingFix, advancedInputEdit, basicFieldEdit, nodeIdSet } from "../builder/marks.tsx";
+import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
+import { glyphOf, tintOf } from "../picker/glyphs.ts";
+import { Choice, DataWordsContext, TextBox, MapTargetContext, More } from "./fields.tsx";
+import type { DataWords } from "./fields.tsx";
+import { mappingExpression, shelfRows, withExpression } from "../builder/fields.ts";
 import type { MapTarget } from "./fields.tsx";
 import { frameFor } from "./frame.ts";
 import type { StudioLayout } from "./frame.ts";
@@ -82,7 +86,6 @@ export function Inspector({
   mode = "basic",
   onMode,
   section = "configure",
-  onSection,
   samples = {},
   version = 0,
   onStoreSample,
@@ -94,6 +97,8 @@ export function Inspector({
   kind: automationKind = "personal",
   runId,
   runLog,
+  heading,
+  mark,
 }: {
   /** The Automation this panel edits: the web request trigger shows its address. */
   automationId?: string;
@@ -118,7 +123,6 @@ export function Inspector({
   mode?: BuilderMode;
   onMode?(next: BuilderMode): void;
   section?: "configure" | "data" | "test";
-  onSection?(next: "configure" | "data" | "test"): void;
   samples?: Readonly<Record<string, unknown>>;
   version?: number;
   onStoreSample?(nodeId: string, output: unknown): void;
@@ -136,11 +140,14 @@ export function Inspector({
   runId?: string;
   /** The log of that step already read, for a screen that paints before the read answers. */
   runLog?: unknown;
+  /** The step's sentence as its row on the page reads it; the form's head says the same words. */
+  heading?: string;
+  /** The mark its row wears on the page (an app's logo or the kind's glyph); the form's head wears the same one. */
+  mark?: { id: string; name: string };
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
   const openConnect = useOpenConnect();
   const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
-  const ordered = layout ? frameFor(layout).ordered : false;
   const zone = usePersonZone();
   useEffect(() => {
     installFocusRing();
@@ -218,6 +225,28 @@ export function Inspector({
         });
     return out;
   };
+  const titleOf = (id: string): string => {
+    const n = def.nodes.find((x) => x.id === id);
+    return n ? (n.title ?? titleOfKey(n.key)) : id;
+  };
+  // "Insert data": what an earlier step gives, by its name; a field is never typed as {{ }} by hand
+  const dataWords: DataWords = {
+    titleOf,
+    insert: (x, y, current, put) => {
+      const rows = shelfRows(samples["trigger"], prior);
+      openMenu(
+        rows.length === 0
+          ? [{ label: "Nothing yet. Test a step to see what it gives.", onSelect: () => undefined }]
+          : rows.map((r) => ({
+              label: `${r.source} · ${r.name}`,
+              onSelect: () => put(withExpression(current, mappingExpression(r.id))),
+            })),
+        x,
+        y,
+        "other",
+      );
+    },
+  };
   const mine = issues.filter((i) => (node ? i.nodeId === node.id : i.nodeId === "trigger"));
   if (!node) {
     const meta = trigger ? triggerMeta(trigger.key, trigger.config) : null;
@@ -236,25 +265,7 @@ export function Inspector({
       >
         <Head title={meta?.title ?? "Trigger"} sub="Trigger" icon={meta?.icon ?? "bolt"} onClose={onClose} />
         <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
-          <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
-          {section === "data" ? (
-            <DataShelf
-              triggerSample={samples["trigger"]}
-              steps={prior}
-              target={mapTarget}
-              onPick={(_id, _expression, next) => {
-                mapTarget?.commit(next);
-                setMapTarget(null);
-              }}
-            />
-          ) : null}
-          {section === "test" ? (
-            <Text testID="trigger-test-note" style={i.hint}>
-              A trigger is tested with the whole Automation. Press Test at the top: it runs every step with sample data,
-              and what each step returns shows on the Data tab.
-            </Text>
-          ) : null}
-          {section === "configure" ? (
+          {true ? (
             <MapTargetContext.Provider value={{ set: setMapTarget }}>
               {trigger && triggerIndex !== null ? (
                 <TriggerForm
@@ -306,7 +317,6 @@ export function Inspector({
                       : "This starts a run."
                   : "Every trigger is listed on the card. Any one starts a run."}
               </Text>
-              <Problems list={mine} />
               {trigger && triggerIndex !== null && onRemoveTrigger ? (
                 <Pressable
                   accessibilityRole="button"
@@ -348,7 +358,7 @@ export function Inspector({
           value={b.when ?? ""}
           mono
           readOnly={b.when === undefined}
-          placeholder="lead.phone is not empty"
+          placeholder={b.when === undefined ? "Everything else" : "lead.phone is not empty"}
           testID={`field-path-${n}`}
           onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { when: t }) }))}
         />,
@@ -383,7 +393,15 @@ export function Inspector({
   // Paths and Parallel keep their lanes on the step, and the fields above are where they are edited
   const onTheStep = (name: string): boolean =>
     (kind === "paths" && (name === "paths" || name === "otherwise")) || (kind === "parallel" && name === "branches");
-  const skipField = (name: string): boolean => skipAccount(name) || onTheStep(name) || (composer && hidden.has(name));
+  // an engineering line ("Twilio · action messages.create") and an id no name can be found for are not the person's to read: they stay in the step's saved settings and in Advanced
+  const nameOfId = (id: string): string | null =>
+    accounts.find((a) => a.id === id)?.title ?? keys.find((k) => k.id === id)?.name ?? null;
+  const opaqueId = (name: string): boolean => {
+    const v = node.input?.[name];
+    return /Ids?$/.test(name) && typeof v === "string" && /^[a-z]{2,6}_[A-Za-z0-9]+$/.test(v) && nameOfId(v) === null;
+  };
+  const skipField = (name: string): boolean =>
+    skipAccount(name) || onTheStep(name) || (composer && hidden.has(name)) || name === "summary" || opaqueId(name);
   const writeInput = (name: string, next: unknown): void => {
     const input = { ...node.input };
     if (next === undefined) delete input[name];
@@ -420,297 +438,297 @@ export function Inspector({
   );
   fields.push(...stray);
   return (
-    <MapTargetContext.Provider value={{ set: setMapTarget }}>
-      <View
-        style={paneStyle(embedded, layout)}
-        testID={testID}
-        accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`}
-        {...webOnly({ dataSet: { vyreFocus: "1" } })}
-      >
-        <Head
-          title={node.title ?? titleOfKey(node.key)}
-          sub={groupOfKey(node.key)}
-          icon={iconOfKey(node.key)}
-          onClose={onClose}
-        />
-        <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
-          <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
-          {section === "data" ? (
-            <DataShelf
-              triggerSample={samples["trigger"]}
-              steps={prior}
-              target={mapTarget}
-              onPick={(_id, _expression, next) => {
-                mapTarget?.commit(next);
-                setMapTarget(null);
-              }}
-            />
-          ) : null}
-          {section === "test" && runId ? (
-            <RunStepIo runId={runId} stepId={node.id} {...(runLog !== undefined ? { ready: runLog } : {})} />
-          ) : null}
-          {section === "test" ? (
-            <StepTest
-              stepKey={node.key}
-              nodeId={node.id}
-              input={node.input ?? {}}
-              version={version}
-              samples={samples}
-              onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))}
-            />
-          ) : null}
-          {section === "configure" ? (
-            <>
-              {node.key === "connector_request" ? (
-                <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text>
-              ) : null}
-              <Text testID="plain-language" style={i.hint}>
-                {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}
-              </Text>
-              {headerMode ? null : (
-                <View accessibilityLabel="Builder mode" testID="inspector-mode" style={i.seg}>
-                  {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
-                  {BUILDER_MODES.map((label) => {
-                    const on = (label === "Advanced") === advanced;
-                    return (
-                      <Pressable
-                        key={label}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: on }}
-                        testID={label === "Advanced" ? "toggle-advanced" : "toggle-basic"}
-                        onPress={() => setAdvanced(label === "Advanced")}
-                        style={[i.segBtn, on && i.segBtnOn, pointer]}
-                      >
-                        <Text style={[i.segText, on && i.segTextOn]}>{label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-              <TextBox
-                label="Name"
-                value={node.title ?? ""}
-                placeholder={titleOfKey(node.key)}
-                testID="field-title"
-                onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))}
-              />
-              {accountPick ? (
-                <Choice
-                  label="Account"
-                  value={accountPick.value}
-                  testID="choose-account"
-                  onOpen={(x, y) => {
-                    const entries: MenuEntry[] = [];
-                    for (const item of accountPick.items) {
-                      // the "No accounts yet" row is not an account: with a way to connect it gives way to Connect
-                      if (!item.account && openConnect) continue;
-                      const onSelect = (): void => {
-                        if (!item.account) return;
-                        onChange(
-                          updateStep(def, node.id, {
-                            input: applyAccount(node.input ?? {}, accountPick.field, item.account),
-                          }),
-                        );
-                      };
-                      entries.push(
-                        item.checked ? { label: item.label, checked: true, onSelect } : { label: item.label, onSelect },
-                      );
-                    }
-                    const need = accountNeed(accountPick.field, node.input ?? {});
-                    const empty = menuIsEmpty(accountPick);
-                    openMenu(
-                      need
-                        ? connectEntries(
-                            entries,
-                            need,
-                            openConnect,
-                            (made) =>
-                              onChange(
-                                updateStep(def, node.id, {
-                                  input: applyAccount(node.input ?? {}, accountPick.field, connectedOption(made)),
-                                }),
-                              ),
-                            empty,
-                          )
-                        : entries,
-                      x,
-                      y,
-                      "other",
-                    );
-                  }}
-                />
-              ) : null}
-              {fixedAccount ? (
-                <Text testID="account-fixed" style={i.hint}>
-                  {fixedAccount}
-                </Text>
-              ) : null}
-              {live ? (
-                <LiveStepForm
-                  def={def}
-                  node={node}
-                  onChange={onChange}
-                  openMenu={openMenu}
-                  kind={automationKind}
-                  keys={keys}
-                />
-              ) : null}
-              {composer ? (
-                <MessageComposer
-                  stepKey={node.key}
-                  nodeId={node.id}
-                  input={node.input ?? {}}
-                  samples={samples}
-                  onInput={(input) => onChange(updateStep(def, node.id, { input }))}
-                />
-              ) : null}
-              {live ? null : fields}
-              {advanced ? (
-                <TextBox
-                  label={VAL_LABEL}
-                  value={JSON.stringify(node.input ?? {}, null, 2)}
-                  testID="field-input-json"
-                  onCommit={(t) => {
-                    const edited = advancedInputEdit(t);
-                    if (!edited.ok) {
-                      setJsonError(edited.message);
-                      return;
-                    }
-                    setJsonError(null);
-                    onChange(updateStep(def, node.id, { input: edited.input }));
-                  }}
-                />
-              ) : null}
-              {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
-              {inputKeys.length === 0 && kind === "plain" && !advanced && !accountPick ? (
-                <Text style={i.hint}>
-                  Nothing is set on this step yet. Add what it needs in the fields the check names below.
-                </Text>
-              ) : null}
-              {sendsOutward(node.key) &&
-              !(
-                node.key === "http_request" &&
-                (node.input?.["method"] === undefined ||
-                  node.input["method"] === "GET" ||
-                  node.input["method"] === "HEAD")
-              ) ? (
-                <SendApproval
-                  on={node.askBeforeSending === true}
-                  onSet={(next) => onChange(updateStep(def, node.id, { askBeforeSending: next }))}
-                />
-              ) : null}
-              <View style={i.group}>
-                <Text style={i.groupHead}>If this step fails</Text>
-                <Choice
-                  label="Then"
-                  value={ERROR_MODES.find((m) => m.mode === (node.onError?.mode ?? "fail"))?.label ?? "Stop the run"}
-                  testID="choose-error"
-                  onOpen={(x, y) => openMenu(errorEntries(), x, y, "other")}
-                />
-                {node.onError?.mode === "retry" ? (
-                  <TextBox
-                    label="Tries"
-                    value={String(node.onError.max ?? 3)}
-                    testID="field-retries"
-                    onCommit={(t) =>
-                      onChange(
-                        updateStep(def, node.id, {
-                          onError: { mode: "retry", max: Math.max(1, Math.min(10, Number.parseInt(t, 10) || 3)) },
-                        }),
-                      )
-                    }
-                  />
+    <DataWordsContext.Provider value={dataWords}>
+      <MapTargetContext.Provider value={{ set: setMapTarget }}>
+        <View
+          style={paneStyle(embedded, layout)}
+          testID={testID}
+          accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`}
+          {...webOnly({ dataSet: { vyreFocus: "1" } })}
+        >
+          <Head
+            title={heading ?? node.title ?? titleOfKey(node.key)}
+            sub={groupOfKey(node.key)}
+            icon={iconOfKey(node.key)}
+            {...(mark ? { mark } : {})}
+            onClose={onClose}
+          />
+          <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
+            {true ? (
+              <>
+                {node.key === "connector_request" ? (
+                  <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text>
                 ) : null}
-                {node.onError?.mode === "substitute" ? (
-                  <TextBox
-                    label="Result"
-                    testID="field-substitute"
-                    value={node.onError.output === undefined ? "" : JSON.stringify(node.onError.output)}
-                    placeholder={'{"ok":false}'}
-                    onCommit={(t) => {
-                      const trimmed = t.trim();
-                      if (!trimmed) {
-                        onChange(updateStep(def, node.id, { onError: { mode: "substitute" } }));
-                        return;
+                {headerMode ? null : (
+                  <View accessibilityLabel="Builder mode" testID="inspector-mode" style={i.seg}>
+                    {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
+                    {BUILDER_MODES.map((label) => {
+                      const on = (label === "Advanced") === advanced;
+                      return (
+                        <Pressable
+                          key={label}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: on }}
+                          testID={label === "Advanced" ? "toggle-advanced" : "toggle-basic"}
+                          onPress={() => setAdvanced(label === "Advanced")}
+                          style={[i.segBtn, on && i.segBtnOn, pointer]}
+                        >
+                          <Text style={[i.segText, on && i.segTextOn]}>{label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+                <TextBox
+                  label="Name"
+                  value={node.title ?? ""}
+                  placeholder={titleOfKey(node.key)}
+                  testID="field-title"
+                  onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))}
+                />
+                {accountPick ? (
+                  <Choice
+                    label="Account"
+                    value={accountPick.value}
+                    testID="choose-account"
+                    onOpen={(x, y) => {
+                      const entries: MenuEntry[] = [];
+                      for (const item of accountPick.items) {
+                        // the "No accounts yet" row is not an account: with a way to connect it gives way to Connect
+                        if (!item.account && openConnect) continue;
+                        const onSelect = (): void => {
+                          if (!item.account) return;
+                          onChange(
+                            updateStep(def, node.id, {
+                              input: applyAccount(node.input ?? {}, accountPick.field, item.account),
+                            }),
+                          );
+                        };
+                        entries.push(
+                          item.checked
+                            ? { label: item.label, checked: true, onSelect }
+                            : { label: item.label, onSelect },
+                        );
                       }
-                      let output: unknown = t;
-                      try {
-                        output = JSON.parse(t);
-                      } catch {
-                        output = t;
-                      }
-                      onChange(updateStep(def, node.id, { onError: { mode: "substitute", output } }));
+                      const need = accountNeed(accountPick.field, node.input ?? {});
+                      const empty = menuIsEmpty(accountPick);
+                      openMenu(
+                        need
+                          ? connectEntries(
+                              entries,
+                              need,
+                              openConnect,
+                              (made) =>
+                                onChange(
+                                  updateStep(def, node.id, {
+                                    input: applyAccount(node.input ?? {}, accountPick.field, connectedOption(made)),
+                                  }),
+                                ),
+                              empty,
+                            )
+                          : entries,
+                        x,
+                        y,
+                        "other",
+                      );
                     }}
                   />
                 ) : null}
-                {node.onError?.mode === "route" ? (
-                  <>
-                    <Choice
-                      label="Go to"
-                      value={
-                        def.nodes.find((n) => n.id === node.onError?.route)?.title ??
-                        (node.onError.route
-                          ? titleOfKey(def.nodes.find((n) => n.id === node.onError?.route)?.key ?? "")
-                          : "Choose a step")
-                      }
-                      testID="choose-route"
-                      onOpen={(x, y) => openMenu(routeEntries(), x, y, "other")}
-                    />
+                {fixedAccount ? (
+                  <Text testID="account-fixed" style={i.hint}>
+                    {fixedAccount}
+                  </Text>
+                ) : null}
+                {live ? (
+                  <LiveStepForm
+                    def={def}
+                    node={node}
+                    onChange={onChange}
+                    openMenu={openMenu}
+                    kind={automationKind}
+                    keys={keys}
+                  />
+                ) : null}
+                {composer ? (
+                  <MessageComposer
+                    stepKey={node.key}
+                    nodeId={node.id}
+                    input={node.input ?? {}}
+                    samples={samples}
+                    onInput={(input) => onChange(updateStep(def, node.id, { input }))}
+                  />
+                ) : null}
+                {live ? null : fields}
+                {sendsOutward(node.key) &&
+                !(
+                  node.key === "http_request" &&
+                  (node.input?.["method"] === undefined ||
+                    node.input["method"] === "GET" ||
+                    node.input["method"] === "HEAD")
+                ) ? (
+                  <SendApproval
+                    on={node.askBeforeSending === true}
+                    onSet={(next) => onChange(updateStep(def, node.id, { askBeforeSending: next }))}
+                  />
+                ) : null}
+                <StepTest
+                  plain
+                  stepKey={node.key}
+                  nodeId={node.id}
+                  input={node.input ?? {}}
+                  version={version}
+                  samples={samples}
+                  onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))}
+                />
+                <More head="Details" testID="step-details" initiallyOpen={section !== "configure" || advanced}>
+                  <Text testID="plain-language" style={i.hint}>
+                    {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}
+                  </Text>
+
+                  {runId ? (
+                    <RunStepIo runId={runId} stepId={node.id} {...(runLog !== undefined ? { ready: runLog } : {})} />
+                  ) : null}
+                  <DataShelf
+                    triggerSample={samples["trigger"]}
+                    steps={prior}
+                    target={mapTarget}
+                    onPick={(_id, _expression, next) => {
+                      mapTarget?.commit(next);
+                      setMapTarget(null);
+                    }}
+                  />
+                  {advanced ? (
                     <TextBox
-                      label="Only these errors"
-                      testID="field-error-codes"
-                      value={(node.onError.codes ?? []).join(", ")}
-                      placeholder="Any error"
+                      label={VAL_LABEL}
+                      value={JSON.stringify(node.input ?? {}, null, 2)}
+                      testID="field-input-json"
                       onCommit={(t) => {
-                        const codes = t
-                          .split(",")
-                          .map((part) => part.trim())
-                          .filter((part) => part.length > 0);
-                        const route = node.onError?.route;
-                        onChange(
-                          updateStep(def, node.id, {
-                            onError: {
-                              mode: "route",
-                              ...(route ? { route } : {}),
-                              ...(codes.length > 0 ? { codes } : {}),
-                            },
-                          }),
-                        );
+                        const edited = advancedInputEdit(t);
+                        if (!edited.ok) {
+                          setJsonError(edited.message);
+                          return;
+                        }
+                        setJsonError(null);
+                        onChange(updateStep(def, node.id, { input: edited.input }));
                       }}
                     />
-                  </>
+                  ) : null}
+                  {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
+                  <View style={i.group}>
+                    <Text style={i.groupHead}>If this step fails</Text>
+                    <Choice
+                      label="Then"
+                      value={
+                        ERROR_MODES.find((m) => m.mode === (node.onError?.mode ?? "fail"))?.label ?? "Stop the run"
+                      }
+                      testID="choose-error"
+                      onOpen={(x, y) => openMenu(errorEntries(), x, y, "other")}
+                    />
+                    {node.onError?.mode === "retry" ? (
+                      <TextBox
+                        label="Tries"
+                        value={String(node.onError.max ?? 3)}
+                        testID="field-retries"
+                        onCommit={(t) =>
+                          onChange(
+                            updateStep(def, node.id, {
+                              onError: { mode: "retry", max: Math.max(1, Math.min(10, Number.parseInt(t, 10) || 3)) },
+                            }),
+                          )
+                        }
+                      />
+                    ) : null}
+                    {node.onError?.mode === "substitute" ? (
+                      <TextBox
+                        label="Result"
+                        testID="field-substitute"
+                        value={node.onError.output === undefined ? "" : JSON.stringify(node.onError.output)}
+                        placeholder={'{"ok":false}'}
+                        onCommit={(t) => {
+                          const trimmed = t.trim();
+                          if (!trimmed) {
+                            onChange(updateStep(def, node.id, { onError: { mode: "substitute" } }));
+                            return;
+                          }
+                          let output: unknown = t;
+                          try {
+                            output = JSON.parse(t);
+                          } catch {
+                            output = t;
+                          }
+                          onChange(updateStep(def, node.id, { onError: { mode: "substitute", output } }));
+                        }}
+                      />
+                    ) : null}
+                    {node.onError?.mode === "route" ? (
+                      <>
+                        <Choice
+                          label="Go to"
+                          value={
+                            def.nodes.find((n) => n.id === node.onError?.route)?.title ??
+                            (node.onError.route
+                              ? titleOfKey(def.nodes.find((n) => n.id === node.onError?.route)?.key ?? "")
+                              : "Choose a step")
+                          }
+                          testID="choose-route"
+                          onOpen={(x, y) => openMenu(routeEntries(), x, y, "other")}
+                        />
+                        <TextBox
+                          label="Only these errors"
+                          testID="field-error-codes"
+                          value={(node.onError.codes ?? []).join(", ")}
+                          placeholder="Any error"
+                          onCommit={(t) => {
+                            const codes = t
+                              .split(",")
+                              .map((part) => part.trim())
+                              .filter((part) => part.length > 0);
+                            const route = node.onError?.route;
+                            onChange(
+                              updateStep(def, node.id, {
+                                onError: {
+                                  mode: "route",
+                                  ...(route ? { route } : {}),
+                                  ...(codes.length > 0 ? { codes } : {}),
+                                },
+                              }),
+                            );
+                          }}
+                        />
+                      </>
+                    ) : null}
+                  </View>
+                </More>
+                <MappingFix nodeIds={nodeIdSet(def)} value={node.input} />
+                  {mine.some((item) => item.severity === "error") ? (
+                  <AskVyre
+                    bundle={{
+                      resource: "automation",
+                      nodeId: node.id,
+                      stepKey: node.key,
+                      definitionVersion: version,
+                      message: mine.find((item) => item.severity === "error")?.message ?? "",
+                    }}
+                    {...(onAsk ? { onOpen: onAsk } : {})}
+                  />
                 ) : null}
-              </View>
-              <MappingFix nodeIds={nodeIdSet(def)} value={node.input} />
-              <Problems list={mine} />
-              {mine.some((item) => item.severity === "error") ? (
-                <AskVyre
-                  bundle={{
-                    resource: "automation",
-                    nodeId: node.id,
-                    stepKey: node.key,
-                    definitionVersion: version,
-                    message: mine.find((item) => item.severity === "error")?.message ?? "",
-                  }}
-                  {...(onAsk ? { onOpen: onAsk } : {})}
-                />
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Delete this step"
-                testID="delete-step"
-                onPress={onDelete}
-                style={[i.del, pointer]}
-              >
-                <Glyph name="x" size={13} color="var(--danger)" />
-                <Text style={i.delText}>Delete this step</Text>
-              </Pressable>
-            </>
-          ) : null}
-        </ScrollView>
-        {element}
-      </View>
-    </MapTargetContext.Provider>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete this step"
+                  testID="delete-step"
+                  onPress={onDelete}
+                  style={[i.del, pointer]}
+                >
+                  <Glyph name="x" size={13} color="var(--danger)" />
+                  <Text style={i.delText}>Delete this step</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </ScrollView>
+          {element}
+        </View>
+      </MapTargetContext.Provider>
+    </DataWordsContext.Provider>
   );
 }
 
@@ -718,18 +736,30 @@ function Head({
   title,
   sub,
   icon,
+  mark,
   onClose,
 }: {
   title: string;
   sub: string;
   icon: IconKey;
+  mark?: { id: string; name: string };
   onClose(): void;
 }): ReactElement {
   return (
     <View style={i.head}>
-      <View style={i.tile}>
-        <Glyph name={icon} size={16} color="var(--ink-2)" />
-      </View>
+      {mark ? (
+        <AppLogo
+          app={mark.id}
+          name={mark.name}
+          size={28}
+          glyph={glyphOf({ app: mark.id, name: mark.name })}
+          tint={tintOf({ app: mark.id, name: mark.name })}
+        />
+      ) : (
+        <View style={i.tile}>
+          <Glyph name={icon} size={16} color="var(--ink-2)" />
+        </View>
+      )}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text accessibilityRole="header" numberOfLines={1} style={i.title}>
           {title}
@@ -739,25 +769,6 @@ function Head({
         </Text>
       </View>
       <IconButton icon="x" label="Close the step panel" onPress={onClose} testID="close-inspector" />
-    </View>
-  );
-}
-
-function Problems({ list }: { list: readonly Issue[] }): ReactElement | null {
-  if (list.length === 0) return null;
-  const rows: ReactElement[] = [];
-  list.forEach((p, n) =>
-    rows.push(
-      <View key={`${p.message}-${n}`} style={i.problem}>
-        <Glyph name="warn" size={13} color={p.severity === "error" ? "var(--danger)" : "var(--warn)"} />
-        <Text style={i.problemText}>{p.message}</Text>
-      </View>,
-    ),
-  );
-  return (
-    <View style={i.group} testID="step-problems" accessibilityRole="alert">
-      <Text style={i.groupHead}>{list.some((x) => x.severity === "error") ? "To fix" : "To check"}</Text>
-      {rows}
     </View>
   );
 }

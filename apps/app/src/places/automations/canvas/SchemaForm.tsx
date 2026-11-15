@@ -82,7 +82,7 @@ function One({
   const [problem, setProblem] = useState<string | null>(null);
   const has = Object.prototype.hasOwnProperty.call(input, control.name);
   const current = input[control.name];
-  const label = control.required ? `${control.label} (required)` : control.label;
+  const label = control.label;
   const write = (text: string): void => {
     const out = writeControl(input, control, text);
     if ("problem" in out) {
@@ -166,7 +166,7 @@ function One({
           label={`${label}${presence === "null" || presence === "empty" ? ` (${presence})` : ""}`}
           value={controlText(control, current)}
           testID={id}
-          placeholder={control.placeholder || (control.required ? "Required" : "Optional")}
+          placeholder={control.placeholder}
           {...(control.kind === "multiline" ? { rows: 4 } : {})}
           onCommit={(t) => onInput(basicFieldEdit(input, control.name, t))}
         />
@@ -182,7 +182,7 @@ function One({
         testID={id}
         mono={control.kind === "json"}
         invalid={problem !== null}
-        placeholder={control.placeholder || (control.required ? "Required" : "Optional")}
+        placeholder={control.placeholder}
         {...(control.kind === "list" ? { rows: 3 } : control.kind === "json" ? { rows: 4 } : {})}
         onCommit={write}
       />

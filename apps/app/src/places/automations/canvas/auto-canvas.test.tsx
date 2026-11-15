@@ -66,7 +66,7 @@ test("a pressed step opens its form beside the page, with its fields", () => {
     "name and the path's condition",
   );
   assert.ok(has(open, "lead.phone is not empty"));
-  assert.ok(has(open, "If this step fails") && has(open, "Stop the run"));
+  assert.ok(has(open, 'data-testid="step-details"') && !has(open, "If this step fails"), "the failure setting is under a closed Details");
   const ai = html(s, "aut_lead", { initialSelected: "draft" });
   assert.ok(
     has(ai, 'data-testid="choose-key"') && has(ai, "Your Claude sign-in") && has(ai, 'data-testid="choose-backup"'),
@@ -97,7 +97,7 @@ test("build a three-path Automation: the lanes appear, save writes one version, 
   await s.data.call("automations.update", { automationId: id, definition: d, expectedVersion: 1 });
   const out = html(s, id);
   for (const t of ["How warm is the lead?", "Call now", "Send an email"])
-    assert.ok(has(out, t) || has(out, "Create a task"), t);
+    assert.ok(has(out, t) || has(out, "Create a task") || has(out, t.replace("Send an email", "Send email")), t);
   assert.ok(
     has(out, `data-testid="sv-step-${p.id}"`) &&
       has(out, `data-testid="sv-step-${hot.id}"`) &&
