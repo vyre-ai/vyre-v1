@@ -450,3 +450,9 @@ Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9
 - Compatibility: no existing capability changed; `files.trash.empty` and the Trash keep time now also reach agents through `folder.purged`.
 
 Signed: for the lead to sign
+
+## 15 Nov 2026: chats.sidebar rows gain one optional output field (lane f-shots)
+
+A row of `chats.sidebar` gains `ask` (a boolean), present and true only on a pane that is an ask waiting for a person. The sidebar's Asks filter reads it; before, the server never sent ask panes and the filter was always empty. Optional output only: an older client ignores it.
+
+Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-shots-rc29 747c7008f)

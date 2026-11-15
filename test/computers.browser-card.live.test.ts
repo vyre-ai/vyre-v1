@@ -320,9 +320,9 @@ test(
       assert.doesNotMatch(await card.innerText(), /Chrome/);
       await shot("browser-card-chat");
       // the Computer tab: Browser is one live picture and no list of steps (the steps are in the chat's live card); the picture is the door to the browser large
-      if ((await page.getByTestId("pane-agent").count()) === 0) await page.getByTestId("pane-button").click();
-      await page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
-      await page.getByTestId("tab-computer").click();
+      if ((await page.getByTestId("side-pane").count()) === 0) await page.getByTestId("pane-button").click();
+      await page.getByTestId("side-pane").waitFor({ timeout: 20_000 });
+      await page.getByTestId("tab-computer").or(page.getByTestId("tab-computer-selected")).first().click(); // the agent pane opens on its Computer tab by itself (chat frame, 14 Nov: c77534521): it has no pane-agent header and the tab may already be selected
       await page.getByTestId("browser-head").waitFor({ timeout: 20_000 });
       await page.getByTestId("browser-picture").waitFor({ timeout: 20_000 });
       assert.equal(await page.getByText("Steps", { exact: true }).count(), 0, "no steps list in the pane");

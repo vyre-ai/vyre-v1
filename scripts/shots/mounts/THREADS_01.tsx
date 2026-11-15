@@ -28,6 +28,33 @@ function sidebar(): ReturnType<typeof createSampleSidebar>["data"] {
   const today = rows
     .filter((r) => Math.floor(r.lastAt / 86_400_000) === Math.floor(SAMPLE_NOW / 86_400_000))
     .slice(0, 2);
+  // the Ask panes are rows of the one chats.sidebar read with ask: true; under the Asks filter they are the only rows
+  sb.replica.put("threads", [
+    {
+      ...rows[0]!,
+      id: "ask_1",
+      threadId: "ask_1",
+      title: "Summarise the Rivera intake",
+      agents: ["agt_assistant"],
+      unread: 0,
+      working: false,
+      starred: false,
+      lastAt: at(14, 0),
+      ask: true,
+    },
+    {
+      ...rows[0]!,
+      id: "ask_2",
+      threadId: "ask_2",
+      title: "What changed on the lease?",
+      agents: ["agt_docs"],
+      unread: 0,
+      working: false,
+      starred: false,
+      lastAt: at(11, 30),
+      ask: true,
+    },
+  ] as never);
   today.forEach((r, i) => sb.replica.put("threads", [{ ...r, repliesUnread: i === 0 ? 3 : 1 }]));
   const s = sb.data;
   return {

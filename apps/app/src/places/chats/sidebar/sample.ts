@@ -40,6 +40,7 @@ export interface SampleThread {
   /** in my Archived section */ archived?: boolean;
   /** deleted, waiting for Undo */ deleted?: boolean;
   /** left */ left?: boolean;
+  /** an Ask pane: listed only under the Asks filter */ ask?: boolean;
 }
 export interface SampleSpace {
   id: "northwind" | "harbor" | "personal";

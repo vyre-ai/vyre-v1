@@ -53,6 +53,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/release/cli.ts reuse "${{ github.sha }}"
+  shots-gate:
+    # The browser walks (shots.yml: release-evidence, release-evidence-walks, release-evidence-clicks) drive the real exported app. The check workflow does not run them and the release must not go live
+    # without them: rc.27 and rc.28 were cut with them red because nobody read the shots run. This job fails unless a finished, green shots run proves this commit (the same commit, or a commit with
+    # exactly the same files, which is what a squash merge to main leaves of the integration branch's last run). A practice run (dryrun tag) only prints what it found.
+    needs: guard
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    permissions: { contents: read, actions: read }
+    outputs:
+      run: ${{ steps.find.outputs.run }}
+      tests: ${{ steps.find.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRYRUN: ${{ needs.guard.outputs.dryrun }}
+        run: node scripts/release/cli.ts shots "${{ github.sha }}"
   agent-images:
     # The agent workspace and the Space browser images, for both platforms (linux/amd64 and linux/arm64) like the server image, so a Mac with Apple silicon runs them natively. The second
     # platform is built under emulation, which is slow the first time, so these builds have a job and a cap of their own instead of sharing `package`'s 20 minutes. `package` waits for this
@@ -247,11 +265,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-files-desktop, path: dist, if-no-files-found: error, retention-days: 7 }
   live:
-    needs: [guard, reuse, package, select, suite, client, kits, images, heavy, security]
+    needs: [guard, reuse, shots-gate, package, select, suite, client, kits, images, heavy, security]
     # Every gate passed. The suite passed here, or `reuse` named a finished main.yml run that ran the whole suite green on this very commit and select and suite were skipped for it; a skipped suite
     # with no reused run is a failure. Explicit results, not the implied success(): a skipped select or suite would otherwise skip live, sign and deploy with it.
     if: >-
-      always() && needs.guard.result == 'success' && needs.reuse.result == 'success' && needs.package.result == 'success'
+      always() && needs.guard.result == 'success' && needs.reuse.result == 'success' && needs.shots-gate.result == 'success' && needs.package.result == 'success'
       && needs.client.result == 'success' && needs.kits.result == 'success' && needs.images.result == 'success'
       && needs.heavy.result == 'success' && needs.security.result == 'success'
       && ((needs.reuse.outputs.run != '' && needs.select.result == 'skipped' && needs.suite.result == 'skipped') || (needs.select.result == 'success' && needs.suite.result == 'success'))
@@ -336,7 +354,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: release-signed, path: dist, if-no-files-found: error, retention-days: 1 }
   publish:
-    needs: [guard, reuse, sign, sign-dryrun]
+    needs: [guard, reuse, shots-gate, sign, sign-dryrun]
     if: always() && (needs.sign.result == 'success' || needs.sign-dryrun.result == 'success')
     # On a GitHub-hosted runner (free: the repo is public), because that is where the artifact store is fast. On the self-hosted v1 runners this job pulled the 127 MB DMG at about 85 KB/s and hit its
     # 30 minute cap on rc.21, rc.22 and rc.23. It holds only the run's own token (contents: write to attach files, actions: read to fetch the artifacts), never the signing key: everything it uploads was signed in `sign`.
@@ -347,7 +365,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ github.ref_name }}
       CHANNEL: ${{ needs.guard.outputs.channel }}
-      RELEASE_TESTS: ${{ needs.reuse.outputs.tests }}
+      RELEASE_TESTS: ${{ needs.reuse.outputs.tests }} ${{ needs.shots-gate.outputs.tests }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

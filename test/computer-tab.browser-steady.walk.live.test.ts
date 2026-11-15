@@ -22,16 +22,19 @@ test(
         if (/\/computers\/browser\/stream/.test(u)) tickets.push(u);
       });
       await k.computerTab();
-      const img = k.me.page.getByTestId("browser-live-view-image");
-      await img.waitFor({ timeout: 20_000 });
+      // the Computer tab of 14 Nov (fcf16b7d2, 6557cc852): the browser is one self-refreshing picture (browser-picture, its two layers browser-preview-0 and -1) that opens full screen when pressed; the
+      // streaming element browser-live-view-image only exists in the full-screen view, so the steady preview is the picture itself
+      await k.me.page.getByTestId("browser-picture").waitFor({ timeout: 20_000 });
+      // the preview swaps between two layers, so one of them is hidden at any moment: the element is there (attached), the box is visible
+      await k.me.page.locator('[data-testid^="browser-preview-"]').first().waitFor({ state: "attached", timeout: 20_000 });
       // watch for 12 s: the picture's box (its size) and whether the picture element is there, sampled every 50 ms
       const log = await k.me.page.evaluate(async () => {
         const out: Array<{ here: boolean; w: number; h: number }> = [];
         const t0 = Date.now();
         while (Date.now() - t0 < 12_000) {
-          const here = document.querySelector("[data-testid=browser-live-view-image]") !== null;
+          const here = document.querySelector("[data-testid^=browser-preview-]") !== null;
           const box = (
-            document.querySelector("[data-testid=browser-live]") as HTMLElement | null
+            document.querySelector("[data-testid=browser-picture]") as HTMLElement | null
           )?.getBoundingClientRect();
           out.push({ here, w: Math.round(box?.width ?? 0), h: Math.round(box?.height ?? 0) });
           await new Promise((r) => setTimeout(r, 50));
@@ -42,9 +45,9 @@ test(
       const sizes = new Set(log.map((x) => `${x.w}x${x.h}`));
       assert.equal(log.filter((x) => !x.here).length, 0, "the picture element was gone in some samples");
       assert.equal(sizes.size, 1, `the preview box changed size: ${[...sizes].join(" | ")}`);
-      assert.equal(
-        tickets.length,
-        1,
+      assert.ok(
+        tickets.length <= 1, // the preview refreshes by itself with no live ticket (fcf16b7d2, 6557cc852); the walk is that the page never restarts a live view again and again
+
         `the page asked the Space for a live view ${tickets.length} times (each one starts the picture over): ${tickets.join(" ")}`,
       );
       assert.ok(

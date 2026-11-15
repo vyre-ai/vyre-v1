@@ -104,6 +104,8 @@ const rows = [];
 const scrollFailed = [];
 const missedWait = new Set();
 const softMissed = new Set();
+// a click, fill or see step of a target that could not find its control: the picture would show the wrong state, so the shard fails (15 Nov 2026: a printed "step failed" line did not fail anything)
+const failedSteps = new Set();
 try {
   for (const t of targets)
     for (const skin of skins)
@@ -122,7 +124,11 @@ try {
           const page = await ctx.newPage();
           await page.goto(url, { waitUntil: "load", timeout: 60000 });
           // a target driven by a real click (target "click", as its probe is) is clicked before its waitFor, so the shot shows the state the probe measures
-          if (steps) for (const e of await runTestIdSteps(page, steps)) console.log(`step failed: ${t.id} ${e}`);
+          if (steps)
+            for (const e of await runTestIdSteps(page, steps)) {
+              console.log(`step failed: ${t.id} (${sizeName}) ${e}`);
+              failedSteps.add(`${t.id}:${sizeName} ${e}`);
+            }
           if (first) await page.click(first, { timeout: 30000 }).catch(() => {});
           // t.waitFor is a test id of the real app: the prototype never carries it, so only the real shot waits for it (the prototype settles on protoSettleMs)
           // a selector that never appeared in the real app is waited on once per target, not once per skin and size (4 times 30 s); the miss is printed so a stale test id is seen and fixed
@@ -259,6 +265,12 @@ if (softMissed.size)
 if (missedWait.size) {
   console.error(
     `waitFor never appeared (the shot does not show the state the target names): ${[...missedWait].join(", ")}`,
+  );
+  failedGate = true;
+}
+if (failedSteps.size) {
+  console.error(
+    `a step of a target could not find its control, so the picture is not the state the target names: ${[...failedSteps].join("; ")}`,
   );
   failedGate = true;
 }
