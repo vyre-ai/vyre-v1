@@ -7,6 +7,7 @@ import { AccessSheet } from "../../../../ui/src/AccessSheet/index.tsx";
 import type { ShareInput, UnshareInput } from "../../../../ui/src/AccessSheet/index.tsx";
 import { Overlay } from "../places/automations/config/Overlay.tsx";
 import { shareRows, sheetDirectory } from "./rows.ts";
+import { agentShareSubtitle, othersOf } from "../places/chats/agentform/AgentShare.tsx";
 
 type Share = CapMap["access.share"]["in"]["resource"]["type"];
 export interface ShareTarget {
@@ -108,6 +109,7 @@ export function useShareSheet(deps: ShareDeps): ShareSheetApi {
           ownerId={deps.me.id}
           {...(deps.spaceName ? { spaceName: deps.spaceName } : {})}
           levels={["view", "use", "edit", "manage"]}
+          {...(t.itemType === "agent" ? { subtitle: agentShareSubtitle(othersOf(s.shares)) } : {})}
           shares={shareRows(s.shares, deps.nameOf, t.resourceId)}
           allowExternal={false}
           density="compact"
