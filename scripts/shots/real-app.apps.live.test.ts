@@ -25,7 +25,6 @@ test("Real-app screenshot Apps drawing gate matches the mounted Apps place in Pa
     await page.getByTestId("claim-password").fill("fixture screenshot password123");
     await page.getByTestId("claim-confirm").fill("fixture screenshot password123");
     await page.getByTestId("claim-next").click();
-    await page.getByTestId("claim-saved").click();
     await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
     const apps = PLACES.find((place) => place.id === "apps")!;

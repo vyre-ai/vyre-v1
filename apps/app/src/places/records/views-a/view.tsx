@@ -26,6 +26,7 @@ import {
   toggleOption,
 } from "../table/model.ts";
 import { each, filterable, toggleable } from "./model.ts";
+import { madeKind, makeRecord } from "../table/make.ts";
 import type { FieldDef, TableViewState, TypeDef } from "./model.ts";
 import type { JourneyBinding } from "../journey/model.ts";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
@@ -90,12 +91,27 @@ export function useViewState(ctx: ViewCtx): ViewState {
         idempotencyKey: `view-${ctx.type}-${Date.now()}`,
       });
     },
-    newRecord: (fields = {}) => newRecord(data, ctx.type, fields),
+    newRecord: (fields = {}) => newRecord(data, ctx.type, fields, ctx.def),
   };
 }
 
 /** Creates a record (with the fields it starts with) and opens it. */
-export function newRecord(data: RecordsData, type: string, fields: Record<string, unknown>): void {
+export function newRecord(
+  data: RecordsData,
+  type: string,
+  fields: Record<string, unknown>,
+  def?: Pick<TypeDef, "key" | "title" | "titleField"> & { template?: string },
+): void {
+  // a project is a real project (record, channel and folder), an agent a real agent: New on a phone's Projects list made a bare record that no project list knew (15 Nov 2026)
+  if (def !== undefined && madeKind(def) !== "record") {
+    void makeRecord(data.call, def, `New ${def.title.toLowerCase()}`, `new-${type}-${Date.now()}`).then(
+      (id) => {
+        if (id) data.nav.openRecord(id);
+      },
+      () => undefined,
+    );
+    return;
+  }
   const make = (with_: Record<string, unknown>): Promise<unknown> =>
     data.call("records.create", { type, fields: with_, idempotencyKey: `new-${type}-${Date.now()}` });
   const open = (out: unknown): void => {

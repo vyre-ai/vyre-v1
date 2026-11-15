@@ -26,6 +26,7 @@ export interface SideRow {
   archived?: boolean;
   private?: boolean;
   withPeople?: boolean;
+  ask?: boolean;
 }
 export interface SideSection {
   total: number;
@@ -146,7 +147,7 @@ export function itemsOf(
       draft: r.threadId !== undefined && drafts.has(r.threadId),
       working: r.working || (r.agentId !== undefined && presence.working.has(r.agentId)),
       archived: r.archived === true,
-      ask: false,
+      ask: r.ask === true,
       ended: r.ended === true,
       lastAt: r.lastAt,
       ...(r.failed ? { failed: r.failedLine ?? "Something went wrong." } : {}),

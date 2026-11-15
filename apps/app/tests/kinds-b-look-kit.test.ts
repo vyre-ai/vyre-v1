@@ -66,6 +66,18 @@ export function lookWalk(skin: "paper" | "graphite"): void {
         await p.goto(url(id), { waitUntil: "load" });
         await p.getByTestId("composer-field").first().waitFor({ timeout: 30_000 });
       };
+      // rc.28 (chat-chapters / pane tabs by kind): a channel or group pane can open on another tab; the channel's details are the People tab
+      const openPeople = async (p: Page): Promise<void> => {
+        if (
+          await p
+            .getByTestId("chat-details")
+            .isVisible()
+            .catch(() => false)
+        )
+          return;
+        const tab = p.getByTestId("tab-people");
+        if (await tab.isVisible().catch(() => false)) await tab.click();
+      };
       const showPane = async (p: Page): Promise<void> => {
         await p.waitForTimeout(2500);
         if (
@@ -86,6 +98,7 @@ export function lookWalk(skin: "paper" | "graphite"): void {
       await shot(page, "pane-person");
       await open(page, ch.mainThreadId);
       await showPane(page);
+      await openPeople(page);
       await page.getByTestId("chat-details").waitFor({ timeout: 15_000 });
       await shot(page, "pane-channel");
       // a menu entry that wraps: the switch is on, so its note shows beside it
@@ -96,8 +109,11 @@ export function lookWalk(skin: "paper" | "graphite"): void {
       await page.keyboard.press("Escape");
       await open(page, group);
       await showPane(page);
-      await page.getByTestId("chat-details").waitFor({ timeout: 15_000 });
+      // rc.28 (chat head, 298d17dd0 era): a group of agents' pane is the agents' own (Computer, Threads, Files, Kept, Knows); who is in the group is the header's people button
+      await page.getByTestId("participants-button").click();
+      await page.getByTestId("people-popover").waitFor({ timeout: 15_000 });
       await shot(page, "pane-group");
+      await page.keyboard.press("Escape");
       // a row cut with dots gives its whole text as its tooltip when the pointer reaches it
       const row = page.getByText("december-launch-press-kit-and-partner-review-notes", { exact: true }).first();
       await page.mouse.move(700, 500);

@@ -1,7 +1,25 @@
 {
   "targets": [
-    { "id": "THREADS_01-list", "route": "/m/THREADS_01?part=list", "proto": "chatlist,{skin}", "waitFor": "[data-testid^='replies-']", "note": "Chats sidebar with no Threads item: chats with unread replies you follow are bold and carry their count." },
-    { "id": "THREADS_01-asks", "route": "/m/THREADS_01?part=asks", "proto": "asks,{skin}", "waitFor": "[data-testid^='row-']", "note": "The Asks filter under Recent: the Ask history as a list of chats." },
-    { "id": "THREADS_01-replies", "route": "/m/THREADS_01?part=replies", "proto": "inbox,{skin}", "waitFor": "[data-testid='replies-page']", "note": "Inbox > Replies: replies you follow, new ones counted." }
+    {
+      "id": "THREADS_01-list",
+      "route": "/m/THREADS_01?part=list",
+      "proto": "chatlist,{skin}",
+      "waitFor": "[data-testid='head-chats']",
+      "note": "Chats sidebar with no Threads item: chats with unread replies you follow are bold with the unread dot (the 13 Nov sidebar folds the reply count into the dot)."
+    },
+    {
+      "id": "THREADS_01-asks",
+      "route": "/m/THREADS_01?part=asks",
+      "proto": "asks,{skin}",
+      "waitFor": "[data-testid^='row-']",
+      "note": "The Asks filter under Recent: the Ask history as a list of chats."
+    },
+    {
+      "id": "THREADS_01-replies",
+      "route": "/m/THREADS_01?part=replies",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='replies-page']",
+      "note": "Inbox > Replies: replies you follow, new ones counted."
+    }
   ]
 }

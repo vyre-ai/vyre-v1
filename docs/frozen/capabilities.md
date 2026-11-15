@@ -456,3 +456,9 @@ New capabilities, all on the `automations` tool:
 All additions; nothing an older client sends changes meaning.
 
 Signed: lead, 15 Nov 2026
+
+## 15 Nov 2026: chats.sidebar rows gain one optional output field (lane f-shots)
+
+A row of `chats.sidebar` gains `ask` (a boolean), present and true only on a pane that is an ask waiting for a person. The sidebar's Asks filter reads it; before, the server never sent ask panes and the filter was always empty. Optional output only: an older client ignores it.
+
+Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-shots-rc29 747c7008f)

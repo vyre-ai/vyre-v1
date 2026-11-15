@@ -58,7 +58,6 @@ try {
   await p.getByTestId("claim-password").fill(PW);
   await p.getByTestId("claim-confirm").fill(PW);
   await p.getByTestId("claim-next").click();
-  await p.getByTestId("claim-saved").click();
   await p.getByTestId("claim-create").click();
   await dismissOnboarding(p).catch(async (e) => {
     await p.screenshot({ path: path.join(out, "claim-failed.png") });

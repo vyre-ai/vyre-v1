@@ -107,6 +107,19 @@ const b64url = (s: string): string => btoa(s).replace(/\+/g, "-").replace(/\//g,
 const unb64url = (s: string): string =>
   atob(s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (s.length % 4)) % 4));
 
+/**
+ * A held act's task gets its decision and payload hash a moment after it is made, and it is visible to its approver before that. An approval pressed in that moment would be
+ * minted without them and refused (finding F73, 15 Nov 2026). Wait for the two, briefly; the token is then minted from what the Gate wrote.
+ */
+async function heldTaskReady(ctx: TasksCtx, t: Task): Promise<Task> {
+  let now = t;
+  for (let i = 0; (now.decisionId === undefined || now.payloadHash === undefined) && i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 25));
+    now = getTask(ctx, t.id);
+  }
+  return now;
+}
+
 export function mintApprovalToken(ctx: TasksCtx, t: Task): string {
   if (!ctx.seal) raise(ctx, "internal.unavailable", "Approvals are not available right now.", { service: "seal" });
   const claims: ApprovalClaims = {
@@ -211,7 +224,7 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
       if (!ctx.call) raise(ctx, "internal.unavailable", "Approvals are not available right now.", { service: "call" });
       if (ctx.principal.kind === "person" && !ctx.device)
         raise(ctx, "validation.precondition_failed", "Approve from a signed-in device.", { reason: "device_required" });
-      const token = mintApprovalToken(ctx, t);
+      const token = mintApprovalToken(ctx, await heldTaskReady(ctx, t));
       const r = (await ctx.call("gate.release", { holdId: gate.id, taskId: t.id, approvalToken: token })) as {
         result?: unknown;
       } | null;

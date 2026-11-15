@@ -27,7 +27,8 @@ test("journey 5, Team: Share to a channel from the message menu; a card lands th
     await open(me, s, hash(dm));
     await me.page.getByTestId(`msg-${said}`).hover();
     await me.page.getByTestId(`act-more-${said}`).click();
-    await me.page.getByText("Share to...").click();
+    // 298d17dd0 (rc.28): the entry ends in the ellipsis character
+    await me.page.getByText("Share to\u2026").click();
     await me.page.getByText("#ops").click();
     await me.page
       .getByText(/Shared to #ops/)

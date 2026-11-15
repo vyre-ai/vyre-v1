@@ -199,6 +199,7 @@ interface RowOut {
   archived?: boolean;
   private?: boolean;
   withPeople?: boolean;
+  ask?: boolean;
 }
 type Extra = Omit<
   RowOut,
@@ -319,7 +320,7 @@ export function chatListFast(
   ctx: ChatCtx,
   asker: string,
   o: { pinned: readonly string[]; muted: ReadonlySet<string>; want: number },
-): { rows: ChatListRow[]; total: number } {
+): { rows: ChatListRow[]; total: number; asks: ChatListRow[] } {
   ensureReadTable(ctx);
   ensureLast(ctx.db);
   archivedIds(ctx, asker); // makes the archive tables
@@ -371,11 +372,38 @@ export function chatListFast(
       ...mutedHere,
     ))
       ids.add(String(r["id"]));
-  // every one-to-one: the team's rows
-  for (const r of run(() => `SELECT t.id AS id ${base()} AND NOT ${agentsHere} AND ${humans()} = 1`))
-    ids.add(String(r["id"]));
+  // every one-to-one: the team's rows. The caller's Ask panes ride in the same read (askList's rows, newest first, at most 100): the Asks filter needs them, and the
+  // sidebar's first page stays the same handful of reads it was (sidebar.read.perf.test.ts counts them)
+  const asks: ChatListRow[] = [];
+  for (const r of run(
+    () =>
+      `SELECT t.id AS id, 0 AS isAsk, NULL AS title, NULL AS at, NULL AS agents ${base()} AND NOT ${agentsHere} AND ${humans()} = 1
+       UNION ALL
+       SELECT * FROM (
+         SELECT t.id AS id, 1 AS isAsk, t.title AS title, COALESCE(l.at, t.createdAt) AS at,
+                (SELECT group_concat(x.agentId) FROM (SELECT g.agentId AS agentId FROM chat_thread_agent g WHERE g.thread = t.id AND g.deleted_at IS NULL ORDER BY g.rowid) x) AS agents
+           FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id
+          WHERE t.kind = 'ask' AND t.starter = ${ask()} AND t.deleted_at IS NULL AND t.closedAt IS NULL
+          ORDER BY at DESC, id LIMIT 100)`,
+  )) {
+    if (Number(r["isAsk"]) !== 1) {
+      ids.add(String(r["id"]));
+      continue;
+    }
+    const title = r["title"];
+    const agents = r["agents"];
+    asks.push({
+      threadId: String(r["id"]),
+      title: title === null || title === undefined || title === "" ? "Ask" : String(title),
+      agents: typeof agents === "string" && agents !== "" ? agents.split(",") : [],
+      people: [],
+      unread: 0,
+      lastAt: Number(r["at"] ?? 0),
+      archived: false,
+    });
+  }
   for (const id of o.pinned) ids.add(id);
-  return { rows: chatDetails(ctx, asker, [...ids]), total: nonMuted + mutedTotal };
+  return { rows: chatDetails(ctx, asker, [...ids]), total: nonMuted + mutedTotal, asks };
 }
 
 /** The rows of these chats (the caller's own: a chat they are not in gives nothing), with their agents, people and unread. */
@@ -431,6 +459,41 @@ function chatDetails(ctx: ChatCtx, asker: string, ids: readonly string[]): ChatL
       ...(t["scopeType"] === "goal" && t["scopeId"] ? { goalId: String(t["scopeId"]) } : {}),
     };
   });
+}
+
+/**
+ * The caller's Ask panes (a conversation opened beside a record, file or other thing, with an agent), newest first, for the sidebar's Asks filter. They are never in the chats list (`t.kind = 'chat'` there);
+ * each goes out with `ask: true`, so the shared rule (lib/sidebar.ts) shows it under the Asks filter and nowhere else. Without this read the filter was always empty (15 Nov 2026).
+ */
+export function askList(ctx: ChatCtx, asker: string, limit = 100): ChatListRow[] {
+  ensureLast(ctx.db);
+  const threads = ctx.db.all(
+    `SELECT t.id AS id, t.title AS title, t.createdAt AS createdAt, l.at AS lastAt
+       FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id
+      WHERE t.kind = 'ask' AND t.starter = ? AND t.deleted_at IS NULL AND t.closedAt IS NULL
+      ORDER BY COALESCE(l.at, t.createdAt) DESC, t.id LIMIT ?`,
+    asker,
+    limit,
+  ) as Record<string, unknown>[];
+  if (threads.length === 0) return [];
+  const IN = threads.map(() => "?").join(", ");
+  const agents = new Map<string, string[]>();
+  for (const r of ctx.db.all(
+    `SELECT thread, agentId FROM chat_thread_agent WHERE deleted_at IS NULL AND thread IN (${IN}) ORDER BY rowid`,
+    ...threads.map((t) => String(t["id"])),
+  ) as Record<string, unknown>[]) {
+    const k = String(r["thread"]);
+    (agents.get(k) ?? agents.set(k, []).get(k)!).push(String(r["agentId"]));
+  }
+  return threads.map((t) => ({
+    threadId: String(t["id"]),
+    title: t["title"] === null || t["title"] === undefined || t["title"] === "" ? "Ask" : String(t["title"]),
+    agents: agents.get(String(t["id"])) ?? [],
+    people: [],
+    unread: 0,
+    lastAt: t["lastAt"] === null || t["lastAt"] === undefined ? Number(t["createdAt"] ?? 0) : Number(t["lastAt"]),
+    archived: false,
+  }));
 }
 
 /**
@@ -619,6 +682,24 @@ export async function chatsSidebar(
         ...common,
       },
       { kind: "chat", threadId, withPeople: people.length > 0, ...(r.archived ? { archived: true } : {}) },
+    );
+  }
+  for (const r of fastList?.asks ?? askList(ctx, me)) {
+    add(
+      {
+        key: `c:${r.threadId}`,
+        kind: "chat",
+        shape: "agent",
+        title: r.title,
+        faces: r.agents.map((id) => ({ id, name: "" })),
+        unread: 0,
+        mentions: 0,
+        muted: false,
+        working: false,
+        lastAt: r.lastAt,
+        ask: true,
+      },
+      { kind: "chat", threadId: r.threadId, withPeople: false, ask: true },
     );
   }
   // channels (a project's own channel is the project's row)
