@@ -1,5 +1,6 @@
 // What the Automations place mounts beyond the canvas: the config directory (who can be picked), the runs data, run history on an automation, Failed runs, a run in Main or the side,
 // and the Journey designer with its pane and the new Journey sheet. All of it reads the Space's runtime; nothing here invents a row.
+import { RunPage } from "../../places/automations/screens/RunPage.tsx";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -169,7 +170,7 @@ export function FailedView({ selectedRunId }: { selectedRunId: string | null }):
 }
 
 export function RunView({ runId }: { runId: string }): ReactElement {
-  return <RunChat runId={runId} wide />;
+  return <RunPage runId={runId} />;
 }
 
 /** The Journey designer with the pane of the stage or task chosen in it. */
