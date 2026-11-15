@@ -287,6 +287,9 @@ function cleanAnchor(ctx: Ctx, raw: unknown): Obj {
   if (kind === "line") {
     if (!Number.isInteger(raw.line) || (raw.line as number) < 1) return bad("line");
     out.line = raw.line;
+  } else if (kind === "range" && out.quote !== undefined && raw.from === undefined && raw.to === undefined) {
+    // a comment on a passage of a document is anchored by the words themselves (the viewer sends the quote and no offsets); the offsets are for a range of a transcript or a file read by position
+    if ((out.quote as string).trim() === "") return bad("quote");
   } else if (kind === "range") {
     if (
       !Number.isInteger(raw.from) ||

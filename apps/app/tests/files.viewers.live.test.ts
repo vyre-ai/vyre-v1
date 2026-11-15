@@ -289,10 +289,10 @@ test("a Word file is drawn as its page, a word is edited and saved back, and eve
     await page.getByTestId("vw-find-input").fill("");
     await page.getByTestId("vw-find-btn").click();
     // a comment on a passage and a highlight, through the viewer's own selection bar
-    await page.locator('[data-pid="d2"]').dblclick();
+    await page.locator('[data-pid="d2"] [data-r="0"]').dblclick();
     await page.getByTestId("vw-sel-highlight").click();
     await page.waitForFunction(() => !!document.querySelector('[data-hlt="1"]'), null, { timeout: 10_000 });
-    await page.locator('[data-pid="d3"]').dblclick();
+    await page.locator('[data-pid="d4"] [data-r="0"]').dblclick();
     await page.getByTestId("vw-sel-comment").click();
     await page.getByTestId("vw-pick-input").fill("Check this goal");
     await page.getByTestId("vw-pick-post").click();
@@ -319,7 +319,7 @@ test("a Word file is drawn as its page, a word is edited and saved back, and eve
     const was = unzip(original);
     for (const k of Object.keys(was)) if (k !== "word/document.xml") assert.deepEqual(out[k], was[k], `${k} is the file's own bytes`);
     const docXml = new TextDecoder().decode(out["word/document.xml"]!);
-    assert.match(docXml, /coming|comingquarter/);
+    assert.match(docXml, /coming/, docXml.slice(docXml.indexOf("This plan") - 80, docXml.indexOf("This plan") + 400));
     assert.match(docXml, /<w:ins w:id="5"/, "the tracked change is kept");
     assert.match(docXml, /<w:drawing>/, "the picture is kept");
     // reopen: the change is there

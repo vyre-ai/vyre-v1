@@ -152,6 +152,28 @@ test("viewer_data: a Google-native file reads from its export snapshot; what the
 
 // ---- comments ---------------------------------------------------------------------------------------------------------
 
+test("comments: a comment on a passage is anchored by the quoted words alone (the viewer sends no offsets); a blank quote is refused", async () => {
+  const { ctx } = world();
+  const f = await make(ctx, "plan.md", "markdown", { text: "# Plan\n\nShip the release." });
+  const c = (
+    await call(ctx, "files.comments.add", {
+      fileId: f,
+      anchor: { kind: "range", quote: "Ship the release" },
+      text: "Which date?",
+      idempotencyKey: "q1",
+    })
+  ).comment;
+  assert.deepEqual(c.anchor, { kind: "range", quote: "Ship the release" });
+  await assert.rejects(
+    call(ctx, "files.comments.add", { fileId: f, anchor: { kind: "range", quote: "  " }, text: "x", idempotencyKey: "q2" }),
+    /anchor is not valid/,
+  );
+  await assert.rejects(
+    call(ctx, "files.comments.add", { fileId: f, anchor: { kind: "range", from: 3 }, text: "x", idempotencyKey: "q3" }),
+    /anchor is not valid/,
+  );
+});
+
 test("comments: add keeps the anchor, mentions and author; area comments are numbered pins that are never reused; list is oldest first and hides resolved ones unless asked", async () => {
   const { ctx, events } = world();
   const f = await make(ctx, "pic.png", "image", { base64: "iVBORw0=" });

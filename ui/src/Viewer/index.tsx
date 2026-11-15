@@ -765,6 +765,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       ) : null}
       {props.paged === true && pageCount > 0 ? (
         <View style={s.zoom} testID="vw-pages">
+          {props.compact === true ? null : (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={thumbs ? "Hide pages" : "Show pages"}
@@ -774,6 +775,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           >
             <MenuIcon icon={ICON.pages} />
           </Pressable>
+          )}
           <TextInput
             accessibilityLabel="Page number"
             testID="vw-page-input"
@@ -1400,32 +1402,8 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     );
   };
 
-  const plainRead =
-    props.markdown !== undefined &&
-    !editing &&
-    find === "" &&
-    props.kind === "document" &&
-    (props.layer?.marks ?? []).length === 0 &&
-    props.layer?.preview !== true &&
-    (props.comments ?? []).length === 0 &&
-    quoted === null;
-  const docBody = plainRead ? (
-    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
-      <View style={s.doc} testID="vw-markdown">
-        <MarkdownText
-          text={props.markdown ?? ""}
-          {...(props.fileLinks
-            ? { renderText: (t: string) => withFileLinks(splitRefs(t), props.fileLinks as FileLinks) }
-            : {})}
-        />
-      </View>
-    </ScrollView>
-  ) : props.docEditor !== undefined && editing ? (
-    <View style={s.scroll} testID="vw-doc-editor">
-      {props.docEditor}
-    </View>
-  ) : (
-    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
+  const pickBar = (
+    <>
       {quoted !== null && (props.kind === "document" || props.kind === "plan") ? (
         <View style={s.pickBar} testID="vw-pick">
           <Text style={s.pickQuote} numberOfLines={1}>{`“${quoted.quote}”`}</Text>
@@ -1461,6 +1439,35 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           </Pressable>
         </View>
       ) : null}
+    </>
+  );
+  const plainRead =
+    props.markdown !== undefined &&
+    !editing &&
+    find === "" &&
+    props.kind === "document" &&
+    (props.layer?.marks ?? []).length === 0 &&
+    props.layer?.preview !== true &&
+    (props.comments ?? []).length === 0 &&
+    quoted === null;
+  const docBody = plainRead ? (
+    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
+      <View style={s.doc} testID="vw-markdown">
+        <MarkdownText
+          text={props.markdown ?? ""}
+          {...(props.fileLinks
+            ? { renderText: (t: string) => withFileLinks(splitRefs(t), props.fileLinks as FileLinks) }
+            : {})}
+        />
+      </View>
+    </ScrollView>
+  ) : props.docEditor !== undefined && editing ? (
+    <View style={s.scroll} testID="vw-doc-editor">
+      {props.docEditor}
+    </View>
+  ) : (
+    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
+      {pickBar}
       <View style={[s.doc, isCode && s.codeDoc]}>
         {isCode ? (
           <Text style={s.lineNums} selectable={false} testID="vw-lines">
@@ -1623,7 +1630,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
             return out;
           },
           tool: rtool ? "redact" : tool === "comment" ? "comment" : null,
-          thumbs,
+          thumbs: thumbs && props.compact !== true,
           jump,
           edit: editMode,
           setZoom: setZ,
@@ -1636,7 +1643,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       : null;
   const body =
     richBody !== null ? (
-      richBody
+      <View style={s.fill}>
+        {pickBar}
+        {richBody}
+      </View>
     ) : props.kind === "image" ? (
       image
     ) : props.kind === "csv" ? (

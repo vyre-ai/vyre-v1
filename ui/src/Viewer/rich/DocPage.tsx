@@ -1,7 +1,7 @@
 // A Word file as a page (web): headings, fonts' weight and size, lists, tables, pictures, links, page breaks, the header and footer, footnotes. In Edit its paragraphs are typed into where the file
 // allows (a paragraph with a tracked change, a content control or a field stays read only and says why), with bold, italic, underline and the heading level over a selection. The words go back into the
 // file through ui/Viewer/rich/docx.ts; this file only draws and turns typing into those calls.
-import { createElement, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, memo, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { injectCss } from "../../theme/css.ts";
 import { applyRunTexts, setHeading, textRuns, toggleFormat } from "./docx.ts";
@@ -83,24 +83,25 @@ const attrsOf = (d: DecorRange[]): Record<string, string> => {
   return o;
 };
 
-export function DocPage(p: DocPageProps): ReactElement {
-  const z = p.zoom;
-  const root = useRef<HTMLDivElement | null>(null);
-  const [blockOf] = useState(() => new Map<string, number>());
-  useEffect(() => {
-    injectCss(document as never, "vy-viewer-doc", CSS);
-  }, []);
-  const m = p.model;
-  const editable = p.edit && p.why === undefined;
-  const order = useMemo(() => {
-    blockOf.clear();
-    m.paras.forEach((q, i) => blockOf.set(q.id, i));
-    return blockOf;
-  }, [m, blockOf, p.rev]);
+interface ParaProps {
+  q: DPara;
+  hf: boolean;
+  /** The marks on this paragraph, or null for a header or footer paragraph (nothing to find or comment on). */
+  ds: DecorRange[] | null;
+  m: DocxModel;
+  z: number;
+  editable: boolean;
+  imageUrl: (path: string) => string | undefined;
+  onChange: () => void;
+  rev: number;
+  sig: string;
+}
+/** The paragraph being typed into: it is never redrawn under the caret by a mark that moved (a comment's words shifting as the text changes). */
+let typing: string | null = null;
 
-  const draw = (q: DPara, hf = false): ReactElement => {
-    const bi = order.get(q.id) ?? -1;
-    const ds = bi >= 0 ? p.decor(bi).filter((d) => !(editable && (d.kind === "find" || d.kind === "find-on"))) : [];
+function ParaView({ q, hf, ds, m, z, editable, imageUrl, onChange }: ParaProps): ReactElement {
+    const bi = ds === null ? -1 : 0;
+    ds = ds ?? [];
     const runs = textRuns(q);
     let at = 0;
     const kidsEls: ReactNode[] = [];
@@ -108,7 +109,7 @@ export function DocPage(p: DocPageProps): ReactElement {
     q.runs.forEach((r, ri) => {
       if (r.image) {
         const path = m.media[r.image.rid];
-        const url = path ? p.imageUrl(path) : undefined;
+        const url = path ? imageUrl(path) : undefined;
         kidsEls.push(createElement("img", { key: ri, src: url, alt: r.image.alt, width: r.image.w * z, height: r.image.h * z, contentEditable: false, "data-testid": "vww-img" }));
         return;
       }
@@ -176,21 +177,51 @@ export function DocPage(p: DocPageProps): ReactElement {
           const t = e.clipboardData?.getData("text/plain")?.replace(/\s*\n\s*/g, " ") ?? "";
           if (t !== "") document.execCommand("insertText", false, t);
         },
-        onInput: (e: { currentTarget: HTMLElement }) => {
+        onBlur: () => {
+            if (typing === q.id) typing = null;
+          },
+          onInput: (e: { currentTarget: HTMLElement }) => {
+            typing = q.id;
           const spans = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-r]"));
           const texts: string[] = runs.map((_, i) => spans.find((s) => s.dataset["r"] === String(i))?.textContent ?? "");
           applyRunTexts(m, q, texts);
-          p.onChange();
+          onChange();
         },
       },
       ...kidsEls,
     );
-  };
+  }
 
+const Para = memo(ParaView, (a, b) => {
+  if (a.rev !== b.rev || a.z !== b.z || a.editable !== b.editable || a.m !== b.m || a.hf !== b.hf) return false;
+  if (typing === b.q.id) return true;
+  return a.sig === b.sig;
+});
+
+export function DocPage(p: DocPageProps): ReactElement {
+  const z = p.zoom;
+  const root = useRef<HTMLDivElement | null>(null);
+  const [blockOf] = useState(() => new Map<string, number>());
+  useEffect(() => {
+    injectCss(document as never, "vy-viewer-doc", CSS);
+  }, []);
+  const m = p.model;
+  const editable = p.edit && p.why === undefined;
+  const order = useMemo(() => {
+    blockOf.clear();
+    m.paras.forEach((q, i) => blockOf.set(q.id, i));
+    return blockOf;
+  }, [m, blockOf, p.rev]);
+
+  const paraEl = (q: DPara, hf = false): ReactElement => {
+    const bi = order.get(q.id) ?? -1;
+    const ds = bi >= 0 ? p.decor(bi).filter((d) => !(editable && (d.kind === "find" || d.kind === "find-on"))) : null;
+    return createElement(Para, { key: q.id, q, hf, ds, m, z, editable, imageUrl: p.imageUrl, onChange: p.onChange, rev: p.rev, sig: JSON.stringify(ds) });
+  };
   const blocks = (bs: readonly DBlock[], hf = false): ReactNode[] =>
     bs.map((b, i) =>
       b.t === "p"
-        ? draw(b.p, hf)
+        ? paraEl(b.p, hf)
         : createElement(
             "table",
             { key: b.tbl.id, "data-testid": "vww-table" },
@@ -276,21 +307,20 @@ export function DocPage(p: DocPageProps): ReactElement {
       ? createElement("div", { className: "vww-fmt" }, createElement("span", { className: "vww-why", "data-testid": "vww-why" }, p.why))
       : null;
   // the page is built again only when something that shows changes: typing edits the file's model and the DOM already shows it, so a redraw then would move the caret
-  const decorSig = JSON.stringify(m.paras.map((_, i) => p.decor(i)));
   const card = useMemo(
     () =>
       createElement(
         "div",
         { className: "vww-card", style: { width: w * PX, paddingLeft: m.page.ml * z * PX, paddingRight: m.page.mr * z * PX, paddingTop: m.page.mt * z * PX * 0.7, paddingBottom: m.page.mb * z * PX * 0.7 }, "data-testid": "vww-card" },
-        ...(m.header.length > 0 ? [createElement("div", { key: "h", "data-testid": "vww-header" }, ...m.header.map((q) => draw(q, true)))] : []),
+        ...(m.header.length > 0 ? [createElement("div", { key: "h", "data-testid": "vww-header" }, ...m.header.map((q) => paraEl(q, true)))] : []),
         ...blocks(m.blocks),
         ...(m.footnotes.length > 0
           ? [createElement("div", { key: "fn", className: "vww-fn", "data-testid": "vww-footnotes" }, ...m.footnotes.map((f, i) => createElement("div", { key: f.id }, `${i + 1}. ${f.paras.map((q) => q.text).join(" ")}`)))]
           : []),
-        ...(m.footer.length > 0 ? [createElement("div", { key: "f", "data-testid": "vww-footer", style: { marginTop: 24 } }, ...m.footer.map((q) => draw(q, true)))] : []),
+        ...(m.footer.length > 0 ? [createElement("div", { key: "f", "data-testid": "vww-footer", style: { marginTop: 24 } }, ...m.footer.map((q) => paraEl(q, true)))] : []),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [m, p.rev, z, editable, decorSig],
+    [m, p.rev, z, editable, p.decor, order],
   );
   return createElement(
     "div",
