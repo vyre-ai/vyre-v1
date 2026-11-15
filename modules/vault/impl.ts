@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // vault (lane L7a): items, sharing, folders, use by name, fill, env injection and .env exports. AI providers (list, add, remove, test, sign-in) are real. Import is deferred (ruling 60, docs/deferred.md): its handlers refuse.
 // The host registers its half once at boot: setFiller (the vault service's own key) and setKeyPort (the signed-in owner's person key, for Mine items), see handlers/crypto.ts.
 import type { Handler } from "../../host/src/invoke.ts";
@@ -127,6 +129,16 @@ const kept = (r: Row[], type: string, title: string) => ({
   ids: r.slice(0, 500).map((x) => String(x["id"])),
 });
 export const hostCalls = {
+  /** Delete for good (F77): the agent's own sealed copies and their history. Items a person owns stay the person's (what an agent added for a person belongs to the person); its Use grants go with its access step. */
+  "vault.erase_agent": (ctx: EraseCtx, i: EraseIn): Footprint => {
+    const ids = tryAll(ctx.db, `SELECT id FROM vault_meta WHERE owner = ?`, i.agentId).map((r) => String(r["id"]));
+    if (i.dry === true) return {};
+    for (const id of ids)
+      for (const t of ["vault_secret", "vault_item_x", "vault_history"]) tryRun(ctx.db, `DELETE FROM ${t} WHERE itemId = ?`, id);
+    tryRun(ctx.db, `DELETE FROM vault_meta WHERE owner = ?`, i.agentId);
+    tryRun(ctx.db, `DELETE FROM vault_folder WHERE owner = ?`, i.agentId);
+    return {};
+  },
   "vault.owned_by": (ctx: Ctx, i: { person: string }) => ({
     vault_mine: kept(
       rows(

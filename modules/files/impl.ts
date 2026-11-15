@@ -1,3 +1,4 @@
+import { eraseFolderTree } from "./handlers/tree.ts";
 // files (lane L4). The host loads generated stub handlers while status is stub, and this module once the manifest is live.
 
 export { handlers } from "./handlers/index.ts";
@@ -39,6 +40,12 @@ const ownedKept = (r: OwnedRow[], type: string, title: string) => ({
   ids: r.slice(0, 500).map((x) => String(x["id"])),
 });
 export const hostCalls = {
+  /** Delete for good (F77): the agent's folder, its versions and Trash copy, and what Files keeps for it. The access tree and the search index follow the file.purged events and the access step. */
+  "files.erase_agent": (ctx: unknown, i: { agentId: string; folderId?: string; dry?: boolean }) => {
+    if (i.dry === true || !i.folderId) return {};
+    eraseFolderTree(ctx as never, i.folderId);
+    return {};
+  },
   /** The read gate's files half (Redaction for AI): the host asks before and after every call an agent is behind (host/src/seams/agent-read.ts). Never throws a refusal: it answers one, so the request it
    * makes ("Redact before I can read") is committed with its event. */
   "files.agent_gate": (ctx: unknown, i: unknown) => agentGate(ctx as never, i),

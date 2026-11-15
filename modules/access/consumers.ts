@@ -1,3 +1,4 @@
+import { tryRun } from "../../lib/erase-agent.ts";
 // Access host calls (ruling 70): the access module's tables are the one source authorize reads. The host folds the log's access events into them, then asks for the snapshot.
 //   access.sync          events in log order; each moves the store (a person who joined, a suspension, a resource, a seeded role or grant), the module persists the result and answers the snapshot.
 //   access.snapshot      the authorize snapshot built from the store.
@@ -552,6 +553,20 @@ const LEGACY_ROLE: Readonly<Record<string, string>> = {
   temp: "rol_guest",
 };
 export const hostCalls = {
+  /**
+   * Delete for good (F77): every grant where the agent is the one given access or the thing access is given to, its group memberships and role assignments, its own folder's resource row, and its principal row.
+   * The tombstone in the agents module keeps its id from being used again; the audit log keeps who did what.
+   */
+  "access.erase_agent": (ctx: Ctx, i: { agentId: string; folderId?: string; dry?: boolean }): Record<string, never> => {
+    if (i.dry === true) return {};
+    const db = ctx.db as never;
+    tryRun(db, `DELETE FROM access_grants WHERE (subjectKind = 'agent' AND subjectId = ?) OR (resourceType = 'agent' AND resourceId = ?)`, i.agentId, i.agentId);
+    if (i.folderId) tryRun(db, `DELETE FROM access_grants WHERE resourceType = 'folder' AND resourceId = ?`, i.folderId);
+    tryRun(db, `DELETE FROM access_assignments WHERE holder = ?`, i.agentId);
+    tryRun(db, `DELETE FROM access_resources WHERE (type = 'agent' AND id = ?) OR id = ?`, i.agentId, i.folderId ?? "");
+    tryRun(db, `DELETE FROM access_principals WHERE id = ?`, i.agentId);
+    return {};
+  },
   /** Who an outside tool is when it presents its long-lived credential: the active actor holding it, or none. Host only; the credential is compared by hash and never stored in clear. */
   "access.actor_by_credential": async (
     ctx: Ctx,

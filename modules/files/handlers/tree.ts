@@ -2251,6 +2251,15 @@ async function filesPurge(ctx: Ctx, input: unknown): Promise<{ purged: boolean }
   return { purged: true };
 }
 
+/** Delete for good (F77): a folder with everything in it, every version, its Trash copy and its blobs, whether or not it is in Trash. The agents job calls this for an agent's own folder; a second call finds nothing. */
+export function eraseFolderTree(ctx: Ctx, folderId: string): number {
+  const folder = one(ctx, "SELECT * FROM files_folder WHERE id = ?", folderId);
+  if (!folder) return 0;
+  const before = many(ctx, "SELECT id FROM files_file").length;
+  purgeFolderRow(ctx, folder);
+  return before - many(ctx, "SELECT id FROM files_file").length;
+}
+
 function purgeFolderRow(ctx: Ctx, folder: Row): void {
   const files = many(ctx, "SELECT * FROM files_file WHERE folder_id = ?", folder.id);
   for (const file of files) purgeFile(ctx, file);

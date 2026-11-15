@@ -5,6 +5,7 @@
 //   config.get / config.validate / limits.get              what the next run will see, what a text would change, and the limits after the Space caps
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
+import { erasedRow } from "./erase.ts";
 import {
   AGENT_MD_DEFAULT,
   isAgentMdV1,
@@ -808,6 +809,10 @@ export async function restore(ctx: AgentsCtx, input: { agentId: string }) {
   const a = agentBy(ctx.db, input.agentId, true);
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
   if (a.deletedAt === undefined) return { agent: agentOut(a, ctx.now()) };
+  if (erasedRow(ctx, a.id) !== undefined)
+    raise(ctx, "validation.precondition_failed", "This agent is being deleted for good and cannot come back.", {
+      reason: "erasing",
+    });
   if (agentByName(ctx.db, a.name))
     raise(ctx, "validation.bad_input", "Another agent has this name now. Rename that one first.", { name: a.name });
   const now = ctx.now();

@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // projects module entry (lane L3). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
@@ -59,6 +61,11 @@ const leads = (ctx: Ctx, person: string): { projectId: string }[] => {
   }
 };
 export const hostCalls = {
+  "projects.erase_agent": (ctx: EraseCtx, i: EraseIn): Footprint => {
+    const named: NonNullable<Footprint["named"]> = tryAll(ctx.db, `SELECT p.projectId AS id, p.name AS name FROM projects_member m JOIN projects_project p ON p.projectId = m.projectId WHERE m.principal = ?`, i.agentId).map((r) => ({ kind: "project" as const, id: String(r["id"]), title: String(r["name"] ?? "") }));
+    if (i.dry !== true) tryRun(ctx.db, `DELETE FROM projects_member WHERE principal = ?`, i.agentId);
+    return { named };
+  },
   "projects.owned_by": (ctx: Ctx, i: { person: string }) => {
     const p = leads(ctx, i.person);
     return {

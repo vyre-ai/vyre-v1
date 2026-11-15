@@ -4,6 +4,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { recentWithUnread } from "./handlers/g26.ts";
 import { onAgentDeleted, onKeyboardTaken, onPersonLeft } from "./handlers/departures.ts";
+import { eraseAgent, onAgentRestored } from "./handlers/erase-agent.ts";
 import { forgetMentions } from "./handlers/pace.ts";
 import { onCardAnswered, onDirectReply, sendDue } from "./handlers/agent-dm.ts";
 import { channelBy, ensure, threadBy } from "./projections.ts";
@@ -60,6 +61,11 @@ export const consumers = {
     on: ["agent.deleted"],
     run: (ctx: ChatCtx, event: Parameters<typeof onAgentDeleted>[1]) => onAgentDeleted(ctx, event),
   },
+  /** An agent came back from Trash: it is back in the chats it left. */
+  "chat.agent_restored": {
+    on: ["agent.restored"],
+    run: (ctx: ChatCtx, event: Parameters<typeof onAgentRestored>[1]) => onAgentRestored(ctx, event),
+  },
   /** A teammate wrote in a direct chat an agent messaged them in: it goes back to the chat the person asked in (lane l-agentdm). */
   "chat.agent_dm_reply": {
     on: ["message.received"],
@@ -105,6 +111,8 @@ const PRIVATE_CHATS = `FROM chat_thread t WHERE t."kind" IN ('chat', 'ask') AND 
   AND NOT EXISTS (SELECT 1 FROM chat_thread_member m WHERE m."thread" = t."id" AND m."principal" <> t."starter" AND m."principal" LIKE 'usr\\_%' ESCAPE '\\' AND m."deleted_at" IS NULL)`;
 
 export const hostCalls = {
+  /** Delete for good (F77): see handlers/erase-agent.ts. */
+  "chat.erase_agent": (ctx: ChatCtx, i: Parameters<typeof eraseAgent>[1]) => eraseAgent(ctx, i),
   "chat.owned_by": (ctx: ChatCtx, i: { person: string }) => ({
     channels: ownedKept(
       ownedRows(ctx, `SELECT "id", "name" FROM chat_channel WHERE "createdBy" = ? AND "archived" = 0`, i.person),

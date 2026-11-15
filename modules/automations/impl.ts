@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // Automations module (lane L6). The host loads these handlers once the manifest status is live (ARCH 12.4).
 // `consumeEvent` is the trigger consumer the host runs for every event; `loadRunPlan` is what the executor reads for a Run of an Automation.
 import { setDocumentNetwork } from "./document-network.ts";
@@ -145,6 +147,17 @@ export const periodic = {
   },
 };
 export const hostCalls = {
+  /**
+   * Delete for good (F77): its watchers go. An Automation whose steps name the agent is never silently broken: it is paused with "choose another agent" and listed on the confirm.
+   */
+  "automations.erase_agent": (ctx: EraseCtx, i: EraseIn): Footprint => {
+    const named: NonNullable<Footprint["named"]> = tryAll(ctx.db, `SELECT id, name FROM automations_defs WHERE deleted_at IS NULL AND definition LIKE ?`, `%${i.agentId}%`).map((r) => ({ kind: "automation" as const, id: String(r["id"]), title: String(r["name"]) }));
+    const watches = eraseWhere(ctx.db, i.agentId, [["automations_watches", "agent_id"]], i.dry === true);
+    if (i.dry === true) return { named, routines: watches };
+    for (const a of named)
+      tryRun(ctx.db, `UPDATE automations_defs SET definition = REPLACE(definition, ?, ''), status = 'paused', paused_reason = ?, updated_at = ? WHERE id = ?`, i.agentId, "Needs you: choose another agent. The one it used was deleted.", ctx.now(), a.id);
+    return { named, routines: watches };
+  },
   /** The inbound webhook route asks this: does the URL belong to a live, turned-on automation, and if so start its Run. Null is the one answer to every refusal. */
   "automations.accept_hook": (ctx: Ctx, i: Parameters<typeof acceptHook>[1]) =>
     acceptHook(ctx as unknown as AutoCtx, i),

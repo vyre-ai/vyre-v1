@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // search module entry (lane L1). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // All ten capabilities of manifests/search.ts have a handler here. Also here: what the module reads from the event log. `consumers` lists, by name, the events each one reads and
 // what it does with one; the host runs them after commit, at least once, so each is safe to repeat. `search.fts` keeps the full text index current, `search.vectors` computes
@@ -163,5 +165,22 @@ export const consumers = {
     run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
       if (targetsOf(indexEventOf(event)).length > 0) await embedRun(ctx, { limit: 50 });
     },
+  },
+};
+
+/** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
+export const hostCalls = {
+  "search.erase_agent": (ctx: EraseCtx, i: EraseIn): Footprint => {
+    if (i.dry === true) return {};
+    // the agent's own entry, and what the index kept of anything under its folder
+    const docs = tryAll(ctx.db, `SELECT n FROM search_docs WHERE (entity = 'agent' AND id = ?) OR (res_type = 'agent' AND res_id = ?) OR folder_id = ?`, i.agentId, i.agentId, i.folderId ?? "");
+    for (const d of docs) {
+      const n = Number(d["n"]);
+      tryRun(ctx.db, `DELETE FROM search_fts WHERE rowid = ?`, n);
+      tryRun(ctx.db, `DELETE FROM search_vectors WHERE n = ?`, n);
+      tryRun(ctx.db, `DELETE FROM search_agent_docs WHERE n = ?`, n);
+      tryRun(ctx.db, `DELETE FROM search_docs WHERE n = ?`, n);
+    }
+    return {};
   },
 };

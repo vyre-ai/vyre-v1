@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // mcp module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // Also here: the runtime that puts the MCP server (agent/src/mcp) on this module's tables. The host mounts `runtime.handle` at the Space's /mcp address and on loopback for CLI engines, and `runtime.oauth` at /oauth/* and the
 // /.well-known addresses a client signs in through. What an outside agent does is written here too: one activity row per call, its status, and its steps as a message in the chat it is working in.
@@ -549,3 +551,17 @@ export const consumers = {
 };
 
 export { bindEndpoint, bindServer };
+
+/** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
+export const hostCalls = {
+  "mcp.erase_agent": eraseTables(
+    [
+      ["mcp_oauth_requests", "agent_id"],
+      ["mcp_oauth_grants", "agent_id"],
+      ["mcp_activity", "agent_id"],
+      ["mcp_setup_grants", "agent_id"],
+      ["mcp_tokens", "actor_id"],
+      ["mcp_sessions", "principal"],
+    ],
+  ),
+};

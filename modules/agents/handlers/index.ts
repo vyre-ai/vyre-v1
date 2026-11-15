@@ -1,5 +1,6 @@
 // Handler table of the agents module: all the capabilities of manifests/agents.ts. The record, lifecycle, configuration and versions are in crud.ts; routines, suggestions, the Agent template and
 // Vyre's own text are in routines.ts.
+import { deleteForGood, deletePreview, trashList } from "./erase.ts";
 import {
   assistantOf,
   shareClass,
@@ -204,6 +205,9 @@ export const handlers = {
   "agents.resume": resume,
   "agents.delete": remove,
   "agents.restore": restore,
+  "agents.delete_for_good": deleteForGood,
+  "agents.delete_preview": deletePreview,
+  "agents.trash.list": trashList,
   "agents.set_owner": setOwner,
   "agents.visibility.set": visibilitySet,
   "agents.config.get": configGet,

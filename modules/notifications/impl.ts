@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // Notifications module (lane L6). The host loads these handlers once the host/modules.json row is live (ARCH 12.4, ruling 25).
 // setPushPort is the host's door for the APNs/FCM transport and the computer's idle time (call it at boot); the fanout consumer turns events that name a notification kind into rows.
 import { handlers } from "./handlers/index.ts";
@@ -785,4 +787,17 @@ export const periodic = {
     everyMs: 10 * 60_000,
     run: (ctx: NotifCtx): Promise<{ sent: number; failed: number; gaveUp: number }> => retryPendingEmails(ctx),
   },
+};
+
+/** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
+export const hostCalls = {
+  "notifications.erase_agent": eraseTables(
+    [
+      ["notifications_agent_interrupts", "agent"],
+    ],
+    (ctx, i) => {
+      if (i.dry !== true) tryRun(ctx.db, `DELETE FROM notifications_items WHERE subject_type = 'agent' AND subject_id = ?`, i.agentId);
+      return {};
+    },
+  ),
 };

@@ -1,5 +1,6 @@
 // agents module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // Also here: what the module reads from the event log. `consumers` lists, by name, the events each one reads and what it does with one; the host runs them after commit, at least once, so each is safe to repeat.
+import { runErase, sweepExpired } from "./handlers/erase.ts";
 import { followGrant } from "./handlers/install.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
@@ -76,6 +77,19 @@ export const periodic = {
     run: (ctx: AgentsCtx): Promise<string[]> => reconcileWakes(ctx),
   },
 };
+
+/** Deleting for good (F77): every few seconds the job of each agent being erased moves on (a restart picks it up where it stopped), and an agent Trash has kept long enough is started. */
+export const erasePeriodic = {
+  "agents.erase_job": {
+    everyMs: 3_000,
+    immediate: true,
+    run: async (ctx: AgentsCtx): Promise<string[]> => {
+      await sweepExpired(ctx);
+      return runErase(ctx);
+    },
+  },
+};
+Object.assign(periodic, erasePeriodic);
 
 export { restoreAgentFiles };
 

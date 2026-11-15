@@ -1,3 +1,6 @@
+import { tryAll, tryRun } from "../../lib/erase-agent.ts";
+import { forgetAgentSecrets } from "./projections.ts";
+type Row = Record<string, unknown>;
 // terminal module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // Also here: the tmux adapter every host shares. An agent computer, the Space server and a person's computer each run `tmux` their own way (agentd, a local process, the device daemon), so
 // `createTmuxHost` takes that as a port (`Exec`) and the module itself never spawns anything. Sessions are tmux sessions: no native pty dependency, they survive their tab, and the screen
@@ -1303,6 +1306,25 @@ export const periodic = {
  * inside its per-project queue): the agent's workspace stops mounting and mirroring the project now; the consumer on project.member_removed is the backstop.
  */
 export const hostCalls = {
+  /**
+   * Delete for good (F77): the agent's terminals and their commands, tabs, keys and holds go; its workspace container and both volumes (its home, and its Files with every person's own place on it, with the
+   * terminals' tmux state, browser profile files and downloads that live there) are removed from every machine. A machine that does not answer fails the step, so the job tries again; none is skipped.
+   */
+  "terminal.erase_agent": async (ctx: TermCtx, i: { agentId: string; dry?: boolean }): Promise<{ bytes?: number }> => {
+    const ids = (tryAll(ctx.db, "SELECT terminal_id FROM terminal_sessions WHERE agent_id = ?", i.agentId) as Row[]).map((r) =>
+      String(r["terminal_id"]),
+    );
+    if (i.dry === true) return {};
+    if (workspaceManager) await (workspaceManager as WorkspaceManager).remove(i.agentId);
+    forgetAgentSecrets(i.agentId);
+    for (const id of ids) {
+      for (const t of ["terminal_commands", "terminal_tabs", "terminal_hold", "terminal_lease", "terminal_key_batch", "terminal_tickets"])
+        tryRun(ctx.db, `DELETE FROM ${t} WHERE terminal_id = ?`, id);
+      tryRun(ctx.db, "DELETE FROM terminal_sessions WHERE terminal_id = ?", id);
+    }
+    tryRun(ctx.db, "DELETE FROM terminal_workspace_gone WHERE agent_id = ?", i.agentId);
+    return {};
+  },
   /** terminal_run's new tab, opened and committed before its command runs (only terminal.run may call it: host/src/daemon/consumers.ts MODULE_PATH_CALL). */
   "terminal.open_tab": (ctx: TermCtx, input: unknown): Promise<{ terminalId: string }> =>
     openTabForRun(ctx, input as Parameters<typeof openTabForRun>[1]),

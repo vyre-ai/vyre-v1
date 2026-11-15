@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // Gate module (lane L6). The host loads these handlers once the manifest status is live (ARCH 12.4).
 // recover() runs at boot; sweep() is the catch-up for timeouts the scheduler missed; the consumer rejects what a removed person had asked to send.
 import { handlers } from "./handlers/index.ts";
@@ -63,4 +65,16 @@ export const consumers = {
       return rejectAllOf(ctx, event.payload.personId, event.payload.reason ?? "The person who asked was removed.");
     },
   },
+};
+
+/** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
+export const hostCalls = {
+  "gate.erase_agent": eraseTables(
+    [
+      ["gate_rules", "agent_id"],
+      ["gate_grants", "agent_id"],
+      ["gate_grants", "subject_id"],
+      ["gate_holds", "principal_id"],
+    ],
+  ),
 };

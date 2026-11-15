@@ -1,3 +1,5 @@
+import { eraseTables, eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
+import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 // Hooks module (lane l-hooks): one layer for the hooks of every model. Handlers, and the consumer that links a helper thread to the chat that started it so a run's hooks reach its helpers.
 import {
   allowAlways,
@@ -48,4 +50,14 @@ export const consumers = {
       return [];
     },
   },
+};
+
+/** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
+export const hostCalls = {
+  "hooks.erase_agent": eraseTables(
+    [
+      ["hooks_hook", "agent_id"],
+      ["hooks_run", "agent_id"],
+    ],
+  ),
 };
