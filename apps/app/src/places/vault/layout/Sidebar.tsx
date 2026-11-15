@@ -1,7 +1,7 @@
 // Vault sidebar (Apple Passwords layout; the four sections, owner 3 Nov): Requested (only when something waits), All, AI accounts, Google and Microsoft, Connections, then Everything else (Keys,
 // Logins, Cards, Health when something needs a look), then Shared with its folders, Mine and Advanced. Each has a count. A Personal Space has no Shared and no Mine: everything there is yours. Rows are the shared ui/Row with a leading icon and a trailing count.
 import { useEffect, useRef, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
@@ -11,6 +11,7 @@ import type { Counts, Folder, Selection } from "./model.ts";
 import { Glyph, IconBtn } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
+import { SidebarContent, useInSidebarSlot } from "../../../shell/sidebar/index.ts";
 
 export interface SidebarProps {
   counts: Counts;
@@ -126,18 +127,7 @@ export function Sidebar({
     );
   }
   return (
-    <ResizableColumn
-      paneKey="place-sidebar"
-      defaultWidth={244}
-      grow="right"
-      min={200}
-      maxFraction={0.5}
-      maxWidth={380}
-      style={s.side as never}
-      testID="vault-sidebar"
-      role="menu"
-      label="Vault sections"
-    >
+    <Column>
       <View style={s.title}>
         <Text accessibilityRole="header" style={s.titleText}>
           Vault
@@ -236,11 +226,43 @@ export function Sidebar({
           onPress={onAdvanced}
         />
       </View>
+    </Column>
+  );
+}
+
+/** Inside the app the sections are drawn in the shell's one sidebar column (the same place and width as every other place's list: team/v1/TABS-2026-11-15.md); standing alone, in a column of their own. */
+function Column({ children }: { children: ReactNode }): ReactElement {
+  const inSlot = useInSidebarSlot();
+  if (inSlot)
+    return (
+      <SidebarContent title="Vault" bare noSearch>
+        {() => (
+          <View style={s.sideSlot} testID="vault-sidebar" role="menu" aria-label="Vault sections">
+            {children}
+          </View>
+        )}
+      </SidebarContent>
+    );
+  return (
+    <ResizableColumn
+      paneKey="place-sidebar"
+      defaultWidth={244}
+      grow="right"
+      min={200}
+      maxFraction={0.5}
+      maxWidth={380}
+      style={s.side as never}
+      testID="vault-sidebar"
+      role="menu"
+      label="Vault sections"
+    >
+      {children}
     </ResizableColumn>
   );
 }
 
 const s = StyleSheet.create({
+  sideSlot: { flex: 1, minHeight: 0, paddingHorizontal: 8, paddingBottom: 12 },
   side: {
     width: 240,
     flexShrink: 0,

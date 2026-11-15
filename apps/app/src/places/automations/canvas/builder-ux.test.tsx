@@ -391,7 +391,7 @@ test("each kind of field writes the right value: text, number, yes or no, a list
   assert.deepEqual(controlValue(by["all"]!, "false"), { value: false });
   assert.deepEqual(controlValue(by["tags"]!, "a, b\nc"), { value: ["a", "b", "c"] });
   assert.deepEqual(controlValue(by["ids"]!, "1, 2"), { value: [1, 2] });
-  assert.deepEqual(controlValue(by["ids"]!, "1, x"), { problem: "Ids must be numbers." });
+  assert.deepEqual(controlValue(by["ids"]!, "1, x"), { problem: "References must be numbers." });
   assert.deepEqual(controlValue(by["extra"]!, '{"a":1}'), { value: { a: 1 } });
   assert.deepEqual(controlValue(by["extra"]!, "{oops"), { problem: "That is not valid JSON." });
   assert.deepEqual(
@@ -485,46 +485,24 @@ test("at most four tabs stay open; the oldest closes first; removing a trigger m
 
 // ---------------------------------------------------------------- the canvas
 
-import { AutomationCanvas } from "./AutomationCanvas.tsx";
+import { BuilderPage } from "../screens/BuilderPage.tsx";
 import { AutomationsDataProvider } from "./data.tsx";
 import { Inspector } from "./Inspector.tsx";
 import { createSampleAutomations, northwind } from "../sidebar/sample.ts";
 
-const canvas = (props: Partial<Parameters<typeof AutomationCanvas>[0]> = {}): string =>
+const canvas = (props: Partial<Parameters<typeof BuilderPage>[0]> = {}): string =>
   renderToStaticMarkup(
     <AutomationsDataProvider value={createSampleAutomations(northwind).data}>
-      <AutomationCanvas automationId="aut_lead" {...props} />
+      <BuilderPage automationId="aut_lead" {...props} />
     </AutomationsDataProvider>,
   ).replaceAll("<!-- -->", "");
 
-test("the trigger rows read as what they do, not as Every time", () => {
+test("the trigger rows read as what they do, not as Every time: When, then Or for each other trigger", () => {
   const out = canvas();
   assert.ok(out.includes("A lead is created"), "a record trigger names its type and event");
   assert.ok(out.includes("Any form is submitted"));
+  assert.ok(out.includes("When") && out.includes("Or"));
   assert.equal(out.includes("Every time"), false);
-});
-
-test("the bar under the tabs has something on it: what to do next, Undo and Data; Events is under More", () => {
-  const out = canvas();
-  assert.ok(out.includes('data-testid="build-hint"'));
-  assert.match(
-    out,
-    /data-testid="undo-edit"[^>]*disabled|disabled[^>]*data-testid="undo-edit"|aria-disabled="true"[^>]*data-testid="undo-edit"|data-testid="undo-edit"[^>]*aria-disabled="true"/,
-    "nothing to undo yet",
-  );
-  assert.ok(out.includes('data-testid="open-data-shelf"'));
-  assert.equal(out.includes('data-testid="events"'), false, "the Events button is gone from the header");
-});
-
-test("a trigger opened in the panel is a tab with its own name and icon", () => {
-  const out = canvas({ initialPanel: true, initialSelected: "trigger" });
-  assert.ok(
-    out.includes("A new lead is created settings") || out.includes('data-testid="inspector"'),
-    "the panel is open on the first trigger",
-  );
-  assert.match(out, /aria-label="A new lead is created" role="tab"/, "the tab carries the trigger's name");
-  assert.match(out, /data-testid="tab-trigger:0-selected"[^>]*><div[^>]*><span[^>]*><svg/, "and the trigger's icon");
-  assert.equal(/aria-label="Trigger" role="tab"/.test(out), false, "no tab is just called Trigger");
 });
 
 const noop = (): void => undefined;
@@ -558,9 +536,9 @@ test("the trigger panel can remove its trigger, and its Test and Data tabs say w
     panelOf({ key: "manual" }, "configure", { onRemoveTrigger: noop }).includes('data-testid="remove-trigger"'),
   );
   assert.equal(panelOf({ key: "manual" }).includes('data-testid="remove-trigger"'), false, "no handler, no button");
-  const test_ = panelOf({ key: "manual" }, "test");
-  assert.ok(test_.includes("Press Test at the top"), "the Test tab of a trigger explains itself");
-  assert.ok(panelOf({ key: "manual" }, "data").includes("data-shelf-empty"), "the Data tab says why it is empty");
+  // changed for AUTOMATIONS-BUILD-RC29 (round two, item 2): one form, no Configure, Data or Test tabs
+  const one = panelOf({ key: "manual" });
+  assert.ok(!one.includes("section-row") && !one.includes("trigger-test-note"), "one form, no tabs");
 });
 
 test("Advanced adds the trigger as JSON, so the switch shows something on a trigger too", () => {

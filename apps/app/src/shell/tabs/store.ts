@@ -151,8 +151,36 @@ function kept(cur: TabEntry): Pick<TabEntry, "back" | "fwd" | "from" | "name" | 
   };
 }
 
+/**
+ * The untouched "New tab" the person was on is what they opened this in: it does not stay behind as an empty tab (owner, 15 Nov 2026; team/v1/TABS-2026-11-15.md, D5).
+ * A tab opened from it takes its place in the strip; a tab that was already open is selected and the empty one goes. A tab opened behind (Cmd-click) leaves it alone.
+ */
+function leaveNewTab(before: TabsState, after: TabsState): TabsState {
+  const was = activeEntry(before);
+  if (was === undefined || was.isNew !== true || after.active === was.key) return after;
+  const at = after.tabs.findIndex((t) => t.key === was.key);
+  if (at < 0) return after;
+  const unlink = (t: TabEntry): TabEntry => {
+    if (t.from !== was.key) return t;
+    const { from: _from, ...rest } = t;
+    return rest;
+  };
+  const rest = after.tabs.filter((t) => t.key !== was.key).map(unlink);
+  const opened = rest.find((t) => t.key === after.active);
+  if (opened === undefined || before.tabs.some((t) => t.key === opened.key))
+    return { tabs: rest, active: after.active };
+  const others = rest.filter((t) => t !== opened);
+  others.splice(Math.min(at, others.length), 0, opened);
+  return { tabs: others, active: after.active };
+}
+
 /** Opens a tab or selects the one already open with that key (or showing it). `background` opens it behind the current tab (Cmd-click). */
 export function openTab(state: TabsState, tab: TabEntry, background = false, exact = false, link = false): TabsState {
+  const out = openTab0(state, tab, background, exact, link);
+  return background || tab.isNew === true ? out : leaveNewTab(state, out);
+}
+
+function openTab0(state: TabsState, tab: TabEntry, background: boolean, exact: boolean, link: boolean): TabsState {
   const at = holding(state, tab.key);
   if (at !== undefined) {
     if (background) return state;
@@ -273,7 +301,7 @@ export function fillTab(
 export function landOn(state: TabsState, place: PlaceId): TabsState {
   const key = tabKey(place);
   const own = state.tabs.find((t) => t.key === key && t.isNew !== true);
-  if (own !== undefined) return selectTab(state, own.key);
+  if (own !== undefined) return leaveNewTab(state, selectTab(state, own.key));
   const cur = activeEntry(state);
   if (cur === undefined || cur.isNew === true || cur.place !== place)
     return openTab(state, placeTab(place), false, true);

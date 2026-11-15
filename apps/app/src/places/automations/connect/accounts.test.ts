@@ -194,6 +194,7 @@ test("vault rows become account options, and failing, error, and disconnected ar
         { id: "mbx_live", title: "", address: "live@b.c", state: "active" },
       ],
     },
+    "usr_me",
   );
   assert.deepEqual(rows, [
     { app: "hubspot", id: "con_ok", title: "Ok", state: "active" },
@@ -203,8 +204,8 @@ test("vault rows become account options, and failing, error, and disconnected ar
     { app: "mail", id: "mbx_off", title: "off@b.c", state: "needs_reconnect" },
     { app: "mail", id: "mbx_live", title: "live@b.c", state: "active" },
   ]);
-  assert.equal(accountsFromVault(null, { mailboxes: [] }), null);
-  assert.equal(accountsFromVault({ connections: [] }, { boxes: [] }), null);
+  assert.equal(accountsFromVault(null, { mailboxes: [] }, "usr_me"), null);
+  assert.equal(accountsFromVault({ connections: [] }, { boxes: [] }, "usr_me"), null);
   assert.deepEqual(
     picksByApp({
       picks: [
@@ -228,4 +229,46 @@ test("vault rows become account options, and failing, error, and disconnected ar
     accounts: (rows ?? []).filter((account) => account.id !== "mbx_live"),
   });
   assert.deepEqual(mail, { mailboxId: "mbx_sync" });
+});
+
+test("an Automation is never offered another person's connection or mailbox: only the person's own and the Space's", () => {
+  const rows = accountsFromVault(
+    {
+      connections: [
+        {
+          connectionId: "con_mine",
+          connector: "hubspot",
+          title: "Mine",
+          state: "active",
+          owner: { kind: "person", id: "usr_me" },
+        },
+        {
+          connectionId: "con_space",
+          connector: "hubspot",
+          title: "Space",
+          state: "active",
+          owner: { kind: "space", id: "spc_1" },
+        },
+        {
+          connectionId: "con_theirs",
+          connector: "hubspot",
+          title: "Theirs",
+          state: "active",
+          owner: { kind: "person", id: "usr_dana" },
+        },
+      ],
+    },
+    {
+      mailboxes: [
+        { id: "mbx_mine", address: "me@b.c", state: "active", ownerId: "usr_me" },
+        { id: "mbx_shared", address: "team@b.c", state: "active" },
+        { id: "mbx_dana", address: "dana@b.c", state: "active", ownerId: "usr_dana" },
+      ],
+    },
+    "usr_me",
+  );
+  assert.deepEqual(
+    rows!.map((r) => r.id),
+    ["con_mine", "con_space", "mbx_mine", "mbx_shared"],
+  );
 });

@@ -1,7 +1,7 @@
 // Needs you (spec 3.2 flow 7, 2.8): a calm two-column inbox. The list on the left is one list in the queue's order as the prototype lists it (ruling 45; urgency shows in each row's own words) with a quiet kind filter; the request on
 // the right says what it is, why, where it came from, and offers one primary action and Send back. Acting here acts at the source: approving continues the chat or run at once and
 // Send back carries the note in. A request addressed to a role is taken by its first holder; others see who has it. On a phone the two columns become two screens.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -58,7 +58,7 @@ import { isNoAccount, mailFix } from "./account.ts";
 import { useOpenConnect } from "../../../shell/connect/index.ts";
 import { Button, Face, Icon, LeadIcon, OriginMark, Tool } from "./parts.tsx";
 import { KeyRequestCard } from "../conversation/keyrequest.tsx";
-import { ReplaceKeySheet } from "../../../hubs/ReplaceKey.tsx";
+import { ReplaceKeySheet, mayReplaceKey } from "../../../hubs/ReplaceKey.tsx";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type ItemsOut = CapMap["tasks.needs_you"]["out"];
@@ -422,6 +422,17 @@ function Detail({
   const [deciding, setDeciding] = useState(false);
   const system = originOf(t) !== null;
   const [replacing, setReplacing] = useState(false);
+  // Replace key is offered only after the Vault item it writes to is read and is this person's to edit; until then nothing is offered
+  const [mayReplace, setMayReplace] = useState<boolean | null>(null);
+  const replaceConn = t.workingNotes["connection"] ?? "";
+  useEffect(() => {
+    if (fix !== "replace_key") return undefined;
+    let live = true;
+    void mayReplaceKey(data.call, replaceConn).then((ok) => live && setMayReplace(ok));
+    return () => {
+      live = false;
+    };
+  }, [fix, replaceConn, data.call]);
   const actions = splitActions(t);
   const held = holder(item, data.me);
   const mustTake =
@@ -681,8 +692,13 @@ function Detail({
           {keyReq && !providing ? (
             <Button label="Provide the key" primary onPress={() => setProviding(true)} testID="needs-provide-key" />
           ) : null}
-          {fix === "replace_key" ? (
+          {fix === "replace_key" && mayReplace === true ? (
             <Button label="Replace key" primary onPress={() => setReplacing(true)} testID="needs-replace-key" />
+          ) : null}
+          {fix === "replace_key" && mayReplace === false ? (
+            <Text style={{ fontSize: 13, opacity: 0.7 }} testID="needs-replace-key-no">
+              Only someone who can edit this key can replace it.
+            </Text>
           ) : null}
           {!mustTake && noAccount ? (
             <Button label="Sign in" primary onPress={() => data.nav.openSignIn()} testID="needs-signin" />

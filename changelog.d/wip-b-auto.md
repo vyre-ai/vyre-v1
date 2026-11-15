@@ -1,0 +1,37 @@
+- The new Automations first page, step picker and builder page now have their rules written and tested before they are drawn: what needs you, one suggestion you can finish with one approval, only apps you have connected and may use, and a step as a sentence with its one missing thing.
+- Adding a step now opens a picker that lists only the apps you have connected and may use, one row per app with its actions beside the list, searchable and fully usable from the keyboard, with a "Connect an app" row that opens one sheet to set up an app from your Vault, ask an admin for one your Space has, or add another, without leaving the page.
+- Ask Vyre now shows what the Assistant understood from your sentence, the forms it found on your site, one card to paste an app key (saved straight to your Vault, never into the chat), the field mapping, the wait for the first real submission, and a test-lead approval.
+- A step in an Automation someone else built that uses an app you may not use now shows whole, with one plain line saying so, instead of being dropped.
+- The new first page and builder page are drawn from their tested models: Needs you cards with their fix, one suggestion, a Today line, and numbered sentences with data chips and one orange line per step.
+- An Automation someone else built always opens whole in the new builder: each step is a sentence with real names, a step that uses an app you may not use keeps its sentence with one plain line, and Paths show If yes and Otherwise.
+- The new Automations screens now match the approved pictures more closely: coloured group marks in the step picker with the Connect an app row always in view, outlined and quiet buttons, a header on the first page, and a run page that opens on When with the failure in two plain lines.
+- Steps in the new builder can be added between two steps with a plus, the actions of an app open beside the row you pointed at, and each Needs-you card says since when.
+- On the Vault Connections page, connections your Space owns now show under Space connections instead of My connections.
+- The step picker opens an app's actions right beside its row, an email, a chat message and a text each have their own glyph, a Drive step shows the Drive mark, and a step sentence never ends on a dangling word.
+- On the Vault Google and Microsoft page, a member no longer sees a Connect button for a setup only an admin can finish.
+- The Twilio tile on the empty Inbox shows only to a person who may buy or connect a number, and the sign-in app setup in Settings shows only to someone who can finish it.
+- Space accounts on the Vault Connections page can be removed or reconnected only by an admin.
+- An Automation's account picker no longer offers another person's connection or mailbox.
+- Prepared for the new Automations screens: the open Automation as one page with its steps as sentences, the first page from the real list, and the pieces behind them, ready to replace the old canvas.
+- Cmd-K offers "New channel" only to someone who may create channels.
+- The channel menu offers "Connect an Outside Agent" only to someone who may add agents to channels.
+- Automations: the open Automation is now one page of steps as sentences with its step form beside it; the first page replaces the start page; the left list has no Needs-you group, Failed runs row or studio menu; Dependencies, Packages and the Live Event Explorer are gone from the place.
+- test: BuilderPage behaviour tests (Ask Vyre with the Automation, Test, save waits for Save on an On Automation and sends expectedVersion).
+- fix: Needs you offers Replace key only after reading the Vault item and finding it editable by the person; a view-only holder is told instead.
+- fix: a step row's second line says what its settings add in words and is absent when there is nothing to add; it is never the title again.
+- fix: the first page card and the builder head read one paused reason ("Needs the Twilio key"); "See the run" only where a failed run is the reason.
+- fix: a wait, a question, a text and a loop each wear their own glyph instead of one shared grey branch.
+- fix: the first-page card reads a paused Automation's reason from the Automation, the same words as the builder head.
+- test: the walk, an Automation of every manifest step kind opens with its step form and writes nothing (four files; the text step is drawn statically, the editor needs a browser DOM).
+- fix: on a phone the page head puts Ask Vyre, Test and the primary button on their own row so the name reads whole, and the step form fills the width; the form's head wears the same mark as its row.
+- chore: the shots script takes --size=phone (390 wide).
+- fix: a draft carries the version it started on and every save sends that base; when another person saved first nothing is overwritten and nothing is retried: the page says so and offers See theirs (after a confirm) or Keep mine as a copy; autosave stops until the person chooses.
+- fix: a person who may not edit sees no Turn on or off, no Run now, no + and no Add a step, no step form, and one line saying why.
+- feat: a trigger can be added by hand: an empty Automation shows one row, Choose what starts this, and Or adds another from the list of what this person can use; a trigger can be removed from its form.
+- feat: doors back after the switch-in: Apply for runs pinned to an older version in History; Make a copy to share and Import a copy in the ... menu and Settings (the Packages panel); This Automation uses in Settings (Dependencies).
+- feat: the head says the version, the failed run count (Runs, 1 failed) and what the Automation sends from; a step nothing leads to is shown after the rest; a step kind this version does not know is its own row, kind named, settings untouched.
+- feat: Event log and Automation usage are Console pages (Security, Audit log tab), listed by the server only to a person with audit.read; the old Live Event Explorer and Analytics views are mounted there.
+- test: page-level tests for Undo, Move to Trash, Promote, personal copy, History, the copies panel, the Runs and Settings tabs, and the keyboard surface.
+- fix: Add a step while the step catalogue is loading or failed says so and offers Retry instead of doing nothing.
+- fix: a person who may not change an Automation sees its Settings without Add, Share and follower buttons; the server refuses their update and turn on or off (tested).
+- feat: Event log under the Runs tab; "Move running work to this version" in the ... menu opens History where Apply is; a step kind this version does not know is drawn as "A step this version can't show" and never opened.

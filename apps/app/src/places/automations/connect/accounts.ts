@@ -171,7 +171,7 @@ function shownState(kind: "connection" | "mail", state: string): string {
 }
 
 /** Connection and mailbox rows become account options. A bad list is null. A bad row is skipped. No secrets are copied. */
-export function accountsFromVault(connectionsOut: unknown, mailboxesOut: unknown): AccountOption[] | null {
+export function accountsFromVault(connectionsOut: unknown, mailboxesOut: unknown, me: string): AccountOption[] | null {
   const connections = rowsOf(connectionsOut, "connections");
   const mailboxes = rowsOf(mailboxesOut, "mailboxes");
   if (!connections || !mailboxes) return null;
@@ -183,6 +183,9 @@ export function accountsFromVault(connectionsOut: unknown, mailboxesOut: unknown
     const app = textId(rec["connector"]);
     const state = textId(rec["state"]);
     if (!id || !app || !state) continue;
+    // another person's connection is never offered to an Automation: only the person's own and the Space's
+    const owner = recordOf(rec["owner"]);
+    if (owner && owner["kind"] === "person" && owner["id"] !== me) continue;
     accounts.push({ app, id, title: textId(rec["title"]) ?? id, state: shownState("connection", state) });
   }
   for (const row of mailboxes) {
@@ -191,6 +194,8 @@ export function accountsFromVault(connectionsOut: unknown, mailboxesOut: unknown
     const id = textId(rec["id"]);
     const state = textId(rec["state"]);
     if (!id || !state) continue;
+    const ownerId = textId(rec["ownerId"]);
+    if (ownerId && ownerId !== me) continue;
     accounts.push({
       app: "mail",
       id,

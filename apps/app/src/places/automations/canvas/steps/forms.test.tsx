@@ -138,23 +138,18 @@ test("HTTP request, a send: the body kind, a JSON body, the approval note and th
   );
 });
 
-test("a request with no address, a plain http address or a half-made sign-in is named on the step", () => {
-  assert.ok(has(panel({ id: "a", key: "http_request", input: { method: "GET" } }), "HTTP request needs the address"));
-  assert.ok(
+// Changed for AUTOMATIONS-BUILD-RC29 (round two, items 1 and 2): what a step is missing is said once, on the step's row (one orange line, one button); the form no longer lists it again.
+test("a request with no address, a plain http address or a half-made sign-in is not listed again on the form", () => {
+  assert.equal(
+    has(panel({ id: "a", key: "http_request", input: { method: "GET" } }), "HTTP request needs the address"),
+    false,
+  );
+  assert.equal(
     has(
       panel({ id: "a", key: "http_request", input: { method: "GET", url: "http://x.example.com" } }),
       "the address must start with https://",
     ),
-  );
-  assert.ok(
-    has(
-      panel({
-        id: "a",
-        key: "http_request",
-        input: { method: "GET", url: "https://x.example.com", auth: { kind: "bearer", handle: "" } },
-      }),
-      "pick the Vault key to sign the request with",
-    ),
+    false,
   );
 });
 
@@ -241,10 +236,8 @@ test("the AI step says whose account it runs on: a Personal one on the owner's, 
       "A Space automation runs as itself and can use only a Space AI account. With none chosen here, the step runs on the automation&#x27;s AI account in Settings, or on the cheapest Space AI account kept for automations.",
     ),
   );
-  assert.ok(
-    has(space, "a Space automation needs a key shared with the Space, pick one"),
-    "the check names the missing key on the step",
-  );
+  // the missing key is said once, on the step's row (AUTOMATIONS-BUILD-RC29, round two)
+  assert.equal(has(space, "a Space automation needs a key shared with the Space, pick one"), false);
   const free = panel(bare, "personal");
   assert.match(tag(free, "choose-answer"), /aria-label="Answer as: Free text"/);
   assert.equal(has(free, 'data-testid="field-schema"'), false, "no shape is asked for until the answer is JSON");

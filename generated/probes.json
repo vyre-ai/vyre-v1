@@ -171,6 +171,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.automations.usage",
+      "place": "console",
+      "screen": "automations.usage"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.calendar.event-card",
       "place": "inbox",
       "screen": "calendar.event-card"
@@ -566,6 +573,13 @@
       "id": "screen.events.deliveries",
       "place": "console",
       "screen": "events.deliveries"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.events.log",
+      "place": "console",
+      "screen": "events.log"
     },
     {
       "completeMs": 100,
