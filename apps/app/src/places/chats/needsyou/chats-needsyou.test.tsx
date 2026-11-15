@@ -588,7 +588,7 @@ const keyTask = () => ({
     },
   ],
   actions: [{ key: "cannot", label: "Decline", note: "optional" }],
-  assigned: { kind: "person", id: "usr_irfad" },
+  assigned: { kind: "person", id: "usr_imran" },
   fileIds: [],
   source: { kind: "manual", id: "vrq_1" },
   dependsOn: [],

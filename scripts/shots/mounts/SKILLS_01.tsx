@@ -18,7 +18,7 @@ import { SAMPLE_MEMBERS, samplePage } from "../../../apps/app/src/skills/sample.
 export const title = "Skills in Settings and Console";
 
 const PEOPLE = [
-  { id: "usr_irfad", name: "Irfad Imtiaz" },
+  { id: "usr_imran", name: "Imran Ibarra" },
   { id: "usr_maya", name: "Maya Chen" },
   { id: "usr_leo", name: "Leo Park" },
   { id: "usr_june", name: "June Okafor" },
@@ -62,8 +62,8 @@ const BROWSE = [
     allowed: true,
   },
   {
-    marketplaceId: "mkt_mla",
-    marketplace: "mla-skills",
+    marketplaceId: "mkt_northwind",
+    marketplace: "northwind-skills",
     name: "intake-kit",
     description: "Intake forms and triage for law firms",
     allowed: true,

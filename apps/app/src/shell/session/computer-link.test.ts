@@ -30,7 +30,7 @@ test("every signed-in Team Space elsewhere is linked for chats; a Personal Space
     return null;
   };
   const sessions = [
-    s("spc_mla", "team", "https://mla.vyre.run"),
+    s("spc_northwind", "team", "https://northwind.vyre.run"),
     s("spc_me", "personal", "http://127.0.0.1:4100"),
     s("spc_mac", "team", "http://127.0.0.1:8420"),
   ];
@@ -40,7 +40,7 @@ test("every signed-in Team Space elsewhere is linked for chats; a Personal Space
     [
       [
         "link_chrome_space",
-        { id: "spc_mla", name: "spc_mla", address: "https://mla.vyre.run", token: "vst_spc_mla", compute: true },
+        { id: "spc_northwind", name: "spc_northwind", address: "https://northwind.vyre.run", token: "vst_spc_northwind", compute: true },
       ],
       [
         "link_chrome_space",
@@ -55,7 +55,7 @@ test("every signed-in Team Space elsewhere is linked for chats; a Personal Space
   );
   assert.equal(linkable(sessions[1]!), false);
   await unlinkComputer(sessions[0]!, invoke);
-  assert.deepEqual(calls.at(-1), ["unlink_chrome_space", { id: "spc_mla" }]);
+  assert.deepEqual(calls.at(-1), ["unlink_chrome_space", { id: "spc_northwind" }]);
   await unlinkComputer(sessions[1]!, invoke);
   assert.deepEqual(
     calls.at(-1),
@@ -65,7 +65,7 @@ test("every signed-in Team Space elsewhere is linked for chats; a Personal Space
 });
 
 test("in a browser there is no shell: nothing is linked, and a shell that refuses one does not stop the rest", async () => {
-  assert.equal(await linkComputer([s("spc_mla", "team", "https://mla.vyre.run")], undefined), 0);
+  assert.equal(await linkComputer([s("spc_northwind", "team", "https://northwind.vyre.run")], undefined), 0);
   let n = 0;
   const flaky = async () => {
     if (n++ === 0) throw new Error("daemon starting");

@@ -125,7 +125,7 @@ export function world(perms: { admins?: readonly string[] } = {}) {
             { kind: "person", name: "Maya Chen" },
             { kind: "person", name: "Dana Wine" },
             { kind: "agent", name: "Intake" },
-            { kind: "agent", name: "Irfad Imtiaz (Agent)", private: true },
+            { kind: "agent", name: "Imran Ibarra (Agent)", private: true },
           ],
         };
       if (cap === "chat.post") return { ok: true };

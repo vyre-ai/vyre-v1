@@ -125,7 +125,7 @@ export function createSampleViewer(): SampleViewer {
   const names: Record<string, string> = {
     usr_maya: "Maya Chen",
     usr_omar: "Omar Haddad",
-    usr_irfad: "Irfad Imtiaz",
+    usr_imran: "Imran Ibarra",
     agt_intake: "Intake",
     assistant: "Assistant",
   };
@@ -179,7 +179,7 @@ export function createSampleViewer(): SampleViewer {
             anchor,
             ...(pin ? { pin } : {}),
             text: String(i["text"]),
-            by: "usr_irfad",
+            by: "usr_imran",
             at: SAMPLE_NOW,
             resolved: false,
             mentions: [],

@@ -38,7 +38,7 @@ const STATUS = [
   "done",
   "active",
 ] as const;
-const LEADS = ["usr_maya", "usr_omar", "usr_lena", "usr_sam", "usr_irfad"] as const;
+const LEADS = ["usr_maya", "usr_omar", "usr_lena", "usr_sam", "usr_imran"] as const;
 
 /** A flat colour picture, as a data URL, so a cover needs no network. */
 export function coverUrl(hue: number): string {
@@ -78,7 +78,7 @@ function enrich(space: SampleSpace): SampleSpace {
               kind: "gallery",
               title: "Project gallery",
               shared: false,
-              ownerId: "usr_irfad",
+              ownerId: "usr_imran",
               updatedAt: SAMPLE_NOW,
             },
             {
@@ -87,7 +87,7 @@ function enrich(space: SampleSpace): SampleSpace {
               kind: "list",
               title: "Open projects",
               shared: false,
-              ownerId: "usr_irfad",
+              ownerId: "usr_imran",
               filter: { field: "status", op: "ne", value: "done" },
               updatedAt: SAMPLE_NOW,
             },

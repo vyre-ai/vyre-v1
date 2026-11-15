@@ -70,7 +70,7 @@ export default function Mount(): ReactNode {
         />
       );
     if (e.screen === "you")
-      return <YouScreen nav={nav} data={{ name: "Irfad Imtiaz", space: team.name, workOpen: 4, starred: 3 }} />;
+      return <YouScreen nav={nav} data={{ name: "Imran Ibarra", space: team.name, workOpen: 4, starred: 3 }} />;
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ color: "var(--ink-3)" as string, fontSize: 14 }}>{e.title ?? e.screen}</Text>

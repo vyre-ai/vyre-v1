@@ -1,4 +1,4 @@
-Executable=/Users/irfad/Claude/Orgs/Vyre/v1-wt/P-PR_48/spikes/s12/mac/dist/Vyre.app/Contents/MacOS/vyre
+Executable=/Users/imran/Claude/Orgs/Vyre/v1-wt/P-PR_48/spikes/s12/mac/dist/Vyre.app/Contents/MacOS/vyre
 Identifier=ai.vyre.desktop.s12
 Format=app bundle with Mach-O thin (arm64)
 CodeDirectory v=20400 size=524 flags=0x2(adhoc) hashes=10+3 location=embedded

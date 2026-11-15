@@ -26,10 +26,10 @@ test("Open Graph tags give the title, site name and an absolute image address", 
 test("without Open Graph: the <title>; an image on http or a non-address is dropped; nothing at all is an empty meta", () => {
   assert.deepEqual(
     pageMeta(
-      `<title>  Lab 8 &#8211; MLA  </title><meta name="twitter:image" content="http://x.example/a.png">`,
+      `<title>  Lab 8 &#8211; Northwind  </title><meta name="twitter:image" content="http://x.example/a.png">`,
       new URL("https://x.example/"),
     ),
-    { title: "Lab 8 – MLA" },
+    { title: "Lab 8 – Northwind" },
   );
   assert.deepEqual(pageMeta("<p>no head</p>", new URL("https://x.example/")), {});
 });

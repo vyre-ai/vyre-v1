@@ -25,7 +25,7 @@ const READY = { status: "ready", data: [] }; // one snapshot object for good
 function runtime(url: string, checked = true): ShellRuntime {
   return {
     me: { id: "usr_me", name: "Me" },
-    baseUrl: "https://mla.vyre.run",
+    baseUrl: "https://northwind.vyre.run",
     clock: () => ({ now: Date.UTC(2026, 10, 13, 12, 0), offsetMin: 0 }),
     call: (cap: string) => {
       if (cap === "sites.artifact_open")
@@ -73,12 +73,12 @@ const view = (url: string, checked = true) => (
 );
 
 test("the host check: the marked page is the host; a relay's 404, silence and a name that does not exist are not; a refused read falls back to asking without reading", async () => {
-  const addr = `https://a.mla.vyre.run/x/${CODE}?embed=1`;
+  const addr = `https://a.northwind.vyre.run/x/${CODE}?embed=1`;
   const asked: string[] = [];
   assert.equal(await artifactHostAnswers(addr, async (u, i) => (asked.push(`${i?.mode} ${u}`), text(MARKED))), true);
   assert.deepEqual(
     asked,
-    [`cors https://a.mla.vyre.run/x/${PROBE_CODE}`],
+    [`cors https://a.northwind.vyre.run/x/${PROBE_CODE}`],
     "the dead code, on the host's own origin, never the real code",
   );
   assert.equal(
@@ -92,7 +92,7 @@ test("the host check: the marked page is the host; a relay's 404, silence and a 
     "no record, no certificate: nothing answers either way",
   );
   // an answer the app cannot read is never taken for success, whatever the host form (an older server that does not allow the read shows the failed state until it updates)
-  for (const form of ["https://mla-a.vyre.run", "https://a.mla.vyre.run", "https://a.team.example.com"])
+  for (const form of ["https://northwind-a.vyre.run", "https://a.northwind.vyre.run", "https://a.team.example.com"])
     assert.equal(await artifactHostAnswers(`${form}/x/${CODE}`, relayEdge), false, form);
   assert.equal(
     await artifactHostAnswers(
@@ -120,7 +120,7 @@ test("the artifact host does not answer: the tab shows the failed state with Ret
     await withFetch(
       async () => Promise.reject(new TypeError("Failed to fetch")),
       async () => {
-        const root = await mount(createRoot, view(`https://mla-a.vyre.run/x/${CODE}`));
+        const root = await mount(createRoot, view(`https://northwind-a.vyre.run/x/${CODE}`));
         await flush();
         const err = find(root, "artifact-error");
         assert.ok(err, "the failed state");
@@ -128,7 +128,7 @@ test("the artifact host does not answer: the tab shows the failed state with Ret
         assert.equal(find(root, "artifact-loading"), null);
         const t = textOf(err);
         assert.match(t, /This page could not be loaded from the Space/);
-        assert.match(t, /mla-a\.vyre\.run did not answer/);
+        assert.match(t, /northwind-a\.vyre\.run did not answer/);
         assert.ok(find(root, "state-retry"), "Retry");
       },
     );
@@ -144,7 +144,7 @@ test("a name the relay answers with its own 404 is the same failed state; the ho
     await withFetch(
       (u, i) => (phase === "relay" ? relayEdge(u, i) : Promise.resolve(text(MARKED))),
       async () => {
-        const root = await mount(createRoot, view(`https://mla-a.vyre.run/x/${CODE}`));
+        const root = await mount(createRoot, view(`https://northwind-a.vyre.run/x/${CODE}`));
         await flush();
         assert.ok(find(root, "artifact-error"), "the relay's 404 is not a page of this Space");
         assert.equal(find(root, "artifact-frame"), null);
@@ -154,7 +154,7 @@ test("a name the relay answers with its own 404 is the same failed state; the ho
         assert.equal(find(root, "artifact-error"), null, "the failed state clears");
         const frame = find(root, "artifact-frame");
         assert.ok(frame, "the frame is there once the host answers");
-        assert.match(String(frame.props["src"]), /^https:\/\/mla-a\.vyre\.run\/x\/a{48}\?embed=1$/);
+        assert.match(String(frame.props["src"]), /^https:\/\/northwind-a\.vyre\.run\/x\/a{48}\?embed=1$/);
       },
     );
   } finally {
@@ -200,7 +200,7 @@ test("desktop app: Share steps the native page aside and it comes back as it was
         if (cap === "sites.artifact_open") {
           n += 1;
           const code = String(n).padStart(48, "0");
-          return Promise.resolve({ path: `/x/${code}`, url: `https://a.mla.vyre.run/x/${code}`, expiresAt: 1 });
+          return Promise.resolve({ path: `/x/${code}`, url: `https://a.northwind.vyre.run/x/${code}`, expiresAt: 1 });
         }
         if (cap === "sites.get") sitesGets += 1;
         return (base.call as (c: string, i?: unknown) => unknown)(cap, input);
@@ -250,12 +250,12 @@ test("an older server (its answer has no `checked`) is framed as before, with no
         return relayEdge(u, i); // what an rc.26 host looks like to a probe: nothing readable
       },
       async () => {
-        const root = await mount(createRoot, view(`https://a.mla.vyre.run/x/${CODE}`, false));
+        const root = await mount(createRoot, view(`https://a.northwind.vyre.run/x/${CODE}`, false));
         await flush();
         assert.equal(find(root, "artifact-error"), null, "no failed state");
         const frame = find(root, "artifact-frame");
         assert.ok(frame, "the page is framed as before");
-        assert.match(String(frame.props["src"]), /^https:\/\/a\.mla\.vyre\.run\/x\/a{48}\?embed=1$/);
+        assert.match(String(frame.props["src"]), /^https:\/\/a\.northwind\.vyre\.run\/x\/a{48}\?embed=1$/);
         assert.equal(asked, 0, "the host was not probed");
       },
     );
@@ -268,7 +268,7 @@ test("a current server (`checked: true`) whose artifact host stopped answering f
   const restore = installDom();
   try {
     await withFetch(relayEdge, async () => {
-      const root = await mount(createRoot, view(`https://a.mla.vyre.run/x/${CODE}`, true));
+      const root = await mount(createRoot, view(`https://a.northwind.vyre.run/x/${CODE}`, true));
       await flush();
       assert.ok(find(root, "artifact-error"));
       assert.equal(find(root, "artifact-frame"), null);

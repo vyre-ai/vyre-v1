@@ -1,4 +1,4 @@
-// The shell's directory (owner ruling 3 Nov): someone else's private agent is credited to its person, "Irfad Imtiaz (Agent)", with their face, and is never offered; its own name is kept for logs only.
+// The shell's directory (owner ruling 3 Nov): someone else's private agent is credited to its person, "Imran Ibarra (Agent)", with their face, and is never offered; its own name is kept for logs only.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { asAgentOf, creditLine, directoryOf, offered, standInsOf } from "./private-agents.ts";
@@ -6,53 +6,53 @@ import { connectedNote, lastActive } from "../../console/pages/connected-model.t
 import { agentDetails } from "../../console/pages/audit/model.ts";
 
 const ME = "usr_rubab",
-  IRFAD = "usr_irfad";
+  IMRAN = "usr_imran";
 const own = { id: "agt_mine", name: "Rubab’s Assistant" };
-// what access.principals.list answers Rubab: Irfad's private agents already named as him, no own name (she is not an admin)
+// what access.principals.list answers Rubab: Imran's private agents already named as him, no own name (she is not an admin)
 const raw = [
-  { id: IRFAD, name: "Irfad Imtiaz", kind: "person" },
+  { id: IMRAN, name: "Imran Ibarra", kind: "person" },
   { id: ME, name: "Rubab Khan", kind: "person" },
-  { id: "agt_simba", name: "Irfad Imtiaz (Agent)", kind: "agent", owner: IRFAD, private: true },
-  { id: "agt_irfadasst", name: "Irfad Imtiaz (Agent)", kind: "agent", owner: IRFAD, private: true },
+  { id: "agt_simba", name: "Imran Ibarra (Agent)", kind: "agent", owner: IMRAN, private: true },
+  { id: "agt_imranasst", name: "Imran Ibarra (Agent)", kind: "agent", owner: IMRAN, private: true },
   { id: "agt_mine", name: "Assistant", kind: "agent", owner: ME },
-  { id: "agt_docs", name: "Docs", kind: "agent", owner: IRFAD },
-  { id: "agt_kept", name: "Payroll", kind: "agent", owner: IRFAD },
+  { id: "agt_docs", name: "Docs", kind: "agent", owner: IMRAN },
+  { id: "agt_kept", name: "Payroll", kind: "agent", owner: IMRAN },
 ];
 const usable = new Set(["agt_mine", "agt_docs"]);
 
 test("to everyone else, a private agent is its person, marked as their agent", () => {
   const dir = new Map(directoryOf(raw, own, ME, usable).map((p) => [p.id, p] as const));
-  assert.equal(dir.get("agt_simba")?.name, "Irfad Imtiaz (Agent)");
-  assert.equal(dir.get("agt_irfadasst")?.name, "Irfad Imtiaz (Agent)", "the same for his assistant");
+  assert.equal(dir.get("agt_simba")?.name, "Imran Ibarra (Agent)");
+  assert.equal(dir.get("agt_imranasst")?.name, "Imran Ibarra (Agent)", "the same for his assistant");
   assert.equal(dir.get("agt_simba")?.agentName, undefined, "no own name for a member");
   assert.equal(dir.get("agt_docs")?.name, "Docs", "a Space agent keeps its name");
   assert.equal(dir.get("agt_mine")?.name, "Rubab’s Assistant", "my own assistant is mine, by name");
-  assert.equal(asAgentOf("Irfad Imtiaz"), "Irfad Imtiaz (Agent)");
+  assert.equal(asAgentOf("Imran Ibarra"), "Imran Ibarra (Agent)");
 });
 
 test("an older server that sends the private flag with the agent's own name: the shell still names it as its person", () => {
   const old = raw.map((x) => (x.id === "agt_simba" ? { ...x, name: "Simba (Claude Code)" } : x));
-  assert.equal(directoryOf(old, own, ME, usable).find((p) => p.id === "agt_simba")?.name, "Irfad Imtiaz (Agent)");
+  assert.equal(directoryOf(old, own, ME, usable).find((p) => p.id === "agt_simba")?.name, "Imran Ibarra (Agent)");
 });
 
 test("an owner or admin gets the agent's own name for the audit details line, and the same headline", () => {
   const admin = raw.map((x) => (x.id === "agt_simba" ? { ...x, agentName: "Simba (Claude Code)" } : x));
   const p = directoryOf(admin, own, ME, usable).find((x) => x.id === "agt_simba")!;
-  assert.deepEqual([p.name, p.agentName], ["Irfad Imtiaz (Agent)", "Simba (Claude Code)"]);
+  assert.deepEqual([p.name, p.agentName], ["Imran Ibarra (Agent)", "Simba (Claude Code)"]);
 });
 
 test("its person sees it by name", () => {
   const his = raw.map((x) =>
-    x.owner === IRFAD
+    x.owner === IMRAN
       ? { id: x.id, name: x.id === "agt_simba" ? "Simba (Claude Code)" : x.name, kind: x.kind, owner: x.owner }
       : x,
   );
   const dir = new Map(
     directoryOf(
       his,
-      { id: "agt_irfadasst", name: "Irfad’s Assistant" },
-      IRFAD,
-      new Set(["agt_simba", "agt_irfadasst", "agt_docs", "agt_kept"]),
+      { id: "agt_imranasst", name: "Imran’s Assistant" },
+      IMRAN,
+      new Set(["agt_simba", "agt_imranasst", "agt_docs", "agt_kept"]),
     ).map((p) => [p.id, p] as const),
   );
   assert.equal(dir.get("agt_simba")?.name, "Simba (Claude Code)");
@@ -63,7 +63,7 @@ test("what is offered (mention picker, composer lists, Cmd-K, pickers) never hol
   const list = directoryOf(raw, own, ME, usable);
   assert.deepEqual(
     list.filter((p) => p.id !== ME && offered(p)).map((p) => p.id),
-    [IRFAD, "agt_mine", "agt_docs"],
+    [IMRAN, "agt_mine", "agt_docs"],
   );
   assert.equal(list.find((p) => p.id === "agt_kept")?.name, "Payroll", "named as it is");
 });
@@ -72,8 +72,8 @@ test("a private agent wears its person's face", () => {
   assert.deepEqual(
     [...standInsOf(directoryOf(raw, own, ME, usable))],
     [
-      ["agt_simba", IRFAD],
-      ["agt_irfadasst", IRFAD],
+      ["agt_simba", IMRAN],
+      ["agt_imranasst", IMRAN],
     ],
   );
 });
@@ -92,7 +92,7 @@ test("the audit details line: which agent, its id, the setup grant, the trace", 
     agentDetails({ ...row, after: undefined }, undefined),
     "An agent · agt_simba · trace 0123456789abcdef0123456789abcdef",
   );
-  assert.equal(agentDetails({ ...row, actor: { kind: "person" as const, id: IRFAD } }, undefined), null);
+  assert.equal(agentDetails({ ...row, actor: { kind: "person" as const, id: IMRAN } }, undefined), null);
 });
 
 test("Console: who connected it, its setup grant and its last activity", () => {
@@ -106,11 +106,11 @@ test("Console: who connected it, its setup grant and its last activity", () => {
     lastSeenAt: now - 2 * 3_600_000,
     calls: 9,
     setup: true,
-    person: IRFAD,
+    person: IMRAN,
   };
   assert.equal(
-    connectedNote(row, "Irfad Imtiaz", now),
-    "Connected by Irfad Imtiaz · Acts for them, including setup · Active 2 h ago",
+    connectedNote(row, "Imran Ibarra", now),
+    "Connected by Imran Ibarra · Acts for them, including setup · Active 2 h ago",
   );
 });
 

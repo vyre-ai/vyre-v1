@@ -24,7 +24,7 @@ const SIDEBAR_W = 244;
 
 const SPACE: SampleSpace = {
   ...northwind,
-  mailboxes: northwind.mailboxes.map((m) => (m.id === "mbx_work" ? { ...m, ownerId: "usr_irfad" } : m)),
+  mailboxes: northwind.mailboxes.map((m) => (m.id === "mbx_work" ? { ...m, ownerId: "usr_imran" } : m)),
   calendars: [
     ...northwind.calendars.map((c) =>
       c.id === "cal_work"

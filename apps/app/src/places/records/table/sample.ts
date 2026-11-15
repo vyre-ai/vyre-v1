@@ -158,7 +158,7 @@ const COMPANY = [
 ] as const;
 const STATUS = ["lead", "active", "active", "paused", "closed", "active"] as const;
 const STAGE = ["intake", "engaged", "review", "done"] as const;
-const OWNERS = ["usr_irfad", "usr_maya", "usr_omar", "usr_lena", "usr_sam"] as const;
+const OWNERS = ["usr_imran", "usr_maya", "usr_omar", "usr_lena", "usr_sam"] as const;
 const SOURCE = ["web", "referral", "event", "ad"] as const;
 
 /** One sample client; `i` makes it unique and keeps the pattern stable between runs. */
@@ -194,7 +194,7 @@ export function client(i: number, owners: readonly string[] = OWNERS): RecordRow
 export const northwind: SampleSpace = {
   id: "northwind",
   name: "Northwind",
-  me: "usr_irfad",
+  me: "usr_imran",
   types: [
     def("clients", "Client", "Clients", "people", "name", CLIENT_FIELDS),
     def("companies", "Company", "Companies", "building", "name", [
@@ -249,8 +249,8 @@ export const northwind: SampleSpace = {
       kind: "table",
       title: "My clients",
       shared: false,
-      ownerId: "usr_irfad",
-      filter: { field: "owner", op: "eq", value: "usr_irfad" },
+      ownerId: "usr_imran",
+      filter: { field: "owner", op: "eq", value: "usr_imran" },
       updatedAt: SAMPLE_NOW,
     },
   ],
@@ -436,7 +436,7 @@ function protoNorthwind(): SampleSpace {
         kind: "table",
         title: "My clients",
         shared: false,
-        ownerId: "usr_irfad",
+        ownerId: "usr_imran",
         filter: { field: "owner", op: "eq", value: "usr_maya" },
         updatedAt: SAMPLE_NOW,
       },

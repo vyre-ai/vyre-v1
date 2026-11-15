@@ -73,7 +73,7 @@ export interface SampleSpace {
 }
 
 const people: Principal[] = [
-  { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+  { id: "usr_imran", name: "Imran Ibarra", kind: "person" },
   { id: "usr_maya", name: "Maya Chen", kind: "person" },
   { id: "usr_omar", name: "Omar Haddad", kind: "person" },
   { id: "agt_intake", name: "Intake", kind: "agent" },
@@ -94,7 +94,7 @@ const fld = (
   scope: Folder["scope"],
   count: number,
   level: Folder["yourLevel"] = "manage",
-  owner = "usr_irfad",
+  owner = "usr_imran",
 ): Folder => ({ id, name, scope, owner, itemCount: count, whoCanExport: [], yourLevel: level });
 const m = (n: number): number => n * MIN_MS;
 const h = (n: number): number => n * HOUR_MS;
@@ -276,7 +276,7 @@ export const northwind: SampleSpace = {
       scope: "mine",
       usedAgo: h(40),
       fields: [
-        ["USERNAME", "irfad7", false],
+        ["USERNAME", "imran7", false],
         ["PASSWORD", "Gh9$kLp3xQw8", true],
       ],
     },
@@ -326,7 +326,7 @@ export const northwind: SampleSpace = {
     {
       item: "vit_ghl",
       actor: { kind: "service", id: "aut_weekly" },
-      onBehalfOf: { kind: "person", id: "usr_irfad" },
+      onBehalfOf: { kind: "person", id: "usr_imran" },
       action: "used",
       field: "GHL_PIT",
       ago: h(26),
@@ -340,12 +340,12 @@ export const northwind: SampleSpace = {
     },
     {
       item: "vit_ghl",
-      actor: { kind: "person", id: "usr_irfad" },
+      actor: { kind: "person", id: "usr_imran" },
       action: "revealed",
       field: "GHL_PIT",
       ago: 9 * DAY_MS,
     },
-    { item: "vit_ghl", actor: { kind: "person", id: "usr_irfad" }, action: "created", ago: 214 * DAY_MS },
+    { item: "vit_ghl", actor: { kind: "person", id: "usr_imran" }, action: "created", ago: 214 * DAY_MS },
     {
       item: "vit_stripe",
       actor: { kind: "agent", id: "agt_billing" },

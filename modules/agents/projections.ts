@@ -1601,7 +1601,7 @@ const LEARNED = (who: string): string[] => [
   "",
 ];
 
-/** The private assistant's AGENT.md: instructions to a chief of staff for one person, across their Spaces. The title is the agent's own name ("Irfad’s Assistant"). */
+/** The private assistant's AGENT.md: instructions to a chief of staff for one person, across their Spaces. The title is the agent's own name ("Imran’s Assistant"). */
 export const ASSISTANT_AGENT_MD = (name: string): string =>
   [
     `# ${name}`,

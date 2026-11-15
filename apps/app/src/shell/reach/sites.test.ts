@@ -15,7 +15,7 @@ function walk(dir: string, out: string[] = []): string[] {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) {
       if (e.name !== "node_modules") walk(p, out);
-    } else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\.|\/sample|sample\.tsx?$|\.d\.ts$/.test(p)) out.push(p);
+    } else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\.|\/sample|sample\.tsx?$|\.d\.ts$/.test(path.relative(SRC, p))) out.push(p);
   }
   return out;
 }

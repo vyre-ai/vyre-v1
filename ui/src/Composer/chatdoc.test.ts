@@ -8,7 +8,7 @@ import { tokenRanges } from "./brain.ts";
 
 const schema = getSchema(chatExtensions());
 const DRAFT = [
-  "Kickoff notes for the Meier file.",
+  "Kickoff notes for the Moore file.",
   "@Aliza please confirm that the engagement letter went out and that the client was able to sign it.",
   "The retainer is paid, the intake form is complete.",
   "@Rubab can you check the numbers on CX before Thursday, and tell us what is missing.",

@@ -1,5 +1,5 @@
 // How the engine names an agent to whoever is reading: the one resolver (owner ruling 3 Nov). An agent the reader may see is named by agents.get; someone else's private agent (their assistant,
-// an outside agent they connected) by access.principals.get, which answers it as its person, "Irfad Imtiaz (Agent)". Never a raw id: an agent nobody can name reads "An agent".
+// an outside agent they connected) by access.principals.get, which answers it as its person, "Imran Ibarra (Agent)". Never a raw id: an agent nobody can name reads "An agent".
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 
 export const UNNAMED_AGENT = "An agent";

@@ -27,7 +27,7 @@ const SITES: SiteRow[] = [
     siteId: "st_north",
     name: "Northwind site",
     kind: "site",
-    owner: "usr_irfad",
+    owner: "usr_imran",
     stagingUrl: "https://staging.northwind.example",
     state: "stopped",
     live: false,

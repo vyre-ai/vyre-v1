@@ -303,7 +303,7 @@ const lower = (a: string): string => a.trim().toLowerCase();
 /** A person on a thread by name when the thread knows it, else by address. */
 export const partyName = (p: { address: string; name?: string }): string => p.name?.trim() || p.address;
 
-/** "With Josh Cohen and Andrey Volkov": everyone on the thread but you. */
+/** "With Josh Cohen and Andrea Volkov": everyone on the thread but you. */
 export function withLine(t: MailThread, mine: ReadonlySet<string>): string {
   const names = t.participants.filter((p) => !mine.has(lower(p.address))).map(partyName);
   if (names.length === 0) return "Only you";

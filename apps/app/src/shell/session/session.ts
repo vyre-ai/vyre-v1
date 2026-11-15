@@ -507,7 +507,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const principals = derived<Principal[]>([principalsList, groupsList, agentsList, erasedList], ([p, g, ag]) => {
     const own = assistant();
     const list = new Map<string, Principal>([[me.id, me]]);
-    // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Irfad Imtiaz (Agent)") and never offered
+    // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Imran Ibarra (Agent)") and never offered
     const usable =
       ag?.status === "ready" ? new Set((ag.data as Out<"agents.list">).agents.map((a) => a.agentId)) : null;
     // what was picked on an agent's page shows on every face of that agent, in every place (not only Chats)

@@ -2,7 +2,7 @@
 // No scripted model and no tool-calling script: the person asks the lead in plain words and the script only watches, presses what a person presses, and checks the repository.
 //
 // NOT part of any CI glob. Run by hand:
-//   set -a; source /Users/irfad/Claude/simba/secrets/.env.simba; set +a
+//   set -a; source /Users/imran/Claude/simba/secrets/.env.simba; set +a
 //   VYRE_APP_DIST=<apps/app/dist> node --import tsx --import ./scripts/shots/rn-alias.mjs scripts/e2e/crew.e2e.ts
 // Secrets: the token comes from the environment, goes into the Vault through its write capability and nowhere else; every line printed or saved is scrubbed of it.
 import { DatabaseSync } from "node:sqlite";
@@ -25,7 +25,7 @@ if (!TOKEN) throw new Error("load the vault env first: VYRE_TEST_CLAUDE_SETUP_TO
 const DIST = process.env["VYRE_APP_DIST"] ?? "";
 const OUT =
   process.env["E2E_OUT"] ??
-  "/private/tmp/claude-501/-Users-irfad-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/crew-e2e";
+  "/private/tmp/claude-501/-Users-imran-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/crew-e2e";
 fs.mkdirSync(OUT, { recursive: true });
 const scrub = (s: string): string =>
   s

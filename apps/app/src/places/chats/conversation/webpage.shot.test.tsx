@@ -71,7 +71,7 @@ function Chat() {
           />
         </View>
       </View>
-      <WebPageCard id="b2" data={{ url: "https://lu.ma/mla-ai-lab-8", title: "AI Lab 8: Claude for client intake" }} />
+      <WebPageCard id="b2" data={{ url: "https://lu.ma/northwind-ai-lab-8", title: "AI Lab 8: Claude for client intake" }} />
     </View>
   );
 }

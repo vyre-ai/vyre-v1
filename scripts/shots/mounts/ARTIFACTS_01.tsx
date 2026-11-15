@@ -14,7 +14,7 @@ import type { BlockHost } from "../../../ui/src/blocks/impl-a/index.tsx";
 
 export const title = "Artifacts";
 
-const ME = "usr_irfad";
+const ME = "usr_imran";
 const NOW = Date.UTC(2026, 10, 4, 16, 0);
 const at = (d: number, h: number, m: number): number => Date.UTC(2026, 10, d, h, m);
 interface Row {
@@ -116,7 +116,7 @@ function runtime(part: string): ShellRuntime {
   return {
     ...base,
     call: call as ShellRuntime["call"],
-    me: { ...base.me, id: ME, name: "Irfad Imtiaz" },
+    me: { ...base.me, id: ME, name: "Imran Ibarra" },
     principals: { subscribe: () => () => undefined, getSnapshot: () => people } as ShellRuntime["principals"],
     clock: () => ({ now: NOW, offsetMin: 0 }),
   };
@@ -184,7 +184,7 @@ export default function Mount(): ReactNode {
     <SidebarSlotProvider
       deviceId="d1"
       personId={ME}
-      spaceId="mla"
+      spaceId="northwind"
       place="chats"
       epoch={1}
       compact={false}

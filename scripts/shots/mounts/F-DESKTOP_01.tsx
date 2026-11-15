@@ -43,14 +43,14 @@ const ROWS: Record<string, unknown> = {
   },
   "agents.list": {
     agents: [
-      { agentId: "agt_dex", name: "Dex", status: "active", hasComputer: true, ownerId: "usr_irfad", folderId: "f" },
-      { agentId: "agt_scout", name: "Scout", status: "active", hasComputer: true, ownerId: "usr_irfad", folderId: "f" },
+      { agentId: "agt_dex", name: "Dex", status: "active", hasComputer: true, ownerId: "usr_imran", folderId: "f" },
+      { agentId: "agt_scout", name: "Scout", status: "active", hasComputer: true, ownerId: "usr_imran", folderId: "f" },
       {
         agentId: "agt_docs",
         name: "Docs Writer",
         status: "active",
         hasComputer: false,
-        ownerId: "usr_irfad",
+        ownerId: "usr_imran",
         folderId: "f",
       },
     ],

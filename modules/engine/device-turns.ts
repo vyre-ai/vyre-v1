@@ -33,7 +33,7 @@ export interface HandoverDeps {
   pinned: boolean;
   /** What the computer is called, for the engine's note ("Dana's MacBook"). */
   from: string;
-  /** Open the session that goes on, next in the order without this computer: the person's own server, else the Space's own engine; with its name for the line ("the MLA server"). */
+  /** Open the session that goes on, next in the order without this computer: the person's own server, else the Space's own engine; with its name for the line ("the Northwind server"). */
   openServer(): Promise<{ session: EngineSession; name: string }>;
   /** Open a session on the same computer again (it came back). */
   reopenDevice(): Promise<EngineSession>;

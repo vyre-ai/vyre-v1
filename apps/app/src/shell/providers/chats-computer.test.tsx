@@ -19,7 +19,7 @@ import type { ShellRuntime, ShellTarget } from "./runtime.tsx";
 installComposerForTests(Composer);
 
 const PEOPLE: Principal[] = [
-  { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+  { id: "usr_imran", name: "Imran Ibarra", kind: "person" },
   { id: "agt_intake", name: "Intake", kind: "agent" },
 ];
 
@@ -55,7 +55,7 @@ function runtime(kind: "personal" | "team"): {
     recordTitle: () => undefined,
     me: PEOPLE[0]!,
     clock: conv.data.clock,
-    space: { id: "s1", kind, name: kind === "personal" ? "Irfad" : "Northwind" },
+    space: { id: "s1", kind, name: kind === "personal" ? "Imran" : "Northwind" },
     assistant: { id: "agt_assistant", name: "Assistant" },
     aiConnected: true,
     deferredModules: new Set<string>(),

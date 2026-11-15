@@ -206,8 +206,8 @@ test("screen: an agent's draft shows who drafted it, the inbox it sends from, th
   assert.ok(has(out, "Thanks for draft 3. I will read it tonight"));
   assert.ok(!has(tab("priya").out, 'data-testid="draft:'), "no draft, no card");
   assert.equal(
-    sendsLine("techmanager@mylegalacademy.com"),
-    "Sends from techmanager@mylegalacademy.com when you press Allow",
+    sendsLine("ops@northwind.example"),
+    "Sends from ops@northwind.example when you press Allow",
   );
 });
 
@@ -546,7 +546,7 @@ test("model: Send needs a recipient and subject for email, a number for text, an
   const inbox: InboxChoice = {
     id: "mbx_work",
     kind: "mailbox",
-    address: "irfad@northwind.example",
+    address: "imran@northwind.example",
     label: "Work Gmail",
     isDefault: true,
   };
@@ -742,7 +742,7 @@ test("an updated agent draft says Updated with the time, and the earlier draft i
 
 test("Edit and Send of an agent draft use the stored draft: every character of a body longer than its preview, its own recipients and Cc, never the thread that is open", async () => {
   const s = createContactTabSample();
-  const FULL = `Hi Osama,\n\nAgenda for the call:\n${"1. Instantly warm-up and sending limits for the new domains.\\n".repeat(12)}Thanks, Irfad`;
+  const FULL = `Hi Osama,\n\nAgenda for the call:\n${"1. Instantly warm-up and sending limits for the new domains.\\n".repeat(12)}Thanks, Imran`;
   const PREVIEW = `${FULL.slice(0, 40)}...`;
   const rows = s.replica.rows("drafts") as unknown as Record<string, unknown>[];
   s.replica.put("drafts", [
@@ -754,7 +754,7 @@ test("Edit and Send of an agent draft use the stored draft: every character of a
       threadId: "thr_cold",
       direction: "out",
       status: "draft",
-      from: { address: "irfad@northwind.example" },
+      from: { address: "imran@northwind.example" },
       to: [{ address: "osama@mail.example", name: "Osama" }],
       cc: [{ address: "aliza@northwind.example", name: "Aliza" }],
       subject: "Re: Cold email setup",
@@ -819,7 +819,7 @@ test("a body that ends in a cut-off marker the person did not type is never sent
       threadId: "thr_cut",
       direction: "out",
       status: "draft",
-      from: { address: "irfad@northwind.example" },
+      from: { address: "imran@northwind.example" },
       to: [{ address: "osama@mail.example" }],
       cc: [],
       subject: "Cold",
@@ -850,7 +850,7 @@ test("a body that ends in a cut-off marker the person did not type is never sent
   assert.equal(s.sent.length, before, "nothing was sent");
   assert.equal(cutOff("Agenda...", "Agenda..."), false, "a person who typed it may send it");
   assert.equal(cutOff("Agenda for the call...", ""), true);
-  assert.equal(cutOff("Thanks, Irfad", ""), false);
+  assert.equal(cutOff("Thanks, Imran", ""), false);
   await sendAgentDraft(s.data, card!, conv, "Agenda for the call: the three points we agreed.", "", "k3");
   assert.equal(s.sent.length, before + 1, "words the person typed go out");
 });

@@ -29,7 +29,7 @@ const msg = (id: string, seq: number, kind: "person" | "agent", who: string, bod
     createdAt: 1_760_000_000_000 + seq,
   }) as unknown as Message;
 const ask = {
-  ...msg("q1", 1, "person", "usr_irfad", "@Dex @Nova which storage?"),
+  ...msg("q1", 1, "person", "usr_imran", "@Dex @Nova which storage?"),
   mentions: [
     { kind: "agent", id: "agt_dex" },
     { kind: "agent", id: "agt_nova" },
@@ -40,20 +40,20 @@ const nova = msg("a2", 3, "agent", "agt_nova", "The server disk.");
 
 test("answers: each tagged agent's first reply after the ask, nothing until two have answered, folded once the person writes", () => {
   const ids = ["agt_dex", "agt_nova"];
-  assert.equal(roundAnswers([ask, dex] as never, "q1", "usr_irfad", ids), null);
+  assert.equal(roundAnswers([ask, dex] as never, "q1", "usr_imran", ids), null);
   assert.deepEqual(
-    roundAnswers([ask, dex, nova] as never, "q1", "usr_irfad", ids)?.map((a) => [a.agentId, a.text]),
+    roundAnswers([ask, dex, nova] as never, "q1", "usr_imran", ids)?.map((a) => [a.agentId, a.text]),
     [
       ["agt_dex", "Object storage."],
       ["agt_nova", "The server disk."],
     ],
   );
   assert.equal(
-    roundAnswers([ask, dex, nova, msg("p2", 4, "person", "usr_irfad", "ok")] as never, "q1", "usr_irfad", ids),
+    roundAnswers([ask, dex, nova, msg("p2", 4, "person", "usr_imran", "ok")] as never, "q1", "usr_imran", ids),
     null,
   );
   assert.equal(
-    roundAnswers([ask, dex, nova, msg("a3", 4, "agent", "agt_sol", "me too")] as never, "q1", "usr_irfad", ids)?.length,
+    roundAnswers([ask, dex, nova, msg("a3", 4, "agent", "agt_sol", "me too")] as never, "q1", "usr_imran", ids)?.length,
     2,
     "an agent that was not asked is not in the round",
   );
@@ -127,7 +127,7 @@ test("the card: a tab per agent, a press on a tab shows its answer, Go with call
   await flush();
   assert.equal(find(early, "round-table-q1"), null);
   await act(async () => {
-    s.replica.put("messages", [ask, dex, nova, msg("p2", 4, "person", "usr_irfad", "Decided")]);
+    s.replica.put("messages", [ask, dex, nova, msg("p2", 4, "person", "usr_imran", "Decided")]);
   });
   await flush();
   assert.equal(find(root, "round-table-q1"), null, "folds once the person wrote after the answers");

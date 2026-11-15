@@ -10,6 +10,6 @@
     { "id": "ONEID2_01-sso-known", "route": "/m/ONEID2_01?view=sso-known", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='join-as-password']", "note": "Continue as for a person this device knows from Google: one field takes the password set at joining, or the recovery code. Asked once on this device." },
     { "id": "ONEID2_01-sso-newpass", "route": "/m/ONEID2_01?view=sso-newpass", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='join-as-new-password']", "note": "After the recovery code on Continue as: a password chosen once." },
     { "id": "ONEID2_01-link", "route": "/m/ONEID2_01?view=link", "proto": "settings,{skin}", "waitFor": "[data-testid='link-keep-password']", "note": "Settings > Sign-in > Use one account everywhere: keep the Personal account, prove both." },
-    { "id": "ONEID2_01-link-done", "route": "/m/ONEID2_01?view=link-done", "proto": "settings,{skin}", "waitFor": "[data-testid='link-done']", "note": "Done: MLA now signs you in as irfad, with the same password and recovery code; your work there is unchanged." }
+    { "id": "ONEID2_01-link-done", "route": "/m/ONEID2_01?view=link-done", "proto": "settings,{skin}", "waitFor": "[data-testid='link-done']", "note": "Done: Northwind now signs you in as imran, with the same password and recovery code; your work there is unchanged." }
   ]
 }

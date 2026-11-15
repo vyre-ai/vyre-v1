@@ -13,7 +13,7 @@ export function waiting(own: boolean, count = 1): ConversationData {
       messageId: `q${i + 1}`,
       threadId: "c1",
       threadSeq: 99 + i,
-      author: { kind: "person" as const, id: "usr_irfad" },
+      author: { kind: "person" as const, id: "usr_imran" },
       kind: "text" as const,
       body: i === 0 ? "Also add the deposit to the summary" : `And one more thing, number ${i + 1}`,
       blocks: [],
@@ -33,7 +33,7 @@ export function waiting(own: boolean, count = 1): ConversationData {
       state: "writing" as const,
       startedAt: SAMPLE_NOW - 90_000,
       triggerId: "m6",
-      asker: own ? "usr_irfad" : "usr_maya",
+      asker: own ? "usr_imran" : "usr_maya",
     },
   ];
   const live = {

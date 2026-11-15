@@ -15,7 +15,7 @@ export type OutChannel = "email" | "text";
 export interface ComposerSender {
   id: string;
   channel: OutChannel;
-  /** The name the person gave it ("Irfad at MLA"), else the address. */
+  /** The name the person gave it ("Imran at Northwind"), else the address. */
   name: string;
   address: string;
   /** The service it goes through, as people know it: Gmail, Outlook, Mailgun, Resend, Twilio. */

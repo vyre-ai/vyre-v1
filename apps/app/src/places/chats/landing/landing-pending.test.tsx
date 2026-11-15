@@ -18,7 +18,7 @@ import { Landing } from "./Landing.tsx";
 
 installComposerForTests(Composer);
 
-const ME: Principal = { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" };
+const ME: Principal = { id: "usr_imran", name: "Imran Ibarra", kind: "person" };
 const REAL = "agt_real_assistant";
 const ready = (data: unknown): LiveQuery<unknown> => {
   const snap = { status: "ready" as const, data };

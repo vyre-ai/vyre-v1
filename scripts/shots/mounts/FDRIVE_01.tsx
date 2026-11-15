@@ -28,7 +28,7 @@ const f = (id: string, name: string, ago: number, kind: "pdf" | "spreadsheet" = 
   kind,
   size,
   ago,
-  by: "usr_irfad",
+  by: "usr_imran",
   source: "Google Drive",
   mime: kind === "pdf" ? PDF : "text/csv",
 });
@@ -177,7 +177,7 @@ function Trail({ where }: { where: "shared" | "folder" }): ReactNode {
   const viewer = useMemo(() => {
     const v = createSampleViewer();
     const row = v.rows.get("f_offer")!;
-    row.data = { ...row.data, file: { ...row.data.file, name: "MLA logo.png" } } as ViewerData;
+    row.data = { ...row.data, file: { ...row.data.file, name: "Northwind logo.png" } } as ViewerData;
     return { ...v.data, pathOf: () => "Shared with me" };
   }, []);
   const data = useMemo(
@@ -185,7 +185,7 @@ function Trail({ where }: { where: "shared" | "folder" }): ReactNode {
       ...files.data,
       call: async (cap: string, input: unknown): Promise<unknown> =>
         cap === "files.get"
-          ? { file: { fileId: "f_offer", name: "MLA logo.png", folderId: "fld_drive" } }
+          ? { file: { fileId: "f_offer", name: "Northwind logo.png", folderId: "fld_drive" } }
           : files.data.call(cap, input),
     }),
     [files],

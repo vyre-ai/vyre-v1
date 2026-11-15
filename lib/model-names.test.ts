@@ -19,7 +19,7 @@ test("a model reads as a person says it, never as the vendor's slug", () => {
 
 test("an account reads as its name: no engine, no handle underscores", () => {
   assert.equal(accountName("claude-code · Maya_Claude"), "Maya Claude");
-  assert.equal(accountName("OpenAI · irfad@mylegalacademy.com"), "irfad@mylegalacademy.com");
+  assert.equal(accountName("OpenAI · imran@northwind.example"), "imran@northwind.example");
   assert.equal(accountName("#Space_OCG"), "Space OCG");
   assert.equal(accountName("OpenCode Go · Space"), "Space");
   assert.equal(accountName(undefined), "");

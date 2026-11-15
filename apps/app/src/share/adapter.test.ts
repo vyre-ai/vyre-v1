@@ -7,7 +7,7 @@ import type { Level } from "../../../../packages/contracts/src/types.ts";
 
 type Calls = Array<{ cap: string; input: Record<string, unknown> }>;
 const names: Record<string, string> = {
-  usr_me: "Irfad",
+  usr_me: "Imran",
   usr_omar: "Omar",
   grp_everyone: "Everyone",
   grp_ops: "Ops",
@@ -70,7 +70,7 @@ for (const [kind, labels] of SIMPLE) {
     );
     const a = accessAdapter({ call: w.call, nameOf }, kind, { id: "x_1" });
     const s = await a.list();
-    assert.equal(s.owner?.name, "Irfad");
+    assert.equal(s.owner?.name, "Imran");
     assert.equal(s.anyone, "view");
     assert.deepEqual(
       s.entries.map((e) => [e.name, e.via, e.fromFolderId]),

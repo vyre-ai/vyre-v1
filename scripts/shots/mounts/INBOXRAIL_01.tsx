@@ -38,7 +38,7 @@ function ShellView({ view, skin }: { view: string; skin: string }): ReactNode {
       },
     };
     const theme = createThemeController({
-      personId: "irfad",
+      personId: "imran",
       spaceId: "nw",
       spaceSkin: { nw: skin, hb: skin, me: skin },
       prefersDark: skin === "graphite",

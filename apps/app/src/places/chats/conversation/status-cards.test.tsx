@@ -113,7 +113,7 @@ test("a status card: what happened, one fix button, and a ... menu with the rest
         },
       }}
       data={{
-        title: "The MLA update could not start",
+        title: "The Northwind update could not start",
         body: "The server ran out of disk.",
         tone: "warn",
         fix: { key: "fix", label: "Free space and update" },

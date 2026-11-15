@@ -44,7 +44,7 @@ export default function Mount() {
               modelTitle: st === "strip" ? "Claude Sonnet 5.5" : "Auto",
               effort: "medium",
               provider: "claude_code",
-              ...(st === "strip" ? { accountName: "Irfad personal", context: { used: 140000, window: 200000 } } : {}),
+              ...(st === "strip" ? { accountName: "Imran personal", context: { used: 140000, window: 200000 } } : {}),
             },
           ]}
           mode="ask"

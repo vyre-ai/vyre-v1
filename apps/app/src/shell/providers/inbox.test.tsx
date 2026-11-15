@@ -14,7 +14,7 @@ import type { ShellRuntime, ShellTarget } from "./runtime.tsx";
 function runtime(): { rt: ShellRuntime; opened: ShellTarget[] } {
   const s = createSampleInbox();
   const opened: ShellTarget[] = [];
-  const me: Principal = { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" };
+  const me: Principal = { id: "usr_imran", name: "Imran Ibarra", kind: "person" };
   const principals: LiveQuery<Principal[]> = {
     subscribe: () => () => undefined,
     getSnapshot: () => ({ status: "ready", data: [me] }),
@@ -121,12 +121,12 @@ test("inbox: an open conversation is the conversation with the call bar, so a ca
 test("inbox: the Calendar's free and busy menu lists the Space's people, as ids the availability capability takes", () => {
   assert.deepEqual(
     calendarTeam([
-      { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+      { id: "usr_imran", name: "Imran Ibarra", kind: "person" },
       { id: "usr_maya", name: "Maya Chen", kind: "person" },
       { id: "agt_intake", name: "Intake", kind: "agent" },
     ]),
     [
-      { email: "usr_irfad", name: "Irfad Imtiaz" },
+      { email: "usr_imran", name: "Imran Ibarra" },
       { email: "usr_maya", name: "Maya Chen" },
     ],
     "people only: an agent has no calendar",

@@ -175,7 +175,7 @@ test("the controller stamps the tab in use, saves it, and closes a saved duplica
       data.set(k, v);
     },
   };
-  const key = tabsStorageKey("mac", "irfad", "nw");
+  const key = tabsStorageKey("mac", "imran", "nw");
   data.set(
     key,
     writeTabs(
@@ -189,7 +189,7 @@ test("the controller stamps the tab in use, saves it, and closes a saved duplica
       ),
     ),
   );
-  const c = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage, start: "chats" });
+  const c = createTabsController({ deviceId: "mac", personId: "imran", spaceId: "nw", storage, start: "chats" });
   assert.deepEqual(
     c
       .state()
@@ -215,7 +215,7 @@ test("New chat goes to the blank chat that is open: the tab count never goes up 
       data.set(k, v);
     },
   };
-  const c = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage, start: "chats" });
+  const c = createTabsController({ deviceId: "mac", personId: "imran", spaceId: "nw", storage, start: "chats" });
   const counts: number[] = [];
   c.subscribe(() => counts.push(c.state().tabs.length));
   c.openPlace("chats", "subject=thread:thr_1", "New chat");

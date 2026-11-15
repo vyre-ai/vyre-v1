@@ -17,12 +17,12 @@ const nodes = [
 const names = (c: readonly { name: string }[]): string[] => c.map((x) => x.name);
 
 test("the trail: from a folder it is Files and the folders to the file; from each place it is that place; the last crumb is the file", () => {
-  const file = { name: "MLA logo.png", folderId: "b" };
+  const file = { name: "Northwind logo.png", folderId: "b" };
   assert.deepEqual(names(fileTrail({ kind: "folder", id: "b" }, nodes, file)), [
     "Files",
     "Marketing",
     "Brand",
-    "MLA logo.png",
+    "Northwind logo.png",
   ]);
   const places: [Where["kind"], string][] = [
     ["recent", "Recent"],
@@ -33,7 +33,7 @@ test("the trail: from a folder it is Files and the folders to the file; from eac
   ];
   for (const [kind, label] of places) {
     const t = fileTrail({ kind } as Where, nodes, file);
-    assert.deepEqual(names(t), [label, "MLA logo.png"], kind);
+    assert.deepEqual(names(t), [label, "Northwind logo.png"], kind);
     assert.equal(t[0]!.id, `place:${kind}`);
   }
   // a file in a folder the person cannot see: only what they can open is on the path
@@ -68,9 +68,9 @@ test("the path names the place and carries no Back control of its own: leaving a
   const restore = installDom();
   try {
     assert.equal(upHash("subject=file:f"), "", "a file this page has not read goes up to the Files landing");
-    const { root, left } = await rig({ kind: "shared" }, { name: "MLA logo.png", folderId: "fld_daily" });
+    const { root, left } = await rig({ kind: "shared" }, { name: "Northwind logo.png", folderId: "fld_daily" });
     assert.match(textOf(find(root, "files-path")), /Shared with me/);
-    assert.match(textOf(find(root, "files-title")), /MLA logo\.png/);
+    assert.match(textOf(find(root, "files-title")), /Northwind logo\.png/);
     assert.equal(find(root, "file-back"), null, "no second back control");
     assert.deepEqual(left, [], "nothing left on its own");
     assert.equal(
@@ -79,7 +79,7 @@ test("the path names the place and carries no Back control of its own: leaving a
       "read once, a file opened cold goes up to a folder the person can list",
     );
     // the same file now sits in a folder the person cannot list (shared into a private folder): it is forgotten, and Back goes to the Files landing
-    await rig({ kind: "shared" }, { name: "MLA logo.png", folderId: "fld_private_elsewhere" });
+    await rig({ kind: "shared" }, { name: "Northwind logo.png", folderId: "fld_private_elsewhere" });
     assert.equal(upHash("subject=file:f"), "", "never up to a folder that would refuse");
     assert.equal(upHash("subject=file:other"), "", "another file is not placed by it");
   } finally {

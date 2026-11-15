@@ -49,17 +49,17 @@ async function boot(caddy: FakeCaddy, address: string | null): Promise<{ daemon:
 }
 
 test("the address forms Caddy fronts become a host; the local URL, ports and IP addresses do not", () => {
-  assert.equal(ingressHostOf("mla.vyre.run"), "mla.vyre.run");
-  assert.equal(ingressHostOf("https://MLA.vyre.run/"), "mla.vyre.run");
+  assert.equal(ingressHostOf("northwind.vyre.run"), "northwind.vyre.run");
+  assert.equal(ingressHostOf("https://Northwind.vyre.run/"), "northwind.vyre.run");
   for (const a of [
     null,
     "",
     "http://0.0.0.0:8420",
-    "http://mla.vyre.run",
-    "https://mla.vyre.run:8443",
+    "http://northwind.vyre.run",
+    "https://northwind.vyre.run:8443",
     "203.0.113.7",
-    "https://u:p@mla.vyre.run",
-    "https://mla.vyre.run/app",
+    "https://u:p@northwind.vyre.run",
+    "https://northwind.vyre.run/app",
   ])
     assert.equal(ingressHostOf(a), null, String(a));
 });
@@ -141,7 +141,7 @@ test("with no address nothing is written to Caddy", async () => {
 
 test("an own address under vyre.run gets the route for a.<address>, never for a relay-form name; a host set by hand gets its own route whatever it is under", async () => {
   const caddy = new FakeCaddy();
-  const { daemon, dir } = await boot(caddy, "mla.vyre.run");
+  const { daemon, dir } = await boot(caddy, "northwind.vyre.run");
   try {
     await daemon.ensureIngress();
     const router = new CaddyRouter({
@@ -150,8 +150,8 @@ test("an own address under vyre.run gets the route for a.<address>, never for a 
     });
     assert.deepEqual(
       (await router.hosts()).sort(),
-      ["a.mla.vyre.run", "mla.vyre.run"],
-      "no mla-a.vyre.run: that name is the relay's",
+      ["a.northwind.vyre.run", "northwind.vyre.run"],
+      "no northwind-a.vyre.run: that name is the relay's",
     );
   } finally {
     await daemon.stop();

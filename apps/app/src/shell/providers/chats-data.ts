@@ -45,7 +45,7 @@ export interface OwnAssistant {
   name: string;
 }
 /**
- * An agent someone else's person is credited for ("Irfad Imtiaz (Agent)": an outside agent such as Claude Code or Codex, or another person's Assistant) is never a mention. The server names such an agent
+ * An agent someone else's person is credited for ("Imran Ibarra (Agent)": an outside agent such as Claude Code or Codex, or another person's Assistant) is never a mention. The server names such an agent
  * so; a Space agent never carries that suffix.
  */
 const credited = (p: Principal): boolean => creditedToPerson(p);

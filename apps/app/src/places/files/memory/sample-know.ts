@@ -15,9 +15,9 @@ export const KNOW_NOW = T(24, 9, 52);
 const DAY = 86_400_000;
 export const KEEP_DAYS = 60;
 
-export const ME = "usr_irfad";
+export const ME = "usr_imran";
 export const PEOPLE: Record<string, string> = {
-  usr_irfad: "Irfad Imtiaz",
+  usr_imran: "Imran Ibarra",
   usr_maya: "Maya Chen",
   usr_omar: "Omar Haddad",
   usr_lena: "Lena Ortiz",
@@ -193,7 +193,7 @@ const SEED_FACTS = [
     "Prefers updates on Fridays.",
     "space",
     T(24, 9, 38),
-    { k: "chat", label: "Brooks weekly update", chat: "k2", i: 2, who: "Irfad Imtiaz" },
+    { k: "chat", label: "Brooks weekly update", chat: "k2", i: 2, who: "Imran Ibarra" },
     "Assistant",
   ),
   F(
@@ -201,7 +201,7 @@ const SEED_FACTS = [
     "Reads updates on his phone: three bullets, no attachments, nothing before 9 am.",
     "space",
     T(12, 15, 5),
-    { k: "chat", label: "Brooks kickoff", chat: "k1", i: 2, who: "Irfad Imtiaz" },
+    { k: "chat", label: "Brooks kickoff", chat: "k1", i: 2, who: "Imran Ibarra" },
     "Intake",
   ),
   F(
@@ -260,7 +260,7 @@ const SEED_FACTS = [
     "Leads the Brooks onboarding.",
     "project",
     T(12, 15, 20),
-    { k: "chat", label: "Brooks kickoff", chat: "k1", i: 0, who: "Irfad Imtiaz" },
+    { k: "chat", label: "Brooks kickoff", chat: "k1", i: 0, who: "Imran Ibarra" },
     "Intake",
   ),
   F(
@@ -316,7 +316,7 @@ const SEED_FACTS = [
     "The standard consult fee is $250.",
     "space",
     T(8, 14, 2),
-    { k: "chat", label: "Competitor pricing", chat: "c2", i: 0, who: "Irfad Imtiaz" },
+    { k: "chat", label: "Competitor pricing", chat: "c2", i: 0, who: "Imran Ibarra" },
     "Research",
     { history: [{ at: T(3, 10, 0), by: "Research", text: "The standard consult fee is $200." }] },
   ),
@@ -325,7 +325,7 @@ const SEED_FACTS = [
     "Referrals from partner firms get the first consult free.",
     "space",
     T(20, 16, 40),
-    { k: "chat", label: "Rivera intake", chat: "c1", i: 0, who: "Irfad Imtiaz" },
+    { k: "chat", label: "Rivera intake", chat: "c1", i: 0, who: "Imran Ibarra" },
     "Intake",
   ),
   F(
@@ -341,7 +341,7 @@ const SEED_FACTS = [
     "Office hours are 9 to 5 Pacific.",
     "space",
     T(2, 9, 0),
-    { k: "record", label: "Space settings", who: "Irfad Imtiaz" },
+    { k: "record", label: "Space settings", who: "Imran Ibarra" },
     "Assistant",
   ),
   F(
@@ -397,7 +397,7 @@ const SEED_FACTS = [
     "Send the intake form within 5 minutes of a booking.",
     "agent",
     T(22, 17, 10),
-    { k: "chat", label: "Rivera intake", chat: "c1", i: 1, who: "Irfad Imtiaz" },
+    { k: "chat", label: "Rivera intake", chat: "c1", i: 1, who: "Imran Ibarra" },
     "Intake",
     { history: [{ at: T(20, 11, 0), by: "Intake", text: "Send the intake form within 10 minutes of a booking." }] },
   ),
@@ -460,7 +460,7 @@ const SEED_FACTS = [
     "The office was closed Jul 3 to Jul 6.",
     "space",
     T(-95, 9, 0),
-    { k: "record", label: "Space settings", who: "Irfad Imtiaz" },
+    { k: "record", label: "Space settings", who: "Imran Ibarra" },
     "Assistant",
     { gone: 112, why: "Untouched in Trash for 60 days" },
   ),
@@ -861,7 +861,7 @@ const USED: Record<string, { facts: Array<[string, string]>; quotes: string[] }>
 const QUOTES: Record<string, { text: string; author: string; at: number; chat: string; i: number }> = {
   quote_ian_updates: {
     text: "Ian was clear about updates. He reads everything on his phone, so three bullets, no attachments, and nothing before 9 in the morning.",
-    author: "usr_irfad",
+    author: "usr_imran",
     at: T(12, 15, 5),
     chat: "k1",
     i: 2,
@@ -1501,9 +1501,9 @@ export function createKnowSample(o: KnowSampleOptions = {}): KnowSample {
           k: "chat",
           label: chatKey ? CHAT[chatKey]!.title : "This chat",
           ...(chatKey ? { chat: chatKey } : {}),
-          who: "Irfad Imtiaz",
+          who: "Imran Ibarra",
         },
-        "Irfad Imtiaz",
+        "Imran Ibarra",
       );
       keptByPerson.add(f.factId);
       if (chatKey && i.sourceRef) {

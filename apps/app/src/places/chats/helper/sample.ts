@@ -13,7 +13,7 @@ const at = (h: number, min: number, sec = 0): number => Date.UTC(2025, 9, 24, h,
 
 export type Variant = "done" | "running" | "notes";
 
-export const NAMES: Record<string, string> = namesFor("northwind", { usr_irfad: "You" });
+export const NAMES: Record<string, string> = namesFor("northwind", { usr_imran: "You" });
 
 function build(variant: Variant): { thread: Thread; messages: Message[] } {
   const done = variant === "done";
@@ -34,7 +34,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[] } {
     members: [{ kind: "agent", id: agent }],
     agents: [{ agentId: agent, mode: "lead", model: "haiku" }],
     createdAt: started,
-    ...(notes ? { starter: "usr_irfad" } : {}),
+    ...(notes ? { starter: "usr_imran" } : {}),
     path: [parent, { title, threadId: done ? "h1" : "h4" }],
     ...(done ? { closedAt: started + 31_000 } : {}),
   };
@@ -112,8 +112,8 @@ function build(variant: Variant): { thread: Thread; messages: Message[] } {
             },
           ]),
           {
-            ...msg(4, 4, "usr_irfad", "Also tell me the filing date.", started + 14_000),
-            author: { kind: "person", id: "usr_irfad" },
+            ...msg(4, 4, "usr_imran", "Also tell me the filing date.", started + 14_000),
+            author: { kind: "person", id: "usr_imran" },
             kind: "text",
           } as Message,
           msg(5, 5, agent, "Noted. I will include the filing date.", started + 16_000),
@@ -225,7 +225,7 @@ export function createSample(variant: Variant = "done", o: { online?: boolean; h
         "before a helper acts, keep to the Space rules",
         "command",
         { command: "rules.sh" },
-        "usr_irfad",
+        "usr_imran",
         "admin",
       ),
     ]);
@@ -270,7 +270,7 @@ export function createSample(variant: Variant = "done", o: { online?: boolean; h
     connection,
     threadId: thread.threadId,
     nameOf: (id) => NAMES[id] ?? nameOf("northwind", id),
-    me: { id: "usr_irfad" },
+    me: { id: "usr_imran" },
     nav,
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };

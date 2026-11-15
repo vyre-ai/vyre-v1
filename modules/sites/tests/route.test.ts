@@ -191,7 +191,7 @@ test("without an artifact host there is no address to open: nothing with a token
       0,
       "no ticket was made",
     );
-    configureRoutes(host({ artifactHost: () => "mla-a.vyre.run" }) as never);
+    configureRoutes(host({ artifactHost: () => "northwind-a.vyre.run" }) as never);
     await assert.rejects(
       () =>
         h["sites.artifact_open"]!(
@@ -259,14 +259,14 @@ test("artifact_publish's result says whether it was opened for the person (requi
 
 test("with an artifact host, artifact_open gives a one-time code for it: one use, a minute, and the session it starts is for that artifact only", async () => {
   const w = harness();
-  configureRoutes(host({ artifactHost: () => "mla-a.vyre.run" }) as never);
+  configureRoutes(host({ artifactHost: () => "northwind-a.vyre.run" }) as never);
   try {
     const made = await h["sites.create"]!(w.ctx, { name: "Numbers", kind: "artifact", port: 3000 });
     await h["sites.publish"]!(w.ctx, { siteId: made.site.siteId });
     const open = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
     const code = /^\/x\/([0-9a-f]{48})$/.exec(open.path)?.[1] as string;
     assert.ok(code, open.path);
-    assert.equal(open.url, `https://mla-a.vyre.run/x/${code}`, "the artifact host, never the app's origin");
+    assert.equal(open.url, `https://northwind-a.vyre.run/x/${code}`, "the artifact host, never the app's origin");
     assert.equal(open.expiresAt - w.ctx.now(), EXCHANGE_MS);
     // the code is not a session: the app origin's old keyed route cannot use it
     assert.equal(await routeByTicket(w.ctx, made.site.siteId, code, w.ctx.now()), null);

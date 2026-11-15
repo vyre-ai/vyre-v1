@@ -113,23 +113,23 @@ test("the alert sentence says who, when and where; a Personal Automation tells o
     chan = (id: string): string => (id === "chn_sales" ? "#sales" : id);
   const lead = alertsOf(s, "aut_lead");
   assert.equal(
-    alertSentence({ kind: "space", ownerId: "usr_irfad", alerts: lead }, name, chan, "usr_irfad"),
+    alertSentence({ kind: "space", ownerId: "usr_imran", alerts: lead }, name, chan, "usr_imran"),
     "Tells you and Maya Chen on every failure, in Needs you and #sales.",
   );
   assert.equal(
-    alertSentence({ kind: "space", ownerId: "usr_irfad", alerts: lead }, name, chan, "usr_omar"),
-    "Tells Irfad Imtiaz and Maya Chen on every failure, in Needs you and #sales.",
+    alertSentence({ kind: "space", ownerId: "usr_imran", alerts: lead }, name, chan, "usr_omar"),
+    "Tells Imran Ibarra and Maya Chen on every failure, in Needs you and #sales.",
   );
   assert.equal(
-    alertSentence({ kind: "space", ownerId: "usr_irfad", alerts: alertsOf(s, "aut_invoice") }, name, chan, "usr_irfad"),
+    alertSentence({ kind: "space", ownerId: "usr_imran", alerts: alertsOf(s, "aut_invoice") }, name, chan, "usr_imran"),
     "Tells you after 3 failures in a row, in Needs you and a direct message.",
   );
   assert.equal(
     alertSentence(
-      { kind: "personal", ownerId: "usr_irfad", alerts: alertsOf(s, "aut_brief") },
+      { kind: "personal", ownerId: "usr_imran", alerts: alertsOf(s, "aut_brief") },
       name,
       chan,
-      "usr_irfad",
+      "usr_imran",
     ),
     "Tells you on every failure, in Needs you.",
   );
@@ -215,7 +215,7 @@ test("the Alerts tab: the sentence, Who, When, Where and the escalation chain, f
     "sections in order",
   );
   assert.ok(
-    has(out, 'data-testid="row-who-usr_irfad"') &&
+    has(out, 'data-testid="row-who-usr_imran"') &&
       has(out, 'data-testid="row-who-usr_maya"') &&
       has(out, 'data-testid="who-add"'),
   );
@@ -271,7 +271,7 @@ test("the Settings tab of a Space Automation: scope, owner, access, followers, l
   const out = config(nw(), "aut_lead", "settings");
   assert.ok(
     has(out, 'data-testid="automation-config"') &&
-      has(out, "Space, owned by Irfad Imtiaz") &&
+      has(out, "Space, owned by Imran Ibarra") &&
       has(out, "New lead follow-up"),
   );
   const order = ["Scope", "Files", "Owner", "Access", "Followers", "Loops", "Runs on access given to it"].map((t) =>
@@ -335,7 +335,7 @@ test("followers and access go through their own capabilities and show in the pan
   assert.deepEqual(
     before.map((r) => [r.subjectId, r.level, r.via, r.through]),
     [
-      ["usr_irfad", "manage", "owner", "owner"],
+      ["usr_imran", "manage", "owner", "owner"],
       ["usr_maya", "edit", "grant", "direct"],
       ["usr_omar", "view", "grant", "direct"],
       ["agt_intake", "use", "grant", "direct"],
@@ -358,11 +358,11 @@ test("followers and access go through their own capabilities and show in the pan
   assert.deepEqual(after.map((r) => r.subjectId).sort(), [
     "agt_intake",
     "grp_admins",
-    "usr_irfad",
+    "usr_imran",
     "usr_lena",
     "usr_maya",
   ]);
-  assert.equal(after.find((r) => r.subjectId === "usr_irfad")!.via, "owner", "the owner cannot be removed");
+  assert.equal(after.find((r) => r.subjectId === "usr_imran")!.via, "owner", "the owner cannot be removed");
 });
 
 test("Make a personal copy and the webhook address use their own capabilities", async () => {
@@ -492,33 +492,33 @@ test("Promote waits for a shared API key: a step with none to use keeps the butt
 test("promoting calls automations.promote with the keys chosen; it refuses a missing or subscription key and the Automation becomes a Space Automation", async () => {
   const s = nw();
   assert.deepEqual(
-    promoteInput("aut_brief", "usr_irfad", [
+    promoteInput("aut_brief", "usr_imran", [
       { stepId: "brief", keyId: "key_nw_openai" },
       { stepId: "x", keyId: "" },
     ]),
     {
       automationId: "aut_brief",
       confirm: true,
-      ownerId: "usr_irfad",
+      ownerId: "usr_imran",
       replaceKeys: [{ stepId: "brief", keyId: "key_nw_openai" }],
     },
   );
   await assert.rejects(
-    () => s.data.call("automations.promote", promoteInput("aut_brief", "usr_irfad", [])),
+    () => s.data.call("automations.promote", promoteInput("aut_brief", "usr_imran", [])),
     /Choose a shared API key/,
   );
   await assert.rejects(
     () =>
       s.data.call(
         "automations.promote",
-        promoteInput("aut_brief", "usr_irfad", [{ stepId: "brief", keyId: "key_claude" }]),
+        promoteInput("aut_brief", "usr_imran", [{ stepId: "brief", keyId: "key_claude" }]),
       ),
     /subscription sign-in cannot be shared/,
   );
   assert.equal(autoOf(s, "aut_brief")["kind"], "personal", "nothing changed by the refusals");
   const out = (await s.data.call(
     "automations.promote",
-    promoteInput("aut_brief", "usr_irfad", [{ stepId: "brief", keyId: "key_nw_openai" }]),
+    promoteInput("aut_brief", "usr_imran", [{ stepId: "brief", keyId: "key_nw_openai" }]),
   )) as { automation: { kind: string; definition: { nodes: { id: string; ai?: { keyId?: string } }[] } } };
   assert.equal(out.automation.kind, "space");
   assert.equal(
@@ -526,7 +526,7 @@ test("promoting calls automations.promote with the keys chosen; it refuses a mis
     "key_nw_openai",
     "the AI step now runs on the shared key",
   );
-  assert.ok(has(config(s, "aut_brief", "settings"), "Space, owned by Irfad Imtiaz"));
+  assert.ok(has(config(s, "aut_brief", "settings"), "Space, owned by Imran Ibarra"));
 });
 
 /* ---------- the Journey designer ---------- */

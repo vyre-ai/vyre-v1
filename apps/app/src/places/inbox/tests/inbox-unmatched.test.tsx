@@ -205,7 +205,7 @@ test("Add as a client is one tap: the line offers it, the call carries both extr
 test("numbers, callers and suggestions come from the Space's own numbers and calls", () => {
   const s = createUnmatchedSample();
   const numbers = snap<NumbersOut>(s, "telephony.softphone", "numbers");
-  assert.deepEqual(numbersOf(numbers), [{ id: "+1 415 555 0132", label: "Irfad", num: "+1 415 555 0132" }]);
+  assert.deepEqual(numbersOf(numbers), [{ id: "+1 415 555 0132", label: "Imran", num: "+1 415 555 0132" }]);
   const calls = snap<CallsOut>(s, "telephony.softphone", "calls");
   const rows = snap<{ rows: ContactRow[] }>(s, "inbox.contact-list", "rows").rows;
   assert.equal(callerOf("+1 917 555 0126", calls, rows).name, "Dana Whitfield", "a caller the Space knows");

@@ -17,10 +17,10 @@ const setup = (): void => {
 test("message rows and Needs you rows show the assistant as the Vyre mark, whatever it is called", () => {
   setup();
   assert.match(
-    renderToStaticMarkup(<NeedsFace name="Irfad’s Assistant" seedId="agt_me" kind="agent" size={20} />),
+    renderToStaticMarkup(<NeedsFace name="Imran’s Assistant" seedId="agt_me" kind="agent" size={20} />),
     mark,
   );
-  assert.match(renderToStaticMarkup(<NeedsFace name="Irfad Assistant" seedId="agt_me" size={26} />), mark);
+  assert.match(renderToStaticMarkup(<NeedsFace name="Imran Assistant" seedId="agt_me" size={26} />), mark);
 });
 
 test("the chat header and the chat list show the assistant as the Vyre mark", () => {
@@ -28,7 +28,7 @@ test("the chat header and the chat list show the assistant as the Vyre mark", ()
   assert.match(
     renderToStaticMarkup(
       <FaceButton
-        name="Irfad Assistant"
+        name="Imran Assistant"
         seedId="agt_me"
         mode="lead"
         working={false}
@@ -41,7 +41,7 @@ test("the chat header and the chat list show the assistant as the Vyre mark", ()
   );
   const row = rowOf(
     { threadId: "t1", title: "hi", agents: ["agt_me"], unread: 0, working: false, starred: false, lastAt: 1 } as never,
-    () => "Irfad Assistant",
+    () => "Imran Assistant",
   );
   assert.match(renderToStaticMarkup(<SideFace name={row.who} seedId={row.whoId} kind={row.kind} size={18} />), mark);
 });
