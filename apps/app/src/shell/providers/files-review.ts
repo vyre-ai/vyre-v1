@@ -1,5 +1,6 @@
 // The Files review surfaces' data context (changeset header, git row, history, diff tabs, lint bar) built from the Space's runtime: live reads over the kept copy, the capability door, names,
 // and where a click goes (the shell opens the diff and history screens as tabs).
+import { openIn } from "../tabs/open-how.ts";
 import type { ReviewData } from "../../places/files/review/index.ts";
 import { capLive, nameLookup } from "./records-live.ts";
 import { openAsk } from "./ask.ts";
@@ -19,7 +20,7 @@ export function reviewData(rt: ShellRuntime): ReviewData {
     call: rt.call,
     nameOf: nameLookup(rt),
     openFileTab: (id, background) =>
-      rt.open({ subject: { type: "file", id }, ...(background ? { background: true } : {}) }),
+      openIn(background ? "behind" : "tab", () => rt.open({ subject: { type: "file", id } })),
     key: attemptKey,
     clock: () => ({ now: rt.clock().now }),
     agents: [{ ...rt.assistant, assistant: true }],
