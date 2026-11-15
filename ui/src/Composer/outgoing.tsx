@@ -218,8 +218,9 @@ const FIELD = {
 
 const o = StyleSheet.create({
   out: { position: "relative", zIndex: 5, paddingTop: 2, gap: 6 },
-  line: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 26 },
-  k: { width: 52, fontSize: 13, color: "var(--ink-3)" as string },
+  // rows start at the top: with two lines of people the label stays beside the first line, not between the two (owner's Inbox, 16 Nov 2026)
+  line: { flexDirection: "row", alignItems: "flex-start", gap: 10, minHeight: 26 },
+  k: { width: 52, fontSize: 13, lineHeight: 20, paddingTop: 3, color: "var(--ink-3)" as string },
   v: { flex: 1, minWidth: 0 },
   seg: {
     flexDirection: "row",

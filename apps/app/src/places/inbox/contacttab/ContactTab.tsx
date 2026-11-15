@@ -47,7 +47,7 @@ import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import type { IconName } from "./icons.tsx";
-import { followMenuEntries, quickEntries, templateEntries, threadMenuEntries } from "./menus.ts";
+import { followMenuEntries, templateEntries, threadMenuEntries } from "./menus.ts";
 import {
   buildFeed,
   canSend,
@@ -129,6 +129,8 @@ function HeadButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected: on, disabled }}
+      // a header button that is on (the channel in use, a star, Following) says so to a screen reader: a button's own word for it is pressed
+      aria-pressed={on}
       testID={testID}
       disabled={disabled}
       onPress={(e) => {
@@ -393,9 +395,19 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const textTo = conv ? (ask?.phone?.to ?? textTarget(conv, items)) : null;
 
   // the newest message is at the foot: open scrolled down, and again when something arrives; a thread with something new is landed on, subject first
+  const toEnd = (): void =>
+    (scroll.current as unknown as { scrollToEnd?: (o: { animated: boolean }) => void } | null)?.scrollToEnd?.({
+      animated: false,
+    });
   useEffect(() => {
-    if (!(landed.current ?? "").startsWith(`${conversationId}:`)) scroll.current?.scrollToEnd?.({ animated: false });
+    if (!(landed.current ?? "").startsWith(`${conversationId}:`)) toEnd();
   }, [feed.length, cards.length]);
+  // The end stays in view while the person is at it: when a card or a long mail finishes drawing, and when the reply box grows (a second line of people, a subject), the
+  // feed follows, so the last card is never left under the box (owner's Inbox, 16 Nov 2026). A person who scrolled up to read is left where they are.
+  const atEnd = useRef(true);
+  const keepEnd = (): void => {
+    if (atEnd.current && !(landed.current ?? "").startsWith(`${conversationId}:`)) toEnd();
+  };
   // opening the conversation reads it
   const unread = conv?.unreadCount ?? 0;
   useEffect(() => {
@@ -587,19 +599,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
       () => setNote("Could not load your templates. Try again."),
     );
   };
-  const showQuick = (x: number, y: number): void =>
-    menu.show(
-      quickEntries(!!conv.contactId, {
-        dial,
-        openRecord: () => props.onOpenRecord?.(conv.contactId as string, hdr?.recordId),
-        attach: () => {
-          if (props.onAttach) props.onAttach();
-          else setNote("Attach from Files is not connected in this view");
-        },
-      }),
-      x,
-      y,
-    );
   const mail = chan === "email";
   const unmatched = conv.needsMatch && !conv.contactId;
   // Replying in: the thread the reply goes into, Reply or Reply all, or a New email that starts its own thread
@@ -752,7 +751,19 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
         </Text>
       )}
 
-      <ScrollView ref={scroll} style={s.feed} contentContainerStyle={s.col} testID="contact-feed">
+      <ScrollView
+        ref={scroll}
+        style={s.feed}
+        contentContainerStyle={s.col}
+        testID="contact-feed"
+        scrollEventThrottle={64}
+        onScroll={(e) => {
+          const n = e.nativeEvent;
+          atEnd.current = n.contentOffset.y + n.layoutMeasurement.height >= n.contentSize.height - 48;
+        }}
+        onContentSizeChange={keepEnd}
+        onLayout={keepEnd}
+      >
         {feed.length === 0 && cards.length === 0 ? <States kind="empty" title="No messages yet." icon="chat" /> : null}
         {each(feed, (f): ReactElement => {
           switch (f.kind) {
@@ -949,22 +960,9 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             enterSends={!mail}
             symbols={[]}
             barExtra={
+              // the reply box's row is the plus, the field, ONE button (Templates) and Send. Call, Ask and the record are in the header; a file is added from the plus menu.
               <View style={s.bx}>
                 <BarButton icon="tpl" label="Templates" testID="composer-templates" onPress={showTemplates} />
-                <BarButton icon="bolt" label="Quick actions" testID="composer-quick" onPress={showQuick} />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Ask"
-                  testID="composer-ask"
-                  onPress={() =>
-                    props.onAsk?.(conv.contactId, { conversationId: conv.id, title: hdr?.title ?? conv.displayName })
-                  }
-                  style={({ hovered }: { hovered?: boolean }) => [s.askChip, hovered === true && s.hicOver]}
-                >
-                  <Face name="intake" size={16} round={false} />
-                  <Text style={s.askText}>Ask</Text>
-                  <Icon name="chevd" size={9} />
-                </Pressable>
               </View>
             }
             sendsOutside
@@ -981,9 +979,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             recipients={
               <OutgoingHeader
                 channel={mail ? "email" : "text"}
-                channels={(["email", "sms"] as const)
-                  .filter((c) => options?.channels.includes(c) ?? false)
-                  .map((c) => (c === "email" ? ("email" as const) : ("text" as const)))}
+                // one switch between Email and Text, the one in the conversation's header: the reply box does not repeat it (owner, 16 Nov 2026: the box is sleek)
+                channels={[]}
                 onChannel={(c) => pickChan(c === "email" ? "email" : "sms")}
                 to={
                   mail ? (
@@ -1136,7 +1133,7 @@ const s = StyleSheet.create({
   },
   mlinkText: { fontSize: 12.5, fontWeight: "600", color: ink("--accent") },
   offline: { fontSize: 12.5, color: ink("--ink-3"), paddingHorizontal: 18, paddingVertical: 6 },
-  feed: { flex: 1 },
+  feed: { flex: 1, minHeight: 0 },
   col: { width: "100%", maxWidth: 740, alignSelf: "center", paddingHorizontal: 28, paddingTop: 18, paddingBottom: 20 },
   cmpWrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
   cmpIn: { width: "100%", maxWidth: 740, alignSelf: "center" },
@@ -1172,7 +1169,7 @@ const s = StyleSheet.create({
     borderWidth: 0,
   },
   note: { marginTop: 8, fontSize: 12.5, color: ink("--ink-2") },
-  bx: { flexDirection: "row", alignItems: "center", gap: 2 },
+  bx: { flexDirection: "row", alignItems: "center", gap: 2, height: 32 },
   tool: { width: 28, height: 28, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   askChip: {
     height: 26,

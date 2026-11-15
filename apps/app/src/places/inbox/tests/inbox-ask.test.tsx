@@ -264,7 +264,7 @@ test("screen: an email ask opens the composer on Email with the person, subject 
   const start = askStart(request());
   assert.deepEqual([start.chan, start.to, start.subject], ["email", ["elena@example.test"], ASK_SUBJECT]);
   const { out, s } = tab(request());
-  assert.ok(has(out, 'data-testid="contact-tab"') && has(out, "Elena Rivera") && has(out, 'data-testid="chan-email"'));
+  assert.ok(has(out, 'data-testid="contact-tab"') && has(out, "Elena Rivera") && has(out, 'data-testid="head-email"'));
   assert.ok(
     has(out, "Could you send me your phone, next step due and tax id?") && has(out, "Thanks,"),
     "the body names the fields",

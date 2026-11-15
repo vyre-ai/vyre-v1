@@ -1,0 +1,1 @@
+Inbox reply box: one switch between Email and Text (in the conversation's header), one Templates button beside Send, the To label stays beside the first line of people, and the last message is never left under the box when it grows.
