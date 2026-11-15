@@ -1,0 +1,20 @@
+- A Google Drive folder now shows every file in it. A name Files cannot hold, such as one with a slash, appears under a safe name, and one item Vyre cannot bring in is skipped and listed ("3 items could not be shown") instead of turning the whole Drive red.
+- A Drive folder with dozens of files of the same name (a pile of "Untitled document") now lists every one of them, numbered, where it used to stop at the twenty-first.
+- A Drive that stopped syncing because of one odd file name mends itself on the next sync, with no need to reconnect.
+- A spreadsheet in Files (CSV or Excel) now opens with its rows. It used to show "0 rows, 0 columns".
+- Opening a Google Drive file that is not here yet says "Getting this from Google Drive". If Drive cannot be reached it says so, with Try again and Open in Google Drive, and an agent is told the same instead of reading an empty file.
+- A picture, PDF or Word file from Google Drive that has not been fetched yet is fetched before it is shown. If Drive cannot be reached you see Try again, never an empty checkerboard or blank page.
+- A large spreadsheet shows its first rows and says so; one over 10 MB says it is too large to preview and offers Open in Google Drive.
+- An open file now shows its path at the top, the same path as the folder list. Leaving it is the Back arrow in the title bar, like everywhere else, and a file opened from a pasted link goes up to the folder it is in. The list you came from comes back where you left it, and the tab is named for the file.
+- Editing a Google Drive file whose name Vyre shows differently (a name with a slash, or one of two files with the same name) now only replaces its content in Drive. It never renames the file or deletes the original.
+- Spreadsheet tools, for people and agents, no longer read a Drive spreadsheet that has not been fetched as an empty table, and can no longer write over the real file with an empty one.
+- A Drive item that could not be shown is asked about again on every sync, so fixing its name or permission brings it in by itself.
+- When Drive content cannot be fetched you now see why: an expired sign-in (reconnect it), a rate limit (try again in a minute) or a file removed in Drive. A workbook with several sheets says it shows the first.
+- A picture opened in Files now draws. It was fetched without your sign-in, so the Space answered 401 and the viewer showed an empty checkerboard for every image, not only Drive ones.
+- Search and sites served from a folder keep working when a Google Drive file cannot be fetched right now: search indexes the file by name and a site answers that it is temporarily unavailable, with a retry hint, instead of failing the whole pass.
+- The Space export fetches the real bytes of a Google Drive file that was never opened. A file Drive cannot give right now is left out and named, with the reason, on a page at the start of the archive (NOT-EXPORTED.txt, at the top of the archive), and never written as an empty file. A page served from a Drive folder that cannot be reached shows "Temporarily unavailable" with a retry hint, not "Not found".
+- Pictures served by the Space (the viewer, a review's before and after, chat attachments, an artifact's picture, a record's cover image, images in replies) now all go through one component that fetches them with your sign-in, so none of them stays an empty frame.
+
+- The export screen says in one line how many files were left out and that the list is in the zip, and says so plainly when every file was left out. A Google Doc that was never opened is left out and named like any other file instead of stopping the whole export.
+- A Drive or OneDrive listing too long for one sync no longer reads as complete: nothing is removed, and the folder says it is larger than one sync reads.
+- Going Back from a file opened from a link goes up to its folder only when you can open that folder.

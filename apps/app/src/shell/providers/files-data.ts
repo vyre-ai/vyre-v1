@@ -79,7 +79,8 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
     clock: rt.clock,
     nameOf: nameLookup(rt),
     nav: {
-      openFile: (fileId) => rt.open({ screen: "files.viewer", args: { fileId } }),
+      // a subject, not a screen, so the tab is named for the file (titles.ts)
+      openFile: (fileId) => rt.open({ subject: { type: "file", id: fileId } }),
       openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }),
       ...(acts?.share ? { shareFolder: (folderId: string) => acts.share?.(folderId) } : {}),
       ...(acts?.shareFile ? { shareFile: (fileId: string, name: string) => acts.shareFile?.(fileId, name) } : {}),

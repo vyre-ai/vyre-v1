@@ -163,6 +163,22 @@ export class FakeFiles {
     return f.version;
   }
 
+  /** The Files module's own name rule (modules/files/handlers/tree.ts cleanName), so a test sees what the real module refuses. */
+  private clean(raw: unknown): string {
+    const n = String(raw).trim();
+    if (
+      !n ||
+      n.length > 255 ||
+      n === "." ||
+      n === ".." ||
+      n.includes("/") ||
+      n.includes("\\") ||
+      /[\u0000-\u001f]/.test(n)
+    )
+      throw vyreErr("validation.bad_input", "That name cannot be used for a file or folder.");
+    return n;
+  }
+
   call(cap: string, i: Row): unknown {
     const dup = (): never => {
       throw vyreErr("validation.duplicate", "That name is already in this folder.");
@@ -185,7 +201,7 @@ export class FakeFiles {
     }
     if (cap === "files.folder.create") {
       const parentId = String(i["parentId"]);
-      const name = String(i["name"]);
+      const name = this.clean(i["name"]);
       if (!this.folders.has(parentId)) missing("folder");
       if (this.taken(parentId, name)) dup();
       const id = this.nextId("fld");
@@ -208,8 +224,9 @@ export class FakeFiles {
     if (cap === "files.folder.rename") {
       const f = this.folders.get(String(i["folderId"]));
       if (!f) return missing("folder");
-      if (f.parentId && this.taken(f.parentId, String(i["name"]), undefined, f.id)) dup();
-      f.name = String(i["name"]);
+      const next = this.clean(i["name"]);
+      if (f.parentId && this.taken(f.parentId, next, undefined, f.id)) dup();
+      f.name = next;
       return { folder: { folderId: f.id } };
     }
     if (cap === "files.folder.move") {
@@ -226,7 +243,7 @@ export class FakeFiles {
     }
     if (cap === "files.create") {
       const folderId = String(i["folderId"]);
-      const name = String(i["name"]);
+      const name = this.clean(i["name"]);
       if (!this.folders.has(folderId)) missing("folder");
       if (this.taken(folderId, name)) dup();
       // no content: an empty placeholder, as a live mount makes for a file that has not been opened
@@ -265,8 +282,9 @@ export class FakeFiles {
     if (cap === "files.rename") {
       const f = this.files.get(String(i["fileId"]));
       if (!f || f.deleted) return missing("file");
-      if (this.taken(f.folderId, String(i["name"]), f.id)) dup();
-      f.name = String(i["name"]);
+      const next = this.clean(i["name"]);
+      if (this.taken(f.folderId, next, f.id)) dup();
+      f.name = next;
       return { file: { fileId: f.id, version: f.version } };
     }
     if (cap === "files.move") {

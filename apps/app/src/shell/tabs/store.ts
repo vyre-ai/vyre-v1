@@ -4,6 +4,7 @@
 import type { PlaceId } from "../rail/kits.ts";
 import { PLACE_TITLE, livePlace } from "../rail/kits.ts";
 import { parseHash, subjectOf } from "../hash/hash.ts";
+import { folderOfFile } from "./file-folders.ts";
 
 /** Tabs are device state. Starred is the synced one (spec 3.0). */
 export const TABS_SYNCED = false;
@@ -351,11 +352,18 @@ export function reorderTabs(state: TabsState, keys: readonly string[]): TabsStat
 
 /* ---------- Back and Forward: one history per tab (NAV-2026-11-14) ---------- */
 
+const FILE_UP: readonly string[] = ["file", "doc", "document"];
+
 /** The address one level up inside a place: an item goes to the list it belongs to, a list goes to the place's landing. Null at the landing. */
 export function upHash(hash: string | undefined): string | null {
   if (hash === undefined || hash === "") return null;
   if (!hash.includes("=")) return "";
   const t = parseHash(hash);
+  // a file opened cold goes up to the folder it sits in, once the Files place has read the file (file-folders.ts); until then, and for a file it cannot place, to the landing
+  if (t.subject !== undefined && FILE_UP.includes(t.subject.type)) {
+    const folder = folderOfFile(t.subject.id);
+    if (folder !== undefined) return `subject=folder:${folder}`;
+  }
   const type = t.args["type"];
   // an item that names the list it sits in (a record's type, a file's folder) goes to that list
   if ((t.subject !== undefined || t.screen !== undefined) && typeof type === "string" && type !== "") {

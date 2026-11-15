@@ -6,6 +6,7 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { BlobImage } from "../BlobImage/index.tsx";
 import { AskButton } from "../AskButton/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
 import { MarkdownText } from "../stream/MarkdownText.tsx";
@@ -398,7 +399,9 @@ export interface ViewerViewProps extends ViewerProps {
   /** The versions of the file; the point is where the button was pressed. Left out, the History button is not drawn. */
   onHistory?: (x: number, y: number) => void;
   /** The file's other actions (copy link, download); the point is where the button was pressed. Left out, the More button is not drawn. */
-  onMore?: (x: number, y: number) => void;
+  onMore?: (x: number, y: number, hidden?: { label: string; onSelect: () => void }[]) => void;
+  /** A narrow screen (a phone): the controls that do not fit go behind More, the way the app's other toolbars do. */
+  compact?: boolean;
   /** The line of the quiet "no preview" state, for a file whose app is known ("No preview of this file here. Open it in Word."); without it the line names Open in, or the file's own app. */
   noPreview?: string;
   /** A file that lives at a provider (Google Docs, Word, Excel, Dropbox): one press opens it in the provider's own editor. `label` reads "Open in Google Docs". */
@@ -629,6 +632,26 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     props.onEdit?.(next);
   };
   const pick = (t: MarkupTool): void => setTool((x) => (x === t ? null : t));
+  // Esc leaves a markup tool (Draw, Pin) before it leaves anything else: it is taken here, in the capture phase, so a screen's own Esc (back to the list) sees it was used
+  useEffect(() => {
+    if (tool === null || Platform.OS !== "web") return undefined;
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener(t: string, f: (e: KeyboardEvent) => void, capture?: boolean): void;
+          removeEventListener(t: string, f: (e: KeyboardEvent) => void, capture?: boolean): void;
+        };
+      }
+    ).document;
+    if (doc === undefined) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setTool(null);
+    };
+    doc.addEventListener("keydown", onKey, true);
+    return () => doc.removeEventListener("keydown", onKey, true);
+  }, [tool]);
 
   const iconBtn = (
     label: string,
@@ -786,8 +809,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           </Text>
         </Pressable>
       ) : null}
-      {props.tools}
-      {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
+      {props.compact === true ? null : props.tools}
+      {props.compact === true
+        ? null
+        : iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
       {iconBtn(
         "Details",
         ICON.info,
@@ -798,7 +823,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         },
         detailsOpen,
       )}
-      {props.onHistory
+      {props.onHistory && props.compact !== true
         ? iconBtn("History", ICON.history, "vw-history", (e) => {
             const q = pressPoint(e);
             props.onHistory?.(q.x, q.y);
@@ -808,7 +833,16 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       {props.onMore
         ? iconBtn("More", ICON.more, "vw-more", (e) => {
             const q = pressPoint(e);
-            props.onMore?.(q.x, q.y);
+            props.onMore?.(
+              q.x,
+              q.y,
+              props.compact === true
+                ? [
+                    { label: "Find in file", onSelect: () => setFindOpen(true) },
+                    ...(props.onHistory ? [{ label: "History", onSelect: () => props.onHistory?.(q.x, q.y) }] : []),
+                  ]
+                : undefined,
+            );
           })
         : null}
     </View>
@@ -927,10 +961,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         onResponderRelease={(e) => pointer("up", e)}
       >
         {props.src !== undefined ? (
-          <Image
+          <BlobImage
             accessibilityIgnoresInvertColors
             accessibilityLabel={props.title}
-            source={{ uri: props.src }}
+            uri={props.src}
             resizeMode="cover"
             style={s.pictureImg}
             testID="vw-picture"

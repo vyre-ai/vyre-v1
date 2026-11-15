@@ -1,5 +1,6 @@
 // Files list parts (P-L9e_01b): the column header (Name, Modified, Made by, Size, Kind; each a sort button), the cells that go in a Row's trailing slot, and the grid (tiles in rows, so the
 // grid scrolls on the same VirtualList as the list). The list itself stays in list/FilesList.tsx; this file owns what is drawn per line. Row stays the shared ui/Row (ruling 36).
+import { BlobImage, BlobImg } from "../../../../../ui/src/BlobImage/index.tsx";
 import { injectCss } from "../../../../../ui/src/theme/css.ts";
 import { createElement } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -202,13 +203,13 @@ export function ThumbTile({
     return createElement(
       "span",
       { className: "vfl-th", "data-testid": "type-tile" },
-      createElement("img", { src: url, alt: "Preview", "data-testid": "thumb-image" }),
+      createElement(BlobImg, { src: url, alt: "Preview", "data-testid": "thumb-image" }),
     );
   }
   return (
     <View style={styles.typeTile} testID="type-tile">
-      <Image
-        source={{ uri: url }}
+      <BlobImage
+        uri={url}
         accessibilityLabel="Preview"
         testID="thumb-image"
         resizeMode="cover"

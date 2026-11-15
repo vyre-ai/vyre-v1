@@ -20,14 +20,18 @@ export function displayName(name: string): string {
   return n;
 }
 
-/** Most names one item tries before the pass gives up on it: its own, then "(Google Drive)", "(Google Drive 2)" and on. */
-const NAME_TRIES = 20;
+/** Most names one item tries before the pass gives up on it: its own, then "(Google Drive)", "(Google Drive 2)" and on. A Drive holds hundreds of files called "Untitled document" or "Copy of ...", so the series is long: twenty stopped a Drive at its twenty-first double (F20). */
+const NAME_TRIES = 1000;
 
-/** The names an item may take in its Vyre folder, in order: its own, then the provider's name in brackets, numbered. "Plan.docx" becomes "Plan (Google Drive).docx". */
-export function freeNames(name: string, label: string): string[] {
+/** The names an item may take in its Vyre folder, in order: its own, then the provider's name in brackets, numbered. "Plan.docx" becomes "Plan (Google Drive).docx". One at a time: a Drive of thousands of files builds only the few it needs. */
+export function* nameSeries(name: string, label: string): Generator<string> {
   const dot = name.lastIndexOf(".");
   const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
-  const out = [name];
-  for (let n = 1; out.length < NAME_TRIES; n++) out.push(`${stem} (${n === 1 ? label : `${label} ${n}`})${ext}`);
-  return out;
+  yield name;
+  for (let n = 1; n < NAME_TRIES; n++) yield `${stem} (${n === 1 ? label : `${label} ${n}`})${ext}`;
+}
+
+/** The same names as a list. */
+export function freeNames(name: string, label: string): string[] {
+  return [...nameSeries(name, label)];
 }
