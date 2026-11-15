@@ -38,6 +38,9 @@ import type {
 } from "../../../agent/src/turn-engine/types.ts";
 import type { RouteMention } from "../../../lib/route.ts";
 
+/** Tools whose card is posted while the turn runs: the words before the call are posted first, so the card follows the words that lead up to it. */
+const CARD_TOOLS: ReadonlySet<string> = new Set(["plan_propose", "ask_question"]);
+
 /** Messages the bridge posts on its own (blocks only) carry this id prefix, so a consumer sees them as ours without a lookup. */
 /** A failure that setup on the server causes and a retry cannot cure: the sandbox cannot make a namespace (bwrap, no user namespaces), or the engine image is not on the server. */
 export function serverCause(message: string): "sandbox" | "image" | undefined {
@@ -258,6 +261,7 @@ interface Segment {
   /** the call it is inside now, in plain words once asked */ step?: { id: string; name: string; detail?: string };
   calls?: Map<string, { name: string; at: number }>;
   /** its live text goes to the asker only */ private?: boolean;
+  /** words already posted on their own before a card, so the reply the engine stores does not say them twice */ posted?: string;
 }
 interface Ready {
   blocks: PostBlock[];
@@ -265,6 +269,7 @@ interface Ready {
   mentions: number;
   routineOwner: string | null;
   turnId: string;
+  posted?: string;
 }
 
 const SHELL_STEP = /^(?:bash|shell|terminal_run|exec|run_command|command_execution|command)$/i;
@@ -740,12 +745,15 @@ export function createBridge(o: BridgeOptions): Bridge {
         // only a turn's own reply is posted from here; an agent message that chat already holds (a crew card, a brief, a tool's post) is not a reply to send again
         if (!r) return;
         ready.delete(`${e.threadId}:${e.authorId}`);
+        // words already posted before a card are not said again
+        const said = r.posted ?? "";
+        const body = said !== "" && msg.body.startsWith(said) ? msg.body.slice(said.length).replace(/^\s+/, "") : msg.body;
         enqueuePost(
           e.threadId,
           e.authorId,
           {
             threadId: e.threadId,
-            body: msg.body,
+            body,
             blocks: r?.blocks ?? [],
             mentions: [
               ...msg.mentions,
@@ -888,6 +896,27 @@ export function createBridge(o: BridgeOptions): Bridge {
                 at: (o.now ?? Date.now)(),
               });
               seg.blocks.push({ type: "tool_call", v: 1, data: { id: ev.id, name } });
+              // a card the tool is about to post (a plan, a question) comes after the words that lead up to it: the words so far go out as their own message first, before the tool runs
+              if (CARD_TOOLS.has(name) && seg.text.trim() !== "") {
+                const askerNow = askerFor(input.threadId, input.turnId);
+                try {
+                  await o.postAs(input.agent.id, {
+                    threadId: input.threadId,
+                    body: seg.text,
+                    blocks: [],
+                    mentions: [],
+                    clientId: brgId(),
+                    ...(askerNow ? { actingFor: askerNow } : {}),
+                  });
+                  seg.posted = (seg.posted ?? "") + seg.text;
+                  seg.text = "";
+                } catch (e) {
+                  warn("the words before a card were not posted first", {
+                    threadId: input.threadId,
+                    error: e instanceof Error ? e.message : String(e),
+                  });
+                }
+              }
               emit({
                 kind: "step",
                 threadId: input.threadId,

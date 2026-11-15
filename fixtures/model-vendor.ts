@@ -3,6 +3,7 @@ import http from "node:http";
 
 /** The model vendor: one streamed chat completion per request, with whatever the test scripts next (an answer, or an HTTP error). */
 export async function vendor() {
+  let calls = 0;
   const script: Array<{ status?: number; text?: string; hold?: boolean; tool?: { name: string; args: unknown } }> = [];
   const requests: string[] = [];
   /** The Authorization header of each request, so a test can prove the key reached the vendor (and only there). */
@@ -68,7 +69,7 @@ export async function vendor() {
                 tool_calls: [
                   {
                     index: 0,
-                    id: "call_stand_in",
+                    id: `call_stand_in_${++calls}`,
                     type: "function",
                     function: { name: next.tool.name, arguments: JSON.stringify(next.tool.args) },
                   },
