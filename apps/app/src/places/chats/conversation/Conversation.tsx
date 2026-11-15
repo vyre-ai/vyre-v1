@@ -539,8 +539,9 @@ function ConversationView(): ReactElement {
   const width = useWindowDimensions().width;
   const [gutter, setGutter] = useState(() => gutterFits(width));
   const mobileBack = useMobileBack();
-  const narrow = width > 0 && width < 640;
 
+  /** What Cmd/Ctrl+. does: stop whoever is working here (set where the working list is known). */
+  const stopKey = useRef<() => void>(() => undefined);
   /* Cmd/Ctrl+F opens find in chat, as in the prototype; Escape closes it. */
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
@@ -559,6 +560,10 @@ function ConversationView(): ReactElement {
         // Cmd-\\ hides or shows the pane beside the chat (the design's key)
         e.preventDefault();
         data.nav.togglePane();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+        // Cmd-. stops what is working in this chat (the design's key)
+        e.preventDefault();
+        stopKey.current();
       }
     };
     g.addEventListener?.("keydown", onKey);
@@ -893,6 +898,10 @@ function ConversationView(): ReactElement {
   // a reply being written has no saved message yet: its row is the live turn (a ghost), and it counts as work from the moment the turn starts
   const working = workingAgents([...win.rows, ...ghosts], writing);
   const isWorking = working.length > 0;
+  stopKey.current = (): void => {
+    if (working.length === 0) return;
+    void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).catch(fail("Could not stop it."));
+  };
   const nameOf = data.nameOf;
   const lead = leadOf(thread);
   const hasEarlier = win.hiddenLocal > 0 || (olderMore ?? messagesQ.data.hasMore);
@@ -1934,27 +1943,14 @@ function ConversationView(): ReactElement {
             <View style={{ flex: 1 }} />
             {/* offline is said once, by the pill at the top of the window: the chat's own header says nothing, so the header never shifts */}
             {crewChip ? (
-              crewChip.text !== "" && !narrow ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={crewChip.label}
-                  testID="helpers-button"
-                  onPress={() => crew!.show(null)}
-                  style={st.crewChip}
-                >
-                  <Text testID="helpers-chip-text" style={st.crewChipText}>
-                    {crewChip.text}
-                  </Text>
-                </Pressable>
-              ) : (
-                <IconButton
-                  icon="helper"
-                  label={crewChip.label}
-                  badge={crewChip.active > 0 ? crewChip.active : crewChip.total}
-                  testID="helpers-button"
-                  onPress={() => crew!.show(null)}
-                />
-              )
+              // the head is quiet while agents work: one small mark with a count, never a text pill beside the title (the prototype's head has no marker)
+              <IconButton
+                icon="helper"
+                label={crewChip.label}
+                badge={crewChip.active > 0 ? crewChip.active : crewChip.total}
+                testID="helpers-button"
+                onPress={() => crew!.show(null)}
+              />
             ) : helpers.length > 0 ? (
               <IconButton
                 icon="helper"
@@ -2765,14 +2761,6 @@ const st = StyleSheet.create({
   } as object,
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
-  crewChip: {
-    height: 28,
-    paddingHorizontal: 10,
-    borderRadius: RADIUS,
-    justifyContent: "center",
-    backgroundColor: "var(--accent-wash)" as string,
-  },
-  crewChipText: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   earlierBar: {
     flexDirection: "row",
     alignItems: "center",
