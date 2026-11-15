@@ -229,6 +229,11 @@ export function stubs(ctx: CallCtx) {
       create: call("automations.create"),
       delete: call("automations.delete"),
       dependencies: call("automations.dependencies"),
+      draft: {
+        discard: call("automations.draft.discard"),
+        propose: call("automations.draft.propose"),
+        save: call("automations.draft.save"),
+      },
       draft_connector: call("automations.draft_connector"),
       fire: call("automations.fire"),
       followers: {
@@ -242,6 +247,7 @@ export function stubs(ctx: CallCtx) {
         list: call("automations.groups.list"),
         rename: call("automations.groups.rename"),
       },
+      home: call("automations.home"),
       http_read: call("automations.http_read"),
       http_send: call("automations.http_send"),
       key_hosts: {
@@ -252,6 +258,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("automations.key_hosts.remove"),
       },
       list: call("automations.list"),
+      make_live: call("automations.make_live"),
       make_personal_copy: call("automations.make_personal_copy"),
       migrate_runs: call("automations.migrate_runs"),
       migration_preview: call("automations.migration_preview"),
@@ -265,6 +272,10 @@ export function stubs(ctx: CallCtx) {
       },
       preview_promote: call("automations.preview_promote"),
       promote: call("automations.promote"),
+      proposal: {
+        accept: call("automations.proposal.accept"),
+        discard: call("automations.proposal.discard"),
+      },
       read_docs: call("automations.read_docs"),
       read_link: call("automations.read_link"),
       replay: call("automations.replay"),
@@ -287,6 +298,7 @@ export function stubs(ctx: CallCtx) {
         use: call("automations.templates.use"),
       },
       test: call("automations.test"),
+      test_events: call("automations.test_events"),
       triggers: {
         list: call("automations.triggers.list"),
       },
