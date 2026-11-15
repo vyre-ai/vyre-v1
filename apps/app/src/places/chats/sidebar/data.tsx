@@ -16,6 +16,8 @@ export interface ChatsNav {
   openAllAgents(): void;
   /** One agent's page. Left out where the shell has none (the menu then has no Open Profile). */
   openAgent?(agentId: string, section?: "instructions" | "computer"): void;
+  /** The chat with an agent as a tab beside this one (Cmd-press, Open in New Tab), started when there is none. `behind` leaves the person where they are. */
+  openAgentChatIn?(agentId: string, how: "tab" | "behind"): void;
   /** A chat in a tab of its own. Left out where the shell has none (the menu then has no Open in New Tab). */
   openChatTab?(threadId: string): void;
   /** Everything made to show: artifacts, opened in the app. Left out where the shell has no such page. */

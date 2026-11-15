@@ -9,6 +9,8 @@ export interface TypeFacts {
 }
 export interface TypeDo {
   open(): void;
+  /** The type's table as a tab beside this one. Left out where the shell has no tabs. */
+  openTab?(): void;
   star?(on: boolean): void;
   copyName?(): void;
   editType?(): void;
@@ -17,6 +19,7 @@ export interface TypeDo {
 export function typeMenu(f: TypeFacts, d: TypeDo): MenuEntry[] {
   return tidy([
     item("Open", d.open, { hint: "Enter" }),
+    d.openTab ? item("Open in New Tab", d.openTab) : null,
     d.star ? item(f.starred ? "Remove Star" : "Star", () => d.star?.(!f.starred)) : null,
     d.copyName ? item("Copy Name", d.copyName) : null,
     f.canEdit && d.editType ? item("Edit Type…", d.editType) : null,

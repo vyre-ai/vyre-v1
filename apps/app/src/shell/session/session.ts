@@ -567,7 +567,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       ? (screens.get(t.screen)?.place ?? railPlace(t.screen.split(".")[0] ?? "") ?? "")
       : t.subject
         ? (placeForSubject(t.subject.type) ?? "")
-        : "";
+        : (t.place ?? "");
     if (where === "shell") {
       if (t.screen) o.shell?.(t.screen, t.args ?? {});
       return;

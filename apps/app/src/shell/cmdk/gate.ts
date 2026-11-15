@@ -267,6 +267,8 @@ export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: P
     return { place: "settings", hash: page ? `page=${page}` : "" };
   }
   if (hit.id === CONSOLE_HIT) return { place: "console", hash: "" };
+  // a place found by its name opens that place (its result is listed under Settings, so the kind alone would say Settings)
+  if (hit.id.startsWith(PLACE_HIT)) return { place: hit.id.slice(PLACE_HIT.length) as PlaceId, hash: "" };
   return null;
 }
 
