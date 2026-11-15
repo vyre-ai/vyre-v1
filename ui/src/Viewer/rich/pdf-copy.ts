@@ -1,6 +1,6 @@
 // A redacted copy of a PDF (web): each page is drawn, the marked areas are painted over, and the page is saved as a picture in a new PDF. A black box laid over live text would leave the words in the file;
 // here the words under a mark are never written, and a page with no mark is a picture too, so the copy has no text layer at all (the walk proves it by extracting the copy's text).
-import { loadPdfjs } from "./vendor.ts";
+import { PDF_SAFE, loadPdfjs } from "./vendor.ts";
 import { imagePdf } from "./pdf-model.ts";
 import type { CopyPage } from "./pdf-model.ts";
 
@@ -14,7 +14,7 @@ const PX_PER_PT = 1.5;
 
 export async function redactedCopy(data: Uint8Array, marks: readonly CopyMark[]): Promise<Uint8Array> {
   const lib = await loadPdfjs();
-  const doc = await lib.getDocument({ data: data.slice() }).promise;
+  const doc = await lib.getDocument({ data: data.slice(), ...PDF_SAFE }).promise;
   const pages: CopyPage[] = [];
   try {
     for (let n = 1; n <= doc.numPages; n++) {

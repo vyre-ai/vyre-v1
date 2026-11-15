@@ -84,6 +84,8 @@ export const noTextLayer = (pages: readonly string[], done: boolean): boolean =>
 
 /** What a person is told when a PDF cannot be opened, in one sentence. */
 export function pdfFailureWords(e: unknown): string {
+  const own = (e as { words?: unknown } | null)?.words;
+  if (typeof own === "string") return own;
   const name = (e as { name?: string } | null)?.name ?? "";
   const msg = (e as { message?: string } | null)?.message ?? "";
   if (name === "PasswordException" || /password/i.test(msg))

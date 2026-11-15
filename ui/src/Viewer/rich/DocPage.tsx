@@ -7,6 +7,7 @@ import { injectCss } from "../../theme/css.ts";
 import { applyRunTexts, setHeading, textRuns, toggleFormat } from "./docx.ts";
 import type { DBlock, DPara, DRun, DocxModel, RunProps } from "./docx.ts";
 import type { DecorRange } from "./types.ts";
+import { safeHref } from "./limits.ts";
 
 export interface DocPageProps {
   model: DocxModel;
@@ -109,6 +110,21 @@ function ParaView({ q, hf, ds, m, z, editable, imageUrl, onChange }: ParaProps):
   if (q.list)
     kidsEls.push(createElement("span", { key: "mk", className: "vww-mk", contentEditable: false }, q.list.marker));
   q.runs.forEach((r, ri) => {
+    if (r.image?.external) {
+      kidsEls.push(
+        createElement(
+          "span",
+          {
+            key: ri,
+            contentEditable: false,
+            "data-testid": "vww-ext-img",
+            style: { display: "inline-block", padding: "6px 10px", border: "1px dashed #bbb", color: "#888", fontSize: "0.85em" },
+          },
+          "Picture on another site, not loaded",
+        ),
+      );
+      return;
+    }
     if (r.image) {
       const path = m.media[r.image.rid];
       const url = path ? imageUrl(path) : undefined;
@@ -179,7 +195,7 @@ function ParaView({ q, hf, ds, m, z, editable, imageUrl, onChange }: ParaProps):
             "a",
             {
               key: ri,
-              href: r.link,
+              href: safeHref(r.link),
               target: "_blank",
               rel: "noopener noreferrer",
               style: { color: "#0563c1" },

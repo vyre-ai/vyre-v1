@@ -4,6 +4,8 @@
 import { Grid, DEFAULT_COL_W, display, inputOf, isDateFormat, key, parseInput, toSerial, unkey } from "./grid-model.ts";
 import type { Book, GCell, GSheet } from "./grid-model.ts";
 import { colIndex } from "./formula.ts";
+import { safeUnzip } from "./limits.ts";
+import type { UnzipApi } from "./limits.ts";
 
 /** The slice of ExcelJS the reader and writer use. */
 export interface XCell {
@@ -241,15 +243,70 @@ export function sheetCsv(grid: Grid): string {
   return `${lines.join("\n")}\n`;
 }
 
+/** The entries of a workbook that ExcelJS writes back as they mean: every other entry would be dropped or changed by a save, so a workbook that has one is read and never saved here. */
+const ROUND_TRIPS = [
+  /^\[Content_Types\]\.xml$/,
+  /^_rels\/\.rels$/,
+  /^docProps\/(app|core)\.xml$/,
+  /^xl\/workbook\.xml$/,
+  /^xl\/_rels\/workbook\.xml\.rels$/,
+  /^xl\/styles\.xml$/,
+  /^xl\/sharedStrings\.xml$/,
+  /^xl\/theme\/theme\d+\.xml$/,
+  /^xl\/worksheets\/sheet\d+\.xml$/,
+  /^xl\/worksheets\/_rels\/sheet\d+\.xml\.rels$/,
+  // Excel rebuilds its calculation chain when it opens the file
+  /^xl\/calcChain\.xml$/,
+];
+const ENTRY_WORDS: [RegExp, string][] = [
+  [/^xl\/externalLinks\//, "links to other workbooks"],
+  [/^xl\/(threadedComments|persons)\//, "threaded comments"],
+  [/^xl\/comments/, "comments"],
+  [/^customXml\//, "custom data"],
+  [/^docProps\/custom\.xml$/, "custom properties"],
+  [/^xl\/printerSettings\//, "printer settings"],
+  [/^xl\/(charts|chartsheets|drawings|diagrams)\//, "charts or drawings"],
+  [/^xl\/media\//, "pictures"],
+  [/^xl\/(pivotTables|pivotCache|slicers|slicerCaches|timelines|timelineCaches)\//, "pivot tables or slicers"],
+  [/^xl\/(embeddings|activeX|ctrlProps)\//, "embedded objects"],
+  [/vbaProject\.bin$|^xl\/macrosheets\//, "macros"],
+  [/^xl\/tables\//, "tables"],
+  [/^xl\/(queryTables|connections\.xml|model\/)/, "data connections"],
+  [/^xl\/(metadata\.xml|richData\/)/, "dynamic arrays or rich data"],
+];
+const SHEET_MARKS: [RegExp, string][] = [
+  [/<extLst[\s>]/, "extensions such as sparklines or conditional formats"],
+  [/<f\b[^>]*\bt="array"/, "array formulas"],
+  [/<f\b[^>]*\bt="dataTable"/, "data tables"],
+  [/<mc:AlternateContent/, "extensions such as sparklines or conditional formats"],
+  [/<(legacyDrawing|oleObjects|controls|picture|drawing)\b/, "charts, pictures or comments"],
+  [/<(ignoredErrors|cellWatches|smartTags|customProperties|webPublishItems)\b/, "settings a save here would drop"],
+];
+const BOOK_MARKS: [RegExp, string][] = [
+  [/<externalReferences[\s>]/, "links to other workbooks"],
+  [/<pivotCaches[\s>]/, "pivot tables"],
+  [/<(functionGroups|oleSize|customWorkbookViews|fileSharing|webPublishing|smartTagPr)\b/, "settings a save here would drop"],
+];
+
 /**
- * Why a workbook is not edited here, or null when it can be: ExcelJS writes back what it reads, and it does not read charts, pictures, pivot tables, slicers, embedded objects or macros, so a save
- * would drop them. Such a workbook is drawn and read, and changed in its own app; it is never saved with parts missing.
+ * Why a workbook is not edited here, or null when it can be. ExcelJS writes back what it reads and no more: external links, threaded comments, custom data, printer settings, charts, pictures, pivot tables,
+ * sparklines and other extensions, and array or data-table formulas are dropped or changed by a save. A workbook that has any of them (every entry of the zip is checked against the list of what ExcelJS
+ * writes back as it was, and the sheets are read for the marks above) is drawn and read, and is changed in its own app. A macro-enabled workbook (.xlsm) is read only on purpose.
  */
-export function editUnsafe(zipBytes: Uint8Array): string | null {
-  // a zip lists its entries' names in the clear, so the names are found without opening it
-  let names = "";
-  for (let i = 0; i < zipBytes.length; i += 0x8000) names += String.fromCharCode(...zipBytes.subarray(i, i + 0x8000));
-  return /xl\/(charts|pivotTables|pivotCache|drawings|slicers|embeddings|media)\/|vbaProject\.bin/.test(names)
-    ? "This workbook has charts, pictures or pivot tables that a save here would drop. Open it in its own app to change it."
-    : null;
+export function editUnsafe(zipBytes: Uint8Array, ff: UnzipApi, fileName = ""): string | null {
+  const say = (what: string): string => `This workbook has ${what} that a save here would drop or change. Open it in its own app to change it.`;
+  if (/\.xlsm$/i.test(fileName)) return "A macro-enabled workbook is shown here and never changed. Open it in Excel to change it.";
+  const names: string[] = [];
+  const dec = new TextDecoder();
+  const found = safeUnzip(ff, zipBytes, (n) => /^xl\/(workbook|worksheets\/sheet\d+)\.xml$/.test(n), names);
+  for (const n of names) {
+    const word = ENTRY_WORDS.find(([re]) => re.test(n))?.[1];
+    if (word !== undefined) return say(word);
+    if (!ROUND_TRIPS.some((re) => re.test(n)) && !/\/$/.test(n)) return say("parts it does not read");
+  }
+  for (const [n, bytes] of Object.entries(found)) {
+    const xml = dec.decode(bytes);
+    for (const [re, word] of n === "xl/workbook.xml" ? BOOK_MARKS : SHEET_MARKS) if (re.test(xml)) return say(word);
+  }
+  return null;
 }

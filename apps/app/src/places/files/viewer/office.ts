@@ -5,6 +5,7 @@ import { paraTexts, readDocx, writeDocx, docAsText } from "../../../../../../ui/
 import type { DocxModel } from "../../../../../../ui/src/Viewer/rich/docx.ts";
 import { deckAsText, readPptx, writePptx } from "../../../../../../ui/src/Viewer/rich/pptx.ts";
 import type { PptxModel } from "../../../../../../ui/src/Viewer/rich/pptx.ts";
+import { LimitError, safeUnzip, tooLargeWords, wordsOf } from "../../../../../../ui/src/Viewer/rich/limits.ts";
 import { loadFflate } from "../../../../../../ui/src/Viewer/rich/vendor.ts";
 import { contentFor } from "./actions.ts";
 import type { FilesViewerData } from "./data.tsx";
@@ -58,6 +59,8 @@ export function useOffice(
   version: { current: number },
   say: (e: unknown) => void,
   bump: number,
+  /** The file's size, checked before the file is read. */
+  size = 0,
 ): Office {
   const [state, setState] = useState<OfficeState>({ status: "off" });
   const [rev, setRev] = useState(0);
@@ -81,9 +84,12 @@ export function useOffice(
     setState({ status: "loading" });
     void (async () => {
       try {
+        const big = tooLargeWords(kind, size);
+        if (big !== null) throw new LimitError(big);
         const [r, ff] = await Promise.all([d.call("files.read", { fileId, as: "base64" }), loadFflate()]);
         const bytes = Uint8Array.from(atob((r as { base64?: string }).base64 ?? ""), (c) => c.charCodeAt(0));
-        const entries = ff.unzipSync(bytes);
+        // a file that unpacks to far more than it should is refused from its directory, before anything is unpacked
+        const entries = safeUnzip(ff, bytes);
         if (!live) return;
         setState(
           kind === "docx"
@@ -91,11 +97,11 @@ export function useOffice(
             : { status: "ready", kind, deck: readPptx(entries) },
         );
         setRev((x) => x + 1);
-      } catch {
+      } catch (e) {
         if (live)
           setState({
             status: "failed",
-            words: kind === "docx" ? "This document could not be opened here." : "This deck could not be opened here.",
+            words: wordsOf(e, kind === "docx" ? "This document could not be opened here." : "This deck could not be opened here."),
           });
       }
     })();
@@ -103,7 +109,7 @@ export function useOffice(
       live = false;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [d, fileId, kind, bump]);
+  }, [d, fileId, kind, bump, size]);
 
   const flush = useCallback(async (): Promise<void> => {
     const st = ref.current;

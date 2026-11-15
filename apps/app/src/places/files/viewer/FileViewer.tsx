@@ -16,7 +16,8 @@ import type { FileLink } from "../open-in.ts";
 import { commentOnPage, commentOnQuote, contentFor, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
 import { GridView } from "../../../../../../ui/src/Viewer/rich/GridView.tsx";
 import { isXlsx, useWorkbook } from "./workbook.ts";
-import { officeKindOf, useOffice } from "./office.ts";
+import { isMacroFile, officeKindOf, useOffice } from "./office.ts";
+import { tooLargeWords } from "../../../../../../ui/src/Viewer/rich/limits.ts";
 import { DocPage } from "../../../../../../ui/src/Viewer/rich/DocPage.tsx";
 import { SlideView } from "../../../../../../ui/src/Viewer/rich/SlideView.tsx";
 import { PdfPages } from "../../../../../../ui/src/Viewer/rich/PdfPages.tsx";
@@ -182,6 +183,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   // the pages, grids and slides are drawn by the web page (canvas and the DOM); anywhere else the file keeps its words
   const web = typeof document !== "undefined" && typeof ResizeObserver === "function";
   const isPdf = web && ready?.data.file.kind === "pdf";
+  const pdfBig = isPdf && ready ? tooLargeWords("pdf", ready.data.file.size) : null;
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
   const [pdfTexts, setPdfTexts] = useState<readonly string[]>([]);
   const [pdfDone, setPdfDone] = useState(false);
@@ -189,7 +191,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     setPdfData(null);
     setPdfTexts([]);
     setPdfDone(false);
-    if (!isPdf) return undefined;
+    // a PDF over the size the viewer reads is refused before it is fetched
+    if (!isPdf || pdfBig !== null) return undefined;
     let live = true;
     void d.call("files.read", { fileId, as: "base64" }).then(
       (r) => {
@@ -201,7 +204,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     return () => {
       live = false;
     };
-  }, [d, fileId, isPdf, rev]);
+  }, [d, fileId, isPdf, rev, pdfBig]);
   // an .xlsx opens as a real grid: every sheet, formats, formulas, and typing that is saved back as a new version
   const isBook =
     web &&
@@ -210,7 +213,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     isXlsx(ready.data.file.name, ready.data.file.mime);
   // a Word file or a deck opens as its own pages or slides, and is typed into where the file allows
   const okind = web && ready !== null && isOffice(ready.data.file.kind) ? officeKindOf(ready.data.file.name) : null;
-  const off = useOffice(d, fileId, okind, version, say, attempt);
+  const off = useOffice(d, fileId, okind, version, say, attempt, ready?.data.file.size ?? 0);
   const offReady = off.state.status === "ready" ? off.state : null;
   const kind = offReady
     ? "document"
@@ -249,7 +252,14 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     say,
     attempt,
     isGSheet ? { text: rawText, write: providerEdit } : isCsv ? { text: rawText, write: csvWhole, csv: true } : null,
+    { name: ready?.data.file.name ?? "", size: ready?.data.file.size ?? 0 },
   );
+  // a file turned away before it was read or unpacked says why, once
+  const refusal =
+    pdfBig ?? (off.state.status === "failed" ? off.state.words : wbk.state.status === "failed" ? wbk.state.words : null);
+  useEffect(() => {
+    if (refusal !== null) setNote(refusal);
+  }, [refusal]);
   const gDocEdit = app === "gdocs" && providerEdit;
   // a Google Doc's lines as they were when it opened, so an edited line is found at Google by its old words (mounts.doc_replace_text) and changed in the Doc itself
   const gdocText = useRef(new Map<string, string>());
@@ -658,7 +668,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         subtitle={subtitleOf(ready.data, now, path)}
         {...(mark !== undefined ? { kindMark: mark } : {})}
         {...((app !== null && !(wbk.state.status === "ready" && providerEdit) && !gDocEdit) ||
-        (office && (offReady === null || !ready.data.canEdit)) ||
+        (office && (offReady === null || !ready.data.canEdit || isMacroFile(file.name))) ||
         file.kind === "pdf" ||
         ready.data.connected?.viewOnly === true ||
         (isBook && wbk.state.status === "ready" && (!ready.data.canEdit || wbk.lock !== undefined)) ||
@@ -735,7 +745,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
               ...(off.saved !== undefined ? { saved: off.saved } : {}),
               ...(offReady.kind === "pptx" ? { paged: true } : {}),
               rich: (c: RichCtx): ReactElement => {
-                const why = !ready.data.canEdit
+                const why = isMacroFile(file.name)
+                  ? "A macro-enabled file is shown here and never changed. Open it in its own app to change it."
+                  : !ready.data.canEdit
                   ? ready.data.connected?.viewOnly
                     ? `View only in ${ready.data.connected.provider}.`
                     : "You can read this file but not change it."

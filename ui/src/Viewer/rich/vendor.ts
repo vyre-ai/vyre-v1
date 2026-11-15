@@ -66,7 +66,15 @@ export interface PdfDoc {
   destroy(): Promise<void>;
 }
 export interface PdfLib {
-  getDocument(o: { url?: string; data?: Uint8Array; password?: string }): {
+  getDocument(o: {
+    url?: string;
+    data?: Uint8Array;
+    password?: string;
+    isEvalSupported?: boolean;
+    enableScripting?: boolean;
+    maxImageSize?: number;
+    disableFontFace?: boolean;
+  }): {
     promise: Promise<PdfDoc>;
     onPassword?: unknown;
     destroy(): Promise<void>;
@@ -78,11 +86,26 @@ export interface PdfLib {
   };
 }
 
+/** pdf.js with the settings every use of it shares: no script from the file runs (a PDF can carry JavaScript and font programs), and a picture over 16 million pixels is not decoded. */
+export const PDF_SAFE = { isEvalSupported: false, enableScripting: false, maxImageSize: 16_777_216 } as const;
+
 export function loadPdfjs(): Promise<PdfLib> {
   return memo("pdfjs", async () => {
-    // a runtime import of the app's own static file; the bundler never sees it
-    const load = new Function("u", "return import" + "(u)") as (u: string) => Promise<PdfLib>;
-    const lib = await load(`${root()}/vendor/pdfjs/pdf.js`);
+    // pdf.js is a module of the app's own static files. A module script of our own (load.js re-exports it on a global) is used rather than eval, so the page never needs 'unsafe-eval' for it.
+    const g = globalThis as unknown as { pdfjsLib?: PdfLib; document?: Document };
+    if (g.pdfjsLib === undefined) {
+      await new Promise<void>((ok, no) => {
+        const el = g.document?.createElement("script");
+        if (!el || !g.document) return no(new Error("no page"));
+        el.type = "module";
+        el.src = `${root()}/vendor/pdfjs/load.js`;
+        el.onload = () => ok();
+        el.onerror = () => no(new Error("could not load pdf.js"));
+        g.document.head.appendChild(el);
+      });
+    }
+    const lib = g.pdfjsLib;
+    if (lib === undefined) throw new Error("pdf.js did not start");
     lib.GlobalWorkerOptions.workerSrc = `${root()}/vendor/pdfjs/pdf.worker.js`;
     return lib;
   });

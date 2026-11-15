@@ -22,8 +22,9 @@ export const unescapeXml = (s: string): string =>
       ? String.fromCodePoint(e[1] === "x" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10))
       : (ENT[e] ?? _m),
   );
-export const escapeText = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-export const escapeAttr = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+export const escapeText = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\r/g, "&#13;");
+export const escapeAttr = (s: string): string =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;").replace(/\t/g, "&#9;").replace(/\n/g, "&#10;").replace(/\r/g, "&#13;");
 
 export interface XDoc {
   /** Everything before the root element (the XML declaration), written back as it was. */
@@ -45,7 +46,7 @@ export function parseXml(src: string): XDoc {
       while (j < src.length && /\s/.test(src[j]!)) j++;
       if (src.startsWith("<?", j)) j = src.indexOf("?>", j) + 2;
       else if (src.startsWith("<!--", j)) j = src.indexOf("-->", j) + 3;
-      else if (src.startsWith("<!DOCTYPE", j)) j = src.indexOf(">", j) + 1;
+      else if (/^<!DOCTYPE/i.test(src.slice(j, j + 9))) throw new Error("This file declares entities of its own (a DOCTYPE), which are not read.");
       else return j;
     }
   })();

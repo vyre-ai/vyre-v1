@@ -14,7 +14,8 @@ import {
   writeChanges,
 } from "../../../../../../ui/src/Viewer/rich/workbook-io.ts";
 import type { XBook } from "../../../../../../ui/src/Viewer/rich/workbook-io.ts";
-import { loadExcel } from "../../../../../../ui/src/Viewer/rich/vendor.ts";
+import { LimitError, tooLargeWords, wordsOf } from "../../../../../../ui/src/Viewer/rich/limits.ts";
+import { loadExcel, loadFflate } from "../../../../../../ui/src/Viewer/rich/vendor.ts";
 import { colName } from "../../../../../../ui/src/Viewer/rich/formula.ts";
 import { contentFor } from "./actions.ts";
 import { parseCsv } from "./model.ts";
@@ -22,7 +23,7 @@ import type { FilesViewerData } from "./data.tsx";
 
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 /** A workbook is an .xlsx (the grid reads and writes exactly that); an .xls or .ods stays the quiet "no preview" line. */
-export const isXlsx = (name: string, mime: string): boolean => /\.xlsx$/i.test(name) || mime === XLSX_MIME;
+export const isXlsx = (name: string, mime: string): boolean => /\.(xlsx|xlsm)$/i.test(name) || mime === XLSX_MIME;
 
 interface ExcelLib {
   Workbook: new () => XBook & { xlsx: { load(b: ArrayBuffer): Promise<unknown>; writeBuffer(): Promise<ArrayBuffer> } };
@@ -63,6 +64,8 @@ export function useWorkbook(
   bump: number,
   /** A Google Sheet: its first tab as the export's CSV, and whether the person may write cells at Google. Edits go cell by cell through mounts.sheet_write, never through the export. */
   gs: { text: string; write: boolean; csv?: boolean } | null = null,
+  /** The file's name and size, read before the file is: a file over the size this viewer reads is refused before it is fetched. */
+  meta: { name: string; size: number } = { name: "", size: 0 },
 ): Workbook {
   const [state, setState] = useState<WorkbookState>({ status: "off" });
   const [rev, setRev] = useState(0);
@@ -101,10 +104,13 @@ export function useWorkbook(
           setRev((x) => x + 1);
           return;
         }
-        const [r, lib] = await Promise.all([d.call("files.read", { fileId, as: "base64" }), loadExcel()]);
+        const big = tooLargeWords("xlsx", meta.size);
+        if (big !== null) throw new LimitError(big);
+        const [r, lib, ff] = await Promise.all([d.call("files.read", { fileId, as: "base64" }), loadExcel(), loadFflate()]);
         const b64 = (r as { base64?: string }).base64 ?? "";
         const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-        setLock(editUnsafe(bytes) ?? undefined);
+        // the zip is checked before ExcelJS opens it: a file that unpacks to far more than it should is refused here, and a workbook with parts a save would drop is read only
+        setLock(editUnsafe(bytes, ff, meta.name) ?? undefined);
         const book = new (lib as ExcelLib).Workbook();
         await book.xlsx.load(bytes.buffer);
         if (!live) return;
@@ -114,15 +120,15 @@ export function useWorkbook(
         opened.current = baseline(grid.book);
         setState({ status: "ready", grid });
         setRev((x) => x + 1);
-      } catch {
-        if (live) setState({ status: "failed", words: "This workbook could not be opened here." });
+      } catch (e) {
+        if (live) setState({ status: "failed", words: wordsOf(e, "This workbook could not be opened here.") });
       }
     })();
     return () => {
       live = false;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [d, fileId, on, bump, gs?.text]);
+  }, [d, fileId, on, bump, gs?.text, meta.size]);
 
   const flush = useCallback(async (): Promise<void> => {
     const grid = gridRef.current;
