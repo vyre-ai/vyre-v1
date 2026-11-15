@@ -2278,6 +2278,7 @@ export function createClient(transport: Transport) {
       custom_list: call("providers.custom_list", 1),
       custom_remove: call("providers.custom_remove", 1),
       list: call("providers.list", 1),
+      local_signins: call("providers.local_signins", 1),
       mark_signin_needed: call("providers.mark_signin_needed", 1),
       own_people: call("providers.own_people", 1),
       remove: call("providers.remove", 1),
