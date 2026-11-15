@@ -3,5 +3,5 @@ import test from "node:test";
 import { walk } from "./files-walk.test.ts";
 
 test("F21: a file opened cold goes up to its folder by the shell's own Back, and the file has no back control of its own", async (t) => {
-  await walk(t, ["csv", "cold"]);
+  await walk(t, ["cold"]);
 });

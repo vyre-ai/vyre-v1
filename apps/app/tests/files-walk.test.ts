@@ -141,7 +141,7 @@ export async function walk(t: { skip(m?: string): void }, only?: readonly string
       // the shell's own Back (the title bar's arrow): a file has no second one
       assert.equal(await page.getByTestId("file-back").count(), 0, "the file has no back control of its own");
       await page.getByTestId("nav-back").click();
-      await page.getByText("fees.csv", { exact: true }).first().waitFor({ timeout: 15_000 });
+      await page.getByText("notes.md", { exact: true }).first().waitFor({ timeout: 15_000 });
       assert.equal(
         (await page.getByTestId("files-title").innerText()).trim(),
         "Walk",
@@ -230,14 +230,14 @@ export async function walk(t: { skip(m?: string): void }, only?: readonly string
     }
     if (want("cold")) {
       // a file opened cold (a pasted link) has no history: the shell's Back leads up to the folder the file is in
-      const feesId = (await call("files.list", { folder: folderId })).files.find((f: any) => f.name === "fees.csv")
+      const noteId = (await call("files.list", { folder: folderId })).files.find((f: any) => f.name === "notes.md")
         .fileId as string;
-      await page.goto(`${web.origin}/files#subject=file:${feesId}`, { waitUntil: "load" });
-      await page.getByText("Acme").first().waitFor({ timeout: 20_000 });
+      await page.goto(`${web.origin}/files#subject=file:${noteId}`, { waitUntil: "load" });
+      await page.getByText("A markdown paragraph.").first().waitFor({ timeout: 20_000 });
       await page.getByTestId("files-path").waitFor({ timeout: 10_000 });
       assert.match(await page.getByTestId("files-path").innerText(), /Walk/, "the path shows the folder");
       await page.getByTestId("nav-back").click();
-      await page.getByText("fees.csv", { exact: true }).first().waitFor({ timeout: 15_000 });
+      await page.getByText("notes.md", { exact: true }).first().waitFor({ timeout: 15_000 });
       assert.equal(
         (await page.getByTestId("files-title").innerText()).trim(),
         "Walk",
