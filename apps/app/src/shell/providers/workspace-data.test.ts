@@ -73,10 +73,14 @@ test("one rule for every word: a computer is never Asleep while one of its termi
     workspaceView("agt_dex", asleepRead, [row({ terminalId: "t3", name: "agent", state: "idle" })]).state,
     "asleep",
   );
-  assert.equal(workspaceView("agt_dex", asleepRead, [row({ terminalId: "t4", name: "x", state: "exited" })]).state, "asleep");
+  assert.equal(
+    workspaceView("agt_dex", asleepRead, [row({ terminalId: "t4", name: "x", state: "exited" })]).state,
+    "asleep",
+  );
   // someone else's terminal is not drawn and does not wake the words of this person's computer view
   assert.equal(
-    workspaceView("agt_dex", asleepRead, [row({ terminalId: "t5", name: "o", state: "running", elsewhere: true })]).state,
+    workspaceView("agt_dex", asleepRead, [row({ terminalId: "t5", name: "o", state: "running", elsewhere: true })])
+      .state,
     "asleep",
   );
 });

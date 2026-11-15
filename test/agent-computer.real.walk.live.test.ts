@@ -81,7 +81,10 @@ test(
         await page.keyboard.press("Enter");
       }
       const out = async (): Promise<string[]> =>
-        (await screen.innerText()).split("\n").map((l) => l.trim()).filter((l) => /^out-\d$/.test(l));
+        (await screen.innerText())
+          .split("\n")
+          .map((l) => l.trim())
+          .filter((l) => /^out-\d$/.test(l));
       const t0 = Date.now();
       while ((await out()).length < 3 && Date.now() - t0 < 10_000) await page.waitForTimeout(150);
       assert.deepEqual(await out(), ["out-1", "out-2", "out-3"], "the three commands ran once each, in order");
@@ -92,7 +95,8 @@ test(
       await page.getByTestId("terminal-popup").waitFor({ state: "detached", timeout: 10_000 });
       assert.match(await text("terminals-head"), /Ready|Running/);
       const g0 = Date.now();
-      while (/keyboard/.test(await text("row-session-agent")) && Date.now() - g0 < 12_000) await page.waitForTimeout(100);
+      while (/keyboard/.test(await text("row-session-agent")) && Date.now() - g0 < 12_000)
+        await page.waitForTimeout(100);
       console.log(`WALK row after give back: ${await text("row-session-agent")} after ${Date.now() - g0} ms`);
       assert.match(await text("row-session-agent"), /Running|Idle/);
       await shoot(page, DIR, "computer-tab-running");
@@ -100,7 +104,8 @@ test(
       // ---- 2b the computer sleeps and is woken from a terminal: Asleep, then Starting in the terminal's bar, then Ready within the budget the bar draws (9 s), and the first command is answered
       await new Promise<void>((done) => execFile("docker", ["stop", "-t", "2", `vyre-ws-${k.agentId}`], () => done()));
       const slept = Date.now();
-      while (!/Asleep/.test(await text("terminals-head")) && Date.now() - slept < 20_000) await page.waitForTimeout(250);
+      while (!/Asleep/.test(await text("terminals-head")) && Date.now() - slept < 20_000)
+        await page.waitForTimeout(250);
       assert.match(await text("terminals-head"), /Asleep/, "a computer with no container says Asleep");
       assert.match(await text("row-session-agent"), /Asleep/, "and so does the row of its terminal");
       await shoot(page, DIR, "computer-asleep-with-terminal");
@@ -117,7 +122,8 @@ test(
       assert.doesNotMatch(barText, /Starting/, `still Starting after ${Date.now() - woke} ms (the budget is 9 s)`);
       {
         const hw = Date.now();
-        while (!/Ready|Running/.test(await text("terminals-head")) && Date.now() - hw < 9000) await page.waitForTimeout(150);
+        while (!/Ready|Running/.test(await text("terminals-head")) && Date.now() - hw < 9000)
+          await page.waitForTimeout(150);
       }
       assert.match(
         await text("terminals-head"),
@@ -152,11 +158,13 @@ test(
       assert.ok(drawn, "the pane shows the browser's still picture");
       await shoot(page, DIR, "browser-still-picture");
       const viewers = async (): Promise<number> =>
-        ((await k.w.owner.call("computers.browser.profiles", {})).data.profiles as Array<{ viewers: number }>)[0]?.viewers ?? 0;
+        ((await k.w.owner.call("computers.browser.profiles", {})).data.profiles as Array<{ viewers: number }>)[0]
+          ?.viewers ?? 0;
       const stages: string[] = [`pane ${await viewers()}`];
       const streams: string[] = [];
       page.on("response", (r) => {
-        if (/\/stream/.test(r.url())) streams.push(`${r.status()} ${r.headers()["content-type"] ?? ""} ${r.url().slice(0, 140)}`);
+        if (/\/stream/.test(r.url()))
+          streams.push(`${r.status()} ${r.headers()["content-type"] ?? ""} ${r.url().slice(0, 140)}`);
       });
       page.on("requestfailed", (r) => {
         if (/\/stream/.test(r.url())) streams.push(`FAILED ${r.failure()?.errorText} ${r.url().slice(0, 140)}`);
@@ -172,7 +180,9 @@ test(
           return {
             ...(el ? { tag: el.tagName, w: el.clientWidth, h: el.clientHeight } : {}),
             ...(img ? { nat: img.naturalWidth } : {}),
-            bg: el !== null && [el, ...el.querySelectorAll("*")].some((x) => /url\(/.test(getComputedStyle(x).backgroundImage)),
+            bg:
+              el !== null &&
+              [el, ...el.querySelectorAll("*")].some((x) => /url\(/.test(getComputedStyle(x).backgroundImage)),
           };
         });
       let f = await frame();
@@ -181,7 +191,10 @@ test(
         await page.waitForTimeout(250);
         f = await frame();
       }
-      assert.ok(f.tag === "CANVAS" ? f.w !== 300 : (f.nat ?? 0) > 1 || f.bg === true, `the live view drew no frame: ${JSON.stringify(f)} ${JSON.stringify(k.me.logs.slice(-6))} ${JSON.stringify(streams)} ${await page.getByTestId("browser-popup").innerText()}`);
+      assert.ok(
+        f.tag === "CANVAS" ? f.w !== 300 : (f.nat ?? 0) > 1 || f.bg === true,
+        `the live view drew no frame: ${JSON.stringify(f)} ${JSON.stringify(k.me.logs.slice(-6))} ${JSON.stringify(streams)} ${await page.getByTestId("browser-popup").innerText()}`,
+      );
       stages.push(`watching ${await viewers()}`);
       await shoot(page, DIR, "browser-live-view");
       await page.getByTestId("browser-take").click();
@@ -197,7 +210,11 @@ test(
       // asleep again: the pane says so, with when it was last seen. Closing the live view lets go of its stream: nobody is watching, so the browser can sleep.
       const v0 = Date.now();
       while ((await viewers()) > 0 && Date.now() - v0 < 8000) await page.waitForTimeout(250);
-      assert.equal(await viewers(), 0, `closing the live view left a viewer on the browser for ${Date.now() - v0} ms (${stages.join(", ")})`);
+      assert.equal(
+        await viewers(),
+        0,
+        `closing the live view left a viewer on the browser for ${Date.now() - v0} ms (${stages.join(", ")})`,
+      );
       await k.real!.stop(k.agentId);
       const slept0 = Date.now();
       while (!/Asleep/.test(await text("browser-head")) && Date.now() - slept0 < 20_000) await page.waitForTimeout(250);
@@ -224,7 +241,6 @@ test(
       await shoot(page, DIR, "browser-woken-from-the-tab");
       await page.getByTestId("browser-popup-close").click();
       await page.getByTestId("browser-popup").waitFor({ state: "detached", timeout: 10_000 });
-
     } finally {
       await k.close();
     }

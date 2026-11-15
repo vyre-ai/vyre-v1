@@ -28,8 +28,18 @@ test(
     try {
       // ---- 6 a second person with only Use on the shared agent
       const bea = await k.s.world.join("bea");
-      await k.w.owner.ok("terminal.open", { host: "agent_computer", agentId: k.agentId, name: "ada-notes", idempotencyKey: "ada-term" });
-      await bea.ok("terminal.open", { host: "agent_computer", agentId: k.agentId, name: "bea-notes", idempotencyKey: "bea-term" });
+      await k.w.owner.ok("terminal.open", {
+        host: "agent_computer",
+        agentId: k.agentId,
+        name: "ada-notes",
+        idempotencyKey: "ada-term",
+      });
+      await bea.ok("terminal.open", {
+        host: "agent_computer",
+        agentId: k.agentId,
+        name: "bea-notes",
+        idempotencyKey: "bea-term",
+      });
       const beaSeat = await seat(k.s, bea, "Bea");
       await beaSeat.page.setViewportSize(WIDE);
       const agentPage = `/chat#screen=chats.agent-page&agentId=${k.agentId}&tab=computer`;

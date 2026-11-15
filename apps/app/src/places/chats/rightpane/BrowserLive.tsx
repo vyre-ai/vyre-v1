@@ -372,8 +372,7 @@ export function BrowserLive({
             src: uri,
             draggable: false,
             onLoad: (e: { currentTarget: { naturalWidth: number; naturalHeight: number } }) => {
-              natural.current =
-                sized(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight) ?? natural.current;
+              natural.current = sized(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight) ?? natural.current;
             },
             style: {
               position: "absolute",

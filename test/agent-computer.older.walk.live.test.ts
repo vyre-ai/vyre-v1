@@ -32,9 +32,14 @@ test(
       await k.w.owner.ok("computers.provision", { agentId: k.agentId });
       await open(k.me, k.s, agentPage);
       await page.getByTestId("terminals-head").waitFor({ timeout: 30_000 });
-      await page.getByTestId("row-older-desktop").waitFor({ timeout: 20_000 }).catch(async (e: unknown) => {
-        throw new Error(`no older-desktop row: ${(await page.getByTestId("work-list").innerText()).replace(/\s+/g, " ")} ${String(e).slice(0, 80)}`);
-      });
+      await page
+        .getByTestId("row-older-desktop")
+        .waitFor({ timeout: 20_000 })
+        .catch(async (e: unknown) => {
+          throw new Error(
+            `no older-desktop row: ${(await page.getByTestId("work-list").innerText()).replace(/\s+/g, " ")} ${String(e).slice(0, 80)}`,
+          );
+        });
       const body = (await page.locator("body").innerText()).replace(/\s+/g, " ");
       assert.doesNotMatch(body, /Open its desktop/);
       assert.match(body, /Older desktop.*Remove its older desktop.*In Console > Computers/);
