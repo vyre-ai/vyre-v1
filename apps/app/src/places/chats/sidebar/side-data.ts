@@ -26,6 +26,7 @@ export interface SideRow {
   archived?: boolean;
   private?: boolean;
   withPeople?: boolean;
+  ask?: boolean;
 }
 export interface SideSection {
   total: number;

@@ -199,6 +199,7 @@ interface RowOut {
   archived?: boolean;
   private?: boolean;
   withPeople?: boolean;
+  ask?: boolean;
 }
 type Extra = Omit<
   RowOut,
