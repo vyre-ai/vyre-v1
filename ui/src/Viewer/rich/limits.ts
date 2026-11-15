@@ -69,7 +69,9 @@ export function safeUnzip(
         );
       const wanted = want(f.name);
       if (wanted && /\.(xml|rels)$/i.test(f.name) && f.originalSize > MAX_XML_BYTES)
-        throw new LimitError(`This file has a part over ${mb(MAX_XML_BYTES)} that is more than can be read here. Open it in its own app.`);
+        throw new LimitError(
+          `This file has a part over ${mb(MAX_XML_BYTES)} that is more than can be read here. Open it in its own app.`,
+        );
       return wanted;
     },
   });

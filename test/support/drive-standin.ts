@@ -314,8 +314,7 @@ export function driveStandIn(o: DriveOptions) {
     if (!one) return undefined;
     const f = files.get(decodeURIComponent(one[1]!));
     if (!f) return { status: 404, json: { error: { code: 404 } } };
-    if (one[3] === "revisions" && !one[5])
-    {
+    if (one[3] === "revisions" && !one[5]) {
       const size = state.revPageSize ?? Number(query["pageSize"] ?? 200);
       const at = Number(query["pageToken"] ?? 0);
       return {

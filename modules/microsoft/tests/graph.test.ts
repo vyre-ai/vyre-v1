@@ -984,7 +984,6 @@ test("versions list who saved each one and one version downloads into a blob", a
   check("ms.drive.download_version", dl);
 });
 
-
 test("a create onto a taken name never takes the item there for the new file: it is saved under a free (2) name (Keep both twice, or a delete then a new file of the same name)", async () => {
   const h = ready();
   // Failure A: "Report.txt" and its first copy are both at the provider already; the second copy must not be taken for the first
@@ -999,7 +998,10 @@ test("a create onto a taken name never takes the item there for the new file: it
   h2.taken.add("Notes.txt");
   const again = await driveUpload(h2.ctx, { ...act, folderId: "f1", name: "Notes.txt", fileId: "fil_new" });
   assert.equal(again.item?.name, "Notes (2).txt");
-  assert.equal(h2.uploads.some((u) => /Notes%20\(2\)\.txt:\/content/.test(u.url)), true);
+  assert.equal(
+    h2.uploads.some((u) => /Notes%20\(2\)\.txt:\/content/.test(u.url)),
+    true,
+  );
   // a free name is made as asked and says nothing
   const h3 = ready();
   const plain = await driveUpload(h3.ctx, { ...act, folderId: "f1", name: "Fresh.txt", fileId: "fil_f" });

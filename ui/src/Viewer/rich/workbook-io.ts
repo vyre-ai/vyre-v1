@@ -322,10 +322,11 @@ function markIn(xml: string, rootName: "worksheet" | "workbook", tags: Record<st
       if (t === "array") return "array formulas";
       if (t === "dataTable") return "data tables";
     }
-    for (const c of n.children) if (typeof c !== "string" && c.name !== "#raw") {
-      const r = walk(c);
-      if (r !== null) return r;
-    }
+    for (const c of n.children)
+      if (typeof c !== "string" && c.name !== "#raw") {
+        const r = walk(c);
+        if (r !== null) return r;
+      }
     return null;
   };
   return walk(root);
@@ -350,7 +351,10 @@ export function editUnsafe(zipBytes: Uint8Array, ff: UnzipApi, fileName = ""): s
     if (!ROUND_TRIPS.some((re) => re.test(n)) && !/\/$/.test(n)) return say("parts it does not read");
   }
   for (const [n, bytes] of Object.entries(found)) {
-    const word = n === "xl/workbook.xml" ? markIn(dec.decode(bytes), "workbook", BOOK_TAGS) : markIn(dec.decode(bytes), "worksheet", SHEET_TAGS);
+    const word =
+      n === "xl/workbook.xml"
+        ? markIn(dec.decode(bytes), "workbook", BOOK_TAGS)
+        : markIn(dec.decode(bytes), "worksheet", SHEET_TAGS);
     if (word !== null) return say(word);
   }
   return null;

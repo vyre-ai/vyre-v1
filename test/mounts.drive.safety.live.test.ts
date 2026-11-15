@@ -137,7 +137,11 @@ test("a file deleted at Drive while an edit waits: the edit is not lost and not 
     assert.equal(drive.byName("Other.txt"), undefined, "Discard sends nothing");
     const kept = await fileNamed(added.folderId, "Other.txt");
     assert.ok(kept, "Discard drops the unsent edit only: the file stays in Files");
-    assert.equal((await w.ok(MEMBER, "files.read", { fileId: kept.fileId })).text, "other", "as it was at Drive, without the edit");
+    assert.equal(
+      (await w.ok(MEMBER, "files.read", { fileId: kept.fileId })).text,
+      "other",
+      "as it was at Drive, without the edit",
+    );
     const row = await w.ok(MEMBER, "mounts.get", { mountId: added.mountId });
     assert.equal(row.mount.state, "idle", String(row.mount.error ?? ""));
   } finally {
@@ -407,7 +411,6 @@ test("a member who connected a folder can make their own mount Read only and bac
   }
 });
 
-
 test("keep_both is refused on a Read only mount (it would write a copy at the provider) and Use theirs still works", async () => {
   const { w, drive, mount, fileNamed, sync } = await bootDriveWorld("drvkbro", (d) => {
     d.put({ id: "d1", name: "Plan.txt", mimeType: "text/plain" }, "first words");
@@ -417,7 +420,12 @@ test("keep_both is refused on a Read only mount (it would write a copy at the pr
     const f = await fileNamed(added.folderId, "Plan.txt");
     assert.ok(f);
     await w.ok(MEMBER, "files.read", { fileId: f.fileId });
-    await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: "my words" }, reason: "Edit", idempotencyKey: w.idem() });
+    await w.ok(MEMBER, "files.write", {
+      fileId: f.fileId,
+      content: { text: "my words" },
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
     drive.elsewhere("d1", "kim's words");
     await sync(added.mountId);
     assert.equal((await w.ok(MEMBER, "mounts.open", { fileId: f.fileId })).source.conflict, true);
@@ -444,7 +452,12 @@ test("the between-check finds the other revision in a file with many revisions (
     const f = await fileNamed(added.folderId, "Plan.txt");
     assert.ok(f);
     await w.ok(MEMBER, "files.read", { fileId: f.fileId });
-    await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: "my words" }, reason: "Edit", idempotencyKey: w.idem() });
+    await w.ok(MEMBER, "files.write", {
+      fileId: f.fileId,
+      content: { text: "my words" },
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
     drive.state.interpose = { id: "d1", text: "kim's words" };
     await sync(added.mountId);
     await sync(added.mountId);
@@ -464,7 +477,12 @@ test("an edit left unsent by a stop inside its quiet time is sent after the boot
     const f = await fileNamed(added.folderId, "Plan.txt");
     assert.ok(f);
     await w.ok(MEMBER, "files.read", { fileId: f.fileId });
-    await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: "my words" }, reason: "Edit", idempotencyKey: w.idem() });
+    await w.ok(MEMBER, "files.write", {
+      fileId: f.fileId,
+      content: { text: "my words" },
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
     await w.d.hooks?.pump?.();
     await w.ok(MEMBER, "mounts.sync_now", { mountId: added.mountId, auto: true, idempotencyKey: w.idem() }); // the scheduled kind: it leaves the fresh edit and schedules the pass for its quiet time
     assert.equal(drive.text("d1"), "first words");
@@ -475,7 +493,11 @@ test("an edit left unsent by a stop inside its quiet time is sent after the boot
       await new Promise((ok) => setTimeout(ok, 1000));
       await (w2.d as unknown as { schedule: { tick(): Promise<number> } }).schedule.tick();
     }
-    assert.equal(drive.text("d1"), "my words", `the edit is sent after the boot, without anyone pressing anything ${JSON.stringify(w2.logsLike(/schedule|mounts/i).slice(-6))}`);
+    assert.equal(
+      drive.text("d1"),
+      "my words",
+      `the edit is sent after the boot, without anyone pressing anything ${JSON.stringify(w2.logsLike(/schedule|mounts/i).slice(-6))}`,
+    );
   } finally {
     await (w2 ?? w).stop();
   }
@@ -490,10 +512,19 @@ test("the name of the copy that keeps their version is made safe: no path charac
     const f = await fileNamed(added.folderId, "Plan.txt");
     assert.ok(f);
     await w.ok(MEMBER, "files.read", { fileId: f.fileId });
-    await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: "my words" }, reason: "Edit", idempotencyKey: w.idem() });
+    await w.ok(MEMBER, "files.write", {
+      fileId: f.fileId,
+      content: { text: "my words" },
+      reason: "Edit",
+      idempotencyKey: w.idem(),
+    });
     const orig = drive.elsewhere;
     void orig;
-    drive.state.interpose = { id: "d1", text: "their words", by: { name: "Kim/..\\Ito\u0007", email: "kim@firm.test" } };
+    drive.state.interpose = {
+      id: "d1",
+      text: "their words",
+      by: { name: "Kim/..\\Ito\u0007", email: "kim@firm.test" },
+    };
     await sync(added.mountId);
     await sync(added.mountId);
     const names = [...drive.files.values()].map((x) => x.name);

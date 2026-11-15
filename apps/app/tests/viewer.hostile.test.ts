@@ -59,9 +59,22 @@ test("a workbook the editor would change is read only, for every entry and mark 
     "an array formula": withSheet(base, (x) =>
       x.replace("<f>B1*C1</f>", '<f t="array" ref="D1:D2">B1:B2*C1:C2</f>').replace("<f>B2*C2</f>", ""),
     ),
-    "an array formula with single quotes": withSheet(base, (x) => x.replace("<f>B1*C1</f>", "<f t='array' ref='D1:D2'>B1:B2*C1:C2</f>").replace("<f>B2*C2</f>", "")),
-    "a prefixed worksheet with an array formula": withSheet(base, (x) => x.replace(/<(\/?)(?!\?)/g, "<$1x:").replace("<x:worksheet ", '<x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ').replace("<x:f>B1*C1</x:f>", '<x:f t="array" ref="D1:D2">B1:B2*C1:C2</x:f>').replace("<x:f>B2*C2</x:f>", "")),
-    "a prefixed extLst": withSheet(base, (x) => x.replace("</worksheet>", '<x:extLst xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:ext uri="{x}"/></x:extLst></worksheet>')),
+    "an array formula with single quotes": withSheet(base, (x) =>
+      x.replace("<f>B1*C1</f>", "<f t='array' ref='D1:D2'>B1:B2*C1:C2</f>").replace("<f>B2*C2</f>", ""),
+    ),
+    "a prefixed worksheet with an array formula": withSheet(base, (x) =>
+      x
+        .replace(/<(\/?)(?!\?)/g, "<$1x:")
+        .replace("<x:worksheet ", '<x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ')
+        .replace("<x:f>B1*C1</x:f>", '<x:f t="array" ref="D1:D2">B1:B2*C1:C2</x:f>')
+        .replace("<x:f>B2*C2</x:f>", ""),
+    ),
+    "a prefixed extLst": withSheet(base, (x) =>
+      x.replace(
+        "</worksheet>",
+        '<x:extLst xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:ext uri="{x}"/></x:extLst></worksheet>',
+      ),
+    ),
     "a data table": withSheet(base, (x) => x.replace("<f>B1*C1</f>", '<f t="dataTable" ref="D1" dt2D="1" r1="A1"/>')),
     "a comment drawing": withSheet(base, (x) => x.replace("</worksheet>", '<legacyDrawing r:id="rId1"/></worksheet>')),
   };

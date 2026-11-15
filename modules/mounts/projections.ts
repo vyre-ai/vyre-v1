@@ -123,7 +123,14 @@ export function onVersionAdded(tx: ProjTx, e: ProjEvent): void {
   const synced = typeof row["synced_version"] === "number" ? row["synced_version"] : 0;
   if (n <= synced) return;
   // the first edit of the batch: kept while the item stays dirty, so a long edit has an end (the quiet window is capped from it)
-  const since = row["dirty"] === 1 ? (typeof row["dirty_since"] === "number" ? row["dirty_since"] : typeof row["dirty_at"] === "number" ? row["dirty_at"] : e.at) : e.at;
+  const since =
+    row["dirty"] === 1
+      ? typeof row["dirty_since"] === "number"
+        ? row["dirty_since"]
+        : typeof row["dirty_at"] === "number"
+          ? row["dirty_at"]
+          : e.at
+      : e.at;
   tx.run(
     "UPDATE mounts_item SET local_version = ?, dirty = ?, dirty_by = ?, dirty_at = ?, dirty_since = ? WHERE mount_id = ? AND item_key = ?",
     n,

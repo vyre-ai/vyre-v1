@@ -211,7 +211,9 @@ export function harness(opts: HarnessOptions = {}) {
       // a name that is taken answers 409 when the create said conflictBehavior=fail
       const asked = decodeURIComponent(/:\/([^/:]+):\/content/.exec(a.url)?.[1] ?? "");
       if (/conflictBehavior=fail/.test(a.url) && taken.has(asked))
-        throw fail("validation.precondition_failed", ctx.trace.traceId, { details: { status: 409, what: "nameAlreadyExists" } });
+        throw fail("validation.precondition_failed", ctx.trace.traceId, {
+          details: { status: 409, what: "nameAlreadyExists" },
+        });
       if (a.ifMatch !== undefined && a.ifMatch !== state.eTag)
         throw fail("validation.version_conflict", ctx.trace.traceId, { details: { status: 412, what: "upload" } });
       return {

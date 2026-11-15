@@ -661,7 +661,8 @@ export async function driveUpload(
     ...(a.as ? { as: a.as } : {}),
   });
   const base = driveBase(sub, a.driveId);
-  const whereOf = (name: string): string => (a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(name)}` : `${base}/root:/${enc(name)}`);
+  const whereOf = (name: string): string =>
+    a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(name)}` : `${base}/root:/${enc(name)}`;
   const send = async (url: string) =>
     mapItem(
       obj(
@@ -683,7 +684,8 @@ export async function driveUpload(
   }
   // A new file is made with conflictBehavior=fail: a name that is taken is never written over, and an item that is already there is never taken for this one (it may be older, another person's, or an item
   // Vyre is deleting): the file is saved under a free "(2)", "(3)" name and the caller says so. Taking an item by its name would send nothing and could lose the new content.
-  const clash = (e: unknown): boolean => codeOf(e) === "validation.precondition_failed" || codeOf(e) === "validation.version_conflict";
+  const clash = (e: unknown): boolean =>
+    codeOf(e) === "validation.precondition_failed" || codeOf(e) === "validation.version_conflict";
   const dot = a.name.lastIndexOf(".");
   const stem = dot > 0 ? a.name.slice(0, dot) : a.name;
   const ext = dot > 0 ? a.name.slice(dot) : "";
@@ -748,7 +750,11 @@ export async function driveFolder(ctx: MsCtx, a: Act & { driveId?: string; paren
   for (let n = 1; n <= 20 && r === undefined; n++) {
     const name = n === 1 ? a.name : `${a.name} (${n})`;
     try {
-      r = await call(ctx, a, "ms.drive.create_folder", { method: "POST", url: at, body: { name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" } });
+      r = await call(ctx, a, "ms.drive.create_folder", {
+        method: "POST",
+        url: at,
+        body: { name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" },
+      });
       if (n > 1) renamedTo = name;
     } catch (e) {
       if (codeOf(e) !== "validation.precondition_failed" && codeOf(e) !== "validation.version_conflict") throw e;
