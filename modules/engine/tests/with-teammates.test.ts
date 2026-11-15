@@ -20,7 +20,7 @@ test("a send to a first or last name adds the person it names; other acts, addre
     [
       { act: "send", target: "andrea" },
       { act: "send", target: "usr_andrea" },
-      { act: "send", target: "andrea-drey" },
+      { act: "send", target: "andrea-drea" },
     ],
     "Andreya is not Andrea; the handle people_status gives is let through too",
   );
