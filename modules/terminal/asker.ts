@@ -50,7 +50,9 @@ export function ensureCommand(p: AskerPlace): string[] {
     "sh",
     "-c",
     'h="$1"; u="$2"; umask 077; if [ -e "$h" ]; then [ "$(stat -c %u "$h")" = "$u" ] || exit 77; else mkdir -m 700 "$h" || exit 77; [ "$(stat -c %u "$h")" = "$u" ] || exit 77; fi; ' +
-      'mkdir -p "$h/.config" "$h/.cache" "$h/.local/share" "$h/.local/state" "$h/.ssh" "$h/.tmp" && cp -rn /etc/skel/. "$h"/ 2>/dev/null; true',
+      'mkdir -p "$h/.config" "$h/.cache" "$h/.local/share" "$h/.local/state" "$h/.ssh" "$h/.tmp" && cp -rn /etc/skel/. "$h"/ 2>/dev/null; ' +
+      // the first line this person reads in their terminal (lead, 14 Nov): where their files are, and that this is their own home; the agent's own home and the Files mirror are not offered to them
+      '[ -e "$h/.vyre-hello" ] || { printf "%s\\n" "echo \\"Your files are in Files. This is your own home on this computer.\\"" >> "$h/.bashrc"; : > "$h/.vyre-hello"; }; true',
     "sh",
     p.home,
     String(p.uid),
