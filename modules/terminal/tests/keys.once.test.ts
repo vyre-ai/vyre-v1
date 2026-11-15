@@ -340,7 +340,7 @@ test("terminal.run into a person's own terminal by its id, and terminal.status o
   );
   assert.equal(r.code, "permission.role_lacks_permission");
   const agent = await failure(() =>
-    h["terminal.run"]!(hn.as(AGENT, "usr_dana"), {
+    h["terminal.run"]!(hn.as(AGENT, "usr_sara"), {
       command: "echo RUNINTO",
       terminalId: own,
       idempotencyKey: "run-into-2",
