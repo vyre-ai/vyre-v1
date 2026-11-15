@@ -122,6 +122,23 @@ test("stuck, paused at the budget, missed and done each say what happened and of
   );
 });
 
+test("check-ins that cannot run say why and the one thing to do, and the Activity line says it too", async () => {
+  const vault = await page("vault");
+  const card = textOf(find(vault.root!, "goal-blocked"));
+  assert.match(card, /Not being worked: Vault locked/);
+  assert.match(card, /Your Vault key is not on this server\. Open Vyre on your computer and unlock your Vault\./);
+  assert.match(card, /1 check-in did not run\. They are not replayed/);
+  assert.ok(!find(vault.root!, "goal-stuck"), "not called stuck");
+  const limit = await page("limit");
+  const said = textOf(find(limit.root!, "goal-blocked"));
+  assert.match(
+    said,
+    /Your AI account reached its usage limit\. It resets .*\. The check-in runs then\. To go on sooner, let the agent use another AI account\./,
+  );
+  const kept = await page("kept");
+  assert.match(textOf(find(kept.root!, "goal-blocked")), /It kept failing, so check-ins wait\./);
+});
+
 test("a draft card starts the goal with one press, and a check-in card shows the change", async () => {
   installDom();
   const calls: string[] = [];

@@ -2,7 +2,8 @@
 // A turn that ended without a reply is a plain sentence with one action, never a card named after its internal status.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installProgram, isTurnStatus, statusView, withoutAnswered, wordsFor } from "./status.ts";
+import { KNOWN_CODES, installProgram, isTurnStatus, statusView, withoutAnswered, wordsFor } from "./status.ts";
+import { FAILURE_WORDS } from "../../../../../../lib/words/failure.ts";
 
 const block = (data: Record<string, unknown>) =>
   ({ id: "b1", type: "turn_status", v: 1, state: "done", data, traceId: "t" }) as never;
@@ -543,4 +544,11 @@ test("a reply with no AI account offers the other way out by who reads it: a mem
   }
   assert.deepEqual(spaceKeyWay("host_lost", true), { line: "" });
   assert.deepEqual(spaceKeyWay("provider.unavailable", false), { line: "" });
+});
+
+test("a chat turn and a goal's check-in say the same sentence for the same cause", () => {
+  for (const [code, w] of Object.entries(FAILURE_WORDS)) {
+    assert.ok(KNOWN_CODES.includes(code), `${code} has words in the chat too`);
+    assert.equal(wordsFor(code).message, w.what, code);
+  }
 });
