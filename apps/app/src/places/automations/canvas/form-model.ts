@@ -1,5 +1,6 @@
 // What the Configure tab asks for. Pure functions, no React: a control for every property of a step's input schema, a form for every trigger, and a one-line summary of each that says
 // "Not set up" when something the Automation cannot run without is missing. The tests walk the whole catalog (generated/registry.json) through these, so a step or trigger that has no form fails there.
+import { isRawId } from "../../../../../../lib/id-shapes.ts";
 import { fieldsOf } from "./form-table.ts";
 import { cronSummary, deviceTimeZone, parseCron, scheduleWords, validTimeZone } from "./schedule.ts";
 
@@ -67,6 +68,8 @@ export interface Control {
   account: boolean;
   /** For a list: the items are numbers. */
   numeric: boolean;
+  /** A field that holds the id of a thing (a channel, a mailbox, an agent...): the id's prefix. It is picked by name, never typed. */
+  ref?: string;
 }
 
 const ACCOUNT = new Set(["connectionId", "mailboxId", "numberId", "connector"]);
@@ -131,15 +134,17 @@ export function controlsFor(schema: unknown): Control[] {
       kind = "list";
       numeric = itemType !== "string";
     }
+    const pattern = typeof prop["pattern"] === "string" ? /^\^([a-z]{2,4})_/.exec(prop["pattern"] as string)?.[1] : undefined;
     out.push({
       name,
+      ...(pattern && t === "string" ? { ref: pattern } : {}),
       label: humanize(name),
       kind,
       required: required.has(name),
       options,
       account: ACCOUNT.has(name),
       numeric,
-      placeholder: example || (kind === "list" ? "One per line or separated by commas" : kind === "json" ? "JSON" : ""),
+      placeholder: (isRawId(example) ? "" : example) || (kind === "list" ? "One per line or separated by commas" : kind === "json" ? "JSON" : ""),
       hint: description,
     });
   }

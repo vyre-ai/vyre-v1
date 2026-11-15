@@ -615,3 +615,26 @@ test("a step whose input the engine refused is failed with a sentence that names
   const row = allSteps(h.db, id).find((s) => s.step === "make")!;
   assert.equal(row.error?.message, "Create a task: choose who it is for.");
 });
+
+test("a test run sends a step with a catalogue key through the step runner, so an empty required input stops the test and is not recorded as a success", async () => {
+  const h = harness();
+  const id = await started(h, { kind: "automation_test" });
+  const seen: string[] = [];
+  const exec: Executor = async (s, c) => {
+    seen.push(`${s.id}:${c.sandbox}`);
+    throw Object.assign(new Error("Something in what you entered is not right."), {
+      error: {
+        code: "validation.bad_input",
+        message: "Something in what you entered is not right.",
+        retryable: false,
+        details: { errors: ["/assigned is required"] },
+      },
+    });
+  };
+  const r = await h.engineRun(engine, (ctx) =>
+    drive(ctx, id, [step("make", { key: "create_task", effects: "write", sample: { ok: true } })], exec),
+  );
+  assert.deepEqual(r, { status: "failed", failedStep: "make" });
+  assert.deepEqual(seen, ["make:true"]);
+  assert.equal((await runOf(h, id)).status, "failed");
+});

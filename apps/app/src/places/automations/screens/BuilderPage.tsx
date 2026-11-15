@@ -784,6 +784,8 @@ function Body({
     setPicker(null);
     edit(next);
     setSel(added.id);
+    // the new step's form opens with the cursor in its first empty field, so typing goes there and not into the list's search
+    setFocusNeed(added.id);
   };
   const openMore = (e: unknown): void => {
     const p = pos(e);

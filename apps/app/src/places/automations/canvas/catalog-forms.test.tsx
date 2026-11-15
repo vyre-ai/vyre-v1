@@ -10,6 +10,7 @@ import { controlsFor, requiredOf, resolveSchema, TRIGGER_SPECS } from "./form-mo
 import { check } from "./model.ts";
 import type { DefNode, DefTrigger, Definition } from "./model.ts";
 import { createSampleAutomations, northwind } from "../sidebar/sample.ts";
+import { rawIdsIn } from "../../../../../../lib/id-shapes.ts";
 
 interface RegStep {
   key: string;
@@ -223,4 +224,26 @@ test("the screenshot: three triggers in one block each open their own form, a sc
   assert.ok(ids(out).has("schedule-time") && ids(out).has("schedule-zone"), "a time and a time zone");
   assert.ok(out.includes("This is trigger 3 of 3"), "the line that was all there was is still there, below the form");
   assert.ok(out.includes("Next 3 runs"), "and the next runs");
+});
+
+// round five (the walker's channel field showed chn_a1b2c3): no step's form shows an id, as a hint, a placeholder or a value
+test("no step's form shows an id shape: a field that holds a thing's id is a picker, and an example id is never a hint", () => {
+  const shown: string[] = [];
+  for (const step of registry.steps) {
+    const node = blank(step.key);
+    const def: Definition = { triggers: [{ key: "manual" }], nodes: [node] };
+    const out = page(def, node, schemaOf(step));
+    const text = out.replace(/<[^>]*>/g, " ") + " " + [...out.matchAll(/placeholder="([^"]*)"/g)].map((m) => m[1]).join(" ");
+    for (const id of rawIdsIn(text)) shown.push(`${step.key}: ${id}`);
+  }
+  assert.deepEqual(shown, []);
+});
+
+test("the Channel field of Post a chat message is a picker by name", () => {
+  const step = registry.steps.find((x) => x.key === "post_message")!;
+  const node = blank("post_message");
+  const out = page({ triggers: [{ key: "manual" }], nodes: [node] }, node, schemaOf(step));
+  assert.ok(ids(out).has("field-channelId"));
+  assert.ok(!control(out, "field-channelId") || !/placeholder="chn_/.test(out));
+  assert.match(out, /Choose a channel/);
 });

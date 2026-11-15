@@ -12,7 +12,7 @@ import { controlText, writeControl } from "./form-model.ts";
 import type { Control } from "./form-model.ts";
 import { Glyph } from "./icons.tsx";
 import { pointer } from "./parts.tsx";
-import { useWhoPicks } from "./steps/useLists.ts";
+import { THINGS, useThingPicks, useWhoPicks } from "./steps/useLists.ts";
 import type { OpenMenu } from "./steps/StepForms.tsx";
 
 type Input = Record<string, unknown>;
@@ -70,6 +70,42 @@ function WhoField({
 
 import { ConditionField, EventField } from "./ConditionField.tsx";
 
+/** A field that holds the id of a thing: the person picks it by name from what they may use, and the name shows once chosen. The id is never shown. */
+function ThingField({
+  control,
+  value,
+  onValue,
+  openMenu,
+}: {
+  control: Control;
+  value: unknown;
+  onValue(next: unknown): void;
+  openMenu: OpenMenu;
+}): ReactElement {
+  const prefix = control.ref ?? "";
+  const picks = useThingPicks(prefix);
+  const word = THINGS[prefix]?.word ?? "one";
+  const held = typeof value === "string" ? value : "";
+  const hit = picks.state === "ready" ? picks.items.find((p) => p.value === held) : undefined;
+  const shown = held === "" ? "" : hit ? hit.label : /\{\{/.test(held) ? "From earlier data" : picks.state === "ready" ? "Not available to you" : "";
+  return (
+    <Choice
+      label={control.label}
+      value={shown === "" ? `Choose a ${word}` : shown}
+      testID={`field-${control.name}`}
+      onOpen={(x, y) => {
+        const entries: MenuEntry[] = [];
+        if (picks.state === "ready")
+          for (const p of picks.items)
+            entries.push({ label: p.label, checked: held === p.value, onSelect: () => onValue(p.value) });
+        if (entries.length === 0) entries.push({ label: picks.state === "loading" ? "Loading" : `No ${word} to choose`, disabled: true });
+        else if (!control.required && held !== "") entries.push({ separator: true }, { label: "None", onSelect: () => onValue(undefined) });
+        openMenu(entries, x, y, "other");
+      }}
+    />
+  );
+}
+
 function One({
   control,
   input,
@@ -122,6 +158,24 @@ function One({
   ) : control.hint && control.kind !== "text" && control.kind !== "multiline" ? (
     <Hint>{control.hint}</Hint>
   ) : null;
+  if (control.ref && THINGS[control.ref] && control.kind === "text") {
+    return (
+      <>
+        <ThingField
+          control={{ ...control, label }}
+          value={current}
+          openMenu={openMenu}
+          onValue={(next) => {
+            const copy = { ...input };
+            if (next === undefined) delete copy[control.name];
+            else copy[control.name] = next;
+            onInput(copy);
+          }}
+        />
+        {note}
+      </>
+    );
+  }
   if (control.kind === "who") {
     return (
       <>

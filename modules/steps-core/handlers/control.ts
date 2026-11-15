@@ -641,6 +641,17 @@ const pick = (i: In, keys: string[], extra: Record<string, unknown>): Record<str
   for (const k of keys) if (i[k] !== undefined && i[k] !== null) out[k] = i[k];
   return out;
 };
+/** The first required input of a step's schema that is missing or empty once rendered, or null. */
+function emptyRequired(key: string, input: In): string | null {
+  const schema = registry.steps.find((x) => x.key === key)?.input as { required?: unknown } | undefined;
+  const need = Array.isArray(schema?.required) ? (schema!.required as string[]) : [];
+  const rec = input as Record<string, unknown>;
+  for (const f of need) {
+    const v = rec[f];
+    if (v === undefined || v === null || (typeof v === "string" && v.trim() === "")) return f;
+  }
+  return null;
+}
 /** A sandbox answers a step with its sample unless it only reads. An HTTP request step is a read for GET and HEAD. */
 const sandboxStubs = (def: { effects: string; kind: string; key: string }, i: In): boolean =>
   def.key === "http_request" ? !isRead(i) : def.effects !== "read" || def.kind === "wait" || def.key === "approval";
@@ -888,7 +899,20 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
   if (!def) throw stepError("validation.bad_input", `There is no step called ${node.key}.`, false);
   const scope = scopeOf(env, call);
   const input = render(node.input, scope) as In;
-  if (call.sandbox && sandboxStubs(def, input)) return { output: def.sample };
+  if (call.sandbox && sandboxStubs(def, input)) {
+    // a test or replay answers with the sample, but a step whose required input is empty would have been refused for real: it stops here the same way (a stopped test is not a success)
+    const field = emptyRequired(node.key, input);
+    if (field)
+      throw Object.assign(new Error(`${field} is required`), {
+        error: {
+          code: "validation.bad_input",
+          message: "Something in what you entered is not right.",
+          retryable: false,
+          details: { errors: [`/${field} is required`] },
+        },
+      });
+    return { output: def.sample };
+  }
   switch (node.key) {
     case "if":
       return ifStep(node, input, scope);

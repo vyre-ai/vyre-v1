@@ -57,8 +57,8 @@ export function ListView({
           />
         </>
       )}
-      {/* ui-rows-lint: each item is a ui/Row; the View only carries the row's menu trigger */}
       {v.rows.map((r) => (
+        // ui-rows-lint: not a list (each item is a ui/Row; the View only carries the row's menu trigger)
         <View key={r.id} {...(onMenu ? menuTrigger((x, y) => onMenu(r.id, x, y)) : {})}>
           <Row
             id={`auto-${r.id}`}

@@ -215,7 +215,10 @@ export function StoryView({
                   {r.kind === "step" && r.need ? (
                     <View style={s.needRow}>
                       {story.tests[r.id]?.mark === "stopped" ? <Text style={look.warn}>Stopped here</Text> : null}
-                      <Text style={[look.warn, { flexShrink: 1 }]}>{r.need.line}</Text>
+                      {/* the line and the button say the same thing when the line is the action itself: say it once, on the button */}
+                      {r.need.line.trim().toLowerCase() === r.need.button.trim().toLowerCase() ? null : (
+                        <Text style={[look.warn, { flexShrink: 1 }]}>{r.need.line}</Text>
+                      )}
                       <Btn
                         id={`sv-need-${r.id}`}
                         label={r.need.button}

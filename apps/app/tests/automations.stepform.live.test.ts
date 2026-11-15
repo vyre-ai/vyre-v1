@@ -214,6 +214,27 @@ test("production Automations: the step row and the step form for each kind and s
     const run = (runs.runs ?? runs.data?.runs ?? [])[0];
     const steps = run ? await api("runs.steps", { runId: run.id }) : null;
     const failed = (steps?.steps ?? steps?.data?.steps ?? []).find((x: { state: string }) => x.state === "failed");
+
+    // round five (walker): a Test that stops on a missing input is a stopped run, never a success
+    const lacking = await make("Lacking a person", [{ id: "n1", key: "create_task", input: { title: "Call back" } }]);
+    const tried = await api("automations.test", { automationId: lacking });
+    const runId = (tried.data ?? tried).runId as string;
+    await page.waitForTimeout(2500);
+    const got = await api("runs.get", { runId });
+    const status = (got.run ?? got.data?.run ?? got.data).status as string;
+    assert.equal(status, "failed", "a test that stops on a missing input is not a success");
+    assert.match(JSON.stringify(got), /choose who it is for/i, "the run says why in words");
+
+    // round five (walker): the Channel field is a picker by name, never a box with an example id
+    const post = await make("Post a note", [{ id: "n1", key: "post_message", input: {} }]);
+    await page.getByText("Post a note", { exact: true }).first().click();
+    await page.getByTestId("story").waitFor({ timeout: 20_000 });
+    await page.getByTestId("sv-step-n1").click({ position: { x: 120, y: 14 } });
+    await page.getByTestId("field-channelId").waitFor({ timeout: 20_000 });
+    const channelText = await page.getByTestId("field-channelId").innerText();
+    assert.match(channelText, /Choose a channel/, "the channel is chosen from a menu");
+    assert.equal(/\b[a-z]{3}_[a-z0-9]{6,}/.test(await page.locator("body").innerText()), false, "no id on the form");
+    void post;
     console.log("RUN", run?.status, JSON.stringify(failed?.error ?? null));
     assert.deepEqual(errors, [], "no page error");
   } finally {

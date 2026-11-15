@@ -503,7 +503,7 @@ export function Inspector({
     el?.scrollIntoView?.({ block: "center" });
     el?.focus?.();
   };
-  focusNeedRef.current = needLine ? focusFirstNeeded : null;
+  focusNeedRef.current = focusFirstNeeded;
   return (
     <DataWordsContext.Provider value={dataWords}>
       <MapTargetContext.Provider value={{ set: setMapTarget }}>
