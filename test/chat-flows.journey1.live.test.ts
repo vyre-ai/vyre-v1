@@ -61,6 +61,7 @@ test("journey 1, Team: Catch me up on open, Make a task from a message, Remember
     // Remember This: the message menu keeps it, and the card says so
     await me.page.getByTestId(`msg-${decision}`).hover();
     await me.page.getByTestId(`act-more-${decision}`).click();
+    await me.page.getByTestId("menu-item-Memory").click();
     await me.page.getByText("Remember This").click();
     await me.page
       .getByText(/Remembered/)

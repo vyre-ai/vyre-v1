@@ -74,7 +74,7 @@ test("journey 6, Team on a tablet: a long press on an agent's answer opens the s
     };
     await longPress();
     await me.page.getByText("Make a task", { exact: true }).waitFor({ timeout: 10_000 });
-    await me.page.getByText("Remember This", { exact: true }).waitFor({ timeout: 10_000 });
+    await me.page.getByText("Memory", { exact: true }).waitFor({ timeout: 10_000 });
     await shootHere(me.page, dir, "tablet-sheet");
     await me.page.getByText("Make a task", { exact: true }).click();
     await me.page
@@ -82,6 +82,7 @@ test("journey 6, Team on a tablet: a long press on an agent's answer opens the s
       .first()
       .waitFor({ timeout: 20_000 });
     await longPress();
+    await me.page.getByText("Memory", { exact: true }).click();
     await me.page.getByText("Remember This", { exact: true }).click();
     await me.page
       .getByText(/Remembered/)
