@@ -1665,7 +1665,7 @@ async function targetForRun(
 
 // What is true for each kind of Space (12 Nov, the browser's voice, lane f-desktop): a Personal Space runs on the person's own computer; a Team Space on its server, which is not the computer the person is on.
 export const NO_WORKSPACE_PERSONAL =
-  "Your Assistant runs commands on this computer for now. A workspace of its own needs Docker on this computer, or a server with Docker added in Console > Computers.";
+  "Your Assistant runs commands on this computer for now. For a computer of its own, install Docker here or add a server in Console > Computers.";
 /** What opening an agent's terminal says when no computer can run it now (lane f-wire's review, 12 Nov): the agent's name when the caller may see it, else "this agent". */
 export function noComputerLine(name?: string): string {
   const whose = (name !== undefined && name.trim() !== "" ? name.trim() : "this agent") + "'s";
@@ -1677,7 +1677,7 @@ export function noComputerLine(name?: string): string {
 }
 export const NO_WORKSPACE_NOW_PERSONAL = noComputerLine();
 export const NO_WORKSPACE_TEAM =
-  "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.";
+  "No computer is set up for agents yet. An admin of this Space can add one in Console > Computers.";
 
 /**
  * An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet; where it is; the projects it has folders for; whether this person may attach, and why not
