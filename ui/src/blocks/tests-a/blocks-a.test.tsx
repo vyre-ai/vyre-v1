@@ -293,7 +293,7 @@ test("question: free mode has a text box and no options; multi mode has an Answe
 test("plan: a proposed plan is headed Plan, lists its steps with empty ticks, and offers Allow, Change it, Deny", () => {
   const markup = html(SAMPLE_PLAN);
   assert.ok(markup.includes(">Plan<"));
-  assert.ok(!markup.includes("Plan mode on") && !markup.includes("Allow") && !markup.includes("Deny"));
+  assert.ok(!markup.includes("Plan mode on"));
   assert.ok(markup.includes("Mount the Marketing folder from Google Drive for the welcome kit"));
   for (const [key, word] of [
     ["approve", "Allow"],
