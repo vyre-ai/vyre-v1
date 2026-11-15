@@ -53,7 +53,7 @@ export function driveStandIn(o: DriveOptions) {
     /** the next N creates make the file and then answer 503 (the answer is lost, the file is there) */
     createThen503: 0,
     /** the next upload to this file finds another revision saved first (a change between the check and the upload) */
-    interpose: null as null | { id: string; text: string },
+    interpose: null as null | { id: string; text: string; by?: { name: string; email: string } },
     /** called with each request before it is answered: a test stops the daemon here */
     onRequest: null as null | ((r: { method: string; path: string }) => void),
     /** the matching request is applied at Drive and then never answered: the daemon is stopped at that moment (a crash in the middle of a write) */
@@ -247,7 +247,7 @@ export function driveStandIn(o: DriveOptions) {
         if (state.interpose && state.interpose.id === f.id) {
           const i = state.interpose;
           state.interpose = null;
-          elsewhere(i.id, i.text);
+          elsewhere(i.id, i.text, i.by);
         }
         f.head += 1;
         f.bytes = new Uint8Array(media);

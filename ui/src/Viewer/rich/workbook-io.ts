@@ -5,6 +5,8 @@ import { Grid, DEFAULT_COL_W, display, inputOf, isDateFormat, key, parseInput, t
 import type { Book, GCell, GSheet } from "./grid-model.ts";
 import { colIndex } from "./formula.ts";
 import { safeUnzip } from "./limits.ts";
+import { parseXml } from "./ooxml.ts";
+import type { XNode } from "./ooxml.ts";
 import type { UnzipApi } from "./limits.ts";
 
 /** The slice of ExcelJS the reader and writer use. */
@@ -275,22 +277,59 @@ const ENTRY_WORDS: [RegExp, string][] = [
   [/^xl\/(queryTables|connections\.xml|model\/)/, "data connections"],
   [/^xl\/(metadata\.xml|richData\/)/, "dynamic arrays or rich data"],
 ];
-const SHEET_MARKS: [RegExp, string][] = [
-  [/<extLst[\s>]/, "extensions such as sparklines or conditional formats"],
-  [/<f\b[^>]*\bt="array"/, "array formulas"],
-  [/<f\b[^>]*\bt="dataTable"/, "data tables"],
-  [/<mc:AlternateContent/, "extensions such as sparklines or conditional formats"],
-  [/<(legacyDrawing|oleObjects|controls|picture|drawing)\b/, "charts, pictures or comments"],
-  [/<(ignoredErrors|cellWatches|smartTags|customProperties|webPublishItems)\b/, "settings a save here would drop"],
-];
-const BOOK_MARKS: [RegExp, string][] = [
-  [/<externalReferences[\s>]/, "links to other workbooks"],
-  [/<pivotCaches[\s>]/, "pivot tables"],
-  [
-    /<(functionGroups|oleSize|customWorkbookViews|fileSharing|webPublishing|smartTagPr)\b/,
-    "settings a save here would drop",
-  ],
-];
+/** Marks by local name (the prefix a file chooses is nothing): a sheet's tags that a save here would drop or change. */
+const SHEET_TAGS: Record<string, string> = {
+  extLst: "extensions such as sparklines or conditional formats",
+  AlternateContent: "extensions such as sparklines or conditional formats",
+  legacyDrawing: "charts, pictures or comments",
+  oleObjects: "charts, pictures or comments",
+  controls: "charts, pictures or comments",
+  picture: "charts, pictures or comments",
+  drawing: "charts, pictures or comments",
+  ignoredErrors: "settings a save here would drop",
+  cellWatches: "settings a save here would drop",
+  smartTags: "settings a save here would drop",
+  customProperties: "settings a save here would drop",
+  webPublishItems: "settings a save here would drop",
+};
+const BOOK_TAGS: Record<string, string> = {
+  externalReferences: "links to other workbooks",
+  pivotCaches: "pivot tables",
+  functionGroups: "settings a save here would drop",
+  oleSize: "settings a save here would drop",
+  customWorkbookViews: "settings a save here would drop",
+  fileSharing: "settings a save here would drop",
+  webPublishing: "settings a save here would drop",
+  smartTagPr: "settings a save here would drop",
+};
+const local = (n: string): string => n.slice(n.indexOf(":") + 1);
+
+/** The first mark in a part (read as XML, so single quotes, prefixes and layout do not matter), or null. A part that is not exactly the plain element it should be is itself a mark. */
+function markIn(xml: string, rootName: "worksheet" | "workbook", tags: Record<string, string>): string | null {
+  let root;
+  try {
+    root = parseXml(xml).root;
+  } catch {
+    return "parts it does not read";
+  }
+  // a sheet written with a prefix (<x:worksheet>) or another root is not read by ExcelJS the way it reads its own
+  if (root.name !== rootName) return "parts it does not read";
+  const walk = (n: XNode): string | null => {
+    const hit = tags[local(n.name)];
+    if (hit !== undefined) return hit;
+    if (local(n.name) === "f") {
+      const t = n.attrs.find(([k]) => local(k) === "t")?.[1];
+      if (t === "array") return "array formulas";
+      if (t === "dataTable") return "data tables";
+    }
+    for (const c of n.children) if (typeof c !== "string" && c.name !== "#raw") {
+      const r = walk(c);
+      if (r !== null) return r;
+    }
+    return null;
+  };
+  return walk(root);
+}
 
 /**
  * Why a workbook is not edited here, or null when it can be. ExcelJS writes back what it reads and no more: external links, threaded comments, custom data, printer settings, charts, pictures, pivot tables,
@@ -311,8 +350,8 @@ export function editUnsafe(zipBytes: Uint8Array, ff: UnzipApi, fileName = ""): s
     if (!ROUND_TRIPS.some((re) => re.test(n)) && !/\/$/.test(n)) return say("parts it does not read");
   }
   for (const [n, bytes] of Object.entries(found)) {
-    const xml = dec.decode(bytes);
-    for (const [re, word] of n === "xl/workbook.xml" ? BOOK_MARKS : SHEET_MARKS) if (re.test(xml)) return say(word);
+    const word = n === "xl/workbook.xml" ? markIn(dec.decode(bytes), "workbook", BOOK_TAGS) : markIn(dec.decode(bytes), "worksheet", SHEET_TAGS);
+    if (word !== null) return say(word);
   }
   return null;
 }

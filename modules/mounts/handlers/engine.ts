@@ -791,7 +791,8 @@ export const PUSH_QUIET_MS = 30_000;
 export const PUSH_QUIET_CAP_MS = 5 * 60_000;
 
 /** The name a Vyre edit is kept under when the file moved on at the provider: "Report (Noah's edit).docx". */
-function copyName(name: string, who: string): string {
+function copyName(name: string, whoRaw: string): string {
+  const who = whoRaw.replace(/[\\/:*?"<>|\u0000-\u001f\u007f-\u009f]/g, "").slice(0, 40) || "Vyre";
   const dot = name.lastIndexOf(".");
   const tag = ` (${who}'s edit)`;
   return dot > 0 ? `${name.slice(0, dot)}${tag}${name.slice(dot)}` : `${name}${tag}`;
@@ -892,7 +893,14 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[], q
         parentRemote: parent,
         key: `mnt:fld:${m.id}:${str(f["item_key"])}`,
       });
-      patchItem(ctx, f, { remote_id: made.remoteId, dirty: 0, wait_reason: null });
+      patchItem(ctx, f, {
+        remote_id: made.remoteId,
+        dirty: 0,
+        wait_reason:
+          made.renamedTo !== undefined
+            ? `A folder named "${str(f["name"])}" was already at ${label}, so this one is saved there as "${made.renamedTo}".`
+            : null,
+      });
       res.pushed += 1;
     } catch (e) {
       await settle(e, f);
@@ -989,7 +997,10 @@ async function pushAll(ctx: Ctx, m: MountRec, provider: Provider, rows: Row[], q
         dirty: 0,
         dirty_by: null,
         dirty_since: null,
-        wait_reason: null,
+        wait_reason:
+          up.renamedTo !== undefined
+            ? `A file named "${str(f["name"])}" was already at ${label}, so this one is saved there as "${up.renamedTo}".`
+            : null,
       });
       if (up.revision !== undefined) {
         ctx.db.run(
@@ -1060,7 +1071,8 @@ async function keepTheirsBeside(
       });
       const name = str(row["name"]);
       const dot = name.lastIndexOf(".");
-      const first = who.split(/[\s@]/)[0] ?? who;
+      // a provider's display name is somebody else's text: no path characters, no control characters, and not long
+      const first = (who.split(/[\s@]/)[0] ?? who).replace(/[\\/:*?"<>|\u0000-\u001f\u007f-\u009f]/g, "").slice(0, 40) || "Their";
       beside =
         dot > 0 ? `${name.slice(0, dot)} (${first}'s version)${name.slice(dot)}` : `${name} (${first}'s version)`;
       const folder = ((await ctx.call("files.get", { fileId: str(row["file_id"]) })) as { file: { folderId: string } })

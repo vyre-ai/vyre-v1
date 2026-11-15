@@ -480,3 +480,26 @@ test("an edit left unsent by a stop inside its quiet time is sent after the boot
     await (w2 ?? w).stop();
   }
 });
+
+test("the name of the copy that keeps their version is made safe: no path characters or control characters from the provider's display name", async () => {
+  const { w, drive, mount, fileNamed, sync } = await bootDriveWorld("drvsafe", (d) => {
+    d.put({ id: "d1", name: "Plan.txt", mimeType: "text/plain" }, "first words");
+  });
+  try {
+    const added = await mount();
+    const f = await fileNamed(added.folderId, "Plan.txt");
+    assert.ok(f);
+    await w.ok(MEMBER, "files.read", { fileId: f.fileId });
+    await w.ok(MEMBER, "files.write", { fileId: f.fileId, content: { text: "my words" }, reason: "Edit", idempotencyKey: w.idem() });
+    const orig = drive.elsewhere;
+    void orig;
+    drive.state.interpose = { id: "d1", text: "their words", by: { name: "Kim/..\\Ito\u0007", email: "kim@firm.test" } };
+    await sync(added.mountId);
+    await sync(added.mountId);
+    const names = [...drive.files.values()].map((x) => x.name);
+    assert.ok(names.includes("Plan (Kim..Ito's version).txt"), names.join(" | "));
+    assert.ok(names.every((n) => !/[\\/\u0000-\u001f]/.test(n)));
+  } finally {
+    await w.stop();
+  }
+});

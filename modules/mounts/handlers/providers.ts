@@ -128,6 +128,8 @@ export interface Uploaded {
   editor?: Person;
   /** nothing was written: the item at the provider is no longer the one the write was based on */
   stale?: boolean;
+  /** a file or folder of that name was already there (not this one: it is never taken for it), so it was made under this name instead */
+  renamedTo?: string;
   /** the write went out, but another revision had been saved there between the one it was based on and this one (the check and the upload are two calls): that revision is named here */
   between?: { revisionId: string; by?: Person; at?: number };
 }
@@ -799,7 +801,10 @@ const graph: Provider = {
         idempotencyKey: a.key,
       }),
     );
-    return { remoteId: text(obj(res["item"])["id"]) ?? "" };
+    return {
+      remoteId: text(obj(res["item"])["id"]) ?? "",
+      ...(typeof res["renamedTo"] === "string" ? { renamedTo: res["renamedTo"] } : {}),
+    };
   },
   /** Graph's delete puts the item in the recycle bin, where its owner can restore it. */
   async remove(ctx, m, remoteId, _isFolder, key) {

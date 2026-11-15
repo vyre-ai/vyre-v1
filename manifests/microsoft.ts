@@ -670,7 +670,7 @@ const capabilities = [
     "ms.drive.get_item",
     "Read item metadata",
     { driveId: t.opt(t.str()), itemId: t.str() },
-    { item: driveItem },
+    { item: driveItem, renamedTo: t.opt(t.str()) },
     { tool: "files", deferred: true },
   ),
   gr(
@@ -697,7 +697,7 @@ const capabilities = [
       remoteId: t.opt(t.str()),
       ifMatch: t.opt(t.str()),
     },
-    { item: t.opt(driveItem), stale: t.opt(t.bool()) },
+    { item: t.opt(driveItem), stale: t.opt(t.bool()), renamedTo: t.opt(t.str()) },
     { gate: "post", tool: "files", deferred: true },
   ),
   gr(

@@ -983,3 +983,25 @@ test("versions list who saved each one and one version downloads into a blob", a
   check("ms.drive.list_versions", out);
   check("ms.drive.download_version", dl);
 });
+
+
+test("a create onto a taken name never takes the item there for the new file: it is saved under a free (2) name (Keep both twice, or a delete then a new file of the same name)", async () => {
+  const h = ready();
+  // Failure A: "Report.txt" and its first copy are both at the provider already; the second copy must not be taken for the first
+  h.taken.add("Notes.txt");
+  h.taken.add("Notes (2).txt");
+  const up = await driveUpload(h.ctx, { ...act, folderId: "f1", name: "Notes.txt", fileId: "fil_second" });
+  assert.equal(up.item?.name, "Notes (3).txt", "the new content is sent, under a free name");
+  assert.equal(up.renamedTo, "Notes (3).txt");
+  assert.equal(h.uploads.length, 3, "three tries, the last one wrote the new content");
+  // Failure B: Notes.txt was deleted in Vyre and a new Notes.txt made: the item there (about to be trashed) is not adopted
+  const h2 = ready();
+  h2.taken.add("Notes.txt");
+  const again = await driveUpload(h2.ctx, { ...act, folderId: "f1", name: "Notes.txt", fileId: "fil_new" });
+  assert.equal(again.item?.name, "Notes (2).txt");
+  assert.equal(h2.uploads.some((u) => /Notes%20\(2\)\.txt:\/content/.test(u.url)), true);
+  // a free name is made as asked and says nothing
+  const h3 = ready();
+  const plain = await driveUpload(h3.ctx, { ...act, folderId: "f1", name: "Fresh.txt", fileId: "fil_f" });
+  assert.equal(plain.renamedTo, undefined);
+});

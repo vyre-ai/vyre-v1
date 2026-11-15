@@ -31,7 +31,7 @@ const withSheet = (e: Record<string, Uint8Array>, f: (x: string) => string): Rec
   ...e,
   "xl/worksheets/sheet1.xml": enc.encode(f(sheetXml(e))),
 });
-const marks = (x: string): string => (x.match(/<f\b[^>]*>|<extLst|<legacyDrawing/g) ?? []).join("|");
+const marks = (x: string): string => (x.match(/<(?:\w+:)?(?:f\b[^>]*>|extLst|legacyDrawing)/g) ?? []).join("|");
 
 test("a workbook the editor would change is read only, for every entry and mark ExcelJS does not write back (proved by round-tripping each one)", async () => {
   const base = await baseBook();
@@ -59,6 +59,9 @@ test("a workbook the editor would change is read only, for every entry and mark 
     "an array formula": withSheet(base, (x) =>
       x.replace("<f>B1*C1</f>", '<f t="array" ref="D1:D2">B1:B2*C1:C2</f>').replace("<f>B2*C2</f>", ""),
     ),
+    "an array formula with single quotes": withSheet(base, (x) => x.replace("<f>B1*C1</f>", "<f t='array' ref='D1:D2'>B1:B2*C1:C2</f>").replace("<f>B2*C2</f>", "")),
+    "a prefixed worksheet with an array formula": withSheet(base, (x) => x.replace(/<(\/?)(?!\?)/g, "<$1x:").replace("<x:worksheet ", '<x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ').replace("<x:f>B1*C1</x:f>", '<x:f t="array" ref="D1:D2">B1:B2*C1:C2</x:f>').replace("<x:f>B2*C2</x:f>", "")),
+    "a prefixed extLst": withSheet(base, (x) => x.replace("</worksheet>", '<x:extLst xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><x:ext uri="{x}"/></x:extLst></worksheet>')),
     "a data table": withSheet(base, (x) => x.replace("<f>B1*C1</f>", '<f t="dataTable" ref="D1" dt2D="1" r1="A1"/>')),
     "a comment drawing": withSheet(base, (x) => x.replace("</worksheet>", '<legacyDrawing r:id="rId1"/></worksheet>')),
   };
@@ -260,6 +263,9 @@ test("a zip that unpacks to a gigabyte is refused from its directory in one sent
   assert.throws(() => readDocx(safeUnzip(fflate, new Uint8Array(bomb))), LimitError);
   assert.ok(performance.now() - t0 < 1000, "refused at once");
   assert.ok(process.memoryUsage().rss - before < 200 * 1024 * 1024, "nothing was unpacked");
+  // an XML part over 20 MB that would be parsed is refused too
+  const bigXml = pack({ "word/document.xml": new Uint8Array(21 * 1024 * 1024) });
+  assert.throws(() => safeUnzip(fflate, bigXml), /part over 20 MB/);
   // too many parts
   const many: Record<string, Uint8Array> = {};
   for (let i = 0; i <= MAX_ENTRIES; i++) many[`p${i}.xml`] = new Uint8Array(1);

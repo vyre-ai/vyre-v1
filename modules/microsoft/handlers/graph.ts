@@ -661,44 +661,42 @@ export async function driveUpload(
     ...(a.as ? { as: a.as } : {}),
   });
   const base = driveBase(sub, a.driveId);
-  const where = a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(a.name)}` : `${base}/root:/${enc(a.name)}`;
-  // a new file is made with conflictBehavior=fail: a name that is taken is never written over. A create whose answer was lost and is sent again meets its own file, which is then taken (below), not made twice.
-  const url =
-    a.remoteId !== undefined
-      ? `${base}/items/${enc(a.remoteId)}/content`
-      : `${where}:/content?@microsoft.graph.conflictBehavior=fail`;
-  try {
-    return {
-      item: mapItem(
-        obj(
-          await needHost(ctx).upload(ctx, {
-            url,
-            token,
-            fileId: a.fileId,
-            ...(a.remoteId !== undefined && a.ifMatch !== undefined ? { ifMatch: a.ifMatch } : {}),
-          }),
-        ),
+  const whereOf = (name: string): string => (a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(name)}` : `${base}/root:/${enc(name)}`);
+  const send = async (url: string) =>
+    mapItem(
+      obj(
+        await needHost(ctx).upload(ctx, {
+          url,
+          token,
+          fileId: a.fileId,
+          ...(a.remoteId !== undefined && a.ifMatch !== undefined ? { ifMatch: a.ifMatch } : {}),
+        }),
       ),
-    };
-  } catch (e) {
-    if (a.ifMatch !== undefined && codeOf(e) === "validation.version_conflict") return { stale: true };
-    if (
-      a.remoteId === undefined &&
-      (codeOf(e) === "validation.precondition_failed" || codeOf(e) === "validation.version_conflict")
-    ) {
-      // the name is taken: if the file there was made by this account a moment ago it is the one a lost answer made, and it is taken
-      const there = await call(ctx, a, "ms.drive.upload_item", {
-        url: where,
-        query: { $select: "id,name,size,eTag,lastModifiedDateTime,lastModifiedBy,parentReference,webUrl,file" },
-      });
-      const mine = mapItem(there);
-      const by = (mine["lastModifiedBy"] as { email?: string } | undefined)?.email?.toLowerCase();
-      const at = Date.parse(String(mine["lastModifiedDateTime"] ?? ""));
-      if (there["file"] !== undefined && by !== undefined && by === sub.toLowerCase() && Date.now() - at < 15 * 60_000)
-        return { item: mine };
+    );
+  if (a.remoteId !== undefined) {
+    try {
+      return { item: await send(`${base}/items/${enc(a.remoteId)}/content`) };
+    } catch (e) {
+      if (a.ifMatch !== undefined && codeOf(e) === "validation.version_conflict") return { stale: true };
+      throw e;
     }
-    throw e;
   }
+  // A new file is made with conflictBehavior=fail: a name that is taken is never written over, and an item that is already there is never taken for this one (it may be older, another person's, or an item
+  // Vyre is deleting): the file is saved under a free "(2)", "(3)" name and the caller says so. Taking an item by its name would send nothing and could lose the new content.
+  const clash = (e: unknown): boolean => codeOf(e) === "validation.precondition_failed" || codeOf(e) === "validation.version_conflict";
+  const dot = a.name.lastIndexOf(".");
+  const stem = dot > 0 ? a.name.slice(0, dot) : a.name;
+  const ext = dot > 0 ? a.name.slice(dot) : "";
+  for (let n = 1; n <= 20; n++) {
+    const name = n === 1 ? a.name : `${stem} (${n})${ext}`;
+    try {
+      const item = await send(`${whereOf(name)}:/content?@microsoft.graph.conflictBehavior=fail`);
+      return { item, ...(n > 1 ? { renamedTo: name } : {}) };
+    } catch (e) {
+      if (!clash(e)) throw e;
+    }
+  }
+  bad(ctx, "OneDrive already has files with that name and every free name was tried.");
 }
 
 /** The versions OneDrive or SharePoint keeps of an item, with who saved each. */
@@ -743,20 +741,21 @@ export async function driveFolder(ctx: MsCtx, a: Act & { driveId?: string; paren
   if (!a.name || /[\\/:*?"<>|]/.test(a.name)) bad(ctx, "The folder name has characters OneDrive does not allow.");
   const sub = await who(ctx, a, "ms.drive.create_folder");
   const base = driveBase(sub, a.driveId);
-  const r = await call(ctx, a, "ms.drive.create_folder", {
-    method: "POST",
-    url: a.parentId ? `${base}/items/${enc(a.parentId)}/children` : `${base}/root/children`,
-    body: { name: a.name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" },
-  }).catch(async (e: unknown) => {
-    // a folder of that name is there: the one a lost answer made is taken, not made again as "Reports 1"
-    if (codeOf(e) !== "validation.precondition_failed" && codeOf(e) !== "validation.version_conflict") throw e;
-    const there = await call(ctx, a, "ms.drive.create_folder", {
-      url: a.parentId ? `${base}/items/${enc(a.parentId)}:/${enc(a.name)}` : `${base}/root:/${enc(a.name)}`,
-    });
-    if (there["folder"] === undefined) throw e;
-    return there;
-  });
-  return { item: mapItem(r) };
+  const at = a.parentId ? `${base}/items/${enc(a.parentId)}/children` : `${base}/root/children`;
+  // a folder is made with conflictBehavior=fail and never taken by its name (it may be an old one Vyre is deleting): on a clash it is made as "Name (2)" and the caller says so
+  let r: Record<string, unknown> | undefined;
+  let renamedTo: string | undefined;
+  for (let n = 1; n <= 20 && r === undefined; n++) {
+    const name = n === 1 ? a.name : `${a.name} (${n})`;
+    try {
+      r = await call(ctx, a, "ms.drive.create_folder", { method: "POST", url: at, body: { name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" } });
+      if (n > 1) renamedTo = name;
+    } catch (e) {
+      if (codeOf(e) !== "validation.precondition_failed" && codeOf(e) !== "validation.version_conflict") throw e;
+    }
+  }
+  if (r === undefined) bad(ctx, "OneDrive already has folders with that name and every free name was tried.");
+  return { item: mapItem(r!), ...(renamedTo !== undefined ? { renamedTo } : {}) };
 }
 
 export async function driveShare(

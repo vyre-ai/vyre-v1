@@ -12,6 +12,8 @@ export const MAX_FILE_BYTES = {
 export const MAX_ENTRY_BYTES = 100 * 1024 * 1024;
 export const MAX_UNPACKED_BYTES = 300 * 1024 * 1024;
 export const MAX_ENTRIES = 5000;
+/** An XML part that is parsed (a sheet, a document, a slide, a list of relationships) is read only up to this size. */
+export const MAX_XML_BYTES = 20 * 1024 * 1024;
 /** A PDF with more pages than this is not opened. */
 export const MAX_PDF_PAGES = 5000;
 
@@ -65,7 +67,10 @@ export function safeUnzip(
         throw new LimitError(
           `This file unpacks to more than ${mb(MAX_UNPACKED_BYTES)}, so it is not opened here. Open it in its own app.`,
         );
-      return want(f.name);
+      const wanted = want(f.name);
+      if (wanted && /\.(xml|rels)$/i.test(f.name) && f.originalSize > MAX_XML_BYTES)
+        throw new LimitError(`This file has a part over ${mb(MAX_XML_BYTES)} that is more than can be read here. Open it in its own app.`);
+      return wanted;
     },
   });
   return out;

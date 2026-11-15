@@ -80,7 +80,7 @@ export function ConnectedBar({
               style={s.btn}
               testID="file-discard"
             >
-              <Text style={s.btnText}>Discard</Text>
+              <Text style={s.btnText}>Discard my changes</Text>
             </Pressable>
           </View>
         );
