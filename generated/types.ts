@@ -1435,6 +1435,7 @@ export type AgentsCreateIn = {
   };
   projectId?: string;
   threadId?: string;
+  sharing?: "me" | "everyone";
   idempotencyKey: string;
 };
 export type AgentsCreateOut = {
@@ -48458,6 +48459,7 @@ export type AgentCreatedPayload = {
   folderId: string;
   templateVersion: number;
   private?: boolean;
+  shared?: boolean;
 };
 export type AgentDeletedPayload = {
   agentId: string;

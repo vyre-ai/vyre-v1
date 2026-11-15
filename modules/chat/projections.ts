@@ -97,6 +97,14 @@ export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): 
           { agentId, ...(priv ? { reason: "private" } : {}) },
         );
     }
+    // an agent nobody shared with the person is not theirs to bring in or ask (15 Nov 2026): access answers for it, the same way it answers for the agent list
+    const gate = (
+      ctx as unknown as {
+        authorize?: (a: { perm: null; level: "view" }, r: { type: string; id: string }) => { effect: string };
+      }
+    ).authorize;
+    if (gate && gate({ perm: null, level: "view" }, { type: "agent", id: agentId }).effect !== "allow")
+      raise(ctx, "validation.not_found", "That agent does not exist.", { agentId });
   }
 }
 

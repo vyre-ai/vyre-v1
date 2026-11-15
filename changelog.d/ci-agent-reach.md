@@ -1,1 +1,1 @@
-A member can no longer use an agent nobody shared with them. The Member role's Space-wide Edit grant used to reach every agent in the Space; now a role's Space grant below Manage stops at the agent, so an agent is reached by its owner, by what was shared with a person, a group or everyone, and by the Space's admins.
+An agent nobody shared is its maker's: other members no longer see or use it. A new agent a person makes in a Team Space is shared with Everyone when it is made, and its sharing sheet narrows it.

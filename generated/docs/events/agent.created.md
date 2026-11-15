@@ -24,5 +24,6 @@ type Payload = {
   folderId: string;
   templateVersion: number;
   private?: boolean;
+  shared?: boolean;
 };
 ```

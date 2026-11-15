@@ -3178,6 +3178,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         membership: (principal, actingFor) =>
           isMemberOrGuest(access.snap, principal) &&
           (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        privateAgentWords: (agentId) => {
+          try {
+            const r = db!.all(
+              `SELECT "kind", "runtime" FROM agents_agent WHERE "id" = ? AND "deletedAt" IS NULL`,
+              agentId,
+            )[0] as { kind?: string; runtime?: string } | undefined;
+            return r && (r.kind === "assistant" || r.runtime === "outside")
+              ? "That agent is private to the person it belongs to. Only they can open it, chat with it or @mention it."
+              : null;
+          } catch {
+            return null;
+          }
+        },
         // an agent cut off from the Space (made in a private chat) that this caller may not view: it reads as not found (invoke.ts)
         hidden: (resource, principal, actingFor) => {
           if (resource.type !== "agent" || resource.id === null) return false;

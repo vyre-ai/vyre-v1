@@ -384,6 +384,8 @@ export default defineManifest({
             }),
           ),
           threadId: t.opt(id.thread),
+          // who may use it: everyone in a Team Space (the default for an agent a person makes) or only its maker ("me"); the sharing sheet changes it later
+          sharing: t.opt(t.enm("me", "everyone")),
         },
         out: { agent: agentRow },
         perm: "agents.create",
@@ -953,6 +955,11 @@ export default defineManifest({
         folderId: t.str(),
         templateVersion: t.int(),
         private: t.opt(t.bool()),
+        shared: t.opt(
+          t.bool({
+            description: "Made in the open Space by a person: shared with Everyone at use, written with the birth",
+          }),
+        ),
       },
       subject: ["agent", "/agentId"],
       trigger: { title: "An agent is created" },

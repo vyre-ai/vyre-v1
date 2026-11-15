@@ -247,6 +247,8 @@ export interface InvokeDeps {
   authorize(req: AuthReq): KernelDecision;
   /** True when a refused resource is one this caller may not even know of (an agent a private chat made, cut off from the Space, that they cannot view): the refusal reads as not found */
   hidden?(resource: { type: string; id: string | null }, principal: string, actingFor: string | undefined): boolean;
+  /** The plain words for a person who reaches by id for an agent that is its person's alone (an Assistant, an outside agent), or null for any other agent: access refuses them before the agents module can say it. */
+  privateAgentWords?(agentId: string): string | null;
   /** Is this person (or the person an agent acts for) a member or guest of the Space: any role or any grant. Needed by capabilities at level 'member' (ruling 69); without it they fall back to view on the Space. */
   membership?(principal: string, actingFor?: string): boolean;
   handler(cap: string, v: number): Handler | undefined;
@@ -971,6 +973,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           deps.hidden?.(resource, seed.principal.id, seed.actingFor)
         )
           throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
+        // an agent that is its person's alone, reached by another person (an agent nobody shared no longer rides on the Member role, so access answers first): the agents module's own words
+        const words =
+          resource !== null && resource.type === "agent" && resource.id !== null && seed.principal.kind === "person"
+            ? deps.privateAgentWords?.(resource.id)
+            : null;
+        if (words) throw fail("validation.not_found", traceId, { message: words, details: { reason: "private" } });
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare =

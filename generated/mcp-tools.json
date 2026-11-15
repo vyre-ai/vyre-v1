@@ -3226,6 +3226,13 @@
           "role": {
             "type": "string"
           },
+          "sharing": {
+            "enum": [
+              "me",
+              "everyone"
+            ],
+            "type": "string"
+          },
           "templateKey": {
             "type": "string"
           },

@@ -27,7 +27,7 @@ export const AGENT_ROLE_LOW = "rol_guest";
 export type SpaceLevel = "edit" | "view" | "none";
 
 /** Contract-valid, deterministic ids for grants synthesized from an agent birth. */
-export const agentGrantId = (agentId: string, purpose: "space" | "home" | "owner" | "grown" | "own"): string =>
+export const agentGrantId = (agentId: string, purpose: "space" | "home" | "owner" | "grown" | "own" | "all"): string =>
   `gnt_${agentId.slice(4)}${purpose}`;
 
 /**
@@ -394,6 +394,26 @@ export function createPrincipalRegistrar(deps: {
               resource_id: a.space,
               level,
               by: a.maker,
+            },
+          });
+        }
+        // an agent a person made in the open Space is the team's: the birth says so (`shared`, set by agents.create for an ordinary agent made by a person, never an Assistant, an outside agent, a teammate, one a chat made or one an
+        // agent made), and the explicit grant is written with the birth, so the Member role's Space grant never has to stand for it. The sharing sheet narrows it like any grant.
+        if ((ev.payload as { shared?: unknown } | null)?.shared === true) {
+          const all = agentGrantId(id, "all");
+          out.push({
+            type: "grant.created",
+            entity: "grant",
+            id: all,
+            payload: {
+              id: all,
+              subject_kind: "group",
+              subject_id: "grp_everyone",
+              resource_type: "agent",
+              resource_id: id,
+              level: "use",
+              by: a.maker,
+              source: `birth:${id}`,
             },
           });
         }

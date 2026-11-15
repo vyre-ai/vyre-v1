@@ -377,3 +377,27 @@ test("the home repair writes the two ruling 99 grants only for an agent whose ho
     [],
   );
 });
+
+test("an agent born shared gets exactly one Everyone use grant on itself, with the birth; one not born shared gets none", () => {
+  const shared = reg("edit").register({
+    events: [
+      { type: "agent.created", payload: { agentId: "agt_9abc", name: "Intake", ownerId: "usr_a", shared: true } },
+    ],
+    space: "spc_core",
+    maker: "usr_a",
+  });
+  const on = shared.filter((e) => e.payload["resource_type"] === "agent");
+  assert.equal(on.length, 1);
+  assert.deepEqual(
+    {
+      kind: on[0]!.payload["subject_kind"],
+      who: on[0]!.payload["subject_id"],
+      at: on[0]!.payload["resource_id"],
+      level: on[0]!.payload["level"],
+      by: on[0]!.payload["by"],
+    },
+    { kind: "group", who: "grp_everyone", at: "agt_9abc", level: "use", by: "usr_a" },
+  );
+  const alone = reg("edit").register({ events: created("agt_8abc"), space: "spc_core", maker: "usr_a" });
+  assert.equal(alone.filter((e) => e.payload["resource_type"] === "agent").length, 0);
+});
