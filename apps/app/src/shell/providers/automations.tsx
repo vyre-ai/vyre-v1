@@ -35,9 +35,10 @@ import {
   runsData,
   useDirectory,
 } from "./automations-parts.tsx";
-import { AllRuns, TemplateGallery, Watching } from "../../places/automations/operations/StudioViews.tsx";
+import { TemplateGallery, Watching } from "../../places/automations/operations/StudioViews.tsx";
 import { openAskPane } from "../ask/pane.ts";
 import { AutomationsSidebarSlot } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
+import { RunsList } from "../../places/automations/screens/RunsList.tsx";
 import { AutomationsList } from "../../places/automations/sidebar/AutomationsList.tsx";
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { keysFromAccounts } from "../../places/automations/values/typed.ts";
@@ -381,7 +382,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     ) : overlay?.kind === "journeyNew" ? (
       <JourneyNewView onClose={() => setOverlay((o) => (o?.kind === "journeyNew" ? null : o))} />
     ) : view === "runs" ? (
-      <AllRuns />
+      <RunsList />
     ) : view === "watching" ? (
       <Watching />
     ) : view === "templates" ? (
