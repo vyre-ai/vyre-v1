@@ -146,7 +146,7 @@ test("journey 6, a record shows everything: Bo sees the comment, the task and th
     const seatBo = await seat(s, bo, "Member");
     await open(seatBo, s, `/records#subject=record:${rec.id}`);
     // the pane opens on Details; Everything is the tab that holds the feed
-    await seatBo.page.getByTestId("tab-everything").click({ timeout: 30_000 });
+    await seatBo.page.locator('[data-testid="record-pane"] [data-testid="tab-everything"]').click({ timeout: 30_000 });
     await seatBo.page.getByTestId("pane-everything").waitFor({ timeout: 30_000 });
     const feed = await seatBo.page.getByTestId("pane-everything").innerText();
     assert.match(feed, /Dana wants the Friday slot/);
@@ -156,6 +156,9 @@ test("journey 6, a record shows everything: Bo sees the comment, the task and th
     await shoot(seatBo.page, dir, "feed-bo");
     const seatOlivia = await seat(s, w.owner, "Owner");
     await open(seatOlivia, s, `/records#subject=record:${rec.id}`);
+    await seatOlivia.page
+      .locator('[data-testid="record-pane"] [data-testid="tab-everything"]')
+      .click({ timeout: 30_000 });
     await seatOlivia.page.getByTestId("pane-everything").waitFor({ timeout: 30_000 });
     assert.match(
       await seatOlivia.page.getByTestId("pane-everything").innerText(),

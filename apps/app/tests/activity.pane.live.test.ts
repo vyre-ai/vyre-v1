@@ -247,6 +247,11 @@ test("a goal's, a task's and a record's pane opens on Details; Activity is the s
     assert.doesNotMatch(rt, CODE);
     await page.screenshot({ path: path.join(OUT, "record-2-activity-dark-desktop.png") });
 
+    // Everything is still there, one tab over, and the pane remembers where this person left it
+    await page.locator('[data-testid="record-pane"] [data-testid="tab-everything"]').click();
+    await page.getByTestId("pane-everything").waitFor({ timeout: 15_000 });
+    await page.screenshot({ path: path.join(OUT, "record-3-everything-dark-desktop.png") });
+
     assert.deepEqual(errors, [], "no page error");
   } finally {
     await browser.close();
