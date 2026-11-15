@@ -136,7 +136,7 @@ test("the tile takes its counts from an attention source that answers later", as
 test("the onboarding screen keeps each flow's steps per person: done, put off, open again, seen once", async () => {
   const h = harness();
   const fresh = await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "personal" });
-  assert.deepEqual(fresh, { seen: false, steps: [] });
+  assert.deepEqual(fresh, { seen: false, steps: [], fresh: true });
   await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "ai", state: "done" });
   await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "interview", state: "later" });
   await handlers["spaces.onboarding.mark"](h.as(MAYA), { flow: "personal", step: "interview", state: "done" });
@@ -145,15 +145,16 @@ test("the onboarding screen keeps each flow's steps per person: done, put off, o
   assert.deepEqual(await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "personal" }), {
     seen: true,
     steps: [{ key: "interview", state: "done" }],
+    fresh: true,
   });
   assert.deepEqual(
     await handlers["spaces.onboarding.flow"](h.as(MAYA), { flow: "member" }),
-    { seen: false, steps: [] },
+    { seen: false, steps: [], fresh: true },
     "flows are separate",
   );
   assert.deepEqual(
     await handlers["spaces.onboarding.flow"](h.as(OMAR), { flow: "personal" }),
-    { seen: false, steps: [] },
+    { seen: false, steps: [], fresh: true },
     "people are separate",
   );
   await assert.rejects(

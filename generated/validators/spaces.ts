@@ -495,6 +495,7 @@ if (g6151 === "object") {
 if (g6151 === 'object') { const o6151 = x6151 as Record<string, unknown>;
 if (!("seen" in o6151)) e.push(p + "/seen" + ': required');
 if (!("steps" in o6151)) e.push(p + "/steps" + ': required');
+if (!("fresh" in o6151)) e.push(p + "/fresh" + ': required');
 if ("seen" in o6151) lf(o6151["seen"], p + "/seen", e, L3);
 if ("steps" in o6151) {
 {
@@ -522,6 +523,7 @@ if ("state" in o6153) lf(o6153["state"], p + "/steps" + '/' + i6152 + "/state", 
 }
 }
 }
+if ("fresh" in o6151) lf(o6151["fresh"], p + "/fresh", e, L3);
 }
 }
 }

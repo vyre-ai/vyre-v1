@@ -542,3 +542,10 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 
 Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11-15.md) and the lane's fourth round; the limits that remain are the ones written above.
 
+
+## 16 Nov 2026: Getting Started shows only for a new account (lane w-first)
+
+- `spaces.onboarding.flow` answers one more field, `fresh` (true during the person's first 7 days in the Space, from their first sign-in; true when the Space cannot tell). Nothing is removed or renamed; a client that ignores it behaves as before. The chip and rows of Getting Started draw only while `fresh` is true, so a person who has used a Space for weeks never sees it appear after an update.
+- Proof: modules/spaces/tests/switcher.test.ts (made today, day six, 30 days, unknown age).
+
+Signed: pending the lead.
