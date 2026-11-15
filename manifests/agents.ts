@@ -574,7 +574,6 @@ export default defineManifest({
           ),
           backups: t.str(),
           backupsKeptDays: t.opt(t.int({ minimum: 0 })),
-          backupsKeptDays: t.opt(t.int({ minimum: 0 })),
           refused: t.opt(t.str()),
         },
         on: ["agent", "/agentId"],

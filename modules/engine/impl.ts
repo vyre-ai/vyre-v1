@@ -173,6 +173,7 @@ export const consumers = keptWhileStopping({
       if (typeof id !== "string") return [];
       for (const t of [
         "engine_messages",
+        "engine_turn_info",
         "engine_thread_queue",
         "engine_thread_lease",
         "engine_waits",
@@ -714,6 +715,7 @@ export function resumeHeld(engine: TurnEngine, taskId: string, approved: boolean
 /** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
 const ENGINE_BY_THREAD = [
   "engine_messages",
+  "engine_turn_info",
   "engine_thread_queue",
   "engine_thread_lease",
   "engine_waits",
@@ -741,6 +743,8 @@ export const hostCalls = {
       // its words as the engine kept them for its turns (the visible messages stay in the chat; this is the engine's own copy)
       if (i.dry === true) return {};
       tryRun(ctx.db, `DELETE FROM engine_messages WHERE author_kind = 'agent' AND author_id = ?`, i.agentId);
+      // what each of its turns recorded: tools used, switches, context (the tool traces and run records behind its messages; the spend rows in engine_usage stay, they are the Space's totals)
+      tryRun(ctx.db, `DELETE FROM engine_turn_info WHERE turn_id IN (SELECT turn_id FROM engine_usage WHERE agent_id = ?)`, i.agentId);
       // the engine's own copy of its one-to-one chats, cleared here as well as by the thread.erased consumer, which can come after the log is cleared of that event
       for (const th of (i as { ids?: string[] }).ids ?? [])
         for (const t of ENGINE_BY_THREAD) tryRun(ctx.db, `DELETE FROM ${t} WHERE thread_id = ?`, th);

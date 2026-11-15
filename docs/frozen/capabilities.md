@@ -442,3 +442,11 @@ Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9
 `backup.export_status` answers, besides the archive's file, `leftOut` (an integer: how many files the archive could not hold and names on its `NOT-EXPORTED.txt` page) and `filesKept` (how many files it holds), both present only when at least one file was left out. They are read from the archive itself. The export screen uses them to say in one line how many files were left out and that the list is in the zip.
 
 Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
+
+## 15 Nov 2026: agents.delete_for_good, agents.delete_preview, agents.trash.list and files.folder.purge are new; folderRow gains an optional deletedAt (lane f-agentdel)
+
+`agents.delete_for_good` (write, level member; the handler lets only the agent's owner or an admin through and answers anyone else not found; gated for an agent caller with Gate act delete; refuses an agent on itself, a person's Assistant, and an agent not in Trash) records one durable job and answers `{ erasing }`; pressing again answers the same calm way from the tombstone. `agents.delete_preview` (read, level manage on the agent) answers real counts (one-to-one chats, shared chats, memory items, routines, bytes), the things made by others that name the agent and need someone (each with a `link`), and the backups line. `agents.trash.list` (read, member) lists the agents in Trash and which are being deleted. `files.folder.purge` (write, perm files.delete, gated for an agent caller) deletes a folder in Trash for good with everything under it; an agent's folder takes the agent with it. `folderRow` gains optional `deletedAt`. New events `agent.erasing`, `agent.erased` and `folder.purged`. New host calls (not capabilities) `<module>.erase_agent` in nineteen modules, callable only by the agents erase job and the preview (host/src/daemon/consumers.ts guardCall).
+- Why: F77, the owner's rule that erase means erased. Delete still moves an agent to Trash and restore brings it whole; delete for good clears every store that holds something of it, leaves the audit log, a tombstone (id never reused) and backups.
+- Compatibility: no existing capability changed; `files.trash.empty` and the Trash keep time now also reach agents through `folder.purged`.
+
+Signed: for the lead to sign

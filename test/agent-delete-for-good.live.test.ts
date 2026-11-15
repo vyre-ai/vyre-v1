@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
+import { scan } from "./support/canary-scan.ts";
 import { boot, call, hostLog, connect, makeAgent, scriptedModel, seededDir, waitFor } from "./support/live.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
@@ -12,60 +13,6 @@ const C = (what: string): string => `CANARY_${what}_9f3a1c`;
 const model = scriptedModel(async function* () {
   yield { type: "text", text: "noted" };
 });
-
-/** Every text value of every table of every sqlite file under dir: `file:table` -> the canaries found in it. */
-function scan(dir: string, canaries: string[]): Map<string, Set<string>> {
-  const hits = new Map<string, Set<string>>();
-  const files: string[] = [];
-  const walk = (p: string): void => {
-    for (const e of fs.readdirSync(p, { withFileTypes: true })) {
-      const q = path.join(p, e.name);
-      if (e.isDirectory()) walk(q);
-      else files.push(q);
-    }
-  };
-  walk(dir);
-  for (const f of files) {
-    if (/\.db$/.test(f)) {
-      const db = new DatabaseSync(f, { readOnly: true });
-      try {
-        const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[];
-        for (const { name } of tables) {
-          let rows: Record<string, unknown>[] = [];
-          try {
-            rows = db.prepare(`SELECT * FROM "${name}"`).all() as Record<string, unknown>[];
-          } catch {
-            continue;
-          }
-          const dump = rows
-            .map((r) =>
-              Object.values(r)
-                .map((v) => (v instanceof Uint8Array ? Buffer.from(v).toString("latin1") : String(v)))
-                .join("\u0001"),
-            )
-            .join("\n");
-          for (const c of canaries)
-            if (dump.includes(c))
-              (
-                hits.get(`${path.basename(f)}:${name}`) ??
-                hits.set(`${path.basename(f)}:${name}`, new Set()).get(`${path.basename(f)}:${name}`)!
-              ).add(c);
-        }
-      } finally {
-        db.close();
-      }
-    } else {
-      const raw = fs.readFileSync(f).toString("latin1");
-      for (const c of canaries)
-        if (raw.includes(c))
-          (
-            hits.get(`file:${path.relative(dir, f)}`) ??
-            hits.set(`file:${path.relative(dir, f)}`, new Set()).get(`file:${path.relative(dir, f)}`)!
-          ).add(c);
-    }
-  }
-  return hits;
-}
 
 test("an agent deleted for good leaves its canaries nowhere but the shared channel's message and the audit; killed half way and booted again it finishes; twice is no error", async () => {
   const dir = seededDir();
@@ -191,6 +138,26 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
     console.log(JSON.stringify(results, null, 1));
     if (process.env["TMPDIR"])
       fs.writeFileSync(path.join(process.env["TMPDIR"], "agdel-hits.json"), JSON.stringify(results, null, 1));
+    await d.stop().catch(() => undefined);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("Trash keeps an agent as long as the Space keeps Trash, and then deletes it for good by itself (the clock moves, as the Files Trash tests do)", async () => {
+  const dir = seededDir();
+  let clock = Date.now();
+  const d = await boot(dir, model, { now: () => clock });
+  try {
+    await connect(d);
+    const agentId = await makeAgent(d, "Clockwork");
+    assert.equal((await call(d, "agents.delete", { agentId })).status, 200);
+    clock += 29 * 86_400_000;
+    await new Promise((r) => setTimeout(r, 4_500));
+    assert.ok((await call(d, "agents.trash.list", {})).data.agents.some((a: { agentId: string }) => a.agentId === agentId), "29 days in: still in Trash");
+    clock += 2 * 86_400_000;
+    await waitFor(async () => ((await call(d, "agents.trash.list", {})).data.agents.some((a: { agentId: string }) => a.agentId === agentId) ? null : true), 60_000);
+    assert.equal((await call(d, "agents.get", { agentId })).status, 404);
+  } finally {
     await d.stop().catch(() => undefined);
     fs.rmSync(dir, { recursive: true, force: true });
   }
