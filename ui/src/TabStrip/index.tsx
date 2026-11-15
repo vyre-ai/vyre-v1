@@ -412,8 +412,25 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
             }));
             const box = listNode.current as Focusable | null;
             if (box !== null && typeof box.measureInWindow === "function")
-              box.measureInWindow((x, y, w, h) => show(rows, x + w - 240, y + h + 4, undefined, { label: "All tabs" }, tabs.length > 12 ? { search: "Find a tab" } : undefined));
-            else show(rows, 0, TAB_STRIP_HEIGHT, undefined, { label: "All tabs" }, tabs.length > 12 ? { search: "Find a tab" } : undefined);
+              box.measureInWindow((x, y, w, h) =>
+                show(
+                  rows,
+                  x + w - 240,
+                  y + h + 4,
+                  undefined,
+                  { label: "All tabs" },
+                  tabs.length > 12 ? { search: "Find a tab" } : undefined,
+                ),
+              );
+            else
+              show(
+                rows,
+                0,
+                TAB_STRIP_HEIGHT,
+                undefined,
+                { label: "All tabs" },
+                tabs.length > 12 ? { search: "Find a tab" } : undefined,
+              );
           }}
         />
       ) : null}

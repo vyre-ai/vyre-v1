@@ -3,6 +3,7 @@
 // Switching to a tab that is already open shows what it showed, at once (owner, 16 Nov 2026, F97: "switching tab to the opened file takes about 2 seconds of blank screen before details fill in").
 // In the real app a file (a 42-row, 11-column Markdown table), a record, a chat, an Automation, the Console and Settings are each open in a tab; the tabs are switched between five times each way, and every
 // switch is sampled frame by frame: the time from the press to the tab's own first line on screen, and any frame whose page is empty (no still copy of the old view and nothing of the new one yet).
+import test from "node:test";
 import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -199,3 +200,7 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
     await space.stop();
   }
 }
+
+test("tabs-switch-walk: the shared walk is exported for the walk files that run it", () => {
+  assert.equal(typeof switchWalk, "function");
+});

@@ -51,11 +51,11 @@ export function ThingPane({
         {/* the pane is the right panel; a record page has a pane of its own (Activity, Files), which would compete with this one for the one right panel and flip it on and off for ever: inside here it is drawn in place */}
         <SheetHostProvider value={null}>
           <ShellLayoutProvider value={null}>
-        {now.type === "file" ? (
-          <FileDetail key={now.id} rt={first.current} fileId={now.id} />
-        ) : (
-          <RecordDetail key={now.id} rt={first.current} recordId={now.id} />
-        )}
+            {now.type === "file" ? (
+              <FileDetail key={now.id} rt={first.current} fileId={now.id} />
+            ) : (
+              <RecordDetail key={now.id} rt={first.current} recordId={now.id} />
+            )}
           </ShellLayoutProvider>
         </SheetHostProvider>
       </SidePane>
