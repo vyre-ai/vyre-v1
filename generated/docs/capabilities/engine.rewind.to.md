@@ -1,6 +1,6 @@
 # engine.rewind.to
 
-Put an agent's work folder back as it was at a point and have the agents stop reading the chat's messages from afterSeq to uptoSeq; the engine's own session starts again. The chat's messages are untouched. A person's own folder only; use chat.rewind, which also leaves the line in the chat
+Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line
 
 | | |
 |---|---|
@@ -27,8 +27,6 @@ Put an agent's work folder back as it was at a point and have the agents stop re
 type In = {
   threadId: string;
   pointId: string;
-  afterSeq: number;
-  uptoSeq: number;
 };
 ```
 
@@ -41,8 +39,12 @@ type Out = {
   restored: number;
   removed: number;
   failed: number;
+  failedPaths: Array<string>;
   undoPointId: string;
   undid: boolean;
+  during: boolean;
+  afterSeq: number;
+  uptoSeq: number;
 };
 ```
 
@@ -62,19 +64,23 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "afterSeq": 1,
     "pointId": "example",
-    "threadId": "thr_a1b2c3",
-    "uptoSeq": 1
+    "threadId": "thr_a1b2c3"
   },
   "output": {
+    "afterSeq": 1,
     "agentId": "agt_a1b2c3",
     "at": 1760000000000,
+    "during": true,
     "failed": 1,
+    "failedPaths": [
+      "example"
+    ],
     "removed": 1,
     "restored": 1,
     "undid": true,
-    "undoPointId": "example"
+    "undoPointId": "example",
+    "uptoSeq": 1
   }
 }
 ```

@@ -1980,6 +1980,8 @@ export default defineManifest({
         out: {
           available: t.bool(),
           why: t.opt(t.str()),
+          /** An agent of this chat has turns on the person's own computer: they take no point here. */
+          ownComputer: t.bool(),
           points: t.arr(
             t.obj({
               pointId: t.str({ maxLength: 120 }),
@@ -1989,6 +1991,7 @@ export default defineManifest({
               after: t.opt(t.str()),
               messageId: t.opt(id.message),
               undo: t.opt(t.bool()),
+              during: t.opt(t.bool()),
             }),
           ),
           active: t.arr(
@@ -1998,6 +2001,7 @@ export default defineManifest({
               by: t.str({ maxLength: 120 }),
               at: t.ts(),
               undoPointId: t.opt(t.str({ maxLength: 120 })),
+              interrupted: t.opt(t.bool()),
             }),
           ),
         },
@@ -2008,13 +2012,11 @@ export default defineManifest({
     ),
     write(
       "engine.rewind.to",
-      "Put an agent's work folder back as it was at a point and have the agents stop reading the chat's messages from afterSeq to uptoSeq; the engine's own session starts again. The chat's messages are untouched. A person's own folder only; use chat.rewind, which also leaves the line in the chat",
+      "Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line",
       {
         in: {
           ...threadT,
           pointId: t.str({ maxLength: 120 }),
-          afterSeq: t.int({ minimum: 0 }),
-          uptoSeq: t.int({ minimum: 0 }),
         },
         out: {
           agentId: id.agent,
@@ -2022,8 +2024,12 @@ export default defineManifest({
           restored: t.int({ minimum: 0 }),
           removed: t.int({ minimum: 0 }),
           failed: t.int({ minimum: 0 }),
+          failedPaths: t.arr(t.str({ maxLength: 300 })),
           undoPointId: t.str({ maxLength: 120 }),
           undid: t.bool(),
+          during: t.bool(),
+          afterSeq: t.int({ minimum: 0 }),
+          uptoSeq: t.int({ minimum: 0 }),
         },
         on: ["thread", "/threadId"],
         level: "use",

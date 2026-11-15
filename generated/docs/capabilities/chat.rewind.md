@@ -38,6 +38,8 @@ type Out = {
   restored: number;
   removed: number;
   failed: number;
+  failedPaths: Array<string>;
+  during: boolean;
   at: number;
   undid: boolean;
 };
@@ -64,7 +66,11 @@ type Out = {
   },
   "output": {
     "at": 1760000000000,
+    "during": true,
     "failed": 1,
+    "failedPaths": [
+      "example"
+    ],
     "removed": 1,
     "restored": 1,
     "undid": true

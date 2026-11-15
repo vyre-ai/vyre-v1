@@ -35,6 +35,7 @@ type In = {
 type Out = {
   available: boolean;
   why?: string;
+  ownComputer: boolean;
   points: Array<{
       pointId: string;
       agentId: string;
@@ -43,6 +44,7 @@ type Out = {
       after?: string;
       messageId?: string;
       undo?: boolean;
+      during?: boolean;
     }>;
   active: Array<{
       afterSeq: number;
@@ -50,6 +52,7 @@ type Out = {
       by: string;
       at: number;
       undoPointId?: string;
+      interrupted?: boolean;
     }>;
 };
 ```
@@ -76,16 +79,19 @@ type Out = {
         "afterSeq": 1,
         "at": 1760000000000,
         "by": "example",
+        "interrupted": true,
         "undoPointId": "example",
         "uptoSeq": 1
       }
     ],
     "available": true,
+    "ownComputer": true,
     "points": [
       {
         "after": "example",
         "agentId": "agt_a1b2c3",
         "at": 1760000000000,
+        "during": true,
         "files": 1,
         "messageId": "msg_a1b2c3",
         "pointId": "example",

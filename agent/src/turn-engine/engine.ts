@@ -106,6 +106,8 @@ export interface EngineOptions {
     agentId: string;
     asker: string;
     messageId: string | null;
+    /** What the thread is: only a chat a person has with an agent can be gone back to, so only that takes a point. */
+    threadKind: string;
   }) => Promise<void>;
   /** 'host:<space>' or 'device:<id>'. */
   holder: string;
@@ -1280,6 +1282,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
               agentId: item.agentId,
               asker,
               messageId: item.messageId ?? null,
+              threadKind: st.thread.kind,
             })
             .catch(() => undefined);
         let switchTo: ResolvedAccount | null = null;

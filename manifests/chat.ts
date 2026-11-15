@@ -1194,6 +1194,8 @@ export default defineManifest({
           restored: t.int({ minimum: 0 }),
           removed: t.int({ minimum: 0 }),
           failed: t.int({ minimum: 0 }),
+          failedPaths: t.arr(t.str({ maxLength: 300 })),
+          during: t.bool(),
           at: t.ts(),
           undid: t.bool(),
         },

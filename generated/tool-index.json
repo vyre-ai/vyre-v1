@@ -2907,7 +2907,7 @@
     {
       "deferred": false,
       "name": "engine_rewind_to",
-      "summary": "Put an agent's work folder back as it was at a point and have the agents stop reading the chat's messages from afterSeq to uptoSeq; the engine's own session starts again. The chat's messages are untouched. A person's own folder only; use chat.rewind, which also leaves the line in the chat",
+      "summary": "Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line",
       "toolset": "chats"
     },
     {

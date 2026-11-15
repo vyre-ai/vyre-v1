@@ -1,11 +1,11 @@
-// Rewind (chat gap G36, G37): the points of a private chat, going back, and what it refuses. Real git in a temporary data folder; the chat's reads stand in.
+// Rewind (chat gap G36, G37; review of 15 Nov): the points of a chat with an agent, going back, and what it refuses. Real git in a temporary data folder; the chat's reads stand in.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { harness } from "../fixtures/harness.ts";
-import { checkpointTurn } from "../checkpoints.ts";
+import { checkpointTurn, pointWanted, points, snapshot, storeOf, sweep } from "../checkpoints.ts";
 import { pointsIn, rewindIn } from "../handlers/rewind.ts";
 import { workFolder } from "../sandbox.ts";
 import { ensure } from "../projections.ts";
@@ -13,15 +13,29 @@ import { ensure } from "../projections.ts";
 const T = "thr_rw";
 const AGENT = "agt_dex";
 const DANA = "usr_dana";
+const MAYA = "usr_maya";
 const BASE = 1_700_000_000_000;
 
-function setup(o: { members?: string[]; kind?: string } = {}) {
+interface Msg {
+  messageId: string;
+  threadSeq: number;
+  author: { id: string };
+  body: string;
+}
+
+function setup(o: { members?: string[]; kind?: string; placement?: string } = {}) {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), "rewind-"));
   const h = harness();
   ensure(h.ctx.db);
+  const msgs: Msg[] = [
+    { messageId: "msg_ask1", threadSeq: 1, author: { id: DANA }, body: "Please add the uploads folder" },
+    { messageId: "msg_reply", threadSeq: 2, author: { id: AGENT }, body: "Done" },
+    { messageId: "msg_maya", threadSeq: 3, author: { id: MAYA }, body: "Maya's own ask" },
+  ];
+  const state = { placement: o.placement };
   const ctx = {
     ...h.ctx,
-    async call(cap: string) {
+    async call(cap: string, input: Record<string, unknown>) {
       if (cap === "threads.get")
         return {
           thread: {
@@ -30,195 +44,299 @@ function setup(o: { members?: string[]; kind?: string } = {}) {
             agents: [{ agentId: AGENT }],
           },
         };
-      if (cap === "chat.messages.list")
-        return { messages: [{ messageId: "msg_ask1", author: { id: DANA }, body: "Please add the uploads folder" }] };
+      if (cap === "chat.messages.list") return { messages: msgs };
+      if (cap === "chat.message.get") {
+        const m = msgs.find((x) => x.messageId === input["messageId"]);
+        if (!m) throw new Error("none");
+        return { message: m };
+      }
+      if (cap === "agents.get") return { agent: { name: "Dex" } };
+      if (cap === "engine.placement.decide") return { placement: state.placement };
       throw new Error(`unexpected ${cap}`);
     },
   };
-  return { data, h, ctx };
+  return { data, h, ctx, msgs, state };
 }
+const turn = (s: { data: string }, who: string, id: string, messageId: string, now: number, waitMs = 5000) =>
+  checkpointTurn({ dataDir: s.data, person: who, thread: T, agent: AGENT, turnId: id, messageId, now, waitMs });
+const done = (s: { data: string }) => fs.rmSync(s.data, { recursive: true, force: true });
 
-test("points list a turn each, named by what the person had just asked; going back restores the folder and records the hidden range", async () => {
+test("points name the message a turn answered; going back restores the folder, folds from that message to the end, and every step is a row that can be listed and undone, both ways", async () => {
   const s = setup();
   try {
     const dir = workFolder(s.data, DANA, T, AGENT);
     fs.writeFileSync(path.join(dir, "a.txt"), "one");
-    await checkpointTurn({
-      dataDir: s.data,
-      person: DANA,
-      thread: T,
-      agent: AGENT,
-      turnId: "trn_1",
-      messageId: "msg_ask1",
-      now: BASE + 2_000,
-      waitMs: 5000,
-    });
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
     fs.writeFileSync(path.join(dir, "a.txt"), "two");
     fs.writeFileSync(path.join(dir, "b.txt"), "new");
-    await checkpointTurn({
-      dataDir: s.data,
-      person: DANA,
-      thread: T,
-      agent: AGENT,
-      turnId: "trn_2",
-      now: BASE + 3_000,
-      waitMs: 5000,
-    });
     const listed = await pointsIn(s.ctx, { threadId: T }, s.data);
     assert.equal(listed.available, true);
-    assert.equal(listed.points.length, 2);
-    assert.equal(listed.points[0]!.at, BASE + 3_000, "newest first");
-    assert.equal(listed.points[1]!.after, "Please add the uploads folder");
-    fs.writeFileSync(path.join(dir, "a.txt"), "three");
-    const done = await rewindIn(
-      s.ctx,
-      { threadId: T, pointId: listed.points[1]!.pointId, afterSeq: 4, uptoSeq: 9 },
-      s.data,
-    );
+    assert.equal(listed.points[0]!.after, "Please add the uploads folder");
+    const went = await rewindIn(s.ctx, { threadId: T, pointId: listed.points[0]!.pointId }, s.data);
     assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "one");
     assert.equal(fs.existsSync(path.join(dir, "b.txt")), false);
-    assert.deepEqual([done.restored >= 1, done.removed], [true, 1]);
-    const rows = s.h.rows("SELECT after_seq, upto_seq, by_person FROM engine_rewind WHERE thread_id = ?", T);
-    assert.deepEqual(rows, [{ after_seq: 4, upto_seq: 9, by_person: DANA }]);
-    // the rewind is undone through the point it took first, which the card now lists; its hidden range is removed
-    const withUndo = await pointsIn(s.ctx, { threadId: T }, s.data);
-    assert.ok(
-      withUndo.points.some((p) => p.undo === true && p.pointId === done.undoPointId),
-      "the undo point is offered",
-    );
-    assert.deepEqual(
-      withUndo.active.map((a) => [a.afterSeq, a.uptoSeq, a.by, a.undoPointId]),
-      [[4, 9, DANA, done.undoPointId]],
-      "the rewind in force is listed with its range and the point that undoes it",
-    );
-    const undone = await rewindIn(s.ctx, { threadId: T, pointId: done.undoPointId, afterSeq: 4, uptoSeq: 9 }, s.data);
+    assert.deepEqual([went.afterSeq, went.uptoSeq, went.undid], [0, 3, false], "the range is the engine's: from the point's own message to the newest");
+    const rows1 = s.h.rows("SELECT kind, state FROM engine_rewind WHERE thread_id = ?", T);
+    assert.deepEqual(rows1, [{ kind: "rewind", state: "done" }]);
+    const l1 = await pointsIn(s.ctx, { threadId: T }, s.data);
+    assert.deepEqual(l1.active.map((a) => [a.afterSeq, a.uptoSeq, a.undoPointId]), [[0, 3, went.undoPointId]]);
+    // work done between the rewind and its Undo
+    fs.writeFileSync(path.join(dir, "c.txt"), "between");
+    const undone = await rewindIn(s.ctx, { threadId: T, pointId: went.undoPointId }, s.data);
     assert.equal(undone.undid, true);
-    assert.deepEqual((await pointsIn(s.ctx, { threadId: T }, s.data)).active, [], "after Undo nothing is folded");
-    assert.deepEqual(
-      s.h.rows("SELECT after_seq FROM engine_rewind WHERE thread_id = ?", T),
-      [],
-      "the messages are read again",
-    );
-    assert.ok(
-      !(await pointsIn(s.ctx, { threadId: T }, s.data)).points.some((p) => p.undo === true),
-      "an undone rewind offers no undo",
-    );
-    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "three");
+    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "two");
+    assert.equal(fs.existsSync(path.join(dir, "c.txt")), false, "going back to before the rewind removes what was made since");
+    // the Undo is a row of its own, and its point is listed, so the work done between the rewind and the Undo can be reached again
+    assert.deepEqual(s.h.rows("SELECT kind, state FROM engine_rewind WHERE thread_id = ?", T), [{ kind: "undo", state: "done" }]);
+    const l2 = await pointsIn(s.ctx, { threadId: T }, s.data);
+    assert.deepEqual(l2.active, [], "nothing is folded after Undo");
+    const redo = l2.points.find((p) => p.undo === true);
+    assert.ok(redo, "the Undo's own point is offered");
+    const back = await rewindIn(s.ctx, { threadId: T, pointId: redo!.pointId }, s.data);
+    assert.equal(fs.readFileSync(path.join(dir, "c.txt"), "utf8"), "between", "the work done between a rewind and its Undo is reachable again");
+    assert.equal(back.undid, false, "going back to the Undo's point folds the range again");
+    assert.equal((await pointsIn(s.ctx, { threadId: T }, s.data)).active.length, 1);
   } finally {
-    fs.rmSync(s.data, { recursive: true, force: true });
+    done(s);
   }
 });
 
-test("outside a chat with an agent it is off; a point of someone else's folder is not found; an agent cannot go back", async () => {
-  const group = setup({ members: [DANA, "usr_maya"] });
-  assert.equal(
-    (await pointsIn(group.ctx, { threadId: T }, group.data)).available,
-    true,
-    "a chat with other people goes back too, through each person's own points",
-  );
+test("outside a chat with an agent it is off; a made-up point is not found; an agent cannot go back", async () => {
   const chan = setup({ kind: "channel" });
   const solo = setup();
   try {
     assert.equal((await pointsIn(chan.ctx, { threadId: T }, chan.data)).why, "not_a_chat");
-    await assert.rejects(
-      rewindIn(solo.ctx, { threadId: T, pointId: `${AGENT}.${"a".repeat(40)}`, afterSeq: 0, uptoSeq: 1 }, solo.data),
-      /not in this chat/,
-    );
-    await assert.rejects(
-      rewindIn(solo.ctx, { threadId: T, pointId: "../../etc", afterSeq: 0, uptoSeq: 1 }, solo.data),
-      /not in this chat/,
-    );
+    await assert.rejects(rewindIn(solo.ctx, { threadId: T, pointId: `${AGENT}.${"a".repeat(40)}` }, solo.data), /not in this chat/);
+    await assert.rejects(rewindIn(solo.ctx, { threadId: T, pointId: "../../etc" }, solo.data), /not in this chat/);
     const asAgent = { ...solo.ctx, principal: { kind: "agent" as const, id: AGENT } };
     await assert.rejects(pointsIn(asAgent, { threadId: T }, solo.data), /Only a person/);
   } finally {
-    for (const w of [group, chan, solo]) fs.rmSync(w.data, { recursive: true, force: true });
+    done(chan);
+    done(solo);
   }
 });
 
-test("two askers: a person's points are their own folder's only; another person's point id is not found, and their files are never touched", async () => {
+test("item 2: engine.rewind.to makes the checks itself: a point whose message is another person's is refused, and the range is never the caller's", async () => {
+  const s = setup({ members: [DANA, MAYA] });
+  try {
+    const mine = workFolder(s.data, DANA, T, AGENT);
+    fs.writeFileSync(path.join(mine, "a.txt"), "dana-1");
+    // Dana owns a point (her folder) whose turn began at MAYA's message: she cannot fold everything from there
+    await turn(s, DANA, "trn_x", "msg_maya", BASE + 1_000);
+    const listed = await pointsIn(s.ctx, { threadId: T }, s.data);
+    fs.writeFileSync(path.join(mine, "a.txt"), "dana-2");
+    await assert.rejects(
+      rewindIn(s.ctx, { threadId: T, pointId: listed.points[0]!.pointId, afterSeq: 0, uptoSeq: 99 } as never, s.data),
+      /only go back to your own message/,
+    );
+    assert.equal(fs.readFileSync(path.join(mine, "a.txt"), "utf8"), "dana-2", "nothing was put back");
+    assert.deepEqual(s.h.rows("SELECT * FROM engine_rewind"), [], "no range was written");
+    // her own message: the caller's range is ignored, the engine derives it
+    await turn(s, DANA, "trn_y", "msg_ask1", BASE + 2_000);
+    const l2 = await pointsIn(s.ctx, { threadId: T }, s.data);
+    const own = l2.points.find((p) => p.messageId === "msg_ask1")!;
+    await rewindIn(s.ctx, { threadId: T, pointId: own.pointId, afterSeq: 2, uptoSeq: 99 } as never, s.data);
+    assert.deepEqual(s.h.rows("SELECT after_seq, upto_seq FROM engine_rewind"), [{ after_seq: 0, upto_seq: 3 }]);
+    // Maya's point id is not Dana's: it is not found for her
+    const maya = { ...s.ctx, principal: { kind: "person" as const, id: MAYA } };
+    await assert.rejects(rewindIn(maya, { threadId: T, pointId: own.pointId }, s.data), /not in this chat/);
+  } finally {
+    done(s);
+  }
+});
+
+test("item 3: not while the agent works (and the files are untouched); a point finished after the agent began is labelled during, never before; a link swapped in is never written through", async () => {
   const s = setup();
   try {
-    const maya = "usr_maya";
-    const mine = workFolder(s.data, DANA, T, AGENT);
-    const hers = workFolder(s.data, maya, T, AGENT);
-    fs.writeFileSync(path.join(mine, "a.txt"), "dana-1");
-    fs.writeFileSync(path.join(hers, "a.txt"), "maya-1");
-    await checkpointTurn({
-      dataDir: s.data,
-      person: DANA,
-      thread: T,
-      agent: AGENT,
-      turnId: "trn_d",
-      now: BASE + 1_000,
-      waitMs: 5000,
-    });
-    await checkpointTurn({
-      dataDir: s.data,
-      person: maya,
-      thread: T,
-      agent: AGENT,
-      turnId: "trn_m",
-      now: BASE + 1_500,
-      waitMs: 5000,
-    });
-    const d = await pointsIn(s.ctx, { threadId: T }, s.data);
-    const m = await pointsIn({ ...s.ctx, principal: { kind: "person", id: maya } }, { threadId: T }, s.data);
-    assert.equal(d.points.length, 1);
-    assert.equal(m.points.length, 1);
-    assert.notEqual(d.points[0]!.pointId, m.points[0]!.pointId);
-    fs.writeFileSync(path.join(mine, "a.txt"), "dana-2");
-    fs.writeFileSync(path.join(hers, "a.txt"), "maya-2");
-    // Dana tries Maya's point: not found, nothing changes for either
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    fs.writeFileSync(path.join(dir, "a.txt"), "one");
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    fs.writeFileSync(path.join(dir, "a.txt"), "two");
+    const listed = await pointsIn(s.ctx, { threadId: T }, s.data);
     await assert.rejects(
-      rewindIn(s.ctx, { threadId: T, pointId: m.points[0]!.pointId, afterSeq: 0, uptoSeq: 1 }, s.data),
-      /not in this chat/,
+      rewindIn(s.ctx, { threadId: T, pointId: listed.points[0]!.pointId }, s.data, { busy: (_t, a) => a === AGENT }),
+      /Stop Dex first, then go back\./,
     );
-    assert.equal(fs.readFileSync(path.join(hers, "a.txt"), "utf8"), "maya-2");
-    // Dana's own rewind never reaches Maya's folder
-    await rewindIn(s.ctx, { threadId: T, pointId: d.points[0]!.pointId, afterSeq: 0, uptoSeq: 1 }, s.data);
-    assert.equal(fs.readFileSync(path.join(mine, "a.txt"), "utf8"), "dana-1");
-    assert.equal(fs.readFileSync(path.join(hers, "a.txt"), "utf8"), "maya-2", "Maya's files were not touched");
+    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "two");
+    assert.deepEqual(s.h.rows("SELECT * FROM engine_rewind"), [], "nothing was written for a refused rewind");
+    // a point that lost the race to the turn's start is the folder "during" the turn
+    const r = await checkpointTurn({ dataDir: s.data, person: DANA, thread: T, agent: AGENT, turnId: "trn_slow", messageId: "msg_ask1", now: BASE + 2_000, waitMs: 0 });
+    assert.equal(r.background, true);
+    let late: Awaited<ReturnType<typeof pointsIn>>["points"] = [];
+    for (let i = 0; i < 100 && !late.some((p) => p.during); i++) {
+      await new Promise((x) => setTimeout(x, 50));
+      late = (await pointsIn(s.ctx, { threadId: T }, s.data)).points;
+    }
+    const during = late.find((p) => p.during);
+    assert.ok(during, "the late point is listed as during");
+    // a link in the way: restore puts a real file where the link was and never writes through it
+    const outside = path.join(s.data, "outside.txt");
+    fs.writeFileSync(outside, "outside");
+    fs.rmSync(path.join(dir, "a.txt"));
+    fs.symlinkSync(outside, path.join(dir, "a.txt"));
+    const own = late.find((p) => !p.during && p.messageId === "msg_ask1")!;
+    await rewindIn(s.ctx, { threadId: T, pointId: own.pointId }, s.data);
+    assert.equal(fs.readFileSync(outside, "utf8"), "outside", "nothing was written through the link");
+    assert.equal(fs.lstatSync(path.join(dir, "a.txt")).isSymbolicLink(), false);
+    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "one");
   } finally {
-    fs.rmSync(s.data, { recursive: true, force: true });
+    done(s);
   }
 });
 
-test("a point that was pruned is not offered and cannot be gone back to", async () => {
+test("item 4: a turn in a crew, task or one-shot thread, or on the person's own computer, takes no point; the card is told once", async () => {
+  assert.equal(pointWanted("chat", "host"), true);
+  assert.equal(pointWanted("chat", undefined), true);
+  assert.equal(pointWanted("chat", "device"), false, "the folder it works in is not on this server");
+  for (const kind of ["crew", "task", "helper", "channel", "oneshot"]) assert.equal(pointWanted(kind, "host"), false, kind);
+  const s = setup({ placement: "device" });
+  try {
+    const l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    assert.equal(l.ownComputer, true);
+    assert.deepEqual(l.points, []);
+    s.state.placement = "host";
+    assert.equal((await pointsIn(s.ctx, { threadId: T }, s.data)).ownComputer, false);
+  } finally {
+    done(s);
+  }
+});
+
+test("item 5: a path that could not be removed counts as failed and is named; the rest goes on", async () => {
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    fs.writeFileSync(path.join(dir, "a.txt"), "one");
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    fs.writeFileSync(path.join(dir, "locked.txt"), "x");
+    fs.writeFileSync(path.join(dir, "free.txt"), "y");
+    fs.writeFileSync(path.join(dir, "a.txt"), "two");
+    const l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    const r = await rewindIn(s.ctx, { threadId: T, pointId: l.points[0]!.pointId }, s.data, {
+      rm: (p) => {
+        if (p.endsWith("locked.txt")) throw Object.assign(new Error("EPERM"), { code: "EPERM" });
+        fs.rmSync(p, { recursive: true, force: true });
+      },
+    });
+    assert.deepEqual([r.removed, r.failed, r.failedPaths], [1, 1, ["locked.txt"]]);
+    assert.equal(fs.existsSync(path.join(dir, "locked.txt")), true);
+    assert.equal(fs.existsSync(path.join(dir, "free.txt")), false);
+    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "one");
+  } finally {
+    done(s);
+  }
+});
+
+test("item 6: the sweep drops points older than 14 days in a chat nobody touches, and the store with them", async () => {
   const s = setup();
   try {
     const dir = workFolder(s.data, DANA, T, AGENT);
     fs.writeFileSync(path.join(dir, "a.txt"), "1");
-    await checkpointTurn({
-      dataDir: s.data,
-      person: DANA,
-      thread: T,
-      agent: AGENT,
-      turnId: "trn_old",
-      now: 1_000,
-      waitMs: 5000,
-    });
-    const gone = (await pointsIn(s.ctx, { threadId: T }, s.data)).points;
-    assert.equal(gone.length, 1);
-    // a turn long after: the old point is past its age and is pruned by the new one
-    await checkpointTurn({
-      dataDir: s.data,
-      person: DANA,
-      thread: T,
-      agent: AGENT,
-      turnId: "trn_new",
-      now: BASE,
-      waitMs: 5000,
-    });
-    const left = (await pointsIn(s.ctx, { threadId: T }, s.data)).points;
-    assert.deepEqual(
-      left.map((p) => p.pointId === gone[0]!.pointId),
-      [false],
-    );
-    await assert.rejects(
-      rewindIn(s.ctx, { threadId: T, pointId: gone[0]!.pointId, afterSeq: 0, uptoSeq: 1 }, s.data),
-      /not in this chat/,
-    );
+    await turn(s, DANA, "trn_old", "msg_ask1", BASE);
+    const gitDir = storeOf(s.data, dir);
+    assert.equal((await points({ gitDir, workDir: dir })).length, 1);
+    const r = await sweep(s.data, BASE + 15 * 24 * 3600_000);
+    assert.equal(r.pointsDropped, 1);
+    assert.equal(fs.existsSync(gitDir), false, "nothing is left of an idle store");
+    // a recent store is left alone
+    await turn(s, DANA, "trn_new", "msg_ask1", BASE + 20 * 24 * 3600_000);
+    await sweep(s.data, BASE + 21 * 24 * 3600_000);
+    assert.equal((await points({ gitDir, workDir: dir })).length, 1);
   } finally {
-    fs.rmSync(s.data, { recursive: true, force: true });
+    done(s);
+  }
+});
+
+test("item 6: a snapshot and a prune of one store never run together (one lock per store)", async () => {
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    fs.writeFileSync(path.join(dir, "a.txt"), "1");
+    const gitDir = storeOf(s.data, dir);
+    const { prune } = await import("../checkpoints.ts");
+    const work: Promise<unknown>[] = [];
+    for (let i = 0; i < 6; i++) {
+      work.push(snapshot({ gitDir, workDir: dir, label: `turn t${i} m`, now: BASE + i }));
+      work.push(prune({ gitDir, workDir: dir, now: BASE + 100, keep: 3 }));
+    }
+    await Promise.all(work); // an unlocked gc against a write would fail one of them
+    assert.ok((await points({ gitDir, workDir: dir })).length >= 1);
+  } finally {
+    done(s);
+  }
+});
+
+test("item 8: the row is written before the files are put back; a rewind cut short is listed as interrupted with Undo, and Undo brings the folder back", async () => {
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    fs.writeFileSync(path.join(dir, "a.txt"), "one");
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    fs.writeFileSync(path.join(dir, "a.txt"), "two");
+    const l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    await assert.rejects(
+      rewindIn(s.ctx, { threadId: T, pointId: l.points[0]!.pointId }, s.data, {
+        beforeRestore: () => {
+          throw new Error("the host stopped here");
+        },
+      }),
+      /host stopped/,
+    );
+    assert.deepEqual(s.h.rows("SELECT state FROM engine_rewind"), [{ state: "going back" }], "the row was there before the files moved");
+    const after = await pointsIn(s.ctx, { threadId: T }, s.data);
+    assert.equal(after.active.length, 1);
+    assert.equal(after.active[0]!.interrupted, true);
+    assert.ok(after.active[0]!.undoPointId, "Undo is offered");
+    const undo = await rewindIn(s.ctx, { threadId: T, pointId: after.active[0]!.undoPointId! }, s.data);
+    assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "two");
+    assert.equal(undo.undid, true);
+    assert.equal(s.h.rows("SELECT state FROM engine_rewind WHERE state = 'going back'").length, 0);
+  } finally {
+    done(s);
+  }
+});
+
+test("item 1: secrets are never stored in a point, by name or by content; a deleted secret is not brought back; the store is mode 700 and its files 600", async () => {
+  const s = setup();
+  try {
+    const dir = workFolder(s.data, DANA, T, AGENT);
+    const secrets = ["credentials.json", "service-account.json", "token.json", "secrets.yaml", ".aws/credentials", "deploy.p8", "a.kdbx", "my-service-account-prod.json"];
+    for (const f of secrets) {
+      fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+      fs.writeFileSync(path.join(dir, f), "x");
+    }
+    fs.writeFileSync(path.join(dir, "notes.txt"), "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----\n");
+    fs.writeFileSync(path.join(dir, "conf.txt"), 'aws_secret_access_key = abcd\n');
+    fs.writeFileSync(path.join(dir, "app.ts"), "export const x = 1;\n");
+    await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
+    const gitDir = storeOf(s.data, dir);
+    const p = (await points({ gitDir, workDir: dir }))[0]!;
+    const { execFileSync } = await import("node:child_process");
+    const tree = execFileSync("git", ["--git-dir", gitDir, "ls-tree", "-r", "--name-only", p.sha], { encoding: "utf8" }).split("\n").filter(Boolean);
+    assert.deepEqual(tree, ["app.ts"], `stored: ${tree.join(", ")}`);
+    // a secret deleted since is not brought back; a normal file is
+    for (const f of ["credentials.json", "notes.txt", "app.ts"]) fs.rmSync(path.join(dir, f));
+    const l = await pointsIn(s.ctx, { threadId: T }, s.data);
+    await rewindIn(s.ctx, { threadId: T, pointId: l.points[0]!.pointId }, s.data);
+    assert.equal(fs.existsSync(path.join(dir, "credentials.json")), false);
+    assert.equal(fs.existsSync(path.join(dir, "notes.txt")), false);
+    assert.equal(fs.existsSync(path.join(dir, "app.ts")), true);
+    assert.equal(fs.existsSync(path.join(dir, "token.json")), true, "a secret still there is left exactly as it is");
+    // modes
+    const modeOf = (f: string): number => fs.statSync(f).mode & 0o777;
+    assert.equal(modeOf(gitDir), 0o700);
+    assert.equal(modeOf(path.dirname(gitDir)) & 0o077, 0, "the folders above the store are the server's alone");
+    assert.equal(modeOf(path.join(s.data, "checkpoints")) & 0o077, 0);
+    const loose: string[] = [];
+    const walk = (d: string): void => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const f = path.join(d, e.name);
+        if (e.isDirectory()) walk(f);
+        else if (modeOf(f) & 0o077) loose.push(f);
+      }
+    };
+    walk(gitDir);
+    assert.deepEqual(loose, [], "no file of the store is readable by group or others");
+  } finally {
+    done(s);
   }
 });

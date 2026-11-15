@@ -199,7 +199,7 @@ test("a Space over its cap loses the store touched longest ago; erasing a thread
     const b = await take("usr_dana", "thr_2", "agt_dex", 2);
     const c = await take("usr_maya", "thr_1", "agt_nova", 3);
     assert.ok([a, b, c].every((s) => fs.existsSync(s)));
-    assert.equal(pruneSpace(data, 1), 3, "over the cap: stores go, oldest first");
+    assert.equal(await pruneSpace(data, 1), 3, "over the cap: stores go, oldest first");
     for (const s of [a, b, c]) assert.equal(fs.existsSync(s), false);
     const a2 = await take("usr_dana", "thr_1", "agt_dex", 4);
     const b2 = await take("usr_dana", "thr_2", "agt_dex", 5);

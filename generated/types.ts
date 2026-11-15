@@ -5113,6 +5113,8 @@ export type BackupExportStatusOut = {
   name: string;
   sizeBytes: number;
   expiresAt: number;
+  leftOut?: number;
+  filesKept?: number;
 };
 export type BackupHealthIn = Record<string, unknown>;
 export type BackupHealthOut = {
@@ -8057,6 +8059,8 @@ export type ChatRewindOut = {
   restored: number;
   removed: number;
   failed: number;
+  failedPaths: Array<string>;
+  during: boolean;
   at: number;
   undid: boolean;
 };
@@ -12843,6 +12847,7 @@ export type EngineRewindPointsIn = {
 export type EngineRewindPointsOut = {
   available: boolean;
   why?: string;
+  ownComputer: boolean;
   points: Array<{
       pointId: string;
       agentId: string;
@@ -12851,6 +12856,7 @@ export type EngineRewindPointsOut = {
       after?: string;
       messageId?: string;
       undo?: boolean;
+      during?: boolean;
     }>;
   active: Array<{
       afterSeq: number;
@@ -12858,13 +12864,12 @@ export type EngineRewindPointsOut = {
       by: string;
       at: number;
       undoPointId?: string;
+      interrupted?: boolean;
     }>;
 };
 export type EngineRewindToIn = {
   threadId: string;
   pointId: string;
-  afterSeq: number;
-  uptoSeq: number;
 };
 export type EngineRewindToOut = {
   agentId: string;
@@ -12872,8 +12877,12 @@ export type EngineRewindToOut = {
   restored: number;
   removed: number;
   failed: number;
+  failedPaths: Array<string>;
   undoPointId: string;
   undid: boolean;
+  during: boolean;
+  afterSeq: number;
+  uptoSeq: number;
 };
 export type EngineRoundGetIn = {
   threadId: string;
@@ -27548,6 +27557,11 @@ export type MountsGetOut = {
     conflicts: number;
     fromDevice?: string;
     error?: string;
+    skippedCount?: number;
+    skipped?: Array<{
+        name: string;
+        reason: string;
+      }>;
     live?: boolean;
     liveVia?: "push" | "poll";
   };
@@ -27598,6 +27612,11 @@ export type MountsListOut = {
       conflicts: number;
       fromDevice?: string;
       error?: string;
+      skippedCount?: number;
+      skipped?: Array<{
+          name: string;
+          reason: string;
+        }>;
       live?: boolean;
       liveVia?: "push" | "poll";
     }>;
@@ -27738,6 +27757,11 @@ export type MountsUpdateOut = {
     conflicts: number;
     fromDevice?: string;
     error?: string;
+    skippedCount?: number;
+    skipped?: Array<{
+        name: string;
+        reason: string;
+      }>;
     live?: boolean;
     liveVia?: "push" | "poll";
   };
