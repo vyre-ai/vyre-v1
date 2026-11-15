@@ -221,38 +221,50 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   /** Between turns the engine's lines still come: task lines are kept and told, the engine's own continuation is held for the turn that is the wake. */
   function watch(r: Run): void {
     const stop = new AbortController();
+    /** One line the engine said between turns. True when the engine's process is gone and the watching is over. */
+    const take = (item: Item): boolean => {
+      if (item.type === "eof") {
+        endAll();
+        held.length = 0;
+        return true;
+      }
+      if (item.type === "task") {
+        if (noteTask(item)) {
+          attach = true;
+          try {
+            deps.onBackgroundDone?.();
+          } catch {
+            /* as above */
+          }
+        }
+        return false;
+      }
+      if (item.type === "tool" && item.phase === "result" && item.launched === true && !open.has(item.id))
+        open.set(item.id, "");
+      if (item.type === "end") {
+        midTurn = false;
+        // a reply of the engine to one helper's end while others still work is not the answer: it is dropped, so the person hears the engine once, when the last one is back
+        if (open.size > 0 && !attach) {
+          held.length = 0;
+          return false;
+        }
+      } else if (item.type === "text" || item.type === "thinking" || item.type === "tool") midTurn = true;
+      held.push(item);
+      return false;
+    };
     const done = (async () => {
       for (;;) {
         const item = await r.chan.next(60_000, stop.signal);
-        if (item === null) return;
+        if (item === null) break;
         if (item === "idle") continue;
-        if (item.type === "eof") {
-          endAll();
-          held.length = 0;
-          return;
-        }
-        if (item.type === "task") {
-          if (noteTask(item)) {
-            attach = true;
-            try {
-              deps.onBackgroundDone?.();
-            } catch {
-              /* as above */
-            }
-          }
-          continue;
-        }
-        if (item.type === "tool" && item.phase === "result" && item.launched === true && !open.has(item.id))
-          open.set(item.id, "");
-        if (item.type === "end") {
-          midTurn = false;
-          // a reply of the engine to one helper's end while others still work is not the answer: it is dropped, so the person hears the engine once, when the last one is back
-          if (open.size > 0 && !attach) {
-            held.length = 0;
-            continue;
-          }
-        } else if (item.type === "text" || item.type === "thinking" || item.type === "tool") midTurn = true;
-        held.push(item);
+        if (take(item)) return;
+      }
+      // a person's message came while the engine was answering a helper of its own: whatever it said up to this instant is read here, so the end of that reply is never taken for the end of the new turn
+      const none = new AbortController().signal;
+      while (r.chan.size > 0) {
+        const item = await r.chan.next(0, none);
+        if (item === null || item === "idle") break;
+        if (take(item)) return;
       }
     })();
     tail = { stop, done };
@@ -378,6 +390,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     attach = false;
     if (!woken) held.length = 0;
     skipEnds = !woken && midTurn ? 1 : 0;
+    // The engine may be answering a helper's end by itself when this message is written: what it says before it echoes this message (--replay-user-messages) is that reply, not this turn
+    let beforeRead = !woken && a.id === "claude_code" && (open.size > 0 || midTurn);
     midTurn = false;
     let r: Run | null = a.persistent && run !== null && run.alive ? run : null;
     if (r === null) r = await start();
@@ -458,6 +472,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           await stop(r, false);
           return "stop";
         }
+        if (beforeRead && !["read", "task", "session", "limits", "mcp", "eof"].includes(item.type)) continue;
         switch (item.type) {
           case "session":
             sessionId = item.id;
@@ -551,6 +566,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             };
             break;
           case "read":
+            beforeRead = false;
             unread.shift();
             break;
           case "end":

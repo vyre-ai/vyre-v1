@@ -5,7 +5,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CLI_ADAPTERS, createCliDriver } from "../src/drivers/cli/index.ts";
 import type { CliDriverDeps } from "../src/drivers/cli/index.ts";
-import { collect, driverDeps, kinds, newSpy, specOf, texts, turnOf, until } from "../fixtures/golden-streams/rig.ts";
+import {
+  collect,
+  driverDeps,
+  kinds,
+  newSpy,
+  sleep,
+  specOf,
+  texts,
+  turnOf,
+  until,
+} from "../fixtures/golden-streams/rig.ts";
 
 type Task = Parameters<NonNullable<ReturnType<NonNullable<CliDriverDeps["background"]>>["task"]>>[0];
 
@@ -106,4 +116,21 @@ test("stopping the session ends the helpers with it: each is told as stopped and
     ],
   );
   await session.close();
+});
+
+test("a person writing in the very instant the engine ends an interim reply to a helper still gets their own answer, never that reply's end", async () => {
+  for (const lead of [0, 10, 20, 30, 40, 50]) {
+    const { driver, woken } = rig();
+    const session = await driver.open(specOf());
+    try {
+      await collect(session.send(turnOf("bg 250 900")));
+      // write at (about) the moment the first helper ends and the engine answers it by itself
+      await sleep(250 - lead);
+      const mine = await collect(session.send(turnOf("how many are done")));
+      assert.deepEqual(texts(mine), ["how many are done"], `written ${lead} ms before the helper ends`);
+      assert.equal(woken(), 0);
+    } finally {
+      await session.close();
+    }
+  }
 });
