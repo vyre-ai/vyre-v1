@@ -6,6 +6,10 @@ import type { ToolCtx, ToolDef } from "./types.ts";
 type Schema = { properties?: Record<string, { pattern?: string; type?: string }>; required?: string[] };
 const schemaOf = (t: ToolDef): Schema => (t.inputSchema ?? {}) as Schema;
 
+/** The input that names who a new thing is for, by capability: a model that names nobody means the person it works for. */
+const FOR_THE_ASKER: Readonly<Record<string, string>> = { "tasks.create": "assigned" };
+export const forAskerField = (cap: string): string | undefined => FOR_THE_ASKER[cap];
+
 /** Capabilities that end, remove or move a chat: with no chat named they are not done to the one the model is in. */
 const NOT_THIS_CHAT =
   /(?:^|[._])(?:delete|remove|archive|close|stop|drop|purge|revoke|interrupt|reject|restart|move|leave|stop_all)(?:[._]|$)/;
@@ -135,10 +139,26 @@ export function fillInput(t: ToolDef, input: unknown, ctx: ToolCtx): Filled {
       }
     }
   }
+  // a page written as `content`, `page`, `code` or `body`, for the tool that publishes a page: it is the page's html when no source is given
+  if (t.cap === "sites.artifact_publish" && "html" in props && !["html", "fileId", "folderId", "path", "port"].some((k) => k in out)) {
+    for (const w of ["content", "page", "code", "body", "text", "markup"]) {
+      if (typeof out[w] === "string" && !(w in props)) {
+        out["html"] = out[w];
+        delete out[w];
+        renamed.push([w, "html"]);
+        break;
+      }
+    }
+  }
+  const who = FOR_THE_ASKER[t.cap];
+  if (who !== undefined && who in props && out[who] === undefined && /^usr_[a-z0-9]+$/.test(ctx.asker)) {
+    out[who] = { kind: "person", id: ctx.asker };
+    filled.push(who);
+  }
   if (
     "threadId" in props &&
     out["threadId"] === undefined &&
-    fillsThread(t) &&
+    t.thread === true &&
     /^thr_[a-z0-9]+$/.test(ctx.thread.threadId)
   ) {
     out["threadId"] = ctx.thread.threadId;

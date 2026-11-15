@@ -5356,11 +5356,7 @@
   },
   "tasks_count_needs_you": {},
   "tasks_create": {
-    "title": "Quarterly planning",
-    "assigned": {
-      "kind": "person",
-      "id": "Quarterly planning"
-    }
+    "title": "Quarterly planning"
   },
   "tasks_delegate": {
     "taskId": "tsk_a1b2c3",

@@ -214,3 +214,11 @@ test("a key the model supplies itself is kept even when the call has an id", asy
   await s.call(c({ callId: "toolu_9" }), "artifact_publish", { title: "A", html: PAGE, idempotencyKey: "mine-2" });
   assert.equal((sent[0]?.input as { idempotencyKey?: string }).idempotencyKey, "mine-2");
 });
+
+test("a tool that takes a chat as a filter is never narrowed to this chat: only a chat the tool requires is filled", async () => {
+  const { s, sent } = session();
+  s.preload("thr_1", ["memory_quote"]);
+  const out = await s.call(c(), "memory_quote", { q: "what did I say about the retainer" });
+  assert.equal(out.kind, "result", JSON.stringify(out.kind === "error" ? out.result.content : ""));
+  assert.equal("threadId" in (sent.at(-1)?.input as object), false, "a search over every chat stays over every chat");
+});

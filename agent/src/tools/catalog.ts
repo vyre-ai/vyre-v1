@@ -1,7 +1,7 @@
 // Join the generated tool list with the capability registry: a tool needs its capability's level, effects and Gate flag, and nothing may be added by hand.
 import { connectCardOn, isConnectCap } from "../../../lib/connect-switch.ts";
 import { probeIn } from "../../../lib/probe.ts";
-import { fillsThread } from "./fill.ts";
+import { fillsThread, forAskerField } from "./fill.ts";
 import { placeField } from "./place.ts";
 import { HIDDEN_FROM_MODEL } from "./versions.ts";
 import type { AgentToolRow, Catalog, Effects, LocalKind, McpToolRow, RegistryCapRow, ToolDef } from "./types.ts";
@@ -60,9 +60,12 @@ export function statesLimits(v: unknown): unknown {
   return out;
 }
 
-export function modelSchema(schema: unknown, cap?: string): { schema: unknown; keyed: boolean } {
+export function modelSchema(
+  schema: unknown,
+  cap?: string,
+): { schema: unknown; keyed: boolean; thread: boolean } {
   const raw = statesLimits(withoutPlaceholderExamples(schema)) as Obj | null;
-  if (raw === null || typeof raw !== "object" || raw.properties === undefined) return { schema: raw, keyed: false };
+  if (raw === null || typeof raw !== "object" || raw.properties === undefined) return { schema: raw, keyed: false, thread: false };
   // version inputs the tool layer fills for the model are not shown to it (agent/src/tools/versions.ts)
   const hide = cap === undefined ? undefined : HIDDEN_FROM_MODEL[cap];
   let props: Record<string, unknown> = { ...raw.properties };
@@ -76,8 +79,18 @@ export function modelSchema(schema: unknown, cap?: string): { schema: unknown; k
     delete props["idempotencyKey"];
     required = required.filter((r) => r !== "idempotencyKey");
   }
-  if (cap !== undefined && fillsThread({ cap, inputSchema: schema as ToolDef["inputSchema"] })) {
-    required = required.filter((r) => r !== "threadId");
+  // a chat the tool REQUIRES is this chat unless the model names another; a chat the tool takes as a filter (a search) is never filled: that would narrow the answer
+  const thread =
+    cap !== undefined &&
+    required.includes("threadId") &&
+    fillsThread({ cap, inputSchema: schema as ToolDef["inputSchema"] });
+  if (thread) required = required.filter((r) => r !== "threadId");
+  // who a new thing is for is the person the agent works for unless the model says another
+  const whom = cap === undefined ? undefined : forAskerField(cap);
+  if (whom !== undefined && whom in props) {
+    const p = props[whom] as { description?: string };
+    props[whom] = { ...p, description: p.description ?? "Who it is for. Leave it out for the person you work for." };
+    required = required.filter((r) => r !== whom);
   }
   // a folder a new thing goes in is the person's own files unless the model names another (agent/src/tools/place.ts)
   const place = cap === undefined ? undefined : placeField(cap);
@@ -87,7 +100,7 @@ export function modelSchema(schema: unknown, cap?: string): { schema: unknown; k
     required = required.filter((r) => r !== place);
   }
   const { required: _was, ...rest } = raw;
-  return { schema: { ...rest, properties: props, ...(required.length > 0 ? { required } : {}) }, keyed };
+  return { schema: { ...rest, properties: props, ...(required.length > 0 ? { required } : {}) }, keyed, thread };
 }
 
 export function buildCatalog(
@@ -120,6 +133,7 @@ export function buildCatalog(
       summary: t.description,
       inputSchema: shown.schema,
       ...(shown.keyed ? { keyed: true } : {}),
+      ...(shown.thread ? { thread: true } : {}),
       effects,
       planMode: t.planMode,
       level: cap.level === "member" ? "view" : cap.level,

@@ -100,3 +100,36 @@ test(
     }
   },
 );
+
+test(
+  "an Assistant's first publish of a page from a chat works however the call is written, and a page with no name at all is asked for its title in one sentence",
+  { timeout: 280_000 },
+  async () => {
+    const d = await boot(seededDir(), null, { engineCli: cli });
+    try {
+      await connect(d);
+      const agent = await makeAgent(d, "Assistant");
+      const thread = (await c(d, "chat.start", { kind: "chat", agentIds: [agent] })).data.thread.threadId as string;
+      await c(d, "threads.set_mode", { threadId: thread, mode: "auto" });
+      const publish = (input: unknown) =>
+        post(d, thread, agent, `tool artifact_publish ${JSON.stringify(input)}`, `fs-${++k}`);
+      const page = (title: string) =>
+        `<!doctype html><html><head><title>${title}</title></head><body><h1>${title}</h1></body></html>`;
+      for (const [label, input] of [
+        ["a title and the page", { title: "Q3 plan", html: page("Q3 plan") }],
+        ["the page alone: its own title is the name", { html: page("Q4 plan") }],
+        ["the page as content", { title: "Q1 plan", content: page("Q1 plan") }],
+        ["a page with an h1 and no title tag", { html: "<h1>Weekly report</h1><p>All quiet.</p>" }],
+      ] as Array<[string, Record<string, unknown>]>) {
+        const r = await publish(input);
+        assert.match(r, /artifact_publish answered/, `${label}: ${r.slice(0, 400)}`);
+        assert.match(r, /"artifactId":"sit_[a-z0-9]+"/, label);
+      }
+      const none = await publish({ html: "<p>hello</p>" });
+      assert.match(none, /artifact_publish refused/);
+      assert.match(none, /title is missing \(for example /);
+    } finally {
+      await d.stop();
+    }
+  },
+);
