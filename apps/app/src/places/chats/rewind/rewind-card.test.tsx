@@ -32,7 +32,7 @@ test("the words: a file count, and a point with no ask reads as an earlier turn"
   );
   assert.deepEqual(
     pointLine(points[1]!, () => "11:05"),
-    { when: "11:05", what: "An earlier turn", files: "1 file" },
+    { when: "11:05", what: "An earlier message", files: "1 file" },
   );
 });
 

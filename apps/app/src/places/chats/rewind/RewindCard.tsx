@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { timeLabel } from "../conversation/chat-time.ts";
 import { useConversationData } from "../conversation/data.tsx";
 import { KEPT_FOR, LEAVES, SHARED, NONE, NOT_KEPT, UNDOES, UNDO_NOTE, pointLine, whyOff } from "./model.ts";
 import type { ActiveRewind, RewindPoint } from "./model.ts";
@@ -46,7 +47,7 @@ export function RewindWatch({
 export function RewindCard({
   threadId,
   onClose,
-  clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+  clock,
   start,
   messageId,
   onDone,
@@ -68,6 +69,8 @@ export function RewindCard({
   start?: number | undefined;
 }): ReactElement {
   const data = useConversationData();
+  // a time reads in the chat's own clock (the Space's time zone in a shared chat), the one formatter a message row uses
+  const when = clock ?? ((ms: number): string => timeLabel(ms, data.clock()));
   const [read, setRead] = useState<Read>({ state: "loading" });
   const [pick, setPick] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -131,7 +134,7 @@ export function RewindCard({
       {read.state === "ready" ? (
         <View accessibilityRole="radiogroup" style={st.list}>
           {read.points.map((p) => {
-            const l = pointLine(p, clock);
+            const l = pointLine(p, when);
             const on = p.pointId === pick;
             return (
               <Pressable
