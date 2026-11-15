@@ -1338,7 +1338,14 @@ function accessDeps(ctx: TermCtx): AccessDeps {
   const wm = workspaceManager;
   return {
     mayUse: (person, agentId) => check(person, "use", { type: "agent", id: agentId }),
-    mayView: (person, thread) => check(person, "view", { type: "thread", id: thread }),
+    // who may read a chat is who is in it: its members (a person who left, or was never in it, has no entry on its folder)
+    mayView: async (person, thread) => {
+      const r = (await ctx.call?.("threads.get", { threadId: thread })) as
+        | { thread?: { members?: Array<{ kind?: string; id?: string }> } }
+        | undefined;
+      if (r?.thread?.members === undefined) throw new Error("the chat could not be read");
+      return r.thread.members.some((m) => m.kind === "person" && m.id === person);
+    },
     stopFor: async (agentId, place) => {
       await wm?.exec(agentId, ["sh", "-c", "kill -9 -1; true"], { quiet: true, user: place.uid });
     },

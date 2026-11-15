@@ -258,3 +258,76 @@ test("a folder or file named like a command is not that command: a sign-in kept 
   assert.equal(outwardOf("rsync -a site/ deploy@host.example:/srv/site")?.act, "send");
   assert.equal(outwardOf("scp f.txt host.example:/tmp")?.act, "send");
 });
+
+test("a remote command is held wherever it stands in the line, behind any wrapper, however it is spelled (review of 15 Nov, item 7); a folder named like it is not", () => {
+  const held = [
+    "ssh host",
+    "if true; then ssh host; fi",
+    "for h in a b; do ssh $h; done",
+    "{ ssh host; }",
+    "! ssh host",
+    "(ssh host)",
+    "echo `ssh host`",
+    "echo $(ssh host)",
+    "\\ssh host",
+    "'ssh' host",
+    '"ssh" host',
+    "eval ssh host",
+    "find . -exec ssh host {} \;",
+    "sudo -u bob ssh host",
+    "sudo -u root -- ssh h",
+    "env -u X ssh h",
+    "timeout -s KILL 5 ssh h",
+    "ionice -c3 ssh h",
+    "setsid ssh h",
+    "stdbuf -o0 ssh h",
+    "busybox ssh h",
+    "watch ssh h uptime",
+    'script -c "ssh h" /dev/null',
+    'su -c "ssh h" bob',
+    "ssh-copy-id user@h",
+    "alias s=ssh; s h",
+    "sh -c 'ssh h'",
+    "nohup ssh -N -L 1:2:3 h &",
+    "rsync -a x deploy@host.example:/srv",
+    "scp f host.example:/tmp",
+    "/usr/bin/ssh h",
+  ];
+  for (const c of held) assert.equal(outwardOf(c)?.act, "send", c);
+  assert.equal(outwardOf("ssh deploy@host.example uptime")?.targets[0], "host.example");
+  const free = [
+    "mkdir -p ~/.ssh && echo k > ~/.ssh/id_ed25519",
+    "cat ~/.ssh/known_hosts",
+    "chmod 600 ~/.ssh/id_ed25519",
+    "ls ~/.config/rsync ~/scp-notes",
+    "cd ~/.ssh && ls",
+    "echo hello",
+  ];
+  for (const c of free) assert.equal(outwardOf(c), null, c);
+});
+
+test("passwd is red as a command wherever it stands and behind any wrapper, and a read of the user database is not (review of 15 Nov, item 7)", () => {
+  const red = [
+    "passwd",
+    "passwd -d agent",
+    "sudo passwd root",
+    "sudo -u root passwd",
+    "echo x | passwd",
+    "ls; passwd",
+    "if true; then passwd; fi",
+    "{ passwd; }",
+    "(passwd)",
+    "\\passwd",
+    "'passwd'",
+    "eval passwd",
+    "env X=1 passwd",
+    "timeout 5 passwd",
+    "echo `passwd`",
+    "echo $(passwd)",
+    "su -c passwd root",
+    "visudo",
+  ];
+  for (const c of red) assert.equal(isDangerous(c), true, c);
+  for (const c of ["getent passwd", 'getent passwd "$(id -u)"', "cat /etc/passwd", "grep agent /etc/passwd", "whoami"])
+    assert.equal(riskOf(c), "read", c);
+});
