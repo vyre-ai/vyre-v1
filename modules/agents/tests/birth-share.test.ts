@@ -18,7 +18,7 @@ test("a person's new agent in a Team Space is born shared", async () => {
 test("sharing me keeps it to its maker", async () => {
   const hn = harness();
   await h["agents.create"]!(hn.ctx, { name: "Ledger", sharing: "me", idempotencyKey: "a" });
-  assert.equal(born(hn)[0]!["shared"], undefined);
+  assert.equal(born(hn)[0]!["shared"], false);
 });
 
 test("an Assistant, an outside agent, a teammate and an agent made by an agent are not born shared", async () => {
@@ -38,5 +38,5 @@ test("a Personal Space has no team to share with", async () => {
   const hn = harness();
   hn.world.handlers["spaces.matrix"] = () => ({ kind: "personal" });
   await h["agents.create"]!(hn.ctx, { name: "Mine", idempotencyKey: "a" });
-  assert.equal(born(hn)[0]!["shared"], undefined);
+  assert.equal(born(hn)[0]!["shared"], false);
 });

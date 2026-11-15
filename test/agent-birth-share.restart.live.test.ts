@@ -81,7 +81,12 @@ test("the pass at the first start on this build reads the folded access state, w
     const make = async (who: string, name: string, extra: object = {}): Promise<string> =>
       (await as(d, who)("agents.create", { name, role: "Help.", ...extra })).agent.agentId as string;
     ids["owner"] = await make("usr_olivia", "OwnerOld");
-    ids["admin"] = await make("usr_adam", "AdminOld");
+    // an admin who came in as a member and was promoted by the owner (the way an invited admin comes to hold the role), not the seed's own
+    await as(d, "usr_olivia")("access.roles.assign", {
+      subject: { kind: "person", id: "usr_sana" },
+      roleId: "rol_admin",
+    });
+    ids["admin"] = await make("usr_sana", "AdminOld");
     ids["member"] = await make("usr_noah", "MemberOld");
     ids["named"] = await make("usr_olivia", "NamedOld", { sharing: "me" });
     await as(d, "usr_olivia")("access.share", {
@@ -111,15 +116,21 @@ test("the pass at the first start on this build reads the folded access state, w
   try {
     const ownerOf: Record<string, string> = {
       owner: "usr_olivia",
-      admin: "usr_adam",
+      admin: "usr_sana",
       member: "usr_noah",
       named: "usr_olivia",
     };
     for (const k of Object.keys(ids)) after[k] = await shares(d, ids[k]!, ownerOf[k]!);
-    assert.deepEqual(after["owner"], ["group:grp_everyone"], "an owner's old agent with no grant is shared");
-    assert.deepEqual(after["admin"], ["group:grp_everyone"], "an admin's old agent with no grant is shared");
-    assert.deepEqual(after["member"], [], "a plain member's old agent stays hers");
-    assert.deepEqual(after["named"], ["person:usr_mia"], "an agent with any grant is left exactly as it is");
+    assert.deepEqual(
+      after,
+      {
+        owner: ["group:grp_everyone"], // an owner's old agent with no grant is shared
+        admin: ["group:grp_everyone"], // an admin's (promoted, as an invited admin is) is shared
+        member: [], // a plain member's stays hers
+        named: ["person:usr_mia"], // an agent with any grant is left exactly as it is
+      },
+      "after the first start on the new build",
+    );
     // a later unshare
     await as(d, "usr_olivia")("access.unshare", {
       resource: { type: "agent", id: ids["owner"]! },
@@ -132,11 +143,51 @@ test("the pass at the first start on this build reads the folded access state, w
   d = await boot(dir);
   try {
     assert.deepEqual(await shares(d, ids["owner"]!, "usr_olivia"), [], "a later unshare is never undone");
-    assert.deepEqual(await shares(d, ids["admin"]!, "usr_adam"), ["group:grp_everyone"]);
+    assert.deepEqual(await shares(d, ids["admin"]!, "usr_sana"), ["group:grp_everyone"]);
     assert.deepEqual(await shares(d, ids["member"]!, "usr_noah"), []);
     assert.deepEqual(await shares(d, ids["named"]!, "usr_olivia"), ["person:usr_mia"]);
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("a new Space's first start writes the marker, so no later start shares an agent made on this build", async () => {
+  const core = bootCore();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-birthshare-new-"));
+  core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
+  fs.copyFileSync(core.file, path.join(dir, "events.db"));
+  core.close();
+  const marker = (d: Daemon): number => d.db!.all(`SELECT 1 FROM host_passes WHERE "key" = 'agent-birth-share'`).length;
+  let d = await boot(dir);
+  let mine = "",
+    plain = "";
+  try {
+    assert.equal(
+      marker(d),
+      1,
+      "the marker is written at the very first start, whether or not the agents table exists yet",
+    );
+    mine = (await as(d, "usr_adam")("agents.create", { name: "Mine", role: "Help.", sharing: "me" })).agent.agentId;
+    plain = (await as(d, "usr_adam")("agents.create", { name: "Plain", role: "Help." })).agent.agentId;
+    assert.deepEqual(await shares(d, mine, "usr_adam"), []);
+    assert.deepEqual(await shares(d, plain, "usr_adam"), ["group:grp_everyone"]);
+  } finally {
+    await d.stop();
+  }
+  for (let i = 0; i < 2; i++) {
+    d = await boot(dir);
+    try {
+      assert.equal(marker(d), 1);
+      assert.deepEqual(
+        await shares(d, mine, "usr_adam"),
+        [],
+        `start ${i + 2}: an admin's "me" agent is still only hers`,
+      );
+      assert.deepEqual(await shares(d, plain, "usr_adam"), ["group:grp_everyone"]);
+    } finally {
+      await d.stop();
+    }
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
 });

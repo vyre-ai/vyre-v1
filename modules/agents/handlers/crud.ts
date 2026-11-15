@@ -473,7 +473,8 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
     folderId: tree.folderId,
     templateVersion: rec.templateVersion,
     ...(priv ? { private: true } : {}),
-    ...(shared ? { shared: true } : {}),
+    // said every time for an ordinary agent, true or false: an agent born before this build carries no `shared` at all, which is how the one-time start-up pass tells old from new
+    ...(kind === "agent" && runtime === "vyre" ? { shared } : {}),
     // a project's teammate is born under the project in access (a chat's agent keeps the Space: its chat decides who asks it)
     ...(kind === "teammate" && input.projectId?.startsWith("prj_") ? { projectId: input.projectId } : {}),
   });

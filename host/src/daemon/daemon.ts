@@ -3873,20 +3873,39 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           db!.run(`CREATE TABLE IF NOT EXISTS host_passes ("key" TEXT PRIMARY KEY, "at" INTEGER)`);
           const done = db!.all(`SELECT 1 FROM host_passes WHERE "key" = 'agent-birth-share'`).length > 0;
           if (!done) {
-            const old = db!.all(
-              `SELECT "id", "ownerId" FROM agents_agent WHERE "kind" = 'agent' AND "runtime" = 'vyre' AND "deletedAt" IS NULL`,
-            ) as { id: string; ownerId: string }[];
+            // a Space with no agents table yet, or with no ordinary agents, has nothing to carry over, ever: the marker is written, so a later start never runs the pass on agents made after this one
+            const hasTable =
+              db!.all(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'agents_agent'`).length > 0;
+            const old = hasTable
+              ? (db!.all(
+                  `SELECT "id", "ownerId" FROM agents_agent WHERE "kind" = 'agent' AND "runtime" = 'vyre' AND "deletedAt" IS NULL`,
+                ) as { id: string; ownerId: string }[])
+              : [];
+            // only an agent born before this build: its agent.created says nothing of `shared` (an agent born on this build says true or false, and is never touched)
+            const bornOnThisBuild = new Set(
+              agentAccessEvents
+                .filter(
+                  (e) =>
+                    e.type === "agent.created" &&
+                    e.payload !== null &&
+                    typeof e.payload === "object" &&
+                    "shared" in (e.payload as object),
+                )
+                .map((e) => String((e.payload as { agentId?: unknown }).agentId)),
+            );
             const events = oldAgentShareEvents({
-              agents: old.map((r) => ({
-                id: r.id,
-                ownerId: r.ownerId,
-                underSpace: access.snap.resource(r.id)?.parent_id === spaceId,
-                // the maker's own grant on it (and the agent's on itself) is how every agent is born: only a grant to someone else counts
-                hasGrant: (access.snap.grantsOn(r.id) ?? []).some(
-                  (g) =>
-                    ![`actor:${r.ownerId}`, `person:${r.ownerId}`, `actor:${r.id}`, `agent:${r.id}`].includes(g.key),
-                ),
-              })),
+              agents: old
+                .filter((r) => !bornOnThisBuild.has(r.id))
+                .map((r) => ({
+                  id: r.id,
+                  ownerId: r.ownerId,
+                  underSpace: access.snap.resource(r.id)?.parent_id === spaceId,
+                  // the maker's own grant on it (and the agent's on itself) is how every agent is born: only a grant to someone else counts
+                  hasGrant: (access.snap.grantsOn(r.id) ?? []).some(
+                    (g) =>
+                      ![`actor:${r.ownerId}`, `person:${r.ownerId}`, `actor:${r.id}`, `agent:${r.id}`].includes(g.key),
+                  ),
+                })),
               mayShareAll: (person) => mayShareWithEveryone(access.snap, person),
             });
             let wrote = 0;
@@ -3911,8 +3930,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (wrote > 0) await syncAccess(true);
             db!.run(`INSERT OR IGNORE INTO host_passes ("key", "at") VALUES ('agent-birth-share', ?)`, now());
           }
-        } catch {
-          // no agents table yet (a new Space): its agents are born with their sharing, and the pass has nothing to do
+        } catch (e) {
+          // a busy or damaged database: the marker is NOT written, so the next start tries again, and the failure is said
+          sink.log({
+            space: spaceId,
+            level: 40,
+            msg: "access.agent_birth_share_failed",
+            place: "boot",
+            attrs: { error: e instanceof Error ? e.message : String(e) },
+          });
         }
       }
       const personalRuns = new Map<string, Promise<void>>();
