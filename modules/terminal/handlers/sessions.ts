@@ -2121,9 +2121,14 @@ export async function run(ctx: TermCtx, a: RunInput) {
   // what this call filled is already out; what other commands of the workspace filled (another person's, through the same agent) is taken out too
   let output = clean(scope, typeof out.output === "string" ? out.output : "");
   // the owner (and the agent) is told once, in the agent's own words to its owner, what an update did to the computer (an old folder moved aside)
-  if (s.host === "agent_computer" && s.agentId !== undefined && (await askerPlaceFor(ctx, s.agentId, owner)) === undefined) {
+  if (
+    s.host === "agent_computer" &&
+    s.agentId !== undefined &&
+    (await askerPlaceFor(ctx, s.agentId, owner)) === undefined
+  ) {
     const notes = boundNotes()?.(s.agentId) ?? [];
-    if (notes.length > 0) output = `${output}${output === "" || output.endsWith("\n") ? "" : "\n"}[Tell the person, once, in one plain line: ${notes.join(" ")}]`;
+    if (notes.length > 0)
+      output = `${output}${output === "" || output.endsWith("\n") ? "" : "\n"}[Tell the person, once, in one plain line: ${notes.join(" ")}]`;
   }
   return { terminalId: s.terminalId, exitCode: r.exitCode, output, truncated: r.truncated, durationMs: r.durationMs };
 }

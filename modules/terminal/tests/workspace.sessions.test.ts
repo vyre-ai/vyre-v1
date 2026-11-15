@@ -406,5 +406,9 @@ test("terminal.workspace for an admin who manages the agent and is not its owner
   assert.equal(unshared.canAttach, false, "managing is not reading");
   assert.equal(unshared.ownPlace, undefined, "and no place of their own");
   const named = await h["terminal.workspace"]!(mk({ class: "shared", people: ["usr_admin"] }), { agentId: "agt_dex" });
-  assert.notEqual(named.cannotAttach, "You do not have access to this agent's computer.", "shared by name: the computer is shown");
+  assert.notEqual(
+    named.cannotAttach,
+    "You do not have access to this agent's computer.",
+    "shared by name: the computer is shown",
+  );
 });
