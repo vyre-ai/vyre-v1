@@ -14,6 +14,8 @@ import { ChromeCard } from "./ChromeCard.tsx";
 import { SessionsCard } from "./SessionsCard.tsx";
 import { FoldersCard, shellInvoke } from "./FoldersCard.tsx";
 import { InterviewCard } from "./InterviewCard.tsx";
+import { InterviewKnows, useKnown } from "./InterviewKnows.tsx";
+import { interviewAsk, interviewDone } from "./interview.ts";
 import { takeTeamNext } from "./doors.ts";
 import { TeamBridgeCard } from "./TeamBridgeCard.tsx";
 import { OPEN_TARGETS, OpenCard } from "./OpenCard.tsx";
@@ -24,7 +26,7 @@ import { AssistantThread } from "./AssistantThread.tsx";
 import { PreviewPane } from "./PreviewPane.tsx";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
 import { DirectoryCard, InvitesCard, SSO_SETUP_HASH, SignInDomainCard, WorkspaceCard } from "./SuiteCards.tsx";
-import { readableName, shouldAutoOpen } from "./flow.ts";
+import { readableName, shouldAutoOpen, stepsOf } from "./flow.ts";
 import { scriptFor } from "./script.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
@@ -171,6 +173,23 @@ export function OnboardingHost({
     },
     [call, flow],
   );
+
+  // With an AI account the How you work step is a talk: the Assistant asks, saves each answer to the person's memory, and "Vyre knows" lists what it holds. The step is done when all three exist.
+  const talk = hasAi && runtime !== null && person !== null;
+  const { saved: known, refresh: refreshKnown } = useKnown(call ?? null, shown && flow !== null && talk);
+  const knownDone = interviewDone(known);
+  const interviewLine = useMemo(() => interviewAsk(known), [known]);
+  useEffect(() => {
+    if (
+      shown &&
+      talk &&
+      knownDone &&
+      flow !== null &&
+      stepsOf(flow).some((x) => x.key === "interview") &&
+      progress["interview"] !== "done"
+    )
+      onStep("interview", "done");
+  }, [shown, talk, knownDone, flow, progress, onStep]);
 
   const renderCard = useMemo(
     () =>
@@ -328,6 +347,8 @@ export function OnboardingHost({
               gate={ctx.gate}
             />
           );
+        if (card === "interview" && call && talk)
+          return <InterviewKnows call={call} saved={known} refresh={refreshKnown} gate={ctx.gate} />;
         if (card === "interview" && call)
           return <InterviewCard call={call} onSaved={() => ctx.done()} gate={ctx.gate} />;
         return (
@@ -341,6 +362,9 @@ export function OnboardingHost({
       cards,
       aiProvider,
       hasAi,
+      talk,
+      known,
+      refreshKnown,
       progress,
       onAddSpace,
       mac,
@@ -457,7 +481,7 @@ export function OnboardingHost({
                       flow={flow}
                       step={st.key}
                       progress={progress}
-                      ask={ask}
+                      ask={st.card === "interview" ? interviewLine : ask}
                     />
                   ),
                 }
@@ -480,7 +504,7 @@ export function OnboardingHost({
             }}
             renderCard={renderCard}
             renderPreview={(card) =>
-              scriptFor(card, flow).preview === "" ? null : (
+              scriptFor(card, flow).preview === "" || (card === "interview" && talk) ? null : (
                 <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />
               )
             }
