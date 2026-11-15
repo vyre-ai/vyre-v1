@@ -47,11 +47,16 @@ test("it says what it undoes and never touches before anything is pressed; the n
     </ConversationDataProvider>,
   );
   await flush();
-  assert.match(textOf(find(root, "rewind-leaves")), /Anything already sent stays sent/);
-  assert.match(textOf(find(root, "rewind-undoes")), /files back as they were/);
+  assert.match(
+    textOf(find(root, "rewind-undoes")),
+    /removes files made since, by anyone\. Nothing already sent, no record and no task changes/,
+  );
   assert.equal(find(root, "rewind-not-kept"), null, "the long list of what is not kept is one press away");
   await press(find(root, "rewind-more"));
-  assert.match(textOf(find(root, "rewind-not-kept")), /\.gitignore.*secret files.*git repository/);
+  assert.match(
+    textOf(find(root, "rewind-not-kept")),
+    /neither removed nor put back.*\.gitignore.*secret files.*git repository.*This agent forgets what it was doing; other agents in this chat do not/,
+  );
   assert.match(textOf(find(root, "rewind-card")), /14 days/);
   assert.equal(find(root, "rewind-point-agt_dex.b")!.props["aria-checked"], true, "the newest is picked");
   assert.match(textOf(find(root, "rewind-point-agt_dex.b")), /14 files/);
@@ -63,7 +68,7 @@ test("it says what it undoes and never touches before anything is pressed; the n
   assert.equal(closed, 1);
 });
 
-test("no points says why: only an agent that works in a folder on the Space's computer has them", async () => {
+test("no points says why: a point is saved each time an agent that works in a folder on the Space's computer starts on one of your messages", async () => {
   installDom();
   const s = createSample("channel");
   const root = await mount(
@@ -73,7 +78,10 @@ test("no points says why: only an agent that works in a folder on the Space's co
     </ConversationDataProvider>,
   );
   await flush();
-  assert.match(textOf(find(root, "rewind-card")), /No points yet.*agent with no folder/);
+  assert.match(
+    textOf(find(root, "rewind-card")),
+    /No points yet\. A point is saved each time an agent that works in a folder/,
+  );
 });
 
 test("in a chat with other people it says so and Go back is not pressable", async () => {
@@ -86,7 +94,43 @@ test("in a chat with other people it says so and Go back is not pressable", asyn
     </ConversationDataProvider>,
   );
   await flush();
-  assert.match(textOf(find(root, "rewind-card")), /off in a chat with other people/);
+  assert.match(textOf(find(root, "rewind-card")), /Only a chat with an agent goes back/);
   await press(find(root, "rewind-go")!);
   assert.equal(s.calls.filter((c) => c.cap === "chat.rewind").length, 0);
+});
+
+test("a point finished after the agent began says During, never before; work on your own computer is said once; a refusal's plain words are shown", async () => {
+  installDom();
+  const s = createSample("channel");
+  const data = {
+    ...s.data,
+    call: async (cap: string) => {
+      if (cap === "engine.rewind.points")
+        return {
+          available: true,
+          ownComputer: true,
+          points: [
+            { pointId: "agt_dex.d", agentId: "agt_dex", at: 1_000, files: 3, after: "Split the page", during: true },
+          ],
+        };
+      if (cap === "chat.rewind") throw new Error("Stop Dex first, then go back.");
+      return s.data.call(cap as never, undefined as never);
+    },
+  } as typeof s.data;
+  const root = await mount(
+    createRoot,
+    <ConversationDataProvider value={data}>
+      <RewindCard threadId="c1" onClose={() => undefined} clock={(ms) => `t${ms}`} />
+    </ConversationDataProvider>,
+  );
+  await flush();
+  assert.match(textOf(find(root, "rewind-point-agt_dex.d")), /During: Split the page/);
+  assert.doesNotMatch(textOf(find(root, "rewind-card")), /Before/);
+  assert.match(
+    textOf(find(root, "rewind-own-computer")),
+    /Work done on your own computer cannot be gone back to here\./,
+  );
+  await press(find(root, "rewind-go")!);
+  await flush();
+  assert.equal(textOf(find(root, "rewind-failed")), "Stop Dex first, then go back.");
 });

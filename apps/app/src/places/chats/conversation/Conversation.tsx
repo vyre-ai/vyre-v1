@@ -1035,9 +1035,10 @@ function ConversationView(): ReactElement {
   const inRewind = (m: Message): boolean =>
     rewinds.some(
       (r) =>
-        (m.threadSeq > r.afterSeq && m.threadSeq <= r.uptoSeq) ||
-        // the line the server left ("Went back ...") is the folded row's own: one line while it is in force
-        (m.kind === "system" && m.threadSeq === r.uptoSeq + 1 && /^Went back/.test(m.body)),
+        r.interrupted !== true &&
+        ((m.threadSeq > r.afterSeq && m.threadSeq <= r.uptoSeq) ||
+          // the line the server left ("Went back ...") is the folded row's own: one line while it is in force
+          (m.kind === "system" && m.threadSeq === r.uptoSeq + 1 && /^Went back/.test(m.body))),
     );
   const folded = mergeCrewAnswer(
     hideCrewPosts(
@@ -1073,6 +1074,7 @@ function ConversationView(): ReactElement {
       uptoSeq: r.uptoSeq,
       who: nameOf(r.by),
       mine: r.by === data.me.id,
+      ...(r.interrupted ? { interrupted: true } : {}),
       ...(r.undoPointId !== undefined
         ? {
             undo: () =>

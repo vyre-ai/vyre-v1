@@ -383,3 +383,23 @@ test("a path that cannot be put back is counted and the rest goes on: going back
     fs.rmSync(w.root, { recursive: true, force: true });
   }
 });
+
+test("a Space backup and a peer join carry events, the module and space databases, keys and blobs: never the work folders or the checkpoints", async () => {
+  const { STAGED_DBS, SECRET_FILES } = await import("../../../host/src/peers/join.ts");
+  for (const f of [...STAGED_DBS, ...SECRET_FILES]) assert.ok(!/checkpoints|^work$|^w$/.test(f), f);
+  const run = fs.readFileSync(new URL("../../backup/handlers/run.ts", import.meta.url), "utf8");
+  assert.ok(!/checkpoints/.test(run), "the backup source does not name the checkpoints");
+  assert.match(
+    run,
+    /events\.db with its chain, blobs/,
+    "what a backup holds is the events database and blobs (modules/backup/handlers/run.ts, line 5)",
+  );
+});
+
+test("the sweep is registered with the engine's periodic table, hourly; an agent moved to Trash keeps its points", async () => {
+  const impl = await import("../impl.ts");
+  assert.equal((impl.periodic as Record<string, { everyMs: number }>)["engine.checkpoint_sweep"]?.everyMs, 3_600_000);
+  const erased = (impl.consumers as unknown as Record<string, { on: string[] }>)["engine.checkpoints_erased"]!;
+  assert.ok(!erased.on.includes("agent.deleted"), "Trash is not delete");
+  assert.ok(erased.on.includes("thread.erased") && erased.on.includes("member.removed"));
+});

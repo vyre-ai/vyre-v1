@@ -113,7 +113,7 @@ test("Rewind to here: the card picks the turn that message began, and says who s
   );
   await flush();
   assert.equal(find(root, "rewind-point-agt_a.1")!.props["aria-checked"], true);
-  assert.match(textOf(find(root, "rewind-shared")), /Everyone in this chat sees that you went back/);
+  assert.match(textOf(find(root, "rewind-shared")), /Everyone here sees that you went back/);
 });
 
 test("the folded row: one line, openable to each message, Undo only for the person who went back", async () => {

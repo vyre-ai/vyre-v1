@@ -345,6 +345,14 @@ Signed: lead, 15 Nov 2026 (written 14 Nov 2026; shipped in rc.28, main 2576811cc
 - What changed: one new write, `chat.round.discuss@1` (input: threadId, messageId, idempotencyKey; output: the thread). After a message asked several agents and at least two answered, the person who asked lets them talk it over: the inline thread under the message gets one message from the person with the answers and a request for one short turn each, ending on a "Decided:" line; the first agent is tagged and tags the next, so the engine's hand-off limits cap it at four turns. It emits `agent.engaged` for agents it brings into the thread. Snapshot: docs/frozen/snapshots/chat.json.
 - Why: the round table's "Let them discuss" (G57). It adds no new engine rule: the talk is ordinary turns on the asker's account, bounded by the hand-off limits of 4 Nov.
 
+## 15 Nov 2026: Rewind, review fixes (lane b-chat2), for the lead to sign
+
+- `engine.rewind.to` no longer takes `afterSeq` and `uptoSeq`: the engine works the range out itself (from the point's own message, which must be the caller's, to the newest message), so a person with Use on a shared chat cannot choose what to fold. It is refused while a turn of that agent is running in the chat ("Stop <name> first, then go back."). Its answer gains `failedPaths`, `during`, `afterSeq`, `uptoSeq`.
+- `engine.rewind.points` gains `ownComputer` (an agent of the chat works on the person's own computer, which takes no point), `during` on a point (finished after the agent began) and `interrupted` on an `active` entry (a rewind cut short, listed with Undo). `chat.rewind` answers `failedPaths` and `during`.
+- New migration `0019_rewind_state.sql` (`engine_rewind.kind`, `.state`): a rewind is written as "going back" before the files move; an Undo is its own row.
+- New periodic `engine.checkpoint_sweep` (hourly). `engine.checkpoints_erased` no longer fires on `agent.deleted` (Trash keeps an agent's points; the sweep removes them after 14 days).
+- A point is only taken for a chat with an agent that runs on this server; never stores a secret (`lib/secret-files.ts`); the store is mode 700.
+
 ## 15 Nov 2026: Rewind in a chat with other people, and the folded range in the read (lane b-chat2), for the lead to sign
 
 - `chat.rewind` is no longer refused in a chat with other people (a chat with an agent that is not a channel). A person goes back only to their own message: the point must be one of theirs (the points and the agent's work folder are per person) and the message that began it must be theirs, else `validation.precondition_failed` ("You can only go back to your own message."). The line it leaves now carries who did it (`by`). A guest is only ever in a channel, which never goes back. The agents of that chat stop reading everyone's messages after the point, which the card says.

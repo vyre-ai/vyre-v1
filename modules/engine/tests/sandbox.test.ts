@@ -305,3 +305,25 @@ test("two CLI agents working for one person in one chat get a folder each: neith
     /not one of the Space's/,
   );
 });
+
+test("Rewind's checkpoint store is outside everything the sandbox opens: the agent cannot read or rewrite its own points", async () => {
+  const { storeOf, rootOf } = await import("../checkpoints.ts");
+  const cwd = workFolder(data, "usr_dana", "thr_1", "agt_dex");
+  const store = storeOf(data, cwd);
+  const root = rootOf(data);
+  assert.ok(!store.startsWith(cwd), "the store is not inside the work folder");
+  const bw1 = sandboxWrap(bw)(["claude", "-p"], { env, cwd });
+  const binds = bw1.flatMap((x, i) => (x === "--bind" || x === "--ro-bind" ? [bw1[i + 1]!, bw1[i + 2]!] : []));
+  assert.ok(binds.length > 0);
+  for (const b of binds)
+    assert.ok(
+      !b.startsWith(root) && !root.startsWith(`${b}/`) && b !== path.dirname(root),
+      `bwrap opens ${b}, which holds the checkpoints`,
+    );
+  assert.ok(!bw1.join("\n").includes(root), "no argument names the checkpoints folder");
+  const sb = sandboxWrap({ ...bw, sandbox: { kind: "seatbelt", proxyPort: 4321 } })(["claude", "-p"], { env, cwd });
+  const at = sb.indexOf("/usr/bin/sandbox-exec");
+  assert.ok(!sb[at + 2]!.includes(root), "the seatbelt profile never names the checkpoints folder");
+  // the work folder is the only writable place of the Space's data: its parent is not
+  assert.ok(!sb[at + 2]!.includes(`(allow file-write* (subpath "${path.dirname(root)}"))`));
+});

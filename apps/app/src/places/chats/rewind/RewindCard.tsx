@@ -5,13 +5,13 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { timeLabel } from "../conversation/chat-time.ts";
 import { useConversationData } from "../conversation/data.tsx";
-import { KEPT_FOR, LEAVES, SHARED, NONE, NOT_KEPT, UNDOES, UNDO_NOTE, pointLine, whyOff } from "./model.ts";
+import { LEAVES, NONE, NOT_KEPT, OWN_COMPUTER, SHARED, UNDOES, pointLine, whyOff } from "./model.ts";
 import type { ActiveRewind, RewindPoint } from "./model.ts";
 
 type Read =
   | { state: "loading" }
   | { state: "off"; why?: string | undefined }
-  | { state: "ready"; points: RewindPoint[] };
+  | { state: "ready"; points: RewindPoint[]; ownComputer: boolean };
 
 /** Reads the rewinds in force (which messages are folded away) when the chat opens and each time its stamp changes: a rewind or an undo, by anyone, leaves a line in the chat. Draws nothing. */
 export function RewindWatch({
@@ -44,6 +44,14 @@ export function RewindWatch({
   return null;
 }
 
+/** What the server said, when it said it in a plain sentence ("Stop Dex first, then go back."; "The files were put back, but the chat could not be updated ..."); otherwise only what is true when nothing is known. */
+function plainFailure(e: unknown): string {
+  const m = e instanceof Error ? e.message : "";
+  return m !== "" && m.length < 220 && /\s/.test(m) && !/^[a-z]+\.[a-z_.]+$/.test(m)
+    ? m
+    : "It did not go back. If any files were put back, Undo on the line in the chat brings them back.";
+}
+
 export function RewindCard({
   threadId,
   onClose,
@@ -74,7 +82,7 @@ export function RewindCard({
   const [read, setRead] = useState<Read>({ state: "loading" });
   const [pick, setPick] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const [more, setMore] = useState(false);
   useEffect(() => {
     let gone = false;
@@ -82,9 +90,9 @@ export function RewindCard({
       void Promise.resolve(data.call("engine.rewind.points", { threadId })).then(
         (r) => {
           if (gone) return;
-          const out = r as { available: boolean; why?: string; points: RewindPoint[] };
+          const out = r as { available: boolean; why?: string; points: RewindPoint[]; ownComputer?: boolean };
           if (!out.available) return setRead({ state: "off", why: out.why });
-          setRead({ state: "ready", points: out.points });
+          setRead({ state: "ready", points: out.points, ownComputer: out.ownComputer === true });
           const own = messageId !== undefined ? out.points.find((p) => p.messageId === messageId) : undefined;
           const near =
             own ??
@@ -105,21 +113,21 @@ export function RewindCard({
   const go = (): void => {
     if (busy || pick === null) return;
     setBusy(true);
-    setFailed(false);
+    setFailed(null);
     try {
       void Promise.resolve(data.call("chat.rewind", { threadId, pointId: pick, idempotencyKey: data.newKey() })).then(
         () => {
           onDone?.();
           onClose();
         },
-        () => {
+        (e: unknown) => {
           setBusy(false);
-          setFailed(true);
+          setFailed(plainFailure(e));
         },
       );
-    } catch {
+    } catch (e) {
       setBusy(false);
-      setFailed(true);
+      setFailed(plainFailure(e));
     }
   };
   return (
@@ -131,6 +139,11 @@ export function RewindCard({
       )}
       {read.state === "off" ? <Text style={st.note}>{whyOff(read.why)}</Text> : null}
       {read.state === "ready" && read.points.length === 0 ? <Text style={st.note}>{NONE}</Text> : null}
+      {read.state === "ready" && read.ownComputer ? (
+        <Text testID="rewind-own-computer" style={st.note}>
+          {OWN_COMPUTER}
+        </Text>
+      ) : null}
       {read.state === "ready" ? (
         <View accessibilityRole="radiogroup" style={st.list}>
           {read.points.map((p) => {
@@ -181,10 +194,13 @@ export function RewindCard({
           <Text testID="rewind-not-kept" style={st.note}>
             {NOT_KEPT}
           </Text>
-          <Text style={st.note}>{`${UNDO_NOTE} ${KEPT_FOR}`}</Text>
         </>
       ) : null}
-      {failed ? <Text style={st.warn}>It did not go back. Nothing changed.</Text> : null}
+      {failed !== null ? (
+        <Text testID="rewind-failed" style={st.warn}>
+          {failed}
+        </Text>
+      ) : null}
       <View style={st.foot}>
         <Pressable
           testID="rewind-go"
