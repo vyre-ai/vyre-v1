@@ -498,3 +498,34 @@ test("the Esc source: a markup tool takes Esc in the capture phase and prevents 
   assert.match(src, /doc\.addEventListener\("keydown", onKey, true\)/);
   assert.match(src, /if \(e\.key !== "Escape"\) return;\s+e\.preventDefault\(\);\s+setTool\(null\);/);
 });
+
+test("compact (a phone): Find, History and the caller's tools go behind More, so the toolbar fits; wide, they stay on the bar", () => {
+  const wide = renderToStaticMarkup(
+    <Viewer
+      fileId="f"
+      title="Offer.png"
+      kind="image"
+      zoom={1}
+      onMore={() => undefined}
+      onHistory={() => undefined}
+      tools={<span data-testid="vw-tools-probe" />}
+    />,
+  );
+  const narrow = renderToStaticMarkup(
+    <Viewer
+      fileId="f"
+      title="Offer.png"
+      kind="image"
+      zoom={1}
+      compact
+      onMore={() => undefined}
+      onHistory={() => undefined}
+      tools={<span data-testid="vw-tools-probe" />}
+    />,
+  );
+  for (const id of ["vw-find-btn", "vw-history", "vw-tools-probe", "vw-more"]) assert.match(wide, new RegExp(id), id);
+  for (const id of ["vw-find-btn", "vw-history", "vw-tools-probe"])
+    assert.doesNotMatch(narrow, new RegExp(id), `${id} is behind More`);
+  assert.match(narrow, /vw-more/);
+  assert.match(narrow, /vw-info/, "Details stays");
+});
