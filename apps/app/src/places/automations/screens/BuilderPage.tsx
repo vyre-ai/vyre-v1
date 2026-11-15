@@ -74,6 +74,8 @@ export interface BuilderPageProps {
   initialPromote?: boolean;
   /** Open on this tab. */
   initialTab?: "steps" | "runs" | "settings" | "history";
+  /** A run's page opens one step's form to fix it: only that form is drawn, nothing else of the builder. */
+  stepOnly?: boolean;
 }
 
 export function BuilderPage({
@@ -82,6 +84,7 @@ export function BuilderPage({
   initialSelected = null,
   initialPromote = false,
   initialTab = "steps",
+  stepOnly = false,
 }: BuilderPageProps): ReactElement {
   const data = useAutomationsData();
   const q = useScreenQuery<GetOut>(CANVAS, "automation", { automationId, route: { automationId } });
@@ -122,6 +125,7 @@ export function BuilderPage({
       initialSelected={initialSelected}
       initialPromote={initialPromote}
       initialTab={initialTab}
+      stepOnly={stepOnly}
     />
   );
 }
@@ -146,6 +150,7 @@ function Body({
   initialSelected,
   initialPromote,
   initialTab,
+  stepOnly,
 }: {
   a: GetOut["automation"];
   canEdit?: boolean;
@@ -156,6 +161,7 @@ function Body({
   initialSelected: string | null;
   initialPromote: boolean;
   initialTab: Tab;
+  stepOnly: boolean;
 }): ReactElement {
   const data = useAutomationsData();
   const winW = useWindowDimensions().width;
@@ -882,6 +888,7 @@ function Body({
     />
   ) : null;
 
+  if (stepOnly) return <View style={s.fill} testID="step-only">{inspector}</View>;
   const tabs = phone
     ? [{ id: "runs", label: "Runs", ...(failedRuns > 0 ? { badge: failedRuns } : {}) }]
     : [

@@ -41,13 +41,15 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
     steps: StepLog[];
     outputs: Record<string, unknown>;
     titles: Record<string, { title: string; app?: { id: string; name: string } }>;
+    test: boolean;
+    outward: ReadonlySet<string>;
   } | null>(null);
   useEffect(() => {
     let live = true;
     void (async () => {
       try {
         const run = (await data.call("runs.get", { runId })) as {
-          run: { subject?: { type: string; id: string }; definitionVersion?: number; status?: string };
+          run: { subject?: { type: string; id: string }; definitionVersion?: number; status?: string; kind?: string };
         };
         const subject = run.run.subject;
         const steps = ((await data.call("runs.steps", { runId })) as { steps: StepLog[] }).steps;
@@ -68,9 +70,10 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
           ).automation.definition;
         const cat = await loadProductCatalog((cap, input) => data.call(cap, input));
         const titles = cat.ok ? Object.fromEntries(cat.catalog.all.map((s) => [s.key, { title: s.title }])) : {};
-        if (live) setState({ automationId: subject?.id ?? null, definition, steps, outputs, titles });
+        const outward = new Set(cat.ok ? cat.catalog.all.filter((c) => c.effects === "outward").map((c) => c.key) : []);
+        if (live) setState({ automationId: subject?.id ?? null, definition, steps, outputs, titles, test: run.run.kind === "automation_test", outward });
       } catch {
-        if (live) setState({ automationId: null, definition: null, steps: [], outputs: {}, titles: {} });
+        if (live) setState({ automationId: null, definition: null, steps: [], outputs: {}, titles: {}, test: false, outward: new Set() });
       }
     })();
     return () => {
@@ -89,7 +92,11 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
     const results: Record<string, RunResult> = {};
     for (const st of state.steps) {
       if (st.state === "succeeded")
-        results[st.step] = { status: "ok", line: "Done", values: valuesOf(state.outputs[st.step]) };
+        results[st.step] = {
+          status: state.test && state.outward.has(state.definition.nodes.find((n) => n.id === st.step)?.key ?? "") ? "held" : "ok",
+          line: "Done",
+          values: valuesOf(state.outputs[st.step]),
+        };
       else if (st.state === "failed")
         results[st.step] = {
           status: "failed",
@@ -104,49 +111,54 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
   // a run that is not an Automation's (an agent's work) keeps its own page
   if (!view || !state.automationId) return <RunChat runId={runId} wide />;
   const failedStep = state.steps.find((x) => x.state === "failed")?.step;
+  const runAgain = (): void => {
+    setNote(null);
+    void data
+      .call("automations.replay", { automationId: state.automationId, runId, version: "current", confirm: true })
+      .then(
+        (o) => {
+          setFixing(false);
+          const next = (o as { runId?: string }).runId;
+          if (next) data.nav.openRun(next);
+          else setTick((t) => t + 1);
+        },
+        (e: unknown) => setNote(e instanceof Error ? e.message : "It did not start again."),
+      );
+  };
   return (
     <View testID="run-page" style={s.page}>
-      <RunView view={view} onFix={() => setFixing((f) => !f)} />
-      {fixing ? (
-        <View testID="run-fix" style={s.fix}>
-          <BuilderPage automationId={state.automationId} {...(failedStep ? { initialSelected: failedStep } : {})} />
+      <View style={s.cols}>
+        <View style={s.rows}>
+          <RunView view={view} onFix={() => setFixing((f) => !f)} />
+          {view.banner && !fixing ? (
+            <Pressable testID="run-again" accessibilityRole="button" style={[look.btn, s.again]} onPress={runAgain}>
+              <Text style={look.btnText}>Run again</Text>
+            </Pressable>
+          ) : null}
+          {note ? <Text style={look.quiet}>{note}</Text> : null}
         </View>
-      ) : null}
-      {view.banner ? (
-        <Pressable
-          testID="run-again"
-          accessibilityRole="button"
-          style={[look.btn, s.again]}
-          onPress={() => {
-            setNote(null);
-            void data
-              .call("automations.replay", {
-                automationId: state.automationId,
-                runId,
-                version: "current",
-                confirm: true,
-              })
-              .then(
-                (o) => {
-                  setFixing(false);
-                  const next = (o as { runId?: string }).runId;
-                  if (next) data.nav.openRun(next);
-                  else setTick((t) => t + 1);
-                },
-                (e: unknown) => setNote(e instanceof Error ? e.message : "It did not start again."),
-              );
-          }}
-        >
-          <Text style={look.btnText}>{fixing ? "Run again with the fix" : "Run again"}</Text>
-        </Pressable>
-      ) : null}
-      {note ? <Text style={look.quiet}>{note}</Text> : null}
+        {fixing ? (
+          // the one step's form, in a side panel of this page; the rows stay where they are
+          <View testID="run-fix" style={s.fix}>
+            <View style={s.fixBody}>
+              <BuilderPage automationId={state.automationId} stepOnly {...(failedStep ? { initialSelected: failedStep } : {})} />
+            </View>
+            <Pressable testID="run-again" accessibilityRole="button" style={[look.btn, look.primary, s.fixFoot]} onPress={runAgain}>
+              <Text style={look.primaryText}>Run again with the fix</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   page: { flex: 1, padding: 16, gap: 10 },
+  cols: { flex: 1, flexDirection: "row", gap: 16, minHeight: 0 },
+  rows: { flex: 1, minWidth: 0, gap: 10 },
+  fixBody: { flex: 1, minHeight: 360 },
+  fixFoot: { margin: 12, alignSelf: "stretch", alignItems: "center" },
   again: { alignSelf: "flex-start" },
-  fix: { minHeight: 420, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 14, overflow: "hidden" },
+  fix: { width: 380, maxWidth: "100%" as unknown as number, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 14, overflow: "hidden" },
 });
