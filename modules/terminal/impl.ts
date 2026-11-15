@@ -21,6 +21,7 @@ import { chatFolderCommand, chatLinkCommand, grantCommand, removeCommand } from 
 import {
   bindWorkspaceStatus,
   bindChatFolder,
+  bindNotes,
   bindPlaceGrant,
   bindHost,
   bindKit,
@@ -1267,6 +1268,7 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
   // agent commands go to a workspace when there is a machine for this agent's one right now; with none (no runtime, no server) they go where the turn runs, as before
   bindWorkspaces(fleet ? (agentId) => fleet.available(agentId) : false);
   bindWorkspaceStatus(fleet ? (agentId) => fleet.status(agentId) : null);
+  bindNotes(fleet ? (agentId) => fleet.takeNotes(agentId) : null);
   bindPlaceGrant(
     fleet
       ? async (agentId, place) => {

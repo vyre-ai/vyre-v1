@@ -338,9 +338,17 @@ test(
       "sh",
       RC26,
       "-c",
-      "umask 022; echo OWNER-BEFORE > /h/owner-note.txt; echo NPMRC-OLD-SECRET > /h/.npmrc; mkdir -p /h/projects/prj_old /h/Vyre /h/work; echo NOTES-OLD-SECRET > /h/work/notes.txt; chown -R 10001:10001 /h",
+      "umask 022; echo OWNER-BEFORE > /h/owner-note.txt; echo NPMRC-OLD-SECRET > /h/.npmrc; mkdir -p /h/projects/oldproj/sub /h/Vyre /h/work; echo REAL-OLD > /h/projects/oldproj/real.txt; echo DEEP-OLD > /h/projects/oldproj/sub/deep.txt; echo STALE-HOME > /h/Vyre/stale-home.txt; echo NOTES-OLD-SECRET > /h/work/notes.txt; chown -R 10001:10001 /h",
     ]);
     assert.equal(seed.code, 0, seed.out);
+    // the Files volume the old container mounted on ~/Vyre holds the owner's Files
+    const seedFiles = await docker(["run", "--rm", "-v", `${ws}-files:/f`, "--user", "0", "--entrypoint", "sh", RC26, "-c", "echo FILESVOL > /f/filesvol.txt; chown -R 10001:10001 /f"]);
+    assert.equal(seedFiles.code, 0, seedFiles.out);
+    // a project made since: the new container mounts it, and ~/projects/<id> has to be there for the owner
+    const proj = await w.owner.call("projects.create", { type: "project", title: "New one" });
+    assert.equal(proj.status, 200, JSON.stringify(proj.data));
+    const newId = proj.data.projectId as string;
+    assert.equal((await w.owner.call("projects.members.set", { projectId: newId, principal: w.agent, role: "member" })).status, 200);
     const made = await docker([
       "create",
       "--name",
@@ -370,6 +378,9 @@ test(
       /OWNER-BEFORE\nworkspace/,
       "the owner's file is where it was; the host name has no id",
     );
+    // the owner is told once, in one line, what the update did to the folders with files in them
+    assert.match(owner[0]!.text, /old projects folder are now in ~\/projects\.old/, owner[0]!.text);
+    assert.match(owner[0]!.text, /old Files folder are now in ~\/Vyre\.old/, owner[0]!.text);
     const ben = await w.turn(w.ben, "up-2", [{ cmd: "whoami; echo $HOME" }]);
     assert.match(ben[0]!.text, /^u2\d{4}\n\/people\/u2\d{4}$/, JSON.stringify(ben));
     // what the old workspace wrote with umask 022 is not the non-owner's to read, after the update (round two, item 1)
@@ -392,6 +403,31 @@ test(
       paths[0]!.text,
     );
     assert.match(stillOwner[0]!.text, /NPMRC-OLD-SECRET[\s\S]*NOTES-OLD-SECRET/, "the owner still reads her own");
+    assert.doesNotMatch(stillOwner[0]!.text, /Tell the person/, "said once");
+    // round four: the stale folders do not stand in the way, and no file is lost
+    const owner2 = await w.turn(w.owner, "up-6", [
+      { cmd: "cat ~/Vyre/filesvol.txt" },
+      { cmd: `echo NEWP > ~/projects/${newId}/x.txt; cat ~/projects/${newId}/x.txt` },
+      { cmd: "cat ~/projects.old/oldproj/real.txt ~/projects.old/oldproj/sub/deep.txt ~/Vyre.old/stale-home.txt; ls -ld ~/projects.old ~/Vyre.old" },
+    ]);
+    assert.equal(owner2[0]!.text, "FILESVOL", "her Files are in ~/Vyre again");
+    assert.equal(owner2[1]!.text, "NEWP", "a new project's folder is where she looks");
+    assert.match(owner2[2]!.text, /REAL-OLD\nDEEP-OLD\nSTALE-HOME/, "every old file is readable by her under the .old names");
+    assert.match(owner2[2]!.text, /drwx------[\s\S]*drwx------/, "both stay hers alone");
+    const oldGuest = await w.turn(w.ben, "up-7", [
+      { cmd: 'H=/home/ag""ent; cat $H/projects.old/oldproj/real.txt 2>&1' },
+      { cmd: 'H=/home/ag""ent; cat $H/Vyre.old/stale-home.txt 2>&1' },
+    ]);
+    for (const g of oldGuest) {
+      assert.doesNotMatch(g.text, /OLD|STALE/, g.text);
+      assert.match(g.text, /Permission denied|Operation not permitted/, g.text);
+    }
+    // a second start changes nothing more
+    const { LINK_SCRIPT } = await import("../modules/terminal/workspace.ts");
+    const again = await docker(["exec", "--user", "10001:10001", "-e", "HOME=/home/agent", ws, "sh", "-c", LINK_SCRIPT]);
+    assert.doesNotMatch(again.out, /MOVED/, "nothing is moved a second time");
+    const olds = await docker(["exec", ws, "sh", "-c", "ls -d /home/agent/*.old* | sort"]);
+    assert.deepEqual(olds.out.trim().split("\n").filter((x) => x.startsWith("/home/agent")).sort(), ["/home/agent/Vyre.old", "/home/agent/projects.old"]);
     const image = (await docker(["inspect", "-f", "{{.Config.Image}}", ws])).out.trim().split("\n")[0];
     assert.notEqual(image, RC26, "the container was made again on the new image");
   },

@@ -137,9 +137,13 @@ test("terminal_open on a workspace names the agent; an agent opens only its own 
 
 // ---- who may enter a workspace -----------------------------------------------------------------------------------------------------------------------
 
-function facts(table: Record<string, { ownerId: string; kind?: string; runtime?: string }>) {
+function facts(
+  table: Record<string, { ownerId: string; kind?: string; runtime?: string }>,
+  shared: { class: string; people: string[] } = { class: "space", people: [] },
+) {
   return (cap: string, input: unknown): Promise<unknown> => {
     if (cap === "host.hook.call.terminal.open_tab") return undefined; // no pipeline here: the handler opens the run's tab itself
+    if (cap === "agents.share_class") return Promise.resolve(shared);
     if (cap !== "agents.get") throw new Error(`unexpected ${cap}`);
     const a = table[(input as { agentId: string }).agentId];
     return Promise.resolve(a ? { agent: { agentId: (input as { agentId: string }).agentId, ...a } } : undefined);
@@ -389,4 +393,18 @@ test("a workspace that will not start says why in details.reason: no image and n
       reason,
     );
   }
+});
+
+test("terminal.workspace for an admin who manages the agent and is not its owner: shown only when the agent is shared with them, as terminal.get does", async () => {
+  const mk = (shared: { class: string; people: string[] }): TermCtx => {
+    const base = asPerson("usr_admin", true);
+    return { ...base, call: facts(AGENTS, shared) as never };
+  };
+  bindWorkspaces(true);
+  bindPlace(async () => TEAM_ON_MAC);
+  const unshared = await h["terminal.workspace"]!(mk({ class: "personal", people: [] }), { agentId: "agt_dex" });
+  assert.equal(unshared.canAttach, false, "managing is not reading");
+  assert.equal(unshared.ownPlace, undefined, "and no place of their own");
+  const named = await h["terminal.workspace"]!(mk({ class: "shared", people: ["usr_admin"] }), { agentId: "agt_dex" });
+  assert.notEqual(named.cannotAttach, "You do not have access to this agent's computer.", "shared by name: the computer is shown");
 });

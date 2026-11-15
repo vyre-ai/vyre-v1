@@ -34,9 +34,23 @@ export const WORKSPACE_HOME = "/home/agent";
 export const SHARED_ROOT = "/shared";
 export const FILES_GUEST = `${SHARED_ROOT}/Vyre`;
 export const PROJECTS_GUEST = `${SHARED_ROOT}/projects`;
-/** Closes the home to everyone but the agent (a volume of an older release may have been made with other rights) and makes `~/Vyre` and `~/projects` of the agent's home links to the shared folders (a workspace of an older release has them as the folders the volumes were mounted on: empty, so they are replaced; one with something in it is left as it is). */
-export const LINK_SCRIPT =
-  'chmod 700 "$HOME" 2>/dev/null; for n in Vyre projects; do p="$HOME/$n"; [ -L "$p" ] && continue; if [ -d "$p" ]; then [ -z "$(find "$p" -mindepth 1 ! -type d 2>/dev/null | head -n 1)" ] || continue; find "$p" -depth -mindepth 1 -type d -empty -delete 2>/dev/null; rmdir "$p" 2>/dev/null; fi; [ -e "$p" ] || ln -s "/shared/$n" "$p"; done; true';
+/** Closes the home to everyone but the agent (a volume of an older release may have been made with other rights) and makes `~/Vyre` and `~/projects` of the agent's home links to the shared folders. A workspace of an older release has them as the folders the volumes were mounted on: empty ones are replaced; one with files in it is moved to `.old` (never lost), and its owner is told once (`takeNotes`). Prints `MOVED <name> <new name>` for each. */
+export const LINK_SCRIPT = [
+  'chmod 700 "$HOME" 2>/dev/null',
+  "for n in Vyre projects; do",
+  '  p="$HOME/$n"; [ -L "$p" ] && continue',
+  '  if [ -d "$p" ]; then',
+  '    if [ -z "$(find "$p" -mindepth 1 ! -type d 2>/dev/null | head -n 1)" ]; then',
+  '      find "$p" -depth -mindepth 1 -type d -empty -delete 2>/dev/null; rmdir "$p" 2>/dev/null',
+  "    else",
+  // a folder with files in it is never in the way and never lost: it is moved aside (name.old, name.old.2, ...), the owner's alone, and said once
+  '      old="$p.old"; i=2; while [ -e "$old" ]; do old="$p.old.$i"; i=$((i+1)); done',
+  '      mv "$p" "$old" && chmod 700 "$old" && echo "MOVED $n $(basename "$old")"',
+  "    fi",
+  "  fi",
+  '  [ -e "$p" ] || ln -s "/shared/$n" "$p"',
+  "done; true",
+].join("\n");
 /** The exec wrapper: every process Vyre starts in a workspace runs with umask 077, so nothing it makes outside a session shell is readable by anyone but the agent's own user. */
 export const UMASK_WRAP: readonly string[] = ["sh", "-c", 'umask 077; exec "$@"', "sh"];
 export const WORKSPACE_UID = 10001;
@@ -258,6 +272,8 @@ export interface WorkspaceManager {
   viewed(agentId: string): void;
   /** The projects of this agent a person is on and whether they may write there (the daemon's own tables): what they reach under ~/projects when they use the agent without owning it. */
   projectAccess(agentId: string, person: string): Promise<ReadonlyArray<{ id: string; write: boolean }>>;
+  /** What the owner is to be told once about this computer (an old folder moved aside at an update); taking it empties it. */
+  takeNotes(agentId: string): string[];
   /** The line a workspace put to sleep at the 12-hour ceiling owes its next command, once (then null). */
   takeNote(agentId: string): string | null;
   /** The agent came back from Trash: its workspace may be made again (over the volumes it kept). */
@@ -1452,6 +1468,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     }
   }
 
+  const notes = new Map<string, string[]>();
   async function wake(agentId: string): Promise<"created" | "woke" | "running"> {
     const name = workspaceName(agentId);
     const want = await mounts(agentId);
@@ -1552,7 +1569,12 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       throw e;
     }
     // ~/Vyre and ~/projects are links to /shared (a failure here leaves the owner's old paths as they were)
-    await execIn(agentId, ["sh", "-c", LINK_SCRIPT], undefined).catch(() => undefined);
+    const linked = await execIn(agentId, ["sh", "-c", LINK_SCRIPT], undefined).catch(() => null);
+    for (const m of (linked?.stdout ?? "").matchAll(/^MOVED (Vyre|projects) (\S+)$/gm))
+      notes.set(agentId, [
+        ...(notes.get(agentId) ?? []),
+        `Files that were in this computer's old ${m[1] === "Vyre" ? "Files" : "projects"} folder are now in ~/${m[2]}.`,
+      ]);
     if (o.capacity) claimed.add(agentId);
     gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
     lastUsed.set(agentId, now());
@@ -1896,6 +1918,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     },
     awake: (agentId) =>
       AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false),
+    takeNotes(agentId) {
+      const n = notes.get(agentId) ?? [];
+      notes.delete(agentId);
+      return n;
+    },
     async projectAccess(agentId, person) {
       return (await o.projectAccessOf?.(agentId, person)) ?? [];
     },

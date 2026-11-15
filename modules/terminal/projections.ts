@@ -234,6 +234,14 @@ export function bindChatFolder(f: ChatFolderOf | null): void {
 }
 export const boundChatFolder = (): ChatFolderOf | null => chatPort;
 
+/** What the owner of an agent is to be told once about its computer (an old folder moved aside at an update): taken, so it is said once. */
+export type NotesOf = (agentId: string) => string[];
+let notesPort: NotesOf | null = null;
+export function bindNotes(f: NotesOf | null): void {
+  notesPort = f;
+}
+export const boundNotes = (): NotesOf | null => notesPort;
+
 /** Opens to a person, again, what of the agent's home reaches them now (their projects at their role, the Files folder when Files shows it): asker.ts grantCommand. Throws a sentence when it could not. */
 export type PlaceGrantOf = (agentId: string, place: AskerPlace) => Promise<void>;
 let grantPort: PlaceGrantOf | null = null;

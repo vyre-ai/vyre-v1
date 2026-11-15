@@ -497,3 +497,12 @@ Signed: ______ (lead)
 - Proof: test/terminal.wall2.heavy.test.ts test 7 (the review's probe: written as the agent after the grant with umask 022, read as Bea at once, 6 s later and within 5 s of her last command; an exec of Vyre's at mode 600; the owner reads her own), the rc.28 upgrade test of test/terminal.asker.heavy.test.ts (the owner's `~/projects` and `~/Vyre` still work after the update, skipped 0), modules/terminal/tests/exec-umask.test.ts.
 
 Signed: ______ (lead)
+
+## 15 Nov 2026: the wall of a shared agent's computer, round four (lane f-wall), for the lead to sign
+
+- An old workspace whose `~/projects` or `~/Vyre` has files in it keeps nothing in the way and loses nothing: at its first start after the update the folder is moved to `~/projects.old` or `~/Vyre.old` (`.old.2` and so on if the name exists), 0700 and the owner's alone, and the links to `/shared` are made, so the owner's `~/Vyre` shows her Files and `~/projects/<id>` is there for a new project. The owner is told once, through the agent: the first command the agent runs for its owner after the update ends with one line to say in plain words that the files are now in `~/projects.old` (or `~/Vyre.old`); a second start moves nothing and says nothing. (The line is kept in memory until the owner's first command: a restart of the server before that command loses the line, not the files.)
+- `terminal.workspace` answers an admin who manages the agent and is not its owner what `terminal.get` answers them: nothing of the computer, no place of their own, unless the agent is shared with them (the whole Space, or by name).
+- The programs of a person whose share expired end within the 15 second sweep (a reviewer measured 18.6 s from a program started after the expiry); a person who may no longer use the agent is refused at their next command at once.
+
+Signed: ______ (lead)
+

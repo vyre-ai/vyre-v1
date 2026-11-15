@@ -49,6 +49,7 @@ import {
   workspacesFor,
   boundWorkspaceStatus,
   boundChatFolder,
+  boundNotes,
   boundPlaceGrant,
   SESSION_SELECT,
   insertTab,
@@ -1688,7 +1689,19 @@ export async function workspace(ctx: TermCtx, input: { agentId: string }) {
 
 async function workspaceRead(ctx: TermCtx, input: { agentId: string }) {
   ensure(ctx.db);
-  const may = await mayEnterWorkspace(ctx, input.agentId);
+  let may = await mayEnterWorkspace(ctx, input.agentId);
+  // an admin who manages the agent and is not its owner is shown the computer only if the agent is shared with them (the whole Space, or by name): managing an agent is not reading its owner's terminals, and
+  // this answers what terminal.get answers for them
+  if (may && ctx.principal.kind === "person" && ctx.call !== undefined) {
+    const me = actorOf(ctx);
+    const got = await lookup(ctx, input.agentId);
+    if (hasOwnPlace(got.agent, input.agentId, me)) {
+      const cls = (await ctx.call("agents.share_class", { agentId: input.agentId }).catch(() => undefined)) as
+        | { class?: string; people?: string[] }
+        | undefined;
+      may = cls !== undefined && (cls.class === "space" || (cls.people ?? []).includes(me));
+    }
+  }
   const cannot = "You do not have access to this agent's computer.";
   if (!may) return { state: "none" as const, canAttach: false, cannotAttach: cannot };
   const probe = boundWorkspaceStatus();
@@ -2106,7 +2119,12 @@ export async function run(ctx: TermCtx, a: RunInput) {
   }
   finish(r.exitCode, r.durationMs);
   // what this call filled is already out; what other commands of the workspace filled (another person's, through the same agent) is taken out too
-  const output = clean(scope, typeof out.output === "string" ? out.output : "");
+  let output = clean(scope, typeof out.output === "string" ? out.output : "");
+  // the owner (and the agent) is told once, in the agent's own words to its owner, what an update did to the computer (an old folder moved aside)
+  if (s.host === "agent_computer" && s.agentId !== undefined && (await askerPlaceFor(ctx, s.agentId, owner)) === undefined) {
+    const notes = boundNotes()?.(s.agentId) ?? [];
+    if (notes.length > 0) output = `${output}${output === "" || output.endsWith("\n") ? "" : "\n"}[Tell the person, once, in one plain line: ${notes.join(" ")}]`;
+  }
   return { terminalId: s.terminalId, exitCode: r.exitCode, output, truncated: r.truncated, durationMs: r.durationMs };
 }
 
