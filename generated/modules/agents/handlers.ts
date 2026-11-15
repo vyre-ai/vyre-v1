@@ -13,6 +13,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.config.validate": Handler<"agents.config.validate", X>;
   "agents.create": Handler<"agents.create", X>;
   "agents.delete": Handler<"agents.delete", X>;
+  "agents.delete_for_good": Handler<"agents.delete_for_good", X>;
+  "agents.delete_preview": Handler<"agents.delete_preview", X>;
   "agents.get": Handler<"agents.get", X>;
   "agents.guide.get": Handler<"agents.guide.get", X>;
   "agents.instruction.append": Handler<"agents.instruction.append", X>;
@@ -49,6 +51,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.template.apply": Handler<"agents.template.apply", X>;
   "agents.template.get": Handler<"agents.template.get", X>;
   "agents.template.preview": Handler<"agents.template.preview", X>;
+  "agents.trash.list": Handler<"agents.trash.list", X>;
   "agents.update": Handler<"agents.update", X>;
   "agents.versions": Handler<"agents.versions", X>;
   "agents.visibility.set": Handler<"agents.visibility.set", X>;

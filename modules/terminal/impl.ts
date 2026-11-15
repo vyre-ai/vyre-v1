@@ -1311,14 +1311,21 @@ export const hostCalls = {
    * terminals' tmux state, browser profile files and downloads that live there) are removed from every machine. A machine that does not answer fails the step, so the job tries again; none is skipped.
    */
   "terminal.erase_agent": async (ctx: TermCtx, i: { agentId: string; dry?: boolean }): Promise<{ bytes?: number }> => {
-    const ids = (tryAll(ctx.db, "SELECT terminal_id FROM terminal_sessions WHERE agent_id = ?", i.agentId) as Row[]).map((r) =>
-      String(r["terminal_id"]),
-    );
+    const ids = (
+      tryAll(ctx.db, "SELECT terminal_id FROM terminal_sessions WHERE agent_id = ?", i.agentId) as Row[]
+    ).map((r) => String(r["terminal_id"]));
     if (i.dry === true) return {};
     if (workspaceManager) await (workspaceManager as WorkspaceManager).remove(i.agentId);
     forgetAgentSecrets(i.agentId);
     for (const id of ids) {
-      for (const t of ["terminal_commands", "terminal_tabs", "terminal_hold", "terminal_lease", "terminal_key_batch", "terminal_tickets"])
+      for (const t of [
+        "terminal_commands",
+        "terminal_tabs",
+        "terminal_hold",
+        "terminal_lease",
+        "terminal_key_batch",
+        "terminal_tickets",
+      ])
         tryRun(ctx.db, `DELETE FROM ${t} WHERE terminal_id = ?`, id);
       tryRun(ctx.db, "DELETE FROM terminal_sessions WHERE terminal_id = ?", id);
     }

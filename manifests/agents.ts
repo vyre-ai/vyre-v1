@@ -539,7 +539,9 @@ export default defineManifest({
             ownerId: id.user,
             deletedAt: t.ts(),
             deleting: t.bool(),
-            canDelete: t.bool({ description: "False for a person's Assistant, and for someone who does not manage the agent" }),
+            canDelete: t.bool({
+              description: "False for a person's Assistant, and for someone who does not manage the agent",
+            }),
           }),
         ),
       },
@@ -562,9 +564,7 @@ export default defineManifest({
           memory: t.int({ minimum: 0 }),
           bytes: t.int({ minimum: 0 }),
           routines: t.int({ minimum: 0 }),
-          named: t.arr(
-            t.obj({ kind: t.enm("automation", "task", "goal", "project"), id: t.str(), title: t.str() }),
-          ),
+          named: t.arr(t.obj({ kind: t.enm("automation", "task", "goal", "project"), id: t.str(), title: t.str() })),
           backups: t.str(),
           refused: t.opt(t.str()),
         },

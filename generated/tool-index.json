@@ -392,6 +392,18 @@
     },
     {
       "deferred": false,
+      "name": "agents_delete_for_good",
+      "summary": "Delete an agent in Trash for good: its memory, its one-to-one chats, its computer, its folder, its access and what it ran are erased; what others built that names it asks them to choose another agent. Not an Assistant",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "agents_delete_preview",
+      "summary": "What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_get",
       "summary": "Read one agent: record, status, limits and the effective configuration",
       "toolset": "agents"
@@ -556,6 +568,12 @@
       "deferred": false,
       "name": "agents_template_preview",
       "summary": "Preview propagation before applying (\"12 agents, 3 folders added, 2 suggestions\")",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "agents_trash_list",
+      "summary": "The agents in Trash, with which are being deleted for good",
       "toolset": "agents"
     },
     {

@@ -728,7 +728,8 @@ export const hostCalls = {
     ],
     (ctx, i) => {
       // its words as the engine kept them for its turns (the visible messages stay in the chat; this is the engine's own copy)
-      if (i.dry !== true) tryRun(ctx.db, `DELETE FROM engine_messages WHERE author_kind = 'agent' AND author_id = ?`, i.agentId);
+      if (i.dry !== true)
+        tryRun(ctx.db, `DELETE FROM engine_messages WHERE author_kind = 'agent' AND author_id = ?`, i.agentId);
       return {};
     },
   ),

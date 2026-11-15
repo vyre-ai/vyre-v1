@@ -16,7 +16,12 @@ const KINDS_PRIVATE = `('thinking','reasoning','tool','tool_use','tool_call','to
 export function noteTrashed(ctx: ChatCtx, agentId: string, threads: string[]): void {
   ctx.db.run(TRASHED);
   for (const th of threads)
-    ctx.db.run(`INSERT OR IGNORE INTO chat_agent_trashed ("agentId", "thread", "at") VALUES (?, ?, ?)`, agentId, th, ctx.now());
+    ctx.db.run(
+      `INSERT OR IGNORE INTO chat_agent_trashed ("agentId", "thread", "at") VALUES (?, ?, ?)`,
+      agentId,
+      th,
+      ctx.now(),
+    );
 }
 
 /** agent.restored: the agent is back in the chats it left with Trash, one line in each; a chat that was erased or an agent removed from it by a person since stays as it is. */
@@ -46,14 +51,24 @@ export function onAgentRestored(ctx: ChatCtx, event: { payload: { agentId?: stri
 
 /** The chats an agent was ever in, sorted into: its own one-to-one chats (only this agent, only one person, no channel) and the shared ones. */
 function chatsOf(ctx: ChatCtx, agentId: string): { own: string[]; shared: string[] } {
-  const threads = tryAll(ctx.db, `SELECT DISTINCT "thread" FROM chat_thread_agent WHERE "agentId" = ?`, agentId).map((r) => String(r["thread"]));
+  const threads = tryAll(ctx.db, `SELECT DISTINCT "thread" FROM chat_thread_agent WHERE "agentId" = ?`, agentId).map(
+    (r) => String(r["thread"]),
+  );
   const own: string[] = [];
   const shared: string[] = [];
   for (const th of threads) {
-    const t = (ctx.db.all(`SELECT "kind", "parentThreadId", "channelId" FROM chat_thread WHERE "id" = ?`, th) as Row[])[0];
+    const t = (
+      ctx.db.all(`SELECT "kind", "parentThreadId", "channelId" FROM chat_thread WHERE "id" = ?`, th) as Row[]
+    )[0];
     if (!t) continue;
-    const agents = new Set(tryAll(ctx.db, `SELECT "agentId" FROM chat_thread_agent WHERE "thread" = ?`, th).map((r) => String(r["agentId"])));
-    const people = new Set(tryAll(ctx.db, `SELECT "principal" FROM chat_thread_member WHERE "thread" = ?`, th).map((r) => String(r["principal"])));
+    const agents = new Set(
+      tryAll(ctx.db, `SELECT "agentId" FROM chat_thread_agent WHERE "thread" = ?`, th).map((r) => String(r["agentId"])),
+    );
+    const people = new Set(
+      tryAll(ctx.db, `SELECT "principal" FROM chat_thread_member WHERE "thread" = ?`, th).map((r) =>
+        String(r["principal"]),
+      ),
+    );
     const alone = t["kind"] === "chat" && !t["channelId"] && agents.size === 1 && people.size <= 1;
     // a thread under a chat follows its parent: it is erased with the chat, so it is not counted twice
     if (t["parentThreadId"] !== null && t["parentThreadId"] !== undefined) continue;

@@ -1642,6 +1642,44 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/agents/delete_for_good",
+    "cap": "agents.delete_for_good",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": null,
+    "level": "manage",
+    "resource": {
+      "type": "agent",
+      "id": "/agentId"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/agents/delete_preview",
+    "cap": "agents.delete_preview",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "manage",
+    "resource": {
+      "type": "agent",
+      "id": "/agentId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/agents/get",
     "cap": "agents.get",
     "v": 1,
@@ -2301,6 +2339,24 @@ const routes0: Route[] = [
     "effects": "read",
     "permission": null,
     "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/agents/trash/list",
+    "cap": "agents.trash.list",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -5476,7 +5532,10 @@ const routes0: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes1: Route[] = [
   {
     "method": "POST",
     "path": "/v1/chat/fork",
@@ -5532,10 +5591,7 @@ const routes0: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes1: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/chat/helper/note_seen",
@@ -11051,7 +11107,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "push_protected"
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/engine/crew/repo/get",
@@ -11108,10 +11167,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/engine/crew/status",
@@ -16593,7 +16649,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/google/calendar/respond",
@@ -16650,10 +16709,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/google/calendar/watch",
@@ -22094,7 +22150,10 @@ const routes3: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mailgun/receive_webhook",
@@ -22148,10 +22207,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mailgun/routes/list",
@@ -27573,7 +27629,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/notifications/delegate/get",
@@ -27628,10 +27687,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/notifications/digest/collect",
@@ -33102,7 +33158,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sheets/update_row",
@@ -33159,10 +33218,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/addon_remove",
@@ -38619,7 +38675,10 @@ const routes6: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/threads/archive",
@@ -38676,10 +38735,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/threads/erase",

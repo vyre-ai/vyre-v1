@@ -554,14 +554,12 @@ export { bindEndpoint, bindServer };
 
 /** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
 export const hostCalls = {
-  "mcp.erase_agent": eraseTables(
-    [
-      ["mcp_oauth_requests", "agent_id"],
-      ["mcp_oauth_grants", "agent_id"],
-      ["mcp_activity", "agent_id"],
-      ["mcp_setup_grants", "agent_id"],
-      ["mcp_tokens", "actor_id"],
-      ["mcp_sessions", "principal"],
-    ],
-  ),
+  "mcp.erase_agent": eraseTables([
+    ["mcp_oauth_requests", "agent_id"],
+    ["mcp_oauth_grants", "agent_id"],
+    ["mcp_activity", "agent_id"],
+    ["mcp_setup_grants", "agent_id"],
+    ["mcp_tokens", "actor_id"],
+    ["mcp_sessions", "principal"],
+  ]),
 };

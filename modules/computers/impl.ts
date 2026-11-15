@@ -1093,8 +1093,13 @@ export const hostCalls = {
    * Delete for good (F77): the agent's computer rows, its screen steps and recordings, its sign-in notes, its jobs on enrolled computers, and its Space browser profile (cookies, saved sign-ins, downloads),
    * removed from the browser host. A browser host that does not answer fails the step, so the job tries again.
    */
-  "computers.erase_agent": async (ctx: CompCtx, i: { agentId: string; dry?: boolean }): Promise<Record<string, never>> => {
-    const cids = tryAll(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", i.agentId).map((r) => String(r["computer_id"]));
+  "computers.erase_agent": async (
+    ctx: CompCtx,
+    i: { agentId: string; dry?: boolean },
+  ): Promise<Record<string, never>> => {
+    const cids = tryAll(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", i.agentId).map((r) =>
+      String(r["computer_id"]),
+    );
     if (i.dry === true) return {};
     const profile = profileIdOf(i.agentId);
     const sb = spaceBrowser();
@@ -1103,13 +1108,21 @@ export const hostCalls = {
       await sb.forget(profile);
     }
     for (const c of cids)
-      for (const t of ["computers_timeline", "computers_recordings", "computers_tickets", "computers_sessions", "computers_job", "computers_migration"])
+      for (const t of [
+        "computers_timeline",
+        "computers_recordings",
+        "computers_tickets",
+        "computers_sessions",
+        "computers_job",
+        "computers_migration",
+      ])
         tryRun(ctx.db, `DELETE FROM ${t} WHERE computer_id = ?`, c);
     tryRun(ctx.db, "DELETE FROM computers_job WHERE agent_id = ?", i.agentId);
     tryRun(ctx.db, "DELETE FROM computers_recordings WHERE agent_id = ?", i.agentId);
     tryRun(ctx.db, "DELETE FROM computers_migration WHERE agent_id = ?", i.agentId);
     tryRun(ctx.db, "DELETE FROM computers_computers WHERE agent_id = ?", i.agentId);
-    for (const t of ["computers_browser_gone", "computers_browser_hold"]) tryRun(ctx.db, `DELETE FROM ${t} WHERE profile_id = ?`, profile ?? i.agentId);
+    for (const t of ["computers_browser_gone", "computers_browser_hold"])
+      tryRun(ctx.db, `DELETE FROM ${t} WHERE profile_id = ?`, profile ?? i.agentId);
     return {};
   },
   "computers.browser_stream_open": browserStreamOpen,

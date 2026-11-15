@@ -121,6 +121,8 @@ export function stubs(ctx: CallCtx) {
       },
       create: call("agents.create"),
       delete: call("agents.delete"),
+      delete_for_good: call("agents.delete_for_good"),
+      delete_preview: call("agents.delete_preview"),
       get: call("agents.get"),
       guide: {
         get: call("agents.guide.get"),
@@ -180,6 +182,9 @@ export function stubs(ctx: CallCtx) {
         apply: call("agents.template.apply"),
         get: call("agents.template.get"),
         preview: call("agents.template.preview"),
+      },
+      trash: {
+        list: call("agents.trash.list"),
       },
       update: call("agents.update"),
       versions: call("agents.versions"),

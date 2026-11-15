@@ -44,7 +44,12 @@ export { dueSchedules, nextCron, parseCron } from "./projections.ts";
 export const hostCalls = {
   "scheduler-api.erase_agent": eraseTables([], (ctx, i) => {
     if (i.dry === true) return {};
-    const ids = tryAll(ctx.db, `SELECT id FROM scheduler_api_schedules WHERE (owner_kind = 'agent' AND owner_id = ?) OR agent_id = ?`, i.agentId, i.agentId).map((r) => String(r["id"]));
+    const ids = tryAll(
+      ctx.db,
+      `SELECT id FROM scheduler_api_schedules WHERE (owner_kind = 'agent' AND owner_id = ?) OR agent_id = ?`,
+      i.agentId,
+      i.agentId,
+    ).map((r) => String(r["id"]));
     for (const id of ids) {
       tryRun(ctx.db, `DELETE FROM scheduler_api_fires WHERE schedule_id = ?`, id);
       tryRun(ctx.db, `DELETE FROM scheduler_api_missed WHERE schedule_id = ?`, id);

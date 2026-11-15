@@ -7,6 +7,7 @@ HTTP 403. Retryable: no.
 ## Raised by
 
 - agents.delete
+- agents.delete_for_good
 - chat.delete_message
 - company.connect
 - company.disconnect
@@ -30,4 +31,3 @@ HTTP 403. Retryable: no.
 - ms.consent.set_data
 - ms.consent.set_excluded
 - ms.consent.setup
-- ms.consent.sync_members

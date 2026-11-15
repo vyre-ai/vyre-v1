@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, notes, runs, terminal.
 
-## Capabilities (110)
+## Capabilities (113)
 
 - [agents.assistant_of](../capabilities/agents.assistant_of.md): A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
@@ -14,6 +14,8 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [agents.config.validate](../capabilities/agents.config.validate.md): Validate agent.toml text (app limits first, then precedence) without saving
 - [agents.create](../capabilities/agents.create.md): Create an agent (the create-agent skill ends in one Approve card): record, Agents/<name> folder with the decided file tree, template files
 - [agents.delete](../capabilities/agents.delete.md): Move an agent to Trash (its folder and memory follow the folder rules)
+- [agents.delete_for_good](../capabilities/agents.delete_for_good.md): Delete an agent in Trash for good: its memory, its one-to-one chats, its computer, its folder, its access and what it ran are erased; what others built that names it asks them to choose another agent. Not an Assistant
+- [agents.delete_preview](../capabilities/agents.delete_preview.md): What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone
 - [agents.get](../capabilities/agents.get.md): Read one agent: record, status, limits and the effective configuration
 - [agents.guide.get](../capabilities/agents.guide.get.md): The Vyre agent guide (.vyre/guide.md): version and text, rewritten by app updates, loaded into every chat before VYRE.md
 - [agents.instruction.append](../capabilities/agents.instruction.append.md): Make a lesson an instruction: one line added to the agent's AGENT.md under Lessons from corrections, as a new version with an inline Undo; needs Edit on the agent
@@ -50,6 +52,7 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [agents.template.apply](../capabilities/agents.template.apply.md): Apply the template: adds, never removes or overwrites; changed files become suggestions; widening ones need admin approval; try one agent first
 - [agents.template.get](../capabilities/agents.template.get.md): The Agent template: version, files, and the propagation mode
 - [agents.template.preview](../capabilities/agents.template.preview.md): Preview propagation before applying ("12 agents, 3 folders added, 2 suggestions")
+- [agents.trash.list](../capabilities/agents.trash.list.md): The agents in Trash, with which are being deleted for good
 - [agents.update](../capabilities/agents.update.md): Change an agent: name, model, fallback, account, tools, vault key names, limits, memory capture, handoffs; a broken agent.toml keeps the last good version running
 - [agents.versions](../capabilities/agents.versions.md): List versions of an agent definition (AGENT.md, agent.toml) for rollback
 - [agents.visibility.set](../capabilities/agents.visibility.set.md): Admin toggle "All in the Space" for agent lists (logged)
@@ -117,12 +120,14 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [skills.undo](../capabilities/skills.undo.md): Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back
 - [skills.view](../capabilities/skills.view.md): The full text and files of one skill: your own, one shared with you (before you add it, too), a Space one or a built-in one
 
-## Events (37)
+## Events (39)
 
 - [agent.config_changed](../events/agent.config_changed.md): AGENT.md, agent.toml or the agent record changed (a new version was saved)
 - [agent.config_error](../events/agent.config_error.md): An agent.toml failed validation; the last good version keeps running
 - [agent.created](../events/agent.created.md): An agent was created
 - [agent.deleted](../events/agent.deleted.md): An agent moved to Trash
+- [agent.erased](../events/agent.erased.md): An agent was deleted for good: every store is clear; its id is never used again
+- [agent.erasing](../events/agent.erasing.md): An agent in Trash is being deleted for good: its stores are cleared one by one
 - [agent.job_queued](../events/agent.job_queued.md): A mention or a task is waiting for an outside agent
 - [agent.job_taken](../events/agent.job_taken.md): An outside agent took a job
 - [agent.owner_changed](../events/agent.owner_changed.md): An agent was handed to another person

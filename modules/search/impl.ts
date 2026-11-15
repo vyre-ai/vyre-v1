@@ -173,7 +173,13 @@ export const hostCalls = {
   "search.erase_agent": (ctx: EraseCtx, i: EraseIn): Footprint => {
     if (i.dry === true) return {};
     // the agent's own entry, and what the index kept of anything under its folder
-    const docs = tryAll(ctx.db, `SELECT n FROM search_docs WHERE (entity = 'agent' AND id = ?) OR (res_type = 'agent' AND res_id = ?) OR folder_id = ?`, i.agentId, i.agentId, i.folderId ?? "");
+    const docs = tryAll(
+      ctx.db,
+      `SELECT n FROM search_docs WHERE (entity = 'agent' AND id = ?) OR (res_type = 'agent' AND res_id = ?) OR folder_id = ?`,
+      i.agentId,
+      i.agentId,
+      i.folderId ?? "",
+    );
     for (const d of docs) {
       const n = Number(d["n"]);
       tryRun(ctx.db, `DELETE FROM search_fts WHERE rowid = ?`, n);

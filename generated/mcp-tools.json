@@ -3304,6 +3304,58 @@
     },
     {
       "blocks": [],
+      "cap": "agents.delete_for_good",
+      "deferred": false,
+      "description": "Delete an agent in Trash for good: its memory, its one-to-one chats, its computer, its folder, its access and what it ran are erased; what others built that names it asks them to choose another agent. Not an Assistant",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_delete_for_good",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.delete_preview",
+      "deferred": false,
+      "description": "What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_delete_preview",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.get",
       "deferred": false,
       "description": "Read one agent: record, status, limits and the effective configuration",
@@ -4243,6 +4295,21 @@
         "type": "object"
       },
       "name": "agents_template_preview",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.trash.list",
+      "deferred": false,
+      "description": "The agents in Trash, with which are being deleted for good",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_trash_list",
       "planMode": "allowed",
       "toolset": "agents",
       "v": 1

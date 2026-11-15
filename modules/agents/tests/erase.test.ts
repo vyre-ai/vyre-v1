@@ -17,12 +17,17 @@ const world = (): Harness => {
 const make = async (hn: Harness, name = "Desk"): Promise<any> =>
   (await h["agents.create"]!(hn.ctx, { name, idempotencyKey: `k${++n}` })).agent;
 const stepsCalled = (hn: Harness): string[] =>
-  hn.world.calls.filter((c) => c.cap.endsWith(".erase_agent")).map((c) => c.cap.replace("host.hook.call.", "").replace(".erase_agent", ""));
+  hn.world.calls
+    .filter((c) => c.cap.endsWith(".erase_agent"))
+    .map((c) => c.cap.replace("host.hook.call.", "").replace(".erase_agent", ""));
 
 test("an agent that is not in Trash is refused in one plain sentence, and nothing starts", async () => {
   const hn = world();
   const a = await make(hn);
-  assert.equal(await failure(() => h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId })), "validation.precondition_failed");
+  assert.equal(
+    await failure(() => h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId })),
+    "validation.precondition_failed",
+  );
   assert.deepEqual(hn.named("agent.erasing"), []);
 });
 
@@ -40,16 +45,32 @@ test("delete for good records one job, pressing again changes nothing, and the j
   const a = await make(hn);
   await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
   assert.deepEqual(await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId }), { erasing: true });
-  assert.deepEqual(await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId }), { erasing: true }, "twice is the same job");
+  assert.deepEqual(
+    await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId }),
+    { erasing: true },
+    "twice is the same job",
+  );
   assert.equal(hn.named("agent.erasing").length, 1);
   const listed = await h["agents.trash.list"]!(hn.ctx, {});
   assert.equal(listed.agents[0].deleting, true, "the row says Deleting");
   assert.deepEqual(await runErase(hn.ctx as never), [a.agentId]);
   assert.deepEqual(stepsCalled(hn), [...ERASE_STEPS], "every module is asked, in order");
-  assert.equal(hn.ctx.db.all("SELECT id FROM agents_agent WHERE id = ?", a.agentId).length, 0, "the row and profile are gone");
-  assert.equal(hn.ctx.db.all("SELECT state FROM agents_erase WHERE agentId = ?", a.agentId)[0]!["state"], "erased", "the tombstone stays");
+  assert.equal(
+    hn.ctx.db.all("SELECT id FROM agents_agent WHERE id = ?", a.agentId).length,
+    0,
+    "the row and profile are gone",
+  );
+  assert.equal(
+    hn.ctx.db.all("SELECT state FROM agents_erase WHERE agentId = ?", a.agentId)[0]!["state"],
+    "erased",
+    "the tombstone stays",
+  );
   assert.deepEqual(await runErase(hn.ctx as never), [], "run again: nothing to do, no error");
-  assert.deepEqual(await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId }), { erasing: false }, "pressing on an erased agent is not an error");
+  assert.deepEqual(
+    await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId }),
+    { erasing: false },
+    "pressing on an erased agent is not an error",
+  );
   assert.equal(hn.named("agent.erased").length, 1);
 });
 
@@ -64,7 +85,11 @@ test("a store that fails keeps the job where it is; the next pass resumes at tha
     return {};
   });
   assert.deepEqual(await runErase(hn.ctx as never), []);
-  assert.equal(hn.ctx.db.all("SELECT id FROM agents_agent WHERE id = ?", a.agentId).length, 1, "the agent's own row waits for every store");
+  assert.equal(
+    hn.ctx.db.all("SELECT id FROM agents_agent WHERE id = ?", a.agentId).length,
+    1,
+    "the agent's own row waits for every store",
+  );
   down = false;
   assert.deepEqual(await runErase(hn.ctx as never), [a.agentId]);
   assert.equal(stepsCalled(hn).filter((s) => s === "engine").length, 1, "a step that was done is not asked again");
@@ -75,7 +100,10 @@ test("an agent being deleted for good cannot be restored", async () => {
   const a = await make(hn);
   await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
   await h["agents.delete_for_good"]!(hn.ctx, { agentId: a.agentId });
-  assert.equal(await failure(() => h["agents.restore"]!(hn.ctx, { agentId: a.agentId })), "validation.precondition_failed");
+  assert.equal(
+    await failure(() => h["agents.restore"]!(hn.ctx, { agentId: a.agentId })),
+    "validation.precondition_failed",
+  );
 });
 
 test("Trash's keep time runs out: the agent is started on the Space's own trash clock, and not before", async () => {

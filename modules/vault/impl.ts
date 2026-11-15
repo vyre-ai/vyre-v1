@@ -134,7 +134,8 @@ export const hostCalls = {
     const ids = tryAll(ctx.db, `SELECT id FROM vault_meta WHERE owner = ?`, i.agentId).map((r) => String(r["id"]));
     if (i.dry === true) return {};
     for (const id of ids)
-      for (const t of ["vault_secret", "vault_item_x", "vault_history"]) tryRun(ctx.db, `DELETE FROM ${t} WHERE itemId = ?`, id);
+      for (const t of ["vault_secret", "vault_item_x", "vault_history"])
+        tryRun(ctx.db, `DELETE FROM ${t} WHERE itemId = ?`, id);
     tryRun(ctx.db, `DELETE FROM vault_meta WHERE owner = ?`, i.agentId);
     tryRun(ctx.db, `DELETE FROM vault_folder WHERE owner = ?`, i.agentId);
     return {};

@@ -91,12 +91,10 @@ export const periodic = {
 
 /** Ingest from the host: one machine's report, as it came over its socket. Never a capability: a session cannot reach it, and a report that does not parse is dropped. */
 export const hostCalls = {
-  "machines.erase_agent": eraseTables(
-    [
-      ["machines_pin", "agent_id"],
-      ["machines_move", "agent_id"],
-    ],
-  ),
+  "machines.erase_agent": eraseTables([
+    ["machines_pin", "agent_id"],
+    ["machines_move", "agent_id"],
+  ]),
   /** A turn started or ended on a machine: who has room may have changed. */
   "machines.sync": (ctx: MachinesCtx): Promise<{ filled: string[]; freed: string[] }> => tellRoom(ctx),
   "machines.ingest": (

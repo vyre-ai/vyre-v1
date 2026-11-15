@@ -791,13 +791,9 @@ export const periodic = {
 
 /** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
 export const hostCalls = {
-  "notifications.erase_agent": eraseTables(
-    [
-      ["notifications_agent_interrupts", "agent"],
-    ],
-    (ctx, i) => {
-      if (i.dry !== true) tryRun(ctx.db, `DELETE FROM notifications_items WHERE subject_type = 'agent' AND subject_id = ?`, i.agentId);
-      return {};
-    },
-  ),
+  "notifications.erase_agent": eraseTables([["notifications_agent_interrupts", "agent"]], (ctx, i) => {
+    if (i.dry !== true)
+      tryRun(ctx.db, `DELETE FROM notifications_items WHERE subject_type = 'agent' AND subject_id = ?`, i.agentId);
+    return {};
+  }),
 };

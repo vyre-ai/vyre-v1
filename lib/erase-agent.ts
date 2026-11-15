@@ -50,7 +50,11 @@ export function eraseWhere(db: Db, id: string, tables: ReadonlyArray<readonly [s
   return n;
 }
 
-export type EraseCtx = { db: Db; now(): number; emit?(name: string, subject: string, payload: Record<string, unknown>): void };
+export type EraseCtx = {
+  db: Db;
+  now(): number;
+  emit?(name: string, subject: string, payload: Record<string, unknown>): void;
+};
 export interface EraseIn extends EraseInput {
   folderId?: string;
 }

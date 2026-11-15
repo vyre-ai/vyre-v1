@@ -19,7 +19,15 @@ export const hostCalls = {
   /** Delete for good (F77): a task that still names the agent in a slot is unassigned with one line of history; the agent's own history lines (their notes) and what it asked of people go. */
   "tasks.erase_agent": (ctx: EraseCtx, i: EraseIn): Footprint => {
     const named: NonNullable<Footprint["named"]> = [];
-    for (const r of tryAll(ctx.db, `SELECT m.id AS id, c.title AS title, m.assigned AS assigned, m.reviewer AS reviewer, m.approver AS approver, m.taken_by AS taken_by FROM tasks_meta m JOIN tasks_core c ON c.id = m.id WHERE m.assigned LIKE ? OR m.reviewer LIKE ? OR m.approver LIKE ? OR m.taken_by = ? OR c.created_by = ?`, `%${i.agentId}%`, `%${i.agentId}%`, `%${i.agentId}%`, i.agentId, i.agentId)) {
+    for (const r of tryAll(
+      ctx.db,
+      `SELECT m.id AS id, c.title AS title, m.assigned AS assigned, m.reviewer AS reviewer, m.approver AS approver, m.taken_by AS taken_by FROM tasks_meta m JOIN tasks_core c ON c.id = m.id WHERE m.assigned LIKE ? OR m.reviewer LIKE ? OR m.approver LIKE ? OR m.taken_by = ? OR c.created_by = ?`,
+      `%${i.agentId}%`,
+      `%${i.agentId}%`,
+      `%${i.agentId}%`,
+      i.agentId,
+      i.agentId,
+    )) {
       named.push({ kind: "task", id: String(r["id"]), title: String(r["title"] ?? "") });
       if (i.dry === true) continue;
       const strip = (raw: unknown): string | null => {
@@ -33,8 +41,23 @@ export const hostCalls = {
           return text.includes(i.agentId) ? null : text;
         }
       };
-      tryRun(ctx.db, `UPDATE tasks_meta SET assigned = ?, reviewer = ?, approver = ?, taken_by = CASE WHEN taken_by = ? THEN NULL ELSE taken_by END, updated_at = ? WHERE id = ?`, strip(r["assigned"]), strip(r["reviewer"]), strip(r["approver"]), i.agentId, ctx.now(), String(r["id"]));
-      tryRun(ctx.db, `INSERT INTO tasks_history (id, task_id, at, type, actor, note, event_id) VALUES (?, ?, ?, 'unassigned', 'system', ?, NULL)`, `thx_${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16)}`, String(r["id"]), "The agent that held this was deleted for good, so it needs someone.");
+      tryRun(
+        ctx.db,
+        `UPDATE tasks_meta SET assigned = ?, reviewer = ?, approver = ?, taken_by = CASE WHEN taken_by = ? THEN NULL ELSE taken_by END, updated_at = ? WHERE id = ?`,
+        strip(r["assigned"]),
+        strip(r["reviewer"]),
+        strip(r["approver"]),
+        i.agentId,
+        ctx.now(),
+        String(r["id"]),
+      );
+      tryRun(
+        ctx.db,
+        `INSERT INTO tasks_history (id, task_id, at, type, actor, note, event_id) VALUES (?, ?, ?, 'unassigned', 'system', ?, '')`,
+        `thx_${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16)}`,
+        String(r["id"]),
+        "The agent that held this was deleted for good, so it needs someone.",
+      );
     }
     if (i.dry !== true) {
       tryRun(ctx.db, `DELETE FROM tasks_history WHERE actor = ?`, i.agentId);

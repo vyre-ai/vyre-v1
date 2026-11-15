@@ -1486,6 +1486,33 @@ export type AgentsDeleteIn = {
 export type AgentsDeleteOut = {
   deleted: boolean;
 };
+export type AgentsDeleteForGoodIn = {
+  agentId: string;
+};
+export type AgentsDeleteForGoodOut = {
+  erasing: boolean;
+};
+export type AgentsDeletePreviewIn = {
+  agentId: string;
+};
+export type AgentsDeletePreviewOut = {
+  agentId: string;
+  name: string;
+  kind: "assistant" | "teammate" | "agent";
+  inTrash: boolean;
+  chats: number;
+  sharedChats: number;
+  memory: number;
+  bytes: number;
+  routines: number;
+  named: Array<{
+      kind: "automation" | "task" | "goal" | "project";
+      id: string;
+      title: string;
+    }>;
+  backups: string;
+  refused?: string;
+};
 export type AgentsGetIn = {
   agentId: string;
 };
@@ -2320,6 +2347,18 @@ export type AgentsTemplatePreviewOut = {
   filesAdded: number;
   suggestions: number;
   widening: number;
+};
+export type AgentsTrashListIn = Record<string, unknown>;
+export type AgentsTrashListOut = {
+  agents: Array<{
+      agentId: string;
+      name: string;
+      kind: "assistant" | "teammate" | "agent";
+      ownerId: string;
+      deletedAt: number;
+      deleting: boolean;
+      canDelete: boolean;
+    }>;
 };
 export type AgentsUpdateIn = {
   agentId: string;
@@ -46214,6 +46253,8 @@ export interface CapMap {
   "agents.config.validate": { in: AgentsConfigValidateIn; out: AgentsConfigValidateOut };
   "agents.create": { in: AgentsCreateIn; out: AgentsCreateOut };
   "agents.delete": { in: AgentsDeleteIn; out: AgentsDeleteOut };
+  "agents.delete_for_good": { in: AgentsDeleteForGoodIn; out: AgentsDeleteForGoodOut };
+  "agents.delete_preview": { in: AgentsDeletePreviewIn; out: AgentsDeletePreviewOut };
   "agents.get": { in: AgentsGetIn; out: AgentsGetOut };
   "agents.guide.get": { in: AgentsGuideGetIn; out: AgentsGuideGetOut };
   "agents.instruction.append": { in: AgentsInstructionAppendIn; out: AgentsInstructionAppendOut };
@@ -46250,6 +46291,7 @@ export interface CapMap {
   "agents.template.apply": { in: AgentsTemplateApplyIn; out: AgentsTemplateApplyOut };
   "agents.template.get": { in: AgentsTemplateGetIn; out: AgentsTemplateGetOut };
   "agents.template.preview": { in: AgentsTemplatePreviewIn; out: AgentsTemplatePreviewOut };
+  "agents.trash.list": { in: AgentsTrashListIn; out: AgentsTrashListOut };
   "agents.update": { in: AgentsUpdateIn; out: AgentsUpdateOut };
   "agents.versions": { in: AgentsVersionsIn; out: AgentsVersionsOut };
   "agents.visibility.set": { in: AgentsVisibilitySetIn; out: AgentsVisibilitySetOut };
@@ -48504,6 +48546,15 @@ export type AgentEngagedPayload = {
   threadId: string;
   agentId: string;
   mode: string;
+  by: string;
+};
+export type AgentErasedPayload = {
+  agentId: string;
+  name?: string;
+};
+export type AgentErasingPayload = {
+  agentId: string;
+  name?: string;
   by: string;
 };
 export type AgentHandoffPayload = {
@@ -52727,6 +52778,8 @@ export interface EventMap {
   "agent.deleted": AgentDeletedPayload;
   "agent.disengaged": AgentDisengagedPayload;
   "agent.engaged": AgentEngagedPayload;
+  "agent.erased": AgentErasedPayload;
+  "agent.erasing": AgentErasingPayload;
   "agent.handoff": AgentHandoffPayload;
   "agent.job_queued": AgentJobQueuedPayload;
   "agent.job_taken": AgentJobTakenPayload;

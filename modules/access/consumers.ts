@@ -560,8 +560,14 @@ export const hostCalls = {
   "access.erase_agent": (ctx: Ctx, i: { agentId: string; folderId?: string; dry?: boolean }): Record<string, never> => {
     if (i.dry === true) return {};
     const db = ctx.db as never;
-    tryRun(db, `DELETE FROM access_grants WHERE (subjectKind = 'agent' AND subjectId = ?) OR (resourceType = 'agent' AND resourceId = ?)`, i.agentId, i.agentId);
-    if (i.folderId) tryRun(db, `DELETE FROM access_grants WHERE resourceType = 'folder' AND resourceId = ?`, i.folderId);
+    tryRun(
+      db,
+      `DELETE FROM access_grants WHERE (subjectKind = 'agent' AND subjectId = ?) OR (resourceType = 'agent' AND resourceId = ?)`,
+      i.agentId,
+      i.agentId,
+    );
+    if (i.folderId)
+      tryRun(db, `DELETE FROM access_grants WHERE resourceType = 'folder' AND resourceId = ?`, i.folderId);
     tryRun(db, `DELETE FROM access_assignments WHERE holder = ?`, i.agentId);
     tryRun(db, `DELETE FROM access_resources WHERE (type = 'agent' AND id = ?) OR id = ?`, i.agentId, i.folderId ?? "");
     tryRun(db, `DELETE FROM access_principals WHERE id = ?`, i.agentId);

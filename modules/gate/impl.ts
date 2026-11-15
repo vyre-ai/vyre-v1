@@ -69,12 +69,10 @@ export const consumers = {
 
 /** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
 export const hostCalls = {
-  "gate.erase_agent": eraseTables(
-    [
-      ["gate_rules", "agent_id"],
-      ["gate_grants", "agent_id"],
-      ["gate_grants", "subject_id"],
-      ["gate_holds", "principal_id"],
-    ],
-  ),
+  "gate.erase_agent": eraseTables([
+    ["gate_rules", "agent_id"],
+    ["gate_grants", "agent_id"],
+    ["gate_grants", "subject_id"],
+    ["gate_holds", "principal_id"],
+  ]),
 };

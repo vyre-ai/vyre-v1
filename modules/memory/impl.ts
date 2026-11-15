@@ -58,10 +58,21 @@ export const hostCalls = {
    */
   "memory.erase_agent": (ctx: { db: EraseDb }, i: EraseInput): Footprint => {
     const db = ctx.db;
-    const facts = tryAll(db, `SELECT id FROM memory_facts WHERE agent_id = ? OR (proposed_by = ? AND status = 'proposed')`, i.agentId, i.agentId).map((r) => String(r["id"]));
-    const pages = tryAll(db, `SELECT page_id AS id FROM memory_pages WHERE agent_id = ?`, i.agentId).map((r) => String(r["id"]));
-    const notes = tryAll(db, `SELECT note_id AS id FROM memory_notes WHERE agent_id = ?`, i.agentId).map((r) => String(r["id"]));
-    const nodes = tryAll(db, `SELECT node_id AS id FROM memory_graph_nodes WHERE agent_id = ?`, i.agentId).map((r) => String(r["id"]));
+    const facts = tryAll(
+      db,
+      `SELECT id FROM memory_facts WHERE agent_id = ? OR (proposed_by = ? AND status = 'proposed')`,
+      i.agentId,
+      i.agentId,
+    ).map((r) => String(r["id"]));
+    const pages = tryAll(db, `SELECT page_id AS id FROM memory_pages WHERE agent_id = ?`, i.agentId).map((r) =>
+      String(r["id"]),
+    );
+    const notes = tryAll(db, `SELECT note_id AS id FROM memory_notes WHERE agent_id = ?`, i.agentId).map((r) =>
+      String(r["id"]),
+    );
+    const nodes = tryAll(db, `SELECT node_id AS id FROM memory_graph_nodes WHERE agent_id = ?`, i.agentId).map((r) =>
+      String(r["id"]),
+    );
     const count = facts.length + pages.length + notes.length;
     if (i.dry) return { memory: count };
     for (const id of facts) {

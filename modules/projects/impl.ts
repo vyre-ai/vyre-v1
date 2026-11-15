@@ -62,7 +62,11 @@ const leads = (ctx: Ctx, person: string): { projectId: string }[] => {
 };
 export const hostCalls = {
   "projects.erase_agent": (ctx: EraseCtx, i: EraseIn): Footprint => {
-    const named: NonNullable<Footprint["named"]> = tryAll(ctx.db, `SELECT p.projectId AS id, p.name AS name FROM projects_member m JOIN projects_project p ON p.projectId = m.projectId WHERE m.principal = ?`, i.agentId).map((r) => ({ kind: "project" as const, id: String(r["id"]), title: String(r["name"] ?? "") }));
+    const named: NonNullable<Footprint["named"]> = tryAll(
+      ctx.db,
+      `SELECT p.projectId AS id, p.name AS name FROM projects_member m JOIN projects_project p ON p.projectId = m.projectId WHERE m.principal = ?`,
+      i.agentId,
+    ).map((r) => ({ kind: "project" as const, id: String(r["id"]), title: String(r["name"] ?? "") }));
     if (i.dry !== true) tryRun(ctx.db, `DELETE FROM projects_member WHERE principal = ?`, i.agentId);
     return { named };
   },

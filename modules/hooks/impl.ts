@@ -54,10 +54,8 @@ export const consumers = {
 
 /** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
 export const hostCalls = {
-  "hooks.erase_agent": eraseTables(
-    [
-      ["hooks_hook", "agent_id"],
-      ["hooks_run", "agent_id"],
-    ],
-  ),
+  "hooks.erase_agent": eraseTables([
+    ["hooks_hook", "agent_id"],
+    ["hooks_run", "agent_id"],
+  ]),
 };
