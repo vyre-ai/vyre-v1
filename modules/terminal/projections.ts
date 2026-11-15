@@ -251,6 +251,13 @@ const HOLD_SCHEMA = readFileSync(new URL("./migrations/0004_hold.sql", import.me
   .split(";")
   .map((x) => x.trim())
   .filter((x) => x.length > 0);
+const LEASE_SCHEMA = readFileSync(new URL("./migrations/0005_keys.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -277,6 +284,12 @@ export function ensure(db: Db): void {
     db.all("SELECT terminal_id FROM terminal_hold WHERE terminal_id = ?", "probe");
   } catch {
     for (const stmt of HOLD_SCHEMA) db.run(stmt);
+  }
+  // and before a take-over was a numbered lease
+  try {
+    db.all("SELECT terminal_id FROM terminal_lease WHERE terminal_id = ?", "probe");
+  } catch {
+    for (const stmt of LEASE_SCHEMA) db.run(stmt);
   }
   ready.add(db);
 }
@@ -752,10 +765,10 @@ export const HOLD_IDLE_MS = 15 * 60_000;
  * take and removed by the next give back).
  */
 /**
- * One switch for a person taking an agent's terminal keyboard (15 Nov, rc.28): OFF by default, ON with VYRE_TERMINAL_TAKEOVER=1 (the tests and walks of the hold and the keys). Off because a re-sent key batch
- * is not idempotent yet (terminal.keys has no idempotency key). Read at each call, so a test turns it on. With it off nothing reads as held: a hold stored before it went off blocks no one.
+ * One switch for a person taking an agent's terminal keyboard: ON by default (15 Nov, rc.29), OFF with VYRE_TERMINAL_TAKEOVER=0 on the Space server. It was off in rc.28 because a re-sent batch of keys ran twice; each batch
+ * now carries a lease, a number and the sender's key and is applied at most once and in order (terminal.keys). Read at each call. With it off nothing reads as held: a hold stored before it went off blocks no one.
  */
-export const takeOverOn = (): boolean => process.env["VYRE_TERMINAL_TAKEOVER"] === "1";
+export const takeOverOn = (): boolean => process.env["VYRE_TERMINAL_TAKEOVER"] !== "0";
 
 export function holderOf(db: Db, terminalId: string, now: number): string | null {
   if (!takeOverOn()) return null;
@@ -784,6 +797,8 @@ export function workspaceHolder(db: Db, agentId: string, now: number): string | 
 
 export function setHold(db: Db, terminalId: string, personId: string, now: number): void {
   db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
+  // a new take-over is a new lease: whatever the last holder had in flight is over
+  db.run("DELETE FROM terminal_lease WHERE terminal_id = ?", terminalId);
   db.run(
     "INSERT INTO terminal_hold (terminal_id, person_id, since, seen) VALUES (?, ?, ?, ?)",
     terminalId,
@@ -795,6 +810,16 @@ export function setHold(db: Db, terminalId: string, personId: string, now: numbe
 
 export function dropHold(db: Db, terminalId: string): void {
   db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
+  db.run("DELETE FROM terminal_lease WHERE terminal_id = ?", terminalId);
+}
+
+/** The lease of the take-over in force: its id and the number the next batch of keys must carry. A take-over made before leases existed is given one when its holder next asks. */
+export function leaseOf(db: Db, terminalId: string, now: number): { lease: string; nextSeq: number } {
+  const r = (db.all("SELECT lease, next_seq FROM terminal_lease WHERE terminal_id = ?", terminalId) as Row[])[0];
+  if (r) return { lease: s(r["lease"]), nextSeq: Number(r["next_seq"]) };
+  const lease = mintId("lse", now);
+  db.run("INSERT OR REPLACE INTO terminal_lease (terminal_id, lease, next_seq) VALUES (?, ?, 1)", terminalId, lease);
+  return { lease, nextSeq: 1 };
 }
 
 /** The holder typed or looked: the hold is in use. */

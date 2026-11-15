@@ -51,7 +51,7 @@ const terminalRow = t.obj({
       },
     ),
   ),
-  // the person at the keyboard now: the agent's commands and everyone else's keys wait until they hand it back (or 15 minutes pass with nobody using it)
+  // the person at the keyboard now: the agent's commands and everyone else's keys are refused until they hand it back (or 15 minutes pass with nobody using it)
   heldBy: t.opt(id.user),
   // the person who opened it: a person's own tab says whose it is
   ownerId: t.opt(id.user),
@@ -111,7 +111,7 @@ export default defineManifest({
           takeOver: t.opt(
             t.bool({
               description:
-                "Whether a person may take the keyboard of a terminal here (off by default in rc.28: re-sent keys are not idempotent yet). When false the app draws a watching view and no Take over",
+                "Whether a person may take the keyboard of a terminal here (on by default; the Space server's VYRE_TERMINAL_TAKEOVER=0 turns it off). When false the app draws a watching view and no Take over",
             }),
           ),
         },
@@ -232,19 +232,31 @@ export default defineManifest({
     ),
     write(
       "terminal.take_over",
-      "Take the keyboard of a terminal: the agent's commands and everyone else's keys wait until you hand it back. Only the owner of the terminal or an admin can take it from another person",
+      "Take the keyboard of a terminal: the agent's commands and everyone else's keys are refused until you hand it back. Only the owner of the terminal or an admin can take it from another person",
       {
         in: target,
-        out: { terminal: terminalRow },
+        out: {
+          terminal: terminalRow,
+          lease: t.opt(
+            t.str({
+              description: "This take-over's lease: every batch of keys carries it, and a batch of an older take-over is refused",
+            }),
+          ),
+          nextSeq: t.opt(
+            t.int({ description: "The number the next batch of keys of this take-over carries (1 for a new take-over)" }),
+          ),
+        },
         on: ["terminal", "/terminalId"],
         level: "use",
         emits: ["terminal.taken"],
+        audit: "always",
         idem: "natural",
         offline: "online",
         errors: ["permission.no_grant", "permission.role_lacks_permission"],
       },
     ),
     write("terminal.give_back", "Hand the keyboard of a terminal back to the agent", {
+      audit: "always",
       in: target,
       out: { terminal: terminalRow },
       on: ["terminal", "/terminalId"],
@@ -283,13 +295,19 @@ export default defineManifest({
             minItems: 1,
             maxItems: 200,
           }),
+          lease: t.str({ description: "The lease terminal.take_over answered: a batch of an older take-over is refused" }),
+          seq: t.int({
+            minimum: 1,
+            description: "This batch's number in the take-over, from the take_over answer's nextSeq: applied in order, at most once, a gap refused",
+          }),
           // answer with the screen a moment after the keys landed (what terminal.capture says), so a key shows in one round trip
           capture: t.opt(t.bool()),
         },
         out: { ok: t.bool(), screen: t.opt(captureOut) },
         on: ["terminal", "/terminalId"],
         level: "use",
-        idem: "none",
+        audit: "always",
+        idem: "key",
         offline: "online",
         risk: "medium",
         rate: { n: 3000, perSeconds: 60, scope: "principal" },

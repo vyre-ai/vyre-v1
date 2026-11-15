@@ -244,9 +244,9 @@ const wsOf = async (ctx: TermCtx, input: { agentId: string }): Promise<any> => {
   // eslint-disable-line @typescript-eslint/no-explicit-any
   const out = await h["terminal.workspace"]!(ctx, input);
   assert.deepEqual(contractErrors("terminal.workspace", "out", out), [], "terminal.workspace output");
-  // the take-over switch rides on every answer (off by default: hold.test.ts); the facts below are about the workspace
+  // the take-over switch rides on every answer (on by default, off with VYRE_TERMINAL_TAKEOVER=0: hold.test.ts); the facts below are about the workspace
   const { takeOver, ...rest } = out;
-  assert.equal(takeOver, false, "take-over is off by default");
+  assert.equal(takeOver, true, "take-over is on by default");
   return rest;
 };
 

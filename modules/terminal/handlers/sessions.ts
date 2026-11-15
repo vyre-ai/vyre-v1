@@ -38,6 +38,7 @@ import {
   insertTab,
   scopeOf,
   dropHold,
+  leaseOf,
   takeOverOn,
   holderOf,
   setHold,
@@ -51,6 +52,7 @@ import { HANDLE, SEALED } from "../../../lib/vault-use/index.ts";
 import { judged, isDangerous } from "../risk.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import { NO_PLACE } from "../fleet.ts";
+import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
 import type {
   HostKind,
   KeyPress,
@@ -740,7 +742,7 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
 
 /** What the agent, or anyone else who is not the holder, is told while a person has the keyboard. */
 export const KEYBOARD_HELD =
-  "A person has the keyboard on this terminal. Commands wait until they hand it back; if nobody uses it for 15 minutes it comes back to you by itself.";
+  "A person is typing in this computer's terminal. Your commands are refused until they hand it back; try again in a minute. If nobody types for 15 minutes it comes back to you by itself.";
 
 /** Is the caller the person at this terminal's keyboard? An agent never is, even one acting for the holder. */
 function isHolder(ctx: TermCtx, terminalId: string): boolean {
@@ -805,7 +807,9 @@ export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
     setHold(ctx.db, x.terminalId, me, ctx.now());
     ctx.emit("terminal.taken", x.terminalId, { terminalId: x.terminalId, by: me, ...(h === null ? {} : { from: h }) });
   } else touchHold(ctx.db, x.terminalId, me, ctx.now());
-  return { terminal: terminalRow({ ...x, heldBy: me }) };
+  // the take-over's lease and the number of the next batch of keys: a screen that reloads while it holds the keyboard asks again and carries on from here
+  const { lease, nextSeq } = leaseOf(ctx.db, x.terminalId, ctx.now());
+  return { terminal: terminalRow({ ...x, heldBy: me }), lease, nextSeq };
 }
 
 export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
@@ -917,18 +921,94 @@ export async function capture(ctx: TermCtx, input: { terminalId: string; lines?:
   }
 }
 
+const BATCH_KEEP_MS = 10 * 60_000;
+/** A batch that has been "being sent" this long was lost with the process that was sending it: it is answered as not known to have arrived, and never sent again. */
+const SENDING_STALE_MS = 15_000;
+/** One chain per terminal: batches reach tmux in the order their numbers say, even when two arrive together. */
+const sendOrder = new Map<string, Promise<void>>();
+
+interface Stored {
+  ok: boolean;
+  code?: string;
+  message?: string;
+  screen?: unknown;
+}
+const refuse = (ctx: TermCtx, message: string, reason: string, terminalId: string): never =>
+  raise(ctx, "validation.precondition_failed", message, { reason, terminalId });
+const raiseStored = (ctx: TermCtx, st: Stored): never =>
+  raise(ctx, (st.code ?? "internal.unexpected") as ErrorCode, st.message ?? "The terminal could not take those keys.");
+
 /**
- * Keys as a person presses them (text, a named key, a paste), raw through the terminal's own keyboard, for whoever holds the keyboard. What is typed here is never stored, audited or logged by Vyre: a program that
- * reads a hidden prompt does not print it, so no screen, scrollback or viewer has it either (design section 11, point 6).
+ * Keys as a person presses them (text, a named key, a paste), raw through the terminal's own keyboard, for the person who holds it. Each batch carries the take-over's `lease`, its number `seq` in that take-over and
+ * the sender's `idempotencyKey`, and is applied AT MOST ONCE and IN ORDER: a repeat of a batch (the app retries a call whose answer was lost; a reconnect replays) gets the first answer back and types nothing; a batch
+ * that skips a number, or belongs to a take-over that is over, is refused in plain words and types nothing. Only the holder types: nobody else, and nobody once the keyboard is handed back. The number is spent
+ * before tmux is touched, so a batch that failed half way is never sent again by Vyre. What is typed is never stored or logged by Vyre (a program may be asking for a password); the call itself is audited as the
+ * person's.
  */
 export async function keys(
   ctx: TermCtx,
-  input: { terminalId: string; capture?: boolean; keys: Array<{ text?: string; key?: string; paste?: string }> },
+  input: {
+    terminalId: string;
+    lease: string;
+    seq: number;
+    idempotencyKey?: string;
+    capture?: boolean;
+    keys: Array<{ text?: string; key?: string; paste?: string }>;
+  },
 ) {
   ensure(ctx.db);
   needTakeOver(ctx);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
+  // from here to the written-down batch nothing is awaited: two calls of the same batch cannot both pass
+  const now = ctx.now();
+  const me = actorOf(ctx);
+  const tid = x.terminalId;
+  // an agent never types, not even for the person who holds the keyboard, and not to read a repeat's answer
+  if (ctx.principal.kind === "agent")
+    refuse(ctx, "You do not have the keyboard here. Take it over to type.", "not_holder", tid);
+  ctx.db.run("DELETE FROM terminal_key_batch WHERE at < ?", now - BATCH_KEEP_MS);
+  // 1 a repeat of a batch this person already sent in this take-over: the first answer, nothing typed
+  const key = input.idempotencyKey ?? `seq:${input.seq}`;
+  const seen = (
+    ctx.db.all(
+      "SELECT seq, person_id, state, answer, at FROM terminal_key_batch WHERE terminal_id = ? AND lease = ? AND batch_key = ?",
+      tid,
+      input.lease,
+      key,
+    ) as Array<Record<string, unknown>>
+  )[0];
+  if (seen !== undefined) {
+    if (String(seen["person_id"]) !== me || Number(seen["seq"]) !== input.seq)
+      refuse(ctx, "Those keys do not belong to this take-over.", "batch_not_yours", tid);
+    if (seen["state"] === "sending") {
+      if (now - Number(seen["at"]) < SENDING_STALE_MS)
+        refuse(ctx, "Those keys are still being sent.", "in_flight", tid);
+      const lost: Stored = { ok: false, code: "internal.unexpected", message: "Those keys may not have arrived." };
+      ctx.db.run(
+        "UPDATE terminal_key_batch SET state = 'failed', answer = ? WHERE terminal_id = ? AND lease = ? AND seq = ?",
+        JSON.stringify(lost),
+        tid,
+        input.lease,
+        input.seq,
+      );
+      return raiseStored(ctx, lost);
+    }
+    const st = JSON.parse(String(seen["answer"])) as Stored;
+    if (!st.ok) return raiseStored(ctx, st);
+    return { ok: true, ...(st.screen === undefined ? {} : { screen: st.screen }) };
+  }
+  // 2 only the holder of the take-over in force types; someone else holding it refuses with who, nobody holding says so
   needKeyboard(ctx, x);
+  if (holderOf(ctx.db, tid, now) !== me)
+    refuse(ctx, "You do not have the keyboard here. Take it over to type.", "not_holder", tid);
+  const cur = leaseOf(ctx.db, tid, now);
+  if (input.lease !== cur.lease)
+    refuse(ctx, "Your take-over of this terminal is over. Take the keyboard again to type.", "lease_old", tid);
+  if (input.seq < cur.nextSeq)
+    refuse(ctx, "Those keys were already sent.", "seq_used", tid);
+  if (input.seq > cur.nextSeq)
+    refuse(ctx, "Some keys before these did not arrive. Take the keyboard again to type.", "seq_gap", tid);
+  // 3 the keys themselves
   const list: KeyPress[] = [];
   for (const k of input.keys) {
     const set = [k.text, k.key, k.paste].filter((v) => v !== undefined).length;
@@ -937,25 +1017,81 @@ export async function keys(
       k.text !== undefined ? { text: k.text } : k.key !== undefined ? { key: k.key } : { paste: k.paste as string },
     );
   }
-  const host = await hostFor(ctx, x);
-  if (!host.keys)
-    raise(ctx, "validation.precondition_failed", "This terminal takes lines, not keys.", { reason: "no_keys" });
+  // 4 the number is spent and the batch written down BEFORE tmux is touched: from here a repeat can only be answered, never sent again
+  ctx.db.run(
+    "INSERT INTO terminal_key_batch (terminal_id, lease, seq, batch_key, person_id, state, answer, at) VALUES (?, ?, ?, ?, ?, 'sending', NULL, ?)",
+    tid,
+    input.lease,
+    input.seq,
+    key,
+    me,
+    now,
+  );
+  ctx.db.run("UPDATE terminal_lease SET next_seq = ? WHERE terminal_id = ?", input.seq + 1, tid);
+  const settle = (st: Stored): void => {
+    ctx.db.run(
+      "UPDATE terminal_key_batch SET state = ?, answer = ? WHERE terminal_id = ? AND lease = ? AND seq = ?",
+      st.ok ? "done" : "failed",
+      JSON.stringify(st),
+      tid,
+      input.lease,
+      input.seq,
+    );
+  };
+  let host: TerminalHost;
   try {
-    await host.keys(input.terminalId, list);
+    host = await hostFor(ctx, x);
   } catch (e) {
-    if ((e as { code?: unknown } | null)?.code === "bad_input")
-      raise(ctx, "validation.bad_input", "That key is not one a terminal takes.");
-    return unexpected(ctx, "take those keys", e);
+    settle({ ok: false, code: "internal.unexpected", message: "The terminal could not take those keys." });
+    throw e;
   }
-  touch(ctx.db, input.terminalId, ctx.now());
-  if (input.capture !== true || !host.capture) return { ok: true };
-  // the screen a moment after the keys landed, in the same answer: a key shows in one round trip (tmux has drawn it in a few milliseconds)
-  await new Promise<void>((r) => setTimeout(r, SETTLE_MS));
+  if (!host.keys) {
+    const st: Stored = {
+      ok: false,
+      code: "validation.precondition_failed",
+      message: "This terminal takes lines, not keys.",
+    };
+    settle(st);
+    return raiseStored(ctx, st);
+  }
+  const before = sendOrder.get(tid) ?? Promise.resolve();
+  let release: () => void = () => undefined;
+  const mine = new Promise<void>((r) => (release = r));
+  const chain = before.then(() => mine);
+  sendOrder.set(tid, chain);
+  await before;
   try {
-    const r = await host.capture(input.terminalId, { lines: 2000 });
-    return { ok: true, screen: screenOf(r, clean(scopeOf(x), r.text)) };
-  } catch {
-    return { ok: true };
+    try {
+      await host.keys(tid, list);
+    } catch (e) {
+      const bad = (e as { code?: unknown } | null)?.code === "bad_input";
+      const st: Stored = bad
+        ? { ok: false, code: "validation.bad_input", message: "That key is not one a terminal takes." }
+        : { ok: false, code: "internal.unexpected", message: "The terminal could not take those keys." };
+      settle(st);
+      if (!bad) ctx.log.warn("terminal: take those keys failed", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" });
+      return raiseStored(ctx, st);
+    }
+    touch(ctx.db, tid, ctx.now());
+    touchHold(ctx.db, tid, me, ctx.now());
+    if (input.capture !== true || !host.capture) {
+      settle({ ok: true });
+      return { ok: true };
+    }
+    // the screen a moment after the keys landed, in the same answer: a key shows in one round trip (tmux has drawn it in a few milliseconds)
+    await new Promise<void>((r) => setTimeout(r, SETTLE_MS));
+    try {
+      const r = await host.capture(tid, { lines: 2000 });
+      const screen = screenOf(r, clean(scopeOf(x), r.text));
+      settle({ ok: true, screen });
+      return { ok: true, screen };
+    } catch {
+      settle({ ok: true });
+      return { ok: true };
+    }
+  } finally {
+    release();
+    if (sendOrder.get(tid) === chain) sendOrder.delete(tid);
   }
 }
 

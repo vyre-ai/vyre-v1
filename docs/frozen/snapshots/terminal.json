@@ -5,11 +5,11 @@
     "terminal.capture@1": "db9298ef2e7748c72a6f643f13c3357ef92b1d8aab53947ec89046352654565a",
     "terminal.close@1": "ad80a1cb3fc55d0a8fad020ca92fe5124dd2d686f9b793a51f4be395f1ad11e4",
     "terminal.get@1": "97ae5637b2cc86638cba4517b3ca46402d4b291004a9aa6ef94402bea16bce13",
-    "terminal.give_back@1": "4c800287081f9e1b61c41fc5f1c6fff2220a760c28053a80227f67a1627474aa",
+    "terminal.give_back@1": "7a25ba6b853ea8bb797616c322943728cac4f00824f6798d9052f82731ff5cf9",
     "terminal.health@1": "7aacc600b8082edd76ebf98e6e6f26472b85e1b413d5482e8142f22ad8b96e6a",
     "terminal.input@1": "2e1d433fe469b778dea9e7dad288243d72a21fe859d5d0c637340ab66f00d9b6",
     "terminal.interrupt@1": "ae8e08f6e3f7acbaa4b4ff6c939e1b31bbcfffe41ac32fe2f47ee3d2eebd8e4a",
-    "terminal.keys@1": "0afa8b1c304123ef604a368d2e7e34ff20a3fc5fc5a62a7e3ade9a621e6715ef",
+    "terminal.keys@1": "6d0ca0b5c13dc0d3c56dbc6771b6a6dbb97db0ef8950e428389f85f30b3f5448",
     "terminal.list@1": "e734e508347780ee9f383c4fccb7e0338025f90a344768952ac9c21aca4c22aa",
     "terminal.open@1": "08c472807bfa84ed701afe13b52a3e3e1b55f0985674b536b6dd0a319340c223",
     "terminal.open_server@1": "1c7e736dae0fcb23150be66946713f66afedf4d06d270ccc92c57eaff4ab07bf",
@@ -22,8 +22,8 @@
     "terminal.rules.set@1": "e0a20e7c7c00a8da22a52da7d628949298ae4ef6217a4f4217adb80c7647271f",
     "terminal.run@1": "f6473c22d507d9416b5d232451aaeadcf070cdb9d471fdf2d17b9421450d2e38",
     "terminal.status@1": "27b1ae87b73087fa225289f63756f940e77bcbee95189340a844114ef2cdb14b",
-    "terminal.take_over@1": "b3c57694a320ef2acbdee504a9d335d697c3299eb66b524488cd91752b13a472",
-    "terminal.workspace@1": "d0edcb4b3c5b8a169ad6c91280da5bf66672339b08fbf2ea83c3452be29a17c6"
+    "terminal.take_over@1": "a0b017bf7f10c2124e65746adf24c872b8fcf103d850f201dca08a7c779abbe2",
+    "terminal.workspace@1": "0479dfaf7a6ebe0b49ddd5fd66fe4b984055159a06c64eedce5103526f4b4f1a"
   },
   "events": {
     "terminal.closed": "67298f1bb59427922e28d07dd58e80abb5799c025e30da8acbf2ffee62698e32",

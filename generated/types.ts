@@ -42711,7 +42711,10 @@ export type TerminalKeysIn = {
       key?: string;
       paste?: string;
     }>;
+  lease: string;
+  seq: number;
   capture?: boolean;
+  idempotencyKey: string;
 };
 export type TerminalKeysOut = {
   ok: boolean;
@@ -42989,6 +42992,8 @@ export type TerminalTakeOverOut = {
     ownerId?: string;
     threadId?: string;
   };
+  lease?: string;
+  nextSeq?: number;
 };
 export type TerminalWorkspaceIn = {
   agentId: string;

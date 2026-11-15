@@ -76,6 +76,63 @@ export function keyToPress(e: KeyLike): KeyPress | null {
  * Keys go one request at a time, in order. Everything pressed while a request is in flight waits and goes as one call when it lands (letters join into one text), so a fast typist or a paste of a long line is a few
  * requests, not one per key, and the screen never lags behind the hands.
  */
+/** What the screen needs of the take-over it types under. */
+export interface Seat {
+  get(): Promise<{ lease: string; seq: number } | null>;
+  advance(seq: number): void;
+  reset(): void;
+}
+
+/**
+ * One batch of keys to the server. The batch gets ONE key and ONE number, and a retry sends exactly those, so the server types it once however many times it arrives. A batch the server answered, with a yes or a
+ * no, is never sent again. A failure the server recorded (internal.*) may have typed part of it and is not sent again either. A batch whose answer was lost is sent again with the same key until it is answered; the
+ * loop stops when the keyboard is no longer ours (handed back, lost, the take refused). After anything but a yes the count is asked again before the next batch (`seat.reset`).
+ */
+export async function sendKeys(
+  d: {
+    call: (cap: string, input: unknown) => Promise<unknown>;
+    terminalId: string;
+    seat: Seat | undefined;
+    newKey: (() => string) | undefined;
+    holding: () => boolean;
+    sleep: (ms: number) => Promise<void>;
+  },
+  ks: KeyPress[],
+): Promise<{ screen?: Capture; sent: boolean }> {
+  const st = d.seat;
+  const mine = st === undefined ? null : await st.get().catch(() => null);
+  if (st === undefined || mine === null) return { sent: false };
+  const batchKey = d.newKey?.() ?? `kb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    try {
+      const r = (await d.call("terminal.keys", {
+        terminalId: d.terminalId,
+        lease: mine.lease,
+        seq: mine.seq,
+        idempotencyKey: batchKey,
+        keys: ks,
+        capture: true,
+      })) as { screen?: Capture };
+      st.advance(mine.seq);
+      return { ...(r.screen ? { screen: r.screen } : {}), sent: true };
+    } catch (e) {
+      const code = (e as { code?: unknown } | null)?.code;
+      const reason = (e as { details?: { reason?: unknown } } | null)?.details?.reason;
+      if (reason !== "in_flight" && typeof code === "string" && /^(validation|permission|internal)\./.test(code)) {
+        st.reset();
+        return { sent: false };
+      }
+      if (!d.holding()) {
+        st.reset();
+        return { sent: false };
+      }
+      await d.sleep(120 * (attempt + 1));
+    }
+  }
+  st.reset();
+  return { sent: false };
+}
+
 export function keyBatcher(send: (keys: KeyPress[]) => Promise<unknown>): { push(k: KeyPress): void } {
   let pending: KeyPress[] = [];
   let inflight = false;
@@ -214,6 +271,8 @@ export function TmuxScreen({
   terminalId,
   keys,
   taking,
+  seat,
+  newKey,
   onHidden,
   onUnsupported,
 }: {
@@ -223,6 +282,10 @@ export function TmuxScreen({
   keys: boolean;
   /** Take over was just pressed and the server has not answered: keys pressed now are kept and sent, in order, the moment the keyboard is yours (dropped if the take fails) */
   taking?: { current: boolean } | undefined;
+  /** The take-over's lease and the number of the next batch (the sheet keeps them): `get` answers them, asking the server where the count stands when it does not know; `advance` after a batch was answered; `reset` after anything that leaves the count unknown */
+  seat?: Seat | undefined;
+  /** a key for one batch of keys: the same key goes with every retry of that batch, never with another */
+  newKey?: (() => string) | undefined;
   onHidden?(hidden: boolean): void;
   onUnsupported?(): void;
 }): ReactElement | null {
@@ -246,37 +309,32 @@ export function TmuxScreen({
   // when the answer to the keys has no screen, or fails, the screen is read at once instead of at the next tick
   const kick = useRef<() => void>(() => undefined);
   const batcher = useRef<ReturnType<typeof keyBatcher> | null>(null);
+  const holding = useRef(keys);
+  holding.current = keys || taking?.current === true;
+  const seatRef = useRef(seat);
+  seatRef.current = seat;
+  const keyOf = useRef(newKey);
+  keyOf.current = newKey;
   if (batcher.current === null)
     batcher.current = keyBatcher(async (ks) => {
       // the keys and the screen they made come back in one answer: a key shows in one round trip, no wait for the next poll
       lastKeyAt.current = Date.now();
       const n = ++asked.current;
-      // a batch that did not land (a busy server, a rate limit, a dropped connection) is sent again, in its place, before any later key: keys are never dropped or reordered. An answer that says no (the keyboard is
-      // someone else's, a key that is not one) is final.
-      for (let attempt = 0; attempt < 8; attempt++) {
-        try {
-          const r = (await latest.current.call("terminal.keys", {
-            terminalId: latest.current.terminalId,
-            keys: ks,
-            capture: true,
-          })) as { screen?: Capture };
-          if (r.screen) {
-            if (n > drawn.current) {
-              drawn.current = n;
-              latest.current.show(r.screen);
-            }
-          } else kick.current();
-          return;
-        } catch (e) {
-          const code = (e as { code?: unknown } | null)?.code;
-          if (typeof code === "string" && (code.startsWith("validation.") || code.startsWith("permission."))) {
-            kick.current();
-            return;
-          }
-          await new Promise<void>((r) => setTimeout(r, 120 * (attempt + 1)));
-        }
-      }
-      kick.current();
+      const out = await sendKeys(
+        {
+          call: (cap, input) => latest.current.call(cap, input),
+          terminalId: latest.current.terminalId,
+          seat: seatRef.current,
+          newKey: keyOf.current,
+          holding: () => holding.current,
+          sleep: (ms) => new Promise<void>((r) => setTimeout(r, ms)),
+        },
+        ks,
+      );
+      if (out.screen && n > drawn.current) {
+        drawn.current = n;
+        latest.current.show(out.screen);
+      } else if (!out.screen) kick.current();
     });
   useEffect(() => {
     let live = true;

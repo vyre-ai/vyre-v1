@@ -896,19 +896,19 @@ if ("notice" in o1934) lf(o1934["notice"], p + "/notice", e, L1);
 
 function e76_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6991 = v;
-const g6991 = typeOf(x6991);
-const b6991: string[] = []; lf(x6991, p, b6991, L0); if (b6991.length) e.push(...b6991);
-if (g6991 === "object") {
-if (g6991 === 'object') { const o6991 = x6991 as Record<string, unknown>;
-if (!("calendarId" in o6991)) e.push(p + "/calendarId" + ': required');
-if (!("provider" in o6991)) e.push(p + "/provider" + ': required');
-if (!("ownerId" in o6991)) e.push(p + "/ownerId" + ': required');
-if (!("private" in o6991)) e.push(p + "/private" + ': required');
-if ("calendarId" in o6991) lf(o6991["calendarId"], p + "/calendarId", e, L55);
-if ("provider" in o6991) lf(o6991["provider"], p + "/provider", e, L56);
-if ("ownerId" in o6991) lf(o6991["ownerId"], p + "/ownerId", e, L16);
-if ("private" in o6991) lf(o6991["private"], p + "/private", e, L3);
+const x6992 = v;
+const g6992 = typeOf(x6992);
+const b6992: string[] = []; lf(x6992, p, b6992, L0); if (b6992.length) e.push(...b6992);
+if (g6992 === "object") {
+if (g6992 === 'object') { const o6992 = x6992 as Record<string, unknown>;
+if (!("calendarId" in o6992)) e.push(p + "/calendarId" + ': required');
+if (!("provider" in o6992)) e.push(p + "/provider" + ': required');
+if (!("ownerId" in o6992)) e.push(p + "/ownerId" + ': required');
+if (!("private" in o6992)) e.push(p + "/private" + ': required');
+if ("calendarId" in o6992) lf(o6992["calendarId"], p + "/calendarId", e, L55);
+if ("provider" in o6992) lf(o6992["provider"], p + "/provider", e, L56);
+if ("ownerId" in o6992) lf(o6992["ownerId"], p + "/ownerId", e, L16);
+if ("private" in o6992) lf(o6992["private"], p + "/private", e, L3);
 }
 }
 }
@@ -916,17 +916,17 @@ if ("private" in o6991) lf(o6991["private"], p + "/private", e, L3);
 
 function e77_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6992 = v;
-const g6992 = typeOf(x6992);
-const b6992: string[] = []; lf(x6992, p, b6992, L0); if (b6992.length) e.push(...b6992);
-if (g6992 === "object") {
-if (g6992 === 'object') { const o6992 = x6992 as Record<string, unknown>;
-if (!("calendarId" in o6992)) e.push(p + "/calendarId" + ': required');
-if (!("upserted" in o6992)) e.push(p + "/upserted" + ': required');
-if (!("removed" in o6992)) e.push(p + "/removed" + ': required');
-if ("calendarId" in o6992) lf(o6992["calendarId"], p + "/calendarId", e, L55);
-if ("upserted" in o6992) lf(o6992["upserted"], p + "/upserted", e, L2);
-if ("removed" in o6992) lf(o6992["removed"], p + "/removed", e, L2);
+const x6993 = v;
+const g6993 = typeOf(x6993);
+const b6993: string[] = []; lf(x6993, p, b6993, L0); if (b6993.length) e.push(...b6993);
+if (g6993 === "object") {
+if (g6993 === 'object') { const o6993 = x6993 as Record<string, unknown>;
+if (!("calendarId" in o6993)) e.push(p + "/calendarId" + ': required');
+if (!("upserted" in o6993)) e.push(p + "/upserted" + ': required');
+if (!("removed" in o6993)) e.push(p + "/removed" + ': required');
+if ("calendarId" in o6993) lf(o6993["calendarId"], p + "/calendarId", e, L55);
+if ("upserted" in o6993) lf(o6993["upserted"], p + "/upserted", e, L2);
+if ("removed" in o6993) lf(o6993["removed"], p + "/removed", e, L2);
 }
 }
 }
@@ -934,21 +934,21 @@ if ("removed" in o6992) lf(o6992["removed"], p + "/removed", e, L2);
 
 function e78_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6993 = v;
-const g6993 = typeOf(x6993);
-const b6993: string[] = []; lf(x6993, p, b6993, L0); if (b6993.length) e.push(...b6993);
-if (g6993 === "object") {
-if (g6993 === 'object') { const o6993 = x6993 as Record<string, unknown>;
-if (!("eventId" in o6993)) e.push(p + "/eventId" + ': required');
-if (!("calendarId" in o6993)) e.push(p + "/calendarId" + ': required');
-if (!("startsAt" in o6993)) e.push(p + "/startsAt" + ': required');
-if (!("attendeeCount" in o6993)) e.push(p + "/attendeeCount" + ': required');
-if (!("source" in o6993)) e.push(p + "/source" + ': required');
-if ("eventId" in o6993) lf(o6993["eventId"], p + "/eventId", e, L149);
-if ("calendarId" in o6993) lf(o6993["calendarId"], p + "/calendarId", e, L55);
-if ("startsAt" in o6993) lf(o6993["startsAt"], p + "/startsAt", e, L17);
-if ("attendeeCount" in o6993) lf(o6993["attendeeCount"], p + "/attendeeCount", e, L2);
-if ("source" in o6993) lf(o6993["source"], p + "/source", e, L1042);
+const x6994 = v;
+const g6994 = typeOf(x6994);
+const b6994: string[] = []; lf(x6994, p, b6994, L0); if (b6994.length) e.push(...b6994);
+if (g6994 === "object") {
+if (g6994 === 'object') { const o6994 = x6994 as Record<string, unknown>;
+if (!("eventId" in o6994)) e.push(p + "/eventId" + ': required');
+if (!("calendarId" in o6994)) e.push(p + "/calendarId" + ': required');
+if (!("startsAt" in o6994)) e.push(p + "/startsAt" + ': required');
+if (!("attendeeCount" in o6994)) e.push(p + "/attendeeCount" + ': required');
+if (!("source" in o6994)) e.push(p + "/source" + ': required');
+if ("eventId" in o6994) lf(o6994["eventId"], p + "/eventId", e, L149);
+if ("calendarId" in o6994) lf(o6994["calendarId"], p + "/calendarId", e, L55);
+if ("startsAt" in o6994) lf(o6994["startsAt"], p + "/startsAt", e, L17);
+if ("attendeeCount" in o6994) lf(o6994["attendeeCount"], p + "/attendeeCount", e, L2);
+if ("source" in o6994) lf(o6994["source"], p + "/source", e, L1042);
 }
 }
 }
@@ -956,17 +956,17 @@ if ("source" in o6993) lf(o6993["source"], p + "/source", e, L1042);
 
 function e80_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6994 = v;
-const g6994 = typeOf(x6994);
-const b6994: string[] = []; lf(x6994, p, b6994, L0); if (b6994.length) e.push(...b6994);
-if (g6994 === "object") {
-if (g6994 === 'object') { const o6994 = x6994 as Record<string, unknown>;
-if (!("eventId" in o6994)) e.push(p + "/eventId" + ': required');
-if (!("email" in o6994)) e.push(p + "/email" + ': required');
-if (!("response" in o6994)) e.push(p + "/response" + ': required');
-if ("eventId" in o6994) lf(o6994["eventId"], p + "/eventId", e, L149);
-if ("email" in o6994) lf(o6994["email"], p + "/email", e, L6);
-if ("response" in o6994) lf(o6994["response"], p + "/response", e, L561);
+const x6995 = v;
+const g6995 = typeOf(x6995);
+const b6995: string[] = []; lf(x6995, p, b6995, L0); if (b6995.length) e.push(...b6995);
+if (g6995 === "object") {
+if (g6995 === 'object') { const o6995 = x6995 as Record<string, unknown>;
+if (!("eventId" in o6995)) e.push(p + "/eventId" + ': required');
+if (!("email" in o6995)) e.push(p + "/email" + ': required');
+if (!("response" in o6995)) e.push(p + "/response" + ': required');
+if ("eventId" in o6995) lf(o6995["eventId"], p + "/eventId", e, L149);
+if ("email" in o6995) lf(o6995["email"], p + "/email", e, L6);
+if ("response" in o6995) lf(o6995["response"], p + "/response", e, L561);
 }
 }
 }
@@ -974,25 +974,25 @@ if ("response" in o6994) lf(o6994["response"], p + "/response", e, L561);
 
 function e82_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6995 = v;
-const g6995 = typeOf(x6995);
-const b6995: string[] = []; lf(x6995, p, b6995, L0); if (b6995.length) e.push(...b6995);
-if (g6995 === "object") {
-if (g6995 === 'object') { const o6995 = x6995 as Record<string, unknown>;
-if (!("eventId" in o6995)) e.push(p + "/eventId" + ': required');
-if (!("calendarId" in o6995)) e.push(p + "/calendarId" + ': required');
-if (!("fields" in o6995)) e.push(p + "/fields" + ': required');
-if ("eventId" in o6995) lf(o6995["eventId"], p + "/eventId", e, L149);
-if ("calendarId" in o6995) lf(o6995["calendarId"], p + "/calendarId", e, L55);
-if ("fields" in o6995) {
-{
-const x6996 = o6995["fields"];
+const x6996 = v;
 const g6996 = typeOf(x6996);
-const b6996: string[] = []; lf(x6996, p + "/fields", b6996, L4); if (b6996.length) e.push(...b6996);
-if (g6996 === "array") {
-if (g6996 === 'array') { const a6996 = x6996 as unknown[];
-for (let i6996 = 0; i6996 < a6996.length; i6996++) {
-lf(a6996[i6996], p + "/fields" + '/' + i6996, e, L1);
+const b6996: string[] = []; lf(x6996, p, b6996, L0); if (b6996.length) e.push(...b6996);
+if (g6996 === "object") {
+if (g6996 === 'object') { const o6996 = x6996 as Record<string, unknown>;
+if (!("eventId" in o6996)) e.push(p + "/eventId" + ': required');
+if (!("calendarId" in o6996)) e.push(p + "/calendarId" + ': required');
+if (!("fields" in o6996)) e.push(p + "/fields" + ': required');
+if ("eventId" in o6996) lf(o6996["eventId"], p + "/eventId", e, L149);
+if ("calendarId" in o6996) lf(o6996["calendarId"], p + "/calendarId", e, L55);
+if ("fields" in o6996) {
+{
+const x6997 = o6996["fields"];
+const g6997 = typeOf(x6997);
+const b6997: string[] = []; lf(x6997, p + "/fields", b6997, L4); if (b6997.length) e.push(...b6997);
+if (g6997 === "array") {
+if (g6997 === 'array') { const a6997 = x6997 as unknown[];
+for (let i6997 = 0; i6997 < a6997.length; i6997++) {
+lf(a6997[i6997], p + "/fields" + '/' + i6997, e, L1);
 }
 }
 }
