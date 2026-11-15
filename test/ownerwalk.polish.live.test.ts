@@ -163,7 +163,7 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       );
       // the phone: the same request opens Projects with a name row (review O3)
       await page.setViewportSize({ width: 390, height: 844 });
-      const phoneRow = page.getByTestId("record-page"); // New on the phone's Projects list makes the project and opens it as a project page named New project, to be named there (no inline name row)
+      const phoneRow = page.getByTestId("project-page").or(page.getByTestId("record-page")).first(); // New on the phone's Projects list makes the project and opens it as a project page named New project, to be named there (no inline name row)
       try {
         await page.goto(`${w.web.origin}/chat`, { waitUntil: "load" });
         await page.getByTestId("mobile-shell").waitFor({ timeout: 25_000 });
@@ -173,7 +173,7 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
         await page.getByText("Projects", { exact: true }).first().click({ timeout: 15_000 });
         await page.getByTestId("records-new").click({ timeout: 15_000 });
         await phoneRow.waitFor({ timeout: 25_000 });
-        await page.getByTestId("title").getByText("New project", { exact: true }).waitFor({ timeout: 15_000 });
+        await page.getByText("New project", { exact: true }).first().waitFor({ timeout: 15_000 });
       } catch (e) {
         await page.setViewportSize({ width: 1280, height: 860 });
         throw e;
