@@ -112,6 +112,8 @@ test("production Automations: missing input in words, and a step menu with only 
     await page.getByText("Outlook note", { exact: true }).first().click({ timeout: 30_000 });
     await page.getByTestId("sv-step-m1").waitFor({ timeout: 20_000 });
     await shoot("ms-step-kept");
+    // the line arrives when the full catalogue has been read: wait for it, never read the page mid-way
+    await page.getByText("You cannot use Microsoft 365", { exact: false }).first().waitFor({ timeout: 20_000 });
     assert.match(await page.locator("body").innerText(), /Microsoft 365/, "the step keeps its own name and says whose it is");
 
     // the step picker: this Space connected nothing, so no app's actions are listed

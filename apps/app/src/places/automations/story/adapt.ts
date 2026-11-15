@@ -73,9 +73,17 @@ function valueOf(v: unknown, ctx: AdaptCtx): Value | undefined {
     if (whole) return refChip(whole[1]!, whole[2]!, ctx);
     return { text: t.replace(REF, (_m, _n, path: string) => human(path)) };
   }
-  if (typeof v === "number" || typeof v === "boolean") return { text: String(v) };
+  // a yes-or-no setting says nothing in a sentence: "Paths: true" is not words
+  if (typeof v === "number") return { text: String(v) };
+  if (typeof v === "boolean") return undefined;
   if (Array.isArray(v)) {
-    const parts = v.map((x) => valueOf(x, ctx)).filter((x): x is Value => x !== undefined);
+    const parts = v
+      .map((x) =>
+        x && typeof x === "object" && typeof (x as { name?: unknown }).name === "string"
+          ? valueOf((x as { name: string }).name, ctx)
+          : valueOf(x, ctx),
+      )
+      .filter((x): x is Value => x !== undefined);
     return parts.length === 0
       ? undefined
       : { text: parts.map((p) => ("text" in p ? p.text : p.chip.label)).join(", ") };

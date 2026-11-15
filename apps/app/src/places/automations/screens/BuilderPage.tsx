@@ -531,9 +531,16 @@ function Body({
         for (const st of got.steps) {
           if (st.state === "succeeded") {
             const io = (await data.call("runs.step_io", { runId: testRun.runId, step: st.step }).catch(() => null)) as {
-              output?: unknown;
+              input?: unknown;
             } | null;
-            results[st.step] = { status: "ok", line: "Done", values: valuesOf(io?.output) };
+            const node = def.nodes.find((n) => n.id === st.step);
+            let values: readonly (readonly [string, string])[] = [];
+            try {
+              values = node ? inputValues(node.key, io?.input, (id) => data.name(id)) : [];
+            } catch {
+              values = [];
+            }
+            results[st.step] = { status: "ok", line: "Done", values };
           } else if (st.state === "failed" || st.state === "stopped")
             results[st.step] = { status: "stop", line: st.error?.message ?? "Stopped here", values: [] };
         }

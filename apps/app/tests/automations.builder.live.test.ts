@@ -115,6 +115,9 @@ for (const look of LOOKS) {
       await page.getByTestId("sv-test").click();
       await page.waitForTimeout(4000);
       await shot("7-test-on-draft");
+      const tr = await api("runs.list", { scope: "subject", subject: { type: "automation", id: intake } });
+      const trun = (tr.runs ?? tr.data?.runs ?? [])[0];
+      if (trun) console.log("TESTRUN", trun.id, JSON.stringify(await api("runs.steps", { runId: trun.id })).slice(0, 400));
       const body = await page.locator("body").innerText();
       assert.match(body, /Test with /, "the bar names the past event");
       assert.match(body, /The test sent nothing/);
