@@ -9,7 +9,7 @@
     "agents.config.validate@1": "60557ddf901d19480e0b7aae9e468dbf4e98ffd796f3641b158efcda5f8cc396",
     "agents.create@1": "4b6f0a64870d954d62c2470671439faf2bc552010dd425cd981800f5dcc4048b",
     "agents.delete@1": "4c44e983897fb6a1f80c88085cf6a4b4b2f66869137dcd3a49f6452c4a125ef1",
-    "agents.delete_for_good@1": "5031a654f120aee0fe75df15dacc086e97f09aa4886e98b897dc32c6689f6e61",
+    "agents.delete_for_good@1": "afefa2989501f311fc587ab4af5bfb8ac9a39dcdedd79e0a1de5a6b50dd2abce",
     "agents.delete_preview@1": "062f55bb320cad3ee587acceb23e896cb5eaac24a1398c1ea93d212505716bab",
     "agents.erased@1": "0be69d2aee27e17555f9ac745b75277ccf32604a5819ea02ebb550d0f6f2b3fa",
     "agents.get@1": "db02bbe46ce40d8be990891429ee58cef6f2515d7adac5e9f43734d57a4cac2b",

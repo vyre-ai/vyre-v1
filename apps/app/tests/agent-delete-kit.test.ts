@@ -254,6 +254,10 @@ export async function agentDeleteWalk(
           );
         };
         await toTrash();
+        // its page, reached by an old link: one calm line that it is in Trash, with Restore, not an error
+        await page.goto(`${web.origin}/chat#screen=chats.agent-page&agentId=${A.agentId}`, { waitUntil: "load" });
+        await page.getByTestId("agent-in-trash").waitFor({ timeout: 30_000 });
+        await shot("0-page-in-trash");
         // Trash lists it; Restore; it works again
         await openTrash();
         await page.getByText(name, { exact: true }).first().waitFor({ timeout: 20_000 });
@@ -332,11 +336,14 @@ export async function agentDeleteWalk(
         if (!phone) {
           await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
           await page.getByText(A.autoName, { exact: true }).first().click({ timeout: 30_000 });
-          await page
-            .getByText(/choose another agent/i)
-            .first()
-            .waitFor({ timeout: 20_000 });
+          // the new builder: the step's one orange line and its one button
+          const need = page.locator('[data-testid^="sv-need-"]').first();
+          await need.waitFor({ timeout: 30_000 });
+          assert.match(await need.innerText(), /Choose an agent/i);
           await shot("5-automation-choose-another");
+          await need.click(); // the button takes the person to the agent field of that step
+          await page.waitForTimeout(800);
+          await shot("6-automation-agent-field");
         }
         const task = (await api("tasks.get", { taskId: A.taskId })).task;
         assert.ok(!JSON.stringify(task).includes(`"id":"${A.agentId}"`), "the task is no longer assigned to it");

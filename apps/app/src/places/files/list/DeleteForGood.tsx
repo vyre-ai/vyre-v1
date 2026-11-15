@@ -102,12 +102,20 @@ export function DeleteForGoodSheet({
         <View testID="forgood-body">
           {preview ? (
             <>
-              <Text style={s.line}>
-                {plural(preview.chats, "chat", "chats")} with {target.name}
-              </Text>
-              <Text style={s.line}>Its memory ({plural(preview.memory, "fact", "facts")})</Text>
-              <Text style={s.line}>Its computer and files ({bytesText(preview.bytes)})</Text>
-              <Text style={s.line}>{plural(preview.routines, "routine", "routines")}</Text>
+              {preview.chats > 0 ? (
+                <Text style={s.line}>
+                  {plural(preview.chats, "chat", "chats")} with {target.name}
+                </Text>
+              ) : null}
+              {preview.memory > 0 ? (
+                <Text style={s.line}>Its memory ({plural(preview.memory, "fact", "facts")})</Text>
+              ) : null}
+              {preview.bytes > 0 ? (
+                <Text style={s.line}>Its computer and files ({bytesText(preview.bytes)})</Text>
+              ) : null}
+              {preview.routines > 0 ? (
+                <Text style={s.line}>{plural(preview.routines, "routine", "routines")}</Text>
+              ) : null}
               {preview.named.length > 0 ? (
                 <View style={s.need} testID="forgood-need">
                   <Text style={s.head}>These will need someone:</Text>

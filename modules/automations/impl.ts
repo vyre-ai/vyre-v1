@@ -161,8 +161,7 @@ export const hostCalls = {
     for (const a of named)
       tryRun(
         ctx.db,
-        `UPDATE automations_defs SET definition = REPLACE(definition, ?, ''), status = 'paused', paused_reason = ?, updated_at = ? WHERE id = ?`,
-        i.agentId,
+        `UPDATE automations_defs SET status = 'paused', paused_reason = ?, updated_at = ? WHERE id = ?`,
         "Needs you: choose another agent",
         ctx.now(),
         a.id,

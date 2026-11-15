@@ -88,6 +88,16 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
     assert.equal((await call(d, "agents.restore", { agentId })).status, 200, "restore brings it back");
     assert.equal((await call(d, "agents.get", { agentId })).status, 200);
     assert.equal((await call(d, "agents.delete", { agentId })).status, 200);
+    // one event, one line: Trash, restore and Trash again leave one "was deleted." line in the channel, and delete for good adds none
+    const lines = async (): Promise<number> =>
+      (
+        (await call(d, "chat.messages.list", { threadId: ch.data.channel.mainThreadId })).data.messages as Array<{
+          body?: string;
+        }>
+      ).filter((m) => m.body === "Desk was deleted.").length;
+    await waitFor(async () => ((await lines()) >= 1 ? true : null), 20_000);
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(await lines(), 1, "the channel shows the line once");
 
     results["logEarly"] = hostLog(d);
     const preview = await call(d, "agents.delete_preview", { agentId });
@@ -116,6 +126,7 @@ test("an agent deleted for good leaves its canaries nowhere but the shared chann
       `pressing again on an erased agent is the same as for any gone thing, not a failure (${again.status})`,
     );
     results["logAfter"] = hostLog(d);
+    assert.equal(await lines(), 1, "after delete for good the channel still shows the line once");
     const t = await call(d, "tasks.get", { taskId });
     results["task"] = t.data;
     assert.ok(!JSON.stringify(t.data).includes(`"id":"${agentId}"`), "the task no longer names the agent");

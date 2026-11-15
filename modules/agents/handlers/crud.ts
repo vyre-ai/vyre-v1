@@ -1493,7 +1493,7 @@ async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void
     // the kind is checked here as well as in the query so a list that ignored the filter could not adopt one.
     if (p.kind !== "agent" || !p.id.startsWith("agt_")) continue;
     // an agent deleted for good is never given a record again, whatever access still lists (its id is never reused)
-    if (p.status === "removed" || agentBy(ctx.db, p.id) || erasedRow(ctx, p.id) !== undefined) continue;
+    if (p.status === "removed" || agentBy(ctx.db, p.id, true) || erasedRow(ctx, p.id) !== undefined) continue;
     const name = p.name.trim();
     const owner = p.owner;
     if (name === "" || agentByName(ctx.db, name) || owner === undefined || !owner.startsWith("usr_")) {

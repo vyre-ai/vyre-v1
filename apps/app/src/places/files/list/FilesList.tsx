@@ -613,7 +613,7 @@ function List(): ReactElement {
           crumbs={trail}
           count={
             src.status === "ready"
-              ? `${lines.length} item${lines.length === 1 ? "" : "s"}${state.selection.length > 0 ? `, ${state.selection.length} selected` : ""}`
+              ? `${lines.length + (inTrash ? trashAgents.length : 0)} item${lines.length + (inTrash ? trashAgents.length : 0) === 1 ? "" : "s"}${state.selection.length > 0 ? `, ${state.selection.length} selected` : ""}`
               : null
           }
           sortLabel={SORT_LABEL[state.sort]}
@@ -673,12 +673,6 @@ function List(): ReactElement {
             Offline, showing your saved copy
           </Text>
         )}
-        {inTrash ? (
-          <AgentTrashRows
-            agents={trashAgents}
-            onDelete={(a: TrashAgent) => setForGood({ kind: "agent", id: a.agentId, name: a.name })}
-          />
-        ) : null}
         {src.status !== "ready" ? (
           <ListLoading bare />
         ) : lines.length === 0 && !(inTrash && trashAgents.length > 0) ? (
@@ -702,16 +696,30 @@ function List(): ReactElement {
             {...({ onKeyDown, tabIndex: 0 } as object)}
           >
             {grid ? (
-              <VirtualList
-                data={gridRows}
-                rowHeight={layout.height}
-                keyOf={gridKey}
-                renderItem={renderGridRow}
-                scrollMemory={scrollMemory}
-              />
+              <>
+                {inTrash ? (
+                  <AgentTrashRows
+                    agents={trashAgents}
+                    onDelete={(a: TrashAgent) => setForGood({ kind: "agent", id: a.agentId, name: a.name })}
+                  />
+                ) : null}
+                <VirtualList
+                  data={gridRows}
+                  rowHeight={layout.height}
+                  keyOf={gridKey}
+                  renderItem={renderGridRow}
+                  scrollMemory={scrollMemory}
+                />
+              </>
             ) : (
               <>
                 {phone ? null : <ColumnHeader sort={state.sort} dir={state.dir} wide={wide} onSort={sortBy} />}
+                {inTrash ? (
+                  <AgentTrashRows
+                    agents={trashAgents}
+                    onDelete={(a: TrashAgent) => setForGood({ kind: "agent", id: a.agentId, name: a.name })}
+                  />
+                ) : null}
                 <VirtualList
                   data={lines}
                   rowHeight={phone ? PHONE_ROW : LIST_ROW}

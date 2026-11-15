@@ -41,6 +41,15 @@ export function onAgentRestored(ctx: ChatCtx, event: { payload: { agentId?: stri
       agent,
     ).changes;
     if (n > 0) {
+      // the one line "<name> was deleted." that the Trash move wrote is taken back, so a second Trash writes one line, not a second beside it
+      for (const m of ctx.db.all(
+        `SELECT id FROM chat_message WHERE thread = ? AND author = ? AND kind = 'system' AND body LIKE '% was deleted.'`,
+        th,
+        agent,
+      ) as Row[]) {
+        ctx.db.run(`DELETE FROM chat_message__fm WHERE id = ?`, String(m["id"]));
+        ctx.db.run(`DELETE FROM chat_message WHERE id = ?`, String(m["id"]));
+      }
       ctx.emit("agent.engaged", th, { threadId: th, agentId: agent, by: agent });
       back.push(th);
     }

@@ -137,3 +137,14 @@ test("an agent deleted for good is never adopted again from the access list, and
     "no ghost record comes back",
   );
 });
+
+test("an agent that asks to delete itself for good is refused in one plain sentence", async () => {
+  const hn = world();
+  const a = await make(hn);
+  await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
+  const asAgent = { ...hn.ctx, principal: { kind: "agent", id: a.agentId } } as Harness["ctx"];
+  await assert.rejects(h["agents.delete_for_good"]!(asAgent, { agentId: a.agentId }), (e: unknown) =>
+    /cannot delete itself/.test(String((e as Error).message)),
+  );
+  assert.deepEqual(hn.named("agent.erasing"), []);
+});

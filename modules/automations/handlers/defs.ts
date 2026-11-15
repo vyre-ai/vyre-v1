@@ -608,7 +608,13 @@ export async function agentRefusal(
     agent?: { kind?: string; ownerId?: string; name?: string };
   } | null;
   const a = got?.agent;
-  if (!a) return null; // a missing agent is found where it matters, as before
+  if (!a) {
+    // an agent deleted for good is never silently dropped from a step: the step asks for another one (one orange line, one button), and a Run refuses with the same line
+    const gone = (await ctx.call("agents.erased", {}).catch(() => null)) as {
+      agents?: Array<{ agentId: string }>;
+    } | null;
+    return gone?.agents?.some((g) => g.agentId === agentId) ? "AI step: choose an agent." : null; // any other missing agent is found where it matters, as before
+  }
   const name = a.name ?? "That agent";
   if (a.kind === "assistant" && kind === "space")
     return `${name} is a person's Assistant. A Space automation cannot give work to anyone's Assistant: choose a team agent.`;
