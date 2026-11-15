@@ -39,6 +39,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { ReactElement } from "react";
+import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { COLUMN, RADIUS, gutterFits } from "../../../../../../ui/src/tokens/calm.ts";
 import { GutterContext } from "./gutter.ts";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
@@ -165,6 +166,7 @@ import {
   titleOf,
   whoLine,
   workingAgents,
+  presenceLine,
   withoutAnswered,
   faceDoor,
   peopleIn,
@@ -491,6 +493,23 @@ function ConversationView(): ReactElement {
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
   const [sentOnPage, setSentOnPage] = useState(0);
+  // a row that arrives while the chat is open comes in with one quiet motion (the prototype's); rows already there when the chat opened, and every row under reduced motion, do not move
+  const readyAt = useRef(0);
+  const arrivedRows = useRef(new Map<string, boolean>());
+  if (readyAt.current === 0 && messagesQ.status === "ready") readyAt.current = Date.now();
+  const newRow = (key: string): boolean => {
+    const m = arrivedRows.current;
+    if (!m.has(key)) m.set(key, readyAt.current !== 0 && Date.now() - readyAt.current > 1500);
+    return m.get(key) === true;
+  };
+  useEffect(() => {
+    if (Platform.OS === "web")
+      injectCss(
+        (globalThis as { document?: Parameters<typeof injectCss>[0] }).document,
+        "vyre-chat-arrive",
+        '@keyframes vy-arrive{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}[data-arrive="1"]{animation:vy-arrive 220ms ease-out}@media (prefers-reduced-motion:reduce){[data-arrive="1"]{animation:none}}',
+      );
+  }, []);
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
@@ -981,7 +1000,7 @@ function ConversationView(): ReactElement {
       void runSlash(payload.text, commandEnv());
       return;
     }
-    if (data.head) setSentOnPage((n) => n + 1);
+    setSentOnPage((n) => n + 1); // sending brings the person's own message (and the reply after it) into view, wherever the feed was scrolled
     const key = data.newKey();
     const mentions = mentionsIn(payload.text, data.directory);
     const refs = act.sendRefs(payload);
@@ -2096,7 +2115,8 @@ function ConversationView(): ReactElement {
                   key={jump}
                   followKey={timelineMessages.length}
                   {...(lastStream ? { store: lastStream } : {})}
-                  {...(data.head ? { startAway: true, endKey: sentOnPage } : {})}
+                  {...(data.head ? { startAway: true } : {})}
+                  endKey={sentOnPage}
                   testID="conversation-feed"
                   contentStyle={st.feedContent}
                   onAtEndChange={setAtEnd}
@@ -2147,8 +2167,13 @@ function ConversationView(): ReactElement {
                         />
                       );
                       // always wrapped on the web, so a row that grows old keeps its state; only the style changes
+                      const arrives = Platform.OS === "web" && newRow(key);
                       return Platform.OS === "web" ? (
-                        <View key={key} style={at < laid.rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}>
+                        <View
+                          key={key}
+                          style={at < laid.rows.length - OFFSCREEN_KEEP ? st.offscreen : undefined}
+                          {...(arrives ? ({ dataSet: { arrive: "1" } } as object) : {})}
+                        >
                           {row}
                         </View>
                       ) : (
@@ -2306,15 +2331,13 @@ function ConversationView(): ReactElement {
           </View>
         ) : (
           <View style={st.composerBox}>
-            {thread.kind === "channel" ? (
-              <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>
-                {typingNames.length > 0 ? (
-                  <Text
-                    style={st.typingText}
-                  >{`${typingNames.join(", ")} ${typingNames.length === 1 ? "is" : "are"} typing…`}</Text>
-                ) : null}
-              </View>
-            ) : null}
+            <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>
+              {presenceLine(typingNames, working.map((id) => nameOf(id))) !== "" ? (
+                <Text testID="typing-line" style={st.typingText}>
+                  {presenceLine(typingNames, working.map((id) => nameOf(id)))}
+                </Text>
+              ) : null}
+            </View>
             {island.list.length > 0 ? (
               <QuestionIsland
                 list={island.list}

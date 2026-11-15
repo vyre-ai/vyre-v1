@@ -3,7 +3,7 @@ import http from "node:http";
 
 /** The model vendor: one streamed chat completion per request, with whatever the test scripts next (an answer, or an HTTP error). */
 export async function vendor() {
-  const script: Array<{ status?: number; text?: string; hold?: boolean }> = [];
+  const script: Array<{ status?: number; text?: string; hold?: boolean; tool?: { name: string; args: unknown } }> = [];
   const requests: string[] = [];
   /** The Authorization header of each request, so a test can prove the key reached the vendor (and only there). */
   const auth: string[] = [];
@@ -53,6 +53,37 @@ export async function vendor() {
       // held: the stream stays open until the client hangs up (the turn is stopped). It must not end on the REQUEST closing: that event fires as soon as the request body has been read, which would end the "held" answer at once and let the Ask finish before the test can cancel it.
       if (next.hold) {
         chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: "thinking" } }] });
+        return;
+      }
+      // a scripted tool call: the model asks for the tool, the engine runs it and asks again (the next scripted answer)
+      if (next.tool) {
+        chunk({
+          id: "1",
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                content: next.text ?? "",
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: "call_stand_in",
+                    type: "function",
+                    function: { name: next.tool.name, arguments: JSON.stringify(next.tool.args) },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+        chunk({
+          id: "1",
+          choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+          usage: { prompt_tokens: 50, completion_tokens: 20, total_tokens: 70 },
+        });
+        res.write("data: [DONE]\n\n");
+        res.end();
         return;
       }
       chunk({ id: "1", choices: [{ index: 0, delta: { role: "assistant", content: next.text ?? "" } }] });

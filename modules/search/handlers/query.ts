@@ -395,7 +395,8 @@ export async function query(
 
   // fuse: reciprocal rank of the full text order and of the cosine order, plus a little for recency
   const fused = new Map<number, { score: number }>();
-  kw.forEach((c, i) => fused.set(c.n, { score: 1 / (RRF + i) }));
+  // a document that has the typed words comes before one that is only near them in meaning: the full text hits start a whole point ahead, and the vectors order within each group
+  kw.forEach((c, i) => fused.set(c.n, { score: 1 + 1 / (RRF + i) }));
   vec.forEach((v, i) => {
     const e = fused.get(v.n);
     if (e) e.score += 1 / (RRF + i);

@@ -767,11 +767,17 @@ export function createBridge(o: BridgeOptions): Bridge {
 
   function wrap(s: EngineSession): EngineSession {
     // the API model's calls of this session that are running, so their end is said when the engine hands the result back
-    const calls = new Map<string, { threadId: string; turnId: string; agentId: string; name: string }>();
+    const calls = new Map<string, { threadId: string; turnId: string; agentId: string; name: string; at: number }>();
     const sendToolResult = (id: string, result: { ok: boolean; content: unknown }): unknown => {
       const c = calls.get(id);
       if (c) {
         calls.delete(id);
+        // the saved reply keeps the step, so "Worked 3s · 1 step" shows under it as under a CLI model's reply: the name and how long, never what the call touched
+        live.get(c.turnId)?.blocks.push({
+          type: "tool_result",
+          v: 1,
+          data: { id, name: c.name, ok: result.ok, secs: Math.max(0, Math.round(((o.now ?? Date.now)() - c.at) / 1000)) },
+        });
         emit({
           kind: "step",
           threadId: c.threadId,
@@ -874,7 +880,14 @@ export function createBridge(o: BridgeOptions): Bridge {
             if (ev.id !== "") {
               seg.calls?.set(ev.id, { name, at: (o.now ?? Date.now)() });
               seg.step = { id: ev.id, name };
-              calls.set(ev.id, { threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, name });
+              calls.set(ev.id, {
+                threadId: input.threadId,
+                turnId: input.turnId,
+                agentId: input.agent.id,
+                name,
+                at: (o.now ?? Date.now)(),
+              });
+              seg.blocks.push({ type: "tool_call", v: 1, data: { id: ev.id, name } });
               emit({
                 kind: "step",
                 threadId: input.threadId,

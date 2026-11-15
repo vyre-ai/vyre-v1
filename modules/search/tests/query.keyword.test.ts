@@ -277,3 +277,13 @@ test("an agent's own home in Files (AGENT.md, MAP.md, agent.toml) never comes ba
   });
   assert.deepEqual(await ids(h, { q: "project" }), ["fil_firm"]);
 });
+
+test("hybrid: a document that has the typed words is listed before one that is only near them in meaning (owner's walk, 15 Nov: the first result did not match what was typed)", async () => {
+  const h = harness();
+  seed(h, { id: "rec_near", title: "Quarter budgets review", body: "quarter budgets review plan", kind: "record", updatedAt: 2_000 });
+  await embedRun(h.ctx, {});
+  // the document that really has the words arrives after the vectors were made (no vector yet) and is older
+  seed(h, { id: "rec_words", title: "Notes", body: "the quarterly budget is due", kind: "record", updatedAt: 1_000 });
+  const got = (await query(h.ctx, { q: "quarterly budget", mode: "hybrid" })).hits.map((x) => x.id);
+  assert.equal(got[0], "rec_words", `got ${got.join(", ")}`);
+});

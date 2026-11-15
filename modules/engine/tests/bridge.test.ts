@@ -1288,6 +1288,27 @@ test("an API model's tool call is a plain step on the live row while it runs: te
   }
 });
 
+test("the saved reply of an API model's tool turn keeps its steps, so the chat shows Worked N s, 1 step under it (owner's walk, 15 Nov)", async () => {
+  const seen: AgentPost[] = [];
+  const s = setup({
+    refuse: (p) => {
+      if (p.body === "Done.") seen.push(p);
+      return false;
+    },
+    script: [
+      { type: "tool_call", id: "c1", name: "people_status", input: {} },
+      { type: "text", text: "Done." },
+      { type: "done" },
+    ],
+  });
+  await s.say("who is around");
+  assert.equal(seen.length, 1);
+  const kinds = seen[0]!.blocks.map((b) => b.type);
+  assert.ok(kinds.includes("tool_call"), `blocks: ${kinds.join(", ")}`);
+  assert.ok(kinds.includes("tool_result"), `blocks: ${kinds.join(", ")}`);
+  assert.ok(!JSON.stringify(seen[0]!.blocks).includes("input"), "what the call touched is never kept");
+});
+
 test("a helper's running row says the same step (helpers.status reads the helper thread's live turn)", async () => {
   let mid: Array<{ step?: string }> = [];
   let b: Bridge | null = null;

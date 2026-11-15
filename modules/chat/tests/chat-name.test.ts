@@ -113,3 +113,8 @@ test("a title is 2 to 5 plain words, from the request or from a model's answer",
   assert.equal(tidyTitle("Title: lab 8 reminder emails for the whole list of people"), "Lab 8 reminder emails");
   assert.equal(tidyTitle("Hi"), null);
 });
+
+test("a title cut at five words never ends on a word that wants another (owner's walk, 15 Nov: \"Look around and do some\")", () => {
+  assert.equal(titleFromRequest("Look around and do some quarterly cleanup of the notes"), "Look around");
+  assert.equal(titleFromRequest("Please tidy the notes and then do some more"), "Tidy the notes");
+});

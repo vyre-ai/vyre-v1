@@ -125,6 +125,26 @@ const DANGLING: ReadonlySet<string> = new Set([
   "about",
   "into",
   "as",
+  // a title cut at five words must not end on "do some" or "and": quantifiers and helpers want another word too
+  "some",
+  "any",
+  "all",
+  "each",
+  "every",
+  "more",
+  "most",
+  "other",
+  "do",
+  "does",
+  "is",
+  "are",
+  "be",
+  "can",
+  "will",
+  "if",
+  "so",
+  "than",
+  "then",
 ]);
 
 /** A model's answer made into a title: one line, quotes and endings off, 2 to 5 words, first letter up. Null when nothing usable is left. */
