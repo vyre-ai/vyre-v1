@@ -1,4 +1,4 @@
-// The top of the Assistant chat under an onboarding step: one short line that says what to ask here, and one or two suggestions drawn like the composer's own attachment cards
+// The top of the Assistant chat under an onboarding step: one short line that says what to ask here, and a few suggestions drawn like the composer's own attachment cards
 // (rounded squares, never pills). A suggestion fills the composer; nothing is sent until the person sends it. It replaces the chat's empty state, so no placeholder words show.
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -11,8 +11,8 @@ export function StepAsk({ ask, onPick }: { ask: Ask; onPick(text: string): void 
         {ask.prompt}
       </Text>
       <View style={s.line}>
-        {/* ui-rows-lint: not a list (one or two suggestions side by side that fill the composer) */}
-        {ask.suggestions.slice(0, 2).map((t, i) => (
+        {/* ui-rows-lint: not a list (a few suggestions side by side that fill the composer) */}
+        {ask.suggestions.slice(0, 4).map((t, i) => (
           <Pressable
             key={t}
             testID={`step-ask-${i}`}

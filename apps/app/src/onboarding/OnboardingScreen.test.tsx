@@ -282,7 +282,7 @@ test("with an AI account the Assistant chat sits under the card on a step with s
   assert.ok(out.indexOf('data-card="1"') < out.indexOf('data-thread="1"'));
   for (const id of ["step-back", "step-later", "step-next", "onboarding-close"])
     assert.ok(out.includes(`data-testid="${id}"`), `live, the bar keeps ${id}`);
-  for (const key of ["ai", "interview", "phone"]) {
+  for (const key of ["ai", "phone"]) {
     const quiet = renderToStaticMarkup(
       <OnboardingScreen
         flow="personal"
@@ -301,6 +301,24 @@ test("with an AI account the Assistant chat sits under the card on a step with s
       `${key}: the card says it all, so no chat`,
     );
   }
+  // How you work is the one step whose card and chat go together: with an AI account the Assistant leads it, the chat under the list
+  const talk = renderToStaticMarkup(
+    <OnboardingScreen
+      flow="personal"
+      spaceName="Personal"
+      progress={{}}
+      stepKey="interview"
+      device="mac"
+      live
+      liveChat={<span data-thread="1">thread</span>}
+      onStep={noop}
+      renderCard={() => <span data-card="1">card</span>}
+    />,
+  );
+  assert.ok(
+    talk.includes('data-testid="onboarding-live"') && talk.includes('data-thread="1"'),
+    "interview: the talk is drawn",
+  );
   const drawn: string[] = [];
   renderToStaticMarkup(
     <OnboardingScreen
