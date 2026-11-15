@@ -56,6 +56,12 @@ import {
 import { act, codeOf, CONN, contractErrors, fixture, harness, NOW, seedConsent, U } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
+/** The answer of an upload or a folder create that was sent (not turned away as stale), typed so its item and the name it took can be read. */
+function sent<T extends { stale?: boolean }>(r: T): Extract<T, { item: unknown }> {
+  assert.ok(!r.stale, "sent, not stale");
+  return r as Extract<T, { item: unknown }>;
+}
+
 const MAYA = "maya@vyre.test";
 const check = (cap: string, out: unknown): void => assert.deepEqual(contractErrors(cap, "out", out), [], cap);
 const q = (url: string, key: string): string | null => new URL(url).searchParams.get(key);
@@ -706,7 +712,7 @@ test("downloads and uploads go through the host with the app token, names are ch
   h.on("DELETE", `${U}/drive/items/i1`, { status: 204 });
   const up = await driveUpload(h.ctx, { ...act, folderId: "f1", name: "Contract.pdf", fileId: "fil_contract" });
   assert.deepEqual(dl, { blobId: "blb_download", size: 42 });
-  assert.equal(up.item.name, "Contract.pdf");
+  assert.equal(sent(up).item.name, "Contract.pdf");
   assert.equal(h.requests.length, 0); // ctx.http carries only JSON; the transfers belong to the host
   assert.equal(h.state.mints, 1); // one application token serves both
   await assert.rejects(
@@ -931,7 +937,7 @@ test("an upload with a remote id replaces the item in place; with ifMatch Graph'
   });
   assert.deepEqual(h.uploads[0], { url: `${U}/drive/items/i1/content`, ifMatch: "etag1" });
   assert.deepEqual(
-    [same.item?.eTag, same.item?.lastModifiedBy],
+    [sent(same).item?.eTag, sent(same).item?.lastModifiedBy],
     ["etag2", { name: "Maya Lin", email: "maya@vyre.test" }],
   );
   const stale = await driveUpload(h.ctx, {
@@ -949,7 +955,7 @@ test("an upload with a remote id replaces the item in place; with ifMatch Graph'
     { url: `${U}/drive/items/f1:/Copy.pdf:/content?@microsoft.graph.conflictBehavior=fail` },
     "a new file is written by name and is not conditional",
   );
-  assert.ok(fresh.item);
+  assert.ok(sent(fresh).item);
   for (const out of [same, stale, fresh]) check("ms.drive.upload_item", out);
 });
 
@@ -990,14 +996,14 @@ test("a create onto a taken name never takes the item there for the new file: it
   h.taken.add("Notes.txt");
   h.taken.add("Notes (2).txt");
   const up = await driveUpload(h.ctx, { ...act, folderId: "f1", name: "Notes.txt", fileId: "fil_second" });
-  assert.equal(up.item?.name, "Notes (3).txt", "the new content is sent, under a free name");
-  assert.equal(up.renamedTo, "Notes (3).txt");
+  assert.equal(sent(up).item?.name, "Notes (3).txt", "the new content is sent, under a free name");
+  assert.equal(sent(up).renamedTo, "Notes (3).txt");
   assert.equal(h.uploads.length, 3, "three tries, the last one wrote the new content");
   // Failure B: Notes.txt was deleted in Vyre and a new Notes.txt made: the item there (about to be trashed) is not adopted
   const h2 = ready();
   h2.taken.add("Notes.txt");
   const again = await driveUpload(h2.ctx, { ...act, folderId: "f1", name: "Notes.txt", fileId: "fil_new" });
-  assert.equal(again.item?.name, "Notes (2).txt");
+  assert.equal(sent(again).item?.name, "Notes (2).txt");
   assert.equal(
     h2.uploads.some((u) => /Notes%20\(2\)\.txt:\/content/.test(u.url)),
     true,
@@ -1005,5 +1011,5 @@ test("a create onto a taken name never takes the item there for the new file: it
   // a free name is made as asked and says nothing
   const h3 = ready();
   const plain = await driveUpload(h3.ctx, { ...act, folderId: "f1", name: "Fresh.txt", fileId: "fil_f" });
-  assert.equal(plain.renamedTo, undefined);
+  assert.equal(sent(plain).renamedTo, undefined);
 });
