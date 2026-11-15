@@ -1,6 +1,8 @@
 // The engine runtime on a booted daemon (P-L2_23): built the first time a handler or the periodic job runs with the module's database, bound so the control handlers reach it, and told
 // to recover the threads a dead host left mid-turn. Everything it needs from outside arrives through `EngineHostSeam` (host/src/seams/engine.ts): a way to call capabilities as a
 // person, and the opener of real sessions. The turn engine itself stays in agent/src/turn-engine and knows nothing about modules.
+import { checkpointTurn, pointWanted } from "./checkpoints.ts";
+import { turnMayStart } from "./rewind-gate.ts";
 import path from "node:path";
 import { wireHooks } from "./hooks-wire.ts";
 import { callHooksOf } from "./hooks-port.ts";
@@ -262,6 +264,12 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     bindStepOpen(null);
     bindModelLister(null);
   }
+}
+
+let dropWarm: ((threadId: string) => Promise<number>) | null = null;
+/** End the warm engine sessions of a chat, so its next turn opens a new one (Rewind: the engine must not carry what was undone in its own memory). */
+export async function dropWarmSessions(threadId: string): Promise<number> {
+  return dropWarm ? dropWarm(threadId).catch(() => 0) : 0;
 }
 
 export function engineHost(): EngineHostSeam | null {
@@ -1126,6 +1134,48 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const engine = createTurnEngine({
       hooks: hooksPort,
       holder: h.holder,
+      // a checkpoint of the agent's work folder as each CLI turn starts, for Rewind (checkpoints.ts)
+      ...(h.dataDir
+        ? {
+            onTurnStart: async (i: {
+              threadId: string;
+              turnId: string;
+              agentId: string;
+              asker: string;
+              messageId: string | null;
+              threadKind: string;
+            }): Promise<void> => {
+              // while a rewind is putting this agent's folder back in this chat, its turn start waits here (rewind-gate.ts): the message stays where it is, one plain line says so, and the turn starts by itself when the
+              // rewind is over; a rewind that made no progress for minutes is given up on (listed interrupted, with Undo) and the turn starts
+              const gate = await turnMayStart(i.threadId, i.agentId, {
+                onWait: () =>
+                  noteLine(i.agentId, i.asker, i.threadId, {
+                    state: "going_back",
+                    text: "Going back is still running. Your message will start when it finishes.",
+                    threadId: i.threadId,
+                  }),
+              });
+              if (gate === "gave_up")
+                noteLine(i.agentId, i.asker, i.threadId, {
+                  state: "going_back",
+                  text: "Going back stopped responding. It is listed on the chat with Undo.",
+                  threadId: i.threadId,
+                });
+              // a point only where a rewind can be offered: a chat with an agent (not a crew, task, helper or one-shot thread), and a turn that runs on this server. A turn on the person's own computer takes none
+              // (the folder it works in is not here): the card says so.
+              if (!pointWanted(i.threadKind, await placementNow(i.threadId, i.agentId, i.asker))) return;
+              await checkpointTurn({
+                dataDir: h.dataDir!,
+                person: i.asker,
+                thread: i.threadId,
+                agent: i.agentId,
+                turnId: i.turnId,
+                ...(i.messageId ? { messageId: i.messageId } : {}),
+                now: Date.now(),
+              });
+            },
+          }
+        : {}),
       openSession: withHeldNotes(
         withChatSettings(
           withSpaceKeyTurns(
@@ -1557,6 +1607,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     bridge?.attach(engine);
     h.extend?.(engine);
     completer = (i) => oneShot(openSession, i, now);
+    dropWarm = opener ? (threadId: string) => opener.pool.drop(threadId) : null;
     compactor = createCompactor({
       db: ctx.db,
       call: h.call,

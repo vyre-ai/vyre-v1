@@ -521,3 +521,30 @@ test("the backup tests never call the host's Docker", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("the pre-update archive leaves Rewind's checkpoints/ out of the Space's copy and keeps the work folders and every other file; Caddy's copy is not touched by the rule", () => {
+  const d = tmp();
+  const data = path.join(d, "data");
+  for (const f of [
+    "space/work/usr_a/thr_1/agt_x/notes.txt",
+    "space/checkpoints/usr_a/thr_1/agt_x.git/HEAD",
+    "space/blobs/b1",
+    "caddy/checkpoints/keep.txt",
+  ]) {
+    fs.mkdirSync(path.dirname(path.join(data, f)), { recursive: true });
+    fs.writeFileSync(path.join(data, f), "x");
+  }
+  const run = (src: string): Out => sh(SERVER, `DATA_DIR="${data}"; stage_copy "${data}/${src}" "${d}/stage-${src}"`);
+  assert.equal(run("space").status, 0);
+  assert.equal(run("caddy").status, 0);
+  assert.ok(
+    fs.existsSync(path.join(d, "stage-space/work/usr_a/thr_1/agt_x/notes.txt")),
+    "work folders stay in, as on rc.28",
+  );
+  assert.ok(fs.existsSync(path.join(d, "stage-space/blobs/b1")));
+  assert.equal(fs.existsSync(path.join(d, "stage-space/checkpoints")), false, "the points are derived data: left out");
+  assert.ok(
+    fs.existsSync(path.join(d, "stage-caddy/checkpoints/keep.txt")),
+    "only the Space's own copy leaves them out",
+  );
+});

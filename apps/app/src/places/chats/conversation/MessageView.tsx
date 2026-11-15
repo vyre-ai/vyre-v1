@@ -5,7 +5,7 @@ import { helperRowOf, HelperRow } from "./helper-row.tsx";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { QuestionCard } from "./question-card.tsx";
 import { StatusCard, isStatusCard } from "./status-cards.tsx";
-import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
+import { AwayRow, FoldedRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
 import { spaceKeyWay } from "./status.ts";
@@ -189,6 +189,8 @@ export interface MessageActions {
   memoryEntries?: (m: MenuMessage, x: number, y: number, show: ShowMenu) => MenuEntry[];
   /** Branch the chat into a new one at this message. */
   fork?(messageId: string): void;
+  /** Rewind to here (your own message in a chat with an agent): opens the "Go back to" card with this message's point chosen. Left out where the chat has no agent or the reader may not go back. */
+  rewind?(messageId: string): void;
   /** Make a task from this message, linked back to it. */
   makeTask?(messageId: string): void;
   /** Ask an agent to answer this message, as if it had been named (owner ruling, 3 Nov 2026): opens the channel's agent picker where you pressed. Left out where no agent can be asked. */
@@ -333,6 +335,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
   if (item.kind === "hour") return <HourMark id={item.key} label={item.label} />;
   if (item.kind === "jump") return <JumpRow row={item} />;
   if (item.kind === "away") return <AwayRow row={item} />;
+  if (item.kind === "folded") return <FoldedRow row={item} />;
   if (item.kind === "day")
     return (
       <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>
@@ -466,6 +469,8 @@ export function menuFor(
   if (a.makeTask && talk) first.push({ label: "Make a task", onSelect: () => a.makeTask!(m.messageId) });
   if (a.share && talk) first.push({ label: "Share to\u2026", onSelect: () => a.share!(m.messageId, at.x, at.y) });
   if (a.fork && talk) first.push({ label: "Fork from here", onSelect: () => a.fork!(m.messageId) });
+  if (mine && a.rewind && m.kind === "text" && !m.messageId.startsWith("pending:"))
+    first.push({ label: "Rewind to here", onSelect: () => a.rewind!(m.messageId) });
   first.push(
     { label: m.pinned ? "Unpin" : "Pin", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
     {
@@ -554,6 +559,8 @@ export function HoverBar({
   } else if (mine && a.humanChat !== true) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
+    if (a.rewind && m.kind === "text" && !m.messageId.startsWith("pending:"))
+      bar.push({ icon: "reply", label: "Rewind to here", run: () => a.rewind!(m.messageId) });
   } else {
     if (a.pickReaction && talk)
       bar.push({ icon: "smile", label: "Add reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
@@ -719,6 +726,7 @@ const SHEET_ICON: Readonly<Record<string, GlyphName>> = {
   "Make a task": "task",
   "Share to\u2026": "up",
   "Fork from here": "fork",
+  "Rewind to here": "reply",
   Pin: "pin",
   Unpin: "pin",
   "Mark unread from here": "flag",
@@ -734,7 +742,16 @@ const SHEET_ICON: Readonly<Record<string, GlyphName>> = {
 /** The sheet's groups, top to bottom, split by a hairline; an entry that is in none (a memory entry, Details, a mute) joins the middle one. */
 const SHEET_GROUPS: readonly (readonly string[])[] = [
   ["Reply in thread", "Copy", "Copy link"],
-  ["Ask an agent\u2026", "Make a task", "Share to\u2026", "Fork from here", "Pin", "Unpin", "Mark unread from here"],
+  [
+    "Ask an agent\u2026",
+    "Make a task",
+    "Share to\u2026",
+    "Fork from here",
+    "Rewind to here",
+    "Pin",
+    "Unpin",
+    "Mark unread from here",
+  ],
   ["Edit", "Retry"],
 ];
 /** The groups kept below the scrolling list, always in view. */
