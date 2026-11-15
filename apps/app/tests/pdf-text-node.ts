@@ -12,7 +12,7 @@ type Lib = {
 };
 
 export async function pdfText(bytes: Uint8Array): Promise<{ pages: number; text: string }> {
-  const lib = (await import(new URL("../public/vendor/pdfjs/pdf.js", import.meta.url).href)) as Lib;
+  const lib = (await import("../public/vendor/pdfjs/pdf.js")) as unknown as Lib;
   lib.GlobalWorkerOptions.workerSrc = new URL("../public/vendor/pdfjs/pdf.worker.js", import.meta.url).href;
   const doc = await lib.getDocument({ data: bytes.slice(), isEvalSupported: false, verbosity: 0 }).promise;
   let text = "";
