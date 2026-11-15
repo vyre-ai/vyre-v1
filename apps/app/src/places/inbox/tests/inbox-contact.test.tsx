@@ -257,20 +257,23 @@ test("an agent's text draft goes out through telephony.send_sms from its number,
 
 test("screen: the composer opens on the channel of the last message and the inbox the thread came in on", () => {
   const e = tab("elena").out;
-  for (const id of ["chan-email", "chan-text", "composer-recipients", "contact-recipients", "from-pick", "reply-in"])
+  // one switch between Email and Text, in the conversation's header; the reply box does not repeat it (owner, 16 Nov 2026)
+  for (const id of ["head-email", "head-text", "composer-recipients", "contact-recipients", "from-pick", "reply-in"])
     assert.ok(has(e, `data-testid="${id}"`), id);
+  for (const id of ["chan-email", "chan-text"])
+    assert.ok(!has(e, `data-testid="${id}"`), `${id} is not in the reply box`);
   // a reply goes into the newest thread and says so; its subject is the thread's, so there is no Subject field (New email has one)
   assert.ok(!has(e, 'data-testid="contact-subject"') && has(e, "Replying in"));
   const emailTab = e.slice(
-    e.lastIndexOf("<", e.indexOf('data-testid="chan-email"')),
-    e.indexOf(">", e.indexOf('data-testid="chan-email"')),
+    e.lastIndexOf("<", e.indexOf('data-testid="head-email"')),
+    e.indexOf(">", e.indexOf('data-testid="head-email"')),
   );
-  assert.ok(has(emailTab, 'aria-selected="true"'), "the selected channel tab exposes aria-selected");
+  assert.ok(has(emailTab, 'aria-pressed="true"'), "the channel in use says it is pressed");
   const smsTab = e.slice(
-    e.lastIndexOf("<", e.indexOf('data-testid="chan-text"')),
-    e.indexOf(">", e.indexOf('data-testid="chan-text"')),
+    e.lastIndexOf("<", e.indexOf('data-testid="head-text"')),
+    e.indexOf(">", e.indexOf('data-testid="head-text"')),
   );
-  assert.ok(has(smsTab, 'aria-selected="false"'), "the other tab says it is not selected");
+  assert.ok(has(smsTab, 'aria-pressed="false"'), "the other channel says it is not");
   assert.ok(e.indexOf("Lease documents for Thursday", at(e, "Replying in")) > 0, "Replying in names the thread");
   assert.equal(
     e.split("Sends from").length,
@@ -296,7 +299,7 @@ test("screen: a sender with no record gets the ghost face and the match link, an
     has(out, 'data-testid="face-ghost"') && has(out, 'data-testid="head-match"') && has(out, "Match to a record"),
   );
   assert.ok(
-    has(out, 'data-testid="chan-email"') && has(out, 'aria-disabled="true"'),
+    has(out, 'data-testid="head-email"') && has(out, 'aria-disabled="true"'),
     "Email is off: there is no address",
   );
   assert.ok(has(out, "+1 628 555 0194"));
@@ -325,10 +328,12 @@ test("screen: a meeting that ended shows in the texts timeline with its player, 
   assert.ok(has(m, "agrees to net 15"));
 });
 
-test("screen: the composer's bottom row has templates, quick actions and Ask, and the header has a star", () => {
+test("screen: the composer's bottom row has one button, Templates; Ask, Call and the star are in the header", () => {
   const e = tab("elena").out;
-  for (const id of ["composer-templates", "composer-quick", "composer-ask", "head-star"])
+  for (const id of ["composer-templates", "head-ask", "head-call", "head-star"])
     assert.ok(has(e, `data-testid="${id}"`), id);
+  for (const id of ["composer-quick", "composer-ask"])
+    assert.ok(!has(e, `data-testid="${id}"`), `${id} left the reply box`);
   assert.ok(has(e, 'aria-label="Star"'));
   const t = templateEntries([{ t: "Thanks", body: "Thank you." }], () => undefined);
   assert.equal(t.length, 2);
