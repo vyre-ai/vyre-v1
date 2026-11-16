@@ -130,7 +130,13 @@ export interface HeadProps {
   ctx: ViewCtx;
   st: ViewState;
   /** The Board's lane field: shown as a "Lanes" button with the fields it can run on. */
-  lanes?: { field: FieldDef | undefined; choices: readonly FieldDef[]; pick: (key: string) => void };
+  lanes?: {
+    field: FieldDef | undefined;
+    choices: readonly FieldDef[];
+    pick: (key: string) => void;
+    /** A Board that can draw only some of the stages: the ones it draws, whether they differ from the saved view, how to open the choice and put it back. */
+    stages?: { chosen: readonly string[]; total: number; edited: boolean; open: () => void; reset: () => void };
+  };
   /** Gallery and List can sort; a Board is in the order its lanes keep. */
   sort?: boolean;
   /** The fields the Fields menu can hide on a card or row; omitted for a view that shows none. */
@@ -280,12 +286,22 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
       }),
     ),
   ];
+  const stages = lanes?.stages;
   const laneEntries = (): MenuEntry[] => [
     { head: "Lanes from" },
     ...each(
       lanes?.choices ?? [],
       (f): MenuEntry => ({ label: f.title, checked: lanes?.field?.key === f.key, onSelect: () => lanes?.pick(f.key) }),
     ),
+    ...(stages
+      ? [
+          { separator: true } as MenuEntry,
+          {
+            label: stages.chosen.length ? `Columns, ${stages.chosen.length} of ${stages.total}` : "Choose columns",
+            onSelect: stages.open,
+          } as MenuEntry,
+        ]
+      : []),
   ];
   const viewEntries = (): MenuEntry[] => [
     { head: "Saved views" },
@@ -306,6 +322,7 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
 
   const sortKey = v.sort[0];
   const laneField = lanes?.field;
+  const edited = st.edited || stages?.edited === true;
   return (
     <View style={s.head} testID="records-head">
       <View style={s.crumb}>
@@ -350,17 +367,22 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
           <Text style={s.pickText} numberOfLines={1}>
             {ctx.saved ? ctx.saved.title : `All ${def.plural.toLowerCase()}`}
           </Text>
-          {st.edited ? <Text style={s.dirty}>{"·"}</Text> : null}
+          {edited ? <Text style={s.dirty}>{"·"}</Text> : null}
           <Glyph name="chevd" size={9} />
         </Pressable>
-        {st.edited ? (
+        {edited ? (
           <View style={s.modline} testID="records-edited">
             <Text style={s.modText}>Edited</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Save view"
               testID="records-save"
-              onPress={() => st.save(laneField ? { lane: laneField.key } : {})}
+              onPress={() =>
+                st.save({
+                  ...(laneField ? { lane: laneField.key, group: laneField.key } : {}),
+                  ...(stages && stages.chosen.length > 0 ? { stages: [...stages.chosen] } : {}),
+                })
+              }
             >
               <Text style={s.modLink}>Save</Text>
             </Pressable>
@@ -368,7 +390,10 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
               accessibilityRole="button"
               accessibilityLabel="Reset view"
               testID="records-reset"
-              onPress={st.reset}
+              onPress={() => {
+                st.reset();
+                stages?.reset();
+              }}
             >
               <Text style={s.modLink}>Reset</Text>
             </Pressable>
@@ -448,6 +473,17 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
               bare={slim}
               testID="records-lanes"
               onPress={(x, y) => menu.show(laneEntries(), x, y, "other")}
+            />
+          ) : null}
+          {stages ? (
+            <HeadButton
+              icon="check"
+              label="Columns"
+              detail={stages.chosen.length ? `${stages.chosen.length} of ${stages.total}` : undefined}
+              on={stages.chosen.length > 0}
+              bare={slim}
+              testID="records-columns"
+              onPress={stages.open}
             />
           ) : null}
           {fields ? (

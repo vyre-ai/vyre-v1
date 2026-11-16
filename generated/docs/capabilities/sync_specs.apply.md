@@ -64,6 +64,7 @@ type In = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -105,6 +106,11 @@ type In = {
             inverseKey?: string;
             inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -128,6 +134,7 @@ type In = {
         titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -204,6 +211,7 @@ type Out = {
               "path": "example"
             }
           ],
+          "link": {},
           "match": [
             "example"
           ],
@@ -241,7 +249,12 @@ type Out = {
               ],
               "inverseKey": "email",
               "inverseTitle": "example",
+              "key": "email",
               "label": "example",
+              "onlyWhen": {
+                "equals": "example",
+                "path": "example"
+              },
               "path": "example",
               "readOnly": true,
               "relationTo": "example",
@@ -270,6 +283,7 @@ type Out = {
             },
             "path": "example",
             "query": {},
+            "sweepEveryDays": 1,
             "updatedSince": {
               "format": "example",
               "param": "example"

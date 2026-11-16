@@ -1,0 +1,1 @@
+A sealed value that could not be kept yet (the record not visible to the sync yet, or the Vault not ready) is kept in memory only and tried again, the Sync page log says why, and the sync looks again after 30 seconds instead of at the next check.

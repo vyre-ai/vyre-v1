@@ -1452,6 +1452,19 @@ export function createApplyHandlers(deps: SchemaDeps): ApplyHandlers {
             `A ${kind!.title} view needs config.${as} to name a ${types.join(" or ")} field of ${t.key}.`,
           );
       }
+      if (kind!.key === "board" && config["stages"] !== undefined) {
+        const list = config["stages"];
+        const groupField = t.fields.find((x) => x.key === config["group"])!;
+        const stages = choicesOf(groupField);
+        if (!Array.isArray(list) || list.some((x) => typeof x !== "string"))
+          refuse(ctx, "validation.bad_input", "The stages of a board are a list of stage keys.");
+        const seen = new Set<string>();
+        for (const k of list as string[]) {
+          if (!stages.includes(k)) refuse(ctx, "validation.bad_input", `${k} is not a stage of ${groupField.title}.`);
+          if (seen.has(k)) refuse(ctx, "validation.bad_input", `${k} is listed twice among the stages.`);
+          seen.add(k);
+        }
+      }
       for (const f of input.hidden ?? [])
         if (!keys.has(f)) refuse(ctx, "validation.bad_input", `${t.key} has no field ${f}.`);
       if (input.group !== undefined && !keys.has(input.group))

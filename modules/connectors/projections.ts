@@ -95,6 +95,8 @@ export interface VerdictRule {
 }
 export interface ConnectorDef {
   key: string;
+  /** Pointers of sealed fields (a synced connector's): their values are "[sealed]" in every output, for every caller but the sync engine's own pass. */
+  sealed?: string[];
   title: string;
   mode: Mode;
   scope: Scope;
@@ -127,6 +129,8 @@ export interface ConnectorDef {
       update?: string;
       delete?: string;
       /** The list can be asked for what changed since a time (`input.since`, in ms): a poll reads only that. */ since?: boolean;
+      /** Each row of this object also relates two already-synced records to each other (a many-to-many made from join rows). */
+      link?: { from: { type: string; at: string }; to: { type: string; at: string }; key: string; inverseKey: string };
     }
   >;
 }
@@ -693,10 +697,98 @@ const SECRET_KEY =
   /(clientsecret|secretkey|apikey|privatekey|signingkey|password|passwd|passphrase|secret|credential|credentials|authorization)$/;
 const PAGING_TOKEN =
   /(page|next|prev|previous|continuation|cursor|sync|start|resume|delta|skip|since|offset|pagination|paging)token$/;
+/** Names of secret identifiers (a person's, not a service's): social security, tax id, account and routing numbers, driver licence, passport and card numbers. "ein" and "tin" only when the key is exactly that. */
+const SECRET_IDENTIFIER =
+  /^(ssn|ein|tin|taxid|socialsecurity(number|no|num)?|accountnumber|accountno|routingnumber|driver(s)?licen[cs]e(number|no|num)?|passportnumber|passportno|cardnumber|cardno)$/;
 export const secretKeyName = (k: string): boolean => {
   const n = k.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return SECRET_KEY.test(n) || (n.endsWith("token") && !PAGING_TOKEN.test(n));
+  return SECRET_KEY.test(n) || SECRET_IDENTIFIER.test(n) || (n.endsWith("token") && !PAGING_TOKEN.test(n));
 };
+
+/** Known only inside this process: the sync engine's own pass says it (in the action's input) to be given the real values of sealed fields, which it seals at once. Nobody else can. */
+export const SYNC_PASS_TOKEN = `sp_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+export const SEALED_MASK = "[sealed]";
+/**
+ * The real values of sealed fields read by one sync pass, kept in this process only, by the pass's nonce and the row's id. They never travel in an action's answer (the answer is masked): the engine takes them
+ * from here, in the same process, to seal them, so no kept answer, log or span of the pipeline can hold them.
+ */
+const heldByPass = new Map<string, Map<string, Record<string, unknown>>>();
+export const SEALED_HELD = {
+  put(nonce: string, rowId: string, values: Record<string, unknown>): void {
+    let m = heldByPass.get(nonce);
+    if (!m) heldByPass.set(nonce, (m = new Map()));
+    m.set(rowId, { ...(m.get(rowId) ?? {}), ...values });
+  },
+  get: (nonce: string, rowId: string): Record<string, unknown> | undefined => heldByPass.get(nonce)?.get(rowId),
+  done(nonce: string): void {
+    heldByPass.delete(nonce);
+  },
+};
+const KEEP = new Set(["id", "name", "type", "field_type", "label", "key"]);
+/**
+ * The value with every sealed path masked, nested and in lists. A path is a pointer into one item (/attributes/ssn, /attributes/custom_field_values/<id>/formatted_value). Besides the leaf, the other
+ * value-bearing siblings of the leaf (all but id, name and a type) are masked, and so is any list item anywhere that carries the same id (custom fields come both as a map by id and as a list of {id, name, value}).
+ * A pulled row's data is keyed by the pointers themselves: those keys, and the keys under the leaf's parent pointer, are masked too.
+ */
+export function maskSealed<T>(v: T, paths: readonly string[]): T {
+  if (!paths.length || v === null || typeof v !== "object") return v;
+  const root = JSON.parse(JSON.stringify(v)) as unknown;
+  const ids = new Set<string>();
+  const maskItem = (o: Record<string, unknown>): void => {
+    for (const k of Object.keys(o)) if (!KEEP.has(k)) o[k] = SEALED_MASK;
+  };
+  const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+  const parents = paths.map((p) => p.slice(0, Math.max(p.lastIndexOf("/"), 0)));
+  // the leaf sits in an item (a custom field by id or position): its siblings are the item's other values
+  const items = parents.map((q) => /\/\d+$/.test(q));
+  // flat keys (a pulled row)
+  const visit = (x: unknown, fn: (o: Record<string, unknown>) => void): void => {
+    if (Array.isArray(x)) for (const y of x) visit(y, fn);
+    else if (isObj(x)) {
+      fn(x);
+      for (const y of Object.values(x)) visit(y, fn);
+    }
+  };
+  visit(root, (o) => {
+    for (const [i, p] of paths.entries()) {
+      if (p in o) o[p] = SEALED_MASK;
+      for (const k of Object.keys(o))
+        if (items[i] && k.startsWith(`${parents[i]}/`) && k !== p && !KEEP.has(k.slice(k.lastIndexOf("/") + 1)))
+          o[k] = SEALED_MASK;
+    }
+  });
+  // nested: walk each pointer
+  for (const p of paths) {
+    const segs = p
+      .split("/")
+      .slice(1)
+      .map((s) => s.replaceAll("~1", "/").replaceAll("~0", "~"));
+    if (!segs.length) continue;
+    const walk = (cur: unknown, i: number, trail: unknown[]): void => {
+      if (cur === null || typeof cur !== "object") return;
+      const seg = segs[i]!;
+      const next = (cur as Record<string, unknown>)[seg];
+      if (i === segs.length - 1) {
+        if (isObj(cur) && seg in cur) {
+          const holder = trail[trail.length - 1];
+          if (isObj(cur) && (cur["id"] !== undefined || /^\d+$/.test(String(segs[i - 1] ?? "")))) {
+            ids.add(String(cur["id"] ?? segs[i - 1]));
+            maskItem(cur);
+          } else cur[seg] = SEALED_MASK;
+          void holder;
+        }
+        return;
+      }
+      walk(next, i + 1, [...trail, cur]);
+    };
+    visit(root, (o) => walk(o, 0, []));
+  }
+  if (ids.size)
+    visit(root, (o) => {
+      if (o["id"] !== undefined && ids.has(String(o["id"])) && ("value" in o || "formatted_value" in o)) maskItem(o);
+    });
+  return root as T;
+}
 /**
  * The value with every value under a secret-named key (nested, in arrays) replaced by "***". A string that itself holds JSON (a service that answers with a
  * document inside a field) is read and guarded the same way.

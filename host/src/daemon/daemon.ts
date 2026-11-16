@@ -6306,6 +6306,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             core: coreOf(loaded.moduleExports.get("sources")),
             local: { open: () => spaceStore.open(), space: spaceStore.space },
             now,
+            ...(typeof loaded.moduleExports.get("connectors")?.["SYNC_PASS_TOKEN"] === "string"
+              ? { unmaskToken: loaded.moduleExports.get("connectors")!["SYNC_PASS_TOKEN"] as string }
+              : {}),
+            ...(loaded.moduleExports.get("connectors")?.["SEALED_HELD"]
+              ? (() => {
+                  const h = loaded.moduleExports.get("connectors")!["SEALED_HELD"] as {
+                    get(n: string, id: string): Record<string, unknown> | undefined;
+                    done(n: string): void;
+                  };
+                  return { heldOf: (n: string, id: string) => h.get(n, id), heldDone: (n: string) => h.done(n) };
+                })()
+              : {}),
           }),
         ...(o.seams?.drivers ?? {}),
       };

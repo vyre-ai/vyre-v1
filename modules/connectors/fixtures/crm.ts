@@ -204,6 +204,16 @@ export function crm() {
       }
       if (method === "GET" && url.pathname === "/api/v2/organizations")
         return { status: 200, body: { data: page(state.orgs, url, 10, "page") } };
+      if (method === "GET" && url.pathname === "/api/v2/memberships")
+        return {
+          status: 200,
+          body: {
+            data: [
+              { id: "mb1", person: "101", org: "o1", kind: "owner" },
+              { id: "mb2", person: "102", org: "o1", kind: "member" },
+            ],
+          },
+        };
       if (method === "GET" && url.pathname === "/api/v2/fields/people")
         return { status: 200, body: { fields: A_FIELDS } };
       const m = /^\/api\/v2\/people\/(\d+)$/.exec(url.pathname);

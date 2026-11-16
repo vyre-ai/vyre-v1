@@ -819,7 +819,8 @@ export default defineManifest({
         { fieldType: "choice", as: "group" },
         { fieldType: "status", as: "group" },
       ],
-      config: t.obj({ group: t.str() }),
+      // `stages`: the stage keys of the group field to draw as columns, in that order; absent or empty draws every stage
+      config: t.obj({ group: t.str(), stages: t.opt(t.arr(t.str())) }),
     }),
     vkind("calendar", "Calendar", "rows", {
       needs: [{ fieldType: "datetime", as: "date" }],
