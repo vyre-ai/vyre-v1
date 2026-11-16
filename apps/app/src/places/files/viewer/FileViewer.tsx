@@ -24,6 +24,12 @@ import { PdfPages } from "../../../../../../ui/src/Viewer/rich/PdfPages.tsx";
 import { redactedCopy } from "../../../../../../ui/src/Viewer/rich/pdf-copy.ts";
 import { noTextLayer } from "../../../../../../ui/src/Viewer/rich/pdf-model.ts";
 import { useFilesViewerData } from "./data.tsx";
+import { useMaybeSignData } from "../sign/data.tsx";
+import { cancelRequest } from "../sign/actions.ts";
+import { canSignFile, isOpen as signOpen } from "../sign/model.ts";
+import { SignBar } from "../sign/SignBar.tsx";
+import { SignSheet } from "../sign/SignSheet.tsx";
+import { useRequests } from "../sign/useRequests.ts";
 import { useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { useFileLinks } from "../links.ts";
 import { ConnectedBar } from "./ConnectedBar.tsx";
@@ -123,6 +129,10 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const rt = useOptionalShellRuntime();
   const [load, setLoad] = useState<Load>(() => recallFile(rt, fileId) ?? { status: "loading" });
   const [note, setNote] = useState<string | null>(null);
+  // a signature request made from this file: its status shows above the page, and the pen sends one
+  const sign = useMaybeSignData();
+  const [signing, setSigning] = useState(false);
+  const reqs = useRequests(sign, { fileId });
   // where a file from a connected folder opens at its provider (Google Docs, Word, Excel, Dropbox); null for a file Vyre holds itself
   const [link, setLink] = useState<FileLink | null>(null);
   const version = useRef(0);
@@ -646,6 +656,12 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
       say(e);
     }
   };
+  // the pen: a PDF with no request waiting (one request at a time; a finished one can be sent again)
+  const canSend =
+    sign !== null &&
+    sign.canSend !== false &&
+    canSignFile(file.name, file.mime) &&
+    !(reqs.now !== null && signOpen(reqs.now));
   const openMore = (x: number, y: number, hidden: { label: string; onSelect: () => void }[] = []): void => {
     const name = load.status === "ready" ? load.data.file.name : "";
     accessMenu.show(
@@ -661,6 +677,18 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
           ? [{ label: "Save a redacted copy", onSelect: () => void makeCopy() }]
           : []),
         ...(d.share ? [{ label: "Share…", onSelect: () => d.share?.(fileId, name) }] : []),
+        ...(canSend ? [{ label: "Send for signature…", onSelect: () => setSigning(true) }] : []),
+        ...(sign !== null && reqs.now !== null && signOpen(reqs.now)
+          ? [
+              {
+                label: "Cancel signature request",
+                onSelect: () => {
+                  const id = reqs.now?.id;
+                  if (id) void cancelRequest(sign.call, id).then(reqs.reload, say);
+                },
+              },
+            ]
+          : []),
         {
           label: "Copy Link",
           onSelect: () =>
@@ -742,6 +770,15 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
               setRev((x) => x + 1);
             }, say)
           }
+        />
+      ) : null}
+      {reqs.now ? <SignBar env={reqs.now} onChange={reqs.reload} onSendAgain={() => setSigning(true)} /> : null}
+      {signing && sign ? (
+        <SignSheet
+          fileId={fileId}
+          fileName={file.name}
+          onClose={() => setSigning(false)}
+          onSent={() => reqs.reload()}
         />
       ) : null}
       <Viewer
@@ -954,6 +991,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         onUnmark={(markId) => void layer.run("files.marks.remove", { markId }, "Agents can read it again")}
         onMarkActivity={() => setPanel("activity")}
         onHistory={openHistory}
+        {...(canSend ? { onSign: () => setSigning(true) } : {})}
         onMore={openMore}
         compact={isPhoneWidth(width)}
         tools={<LayerTools open={panel} onToggle={toggle} />}

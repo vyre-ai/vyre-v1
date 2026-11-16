@@ -11,6 +11,7 @@ import { livePlace } from "../rail/kits.ts";
 import type { CmdKData } from "./controller.ts";
 import type { AskAnswer, CmdAction, Hit, HitKind } from "./model.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
+import { requestSignPicker } from "../../places/files/sign/pick.ts";
 import { chatStartInput, lastPick, realAssistant, startFailure } from "../../places/chats/landing/model.ts";
 import type { StartChoice } from "../../places/chats/landing/model.ts";
 import { resolveSpaceLink } from "../reach/space-link.ts";
@@ -276,12 +277,14 @@ export function gateActions(
   state: { away: boolean; offline: boolean; terminal?: boolean },
   team = true,
   signOut = false,
+  signing = false,
 ): readonly CmdAction[] {
   return [
     { key: "task.new", title: "New task", icon: "plus" },
     // the Projects group in Chats shows only once a project exists, so on a new Space this is the way to the first one (client walk, 11 Nov 2026)
     { key: "project.new", title: "New project", icon: "plus" },
     { key: "mail.connect", title: "Connect email", icon: "plus" },
+    ...(signing ? [{ key: "sign.send", title: "Send a file for signature", icon: "plus" }] : []),
     ...(team ? [{ key: "channel.new", title: "New channel", icon: "plus" }] : []),
     { key: "appearance.skin", title: "Switch skin", icon: "eye" },
     { key: "presence.away", title: state.away ? "Back from away" : "Set yourself away", icon: "clock" },
@@ -458,7 +461,12 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     actions: (text) =>
       [
         ...askActions(currentScreen()),
-        ...gateActions(state, rt.space.kind === "team" && allows(rt, GATE.newChannel), d.signOut !== undefined),
+        ...gateActions(
+          state,
+          rt.space.kind === "team" && allows(rt, GATE.newChannel),
+          d.signOut !== undefined,
+          allows(rt, GATE.sendSignature),
+        ),
       ].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
     skins: () => [
       { id: system.id, name: system.name },
@@ -505,6 +513,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
         requestChannelSheet("new");
       } else if (a.key === SKIN) nav.go("settings", "page=appearance");
       else if (a.key === "mail.connect") nav.go("settings", MAIL_PAGE_HASH);
+      else if (a.key === "sign.send") requestSignPicker();
     },
     // Ask the Space: the question is answered on the server from what this person may read, on their own AI account (search.ask); the answer and its sources come back whole and are written onto the page by the sheet
     ask: async (question) => (await rt.call("search.ask", { q: question })) as AskAnswer,

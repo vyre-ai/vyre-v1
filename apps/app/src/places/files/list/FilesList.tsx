@@ -64,6 +64,7 @@ import type { MoveAsk as MoveAskState } from "../tree/model.ts";
 import { AccessControl, AccessPopover, FolderBadge, LayerBadge, ReviewLine, useAgentStates } from "./AgentAccess.tsx";
 import { GoalFolderHead } from "../../chats/goals/GoalFolderHead.tsx";
 import { QuickLook } from "./QuickLook.tsx";
+import { canSignFile } from "../sign/model.ts";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
@@ -92,6 +93,8 @@ export function lineMenuEntries(
     quickLook(l: Line): void;
     share?(l: Line): void;
     /** Who may open a file (the Share sheet); left out where the shell has none. */ shareFile?(l: Line): void;
+    /** Send a PDF for signature (the one signing sheet); left out where the shell has none. */
+    signFile?(l: Line): void;
     rename(l: Line): void;
     trash(ls: readonly Line[]): void;
     restore(ls: readonly Line[]): void;
@@ -127,6 +130,8 @@ export function lineMenuEntries(
       out.push({ label: one.starred === true ? "Remove Star" : "Star", onSelect: () => h.star?.(one) });
     if (one.type === "folder" && h.share) out.push({ label: "Share…", onSelect: () => h.share?.(one) });
     if (one.type === "file" && h.shareFile) out.push({ label: "Share…", onSelect: () => h.shareFile?.(one) });
+    if (one.type === "file" && h.signFile && canSignFile(one.name, one.mime))
+      out.push({ label: "Send for Signature…", onSelect: () => h.signFile?.(one) });
     out.push({ label: "Rename…", hint: "F2", onSelect: () => h.rename(one) });
     out.push({ separator: true });
   }
@@ -316,6 +321,7 @@ function List(): ReactElement {
         quickLook: (t) => dispatch({ type: "quicklook", key: t.key }),
         ...(data.nav.shareFolder ? { share: (t: Line) => data.nav.shareFolder?.(t.id) } : {}),
         ...(data.nav.shareFile ? { shareFile: (t: Line) => data.nav.shareFile?.(t.id, t.name) } : {}),
+        ...(data.nav.signFile ? { signFile: (t: Line) => data.nav.signFile?.(t.id, t.name) } : {}),
         rename: (t) => data.nav.renameEntry(t.type, t.id, t.name),
         trash: toTrash,
         restore,

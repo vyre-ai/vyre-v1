@@ -32,6 +32,7 @@ export function EverythingTab({
       def,
       names: data.nameOf,
       folderOf: () => data.files?.folderOf({ type, recordId, title: "" }) ?? Promise.resolve(null),
+      clock: () => ({ now: data.now() }),
     }).then((r) => {
       if (live) setItems(r);
     });
