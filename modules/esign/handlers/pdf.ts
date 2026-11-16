@@ -112,7 +112,8 @@ export async function prepare(
     for (const p of given) {
       if (p.signer < 0 || p.signer >= signers.length)
         throw new PdfError("A signing place names a signer who is not on the list.");
-      if (p.page < 1 || p.page > n) throw new PdfError(`A signing place is on page ${p.page}, which the PDF does not have.`);
+      if (p.page < 1 || p.page > n)
+        throw new PdfError(`A signing place is on page ${p.page}, which the PDF does not have.`);
       if (!(p.w > 0 && p.h > 0 && p.x >= 0 && p.y >= 0 && p.x + p.w <= 100.0001 && p.y + p.h <= 100.0001))
         throw new PdfError("A signing place is outside the page.");
       places.push(p);
@@ -162,8 +163,24 @@ export async function prepare(
       });
       page.drawText("Date", { x: 390, y: H - boxY - 82, size: 8, font, color: rgb(0.45, 0.45, 0.45) });
       const pageNo = doc.getPageCount();
-      places.push({ signer: i, kind: "signature", page: pageNo, x: (60 / W) * 100, y: (boxY / H) * 100, w: (300 / W) * 100, h: (70 / H) * 100 });
-      places.push({ signer: i, kind: "date", page: pageNo, x: (390 / W) * 100, y: (boxY / H) * 100, w: (160 / W) * 100, h: (70 / H) * 100 });
+      places.push({
+        signer: i,
+        kind: "signature",
+        page: pageNo,
+        x: (60 / W) * 100,
+        y: (boxY / H) * 100,
+        w: (300 / W) * 100,
+        h: (70 / H) * 100,
+      });
+      places.push({
+        signer: i,
+        kind: "date",
+        page: pageNo,
+        x: (390 / W) * 100,
+        y: (boxY / H) * 100,
+        w: (160 / W) * 100,
+        h: (70 / H) * 100,
+      });
     }
   }
   const out = await doc.save({ useObjectStreams: false });
@@ -189,7 +206,13 @@ export function formatAt(ms: number, zone: string): string {
 }
 const utc = (ms: number): string => `${new Date(ms).toISOString().replace("T", " ").slice(0, 19)} UTC`;
 
-async function fit(doc: PDFDocument, font: PDFFont, page: PDFPage, mark: SignatureMark, box: { x: number; y: number; w: number; h: number }) {
+async function fit(
+  doc: PDFDocument,
+  font: PDFFont,
+  page: PDFPage,
+  mark: SignatureMark,
+  box: { x: number; y: number; w: number; h: number },
+) {
   if (mark.kind === "drawn") {
     const size = pngSize(mark.png);
     if (!size) throw new PdfError("That signature drawing is not a usable picture.");
@@ -201,7 +224,13 @@ async function fit(doc: PDFDocument, font: PDFFont, page: PDFPage, mark: Signatu
   const italic = font;
   let sz = Math.min(30, box.h - 14);
   while (sz > 8 && italic.widthOfTextAtSize(mark.text, sz) > box.w - 8) sz -= 1;
-  page.drawText(mark.text, { x: box.x + 4, y: box.y + (box.h - sz) / 2, size: sz, font: italic, color: rgb(0.05, 0.1, 0.45) });
+  page.drawText(mark.text, {
+    x: box.x + 4,
+    y: box.y + (box.h - sz) / 2,
+    size: sz,
+    font: italic,
+    color: rgb(0.05, 0.1, 0.45),
+  });
 }
 
 function wrap(font: PDFFont, text: string, size: number, width: number): string[] {
@@ -264,7 +293,10 @@ export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[
       y = H - 64;
     }
   };
-  const line = (text: string, o: { size?: number; f?: PDFFont; gap?: number; color?: ReturnType<typeof rgb> } = {}): void => {
+  const line = (
+    text: string,
+    o: { size?: number; f?: PDFFont; gap?: number; color?: ReturnType<typeof rgb> } = {},
+  ): void => {
     const size = o.size ?? 10;
     const f = o.f ?? font;
     for (const l of wrap(f, safe(text), size, width)) {
@@ -277,7 +309,10 @@ export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[
   line("Audit page", { size: 20, f: bold, gap: 6 });
   line(`Document: ${audit.title}`, { size: 11 });
   line(`Envelope: ${audit.envelopeId}`, { f: mono, size: 9 });
-  line(`Sent by ${audit.senderName} on ${formatAt(audit.sentAt, audit.zone)} (${utc(audit.sentAt)})`, { size: 10, gap: 4 });
+  line(`Sent by ${audit.senderName} on ${formatAt(audit.sentAt, audit.zone)} (${utc(audit.sentAt)})`, {
+    size: 10,
+    gap: 4,
+  });
   line("SHA-256 of the original file", { f: bold, size: 9 });
   line(audit.originalSha256, { f: mono, size: 8 });
   line("SHA-256 of the document as sent for signature", { f: bold, size: 9 });
@@ -287,15 +322,23 @@ export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[
     need(120);
     line(`${s.name}${s.email ? ` <${s.email}>` : ""}`, { f: bold, size: 11 });
     line(`Signed as ${s.kind} on ${formatAt(s.signedAt, audit.zone)} (${utc(s.signedAt)})`, { size: 9 });
-    line(s.openedAt ? `First opened ${utc(s.openedAt)} from ${s.openedIp ?? "unknown address"}` : "First opened: not recorded", { size: 9 });
+    line(
+      s.openedAt
+        ? `First opened ${utc(s.openedAt)} from ${s.openedIp ?? "unknown address"}`
+        : "First opened: not recorded",
+      { size: 9 },
+    );
     line(`Signed from ${s.signedIp ?? "unknown address"}`, { size: 9 });
     if (s.signedUa) line(`Browser: ${s.signedUa.slice(0, 160)}`, { size: 8, color: rgb(0.4, 0.4, 0.4) });
     y -= 6;
   }
   need(60);
-  line("This page records who signed and when. The signed file's own SHA-256 is kept with the envelope in the Space it was sent from.", {
-    size: 8,
-    color: rgb(0.4, 0.4, 0.4),
-  });
+  line(
+    "This page records who signed and when. The signed file's own SHA-256 is kept with the envelope in the Space it was sent from.",
+    {
+      size: 8,
+      color: rgb(0.4, 0.4, 0.4),
+    },
+  );
   return doc.save({ useObjectStreams: false });
 }

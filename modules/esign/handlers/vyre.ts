@@ -117,7 +117,9 @@ async function spaceInfo(ctx: Ctx): Promise<SpaceInfo> {
 
 async function senderName(ctx: Ctx): Promise<string> {
   try {
-    const who = ctx.actingFor ? { kind: "person", id: ctx.actingFor } : { kind: ctx.principal.kind, id: ctx.principal.id };
+    const who = ctx.actingFor
+      ? { kind: "person", id: ctx.actingFor }
+      : { kind: ctx.principal.kind, id: ctx.principal.id };
     const r = (await ctx.call("access.principals.get", { principal: who })) as { principal?: { name?: unknown } };
     if (typeof r.principal?.name === "string" && r.principal.name.trim() !== "") return r.principal.name.trim();
   } catch {
@@ -180,9 +182,12 @@ async function invite(
   key: string,
 ): Promise<boolean> {
   if (!link.url) return false;
-  const until = new Intl.DateTimeFormat("en-GB", { timeZone: space.zone, day: "numeric", month: "long", year: "numeric" }).format(
-    new Date(env.expiresAt),
-  );
+  const until = new Intl.DateTimeFormat("en-GB", {
+    timeZone: space.zone,
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(env.expiresAt));
   const text = [
     `${env.senderName} at ${space.name} asked you to sign "${env.title}".`,
     ...(env.message ? ["", env.message] : []),
@@ -273,7 +278,9 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
     fail(ctx, "validation.too_large", "The message can be at most 1000 characters.", { field: "message" });
   const days = o.expiresInDays === undefined || o.expiresInDays === null ? DEFAULT_DAYS : o.expiresInDays;
   if (typeof days !== "number" || !Number.isInteger(days) || days < 1 || days > MAX_DAYS)
-    fail(ctx, "validation.bad_input", `A signing link can last from 1 to ${MAX_DAYS} days.`, { field: "expiresInDays" });
+    fail(ctx, "validation.bad_input", `A signing link can last from 1 to ${MAX_DAYS} days.`, {
+      field: "expiresInDays",
+    });
 
   const meta = (await ctx.call("files.get", { fileId })) as {
     file?: { name?: string; mime?: string; folderId?: string; size?: number };
@@ -282,15 +289,22 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
   if (!file || typeof file.name !== "string") fail(ctx, "validation.not_found", "That file does not exist.");
   const lower = file.name.toLowerCase();
   if (/\.(docx?|dotx?|odt|rtf)$/.test(lower) || /word|opendocument\.text/.test(file.mime ?? ""))
-    fail(ctx, "validation.bad_input", "Word documents cannot be signed yet. Export it as a PDF first.", { field: "fileId" });
+    fail(ctx, "validation.bad_input", "Word documents cannot be signed yet. Export it as a PDF first.", {
+      field: "fileId",
+    });
   if (file.mime !== "application/pdf" && !lower.endsWith(".pdf"))
     fail(ctx, "validation.bad_input", "Only PDF files can be sent for signature. Export the document as a PDF first.", {
       field: "fileId",
     });
   if (typeof file.size === "number" && file.size > MAX_VYRE_BYTES)
-    fail(ctx, "validation.too_large", "Built-in signing takes a PDF up to 20 MB. Make it smaller, or send it with Dropbox Sign or DocuSign.", {
-      field: "fileId",
-    });
+    fail(
+      ctx,
+      "validation.too_large",
+      "Built-in signing takes a PDF up to 20 MB. Make it smaller, or send it with Dropbox Sign or DocuSign.",
+      {
+        field: "fileId",
+      },
+    );
   const body = (await ctx.call("files.read", { fileId, as: "base64" })) as { base64?: string; truncated?: boolean };
   if (typeof body.base64 !== "string" || body.truncated === true)
     fail(ctx, "validation.too_large", "The whole file could not be read for sending.", { field: "fileId" });
@@ -330,7 +344,7 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
     ctx.thread ?? null,
     null,
     null,
-    ctx.principal.id,
+    ctx.actingFor ?? ctx.principal.id,
     now,
     now,
     expiresAt,
@@ -390,8 +404,10 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
         event(ctx, envelopeId, i, "mailed");
       }
     }
-    if (emailed.length === 0 && wanting.length > 0) notice = "The invitation emails could not be sent. Copy each link and send it yourself.";
-    else if (wanting.length === 0) notice = "No signer has an email, so nothing was emailed. Copy each link and send it yourself.";
+    if (emailed.length === 0 && wanting.length > 0)
+      notice = "The invitation emails could not be sent. Copy each link and send it yourself.";
+    else if (wanting.length === 0)
+      notice = "No signer has an email, so nothing was emailed. Copy each link and send it yourself.";
   }
 
   const who = assigneeOf(ctx);
@@ -407,7 +423,8 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
         ...(ctx.run ? { source: { kind: "run", id: ctx.run } } : {}),
       })) as { task?: { id?: string; taskId?: string } };
       const taskId = made.task?.id ?? made.task?.taskId;
-      if (typeof taskId === "string") ctx.db.run("UPDATE esign_envelope SET task_id = ? WHERE id = ?", taskId, envelopeId);
+      if (typeof taskId === "string")
+        ctx.db.run("UPDATE esign_envelope SET task_id = ? WHERE id = ?", taskId, envelopeId);
     });
   }
   const env = mustEnvelope(ctx, envelopeId);
@@ -431,11 +448,16 @@ export async function remind(ctx: Ctx, input: unknown): Promise<Row> {
   if (str(open?.status) !== "sent" && str(open?.status) !== "viewed")
     fail(ctx, "validation.precondition_failed", `This envelope is ${str(open?.status)}. It cannot be reminded.`);
   const idx = o.signer;
-  if (typeof idx !== "number" || !Number.isInteger(idx)) fail(ctx, "validation.bad_input", "Choose a signer.", { field: "signer" });
+  if (typeof idx !== "number" || !Number.isInteger(idx))
+    fail(ctx, "validation.bad_input", "Choose a signer.", { field: "signer" });
   const s = one(ctx, "SELECT * FROM esign_vsigner WHERE envelope_id = ? AND idx = ?", env.id, idx);
   if (!s) fail(ctx, "validation.not_found", "That signer is not on this envelope.", { field: "signer" });
   if (str(s.status) !== "sent" && str(s.status) !== "viewed")
-    fail(ctx, "validation.precondition_failed", `${str(s.name)} has already ${str(s.status) === "signed" ? "signed" : "answered"}.`);
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      `${str(s.name)} has already ${str(s.status) === "signed" ? "signed" : "answered"}.`,
+    );
   const token = newToken();
   ctx.db.run(
     "UPDATE esign_vsigner SET token_hash = ?, token_made_at = ? WHERE envelope_id = ? AND idx = ?",
@@ -455,7 +477,8 @@ export async function remind(ctx: Ctx, input: unknown): Promise<Row> {
   if (email === null) notice = "This signer has no email. Copy the link and send it yourself.";
   else if (plan === null) notice = NO_MAILBOX;
   else if (!link.url) notice = NO_ADDRESS;
-  else if (waiting) notice = "This signer waits for an earlier signer. Copy the link and send it when it is their turn.";
+  else if (waiting)
+    notice = "This signer waits for an earlier signer. Copy the link and send it when it is their turn.";
   else {
     const space = await spaceInfo(ctx);
     emailed = await invite(
@@ -516,11 +539,7 @@ function isWaiting(ctx: Ctx, envelopeId: string, order: number): boolean {
 const refuse = (ctx: Ctx): never => fail(ctx, "auth.bad_credentials", REFUSAL);
 
 /** The signer a token opens, or null: every reason a token fails is the same null. */
-async function byToken(
-  ctx: Ctx,
-  token: unknown,
-  spent = false,
-): Promise<{ env: Row; signer: Row } | null> {
+async function byToken(ctx: Ctx, token: unknown, spent = false): Promise<{ env: Row; signer: Row } | null> {
   if (typeof token !== "string" || !TOKEN_SHAPE.test(token)) return null;
   const signer = one(ctx, "SELECT * FROM esign_vsigner WHERE token_hash = ?", await sha256Hex(token));
   if (!signer) return null;
@@ -546,8 +565,15 @@ export async function signerView(ctx: Ctx, input: unknown): Promise<{ session: R
   const first = isNull(signer.viewed_at);
   event(ctx, envId, idx, "opened", v);
   if (first) {
-    ctx.db.run("UPDATE esign_vsigner SET viewed_at = ?, status = ? WHERE envelope_id = ? AND idx = ?", ctx.now(), "viewed", envId, idx);
-    if (str(env.status) === "sent") ctx.db.run("UPDATE esign_envelope SET status = ?, updated_at = ? WHERE id = ?", "viewed", ctx.now(), envId);
+    ctx.db.run(
+      "UPDATE esign_vsigner SET viewed_at = ?, status = ? WHERE envelope_id = ? AND idx = ?",
+      ctx.now(),
+      "viewed",
+      envId,
+      idx,
+    );
+    if (str(env.status) === "sent")
+      ctx.db.run("UPDATE esign_envelope SET status = ?, updated_at = ? WHERE id = ?", "viewed", ctx.now(), envId);
     ctx.emit("signature.viewed", subject(envId), { envelopeId: envId, signer: str(signer.name) });
   }
   const space = await spaceInfo(ctx);
@@ -580,13 +606,19 @@ export async function signerDoc(ctx: Ctx, input: unknown): Promise<{ base64: str
   return { base64: toBase64(bytesOf(doc.sent)) };
 }
 
-function markOf(ctx: Ctx, raw: unknown): { mark: SignatureMark; kind: string; text: string | null; png: Uint8Array | null } {
+function markOf(
+  ctx: Ctx,
+  raw: unknown,
+): { mark: SignatureMark; kind: string; text: string | null; png: Uint8Array | null } {
   const s = (raw ?? {}) as Record<string, unknown>;
   if (s.kind === "typed") {
     const text = typeof s.text === "string" ? s.text.trim() : "";
-    if (text.length === 0 || text.length > 200) fail(ctx, "validation.bad_input", "Type your signature.", { field: "signature" });
+    if (text.length === 0 || text.length > 200)
+      fail(ctx, "validation.bad_input", "Type your signature.", { field: "signature" });
     if (!drawable(text))
-      fail(ctx, "validation.bad_input", "That name has a letter a typed signature cannot show. Use Draw instead.", { field: "signature" });
+      fail(ctx, "validation.bad_input", "That name has a letter a typed signature cannot show. Use Draw instead.", {
+        field: "signature",
+      });
     return { mark: { kind: "typed", text }, kind: "typed", text, png: null };
   }
   if (s.kind === "drawn") {
@@ -594,7 +626,10 @@ function markOf(ctx: Ctx, raw: unknown): { mark: SignatureMark; kind: string; te
     if (b64.length === 0 || b64.length > 420 * 1024 || !/^[A-Za-z0-9+/=]+$/.test(b64))
       fail(ctx, "validation.bad_input", "Draw your signature again.", { field: "signature" });
     const png = fromBase64(b64);
-    if (!pngSize(png)) fail(ctx, "validation.bad_input", "That drawing is not a picture this page can use. Draw it again.", { field: "signature" });
+    if (!pngSize(png))
+      fail(ctx, "validation.bad_input", "That drawing is not a picture this page can use. Draw it again.", {
+        field: "signature",
+      });
     return { mark: { kind: "drawn", png }, kind: "drawn", text: null, png };
   }
   return fail(ctx, "validation.bad_input", "Type or draw your signature.", { field: "signature" });
@@ -629,13 +664,23 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
     );
     event(ctx, envId, idx, "declined", v, reason || undefined);
     const env = mustEnvelope(ctx, envId);
-    ctx.emit("signature.declined", subject(envId), { envelopeId: envId, signer: str(hit.signer.name), ...(reason ? { reason } : {}) });
+    ctx.emit("signature.declined", subject(envId), {
+      envelopeId: envId,
+      signer: str(hit.signer.name),
+      ...(reason ? { reason } : {}),
+    });
     await finishTask(ctx, env, "canceled", `${str(hit.signer.name)} declined to sign.`);
-    await tellThread(ctx, env, `${str(hit.signer.name)} declined to sign ${env.title}${reason ? `: ${reason}` : "."}`, "sig-declined");
+    await tellThread(
+      ctx,
+      env,
+      `${str(hit.signer.name)} declined to sign ${env.title}${reason ? `: ${reason}` : "."}`,
+      "sig-declined",
+    );
     return { result: { state: "declined" } };
   }
   if (o.op !== "sign") fail(ctx, "validation.bad_input", "That is not something a signing link does.");
-  if (body.consent !== true) fail(ctx, "validation.bad_input", "Tick the box to agree to sign electronically.", { field: "consent" });
+  if (body.consent !== true)
+    fail(ctx, "validation.bad_input", "Tick the box to agree to sign electronically.", { field: "consent" });
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (name.length === 0 || name.length > 200) fail(ctx, "validation.bad_input", "Type your name.", { field: "name" });
   const sig = markOf(ctx, body.signature);
@@ -656,7 +701,11 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
   const left = many(ctx, "SELECT idx FROM esign_vsigner WHERE envelope_id = ? AND status != ?", envId, "signed");
   if (left.length > 0) return { result: { state: "signed", completed: false, copyAvailable: false } };
   await complete(ctx, envId);
-  return { result: { state: "signed", completed: true, copyAvailable: true } };
+  // the host saves the file as the sender so it is theirs (a file made by the public door would belong to nobody who can open it): it reads `finish`, takes it off, and calls esign.fetch_signed for that person
+  const sender = str(one(ctx, "SELECT created_by FROM esign_envelope WHERE id = ?", envId)?.created_by);
+  return {
+    result: { state: "signed", completed: true, copyAvailable: true, finish: { envelopeId: envId, person: sender } },
+  };
 }
 
 /** The last signature is in: stamp, append the audit page, keep the bytes, save the file beside the original, tell everyone. */
@@ -719,16 +768,6 @@ async function complete(ctx: Ctx, envId: string): Promise<void> {
     envId,
   );
   event(ctx, envId, null, "finalized", undefined, finalSha);
-  const row = mustEnvelope(ctx, envId);
-  const fileId = await saveFinal(ctx, row, finalPdf);
-  ctx.emit("signature.signed", subject(envId), { envelopeId: envId, fileId: fileId ?? row.fileId });
-  await finishTask(ctx, row, "done", "Everyone signed.");
-  await tellThread(
-    ctx,
-    row,
-    `${row.title} is signed by ${signers.map((s) => str(s.signed_name) || str(s.name)).join(", ")}. The signed PDF is saved beside the original${fileId ? "" : " as soon as Files can take it; ask for it again with Fetch signed"}.`,
-    "sig-signed",
-  );
 }
 
 /** Writes "<title> (signed).pdf" beside the original (in the record's folder when there is one); never over the original. Null when Files could not take it: the bytes stay and a later fetch saves them. */
@@ -764,7 +803,8 @@ async function saveFinal(ctx: Ctx, env: EnvelopeRow, pdf: Uint8Array): Promise<s
 /** The one call a spent link still answers: the signer's own copy, for a day after they signed. */
 async function copyOf(ctx: Ctx, token: unknown, v: Visitor): Promise<Row> {
   const hit = await byToken(ctx, token, true);
-  if (!hit || str(hit.signer.status) !== "signed" || ctx.now() - num(hit.signer.signed_at) > COPY_WINDOW_MS) return refuse(ctx);
+  if (!hit || str(hit.signer.status) !== "signed" || ctx.now() - num(hit.signer.signed_at) > COPY_WINDOW_MS)
+    return refuse(ctx);
   const envId = str(hit.env.id);
   if (str(hit.env.status) !== "signed") return { state: "waiting" };
   const doc = one(ctx, "SELECT final FROM esign_doc WHERE envelope_id = ?", envId) as Row;
@@ -780,14 +820,16 @@ export async function statusVyre(ctx: Ctx, envelopeId: string): Promise<Row> {
   vyreEnvelope(ctx, envelopeId);
   expire(ctx, { id: envelopeId });
   const env = one(ctx, "SELECT * FROM esign_envelope WHERE id = ?", envelopeId) as Row;
-  const signers = many(ctx, "SELECT * FROM esign_vsigner WHERE envelope_id = ? ORDER BY order_no, idx", envelopeId).map((s) => ({
-    name: str(s.name),
-    ...(isNull(s.email) ? {} : { email: str(s.email) }),
-    status: str(s.status) as EnvelopeStatus,
-    order: num(s.order_no),
-    ...(isNull(s.viewed_at) ? {} : { openedAt: num(s.viewed_at) }),
-    ...(isNull(s.signed_at) ? {} : { signedAt: num(s.signed_at) }),
-  }));
+  const signers = many(ctx, "SELECT * FROM esign_vsigner WHERE envelope_id = ? ORDER BY order_no, idx", envelopeId).map(
+    (s) => ({
+      name: str(s.name),
+      ...(isNull(s.email) ? {} : { email: str(s.email) }),
+      status: str(s.status) as EnvelopeStatus,
+      order: num(s.order_no),
+      ...(isNull(s.viewed_at) ? {} : { openedAt: num(s.viewed_at) }),
+      ...(isNull(s.signed_at) ? {} : { signedAt: num(s.signed_at) }),
+    }),
+  );
   return {
     status: str(env.status),
     ...(isNull(env.expires_at) ? {} : { expiresAt: num(env.expires_at) }),
@@ -803,7 +845,8 @@ export async function cancelVyre(ctx: Ctx, envelopeId: string): Promise<{ cancel
   expire(ctx, env);
   const st = str(one(ctx, "SELECT status FROM esign_envelope WHERE id = ?", envelopeId)?.status);
   if (st === "cancelled") return { cancelled: true };
-  if (st !== "sent" && st !== "viewed") fail(ctx, "validation.precondition_failed", `This envelope is already ${st}. It cannot be cancelled.`);
+  if (st !== "sent" && st !== "viewed")
+    fail(ctx, "validation.precondition_failed", `This envelope is already ${st}. It cannot be cancelled.`);
   ctx.db.run("UPDATE esign_envelope SET status = ?, updated_at = ? WHERE id = ?", "cancelled", ctx.now(), envelopeId);
   ctx.db.run(
     "UPDATE esign_vsigner SET status = ? WHERE envelope_id = ? AND status IN (?, ?)",
@@ -822,11 +865,26 @@ export async function cancelVyre(ctx: Ctx, envelopeId: string): Promise<{ cancel
 
 export async function fetchVyre(ctx: Ctx, envelopeId: string): Promise<{ fileId: string }> {
   const env = vyreEnvelope(ctx, envelopeId);
-  if (env.status !== "signed") fail(ctx, "validation.precondition_failed", "Not every signer has signed yet.", { state: env.status });
+  if (env.status !== "signed")
+    fail(ctx, "validation.precondition_failed", "Not every signer has signed yet.", { state: env.status });
   if (env.signedFileId !== null) return { fileId: env.signedFileId };
   const doc = one(ctx, "SELECT final FROM esign_doc WHERE envelope_id = ?", envelopeId) as Row;
   const id = await saveFinal(ctx, env, bytesOf(doc.final));
-  if (id === null) fail(ctx, "provider.unavailable", "The signed file could not be saved to Files just now. Try again in a minute.");
+  if (id === null)
+    fail(ctx, "provider.unavailable", "The signed file could not be saved to Files just now. Try again in a minute.");
+  const signers = many(
+    ctx,
+    "SELECT name, signed_name FROM esign_vsigner WHERE envelope_id = ? ORDER BY idx",
+    envelopeId,
+  );
+  ctx.emit("signature.signed", subject(envelopeId), { envelopeId, fileId: id });
+  await finishTask(ctx, env, "done", "Everyone signed.");
+  await tellThread(
+    ctx,
+    env,
+    `${env.title} is signed by ${signers.map((s) => str(s.signed_name) || str(s.name)).join(", ")}. The signed PDF is saved beside the original.`,
+    "sig-signed",
+  );
   return { fileId: id };
 }
 
@@ -835,7 +893,14 @@ export async function listAll(ctx: Ctx, input: unknown): Promise<{ envelopes: Ro
   const recordId = optStr(ctx, o, "recordId");
   const fileId = optStr(ctx, o, "fileId");
   const wanted = optStr(ctx, o, "status");
-  for (const r of many(ctx, "SELECT id FROM esign_envelope WHERE provider = ? AND status IN (?, ?) AND expires_at < ?", "vyre", "sent", "viewed", ctx.now()))
+  for (const r of many(
+    ctx,
+    "SELECT id FROM esign_envelope WHERE provider = ? AND status IN (?, ?) AND expires_at < ?",
+    "vyre",
+    "sent",
+    "viewed",
+    ctx.now(),
+  ))
     expire(ctx, { id: str(r.id) });
   let rows = many(ctx, "SELECT * FROM esign_envelope");
   if (recordId !== undefined) rows = rows.filter((r) => str(r.record_id) === recordId);

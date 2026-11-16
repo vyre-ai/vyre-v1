@@ -80,7 +80,8 @@ export function textOf(pdf: Uint8Array): string {
     }
   }
   const out: string[] = [];
-  for (const m of all.matchAll(/<([0-9a-fA-F\s]+)>\s*Tj/g)) out.push(Buffer.from((m[1] as string).replace(/\s+/g, ""), "hex").toString("latin1"));
+  for (const m of all.matchAll(/<([0-9a-fA-F\s]+)>\s*Tj/g))
+    out.push(Buffer.from((m[1] as string).replace(/\s+/g, ""), "hex").toString("latin1"));
   for (const m of all.matchAll(/\(((?:\\.|[^\\)])*)\)\s*Tj/g)) out.push(m[1] as string);
   return out.join("\n");
 }
