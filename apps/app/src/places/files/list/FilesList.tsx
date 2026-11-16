@@ -54,9 +54,12 @@ import {
   gridLayout,
 } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
-import { DragWrap, dragAttrs, useDragDelegation } from "./DragWrap.tsx";
+import { DragWrap, dragAttrs, useBox, useDragDelegation } from "./DragWrap.tsx";
 import type { DragHandlers, DragRegistry } from "./DragWrap.tsx";
 import { StagedBanner } from "./StagedBanner.tsx";
+import { MoveAskSheet } from "./MoveAsk.tsx";
+import { askMove } from "../tree/model.ts";
+import type { MoveAsk as MoveAskState } from "../tree/model.ts";
 import { AccessControl, AccessPopover, FolderBadge, LayerBadge, ReviewLine, useAgentStates } from "./AgentAccess.tsx";
 import { GoalFolderHead } from "../../chats/goals/GoalFolderHead.tsx";
 import { QuickLook } from "./QuickLook.tsx";
@@ -224,10 +227,11 @@ function List(): ReactElement {
     treeRoots.status === "ready" ? (treeRoots.data.roots.find((r) => r.key === "trash")?.count ?? 0) : 0;
   const mods = useRef({ meta: false, shift: false });
   const registry = useRef<DragRegistry>(new Map());
-  const box = useRef<View | null>(null);
+  const [box, setBox] = useBox();
   useDragDelegation(box, registry);
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [over, setOver] = useState<string | null>(null);
+  const [ask, setAsk] = useState<MoveAskState | null>(null);
   const [width, setWidth] = useState(0);
   const phoneW = useWindowDimensions().width;
   const phone = phoneW > 0 && phoneW < PHONE_BELOW; // 0 is "not measured yet" (the static page)
@@ -328,7 +332,15 @@ function List(): ReactElement {
   const drop = (target: Line, payload: string): void => {
     const here = (it: { type: "file" | "folder"; id: string }): string | null =>
       byKey.get(`${it.type}:${it.id}`)?.folderId ?? null;
-    for (const m of dropMoves(parsePayload(payload), target.id, here)) void data.call(m.cap, m.input);
+    const planned = dropMoves(parsePayload(payload), target.id, here);
+    const ask = askMove(
+      parsePayload(payload),
+      { id: target.id, source: target.source },
+      (it) => byKey.get(`${it.type}:${it.id}`),
+      planned,
+    );
+    if (ask !== null) setAsk(ask);
+    else for (const m of planned) tellIfRefused(data.call(m.cap, m.input), "Could not move it");
     spring.current?.cancel();
     setOver(null);
     dispatch({ type: "clear" });
@@ -666,6 +678,7 @@ function List(): ReactElement {
           }
         />
         {here ? <StagedBanner folderId={here} /> : null}
+        {ask !== null ? <MoveAskSheet ask={ask} call={data.call} onDone={() => setAsk(null)} /> : null}
         <ReviewLine states={agentStates} onNext={(id) => data.nav.openFile(id)} compact={phone} />
         {here ? (
           <GoalFolderHead
@@ -710,7 +723,7 @@ function List(): ReactElement {
           />
         ) : (
           <View
-            ref={box}
+            ref={setBox}
             style={styles.listBox}
             onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
             {...({ onKeyDown, tabIndex: 0 } as object)}

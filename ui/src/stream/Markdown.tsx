@@ -259,7 +259,12 @@ function TableView({
             accessibilityLabel={`Sort by ${inlineText(cs[c] ?? [])}`}
             testID={`sort-${block.key}-${c}`}
             onPress={() => press(c)}
-            style={[styles.cell, styles.cellHead, c === block.head.length - 1 && styles.cellLast]}
+            style={[
+              styles.cell,
+              styles.cellHead,
+              c === block.head.length - 1 && styles.cellLast,
+              c === 0 && styles.cellStuck,
+            ]}
           >
             {cell}
           </Pressable>
@@ -267,7 +272,12 @@ function TableView({
           <View
             key={c}
             testID={`cell-${block.key}-${r}-${c}`}
-            style={[styles.cell, c === block.head.length - 1 && styles.cellLast]}
+            style={[
+              styles.cell,
+              c === block.head.length - 1 && styles.cellLast,
+              c === 0 && styles.cellStuck,
+              c === 0 && r % 2 === 1 && styles.cellStuckAlt,
+            ]}
           >
             {cell}
           </View>
@@ -613,6 +623,11 @@ const styles = StyleSheet.create({
   },
   cellLast: { borderRightWidth: 0 },
   cellHead: { backgroundColor: "var(--sunk)" as string },
+  // the first column stays in view when a wide table scrolls sideways (the web draws it sticky; elsewhere it is a plain cell)
+  cellStuck: (Platform.OS === "web"
+    ? { position: "sticky", left: 0, zIndex: 1, backgroundColor: "var(--win)" }
+    : {}) as object,
+  cellStuckAlt: (Platform.OS === "web" ? { backgroundColor: "var(--sunk)" } : {}) as object,
   cellText: { color: "var(--ink)" as string, fontSize: 14, lineHeight: 20 },
   cellTextHead: { fontWeight: "600" },
   item: { flexDirection: "row", paddingLeft: 4, marginVertical: 3 },
