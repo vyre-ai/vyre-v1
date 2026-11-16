@@ -347,7 +347,12 @@ import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
 import { managedNetworkPort } from "./network-driver.ts";
 import { askArtifactHost, validArtifactHost } from "./artifact-check.ts";
-import { artifactHostOf as deriveArtifactHost, artifactMarkerOf, publicOriginOf } from "./public-origin.ts";
+import {
+  artifactHostOf as deriveArtifactHost,
+  artifactMarkerOf,
+  publicOriginOf,
+  spaceBaseOf,
+} from "./public-origin.ts";
 import { pollCommands } from "./commands.ts";
 import { createPhonePort } from "./phone.ts";
 import type { NetworkPort, PhonePort } from "./commands.ts";
@@ -920,6 +925,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     }
     return publicOriginOf(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
   };
+  /** This Space's base address, always one a URL can be made from (public-origin.ts spaceBaseOf). */
+  const spaceBase = (): string => {
+    let claimed: { name?: string; state?: string } | undefined;
+    try {
+      claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed;
+    } catch {
+      /* the table comes with the network module */
+    }
+    return spaceBaseOf(cfg.address, claimed?.state === "claimed" ? claimed.name : null, cfg.host, boundPort);
+  };
   // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
   let sitesServing: Partial<PublicPathDeps> & {
     artifactSession?: (siteId: string, token: string) => Promise<ServedSite | null>;
@@ -1444,10 +1459,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     has: (c) => webhooks.has(c),
     accept: (c, a) => webhooks.accept(c, a),
     automation: (a) => webhooks.automation(a),
-    publicBase: () => {
-      const a = cfg.address ?? `http://${cfg.host}:${boundPort}`;
-      return /^https?:\/\//.test(a) ? a : `https://${a}`;
-    },
+    publicBase: () => spaceBase(),
   });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
@@ -1488,10 +1500,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   const connectorPort = createConnectorsHost({
     keyHost: (ids, host, caller, domains) => keyHostCheck(ids, host, caller, domains),
-    publicBase: () => {
-      const address = cfg.address ?? `http://${cfg.host}:${boundPort}`;
-      return /^https?:\/\//.test(address) ? address : `https://${address}`;
-    },
+    publicBase: () => spaceBase(),
     own: (caller) => ownNode(caller.actingFor ?? caller.principal.id),
     ...(o.connectorNetwork ? { network: o.connectorNetwork } : {}),
   });
@@ -6204,10 +6213,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           db: db!,
           probe: createProviderProbe({ own: ownNode, ...(o.providerFetch ? { fetch: o.providerFetch } : {}) }),
           refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)),
-          origin: () => {
-            const a = cfg.address ?? `http://${cfg.host}:${boundPort}`;
-            return /^https?:\/\//.test(a) ? a : `https://${a}`;
-          },
+          origin: () => spaceBase(),
           provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => {
             vaultImpl = p;
             if (p.pullExport) pullVaultExport = p.pullExport;
@@ -6309,12 +6315,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           defaultGithubApp: () => githubOAuthFromEnv(process.env),
           githubTickets,
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
-          publicUrl:
-            o.seams?.publicUrl ??
-            (async () => {
-              const a = cfg.address ?? `http://${cfg.host}:${boundPort}`;
-              return /^https?:\/\//.test(a) ? a : `https://${a}`;
-            }),
+          publicUrl: o.seams?.publicUrl ?? (async () => spaceBase()),
           drivers: hostDrivers,
           owners: loaded.seamOwners,
         });

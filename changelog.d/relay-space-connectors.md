@@ -1,0 +1,1 @@
+On a Space reached through the relay, connecting an app, the list of connections and bringing in a CRM work: they failed with "Something went wrong" when the server had been installed with no address of its own.

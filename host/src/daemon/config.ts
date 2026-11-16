@@ -137,7 +137,8 @@ export function loadConfig(
     caddyAdmin: flag(argv, "caddy-admin") ?? env["VYRE_CADDY_ADMIN"] ?? DEFAULTS.caddyAdmin,
     relayUrl: flag(argv, "relay") ?? env["VYRE_RELAY_URL"] ?? null,
     phoneRelayUrl: env["VYRE_PHONE_RELAY_URL"] ?? "wss://relay.vyre.run",
-    address: flag(argv, "address") ?? env["VYRE_ADDRESS"] ?? null,
+    // an address setting that is present but empty is no address (the installer writes VYRE_ADDRESS= for a relay Space)
+    address: (flag(argv, "address") ?? env["VYRE_ADDRESS"] ?? "").trim() || null,
     ...(env["VYRE_NETWORK_REV"] ? { networkRev: env["VYRE_NETWORK_REV"] } : {}),
     ...(env["VYRE_DOCKER_ROOT_DIR"] && env["VYRE_DOCKER_ROOT_STATE"]
       ? { dockerRoot: { dir: env["VYRE_DOCKER_ROOT_DIR"], state: env["VYRE_DOCKER_ROOT_STATE"] } }
