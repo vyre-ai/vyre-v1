@@ -577,11 +577,16 @@ test("2c: a rewind that made no progress for minutes is given up on: the gate op
     await turn(s, DANA, "trn_1", "msg_ask1", BASE + 1_000);
     fs.writeFileSync(path.join(dir, "a.txt"), "two");
     const l = await pointsIn(s.ctx, { threadId: T }, s.data);
-    // the rewind hangs between its row and its restore
+    // the rewind hangs between its row and its restore; the test goes on the moment it is there (a fixed wait of 400 ms was too short on a busy runner, 16 Nov 2026)
+    let atRestore!: () => void;
+    const hung = new Promise<void>((r) => (atRestore = r));
     void rewindIn(s.ctx, { threadId: T, pointId: l.points[0]!.pointId }, s.data, {
-      beforeRestore: () => new Promise(() => undefined),
+      beforeRestore: () => {
+        atRestore();
+        return new Promise(() => undefined);
+      },
     }).catch(() => undefined);
-    await new Promise((r) => setTimeout(r, 400));
+    await hung;
     let clock = Date.now();
     const gate = await turnMayStart(T, AGENT, { sliceMs: 20, now: () => (clock += HUNG_MS + 1) });
     assert.equal(gate, "gave_up", "a hung rewind is given up on");

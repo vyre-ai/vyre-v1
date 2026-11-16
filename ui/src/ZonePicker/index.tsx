@@ -40,7 +40,8 @@ export function ZonePicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const at = now ?? Date.now();
-  const choices = useMemo(() => zoneChoices(at), [at]);
+  // the list of every zone is made when the picker is opened, never while it is only a closed row on a page (it was a third of a second of each draw of Settings)
+  const choices = useMemo(() => (open ? zoneChoices(at) : []), [open, Math.floor(at / 60_000)]); // eslint-disable-line react-hooks/exhaustive-deps -- the list is the same within a minute
   const shown = useMemo(() => choices.filter((c) => zoneMatches(c, query)).slice(0, 500), [choices, query]);
   const close = (): void => {
     setOpen(false);

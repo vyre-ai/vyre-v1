@@ -434,7 +434,9 @@ jobs:
         run: |
           set -o pipefail
           # the upgrade from an rc.28 workspace is built from the release's tag: the tags are fetched here
-          git fetch -q --tags origin
+          # --force: a runner that built a release holds that tag as a plain commit ref (the checkout of a tag build fetches it so), and a plain fetch of the real
+          # annotated tag then stops with "would clobber existing tag" (16 Nov 2026: the job died in two seconds on every runner that had built rc.30)
+          git fetch -q --tags --force origin
           git rev-parse -q --verify v1.0.0-rc.28 > /dev/null
           # one file at a time: each boots a daemon and a workspace of its own and measures what a person can reach, and a file that restarts or removes workspaces beside it makes those numbers wrong
           node --test --test-concurrency=1 --test-force-exit --test-timeout=1800000 --test-reporter=spec test/terminal.wall.heavy.test.ts test/terminal.wall2.heavy.test.ts test/terminal.asker.heavy.test.ts test/shared-agent.wall.heavy.test.ts 2>&1 | tee workspace-wall.log
