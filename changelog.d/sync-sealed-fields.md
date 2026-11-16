@@ -1,0 +1,1 @@
+A sync spec can map an SSN, tax id, account number or driver licence as a sealed field: it is sealed the moment it is read, never shown in the spec checks, and an update or an empty value from the app replaces or clears it.

@@ -37,6 +37,7 @@ type In = {
       relation?: string;
       inverse?: string;
       constant?: string;
+      sealed?: boolean;
     }>;
   match: Array<string>;
   createAtSource?: boolean;
@@ -46,6 +47,7 @@ type In = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   nightlyReconcile?: boolean;
   idempotencyKey: string;
@@ -72,6 +74,7 @@ type Out = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -81,6 +84,7 @@ type Out = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;
@@ -123,6 +127,7 @@ type Out = {
         "key": "email",
         "relation": "contact",
         "remote": "example",
+        "sealed": true,
         "transform": "example"
       }
     ],
@@ -134,7 +139,8 @@ type Out = {
     "polling": {
       "activeSec": 30,
       "dormantSec": 300,
-      "idleSec": 60
+      "idleSec": 60,
+      "sweepSec": 86400
     },
     "remote": "contacts",
     "type": "contact"
@@ -160,6 +166,7 @@ type Out = {
           "key": "email",
           "relation": "contact",
           "remote": "example",
+          "sealed": true,
           "transform": "example"
         }
       ],
@@ -172,7 +179,8 @@ type Out = {
       "polling": {
         "activeSec": 30,
         "dormantSec": 300,
-        "idleSec": 60
+        "idleSec": 60,
+        "sweepSec": 86400
       },
       "remote": "example",
       "schemaChanges": 1,

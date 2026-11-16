@@ -12,7 +12,7 @@ const STEPS: Readonly<Record<string, string>> = {
   "records.create": "Create a {type} record",
   "records.update": "Update {recordId}( and set {patch})",
   "records.relate": "Link two records",
-  wait: "Wait {forDuration:dur|until}",
+  wait: "Wait {forDuration:dur|until|forEvent}",
   wait_stage: "Wait for {recordId} to reach {stage}",
   if: "If {condition}",
   paths: "Choose a path(: {paths})",
@@ -23,7 +23,7 @@ const STEPS: Readonly<Record<string, string>> = {
   transform: "Transform {value}",
   stop: "Stop(: {message})",
   call_automation: "Run {automationId}",
-  code: "Run {language} code",
+  code: "Run code",
   http_request: "Send a {method} request to {url}",
   connector_request: "Do {action}",
   sign: "Send {fileId} for signature( to {signers})",
@@ -66,6 +66,19 @@ const STEPS: Readonly<Record<string, string>> = {
   "ms.drive.create_folder": "Create the folder {name}",
   "ms.drive.list_items": "List OneDrive items",
 };
+
+/** The inputs a sentence reads that the step does not hold as one value: a Wait for an event says "for task completed", an HTTP request with no method is a GET. */
+export function sentenceInput(key: string, input: Record<string, unknown>): Record<string, unknown> {
+  if (key === "wait") {
+    const e = input["event"];
+    const name = e && typeof e === "object" ? (e as { event?: unknown }).event : undefined;
+    return typeof name === "string" && name !== ""
+      ? { ...input, forEvent: `for ${name.replace(/[._]+/g, " ").trim().toLowerCase()}` }
+      : input;
+  }
+  if (key === "http_request" && typeof input["method"] !== "string") return { ...input, method: "GET" };
+  return input;
+}
 
 /** What starts an Automation, as a sentence. A trigger's own setting, when it has one, follows after a colon. */
 const TRIGGERS: Readonly<Record<string, string>> = {

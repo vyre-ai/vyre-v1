@@ -1017,8 +1017,13 @@ export function createClient(transport: Transport) {
       list: call("esign.list", 1),
       provider_set: call("esign.provider_set", 1),
       providers: call("esign.providers", 1),
+      remind: call("esign.remind", 1),
       send: call("esign.send", 1),
+      signer_act: call("esign.signer_act", 1),
+      signer_doc: call("esign.signer_doc", 1),
+      signer_view: call("esign.signer_view", 1),
       status: call("esign.status", 1),
+      verify: call("esign.verify", 1),
     },
     events: {
       get: call("events.get", 1),

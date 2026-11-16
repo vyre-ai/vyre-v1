@@ -12,6 +12,7 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { openEntries } from "../../../../../../ui/src/Menu/open-entries.ts";
 import { useFilesData, useFolderNodes, useLive, useOnline, useOptionalFilesData, useSource } from "../tree/data.tsx";
 import {
   SORTS,
@@ -54,12 +55,16 @@ import {
   gridLayout,
 } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
-import { DragWrap, dragAttrs, useDragDelegation } from "./DragWrap.tsx";
+import { DragWrap, dragAttrs, useBox, useDragDelegation } from "./DragWrap.tsx";
 import type { DragHandlers, DragRegistry } from "./DragWrap.tsx";
 import { StagedBanner } from "./StagedBanner.tsx";
+import { MoveAskSheet } from "./MoveAsk.tsx";
+import { askMove } from "../tree/model.ts";
+import type { MoveAsk as MoveAskState } from "../tree/model.ts";
 import { AccessControl, AccessPopover, FolderBadge, LayerBadge, ReviewLine, useAgentStates } from "./AgentAccess.tsx";
 import { GoalFolderHead } from "../../chats/goals/GoalFolderHead.tsx";
 import { QuickLook } from "./QuickLook.tsx";
+import { canSignFile } from "../sign/model.ts";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
@@ -88,6 +93,8 @@ export function lineMenuEntries(
     quickLook(l: Line): void;
     share?(l: Line): void;
     /** Who may open a file (the Share sheet); left out where the shell has none. */ shareFile?(l: Line): void;
+    /** Send a PDF for signature (the one signing sheet); left out where the shell has none. */
+    signFile?(l: Line): void;
     rename(l: Line): void;
     trash(ls: readonly Line[]): void;
     restore(ls: readonly Line[]): void;
@@ -111,11 +118,11 @@ export function lineMenuEntries(
     if (one.conflict === true && h.resolve)
       out.push({ label: "Resolve Conflict…", onSelect: () => h.resolve?.(one) }, { separator: true });
     // the keys shown are the keys the list answers to: Enter opens, Space looks, F2 renames, Delete trashes
-    out.push(
-      { label: "Open", hint: "Enter", onSelect: () => h.open(one) },
-      ...(h.openTab ? [{ label: "Open in New Tab", onSelect: () => h.openTab?.(one) }] : []),
-      { label: "Quick Look", hint: "Space", onSelect: () => h.quickLook(one) },
-    );
+    out.push(...openEntries({ open: () => h.open(one), ...(h.openTab ? { openTab: () => h.openTab?.(one) } : {}) }), {
+      label: "Quick Look",
+      hint: "Space",
+      onSelect: () => h.quickLook(one),
+    });
     // a file from a connected folder also opens in the app it lives in (Google Docs, Word, Excel, Dropbox)
     const app = one.type === "file" && h.openIn ? openInLabel(one) : null;
     if (app !== null) out.push({ label: openInWords(app), onSelect: () => h.openIn?.(one) });
@@ -123,6 +130,8 @@ export function lineMenuEntries(
       out.push({ label: one.starred === true ? "Remove Star" : "Star", onSelect: () => h.star?.(one) });
     if (one.type === "folder" && h.share) out.push({ label: "Share…", onSelect: () => h.share?.(one) });
     if (one.type === "file" && h.shareFile) out.push({ label: "Share…", onSelect: () => h.shareFile?.(one) });
+    if (one.type === "file" && h.signFile && canSignFile(one.name, one.mime))
+      out.push({ label: "Send for Signature…", onSelect: () => h.signFile?.(one) });
     out.push({ label: "Rename…", hint: "F2", onSelect: () => h.rename(one) });
     out.push({ separator: true });
   }
@@ -154,10 +163,13 @@ export function moreMenuEntries(h: {
 /** The New menu: a folder, and an upload where the place has one. Each opens the shell's sheet for it. */
 export function newMenuEntries(h: {
   newFolder(): void;
+  newNote?: (() => void) | undefined;
   upload?: (() => void) | undefined;
   connect?: (() => void) | undefined;
 }): MenuEntry[] {
-  const out: MenuEntry[] = [{ label: "New Folder", onSelect: h.newFolder }];
+  const out: MenuEntry[] = [];
+  if (h.newNote) out.push({ label: "New Note", onSelect: h.newNote });
+  out.push({ label: "New Folder", onSelect: h.newFolder });
   if (h.upload) out.push({ label: "Upload Files…", onSelect: h.upload });
   if (h.connect) out.push({ label: "Connect a Folder…", onSelect: h.connect });
   return out;
@@ -224,10 +236,11 @@ function List(): ReactElement {
     treeRoots.status === "ready" ? (treeRoots.data.roots.find((r) => r.key === "trash")?.count ?? 0) : 0;
   const mods = useRef({ meta: false, shift: false });
   const registry = useRef<DragRegistry>(new Map());
-  const box = useRef<View | null>(null);
+  const [box, setBox] = useBox();
   useDragDelegation(box, registry);
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [over, setOver] = useState<string | null>(null);
+  const [ask, setAsk] = useState<MoveAskState | null>(null);
   const [width, setWidth] = useState(0);
   const phoneW = useWindowDimensions().width;
   const phone = phoneW > 0 && phoneW < PHONE_BELOW; // 0 is "not measured yet" (the static page)
@@ -308,6 +321,7 @@ function List(): ReactElement {
         quickLook: (t) => dispatch({ type: "quicklook", key: t.key }),
         ...(data.nav.shareFolder ? { share: (t: Line) => data.nav.shareFolder?.(t.id) } : {}),
         ...(data.nav.shareFile ? { shareFile: (t: Line) => data.nav.shareFile?.(t.id, t.name) } : {}),
+        ...(data.nav.signFile ? { signFile: (t: Line) => data.nav.signFile?.(t.id, t.name) } : {}),
         rename: (t) => data.nav.renameEntry(t.type, t.id, t.name),
         trash: toTrash,
         restore,
@@ -328,7 +342,15 @@ function List(): ReactElement {
   const drop = (target: Line, payload: string): void => {
     const here = (it: { type: "file" | "folder"; id: string }): string | null =>
       byKey.get(`${it.type}:${it.id}`)?.folderId ?? null;
-    for (const m of dropMoves(parsePayload(payload), target.id, here)) void data.call(m.cap, m.input);
+    const planned = dropMoves(parsePayload(payload), target.id, here);
+    const ask = askMove(
+      parsePayload(payload),
+      { id: target.id, source: target.source },
+      (it) => byKey.get(`${it.type}:${it.id}`),
+      planned,
+    );
+    if (ask !== null) setAsk(ask);
+    else for (const m of planned) tellIfRefused(data.call(m.cap, m.input), "Could not move it");
     spring.current?.cancel();
     setOver(null);
     dispatch({ type: "clear" });
@@ -567,11 +589,13 @@ function List(): ReactElement {
           menu.show(
             newMenuEntries({
               newFolder: () => data.nav.newFolder(scopeHere, here),
+              ...(data.nav.takeNote ? { newNote: () => data.nav.takeNote?.() } : {}),
               upload,
               ...(data.nav.connectFolder ? { connect: () => data.nav.connectFolder?.(here) } : {}),
             }),
             x,
             y,
+            "other",
           );
         }
       : undefined;
@@ -586,6 +610,7 @@ function List(): ReactElement {
       }),
       x,
       y,
+      "other",
     );
   // On the phone the header keeps New and one "..." menu: sort, the list or grid view, upload, then the folder's own options.
   const phoneMenu = (x: number, y: number): void =>
@@ -609,6 +634,7 @@ function List(): ReactElement {
       ],
       x,
       y,
+      "other",
     );
   const ql = state.quickLook !== null ? byKey.get(state.quickLook) : undefined;
 
@@ -649,6 +675,7 @@ function List(): ReactElement {
               ),
               x,
               y,
+              "other",
             )
           }
           onView={(view) => dispatch({ type: "view", view })}
@@ -666,6 +693,7 @@ function List(): ReactElement {
           }
         />
         {here ? <StagedBanner folderId={here} /> : null}
+        {ask !== null ? <MoveAskSheet ask={ask} call={data.call} onDone={() => setAsk(null)} /> : null}
         <ReviewLine states={agentStates} onNext={(id) => data.nav.openFile(id)} compact={phone} />
         {here ? (
           <GoalFolderHead
@@ -710,7 +738,7 @@ function List(): ReactElement {
           />
         ) : (
           <View
-            ref={box}
+            ref={setBox}
             style={styles.listBox}
             onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
             {...({ onKeyDown, tabIndex: 0 } as object)}

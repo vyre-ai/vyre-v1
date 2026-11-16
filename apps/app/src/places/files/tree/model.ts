@@ -303,6 +303,81 @@ export function dropMoves(
   return out;
 }
 
+const PROVIDER_WORD: Record<string, string> = {
+  google_drive: "Google Drive",
+  drive: "Google Drive",
+  google: "Google Drive",
+  onedrive: "OneDrive",
+  sharepoint: "SharePoint",
+  microsoft: "OneDrive",
+  dropbox: "Dropbox",
+  github: "GitHub",
+};
+/** A provider as the person says it. */
+export const providerWord = (p: string): string => PROVIDER_WORD[p] ?? p;
+
+export interface MoveAsk {
+  dir: "out" | "in";
+  provider: string;
+  names: string[];
+  moves: Move[];
+  /** Out only: the same files copied into the target instead, so the original stays where it is at the provider. */
+  copies: Move[];
+  sentence: string;
+}
+
+/**
+ * A drop that takes a file out of a connected folder, or puts one into it, is asked about before it happens. Out: the provider's copy goes with it, for everyone it is shared with there.
+ * In: the file will be uploaded there. Returns null for a drop that crosses nothing.
+ */
+export function askMove(
+  items: readonly { type: "file" | "folder"; id: string }[],
+  target: { id: string | null; source: string | null },
+  lineOf: (it: { type: "file" | "folder"; id: string }) => Line | undefined,
+  moves: readonly Move[],
+): MoveAsk | null {
+  const out: Line[] = [];
+  const into: Line[] = [];
+  for (const it of items) {
+    const line = lineOf(it);
+    if (line === undefined || line.folderId === target.id) continue;
+    if (line.source !== null && line.source !== target.source) out.push(line);
+    else if (line.source === null && target.source !== null) into.push(line);
+  }
+  if (out.length > 0) {
+    const provider = out[0]?.source ?? "";
+    const word = providerWord(provider);
+    const names = out.map((l) => l.name);
+    const what = out.length === 1 ? "it" : "them";
+    return {
+      dir: "out",
+      provider,
+      names,
+      moves: [...moves],
+      copies: moves
+        .filter((m) => m.cap === "files.move")
+        .map(
+          (m) =>
+            ({ cap: "files.copy", input: { fileId: m.input["fileId"], toFolderId: m.input["toFolderId"] } }) as Move,
+        ),
+      sentence: `This will remove ${what} from ${word} for everyone ${what === "it" ? "it is" : "they are"} shared with there.`,
+    };
+  }
+  if (into.length > 0) {
+    const provider = target.source ?? "";
+    const names = into.map((l) => l.name);
+    return {
+      dir: "in",
+      provider,
+      names,
+      moves: [...moves],
+      copies: [],
+      sentence: `${into.length === 1 ? "It" : "They"} will be uploaded to ${providerWord(provider)}.`,
+    };
+  }
+  return null;
+}
+
 export interface Spring {
   enter(id: string): void;
   leave(id: string): void;

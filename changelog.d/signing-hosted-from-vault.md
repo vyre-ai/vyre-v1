@@ -1,0 +1,1 @@
+A Dropbox Sign or DocuSign key saved in the Vault now makes that service connected and usable the next time anyone sends for signature, and the Automation step sends with built-in signing when none is connected.

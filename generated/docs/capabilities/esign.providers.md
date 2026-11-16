@@ -1,6 +1,6 @@
 # esign.providers
 
-Providers and which is the default (Documenso, unmodified container)
+Signing services and the default
 
 | | |
 |---|---|
@@ -32,9 +32,11 @@ type In = Record<string, unknown>;
 ```ts
 type Out = {
   providers: Array<{
-      key: "documenso" | "dropbox_sign" | "docusign";
+      key: "vyre" | "documenso" | "dropbox_sign" | "docusign";
+      title: string;
       default: boolean;
       connected: boolean;
+      why?: string;
     }>;
 };
 ```
@@ -57,7 +59,9 @@ type Out = {
       {
         "connected": true,
         "default": true,
-        "key": "documenso"
+        "key": "vyre",
+        "title": "example",
+        "why": "example"
       }
     ]
   }

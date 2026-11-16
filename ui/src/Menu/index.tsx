@@ -283,6 +283,10 @@ export interface MenuViewProps extends MenuProps {
   reportContext?: ReportContext;
   /** The trigger's right edge. When the menu will not fit to the right of x it flips: its right edge lines up with this, then it clamps 8 px inside the window. */
   anchorRight?: number;
+  /** The trigger's top edge (or the pointer's y). When the menu will not fit below y it flips: its bottom edge lines up with this. */
+  anchorTop?: number;
+  /** The lowest y the menu may reach (the composer's top in a chat); under it the menu flips up like at the window's edge. */
+  bottomLimit?: number;
 }
 
 const MENU_W = 220;
@@ -382,7 +386,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   if (gone) return null;
 
   const left = menuLeft(props.x ?? 0, size.w, window.width, props.anchorRight);
-  const { top } = clampMenu(props.x ?? 0, props.y ?? 0, size.w, size.h, window.width, window.height);
+  const top = menuTop(props.y ?? 0, size.h, window.height, props.anchorTop, props.bottomLimit);
   const rows: ReactNode[] = [];
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
@@ -583,6 +587,8 @@ function MenuRow({
 
 export interface OpenMenu {
   anchorRight?: number;
+  anchorTop?: number;
+  bottomLimit?: number;
   items: readonly MenuEntry[];
   x: number;
   y: number;
@@ -685,6 +691,7 @@ export function menuTrigger(open: (x: number, y: number) => void): Record<string
 interface RectLike {
   left: number;
   right?: number;
+  top?: number;
   bottom: number;
 }
 interface AnchorEl {
@@ -693,7 +700,7 @@ interface AnchorEl {
 }
 
 const BUTTONISH = "button, [role=button], [role=menuitem], [role=tab], a[href], summary";
-let lastAnchor: { x: number; y: number; right?: number } | null = null;
+let lastAnchor: { x: number; y: number; right?: number; top?: number } | null = null;
 let listening = false;
 
 /** Remembers where the control under `target` sits (its left edge and bottom). Called for every press and for Enter or Space on a focused control. */
@@ -707,6 +714,7 @@ export function noteAnchor(target: unknown): void {
       x: rect.left,
       y: rect.bottom + 4,
       ...(typeof rect.right === "number" && Number.isFinite(rect.right) ? { right: rect.right } : {}),
+      ...(typeof rect.top === "number" && Number.isFinite(rect.top) ? { top: rect.top } : {}),
     };
 }
 
@@ -754,10 +762,31 @@ export function anchorRightFor(x: number): number | undefined {
   return unknown || Math.abs(x - lastAnchor.x) < 1 ? lastAnchor.right : undefined;
 }
 
+/** The top edge of the control a menu opens from (for the upward flip), under the same rule as `anchorRightFor`. */
+export function anchorTopFor(x: number): number | undefined {
+  if (lastAnchor?.top === undefined) return undefined;
+  const unknown = !Number.isFinite(x) || x < 0;
+  return unknown || Math.abs(x - lastAnchor.x) < 1 ? lastAnchor.top : undefined;
+}
+
 /** Where a menu's left edge goes: at x, or, when it would not fit to the right of x, with its right edge on the trigger's; then 8 px inside the window. */
 export function menuLeft(x: number, width: number, viewW: number, anchorRight: number | undefined, margin = 8): number {
   const flipped = anchorRight !== undefined && x + width > viewW - margin ? anchorRight - width : x;
   return Math.max(margin, Math.min(flipped, viewW - width - margin));
+}
+
+/** Where a menu's top edge goes: at y, or, when it would not fit below y (above `limit` or the window's bottom), with its bottom edge on `anchorTop`; then 8 px inside the window. */
+export function menuTop(
+  y: number,
+  height: number,
+  viewH: number,
+  anchorTop: number | undefined,
+  limit?: number,
+  margin = 8,
+): number {
+  const floor = Math.min(viewH - margin, limit ?? viewH - margin);
+  if (anchorTop !== undefined && y + height > floor && anchorTop - height >= margin) return anchorTop - height;
+  return Math.max(margin, Math.min(y, floor - height));
 }
 
 /** Forgets the remembered control (tests). */
@@ -774,7 +803,15 @@ export function useMenu(): {
     y: number,
     source?: MenuSource,
     context?: ReportContext,
-    opts?: { search?: string; width?: number; onSearch?: (query: string) => void; anchorRight?: number },
+    opts?: {
+      search?: string;
+      width?: number;
+      onSearch?: (query: string) => void;
+      anchorRight?: number;
+      anchorTop?: number;
+      bottomLimit?: number;
+      flip?: boolean;
+    },
   ) => void;
   hide: () => void;
   /** New rows for the menu that is open, in place: it stays where it is, with its search and its lit row (a ticked filter row, a label made). Nothing when no menu is open. */
@@ -792,13 +829,25 @@ export function useMenu(): {
       y: number,
       source: MenuSource = "context",
       context?: ReportContext,
-      opts?: { search?: string; width?: number; onSearch?: (query: string) => void; anchorRight?: number },
+      opts?: {
+        search?: string;
+        width?: number;
+        onSearch?: (query: string) => void;
+        anchorRight?: number;
+        anchorTop?: number;
+        bottomLimit?: number;
+        flip?: boolean;
+      },
     ) => {
       counter.current += 1;
-      const anchorRight = opts?.anchorRight ?? anchorRightFor(x);
+      const trigRight = anchorRightFor(x);
+      const trigTop = anchorTopFor(x);
       const at = resolveMenuPoint(x, y);
       x = at.x;
       y = at.y;
+      // `flip`: a menu opened at the pointer (a right-click, a message) leaves the right edge or the bottom the way a native menu does, its far edge on the pointer
+      const anchorRight = opts?.anchorRight ?? trigRight ?? (opts?.flip ? x : undefined);
+      const anchorTop = opts?.anchorTop ?? trigTop ?? (opts?.flip ? y : undefined);
       setOpen({
         items,
         x,
@@ -807,6 +856,8 @@ export function useMenu(): {
         nonce: counter.current,
         ...(context === undefined ? {} : { context }),
         ...(anchorRight === undefined ? {} : { anchorRight }),
+        ...(anchorTop === undefined ? {} : { anchorTop }),
+        ...(opts?.bottomLimit === undefined ? {} : { bottomLimit: opts.bottomLimit }),
         ...(opts?.search === undefined ? {} : { search: opts.search }),
         ...(opts?.width === undefined ? {} : { width: opts.width }),
         ...(opts?.onSearch === undefined ? {} : { onSearch: opts.onSearch }),
@@ -827,6 +878,8 @@ export function useMenu(): {
         x={open.x}
         y={open.y}
         {...(open.anchorRight === undefined ? {} : { anchorRight: open.anchorRight })}
+        {...(open.anchorTop === undefined ? {} : { anchorTop: open.anchorTop })}
+        {...(open.bottomLimit === undefined ? {} : { bottomLimit: open.bottomLimit })}
         source={open.source}
         onClose={hide}
         {...(open.context === undefined ? {} : { reportContext: open.context })}

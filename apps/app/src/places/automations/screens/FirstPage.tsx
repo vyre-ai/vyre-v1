@@ -8,6 +8,9 @@ import type { AutoRow } from "../sidebar/model.ts";
 import type { ConnectorOffer } from "../first/offers.ts";
 import { RecoveryRequests } from "../operations/StudioViews.tsx";
 import { FirstPageView } from "./FirstPageView.tsx";
+import { ApprovalCard } from "../approvals/ApprovalCard.tsx";
+import { loadApproval } from "../approvals/load.ts";
+import type { ApprovalCard as Card } from "../approvals/model.ts";
 
 interface HomeOut {
   needs: { id: string; automation: string; why: string; at: number; runId?: string }[];
@@ -45,6 +48,29 @@ export function FirstPage({
       live = false;
     };
   }, [data, signature]);
+  // an Automation whose last run waits for an approval and the person may give it: its card, read when the list changes
+  const [waiting, setWaiting] = useState<{ id: string; name: string; card: Card }[]>([]);
+  const waitingRows = rows.filter((a) => a.lastRun?.status === "waiting");
+  const waitingKey = waitingRows.map((a) => `${a.id}:${a.lastRun?.runId}`).join("|");
+  useEffect(() => {
+    let live = true;
+    void Promise.all(
+      waitingRows.map(async (a) => {
+        const card = await loadApproval({
+          call: data.call,
+          me: data.me.id,
+          automationId: a.id,
+          runId: a.lastRun!.runId,
+        }).catch(() => null);
+        return card ? { id: a.id, name: a.name, card } : null;
+      }),
+    ).then((all) => live && setWaiting(all.filter((x): x is { id: string; name: string; card: Card } => x !== null)));
+    return () => {
+      live = false;
+    };
+    // the rows are read through waitingKey
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, waitingKey]);
   const offers: ConnectorOffer[] = home?.suggestion ? [home.suggestion] : [];
   const [gone, setGone] = useState<readonly string[]>([]);
   const shown = offers.filter((o) => !gone.includes(o.itemId));
@@ -108,7 +134,24 @@ export function FirstPage({
       onAllRuns={onAllRuns}
       onAsk={onAsk}
       note={note}
-      extra={<RecoveryRequests />}
+      extra={<RecoveryRequests skip={new Set(waiting.map((w) => w.card.taskId))} />}
+      {...(waiting.length > 0
+        ? {
+            approvals: (
+              <>
+                {/* ui-rows-lint: not a list (cards, each with its own Allow and Deny; no row is selected) */}
+                {waiting.map((w) => (
+                  <ApprovalCard
+                    key={w.card.taskId}
+                    card={w.card}
+                    automation={w.name}
+                    onAnswered={() => setWaiting((all) => all.filter((x) => x.card.taskId !== w.card.taskId))}
+                  />
+                ))}
+              </>
+            ),
+          }
+        : {})}
     />
   );
 }

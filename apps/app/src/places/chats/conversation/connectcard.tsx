@@ -57,9 +57,12 @@ export function ConnectCardLive({
   // what the person has done to the card since the server last spoke: typed after a refusal (the red goes), or chose to use a different key
   const [edited, setEdited] = useState(false);
   const [other, setOther] = useState(false);
+  // the option the person picked for the service's choice (a region); the first until they pick
+  const [picked, setPicked] = useState<string | undefined>(undefined);
   const { element, show } = useMenu();
   const whenText = useWhenText(true);
   const live = useRef(true);
+  const busy = useRef(false);
   useEffect(
     () => () => {
       live.current = false;
@@ -92,6 +95,11 @@ export function ConnectCardLive({
   // someone else in the chat: the card is the asked person's own, so all they read is one quiet line about how the ask stands
   if (card === null) return <OthersLine requestId={requestId} agent={agent} asker={asker} data={data} named={named} />;
   const name = card.service.title;
+  // where the key goes now: the picked option's hosts when the service has a choice, else the card's own
+  const option = card.choice
+    ? (card.choice.options.find((o) => o.value === picked) ?? card.choice.options[0])
+    : undefined;
+  const hostsNow = option ? option.hosts : card.checksWith ? card.checksWith.split(", ") : [];
 
   const put = (field: string, value: string): void => {
     setValues((v) => ({ ...v, [field]: value }));
@@ -100,6 +108,16 @@ export function ConnectCardLive({
 
   /** The call that tries, keeps and connects. The steps show only after 300 ms, tick when the server says yes, and stop where it says no. */
   const submit = async (useSaved: boolean): Promise<void> => {
+    // one submit at a time: Enter in the field and a press on Connect a moment later are one ask, not two
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      await submitOnce(useSaved);
+    } finally {
+      busy.current = false;
+    }
+  };
+  const submitOnce = async (useSaved: boolean): Promise<void> => {
     setProblem("");
     setEdited(false);
     const steps = stepsFor(useSaved, card.checks !== false);
@@ -109,7 +127,8 @@ export function ConnectCardLive({
       const out = (await data.call("vault.connect_card.submit", {
         requestId,
         // the addresses this card said the key goes to: the server refuses when they are no longer the service's
-        hosts: card.checksWith ? card.checksWith.split(", ") : [],
+        hosts: hostsNow,
+        ...(option ? { choice: option.value } : {}),
         ...(useSaved
           ? { useSaved: true }
           : {
@@ -122,12 +141,14 @@ export function ConnectCardLive({
       clearTimeout(wait);
       const next = cardOf(out);
       if (out.result === "connected") {
+        // emptied and closed the moment the server says yes, not after the ticks: the done row can already be on screen (the card follows the Space's changes), and
+        // closing it after the ticks undid a press a person had just made on it (the phone walk, 16 Nov 2026: the row shut under the walk's finger)
+        setValues({});
+        setOpen(false);
         for (let i = 1; i <= steps.length; i++) {
           setWork({ steps, step: i, visible: true });
           await new Promise((r) => setTimeout(r, TICK_MS));
         }
-        setValues({});
-        setOpen(false);
       } else setFocusField(card.fields[0]?.name);
       if (live.current) {
         setWork(null);
@@ -222,7 +243,18 @@ export function ConnectCardLive({
         admin={adminName || undefined}
         askedAt={card.admin?.askedAt ? whenText(card.admin.askedAt, Date.now()) : undefined}
         tested={card.tested}
-        checksWith={card.checksWith}
+        checksWith={hostsNow.length > 0 ? hostsNow.join(", ") : undefined}
+        choice={
+          card.choice && option
+            ? {
+                label: card.choice.label,
+                value: option.value,
+                options: card.choice.options.map((o) => ({ value: o.value, label: o.label })),
+              }
+            : undefined
+        }
+        onChoice={(v) => setPicked(v)}
+        problem={card.problem}
         notice={card.notice}
         usedBy={card.usedBy.length > 0 ? card.usedBy.map(() => agent).join(", ") : undefined}
         connectedBy={card.connectedBy ? named(card.connectedBy) || undefined : undefined}

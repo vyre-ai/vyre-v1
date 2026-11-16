@@ -1,16 +1,16 @@
 // Conditions as real controls (AUTOMATIONS-BUILD-RC29 round five, item 3): a path's "if", the If step, and what a Wait waits for. Rows of a field (from Insert data), an operator in words and a value with chips, joined by "and" or "or";
 // a condition the rows cannot write back exactly is one read-only line, "Advanced condition". Nothing here is a JSON box.
-import { useContext } from "react";
+import { useContext, useEffect, useRef } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { build, OP_WORDS, OPS, parse } from "./conditions.ts";
 import type { Clause, Op, Parsed } from "./conditions.ts";
 import { Choice, DataWordsContext, TextBox } from "./fields.tsx";
 import { chipLabel, joinTemplate, splitTemplate } from "./steps/edits.ts";
+import { eventChoices, payloadFields } from "./events.ts";
+import { useEventTypes } from "./steps/useLists.ts";
 import { pointer } from "./parts.tsx";
-import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-
-type OpenMenu = (entries: MenuEntry[], x: number, y: number, source: "other") => void;
+import type { OpenMenu } from "./steps/StepForms.tsx";
 
 const tid = (testID: string | undefined, suffix: string): { testID?: string } =>
   testID ? { testID: `${testID}-${suffix}` } : {};
@@ -26,12 +26,15 @@ export function ConditionField({
   onCommit,
   openMenu,
   testID,
+  fields,
 }: {
   label: string;
   value: string;
   onCommit(next: string): void;
   openMenu: OpenMenu;
   testID?: string;
+  /** The fields to choose from when they are not data from an earlier step (an event's own fields). */
+  fields?: readonly { key: string; label: string }[];
 }): ReactElement {
   const words = useContext(DataWordsContext);
   const parsed = parse(value);
@@ -76,13 +79,28 @@ export function ConditionField({
           ) : null}
           <Choice
             label={i === 0 ? "Field" : ""}
-            value={c.left ? chipLabel(c.left, titleOf) : "Choose a field"}
+            value={
+              c.left ? (fields?.find((f) => f.key === c.left)?.label ?? chipLabel(c.left, titleOf)) : "Choose a field"
+            }
             {...tid(testID, `field-${i}`)}
             onOpen={(x, y) =>
-              words?.insert?.(x, y, "", (put) => {
-                const ref = refOf(put);
-                if (ref) setClause(i, { ...c, left: ref });
-              })
+              fields
+                ? openMenu(
+                    fields.map((f) => ({
+                      label: f.label,
+                      checked: f.key === c.left,
+                      onSelect: () => setClause(i, { ...c, left: f.key }),
+                    })),
+                    x,
+                    y,
+                    "other",
+                    undefined,
+                    fields.length > 8 ? { search: "Search fields" } : {},
+                  )
+                : words?.insert?.(x, y, "", (put) => {
+                    const ref = refOf(put);
+                    if (ref) setClause(i, { ...c, left: ref });
+                  })
             }
           />
           <Choice
@@ -156,6 +174,37 @@ export function EventField({
   testID?: string;
 }): ReactElement {
   const v = (typeof value === "object" && value !== null ? value : {}) as { event?: string; filter?: unknown };
+  // the events the Space really has, by the words of their summary (events.types); the curated few stand in while it loads or if it cannot be read
+  const types = useEventTypes();
+  const catalogue = types.state === "ready" ? types.items : [];
+  const choices = eventChoices(
+    catalogue.length > 0 ? catalogue : EVENT_NAMES.map((n) => ({ name: n, summary: "" })),
+    v.event,
+  );
+  const carried = v.event ? payloadFields(catalogue, v.event) : [];
+  const showEvents = (x: number, y: number): void =>
+    openMenu(
+      choices.map((c) => ({
+        label: c.label,
+        checked: c.name === v.event,
+        onSelect: () => onCommit({ event: c.name }),
+      })),
+      x,
+      y,
+      "other",
+      undefined,
+      { search: "Search events" },
+    );
+  const wanted = useRef<{ x: number; y: number } | null>(null);
+  const settled = types.state !== "loading";
+  useEffect(() => {
+    const at = wanted.current;
+    if (!settled || at === null) return;
+    wanted.current = null;
+    showEvents(at.x, at.y);
+    // the list the menu shows is the one of this draw, the first with the catalogue in it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settled]);
   const flat =
     v.filter === undefined ||
     (typeof v.filter === "object" &&
@@ -166,20 +215,16 @@ export function EventField({
     <View style={s.wrap} testID={testID}>
       <Choice
         label="Wait for this to happen"
-        value={v.event ? eventWords(v.event) : "Choose what to wait for"}
-        {...tid(testID, "event")}
-        onOpen={(x, y) =>
-          openMenu(
-            [...EVENT_NAMES, ...(v.event && !EVENT_NAMES.includes(v.event) ? [v.event] : [])].map((n) => ({
-              label: eventWords(n),
-              checked: n === v.event,
-              onSelect: () => onCommit({ ...v, event: n }),
-            })),
-            x,
-            y,
-            "other",
-          )
+        value={
+          v.event ? (choices.find((c) => c.name === v.event)?.label ?? eventWords(v.event)) : "Choose what to wait for"
         }
+        {...tid(testID, "event")}
+        onOpen={(x, y) => {
+          // The menu holds the list it was opened with. A press that comes before the catalogue has arrived waits for it (a moment), so the person is offered
+          // every event and not the curated few for as long as that menu stays open (CI, 16 Nov 2026: eight events offered where the Space has hundreds).
+          if (types.state === "loading") wanted.current = { x, y };
+          else showEvents(x, y);
+        }}
       />
       {flat ? (
         <ConditionField
@@ -188,6 +233,7 @@ export function EventField({
             .map(([k, x]) => `${k} == ${typeof x === "number" ? String(x) : `"${String(x).replace(/"/g, '\\"')}"`}`)
             .join(" && ")}
           openMenu={openMenu}
+          {...(carried.length > 0 ? { fields: carried } : {})}
           onCommit={(t) => {
             const p = parse(t);
             const filter: Record<string, string | number> = {};

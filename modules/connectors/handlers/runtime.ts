@@ -20,10 +20,19 @@ import {
   secretsIn,
   seedBuiltins,
   takeToken,
+  tokenWaitMs,
+  parseRetryAfter,
+  noteRateLimited,
+  noteServed,
+  SLOW_DOWN_FIRST_MS,
   checkEgress,
   originKey,
   recordHosts,
   fillString,
+  withoutSecretValues,
+  maskSealed,
+  SYNC_PASS_TOKEN,
+  SEALED_HELD,
   fillValue,
   clone,
   PAGE,
@@ -142,6 +151,14 @@ export interface ExecOpts {
   actor?: string;
   /** Set on the one retry after a refresh, so a token the app still rejects ends in a reconnect instead of a loop. */
   refreshed?: boolean;
+  /** Called with the answer's status and text before the status is turned into an error, so a check can read a verdict from it. It must keep nothing of the text but its own verdict. */
+  verdict?: (status: number, text: string) => void;
+  /** Set by the runtime itself for the token call that stands before another action: only then does the token action's answer (the short-lived token) come back out of it. */
+  tokenChain?: boolean;
+  /** The sync engine's own pass: it is given the real values of sealed fields. */
+  unmask?: boolean;
+  /** With unmask: where the pass keeps the real values it was given (never in the answer). */
+  passNonce?: string;
 }
 export interface ExecResult {
   output: unknown;
@@ -234,6 +251,25 @@ export async function clearReconnectTask(
 }
 
 /** Run one action of a connector. Throws the catalogue error for anything that goes wrong; the message and details never hold a secret. */
+/** The sync engine's pass says so with the process's own token inside the action's input; the token is taken out before the input is used. Anyone else's input is left as it is. */
+function passOf(input: unknown): { input: unknown; unmask: boolean; nonce?: string } {
+  if (input !== null && typeof input === "object" && !Array.isArray(input) && "__unmask" in input) {
+    const { __unmask, ...rest } = input as Record<string, unknown>;
+    const [token, nonce] = typeof __unmask === "string" ? __unmask.split(":") : [];
+    return { input: rest, unmask: token === SYNC_PASS_TOKEN && !!nonce, ...(nonce ? { nonce } : {}) };
+  }
+  return { input, unmask: false };
+}
+
+/** An error body with sealed values masked (JSON read and written back; text that is not JSON is cut to nothing when the connector has sealed fields). */
+function maskedText(text: string, paths: readonly string[]): string {
+  try {
+    return JSON.stringify(maskSealed(JSON.parse(text) as unknown, paths));
+  } catch {
+    return "";
+  }
+}
+
 export async function executeAction(
   deps: ConnectorsDeps,
   ctx: ConnectorsCtx,
@@ -277,8 +313,15 @@ export async function executeAction(
     await oauthOf(deps).refresh(ctx, def, conn);
 
   // secrets, by name, at call time
-  const needed = new Set<string>([...secretsIn(a.headers), ...secretsIn(a.body)]);
-  if (def.auth.type !== "none" && def.auth.secret) needed.add(def.auth.secret);
+  const basic = a.basic ?? (def.auth.type === "api_key" || def.auth.type === "bearer" ? def.auth.basic : undefined);
+  const needed = new Set<string>([
+    ...secretsIn(a.headers),
+    ...secretsIn(a.body),
+    ...secretsIn(a.form),
+    ...secretsIn(basic),
+  ]);
+  if (def.auth.type !== "none" && def.auth.type !== "client_credentials" && def.auth.secret)
+    needed.add(def.auth.secret);
   const values: Record<string, string> = {};
   for (const name of needed) {
     if (!def.secrets.some((s) => s.name === name))
@@ -314,6 +357,40 @@ export async function executeAction(
       } catch {
         /* an unreadable item has nothing to scrub */
       }
+    }
+  }
+  // HTTP Basic: the joined credential and its encodings are scrubbed as secrets are, since an app may echo the header it was sent
+  let basicHeader: string | undefined;
+  if (basic) {
+    try {
+      const own = { input: {}, secret: values, connection: { id: "" } };
+      const cred = `${fillString(basic.user, own)}:${fillString(basic.pass ?? "", own)}`;
+      const enc = Buffer.from(cred).toString("base64");
+      basicHeader = `Basic ${enc}`;
+      everySecret.push(cred, enc, basicHeader);
+    } catch (e) {
+      return refuse(ctx, "validation.bad_input", `The sign-in for ${actionName} could not be built.`);
+    }
+  }
+  // a server-to-server token: the connection's own secrets are traded for a short-lived token by the connector's token action; it is held for this call only and is never kept
+  let tokenValue: string | undefined;
+  if (def.auth.type === "client_credentials") {
+    const ta = def.auth.tokenAction;
+    if (!ta) refuse(ctx, "validation.bad_input", `${def.key} names no token action.`);
+    if (actionName !== ta && !o.dryRun) {
+      const got = await executeAction(deps, ctx, def, ta!, {
+        ...(conn ? { connection: conn } : {}),
+        ...(o.secrets ? { secrets: o.secrets } : {}),
+        ...(o.http ? { http: o.http } : {}),
+        persist: false,
+        input: {},
+        actor,
+        tokenChain: true,
+      });
+      if (typeof got.output !== "string" || got.output === "")
+        refuse(ctx, "provider.bad_response", `${def.title} gave no token.`);
+      tokenValue = got.output as string;
+      everySecret.push(tokenValue, `Bearer ${tokenValue}`);
     }
   }
   const scrub = scrubber(everySecret);
@@ -387,12 +464,18 @@ export async function executeAction(
       }
     }
     headers = {};
-    if (def.auth.type === "api_key" && def.auth.secret)
+    if (basicHeader) headers["Authorization"] = basicHeader;
+    else if (tokenValue) headers["Authorization"] = `Bearer ${tokenValue}`;
+    else if (def.auth.type === "api_key" && def.auth.secret)
       headers[def.auth.header ?? "Authorization"] = `${def.auth.prefix ?? ""}${values[def.auth.secret]}`;
     else if ((def.auth.type === "bearer" || def.auth.type === "oauth2") && def.auth.secret)
       headers["Authorization"] = `Bearer ${values[def.auth.secret]}`;
     for (const [k, v] of Object.entries(a.headers ?? {})) headers[k] = fillString(v, scope);
-    if (a.body !== undefined && method !== "GET") {
+    if (a.form !== undefined && method !== "GET") {
+      body = new URLSearchParams(Object.entries(a.form).map(([k, v]) => [k, fillString(v, scope)])).toString();
+      if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
+        headers["Content-Type"] = "application/x-www-form-urlencoded";
+    } else if (a.body !== undefined && method !== "GET") {
       body = JSON.stringify(fillValue(a.body, scope));
       if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
         headers["Content-Type"] = "application/json";
@@ -413,14 +496,24 @@ export async function executeAction(
           method,
           url: url.toString(),
           headers,
-          ...(body !== undefined ? { body: JSON.parse(body) as unknown } : {}),
+          ...(body !== undefined
+            ? {
+                body:
+                  a.form !== undefined ? Object.fromEntries(new URLSearchParams(body)) : (JSON.parse(body) as unknown),
+              }
+            : {}),
         }),
       },
       dryRun: true,
     };
 
   if (conn && !takeToken(conn.connection_id, def.rate, nowOf(deps)))
-    refuse(ctx, "rate_limit.exceeded", `The connection is at its rate limit (${def.rate!.rps} per second).`);
+    refuse(
+      ctx,
+      "rate_limit.exceeded",
+      `The connection is at its rate limit (${def.rate ? Math.round(def.rate.rps * 60) : 0} a minute).`,
+      { retryAfterMs: Math.max(50, tokenWaitMs(conn.connection_id, def.rate, nowOf(deps))) },
+    );
   const http = o.http ?? ctx.http;
   const started = nowOf(deps);
   const logRow = (status: number | null, error: string | null): void => {
@@ -440,7 +533,7 @@ export async function executeAction(
       actor,
     );
   };
-  let res: { status: number; text(): Promise<string>; link?: string };
+  let res: { status: number; text(): Promise<string>; link?: string; retryAfter?: string };
   try {
     res = await http(url.toString(), { method, headers, ...(body !== undefined ? { body } : {}) });
   } catch (e) {
@@ -460,6 +553,7 @@ export async function executeAction(
   }
   const text = await res.text();
   const ms = nowOf(deps) - started;
+  o.verdict?.(res.status, text);
   if (res.status === 401 || res.status === 403) {
     logRow(res.status, "rejected the sign-in");
     // an OAuth token the app rejects is refreshed once and the call repeated; only a refresh that fails (or a repeat that is rejected again) asks the person to reconnect
@@ -477,8 +571,15 @@ export async function executeAction(
   }
   if (res.status === 429) {
     logRow(res.status, "rate limited");
-    return refuse(ctx, "provider.rate_limited", "The app is rate limiting this connection.", { status: res.status });
+    // the whole connection waits (every object of it), for what the app asked, or 30 s doubling when it said nothing
+    const asked = parseRetryAfter(res.retryAfter, nowOf(deps));
+    const wait = conn ? noteRateLimited(conn.connection_id, nowOf(deps), asked) : (asked ?? SLOW_DOWN_FIRST_MS);
+    return refuse(ctx, "provider.rate_limited", "The app asked Vyre to slow down.", {
+      status: res.status,
+      retryAfterMs: wait,
+    });
   }
+  if (conn) noteServed(conn.connection_id);
   if (res.status >= 500) {
     logRow(res.status, "server error");
     return refuse(ctx, "provider.unavailable", `The app answered ${res.status}.`, { status: res.status });
@@ -487,7 +588,8 @@ export async function executeAction(
     logRow(res.status, "refused the request");
     return refuse(ctx, "provider.bad_response", `The app refused the request (${res.status}).`, {
       status: res.status,
-      body: scrub.text(text).slice(0, 200),
+      // the service's own words for the refusal, guarded like an answer: a refusal that carries someone's token (an account list in an error) never shows it
+      body: scrub.text(withoutSecretValues(def.sealed?.length ? maskedText(text, def.sealed) : text)).slice(0, 200),
     });
   }
   let parsed: unknown = text;
@@ -511,6 +613,25 @@ export async function executeAction(
     logRow(res.status, e.message);
     return refuse(ctx, "provider.bad_response", scrub.text(`${actionName}: ${e.message}`));
   }
+  // the token a server-to-server service hands out is the runtime's own: run on its own (by an agent, a person's test or a check) the token call answers nothing of it
+  if (def.auth.type === "client_credentials" && actionName === def.auth.tokenAction && o.tokenChain !== true)
+    output = null;
+  // no action hands a secret back, whatever the app put in its answer (an auth token of another account, a client secret): values under secret-named keys are never part of an output. The runtime's own token call is the one exception.
+  if (o.tokenChain !== true) output = withoutSecretValues(output);
+  // a sealed field's value (and the other values of its item) is "[sealed]" for every caller but the sync engine's own pass
+  if (def.sealed?.length && o.unmask === true && o.passNonce !== undefined) {
+    // the sync engine's pass: the real values stay in this process for the engine to seal; the answer carries the mask like everyone's
+    const rows = (output as { rows?: unknown } | null)?.rows;
+    if (Array.isArray(rows))
+      for (const r of rows as { id?: unknown; data?: Record<string, unknown> }[])
+        if (r && typeof r.id === "string" && r.data) {
+          const held: Record<string, unknown> = {};
+          for (const p of def.sealed) if (p in r.data) held[p] = r.data[p];
+          SEALED_HELD.put(o.passNonce, r.id, held);
+        }
+  }
+  // (a recorded case of the harness holds made-up values and is compared as it is)
+  if (def.sealed?.length && !(o.unmask === true && o.passNonce === undefined)) output = maskSealed(output, def.sealed);
   output = scrub.value(output);
   logRow(res.status, null);
   return { output, dryRun: false, status: res.status, ms };
@@ -528,11 +649,14 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
   // static
   const declared = new Set(def.secrets.map((s) => s.name));
   const used = new Set<string>(def.auth.secret ? [def.auth.secret] : []);
+  secretsIn(def.auth.basic, used);
   const bad: string[] = [];
   for (const a of def.actions) {
     if (!a.url) continue;
     secretsIn(a.headers, used);
     secretsIn(a.body, used);
+    secretsIn(a.form, used);
+    secretsIn(a.basic, used);
     if (secretsIn(a.url).size || secretsIn(a.query).size) bad.push(`${a.name}: a secret in the address`);
     const probe = a.url.replace(/\{(input|connection)\.[A-Za-z0-9_.]+\}/g, "x");
     const eg = checkEgress(probe, def.domains);
@@ -593,6 +717,7 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
         http,
         persist: false,
         actor: "harness",
+        unmask: true, // a recorded case holds made-up values, and what it expects is compared as it is
       });
       if (t.expect?.error) {
         add(t.name, false, `expected the error ${t.expect.error}, got an output`);
@@ -1039,7 +1164,12 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         refuse(ctx, "validation.not_found", "There is no such connection.");
       if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system"))
         refuse(ctx, "validation.not_found", "There is no such connection.");
-      const out = await executeAction(deps, ctx, def, input.action, { connection: conn, input: input.input });
+      const pass = passOf(input.input);
+      const out = await executeAction(deps, ctx, def, input.action, {
+        connection: conn,
+        input: pass.input,
+        ...(pass.unmask ? { unmask: true, passNonce: pass.nonce! } : {}),
+      });
       tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
       return { output: out.output };
     },
@@ -1057,10 +1187,12 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         refuse(ctx, "validation.not_found", "There is no such connection.");
       if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system"))
         refuse(ctx, "validation.not_found", "There is no such connection.");
+      const pass = passOf(input.input);
       const out = await executeAction(deps, ctx, JSON.parse(c.def) as ConnectorDef, input.action, {
         connection: conn,
-        input: input.input,
+        input: pass.input,
         dryRun: input.dryRun === true,
+        ...(pass.unmask ? { unmask: true, passNonce: pass.nonce! } : {}),
       });
       if (!out.dryRun)
         tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);

@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { CODE_BUILTINS } from "../lib/builtin-connectors.ts";
 import { boot, call, connect, ok, scriptedModel, seededDir, stop } from "./support/eco-live.ts";
 
 const registry = (): string[] =>
@@ -58,10 +59,10 @@ test("off: the connector list equals rc.27's built-ins, with no Fathom", async (
   assert.ok(seen.forServiceBody.includes("Connecting a service this way is not available yet."), seen.forServiceBody);
 });
 
-test("on (VYRE_CONNECT_CARD=1): Fathom is built in as well", async () => {
+test("on (VYRE_CONNECT_CARD=1): Fathom and the services a key is pasted for are built in as well", async () => {
   process.env["VYRE_CONNECT_CARD"] = "1";
   try {
-    assert.deepEqual(await listed(), [...registry(), "fathom"].sort());
+    assert.deepEqual(await listed(), [...new Set([...registry(), ...CODE_BUILTINS.map((c) => c.key)])].sort());
     assert.equal(seen.get, 200, "Fathom has its connector page");
     assert.equal(seen.forService, 200);
   } finally {

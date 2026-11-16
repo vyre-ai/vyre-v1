@@ -786,3 +786,34 @@ test("a file over the direct-write limit is refused in words that give the limit
   assert.match(err?.error?.message ?? "", /256 KB/);
   assert.match(err?.error?.message ?? "", /smaller|split|parts/i);
 });
+
+test("a file the document fill makes can be larger than a direct write: 400 KB and 2 MB are stored and read back byte for byte; the same call from anyone else is still refused", async () => {
+  const { ctx } = open();
+  const fill = { ...ctx, callerCap: "documents.fill", depth: 1 } as Ctx;
+  const roots = await handlers["files.tree"](ctx, {});
+  const folderId = idOf(roots.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  for (const size of [400 * 1024, 2 * 1024 * 1024]) {
+    const bytes = Buffer.alloc(size);
+    for (let i = 0; i < size; i++) bytes[i] = (i * 31 + (i >> 8)) & 0xff;
+    const made = await handlers["files.create"](fill, {
+      folderId,
+      name: `letterhead-${size}.docx`,
+      content: { base64: bytes.toString("base64") },
+    });
+    assert.equal(made.file.size, size);
+    const back = (await handlers["files.read"](ctx, { fileId: made.file.fileId, as: "base64" })) as {
+      base64?: string;
+    };
+    assert.ok(back.base64 !== undefined, "the whole file came back");
+    assert.ok(Buffer.from(back.base64, "base64").equals(bytes), `${size} bytes read back byte for byte`);
+    const refused = await handlers["files.create"](ctx, {
+      folderId,
+      name: `direct-${size}.docx`,
+      content: { base64: bytes.toString("base64") },
+    }).then(
+      () => null,
+      (e: { error?: { code?: string } }) => e,
+    );
+    assert.equal(refused?.error?.code, "validation.too_large", "a direct write keeps its limit");
+  }
+});

@@ -28,6 +28,12 @@ interface Service {
   site?: string;
   host?: string;
   hosts: string[];
+  /** a choice the person makes on the card (a region); each option has its own connector and exact hosts */
+  choice?: {
+    name: string;
+    label: string;
+    options: { value: string; label: string; connector: string; hosts: string[] }[];
+  };
   builtin: boolean;
   checks: boolean;
   connection?: { connectionId: string; owner: "mine" | "space"; state: string };
@@ -61,6 +67,26 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
     ...(strOf(c["site"]) ? { site: strOf(c["site"])! } : {}),
     ...(strOf(c["host"]) ? { host: strOf(c["host"])! } : {}),
     hosts: Array.isArray(c["hosts"]) ? (c["hosts"] as unknown[]).map(String) : [],
+    ...(asRow(c["choice"])
+      ? {
+          choice: {
+            name: String(asRow(c["choice"])!["name"]),
+            label: String(asRow(c["choice"])!["label"]),
+            options: (Array.isArray(asRow(c["choice"])!["options"])
+              ? (asRow(c["choice"])!["options"] as unknown[])
+              : []
+            ).map((x) => {
+              const o = asRow(x)!;
+              return {
+                value: String(o["value"]),
+                label: String(o["label"]),
+                connector: String(o["connector"]),
+                hosts: Array.isArray(o["hosts"]) ? (o["hosts"] as unknown[]).map(String) : [],
+              };
+            }),
+          },
+        }
+      : {}),
     builtin: c["builtin"] === true,
     checks: c["checks"] === true,
     ...(conn
@@ -181,7 +207,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
     if (!mayConnect) {
       state = phase === "asked" ? "asked" : "admin";
       adminId = row.admin_id ?? admins.find((a) => a !== me) ?? admins[0];
-    } else if (phase === "wrong") state = "wrong";
+    } else if (phase === "wrong" || phase === "limited") state = "wrong";
     else if (phase === "offline") state = "offline";
     else {
       state = "ask";
@@ -224,6 +250,9 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
     ...(have ? { have } : {}),
     ...(keptIn ? { keptIn } : {}),
     ...(row.tested ? { tested: row.tested } : {}),
+    // a wrong try says which: the key itself, or a key that works but may not read what the check needs
+    ...(state === "wrong" && row.phase === "limited" ? { problem: "permission" as const } : {}),
+    ...(svc.choice && mayFill && ["ask", "wrong", "offline"].includes(state) ? { choice: svc.choice } : {}),
     ...(row.phase === "kept" && row.state === "waiting"
       ? { notice: `Your key is saved${svc.scope === "space" ? "" : " in Mine"}. Couldn't connect.` }
       : {}),
@@ -446,6 +475,8 @@ export async function connectSubmit(
     folderId?: string;
     audience?: KeyAudience;
     hosts: string[];
+    /** the option the person picked for the service's choice (a region); the first one when left out */
+    choice?: string;
   },
 ) {
   personOnly(ctx);
@@ -453,8 +484,24 @@ export async function connectSubmit(
   const decided = decidable(ctx, input.requestId);
   const { row } = decided;
   if (!row.service) raise(trace, "validation.precondition_failed", "This is not a service to connect.");
-  const svc =
+  const base =
     (await serviceOf(ctx, row.service)) ?? raise(trace, "validation.not_found", "That service is no longer set up.");
+  // a service with a choice (a region) is, for the key, the one connector the person chose: its fields, its exact hosts, its connection. Never both.
+  let svc = base;
+  if (base.choice) {
+    const picked = base.choice.options.find((o) => o.value === (input.choice ?? base.choice!.options[0]!.value));
+    if (!picked) raise(trace, "validation.bad_input", `Choose ${base.choice.label.toLowerCase()}.`);
+    if (picked!.connector !== base.key) {
+      const other = await serviceOf(ctx, picked!.connector);
+      if (!other || other.hosts.join() !== picked!.hosts.join())
+        raise(
+          trace,
+          "validation.precondition_failed",
+          `${base.title} changed since this card was shown. Open it again.`,
+        );
+      svc = other;
+    }
+  }
   // the key goes only where the card said it would: a service republished since the card was drawn has other addresses, and nothing is sent or kept
   if (
     !Array.isArray(input.hosts) ||
@@ -510,7 +557,7 @@ export async function connectSubmit(
   // one try, one key: a Retry never replays what an earlier try did
   const attempt = nid("att").slice(4, 12);
   const done = async (result: "connected" | "wrong" | "offline") => ({ result, card: await cardOf(ctx, row.id) });
-  const stay = (phase: "wrong" | "offline" | "kept" | null) =>
+  const stay = (phase: "wrong" | "limited" | "offline" | "kept" | null) =>
     ctx.db.run(`UPDATE ${TABLE} SET phase = ? WHERE id = ?`, phase, row.id);
 
   // 1 Checked: the typed key is tried against the app and kept nowhere
@@ -521,6 +568,10 @@ export async function connectSubmit(
     );
     if (checked?.["result"] === "rejected") {
       stay("wrong");
+      return done("wrong");
+    }
+    if (checked?.["result"] === "limited") {
+      stay("limited");
       return done("wrong");
     }
     if (checked?.["result"] !== "ok") {
@@ -631,6 +682,18 @@ export async function connectSubmit(
     // the key passed its check but the service could not be connected: it is erased; if that failed too, the card says it is saved
     stay(erased ? "offline" : "kept");
     return done("offline");
+  }
+
+  // The person pressed Connect with the hosts in front of them, so those exact hosts (and no other) are the ones this key is approved for: without it a run on the connection would wait for a person on the key's page
+  for (const host of svc.hosts) {
+    try {
+      await ctx.call("automations.key_hosts.allow", { vaultItemId: stored.itemId, host });
+    } catch (e) {
+      ctx.log.warn("connect card: the key's hosts were not recorded", {
+        requestId: row.id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
 
   // 4 Saved: the request closes, and the agent is told to carry on. The key is kept now, so nothing of this try is left to take back.

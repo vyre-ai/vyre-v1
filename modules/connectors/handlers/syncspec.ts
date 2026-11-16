@@ -5,7 +5,23 @@
 import { canonical } from "../../../lib/canonical.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase } from "../projections.ts";
-import { coerceValue, compileSpec, firstPageRequest, parseSpec, readPage, unflatten } from "../syncspec.ts";
+import {
+  JOIN_PREFIX,
+  fieldOf,
+  valueOfRemote,
+  SECRET_ID,
+  SSN_SHAPE,
+  coerceValue,
+  compileSpec,
+  fieldKeys,
+  firstPageRequest,
+  joinTitle,
+  parseSpec,
+  readPage,
+  relationClashes,
+  titlePaths,
+  unflatten,
+} from "../syncspec.ts";
 import type { Compiled, CompiledType, Problem, SpecObject, SyncSpec } from "../syncspec.ts";
 import { createConnectionsHandlers } from "./connections.ts";
 import { diffDefs, executeAction, runCases } from "./runtime.ts";
@@ -161,6 +177,8 @@ function testsOf(spec: SyncSpec, compiled: Compiled): TestCase[] {
       };
     else if (cursor.kind === "link") link = `<https://${spec.app.domain}${o.list.path}?page=2>; rel="next"`;
     const first = shapeList(body, link, action.shape!, undefined);
+    // a sealed pointer reads masked in every answer of a live connector, so that connector's test checks the call and not the shape of the answer
+    const sealedHere = (compiled.connector.sealed ?? []).some((p) => paths.includes(p));
     tests.push({
       name: `${t.remote}: first page`,
       action: action.name,
@@ -173,7 +191,7 @@ function testsOf(spec: SyncSpec, compiled: Compiled): TestCase[] {
           ...(link ? { link } : {}),
         },
       ],
-      expect: { requests: 1, output: first },
+      expect: sealedHere ? { requests: 1 } : { requests: 1, output: first },
     });
   }
   return tests;
@@ -235,6 +253,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     if (!deps.probe) return refuse(ctx, "internal.unavailable", "Reading the app is not available right now.");
     const probe = deps.probe;
     const mapped = new Map(spec.mapping.map((m) => [m.remote, m]));
+    for (const said of relationClashes(spec)) err("mapping", said);
     const types = new Set<string>();
     for (const m of spec.mapping) {
       if (types.has(m.recordType)) err(`mapping.${m.remote}.recordType`, `${m.recordType} is used by two mappings.`);
@@ -346,21 +365,67 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       const missing: string[] = [];
       let found = 0;
       for (const mf of m.fields) {
-        const f = o.fields.find((x) => x.path === mf.path);
+        const f = fieldOf(o, mf);
         const fa = `${at}.fields.${mf.path}`;
         if (!f) {
           err(fa, `${mf.path} is mapped but not described in the object's fields.`);
           continue;
         }
         if (mf.direction === "off") continue;
+        if (f.onlyWhen) {
+          if (!o.fields.some((x) => x.path === f.onlyWhen!.path))
+            err(
+              fa,
+              `${f.label} only applies when ${f.onlyWhen.path} says so, but ${f.onlyWhen.path} is not described in the object's fields.`,
+            );
+          {
+            const eq = (Array.isArray(f.onlyWhen.equals) ? f.onlyWhen.equals : [f.onlyWhen.equals]).map((v) =>
+              v.trim().toLowerCase(),
+            );
+            const hit = items.filter((it) => {
+              const k = pointerGet(it, f.onlyWhen!.path);
+              return k !== undefined && k !== null && eq.includes(String(k).trim().toLowerCase());
+            }).length;
+            warn(fa, `${f.label} applies to ${hit} of ${items.length} sampled records (the others have it empty).`);
+          }
+          if (mf.direction !== "pull")
+            err(
+              fa,
+              `${f.label} only applies for some records, so it is read from the app only: set its direction to pull (or off).`,
+            );
+        }
         const vals = items.map((it) => pointerGet(it, mf.path));
         const present = vals.filter((v) => v !== undefined);
         if (items.length && present.length === 0) {
+          // the object's own field list declares this path with a type (a path it does not declare is refused above), so it is a real field that only some records fill, such as a custom field
           missing.push(mf.path);
-          err(fa, `${mf.path} is not in any of the ${items.length} sampled records. Fix the path or set it off.`);
+          warn(
+            fa,
+            `${mf.path} is empty on the ${items.length} records looked at; it will fill in where the app has a value.`,
+          );
           continue;
         }
         found++;
+        if (f.type === "sealed") {
+          // a sealed field is read from the app only, and says whether values are there, never what they are
+          if (mf.direction !== "pull")
+            err(fa, `${f.label} is sealed, so it is only read from the app: set its direction to pull (or off).`);
+          if (titlePaths(m).includes(mf.path) || m.stagesFrom === mf.path || (m.match ?? []).includes(mf.path))
+            err(fa, `${f.label} is sealed: it cannot be the title, the stage or a match rule.`);
+          const withValue = present.filter((v) => v !== null && v !== "").length;
+          warn(
+            fa,
+            `${f.label} is sealed: ${withValue} of ${items.length} sampled records have a value, and the values are never shown.`,
+          );
+          continue;
+        }
+        const looksSecret =
+          SECRET_ID.test(`${mf.path} ${f.label}`) || present.some((v) => typeof v === "string" && SSN_SHAPE.test(v));
+        if (looksSecret)
+          warn(
+            fa,
+            `${f.label} looks like a secret identifier. Map it as sealed (set its type to sealed) so it is kept out of sight.`,
+          );
         const choices = f.choices?.map((c) => c.value);
         const bad = present.filter((v) => v !== null && v !== "" && !coerceValue(v, f.type, choices).ok);
         if (bad.length)
@@ -375,10 +440,52 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           if (!target)
             err(fa, `${f.label} points at ${f.relationTo}, which is not mapped. Map it too, or leave this field off.`);
         }
-        if (SENSITIVE.test(`${mf.path} ${f.label}`))
+        if (!looksSecret && SENSITIVE.test(`${mf.path} ${f.label}`))
           warn(fa, `${f.label} looks sensitive. Bring it in only if the person wants it.`);
         if ((mf.direction === "push" || mf.direction === "both") && f.type !== "relation" && !f.readOnly && !o.update)
           warn(fa, `${o.remote} has no documented update, so ${f.label} is pulled only.`);
+      }
+      if (m.link) {
+        const lat = `mapping.${o.remote}.link`;
+        const ends = [m.link.from, m.link.to];
+        for (const e of ends)
+          if (!spec.mapping.some((x) => x.recordType === e.recordType))
+            err(
+              lat,
+              `${e.recordType} is not a record type this spec brings in. Both ends of a link must be mapped, so a person is never linked by a bare id.`,
+            );
+        if (!m.fields.some((f) => f.direction !== "off"))
+          err(
+            lat,
+            `${o.label} needs at least one mapped field (such as the kind of link), so each row is kept as a record.`,
+          );
+        for (const e of ends) {
+          if (!o.fields.some((x) => x.path === e.at))
+            err(lat, `${e.at} is not described in ${o.remote}.fields. Add it so the link can read it.`);
+          else if (items.length && !items.some((it) => ["string", "number"].includes(typeof pointerGet(it, e.at))))
+            err(lat, `${e.at} holds no id in the sampled ${o.label} rows.`);
+        }
+        for (const [key, side] of [
+          [m.link.key, m.link.from.recordType],
+          [m.link.inverseKey, m.link.to.recordType],
+        ] as const) {
+          const holder = spec.mapping.find((x) => x.recordType === side);
+          const ho = spec.objects.find((x) => x.remote === holder?.remote);
+          if (holder && ho && new Set(fieldKeys(ho, holder).values()).has(key))
+            err(lat, `${side} already has a field ${key}. Give the link another key.`);
+        }
+      }
+      for (const p of Array.isArray(m.titleField) ? m.titleField : []) {
+        const tf = o.fields.find((x) => x.path === p);
+        if (!tf)
+          err(`mapping.${o.remote}.titleField`, `${p} is part of the title but not described in the object's fields.`);
+        else if (tf.type === "sealed")
+          err(`mapping.${o.remote}.titleField`, `${tf.label} is sealed: it cannot be part of the title.`);
+        else if (items.length && !items.some((it) => pointerGet(it, p) !== undefined))
+          warn(
+            `mapping.${o.remote}.titleField`,
+            `${p} is empty on the ${items.length} records looked at; it will fill in where the app has a value.`,
+          );
       }
       if (m.stagesFrom) {
         const sf = o.fields.find((x) => x.path === m.stagesFrom);
@@ -499,7 +606,16 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           fields: t.fields.map((f) => ({
             key: f.key,
             label: o.fields.find((x) => x.path === f.remote)?.label ?? f.key,
-            value: r.data[f.remote] ?? null,
+            value: f.remote.startsWith(JOIN_PREFIX)
+              ? joinTitle(r.data, f.remote.slice(JOIN_PREFIX.length).split("|"))
+              : f.remote.startsWith("=when:") && !f.sealed
+                ? (valueOfRemote(r.data, f.remote) ?? null)
+                : f.sealed
+                  ? {
+                      sealed: true,
+                      present: ![undefined, null, ""].includes(valueOfRemote(r.data, f.remote) as never),
+                    }
+                  : (r.data[f.remote] ?? null),
           })),
         });
       }
@@ -514,10 +630,12 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       seen.add(t.recordType);
       return Math.max(
         0,
-        ...t.relations.map((r) => {
-          const target = types.find((x) => x.recordType === r.to);
-          return target ? 1 + rank(target, seen) : 0;
-        }),
+        ...t.relations.flatMap((r) =>
+          [r.to, ...(r.on !== undefined ? [r.on] : [])].map((name) => {
+            const target = types.find((x) => x.recordType === name);
+            return target ? 1 + rank(target, seen) : 0;
+          }),
+        ),
       );
     };
     return [...types].sort((a, b) => rank(a) - rank(b));
@@ -578,10 +696,10 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       );
     const rels = compiled.types.flatMap((t) =>
       t.relations
-        .filter((r) => !existing.get(t.recordType)?.has(r.field))
+        .filter((r) => !existing.get(r.on ?? t.recordType)?.has(r.field))
         .map((r) => ({
           op: "relation.add",
-          type: t.recordType,
+          type: r.on ?? t.recordType,
           field: r.field,
           def: { to: r.to, inverse: r.inverse, title: r.title, inverseTitle: r.inverseTitle },
         })),
@@ -787,6 +905,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           : {}),
         ...(f.inverse ? { inverse: f.inverse } : {}),
         ...(f.constant !== undefined ? { constant: f.constant } : {}),
+        ...(f.sealed ? { sealed: true } : {}),
       }));
       const account = spec.app.account ?? "";
       const bound = tx.get<{ sync_type_id: string }>(
@@ -795,14 +914,23 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         account,
       );
       // an app with a "changed since" filter is cheap to check (a page), so a person's edit leaves within two minutes; one without is read whole at every check, so its checks are slower
-      const slow = spec.objects.find((o) => o.remote === t.remote)?.list.updatedSince === undefined;
+      const listed = spec.objects.find((o) => o.remote === t.remote)?.list;
+      const slow = listed?.updatedSince === undefined;
+      // the spec may say how often an object is checked, whether it is read whole or by "changed since": the first schedule is then already right (a large table
+      // of an app with a small request allowance is checked less often than every two minutes, lead 17 Nov 2026)
+      const every = listed?.checkEveryMinutes !== undefined ? listed.checkEveryMinutes * 60 : undefined;
       const rules = {
         createAtSource: t.createAtSource,
         deletes: t.deletes,
         conflict: "newest" as const,
-        polling: slow
-          ? { activeSec: 900, idleSec: 3600, dormantSec: 14_400 }
-          : { activeSec: 120, idleSec: 120, dormantSec: 900 },
+        polling: {
+          ...(every !== undefined
+            ? { activeSec: every, idleSec: every, dormantSec: Math.max(14_400, every) }
+            : slow
+              ? { activeSec: 900, idleSec: 3600, dormantSec: 14_400 }
+              : { activeSec: 120, idleSec: 120, dormantSec: 900 }),
+          ...(listed?.sweepEveryDays !== undefined ? { sweepSec: listed.sweepEveryDays * 86_400 } : {}),
+        },
       };
       const row = bound
         ? (await sync["sync_types.update"](ctx, { type: t.recordType, account, fields, match: t.match, ...rules }))

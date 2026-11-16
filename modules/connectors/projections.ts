@@ -20,7 +20,7 @@ export type ConnectionState = "pending" | "active" | "paused" | "needs_reconnect
 export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface AuthDef {
-  type: "api_key" | "bearer" | "oauth2" | "none";
+  type: "api_key" | "bearer" | "oauth2" | "client_credentials" | "none";
   /** Declared secret that holds the key or the access token. */
   secret?: string;
   /** api_key: the header the key travels in, and a prefix such as "Token ". Default Authorization. */
@@ -35,6 +35,10 @@ export interface AuthDef {
   clientSecret?: string;
   /** Where a token is revoked when a connection is deleted; optional, best effort. */
   revokeUrl?: string;
+  /** api_key or bearer only: send HTTP Basic (user:password) instead of a header. Both are templates (`{secret.Name}` or plain words, "api"); the password may be empty. The joined value is scrubbed like a secret. */
+  basic?: { user: string; pass?: string };
+  /** client_credentials (a server-to-server token): the action that trades the connection's own secrets for a short-lived token, which is sent as a Bearer on every other action. The token is held in memory for the call and never kept. */
+  tokenAction?: string;
 }
 
 /** One call the connector makes. `{input.x}`, `{secret.Name}` and `{connection.id}` are filled in at call time; secrets only in headers and body. */
@@ -45,6 +49,10 @@ export interface ActionDef {
   headers?: Record<string, string>;
   query?: Record<string, string>;
   body?: unknown;
+  /** HTTP Basic for this call alone (the token call of a server-to-server service): templates like auth.basic. */
+  basic?: { user: string; pass?: string };
+  /** A form body (application/x-www-form-urlencoded) filled like a template; used instead of `body`. A secret may sit here, never in the address. */
+  form?: Record<string, string>;
   /** JSON pointer into the JSON response that becomes the output. */
   output?: string;
   /** Changes something in the app: a dry run never sends it and the Gate treats it as outward. */
@@ -80,16 +88,31 @@ export interface TestCase {
   responses: RecordedResponse[];
   expect?: { output?: unknown; error?: string; requests?: number };
 }
+/** A rule on a check answer: the status, and optionally words that must be in the answer's body (read on the server, never passed on). */
+export interface VerdictRule {
+  status: number;
+  has?: string;
+}
 export interface ConnectorDef {
   key: string;
+  /** Pointers of sealed fields (a synced connector's): their values are "[sealed]" in every output, for every caller but the sync engine's own pass. */
+  sealed?: string[];
   title: string;
   mode: Mode;
   scope: Scope;
   version: string;
   auth: AuthDef;
   domains: string[];
-  secrets: { name: string; description: string }[];
+  secrets: { name: string; description: string; label?: string; legacy?: boolean }[];
+  /** Set when a release ships this definition: a hash of the definition as shipped. A stored row whose own hash still matches was never changed by anyone, so a later release may replace it; a changed one is never touched. */
+  shipped?: string;
   actions: ActionDef[];
+  /** The service's own page where its keys are found: a link for the person on the card, never a place a key is sent. */
+  keysPage?: string;
+  /** How a check call's answer tells a wrong key from a key without the needed permission. Only the verdict leaves the server, never the answer. A 4xx that matches nothing here is an unclear answer (not a wrong key). */
+  verdicts?: { limited?: VerdictRule[]; rejected?: VerdictRule[] };
+  /** A choice the person makes on the card that picks which connector is used (a region): each option is a connector of its own with its own exact hosts. Set on the first one only. */
+  choice?: { name: string; label: string; options: { value: string; label: string; connector: string }[] };
   sources?: string[];
   syncedTypes?: string[];
   health?: string;
@@ -106,6 +129,8 @@ export interface ConnectorDef {
       update?: string;
       delete?: string;
       /** The list can be asked for what changed since a time (`input.since`, in ms): a poll reads only that. */ since?: boolean;
+      /** Each row of this object also relates two already-synced records to each other (a many-to-many made from join rows). */
+      link?: { from: { type: string; at: string }; to: { type: string; at: string }; key: string; inverseKey: string };
     }
   >;
 }
@@ -168,6 +193,7 @@ export interface ProbeReply {
   status: number;
   text: string;
   link?: string;
+  retryAfter?: string;
 }
 export type Probe = (ctx: ConnectorsCtx, req: ProbeRequest) => Promise<ProbeReply>;
 
@@ -196,6 +222,7 @@ export interface ConnectorsCtx {
     status: number;
     text(): Promise<string>;
     /** The Link response header, when the app sent one (link-header pagination). */ link?: string;
+    /** The Retry-After response header, when the app sent one (seconds or an HTTP date). */ retryAfter?: string;
   }>;
   /** Run a capability later as the person who asked (ctx.schedule). Absent in tests, where a pass is run by calling the capability. */
   schedule?(at: number | string, cap: string, input: unknown): Promise<string>;
@@ -313,7 +340,20 @@ export function fillString(s: string, scope: Scope3, encode = false): string {
     if (v === undefined || v === null) throw new Error(`${kind}.${path} has no value`);
     const text =
       typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(v);
-    return encode && kind === "input" ? encodeURIComponent(text) : text;
+    if (encode && kind === "input") {
+      // a value that is a place in the path ("..", a slash, "?" or "#", raw or decoded) would climb or leave the path the connector wrote: refused before any request
+      let plain = text;
+      try {
+        plain = decodeURIComponent(text);
+      } catch {
+        /* not encoded */
+      }
+      for (const t of [text, plain])
+        if (t === "." || t === ".." || /[\\/?#]/.test(t))
+          throw new Error(`${path} cannot be "." or "..", or hold a slash, backslash, ? or #`);
+      return encodeURIComponent(text);
+    }
+    return text;
   });
 }
 
@@ -355,8 +395,17 @@ export function scrubber(values: readonly string[]): { text(s: string): string; 
 // ---- rate limit ----
 
 const buckets = new Map<string, { tokens: number; at: number }>();
+/** What an app's "slow down" asks of one connection: no call goes before `until`, for every object of the connection together. */
+const holds = new Map<string, { until: number; strikes: number }>();
+/** Without a Retry-After the wait starts here and doubles each time the app says it again, up to the cap. */
+export const SLOW_DOWN_FIRST_MS = 30_000;
+export const SLOW_DOWN_CAP_MS = 480_000;
+/** An app's own Retry-After is believed, up to this. */
+export const SLOW_DOWN_LONGEST_MS = 900_000;
 /** Token bucket per connection: `rps` refill, `burst` capacity. Returns false when the call must wait. */
 export function takeToken(key: string, rate: { rps: number; burst: number } | undefined, nowMs: number): boolean {
+  const held = holds.get(key);
+  if (held && held.until > nowMs) return false;
   if (!rate) return true;
   const b = buckets.get(key) ?? { tokens: rate.burst, at: nowMs };
   b.tokens = Math.min(rate.burst, b.tokens + ((nowMs - b.at) / 1000) * rate.rps);
@@ -369,7 +418,43 @@ export function takeToken(key: string, rate: { rps: number; burst: number } | un
   buckets.set(key, b);
   return true;
 }
-export const resetRateLimits = (): void => buckets.clear();
+/** How long until a call on this connection may go (0: now). Reads only. */
+export function tokenWaitMs(key: string, rate: { rps: number; burst: number } | undefined, nowMs: number): number {
+  const held = holds.get(key);
+  const hold = held && held.until > nowMs ? held.until - nowMs : 0;
+  const b = buckets.get(key);
+  if (!rate || !b || rate.rps <= 0) return hold;
+  const tokens = Math.min(rate.burst, b.tokens + ((nowMs - b.at) / 1000) * rate.rps);
+  const refill = tokens >= 1 ? 0 : Math.ceil(((1 - tokens) / rate.rps) * 1000);
+  return Math.max(hold, refill, 0);
+}
+/** A Retry-After header: seconds, or an HTTP date. Undefined when it is missing or unreadable. */
+export function parseRetryAfter(value: string | undefined, nowMs: number): number | undefined {
+  const v = value?.trim();
+  if (!v) return undefined;
+  if (/^\d+(\.\d+)?$/.test(v)) return Math.round(Number(v) * 1000);
+  const at = Date.parse(v);
+  return Number.isNaN(at) ? undefined : Math.max(0, at - nowMs);
+}
+/** The app answered 429: hold every call of this connection for what it asked (or a doubling wait from 30 s), and return the wait. */
+export function noteRateLimited(key: string, nowMs: number, askedMs?: number): number {
+  const strikes = (holds.get(key)?.strikes ?? 0) + 1;
+  const backoff = Math.min(SLOW_DOWN_CAP_MS, SLOW_DOWN_FIRST_MS * 2 ** (strikes - 1));
+  const wait = Math.min(SLOW_DOWN_LONGEST_MS, Math.max(1000, askedMs ?? backoff));
+  holds.set(key, { until: nowMs + wait, strikes });
+  const b = buckets.get(key);
+  if (b) b.tokens = 0;
+  return wait;
+}
+/** The app answered something other than 429: the next "slow down" starts the doubling again. */
+export function noteServed(key: string): void {
+  const h = holds.get(key);
+  if (h) h.strikes = 0;
+}
+export const resetRateLimits = (): void => {
+  buckets.clear();
+  holds.clear();
+};
 
 // ---- rows ----
 
@@ -399,6 +484,22 @@ export function builtinDef(b: BuiltinRow): ConnectorDef {
     ...(b.rate ? { rate: b.rate } : {}),
   };
 }
+
+/** The hash a shipped definition carries (see ConnectorDef.shipped). */
+export const shippedHash = (def: ConnectorDef): string => {
+  // a plain 53-bit string hash (cyrb53): it only tells an unchanged row from a changed one, it protects nothing
+  const text = JSON.stringify({ ...def, shipped: undefined });
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
+};
 
 /** Built-in connectors from the registry go into cn_connectors once (a later change by a person is never overwritten). */
 const seeded = new WeakSet<object>();
@@ -441,25 +542,8 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
   if (seeded.has(deps.tx)) return;
   ensureTables(deps.tx);
   const now = nowOf(deps);
-  for (const b of deps.builtins) {
-    makeRoomForBuiltin(deps.tx, b.key, now);
-    if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", b.key)) continue;
-    const def = builtinDef(b);
-    deps.tx.run(
-      "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'live', ?, ?, ?)",
-      b.key,
-      b.title,
-      b.mode,
-      b.scope,
-      def.version,
-      JSON.stringify(def),
-      now,
-      now,
-    );
-  }
-  for (const def of activeCodeBuiltins() as readonly ConnectorDef[]) {
-    makeRoomForBuiltin(deps.tx, def.key, now);
-    if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", def.key)) continue;
+  const code = activeCodeBuiltins() as readonly ConnectorDef[];
+  const insert = (def: ConnectorDef): void => {
     deps.tx.run(
       "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'live', ?, ?, ?)",
       def.key,
@@ -471,6 +555,55 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
       now,
       now,
     );
+  };
+  for (const b of deps.builtins) {
+    // a service the product now defines in code (exact addresses, a real check) takes the registry's place: it is seeded below, carrying the registry's own action names
+    if (code.some((c) => c.key === b.key)) continue;
+    makeRoomForBuiltin(deps.tx, b.key, now);
+    if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", b.key)) continue;
+    insert(builtinDef(b));
+  }
+  for (const own of code) {
+    makeRoomForBuiltin(deps.tx, own.key, now);
+    const reg = deps.builtins.find((b) => b.key === own.key);
+    // the registry's actions that have no address stay named (their module runs them); the ones written here have addresses
+    const named = reg
+      ? reg.actions.filter((n) => !own.actions.some((a) => a.name === n)).map((name) => ({ name }))
+      : [];
+    const body: ConnectorDef = {
+      ...own,
+      actions: [...own.actions, ...named],
+      ...(reg?.sources?.length ? { sources: reg.sources.map((x) => x.key) } : {}),
+    };
+    const def: ConnectorDef = { ...body, shipped: shippedHash(body) };
+    const have = deps.tx.get<{ def: string; builtin: number }>(
+      "SELECT def, builtin FROM cn_connectors WHERE key = ?",
+      own.key,
+    );
+    if (!have) {
+      insert(def);
+      continue;
+    }
+    // A row is replaced only when nobody changed it: it is exactly what the registry wrote (an earlier release), or it still carries the hash of the definition it was shipped with. A later fix to a shipped
+    // definition reaches those; a row a Space changed (its hash no longer matches) is never overwritten.
+    const stored = JSON.parse(have.def) as ConnectorDef;
+    const { shipped: was, ...rest } = stored;
+    const pristine =
+      have.builtin === 1 &&
+      ((was !== undefined && was === shippedHash(rest as ConnectorDef)) ||
+        (was === undefined && reg !== undefined && have.def === JSON.stringify(builtinDef(reg))));
+    if (pristine && was !== def.shipped) {
+      deps.tx.run(
+        "UPDATE cn_connectors SET title = ?, mode = ?, scope = ?, version = ?, def = ?, updated_at = ? WHERE key = ?",
+        def.title,
+        def.mode,
+        def.scope,
+        def.version,
+        JSON.stringify(def),
+        now,
+        own.key,
+      );
+    }
   }
   backfillHosts(deps.tx);
   seeded.add(deps.tx);
@@ -553,3 +686,134 @@ export const probeOf = (def: ConnectorDef): string | undefined =>
       a.url !== undefined &&
       !/\{input[.}]/.test(JSON.stringify([a.url, a.query, a.headers, a.body])),
   )?.name;
+
+// ---- secrets in an answer ----
+
+/**
+ * A key whose name says it holds a secret (case and separators do not matter): its value never leaves an action's output. Any name ending in "token" counts, except
+ * the ones that only say where a list goes on (next_page_token, cursor tokens): masking those would stop paging.
+ */
+const SECRET_KEY =
+  /(clientsecret|secretkey|apikey|privatekey|signingkey|password|passwd|passphrase|secret|credential|credentials|authorization)$/;
+const PAGING_TOKEN =
+  /(page|next|prev|previous|continuation|cursor|sync|start|resume|delta|skip|since|offset|pagination|paging)token$/;
+/** Names of secret identifiers (a person's, not a service's): social security, tax id, account and routing numbers, driver licence, passport and card numbers. "ein" and "tin" only when the key is exactly that. */
+const SECRET_IDENTIFIER =
+  /^(ssn|ein|tin|taxid|socialsecurity(number|no|num)?|accountnumber|accountno|routingnumber|driver(s)?licen[cs]e(number|no|num)?|passportnumber|passportno|cardnumber|cardno)$/;
+export const secretKeyName = (k: string): boolean => {
+  const n = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return SECRET_KEY.test(n) || SECRET_IDENTIFIER.test(n) || (n.endsWith("token") && !PAGING_TOKEN.test(n));
+};
+
+/** Known only inside this process: the sync engine's own pass says it (in the action's input) to be given the real values of sealed fields, which it seals at once. Nobody else can. */
+export const SYNC_PASS_TOKEN = `sp_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+export const SEALED_MASK = "[sealed]";
+/**
+ * The real values of sealed fields read by one sync pass, kept in this process only, by the pass's nonce and the row's id. They never travel in an action's answer (the answer is masked): the engine takes them
+ * from here, in the same process, to seal them, so no kept answer, log or span of the pipeline can hold them.
+ */
+const heldByPass = new Map<string, Map<string, Record<string, unknown>>>();
+export const SEALED_HELD = {
+  put(nonce: string, rowId: string, values: Record<string, unknown>): void {
+    let m = heldByPass.get(nonce);
+    if (!m) heldByPass.set(nonce, (m = new Map()));
+    m.set(rowId, { ...(m.get(rowId) ?? {}), ...values });
+  },
+  get: (nonce: string, rowId: string): Record<string, unknown> | undefined => heldByPass.get(nonce)?.get(rowId),
+  done(nonce: string): void {
+    heldByPass.delete(nonce);
+  },
+};
+const KEEP = new Set(["id", "name", "type", "field_type", "label", "key"]);
+/**
+ * The value with every sealed path masked, nested and in lists. A path is a pointer into one item (/attributes/ssn, /attributes/custom_field_values/<id>/formatted_value). Besides the leaf, the other
+ * value-bearing siblings of the leaf (all but id, name and a type) are masked, and so is any list item anywhere that carries the same id (custom fields come both as a map by id and as a list of {id, name, value}).
+ * A pulled row's data is keyed by the pointers themselves: those keys, and the keys under the leaf's parent pointer, are masked too.
+ */
+export function maskSealed<T>(v: T, paths: readonly string[]): T {
+  if (!paths.length || v === null || typeof v !== "object") return v;
+  const root = JSON.parse(JSON.stringify(v)) as unknown;
+  const ids = new Set<string>();
+  const maskItem = (o: Record<string, unknown>): void => {
+    for (const k of Object.keys(o)) if (!KEEP.has(k)) o[k] = SEALED_MASK;
+  };
+  const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+  const parents = paths.map((p) => p.slice(0, Math.max(p.lastIndexOf("/"), 0)));
+  // the leaf sits in an item (a custom field by id or position): its siblings are the item's other values
+  const items = parents.map((q) => /\/\d+$/.test(q));
+  // flat keys (a pulled row)
+  const visit = (x: unknown, fn: (o: Record<string, unknown>) => void): void => {
+    if (Array.isArray(x)) for (const y of x) visit(y, fn);
+    else if (isObj(x)) {
+      fn(x);
+      for (const y of Object.values(x)) visit(y, fn);
+    }
+  };
+  visit(root, (o) => {
+    for (const [i, p] of paths.entries()) {
+      if (p in o) o[p] = SEALED_MASK;
+      for (const k of Object.keys(o))
+        if (items[i] && k.startsWith(`${parents[i]}/`) && k !== p && !KEEP.has(k.slice(k.lastIndexOf("/") + 1)))
+          o[k] = SEALED_MASK;
+    }
+  });
+  // nested: walk each pointer
+  for (const p of paths) {
+    const segs = p
+      .split("/")
+      .slice(1)
+      .map((s) => s.replaceAll("~1", "/").replaceAll("~0", "~"));
+    if (!segs.length) continue;
+    const walk = (cur: unknown, i: number, trail: unknown[]): void => {
+      if (cur === null || typeof cur !== "object") return;
+      const seg = segs[i]!;
+      const next = (cur as Record<string, unknown>)[seg];
+      if (i === segs.length - 1) {
+        if (isObj(cur) && seg in cur) {
+          const holder = trail[trail.length - 1];
+          if (isObj(cur) && (cur["id"] !== undefined || /^\d+$/.test(String(segs[i - 1] ?? "")))) {
+            ids.add(String(cur["id"] ?? segs[i - 1]));
+            maskItem(cur);
+          } else cur[seg] = SEALED_MASK;
+          void holder;
+        }
+        return;
+      }
+      walk(next, i + 1, [...trail, cur]);
+    };
+    visit(root, (o) => walk(o, 0, []));
+  }
+  if (ids.size)
+    visit(root, (o) => {
+      if (o["id"] !== undefined && ids.has(String(o["id"])) && ("value" in o || "formatted_value" in o)) maskItem(o);
+    });
+  return root as T;
+}
+/**
+ * The value with every value under a secret-named key (nested, in arrays) replaced by "***". A string that itself holds JSON (a service that answers with a
+ * document inside a field) is read and guarded the same way.
+ */
+export function withoutSecretValues<T>(v: T): T {
+  if (Array.isArray(v)) return v.map((x) => withoutSecretValues(x)) as T;
+  if (v && typeof v === "object")
+    return Object.fromEntries(
+      Object.entries(v as Record<string, unknown>).map(([k, x]) => [
+        k,
+        secretKeyName(k) ? "***" : withoutSecretValues(x),
+      ]),
+    ) as T;
+  if (typeof v === "string" && v.length < 200_000) {
+    const t = v.trimStart();
+    if (t.startsWith("{") || t.startsWith("[")) {
+      try {
+        const inner: unknown = JSON.parse(v);
+        const safe = withoutSecretValues(inner);
+        const out = JSON.stringify(safe);
+        if (out !== JSON.stringify(inner)) return out as T;
+      } catch {
+        /* not JSON: an ordinary string */
+      }
+    }
+  }
+  return v;
+}

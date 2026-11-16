@@ -552,6 +552,13 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11-15.md) and the lane's fourth round; the limits that remain are the ones written above.
 
 
+## 16 Nov 2026: Getting Started shows only for a new account (lane w-first)
+
+- `spaces.onboarding.flow` answers one more field, `fresh` (true during the person's first 7 days in the Space, from their first sign-in; true when the Space cannot tell). Nothing is removed or renamed; a client that ignores it behaves as before. The chip and rows of Getting Started draw only while `fresh` is true, so a person who has used a Space for weeks never sees it appear after an update.
+- Proof: modules/spaces/tests/switcher.test.ts (made today, day six, 30 days, unknown age).
+
+Signed: lead, 16 Nov 2026 02:19 PKT, after reading the manifest diff: one optional, additive output field. To watch: the age is taken from the person's earliest session, so a person whose old sessions were all removed may read as new again.
+
 ## 13 Nov 2026: sites.artifact_publish summary reworded to say what is required (lane f-firstcall)
 
 The summary of `sites.artifact_publish@1`, the words a model reads, now begins with what the call needs ("Needs a title and exactly one of html, fileId, folderId, path or port"), gives one example call, and says that a title left out is taken from the page's own `<title>`. No input, output or error changes. The handler's refusal for two sources at once now names the two given, in the same code (`validation.bad_input`, field `html`). The tool layer (agent/src/tools) no longer shows a model the `idempotencyKey` of a `create` capability or the `threadId` of a chat tool as required; the contract is unchanged and the server still validates the full input, so an outside caller sends the key as before.
@@ -642,3 +649,97 @@ Signed: lead, 16 Nov 2026 04:20 PKT
 - Snapshots: docs/frozen/snapshots/connectors.json, vault-requests.json.
 
 Signed: lead, 16 Nov 2026 04:45 PKT
+
+## 16 Nov 2026: the connect card offers every service that takes a pasted key (lane r32-connect), for the lead to sign
+
+- What changed in contracts, all additive: `connectors.check_key` answers `limited` as well as `ok`, `rejected` and `unreachable` (the key works but may not read what the check needs; a wrong key and a missing permission are told apart, and a 5xx, a 429 or a timeout is still `unreachable`, never a verdict on the key). `connectors.for_service` and `vault.connect_card.get` (and every other answer that carries the card) gain an optional `choice` (a choice the person makes on the card, today Mailgun's region: each option names its own connector and its own exact hosts), and the card gains an optional `problem` (`permission`, on a wrong try that was a key without access). `vault.connect_card.submit` gains an optional `choice` (the option picked; the first when left out); its required `hosts` must equal the PICKED option's hosts, so the key goes to one host and never to both.
+- Not a contract change, the rule the tests pin: Stripe, Resend, HubSpot (private app token), Mailgun (US and EU, two connectors with one host each), Dropbox Sign, Zoom (server-to-server) and Twilio are defined in code (`lib/builtin-connectors.ts`) with an address on every action they carry, exact hosts (Twilio's wildcard `*.twilio.com` and HubSpot's `app.hubspot.com` are gone from what a key may be sent to) and one read-only check from the service's public documents. Each passes `destinationProblem` unchanged. A key travels in a header or HTTP Basic, never in an address; the check answer is read on the server for a verdict and nothing else leaves it. The registry's older actions that have no address stay beside the new ones as names (their module runs them); a row the registry wrote and nobody changed is brought up to the new definition at start-up, a changed row is never overwritten. DocuSign, Google and Documenso keep their older way.
+- Snapshots: docs/frozen/snapshots/connectors.json, vault-requests.json.
+
+Signed: lead, 16 Nov 2026 (after the security review and its re-check)
+
+## 16 Nov 2026: a board can draw only chosen stages (lane r32-board), for the lead to sign
+
+- What changed in contracts, additive: the `board` view kind's config (`manifests/records.ts`, view kinds) gains an optional `stages`, a list of stage keys of the group field, drawn as the board's columns in that order. Absent or empty is today's behaviour (a column for every stage). `views.save` refuses a key that is not a stage of the group field ("<key> is not a stage of <field>."), a key listed twice and a `stages` that is not a list of keys. The key is `config.stages`, beside `config.group`; no new capability, no new event.
+- Not a contract change: a record whose stage is not among the chosen ones is not on that board (it is not lost: the table and any other board show it); a board with chosen stages has no column for records without a stage; the board's count line says how many records the chosen stages show of the view's records.
+- Snapshots: none changed (`node tools/gen/src/cli.ts --snapshots` wrote the same 88 files); `generated/registry.json` carries the new config.
+
+Signed: pending, for the lead
+
+Signed: lead, 17 Nov 2026
+
+## 16 Nov 2026: a sync spec sets its calls a minute and how often an object is read; the Sync page says when the app asked to slow down (lane r32-syncrate), for the lead to sign
+
+- What changed in contracts, all additive and optional, so no spec that exists changes: `sync_specs.validate`, `preview`, `apply` and `get` take, in the spec, `plan.requestsPerMinute` (a number, 1 to 6000: the most calls a minute to the app for the whole connection, every object together; left out, Vyre keeps 5 a second with a burst of 10) and `objects[].list.checkEveryMinutes` (a whole number of minutes, 1 to 10080: how often an object the app cannot filter by changed-since is read whole; apply sets the first schedule from it; left out, 15 minutes active and 60 idle as before). `sync_types.status` answers an optional `slowedDown` `{ words, resumesAt }` while the app has asked Vyre to slow down.
+- Not a contract change, the rule the tests pin: with a budget set the connection spends one call at a time, spaced evenly (no minute holds more than the number). A 429 holds the whole connection (every object) for what Retry-After says (seconds or an HTTP date), or 30 seconds doubling to 8 minutes when it says nothing; the pull waits and goes on, and gives up (a failed pass) only after 8 waits in a row with nothing answered. A field the object declares with a type that no sampled record fills is a warning in validate and apply, no longer an error; a mapped path the object does not declare is still an error.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: lead, 17 Nov 2026
+
+## 16 Nov 2026: a sync spec field can be sealed (lane r32-syncrate, owner decision 16 Nov), for the lead to sign
+
+- What changed in contracts, additive: a spec field's `type` (`objects[].fields[].type`) accepts `sealed` (the exact spelling) besides the existing types, and a synced type's field map entry (`sync_types.create` and `update` `fields[]`) accepts an optional `sealed` boolean. A sealed spec field maps to a Records `sealed` field.
+- Not a contract change, the rule the tests pin: a sealed field is read from the app only (direction `pull`; push or both is a validation error) and cannot be the title, the stage or a match rule. The engine takes the value out of the app's row the moment it is read: it never reaches the sync's own tables (base, conflicts, outbox, log), and goes to the Vault through `records.update` only (the record keeps a reference). A newer value from the app replaces it, an empty one clears it, and a record the app has not changed since the last seal is not sealed again. `sync_specs.validate` and `preview` say a sealed field is sealed and whether values are present, never the value or its length; `sync_specs.sample` shows a value under a secret-identifier name (ssn, tax id, account number, routing, driver licence, passport, card number) or an SSN-shaped value as "[sealed]". Validate warns, naming the field, when a field named like a secret identifier or holding SSN-shaped values is mapped as a plain type.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: lead, 17 Nov 2026
+
+## 16 Nov 2026: a sync spec's titleField may be a list of pointers (lane r32-syncrate), for the lead to sign
+
+- What changed in contracts, additive: `mapping[].titleField` in the spec of `sync_specs.validate`, `preview`, `apply` and `get` accepts a list of 1 to 5 pointers as well as one pointer; a single string means what it always did.
+- Not a contract change, the rule the tests pin: with a list, apply makes one more text field on the record type (named `name`, else `title`, else `full_title`) and makes it the record's title. Its value is the parts joined with one space, empty parts left out, and is worked out again from the app's row on every pull, so the title is right after every update; when every part is empty the field is empty, as a single empty pointer was. Each part must be described in the object's `fields` (an undescribed part is a validation error; a part empty on every sampled record is a warning); a sealed field cannot be a part. The title field is read from the app only.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: lead, 17 Nov 2026
+
+## 16 Nov 2026: sealed values masked and waiting; fields that apply only when another pointer says so (lane r32-syncrate), for the lead to sign
+
+- Additive: a spec field (`objects[].fields[]`) gains `key` (names the field when several share a path; the mapping entry's `field` is the same name) and `onlyWhen { path, equals }` (`equals` is one value or a list; compared without case or spaces). The field takes its value only when the pointer `path` of the same row holds one of the values, otherwise it is empty for that record (and cleared if it held something). It is read from the app only (direction `pull`; push or both is a validation error) and works for any type, `relation` and `sealed` included. An `onlyWhen` path the object does not describe is a validation error. `sync_types.status` answers an optional `sealedWaiting { count, words }`. `titleField` list and `sealed` are as noted above.
+- Not a contract change, the rule the tests pin: a compiled sync connector carries its sealed pointers. Every output of its actions (run, read, test, the Automation step, error bodies) shows "[sealed]" at those pointers for every caller, and for the other value-bearing keys of the same custom-field item (all but id, name and a type), in both list forms when they carry the same id. Only the sync engine's own pass, which holds a token known only inside the server process, is given the values, and seals them at once. The name guard on outputs also masks keys named like a secret identifier (ssn, social security, tax id, ein, tin, account number, routing number, driver licence, passport number, card number). When the Vault cannot take a sealed value (a Space nobody has signed in to, a locked Vault) the pass finishes, the record is written without that field, the value is kept nowhere, the Sync page says how many are waiting, and the next pass reads the app again from the start and fills them. Several relations from one type to one target get their own inverse key.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: lead, 17 Nov 2026
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: lead, 17 Nov 2026
+
+## 16 Nov 2026: a sync spec names the far end of a relation, so a second relation to the same table does not collide (lane r32-synclink), for the lead to sign
+
+- What changed in contracts, additive and optional, so no spec that exists changes: `sync_specs.validate`, `preview`, `apply` and `get` take, on a spec field with `relationTo`, `inverseKey` (lowercase letters, digits and underscores) and `inverseTitle` (the name on the other record). Left out, the first relation from a record type to a target keeps its old far end (the type and an s, title the object label and an s), so a Space already synced does not change; a further relation to the same target gets `<recordType>_<fieldKey>s` titled with the object label, an s and the field label in brackets (for example "Matters (owner)"). `validate` and `apply` refuse two relations that would put one name on the same target, in plain words, before anything is made.
+- Also additive and optional (item 2, join rows): a spec mapping takes `link` ({ from: { recordType, at }, to: { recordType, at }, key, title, inverseKey, inverseTitle }): for each pulled row of that object, apply makes a many-to-many relation on the `from` record type (field `key`, far end `inverseKey` on the `to` type) and each pass relates the two records the row names (`at` is a pointer in the row to the other record's id in the app; both types must be mapped by the same spec). The connector's `objects[remote]` carries the same as `link` ({ from: { type, at }, to: { type, at }, key, inverseKey }) so the engine can read it. A mapping with a link needs at least one mapped field (the row stays a record of its own, with the relationship type). `sync_types.status` gains the optional output `links` ({ made, waiting, words }). Not a contract change, the rule the tests pin: a join row relates its two records at both ends; a row that changes its ends moves the relation; a row the app no longer returns (the deletion sweep) takes the relation away only when no other live join row names the same pair; an end that is not pulled yet waits and is tried on every later pass (never dropped, never linked by a bare id); the pass makes no call to the app for it, and a repeat or a backfill changes nothing. No new capability: the sync engine writes the relation fields through the Space store, as it does for an ordinary relation.
+- Also additive and optional (sweep): a spec object's `list.sweepEveryDays` (whole days, 1 to 30, default 1) is how often the whole list is read to find what the app deleted; apply sets the synced type's `polling.sweepSec` (86400 or more, optional) from it, and the sync engine uses `polling.sweepSec`, else a day. A large table can be swept weekly, a core one daily.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: lead, 17 Nov 2026
+
+## 17 Nov 2026: built-in signing, a signature that needs no outside service (lane r33-sign-core, owner decision 13 Nov, "Build signing into Vyre"), for the lead to sign
+
+- What changed in contracts: `esign` gains the provider `vyre` (the default for a Space that chose none), the status `expired`, the event `signature.cancelled`, the capability `esign.remind` (a gated act `signature_send`, `comms.shared_send`) and three public calls run by the host for `/p/sign/<token>/`: `esign.signer_view`, `esign.signer_doc`, `esign.signer_act` (the token is the credential; no tool, no permission). `esign.send` takes `message`, `places`, `expiresInDays`, signer `email` becomes optional, and it answers `links`, `emailed` and `notice`. `esign.status` answers `expiresAt`, `declinedReason`, `signedFileId`, `finalSha256` and per signer `email`, `order`, `openedAt`, `signedAt`. `esign.list` takes `fileId` and `status` and answers `provider`, `recordId`, `fileId`, `signedFileId`, `createdAt`, `expiresAt`. `esign.providers` answers `title` and `why`. The Automation step `sign` takes a signer's `email` as optional and carries the step's `message` to `esign.send`.
+- Not a contract change, the rule the tests pin: a signer link is a 256-bit token of which only the SHA-256 is stored; every bad, used, expired or revoked link gets one identical refusal; completing writes `<title> (signed).pdf` beside the original and never over it. Full text: `Orgs/Vyre/team/v1/SIGN-CONTRACT-R33.md`.
+- Snapshots: docs/frozen/snapshots/esign.json.
+
+Signed: lead, 17 Nov 2026
+
+## 17 Nov 2026: a cryptographic seal on every finished signed PDF (lane r33-sign-core, owner request 17 Nov), for the lead to sign
+
+- What changed in contracts, additive: `esign.status` answers `sealed` (boolean) and `sealFingerprint` (SHA-256 of the seal certificate, hex); new read capability `esign.verify` `{ fileId }` answers `{ sealed, intact, signedAt?, fingerprint?, bySpace }`.
+- Not a contract change, the rule the tests pin: the final file of a built-in envelope carries one PDF digital signature (`adbe.pkcs7.detached`, SHA-256) over every byte but its own signature, made with a key the Space makes once (RSA 3072, self-signed certificate, about 10 years) and keeps only as the server's own sealing (`ctx.seal`). A Space that holds a bought certificate puts it in the Vault as `Document_Seal` (`certificate`, `key`, optional `chain`) and the seal uses that. No outside time-stamp service is called. The audit page says "Sealed by <Space> with a certificate made by this Space. Fingerprint SHA-256: ...". A server that cannot seal still finishes the signature; the status then says `sealed: false`.
+- Snapshots: docs/frozen/snapshots/esign.json.
+
+Signed: lead, 17 Nov 2026
+
+## 17 Nov 2026: signing security fixes from the review (lane r33-sign-core), for the lead to sign
+
+- What changed in contracts: `esign.cancel` is now an outward act held at the Gate as `signature_send` and needs `comms.shared_send` (a person cancelling is not held; it now takes an `idempotencyKey` like send and remind). In the answers of `esign.send` and `esign.remind` the signer link's `path` is optional: an agent caller gets `index`, `name` and `email` only, never a link. `signature.declined` is no longer given the signer's reason (its `reason` field stays optional and is left out; `esign.status` still returns `declinedReason`).
+- Not a contract change, the rule the tests pin: an unreadable signature picture is refused before the link is spent; if the final file cannot be made the signer's link works again, the envelope stays open and the sender is told; once the last signature is accepted a cancel answers that the envelope is signed; a malformed address under /p/ never throws out of the daemon; the signer's own words go into the thread only as labelled plain text.
+- Snapshots: docs/frozen/snapshots/esign.json.
+
+Signed: lead, 17 Nov 2026
+
+## 17 Nov 2026: a sync apply and a sync backfill may change a binding that exists (lead)
+
+- What changed in contracts: `sync_specs.apply` also declares the event `sync.type_updated`; `sync_specs.backfill` also declares `connection.created`, `sync.type_bound`, `sync.type_updated` and `schema.changed` (it runs the same apply). No input or output changed.
+- Why: a second apply that added a field or a link to a table already synced was refused by the invoker as internal.unexpected ("event not declared in emits"), on rc.26 and on the line. Test: `test/sync.reapply.live.test.ts`.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: lead, 17 Nov 2026

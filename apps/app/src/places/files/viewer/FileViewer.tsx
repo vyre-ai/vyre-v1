@@ -24,6 +24,13 @@ import { PdfPages } from "../../../../../../ui/src/Viewer/rich/PdfPages.tsx";
 import { redactedCopy } from "../../../../../../ui/src/Viewer/rich/pdf-copy.ts";
 import { noTextLayer } from "../../../../../../ui/src/Viewer/rich/pdf-model.ts";
 import { useFilesViewerData } from "./data.tsx";
+import { useMaybeSignData } from "../sign/data.tsx";
+import { cancelRequest } from "../sign/actions.ts";
+import { canSignFile, isOpen as signOpen } from "../sign/model.ts";
+import { SignBar } from "../sign/SignBar.tsx";
+import { SignSheet } from "../sign/SignSheet.tsx";
+import { useRequests } from "../sign/useRequests.ts";
+import { useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { useFileLinks } from "../links.ts";
 import { ConnectedBar } from "./ConnectedBar.tsx";
 import { FileMarkdownEditor } from "./FileMarkdownEditor.tsx";
@@ -78,12 +85,54 @@ type Load =
       /** the provider the content could not be got from, and the cause the server named */ from: string;
       code: string;
     }
-  | { status: "ready"; data: ViewerData; comments: readonly FileComment[]; markup: Markup; graph: Graph | null };
+  | ReadyLoad;
+interface ReadyLoad {
+  status: "ready";
+  data: ViewerData;
+  comments: readonly FileComment[];
+  markup: Markup;
+  graph: Graph | null;
+}
+
+// What each open file showed last, for the session it was read in (the runtime object is the session's: a sign-out or another Space is another object, so nothing
+// read as one person is ever drawn for another). The newest forty files; a file that fails to read again is forgotten.
+const SEEN = new WeakMap<object, Map<string, ReadyLoad>>();
+const SEEN_MAX = 40;
+function recallFile(rt: object | null, fileId: string): ReadyLoad | null {
+  return (rt && SEEN.get(rt)?.get(fileId)) || null;
+}
+function rememberFile(rt: object | null, fileId: string, load: ReadyLoad): void {
+  if (!rt) return;
+  const m = SEEN.get(rt) ?? new Map<string, ReadyLoad>();
+  m.delete(fileId);
+  m.set(fileId, load);
+  for (const k of m.keys()) {
+    if (m.size <= SEEN_MAX) break;
+    m.delete(k);
+  }
+  SEEN.set(rt, m);
+}
+function forgetFile(rt: object | null, fileId: string): void {
+  if (rt) SEEN.get(rt)?.delete(fileId);
+}
+/** Two answers that would draw the same page: the same version of the file, the same words, comments, marks and links. */
+function sameLoad(a: ReadyLoad, b: ReadyLoad): boolean {
+  return (
+    a.data.file.version === b.data.file.version &&
+    a.data.file.updatedAt === b.data.file.updatedAt &&
+    JSON.stringify(a) === JSON.stringify(b)
+  );
+}
 
 export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactElement {
   const d = useFilesViewerData();
-  const [load, setLoad] = useState<Load>({ status: "loading" });
+  const rt = useOptionalShellRuntime();
+  const [load, setLoad] = useState<Load>(() => recallFile(rt, fileId) ?? { status: "loading" });
   const [note, setNote] = useState<string | null>(null);
+  // a signature request made from this file: its status shows above the page, and the pen sends one
+  const sign = useMaybeSignData();
+  const [signing, setSigning] = useState(false);
+  const reqs = useRequests(sign, { fileId }, 0, true);
   // where a file from a connected folder opens at its provider (Google Docs, Word, Excel, Dropbox); null for a file Vyre holds itself
   const [link, setLink] = useState<FileLink | null>(null);
   const version = useRef(0);
@@ -103,36 +152,53 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   }, [layer]);
 
   const [attempt, setAttempt] = useState(0);
+  // The file is read through `call` alone, and `call` is the session's own: the rest of what the place hands the viewer (the list of agents, names) is made again
+  // when it arrives, and reading the whole file again for that was a second wave of the same requests on every open.
+  const call = d.call;
   useEffect(() => {
     let live = true;
-    setLoad({ status: "loading" });
+    // Coming back to a file that was open (a tab switched to, Back): what it showed last is drawn at once and read again behind it. It used to go back to
+    // "loading" and wait for five reads one after another, which is the blank second a person saw on switching tabs (owner, 16 Nov 2026, F97).
+    const seen = recallFile(rt, fileId);
+    let answered = seen !== null;
+    setLoad(seen ?? { status: "loading" });
+    if (seen) version.current = seen.data.file.version;
     void (async () => {
       // a live file whose content is not here yet is fetched from its provider while this waits: say so, and say what failed if it does
       let from = "";
+      const head = call("files.get", { fileId }).then(
+        (out) => {
+          const h = out as { file: { size: number; source?: { provider: string } } };
+          if (h.file.source && h.file.size === 0) {
+            from = h.file.source.provider;
+            if (live && !answered) setLoad({ status: "loading", from });
+          }
+        },
+        () => undefined /* the real read below says what is wrong */,
+      );
       try {
-        const head = (await d.call("files.get", { fileId })) as {
-          file: { size: number; source?: { provider: string } };
-        };
-        if (head.file.source && head.file.size === 0) {
-          from = head.file.source.provider;
-          if (live) setLoad({ status: "loading", from });
-        }
-      } catch {
-        /* the real read below says what is wrong */
-      }
-      try {
-        const data = (await d.call("files.viewer_data", { fileId })) as ViewerData;
-        const comments = ((await d.call("files.comments.list", { fileId })) as { comments: FileComment[] }).comments;
-        const markup =
-          data.file.kind === "image" ? ((await d.call("files.markup.get", { fileId })) as Markup) : { strokes: [] };
-        // the note's place in the memory graph gives its Links to and Linked from; a file with no node has none, and a failed read draws none
-        const graph =
+        // the reads that do not wait on each other go together
+        const [data, commentsOut] = (await Promise.all([
+          call("files.viewer_data", { fileId }),
+          call("files.comments.list", { fileId }),
+        ])) as [ViewerData, { comments: FileComment[] }];
+        const [markup, graph] = (await Promise.all([
+          data.file.kind === "image" ? call("files.markup.get", { fileId }) : Promise.resolve({ strokes: [] }),
+          // the note's place in the memory graph gives its Links to and Linked from; a file with no node has none, and a failed read draws none
           data.file.kind === "markdown" || data.file.kind === "text"
-            ? ((await d.call("memory.graph", { scope: "space" }).catch(() => null)) as Graph | null)
-            : null;
+            ? call("memory.graph", { scope: "space" }).catch(() => null)
+            : Promise.resolve(null),
+        ])) as [Markup, Graph | null];
+        answered = true;
+        const next: ReadyLoad = { status: "ready", data, comments: commentsOut.comments, markup, graph };
+        rememberFile(rt, fileId, next);
+        if (!live) return;
         version.current = data.file.version;
-        if (live) setLoad({ status: "ready", data, comments, markup, graph });
+        // the same answer as the one on screen changes nothing (the viewer is not drawn again for it)
+        setLoad((cur) => (cur.status === "ready" && sameLoad(cur, next) ? cur : next));
       } catch (e) {
+        await head;
+        forgetFile(rt, fileId);
         const code =
           (e as { code?: string; error?: { code?: string } } | null)?.code ??
           (e as { error?: { code?: string } } | null)?.error?.code;
@@ -148,7 +214,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
       live = false;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [d, fileId, attempt]);
+  }, [call, fileId, attempt, rt]);
 
   const mounted = (load.status === "ready" && load.data.file.source !== undefined) || load.status === "failed";
   // leaving a file of a connected folder sends what waits to the provider at once (the scheduled passes leave a fresh edit for its quiet time, so a long edit is one revision there)
@@ -310,6 +376,12 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     [ready, kind, text, app, office, isPdf, pdfData, pdfTexts, wbk.state.status, wbk.texts, offReady, off.rev],
   );
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
+  // a save made here changes the file: what was remembered of it is dropped, so coming back never shows the words from before the save
+  const savedMarks = `${liveText === null ? "" : liveText.length}:${wbk.saved ?? ""}:${off.rev}`;
+  const firstMarks = useRef(savedMarks);
+  useEffect(() => {
+    if (savedMarks !== firstMarks.current) forgetFile(rt, fileId);
+  }, [savedMarks, rt, fileId]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
   const strokes = useMemo(() => (ready ? strokesOf(ready.markup.strokes) : []), [ready]);
   // the Redact for AI boxes on pages of a PDF
@@ -584,6 +656,12 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
       say(e);
     }
   };
+  // the pen: a PDF with no request waiting (one request at a time; a finished one can be sent again)
+  const canSend =
+    sign !== null &&
+    sign.canSend !== false &&
+    canSignFile(file.name, file.mime) &&
+    !(reqs.now !== null && signOpen(reqs.now));
   const openMore = (x: number, y: number, hidden: { label: string; onSelect: () => void }[] = []): void => {
     const name = load.status === "ready" ? load.data.file.name : "";
     accessMenu.show(
@@ -599,6 +677,18 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
           ? [{ label: "Save a redacted copy", onSelect: () => void makeCopy() }]
           : []),
         ...(d.share ? [{ label: "Share…", onSelect: () => d.share?.(fileId, name) }] : []),
+        ...(canSend ? [{ label: "Send for signature…", onSelect: () => setSigning(true) }] : []),
+        ...(sign !== null && reqs.now !== null && signOpen(reqs.now)
+          ? [
+              {
+                label: "Cancel signature request",
+                onSelect: () => {
+                  const id = reqs.now?.id;
+                  if (id) void cancelRequest(sign.call, id).then(reqs.reload, say);
+                },
+              },
+            ]
+          : []),
         {
           label: "Copy Link",
           onSelect: () =>
@@ -680,6 +770,15 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
               setRev((x) => x + 1);
             }, say)
           }
+        />
+      ) : null}
+      {reqs.now ? <SignBar env={reqs.now} onChange={reqs.reload} onSendAgain={() => setSigning(true)} /> : null}
+      {signing && sign ? (
+        <SignSheet
+          fileId={fileId}
+          fileName={file.name}
+          onClose={() => setSigning(false)}
+          onSent={() => reqs.reload()}
         />
       ) : null}
       <Viewer
@@ -892,6 +991,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         onUnmark={(markId) => void layer.run("files.marks.remove", { markId }, "Agents can read it again")}
         onMarkActivity={() => setPanel("activity")}
         onHistory={openHistory}
+        {...(canSend ? { onSign: () => setSigning(true) } : {})}
         onMore={openMore}
         compact={isPhoneWidth(width)}
         tools={<LayerTools open={panel} onToggle={toggle} />}

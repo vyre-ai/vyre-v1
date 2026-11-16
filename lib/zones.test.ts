@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  zoneCity,
   clockIn,
   dayWord,
   deviceZone,
@@ -169,4 +170,43 @@ test("the picker lists cities with the time there, finds by city, name or id, an
     true,
   );
   assert.equal(all.filter((c) => zoneMatches(c, "karachi")).length, 1);
+});
+
+test("a zone's name follows its clock (the name is kept per offset, never across a change of the clocks), and the list of zones is made once a minute", () => {
+  const winter = Date.UTC(2026, 0, 15, 12);
+  const summer = Date.UTC(2026, 6, 15, 12);
+  const a = zoneName("Europe/London", winter);
+  const b = zoneName("Europe/London", summer);
+  assert.notEqual(a, b, "London is named differently in winter and in summer");
+  assert.equal(zoneName("Europe/London", winter), a, "and the same again for the same clock");
+  assert.equal(zoneName("Europe/London", summer + 3_600_000), b);
+  const one = zoneChoices(winter);
+  assert.equal(zoneChoices(winter + 20_000), one, "the same minute is the same list, not worked out again");
+  assert.notEqual(zoneChoices(winter + 120_000), one, "a later minute is a new list (the times in it moved)");
+  const ahead = one.map((c) => offsetMinAt(winter, c.zone));
+  assert.deepEqual(
+    ahead,
+    [...ahead].sort((x, y) => x - y),
+    "still in the order of the clocks, west to east",
+  );
+});
+
+test("a date with no zone given is still named (this computer's zone), and never throws", () => {
+  const none = undefined as unknown as string;
+  const at = Date.UTC(2026, 10, 16, 9, 0);
+  const local = new Intl.DateTimeFormat("en-US", { timeZoneName: "long" })
+    .formatToParts(new Date(at))
+    .find((p) => p.type === "timeZoneName")!.value;
+  const name = zoneName(none, at);
+  assert.equal(typeof name, "string");
+  if (!/^GMT[+-]/.test(local))
+    assert.equal(
+      name,
+      local
+        .replace(/\s+(Standard|Daylight|Summer)\s+/i, " ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    );
+  assert.equal(zoneCity(none), "");
+  assert.equal(zoneName("", at), "", "an empty zone has no name, as before");
 });

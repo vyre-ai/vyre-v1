@@ -3,6 +3,7 @@
 // promote the full place into the startup common chunk.
 import type { InboxData, InboxNav } from "../../places/inbox/sidebar/data.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
+import { scopeArgs } from "./inbox-address.ts";
 import { openAskPane } from "../ask/pane.ts";
 
 export function inboxData(rt: ShellRuntime, openConversation: (id: string) => void): InboxData {
@@ -11,6 +12,7 @@ export function inboxData(rt: ShellRuntime, openConversation: (id: string) => vo
     openThread: (threadId) => rt.open({ screen: "chats.conversation", args: { threadId } }),
     openCall: (callId) => rt.open({ subject: { type: "call", id: callId } }),
     openCalendar: () => undefined,
+    openScopeTab: (a) => rt.open({ screen: "inbox.contact-list", args: scopeArgs(a) }),
     openDialer: () => rt.open({ screen: "telephony.softphone" }),
     openMatch: (conversationId) => rt.open({ screen: "inbox.unmatched", args: { conversationId } }),
     // no compose screen exists yet (message-detail only reads a message), so New message opens the assistant beside the Inbox to draft it

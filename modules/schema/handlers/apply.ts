@@ -1124,14 +1124,18 @@ async function execute(
     o.reason ?? null,
   );
 
-  // 4. events
-  ctx.emit("schema.changed", `record_type/${ops[0]!.type}`, {
-    changeId,
-    type: ops[0]!.type,
-    types,
-    ops: ops.map((op) => ({ op: op.op, type: op.type, ...(op.field !== undefined ? { field: op.field } : {}) })),
-    destructive: destructive.length > 0,
-  });
+  // 4. events. One schema.changed for each type the change touched, the first op's type first: a type becomes something a person can be given access to when an event names it,
+  // so a change that made three types and named only the first left the other two that nobody, not even the owner, could open (17 Nov 2026, a sync that made its tables in one change).
+  const said = ops.map((op) => ({ op: op.op, type: op.type, ...(op.field !== undefined ? { field: op.field } : {}) }));
+  const gone = new Set(plan.dropped);
+  for (const k of [ops[0]!.type, ...types.filter((t) => t !== ops[0]!.type && !gone.has(t))])
+    ctx.emit("schema.changed", `record_type/${k}`, {
+      changeId,
+      type: k,
+      types,
+      ops: said,
+      destructive: destructive.length > 0,
+    });
   for (const k of plan.dropped) ctx.emit("schema.type_dropped", `record_type/${k}`, { type: k, changeId });
   for (const l of plan.labelChanges)
     ctx.emit("schema.label_changed", `record_type/${l.type}`, {
@@ -1451,6 +1455,19 @@ export function createApplyHandlers(deps: SchemaDeps): ApplyHandlers {
             "validation.bad_input",
             `A ${kind!.title} view needs config.${as} to name a ${types.join(" or ")} field of ${t.key}.`,
           );
+      }
+      if (kind!.key === "board" && config["stages"] !== undefined) {
+        const list = config["stages"];
+        const groupField = t.fields.find((x) => x.key === config["group"])!;
+        const stages = choicesOf(groupField);
+        if (!Array.isArray(list) || list.some((x) => typeof x !== "string"))
+          refuse(ctx, "validation.bad_input", "The stages of a board are a list of stage keys.");
+        const seen = new Set<string>();
+        for (const k of list as string[]) {
+          if (!stages.includes(k)) refuse(ctx, "validation.bad_input", `${k} is not a stage of ${groupField.title}.`);
+          if (seen.has(k)) refuse(ctx, "validation.bad_input", `${k} is listed twice among the stages.`);
+          seen.add(k);
+        }
       }
       for (const f of input.hidden ?? [])
         if (!keys.has(f)) refuse(ctx, "validation.bad_input", `${t.key} has no field ${f}.`);

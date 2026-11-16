@@ -9,9 +9,12 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useCanSend, useInboxData, useOptionalInboxData, useScreenQuery } from "./data.tsx";
+import { useOpenRowMenu } from "../../../shell/tabs/row-menu.tsx";
+import { openEntries } from "../../../../../../ui/src/Menu/open-entries.ts";
+import { openIn, takeOpenHow } from "../../../shell/tabs/open-how.ts";
 import { SCREENS, navGroups, sameScope, showsLock } from "./model.ts";
 import { CalendarRows } from "./CalendarRows.tsx";
-import type { ContactRow, NavInbox, Scope, View as ViewKind } from "./model.ts";
+import type { ContactRow, InboxAddress, NavInbox, Scope, View as ViewKind } from "./model.ts";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Glyph, IconButton, Unread } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
@@ -37,6 +40,7 @@ function SideRow({
   trailing,
   onPress,
   onMenu,
+  rowMenu,
 }: {
   id: string;
   title: string;
@@ -46,8 +50,10 @@ function SideRow({
   trailing?: ReactElement | null;
   onPress: () => void;
   onMenu?: (x: number, y: number) => void;
+  /** The row's Open / Open in New Tab menu, when it has no menu of its own (rowMenu.on of the sidebar). */
+  rowMenu?: Record<string, unknown>;
 }): ReactElement {
-  const trig = onMenu ? withMenu(onMenu) : {};
+  const trig = onMenu ? withMenu(onMenu) : (rowMenu ?? {});
   return (
     <View {...trig}>
       <Row
@@ -122,6 +128,14 @@ function Sidebar(): ReactElement {
   const { state, dispatch } = useInboxState();
   const canSend = useCanSend();
   const menu = useMenu();
+  const rowMenu = useOpenRowMenu();
+  /** The row's Open and Open in New Tab (shell/tabs/row-menu.tsx): the same menu as every place's rows. */
+  const openMenu = (label: string, open: () => void, address: InboxAddress): Record<string, unknown> =>
+    rowMenu.on({
+      label,
+      open,
+      ...(data.nav.openScopeTab ? { openTab: () => data.nav.openScopeTab?.(address) } : {}),
+    });
   const [focus, setFocus] = useState(false);
   const counts = useScreenQuery<CountsOut>(SCREENS.sidebar, "counts");
   const boxes = useScreenQuery<BoxesOut>(SCREENS.sidebar, "mailboxes");
@@ -152,13 +166,29 @@ function Sidebar(): ReactElement {
   const closed = (k: string): boolean => state.closed.includes(k);
   const scoped = (scope: Scope): boolean => state.main === "list" && sameScope(state.scope, scope);
   const pick = (scope: Scope, view?: ViewKind): void => {
+    // Cmd-press or the middle button: the row opens as a tab beside this one (tabs/open-rule.ts)
+    const how = takeOpenHow();
+    const tab = data.nav.openScopeTab;
+    if (how !== "here" && tab) {
+      openIn(how, () => tab({ scope, ...(view ? { view } : {}) }));
+      return;
+    }
     dispatch({ type: "scope", scope });
     if (view) dispatch({ type: "view", view });
   };
 
   const inboxMenu = (b: NavInbox, x: number, y: number): void => {
+    const view = b.channel === "sms" ? undefined : "thread";
+    const openTab = data.nav.openScopeTab;
     const entries: MenuEntry[] = [
-      { label: "Open", onSelect: () => pick(b.scope, b.channel === "sms" ? undefined : "thread") },
+      ...openEntries({
+        open: () => pick(b.scope, view),
+        // a mailbox row has its own menu trigger, which does not run Cmd+Enter: no key is shown
+        tabKey: false,
+        ...(openTab
+          ? { openTab: () => openIn("tab", () => openTab({ scope: b.scope, ...(view ? { view } : {}) })) }
+          : {}),
+      }),
       {
         label: b.channel === "sms" ? "Number Settings…" : "Mailbox Settings…",
         onSelect: () => data.nav.openInboxSettings(b.id),
@@ -246,6 +276,7 @@ function Sidebar(): ReactElement {
       count={unreadOf(f)}
       glyph={<Glyph name={glyph} />}
       onPress={() => pick({ kind: key })}
+      rowMenu={openMenu(label, () => pick({ kind: key }), { scope: { kind: key } })}
     />
   );
 
@@ -301,6 +332,10 @@ function Sidebar(): ReactElement {
           count={total}
           glyph={<Glyph name="users" />}
           onPress={() => pick({ kind: "all" }, "contact")}
+          rowMenu={openMenu("By contact", () => pick({ kind: "all" }, "contact"), {
+            scope: { kind: "all" },
+            view: "contact",
+          })}
         />
         <SideRow
           id="view:thread"
@@ -308,6 +343,10 @@ function Sidebar(): ReactElement {
           selected={state.main === "list" && state.scope.kind === "all" && state.view === "thread"}
           glyph={<Glyph name="mix" />}
           onPress={() => pick({ kind: "all" }, "thread")}
+          rowMenu={openMenu("All inboxes", () => pick({ kind: "all" }, "thread"), {
+            scope: { kind: "all" },
+            view: "thread",
+          })}
         />
         <SideRow
           id="calendar"
@@ -318,6 +357,7 @@ function Sidebar(): ReactElement {
             dispatch({ type: "calendar" });
             data.nav.openCalendar();
           }}
+          rowMenu={openMenu("Calendar", () => dispatch({ type: "calendar" }), { main: "calendar" })}
         />
         <SideRow
           id="meetings"
@@ -326,6 +366,7 @@ function Sidebar(): ReactElement {
           glyph={<Glyph name="video" />}
           count={meetings.status === "ready" ? meetings.data.ready : 0}
           onPress={() => dispatch({ type: "meetings" })}
+          rowMenu={openMenu("Meetings", () => dispatch({ type: "meetings" }), { main: "meetings" })}
         />
         <SideRow
           id="replies"
@@ -334,6 +375,7 @@ function Sidebar(): ReactElement {
           glyph={<Glyph name="reply" />}
           count={repliesNew}
           onPress={() => dispatch({ type: "replies" })}
+          rowMenu={openMenu("Replies", () => dispatch({ type: "replies" }), { main: "replies" })}
         />
         {sections}
         {bare ? null : (
@@ -379,6 +421,7 @@ function Sidebar(): ReactElement {
         </View>
       )}
       {menu.element}
+      {rowMenu.element}
     </View>
   );
 }

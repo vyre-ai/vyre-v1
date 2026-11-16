@@ -44,6 +44,8 @@ import { createShareRoute } from "../routes/share.ts";
 import type { SharedView } from "../routes/share.ts";
 import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
+import { createSignRoute } from "../routes/sign-route.ts";
+import { signAsset, signShell } from "../routes/sign-page.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
 import { createDomainEdge, createSitesHost, dnsPointsAt, mimeOf } from "../seams/sites-host.ts";
 import {
@@ -347,7 +349,12 @@ import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
 import { managedNetworkPort } from "./network-driver.ts";
 import { askArtifactHost, validArtifactHost } from "./artifact-check.ts";
-import { artifactHostOf as deriveArtifactHost, artifactMarkerOf, publicOriginOf } from "./public-origin.ts";
+import {
+  artifactHostOf as deriveArtifactHost,
+  artifactMarkerOf,
+  publicOriginOf,
+  spaceBaseOf,
+} from "./public-origin.ts";
 import { pollCommands } from "./commands.ts";
 import { createPhonePort } from "./phone.ts";
 import type { NetworkPort, PhonePort } from "./commands.ts";
@@ -891,6 +898,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let portalLinkRoute: ReturnType<typeof createPortalLinkRoute> | null = null;
   let shareRoute: ReturnType<typeof createShareRoute> | null = null;
   let formsPageRoute: ReturnType<typeof createFormsPageRoute> | null = null;
+  // /p/sign/<token>/: a person with no account signing a document (built-in signing). Set once the pipeline is up
+  let signRoute: ReturnType<typeof createSignRoute> | null = null;
   // /u/<token>: a person with no account leaving a mailing. Set once the pipeline is up; until then the route says it could not, and the person is still subscribed
   let leaveMailing: (token: string) => Promise<boolean> = () => Promise.reject(new Error("the server is starting"));
   const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveMailing(token) });
@@ -919,6 +928,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       /* the table comes with the network module */
     }
     return publicOriginOf(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
+  };
+  /** This Space's base address, always one a URL can be made from (public-origin.ts spaceBaseOf). */
+  const spaceBase = (): string => {
+    let claimed: { name?: string; state?: string } | undefined;
+    try {
+      claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed;
+    } catch {
+      /* the table comes with the network module */
+    }
+    return spaceBaseOf(cfg.address, claimed?.state === "claimed" ? claimed.name : null, cfg.host, boundPort);
   };
   // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
   let sitesServing: Partial<PublicPathDeps> & {
@@ -1099,6 +1118,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     forms: () => formsPageRoute,
     unsubscribe: () => unsubscribeRoute,
     share: () => shareRoute,
+    sign: () => signRoute,
     origin: () => publicOrigin()?.origin ?? null,
     site: (slug) => sitesServing.site?.(slug) ?? null,
     fetch: (t, r, sink) =>
@@ -1444,10 +1464,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     has: (c) => webhooks.has(c),
     accept: (c, a) => webhooks.accept(c, a),
     automation: (a) => webhooks.automation(a),
-    publicBase: () => {
-      const a = cfg.address ?? `http://${cfg.host}:${boundPort}`;
-      return /^https?:\/\//.test(a) ? a : `https://${a}`;
-    },
+    publicBase: () => spaceBase(),
   });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
@@ -1488,10 +1505,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   const connectorPort = createConnectorsHost({
     keyHost: (ids, host, caller, domains) => keyHostCheck(ids, host, caller, domains),
-    publicBase: () => {
-      const address = cfg.address ?? `http://${cfg.host}:${boundPort}`;
-      return /^https?:\/\//.test(address) ? address : `https://${address}`;
-    },
+    publicBase: () => spaceBase(),
     own: (caller) => ownNode(caller.actingFor ?? caller.principal.id),
     ...(o.connectorNetwork ? { network: o.connectorNetwork } : {}),
   });
@@ -5087,6 +5101,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             }
           },
         }),
+        // built-in signing builds its signer links from the same address; with none it hands back the path to copy
+        setEsignHost: (d) => ({
+          get publicBase() {
+            return publicOrigin()?.origin;
+          },
+          // Dropbox Sign and DocuSign are built from the Space's Vault at each call, so a key added or removed takes effect at once
+          secret: (handle: string) => d.vault.secret(handle, spaceId),
+          http: async (
+            url: string,
+            init?: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array },
+          ) => {
+            const r = await d.fetch(url, init);
+            return {
+              status: r.status,
+              ok: r.status >= 200 && r.status < 300,
+              json: async () => JSON.parse(await r.text()) as unknown,
+              arrayBuffer: () => r.arrayBuffer(),
+            };
+          },
+        }),
         // the unsubscribe link in an Automations email is built from the same address; with none the email goes out without one
         setMailLinksHost: () => ({
           get publicBase() {
@@ -6204,10 +6238,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           db: db!,
           probe: createProviderProbe({ own: ownNode, ...(o.providerFetch ? { fetch: o.providerFetch } : {}) }),
           refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)),
-          origin: () => {
-            const a = cfg.address ?? `http://${cfg.host}:${boundPort}`;
-            return /^https?:\/\//.test(a) ? a : `https://${a}`;
-          },
+          origin: () => spaceBase(),
           provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => {
             vaultImpl = p;
             if (p.pullExport) pullVaultExport = p.pullExport;
@@ -6275,6 +6306,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             core: coreOf(loaded.moduleExports.get("sources")),
             local: { open: () => spaceStore.open(), space: spaceStore.space },
             now,
+            ...(typeof loaded.moduleExports.get("connectors")?.["SYNC_PASS_TOKEN"] === "string"
+              ? { unmaskToken: loaded.moduleExports.get("connectors")!["SYNC_PASS_TOKEN"] as string }
+              : {}),
+            ...(loaded.moduleExports.get("connectors")?.["SEALED_HELD"]
+              ? (() => {
+                  const h = loaded.moduleExports.get("connectors")!["SEALED_HELD"] as {
+                    get(n: string, id: string): Record<string, unknown> | undefined;
+                    done(n: string): void;
+                  };
+                  return { heldOf: (n: string, id: string) => h.get(n, id), heldDone: (n: string) => h.done(n) };
+                })()
+              : {}),
           }),
         ...(o.seams?.drivers ?? {}),
       };
@@ -6309,12 +6352,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           defaultGithubApp: () => githubOAuthFromEnv(process.env),
           githubTickets,
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
-          publicUrl:
-            o.seams?.publicUrl ??
-            (async () => {
-              const a = cfg.address ?? `http://${cfg.host}:${boundPort}`;
-              return /^https?:\/\//.test(a) ? a : `https://${a}`;
-            }),
+          publicUrl: o.seams?.publicUrl ?? (async () => spaceBase()),
           drivers: hostDrivers,
           owners: loaded.seamOwners,
         });
@@ -6797,6 +6835,36 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return null;
           }
         },
+      });
+      // /p/sign/<token>/...: the signer holds no session and the token is all they have, so the host runs the three public signing calls as itself; the esign module decides what a token may do
+      signRoute = createSignRoute({
+        call: async (cap, input) => {
+          const out = await invoke(cap, input, {
+            space: spaceId,
+            principal: { ...SYSTEM_PRINCIPAL },
+            preAuth: true,
+            origin: "hook",
+          }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
+          // the last signature is in: the file is saved as the sender, so it is theirs and they can open it (a file made by this door would belong to nobody). The signer never sees who or which envelope.
+          const result = (out as { result?: { finish?: { envelopeId: string; person: string } } } | null)?.result;
+          const finish = result?.finish;
+          if (result && finish) {
+            delete result.finish;
+            const as = { space: spaceId, origin: "hook" as const };
+            const save = (principal: { kind: "person" | "system"; id: string }, preAuth: boolean) =>
+              invoke(
+                "esign.fetch_signed",
+                { envelopeId: finish.envelopeId, idempotencyKey: `esign-finish-${finish.envelopeId}` },
+                { ...as, principal, ...(preAuth ? { preAuth: true } : {}) } as never,
+              ).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error("held"))));
+            await save({ kind: "person", id: finish.person }, false).catch(() =>
+              save({ ...SYSTEM_PRINCIPAL } as never, true).catch(() => undefined),
+            );
+          }
+          return out;
+        },
+        shell: signShell,
+        asset: signAsset,
       });
       // GET /f/<slug> and /book/<slug> (P-L8_19): the public form pages. A visitor is an act_anon actor; the forms module answers for a published form of the right kind, and an upload goes to the form's Files folder
       {

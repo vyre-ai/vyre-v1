@@ -25,12 +25,14 @@ import { askedCall } from "../goals/goal-menu.ts";
 import { useAddSheet } from "../addsheet/index.ts";
 import { nameOr } from "../names.ts";
 import { ChannelSheets } from "../channels/Sheets.tsx";
+import { NewGoalSheet } from "../goals/NewGoalSheet.tsx";
 import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
 import type { ChannelSheetKind } from "../channels/request.ts";
 import { createMenuApi } from "../menus/actions.ts";
 import { copyToClipboard } from "../menus/actions-b.ts";
 import { itemLink } from "../../../share/rows.ts";
 import { createSidebarApi } from "./actions.ts";
+import type { CapMap } from "../../../../../../generated/types.ts";
 import { useScreenQuery, useSidebarData } from "./data.tsx";
 import { Glyph, Tool } from "./parts.tsx";
 import { sayWhen } from "./side-clock.ts";
@@ -165,6 +167,7 @@ export function SideChats({
   const [pages, setPages] = useState<Partial<Record<(typeof SECTIONS_PAGED)[number], SideRow[]>>>({});
   const [more, setMore] = useState<ReadonlySet<SectionId>>(new Set());
   const [sheet, setSheet] = useState<ChannelSheetKind | null>(null);
+  const [goalSheet, setGoalSheet] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [ask, setAsk] = useState<
     { kind: "rename"; threadId: string; title: string } | { kind: "stuck" | "report"; goalId: string } | null
@@ -326,7 +329,7 @@ export function SideChats({
   const refOf = (x: Item): SideRow | undefined => built?.refs.get(x.key);
 
   const openItem = (x: Item, how0: "here" | "tab"): void => {
-    // a Cmd-press or a middle press on the row asks for a new tab, as the menu's "Open in a new tab" does (tabs/open-rule.ts: one rule for every row)
+    // a Cmd-press or a middle press on the row asks for a new tab, as the menu's "Open in New Tab" does (tabs/open-rule.ts: one rule for every row)
     const asked = takeOpenHow();
     const mode: "here" | "tab" | "behind" = asked !== "here" ? asked : how0;
     const how: "here" | "tab" = mode === "here" ? "here" : "tab";
@@ -448,6 +451,7 @@ export function SideChats({
     newMenu({
       ...(canChat ? { newChat: startChat } : {}),
       ...(canChannel && !personal ? { newChannel: () => setSheet("new") } : {}),
+      newGoal: () => setGoalSheet(true),
       ...(data.nav.takeNote
         ? {
             newNote: () => {
@@ -487,6 +491,7 @@ export function SideChats({
       };
       if (m.id === "chat.new" && canChat) run(startChat);
       else if (m.id === "channel.new" && canChannel && !personal) run(() => setSheet("new"));
+      else if (m.id === "goal.new") run(() => setGoalSheet(true));
       else if (m.id === "note.new" && data.nav.takeNote) run(() => data.nav.takeNote!());
       else if (m.id === "sidebar.hide") run(() => data.nav.toggleSidebar?.());
       else if (m.id === "agent.jump" && m.arg) {
@@ -572,6 +577,7 @@ export function SideChats({
                     browseChannels: () => setSheet("browse"),
                   }
                 : {}),
+              ...(s === "goals" ? { newGoal: () => setGoalSheet(true) } : {}),
               ...(s === "pinned"
                 ? {
                     unpinAll: () =>
@@ -604,7 +610,7 @@ export function SideChats({
             }}
             retry={reread}
             showAll={showAll}
-            newGoal={() => data.nav.openGoal?.("new")}
+            newGoal={() => setGoalSheet(true)}
             openPinned={(n) => {
               const key = [...layout.digits.entries()].find(([, d]) => d === n)?.[0];
               const it = key ? built?.items.find((x) => x.key === key) : undefined;
@@ -693,8 +699,32 @@ export function SideChats({
           }}
         />
       ) : null}
+      {goalSheet ? (
+        <GoalSheetHost
+          onClose={() => setGoalSheet(false)}
+          onCreated={(id) => {
+            setGoalSheet(false);
+            data.nav.openGoal?.(id);
+            leave();
+          }}
+        />
+      ) : null}
       {sheet ? <SheetHost kind={sheet} onSwitch={setSheet} onClose={() => setSheet(null)} /> : null}
     </View>
+  );
+}
+
+function GoalSheetHost({ onClose, onCreated }: { onClose(): void; onCreated(goalId: string): void }): ReactElement {
+  const data = useSidebarData();
+  const agents = useScreenQuery<{ agents: { agentId: string; name: string }[] }>("chats.all-agents", "agents", {});
+  return (
+    <NewGoalSheet
+      agents={agents.status === "ready" ? agents.data.agents : []}
+      assistantId={data.space.assistant.agentId}
+      onClose={onClose}
+      onCreated={onCreated}
+      create={async (input) => ((await data.call("goals.create", input)) as CapMap["goals.create"]["out"]).goal.id}
+    />
   );
 }
 

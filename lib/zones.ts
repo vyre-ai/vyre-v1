@@ -111,24 +111,45 @@ export function dayWord(at: number, now: number, zone: string): string {
 
 /** "Pacific Time", from the zone's long name with Standard and Daylight left out (the clock says which it is). Falls back to the city. */
 export function zoneName(zone: string, at: number = Date.now()): string {
+  // A zone's name changes only when its clock does (London is "British Time" in summer and "Greenwich Mean Time" in winter), so it is worked out once for each
+  // offset the zone has: naming every zone in the world on each draw took a third of a second (the Settings tab, 16 Nov 2026).
+  // A caller with no zone at all (a date shown before the Space's zone is known) gets this computer's zone, as it always did: it is named as before, uncached.
+  let key: string | null = null;
+  if (typeof zone === "string" && zone !== "") {
+    try {
+      key = `${zone}|${offsetMinAt(at, zone)}`;
+    } catch {
+      key = null;
+    }
+  }
+  const had = key === null ? undefined : zoneNames.get(key);
+  if (had !== undefined) return had;
+  let out: string | null = null;
   try {
-    const long =
-      new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "long" })
-        .formatToParts(new Date(at))
-        .find((p) => p.type === "timeZoneName")?.value ?? "";
+    let f = key === null ? undefined : nameFormatters.get(zone);
+    if (!f) {
+      f = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "long" });
+      if (key !== null) nameFormatters.set(zone, f);
+    }
+    const long = f.formatToParts(new Date(at)).find((p) => p.type === "timeZoneName")?.value ?? "";
     const plain = long
       .replace(/\s+(Standard|Daylight|Summer)\s+/i, " ")
       .replace(/\s+/g, " ")
       .trim();
-    if (plain !== "" && !/^GMT[+-]/.test(plain)) return plain;
+    if (plain !== "" && !/^GMT[+-]/.test(plain)) out = plain;
   } catch {
     /* an unknown zone */
   }
-  return zoneCity(zone);
+  if (out === null) out = zoneCity(zone);
+  if (key !== null) zoneNames.set(key, out);
+  return out;
 }
+const nameFormatters = new Map<string, Intl.DateTimeFormat>();
+const zoneNames = new Map<string, string>();
 
 /** "Los Angeles" from "America/Los_Angeles". */
 export function zoneCity(zone: string): string {
+  if (typeof zone !== "string") return "";
   const last = zone.split("/").pop() ?? zone;
   return last.replace(/_/g, " ");
 }
@@ -250,16 +271,30 @@ export function zoneChoices(
   }
   if (names.length === 0) names = FALLBACK_ZONES;
   if (!names.includes("UTC")) names = [...names, "UTC"];
-  return names
+  // the same minute gives the same list: a picker that draws again (a key typed in its search) does not work the world's clocks out again
+  const minute = Math.floor(now / MIN);
+  if (lastChoices !== null && lastChoices.minute === minute && lastChoices.count === names.length)
+    return lastChoices.out;
+  const out = names
     .filter(validZone)
     .map((zone) => {
       const city = zoneCity(zone),
         name = zoneName(zone, now),
         time = clockIn(now, zone);
-      return { zone, city, name, offset: offsetLabel(now, zone), time, label: `${name}, ${city}, ${time}` };
+      // each zone's offset is read once, not once for every comparison of the sort
+      const ahead = offsetMinAt(now, zone);
+      return { zone, city, name, offset: offsetLabel(now, zone), time, label: `${name}, ${city}, ${time}`, ahead };
     })
-    .sort((a, b) => offsetMinAt(now, a.zone) - offsetMinAt(now, b.zone) || a.city.localeCompare(b.city));
+    .sort((a, b) => a.ahead - b.ahead || a.city.localeCompare(b.city))
+    .map(({ ahead: _ahead, ...c }) => c);
+  lastChoices = { minute, count: names.length, out };
+  return out;
 }
+let lastChoices: {
+  minute: number;
+  count: number;
+  out: { zone: string; city: string; name: string; offset: string; time: string; label: string }[];
+} | null = null;
 
 const FALLBACK_ZONES = [
   "Pacific/Honolulu",

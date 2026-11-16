@@ -130,6 +130,8 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "engine.mcp.read": "read from an outside tool",
   "engine.spend.raise": "raise a spending limit",
   "esign.send": "send a document for signature",
+  "esign.remind": "send a signing link again",
+  "esign.cancel": "cancel a signature request",
   "files.delete": "delete a file",
   "files.folder.purge": "delete a folder for good",
   "files.folder.delete": "delete a folder and its files",

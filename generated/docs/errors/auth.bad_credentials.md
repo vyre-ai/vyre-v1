@@ -6,6 +6,9 @@ HTTP 401. Retryable: no.
 
 ## Raised by
 
+- esign.signer_act
+- esign.signer_doc
+- esign.signer_view
 - identity.change_password
 - identity.github_sign_in
 - identity.link_account

@@ -1013,3 +1013,20 @@ test("a create onto a taken name never takes the item there for the new file: it
   const plain = await driveUpload(h3.ctx, { ...act, folderId: "f1", name: "Fresh.txt", fileId: "fil_f" });
   assert.equal(sent(plain).renamedTo, undefined);
 });
+
+test("a folder made onto a taken name is saved as Name (3), never taken for the old one, and the call says so; a free name says nothing", async () => {
+  const h = ready();
+  const taken = new Set(["Matters", "Matters (2)"]);
+  h.on("POST", `${U}/drive/items/f1/children`, ((req: { body?: { name?: string } }) => {
+    const name = req.body?.name ?? "";
+    return taken.has(name)
+      ? { status: 409, body: { error: { code: "nameAlreadyExists" } } }
+      : { body: { id: `fo_${name}`, name, folder: {} } };
+  }) as never);
+  const made = await driveFolder(h.ctx, { ...act, parentId: "f1", name: "Matters" });
+  assert.equal((made as { item: { name: string } }).item.name, "Matters (3)");
+  assert.equal((made as { renamedTo?: string }).renamedTo, "Matters (3)");
+  assert.equal(h.hits(`${U}/drive/items/f1/children`).length, 3, "three tries, the last one made the folder");
+  const free = await driveFolder(h.ctx, { ...act, parentId: "f1", name: "Fresh" });
+  assert.equal((free as { renamedTo?: string }).renamedTo, undefined);
+});

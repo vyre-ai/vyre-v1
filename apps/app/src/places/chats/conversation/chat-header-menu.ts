@@ -21,6 +21,8 @@ export interface HeaderMenuFacts {
 export interface HeaderMenuDo {
   plan(): void;
   fork(): void;
+  /** Rewind (G4): opens the "Go back to" card. Left out where the chat cannot go back (no agent in it). */
+  rewind?: (() => void) | undefined;
   find(): void;
   /** Left out until the pane has its Kept tab. */
   kept?: (() => void) | undefined;
@@ -39,6 +41,7 @@ export function chatHeaderEntries(f: HeaderMenuFacts, d: HeaderMenuDo): MenuEntr
   return tidy([
     f.withAgent ? item("Plan first", d.plan, { checked: f.planOn }) : null,
     f.withAgent ? item("Fork", d.fork) : null,
+    f.withAgent && d.rewind ? item("Rewind", d.rewind) : null,
     item("Find in this chat", d.find, { hint: "\u2318F" }),
     d.kept ? item("Kept", d.kept) : null,
     sep,

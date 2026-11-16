@@ -46,6 +46,17 @@ type Out = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
@@ -98,6 +109,20 @@ type Out = {
       "agentId": "agt_a1b2c3",
       "checks": true,
       "checksWith": "example",
+      "choice": {
+        "label": "example",
+        "name": "example",
+        "options": [
+          {
+            "connector": "hubspot",
+            "hosts": [
+              "example"
+            ],
+            "label": "example",
+            "value": "example"
+          }
+        ]
+      },
       "connectedBy": "usr_a1b2c3",
       "connectionId": "con_a1b2c3",
       "fields": [
@@ -115,6 +140,7 @@ type Out = {
       "keptIn": "example",
       "mayFill": true,
       "notice": "example",
+      "problem": "permission",
       "requestId": "vrq_a1b2c3",
       "service": {
         "key": "hubspot",

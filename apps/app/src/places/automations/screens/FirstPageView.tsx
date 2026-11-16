@@ -25,6 +25,8 @@ export interface FirstPageViewProps {
   note?: string | null;
   /** More things that need him, drawn under the cards (schedule recovery requests). */
   extra?: ReactNode;
+  /** Automations waiting for his approval: a card each with Allow and Deny, drawn first under Needs you. */
+  approvals?: ReactNode;
 }
 
 function Btn({
@@ -70,7 +72,8 @@ export function FirstPageView(p: FirstPageViewProps): ReactElement {
             {p.note}
           </Text>
         ) : null}
-        {needs.length > 0 ? <Text style={look.heading}>Needs you</Text> : null}
+        {needs.length > 0 || p.approvals ? <Text style={look.heading}>Needs you</Text> : null}
+        {p.approvals}
         {/* ui-rows-lint: not a list (Needs you cards, each with its own fix) */}
         {needs.map((n) => (
           <View key={n.id} style={look.card}>

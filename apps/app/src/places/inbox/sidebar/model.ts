@@ -1,15 +1,28 @@
 // Inbox model: the pure part. What the sidebar groups, what the list shows, how filters narrow it and what the header says. No React, no clock of its own.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
-export type View = "contact" | "thread" | "calls";
+import type { View } from "../../../shell/providers/inbox-address.ts";
+export type { View };
 export type Channel = "email" | "sms" | "call";
-/** What the sidebar has selected. Mailbox and number are one inbox each; Starred and Following are lists over all inboxes. */
-export type Scope =
-  | { kind: "all" }
-  | { kind: "mailbox"; id: string }
-  | { kind: "number"; id: string }
-  | { kind: "starred" }
-  | { kind: "follow" };
+// The address of a sidebar row lives with the shell's Inbox data (shell/providers/inbox-address.ts): the phone's startup code opens such a row, and it must not
+// load this place to do so (scripts/shots/startup.test.ts).
+import { scopeArgs } from "../../../shell/providers/inbox-address.ts";
+import type { InboxAddress, Scope } from "../../../shell/providers/inbox-address.ts";
+export { scopeArgs };
+export type { InboxAddress, Scope };
+/** What an address names for the Inbox's first state: nothing it does not understand. */
+export function scopeOfArgs(args: Readonly<Record<string, string>>): Partial<InboxState> {
+  const raw = args["scope"] ?? "";
+  const view =
+    args["view"] === "contact" || args["view"] === "thread" || args["view"] === "calls" ? args["view"] : undefined;
+  const main =
+    args["main"] === "calendar" || args["main"] === "meetings" || args["main"] === "replies" ? args["main"] : undefined;
+  let scope: Scope | undefined;
+  if (raw === "all" || raw === "starred" || raw === "follow") scope = { kind: raw };
+  else if (raw.startsWith("mailbox:") && raw.length > 8) scope = { kind: "mailbox", id: raw.slice(8) };
+  else if (raw.startsWith("number:") && raw.length > 7) scope = { kind: "number", id: raw.slice(7) };
+  return { ...(scope ? { scope } : {}), ...(view ? { view } : {}), ...(main ? { main } : {}) };
+}
 export type MainView = "list" | "calendar" | "connect" | "meetings" | "replies";
 
 export interface InboxState {

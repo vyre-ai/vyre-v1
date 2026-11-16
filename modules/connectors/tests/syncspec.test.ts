@@ -113,16 +113,38 @@ test("validate names what is wrong against the real page", async () => {
     }),
   );
   assert.match(noList.problems.map((p) => p.message).join(" "), /no list at \/rows/);
-  const noField = await validate(
+  // a field the object declares (with a type) that no sampled record fills is a warning: most custom fields of a CRM are filled on only some records
+  const sparse = await validate(
     w,
     mutate(ledgerSpec(), (s) => {
-      s["objects"][1]["fields"][1]["path"] = "/attributes/mail";
-      s["mapping"][1]["fields"][1]["path"] = "/attributes/mail";
+      s["objects"][1]["fields"][5]["path"] = "/attributes/mail";
+      s["mapping"][1]["fields"][5]["path"] = "/attributes/mail";
     }),
   );
+  assert.equal(sparse.ok, true, JSON.stringify(sparse.problems));
+  assert.ok(
+    sparse.problems.some(
+      (p) =>
+        p.level === "warn" &&
+        /\/attributes\/mail is empty on the 2 records looked at; it will fill in where the app has a value/.test(
+          p.message,
+        ),
+    ),
+  );
+  // a path that is mapped but never declared is a typo: still an error
+  const typo = await validate(
+    w,
+    mutate(ledgerSpec(), (s) => {
+      s["mapping"][1]["fields"][5]["path"] = "/attributes/mail";
+    }),
+  );
+  assert.equal(typo.ok, false);
   assert.match(
-    noField.problems.map((p) => p.message).join(" "),
-    /\/attributes\/mail is not in any of the 2 sampled records/,
+    typo.problems
+      .filter((p) => p.level === "error")
+      .map((p) => p.message)
+      .join(" "),
+    /\/attributes\/mail is mapped but not described/,
   );
   const badId = await validate(
     w,

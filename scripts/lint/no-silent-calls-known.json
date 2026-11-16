@@ -2,8 +2,6 @@
  "note": "Fire-and-forget calls with no error handler that predate scripts/lint/no-silent-calls.ts. Burn this list down; a new entry fails the lint.",
  "known": [
   "apps/app/src/places/files/list/FilesList.tsx#files.star#1",
-  "apps/app/src/places/files/list/FilesList.tsx#m.cap#1",
-  "apps/app/src/places/files/tree/FilesTree.tsx#m.cap#1",
   "apps/app/src/places/inbox/contactlist/ContactList.tsx#cap#1",
   "apps/app/src/places/inbox/softphone/phone.tsx#telephony.call.log_task#1",
   "apps/app/src/places/inbox/softphone/phone.tsx#telephony.hangup#1",

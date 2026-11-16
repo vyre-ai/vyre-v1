@@ -150,3 +150,17 @@ test("machine items each make one capability call on the machine's own id", asyn
     ],
   );
 });
+
+test("an automation is renamed with one update and duplicated as a copy of its own steps", async () => {
+  const def = { triggers: [{ key: "manual" }], nodes: [{ id: "n1", key: "stop" }], start: ["n1"] };
+  const w = world({ "automations.get": { automation: { name: "Lead follow-up", definition: def } } });
+  await w.api.automationRename("aut_1", "Lead reply");
+  await w.api.automationDuplicate("aut_1");
+  assert.deepEqual(w.calls[0], { cap: "automations.update", input: { automationId: "aut_1", name: "Lead reply" } });
+  assert.deepEqual(
+    w.calls.slice(1).map((c) => c.cap),
+    ["automations.get", "automations.create"],
+  );
+  assert.equal(w.calls[2]!.input.name, "Lead follow-up (copy)");
+  assert.deepEqual(w.calls[2]!.input.definition, def);
+});

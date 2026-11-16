@@ -1,6 +1,6 @@
 # esign.health
 
-Probe: the provider answers (Documenso container health)
+Probe: the default signing service is ready (built-in signing always is)
 
 | | |
 |---|---|

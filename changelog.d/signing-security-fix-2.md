@@ -1,0 +1,1 @@
+Security fixes for signing: a malformed link address cannot crash the server, an agent never holds a signer link, cancelling an envelope is held like sending, and a signer's words are shown only as plain labelled text.

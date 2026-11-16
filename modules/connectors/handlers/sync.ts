@@ -27,6 +27,7 @@ export interface FieldMapRow {
   dir: Dir;
   transform?: string;
   /** A value stamped on every record this binding pulls (the From field). */ constant?: string;
+  /** A sealed field: read by the engine apart from the sync's own tables and sealed at once. */ sealed?: boolean;
   /** The record type this field points at (a relation): the remote id is turned into a link to that type's record. */ relation?: string;
   /** The field on that record type that links back, kept in step when this link changes. */ inverse?: string;
 }
@@ -34,6 +35,7 @@ export interface PollingRow {
   activeSec: number;
   idleSec: number;
   dormantSec: number;
+  /** How often the whole list is read to find what the app deleted (default a day). */ sweepSec?: number;
 }
 export interface SchemaChange {
   changeKey: string;
@@ -554,6 +556,15 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       summary.slice(0, 300),
       runId ?? null,
     );
+  };
+  /** Sealed values the Vault could not take yet: look again soon (10 s), not at the idle interval. */
+  const owedAt = (r: SyncDb): number | undefined => {
+    try {
+      const n = tx.get<{ n: number }>("SELECT n FROM sy_sealed_wait WHERE sync_type = ?", r.sync_type_id)?.n ?? 0;
+      return n > 0 ? nowOf(deps) + 10_000 : undefined;
+    } catch {
+      return undefined;
+    }
   };
   /** One poll ahead at a time per type: sooner while pushes wait, otherwise at the idle interval. A pause or a removal ends the chain. */
   const WATCH_MS = 5_000;
@@ -1110,7 +1121,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
           parts.push(`${r.type}: ${out.summary}`);
           if (!out.dryRun) noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), true, nowOf(deps));
           if (out.more) more = true;
-          else if (!out.dryRun) await planPoll(ctx, r);
+          else if (!out.dryRun) await planPoll(ctx, r, owedAt(r));
         } catch (e) {
           noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), false, nowOf(deps)); // the driver waits longer after each failure in a row
           const err = (e as { error?: { code?: string; message?: string } }).error;
@@ -1165,6 +1176,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
           const out = await engineOf(ctx).run(ctx, rowOf(r), { mode: "incremental" });
           summary = out.summary;
           noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), true, nowOf(deps));
+          retryAt = owedAt(r);
           // a first pull still going carries on straight away, not at the idle interval
           if (out.more && ctx.schedule) {
             tx.run(

@@ -1,31 +1,32 @@
 # esign.cancel
 
-Cancel an envelope
+Cancel an envelope; every signer link stops
 
 | | |
 |---|---|
 | Module | esign |
 | Version | 1 (since 1.0.0) |
-| Effects | write |
-| Permission | grant only |
-| Grant level | edit |
-| Risk | medium |
+| Effects | outward |
+| Permission | comms.shared_send |
+| Grant level | use |
+| Risk | high |
 | Resource | space |
-| Gate | none |
-| Idempotency | natural |
+| Gate | signature_send |
+| Idempotency | key |
 | Offline | online |
-| Audit | none |
+| Audit | always |
 | Team Space only | yes |
 | HTTP | POST /v1/esign/cancel |
 | MCP tool | esign_cancel (files) |
 | CLI | none |
-| Emits | none |
+| Emits | signature.cancelled |
 
 ## Input
 
 ```ts
 type In = {
   envelopeId: string;
+  idempotencyKey: string;
 };
 ```
 
@@ -43,6 +44,9 @@ type Out = {
 - permission.above_clearance
 - permission.needs_team
 - permission.no_grant
+- permission.role_lacks_permission
+- provider.network
+- provider.unavailable
 - validation.bad_input
 
 ## Example
@@ -51,7 +55,8 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "envelopeId": "env_a1b2c3"
+    "envelopeId": "env_a1b2c3",
+    "idempotencyKey": "idem_1"
   },
   "output": {
     "cancelled": true

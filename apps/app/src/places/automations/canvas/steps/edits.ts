@@ -439,3 +439,15 @@ export function dropChip(segs: readonly Seg[], index: number): Seg[] {
 /** Add a chip at the end of the text. */
 export const addChip = (value: string, ref: string): string =>
   `${value}${value === "" || /\s$/.test(value) ? "" : " "}{{ ${ref} }}`;
+
+// ---------------------------------------------------------------- Wait: a time or an event
+
+export type WaitMode = "time" | "event";
+/** A Wait waits for an event when its settings hold one, else for a time. */
+export const waitModeOf = (input: Record<string, unknown>): WaitMode =>
+  input["event"] !== undefined ? "event" : "time";
+/** Switch what the Wait waits for: the other kind's fields go, the rest (a time limit, working hours) stays. */
+export function withWaitMode(input: Record<string, unknown>, mode: WaitMode): Record<string, unknown> {
+  const { event: _event, forDuration: _for, until: _until, ...rest } = input;
+  return mode === "event" ? { event: {}, ...rest } : rest;
+}

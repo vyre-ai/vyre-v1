@@ -24,6 +24,7 @@ export function ThreadParent({
   clock,
   count,
   writing,
+  decided,
   onOpen,
 }: {
   threadId?: string | undefined;
@@ -36,6 +37,8 @@ export function ThreadParent({
   /** Who is writing the first reply right now: the divider says so instead of "No replies yet". */ writing?:
     | string
     | undefined;
+  /** What the thread decided, when it reached a decision: a quiet "Decided" line under the message (G55). */
+  decided?: string | null | undefined;
   onOpen?: (() => void) | undefined;
 }): ReactElement | null {
   const [parent, setParent] = useState<Parent | null>(null);
@@ -73,6 +76,11 @@ export function ThreadParent({
       <Text style={st.body} numberOfLines={8}>
         {parent.body}
       </Text>
+      {decided ? (
+        <Text testID="thread-decided" style={st.decided} numberOfLines={2}>
+          {`Decided \u00b7 ${decided}`}
+        </Text>
+      ) : null}
     </>
   );
   const divider =
@@ -135,4 +143,5 @@ const st = StyleSheet.create({
   over: { backgroundColor: "var(--hover)" as string },
   who: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   body: { fontSize: 14, lineHeight: 20, color: "var(--ink-2)" as string },
+  decided: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
 });

@@ -93,14 +93,14 @@ const whoami = async (call: CapCall): Promise<string> =>
 test("a Personal Space is claimed and gets its assistant; progress, AI, the memory interview", async () => {
   const d = await bootFreshSpace("personal");
   try {
-    const token = await claim(d, "dana", "Dana Reyes");
+    const token = await claim(d, "dana", "Imran Ibarra");
     await unlock(d, token);
     const call = caller(d, token);
     const me = await whoami(call);
     await untilAssistant(call, me); // before any AI account exists
 
     // the screen opens on a fresh person: nothing done, not yet seen
-    assert.deepEqual(await loadFlow(call, "personal"), { seen: false, progress: {} });
+    assert.deepEqual(await loadFlow(call, "personal"), { seen: false, progress: {}, fresh: true });
     await call("spaces.onboarding.seen", { flow: "personal" });
     assert.equal((await loadFlow(call, "personal")).seen, true);
 
@@ -146,16 +146,16 @@ test("a Team Space: the same AI account is copied only with a yes; a member join
   const team = await bootFreshSpace();
   try {
     // the founder: Personal first (an AI key in Mine), then the Team Space
-    const pTok = await claim(personal, "dana", "Dana Reyes");
+    const pTok = await claim(personal, "dana", "Imran Ibarra");
     await unlock(personal, pTok);
     const pCall = caller(personal, pTok);
     await saveApiKey(pCall, "anthropic", "sk-ant-live-test-0002", "live-p2-ai");
-    const tTok = await claim(team, "dana", "Dana Reyes");
+    const tTok = await claim(team, "dana", "Imran Ibarra");
     await unlock(team, tTok);
     const tCall = caller(team, tTok);
     const owner = await whoami(tCall);
     await untilAssistant(tCall, owner);
-    assert.deepEqual(await loadFlow(tCall, "team"), { seen: false, progress: {} });
+    assert.deepEqual(await loadFlow(tCall, "team"), { seen: false, progress: {}, fresh: true });
 
     // Q4: nothing is copied by itself. The offer only reads the Personal side; the team side stays empty until a yes.
     const offered = await copyableAccounts(pCall);
@@ -196,7 +196,7 @@ test("a Team Space: the same AI account is copied only with a yes; a member join
     const joined = await post(team, "/v1/members/accept", {
       code,
       username: "omar",
-      displayName: "Omar Haddad",
+      displayName: "Andrea Lindahl",
       password: PASSWORD,
       deviceName: "Web browser",
       deviceClass: "web",
@@ -257,12 +257,12 @@ test("a Team Space: the same AI account is copied only with a yes; a member join
       "the owner's Mine key is not visible to a member",
     );
     // the member's own onboarding has its own flow and progress
-    assert.deepEqual(await loadFlow(mCall, "member"), { seen: false, progress: {} });
+    assert.deepEqual(await loadFlow(mCall, "member"), { seen: false, progress: {}, fresh: true });
     await markStep(mCall, "member", "apps", "later");
     assert.deepEqual((await loadFlow(mCall, "member")).progress, { apps: "later" });
     assert.deepEqual(
       await loadFlow(tCall, "member"),
-      { seen: false, progress: {} },
+      { seen: false, progress: {}, fresh: true },
       "the owner's progress is separate",
     );
     // a browser-only member's Mine Vault is locked until they unlock it on their own computer; the card says so in plain words

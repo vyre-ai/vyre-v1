@@ -7,8 +7,8 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { reportProblem } from "../../../../../ui/src/Menu/index.tsx";
 import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
-import { holdView, installMotion } from "../../../../../ui/src/theme/motion.ts";
-import type { Swap } from "../../../../../ui/src/theme/motion.ts";
+import { holdView, installMotion, keepView, showKept } from "../../../../../ui/src/theme/motion.ts";
+import type { Kept, Swap } from "../../../../../ui/src/theme/motion.ts";
 import {
   SHEET_GAP,
   SHEET_RADIUS,
@@ -52,6 +52,8 @@ import { shellKey } from "./keys.ts";
 
 /** A slow view stops holding the old one after this long: its own quiet sign takes over. */
 const HOLD_MAX_MS = 900;
+/** How many tabs keep a still copy of their last view (see Sheets). */
+const KEPT_VIEWS = 6;
 import type { SpaceKind } from "./model.ts";
 import { SpaceSkeleton } from "./Skeleton.tsx";
 import { watchPurge } from "./purge.ts";
@@ -158,23 +160,60 @@ export function Sheets({
   tabs,
   toast,
   hub,
+  shown,
+  scope,
   children,
 }: {
   tabs: ReactNode;
   toast?: ReactNode;
   hub?: ShellHub;
+  /** The tab whose view is on screen, and what its views belong to (the Space and its sign-in): a view kept for one is never shown for another. */
+  shown?: string | undefined;
+  scope?: string | undefined;
   children: ReactNode;
 }): ReactElement {
   const main = useRef<unknown>(null);
+  // What each of the last tabs showed when it was left. Pressing a tab shows its own last view at once, and the live view takes its place when it is ready: the
+  // press is answered in the same frame instead of after the place has been made again (owner, 16 Nov 2026, F97: "switching tab ... takes about 2 seconds").
+  const onScreen = useRef<string | undefined>(undefined);
+  const keptViews = useRef<{ scope: string; views: Map<string, Kept> }>({ scope: "", views: new Map() });
+  useEffect(() => {
+    onScreen.current = shown;
+  }, [shown]);
+  useEffect(() => {
+    keptViews.current = { scope: scope ?? "", views: new Map() };
+  }, [scope]);
   // A switch never shows a blank frame: a still copy of the view stays over the sheet until the next view stops loading, then lets go in one fade.
   useEffect(() => {
     if (!hub || Platform.OS !== "web") return undefined;
     installMotion((globalThis as { document?: Parameters<typeof installMotion>[0] }).document);
     let held: Swap | null = null;
-    hub.setHolder(() => {
-      if (held !== null) return;
-      const swap = holdView(main.current, main.current);
-      if (swap === null) return;
+    hub.setHolder((to, then) => {
+      if (held !== null) return false;
+      const el0 = main.current as { querySelector?: (q: string) => unknown } | null;
+      const body = el0?.querySelector?.('[data-testid="place-body"]') ?? null;
+      const views = keptViews.current.views;
+      // the tab being left: its view is kept as it looks now (the newest six)
+      const from = onScreen.current;
+      if (from !== undefined && body !== null) {
+        const k = keepView(body);
+        if (k !== null) {
+          views.delete(from);
+          views.set(from, k);
+          for (const key of views.keys()) {
+            if (views.size <= KEPT_VIEWS) break;
+            views.delete(key);
+          }
+        }
+      }
+      // the tab being shown: its own last view goes over the page at once; with none kept, the view on screen stays until the next one is ready, as before
+      const back = to !== undefined && to !== from && body !== null ? views.get(to) : undefined;
+      const paper =
+        back !== undefined && typeof getComputedStyle === "function" && main.current
+          ? getComputedStyle(main.current as Element).backgroundColor
+          : undefined;
+      const swap = (back !== undefined ? showKept(back, body, paper) : null) ?? holdView(main.current, main.current);
+      if (swap === null) return false;
       held = swap;
       const began = Date.now();
       let frames = 0;
@@ -195,7 +234,22 @@ export function Sheets({
         swap.fade();
         held = null;
       };
+      // The tab's own last view is over the page: it is painted first and the place is made after that paint, so the press is answered in the next frame and not
+      // after the place has been made. A page that is not being drawn (a hidden window) gives no frame, so a short timer does the same.
+      if (back !== undefined && then !== undefined) {
+        let ran = false;
+        const run = (): void => {
+          if (ran) return;
+          ran = true;
+          then();
+          requestAnimationFrame(wait);
+        };
+        requestAnimationFrame(() => setTimeout(run, 0));
+        setTimeout(run, 120);
+        return true;
+      }
       requestAnimationFrame(wait);
+      return false;
     });
     return () => hub.setHolder(null);
   }, [hub]);
@@ -676,10 +730,13 @@ export function Shell(props: ShellProps): ReactElement {
           ) : (
             <Sheets
               hub={hub}
+              shown={activeTab?.key}
+              scope={`${state.epoch}:${ctx.spaceId}`}
               tabs={
                 <MainTabs
                   controller={session.tabs}
                   onNavigate={(tab) => hub.showTab(tab)}
+                  onShow={(tab) => hub.showTab(tab)}
                   onNewTab={() => hub.newTab()}
                   onGoToPlace={(place) => hub.go(place)}
                 />

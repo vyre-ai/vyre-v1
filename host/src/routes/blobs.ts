@@ -186,14 +186,15 @@ export function createBlobRoute(deps: BlobRouteDeps): {
         return false;
       }
       const method = (req.method ?? "GET").toUpperCase();
+      let space: string;
+      try {
+        space = decodeURIComponent(m[1] as string);
+      } catch {
+        reply(res, "validation.bad_input", 400, "That address is not valid.");
+        return true;
+      }
       if (method === "PUT" && deps.put) {
-        void upload(
-          req,
-          res,
-          decodeURIComponent(m[1] as string),
-          m[2] as string,
-          url.searchParams.get("token") ?? "",
-        ).catch(() => {
+        void upload(req, res, space, m[2] as string, url.searchParams.get("token") ?? "").catch(() => {
           if (!res.headersSent) reply(res, "internal.unexpected", 500);
           else res.end();
         });
@@ -203,7 +204,7 @@ export function createBlobRoute(deps: BlobRouteDeps): {
         reply(res, "validation.bad_input", 405, "Blobs are read with GET.", { allow: "GET, HEAD" });
         return true;
       }
-      void serve(req, res, method, decodeURIComponent(m[1] as string), m[2] as string).catch(() => {
+      void serve(req, res, method, space, m[2] as string).catch(() => {
         if (!res.headersSent) reply(res, "internal.unexpected", 500);
         else res.end();
       });

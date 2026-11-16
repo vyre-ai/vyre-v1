@@ -1,0 +1,1 @@
+A PDF can also be sent for signature from the command palette ("Send a file for signature"), a record shows its signature requests in Everything and on its Files tab, and the pen in the file viewer, the file's menu and the record all open the same sheet. The signer's page uses pdf.js (Apache-2.0) and the Dancing Script face (SIL OFL), both served from the page itself.

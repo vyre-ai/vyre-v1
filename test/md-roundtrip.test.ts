@@ -53,13 +53,14 @@ test("the README's blocks are the blocks a person sees", () => {
     "codeBlock",
     "horizontalRule",
     "rawBlock",
+    "mdTable",
   ])
     assert.ok(kinds.includes(k), `a ${k}`);
   const raws = (d.content ?? []).filter((n) => n.type === "rawBlock").map((n) => n.attrs?.["kind"]);
   assert.deepEqual(
     raws,
-    ["table", "html", "html", "ref", "indented"],
-    "a table, HTML, link references and indented code are kept as written",
+    ["html", "html", "ref", "indented"],
+    "HTML, link references and indented code are kept as written (a table is a table of cells)",
   );
   const tasks = (d.content ?? []).find((n) => n.type === "taskList");
   assert.deepEqual(
@@ -265,4 +266,52 @@ test("the Overview page is valid in the editor's schema, and a live block surviv
   node.forEach((n) => types.push(n.type.name));
   assert.deepEqual(types, ["heading", "paragraph", "liveBlock", "bulletList"]);
   assert.equal(node.child(2).isAtom, true);
+});
+
+test("a table is a table of cells; the owner's kind of file (42 rows, 11 columns, links, emoji, escaped pipes) comes back byte for byte, and an edited cell changes only its own text", () => {
+  const cols = Array.from({ length: 11 }, (_, i) => `Column ${i + 1}`);
+  const rows = Array.from(
+    { length: 42 },
+    (_, r) =>
+      `| ${cols.map((_c, c) => (c === 2 ? `[Site ${r}](https://example.com/${r})` : c === 3 ? `Fit \u2705 ${r}` : c === 4 ? `a \\| b ${r}` : `Value ${r}.${c}`)).join(" | ")} |`,
+  );
+  const md = `# Applicants\n\n| ${cols.join(" | ")} |\n| ${cols.map(() => "---").join(" | ")} |\n${rows.join("\n")}\n\nAfter.\n`;
+  const d = markdownToDoc(md);
+  const t = (d.content ?? []).find((n) => n.type === "mdTable");
+  assert.ok(t, "a table node");
+  assert.equal(t.content?.length, 43);
+  assert.equal(t.content?.[0]?.content?.length, 11);
+  assert.equal(docToMarkdown(d), md, "unedited, it is the same file");
+  // the pipe in a cell is a pipe in the cell
+  assert.equal(nodesToInline(t.content?.[1]?.content?.[4]?.content), "a | b 0");
+  // edit one cell
+  const cell = t.content?.[5]?.content?.[7];
+  assert.ok(cell);
+  cell.content = [{ type: "text", text: "Changed | here" }];
+  const out = docToMarkdown(d).split("\n");
+  const was = md.split("\n");
+  const diff = out.map((l, i) => (l === was[i] ? -1 : i)).filter((i) => i >= 0);
+  assert.equal(diff.length, 1, "one line differs");
+  assert.match(out[diff[0] ?? 0] ?? "", /Changed \\\| here/);
+  assert.equal(out.length, was.length);
+  // a row added is written; a column removed rewrites the table but not the words
+  const schemaOk = schema.nodeFromJSON(d);
+  assert.equal(schemaOk.type.name, "doc", "the document fits the editor's schema");
+});
+
+test("a table whose header and divider disagree stays raw, and an aligned table keeps its alignment", () => {
+  const bad = markdownToDoc("| a | b |\n| --- |\n| 1 | 2 |\n");
+  assert.equal(bad.content?.[0]?.type, "rawBlock");
+  const aligned = "| a | b | c |\n| :--- | :---: | ---: |\n| 1 | 2 | 3 |\n";
+  assert.equal(docToMarkdown(markdownToDoc(aligned)), aligned);
+  const d = markdownToDoc(aligned);
+  const t = d.content?.[0];
+  assert.deepEqual(t?.attrs?.["align"], ["l", "c", "r"]);
+  // a column added: the divider is rebuilt with the same alignment
+  for (const r of t?.content ?? [])
+    r.content?.push({ type: r === t?.content?.[0] ? "mdHeader" : "mdCell", attrs: {}, content: [] });
+  assert.equal(
+    docToMarkdown(d),
+    "| a | b | c |  |\n| :--- | :---: | ---: | --- |\n| 1 | 2 | 3 |  |\n".replace("c |  |", "c |  |"),
+  );
 });

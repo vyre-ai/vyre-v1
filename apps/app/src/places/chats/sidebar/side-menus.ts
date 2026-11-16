@@ -59,7 +59,7 @@ const some = (x: MenuItem | null): x is MenuItem => x !== null;
 
 const isRead = (x: Item): boolean => x.unread === 0 && x.mentions === 0;
 function openGroup(_x: Item, d: RowDo, label = "Open"): (MenuItem | null)[] {
-  return [it(label, d.open, { hint: HINT.open }), it("Open in a new tab", d.openTab, { hint: HINT.tab })];
+  return [it(label, d.open, { hint: HINT.open }), it("Open in New Tab", d.openTab, { hint: HINT.tab })];
 }
 function pinItem(_x: Item, d: RowDo, pinned: boolean): MenuItem | null {
   return pinned ? it("Unpin", d.unpin, { hint: HINT.pin }) : it("Pin", d.pin, { hint: HINT.pin });
@@ -181,7 +181,7 @@ export interface FixedDo {
 export function tasksMenu(d: FixedDo, keyOf: KeyOf = defaultKey, folded = false): MenuEntry[] {
   return tidy([
     it("Open", d.open, { hint: HINT.open }),
-    it("Open in a new tab", d.openTab, { hint: HINT.tab }),
+    it("Open in New Tab", d.openTab, { hint: HINT.tab }),
     sep,
     folded ? it("Unfold", d.unfold, { hint: "\u2192" }) : it("Fold", d.fold, { hint: "\u2190" }),
     sep,
@@ -194,7 +194,7 @@ export function notesMenu(d: FixedDo, keyOf: KeyOf = defaultKey): MenuEntry[] {
     it("Open", d.open, { hint: HINT.open }),
     it("Open Notes", d.openNotes),
     it("Open Artifacts", d.openArtifacts),
-    it("Open in a new tab", d.openTab, { hint: HINT.tab }),
+    it("Open in New Tab", d.openTab, { hint: HINT.tab }),
     sep,
     it("New note", d.newNote, { hint: keyOf("note.new") }),
   ]);

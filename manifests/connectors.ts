@@ -34,11 +34,13 @@ const fieldMap = t.obj({
   relation: t.opt(id.recordType),
   inverse: t.opt(fieldKey),
   constant: t.opt(t.str({ description: "A value stamped on every record this binding pulls (the From field)" })),
+  sealed: t.opt(t.bool()),
 });
 const polling = t.obj({
   activeSec: t.int({ minimum: 30 }),
   idleSec: t.int({ minimum: 60 }),
   dormantSec: t.int({ minimum: 300 }),
+  sweepSec: t.opt(t.int({ minimum: 86400 })),
 });
 
 /** The action names a connector uses to sync one object; a name left out keeps the convention list_<objects>, list_<objects>_after, create_<object>, update_<object>, delete_<object>. */
@@ -49,6 +51,7 @@ const objectActions = t.obj({
   update: t.opt(t.str()),
   delete: t.opt(t.str()),
   since: t.opt(t.bool()),
+  link: t.opt(t.json()),
 });
 
 const connectorRow = t.obj({
@@ -86,12 +89,18 @@ const connectionRow = t.obj({
   }),
 });
 
+const serviceChoice = t.obj({
+  name: t.str(),
+  label: t.str(),
+  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()) })),
+});
 const serviceRow = t.obj({
   key: id.connector,
   title: t.str(),
   scope: t.enm("person", "space"),
   mode,
   fields: t.arr(t.obj({ name: t.str(), label: t.str(), optional: t.bool() })),
+  choice: t.opt(serviceChoice),
   site: t.opt(t.str({ description: "The app's own page, where its keys are found" })),
   builtin: t.bool(),
   /** The host a key is tried against: the connector's first declared host */
@@ -141,10 +150,7 @@ const bindingIn = {
 };
 
 // ---- SyncSpec: the one document an agent fills to bring an app's records into Records
-const specPointer = t.str({
-  description: "A JSON pointer: /id, /properties/email. / is the whole answer.",
-  examples: ["/id"],
-});
+const specPointer = t.str({ description: "JSON pointer such as /id; / is all" });
 const specField = t.obj({
   path: specPointer,
   label: t.str(),
@@ -161,12 +167,17 @@ const specField = t.obj({
     "url",
     "relation",
     "json",
+    "sealed",
   ),
   choices: t.opt(
     t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }), { examples: [[{ value: "lead", label: "Lead" }]] }),
   ),
-  relationTo: t.opt(t.str({ description: "The remote object a relation points at" })),
+  relationTo: t.opt(t.str()),
+  inverseKey: t.opt(fieldKey),
+  inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
+  key: t.opt(fieldKey),
+  onlyWhen: t.opt(t.obj({ path: specPointer, equals: t.union(t.str(), t.arr(t.str(), { minItems: 1 })) })),
 });
 const specCursor = t.obj({
   kind: t.enm("none", "page", "cursor", "offset", "link"),
@@ -177,10 +188,10 @@ const specCursor = t.obj({
   start: t.opt(t.int({ minimum: 0 })),
 });
 const specWrite = t.obj({
-  path: t.str({ examples: ["/contacts/{id}"] }),
+  path: t.str(),
   method: t.opt(t.enm("POST", "PUT", "PATCH", "DELETE")),
-  evidence: t.str({ description: "The docs page or quote that shows this call. A write without it is refused." }),
-  bodyAt: t.opt(t.str({ description: "Pointer in the body where the properties go; empty for the body itself" })),
+  evidence: t.str(),
+  bodyAt: t.opt(t.str()),
   idAt: t.opt(specPointer),
 });
 const specObject = t.obj({
@@ -188,11 +199,13 @@ const specObject = t.obj({
   label: t.str(),
   count: t.opt(t.int({ minimum: 0 })),
   list: t.obj({
-    path: t.str({ examples: ["/contacts"] }),
+    path: t.str(),
     query: t.opt(t.rec(t.str())),
     cursor: t.opt(specCursor),
     updatedSince: t.opt(t.obj({ param: t.str(), format: t.opt(t.str()) })),
     filter: t.opt(t.obj({ param: t.str(), value: t.str() })),
+    checkEveryMinutes: t.opt(t.int({ minimum: 1, maximum: 10080 })),
+    sweepEveryDays: t.opt(t.int({ minimum: 1, maximum: 30 })),
   }),
   get: t.opt(t.obj({ path: t.str() })),
   create: t.opt(specWrite),
@@ -201,9 +214,7 @@ const specObject = t.obj({
   id: specPointer,
   updatedAt: t.opt(specPointer),
   itemsAt: specPointer,
-  openUrl: t.opt(
-    t.str({ description: "Address of a record in the app; {id} is filled in. Shown as Open in the app." }),
-  ),
+  openUrl: t.opt(t.str({ description: "Address of a record in the app, {id} filled in; shown as Open in the app" })),
   fields: t.arr(specField),
   webhook: t.opt(
     t.obj({
@@ -222,9 +233,10 @@ const specMapping = t.obj({
   fields: t.arr(t.obj({ path: specPointer, field: t.opt(fieldKey), direction: t.enm("both", "pull", "push", "off") })),
   match: t.opt(t.arr(specPointer)),
   stagesFrom: t.opt(specPointer),
-  titleField: t.opt(specPointer),
+  titleField: t.opt(t.union(specPointer, t.arr(specPointer, { minItems: 1, maxItems: 5 }))),
   deletes: t.opt(deletes),
   createAtSource: t.opt(t.bool()),
+  link: t.opt(t.json()),
 });
 const syncSpec = t.obj({
   app: t.obj({
@@ -234,8 +246,7 @@ const syncSpec = t.obj({
     logoHint: t.opt(t.str()),
     account: t.opt(
       t.str({
-        description:
-          "Which account of the app this is (a location, a workspace); accounts share record types and each record says which it came from",
+        description: "Which account of the app this is (a location, a workspace); accounts share record types",
       }),
     ),
   }),
@@ -249,9 +260,10 @@ const syncSpec = t.obj({
   objects: t.arr(specObject, { minItems: 1 }),
   mapping: t.arr(specMapping, { minItems: 1 }),
   plan: t.obj({
-    firstPull: t.obj({ words: t.str({ description: "Plain words: what the first pull brings in" }) }),
+    firstPull: t.obj({ words: t.str() }),
     backfill: t.enm("later", "now"),
     conflicts: t.lit("newest"),
+    requestsPerMinute: t.opt(t.num({ minimum: 1, maximum: 6000 })),
     audience: t.opt(t.enm("space", "added", "me")),
   }),
 });
@@ -694,12 +706,12 @@ export default defineManifest({
     ),
     write(
       "connectors.check_key",
-      "Try the key a person typed against the app before it is stored; answers ok, rejected or unreachable and never repeats the key",
+      "Try the key a person typed against the app before it is stored; answers ok, rejected, limited (the key works but may not read what the check needs) or unreachable and never repeats the key",
       {
         level: "member",
         in: { connector: id.connector, secrets: t.rec(t.str()) },
         out: {
-          result: t.enm("ok", "rejected", "unreachable"),
+          result: t.enm("ok", "rejected", "limited", "unreachable"),
           tested: t.opt(t.str({ description: "What the check read, in a few words" })),
         },
         audit: "none",
@@ -1143,7 +1155,14 @@ export default defineManifest({
         perm: "connectors.manage",
         idem: "key",
         audit: "always",
-        emits: ["connector.created", "connector.published", "connection.created", "sync.type_bound", "schema.changed"],
+        emits: [
+          "connector.created",
+          "connector.published",
+          "connection.created",
+          "sync.type_bound",
+          "sync.type_updated",
+          "schema.changed",
+        ],
         tool: "records",
         cli: "vyre sync-spec apply",
         agent: { planMode: "blocked" },
@@ -1181,7 +1200,14 @@ export default defineManifest({
         perm: "connectors.manage",
         idem: "key",
         audit: "always",
-        emits: ["connector.published", "connector.created"],
+        emits: [
+          "connector.published",
+          "connector.created",
+          "connection.created",
+          "sync.type_bound",
+          "sync.type_updated",
+          "schema.changed",
+        ],
         tool: "records",
         errors: ["validation.not_found", "validation.precondition_failed"],
       },
@@ -1288,6 +1314,9 @@ export default defineManifest({
           failures: t.arr(t.obj({ at: t.ts(), summary: t.str() })),
           sentToday: t.int({ minimum: 0 }),
           nextPollAt: t.opt(t.ts()),
+          slowedDown: t.opt(t.obj({ words: t.str(), resumesAt: t.ts() })),
+          links: t.opt(t.str()),
+          sealedWaiting: t.opt(t.obj({ count: t.int(), words: t.str() })),
           spec: t.bool(),
         },
         on: ["record_type", "/type"],

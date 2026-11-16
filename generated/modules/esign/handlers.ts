@@ -12,6 +12,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "esign.list": Handler<"esign.list", X>;
   "esign.provider_set": Handler<"esign.provider_set", X>;
   "esign.providers": Handler<"esign.providers", X>;
+  "esign.remind": Handler<"esign.remind", X>;
   "esign.send": Handler<"esign.send", X>;
+  "esign.signer_act": Handler<"esign.signer_act", X>;
+  "esign.signer_doc": Handler<"esign.signer_doc", X>;
+  "esign.signer_view": Handler<"esign.signer_view", X>;
   "esign.status": Handler<"esign.status", X>;
+  "esign.verify": Handler<"esign.verify", X>;
 }

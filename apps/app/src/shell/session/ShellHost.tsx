@@ -48,6 +48,7 @@ import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { readStored, verifyStoredSession, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
 import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
+import { SignHost } from "./SignHost.tsx";
 import { teamActions } from "./team-actions.ts";
 import { ReportHost } from "../report/ReportHost.tsx";
 import { useNotificationNotices, useUpdateNotice } from "../noticeslot/bridge.ts";
@@ -149,7 +150,7 @@ export function ShellHost({
     // a link in the address wins over the restored tabs from the first frame, so nothing else is drawn first (UrlSync takes over from here)
     const page = (globalThis as { location?: { pathname?: string; hash?: string } }).location;
     if (page?.pathname !== undefined && page.hash !== undefined)
-      readUrlIntoHub(h, { pathname: page.pathname, hash: page.hash });
+      readUrlIntoHub(h, { pathname: page.pathname, hash: page.hash }, { load: true });
     navRef.current = h;
     return h;
   }, [given, catalogueKey, stored.def.spaceId, stored.personId]);
@@ -809,6 +810,7 @@ export function ShellHost({
         <>
           {el}
           <VaultUnlockHost />
+          <SignHost rt={session?.runtime ?? null} />
           <ReportHost
             call={session?.call ?? null}
             place={location.place}

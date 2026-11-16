@@ -17,6 +17,10 @@ import {
 import { ReviewDataProvider } from "../../places/files/review/index.ts";
 import { filesData } from "./files-data.ts";
 import type { FilesActs } from "./files-data.ts";
+import { SignDataProvider } from "../../places/files/sign/data.tsx";
+import type { SignData } from "../../places/files/sign/data.tsx";
+import { SignSheet } from "../../places/files/sign/SignSheet.tsx";
+import { notices } from "../noticeslot/model.ts";
 import { newFolderIn, renameEntry, storeInto, uploadInto } from "./files-actions.ts";
 import { NamePrompt } from "./files-prompt.tsx";
 import type { Ask } from "./files-prompt.tsx";
@@ -30,6 +34,7 @@ import type { KnowRoute } from "../../places/files/memory/know.ts";
 import { reviewData } from "./files-review.ts";
 import { SidebarContent } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
+import { GATE, allows } from "../session/gates.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
@@ -169,6 +174,21 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
     return () => clearTimeout(t);
   }, [said]);
   const [sharing, setSharing] = useState<{ id: string; file?: string } | null>(null);
+  const [signing, setSigning] = useState<{ id: string; name: string } | null>(null);
+  const signData = useMemo<SignData | null>(
+    () =>
+      rt
+        ? {
+            call: rt.call,
+            clock: rt.clock,
+            ...(rt.baseUrl ? { origin: rt.baseUrl } : {}),
+            canSend: allows(rt, GATE.sendSignature),
+            openFile: (id) => rt.open({ subject: { type: "file", id } }),
+            say: (t) => notices.pass(t),
+          }
+        : null,
+    [rt],
+  );
   // no one to share with in a Personal Space: no door, so no Share item
   const acts = useMemo<FilesActs | undefined>(
     () =>
@@ -179,6 +199,9 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
                   share: (id: string) => setSharing({ id }),
                   shareFile: (id: string, name: string) => setSharing({ id, file: name }),
                 }
+              : {}),
+            ...(allows(rt, GATE.sendSignature)
+              ? { signFile: (id: string, name: string) => setSigning({ id, name }) }
               : {}),
             newFolder: (scope, parentId) => setAsk({ kind: "folder", scope, parentId }),
             rename: (kind, id, current) => setAsk({ kind: "rename", entry: kind, id, current }),
@@ -295,6 +318,11 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
                   : {})}
                 onClose={() => setSharing(null)}
               />
+            ) : null}
+            {signing && signData ? (
+              <SignDataProvider value={signData}>
+                <SignSheet fileId={signing.id} fileName={signing.name} onClose={() => setSigning(null)} />
+              </SignDataProvider>
             ) : null}
             <MountSheets
               rt={rt!}

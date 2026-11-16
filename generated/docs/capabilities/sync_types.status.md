@@ -56,6 +56,7 @@ type Out = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   records: number;
   estimate?: number;
@@ -76,6 +77,15 @@ type Out = {
     }>;
   sentToday: number;
   nextPollAt?: number;
+  slowedDown?: {
+    words: string;
+    resumesAt: number;
+  };
+  links?: string;
+  sealedWaiting?: {
+    count: number;
+    words: string;
+  };
   spec: boolean;
 };
 ```
@@ -131,17 +141,27 @@ type Out = {
       "at": 1760000000000,
       "summary": "example"
     },
+    "links": "example",
     "nextPollAt": 1760000000000,
     "paused": true,
     "pending": 1,
     "polling": {
       "activeSec": 30,
       "dormantSec": 300,
-      "idleSec": 60
+      "idleSec": 60,
+      "sweepSec": 86400
     },
     "records": 1,
     "schemaChanges": 1,
+    "sealedWaiting": {
+      "count": 1,
+      "words": "example"
+    },
     "sentToday": 1,
+    "slowedDown": {
+      "resumesAt": 1760000000000,
+      "words": "example"
+    },
     "spec": true,
     "state": "initial",
     "type": "contact"

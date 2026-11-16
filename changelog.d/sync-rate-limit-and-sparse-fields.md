@@ -1,0 +1,1 @@
+A sync spec can set the most calls a minute for the whole app, an app that says slow down is waited for and the Sync page says so, a field only some records fill can be mapped, and a big object can be read less often.

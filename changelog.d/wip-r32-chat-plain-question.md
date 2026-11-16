@@ -1,0 +1,1 @@
+A teammate's plain yes or no question in a chat is now a quiet line with Yes and No, not an approval card; Allow, Always allow and Deny stay for held actions only, and the line after it says what you answered.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -29,6 +29,8 @@ import { TemplateFiles } from "./TemplateFiles.tsx";
 import { connectedNote } from "./connected-model.ts";
 import { CAP_OPTIONS, PAUSE_NOTE, PEOPLE_FOOT, capKey, micros, spendPct, summaryNote } from "./people-agents-model.ts";
 import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
+import { permissionLines, roleWords } from "./access-words.ts";
+import { useShareSheet } from "../../share/useShareSheet.tsx";
 
 type Agents = CapMap["agents.list"]["out"];
 const PROVIDERS = [
@@ -98,6 +100,17 @@ export function AgentsRegister({ initialAgentId = null }: { initialAgentId?: str
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const action = useAction(list.refresh);
+  const [listNote, setListNote] = useState("");
+  const consoleData = useConsoleData();
+  const shareSeq = useRef(0);
+  const share = useShareSheet({
+    call: consoleData.call,
+    me: { id: consoleData.me.id, name: consoleData.me.name },
+    nameOf: (id) => consoleData.agentName?.(id) ?? consoleData.name(id),
+    spaceName: consoleData.space.name,
+    newKey: () => `console-share-${++shareSeq.current}`,
+    toast: setListNote,
+  });
   if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
   const selected = list.data.agents.find((agent) => agent.agentId === selectedId) ?? null;
   if (selected)
@@ -127,6 +140,15 @@ export function AgentsRegister({ initialAgentId = null }: { initialAgentId?: str
     value: agent,
     actions: [
       { label: "Open", onSelect: () => setSelectedId(agent.agentId) },
+      ...(agent.kind === "assistant" || agent.runtime === "outside"
+        ? []
+        : [
+            {
+              label: "Share",
+              onSelect: () =>
+                share.open({ resourceType: "agent", resourceId: agent.agentId, itemType: "agent", name: agent.name }),
+            },
+          ]),
       {
         label: agent.status === "paused" ? "Resume agent" : "Pause agent",
         onSelect: () =>
@@ -267,6 +289,8 @@ export function AgentsRegister({ initialAgentId = null }: { initialAgentId?: str
         </Section>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}
+      {listNote ? <Note>{listNote}</Note> : null}
+      {share.element}
     </View>
   );
 }
@@ -445,6 +469,18 @@ function AgentObject({
   const [newOwner, setNewOwner] = useState("");
   const [handover, setHandover] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
+  const [pausing, setPausing] = useState(false);
+  const seq = useRef(0);
+  const share = useShareSheet({
+    call: consoleData.call,
+    me: { id: consoleData.me.id, name: consoleData.me.name },
+    nameOf: (id) => consoleData.agentName?.(id) ?? consoleData.name(id),
+    spaceName: consoleData.space.name,
+    newKey: () => `console-share-${agent.agentId}-${++seq.current}`,
+    toast: (text) => setShareNote(text),
+  });
+  const [shareNote, setShareNote] = useState("");
+  const roles = useRead<CapMap["access.roles.list"]["out"]>("access.roles.list", {});
   const people = useRead<CapMap["access.principals.list"]["out"]>(
     "access.principals.list",
     { kind: "person", status: "active" },
@@ -462,7 +498,15 @@ function AgentObject({
       setEditing(true);
       return;
     }
-    if (id === "pause")
+    if (id === "share") {
+      share.open({ resourceType: "agent", resourceId: agent.agentId, itemType: "agent", name: agent.name });
+      return;
+    }
+    if (id === "pause" && agent.status !== "paused") {
+      setPausing(true);
+      return;
+    }
+    if (id === "pause" || id === "pause-confirm")
       return onRun(
         agent.status === "paused" ? "agents.resume" : "agents.pause",
         {
@@ -486,12 +530,15 @@ function AgentObject({
       <ObjectSection title="Effective access" count={effective.data?.permissions.length ?? 0}>
         {effective.data ? (
           <>
-            <Row id="agent-roles" title="Roles" note={effective.data.roles.join(", ") || "No roles"} />
-            <Row
-              id="agent-permissions"
-              title="Permissions"
-              note={effective.data.permissions.join(", ") || "No permissions"}
-            />
+            <Row id="agent-roles" title="Role" note={roleWords(effective.data.roles, roles.data?.roles) || "No role"} />
+            {permissionLines(effective.data.permissions).flatMap((a) =>
+              a.lines.map((line) => (
+                <Row key={`${a.area}:${line}`} id={`agent-can-${a.area}-${line}`} title={line} note={a.title} />
+              )),
+            )}
+            {effective.data.permissions.length === 0 ? (
+              <Row id="agent-permissions" title="Nothing yet" note="Its role gives it no permissions" />
+            ) : null}
           </>
         ) : (
           <ReadState error={effective.error} retry={effective.refresh} />
@@ -542,132 +589,166 @@ function AgentObject({
         <Row id="agent-owner" title="Owner" note={ownerName} />
         {agent.status === "paused" ? (
           <Row id="agent-paused" title="Paused" note={agent.pausedReason ?? "No reason given"} />
-        ) : (
-          <TextBox
-            label="Reason for pausing (optional)"
-            testID="agent-pause-reason"
-            value={pauseReason}
-            onChange={setPauseReason}
-          />
-        )}
+        ) : null}
         <Row id="agent-folder" title="Home folder" note="Its own folder in Files" />
         <Row id="agent-computer" title="Computer" note={agent.hasComputer ? "Attached" : "None"} />
         <Row id="agent-template" title="Version" note={String(agent.templateVersion)} />
       </ObjectSection>
     );
   return (
-    <ObjectPage
-      key={`${agent.agentId}:${editing}`}
-      id={agent.agentId}
-      name={agent.name}
-      kind="Agent"
-      owner={ownerName}
-      status={agent.status}
-      parent="Agents"
-      onBack={onBack}
-      density="regular"
-      actions={[
-        { id: "edit", label: "Edit agent", destructive: false },
-        { id: "pause", label: agent.status === "paused" ? "Resume agent" : "Pause agent", destructive: false },
-        { id: "delete", label: "Delete agent", destructive: true },
-      ]}
-      impacts={{ delete: `Deleting ${agent.name} stops its work and moves its home to Trash.` }}
-      tabs={withBaseTabs([{ id: "configuration", label: "Configuration", count: null }])}
-      activeTabId={tab}
-      onTab={setTab}
-      onAction={run}
-      sheetOpen={editing}
-      sheetTitle="Quick edit agent"
-      onCloseSheet={() => setEditing(false)}
-      sheet={
-        <View testID="agent-edit-sheet">
-          <TextBox label="Name" value={name} onChange={setName} />
-          <TextBox label="Role line" value={role} onChange={setRole} />
-          <ModelSelect label="Model" value={model} onChange={setModel} />
-          <ModelSelect label="Fallback model" none="None" value={fallback} onChange={setFallback} />
-          <Select
-            label="Account"
-            value={accountPolicy}
-            options={[
-              { key: "asker", title: "The account of whoever asks" },
-              { key: "key", title: "A shared key from the Vault" },
-            ]}
-            onChange={setAccountPolicy}
+    <>
+      <ObjectPage
+        key={`${agent.agentId}:${editing}`}
+        id={agent.agentId}
+        name={agent.name}
+        kind="Agent"
+        owner={ownerName}
+        status={agent.status}
+        parent="Agents"
+        onBack={onBack}
+        density="regular"
+        actions={[
+          { id: "edit", label: "Edit agent", destructive: false },
+          { id: "pause", label: agent.status === "paused" ? "Resume agent" : "Pause agent", destructive: false },
+          { id: "share", label: "Share", destructive: false },
+          { id: "delete", label: "Delete agent", destructive: true },
+        ]}
+        impacts={{ delete: `Deleting ${agent.name} stops its work and moves its home to Trash.` }}
+        tabs={withBaseTabs([{ id: "configuration", label: "Configuration", count: null }])}
+        activeTabId={tab}
+        onTab={setTab}
+        onAction={run}
+        sheetOpen={editing}
+        sheetTitle="Quick edit agent"
+        onCloseSheet={() => setEditing(false)}
+        sheet={
+          <View testID="agent-edit-sheet">
+            <TextBox label="Name" value={name} onChange={setName} />
+            <TextBox label="Role line" value={role} onChange={setRole} />
+            <ModelSelect label="Model" value={model} onChange={setModel} />
+            <ModelSelect label="Fallback model" none="None" value={fallback} onChange={setFallback} />
+            <Select
+              label="Account"
+              value={accountPolicy}
+              options={[
+                { key: "asker", title: "The account of whoever asks" },
+                { key: "key", title: "A shared key from the Vault" },
+              ]}
+              onChange={setAccountPolicy}
+            />
+            {accountPolicy === "key" ? (
+              <TextBox label="Vault key handle" testID="agent-edit-key" value={accountKey} onChange={setAccountKey} />
+            ) : null}
+            <TextBox label="Tools allowed (comma separated)" value={allowed} onChange={setAllowed} />
+            <TextBox label="Tools denied (comma separated)" value={denied} onChange={setDenied} />
+            <Button
+              label="Save agent"
+              testID="agent-save"
+              disabled={busy || !name.trim() || (accountPolicy === "key" && !accountKey.trim())}
+              why={!name.trim() ? "Name the agent first" : undefined}
+              onPress={() =>
+                void onRun(
+                  "agents.update",
+                  {
+                    agentId: agent.agentId,
+                    patch: agentPatch(agent, {
+                      name,
+                      role,
+                      model,
+                      fallback,
+                      accountPolicy,
+                      accountKey,
+                      allowed,
+                      denied,
+                    }),
+                  },
+                  "Agent updated",
+                ).then((out) => {
+                  if (out) setEditing(false);
+                })
+              }
+            />
+            {people.data ? (
+              <>
+                <Select
+                  label="Hand over to"
+                  value={newOwner}
+                  options={[
+                    { key: "", title: "Choose a person" },
+                    ...people.data.principals
+                      .filter((p) => p.id !== agent.ownerId)
+                      .map((p) => ({ key: p.id, title: p.name })),
+                  ]}
+                  onChange={(value) => {
+                    setNewOwner(value);
+                    setHandover(false);
+                  }}
+                />
+                {newOwner && !handover ? (
+                  <Button label="Review handover" testID="agent-handover-review" onPress={() => setHandover(true)} />
+                ) : null}
+                {handover ? (
+                  <>
+                    <Note>{`${consoleData.name(newOwner)} becomes the owner of ${agent.name}, its home folder and what it owns. ${ownerName} keeps nothing on them.`}</Note>
+                    <Button
+                      label="Confirm handover"
+                      testID="agent-handover-confirm"
+                      danger
+                      disabled={busy}
+                      onPress={() =>
+                        void onRun(
+                          "agents.set_owner",
+                          { agentId: agent.agentId, ownerId: newOwner },
+                          "Agent handed over",
+                        ).then((out) => {
+                          if (out) {
+                            setHandover(false);
+                            setNewOwner("");
+                            setEditing(false);
+                          }
+                        })
+                      }
+                    />
+                  </>
+                ) : null}
+              </>
+            ) : null}
+          </View>
+        }
+      >
+        {body}
+        {note ? <Note>{note}</Note> : null}
+        {shareNote ? <Note>{shareNote}</Note> : null}
+      </ObjectPage>
+      {share.element}
+      {pausing ? (
+        <Dialog
+          title={`Pause ${agent.name}`}
+          onClose={() => setPausing(false)}
+          width={420}
+          testID="agent-pause-dialog"
+          actions={[
+            { label: "Cancel", onPress: () => setPausing(false), testID: "agent-pause-cancel" },
+            {
+              label: "Pause agent",
+              primary: true,
+              testID: "agent-pause-confirm",
+              onPress: () => {
+                setPausing(false);
+                void run("pause-confirm");
+              },
+            },
+          ]}
+        >
+          <TextBox
+            label="Reason (optional)"
+            testID="agent-pause-reason"
+            value={pauseReason}
+            onChange={setPauseReason}
           />
-          {accountPolicy === "key" ? (
-            <TextBox label="Vault key handle" testID="agent-edit-key" value={accountKey} onChange={setAccountKey} />
-          ) : null}
-          <TextBox label="Tools allowed (comma separated)" value={allowed} onChange={setAllowed} />
-          <TextBox label="Tools denied (comma separated)" value={denied} onChange={setDenied} />
-          <Button
-            label="Save agent"
-            testID="agent-save"
-            disabled={busy || !name.trim() || (accountPolicy === "key" && !accountKey.trim())}
-            why={!name.trim() ? "Name the agent first" : undefined}
-            onPress={() =>
-              void onRun(
-                "agents.update",
-                {
-                  agentId: agent.agentId,
-                  patch: agentPatch(agent, { name, role, model, fallback, accountPolicy, accountKey, allowed, denied }),
-                },
-                "Agent updated",
-              ).then((out) => {
-                if (out) setEditing(false);
-              })
-            }
-          />
-          {people.data ? (
-            <>
-              <Select
-                label="Hand over to"
-                value={newOwner}
-                options={[
-                  { key: "", title: "Choose a person" },
-                  ...people.data.principals
-                    .filter((p) => p.id !== agent.ownerId)
-                    .map((p) => ({ key: p.id, title: p.name })),
-                ]}
-                onChange={(value) => {
-                  setNewOwner(value);
-                  setHandover(false);
-                }}
-              />
-              {newOwner && !handover ? (
-                <Button label="Review handover" testID="agent-handover-review" onPress={() => setHandover(true)} />
-              ) : null}
-              {handover ? (
-                <>
-                  <Note>{`${consoleData.name(newOwner)} becomes the owner of ${agent.name}, its home folder and what it owns. ${ownerName} keeps nothing on them.`}</Note>
-                  <Button
-                    label="Confirm handover"
-                    testID="agent-handover-confirm"
-                    danger
-                    disabled={busy}
-                    onPress={() =>
-                      void onRun(
-                        "agents.set_owner",
-                        { agentId: agent.agentId, ownerId: newOwner },
-                        "Agent handed over",
-                      ).then((out) => {
-                        if (out) {
-                          setHandover(false);
-                          setNewOwner("");
-                          setEditing(false);
-                        }
-                      })
-                    }
-                  />
-                </>
-              ) : null}
-            </>
-          ) : null}
-        </View>
-      }
-    >
-      {body}
-      {note ? <Note>{note}</Note> : null}
-    </ObjectPage>
+        </Dialog>
+      ) : null}
+    </>
   );
 }
 
@@ -961,20 +1042,15 @@ function ActorObject({
       <ObjectSection title="Effective access" count={effective.data?.permissions.length ?? 0}>
         {effective.data ? (
           <>
-            <Row
-              id="actor-roles"
-              title="Roles"
-              note={
-                effective.data.roles
-                  .map((id) => roles.data?.roles.find((role) => role.id === id)?.name ?? id)
-                  .join(", ") || "No roles"
-              }
-            />
-            <Row
-              id="actor-permissions"
-              title="Permissions"
-              note={effective.data.permissions.join(", ") || "No permissions"}
-            />
+            <Row id="actor-roles" title="Role" note={roleWords(effective.data.roles, roles.data?.roles) || "No role"} />
+            {permissionLines(effective.data.permissions).flatMap((a) =>
+              a.lines.map((line) => (
+                <Row key={`${a.area}:${line}`} id={`actor-can-${a.area}-${line}`} title={line} note={a.title} />
+              )),
+            )}
+            {effective.data.permissions.length === 0 ? (
+              <Row id="actor-permissions" title="Nothing yet" note="Its role gives it no permissions" />
+            ) : null}
             <Row id="actor-engineer" title="Engineer MCP" note={actor.engineerMcp ? "Allowed" : "Not allowed"} />
           </>
         ) : (

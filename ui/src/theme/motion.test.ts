@@ -2,7 +2,7 @@
 // One motion set, and the still copy that keeps a switch from ever showing a blank frame.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MOTION, MOTION_CSS, QUIET_MS, holdView } from "./motion.ts";
+import { MOTION, MOTION_CSS, QUIET_MS, holdView, keepView, showKept } from "./motion.ts";
 
 test("one set of durations, one ease, no bounce, and reduced motion turns it all off", () => {
   assert.deepEqual([MOTION.hover, MOTION.fade, MOTION.panel, MOTION.swap], [120, 160, 220, 140]);
@@ -67,4 +67,27 @@ test("a quick second swap does not copy the copy still fading from the first (th
   const second = holdView(live, live);
   assert.ok(second);
   assert.equal(copy.removed, true, "the copy that was still fading is gone before the next one is taken");
+});
+
+test("a view is kept as a still copy and shown again over its place at once; a copy is never made of a copy", () => {
+  const live = node();
+  const kept = keepView(live);
+  assert.ok(kept, "a view with nothing over it is kept");
+  const copy = kept!.node as ReturnType<typeof node> & { attrs: Record<string, string>; removed: boolean };
+  assert.equal(copy.attrs["data-swap"], "1", "the copy is marked, so nothing reads it as the live view");
+  assert.equal(copy.attrs["aria-hidden"], "true");
+  // shown later over its place, with the page's colour behind it so the live view never shows through
+  const host = node();
+  const swap = showKept(kept!, host, "rgb(1, 2, 3)");
+  assert.ok(swap);
+  assert.deepEqual(host.kids, [copy], "the kept copy lies over its place");
+  assert.equal((copy.style as { backgroundColor?: string }).backgroundColor, "rgb(1, 2, 3)");
+  swap!.fade();
+  assert.equal(copy.removed, true, "and leaves in one step when the live view is ready");
+  // a view that has a still copy over it is not kept: the copy would be a picture of a picture
+  const busy = node() as ReturnType<typeof node> & { querySelector?: (q: string) => unknown };
+  busy.querySelector = (q: string) => (q === "[data-swap]" ? {} : null);
+  assert.equal(keepView(busy), null);
+  assert.equal(keepView(null), null);
+  assert.equal(showKept(kept!, null), null);
 });

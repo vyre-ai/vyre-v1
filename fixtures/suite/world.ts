@@ -51,6 +51,8 @@ export interface WorldOptions {
   prefix: string;
   /** boot over an existing data directory (a restart) instead of a fresh seeded one */
   dir?: string;
+  /** the address setting the server starts with, as the environment gives it; the default is a Space with its own address. "" is a relay Space's install (VYRE_ADDRESS=) */
+  addressEnv?: string;
 }
 
 export interface Req {
@@ -87,7 +89,10 @@ export async function bootWorld(o: WorldOptions) {
     };
   };
   const d = await startDaemon({
-    config: loadConfig(["--data-dir", dataDir, "--port", "0", "--address", "https://space.firm.test"], {}, "1.2.3"),
+    config:
+      o.addressEnv === undefined
+        ? loadConfig(["--data-dir", dataDir, "--port", "0", "--address", "https://space.firm.test"], {}, "1.2.3")
+        : loadConfig(["--data-dir", dataDir, "--port", "0"], { VYRE_ADDRESS: o.addressEnv }, "1.2.3"),
     platform: fakePlatform({
       os: "linux",
       hostname: `${o.prefix}-live`,

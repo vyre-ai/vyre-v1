@@ -20,7 +20,7 @@ Requires: records, schema.
 - [connections.test](../capabilities/connections.test.md): Probe a connection with the connector health call
 - [connections.update](../capabilities/connections.update.md): Rename a connection or change its scopes
 - [connectors.build](../capabilities/connectors.build.md): Run the build-connector flow: read the app docs, draft the connector, ask for a key through a Vault request, run the harness
-- [connectors.check_key](../capabilities/connectors.check_key.md): Try the key a person typed against the app before it is stored; answers ok, rejected or unreachable and never repeats the key
+- [connectors.check_key](../capabilities/connectors.check_key.md): Try the key a person typed against the app before it is stored; answers ok, rejected, limited (the key works but may not read what the check needs) or unreachable and never repeats the key
 - [connectors.define](../capabilities/connectors.define.md): Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.
 - [connectors.diff](../capabilities/connectors.diff.md): Diff a draft against the live version of a connector
 - [connectors.export](../capabilities/connectors.export.md): Export a connector as a folder in Files (no public gallery in v1)

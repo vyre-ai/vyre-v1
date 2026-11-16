@@ -6,6 +6,8 @@ import { createShellHub } from "../spaces/hub.ts";
 import { SEED_DEFS } from "../spaces/model.ts";
 import { startHistoryBridge } from "./history-bridge.ts";
 import type { BridgeWindow } from "./history-bridge.ts";
+import { registerPhoneBack } from "./phone-back.ts";
+import { consumeBrowserInvite } from "./entry.ts";
 
 function fakeWindow(url: string): BridgeWindow & {
   entries: { state: unknown; url: string }[];
@@ -139,5 +141,59 @@ test("once the address names another Space, the leaving Space's hub no longer wr
   hub.go("files", "subject=file:fil_a_again"); // the old hub still emits once (a flash, a count, a tab title)
   assert.equal(win.location.pathname, "/chat", "the new Space's address stands");
   assert.equal(win.location.hash, "", "the old Space's item is not written under the new Space's address");
+  stop();
+});
+
+test("the browser's Back on a phone pops the phone's own stack when the hub has nothing to go back to", async () => {
+  const { hub, win, stop } = boot();
+  let popped = 0;
+  const off = registerPhoneBack(() => {
+    popped += 1;
+    return popped <= 2;
+  });
+  win.press("pointerdown");
+  await win.settle();
+  win.history.go(-1);
+  await win.settle();
+  assert.equal(popped, 1, "the phone's stack was asked");
+  assert.equal(hub.state().hash, "");
+  assert.equal((win.history.state as { vyre: string }).vyre, "here", "the person stays on the middle entry");
+  off();
+  stop();
+});
+
+test("a person who came in by an invite link is never sent back to the join page or out of the app", async () => {
+  const left: string[] = [];
+  const { win, stop } = boot();
+  consumeBrowserInvite({
+    location: { pathname: "/join/ABCD-EFGH" },
+    history: { replaceState: () => left.push("rewritten") },
+  });
+  assert.deepEqual(left, ["rewritten"]);
+  win.press("pointerdown");
+  await win.settle();
+  const before = win.entries.length;
+  win.history.go(-1);
+  await win.settle();
+  await new Promise((r) => setTimeout(r, 330));
+  assert.equal((win.history.state as { vyre: string }).vyre, "here", "back on the middle entry, not on a guard");
+  assert.equal(win.entries.length, before, "no entry was walked past");
+  stop();
+});
+
+test("a page loaded on a popover address (the Terminals list) lands on the place and the address is cleaned", () => {
+  const hub = createShellHub({
+    spaces: SEED_DEFS,
+    openId: SEED_DEFS[0]!.spaceId,
+    personId: "imran",
+    deviceId: "web",
+    storage: null,
+    skeletonMs: 0,
+  });
+  const win = fakeWindow("/chat#screen=chats.terminal-list&at=1");
+  const stop = startHistoryBridge(hub, win);
+  assert.equal(hub.state().place, "chats");
+  assert.equal(hub.state().hash, "");
+  assert.equal(win.location.hash, "");
   stop();
 });

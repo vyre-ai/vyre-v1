@@ -1,0 +1,1 @@
+Sealed values from an app are masked in every output of its connector, and a Space whose Vault is not ready yet keeps the record without the field, says how many sealed values are waiting, and fills them on a later pass.

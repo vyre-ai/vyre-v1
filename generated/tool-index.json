@@ -3123,13 +3123,13 @@
     {
       "deferred": false,
       "name": "esign_cancel",
-      "summary": "Cancel an envelope",
+      "summary": "Cancel an envelope; every signer link stops",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "esign_fetch_signed",
-      "summary": "Fetch the signed PDF and audit certificate into the record folder as a new version",
+      "summary": "Save the signed PDF to Files",
       "toolset": "files"
     },
     {
@@ -3147,19 +3147,19 @@
     {
       "deferred": false,
       "name": "esign_providers",
-      "summary": "Providers and which is the default (Documenso, unmodified container)",
+      "summary": "Signing services and the default",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "esign_send",
-      "summary": "Send a file from the record folder for signature, signer fields mapped from the record",
+      "summary": "Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "esign_status",
-      "summary": "Envelope status",
+      "summary": "Envelope status and signers",
       "toolset": "files"
     },
     {

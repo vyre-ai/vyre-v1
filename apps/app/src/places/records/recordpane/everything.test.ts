@@ -115,6 +115,7 @@ test("a source that answers no adds nothing, and nothing says it was refused", a
     ],
   );
   assert.deepEqual([...new Set(seen)].sort(), [
+    "esign.list",
     "files.list",
     "inbox.thread",
     "meetings.closeout.list",
@@ -277,4 +278,31 @@ test("K14 (13 Nov): the row that says a record was created is labelled Created, 
   assert.equal(rows[0]!.label, "Created");
   assert.equal(rows[1]!.label, undefined);
   assert.equal(KIND_LABEL.edit, "Change");
+});
+
+test("a signature request made from the record is a row with where it stands, and opens the signed copy once there is one", async () => {
+  const { fromSignatures, KIND_LABEL } = await import("./everything.ts");
+  const NOW = Date.UTC(2026, 10, 17, 12);
+  const rows = fromSignatures(
+    [
+      { envelopeId: "env_1", title: "Northwind NDA.pdf", status: "sent", fileId: "fil_1", createdAt: NOW - 3_600_000 },
+      {
+        envelopeId: "env_2",
+        title: "Services agreement.pdf",
+        status: "signed",
+        fileId: "fil_2",
+        signedFileId: "fil_3",
+        createdAt: NOW - 86_400_000,
+      },
+      { status: "sent" },
+    ],
+    NOW,
+  );
+  assert.equal(rows.length, 2, "a row with no id is not a request");
+  assert.equal(rows[0]!.kind, "signature");
+  assert.equal(KIND_LABEL.signature, "Signature");
+  assert.equal(rows[0]!.title, "Northwind NDA.pdf");
+  assert.deepEqual(rows[0]!.subject, { type: "file", id: "fil_1" });
+  assert.deepEqual(rows[1]!.subject, { type: "file", id: "fil_3" });
+  assert.match(rows[1]!.note ?? "", /^Signed on 16 Nov/);
 });

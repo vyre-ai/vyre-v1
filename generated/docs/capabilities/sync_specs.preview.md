@@ -63,6 +63,8 @@ type In = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -95,13 +97,20 @@ type In = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -122,9 +131,10 @@ type In = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -132,6 +142,7 @@ type In = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -226,17 +237,18 @@ type Out = {
             {
               "direction": "both",
               "field": "email",
-              "path": "/id"
+              "path": "example"
             }
           ],
+          "link": {},
           "match": [
-            "/id"
+            "example"
           ],
           "recordType": "contact",
           "remote": "example",
-          "stagesFrom": "/id",
+          "stagesFrom": "example",
           "title": "example",
-          "titleField": "/id"
+          "titleField": "example"
         }
       ],
       "objects": [
@@ -245,16 +257,16 @@ type Out = {
           "create": {
             "bodyAt": "example",
             "evidence": "example",
-            "idAt": "/id",
+            "idAt": "example",
             "method": "POST",
-            "path": "/contacts/{id}"
+            "path": "example"
           },
           "delete": {
             "bodyAt": "example",
             "evidence": "example",
-            "idAt": "/id",
+            "idAt": "example",
             "method": "POST",
-            "path": "/contacts/{id}"
+            "path": "example"
           },
           "fields": [
             {
@@ -264,8 +276,15 @@ type Out = {
                   "label": "Lead"
                 }
               ],
+              "inverseKey": "email",
+              "inverseTitle": "example",
+              "key": "email",
               "label": "example",
-              "path": "/id",
+              "onlyWhen": {
+                "equals": "example",
+                "path": "example"
+              },
+              "path": "example",
               "readOnly": true,
               "relationTo": "example",
               "type": "text"
@@ -274,13 +293,14 @@ type Out = {
           "get": {
             "path": "example"
           },
-          "id": "/id",
-          "itemsAt": "/id",
+          "id": "example",
+          "itemsAt": "example",
           "label": "example",
           "list": {
+            "checkEveryMinutes": 1,
             "cursor": {
               "kind": "none",
-              "next": "/id",
+              "next": "example",
               "param": "example",
               "size": 1,
               "sizeParam": "example",
@@ -290,8 +310,9 @@ type Out = {
               "param": "example",
               "value": "example"
             },
-            "path": "/contacts",
+            "path": "example",
             "query": {},
+            "sweepEveryDays": 1,
             "updatedSince": {
               "format": "example",
               "param": "example"
@@ -302,11 +323,11 @@ type Out = {
           "update": {
             "bodyAt": "example",
             "evidence": "example",
-            "idAt": "/id",
+            "idAt": "example",
             "method": "POST",
-            "path": "/contacts/{id}"
+            "path": "example"
           },
-          "updatedAt": "/id",
+          "updatedAt": "example",
           "webhook": {
             "events": [
               "example"
@@ -324,7 +345,8 @@ type Out = {
         "conflicts": "newest",
         "firstPull": {
           "words": "example"
-        }
+        },
+        "requestsPerMinute": 1
       }
     }
   },

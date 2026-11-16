@@ -11848,7 +11848,7 @@ export type ConnectorsCheckKeyIn = {
   secrets: Record<string, string>;
 };
 export type ConnectorsCheckKeyOut = {
-  result: "ok" | "rejected" | "unreachable";
+  result: "ok" | "rejected" | "limited" | "unreachable";
   tested?: string;
 };
 export type ConnectorsDefineIn = {
@@ -11914,6 +11914,16 @@ export type ConnectorsForServiceOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
     site?: string;
     builtin: boolean;
     host?: string;
@@ -11956,6 +11966,7 @@ export type ConnectorsGetOut = {
         update?: string;
         delete?: string;
         since?: boolean;
+        link?: unknown;
       }>;
     sourceFolderId?: string;
   };
@@ -12009,6 +12020,7 @@ export type ConnectorsListOut = {
           update?: string;
           delete?: string;
           since?: boolean;
+          link?: unknown;
         }>;
       sourceFolderId?: string;
     }>;
@@ -15244,6 +15256,7 @@ export type EngineWarmOut = {
 };
 export type EsignCancelIn = {
   envelopeId: string;
+  idempotencyKey: string;
 };
 export type EsignCancelOut = {
   cancelled: boolean;
@@ -15261,7 +15274,7 @@ export type EsignHealthOut = {
   latencyMs?: number;
 };
 export type EsignHookIn = {
-  provider: "documenso" | "dropbox_sign" | "docusign";
+  provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
   payload: unknown;
 };
 export type EsignHookOut = {
@@ -15269,16 +15282,24 @@ export type EsignHookOut = {
 };
 export type EsignListIn = {
   recordId?: string;
+  fileId?: string;
+  status?: string;
 };
 export type EsignListOut = {
   envelopes: Array<{
       envelopeId: string;
       title: string;
-      status: "sent" | "viewed" | "signed" | "declined" | "cancelled";
+      status: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+      provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
+      recordId?: string;
+      fileId: string;
+      signedFileId?: string;
+      createdAt: number;
+      expiresAt?: number;
     }>;
 };
 export type EsignProviderSetIn = {
-  provider: "documenso" | "dropbox_sign" | "docusign";
+  provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
 };
 export type EsignProviderSetOut = {
   ok: boolean;
@@ -15286,34 +15307,116 @@ export type EsignProviderSetOut = {
 export type EsignProvidersIn = Record<string, unknown>;
 export type EsignProvidersOut = {
   providers: Array<{
-      key: "documenso" | "dropbox_sign" | "docusign";
+      key: "vyre" | "documenso" | "dropbox_sign" | "docusign";
+      title: string;
       default: boolean;
       connected: boolean;
+      why?: string;
     }>;
+};
+export type EsignRemindIn = {
+  envelopeId: string;
+  signer: number;
+  idempotencyKey: string;
+};
+export type EsignRemindOut = {
+  link?: {
+    index: number;
+    name: string;
+    email?: string;
+    url?: string;
+    path?: string;
+  };
+  emailed: boolean;
+  notice?: string;
 };
 export type EsignSendIn = {
   fileId: string;
   recordId?: string;
   signers: Array<{
       name: string;
-      email: string;
+      email?: string;
       order?: number;
     }>;
-  provider?: "documenso" | "dropbox_sign" | "docusign";
+  provider?: "vyre" | "documenso" | "dropbox_sign" | "docusign";
+  message?: string;
+  places?: Array<unknown>;
+  expiresInDays?: number;
   idempotencyKey: string;
 };
 export type EsignSendOut = {
   envelopeId: string;
+  links?: Array<{
+      index: number;
+      name: string;
+      email?: string;
+      url?: string;
+      path?: string;
+    }>;
+  emailed?: Array<string>;
+  notice?: string;
+};
+export type EsignSignerActIn = {
+  token: string;
+  visitor: {
+    ip?: string;
+    ua?: string;
+  };
+  op: "sign" | "decline" | "copy";
+  body?: unknown;
+};
+export type EsignSignerActOut = {
+  result: unknown;
+};
+export type EsignSignerDocIn = {
+  token: string;
+  visitor: {
+    ip?: string;
+    ua?: string;
+  };
+};
+export type EsignSignerDocOut = {
+  base64: string;
+};
+export type EsignSignerViewIn = {
+  token: string;
+  visitor: {
+    ip?: string;
+    ua?: string;
+  };
+};
+export type EsignSignerViewOut = {
+  session: unknown;
 };
 export type EsignStatusIn = {
   envelopeId: string;
 };
 export type EsignStatusOut = {
-  status: "sent" | "viewed" | "signed" | "declined" | "cancelled";
+  status: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+  expiresAt?: number;
+  declinedReason?: string;
+  signedFileId?: string;
+  finalSha256?: string;
+  sealed?: boolean;
+  sealFingerprint?: string;
   signers: Array<{
       name: string;
-      status: "sent" | "viewed" | "signed" | "declined" | "cancelled";
+      email?: string;
+      status: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+      order?: number;
+      openedAt?: number;
+      signedAt?: number;
     }>;
+};
+export type EsignVerifyIn = {
+  fileId: string;
+};
+export type EsignVerifyOut = {
+  sealed: boolean;
+  intact: boolean;
+  signedAt?: number;
+  fingerprint?: string;
+  bySpace: boolean;
 };
 export type EventsGetIn = {
   eventId: string;
@@ -39110,6 +39213,7 @@ export type SpacesOnboardingFlowOut = {
       key: string;
       state: "done" | "later";
     }>;
+  fresh: boolean;
 };
 export type SpacesOnboardingGetIn = Record<string, unknown>;
 export type SpacesOnboardingGetOut = {
@@ -40066,6 +40170,8 @@ export type SyncSpecsApplyIn = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40098,13 +40204,20 @@ export type SyncSpecsApplyIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40125,9 +40238,10 @@ export type SyncSpecsApplyIn = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40135,6 +40249,7 @@ export type SyncSpecsApplyIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40204,6 +40319,8 @@ export type SyncSpecsGetOut = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40236,13 +40353,20 @@ export type SyncSpecsGetOut = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40263,9 +40387,10 @@ export type SyncSpecsGetOut = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40273,6 +40398,7 @@ export type SyncSpecsGetOut = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40323,6 +40449,8 @@ export type SyncSpecsPreviewIn = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40355,13 +40483,20 @@ export type SyncSpecsPreviewIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40382,9 +40517,10 @@ export type SyncSpecsPreviewIn = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40392,6 +40528,7 @@ export type SyncSpecsPreviewIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40565,6 +40702,8 @@ export type SyncSpecsValidateIn = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40597,13 +40736,20 @@ export type SyncSpecsValidateIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40624,9 +40770,10 @@ export type SyncSpecsValidateIn = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40634,6 +40781,7 @@ export type SyncSpecsValidateIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40675,6 +40823,7 @@ export type SyncTypesCreateIn = {
       relation?: string;
       inverse?: string;
       constant?: string;
+      sealed?: boolean;
     }>;
   match: Array<string>;
   createAtSource?: boolean;
@@ -40684,6 +40833,7 @@ export type SyncTypesCreateIn = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   nightlyReconcile?: boolean;
   idempotencyKey: string;
@@ -40705,6 +40855,7 @@ export type SyncTypesCreateOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -40714,6 +40865,7 @@ export type SyncTypesCreateOut = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;
@@ -40779,6 +40931,7 @@ export type SyncTypesGetOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -40788,6 +40941,7 @@ export type SyncTypesGetOut = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;
@@ -40822,6 +40976,7 @@ export type SyncTypesListOut = {
           relation?: string;
           inverse?: string;
           constant?: string;
+          sealed?: boolean;
         }>;
       match: Array<string>;
       createAtSource: boolean;
@@ -40831,6 +40986,7 @@ export type SyncTypesListOut = {
         activeSec: number;
         idleSec: number;
         dormantSec: number;
+        sweepSec?: number;
       };
       nightlyReconcile: boolean;
       lastSyncAt?: number;
@@ -41008,6 +41164,7 @@ export type SyncTypesStatusOut = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   records: number;
   estimate?: number;
@@ -41028,6 +41185,15 @@ export type SyncTypesStatusOut = {
     }>;
   sentToday: number;
   nextPollAt?: number;
+  slowedDown?: {
+    words: string;
+    resumesAt: number;
+  };
+  links?: string;
+  sealedWaiting?: {
+    count: number;
+    words: string;
+  };
   spec: boolean;
 };
 export type SyncTypesUndoPushIn = {
@@ -41048,6 +41214,7 @@ export type SyncTypesUpdateIn = {
       relation?: string;
       inverse?: string;
       constant?: string;
+      sealed?: boolean;
     }>;
   match?: Array<string>;
   createAtSource?: boolean;
@@ -41057,6 +41224,7 @@ export type SyncTypesUpdateIn = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   nightlyReconcile?: boolean;
 };
@@ -41077,6 +41245,7 @@ export type SyncTypesUpdateOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -41086,6 +41255,7 @@ export type SyncTypesUpdateOut = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;
@@ -46674,6 +46844,17 @@ export type VaultConnectCardAskAdminOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
@@ -46715,6 +46896,17 @@ export type VaultConnectCardDisconnectOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
@@ -46756,6 +46948,17 @@ export type VaultConnectCardGetOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
@@ -46828,6 +47031,17 @@ export type VaultConnectCardReopenOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
@@ -46861,6 +47075,7 @@ export type VaultConnectCardSubmitIn = {
   useSaved?: boolean;
   folderId?: string;
   audience?: "asker" | "anyone";
+  choice?: string;
   hosts: Array<string>;
 };
 export type VaultConnectCardSubmitOut = {
@@ -46878,6 +47093,17 @@ export type VaultConnectCardSubmitOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
@@ -48805,8 +49031,13 @@ export interface CapMap {
   "esign.list": { in: EsignListIn; out: EsignListOut };
   "esign.provider_set": { in: EsignProviderSetIn; out: EsignProviderSetOut };
   "esign.providers": { in: EsignProvidersIn; out: EsignProvidersOut };
+  "esign.remind": { in: EsignRemindIn; out: EsignRemindOut };
   "esign.send": { in: EsignSendIn; out: EsignSendOut };
+  "esign.signer_act": { in: EsignSignerActIn; out: EsignSignerActOut };
+  "esign.signer_doc": { in: EsignSignerDocIn; out: EsignSignerDocOut };
+  "esign.signer_view": { in: EsignSignerViewIn; out: EsignSignerViewOut };
   "esign.status": { in: EsignStatusIn; out: EsignStatusOut };
+  "esign.verify": { in: EsignVerifyIn; out: EsignVerifyOut };
   "events.get": { in: EventsGetIn; out: EventsGetOut };
   "events.list": { in: EventsListIn; out: EventsListOut };
   "events.replay": { in: EventsReplayIn; out: EventsReplayOut };
@@ -53631,6 +53862,9 @@ export type SheetRowUpdatedPayload = {
   columns: Array<string>;
   runId?: string;
 };
+export type SignatureCancelledPayload = {
+  envelopeId: string;
+};
 export type SignatureDeclinedPayload = {
   envelopeId: string;
   signer: string;
@@ -53639,7 +53873,7 @@ export type SignatureDeclinedPayload = {
 export type SignatureSentPayload = {
   envelopeId: string;
   recordId?: string;
-  provider: "documenso" | "dropbox_sign" | "docusign";
+  provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
 };
 export type SignatureSignedPayload = {
   envelopeId: string;
@@ -55301,6 +55535,7 @@ export interface EventMap {
   "sheet.row_appended": SheetRowAppendedPayload;
   "sheet.row_deleted": SheetRowDeletedPayload;
   "sheet.row_updated": SheetRowUpdatedPayload;
+  "signature.cancelled": SignatureCancelledPayload;
   "signature.declined": SignatureDeclinedPayload;
   "signature.sent": SignatureSentPayload;
   "signature.signed": SignatureSignedPayload;

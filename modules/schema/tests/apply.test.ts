@@ -99,6 +99,16 @@ test("apply: additions go straight through, rows use the new fields, events and 
   const ev = k.seen.find((e) => e.name === "schema.changed")!;
   assert.deepEqual([...(ev.payload.types as string[])].sort(), ["acme_company", "acme_person"]);
   assert.equal(ev.payload.destructive, false);
+  // every type one change made is named by an event of its own (the host makes a type openable from the event that names it): a change that makes two types names both
+  const made = k.seen.filter(
+    (e) =>
+      e.name === "schema.changed" &&
+      (e.payload.types as string[]).includes("acme_person") &&
+      (e.payload.types as string[]).includes("acme_company"),
+  );
+  assert.deepEqual(made.map((e) => e.subject).sort(), ["record_type/acme_company", "record_type/acme_person"]);
+  assert.deepEqual(made.map((e) => e.payload.type).sort(), ["acme_company", "acme_person"]);
+  assert.equal(new Set(made.map((e) => e.payload.changeId)).size, 1);
 
   const id = await person(k, { email: "a@x.com", stage: "new" });
   assert.equal((await k.s.store.get("acme_person", id))?.data.stage, "new");
@@ -223,6 +233,38 @@ test("retype converts what it can, clears the rest, and keeps the old values; re
     ops: [{ op: "field.retype", type: "acme_person", field: "mail", toType: "relation" }],
   });
   assert.match(bad.problems[0]!.message, /cannot be retyped to relation/);
+});
+
+test("four relations from one type to one target all apply, each far end shows its own list, a re-apply changes nothing", async () => {
+  const k = kit();
+  await base(k);
+  const ops: SchemaOp[] = [
+    ["employer", "staff", "Staff"],
+    ["owner", "staff_owner", "Staff (owner)"],
+    ["referrer", "staff_referrer", "Staff (referrer)"],
+    ["former", "staff_former", "Staff (former)"],
+  ].map(([field, inverse, inverseTitle]) => ({
+    op: "relation.add",
+    type: "acme_person",
+    field: field!,
+    def: { to: "acme_company", inverse: inverse!, inverseTitle: inverseTitle! },
+  }));
+  await k.h["schema.apply"](k.ctx, { ops });
+  const company = (await k.h["schema.types.get"](k.ctx, { type: "acme_company" })).type;
+  for (const [field, inverse, title] of [
+    ["employer", "staff", "Staff"],
+    ["owner", "staff_owner", "Staff (owner)"],
+    ["referrer", "staff_referrer", "Staff (referrer)"],
+    ["former", "staff_former", "Staff (former)"],
+  ]) {
+    const far = company.fields.find((f) => f.key === inverse)!;
+    assert.equal(far.title, title);
+    assert.deepEqual(far.options, { target: "acme_person", inverse: field });
+  }
+  const before = JSON.stringify((await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type);
+  const again = await k.h["schema.diff"](k.ctx, { ops });
+  assert.ok(again.problems.length === 4, "the same four relations are refused as already there, not made twice");
+  assert.equal(JSON.stringify((await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type), before);
 });
 
 test("relations are made and dropped as pairs; dropping a type needs its relations gone first", async () => {
@@ -640,6 +682,29 @@ test("views: personal until published, kind needs checked, only the owner change
   assert.deepEqual(await k.h["views.delete"](k.ctx, { viewId: v.viewId }), { deleted: true });
   assert.equal((await k.h["views.list"](k.ctx, { type: "acme_person" })).views.length, 0);
   assert.ok(k.seen.some((e) => e.name === "view.deleted"));
+});
+
+test("views: a board may name the stages it draws, in order; a key that is not a stage is refused in plain words", async () => {
+  const k = kit("usr_dana");
+  await base(k);
+  const board = { type: "acme_person", kind: "board", title: "Won only" };
+  const saved = (await k.h["views.save"](k.ctx, { ...board, config: { group: "stage", stages: ["won", "new"] } })).view;
+  assert.deepEqual(saved.config, { group: "stage", stages: ["won", "new"] });
+  // absent and empty both keep today's behaviour
+  assert.ok(await k.h["views.save"](k.ctx, { ...board, config: { group: "stage" } }));
+  assert.ok(await k.h["views.save"](k.ctx, { ...board, config: { group: "stage", stages: [] } }));
+  await assert.rejects(
+    k.h["views.save"](k.ctx, { ...board, config: { group: "stage", stages: ["won", "approved"] } }),
+    (e: unknown) => (e as { code?: string; message?: string }).message === "approved is not a stage of Stage.",
+  );
+  await assert.rejects(
+    k.h["views.save"](k.ctx, { ...board, config: { group: "stage", stages: ["won", "won"] } }),
+    code("validation.bad_input"),
+  );
+  await assert.rejects(
+    k.h["views.save"](k.ctx, { ...board, config: { group: "stage", stages: "won" } }),
+    code("validation.bad_input"),
+  );
 });
 
 test("layout and gap rules are validated, and follow a renamed or dropped field", async () => {

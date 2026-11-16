@@ -130,6 +130,7 @@ import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
+import { useFollow } from "./use-follow.ts";
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq, usedTerminal } from "./chapters/index.ts";
@@ -171,6 +172,7 @@ import {
   withoutAnswered,
   faceDoor,
   peopleIn,
+  decisionOf,
 } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
@@ -307,14 +309,13 @@ function useLiveTurns(data: ConversationData): readonly import("../../../shell/s
 }
 
 /** The lead of this chat runs outside Vyre and has gone quiet: said plainly above the composer, because a message here will wait. Only its owner can read it, and only its owner can ask it. */
-/** A menu opened low in the chat opens upward instead of over the composer: its top is pulled up so its bottom stays above the composer's top (the rows are about 28 px each). */
-function aboveComposer(y: number, rows: number): number {
+/** The composer's top edge: a menu opened low in the chat opens upward from the pointer instead of over the composer. Infinity where the composer is not drawn. */
+function composerTop(): number {
   const doc = (
     globalThis as { document?: { querySelector(s: string): { getBoundingClientRect(): { top: number } } | null } }
   ).document;
   const top = doc?.querySelector('[data-testid="composer"]')?.getBoundingClientRect().top;
-  if (typeof top !== "number" || top <= 0) return y;
-  return y + rows * 28 + 16 > top - 8 ? Math.max(8, top - 8 - (rows * 28 + 16)) : y;
+  return typeof top === "number" && top > 0 ? top : Number.POSITIVE_INFINITY;
 }
 
 /** The people (ids) typing in this chat now, from the live link; empty where nothing is live. */
@@ -368,7 +369,7 @@ function NoAiLine({
   threadId,
   agentId,
 }: {
-  data: Pick<ConversationData, "call" | "nav">;
+  data: Pick<ConversationData, "call" | "nav" | "changes">;
   threadId: string;
   agentId: string;
 }): ReactElement | null {
@@ -383,6 +384,15 @@ function NoAiLine({
       live = false;
     };
   }, [data.call, threadId, agentId]);
+  // an account added somewhere else (the Vault, a sign-in on the card) takes this line away without a reload: the Space's own change stream asks again, and it stops asking once there is one
+  useFollow(
+    data.changes,
+    () =>
+      aiReady(data.call, threadId, agentId).then((r) => {
+        setAi(r);
+      }),
+    !ai.ready,
+  );
   if (ai.ready) return null;
   const connect = (): void => {
     if (openConnect) void openConnect({ kind: "ai" });
@@ -1349,6 +1359,7 @@ function ConversationView(): ReactElement {
         {
           plan: () => chooseChatMode(mode === "plan" ? "ask" : "plan"),
           fork: () => void runSlash("/fork", commandEnv()),
+          ...(goesBack ? { rewind: () => setRewindCard({ n: cardN.current++ }) } : {}),
           find: () => setFinding(true),
           ...(data.nav.openPaneTab ? { kept: () => data.nav.openPaneTab?.("kept") } : {}),
           exportMd: () => void runSlash("/export md", commandEnv()),
@@ -1647,6 +1658,9 @@ function ConversationView(): ReactElement {
         )
         .catch(fail("Could not do that.")),
     canSetSpaceKey: spaceKeyAdmin,
+    ...(data.changes ? { changes: data.changes } : {}),
+    // a Personal Space has no Space key and no admin to ask: nothing about one is said there
+    ...(data.nav.openSpaceAiKey ? {} : { noSpaceKey: true }),
     retrySend: (id) => {
       const p = pending.find((x) => `pending:${x.key}` === id);
       if (p) {
@@ -1659,8 +1673,9 @@ function ConversationView(): ReactElement {
       setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id));
       unsay();
     },
+    // a message's menu opens at the pointer and flips to the left at the window's right edge and upward above the composer (owner, 16 Nov)
     showMenu: (entries, x, y, label, source) =>
-      menu.show(entries, x, aboveComposer(y, entries.length), source ?? "context", { label }),
+      menu.show(entries, x, y, source ?? "context", { label }, { flip: true, bottomLimit: composerTop() - 8 }),
     ...(lead
       ? {
           liveCard: {
@@ -2095,6 +2110,7 @@ function ConversationView(): ReactElement {
             kindOf={data.kindOf}
             clock={data.clock()}
             count={thread.replyCount ?? all.length}
+            decided={decisionOf(all)}
             writing={writingName}
             onOpen={
               thread.parentThreadId && thread.parentMessageId

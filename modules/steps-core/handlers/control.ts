@@ -788,6 +788,7 @@ const ADAPTERS: Record<string, Adapter> = {
       fileId: i.fileId,
       signers: i.signers,
       ...(i.recordId ? { recordId: i.recordId } : {}),
+      ...(typeof i.message === "string" && i.message !== "" ? { message: i.message } : {}),
       idempotencyKey: call.key,
     }),
     output: (o) => ({ envelopeId: o?.envelopeId, ...(o?.taskId ? { taskId: o.taskId } : {}) }),

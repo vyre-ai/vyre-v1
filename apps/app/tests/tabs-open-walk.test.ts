@@ -166,7 +166,7 @@ export async function openWalk(t: TestContext, parts: ReadonlySet<string>, tag: 
       await press("chat channel (Chats row)", "plain", channelRow, "here");
       await press("chat channel (Chats row)", "cmd", launchRow, "tab");
       await press("chat channel (Chats row)", "middle", launchRow, "tab");
-      await press("chat channel (Chats row)", "menu", launchRow, "tab", { menuText: /open in a new tab/i });
+      await press("chat channel (Chats row)", "menu", launchRow, "tab", { menuText: /open in new tab/i });
       await press("chat channel (Chats row)", "cmdshift", launchRow, "behind");
       await place("chats");
       await press("agent (Chats row)", "cmd", () => page.locator('[data-testid^="row-f:agt_"]'), "tab");

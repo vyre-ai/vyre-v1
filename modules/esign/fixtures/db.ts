@@ -20,11 +20,16 @@ import type {
   WebhookEvent,
 } from "../handlers/send.ts";
 import { handlers } from "../impl.ts";
+import { configureSigning } from "../handlers/vyre.ts";
 
 // Boundary B2 keeps the node:sqlite import out of modules; a test still needs a real SQL engine behind the host's table guard.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
-const migration = readFileSync(new URL("../migrations/0001_esign.sql", import.meta.url), "utf8");
+const migrations = ["0001_esign.sql", "0002_esign_vyre.sql", "0003_esign_seal.sql"].map((f) =>
+  readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"),
+);
 
+/** what the fake sealing holds, by nonce: a real round trip, so a test that seals a key can open it again */
+const SEALED = new Map<string, Uint8Array>();
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const FILE = "fil_contract1";
@@ -123,12 +128,17 @@ export class FakeProvider implements EsignProvider {
 
 export interface HarnessOptions {
   now?: number;
+  /** Built-in signing (the Space default) with a real PDF behind the file; without it the Space defaults to the fake Documenso the older tests use. */
+  builtIn?: { pdf: Uint8Array; fileName?: string } | undefined;
+  /** The Space's public address; null for none. */
+  base?: string | null;
   providers?: Partial<Record<ProviderKey, EsignProvider>> | null;
 }
 
 export function harness(o: HarnessOptions = {}) {
   const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(migration);
+  for (const m of migrations) sqlite.exec(m);
+  if (!o.builtIn) sqlite.exec("INSERT INTO esign_setting (name, value) VALUES ('default_provider', 'documenso')");
   const norm = (a: unknown): unknown => (a === undefined ? null : a);
   const raw = {
     all: (sql: string, ...args: unknown[]): unknown[] => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
@@ -138,6 +148,7 @@ export function harness(o: HarnessOptions = {}) {
   };
   const provider = new FakeProvider();
   configureEsign(o.providers === null ? null : { providers: o.providers ?? { documenso: provider } });
+  configureSigning({ publicBase: () => (o.base === undefined ? "https://northwind.example" : o.base) });
   let clock = o.now ?? NOW;
   let events: Ev[] = [];
   const calls: CallLog[] = [];
@@ -189,7 +200,14 @@ export function harness(o: HarnessOptions = {}) {
         error() {},
       },
       schedule: async () => "sch_1",
-      seal: { seal: () => ({ keyId: "k", nonce: "n", bytes: "b" }), unseal: () => new Uint8Array() },
+      seal: {
+        seal: (v: Uint8Array) => {
+          const nonce = `n${SEALED.size}`;
+          SEALED.set(nonce, new Uint8Array(v));
+          return { keyId: "k", nonce, bytes: "b" } as never;
+        },
+        unseal: (x: { nonce: string }) => new Uint8Array(SEALED.get(x.nonce) ?? new Uint8Array()),
+      },
     };
   }
 
@@ -208,23 +226,29 @@ export function harness(o: HarnessOptions = {}) {
   }
 
   // the neighbours, with the answers the real modules give
+  const sourcePdf = o.builtIn?.pdf ?? PDF;
   callees["files.get"] = (i: { fileId: string }) => ({
     file: {
       fileId: i.fileId,
       folderId: FOLDER,
-      name: "Retainer.pdf",
+      name: o.builtIn?.fileName ?? "Retainer.pdf",
       kind: "pdf",
       mime: "application/pdf",
-      size: PDF.length,
+      size: sourcePdf.length,
       version: 1,
     },
   });
+  callees["spaces.get"] = () => ({
+    space: { name: "Northwind", legalName: "Northwind Traders LLC", timezone: "Asia/Karachi" },
+  });
+  callees["access.principals.get"] = () => ({ principal: { name: "Imran Ibarra" } });
+  callees["comms.senders.list"] = () => ({ senders: [] });
   callees["projects.files_folder"] = () => ({ folderId: "fld_record_files" });
   callees["files.move"] = (i: { fileId: string }) => ({ file: { fileId: i.fileId } });
   callees["files.read"] = () => ({
-    base64: toBase64(PDF),
+    base64: toBase64(sourcePdf),
     mime: "application/pdf",
-    size: PDF.length,
+    size: sourcePdf.length,
     version: 1,
     truncated: false,
   });
@@ -236,6 +260,7 @@ export function harness(o: HarnessOptions = {}) {
     created.push({ folderId: i.folderId, name: i.name, base64: i.content.base64 });
     return { file: { fileId: `fil_cert${created.length}`, folderId: i.folderId, name: i.name } };
   };
+  callees["notifications.send"] = () => ({ outcome: "badge" });
   callees["tasks.create"] = () => ({ task: { id: `tsk_sig${++taskSeq}` } });
   callees["tasks.transition"] = () => ({ task: {} });
   callees["chat.post"] = () => ({ message: { id: "msg_1" } });
@@ -281,3 +306,21 @@ export async function refused(p: Promise<unknown>, code: string): Promise<void> 
 }
 
 export { fromBase64, toBase64 };
+
+let preMade: Promise<{ cert: Uint8Array; pkcs8: Uint8Array }> | null = null;
+/** Gives the Space its seal key without making one (a 3072-bit key takes a second; a test that is not about key making shares one made once). */
+export async function withSeal(h: {
+  sqlite: { exec(sql: string): void };
+  ctxFor(cap: string | null, who: Caller): Ctx;
+}): Promise<void> {
+  const { makeSeal, fingerprintOf } = await import("../handlers/seal.ts");
+  preMade ??= makeSeal("Northwind Traders LLC");
+  const made = await preMade;
+  const sealed = JSON.stringify(h.ctxFor(null, dana).seal.seal(made.pkcs8, "esign.seal"));
+  const b64 = Buffer.from(made.cert).toString("base64");
+  const fp = await fingerprintOf(made.cert);
+  h.sqlite.exec(
+    `INSERT INTO esign_seal (slot, cert, fingerprint, sealed_key, made_at) VALUES ('current', '${b64}', '${fp}', '${sealed.replaceAll("'", "''")}', 1);
+     INSERT INTO esign_seal_cert (fingerprint, cert, made_at, source) VALUES ('${fp}', '${b64}', 1, 'made')`,
+  );
+}

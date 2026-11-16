@@ -229,7 +229,14 @@ export default defineManifest({
       {
         ...V,
         in: { flow: flowKind },
-        out: { seen: t.bool(), steps: t.arr(t.obj({ key: flowStep, state: t.enm("done", "later") })) },
+        out: {
+          seen: t.bool(),
+          steps: t.arr(t.obj({ key: flowStep, state: t.enm("done", "later") })),
+          fresh: t.bool({
+            description:
+              "True while this person's account here is new (their first 7 days): only then does Getting Started show its chip and rows, so a long-used Space never shows it after an update",
+          }),
+        },
         tool: "meta",
       },
     ),

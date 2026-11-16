@@ -8,12 +8,14 @@ import type { ViewStyle } from "react-native";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
+import { ColumnsSheet } from "./ColumnsSheet.tsx";
 import { useLive, useRecordsData } from "../sidebar/data.tsx";
 import { Glyph, pointOf } from "../sidebar/parts.tsx";
 import { cellText, hueOf } from "../table/model.ts";
 import { moveCard, moveError } from "./actions.ts";
 import {
   cardFields,
+  chosenOf,
   each,
   isLaneField,
   LANE_PAGE,
@@ -23,6 +25,9 @@ import {
   lanesOf,
   laneSpec,
   neighbour,
+  shownLine,
+  shownSpec,
+  stagesOfView,
 } from "./model.ts";
 import type { FieldDef, Lane, RecordRow } from "./model.ts";
 import { Value } from "./parts.tsx";
@@ -232,6 +237,21 @@ function LaneColumn({ board, lane, width }: { board: Board; lane: Lane; width: n
   );
 }
 
+// ---------------------------------------------------------------- the count line of a board with chosen stages
+
+/** How many of the view's records the chosen stages show. */
+function ShownCount({ board, keys }: { board: Board; keys: readonly string[] }): ReactElement {
+  const { ctx, st, field } = board;
+  const some = useLive("records.counts", shownSpec(ctx.type, st.v, ctx.def.titleField, field, keys));
+  const all = useLive("records.counts", shownSpec(ctx.type, st.v, ctx.def.titleField, field, null));
+  const ready = some.status === "ready" && all.status === "ready";
+  return (
+    <Text style={c.shown} testID="board-count">
+      {ready ? shownLine(some.data.count, all.data.count, ctx.def.plural, keys.length) : " "}
+    </Text>
+  );
+}
+
 // ---------------------------------------------------------------- the board
 
 export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
@@ -239,6 +259,9 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const st = useViewState(ctx);
   const menu = useMenu();
   const [picked, setPicked] = useState<string | null>(null);
+  // the stages the board draws: edited here, saved with the view; none chosen draws every stage
+  const [stages, setStages] = useState<string[] | null>(null);
+  const [choosing, setChoosing] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const drag = useRef<RecordRow | null>(null);
@@ -247,6 +270,8 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
   const counts = useRef<Record<string, number>>({});
   const width = useWindowDimensions().width;
   const field = ctx.journey?.field ?? laneFieldOf(ctx.def, ctx.saved, picked);
+  const savedStages = field ? chosenOf(field, stagesOfView(ctx.saved)) : [];
+  const chosen = field && !ctx.journey ? chosenOf(field, stages ?? savedStages) : [];
   const head = (
     <ViewHead
       ctx={ctx}
@@ -254,7 +279,21 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       lanes={{
         field,
         choices: ctx.journey ? [ctx.journey.field] : ctx.def.fields.filter(isLaneField),
-        pick: setPicked,
+        pick: (key) => {
+          setPicked(key);
+          setStages([]);
+        },
+        ...(field && !ctx.journey
+          ? {
+              stages: {
+                chosen,
+                total: lanesOf(field).filter((l) => !l.none).length,
+                edited: JSON.stringify(chosen) !== JSON.stringify(savedStages),
+                open: () => setChoosing(true),
+                reset: () => setStages(null),
+              },
+            }
+          : {}),
       }}
     />
   );
@@ -276,7 +315,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
     );
   }
   // the lane of records with no value comes first: a board whose records have none shows them at the left, and not beyond the screen behind lanes that say "No cards" (it is drawn only while it has cards)
-  const own = lanesOf(field);
+  const own = lanesOf(field, chosen);
   const lanes = [...own.filter((l) => l.none), ...own.filter((l) => !l.none)];
   const laneWidth = isPhoneWidth(width) ? Math.max(220, width - 56) : LANE_W;
 
@@ -376,6 +415,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
           {error}
         </Text>
       ) : null}
+      {chosen.length > 0 ? <ShownCount board={board} keys={chosen} /> : null}
       <View style={c.sheet} {...({ onKeyDown } as object)}>
         <ScrollView horizontal style={c.lanes} contentContainerStyle={c.lanesIn} testID="board-lanes">
           {each(lanes, (l) => (
@@ -384,6 +424,9 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
         </ScrollView>
       </View>
       {menu.element}
+      {choosing ? (
+        <ColumnsSheet field={field} chosen={chosen} onChange={setStages} onClose={() => setChoosing(false)} />
+      ) : null}
     </View>
   );
 }
@@ -433,4 +476,5 @@ const c = StyleSheet.create({
   addText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   none: { fontSize: 12, color: "var(--ink-4)" as string, paddingHorizontal: 6, paddingVertical: 4 },
   error: { fontSize: 12.5, color: "var(--danger)" as string, paddingHorizontal: 18, paddingVertical: 6 },
+  shown: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 18, paddingTop: 8 },
 });

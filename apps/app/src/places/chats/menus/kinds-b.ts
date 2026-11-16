@@ -2,6 +2,7 @@
 // Pure, the shape of kinds.ts: each builder gets facts about the row, from real state and what the person may do, and what each item does, and returns the entries of the one Menu surface. An item is here
 // only when it works for this person; a toggle's words follow its state; open and read come first, then change, then share, then organise, and danger is last and alone, with its key in the hint column.
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
+import { openEntries } from "../../../../../../ui/src/Menu/open-entries.ts";
 import { KEY, starItem, tidy } from "./kinds.ts";
 
 const sep: MenuEntry = { separator: true };
@@ -77,6 +78,12 @@ export interface AutomationFacts {
 }
 export interface AutomationDo {
   open(): void;
+  /** As a tab beside this one. Left out where the shell has no tabs. */
+  openTab?(): void;
+  /** Ask for a new name. Absent where the host cannot ask. */
+  rename?(): void;
+  /** Make a copy named "(copy)". Absent where the host cannot. */
+  duplicate?(): void;
   run(): void;
   setEnabled(on: boolean): void;
   test(): void;
@@ -86,9 +93,20 @@ export interface AutomationDo {
   copyLink(): void;
   remove(): void;
 }
+/** Rename and Duplicate, the two entries the list's menu and the page's menu share. */
+export function renameDuplicate(
+  f: Pick<AutomationFacts, "canEdit">,
+  d: Pick<AutomationDo, "rename" | "duplicate">,
+): MenuEntry[] {
+  return [
+    f.canEdit && d.rename ? item(ellipsis("Rename"), d.rename) : null,
+    f.canEdit && d.duplicate ? item("Duplicate", d.duplicate) : null,
+  ].filter((x): x is MenuItem => x !== null);
+}
 export function automationMenu(f: AutomationFacts, d: AutomationDo): MenuEntry[] {
   return tidy([
-    item("Open", d.open, { hint: KEY.enter }),
+    ...openEntries({ open: d.open, ...(d.openTab ? { openTab: d.openTab } : {}), tabKey: false }),
+    ...renameDuplicate(f, d),
     f.canRun ? item("Run Now", d.run) : null,
     f.canEdit
       ? f.enabled

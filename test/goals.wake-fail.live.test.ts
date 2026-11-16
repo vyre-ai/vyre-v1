@@ -200,11 +200,17 @@ test(
         JSON.stringify(lines),
       );
       assert.ok(!lines.some((l) => /Stuck|no words|engine\.|Asking once more/.test(l)), JSON.stringify(lines));
-      assert.match(
-        JSON.stringify(await ok(w.d, "notifications.list", {})),
-        /check-ins paused on/,
-        "a notification, when they have them on",
-      );
+      // the notification follows the Needs you card a moment later (it is made from the same event): wait for it, then assert it (it failed one run in five
+      // on a quiet box, read between the two)
+      const noted = await waitFor(
+        async () => {
+          const text = JSON.stringify(await ok(w.d, "notifications.list", {}));
+          return /check-ins paused on/.test(text) ? text : null;
+        },
+        15_000,
+        () => heldRow(w.d) as string,
+      ).catch(async () => JSON.stringify(await ok(w.d, "notifications.list", {})));
+      assert.match(noted, /check-ins paused on/, "a notification, when they have them on");
 
       // not asked again every minute: the wake-up stays on its first attempt
       for (let i = 0; i < 2; i++) {
@@ -226,6 +232,12 @@ test(
       }
       assert.equal(await told(w.d), 1, "told once");
       assert.equal((await goalOf(w.d, g.goalId)).checkins, 0, "no check-in ran, so none is counted");
+      // the count settles a moment after the last attempt is put back: wait for it to be what it was, then assert it
+      await waitFor(
+        async () => ((await goalOf(w.d, g.goalId)).turns === g.turnsBefore ? true : null),
+        15_000,
+        () => heldRow(w.d) as string,
+      ).catch(() => undefined);
       assert.equal((await goalOf(w.d, g.goalId)).turns, g.turnsBefore, "turns that failed are not turns of the budget");
 
       // the cause clears: the lead's turn runs, reports, and everything held lets go

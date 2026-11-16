@@ -1,6 +1,7 @@
 // The public path, /p/* (owner, 2 Nov): what a visitor with no session reaches on a phone address, name.vyre.run. The relay carries nothing else to this daemon in the clear.
 //   /p/forms/<slug>        a form; its calls go to the same address with ?op=
 //   /p/forms/book/<slug>   a booking page
+//   /p/sign/<token>/...    a document to sign (built-in signing; host/src/routes/sign-route.ts)
 //   /p/u/<token>           an unsubscribe link from an email
 //   /p/share/project/<token>  a read-only project link for a client
 //   /p/<site>/...          a public site: forwarded, whole path, to a port on a computer, or served from a folder in Files
@@ -14,6 +15,7 @@ export const PUBLIC_SANDBOX = "sandbox allow-scripts allow-forms allow-popups al
 export const APP_FRAME_ANCESTORS =
   "frame-ancestors 'self' tauri://localhost http://tauri.localhost https://tauri.localhost";
 const FORM = /^\/p\/forms\/(book\/)?([a-z0-9][a-z0-9-]{0,63})\/?$/;
+const SIGN = /^\/p\/sign\/([^/]*)(\/.*)?$/;
 const UNSUBSCRIBE = /^\/p(\/u\/[A-Za-z0-9_-]+\/?)$/;
 const SHARE = /^\/p(\/share\/project\/[a-z0-9]+)$/;
 const SITE = /^\/p\/([a-z0-9][a-z0-9-]{0,62})(\/.*)?$/;
@@ -72,6 +74,8 @@ export interface PublicPathDeps {
   unsubscribe?(): Inner | null;
   /** The shared project route. */
   share?(): Inner | null;
+  /** The signing route: one request under /p/sign/<token>/, with the token and the rest of the path. */
+  sign?(): { handle(req: http.IncomingMessage, res: http.ServerResponse, token: string, tail: string): void } | null;
   /** The Space's public origin, for a page's own connect-src. */
   origin(): string | null;
   /** The route behind /p/<slug>. */
@@ -240,7 +244,7 @@ export async function serve(
 }
 
 export function createPublicPathRoute(deps: PublicPathDeps): Inner {
-  return {
+  const route: Inner = {
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://vyred");
       // an artifact's plain address: the app opens it for whoever is signed in. Only a token below it serves anything
@@ -273,6 +277,16 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
       if (typeof visitor === "string" && visitor !== "") req.headers["x-forwarded-for"] = visitor;
       guard(res);
       const method = (req.method ?? "GET").toUpperCase();
+      const sign = SIGN.exec(url.pathname);
+      if (sign) {
+        const inner = deps.sign?.();
+        if (!inner) page(res, 404, "Not found", "There is nothing at this address.");
+        else if (sign[2] === undefined && (method === "GET" || method === "HEAD")) {
+          res.writeHead(308, { location: `${url.pathname}/`, "content-length": "0", "cache-control": "no-store" });
+          res.end();
+        } else inner.handle(req, res, sign[1] as string, sign[2] ?? "");
+        return true;
+      }
       const form = FORM.exec(url.pathname);
       if (form) {
         const inner = deps.forms();
@@ -342,6 +356,18 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
         res,
       ).catch(fail500);
       return true;
+    },
+  };
+  // no /p/* route may take the daemon down with a thrown error: whatever a route throws is a plain 500 page and the next request is served as usual
+  return {
+    handle(req, res) {
+      try {
+        return route.handle(req, res);
+      } catch {
+        if (!res.headersSent) page(res, 500, "Not answering", "Try again soon.");
+        else res.end();
+        return true;
+      }
     },
   };
 }

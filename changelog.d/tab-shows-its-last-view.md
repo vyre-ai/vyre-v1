@@ -1,0 +1,1 @@
+Pressing a tab you have been on shows it within a frame or two: the tab's own last view is painted first and the live one takes its place when it is ready (measured 46 to 84 ms for a file, a record, an Automation, the Console and Settings, against 120 to 350 ms before).
