@@ -5,7 +5,7 @@ import { refuse } from "../projections.ts";
 import type { ConnectorsCtx, ConnectorsDeps, ProbeRequest } from "../projections.ts";
 import { analyzeBody } from "../discover.ts";
 import type { BodyShape } from "../discover.ts";
-import { nextLink } from "../syncspec.ts";
+import { nextLink, SECRET_ID } from "../syncspec.ts";
 
 export interface AuthIn {
   vaultHandle: string;
@@ -111,6 +111,15 @@ export function createDiscoverHandlers(deps: ConnectorsDeps): DiscoverHandlers {
       return { status: 0, text: err?.message ?? (e instanceof Error ? e.message : "The app could not be reached.") };
     }
   };
+  /** A secret identifier never goes to the agent that reads a sample: a value under a name that marks one (ssn, tax id, account number ...), or shaped like an SSN, is shown as "sealed". Map such a field as sealed. */
+  const seal = (v: unknown, key = ""): unknown => {
+    if (Array.isArray(v)) return v.map((x) => seal(x, key));
+    if (v !== null && typeof v === "object")
+      return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, seal(x, k)]));
+    if (v === null || v === undefined || v === "") return v;
+    if (SECRET_ID.test(key)) return "[sealed]";
+    return typeof v === "string" ? v.replace(/\d{3}-\d{2}-\d{4}/g, "[sealed]") : v;
+  };
   const read = (r: { status: number; text: string; link?: string }, n: number): SampleOut => {
     if (r.status === 0) return { status: 0, ok: false, reason: r.text.slice(0, 200) };
     if (r.status === 401 || r.status === 403)
@@ -123,9 +132,14 @@ export function createDiscoverHandlers(deps: ConnectorsDeps): DiscoverHandlers {
       return { status: r.status, ok: false, reason: `The app answered ${r.status}. Check the path and parameters.` };
     let body: unknown = r.text;
     try {
-      body = r.text === "" ? null : (JSON.parse(r.text) as unknown);
+      body = r.text === "" ? null : seal(JSON.parse(r.text) as unknown);
     } catch {
-      return { status: r.status, ok: false, reason: "The answer is not JSON.", preview: r.text.slice(0, 300) };
+      return {
+        status: r.status,
+        ok: false,
+        reason: "The answer is not JSON.",
+        preview: r.text.slice(0, 300).replace(/\d{3}-\d{2}-\d{4}/g, "[sealed]"),
+      };
     }
     const shape = analyzeBody(body);
     const top = shape.lists[0];

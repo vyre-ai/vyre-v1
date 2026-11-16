@@ -5,7 +5,19 @@
 import { canonical } from "../../../lib/canonical.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase } from "../projections.ts";
-import { coerceValue, compileSpec, firstPageRequest, parseSpec, readPage, unflatten } from "../syncspec.ts";
+import {
+  JOIN_PREFIX,
+  SECRET_ID,
+  SSN_SHAPE,
+  coerceValue,
+  compileSpec,
+  firstPageRequest,
+  joinTitle,
+  parseSpec,
+  readPage,
+  titlePaths,
+  unflatten,
+} from "../syncspec.ts";
 import type { Compiled, CompiledType, Problem, SpecObject, SyncSpec } from "../syncspec.ts";
 import { createConnectionsHandlers } from "./connections.ts";
 import { diffDefs, executeAction, runCases } from "./runtime.ts";
@@ -356,11 +368,35 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         const vals = items.map((it) => pointerGet(it, mf.path));
         const present = vals.filter((v) => v !== undefined);
         if (items.length && present.length === 0) {
+          // the object's own field list declares this path with a type (a path it does not declare is refused above), so it is a real field that only some records fill, such as a custom field
           missing.push(mf.path);
-          err(fa, `${mf.path} is not in any of the ${items.length} sampled records. Fix the path or set it off.`);
+          warn(
+            fa,
+            `${mf.path} is empty on the ${items.length} records looked at; it will fill in where the app has a value.`,
+          );
           continue;
         }
         found++;
+        if (f.type === "sealed") {
+          // a sealed field is read from the app only, and says whether values are there, never what they are
+          if (mf.direction !== "pull")
+            err(fa, `${f.label} is sealed, so it is only read from the app: set its direction to pull (or off).`);
+          if (titlePaths(m).includes(mf.path) || m.stagesFrom === mf.path || (m.match ?? []).includes(mf.path))
+            err(fa, `${f.label} is sealed: it cannot be the title, the stage or a match rule.`);
+          const withValue = present.filter((v) => v !== null && v !== "").length;
+          warn(
+            fa,
+            `${f.label} is sealed: ${withValue} of ${items.length} sampled records have a value, and the values are never shown.`,
+          );
+          continue;
+        }
+        const looksSecret =
+          SECRET_ID.test(`${mf.path} ${f.label}`) || present.some((v) => typeof v === "string" && SSN_SHAPE.test(v));
+        if (looksSecret)
+          warn(
+            fa,
+            `${f.label} looks like a secret identifier. Map it as sealed (set its type to sealed) so it is kept out of sight.`,
+          );
         const choices = f.choices?.map((c) => c.value);
         const bad = present.filter((v) => v !== null && v !== "" && !coerceValue(v, f.type, choices).ok);
         if (bad.length)
@@ -375,10 +411,22 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           if (!target)
             err(fa, `${f.label} points at ${f.relationTo}, which is not mapped. Map it too, or leave this field off.`);
         }
-        if (SENSITIVE.test(`${mf.path} ${f.label}`))
+        if (!looksSecret && SENSITIVE.test(`${mf.path} ${f.label}`))
           warn(fa, `${f.label} looks sensitive. Bring it in only if the person wants it.`);
         if ((mf.direction === "push" || mf.direction === "both") && f.type !== "relation" && !f.readOnly && !o.update)
           warn(fa, `${o.remote} has no documented update, so ${f.label} is pulled only.`);
+      }
+      for (const p of Array.isArray(m.titleField) ? m.titleField : []) {
+        const tf = o.fields.find((x) => x.path === p);
+        if (!tf)
+          err(`mapping.${o.remote}.titleField`, `${p} is part of the title but not described in the object's fields.`);
+        else if (tf.type === "sealed")
+          err(`mapping.${o.remote}.titleField`, `${tf.label} is sealed: it cannot be part of the title.`);
+        else if (items.length && !items.some((it) => pointerGet(it, p) !== undefined))
+          warn(
+            `mapping.${o.remote}.titleField`,
+            `${p} is empty on the ${items.length} records looked at; it will fill in where the app has a value.`,
+          );
       }
       if (m.stagesFrom) {
         const sf = o.fields.find((x) => x.path === m.stagesFrom);
@@ -499,7 +547,14 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           fields: t.fields.map((f) => ({
             key: f.key,
             label: o.fields.find((x) => x.path === f.remote)?.label ?? f.key,
-            value: r.data[f.remote] ?? null,
+            value: f.remote.startsWith(JOIN_PREFIX)
+              ? joinTitle(r.data, f.remote.slice(JOIN_PREFIX.length).split("|"))
+              : f.sealed
+                ? {
+                    sealed: true,
+                    present: r.data[f.remote] !== undefined && r.data[f.remote] !== null && r.data[f.remote] !== "",
+                  }
+                : (r.data[f.remote] ?? null),
           })),
         });
       }
@@ -787,6 +842,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           : {}),
         ...(f.inverse ? { inverse: f.inverse } : {}),
         ...(f.constant !== undefined ? { constant: f.constant } : {}),
+        ...(f.sealed ? { sealed: true } : {}),
       }));
       const account = spec.app.account ?? "";
       const bound = tx.get<{ sync_type_id: string }>(
@@ -795,14 +851,20 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         account,
       );
       // an app with a "changed since" filter is cheap to check (a page), so a person's edit leaves within two minutes; one without is read whole at every check, so its checks are slower
-      const slow = spec.objects.find((o) => o.remote === t.remote)?.list.updatedSince === undefined;
+      const listed = spec.objects.find((o) => o.remote === t.remote)?.list;
+      const slow = listed?.updatedSince === undefined;
+      // the spec may say how often an object is read whole: the first schedule is then already right
+      const every = listed?.checkEveryMinutes !== undefined && slow ? listed.checkEveryMinutes * 60 : undefined;
       const rules = {
         createAtSource: t.createAtSource,
         deletes: t.deletes,
         conflict: "newest" as const,
-        polling: slow
-          ? { activeSec: 900, idleSec: 3600, dormantSec: 14_400 }
-          : { activeSec: 120, idleSec: 120, dormantSec: 900 },
+        polling:
+          every !== undefined
+            ? { activeSec: every, idleSec: every, dormantSec: Math.max(14_400, every) }
+            : slow
+              ? { activeSec: 900, idleSec: 3600, dormantSec: 14_400 }
+              : { activeSec: 120, idleSec: 120, dormantSec: 900 },
       };
       const row = bound
         ? (await sync["sync_types.update"](ctx, { type: t.recordType, account, fields, match: t.match, ...rules }))

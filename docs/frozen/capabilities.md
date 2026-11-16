@@ -657,3 +657,27 @@ Signed: lead, 16 Nov 2026 04:45 PKT
 - Snapshots: docs/frozen/snapshots/connectors.json, vault-requests.json.
 
 Signed: lead, 16 Nov 2026 (after the security review and its re-check)
+
+## 16 Nov 2026: a sync spec sets its calls a minute and how often an object is read; the Sync page says when the app asked to slow down (lane r32-syncrate), for the lead to sign
+
+- What changed in contracts, all additive and optional, so no spec that exists changes: `sync_specs.validate`, `preview`, `apply` and `get` take, in the spec, `plan.requestsPerMinute` (a number, 1 to 6000: the most calls a minute to the app for the whole connection, every object together; left out, Vyre keeps 5 a second with a burst of 10) and `objects[].list.checkEveryMinutes` (a whole number of minutes, 1 to 10080: how often an object the app cannot filter by changed-since is read whole; apply sets the first schedule from it; left out, 15 minutes active and 60 idle as before). `sync_types.status` answers an optional `slowedDown` `{ words, resumesAt }` while the app has asked Vyre to slow down.
+- Not a contract change, the rule the tests pin: with a budget set the connection spends one call at a time, spaced evenly (no minute holds more than the number). A 429 holds the whole connection (every object) for what Retry-After says (seconds or an HTTP date), or 30 seconds doubling to 8 minutes when it says nothing; the pull waits and goes on, and gives up (a failed pass) only after 8 waits in a row with nothing answered. A field the object declares with a type that no sampled record fills is a warning in validate and apply, no longer an error; a mapped path the object does not declare is still an error.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: (for the lead to sign)
+
+## 16 Nov 2026: a sync spec field can be sealed (lane r32-syncrate, owner decision 16 Nov), for the lead to sign
+
+- What changed in contracts, additive: a spec field's `type` (`objects[].fields[].type`) accepts `sealed` (the exact spelling) besides the existing types, and a synced type's field map entry (`sync_types.create` and `update` `fields[]`) accepts an optional `sealed` boolean. A sealed spec field maps to a Records `sealed` field.
+- Not a contract change, the rule the tests pin: a sealed field is read from the app only (direction `pull`; push or both is a validation error) and cannot be the title, the stage or a match rule. The engine takes the value out of the app's row the moment it is read: it never reaches the sync's own tables (base, conflicts, outbox, log), and goes to the Vault through `records.update` only (the record keeps a reference). A newer value from the app replaces it, an empty one clears it, and a record the app has not changed since the last seal is not sealed again. `sync_specs.validate` and `preview` say a sealed field is sealed and whether values are present, never the value or its length; `sync_specs.sample` shows a value under a secret-identifier name (ssn, tax id, account number, routing, driver licence, passport, card number) or an SSN-shaped value as "[sealed]". Validate warns, naming the field, when a field named like a secret identifier or holding SSN-shaped values is mapped as a plain type.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: (for the lead to sign)
+
+## 16 Nov 2026: a sync spec's titleField may be a list of pointers (lane r32-syncrate), for the lead to sign
+
+- What changed in contracts, additive: `mapping[].titleField` in the spec of `sync_specs.validate`, `preview`, `apply` and `get` accepts a list of 1 to 5 pointers as well as one pointer; a single string means what it always did.
+- Not a contract change, the rule the tests pin: with a list, apply makes one more text field on the record type (named `name`, else `title`, else `full_title`) and makes it the record's title. Its value is the parts joined with one space, empty parts left out, and is worked out again from the app's row on every pull, so the title is right after every update; when every part is empty the field is empty, as a single empty pointer was. Each part must be described in the object's `fields` (an undescribed part is a validation error; a part empty on every sampled record is a warning); a sealed field cannot be a part. The title field is read from the app only.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: (for the lead to sign)

@@ -61,6 +61,8 @@ export interface TypeStatus {
   failures: { at: number; summary: string }[];
   sentToday: number;
   nextPollAt?: number;
+  /** The app asked Vyre to slow down: what to tell the person, and when the pull goes on. */
+  slowedDown?: { words: string; resumesAt: number };
   spec: boolean;
 }
 
@@ -104,6 +106,13 @@ interface OutboxDb {
 }
 const parse = <T>(s: string): T => JSON.parse(s) as T;
 const DAY = 86_400_000;
+/** "in 20 seconds", "in about 3 minutes" */
+const inWords = (ms: number): string => {
+  const s = Math.max(1, Math.round(ms / 1000));
+  if (s < 90) return `in ${s} second${s === 1 ? "" : "s"}`;
+  const m = Math.round(s / 60);
+  return m < 90 ? `in about ${m} minutes` : `in about ${Math.round(m / 60)} hours`;
+};
 
 export function createStateHandlers(deps: SyncDeps): StateHandlers {
   const { tx } = deps;
@@ -202,6 +211,16 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
     } catch {
       /* a cursor from before groups: not catching up */
     }
+    const slowRow = has("sy_slow")
+      ? tx.get<{ resume_at: number }>("SELECT resume_at FROM sy_slow WHERE sync_type = ?", b.sync_type_id)
+      : undefined;
+    const slowedDown =
+      slowRow && slowRow.resume_at > nowOf(deps)
+        ? {
+            words: `The app asked Vyre to slow down. The pull goes on ${inWords(slowRow.resume_at - nowOf(deps))}.`,
+            resumesAt: slowRow.resume_at,
+          }
+        : undefined;
     const filtered = spec !== undefined && spec.plan.backfill === "later" && object?.list.filter !== undefined;
     return {
       type: b.type,
@@ -228,6 +247,7 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
         .map((l) => ({ at: l.at, summary: l.summary })),
       sentToday: outbox?.sent ?? 0,
       ...(poll ? { nextPollAt: poll.at } : {}),
+      ...(slowedDown ? { slowedDown } : {}),
       spec: spec !== undefined,
     };
   };

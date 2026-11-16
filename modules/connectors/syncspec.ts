@@ -17,8 +17,13 @@ export const FIELD_TYPES = [
   "url",
   "relation",
   "json",
+  "sealed",
 ] as const;
 export type SpecFieldType = (typeof FIELD_TYPES)[number];
+/** Names that mark a secret identifier: map these as sealed. A date of birth is not one of them. */
+export const SECRET_ID =
+  /(?<![a-z])(ssn|ein|tin)(?![a-z])|social[ _-]?security|tax[ _-]?id|account[ _-]?(number|no|num)(?![a-z])|routing|licen[cs]e[ _-]?(number|no|num)(?![a-z])|driver'?s?[ _-]?licen[cs]e|passport|card[ _-]?(number|no|num)(?![a-z])/i;
+export const SSN_SHAPE = /^\d{3}-\d{2}-\d{4}$/;
 export const AUTH_STYLES = ["bearer", "header", "basic", "query", "oauth"] as const;
 export const CURSOR_KINDS = ["none", "page", "cursor", "offset", "link"] as const;
 export const DIRECTIONS = ["both", "pull", "push", "off"] as const;
@@ -45,6 +50,8 @@ export interface SpecList {
   cursor?: SpecCursor;
   updatedSince?: { param: string; format?: string };
   filter?: { param: string; value: string };
+  /** How often this object is read whole when the app cannot answer "changed since", in minutes. Without it a check is every 15 minutes (60 when idle). */
+  checkEveryMinutes?: number;
 }
 export interface SpecWrite {
   path: string;
@@ -87,7 +94,8 @@ export interface SpecMapping {
   fields: SpecMappingField[];
   match?: string[];
   stagesFrom?: string;
-  titleField?: string;
+  /** One pointer, or a list of pointers joined with a space (first and last name): empty parts are left out. */
+  titleField?: string | string[];
   deletes?: "off" | "soft" | "travel";
   createAtSource?: boolean;
 }
@@ -112,6 +120,8 @@ export interface SyncSpec {
     firstPull: { words: string };
     backfill: "later" | "now";
     conflicts: "newest";
+    /** The most calls to the app in a minute, for the whole connection (every object together). Without it Vyre allows 300 a minute. Set it from the app's documented limit, and leave room for the firm's own tools. */
+    requestsPerMinute?: number;
     /** Who the new record types are open to: the whole Space (default), only people added, or only the person applying. */ audience?:
       | "space"
       | "added"
@@ -174,6 +184,16 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
   )
     bad("plan.audience", "plan.audience is space, added or me.");
   if (isObj(plan) && plan["conflicts"] !== "newest") bad("plan.conflicts", "plan.conflicts is newest.");
+  if (
+    isObj(plan) &&
+    plan["requestsPerMinute"] !== undefined &&
+    !(
+      typeof plan["requestsPerMinute"] === "number" &&
+      plan["requestsPerMinute"] >= 1 &&
+      plan["requestsPerMinute"] <= 6000
+    )
+  )
+    bad("plan.requestsPerMinute", "plan.requestsPerMinute is the most calls a minute, from 1 to 6000.");
   if (problems.length) return { problems };
 
   for (const [i, o] of (objects as unknown[]).entries()) {
@@ -190,6 +210,17 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
     const list = o["list"];
     if (!isObj(list) || !str(list["path"]) || !String(list["path"]).startsWith("/"))
       bad(`${at}.list.path`, "list.path is the address path, starting with /.");
+    if (
+      isObj(list) &&
+      list["checkEveryMinutes"] !== undefined &&
+      !(
+        typeof list["checkEveryMinutes"] === "number" &&
+        Number.isInteger(list["checkEveryMinutes"]) &&
+        list["checkEveryMinutes"] >= 1 &&
+        list["checkEveryMinutes"] <= 10_080
+      )
+    )
+      bad(`${at}.list.checkEveryMinutes`, "checkEveryMinutes is a whole number of minutes, from 1 to 10080.");
     if (isObj(list) && isObj(list["updatedSince"])) {
       const u = list["updatedSince"];
       if (!str(u["param"]))
@@ -287,6 +318,7 @@ export function coerceValue(
     case "text":
     case "email":
     case "phone":
+    case "sealed":
       return text();
     case "relation":
       return text();
@@ -393,6 +425,22 @@ export function fieldKeys(obj: SpecObject, m: SpecMapping): Map<string, string> 
 
 // ---- compile ----
 
+/** The remote key of a title made from several pointers. */
+export const JOIN_PREFIX = "=join:";
+/** The pointers a mapping's titleField names (one or several). */
+export const titlePaths = (m: Pick<SpecMapping, "titleField">): string[] =>
+  m.titleField === undefined ? [] : Array.isArray(m.titleField) ? m.titleField : [m.titleField];
+/** The parts of a title (keys of a pulled row, which are the spec's pointers), joined with one space, empty parts left out; null when every part is empty. */
+export function joinTitle(data: unknown, parts: readonly string[]): string | null {
+  const out: string[] = [];
+  for (const p of parts) {
+    const v = isObj(data) ? data[p] : undefined;
+    const t = typeof v === "string" ? v.trim() : typeof v === "number" || typeof v === "boolean" ? String(v) : "";
+    if (t !== "") out.push(t);
+  }
+  return out.length ? out.join(" ") : null;
+}
+
 export interface FieldMapOut {
   key: string;
   remote: string;
@@ -400,6 +448,8 @@ export interface FieldMapOut {
   relation?: string;
   inverse?: string;
   constant?: string;
+  /** Kept out of the sync's own tables: the value is sealed in the Vault the moment it is read, and never travels with the record's other values. */
+  sealed?: true;
 }
 export interface CompiledType {
   remote: string;
@@ -434,6 +484,7 @@ const LOCAL_TYPE: Record<SpecFieldType, string> = {
   url: "url",
   relation: "relation",
   json: "longtext",
+  sealed: "sealed",
 };
 
 const titleOf = (key: string): string => key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -472,14 +523,19 @@ export function compileSpec(spec: SyncSpec): Compiled {
     if (cursor.kind === "offset" && cursor.param) query[cursor.param] = String(cursor.start ?? 0);
 
     const mapped = m.fields.filter((f) => f.direction !== "off");
-    const shapeFields = [...new Set(mapped.map((f) => f.path))];
+    const titleParts = Array.isArray(m.titleField) ? m.titleField : [];
+    const shapeFields = [...new Set([...mapped.map((f) => f.path), ...titleParts])];
     const types_: Record<string, string> = {};
     const choices: Record<string, string[]> = {};
     for (const p of shapeFields) {
       const sf = o.fields.find((x) => x.path === p);
-      if (!sf) continue;
+      if (!sf) {
+        if (titleParts.includes(p)) types_[p] = "text";
+        continue;
+      }
       // a pick-list or a multi-pick with no choices listed becomes plain text locally; the sync reads it the same way
-      types_[p] = sf.type === "multi" && !sf.choices?.length ? "list" : sf.type;
+      // a sealed value is read as text and sealed by the engine the moment it leaves the answer
+      types_[p] = sf.type === "multi" && !sf.choices?.length ? "list" : sf.type === "sealed" ? "text" : sf.type;
       if (sf.choices?.length) choices[p] = sf.choices.map((c) => c.value);
     }
     const listShape = {
@@ -598,6 +654,11 @@ export function compileSpec(spec: SyncSpec): Compiled {
       const sf = o.fields.find((x) => x.path === f.path);
       const key = keys.get(f.path)!;
       const dir = directionOf(f, sf, writable.update);
+      if (sf?.type === "sealed") {
+        fields.push({ key, remote: f.path, dir: "pull", sealed: true });
+        defs.push({ key, type: "sealed", title: sf.label });
+        continue;
+      }
       const target = sf?.type === "relation" ? spec.mapping.find((x) => x.remote === sf.relationTo) : undefined;
       const inverse = target ? `${m.recordType}s`.slice(0, 60) : undefined;
       fields.push({
@@ -635,9 +696,18 @@ export function compileSpec(spec: SyncSpec): Compiled {
     }
     // relation fields are mapped with their pointer; the target record type's synced binding resolves the remote id to a record
     const textKeys = defs.filter((d) => d.type === "text" || d.type === "email").map((d) => d.key);
-    const wanted = m.titleField ? (keys.get(m.titleField) ?? m.titleField) : undefined;
+    // a title made from several pointers is its own text field, read apart from the others: first and last name joined with a space
+    let joinedKey: string | undefined;
+    if (Array.isArray(m.titleField)) {
+      const taken = new Set(defs.map((d) => d.key));
+      joinedKey = ["name", "title", "full_title"].find((k) => !taken.has(k)) ?? "full_title_2";
+      fields.push({ key: joinedKey, remote: `${JOIN_PREFIX}${m.titleField.join("|")}`, dir: "pull" });
+      defs.unshift({ key: joinedKey, type: "text", title: "Name" });
+    }
+    const wanted =
+      joinedKey ?? (m.titleField ? (keys.get(m.titleField as string) ?? (m.titleField as string)) : undefined);
     const titleField =
-      wanted && defs.some((d) => d.key === wanted)
+      wanted && defs.some((d) => d.key === wanted && d.type !== "sealed")
         ? wanted
         : (textKeys.find((k) => /name|title/.test(k)) ?? textKeys[0] ?? defs[0]?.key ?? "name");
     if (!defs.some((d) => d.key === titleField))
@@ -683,11 +753,17 @@ export function compileSpec(spec: SyncSpec): Compiled {
     actions,
     objects,
     syncedTypes: spec.mapping.map((m) => m.remote),
-    rate: { rps: 5, burst: 10 },
+    rate: rateOf(spec),
     // a first page of the first list: what "test the connection" reads, so a replaced key brings a connection back
     ...(actions[0] ? { health: actions[0].name } : {}),
   };
   return { connector, types, secretSlot };
+}
+
+/** The connection's budget: what the spec says in calls a minute (one call at a time, spaced evenly, so no minute holds more than that), else the old default. */
+export function rateOf(spec: SyncSpec): { rps: number; burst: number } {
+  const rpm = spec.plan.requestsPerMinute;
+  return rpm === undefined ? { rps: 5, burst: 10 } : { rps: rpm / 60, burst: 1 };
 }
 
 /** The request a list action makes for a sampled page, as the validator and the compiled action build it. */

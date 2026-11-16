@@ -40077,6 +40077,7 @@ export type SyncSpecsApplyIn = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
         };
         get?: {
           path: string;
@@ -40109,7 +40110,7 @@ export type SyncSpecsApplyIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40136,7 +40137,7 @@ export type SyncSpecsApplyIn = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
       }>;
@@ -40146,6 +40147,7 @@ export type SyncSpecsApplyIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40215,6 +40217,7 @@ export type SyncSpecsGetOut = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
         };
         get?: {
           path: string;
@@ -40247,7 +40250,7 @@ export type SyncSpecsGetOut = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40274,7 +40277,7 @@ export type SyncSpecsGetOut = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
       }>;
@@ -40284,6 +40287,7 @@ export type SyncSpecsGetOut = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40334,6 +40338,7 @@ export type SyncSpecsPreviewIn = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
         };
         get?: {
           path: string;
@@ -40366,7 +40371,7 @@ export type SyncSpecsPreviewIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40393,7 +40398,7 @@ export type SyncSpecsPreviewIn = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
       }>;
@@ -40403,6 +40408,7 @@ export type SyncSpecsPreviewIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40576,6 +40582,7 @@ export type SyncSpecsValidateIn = {
             param: string;
             value: string;
           };
+          checkEveryMinutes?: number;
         };
         get?: {
           path: string;
@@ -40608,7 +40615,7 @@ export type SyncSpecsValidateIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40635,7 +40642,7 @@ export type SyncSpecsValidateIn = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
       }>;
@@ -40645,6 +40652,7 @@ export type SyncSpecsValidateIn = {
       };
       backfill: "later" | "now";
       conflicts: "newest";
+      requestsPerMinute?: number;
       audience?: "space" | "added" | "me";
     };
   };
@@ -40686,6 +40694,7 @@ export type SyncTypesCreateIn = {
       relation?: string;
       inverse?: string;
       constant?: string;
+      sealed?: boolean;
     }>;
   match: Array<string>;
   createAtSource?: boolean;
@@ -40716,6 +40725,7 @@ export type SyncTypesCreateOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -40790,6 +40800,7 @@ export type SyncTypesGetOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -40833,6 +40844,7 @@ export type SyncTypesListOut = {
           relation?: string;
           inverse?: string;
           constant?: string;
+          sealed?: boolean;
         }>;
       match: Array<string>;
       createAtSource: boolean;
@@ -41039,6 +41051,10 @@ export type SyncTypesStatusOut = {
     }>;
   sentToday: number;
   nextPollAt?: number;
+  slowedDown?: {
+    words: string;
+    resumesAt: number;
+  };
   spec: boolean;
 };
 export type SyncTypesUndoPushIn = {
@@ -41059,6 +41075,7 @@ export type SyncTypesUpdateIn = {
       relation?: string;
       inverse?: string;
       constant?: string;
+      sealed?: boolean;
     }>;
   match?: Array<string>;
   createAtSource?: boolean;
@@ -41088,6 +41105,7 @@ export type SyncTypesUpdateOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;

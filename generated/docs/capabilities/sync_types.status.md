@@ -76,6 +76,10 @@ type Out = {
     }>;
   sentToday: number;
   nextPollAt?: number;
+  slowedDown?: {
+    words: string;
+    resumesAt: number;
+  };
   spec: boolean;
 };
 ```
@@ -142,6 +146,10 @@ type Out = {
     "records": 1,
     "schemaChanges": 1,
     "sentToday": 1,
+    "slowedDown": {
+      "resumesAt": 1760000000000,
+      "words": "example"
+    },
     "spec": true,
     "state": "initial",
     "type": "contact"

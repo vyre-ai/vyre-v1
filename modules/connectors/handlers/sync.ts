@@ -27,6 +27,7 @@ export interface FieldMapRow {
   dir: Dir;
   transform?: string;
   /** A value stamped on every record this binding pulls (the From field). */ constant?: string;
+  /** A sealed field: read by the engine apart from the sync's own tables and sealed at once. */ sealed?: boolean;
   /** The record type this field points at (a relation): the remote id is turned into a link to that type's record. */ relation?: string;
   /** The field on that record type that links back, kept in step when this link changes. */ inverse?: string;
 }
