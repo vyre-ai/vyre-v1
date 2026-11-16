@@ -364,9 +364,12 @@ export default defineManifest({
       ],
       in: {
         fileId: id.file,
-        signers: t.arr(t.obj({ name: t.str(), email: tpl("Signer email"), order: t.opt(t.int({ minimum: 1 })) }), {
-          minItems: 1,
-        }),
+        signers: t.arr(
+          t.obj({ name: t.str(), email: t.opt(tpl("Signer email")), order: t.opt(t.int({ minimum: 1 })) }),
+          {
+            minItems: 1,
+          },
+        ),
         recordId: t.opt(id.record),
         message: t.opt(tpl("Note to signers")),
       },

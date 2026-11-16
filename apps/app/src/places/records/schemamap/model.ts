@@ -202,6 +202,8 @@ export function layout(
   nodes: readonly MapNode[],
   edges: readonly MapEdge[],
   heights: ReadonlyMap<string, number>,
+  /** Each card's height as drawn now (a card opened to all its fields is taller). The columns are chosen from `heights`, so opening a card never moves a card to another column: the cards under it only move down. */
+  drawn: ReadonlyMap<string, number> = heights,
 ): Map<string, [number, number]> {
   const deg = degrees(nodes, edges);
   const order = [...nodes].sort(
@@ -209,14 +211,19 @@ export function layout(
   );
   const cols = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(order.length))));
   const bottoms: number[] = [];
-  for (let c = 0; c < cols; c++) bottoms.push(40 + c * 50);
+  const real: number[] = [];
+  for (let c = 0; c < cols; c++) {
+    bottoms.push(40 + c * 50);
+    real.push(40 + c * 50);
+  }
   const out = new Map<string, [number, number]>();
   for (const n of order) {
     let c = 0;
     for (let i = 1; i < cols; i++) if ((bottoms[i] as number) < (bottoms[c] as number)) c = i;
-    const y = bottoms[c] as number;
-    out.set(n.type, [70 + c * (CARD_W + 128), y]);
-    bottoms[c] = y + (heights.get(n.type) ?? cardHeight(SHOWN, false)) + 36;
+    out.set(n.type, [70 + c * (CARD_W + 128), real[c] as number]);
+    const plain = heights.get(n.type) ?? cardHeight(SHOWN, false);
+    bottoms[c] = (bottoms[c] as number) + plain + 36;
+    real[c] = (real[c] as number) + (drawn.get(n.type) ?? plain) + 36;
   }
   return out;
 }

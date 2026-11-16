@@ -1,6 +1,6 @@
 # esign.fetch_signed
 
-Fetch the signed PDF and audit certificate into the record folder as a new version
+Save the signed PDF to Files
 
 | | |
 |---|---|

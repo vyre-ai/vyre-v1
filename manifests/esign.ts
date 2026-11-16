@@ -6,15 +6,6 @@ const envelopeId = t.id("env");
 const provider = t.enm("vyre", "documenso", "dropbox_sign", "docusign");
 const status = t.enm("sent", "viewed", "signed", "declined", "cancelled", "expired");
 const signer = t.obj({ name: t.str(), email: t.opt(t.str()), order: t.opt(t.int()) });
-const place = t.obj({
-  signer: t.int(),
-  kind: t.enm("signature", "date"),
-  page: t.int(),
-  x: t.num(),
-  y: t.num(),
-  w: t.num(),
-  h: t.num(),
-});
 const link = t.obj({ index: t.int(), name: t.str(), email: t.opt(t.str()), url: t.opt(t.str()), path: t.str() });
 const visitor = t.obj({ ip: t.opt(t.str()), ua: t.opt(t.str()) });
 
@@ -78,7 +69,7 @@ export default defineManifest({
   capabilities: [
     outward(
       "esign.send",
-      "Send a PDF for signature. Built-in signing needs no account: it returns one link per signer to copy and emails them when the Space has a sending mailbox",
+      "Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can",
       {
         in: {
           fileId: id.file,
@@ -86,7 +77,7 @@ export default defineManifest({
           signers: t.arr(signer),
           provider: t.opt(provider),
           message: t.opt(t.str()),
-          places: t.opt(t.arr(place)),
+          places: t.opt(t.arr(t.json())),
           expiresInDays: t.opt(t.int()),
         },
         out: {
@@ -104,7 +95,7 @@ export default defineManifest({
         run: { kind: "signature", stoppable: true },
       },
     ),
-    read("esign.status", "Envelope status: who has opened and signed", {
+    read("esign.status", "Envelope status and signers", {
       in: { envelopeId },
       out: {
         status,
@@ -125,29 +116,28 @@ export default defineManifest({
       },
       tool: "files",
     }),
-    write("esign.cancel", "Cancel an envelope; every signer link stops working at once", {
+    write("esign.cancel", "Cancel an envelope; every signer link stops", {
       in: { envelopeId },
       out: { cancelled: t.bool() },
       emits: ["signature.cancelled"],
       tool: "files",
       team: true,
     }),
-    write("esign.fetch_signed", "Fetch the signed PDF and audit certificate into the record folder as a new version", {
+    write("esign.fetch_signed", "Save the signed PDF to Files", {
       in: { envelopeId },
       out: { fileId: id.file },
       emits: ["signature.signed"],
       tool: "files",
     }),
-    outward("esign.remind", "Give a signer a new link (the old one stops working) and email it when the Space can", {
+    outward("esign.remind", "New link for a signer; the old one stops", {
       in: { envelopeId, signer: t.int() },
       out: { link: t.opt(link), emailed: t.bool(), notice: t.opt(t.str()) },
       perm: "comms.shared_send",
       gate: "signature_send",
-      tool: "files",
       team: true,
     }),
-    read("esign.list", "List envelopes, newest first", {
-      in: { recordId: t.opt(id.record), fileId: t.opt(id.file), status: t.opt(status) },
+    read("esign.list", "List envelopes", {
+      in: { recordId: t.opt(id.record), fileId: t.opt(id.file), status: t.opt(t.str()) },
       out: {
         envelopes: t.arr(
           t.obj({
@@ -165,7 +155,7 @@ export default defineManifest({
       },
       tool: "files",
     }),
-    read("esign.providers", "Signing services and which is the default; built-in signing is always ready", {
+    read("esign.providers", "Signing services and the default", {
       out: {
         providers: t.arr(
           t.obj({ key: provider, title: t.str(), default: t.bool(), connected: t.bool(), why: t.opt(t.str()) }),

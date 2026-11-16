@@ -155,3 +155,108 @@ test("syncengine: a title made of several parts of the row is joined at read, em
     ["Imran Ibarra", "Lindahl", null],
   );
 });
+
+test("syncengine: a Vault that cannot take the value yet leaves the record without the field, keeps the value nowhere, and the next pass fills it", async () => {
+  const core = coreOf(await fileExportsImporter(CODE_ROOT)("sources"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-syncseal2-"));
+  const space = createSpaceStore({ path: path.join(dir, "space.db"), space: "sp_seal2" });
+  const { store, tx } = space.open();
+  await store.define({
+    add_types: [
+      {
+        name: "contact",
+        label: "Contact",
+        fields: [
+          { name: "name", kind: "text", label: "Name" },
+          { name: "ssn", kind: "sealed", label: "SSN" },
+        ],
+      },
+    ],
+  });
+  let vaultOpen = false;
+  const vault = new Map<string, string>();
+  const ctx: EngineCtx = {
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+    emit: () => ({}),
+    call: async (cap, input) => {
+      if (cap === "connectors.get") return { connector: { key: "fakeapp" } };
+      if (cap === "records.update") {
+        if (!vaultOpen) throw { error: { code: "internal.unavailable", message: "The Vault is not unlocked." } };
+        const i = input as { type: string; recordId: string; patch: Record<string, any> };
+        const cur = (await store.get(i.type, i.recordId))!;
+        const patch: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(i.patch)) {
+          if (v && v.sealed === true) {
+            vault.set(`r${vault.size}`, v.value);
+            patch[k] = { sealed: k, ref: `r${vault.size - 1}`, present: true, set_at: Date.now() };
+          } else patch[k] = v;
+        }
+        await store.update(i.type, i.recordId, patch, cur.version);
+        return {};
+      }
+      return { output: { results: [{ id: "1", updatedAt: 5, properties: { full_name: "Imran Ibarra", tax: SSN } }] } };
+    },
+  };
+  const row: BindingRow = {
+    syncTypeId: "syt_1",
+    type: "contact",
+    connector: "fakeapp",
+    connectionId: "con_1",
+    remote: "contacts",
+    fields: [
+      { key: "name", remote: "full_name", dir: "pull" },
+      { key: "ssn", remote: "tax", dir: "pull", sealed: true },
+    ],
+    match: [],
+    createAtSource: false,
+    deletes: "off",
+    conflict: "newest",
+  };
+  const engine = createSyncEngine({ core, local: { open: () => ({ store, tx }) } });
+  const dump = (): string =>
+    tx
+      .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .map((t) => JSON.stringify(tx.all(`SELECT * FROM "${t.name}"`)))
+      .join("\n");
+  await engine.run(ctx, row, { mode: "incremental" }); // does not throw: the pass finishes
+  const rec = (await store.query("contact", { page: { limit: 5 } })).rows[0]!;
+  assert.equal(rec.data["name"], "Imran Ibarra", "the record is written");
+  assert.equal(rec.data["ssn"] ?? null, null, "without the field");
+  assert.ok(!dump().includes(SSN), "and the value is kept nowhere");
+  assert.equal(
+    tx.get<{ n: number }>("SELECT n FROM sy_sealed_wait WHERE sync_type = 'syt_1'")?.n,
+    1,
+    "one is counted as waiting",
+  );
+  vaultOpen = true;
+  await engine.run(ctx, row, { mode: "incremental" });
+  const again = (await store.query("contact", { page: { limit: 5 } })).rows[0]!;
+  assert.equal((again.data["ssn"] as { present?: boolean }).present, true, "the next pass fills it");
+  assert.deepEqual([...vault.values()], [SSN]);
+  assert.equal(tx.get("SELECT n FROM sy_sealed_wait WHERE sync_type = 'syt_1'"), undefined);
+  assert.ok(!dump().includes(SSN));
+});
+
+test("syncengine: the engine takes a sealed value from the connector's own keeping, not from the answer, which carries the mask", async () => {
+  const { remoteStore } = await import("../src/daemon/syncengine.ts");
+  const asked: unknown[] = [];
+  const ctx = {
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+    emit: () => ({}),
+    call: async (cap: string, input: unknown) => {
+      if (cap === "connectors.get") return { connector: { key: "x" } };
+      asked.push(input);
+      return { output: { results: [{ id: "1", properties: { "/name": "Imran Ibarra", "/ssn": "[sealed]" } }] } };
+    },
+  };
+  const store = remoteStore(ctx, { connector: "x", connectionId: "c", remote: "things" }, undefined, {
+    nonce: "n9",
+    sealed: [{ remote: "/ssn", local: "ssn" }],
+    unmaskToken: "tok",
+    heldOf: (n, id) => (n === "n9" && id === "1" ? { "/ssn": SSN } : undefined),
+  });
+  const page = await store.page();
+  assert.ok(!JSON.stringify(page.rows).includes(SSN), "the row the sync keeps never holds it");
+  assert.equal(store.held.get("1")?.values["ssn"], SSN, "it is held for sealing");
+  assert.equal((asked[0] as { input: { __unmask: string } }).input.__unmask, "tok:n9");
+});

@@ -1,6 +1,6 @@
 # esign.status
 
-Envelope status: who has opened and signed
+Envelope status and signers
 
 | | |
 |---|---|

@@ -81,8 +81,15 @@ export function configureEsign(config: EsignConfig | null): void {
   configured = config;
 }
 
+/** Providers the host built from the Space's Vault at the start of this call (providers.ts); a test's configureEsign wins. */
+const built = new Map<ProviderKey, EsignProvider>();
+export function setBuilt(key: ProviderKey, p: EsignProvider | undefined): void {
+  if (p) built.set(key, p);
+  else built.delete(key);
+}
+
 export function providerOf(key: ProviderKey): EsignProvider | undefined {
-  return configured?.providers[key];
+  return configured?.providers[key] ?? built.get(key);
 }
 
 type Row = Record<string, unknown>;

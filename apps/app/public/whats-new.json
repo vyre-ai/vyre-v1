@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0-rc.32",
+  "version": "1.0.0-rc.33",
   "lines": [
+    "Send a PDF for signature from Vyre. The signer needs no account, and you get a signed copy with a page that says who signed and when.",
+    "Sync an outside app into Records: tables linked both ways, sealed fields for numbers like an SSN, and a pace the app allows.",
     "Switching to a tab you have been on shows it at once, and every place has the same sidebar with Hide and Expand.",
     "Connect a service from one card in the chat: Fathom, Stripe, Resend, HubSpot, Mailgun, Dropbox Sign, Zoom and Twilio.",
     "Automations: Allow or Deny what waits for you, wait for an event, pick files and records by name, and a menu on every row.",
-    "Wide tables keep their first column in view, and a Markdown table's cells, rows and columns can be edited.",
-    "Open in New Tab on every place's rows, and Drive and OneDrive files open in Vyre's own viewers with edits sent back.",
-    "Getting started's How you work is a talk with the Assistant. Delete an agent for good. A goal says why a check-in could not run."
+    "Wide tables keep their first column in view, a board takes its columns from your stages, and Drive files open in Vyre's own viewers."
   ]
 }

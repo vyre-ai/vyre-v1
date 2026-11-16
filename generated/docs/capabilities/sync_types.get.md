@@ -60,6 +60,7 @@ type Out = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;
@@ -125,7 +126,8 @@ type Out = {
       "polling": {
         "activeSec": 30,
         "dormantSec": 300,
-        "idleSec": 60
+        "idleSec": 60,
+        "sweepSec": 86400
       },
       "remote": "example",
       "schemaChanges": 1,

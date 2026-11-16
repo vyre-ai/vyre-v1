@@ -11966,6 +11966,7 @@ export type ConnectorsGetOut = {
         update?: string;
         delete?: string;
         since?: boolean;
+        link?: unknown;
       }>;
     sourceFolderId?: string;
   };
@@ -12019,6 +12020,7 @@ export type ConnectorsListOut = {
           update?: string;
           delete?: string;
           since?: boolean;
+          link?: unknown;
         }>;
       sourceFolderId?: string;
     }>;
@@ -15280,7 +15282,7 @@ export type EsignHookOut = {
 export type EsignListIn = {
   recordId?: string;
   fileId?: string;
-  status?: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+  status?: string;
 };
 export type EsignListOut = {
   envelopes: Array<{
@@ -15337,15 +15339,7 @@ export type EsignSendIn = {
     }>;
   provider?: "vyre" | "documenso" | "dropbox_sign" | "docusign";
   message?: string;
-  places?: Array<{
-      signer: number;
-      kind: "signature" | "date";
-      page: number;
-      x: number;
-      y: number;
-      w: number;
-      h: number;
-    }>;
+  places?: Array<unknown>;
   expiresInDays?: number;
   idempotencyKey: string;
 };
@@ -40164,6 +40158,7 @@ export type SyncSpecsApplyIn = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40205,6 +40200,11 @@ export type SyncSpecsApplyIn = {
             inverseKey?: string;
             inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40228,6 +40228,7 @@ export type SyncSpecsApplyIn = {
         titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40306,6 +40307,7 @@ export type SyncSpecsGetOut = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40347,6 +40349,11 @@ export type SyncSpecsGetOut = {
             inverseKey?: string;
             inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40370,6 +40377,7 @@ export type SyncSpecsGetOut = {
         titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40429,6 +40437,7 @@ export type SyncSpecsPreviewIn = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40470,6 +40479,11 @@ export type SyncSpecsPreviewIn = {
             inverseKey?: string;
             inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40493,6 +40507,7 @@ export type SyncSpecsPreviewIn = {
         titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40675,6 +40690,7 @@ export type SyncSpecsValidateIn = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40716,6 +40732,11 @@ export type SyncSpecsValidateIn = {
             inverseKey?: string;
             inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40739,6 +40760,7 @@ export type SyncSpecsValidateIn = {
         titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40798,6 +40820,7 @@ export type SyncTypesCreateIn = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   nightlyReconcile?: boolean;
   idempotencyKey: string;
@@ -40829,6 +40852,7 @@ export type SyncTypesCreateOut = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;
@@ -40904,6 +40928,7 @@ export type SyncTypesGetOut = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;
@@ -40948,6 +40973,7 @@ export type SyncTypesListOut = {
         activeSec: number;
         idleSec: number;
         dormantSec: number;
+        sweepSec?: number;
       };
       nightlyReconcile: boolean;
       lastSyncAt?: number;
@@ -41125,6 +41151,7 @@ export type SyncTypesStatusOut = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   records: number;
   estimate?: number;
@@ -41148,6 +41175,11 @@ export type SyncTypesStatusOut = {
   slowedDown?: {
     words: string;
     resumesAt: number;
+  };
+  links?: string;
+  sealedWaiting?: {
+    count: number;
+    words: string;
   };
   spec: boolean;
 };
@@ -41179,6 +41211,7 @@ export type SyncTypesUpdateIn = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   nightlyReconcile?: boolean;
 };
@@ -41209,6 +41242,7 @@ export type SyncTypesUpdateOut = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;

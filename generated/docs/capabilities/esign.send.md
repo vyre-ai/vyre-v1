@@ -1,6 +1,6 @@
 # esign.send
 
-Send a PDF for signature. Built-in signing needs no account: it returns one link per signer to copy and emails them when the Space has a sending mailbox
+Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can
 
 | | |
 |---|---|
@@ -34,15 +34,7 @@ type In = {
     }>;
   provider?: "vyre" | "documenso" | "dropbox_sign" | "docusign";
   message?: string;
-  places?: Array<{
-      signer: number;
-      kind: "signature" | "date";
-      page: number;
-      x: number;
-      y: number;
-      w: number;
-      h: number;
-    }>;
+  places?: Array<unknown>;
   expiresInDays?: number;
   idempotencyKey: string;
 };
@@ -88,15 +80,7 @@ type Out = {
     "idempotencyKey": "idem_1",
     "message": "example",
     "places": [
-      {
-        "h": 1,
-        "kind": "signature",
-        "page": 1,
-        "signer": 1,
-        "w": 1,
-        "x": 1,
-        "y": 1
-      }
+      {}
     ],
     "provider": "vyre",
     "recordId": "rec_a1b2c3",

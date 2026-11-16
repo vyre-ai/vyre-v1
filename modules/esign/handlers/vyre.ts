@@ -30,6 +30,8 @@ import {
   toBase64,
 } from "./send.ts";
 import type { EnvelopeRow, EnvelopeStatus, ProviderKey } from "./send.ts";
+import type { HttpFn } from "./documenso.ts";
+import { setHostedAccess } from "./providers.ts";
 import { MAX_PAGES, PdfError, drawable, finalize, pngSize, prepare } from "./pdf.ts";
 import type { Audit, Place, SignatureMark, Stamp } from "./pdf.ts";
 
@@ -61,9 +63,14 @@ export function configureSigning(c: SigningConfig | null): void {
 /** What the daemon hands this module at boot (through hostSeams): the address people outside reach the Space at, read each time it is needed. Null at shutdown. */
 export interface EsignHost {
   publicBase?: string | undefined;
+  /** One Vault field as text, for the hosted providers; rejects when it is not there. */
+  secret?: ((handle: string) => Promise<string>) | undefined;
+  /** The one way out to the network, for the hosted providers. */
+  http?: HttpFn | undefined;
 }
 export function setEsignHost(h: EsignHost | null): void {
   configured = h === null ? {} : { publicBase: () => h.publicBase ?? null };
+  setHostedAccess(h?.secret && h.http ? { secret: h.secret, http: h.http } : null);
 }
 
 type Row = Record<string, unknown>;
@@ -684,7 +691,8 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (name.length === 0 || name.length > 200) fail(ctx, "validation.bad_input", "Type your name.", { field: "name" });
   const sig = markOf(ctx, body.signature);
-  ctx.db.run(
+  // the one place a link is spent: a second request that raced this one finds no open signer and is refused like any used link
+  const spent = ctx.db.run(
     "UPDATE esign_vsigner SET status = ?, signed_at = ?, signed_name = ?, sig_kind = ?, sig_text = ?, sig_png = ? WHERE envelope_id = ? AND idx = ? AND status IN (?, ?)",
     "signed",
     now,
@@ -697,6 +705,7 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
     "sent",
     "viewed",
   );
+  if (spent.changes === 0) return refuse(ctx);
   event(ctx, envId, idx, "signed", v);
   const left = many(ctx, "SELECT idx FROM esign_vsigner WHERE envelope_id = ? AND status != ?", envId, "signed");
   if (left.length > 0) return { result: { state: "signed", completed: false, copyAvailable: false } };
@@ -711,6 +720,7 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
 /** The last signature is in: stamp, append the audit page, keep the bytes, save the file beside the original, tell everyone. */
 async function complete(ctx: Ctx, envId: string): Promise<void> {
   const env = one(ctx, "SELECT * FROM esign_envelope WHERE id = ?", envId) as Row;
+  if (str(env.status) === "signed") return; // two last signatures at once: one file, one set of events
   const doc = one(ctx, "SELECT * FROM esign_doc WHERE envelope_id = ?", envId) as Row;
   const signers = many(ctx, "SELECT * FROM esign_vsigner WHERE envelope_id = ? ORDER BY idx", envId);
   const space = await spaceInfo(ctx);

@@ -15,6 +15,7 @@ import { loadConfig } from "../host/src/daemon/config.ts";
 import { startDaemon } from "../host/src/daemon/daemon.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 import { servePublic } from "../host/src/seams/relay.ts";
+import type { SeamFetch } from "../host/src/seams/ports.ts";
 import { samplePdf, samplePng, textOf } from "../modules/esign/fixtures/pdf.ts";
 
 const OWNER = "tok-usr_olivia";
@@ -34,8 +35,9 @@ function seededDir(): string {
   core.close();
   return dir;
 }
-const boot = (dir: string): Promise<Daemon> =>
+const boot = (dir: string, extra: Record<string, unknown> = {}): Promise<Daemon> =>
   startDaemon({
+    ...extra,
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux",
@@ -333,3 +335,68 @@ test("declining and cancelling through the public door", async () => {
     await d.stop();
   }
 });
+
+test("Dropbox Sign built from the Vault on a booted Space: a key in the Vault is enough for a send to reach the service, and the service's own mail is what the signer gets", async () => {
+  const items = new Map<string, string>();
+  const seen: { method: string; url: string; auth: string | undefined }[] = [];
+  const fetch: SeamFetch = async (url, init) => {
+    seen.push({ method: init?.method ?? "GET", url, auth: init?.headers?.["Authorization"] });
+    const body = url.endsWith("/signature_request/send")
+      ? { signature_request: { signature_request_id: "sr_live_1" } }
+      : {};
+    return { status: 200, text: async () => JSON.stringify(body), arrayBuffer: async () => new ArrayBuffer(0) };
+  };
+  const vault = {
+    secret: async (handle: string) => {
+      const v = items.get(handle);
+      if (v === undefined) throw new Error("no such Vault item");
+      return v;
+    },
+    signRs256: async () => "",
+  };
+  const d = await boot(seededDir(), { vault, seams: { fetch } });
+  try {
+    const dropbox = (): Promise<{ connected: boolean }> =>
+      cap(d, "esign.providers").then((r) => r.providers.find((p: { key: string }) => p.key === "dropbox_sign"));
+    assert.equal((await dropbox()).connected, false);
+    const made = await cap(d, "files.create", {
+      folderId: await home(d),
+      name: "NDA.pdf",
+      mime: "application/pdf",
+      content: { base64: Buffer.from(await samplePdf(1)).toString("base64") },
+    });
+    const input = {
+      fileId: made.file.fileId,
+      provider: "dropbox_sign",
+      signers: [{ name: "Andrea Lindahl", email: "andrea@northwind.example" }],
+    };
+    const refused = await fetchRaw(d, "esign.send", input);
+    assert.equal(refused.status, 422, "no key, no send");
+    assert.equal(seen.length, 0);
+    items.set("#Dropbox_Sign.apiKey", "db_live_key_0123456789");
+    assert.equal((await dropbox()).connected, true);
+    const sent = await cap(d, "esign.send", input);
+    assert.match(sent.envelopeId, /^env_/);
+    assert.equal(sent.links, undefined);
+    const call = seen.find((s) => s.url.endsWith("/signature_request/send"));
+    assert.equal(call?.auth, `Basic ${Buffer.from("db_live_key_0123456789:").toString("base64")}`);
+    assert.equal((await cap(d, "esign.list", {})).envelopes[0].provider, "dropbox_sign");
+    items.delete("#Dropbox_Sign.apiKey");
+    assert.equal((await dropbox()).connected, false, "taking the key out takes effect at the next call");
+  } finally {
+    await d.stop();
+  }
+});
+
+async function fetchRaw(
+  d: Daemon,
+  name: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number; text: string }> {
+  const r = await fetch(`${d.url}/v1/${name.replaceAll(".", "/")}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
+    body: JSON.stringify({ idempotencyKey: `sign-live-${++n}`, ...body }),
+  });
+  return { status: r.status, text: await r.text() };
+}

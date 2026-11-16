@@ -67,6 +67,10 @@ export const drawable = (text: string): boolean => LATIN.test(text);
 /** What the standard font can draw; every other letter becomes a question mark (the audit page only; a signature is refused instead). */
 const safe = (text: string): string => text.replace(/[^\x20-\x7e\xa0-\xff]/g, "?");
 
+// node:zlib through the host's own loader (the same way modules reach node:sqlite in tests): it is only used to prove a drawing is not a decompression bomb
+const zlib = process.getBuiltinModule("node:zlib");
+
+/** The size of a PNG a signer drew, or null when it is not one this page can use: magic bytes, IHDR, the sizes, and that its compressed data inflates to no more than its own width, height and depth say (a small file that inflates to hundreds of megabytes is refused before anything decodes it). */
 export function pngSize(png: Uint8Array): { w: number; h: number } | null {
   const magic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
   if (png.length < 24 || png.length > MAX_PNG_BYTES) return null;
@@ -76,6 +80,28 @@ export function pngSize(png: Uint8Array): { w: number; h: number } | null {
   const w = v.getUint32(16);
   const h = v.getUint32(20);
   if (w < 1 || h < 1 || w > MAX_PNG_SIDE || h > MAX_PNG_SIDE) return null;
+  const data: Uint8Array[] = [];
+  let at = 8;
+  let ended = false;
+  while (at + 12 <= png.length) {
+    const len = v.getUint32(at);
+    const type = String.fromCharCode(png[at + 4]!, png[at + 5]!, png[at + 6]!, png[at + 7]!);
+    if (len > png.length || at + 12 + len > png.length) return null;
+    if (type === "IDAT") data.push(png.subarray(at + 8, at + 8 + len));
+    if (type === "IEND") {
+      ended = true;
+      break;
+    }
+    at += 12 + len;
+  }
+  if (!ended || data.length === 0) return null;
+  try {
+    // at most 8 bytes a pixel (16-bit RGBA) and one filter byte a row, plus room for an interlaced image's extra rows
+    const room = Math.ceil((w * h * 8 + h) * 1.2) + 1024;
+    zlib.inflateSync(Buffer.concat(data), { maxOutputLength: room });
+  } catch {
+    return null;
+  }
   return { w, h };
 }
 

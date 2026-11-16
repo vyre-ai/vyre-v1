@@ -149,6 +149,45 @@ test("a drawn signature is a PNG on the page, a PNG that is not one is refused",
   );
 });
 
+test("a small PNG that inflates to far more than its size says is refused before anything decodes it", async () => {
+  const { deflateSync } = await import("node:zlib");
+  const crcT = (b: Uint8Array): number => {
+    let c: number;
+    let crc = 0xffffffff;
+    for (const x of b) {
+      c = (crc ^ x) & 0xff;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      crc = (crc >>> 8) ^ c;
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Uint8Array): Uint8Array => {
+    const o = new Uint8Array(12 + data.length);
+    const v = new DataView(o.buffer);
+    v.setUint32(0, data.length);
+    for (let i = 0; i < 4; i++) o[4 + i] = type.charCodeAt(i);
+    o.set(data, 8);
+    v.setUint32(8 + data.length, crcT(o.subarray(4, 8 + data.length)));
+    return o;
+  };
+  const head = new Uint8Array(13);
+  const hv = new DataView(head.buffer);
+  hv.setUint32(0, 100);
+  hv.setUint32(4, 100);
+  head.set([8, 6, 0, 0, 0], 8);
+  const bomb = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", head),
+    chunk("IDAT", deflateSync(Buffer.alloc(200 * 1024 * 1024), { level: 9 })),
+    chunk("IEND", new Uint8Array(0)),
+  ]);
+  assert.ok(bomb.length < 300 * 1024, "it is small enough to be sent");
+  const started = Date.now();
+  assert.equal(pngSize(bomb), null);
+  assert.ok(Date.now() - started < 2000, "and refused quickly");
+  assert.deepEqual(pngSize(samplePng()), { w: 120, h: 40 });
+});
+
 test("letters the standard font cannot draw are caught before they reach the file", () => {
   assert.equal(drawable("Andrea Lindahl"), true);
   assert.equal(drawable("José Núñez"), true);
