@@ -18,4 +18,5 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "esign.signer_doc": Handler<"esign.signer_doc", X>;
   "esign.signer_view": Handler<"esign.signer_view", X>;
   "esign.status": Handler<"esign.status", X>;
+  "esign.verify": Handler<"esign.verify", X>;
 }

@@ -32,6 +32,8 @@ import {
 import type { EnvelopeRow, EnvelopeStatus, ProviderKey } from "./send.ts";
 import type { HttpFn } from "./documenso.ts";
 import { setHostedAccess } from "./providers.ts";
+import { ensureSeal, fingerprintOf, isSpaceCert } from "./seal.ts";
+import { inspect, sealBytes } from "./pdfseal.ts";
 import { MAX_PAGES, PdfError, drawable, finalize, pngSize, prepare } from "./pdf.ts";
 import type { Audit, Place, SignatureMark, Stamp } from "./pdf.ts";
 
@@ -108,17 +110,24 @@ function event(ctx: Ctx, envelopeId: string, idx: number | null, kind: string, v
 
 interface SpaceInfo {
   name: string;
+  /** what the seal certificate is made out to: the legal name, else the name */
+  legalName: string;
   zone: string;
 }
 async function spaceInfo(ctx: Ctx): Promise<SpaceInfo> {
   try {
-    const r = (await ctx.call("spaces.get", {})) as { space?: { name?: unknown; timezone?: unknown } };
+    const r = (await ctx.call("spaces.get", {})) as {
+      space?: { name?: unknown; legalName?: unknown; timezone?: unknown };
+    };
+    const name = typeof r.space?.name === "string" && r.space.name !== "" ? r.space.name : "Your Space";
     return {
-      name: typeof r.space?.name === "string" && r.space.name !== "" ? r.space.name : "Your Space",
+      name,
+      legalName:
+        typeof r.space?.legalName === "string" && r.space.legalName.trim() !== "" ? r.space.legalName.trim() : name,
       zone: typeof r.space?.timezone === "string" && r.space.timezone !== "" ? r.space.timezone : "UTC",
     };
   } catch {
-    return { name: "Your Space", zone: "UTC" };
+    return { name: "Your Space", legalName: "Your Space", zone: "UTC" };
   }
 }
 
@@ -613,6 +622,18 @@ export async function signerDoc(ctx: Ctx, input: unknown): Promise<{ base64: str
   return { base64: toBase64(bytesOf(doc.sent)) };
 }
 
+function decodePng(ctx: Ctx, raw: unknown): Uint8Array {
+  const b64 = typeof raw === "string" ? raw : "";
+  if (b64.length === 0 || b64.length > 420 * 1024 || !/^[A-Za-z0-9+/=]+$/.test(b64))
+    fail(ctx, "validation.bad_input", "Draw your signature again.", { field: "signature" });
+  const png = fromBase64(b64);
+  if (!pngSize(png))
+    fail(ctx, "validation.bad_input", "That drawing is not a picture this page can use. Draw it again.", {
+      field: "signature",
+    });
+  return png;
+}
+
 function markOf(
   ctx: Ctx,
   raw: unknown,
@@ -622,6 +643,11 @@ function markOf(
     const text = typeof s.text === "string" ? s.text.trim() : "";
     if (text.length === 0 || text.length > 200)
       fail(ctx, "validation.bad_input", "Type your signature.", { field: "signature" });
+    // the page may send the typed name already drawn in its own script face (png): that picture is stamped, validated like a drawing; without it the name is drawn in a standard font
+    if (s.png !== undefined && s.png !== null) {
+      const png = decodePng(ctx, s.png);
+      return { mark: { kind: "typed", text, png }, kind: "typed", text, png };
+    }
     if (!drawable(text))
       fail(ctx, "validation.bad_input", "That name has a letter a typed signature cannot show. Use Draw instead.", {
         field: "signature",
@@ -629,14 +655,7 @@ function markOf(
     return { mark: { kind: "typed", text }, kind: "typed", text, png: null };
   }
   if (s.kind === "drawn") {
-    const b64 = typeof s.png === "string" ? s.png : "";
-    if (b64.length === 0 || b64.length > 420 * 1024 || !/^[A-Za-z0-9+/=]+$/.test(b64))
-      fail(ctx, "validation.bad_input", "Draw your signature again.", { field: "signature" });
-    const png = fromBase64(b64);
-    if (!pngSize(png))
-      fail(ctx, "validation.bad_input", "That drawing is not a picture this page can use. Draw it again.", {
-        field: "signature",
-      });
+    const png = decodePng(ctx, s.png);
     return { mark: { kind: "drawn", png }, kind: "drawn", text: null, png };
   }
   return fail(ctx, "validation.bad_input", "Type or draw your signature.", { field: "signature" });
@@ -739,7 +758,9 @@ async function complete(ctx: Ctx, envId: string): Promise<void> {
     mark:
       str(s.sig_kind) === "drawn"
         ? { kind: "drawn", png: bytesOf(s.sig_png) }
-        : { kind: "typed", text: str(s.sig_text) },
+        : bytesOf(s.sig_png).length > 0
+          ? { kind: "typed", text: str(s.sig_text), png: bytesOf(s.sig_png) }
+          : { kind: "typed", text: str(s.sig_text) },
     signedAt: num(s.signed_at),
   }));
   const audit: Audit = {
@@ -766,14 +787,24 @@ async function complete(ctx: Ctx, envId: string): Promise<void> {
       };
     }),
   };
-  const finalPdf = await finalize(bytesOf(doc.sent), JSON.parse(str(doc.places)) as Place[], stamps, audit);
+  // the seal: made with the Space's own key. A server that cannot seal right now still finishes the signature (the signers have signed); the file then says nothing of a seal and the status says unsealed
+  let material: Awaited<ReturnType<typeof ensureSeal>> | null = null;
+  try {
+    material = await ensureSeal(ctx, space.legalName);
+  } catch (e) {
+    ctx.log.warn("esign: the file could not be sealed", { error: e instanceof Error ? e.message : String(e) });
+  }
+  if (material) audit.seal = { spaceName: space.name, fingerprint: material.fingerprint, own: material.own };
+  let finalPdf = await finalize(bytesOf(doc.sent), JSON.parse(str(doc.places)) as Place[], stamps, audit);
+  if (material) finalPdf = await sealBytes(finalPdf, material);
   const finalSha = await sha256Hex(finalPdf);
   const now = ctx.now();
   ctx.db.run("UPDATE esign_doc SET final = ? WHERE envelope_id = ?", finalPdf, envId);
   ctx.db.run(
-    "UPDATE esign_envelope SET status = ?, final_sha256 = ?, updated_at = ? WHERE id = ?",
+    "UPDATE esign_envelope SET status = ?, final_sha256 = ?, seal_fingerprint = ?, updated_at = ? WHERE id = ?",
     "signed",
     finalSha,
+    material?.fingerprint ?? null,
     now,
     envId,
   );
@@ -846,6 +877,8 @@ export async function statusVyre(ctx: Ctx, envelopeId: string): Promise<Row> {
     ...(isNull(env.declined_reason) ? {} : { declinedReason: str(env.declined_reason) }),
     ...(isNull(env.signed_file_id) ? {} : { signedFileId: str(env.signed_file_id) }),
     ...(isNull(env.final_sha256) ? {} : { finalSha256: str(env.final_sha256) }),
+    sealed: !isNull(env.seal_fingerprint),
+    ...(isNull(env.seal_fingerprint) ? {} : { sealFingerprint: str(env.seal_fingerprint) }),
     signers,
   };
 }
@@ -960,4 +993,29 @@ export async function providersVyre(ctx: Ctx): Promise<Row> {
 export function isBuiltIn(ctx: Ctx, key: unknown): boolean {
   if (key === undefined || key === null) return defaultProvider(ctx) === "vyre";
   return providerKey(ctx, key, "provider") === "vyre";
+}
+
+// ---- esign.verify ---------------------------------------------------------------------------------------------
+
+/** Is this file sealed, has it changed since, and was it sealed by this Space? Read from the bytes alone: the byte ranges and the CMS signature are recomputed. */
+export async function verifyFile(ctx: Ctx, input: unknown): Promise<Row> {
+  const fileId = reqStr(ctx, rec(ctx, input), "fileId");
+  const meta = (await ctx.call("files.get", { fileId })) as { file?: { size?: number } };
+  if (!meta.file) fail(ctx, "validation.not_found", "That file does not exist.");
+  if (typeof meta.file.size === "number" && meta.file.size > 25 * 1024 * 1024)
+    fail(ctx, "validation.too_large", "That file is over 25 MB.", { field: "fileId" });
+  const body = (await ctx.call("files.read", { fileId, as: "base64" })) as { base64?: string; truncated?: boolean };
+  if (typeof body.base64 !== "string" || body.truncated === true)
+    fail(ctx, "validation.too_large", "The whole file could not be read.", { field: "fileId" });
+  const seen = await inspect(fromBase64(body.base64));
+  if (!seen.sealed) return { sealed: false, intact: false, bySpace: false };
+  const cert = seen.cms?.cert ?? null;
+  const fingerprint = cert ? await fingerprintOf(cert) : undefined;
+  return {
+    sealed: true,
+    intact: seen.covers && seen.cms?.ok === true,
+    ...(seen.cms?.signedAt ? { signedAt: seen.cms.signedAt } : {}),
+    ...(fingerprint ? { fingerprint } : {}),
+    bySpace: fingerprint !== undefined && isSpaceCert(ctx, fingerprint),
+  };
 }

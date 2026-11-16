@@ -16,6 +16,7 @@ import {
   signerDoc,
   signerView,
   statusVyre,
+  verifyFile,
   titleOf,
 } from "./vyre.ts";
 
@@ -67,6 +68,7 @@ export const handlers = {
     return sendHandlers["esign.health"](ctx);
   },
   "esign.remind": (ctx: Ctx, input: unknown) => remind(ctx, input),
+  "esign.verify": (ctx: Ctx, input: unknown) => verifyFile(ctx, input),
   "esign.signer_view": (ctx: Ctx, input: unknown) => signerView(ctx, input),
   "esign.signer_doc": (ctx: Ctx, input: unknown) => signerDoc(ctx, input),
   "esign.signer_act": (ctx: Ctx, input: unknown) => signerAct(ctx, input),

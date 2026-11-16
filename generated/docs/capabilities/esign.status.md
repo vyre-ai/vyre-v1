@@ -38,6 +38,8 @@ type Out = {
   declinedReason?: string;
   signedFileId?: string;
   finalSha256?: string;
+  sealed?: boolean;
+  sealFingerprint?: string;
   signers: Array<{
       name: string;
       email?: string;
@@ -68,6 +70,8 @@ type Out = {
     "declinedReason": "example",
     "expiresAt": 1760000000000,
     "finalSha256": "example",
+    "sealFingerprint": "example",
+    "sealed": true,
     "signedFileId": "fil_a1b2c3",
     "signers": [
       {

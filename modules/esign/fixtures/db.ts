@@ -24,10 +24,12 @@ import { configureSigning } from "../handlers/vyre.ts";
 
 // Boundary B2 keeps the node:sqlite import out of modules; a test still needs a real SQL engine behind the host's table guard.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
-const migrations = ["0001_esign.sql", "0002_esign_vyre.sql"].map((f) =>
+const migrations = ["0001_esign.sql", "0002_esign_vyre.sql", "0003_esign_seal.sql"].map((f) =>
   readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"),
 );
 
+/** what the fake sealing holds, by nonce: a real round trip, so a test that seals a key can open it again */
+const SEALED = new Map<string, Uint8Array>();
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const FILE = "fil_contract1";
@@ -198,7 +200,14 @@ export function harness(o: HarnessOptions = {}) {
         error() {},
       },
       schedule: async () => "sch_1",
-      seal: { seal: () => ({ keyId: "k", nonce: "n", bytes: "b" }), unseal: () => new Uint8Array() },
+      seal: {
+        seal: (v: Uint8Array) => {
+          const nonce = `n${SEALED.size}`;
+          SEALED.set(nonce, new Uint8Array(v));
+          return { keyId: "k", nonce, bytes: "b" } as never;
+        },
+        unseal: (x: { nonce: string }) => new Uint8Array(SEALED.get(x.nonce) ?? new Uint8Array()),
+      },
     };
   }
 
@@ -229,7 +238,9 @@ export function harness(o: HarnessOptions = {}) {
       version: 1,
     },
   });
-  callees["spaces.get"] = () => ({ space: { name: "Northwind", timezone: "Asia/Karachi" } });
+  callees["spaces.get"] = () => ({
+    space: { name: "Northwind", legalName: "Northwind Traders LLC", timezone: "Asia/Karachi" },
+  });
   callees["access.principals.get"] = () => ({ principal: { name: "Imran Ibarra" } });
   callees["comms.senders.list"] = () => ({ senders: [] });
   callees["projects.files_folder"] = () => ({ folderId: "fld_record_files" });
@@ -294,3 +305,21 @@ export async function refused(p: Promise<unknown>, code: string): Promise<void> 
 }
 
 export { fromBase64, toBase64 };
+
+let preMade: Promise<{ cert: Uint8Array; pkcs8: Uint8Array }> | null = null;
+/** Gives the Space its seal key without making one (a 3072-bit key takes a second; a test that is not about key making shares one made once). */
+export async function withSeal(h: {
+  sqlite: { exec(sql: string): void };
+  ctxFor(cap: string | null, who: Caller): Ctx;
+}): Promise<void> {
+  const { makeSeal, fingerprintOf } = await import("../handlers/seal.ts");
+  preMade ??= makeSeal("Northwind Traders LLC");
+  const made = await preMade;
+  const sealed = JSON.stringify(h.ctxFor(null, dana).seal.seal(made.pkcs8, "esign.seal"));
+  const b64 = Buffer.from(made.cert).toString("base64");
+  const fp = await fingerprintOf(made.cert);
+  h.sqlite.exec(
+    `INSERT INTO esign_seal (slot, cert, fingerprint, sealed_key, made_at) VALUES ('current', '${b64}', '${fp}', '${sealed.replaceAll("'", "''")}', 1);
+     INSERT INTO esign_seal_cert (fingerprint, cert, made_at, source) VALUES ('${fp}', '${b64}', 1, 'made')`,
+  );
+}

@@ -1023,6 +1023,7 @@ export function createClient(transport: Transport) {
       signer_doc: call("esign.signer_doc", 1),
       signer_view: call("esign.signer_view", 1),
       status: call("esign.status", 1),
+      verify: call("esign.verify", 1),
     },
     events: {
       get: call("events.get", 1),

@@ -19,6 +19,7 @@ import type { SeamFetch } from "../host/src/seams/ports.ts";
 import { samplePdf, samplePng, textOf } from "../modules/esign/fixtures/pdf.ts";
 
 const OWNER = "tok-usr_olivia";
+const { spawnSync } = process.getBuiltinModule("node:child_process");
 const caddyFetch: FetchFn = () =>
   Promise.resolve({
     ok: true,
@@ -169,7 +170,7 @@ test("a fresh Space with no provider, no key and no mailbox: send, the outside p
     // the outside person: no session at all
     const page = await direct(d, "GET", link);
     assert.equal(page.status, 200);
-    assert.match(page.body.toString(), /<script src="\.\/assets\/sign\.js">/);
+    assert.match(page.body.toString(), /<script type="module" src="\.\/assets\/sign\.js">/);
     assert.equal(page.headers["set-cookie"], undefined);
     assert.equal((await direct(d, "GET", `${link}assets/sign.js`)).status, 200);
     const view = await direct(d, "POST", `${link}view`, {});
@@ -400,3 +401,115 @@ async function fetchRaw(
   });
   return { status: r.status, text: await r.text() };
 }
+
+/** Every file under a folder, as bytes. */
+function filesUnder(dir: string): { file: string; bytes: Buffer }[] {
+  const out: { file: string; bytes: Buffer }[] = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const f = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...filesUnder(f));
+    else if (e.isFile()) out.push({ file: f, bytes: fs.readFileSync(f) });
+  }
+  return out;
+}
+
+test("the finished file carries a real PDF digital signature: esign.verify says sealed and intact, openssl independently agrees, a changed byte fails both, and the Space's private key is in no file in the clear", async () => {
+  const dir = seededDir();
+  const d = await boot(dir);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-seal-check-"));
+  try {
+    const original = await samplePdf(2, "Northwind services agreement");
+    const folder = await home(d);
+    const made = await cap(d, "files.create", {
+      folderId: folder,
+      name: "Seal check.pdf",
+      mime: "application/pdf",
+      content: { base64: Buffer.from(original).toString("base64") },
+    });
+    const sent = await cap(d, "esign.send", {
+      fileId: made.file.fileId,
+      signers: [{ name: "Andrea Lindahl", email: "andrea@northwind.example" }],
+    });
+    const link = sent.links[0].path as string;
+    const done = await relayed(d, "POST", `${link}sign`, {
+      name: "Andrea Lindahl",
+      consent: true,
+      signature: { kind: "typed", text: "Andrea Lindahl" },
+    });
+    assert.equal(done.status, 200, done.body.toString());
+    const st = await cap(d, "esign.status", { envelopeId: sent.envelopeId });
+    assert.equal(st.sealed, true);
+    assert.match(st.sealFingerprint, /^[0-9a-f]{64}$/);
+    const file = Buffer.from(
+      (await cap(d, "files.read", { fileId: st.signedFileId, as: "base64" })).base64 as string,
+      "base64",
+    );
+    const copy = await relayed(d, "POST", `${link}copy`, {});
+    assert.deepEqual(copy.body, file, "the signer's own copy is the same sealed file");
+
+    // our own check
+    const v = await cap(d, "esign.verify", { fileId: st.signedFileId });
+    assert.deepEqual([v.sealed, v.intact, v.bySpace, v.fingerprint], [true, true, true, st.sealFingerprint]);
+    assert.match(textOf(file), /Sealed by .* with a certificate made by this Space\. Fingerprint SHA-256:/);
+
+    // an independent check that uses none of our code: the byte ranges and the CMS blob, handed to openssl
+    const text = file.toString("latin1");
+    const br = /\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/.exec(text)!;
+    const [a, b, c, e] = [1, 2, 3, 4].map((i) => Number(br[i]));
+    const openssl = (bytes: Buffer, name: string): { ok: boolean; text: string } => {
+      const content = Buffer.concat([bytes.subarray(a, a + b), bytes.subarray(c, c + e)]);
+      const hex = bytes.toString("latin1", b + 1, c - 1).replace(/0+$/, "");
+      const sig = Buffer.from(hex.length % 2 ? `${hex}0` : hex, "hex");
+      fs.writeFileSync(path.join(tmp, `${name}.bin`), content);
+      fs.writeFileSync(path.join(tmp, `${name}.der`), sig);
+      const r = spawnSync(
+        "openssl",
+        [
+          "cms",
+          "-verify",
+          "-binary",
+          "-inform",
+          "DER",
+          "-in",
+          path.join(tmp, `${name}.der`),
+          "-content",
+          path.join(tmp, `${name}.bin`),
+          "-noverify",
+          "-out",
+          "/dev/null",
+        ],
+        { encoding: "utf8" },
+      );
+      return { ok: r.status === 0, text: `${r.stdout}${r.stderr}` };
+    };
+    assert.ok(a === 0 && c + e === file.length, "the ranges cover the whole file but the signature");
+    const good = openssl(file, "good");
+    assert.ok(good.ok, `openssl verifies the real file: ${good.text}`);
+    const tampered = Buffer.from(file);
+    tampered[Math.floor(b / 2)] = (tampered[Math.floor(b / 2)] as number) ^ 1;
+    assert.equal(openssl(tampered, "bad").ok, false, "openssl refuses a changed byte");
+    fs.writeFileSync(path.join(tmp, "tampered.pdf"), tampered);
+    const tamperedId = (
+      await cap(d, "files.create", {
+        folderId: folder,
+        name: "Tampered.pdf",
+        mime: "application/pdf",
+        content: { base64: tampered.toString("base64") },
+      })
+    ).file.fileId;
+    const t = await cap(d, "esign.verify", { fileId: tamperedId });
+    assert.deepEqual([t.sealed, t.intact], [true, false], "and so does esign.verify");
+
+    // the private key is in no file of the data directory in the clear, and in no log
+    const rsaPrivate = Buffer.from("020100300d06092a864886f70d01010105000482", "hex"); // the start of an RSA PKCS#8 private key: version 0, the RSA algorithm, the key octets
+    const row = d.db!.all("SELECT sealed_key FROM esign_seal WHERE slot = 'current'")[0] as { sealed_key: string };
+    assert.match(row.sealed_key, /keyId/, "kept as the server's own sealing, not as key bytes");
+    for (const { file: f, bytes } of filesUnder(dir)) {
+      assert.ok(!bytes.includes("PRIVATE KEY"), `no PEM key in ${f}`);
+      assert.ok(!bytes.includes(rsaPrivate), `no PKCS#8 key in ${f}`);
+    }
+  } finally {
+    await d.stop();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

@@ -4,6 +4,7 @@
 
 import { PDFDocument, StandardFonts, rgb } from "@cantoo/pdf-lib";
 import type { PDFFont, PDFPage } from "@cantoo/pdf-lib";
+import { addSealField } from "./pdfseal.ts";
 
 export const MAX_PAGES = 200;
 export const MAX_PNG_BYTES = 300 * 1024;
@@ -29,7 +30,7 @@ export interface Prepared {
   places: Place[];
   pages: PageSize[];
 }
-export type SignatureMark = { kind: "typed"; text: string } | { kind: "drawn"; png: Uint8Array };
+export type SignatureMark = { kind: "typed"; text: string; png?: Uint8Array } | { kind: "drawn"; png: Uint8Array };
 export interface Stamp {
   signer: number;
   name: string;
@@ -57,6 +58,8 @@ export interface Audit {
   originalSha256: string;
   sentSha256: string;
   signers: AuditSigner[];
+  /** set when the file is to be sealed: the statement goes on the audit page and the signature field is added before the one save */
+  seal?: { spaceName: string; fingerprint: string; own: boolean };
 }
 
 /** A plain refusal a person can read; the handler turns it into validation.bad_input. */
@@ -239,7 +242,7 @@ async function fit(
   mark: SignatureMark,
   box: { x: number; y: number; w: number; h: number },
 ) {
-  if (mark.kind === "drawn") {
+  if (mark.png) {
     const size = pngSize(mark.png);
     if (!size) throw new PdfError("That signature drawing is not a usable picture.");
     const img = await doc.embedPng(mark.png);
@@ -297,7 +300,7 @@ export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[
       if (p.kind === "signature") {
         await fit(doc, italic, page, s.mark, b);
         const cap = safe(`Signed by ${s.name}`).slice(0, 60);
-        page.drawText(cap, { x: b.x + 2, y: Math.max(b.y - 9, 2), size: 7, font, color: rgb(0.4, 0.4, 0.4) });
+        page.drawText(cap, { x: b.x + 2, y: Math.max(b.y - 22, 2), size: 7, font, color: rgb(0.4, 0.4, 0.4) });
       } else {
         const t = formatAt(s.signedAt, audit.zone);
         let sz = 11;
@@ -366,5 +369,14 @@ export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[
       color: rgb(0.4, 0.4, 0.4),
     },
   );
+  if (audit.seal) {
+    y -= 6;
+    line(
+      `Sealed by ${audit.seal.spaceName} with ${audit.seal.own ? "a certificate it holds" : "a certificate made by this Space"}. Fingerprint SHA-256:`,
+      { size: 9, f: bold },
+    );
+    line(audit.seal.fingerprint, { f: mono, size: 8 });
+    addSealField(doc, audit.seal.spaceName, new Date());
+  }
   return doc.save({ useObjectStreams: false });
 }
