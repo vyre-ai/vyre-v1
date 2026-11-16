@@ -148,7 +148,7 @@ const bindingIn = {
 };
 
 // ---- SyncSpec: the one document an agent fills to bring an app's records into Records
-const specPointer = t.str({ description: "A JSON pointer such as /id; / is the whole answer" });
+const specPointer = t.str({ description: "A JSON pointer (/id); / is the whole answer" });
 const specField = t.obj({
   path: specPointer,
   label: t.str(),
@@ -171,6 +171,8 @@ const specField = t.obj({
     t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }), { examples: [[{ value: "lead", label: "Lead" }]] }),
   ),
   relationTo: t.opt(t.str()),
+  inverseKey: t.opt(fieldKey),
+  inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
 });
 const specCursor = t.obj({

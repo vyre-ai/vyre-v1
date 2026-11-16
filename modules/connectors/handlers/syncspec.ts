@@ -6,15 +6,16 @@ import { canonical } from "../../../lib/canonical.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase } from "../projections.ts";
 import {
-  JOIN_PREFIX,
-  SECRET_ID,
-  SSN_SHAPE,
   coerceValue,
   compileSpec,
   firstPageRequest,
+  JOIN_PREFIX,
   joinTitle,
   parseSpec,
   readPage,
+  relationClashes,
+  SECRET_ID,
+  SSN_SHAPE,
   titlePaths,
   unflatten,
 } from "../syncspec.ts";
@@ -247,6 +248,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     if (!deps.probe) return refuse(ctx, "internal.unavailable", "Reading the app is not available right now.");
     const probe = deps.probe;
     const mapped = new Map(spec.mapping.map((m) => [m.remote, m]));
+    for (const said of relationClashes(spec)) err("mapping", said);
     const types = new Set<string>();
     for (const m of spec.mapping) {
       if (types.has(m.recordType)) err(`mapping.${m.remote}.recordType`, `${m.recordType} is used by two mappings.`);
@@ -853,8 +855,9 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       // an app with a "changed since" filter is cheap to check (a page), so a person's edit leaves within two minutes; one without is read whole at every check, so its checks are slower
       const listed = spec.objects.find((o) => o.remote === t.remote)?.list;
       const slow = listed?.updatedSince === undefined;
-      // the spec may say how often an object is read whole: the first schedule is then already right
-      const every = listed?.checkEveryMinutes !== undefined && slow ? listed.checkEveryMinutes * 60 : undefined;
+      // the spec may say how often an object is checked, whether it is read whole or by "changed since": the first schedule is then already right (a large table
+      // of an app with a small request allowance is checked less often than every two minutes, lead 17 Nov 2026)
+      const every = listed?.checkEveryMinutes !== undefined ? listed.checkEveryMinutes * 60 : undefined;
       const rules = {
         createAtSource: t.createAtSource,
         deletes: t.deletes,
