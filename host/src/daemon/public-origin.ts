@@ -66,3 +66,22 @@ export function artifactHostOf(address: string | null | undefined, claimed: stri
 /** What a Space's artifact host answers at /.well-known/vyre-artifact-host: the check that a name reaches this Space and no other server (the daemon's self-check and `vyre-server doctor` both read it). */
 export const artifactMarkerOf = (spaceId: string): string =>
   `vyre-artifact-host ${sha256Hex(`${spaceId}:vyre-artifact-host`).slice(0, 32)}`;
+
+/**
+ * The Space's own base address for the things that need one even before anyone outside can reach it (a connector's callback, a webhook's address, a provider
+ * check): the public origin when there is one, else the address it was given, else the local URL. It is always something a URL can be made from. An install
+ * whose address setting was present but empty (VYRE_ADDRESS="", as the Mac installer writes for a relay Space) produced "https://", and every connector, sync
+ * and connection call threw "Invalid URL" (the first relay Space with a CRM to connect, 16 Nov 2026).
+ */
+export function spaceBaseOf(
+  address: string | null | undefined,
+  claimed: string | null | undefined,
+  host: string,
+  port: number,
+): string {
+  const given = (address ?? "").trim();
+  const pub = publicOriginOf(given === "" ? null : given, claimed);
+  if (pub) return pub.origin;
+  const h = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+  return `http://${h === "" ? "127.0.0.1" : h}:${port}`;
+}

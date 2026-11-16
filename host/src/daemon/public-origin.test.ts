@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { artifactHostOf, publicOriginOf } from "./public-origin.ts";
+import { artifactHostOf, publicOriginOf, spaceBaseOf } from "./public-origin.ts";
 
 test("the public origin: a given address wins, a claimed phone name stands in for none, and a phone address says so", () => {
   assert.deepEqual(publicOriginOf("team.example.com", "harbor"), { origin: "https://team.example.com", relay: false });
@@ -53,4 +53,17 @@ test("reached through the relay is a fact (the Space holds that phone name), nev
   assert.equal(publicOriginOf("harbor.vyre.run", "harbor")?.relay, true);
   assert.equal(artifactHostOf("harbor.vyre.run", "harbor"), "harbor-a.vyre.run");
   assert.equal(artifactHostOf("harbor.vyre.run", "HARBOR"), "harbor-a.vyre.run", "names compare without case");
+});
+
+test("the Space's base address is always one a URL can be made from: public origin, else the address given, else the local URL", () => {
+  assert.equal(spaceBaseOf("team.example.com", null, "0.0.0.0", 8420), "https://team.example.com");
+  assert.equal(spaceBaseOf(null, "harbor", "0.0.0.0", 8420), "https://harbor.vyre.run", "a claimed relay name");
+  // a relay Space nobody has claimed a name for yet, started with an empty address setting (the Mac installer): the local URL, never "https://"
+  for (const none of ["", "   ", null, undefined]) {
+    const base = spaceBaseOf(none, null, "0.0.0.0", 8420);
+    assert.equal(base, "http://0.0.0.0:8420");
+    assert.equal(new URL(base).origin, "http://0.0.0.0:8420");
+  }
+  assert.equal(new URL(spaceBaseOf("", null, "::", 8420)).port, "8420", "an IPv6 host is bracketed");
+  assert.equal(spaceBaseOf("", null, "", 9000), "http://127.0.0.1:9000");
 });

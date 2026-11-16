@@ -584,7 +584,7 @@ function TabItem({
       {extraTab.iconOnly === true ? null : (
         <Text
           numberOfLines={1}
-          testID={`tab-title-${tab.key}`}
+          testID={`tabname-${tab.key}`}
           style={[styles.title, { color: ink }, showClose && !only ? TITLE_UNDER_CLOSE : null]}
         >
           {tab.title}

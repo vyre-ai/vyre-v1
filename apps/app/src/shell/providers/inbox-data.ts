@@ -3,7 +3,7 @@
 // promote the full place into the startup common chunk.
 import type { InboxData, InboxNav } from "../../places/inbox/sidebar/data.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
-import { scopeArgs } from "../../places/inbox/sidebar/model.ts";
+import { scopeArgs } from "./inbox-address.ts";
 import { openAskPane } from "../ask/pane.ts";
 
 export function inboxData(rt: ShellRuntime, openConversation: (id: string) => void): InboxData {
