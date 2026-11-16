@@ -1017,7 +1017,11 @@ export function stubs(ctx: CallCtx) {
       list: call("esign.list"),
       provider_set: call("esign.provider_set"),
       providers: call("esign.providers"),
+      remind: call("esign.remind"),
       send: call("esign.send"),
+      signer_act: call("esign.signer_act"),
+      signer_doc: call("esign.signer_doc"),
+      signer_view: call("esign.signer_view"),
       status: call("esign.status"),
     },
     events: {

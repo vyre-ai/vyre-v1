@@ -20,6 +20,6 @@ An envelope was sent for signature
 type Payload = {
   envelopeId: string;
   recordId?: string;
-  provider: "documenso" | "dropbox_sign" | "docusign";
+  provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
 };
 ```

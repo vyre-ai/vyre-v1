@@ -1,6 +1,6 @@
 # esign.send
 
-Send a file from the record folder for signature, signer fields mapped from the record
+Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can
 
 | | |
 |---|---|
@@ -29,10 +29,13 @@ type In = {
   recordId?: string;
   signers: Array<{
       name: string;
-      email: string;
+      email?: string;
       order?: number;
     }>;
-  provider?: "documenso" | "dropbox_sign" | "docusign";
+  provider?: "vyre" | "documenso" | "dropbox_sign" | "docusign";
+  message?: string;
+  places?: Array<unknown>;
+  expiresInDays?: number;
   idempotencyKey: string;
 };
 ```
@@ -42,6 +45,15 @@ type In = {
 ```ts
 type Out = {
   envelopeId: string;
+  links?: Array<{
+      index: number;
+      name: string;
+      email?: string;
+      url?: string;
+      path: string;
+    }>;
+  emailed?: Array<string>;
+  notice?: string;
 };
 ```
 
@@ -63,9 +75,14 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "expiresInDays": 1,
     "fileId": "fil_a1b2c3",
     "idempotencyKey": "idem_1",
-    "provider": "documenso",
+    "message": "example",
+    "places": [
+      {}
+    ],
+    "provider": "vyre",
     "recordId": "rec_a1b2c3",
     "signers": [
       {
@@ -76,7 +93,20 @@ type Out = {
     ]
   },
   "output": {
-    "envelopeId": "env_a1b2c3"
+    "emailed": [
+      "example"
+    ],
+    "envelopeId": "env_a1b2c3",
+    "links": [
+      {
+        "email": "example",
+        "index": 1,
+        "name": "example",
+        "path": "example",
+        "url": "example"
+      }
+    ],
+    "notice": "example"
   }
 }
 ```

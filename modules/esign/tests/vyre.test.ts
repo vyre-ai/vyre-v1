@@ -1,0 +1,441 @@
+// esign built-in signing (provider vyre): send, the public signer calls, completing, declining, cancelling, reminding, mail, and every way a link stops working.
+// Real SQLite behind the host's table guard, generated validators on every input, output and event, a real PDF, invented people (Imran Ibarra sends to Andrea Lindahl and Sam Okafor at northwind.example).
+// @reads /modules/esign/migrations/0001_esign.sql
+// @reads /modules/esign/migrations/0002_esign_vyre.sql
+
+import test from "node:test";
+import assert from "node:assert/strict";
+import { FILE, FOLDER, RECORD, dana, harness, toBase64 } from "../fixtures/db.ts";
+import type { Harness } from "../fixtures/db.ts";
+import { samplePdf, samplePng, textOf } from "../fixtures/pdf.ts";
+import { REFUSAL } from "../handlers/vyre.ts";
+
+const SYSTEM = { id: "system", kind: "service" as const };
+const V = { ip: "203.0.113.9", ua: "Mozilla/5.0 (Macintosh) Test" };
+const ANDREA = { name: "Andrea Lindahl", email: "andrea@northwind.example" };
+const SAM = { name: "Sam Okafor", email: "sam@northwind.example" };
+
+async function setup(over: Parameters<typeof harness>[0] = {}): Promise<Harness> {
+  return harness({ builtIn: { pdf: await samplePdf(2) }, ...over });
+}
+const tokenOf = (l: { path: string }): string => l.path.split("/")[3] as string;
+async function send(h: Harness, signers: unknown[] = [ANDREA], extra: Record<string, unknown> = {}) {
+  return h.call("esign.send", { fileId: FILE, signers, idempotencyKey: `k${Math.random()}`, ...extra }, dana);
+}
+const view = (h: Harness, token: string) => h.call("esign.signer_view", { token, visitor: V }, SYSTEM, false);
+const doc = (h: Harness, token: string) => h.call("esign.signer_doc", { token, visitor: V }, SYSTEM, false);
+const act = (h: Harness, token: string, op: string, body?: unknown) =>
+  h.call("esign.signer_act", { token, visitor: V, op, ...(body === undefined ? {} : { body }) }, SYSTEM, false);
+/** What the host does after the last signature: saves the final file as the sender (esign.fetch_signed). */
+const finish = (h: Harness, envelopeId: string) => h.call("esign.fetch_signed", { envelopeId }, dana);
+const typed = (name = "Andrea Lindahl") => ({ name, consent: true, signature: { kind: "typed", text: name } });
+
+async function refusal(p: Promise<unknown>): Promise<string> {
+  try {
+    await p;
+  } catch (e) {
+    const err = (e as { error?: { code?: string; message?: string; details?: unknown } }).error;
+    assert.equal(err?.code, "auth.bad_credentials");
+    assert.equal(err?.message, REFUSAL);
+    assert.equal(err?.details, undefined, "a refusal carries no detail");
+    return JSON.stringify(err);
+  }
+  throw new Error("expected the plain refusal, the call succeeded");
+}
+
+test("a fresh Space sends with built-in signing: one link per signer, no mailbox needed, nothing readable from the database", async () => {
+  const h = await setup();
+  const out = await send(h, [ANDREA, { name: "Sam Okafor" }]);
+  assert.match(out.envelopeId, /^env_/);
+  assert.equal(out.links.length, 2);
+  const [a, s] = out.links;
+  assert.match(tokenOf(a), /^[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(tokenOf(a), tokenOf(s));
+  assert.equal(a.url, `https://northwind.example/p/sign/${tokenOf(a)}/`);
+  assert.equal(a.email, "andrea@northwind.example");
+  assert.equal(s.email, undefined, "a signer with no email is allowed");
+  assert.match(out.notice, /no sending mailbox/);
+  assert.deepEqual(out.emailed, []);
+  assert.deepEqual(
+    h.events.map((e) => [e.name, e.payload.provider]),
+    [["signature.sent", "vyre"]],
+  );
+  for (const table of ["esign_envelope", "esign_vsigner", "esign_event", "esign_doc"])
+    for (const row of h.rows(table))
+      for (const v of Object.values(row))
+        if (typeof v === "string")
+          assert.ok(!v.includes(tokenOf(a)) && !v.includes(tokenOf(s)), `${table} holds a token in the clear`);
+  const rows = h.rows("esign_vsigner");
+  assert.equal(rows.length, 2);
+  assert.match(String(rows[0]!.token_hash), /^[0-9a-f]{64}$/);
+  const sent = h.rows("esign_doc")[0]!.sent as Uint8Array;
+  assert.match(textOf(sent), /Signature page/, "no place given: a signature page was added");
+});
+
+test("what is refused at send, in plain words", async () => {
+  const h = await setup();
+  await assert.rejects(send(h, []), /Add at least one signer/);
+  await assert.rejects(send(h, [{ name: "A", email: "nope" }]), /email that is not valid/);
+  await assert.rejects(send(h, [ANDREA, ANDREA]), /listed twice/);
+  await assert.rejects(send(h, [ANDREA], { expiresInDays: 400 }), /1 to 90 days/);
+  const word = await setup();
+  word.callee("files.get", () => ({
+    file: {
+      fileId: FILE,
+      folderId: FOLDER,
+      name: "Letter.docx",
+      mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      size: 10,
+    },
+  }));
+  await assert.rejects(send(word), /Word documents cannot be signed yet. Export it as a PDF first/);
+  const big = await setup();
+  big.callee("files.get", () => ({
+    file: { fileId: FILE, folderId: FOLDER, name: "Big.pdf", mime: "application/pdf", size: 21 * 1024 * 1024 },
+  }));
+  await assert.rejects(send(big), /up to 20 MB/);
+  const junk = await setup({ builtIn: { pdf: new TextEncoder().encode("not a pdf") } });
+  await assert.rejects(send(junk), /could not be read as a PDF/);
+  assert.equal(h.rows("esign_envelope").length, 0, "a refused send leaves nothing behind");
+});
+
+test("opening the link: the session shows only this signer's places, the first open is recorded once, the document is served", async () => {
+  const h = await setup();
+  const { links } = await send(h, [ANDREA, { ...SAM, order: 1 }]);
+  const t = tokenOf(links[0]);
+  const { session } = await view(h, t);
+  assert.equal(session.state, "ready");
+  assert.deepEqual(session.sender, { name: "Imran Ibarra" });
+  assert.equal(session.spaceName, "Northwind");
+  assert.equal(session.title, "Retainer");
+  assert.equal(session.signer.name, "Andrea Lindahl");
+  assert.equal(session.pages.length, 3);
+  assert.deepEqual(
+    session.places.map((p: { kind: string; page: number }) => [p.kind, p.page]),
+    [
+      ["signature", 3],
+      ["date", 3],
+    ],
+  );
+  assert.ok(session.places.every((p: Record<string, unknown>) => p.signer === undefined));
+  assert.match(session.consent, /agree to sign this document electronically/);
+  assert.equal(h.events.filter((e) => e.name === "signature.viewed").length, 1);
+  h.advance(1000);
+  await view(h, t);
+  assert.equal(h.events.filter((e) => e.name === "signature.viewed").length, 0, "the second open emits nothing");
+  const opens = h.rows("esign_event").filter((e) => e.kind === "opened");
+  assert.equal(opens.length, 2);
+  assert.equal(opens[0]!.ip, "203.0.113.9");
+  assert.match(String(opens[0]!.ua), /Macintosh/);
+  const { base64 } = await doc(h, t);
+  assert.match(Buffer.from(base64, "base64").toString("latin1").slice(0, 8), /^%PDF-/);
+  assert.equal(
+    (await h.call("esign.status", { envelopeId: links ? h.rows("esign_envelope")[0]!.id : "" }, dana)).status,
+    "viewed",
+  );
+});
+
+test("every way a link can be bad gets the same refusal and no detail", async () => {
+  const h = await setup();
+  const { envelopeId, links } = await send(h, [ANDREA, SAM]);
+  const [a, s] = links.map(tokenOf);
+  const answers = new Set<string>();
+  answers.add(await refusal(view(h, "short")));
+  answers.add(await refusal(view(h, "x".repeat(43))));
+  answers.add(await refusal(view(h, `${a}0`)));
+  answers.add(await refusal(view(h, `${a!.slice(0, 42)}${a!.endsWith("A") ? "B" : "A"}`)));
+  answers.add(await refusal(doc(h, "y".repeat(43))));
+  answers.add(await refusal(act(h, "z".repeat(43), "sign", typed())));
+  answers.add(await refusal(act(h, "z".repeat(43), "copy")));
+  await refusal(view(h, 42 as never));
+  // used
+  await act(h, a!, "sign", typed());
+  answers.add(await refusal(view(h, a!)));
+  answers.add(await refusal(doc(h, a!)));
+  answers.add(await refusal(act(h, a!, "sign", typed())));
+  // revoked by a cancel
+  await h.call("esign.cancel", { envelopeId }, dana);
+  answers.add(await refusal(view(h, s!)));
+  assert.equal(answers.size, 1, "one answer, byte for byte");
+});
+
+test("an expired link is refused and the envelope reads expired", async () => {
+  const h = await setup();
+  const { envelopeId, links } = await send(h, [ANDREA], { expiresInDays: 2 });
+  h.advance(2 * 86_400_000 + 5);
+  await refusal(view(h, tokenOf(links[0])));
+  const st = await h.call("esign.status", { envelopeId }, dana);
+  assert.equal(st.status, "expired");
+  assert.equal(st.signers[0].status, "expired");
+});
+
+test("a typed signature completes the envelope: the final file lands beside the original, never over it, and its hashes and text are in it", async () => {
+  const h = await setup();
+  const { envelopeId, links } = await send(h, [ANDREA], { recordId: RECORD, message: "Please sign by Friday." });
+  const t = tokenOf(links[0]);
+  assert.equal((await view(h, t)).session.message, "Please sign by Friday.");
+  h.advance(60_000);
+  const r = await act(h, t, "sign", typed());
+  assert.deepEqual(r.result, {
+    state: "signed",
+    completed: true,
+    copyAvailable: true,
+    finish: { envelopeId, person: "usr_dana" },
+  });
+  assert.equal(h.created.length, 0, "nothing is saved by the public door itself");
+  assert.deepEqual((await finish(h, envelopeId)).fileId, "fil_cert1");
+  const emitted = [...h.events];
+  assert.equal(h.written.length, 0, "the original file is never written to");
+  assert.equal(h.created.length, 1);
+  assert.equal(h.created[0]!.name, "Retainer (signed).pdf");
+  assert.equal(h.created[0]!.folderId, "fld_record_files", "the record's folder when the envelope has a record");
+  const final = Buffer.from(h.created[0]!.base64, "base64");
+  const text = textOf(final);
+  assert.match(text, /Signed by Andrea Lindahl/);
+  assert.match(text, /Audit page/);
+  assert.match(text, /Imran Ibarra/);
+  assert.match(text, /andrea@northwind\.example/);
+  assert.match(text, /203\.0\.113\.9/);
+  const st = await h.call("esign.status", { envelopeId }, dana);
+  assert.equal(st.status, "signed");
+  assert.match(st.finalSha256, /^[0-9a-f]{64}$/);
+  const hash = Buffer.from(await crypto.subtle.digest("SHA-256", final)).toString("hex");
+  assert.equal(st.finalSha256, hash);
+  const env = h.rows("esign_envelope")[0]!;
+  assert.ok(text.includes(String(env.original_sha256)) && text.includes(String(env.sent_sha256)));
+  assert.equal(st.signedFileId, "fil_cert1");
+  assert.deepEqual(
+    emitted.map((e) => e.name),
+    ["signature.signed"],
+  );
+  assert.deepEqual(emitted[0]!.payload, { envelopeId, fileId: "fil_cert1" });
+  assert.deepEqual((await finish(h, envelopeId)).fileId, "fil_cert1", "saying it twice is fine and saves one file");
+  assert.equal(h.created.length, 1);
+  assert.equal(h.callsTo("tasks.transition").at(-1)?.input.to, "done");
+});
+
+test("a drawn signature is an image on the page; a picture that is not a PNG, a missing tick and a name the font cannot draw are refused before anything is signed", async () => {
+  const h = await setup();
+  const { links } = await send(h, [ANDREA]);
+  const t = tokenOf(links[0]);
+  const bad = async (body: unknown, re: RegExp): Promise<void> => {
+    await assert.rejects(act(h, t, "sign", body), re);
+    assert.equal(h.rows("esign_vsigner")[0]!.status, "sent", "nothing was signed");
+  };
+  await bad({ ...typed(), consent: false }, /Tick the box/);
+  await bad({ name: "", consent: true, signature: { kind: "typed", text: "x" } }, /Type your name/);
+  await bad(
+    { name: "A", consent: true, signature: { kind: "drawn", png: toBase64(new Uint8Array(50)) } },
+    /not a picture/,
+  );
+  await bad({ name: "A", consent: true, signature: { kind: "drawn", png: "<script>" } }, /Draw your signature again/);
+  await bad({ name: "A", consent: true, signature: { kind: "typed", text: "山田太郎" } }, /Use Draw/);
+  await bad({ name: "A", consent: true, signature: { kind: "scribble" } }, /Type or draw/);
+  const ok = await act(h, t, "sign", {
+    name: "Andrea Lindahl",
+    consent: true,
+    signature: { kind: "drawn", png: toBase64(samplePng()) },
+  });
+  assert.equal(ok.result.completed, true);
+  await finish(h, ok.result.finish.envelopeId);
+  const final = Buffer.from(h.created[0]!.base64, "base64");
+  assert.match(final.toString("latin1"), /\/Subtype\s*\/Image/);
+});
+
+test("nothing a signer sends is kept as markup: a name with tags is drawn as plain letters", async () => {
+  const h = await setup();
+  const { links } = await send(h, [ANDREA]);
+  const done = await act(h, tokenOf(links[0]), "sign", {
+    name: "<img src=x onerror=alert(1)>",
+    consent: true,
+    signature: { kind: "typed", text: "<b>Andrea</b>" },
+  });
+  await finish(h, done.result.finish.envelopeId);
+  const text = textOf(Buffer.from(h.created[0]!.base64, "base64"));
+  assert.ok(text.includes("<b>Andrea</b>"), "stored as the characters they are");
+});
+
+test("two signers in order: the second waits (no document, no places) until the first signs", async () => {
+  const h = await setup();
+  const { envelopeId, links } = await send(h, [ANDREA, { ...SAM, order: 2 }]);
+  const [a, s] = links.map(tokenOf);
+  const waiting = (await view(h, s!)).session;
+  assert.equal(waiting.state, "waiting");
+  assert.equal(waiting.places, undefined);
+  assert.equal(waiting.pages, undefined);
+  await refusal(doc(h, s!));
+  await refusal(act(h, s!, "sign", typed("Sam Okafor")));
+  const first = await act(h, a!, "sign", typed());
+  assert.deepEqual(first.result, { state: "signed", completed: false, copyAvailable: false });
+  assert.equal(h.created.length, 0);
+  assert.equal((await h.call("esign.status", { envelopeId }, dana)).status, "viewed");
+  assert.equal((await view(h, s!)).session.state, "ready");
+  const last = await act(h, s!, "sign", typed("Sam Okafor"));
+  assert.equal(last.result.completed, true);
+  await finish(h, envelopeId);
+  const text = textOf(Buffer.from(h.created[0]!.base64, "base64"));
+  assert.match(text, /Signed by Andrea Lindahl/);
+  assert.match(text, /Signed by Sam Okafor/);
+  assert.equal(h.created.length, 1);
+});
+
+test("a signer's own copy: waiting until everyone has signed, then the final file, for a day; a link that did not sign gets nothing", async () => {
+  const h = await setup();
+  const { links } = await send(h, [ANDREA, { ...SAM, order: 2 }]);
+  const [a, s] = links.map(tokenOf);
+  await refusal(act(h, a!, "copy"));
+  await act(h, a!, "sign", typed());
+  assert.deepEqual((await act(h, a!, "copy")).result, { state: "waiting" });
+  await refusal(act(h, s!, "copy"));
+  const last = await act(h, s!, "sign", typed("Sam Okafor"));
+  await finish(h, last.result.finish.envelopeId);
+  const got = (await act(h, a!, "copy")).result;
+  assert.equal(got.state, "done");
+  assert.equal(got.base64, h.created[0]!.base64);
+  h.advance(25 * 3600_000);
+  await refusal(act(h, a!, "copy"));
+});
+
+test("declining ends the envelope, spends that link and stops every other link", async () => {
+  const h = await setup();
+  const { envelopeId, links } = await send(h, [ANDREA, SAM]);
+  const [a, s] = links.map(tokenOf);
+  const r = await act(h, a!, "decline", { reason: "The fee is wrong." });
+  const emitted = [...h.events];
+  assert.deepEqual(r.result, { state: "declined" });
+  await refusal(view(h, a!));
+  await refusal(view(h, s!));
+  const st = await h.call("esign.status", { envelopeId }, dana);
+  assert.equal(st.status, "declined");
+  assert.equal(st.declinedReason, "The fee is wrong.");
+  assert.deepEqual(
+    emitted.map((e) => [e.name, e.payload.signer, e.payload.reason]),
+    [["signature.declined", "Andrea Lindahl", "The fee is wrong."]],
+  );
+  assert.equal(h.created.length, 0);
+  assert.equal(h.callsTo("tasks.transition").at(-1)?.input.to, "canceled");
+});
+
+test("cancelling stops every link at once, tells the task, and cannot be done after signing", async () => {
+  const h = await setup();
+  const one = await send(h, [ANDREA]);
+  assert.deepEqual(await h.call("esign.cancel", { envelopeId: one.envelopeId }, dana), { cancelled: true });
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["signature.cancelled"],
+  );
+  await refusal(view(h, tokenOf(one.links[0])));
+  assert.equal((await h.call("esign.status", { envelopeId: one.envelopeId }, dana)).status, "cancelled");
+  assert.deepEqual(
+    await h.call("esign.cancel", { envelopeId: one.envelopeId }, dana),
+    { cancelled: true },
+    "twice is fine",
+  );
+  const two = await send(h, [ANDREA]);
+  await act(h, tokenOf(two.links[0]), "sign", typed());
+  await assert.rejects(h.call("esign.cancel", { envelopeId: two.envelopeId }, dana), /already signed/);
+});
+
+test("a reminder gives a new link and the old one stops working; a signer who signed is not reminded", async () => {
+  const h = await setup();
+  const { envelopeId, links } = await send(h, [ANDREA, SAM]);
+  const oldA = tokenOf(links[0]);
+  const r = await h.call("esign.remind", { envelopeId, signer: 0, idempotencyKey: "r1" }, dana);
+  assert.notEqual(tokenOf(r.link), oldA);
+  assert.equal(r.emailed, false);
+  assert.match(r.notice, /no sending mailbox/);
+  await refusal(view(h, oldA));
+  assert.equal((await view(h, tokenOf(r.link))).session.state, "ready");
+  await act(h, tokenOf(r.link), "sign", typed());
+  await assert.rejects(h.call("esign.remind", { envelopeId, signer: 0, idempotencyKey: "r2" }, dana), /already signed/);
+  await assert.rejects(
+    h.call("esign.remind", { envelopeId, signer: 9, idempotencyKey: "r3" }, dana),
+    /not on this envelope/,
+  );
+});
+
+test("with a sending mailbox the invitation goes through the one send pipeline, to the signers whose turn it is; a held or failed mail is a notice, never a failure", async () => {
+  const h = await setup();
+  const sent: Record<string, any>[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("comms.senders.list", () => ({
+    senders: [{ id: "mbx_space", scope: "space", usable: true, provider: "resend" }],
+  }));
+  h.callee("mail.send", (i: Record<string, any>) => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    sent.push(i);
+    return { status: "queued", suppressed: [] };
+  });
+  const out = await send(h, [ANDREA, { ...SAM, order: 2 }], { message: "Please sign by Friday." });
+  assert.deepEqual(out.emailed, ["andrea@northwind.example"], "Sam is mailed when it is his turn, not now");
+  assert.equal(out.notice, undefined);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.mailboxId, "mbx_space");
+  assert.equal(sent[0]!.route, "space_domain");
+  assert.deepEqual(sent[0]!.to, [{ address: "andrea@northwind.example" }]);
+  assert.equal(sent[0]!.subject, "Imran Ibarra asked you to sign Retainer");
+  assert.ok(sent[0]!.text.includes(out.links[0].url));
+  assert.match(sent[0]!.text, /Please sign by Friday\./);
+  assert.ok(!sent[0]!.text.includes(out.links[1].url), "nobody else's link is in the mail");
+  const held = await setup();
+  held.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+  held.callee("mail.send", () => ({ status: "held" }));
+  const o2 = await send(held);
+  assert.deepEqual(o2.emailed, []);
+  assert.match(o2.notice, /could not be sent/);
+  const noAddr = await setup({ base: null });
+  noAddr.callee("comms.senders.list", () => ({ senders: [{ id: "mbx_space", scope: "space", usable: true }] }));
+  const o3 = await send(noAddr);
+  assert.match(o3.notice, /no public address/);
+  assert.equal(o3.links[0].url, undefined);
+  assert.match(o3.links[0].path, /^\/p\/sign\//);
+});
+
+test("providers, list, status and health tell the truth", async () => {
+  const h = await setup({ providers: {} });
+  const p = await h.call("esign.providers", {}, dana);
+  assert.deepEqual(
+    p.providers.map((x: Record<string, unknown>) => [x.key, x.default, x.connected]),
+    [
+      ["vyre", true, true],
+      ["documenso", false, false],
+      ["dropbox_sign", false, false],
+      ["docusign", false, false],
+    ],
+  );
+  assert.equal(p.providers[0].title, "Vyre signing");
+  assert.match(p.providers[2].why, /not connected/);
+  assert.deepEqual(await h.call("esign.health", {}, dana), { state: "healthy", detail: "Built-in signing is ready." });
+  await h.call("esign.provider_set", { provider: "dropbox_sign" }, { id: "usr_admin" }).then(
+    () => assert.fail("a hosted service that is not connected cannot be the default"),
+    (e: unknown) => assert.match(String((e as Error).message ?? JSON.stringify(e)), /not connected|precondition/),
+  );
+  await h.call("esign.provider_set", { provider: "vyre" }, { id: "usr_admin" });
+  const { envelopeId } = await send(h, [ANDREA], { recordId: RECORD });
+  const list = await h.call("esign.list", { recordId: RECORD }, dana);
+  assert.deepEqual(
+    list.envelopes.map((e: Record<string, unknown>) => [e.envelopeId, e.status, e.provider, e.fileId]),
+    [[envelopeId, "sent", "vyre", FILE]],
+  );
+  assert.equal((await h.call("esign.list", { status: "signed" }, dana)).envelopes.length, 0);
+  const st = await h.call("esign.status", { envelopeId }, dana);
+  assert.deepEqual(
+    st.signers.map((s: Record<string, unknown>) => [s.name, s.email, s.status, s.order]),
+    [["Andrea Lindahl", "andrea@northwind.example", "sent", 1]],
+  );
+});
+
+test("a default that is a hosted service nobody connected reads down, not healthy", async () => {
+  const h = await setup({ providers: null });
+  h.sqlite.exec("INSERT INTO esign_setting (name, value) VALUES ('default_provider', 'dropbox_sign')");
+  const r = await h.call("esign.health", {}, dana);
+  assert.equal(r.state, "down");
+  assert.match(r.detail, /Dropbox Sign is not connected/);
+});
+
+test("a very large signing list pages stay inside the limits: twenty signers get a signature page each four, and 21 are refused", async () => {
+  const h = await setup();
+  const many = Array.from({ length: 20 }, (_, i) => ({ name: `Signer ${i + 1}` }));
+  const out = await send(h, many);
+  assert.equal(out.links.length, 20);
+  await assert.rejects(send(h, [...many, { name: "One more" }]), /at most 20 signers/);
+});

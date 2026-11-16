@@ -1,6 +1,6 @@
 # esign.status
 
-Envelope status
+Envelope status and signers
 
 | | |
 |---|---|
@@ -33,10 +33,18 @@ type In = {
 
 ```ts
 type Out = {
-  status: "sent" | "viewed" | "signed" | "declined" | "cancelled";
+  status: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+  expiresAt?: number;
+  declinedReason?: string;
+  signedFileId?: string;
+  finalSha256?: string;
   signers: Array<{
       name: string;
-      status: "sent" | "viewed" | "signed" | "declined" | "cancelled";
+      email?: string;
+      status: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+      order?: number;
+      openedAt?: number;
+      signedAt?: number;
     }>;
 };
 ```
@@ -57,9 +65,17 @@ type Out = {
     "envelopeId": "env_a1b2c3"
   },
   "output": {
+    "declinedReason": "example",
+    "expiresAt": 1760000000000,
+    "finalSha256": "example",
+    "signedFileId": "fil_a1b2c3",
     "signers": [
       {
+        "email": "example",
         "name": "example",
+        "openedAt": 1760000000000,
+        "order": 1,
+        "signedAt": 1760000000000,
         "status": "sent"
       }
     ],

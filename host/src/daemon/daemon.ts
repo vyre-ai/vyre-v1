@@ -44,6 +44,8 @@ import { createShareRoute } from "../routes/share.ts";
 import type { SharedView } from "../routes/share.ts";
 import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
+import { createSignRoute } from "../routes/sign-route.ts";
+import { signAsset, signShell } from "../routes/sign-page.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
 import { createDomainEdge, createSitesHost, dnsPointsAt, mimeOf } from "../seams/sites-host.ts";
 import {
@@ -896,6 +898,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let portalLinkRoute: ReturnType<typeof createPortalLinkRoute> | null = null;
   let shareRoute: ReturnType<typeof createShareRoute> | null = null;
   let formsPageRoute: ReturnType<typeof createFormsPageRoute> | null = null;
+  // /p/sign/<token>/: a person with no account signing a document (built-in signing). Set once the pipeline is up
+  let signRoute: ReturnType<typeof createSignRoute> | null = null;
   // /u/<token>: a person with no account leaving a mailing. Set once the pipeline is up; until then the route says it could not, and the person is still subscribed
   let leaveMailing: (token: string) => Promise<boolean> = () => Promise.reject(new Error("the server is starting"));
   const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveMailing(token) });
@@ -1114,6 +1118,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     forms: () => formsPageRoute,
     unsubscribe: () => unsubscribeRoute,
     share: () => shareRoute,
+    sign: () => signRoute,
     origin: () => publicOrigin()?.origin ?? null,
     site: (slug) => sitesServing.site?.(slug) ?? null,
     fetch: (t, r, sink) =>
@@ -5096,6 +5101,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             }
           },
         }),
+        // built-in signing builds its signer links from the same address; with none it hands back the path to copy
+        setEsignHost: (d) => ({
+          get publicBase() {
+            return publicOrigin()?.origin;
+          },
+          // Dropbox Sign and DocuSign are built from the Space's Vault at each call, so a key added or removed takes effect at once
+          secret: (handle: string) => d.vault.secret(handle, spaceId),
+          http: async (
+            url: string,
+            init?: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array },
+          ) => {
+            const r = await d.fetch(url, init);
+            return {
+              status: r.status,
+              ok: r.status >= 200 && r.status < 300,
+              json: async () => JSON.parse(await r.text()) as unknown,
+              arrayBuffer: () => r.arrayBuffer(),
+            };
+          },
+        }),
         // the unsubscribe link in an Automations email is built from the same address; with none the email goes out without one
         setMailLinksHost: () => ({
           get publicBase() {
@@ -6810,6 +6835,36 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return null;
           }
         },
+      });
+      // /p/sign/<token>/...: the signer holds no session and the token is all they have, so the host runs the three public signing calls as itself; the esign module decides what a token may do
+      signRoute = createSignRoute({
+        call: async (cap, input) => {
+          const out = await invoke(cap, input, {
+            space: spaceId,
+            principal: { ...SYSTEM_PRINCIPAL },
+            preAuth: true,
+            origin: "hook",
+          }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
+          // the last signature is in: the file is saved as the sender, so it is theirs and they can open it (a file made by this door would belong to nobody). The signer never sees who or which envelope.
+          const result = (out as { result?: { finish?: { envelopeId: string; person: string } } } | null)?.result;
+          const finish = result?.finish;
+          if (result && finish) {
+            delete result.finish;
+            const as = { space: spaceId, origin: "hook" as const };
+            const save = (principal: { kind: "person" | "system"; id: string }, preAuth: boolean) =>
+              invoke(
+                "esign.fetch_signed",
+                { envelopeId: finish.envelopeId, idempotencyKey: `esign-finish-${finish.envelopeId}` },
+                { ...as, principal, ...(preAuth ? { preAuth: true } : {}) } as never,
+              ).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error("held"))));
+            await save({ kind: "person", id: finish.person }, false).catch(() =>
+              save({ ...SYSTEM_PRINCIPAL } as never, true).catch(() => undefined),
+            );
+          }
+          return out;
+        },
+        shell: signShell,
+        asset: signAsset,
       });
       // GET /f/<slug> and /book/<slug> (P-L8_19): the public form pages. A visitor is an act_anon actor; the forms module answers for a published form of the right kind, and an upload goes to the form's Files folder
       {
