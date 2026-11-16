@@ -135,7 +135,7 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
         return new Promise(function (res) {
           var t0 = performance.now();
           var re = new RegExp(marker);
-          var info = '', shown = -1, blank = 0, frames = 0, maxBlank = 0, run = 0;
+          var info = '', shown = -1, kept = -1, blank = 0, frames = 0, maxBlank = 0, run = 0;
           function f() {
             frames++;
             var now = performance.now() - t0;
@@ -144,10 +144,13 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
             var text = own.map(function (c) { return c.innerText || ""; }).join(" ");
             var swap = document.querySelector("[data-swap]") !== null;
             if (shown < 0 && re.test(text)) shown = Math.round(now);
+            // the tab's own last view, shown over the page while the live one is made (the shell keeps a still copy of each of the last tabs)
+            var sw = [].filter.call(body.children, function (c) { return c.hasAttribute("data-swap"); })[0];
+            if (kept < 0 && sw && re.test(sw.innerText || "")) kept = Math.round(now);
             var empty = text.replace(/\\s+/g, "").length < 12 && !swap;
             if (empty) { if (!info) info = body.children.length + ' kids; ' + [].map.call(body.children, function (c) { return c.tagName + '[' + (c.getAttribute('data-testid') || '') + ']:' + (c.innerHTML || '').length; }).join(','); blank++; run++; if (run > maxBlank) maxBlank = run; } else run = 0;
             if (now < ms) requestAnimationFrame(f);
-            else res({ info: info, shown: shown, blank: blank, maxBlank: maxBlank, frames: frames });
+            else res({ info: info, shown: shown, kept: kept, blank: blank, maxBlank: maxBlank, frames: frames });
           }
           requestAnimationFrame(f);
         });
@@ -155,6 +158,7 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
     `);
     const results: Record<string, number[]> = {};
     const blanks: string[] = [];
+    const late: string[] = [];
     for (let round = 0; round < 5; round++) {
       for (const p of places) {
         const tab = tabs.find(
@@ -179,13 +183,25 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
         await page.waitForTimeout(1200);
         const rec = page.evaluate(`window.__sw(${JSON.stringify(p.marker.source)}, 1600)`);
         await page.locator(`[data-testid="tab-${tab.id}"], [data-testid="tab-${tab.id}-selected"]`).first().click();
-        const r = (await rec) as { info: string; shown: number; blank: number; maxBlank: number; frames: number };
+        const r = (await rec) as {
+          info: string;
+          shown: number;
+          kept: number;
+          blank: number;
+          maxBlank: number;
+          frames: number;
+        };
         (results[p.name] ??= []).push(r.shown);
         if (round === 0 && p.name === "file") await page.screenshot({ path: path.join(shots, "switch-file.png") });
         say(
           `round ${round + 1} ${p.name}: first line after ${r.shown} ms, empty frames ${r.blank} (longest run ${r.maxBlank} of ${r.frames}) ${r.info}`,
         );
         if (r.shown > SWITCH_MAX_MS) say(`  over the ${SWITCH_MAX_MS} ms budget: ${p.name} ${r.shown} ms`);
+        // what the person sees first: the tab's own view (its kept copy, or the live view when that is sooner). From the second visit on it is there within the budget.
+        const first = r.kept >= 0 && (r.shown < 0 || r.kept < r.shown) ? r.kept : r.shown;
+        say(`  ${p.name}: its own view on screen after ${first} ms (kept copy ${r.kept}, live ${r.shown})`);
+        if (round >= 1 && (first < 0 || first > SWITCH_MAX_MS))
+          late.push(`${p.name} round ${round + 1}: its own view after ${first} ms`);
         if (r.shown < 0 || r.shown > HOLD_CEILING_MS)
           blanks.push(`${p.name} round ${round + 1}: first line after ${r.shown} ms`);
         if (r.maxBlank > 2) blanks.push(`${p.name} round ${round + 1}: ${r.maxBlank} empty frames in a row`);
@@ -193,6 +209,11 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
     }
     for (const [k, v] of Object.entries(results)) say(`${k}: ${v.join(", ")} ms`);
     assert.deepEqual(blanks, [], `a tab that is already open paints at once:\n${blanks.join("\n")}`);
+    assert.deepEqual(
+      late,
+      [],
+      `a tab chosen again shows its own view within ${SWITCH_MAX_MS} ms of the press:\n${late.join("\n")}`,
+    );
   } finally {
     await page.screenshot({ path: path.join(shots, "end.png") }).catch(() => undefined);
     await browser.close();

@@ -300,3 +300,9 @@ test("a branch, a wait, a question and a text each wear their own glyph, never o
   assert.equal(new Set(keys).size, keys.length, `distinct: ${keys.join(",")}`);
   assert.deepEqual([glyphKeyOf("wait"), glyphKeyOf("approval"), glyphKeyOf("send_sms")], ["wait", "ask", "sms"]);
 });
+
+test("the code step wears its own glyph, the web request its plug", () => {
+  assert.equal(glyphKeyOf("code"), "code");
+  assert.equal(glyphKeyOf("http_request"), "plug");
+  assert.equal(glyphKeyOf("transform"), "logic");
+});

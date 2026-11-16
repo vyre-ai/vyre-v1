@@ -12,7 +12,7 @@ import { controlText, writeControl } from "./form-model.ts";
 import type { Control } from "./form-model.ts";
 import { Glyph } from "./icons.tsx";
 import { pointer } from "./parts.tsx";
-import { THINGS, useThingPicks, useWhoPicks } from "./steps/useLists.ts";
+import { THINGS, thingInput, useThingPicks, useWhoPicks } from "./steps/useLists.ts";
 import type { OpenMenu } from "./steps/StepForms.tsx";
 
 type Input = Record<string, unknown>;
@@ -62,7 +62,7 @@ function WhoField({
                 checked: current?.id === p.assignee.id,
                 onSelect: () => onValue(p.assignee),
               });
-        openMenu(entries, x, y, "other");
+        openMenu(entries, x, y, "other", undefined, entries.length > 8 ? { search: "Search people" } : {});
       }}
     />
   );
@@ -76,14 +76,18 @@ function ThingField({
   value,
   onValue,
   openMenu,
+  step,
 }: {
   control: Control;
   value: unknown;
   onValue(next: unknown): void;
   openMenu: OpenMenu;
+  /** The step's own settings: a record is listed once its type is named. */
+  step: Input;
 }): ReactElement {
   const prefix = control.ref ?? "";
-  const picks = useThingPicks(prefix);
+  const picks = useThingPicks(prefix, step);
+  const waiting = THINGS[prefix]?.needs !== undefined && thingInput(THINGS[prefix]!, step) === null;
   const word = THINGS[prefix]?.word ?? "one";
   const held = typeof value === "string" ? value : "";
   const hit = picks.state === "ready" ? picks.items.find((p) => p.value === held) : undefined;
@@ -108,10 +112,18 @@ function ThingField({
           for (const p of picks.items)
             entries.push({ label: p.label, checked: held === p.value, onSelect: () => onValue(p.value) });
         if (entries.length === 0)
-          entries.push({ label: picks.state === "loading" ? "Loading" : `No ${word} to choose`, disabled: true });
+          entries.push({
+            label: waiting
+              ? "Choose the record type first"
+              : picks.state === "loading"
+                ? "Loading"
+                : `No ${word} to choose`,
+            disabled: true,
+          });
         else if (!control.required && held !== "")
-          entries.push({ separator: true }, { label: "None", onSelect: () => onValue(undefined) });
-        openMenu(entries, x, y, "other");
+          entries.push({ separator: true }, { label: "None", onSelect: () => onValue(undefined), keep: true });
+        // a long list is searched by typing, the way every picker in the app is
+        openMenu(entries, x, y, "other", undefined, entries.length > 6 ? { search: `Search ${word}s` } : {});
       }}
     />
   );
@@ -175,6 +187,7 @@ function One({
         <ThingField
           control={{ ...control, label }}
           value={current}
+          step={input}
           openMenu={openMenu}
           onValue={(next) => {
             const copy = { ...input };

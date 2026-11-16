@@ -366,3 +366,26 @@ test("an update names the record and what it sets", () => {
   assert.match(text, /Tidy Co/);
   assert.match(text, /Name to Tidy Co/);
 });
+
+// rc.32 lane r32-auto: a Wait for an event, a code step and an HTTP request without a method read as sentences, never "Wait ..." or "Run ... code"
+const sayOf = (key: string, input: Record<string, unknown>): string => {
+  const r = fromDefinition({ triggers: [{ key: "manual" }], nodes: [{ id: "n1", key, input }] }, ctx());
+  const s = r.steps[0]!;
+  return story({ name: "x", steps: [s], trigger: r.trigger } as never).rows.find((x) => x.kind === "step")!.sentence
+    .text;
+};
+test("a Wait for an event says what it waits for in words, a time still reads as a time", () => {
+  assert.equal(sayOf("wait", { event: { event: "task.completed" } }), "Wait for task completed");
+  assert.equal(
+    sayOf("wait", { event: { event: "approval.decided", filter: { state: "done" } } }),
+    "Wait for approval decided",
+  );
+  assert.equal(sayOf("wait", { forDuration: "2d" }), "Wait 2 days");
+});
+test("Run code and the HTTP request name themselves without a language or a method", () => {
+  assert.equal(sayOf("code", { source: "return 1;" }), "Run code");
+  assert.equal(
+    sayOf("http_request", { url: "https://api.example.com/orders" }),
+    "Send a GET request to https://api.example.com/orders",
+  );
+});

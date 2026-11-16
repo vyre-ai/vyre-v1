@@ -4,12 +4,18 @@ import { useEffect, useState } from "react";
 import { useConnectVersion } from "../../../../shell/connect/context.ts";
 import { useOptionalAutomationsData } from "../data.tsx";
 import { agentPicks, refPicks, vaultPicks, whoPicks } from "./picks.ts";
-import { rec, text } from "./picks.ts";
+import { THINGS, thingInput, thingPicks, rec, text } from "./picks.ts";
+import type { ThingKind, ThingPick } from "./picks.ts";
+export { THINGS, thingInput, thingPicks };
+export type { ThingKind, ThingPick };
 import type { AgentPick, RefPick, VaultPick, WhoPick } from "./picks.ts";
 
 export type Load<T> = { state: "loading" } | { state: "ready"; items: T[] } | { state: "unavailable" };
 
-function useLoaded<T>(load: (call: (cap: string, input: unknown) => Promise<unknown>) => Promise<T[]>): Load<T> {
+function useLoaded<T>(
+  load: (call: (cap: string, input: unknown) => Promise<unknown>) => Promise<T[]>,
+  again = "",
+): Load<T> {
   const data = useOptionalAutomationsData();
   const connected = useConnectVersion();
   const [value, setValue] = useState<Load<T>>({ state: "loading" });
@@ -32,7 +38,7 @@ function useLoaded<T>(load: (call: (cap: string, input: unknown) => Promise<unkn
     };
     // the lists are loaded once for a form that is open
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, connected]);
+  }, [data, connected, again]);
   return value;
 }
 
@@ -54,61 +60,27 @@ const REF_CAP = { types: "schema.types.list", forms: "forms.list", journeys: "jo
 export const useRefPicks = (kind: "types" | "forms" | "journeys"): Load<RefPick> =>
   useLoaded(async (call) => refPicks(kind, await call(REF_CAP[kind], {})));
 
-/** The things a field can hold the id of, by the id's prefix: which list to ask, and which row field is the id and which the name. Never shown as ids. */
-export interface ThingKind {
-  cap: string;
-  input: Record<string, unknown>;
-  key: string;
-  ids: string[];
-  names: string[];
-  word: string;
-}
-export const THINGS: Record<string, ThingKind> = {
-  chn: {
-    cap: "channels.list",
-    input: { limit: 200 },
-    key: "channels",
-    ids: ["id", "channelId"],
-    names: ["name", "title"],
-    word: "channel",
-  },
-  mbx: {
-    cap: "mail.mailbox.list",
-    input: { limit: 200 },
-    key: "mailboxes",
-    ids: ["id", "mailboxId"],
-    names: ["address", "name"],
-    word: "mailbox",
-  },
-  agt: { cap: "agents.list", input: {}, key: "agents", ids: ["agentId", "id"], names: ["name"], word: "agent" },
-  aut: { cap: "automations.list", input: {}, key: "automations", ids: ["id"], names: ["name"], word: "automation" },
-  jrn: { cap: "journeys.list", input: {}, key: "journeys", ids: ["id"], names: ["name"], word: "journey" },
-  frm: {
-    cap: "forms.list",
-    input: { limit: 200 },
-    key: "forms",
-    ids: ["formId", "id"],
-    names: ["name", "title"],
-    word: "form",
-  },
+export const useThingPicks = (prefix: string, step: Record<string, unknown> = {}): Load<ThingPick> => {
+  const kind = THINGS[prefix];
+  const ask = kind ? thingInput(kind, step) : null;
+  const key = JSON.stringify(ask);
+  return useLoaded(async (call) => (kind && ask ? thingPicks(kind, await call(kind.cap, ask)) : []), key);
 };
-export interface ThingPick {
-  value: string;
-  label: string;
-}
-export function thingPicks(kind: ThingKind, out: unknown): ThingPick[] {
-  const rows = rec(out) && Array.isArray(out[kind.key]) ? (out[kind.key] as unknown[]) : [];
-  const picks: ThingPick[] = [];
-  for (const raw of rows) {
-    if (!rec(raw)) continue;
-    const value = kind.ids.map((k) => text(raw[k])).find((v) => v !== "") ?? "";
-    const label = kind.names.map((k) => text(raw[k])).find((v) => v !== "") ?? "";
-    if (value !== "" && label !== "") picks.push({ value, label });
-  }
-  return picks;
-}
-export const useThingPicks = (prefix: string): Load<ThingPick> =>
+
+/** The Space's event catalogue (events.types): what a Wait can wait for. */
+export const useEventTypes = (): Load<{ name: string; summary: string; payload?: unknown }> =>
   useLoaded(async (call) => {
-    const kind = THINGS[prefix];
-    return kind ? thingPicks(kind, await call(kind.cap, kind.input)) : [];
+    const out = await call("events.types", {});
+    const rows = rec(out) && Array.isArray(out["types"]) ? (out["types"] as unknown[]) : [];
+    return rows.flatMap((r) =>
+      rec(r) && text(r["name"]) !== ""
+        ? [
+            {
+              name: text(r["name"]),
+              summary: text(r["summary"]),
+              ...(r["payload"] !== undefined ? { payload: r["payload"] } : {}),
+            },
+          ]
+        : [],
+    );
   });
