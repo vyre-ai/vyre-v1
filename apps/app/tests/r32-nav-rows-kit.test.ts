@@ -1,6 +1,5 @@
-// @tsx
-// Lane r32-nav, item 1 (desktop, 1440, dark). Every place's rows have Open in New Tab in their right-click menu, and the keyboard reaches the menu (Shift+F10, the Menu key).
-import test from "node:test";
+// Helper for the r32-nav row-menu walks (not a walk): every place's rows have Open in New Tab in their right-click menu, and the keyboard reaches the menu (Shift+F10, the Menu key). Two walks share it so each stays short.
+import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { bootNav } from "./r32-nav-kit.test.ts";
 import type { Pg } from "./r32-nav-kit.test.ts";
@@ -12,8 +11,8 @@ const tabNames = (page: Pg): Promise<string[]> =>
     ),
   );
 
-test("rows: every place's rows offer Open in New Tab, by mouse and by keyboard", async (t) => {
-  const k = await bootNav({ width: 1440, height: 900, scheme: "dark", tag: "rows-dark-1440" });
+export async function rowMenuWalk(t: TestContext, places: readonly string[], tag: string): Promise<void> {
+  const k = await bootNav({ width: 1440, height: 900, scheme: "dark", tag });
   if (!k) {
     t.skip("VYRE_APP_DIST required");
     return;
@@ -65,6 +64,7 @@ test("rows: every place's rows offer Open in New Tab, by mouse and by keyboard",
       ["inbox", () => page.getByTestId("row-nav:view:thread")],
     ];
     for (const [name, row] of cases) {
+      if (!places.includes(name)) continue;
       await place(name);
       const r = row();
       await r.waitFor({ timeout: 15_000 }).catch(async (e) => {
@@ -108,4 +108,4 @@ test("rows: every place's rows offer Open in New Tab, by mouse and by keyboard",
   } finally {
     await k.close();
   }
-});
+}
