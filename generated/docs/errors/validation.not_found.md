@@ -16,6 +16,8 @@ HTTP 404. Retryable: no.
 - agents.config.get
 - agents.config.validate
 - agents.delete
+- agents.delete_for_good
+- agents.delete_preview
 - agents.get
 - agents.instruction.append
 - agents.limits.get
@@ -29,5 +31,3 @@ HTTP 404. Retryable: no.
 - agents.routine.delete
 - agents.routine.run_now
 - agents.routines.list
-- agents.set_owner
-- agents.share_class

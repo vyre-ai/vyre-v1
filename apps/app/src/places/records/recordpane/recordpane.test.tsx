@@ -52,7 +52,7 @@ async function up(s: SamplePage, tab: "activity" | "comments" | "files", id = "c
 }
 const names = (id: string): string =>
   (
-    ({ usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_irfad: "Irfad Imtiaz", agt_intake: "Intake" }) as Record<
+    ({ usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_imran: "Imran Ibarra", agt_intake: "Intake" }) as Record<
       string,
       string
     >
@@ -173,8 +173,7 @@ test("the @ in a text: what is being typed, the people it offers, the name that 
 test("Activity lists the record's real history newest first, one row each with a face, and an edit shows at the top at once", async () => {
   const s = createSamplePage();
   const root = await up(s, "activity");
-  const actRows = (): string[] =>
-    ids(root).filter((i) => i.startsWith("row-act:") && !/-(leading|trailing|suffix|marks)$/.test(i));
+  const actRows = (): string[] => ids(root).filter((i) => i === "record-timeline-entry");
   const rows = actRows();
   assert.ok(rows.length >= 5, "the five seeded changes are there");
   const first = textOf(find(root, rows[0]!));
@@ -188,7 +187,7 @@ test("Activity lists the record's real history newest first, one row each with a
   await flush();
   const after = actRows();
   assert.equal(after.length, before + 1, "the edit is a new row");
-  assert.ok(textOf(find(root, after[0]!)).includes("Irfad set phone to +1 415 555 0100"), "at the top");
+  assert.ok(textOf(find(root, after[0]!)).includes("Imran set phone to +1 415 555 0100"), "at the top");
 });
 
 test("a record nobody has touched shows an icon and one short line", async () => {
@@ -254,7 +253,7 @@ test("resolving a thread hides it from the default view, the Resolved filter sho
   await press(find(root, "filter-resolved"));
   await flush();
   assert.ok(find(root, `thread-${a}`) && find(root, `resolved-by-${a}`), "the filter shows it, marked resolved");
-  assert.ok(textOf(find(root, `resolved-by-${a}`)).includes("Resolved by Irfad Imtiaz"));
+  assert.ok(textOf(find(root, `resolved-by-${a}`)).includes("Resolved by Imran Ibarra"));
   await press(find(root, `reopen-${a}`));
   await flush();
   assert.ok(find(root, `thread-${a}`) && !find(root, `resolved-by-${a}`), "reopened");

@@ -1,7 +1,9 @@
 // The Settings place: You, and under the Space's own name what applies to everyone here, with one search (Cmd-F) over all of it. Changes save as they are made. The Console's pages open
 // inside a Space page, with a way back. On a phone the page list and a page are two screens with a back arrow.
+import { openIn, takeOpenHow } from "../../shell/tabs/open-how.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
-import { SidebarContent, useInSidebarSlot } from "../../shell/sidebar/index.ts";
+import { SidebarContent, useInSidebarSlot, useOptionalSidebarSlot } from "../../shell/sidebar/index.ts";
+import { portalInto } from "../../shell/sidebar/portal.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import type { ReactElement } from "react";
@@ -120,6 +122,13 @@ function SettingsBody({
   }, [found, page]);
 
   const open = (key: PageKey, row: string | null = null): void => {
+    // Cmd-press or the middle button on a page of the list: that page opens as a tab beside this one (tabs/open-rule.ts)
+    const how = takeOpenHow();
+    if (how !== "here" && data.openPageTab && row === null) {
+      const tab = data.openPageTab;
+      openIn(how, () => tab(key));
+      return;
+    }
     setPage(key);
     setFound(row);
     setView("page");
@@ -257,16 +266,24 @@ function SettingsBody({
     </View>
   );
 
+  const slotApi = useOptionalSidebarSlot();
+  const inColumn = inSlot && !phone;
+  const otherNeeds = data.spaces.some((sp) => !sp.current && sp.needsYou > 0);
   const nav = (
     <View style={[n.nav, phone && { width: "100%" as unknown as number }]} testID="settings-nav">
-      <View style={n.top}>
-        <Text numberOfLines={1} accessibilityRole="header" style={n.space}>
-          Settings
-        </Text>
-        {data.spaces.some((sp) => !sp.current && sp.needsYou > 0) ? (
-          <View style={n.dot} accessibilityLabel="Another Space needs you" />
-        ) : null}
-      </View>
+      {inColumn ? (
+        // the column's own head carries the title; this dot goes in its buttons' spot
+        otherNeeds ? (
+          portalInto(slotApi?.actionsOutlet, <View style={n.dot} accessibilityLabel="Another Space needs you" />)
+        ) : null
+      ) : (
+        <View style={n.top}>
+          <Text numberOfLines={1} accessibilityRole="header" style={n.space}>
+            Settings
+          </Text>
+          {otherNeeds ? <View style={n.dot} accessibilityLabel="Another Space needs you" /> : null}
+        </View>
+      )}
       <View style={n.searchWrap}>
         <View style={n.search}>
           <Glyph name="search" size={14} color="var(--ink-3)" />
@@ -438,7 +455,7 @@ function SettingsBody({
           <>
             {inSlot ? (
               // inside the app the list is drawn in the shell's one sidebar column: the same place and width as every other place's list (team/v1/TABS-2026-11-15.md)
-              <SidebarContent title="Settings" bare noSearch>
+              <SidebarContent title="Settings" noSearch>
                 {() => (
                   <View style={n.navSlot} testID="settings-nav-col">
                     {nav}

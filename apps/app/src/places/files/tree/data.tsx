@@ -19,6 +19,7 @@ export type LiveCap =
   | "files.shared_with_me"
   | "files.knowledge"
   | "files.trash.list"
+  | "agents.trash.list"
   | "files.tree"
   | "changesets.list"
   | "stars.list"
@@ -30,6 +31,8 @@ export type LiveCap =
 export interface FilesNav {
   /** Double click or Enter on a file: the viewer tab. */
   openFile(fileId: string): void;
+  /** A folder as a page of its own (a tab beside this one: the row's Open in New Tab). Left out where there is none. */
+  openFolder?(folderId: string): void;
   /** Share a folder: the shell opens ui/ShareSheet for it. Left out where there is no one to share with (a Personal Space), and then no Share item shows. */
   shareFolder?(folderId: string): void;
   /** Share a file: the same sheet, on the file. Left out where there is no one to share with. */
@@ -58,6 +61,8 @@ export interface FilesNav {
   openGoal?(goalId: string): void;
   /** Resolve the two edits of a file (the Conflict tag): the shell opens the conflict choice for it. */
   resolveConflict?(fileId: string): void;
+  /** Open a task, goal, Automation or project in a tab of its own (the Delete for good sheet lists what will need someone). */
+  openItem?(type: "task" | "goal" | "automation" | "project", id: string): void;
   /** Open an address outside Vyre (a mounted file in its provider's editor): the shell's own way of opening a link. */
   openExternal?(url: string): void;
 }

@@ -1,4 +1,4 @@
-// A tool the model finds with tool_search is callable in the very next step of the same turn (owner's and Andrey's 7 minute, 1.5 million token turn: the set was read once per send, so a found tool
+// A tool the model finds with tool_search is callable in the very next step of the same turn (owner's and Andrea's 7 minute, 1.5 million token turn: the set was read once per send, so a found tool
 // came only a turn later and the model searched nineteen times). The new tools go at the end of the list, so the ones already sent keep their place.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -140,7 +140,7 @@ test("the same search twice in a turn gets a plain hint, not another search", as
   );
 });
 
-// A replay of the shape of Andrey's turn: a question about the Inbox, a model that calls inbox_list_by_thread when it can see it and searches for it when it cannot. Counted in model calls.
+// A replay of the shape of Andrea's turn: a question about the Inbox, a model that calls inbox_list_by_thread when it can see it and searches for it when it cannot. Counted in model calls.
 async function replay(o: { reloads: boolean; preloaded: boolean }): Promise<number> {
   const { session } = makeSession();
   const c = toolCtx();

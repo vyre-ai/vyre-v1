@@ -69,5 +69,5 @@ test("a redirect is not followed (the request says so), and only a plain DNS nam
     "localhost",
   ])
     await assert.rejects(() => askArtifactHost(spy, bad, "/x"), /plain DNS name/, bad);
-  assert.ok(validArtifactHost("a.localhost:4100") && validArtifactHost("a.mla.vyre.run"));
+  assert.ok(validArtifactHost("a.localhost:4100") && validArtifactHost("a.northwind.vyre.run"));
 });

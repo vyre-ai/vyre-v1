@@ -3,9 +3,24 @@
 import { mustUse } from "../../../lib/vault-check.ts";
 import { CONNECTION_KEY_LINE } from "../../../lib/vault-lines.ts";
 import { newPkce, oauthOf, OAUTH_TTL_MS } from "./oauth.ts";
-import { checkEgress, ensureTables, mintShort, nowOf, PAGE, refuse, scrubber, seedBuiltins } from "../projections.ts";
+import {
+  checkEgress,
+  ensureTables,
+  hostFromInput,
+  keyHosts,
+  recordHosts,
+  probeHost,
+  probeOf,
+  mintShort,
+  nowOf,
+  PAGE,
+  refuse,
+  scrubber,
+  seedBuiltins,
+} from "../projections.ts";
 import type { ConnectionDb, ConnectionState, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 import { clearReconnectTask, executeAction } from "./runtime.ts";
+import { destinationProblem } from "../destination.ts";
 
 export interface ConnectionRow {
   connectionId: string;
@@ -60,6 +75,10 @@ export interface ConnectionsHandlers {
     ctx: ConnectorsCtx,
     input: { connectionId: string },
   ): Promise<{ state: ConnectionState; stamped: boolean }>;
+  "connections.approve_hosts"(
+    ctx: ConnectorsCtx,
+    input: { connectionId: string; hosts: string[] },
+  ): Promise<{ hosts: string[] }>;
   "connections.delete"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ deleted: boolean }>;
   "connectors.for_service"(ctx: ConnectorsCtx, input: { service: string }): Promise<ForService>;
   "connectors.check_key"(
@@ -85,44 +104,13 @@ export interface ForService {
   };
   connection?: { connectionId: string; owner: "mine" | "space"; state: ConnectionState };
   near?: string[];
+  /** A built-in connector the card does not offer (its hosts cannot be made exact): it keeps its older way, from Connections. */
+  older?: string;
 }
 
-/** The call that tries a key: the connector's health action, else its first GET that takes nothing from the caller. */
-/** The host a key tried by the connector's check is sent to: the host of that call's own address. */
-/** Every host a key kept for this connector can be sent to: the check's, then each action's own address. */
-export const keyHosts = (def: ConnectorDef): string[] => {
-  const out: string[] = [];
-  const first = probeHost(def);
-  if (first) out.push(first);
-  for (const a of def.actions) {
-    try {
-      const h = a.url ? new URL(a.url.replace(/\{[^}]*\}/g, "x")).hostname : "";
-      if (h && !out.includes(h)) out.push(h);
-    } catch {
-      /* not an address */
-    }
-  }
-  return out;
-};
-
-export const probeHost = (def: ConnectorDef): string | undefined => {
-  const name = def.health ?? probeOf(def);
-  const url = def.actions.find((a) => a.name === name)?.url;
-  try {
-    return url ? new URL(url.replace(/\{[^}]*\}/g, "x")).hostname : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
-export const probeOf = (def: ConnectorDef): string | undefined =>
-  def.health ??
-  def.actions.find(
-    (a) =>
-      (a.method ?? "GET") === "GET" &&
-      a.url !== undefined &&
-      !/\{input[.}]/.test(JSON.stringify([a.url, a.query, a.headers, a.body])),
-  )?.name;
+/** Is this connector exact enough to be connected from a card? The one decision lives in destination.ts (destinationProblem); this only reads the Space's built-in connectors for it. */
+export const hostsEqualDomains = (def: ConnectorDef, builtins: readonly ConnectorDef[] = []): boolean =>
+  destinationProblem(def, builtins) === null;
 
 /** "Fathom", "fathom.video" and "FATHOM" name one thing: lower case, letters and digits only. */
 const squash = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -145,6 +133,16 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     seedBuiltins(deps);
   };
   const actorOf = (ctx: ConnectorsCtx): string => ctx.actor ?? "system";
+  /** The Space's built-in connectors: what a connector somebody else published may not overlap (destination.ts). */
+  const builtinDefs = (): ConnectorDef[] =>
+    tx
+      .all<{ def: string }>("SELECT def FROM cn_connectors WHERE builtin = 1")
+      .map((r) => ({ ...(JSON.parse(r.def) as ConnectorDef), builtin: true }));
+  /** Built in is what the row says (seeded by the server), never what a published definition says of itself: a person-made or agent-published connector cannot call itself built in. */
+  const asStored = (r: { def: string; builtin: number }): ConnectorDef => ({
+    ...(JSON.parse(r.def) as ConnectorDef),
+    builtin: r.builtin === 1,
+  });
 
   const rowOf = (r: ConnectionDb): ConnectionRow => ({
     connectionId: r.connection_id,
@@ -175,9 +173,12 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       refuse(ctx, "permission.no_grant", "Only the owner of this connection can change it.");
   };
   const defOf = (ctx: ConnectorsCtx, key: string): ConnectorDef => {
-    const c = tx.get<{ def: string; state: string }>("SELECT def, state FROM cn_connectors WHERE key = ?", key);
+    const c = tx.get<{ def: string; state: string; builtin: number }>(
+      "SELECT def, state, builtin FROM cn_connectors WHERE key = ?",
+      key,
+    );
     if (!c) return refuse(ctx, "validation.not_found", `There is no connector ${key}.`);
-    return JSON.parse(c.def) as ConnectorDef;
+    return asStored(c);
   };
   const secretsOf = (r: ConnectionDb): Record<string, string> => JSON.parse(r.secrets) as Record<string, string>;
 
@@ -307,6 +308,14 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         JSON.stringify(secrets),
         now,
       );
+      // the hosts this connection's key may go to, fixed now: what its actions call, never what the definition says later
+      // (an action whose address takes its host from the caller's input has no fixed host to record: such a connection keeps the connector's declared domains as its limit, and the card never connects it)
+      if (!hostFromInput(def) && keyHosts(def).length > 0)
+        tx.run(
+          "INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
+          id,
+          JSON.stringify(recordHosts(def)),
+        );
       const row = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", id)!;
       const authUrl = authUrlFor(def, row, input.scopes ?? [], false, ctx);
       // An OAuth connection is made when the sign-in comes back (complete_auth announces it); every other kind exists now.
@@ -526,6 +535,35 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
 
     // The connection's own module proved it works without going through the connector runtime (Google delegation reads mail and calendar with a token it mints itself), so nothing else would ever
     // make it active or stamp it used. Only the server's own jobs and people who may change the connection can say so.
+    // The person who owns the connection allows the hosts its connector calls now (it gained one since they approved). A connector that lost a host needs nothing: it just stops calling it.
+    "connections.approve_hosts": async (ctx, input) => {
+      ready();
+      const r = need(ctx, input.connectionId);
+      owned(ctx, r);
+      if (ctx.callerKind !== "person")
+        refuse(ctx, "permission.no_grant", "Only a person can allow where a key is sent.");
+      const def = defOf(ctx, r.connector);
+      const hosts = recordHosts(def);
+      // what the person approves is what they were shown: a connector republished between the card and the press has other addresses, and nothing is recorded
+      if (
+        [...input.hosts]
+          .map((h) => h.toLowerCase())
+          .sort()
+          .join("\n") !== [...hosts].sort().join("\n")
+      )
+        refuse(
+          ctx,
+          "validation.precondition_failed",
+          `${def.title} changed since you looked. Open the connection again.`,
+        );
+      tx.run(
+        "INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
+        r.connection_id,
+        JSON.stringify(hosts),
+      );
+      return { hosts };
+    },
+
     "connections.mark_working": async (ctx, input) => {
       const r = need(ctx, input.connectionId);
       // the server's own jobs, or whoever may change this connection: a member cannot mark a failing Space connection active
@@ -553,12 +591,20 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const want = squash(input.service);
       const rows = want
         ? tx
-            .all<{ key: string; def: string; state: string }>("SELECT key, def, state FROM cn_connectors ORDER BY key")
+            .all<{
+              key: string;
+              def: string;
+              state: string;
+              builtin: number;
+            }>("SELECT key, def, state, builtin FROM cn_connectors ORDER BY key")
             .filter((r) => r.state !== "draft")
         : [];
-      const defs = rows.map((r) => JSON.parse(r.def) as ConnectorDef);
+      const defs = rows.map(asStored);
       // the exact name (key or title), never a prefix: "Git" is not GitHub. Several with that name is not a guess either.
-      const exact = defs.filter((d) => squash(d.key) === want || squash(d.title) === want);
+      let exact = defs.filter((d) => squash(d.key) === want || squash(d.title) === want);
+      // a built-in connector wins over an agent-published namesake: an agent cannot switch the card off for a service by publishing one of the same name
+      const builtIn = exact.filter((d) => d.builtin === true);
+      if (exact.length > 1 && builtIn.length === 1) exact = builtIn;
       if (exact.length !== 1)
         return {
           found: false,
@@ -570,8 +616,10 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
             .slice(0, 3),
         };
       const hit = exact[0]!;
-      // a connector whose check or any action reaches a host it does not declare cannot be connected: the key would go there
-      if (keyHosts(hit).some((h) => !checkEgress(`https://${h}/`, hit.domains).ok)) return { found: false, near: [] };
+      // a connector whose declared domains are not exactly the hosts its actions call cannot be connected from a card: the person approves the hosts the key goes to, and a domain no action calls (or a
+      // wildcard) is a place the key could be sent to without them having seen it
+      if (!hostsEqualDomains(hit, builtinDefs()))
+        return hit.builtin === true ? { found: false, near: [], older: hit.title } : { found: false, near: [] };
       const me = actorOf(ctx);
       const mine = tx
         .all<ConnectionDb>("SELECT * FROM cn_connections WHERE connector = ? ORDER BY created_at", hit.key)
@@ -616,12 +664,15 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     "connectors.check_key": async (ctx, input) => {
       ready();
       // sending a typed key to an app is a person's act, done from their own card; an agent never calls it
-      if (ctx.callerKind !== undefined && ctx.callerKind !== "person")
+      if (ctx.callerKind !== "person")
         refuse(ctx, "permission.no_grant", "Only the person who types a key can have it tried.");
       const def = defOf(ctx, input.connector);
       const c = tx.get<{ state: string }>("SELECT state FROM cn_connectors WHERE key = ?", input.connector)!;
       if (c.state === "draft")
         refuse(ctx, "validation.precondition_failed", `${def.title} is not published yet, so it cannot be tried.`);
+      // a typed key is sent only where a card could have sent it: the same rule as the card's, so a connector the card would not offer is not tried by a call that skips the card
+      if (!hostsEqualDomains(def, builtinDefs()))
+        refuse(ctx, "validation.precondition_failed", `${def.title} cannot be tried from a card, so no key was sent.`);
       for (const s of def.secrets)
         if (!/\boptional\b/i.test(s.description) && !(input.secrets[s.name] ?? "").trim())
           refuse(ctx, "validation.bad_input", `${labelOfSlot(s.name)} is needed.`);
@@ -667,6 +718,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         r.connection_id,
       );
       tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", r.connection_id);
+      tx.run("DELETE FROM cn_connection_hosts WHERE connection_id = ?", r.connection_id);
       tx.run("DELETE FROM cn_connections WHERE connection_id = ?", r.connection_id);
       ctx.emit("connection.deleted", `connection/${r.connection_id}`, {
         connectionId: r.connection_id,

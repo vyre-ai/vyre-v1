@@ -131,6 +131,10 @@ export class LogClient {
   purgeIdempotency(): Promise<number> {
     return this.call("idem_purge");
   }
+  /** Delete the kept answers that carry these ids (erasing an agent). */
+  forgetText(needles: readonly string[]): Promise<number> {
+    return this.call("idem_forget_text", { needles });
+  }
   /** Blank a sealed field in the kept answers of old writes (how many answers changed). */
   forgetField(type: string, field: string): Promise<number> {
     return this.call("idem_forget_field", { type, field });

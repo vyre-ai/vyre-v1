@@ -112,11 +112,11 @@ mod tests {
 
     #[test]
     fn claim_link_carries_address_token_and_space() {
-        let l = parse("vyre://claim?address=https%3A%2F%2Fmla.vyre.run&token=clm_abcdefgh&s=spc_mla&fp=9f3c&n=MLA").unwrap();
+        let l = parse("vyre://claim?address=https%3A%2F%2Fnorthwind.vyre.run&token=clm_abcdefgh&s=spc_northwind&fp=9f3c&n=Northwind").unwrap();
         assert_eq!(l.action, "claim");
-        assert_eq!(l.params["address"], "https://mla.vyre.run");
+        assert_eq!(l.params["address"], "https://northwind.vyre.run");
         assert_eq!(l.params["token"], "clm_abcdefgh");
-        assert_eq!(l.params["s"], "spc_mla");
+        assert_eq!(l.params["s"], "spc_northwind");
     }
 
     #[test]

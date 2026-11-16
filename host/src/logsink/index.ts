@@ -537,13 +537,22 @@ export class LogSink implements SpanSink {
           msg,
           ...(typeof t === "string" ? { trace_id: t } : {}),
           ...(typeof attrs?.["cap"] === "string" ? { cap: attrs["cap"] } : {}),
+          // where a refused call came from: its chat and its run, in the columns a query filters on
+          ...(typeof attrs?.["threadId"] === "string" ? { thread_id: attrs["threadId"] } : {}),
+          ...(typeof attrs?.["runId"] === "string" ? { run_id: attrs["runId"] } : {}),
           // a refused or failed call names who made it and its result in the columns a query filters on
           ...(typeof actor === "string" ? { actor } : {}),
           ...(typeof onBehalf === "string" ? { on_behalf: onBehalf } : {}),
           ...(msg === "invoke" && typeof status === "string" ? { result: status } : {}),
           // the ids go in their columns only, where an erased person is tombstoned, never in attrs
           ...(attrs
-            ? { attrs: Object.fromEntries(Object.entries(attrs).filter(([k]) => k !== "actor" && k !== "onBehalf")) }
+            ? {
+                attrs: Object.fromEntries(
+                  Object.entries(attrs).filter(
+                    ([k]) => k !== "actor" && k !== "onBehalf" && k !== "threadId" && k !== "runId",
+                  ),
+                ),
+              }
             : {}),
         });
       };

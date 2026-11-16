@@ -56,6 +56,7 @@ type Out = {
     state: "pending" | "active" | "paused" | "needs_reconnect" | "failing";
   };
   near?: Array<string>;
+  older?: string;
 };
 ```
 
@@ -104,7 +105,8 @@ type Out = {
     "found": true,
     "near": [
       "example"
-    ]
+    ],
+    "older": "example"
   }
 }
 ```

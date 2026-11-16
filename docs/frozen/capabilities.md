@@ -479,6 +479,14 @@ Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9
 
 Signed: lead, 15 Nov 2026 (landed on the rc.29 line with wip/f-drive-land 9996a9109)
 
+## 15 Nov 2026: agents.delete_for_good, agents.delete_preview, agents.trash.list and files.folder.purge are new; folderRow gains an optional deletedAt (lane f-agentdel)
+
+`agents.delete_for_good` (write, level member; the handler lets only the agent's owner or an admin through and answers anyone else not found; gated for an agent caller with Gate act delete; refuses an agent on itself, a person's Assistant, and an agent not in Trash) records one durable job and answers `{ erasing }`; pressing again answers the same calm way from the tombstone. `agents.delete_preview` (read, level manage on the agent) answers real counts (one-to-one chats, shared chats, memory items, routines, bytes), the things made by others that name the agent and need someone (each with a `link`), and the backups line. `agents.trash.list` (read, member) lists the agents in Trash and which are being deleted. `files.folder.purge` (write, perm files.delete, gated for an agent caller) deletes a folder in Trash for good with everything under it; an agent's folder takes the agent with it. `folderRow` gains optional `deletedAt`. New events `agent.erasing`, `agent.erased` and `folder.purged`. New host calls (not capabilities) `<module>.erase_agent` in nineteen modules, callable only by the agents erase job and the preview (host/src/daemon/consumers.ts guardCall).
+- Why: F77, the owner's rule that erase means erased. Delete still moves an agent to Trash and restore brings it whole; delete for good clears every store that holds something of it, leaves the audit log, a tombstone (id never reused) and backups.
+- Compatibility: no existing capability changed; `files.trash.empty` and the Trash keep time now also reach agents through `folder.purged`.
+
+Signed: lead, 16 Nov 2026 02:40 PKT, after two data-safety reviews (team/v1/reviews/r-agentdel-2026-11-16.md: six blocking items, then two, all closed by the lane with tests). Left open and known: the phone shows no "in Trash" line on an agent's page; delete, restore and delete within milliseconds can leave a channel without its "was deleted" line.
+
 ## 13 Nov 2026: computers.browser.my_sign_ins added (lane f-agentpc)
 
 `computers.browser.my_sign_ins@1` is a new read (additive; no existing capability changes). In: `agentId`. Out: `profile` (`own` or `agent`) and `signIns`, one `{kind: "browser", site, signedInAs?, since, lastSeen}` per site the browser profile this person's turns of the agent use is signed in to: a person who does not own a shared agent has a profile of their own on it, the agent's owner has the agent's own. Never a value, never another person's. Read as the person asking.
@@ -544,6 +552,23 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11-15.md) and the lane's fourth round; the limits that remain are the ones written above.
 
 
+## 13 Nov 2026: sites.artifact_publish summary reworded to say what is required (lane f-firstcall)
+
+The summary of `sites.artifact_publish@1`, the words a model reads, now begins with what the call needs ("Needs a title and exactly one of html, fileId, folderId, path or port"), gives one example call, and says that a title left out is taken from the page's own `<title>`. No input, output or error changes. The handler's refusal for two sources at once now names the two given, in the same code (`validation.bad_input`, field `html`). The tool layer (agent/src/tools) no longer shows a model the `idempotencyKey` of a `create` capability or the `threadId` of a chat tool as required; the contract is unchanged and the server still validates the full input, so an outside caller sends the key as before.
+
+Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
+
+## 13 Nov 2026: files.create and files.write summaries give the direct-write limit (lane f-firstcall)
+
+The summaries of `files.create@1` and `files.write@1`, the words a model reads, now say a direct write holds at most 256 KB (the limit the handlers already enforce, `MAX_INLINE`). The refusal for a larger one (`validation.too_large`, as before) now says the limit and to split the content into smaller files. No input, output or error code changes.
+
+Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
+
+## 16 Nov 2026: files.create summary says a folder is optional for an agent, and an agent's duplicate name becomes "name (2)" (lane f-firstcall2)
+
+The summary of `files.create@1`, the words a model reads, now says the content goes in `content.text`, that with no folder the file goes in the person's own files, and that a name already taken becomes "name (2)" for an agent. The contract is unchanged: `folderId` stays required on the server, an outside caller still sends it, and `validation.duplicate` is still answered to a person. What changes is behaviour for an agent principal only: the agent tool layer (agent/src/tools/place.ts) fills `folderId` with the person's own Personal root (found with `files.resolve`) when a model names none, reads a folder name or a path as the folder it means, and a `files.create` by an agent whose name is taken makes `name (2)` (`name (3)`, and so on) instead of failing; it never replaces a file. In a Review changes folder the duplicate is still refused (`validation.duplicate`), now with the words "Use another name, or replace that file with files_write.". No input, output or error code changes.
+
+Signed: lead, 16 Nov 2026 02:49 PKT, after reading the note: the contract is unchanged; a file with no folder goes to the person's own files and a taken name becomes "name (2)" for an agent only; the tool-token baseline 575,250 is accepted (the stated limits add 275 characters). the lead, 16 Nov 2026
 ## 16 Nov 2026: a goal says what holds its check-ins back, and a failed turn says when a usage limit lifts (finding F26, lane f-goalwake, brought onto the line by the lead)
 
 - What changed, all additive: the goal row (every `goals.*` answer that carries a goal) gains an optional `blocked` (`cause`: person, limit, transient or other; `what`, `fix` and `short` in words; `since`; `until` when it goes on by itself; `missed`; `code`), present only while something holds the check-ins back. `engine.turn.record` and the event `turn.failed` gain an optional `resetsAt` (when the provider said a usage limit lifts). No input, output or error was removed or made required.
@@ -551,3 +576,69 @@ Signed: lead, 15 Nov 2026 23:49 PKT, after three reviews (reviews/r-wall-2026-11
 - Proof: test/goals.wake-fail.live.test.ts, modules/goals/tests, lib/words/failure.test.ts, apps/app/src/places/chats/conversation/status.test.ts. Snapshots: docs/frozen/snapshots/goals.json and engine.json.
 
 Signed: lead, 16 Nov 2026 00:42 PKT, after reading the manifest diff: optional, additive fields only.
+
+## 15 Nov 2026: the connect card is on by default; the three open review items are closed (lane b-connect2, review r-keyreach-9-b-connect), for the lead to sign
+
+- What changed: the switch `VYRE_CONNECT_CARD` is now on unless it is `0`, `off` or `false` (`connectCardOn` in `lib/connect-switch.ts`); the ten capabilities of the 15 Nov note above answer as designed, the built-in Fathom connector is seeded, and `vault_connect` is listed from the first turn (the default listed set is the frozen 65 plus that one tool: 66 with the card on, 65 with the switch at 0).
+- `vault.item.discard_new` takes one more input, `requestId` (the connect request that saved the key). It refuses unless the connect request module answers, through the new capability `vault.connect_card.may_discard`, that this item is the one key that person's own card saved in its open try. It erases nothing else; the two-minute window is gone because the binding is stronger. Still `agent: false`, no tool (item C).
+- New capability `vault.connect_card.may_discard@1` (in `requestId`, `itemId`; out `ok`; `agent: false`, no tool): asked only by the Vault, answers only a person about their own request.
+- `vault.connect_card.get`, `.options`, `.submit`, `.ask_admin`, `.reopen` and `.disconnect` drop `tool: "vault"` and set `agent: false`: they are a person's press on their own card and are no agent tools (item A). Inputs and outputs did not change. The agent's one connect tool is `vault_connect`, whose answer never says what a person has saved.
+- Not a contract change but a rule the tests pin: a saved key is offered back only from the card's own stamp (same service, same person, same hosts); a connection's key is sent only to the hosts its own record lists (a new table `cn_connection_hosts` in the connectors module, written when the connection is made); `connectors.for_service` finds a connector only when its declared domains are exactly the hosts its actions call (item B).
+- Snapshots: docs/frozen/snapshots/vault-requests.json, vault.json.
+
+## 15 Nov 2026: more on the connect card (lane b-connect2, second review), for the lead to sign
+
+- New capabilities, none an agent tool: `chat.connect_line` (the engine writes one quiet line after a connect card is answered; it is written as the agent that asked, not as the person, so it is no message of theirs in messages, search or export, and it mentions the asking agent so that its turn starts); `vault.connect_card.line` (what anyone in the chat may read of a card: the service, whether it was asked, connected or declined, and who; nothing of keys or choices); `connections.approve_hosts` (the owner of a connection allows the hosts its connector now calls; a person only).
+- A connection's host record now holds each host with its port (the default port when none is given), so the same host on another port gets no key. A connector that gains a host since the person approved does not send the key there; the refusal reads "<Service> now also sends to <host>. Allow it from the connection to send the key there." and `connections.approve_hosts` adds it. A connector that loses a host just stops calling it. A built-in connector wins over an agent-published one of the same name; two of equal standing answer "none", and the agent is told that more than one has the name.
+- In plain words, no code change: an agent that used the key may say its handle in a reply (a handle is a name, not the key). A connection whose action takes its host from the caller's input has no host record and is not checked; no shipped connector is like that (the built-ins from the registry have no action addresses of their own and Fathom's host is fixed).
+- Snapshots: docs/frozen/snapshots/chat.json, vault-requests.json, connectors.json, vault.json.
+
+## 16 Nov 2026: the connect card is on by default, one added optional output, and the rule for where a key may go (lane b-connect3, for the lead to sign; reviewer to read)
+
+- What changed: `VYRE_CONNECT_CARD` is now on unless it is `0`, `off` or `false` (`lib/connect-switch.ts`; the old reading of rc.28, exactly `1`, is gone). The ten capabilities keep `internal.not_implemented` in their `errors` because the switch can still be set to `0` on a server and then they answer it; the error is not removed from their contracts.
+- `connectors.for_service` answers an optional `older` (the title of a built-in connector the card does not offer because its hosts cannot be made exact; it keeps its own place under Connections). Additive; an older client ignores it. Snapshot: docs/frozen/snapshots/connectors.json.
+- Not a contract change, a rule the tests pin (modules/connectors/destination.ts, `destinationProblem`): a connector is offered by the card, and a typed key is tried at it, only when its declared domains are exactly the hosts its actions call, no domain is a wildcard, every action is https, no host is an address, `localhost`, a single label or a private suffix (`.internal`, `.local`, `.lan` and the like), and, for a connector that is not built in, no host sits on, under or over a built-in connector's domain. Whether a connector is built in is read from the stored row, never from what its definition says of itself. `connectors.check_key` refuses a connector the card would not offer.
+- The agent's catalog adds a sentence to `vault_request` while the card is on ("A service the person names (Fathom, Slack): use vault_connect instead"). The frozen description is the rc.27 one and is not changed.
+- Proof: modules/connectors/tests/connect-card.test.ts (the D, E and F tests), modules/connectors/tests/connect-registry.test.ts (every built-in service stated: hosts, key, check), modules/connectors/tests/connect-send.test.ts (the sends of the module), modules/vault-requests/tests/connect.test.ts, agent/tests/connect-tool.test.ts, modules/mcp/tests/server.parity.test.ts.
+
+Signed: lead, 16 Nov 2026 04:00 PKT
+
+## 16 Nov 2026: delete for good, round five (lane f-agentdel, after the data-safety review)
+
+`agents.delete_for_good` now refuses every caller that is not a person, before anything else, in one sentence ("Only a person can delete an agent for good."): an agent (acting for a person too), a service, an Automation step and an outside tool. Its Gate act is a new one, `agent_erase`, that always stops (no Space rule, no Always allow lifts it, only a person decides). It is not an Automation step. `agents.trash.list` rows gain optional `failed` (what a job that keeps failing could not finish, in words). `agents.delete_preview` answers `chatPeople` and `folderPeople` (the other people who have a chat with the agent or their own folder on its computer, with their names). `agents.erased` is new (the name an erased agent had, for the "deleted" mark). `files.folder.purge` refuses an agent's folder ("An agent is deleted from its own page in Trash."), `files.trash.empty` skips it, and `folder.purged` carries only the folder id; only `agents.delete_for_good` and the Trash clock erase an agent. A job that fails backs off (3 s, 30 s, 5 min); pressing Delete for good again is Try again.
+- Why: the reviewer's six blocking items (any member could erase another's agent through Files, the gate could be lifted, the clock guessed on a failed read, the browser profile was left behind, other people lost data unannounced, a person's memory was lost).
+- Compatibility: additive outputs; `files.folder.purge` and `files.trash.empty` refuse or skip agent folders.
+
+Signed: lead, 16 Nov 2026 02:40 PKT, after two data-safety reviews (team/v1/reviews/r-agentdel-2026-11-16.md: six blocking items, then two, all closed by the lane with tests). Left open and known: the phone shows no "in Trash" line on an agent's page; delete, restore and delete within milliseconds can leave a channel without its "was deleted" line.
+
+## 16 Nov 2026: mail.drafts.list can be asked for one address, and an agent's repeated draft replaces its earlier one (the lead, the owner's Inbox report)
+
+- What changed: `mail.drafts.list@1` takes one more optional input, `address`: only drafts written to that address (To or Cc, any case). Nothing was removed or made required; a caller that sends nothing gets what it got. The Inbox conversation screen now always sends the conversation's contact or its address, never an empty filter.
+- Behaviour, no contract change: `mail.draft` by an agent that names no message it answers now replaces that agent's own pending draft in the same mailbox when the subject (Re: and Fwd: aside) and the people in To are the same; the earlier text is kept as before. A person's draft, another agent's draft and a named draft are never replaced.
+- Why: the owner's Inbox showed drafts written to other people inside one person's conversation (the screen asked for every draft), and two pending drafts of one email.
+- Proof: modules/mail/tests/drafts.test.ts (two new cases), modules/inbox/tests/match.test.ts. Snapshot: docs/frozen/snapshots/mail.json.
+
+Signed: lead, 16 Nov 2026 03:01 PKT (written and read by the lead: one optional, additive input).
+
+## 16 Nov 2026: inbox.counts counts conversations, not messages (the lead's Inbox work)
+
+`inbox.counts@1` keeps its shape. Its numbers change meaning: `total` and each `byInbox[].unread` are now the number of conversations that hold unread messages for the caller (not marked done), not the number of unread messages. Reason: the owner's Inbox read "551" beside By contact and beside the mailbox and the number told him nothing; a badge beside a list of conversations counts conversations. A conversation's own `unreadCount` still counts messages. Only the description text of the capability changed in the manifest.
+
+Signed: lead, 16 Nov 2026 03:36 PKT (written and read by the lead: no shape change, a change of meaning in two numbers).
+
+## 16 Nov 2026: chat.connect_line takes only the answered request's id (lane b-connect3, review of 77603b1d6, blocker 1)
+
+- What changed: `chat.connect_line` took a free-form `threadId`, `agentId`, `asker` and `body` from its caller, so any member could leave a line from an agent in another person's name. Its input is now `{ requestId }` alone. The chat, the agent, the asker and the words are read from the answered request through `vault.connect_card.line`; only the person the card was asked for may call it (`permission.no_grant` otherwise), the agent must be one of the chat's, a request still waiting is refused, the line is never the person's typed words, the line's message id is made from the request's id so a replay posts and wakes nothing, and the service's title is cut to one line of at most 60 characters. Its level is `member` (there is no thread in the input to authorize against; the handler checks the chat).
+- `vault.connect_card.line` answers two more optional fields, `threadId` and `agentId`, and now answers only the request's asker, a person who can read the chat the card is in, or a service; anyone else gets `validation.not_found`. It declares `permission.no_grant`.
+- The engine's carry-on after a connect card passes `{ requestId }`. Snapshots: docs/frozen/snapshots/chat.json, vault-requests.json.
+
+Signed: lead, 16 Nov 2026 04:20 PKT
+
+## 16 Nov 2026: connections.approve_hosts takes the addresses the person was shown; vault.connect_card.submit and vault.connect_card.submit requires them (lane b-connect3, review of 77603b1d6, item 5)
+
+- `connections.approve_hosts` gains a required input `hosts` (the addresses with ports the person was shown). It records the connector's current addresses only when they are exactly those, else `validation.precondition_failed` ("changed since you looked"). Nothing in the app called it; the connect card does not use it.
+- `vault.connect_card.submit` gains a REQUIRED input `hosts` (what the card said the key goes to). When missing, or when the service's addresses are no longer exactly those, it refuses with `validation.precondition_failed` before anything is sent or kept. The app's card always sends it.
+- Not a contract change: a built-in key that a person-made connector already holds is taken over at seed (the person-made one moves to `<key>-yours` with its connections); a request that carries a credential is refused when the server has no connector port; a request that carries a credential never reaches a private or loopback address, even for the Space owner.
+- Snapshots: docs/frozen/snapshots/connectors.json, vault-requests.json.
+
+Signed: lead, 16 Nov 2026 04:45 PKT

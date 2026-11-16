@@ -82,7 +82,7 @@ const ROWS = [
     driver: "claude_code",
     kind: "subscription",
     title: "Claude",
-    name: "MLA work",
+    name: "Northwind work",
     status: "ok",
     mine: true,
   },
@@ -94,13 +94,13 @@ test("only connected accounts are offered, by the name the person gave (the prov
   const accts = connectedAccounts(ROWS);
   assert.deepEqual(
     accts.map((a) => a.name),
-    ["Personal", "MLA work", "OpenAI key"],
+    ["Personal", "Northwind work", "OpenAI key"],
   );
   assert.equal(accts[2]!.plan, "API key");
   const [a] = stripAgents(thread, () => "Intake", accts, new Map([["agt_intake", { used: 9, window: 10 }]]));
   assert.deepEqual(
     [a!.modelTitle, a!.accountName, a!.effort, a!.provider, a!.context],
-    ["Sonnet 5.5", "MLA work", "high", "anthropic", { used: 9, window: 10 }],
+    ["Sonnet 5.5", "Northwind work", "high", "anthropic", { used: 9, window: 10 }],
   );
   const [solo] = stripAgents(
     thread,
@@ -426,9 +426,9 @@ test("the composer offers only accounts that can run a chat here: one the list m
 
 test("the account notice never prints an email address", async () => {
   const { plainAccountName } = await import("./brain.tsx");
-  assert.equal(plainAccountName("techmanager@mylegalacademy.com"), "that account");
+  assert.equal(plainAccountName("ops@northwind.example"), "that account");
   assert.equal(plainAccountName(undefined), "that account");
-  assert.equal(plainAccountName("MLA work"), "MLA work");
+  assert.equal(plainAccountName("Northwind work"), "Northwind work");
 });
 
 test("the person's own accounts are listed, shown and pinned before a Space account (owner, 6 Nov)", () => {

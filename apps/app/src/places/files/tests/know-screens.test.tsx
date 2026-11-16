@@ -146,7 +146,7 @@ test("the window reaches back: all time has more than the last seven days", () =
 
 test("learnedLine says who learned what from whom", () => {
   const s = createKnowSample();
-  const who = (id: string): string => (id === "usr_irfad" ? "you" : s.data.nameOf(id));
+  const who = (id: string): string => (id === "usr_imran" ? "you" : s.data.nameOf(id));
   const items = learned(s);
   const line = (text: string): string => capital(learnedLine(items.find((x) => x.fact.text === text)!, who));
   assert.equal(line("Prefers updates on Fridays."), "Assistant learned it from you");
@@ -338,7 +338,7 @@ test("the verbs of the trail and the text it carries", () => {
     id: "t",
     at: KNOW_NOW,
     action: "learn",
-    actor: "usr_irfad",
+    actor: "usr_imran",
     actorKind: "person",
     ...over,
   });
@@ -354,7 +354,7 @@ test("an erase row reads A fact was erased and never carries the content", () =>
     id: "trl_erase",
     at: KNOW_NOW,
     action: "erase",
-    actor: "usr_irfad",
+    actor: "usr_imran",
     actorKind: "person",
     reason: "Erased at the owner's request",
   } as TrailRow);
@@ -436,7 +436,7 @@ test("who removed a fact comes from the newest trail row that removed it, by id 
   const s = createKnowSample();
   const trail = read(s, "memory.trail", {}).rows as TrailRow[];
   const ortega = fact(s, "Ortega Partners charges $250.", ["removed"]);
-  assert.equal(removedBy(trail, ortega)?.actor, "usr_irfad");
+  assert.equal(removedBy(trail, ortega)?.actor, "usr_imran");
   const fee = fact(s, "The standard consult fee is $200.", ["removed"]);
   assert.deepEqual(removedBy(trail, fee), { actor: "upkeep", actorKind: "upkeep" });
   const old = fact(s, "Prefers phone calls on Mondays.", ["removed"]);

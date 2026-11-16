@@ -2,6 +2,7 @@
 // DECISION: a turn's chat is named only to someone who may read that chat (threads.get as the caller decides); everyone else sees "in a private chat". The agent, the person it works for
 //   and where it runs are the same for every member: that is what the team view is for.
 import type { EngineCtx } from "../projections.ts";
+import { backgroundNow } from "../own-subagents.ts";
 
 type Row = Record<string, unknown>;
 export interface NowRow {
@@ -97,6 +98,44 @@ export async function now(ctx: EngineCtx, _input: Record<string, never>): Promis
       )?.thread;
       if (t) {
         row.threadId = thread;
+        if (t.title) row.title = t.title;
+        if (t.channelId) row.channelId = t.channelId;
+        if (t.kind) row.kind = t.kind;
+      }
+    } catch {
+      /* a chat the caller may not read stays unnamed */
+    }
+    out.push(row);
+  }
+  // an agent whose helpers or jobs go on in the background after its turn ended is still working: its chat keeps its working mark until the last one ends
+  for (const b of backgroundNow()) {
+    if (seen.has(`${b.agentId}\n${b.threadId}`) || !b.agentId.startsWith("agt_")) continue;
+    seen.add(`${b.agentId}\n${b.threadId}`);
+    let holder: string | null = null;
+    try {
+      holder =
+        String(
+          (ctx.db.all("SELECT holder FROM engine_thread_lease WHERE thread_id = ?", b.threadId) as Row[])[0]?.[
+            "holder"
+          ] ?? "",
+        ) || null;
+    } catch {
+      /* no lease row: the Space's own server */
+    }
+    const row: NowRow = {
+      agentId: b.agentId,
+      forPerson: b.asker.startsWith("usr_") ? b.asker : "",
+      where: whereOf(holder),
+      since: b.since,
+    };
+    try {
+      const t = (
+        (await ctx.call("threads.get", { threadId: b.threadId })) as {
+          thread?: { title?: string; channelId?: string; kind?: string };
+        } | null
+      )?.thread;
+      if (t) {
+        row.threadId = b.threadId;
         if (t.title) row.title = t.title;
         if (t.channelId) row.channelId = t.channelId;
         if (t.kind) row.kind = t.kind;

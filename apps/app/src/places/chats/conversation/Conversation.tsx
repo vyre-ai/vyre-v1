@@ -24,6 +24,7 @@ import {
 } from "../crew/model.ts";
 import { CrewBlock } from "../session/CrewBlock.tsx";
 import { CrewIsland, WorkIsland, blocksActivity } from "../crew/island.tsx";
+import { BackgroundLine } from "../crew/background-line.tsx";
 import { AlsoToChat } from "../crew/also.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
@@ -306,6 +307,25 @@ function useLiveTurns(data: ConversationData): readonly import("../../../shell/s
 }
 
 /** The lead of this chat runs outside Vyre and has gone quiet: said plainly above the composer, because a message here will wait. Only its owner can read it, and only its owner can ask it. */
+/** A menu opened low in the chat opens upward instead of over the composer: its top is pulled up so its bottom stays above the composer's top (the rows are about 28 px each). */
+function aboveComposer(y: number, rows: number): number {
+  const doc = (
+    globalThis as { document?: { querySelector(s: string): { getBoundingClientRect(): { top: number } } | null } }
+  ).document;
+  const top = doc?.querySelector('[data-testid="composer"]')?.getBoundingClientRect().top;
+  if (typeof top !== "number" || top <= 0) return y;
+  return y + rows * 28 + 16 > top - 8 ? Math.max(8, top - 8 - (rows * 28 + 16)) : y;
+}
+
+/** The people (ids) typing in this chat now, from the live link; empty where nothing is live. */
+function useTypingIds(data: ConversationData): readonly string[] {
+  const live = data.typingLive;
+  const [, tick] = useState(0);
+  useEffect(() => (live ? live.subscribe(() => tick((n) => n + 1)) : undefined), [live]);
+  return live ? live.who(data.threadId) : NONE_TYPING;
+}
+const NONE_TYPING: readonly string[] = [];
+
 export function useOutsideOffline(
   data: Pick<ConversationData, "call">,
   agentId: string | null,
@@ -493,6 +513,7 @@ function ConversationView(): ReactElement {
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
   const [sentOnPage, setSentOnPage] = useState(0);
+  const typingIds = useTypingIds(data);
   // a row that arrives while the chat is open comes in with one quiet motion (the prototype's); rows already there when the chat opened, and every row under reduced motion, do not move
   const readyAt = useRef(0);
   const arrivedRows = useRef(new Map<string, boolean>());
@@ -1084,6 +1105,7 @@ function ConversationView(): ReactElement {
     meId: data.me.id,
     nameOf,
     kindOf: data.kindOf,
+    ...(data.goneOf ? { goneOf: data.goneOf } : {}),
     clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) },
     shared: sharedChat,
   }).filter((it) => !(thread.kind === "thread" && it.kind === "day")); // a thread has no day dividers: its root row and "N replies" lead
@@ -1196,7 +1218,10 @@ function ConversationView(): ReactElement {
     );
   };
   const island = islandView(openQs, putAway, islandAt, longChat ? new Set<string>() : cardsInView);
-  const typingNames: readonly string[] = data.typing ?? [];
+  const typingNames: readonly string[] = [
+    ...(data.typing ?? []),
+    ...typingIds.map((id) => nameOf(id).split(" ")[0] ?? nameOf(id)),
+  ];
   // a face or a name opens by what it is: a helper (its thread) opens as the helper chat; a person or an agent goes to the host, which opens a profile or an agent page
   const allHelpers = helpersQ.status === "loading" ? [] : helpersQ.data.helpers;
   const openFace = (id: string): void => {
@@ -1346,7 +1371,15 @@ function ConversationView(): ReactElement {
             }, fail("Could not unarchive.")),
           stopAll: () => void act.stopAll(data).catch(fail("Could not stop.")),
           more: () => menu.show(housekeeping(), moreAt.current.x, moreAt.current.y, "other", { label: "Chat" }),
-          extra: [...switchEntry, ...connectEntries(thread, data.nav)],
+          extra: [
+            ...switchEntry,
+            {
+              label: SWITCH_LABEL,
+              checked: !chatMemory(thread.threadId).remember,
+              onSelect: () => flipChatMemory(thread.threadId, data.call, say),
+            },
+            ...connectEntries(thread, data.nav),
+          ],
         },
       ),
     ];
@@ -1626,7 +1659,8 @@ function ConversationView(): ReactElement {
       setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id));
       unsay();
     },
-    showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
+    showMenu: (entries, x, y, label, source) =>
+      menu.show(entries, x, aboveComposer(y, entries.length), source ?? "context", { label }),
     ...(lead
       ? {
           liveCard: {
@@ -1941,6 +1975,9 @@ function ConversationView(): ReactElement {
                 {chapterNow}
               </Text>
             ) : null}
+            {/* a chat that is not being remembered says so here, beside its name, and a press remembers it again; while it remembers nothing is drawn. The composer holds
+                nothing about memory (owner, 16 Nov 2026: "it doesnt belong there in the composer"): the switch itself is in the chat's menu */}
+            <MemorySwitch threadId={thread.threadId} call={data.call} say={say} />
             <View style={{ flex: 1 }} />
             {/* offline is said once, by the pill at the top of the window: the chat's own header says nothing, so the header never shifts */}
             {crewChip ? (
@@ -2325,15 +2362,9 @@ function ConversationView(): ReactElement {
         ) : (
           <View style={st.composerBox}>
             <View testID="typing-row" accessibilityLiveRegion="polite" style={st.typingRow}>
-              {presenceLine(
-                typingNames,
-                working.map((id) => nameOf(id)),
-              ) !== "" ? (
+              {presenceLine(typingNames, []) !== "" ? (
                 <Text testID="typing-line" style={st.typingText}>
-                  {presenceLine(
-                    typingNames,
-                    working.map((id) => nameOf(id)),
-                  )}
+                  {presenceLine(typingNames, [])}
                 </Text>
               ) : null}
             </View>
@@ -2380,6 +2411,20 @@ function ConversationView(): ReactElement {
               const needs = crew?.status ? crewCounts(crew.status.totals).needsYou : 0;
               if (crew?.status && needs > 0) return <CrewIsland status={crew.status} onPress={() => crew.show(null)} />;
               if (openQs.length > 0) return null;
+              // helpers or jobs work on after the reply ended and nobody is writing: one live line says so, with Stop (never a bare "Thinking")
+              if (crew?.status && working.length === 0 && crew.status.totals.working > 0)
+                return (
+                  <BackgroundLine
+                    status={crew.status}
+                    onOpen={() => crew.show(null)}
+                    onStop={() => {
+                      void Promise.resolve(crew.call?.("engine.helpers.stop_all", { threadId: crew.threadId })).then(
+                        crew.refresh,
+                        fail("Could not stop them."),
+                      );
+                    }}
+                  />
+                );
               const helpersAtWork = (crew?.status?.members ?? []).filter((m) => m.state === "working");
               const faces = [
                 ...working.map((id) => ({ id, name: nameOf(id), seed: id })),
@@ -2477,16 +2522,6 @@ function ConversationView(): ReactElement {
               agents={composerAgents}
               mode={mode}
               onMode={chooseChatMode}
-              barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
-              plusExtra={() => [
-                {
-                  id: "plus-memory",
-                  title: SWITCH_LABEL,
-                  icon: "lock",
-                  checked: !chatMemory(thread.threadId).remember,
-                  onPress: () => flipChatMemory(thread.threadId, data.call, say),
-                },
-              ]}
               suggest={composerSuggest(data)}
               preview={(item) => previewOf(data, item)}
               openPanelAt={panelAt}
@@ -2523,6 +2558,7 @@ function ConversationView(): ReactElement {
               onChange={(t) => {
                 typedRef.current = t;
                 setTyped(t);
+                if (t.trim() !== "") data.typingLive?.say(data.threadId); // tells the others who may read this chat, at most every 2 seconds
               }}
               onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
               onSubmit={(p) => submit(p, "queue")}

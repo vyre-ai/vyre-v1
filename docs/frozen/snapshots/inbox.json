@@ -3,7 +3,7 @@
   "capabilities": {
     "comms.senders.list@1": "816de82b99e7ff440299fe4e294000b461eef4fbae7ba6fa44ce727a9a886597",
     "comms.senders.set_default@1": "dd6a2d9477a3926f37f8727541a9fe7b3c5efd4efa072670e9d65ed55a1980b2",
-    "inbox.counts@1": "48db347fe1e7d6f2f798973a7d7fb2b27bc933bfb00adf411bdc679025bb2cba",
+    "inbox.counts@1": "020b5e0555295a2832fcc5b506e4e55f39b4e1005317738ede37309bf0627853",
     "inbox.follow_set@1": "2e527d03e6a1be2ff45242ab0e690c0cde04d26e72840459c4295df4cf865a8e",
     "inbox.following@1": "b68ddeada535395f13eda15233a5110ad395034ed234f52c3d309bd4ac0d47d0",
     "inbox.item.erase@1": "e585dc2bb3bdda14ea9caff7d732a5f82da11f8e9caf9156d3cb72e17fcfaf14",
@@ -19,7 +19,7 @@
     "inbox.send_options@1": "e16c8a46256a12f8fce13fbbc4ff1887011c25e37b8a456a34fba5835a81ccb3",
     "inbox.thread@1": "9946ca37faa2824ba797eb65225d94568da231074be5898e2499f4abc9e30c67",
     "inbox.thread_conversation@1": "6fc56fce5c2d6cc364d60099ee3b75e19f5a5c83fa90361117a8ee58f601957b",
-    "inbox.threads@1": "ada8c3e66fbe4a889e6f3b73d4abc19b556409796996a02b193a16c04c648a4d",
+    "inbox.threads@1": "d490fcff542f719e3fa899e8914eaa4b7f9c2aa03cb6df10990b997c66237ee9",
     "inbox.unmatch@1": "eece234e27785fb1db91671a7860724c7583bf6e1c6fc30c2712b86652673b04",
     "inbox.unmatched@1": "ccf5ce32e6f348835cef86aed52c40b2bea4122e86321063209a549a04b7b3b3"
   },

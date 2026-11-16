@@ -5,6 +5,7 @@
 //   config.get / config.validate / limits.get              what the next run will see, what a text would change, and the limits after the Space caps
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
+import { erasedRow } from "./erase.ts";
 import {
   AGENT_MD_DEFAULT,
   isAgentMdV1,
@@ -478,7 +479,7 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
     // a project's teammate is born under the project in access (a chat's agent keeps the Space: its chat decides who asks it)
     ...(kind === "teammate" && input.projectId?.startsWith("prj_") ? { projectId: input.projectId } : {}),
   });
-  // access names a private agent as its person to everyone else ("Irfad Imtiaz (Agent)"); this is what tells it
+  // access names a private agent as its person to everyone else ("Imran Ibarra (Agent)"); this is what tells it
   if (priv) {
     ctx.emit("agent.privacy_set", id, {
       agentId: id,
@@ -808,6 +809,10 @@ export async function restore(ctx: AgentsCtx, input: { agentId: string }) {
   const a = agentBy(ctx.db, input.agentId, true);
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
   if (a.deletedAt === undefined) return { agent: agentOut(a, ctx.now()) };
+  if (erasedRow(ctx, a.id) !== undefined)
+    raise(ctx, "validation.precondition_failed", "This agent is being deleted for good and cannot come back.", {
+      reason: "erasing",
+    });
   if (agentByName(ctx.db, a.name))
     raise(ctx, "validation.bad_input", "Another agent has this name now. Rename that one first.", { name: a.name });
   const now = ctx.now();
@@ -1111,7 +1116,7 @@ export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
 
 // ---- what the engine and Files tell this module --------------------------------------------------------------------------------------------------------
 
-/** "Irfad" becomes "Irfad’s", "James" becomes "James’": the typographic apostrophe, and a name that ends in s takes no second s. */
+/** "Imran" becomes "Imran’s", "James" becomes "James’": the typographic apostrophe, and a name that ends in s takes no second s. */
 // the one possessive every Assistant name uses (lib/words/agent-name, 12 Nov)
 import { possessive } from "../../../lib/words/agent-name.ts";
 export { possessive };
@@ -1186,7 +1191,7 @@ async function renameFollowing(
 }
 
 /**
- * Boot: Spaces made before the possessive rule hold assistants called "Irfad Assistant". One whose name still exactly equals that old default is renamed to "Irfad’s Assistant" through the normal update
+ * Boot: Spaces made before the possessive rule hold assistants called "Imran Assistant". One whose name still exactly equals that old default is renamed to "Imran’s Assistant" through the normal update
  * (the agent.toml, the folder and the display name follow). Runs once at start; after the rename nothing matches.
  */
 export async function renameOldAssistants(ctx: AgentsCtx): Promise<string[]> {
@@ -1487,7 +1492,8 @@ async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void
     // Only the Space's own agents (kind agent, id agt_...). An outside agent (Claude Code, Codex over MCP) registers as an outside actor (kind actor) and never gets a Vyre agent record or home;
     // the kind is checked here as well as in the query so a list that ignored the filter could not adopt one.
     if (p.kind !== "agent" || !p.id.startsWith("agt_")) continue;
-    if (p.status === "removed" || agentBy(ctx.db, p.id)) continue;
+    // an agent deleted for good is never given a record again, whatever access still lists (its id is never reused)
+    if (p.status === "removed" || agentBy(ctx.db, p.id, true) || erasedRow(ctx, p.id) !== undefined) continue;
     const name = p.name.trim();
     const owner = p.owner;
     if (name === "" || agentByName(ctx.db, name) || owner === undefined || !owner.startsWith("usr_")) {

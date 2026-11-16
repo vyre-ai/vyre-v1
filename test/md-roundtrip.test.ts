@@ -21,7 +21,7 @@ const fixture = (n: string): string => fs.readFileSync(new URL(`./fixtures/${n}`
 
 const FILES: Array<[string, string]> = [
   ["AGENT.md of a new agent", AGENT_MD_DEFAULT("Intake", "Use me when a new client form arrives.")],
-  ["AGENT.md of the assistant", ASSISTANT_AGENT_MD("Irfad’s Assistant")],
+  ["AGENT.md of the assistant", ASSISTANT_AGENT_MD("Imran’s Assistant")],
   ["AGENT.md of a bare role", AGENT_MD_DEFAULT("Scout", "Researcher")],
   ["VYRE.md guide", GUIDE_MD],
   ["SKILL.md", fixture("skill-sample.md")],

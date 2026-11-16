@@ -11,7 +11,7 @@ const NOW = 1_762_000_000_000;
 const raw = (over: Record<string, unknown> = {}) => ({
   watchId: "wch_a",
   title: "Lab 8 registrations",
-  url: "https://lu.ma/mla-ai-lab-8",
+  url: "https://lu.ma/northwind-ai-lab-8",
   host: "lu.ma",
   mode: "region",
   region: { label: "Guest count", selector: "#going" },

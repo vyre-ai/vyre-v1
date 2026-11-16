@@ -177,15 +177,16 @@ test("a refused connector or connection call says which thing was missing and wh
     assert.equal((await post("tok-agent", "connectors.list", {})).status, 200);
 
     // F37: each not found says which kind of thing and the name given; an id is never said back
+    // a name no connector has ("fathom" stood here until Fathom became a built-in connector with the connect card, 16 Nov 2026)
     const noConnector = await post("tok-agent", "connections.create", {
-      connector: "fathom",
-      title: "Fathom",
+      connector: "plumbline",
+      title: "Plumbline",
       ownerKind: "space",
     });
     assert.equal(noConnector.status, 404, noConnector.text);
-    assert.equal(errOf(noConnector).message, "There is no connector called fathom that you can see.");
+    assert.equal(errOf(noConnector).message, "There is no connector called plumbline that you can see.");
     assert.equal(errOf(noConnector).details.thing, "connector");
-    assert.equal(errOf(noConnector).details.name, "fathom");
+    assert.equal(errOf(noConnector).details.name, "plumbline");
     const noGet = await post("tok-agent", "connectors.get", { key: "google_ads" });
     assert.equal(errOf(noGet).message, "There is no connector called google ads that you can see.");
     assert.equal(errOf(noGet).details.name, "google_ads");

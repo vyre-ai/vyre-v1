@@ -96,7 +96,7 @@ test("deep lists every picture in the Space's folders the person may see, newest
   const mine = await make(w.ctx, at("personal"), "my selfie.png", 4);
   const secret = await make(w.ctx, deeper, "secret logo.png", 5);
   const gone = await make(w.ctx, branding, "deleted logo.png", 6);
-  const logo = await make(w.ctx, branding, "MLA logo.png", 7);
+  const logo = await make(w.ctx, branding, "Northwind logo.png", 7);
   await run["files.delete"]!(w.ctx, { fileId: gone });
   w.hidden.add(secret);
   const deep = async (extra: Record<string, unknown> = {}): Promise<string[]> =>

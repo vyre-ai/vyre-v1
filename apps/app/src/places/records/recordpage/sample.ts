@@ -111,7 +111,7 @@ export interface PageSpace {
 export const northwind: PageSpace = {
   id: "northwind",
   people: {
-    usr_irfad: "Irfad Imtiaz",
+    usr_imran: "Imran Ibarra",
     usr_maya: "Maya Chen",
     usr_omar: "Omar Haddad",
     agt_docs: "Docs",
@@ -121,7 +121,7 @@ export const northwind: PageSpace = {
 };
 export const harbor: PageSpace = {
   id: "harbor",
-  people: { usr_irfad: "Irfad Imtiaz", usr_ines: "Ines Costa" },
+  people: { usr_imran: "Imran Ibarra", usr_ines: "Ines Costa" },
   types: [{ ...CLIENT, fields: CLIENT.fields.filter((x) => !["tax", "id_doc", "rating"].includes(x.key)) }, PROJECT],
 };
 
@@ -245,7 +245,7 @@ export function createSamplePage(
       recordId: "cl_0",
       versionId: "ver_3",
       n: 3,
-      by: "usr_irfad",
+      by: "usr_imran",
       at: SAMPLE_NOW - 2 * DAY,
       reason: "Moved the next step",
     },
@@ -421,7 +421,7 @@ export function createSamplePage(
             field: k,
             value: v,
             hlc: `${SAMPLE_NOW}:${hist}`,
-            actor: "usr_irfad",
+            actor: "usr_imran",
           },
         ] as unknown as Row[]);
       replica.put("versions", [
@@ -430,7 +430,7 @@ export function createSamplePage(
           recordId: i.recordId,
           versionId: `ver_${next.version}`,
           n: next.version,
-          by: "usr_irfad",
+          by: "usr_imran",
           at: SAMPLE_NOW,
           reason: "Edited on the page",
         },
@@ -459,7 +459,7 @@ export function createSamplePage(
         recordId: i.recordId,
         ...(root ? { parentId: root.commentId } : {}),
         text: i.text,
-        by: "usr_irfad",
+        by: "usr_imran",
         at: SAMPLE_NOW + cmt * 1000,
         resolved: false,
         mentions,
@@ -471,7 +471,7 @@ export function createSamplePage(
     "records.comments.edit": (i: { commentId: string; text: string }) => {
       const c = comment(i.commentId);
       if (!c) throw new Error("no such comment");
-      if (c.by !== "usr_irfad") throw new Error("only your own");
+      if (c.by !== "usr_imran") throw new Error("only your own");
       const next = { ...c, text: i.text, editedAt: SAMPLE_NOW + 5000 };
       putComment(next);
       return { comment: next };
@@ -480,7 +480,7 @@ export function createSamplePage(
       const c = comment(i.commentId);
       if (!c) throw new Error("no such comment");
       const root = rootOfComment(c);
-      const next: Cmt = { ...root, resolved: i.resolved, ...(i.resolved ? { resolvedBy: "usr_irfad" } : {}) };
+      const next: Cmt = { ...root, resolved: i.resolved, ...(i.resolved ? { resolvedBy: "usr_imran" } : {}) };
       if (!i.resolved) delete (next as { resolvedBy?: string }).resolvedBy;
       putComment(next);
       return { comment: next };
@@ -510,10 +510,10 @@ export function createSamplePage(
     },
     now: () => SAMPLE_NOW,
     nameOf: (id) => space.people[id] ?? id,
-    me: { id: "usr_irfad", name: space.people["usr_irfad"] ?? "Irfad" },
+    me: { id: "usr_imran", name: space.people["usr_imran"] ?? "Imran" },
     mentionables: () =>
       Object.entries(space.people)
-        .filter(([id]) => id !== "usr_irfad")
+        .filter(([id]) => id !== "usr_imran")
         .map(([id, name]) => ({
           id,
           name,

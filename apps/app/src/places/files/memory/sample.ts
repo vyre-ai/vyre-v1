@@ -168,7 +168,7 @@ export const northwind: SampleSpace = {
       updatedAt: SAMPLE_NOW - 30 * HOUR,
     },
   ],
-  people: { usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_irfad: "Irfad Imtiaz" },
+  people: { usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_imran: "Imran Ibarra" },
 };
 
 export const harbor: SampleSpace = {
@@ -202,7 +202,7 @@ export const harbor: SampleSpace = {
     }),
   ],
   notes: [],
-  people: { usr_ines: "Ines Costa", usr_irfad: "Irfad Imtiaz" },
+  people: { usr_ines: "Ines Costa", usr_imran: "Imran Ibarra" },
 };
 
 // ---------------------------------------------------------------- the replica

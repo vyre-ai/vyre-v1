@@ -15,8 +15,8 @@ import type { BlobCaller } from "../src/routes/blobs.ts";
 const SPACE = "spc_core";
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 const TOKENS: Record<string, BlobCaller> = {
-  irfad: { space: SPACE, principal: { kind: "person", id: "usr_irfad" } },
-  intake: { space: SPACE, principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_irfad" },
+  imran: { space: SPACE, principal: { kind: "person", id: "usr_imran" } },
+  intake: { space: SPACE, principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_imran" },
   robot: { space: SPACE, principal: { kind: "actor", id: "act_robot" } },
 };
 
@@ -67,7 +67,7 @@ test("an agent and an outside actor are refused the picture of a file the gate r
   assert.equal((await w.get(w.scan.id, "intake")).status, 403);
   assert.equal((await w.get(w.scan.id, "robot")).status, 403);
   assert.equal((await w.get(w.clear.id, "intake")).status, 200, "a picture of a clear file is served as before");
-  const person = await w.get(w.scan.id, "irfad");
+  const person = await w.get(w.scan.id, "imran");
   assert.equal(person.status, 200);
   assert.deepEqual(new Uint8Array(await person.arrayBuffer()), PNG);
   assert.deepEqual(

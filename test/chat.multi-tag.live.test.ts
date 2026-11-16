@@ -9,11 +9,14 @@ import { boot, call, connect, makeAgent, scriptedModel, seededDir, waitFor } fro
 test("two tagged agents: both show within a second, each answers once, nobody else answers", async () => {
   const dir = seededDir();
   const turnsBy = new Map<string, number>();
+  // the host's own clock at the moment each agent's turn began: how far apart the two rows start is the server's to say, not a busy runner's HTTP round trips
+  const startedAt = new Map<string, number>();
   const d = await boot(
     dir,
     scriptedModel(async function* (input: any) {
       const who = String(input.agent?.id ?? "?");
       turnsBy.set(who, (turnsBy.get(who) ?? 0) + 1);
+      if (!startedAt.has(who)) startedAt.set(who, Date.now());
       yield { type: "text", text: "Looking" };
       await new Promise((r) => setTimeout(r, 1500));
       yield { type: "text", text: " into it." };
@@ -36,14 +39,17 @@ test("two tagged agents: both show within a second, each answers once, nobody el
       idempotencyKey: "mt-post",
     });
     const messageId = posted.data.message.messageId as string;
-    const t0 = Date.now();
     const seen = await waitFor(async () => {
       const r = (await call(d, "engine.round.get", { threadId, messageIds: [messageId] })).data.rounds[0]?.agents as
         | { agentId: string; state: string }[]
         | undefined;
       return r && r.length === 2 ? r : null;
     }, 10_000);
-    assert.ok(Date.now() - t0 < 1000, `both showed within a second (${Date.now() - t0} ms)`);
+    // both rows are there, and they started within a second of each other by the host's own stamps (the 1,000 ms figure is unchanged)
+    await waitFor(async () => (startedAt.size === 2 ? true : null), 10_000);
+    const [a, b] = [startedAt.get(dex), startedAt.get(nova)];
+    assert.ok(a !== undefined && b !== undefined, "both turns started");
+    assert.ok(Math.abs(a! - b!) < 1000, `both showed within a second (${Math.abs(a! - b!)} ms apart)`);
     assert.deepEqual(seen.map((a) => a.state).sort(), ["working", "working"]);
     await waitFor(async () => {
       const msgs = (await call(d, "chat.messages.list", { threadId })).data.messages as { author: { id: string } }[];

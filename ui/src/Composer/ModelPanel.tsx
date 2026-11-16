@@ -13,7 +13,7 @@ import { RADIUS } from "../tokens/radius.ts";
 
 export interface PanelAccount {
   ref: string;
-  /** The name the person gave it ("Personal", "MLA work"); the provider's name when none was given. */
+  /** The name the person gave it ("Personal", "Northwind work"); the provider's name when none was given. */
   name: string;
   provider: string;
   /** "Max", "Team", "Plus", "API key". */

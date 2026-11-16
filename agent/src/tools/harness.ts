@@ -125,6 +125,15 @@ export function validatingInvoke(caps: ReadonlyMap<string, RegistryCapRow>): {
         makeError("validation.bad_input", traceId, { details: { errors: problems.slice(0, 20), cap } }),
       );
     sent.push({ cap, input });
+    // the tool layer asks where the person's files are and whether a path is a file or a folder (agent/src/tools/place.ts): a path with a dot in its last part is a file, "Personal" is the root, any other path is not there
+    if (cap === "files.resolve") {
+      const path = String((input as { path?: unknown }).path ?? "");
+      if (/\.[a-z0-9]{1,5}$/i.test(path))
+        return { status: "ok", output: { kind: "file", fileId: "fil_found1" }, traceId };
+      if (path === "Personal") return { status: "ok", output: { kind: "folder", folderId: "fld_personal1" }, traceId };
+      throw new HostError(makeError("validation.not_found", traceId, { message: "That path is not in this Space." }));
+    }
+    if (cap === "files.folder.create") return { status: "ok", output: { folder: { folderId: "fld_made1" } }, traceId };
     return { status: "ok", output: { cap }, traceId };
   };
   return { invoke, sent };

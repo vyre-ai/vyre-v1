@@ -20,7 +20,7 @@ import { ShellRuntimeProvider } from "./runtime.tsx";
 import type { ShellRuntime, ShellTarget } from "./runtime.tsx";
 
 const PEOPLE: Principal[] = [
-  { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" },
+  { id: "usr_imran", name: "Imran Ibarra", kind: "person" },
   { id: "usr_maya", name: "Maya Chen", kind: "person" },
   { id: "agt_intake", name: "Intake", kind: "agent" },
   { id: "agt_docs", name: "Docs", kind: "agent" },
@@ -140,7 +140,7 @@ test("chats: a send goes through the Space's call as chat.post, in the open thre
   assert.equal(data.nameOf("agt_docs"), "Docs");
   assert.equal(data.kindOf("agt_docs"), "agent");
   assert.ok(
-    data.directory.every((c) => c.id !== "usr_irfad"),
+    data.directory.every((c) => c.id !== "usr_imran"),
     "you cannot @ yourself",
   );
   await data.call("chat.post", { threadId: "c1", body: "hello", idempotencyKey: data.newKey() });

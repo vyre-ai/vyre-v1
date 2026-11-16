@@ -1712,6 +1712,26 @@ export default defineManifest({
       },
     ),
     write(
+      "chat.connect_line",
+      "The engine only: after a connect card is answered, leave one quiet line (not a message of the person) in the chat that wakes the agent that asked. It takes the answered request's id and reads the chat, the agent, the asker and the words from that request; only the request's own asker may call it",
+      {
+        in: { requestId: t.id("vrq") },
+        out: { messageId: id.message },
+        level: "member",
+        agent: false,
+        idem: "none",
+        emits: [
+          "message.received",
+          "message.direct",
+          "message.mentioned",
+          "thread.replied",
+          "thread.unarchived",
+          "thread.updated",
+        ],
+        errors: ["validation.bad_input", "validation.not_found", "permission.no_grant"],
+      },
+    ),
+    write(
       "chat.hook_resolve",
       "Hooks module only: mark a stop line answered (allowed this time, always allowed, or denied), for everyone in the chat",
       {

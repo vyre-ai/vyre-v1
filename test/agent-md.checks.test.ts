@@ -7,7 +7,7 @@ import { lintText } from "../modules/files/handlers/lint.ts";
 import { lintItems } from "../apps/app/src/places/files/review/model.ts";
 
 const cases: Array<[string, string]> = [
-  ["the private assistant", ASSISTANT_AGENT_MD("Irfad’s Assistant")],
+  ["the private assistant", ASSISTANT_AGENT_MD("Imran’s Assistant")],
   ["the assistant through the default", AGENT_MD_DEFAULT("James’ Assistant", "assistant")],
   ["an agent with a role sentence", AGENT_MD_DEFAULT("Intake", "Use me when a new client form arrives.")],
   ["an agent with a bare role", AGENT_MD_DEFAULT("Scout", "Researcher")],

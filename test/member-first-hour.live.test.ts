@@ -96,12 +96,12 @@ test("2 Aina joins by password in a browser; Bilal joins with Google in the Wind
 });
 
 test("2b the Windows and Mac apps take the Space's own vyre.run name, which answers directly, and Bilal's invite opens in the app (l-directaddr)", async () => {
-  // 3 Nov: the desktop app refused mla.vyre.run as a relay (phone) address, so a member on the Windows app could not join or sign in there. Now the name is asked what it is.
+  // 3 Nov: the desktop app refused northwind.vyre.run as a relay (phone) address, so a member on the Windows app could not join or sign in there. Now the name is asked what it is.
   const { desktopEntryRefusal, forgetAddressChecks, inviteAppLink, isRelayAddress } = await import(
     "../apps/app/src/shell/session/entry.ts"
   );
   const { probeDirectSpace } = await import("../client/src/gateway/space-probe.ts");
-  const own = "https://mla.vyre.run";
+  const own = "https://northwind.vyre.run";
   const viaEdge = ((url: string, init?: RequestInit) =>
     h.edge()(String(url).replace(own, ADDRESS), init)) as typeof fetch;
   const check = { probe: (origin: string) => probeDirectSpace(origin, { fetch: viaEdge }), page: undefined };
@@ -270,7 +270,7 @@ test("4 each connects their own Claude and their turn runs on it; after sign-out
 
 test("9 every Space label the app shows them is the name, never an spc_ id", async () => {
   for (const p of [a, b, h.owner]) await spaceLabels(p);
-  assert.equal(new URL(ADDRESS).hostname, "mla.firm.test");
+  assert.equal(new URL(ADDRESS).hostname, "northwind.firm.test");
 });
 
 test("10 no call their screens made was refused unless it was meant and said in plain words", () => {

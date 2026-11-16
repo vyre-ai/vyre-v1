@@ -4,6 +4,7 @@ import { MAKES_A_THREAD, noteMade, threadOfStart } from "./just-made.ts";
 import type { Judge } from "../reach/target.ts";
 import { adminPages } from "../providers/settings-admin.ts";
 import { createLinkPolicy } from "../reach/policy.ts";
+import { watchWorking } from "../tabs/working.ts";
 import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
 import { createRecordsPreview } from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
@@ -37,6 +38,7 @@ import { createLiveLink } from "./live.ts";
 import { realScheduler } from "../../../../../client/src/connection/scheduler.ts";
 
 import { createTurnStreams } from "./turn-streams.ts";
+import { createTyping } from "./typing.ts";
 import { readStoredSessions } from "./stored.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
 import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
@@ -390,6 +392,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   let lostTimer: (() => void) | null = null;
   const clock = o.scheduler ?? realScheduler;
   const turns = createTurnStreams();
+  let sendFrame: (f: unknown) => boolean = () => false;
+  const typing = createTyping({ send: (f) => sendFrame(f), me: () => who.principal.id });
   const link: LiveLink = createLiveLink({
     baseUrl: o.baseUrl,
     token: () => token,
@@ -419,12 +423,14 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       tell();
     },
     onTurn: (f) => turns.onFrame(f),
+    onTyping: (f) => typing.onFrame(f),
     onPurge: (epoch) => {
       for (const l of [...purgeListeners]) l(epoch);
     },
     ...(o.dial ? { dial: o.dial } : {}),
     ...(o.scheduler ? { scheduler: o.scheduler } : {}),
   });
+  sendFrame = (f) => link.send(f);
   link.start();
   // a Space server that lost the key under an open link (a restart the link did not notice) gets it back from this app within one beat
   const stopKeyWatch = watchKey(o.baseUrl, () => token);
@@ -497,13 +503,16 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const principalsList = hooks.capQuery<Out<"access.principals.list">>("access.principals.list", {});
   const groupsList = hooks.capQuery<Out<"access.groups.list">>("access.groups.list", {});
   const agentsList = hooks.capQuery<Out<"agents.list">>("agents.list", {});
+  const erasedList = hooks.capQuery<Out<"agents.erased">>("agents.erased", {});
   // Keep the shell's own lists warm for the life of the session.
-  const keep = [connections, principalsList, groupsList, agentsList].map((q) => q.subscribe(() => undefined));
+  const keep = [connections, principalsList, groupsList, agentsList, erasedList].map((q) =>
+    q.subscribe(() => undefined),
+  );
 
-  const principals = derived<Principal[]>([principalsList, groupsList, agentsList], ([p, g, ag]) => {
+  const principals = derived<Principal[]>([principalsList, groupsList, agentsList, erasedList], ([p, g, ag]) => {
     const own = assistant();
     const list = new Map<string, Principal>([[me.id, me]]);
-    // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Irfad Imtiaz (Agent)") and never offered
+    // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Imran Ibarra (Agent)") and never offered
     const usable =
       ag?.status === "ready" ? new Set((ag.data as Out<"agents.list">).agents.map((a) => a.agentId)) : null;
     // what was picked on an agent's page shows on every face of that agent, in every place (not only Chats)
@@ -563,7 +572,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       ? (screens.get(t.screen)?.place ?? railPlace(t.screen.split(".")[0] ?? "") ?? "")
       : t.subject
         ? (placeForSubject(t.subject.type) ?? "")
-        : "";
+        : (t.place ?? "");
     if (where === "shell") {
       if (t.screen) o.shell?.(t.screen, t.args ?? {});
       return;
@@ -642,6 +651,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     screens: hooks,
     changes: { subscribe: (l) => hooks.onInvalidate(l) },
     turns,
+    typing,
     call: (cap, input) => call(cap, input),
     callIn: async (spaceId, cap, input) => {
       // another Space this device is signed in to: its own address and its own token, never this Space's
@@ -703,6 +713,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       },
     },
     principals,
+    erased: (id) => {
+      const e = erasedList.getSnapshot();
+      return e.status === "ready"
+        ? (e.data as Out<"agents.erased">).agents.find((a) => a.agentId === id)?.name
+        : undefined;
+    },
     recordTitle: () => undefined,
     me,
     clock: () => ({ now: (o.now ?? Date.now)(), offsetMin: -new Date().getTimezoneOffset() }),
@@ -730,6 +746,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     },
   };
 
+  // the chats whose agents (or helpers left running in the background) work now: the tab strip marks their tabs
+  const stopWorking = watchWorking({
+    call: (cap, input) => call(cap, input),
+    onInvalidate: (l) => hooks.onInvalidate(l),
+  });
+
   return {
     def,
     baseUrl: o.baseUrl,
@@ -750,6 +772,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       if (closed) return;
       closed = true;
       stopPerms();
+      stopWorking();
       if (permsTimer !== null) clearTimeout(permsTimer);
       detachSpeed();
       stopKeyWatch();
@@ -765,6 +788,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       lostTimer = null;
       link.stop();
       turns.dispose();
+      typing.dispose();
       for (const off of keep) off();
       hooks.close();
       listeners.clear();

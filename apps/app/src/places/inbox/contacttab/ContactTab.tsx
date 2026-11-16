@@ -15,6 +15,7 @@ import { OutgoingHeader } from "../../../../../../ui/src/Composer/outgoing.tsx";
 import type { ComposerSender, OutChannel } from "../../../../../../ui/src/Composer/outgoing.tsx";
 import { Recipients } from "../../../../../../ui/src/Recipients/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
+import { problemWords } from "../../../../../../lib/words/errors.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { Face, Ghost, pointOf } from "../sidebar/parts.tsx";
@@ -47,7 +48,7 @@ import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import type { IconName } from "./icons.tsx";
-import { followMenuEntries, quickEntries, templateEntries, threadMenuEntries } from "./menus.ts";
+import { followMenuEntries, templateEntries, threadMenuEntries } from "./menus.ts";
 import {
   buildFeed,
   canSend,
@@ -85,6 +86,8 @@ import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, MailHtmlStyle, QuietL
 import { usePhone } from "../softphone/phone.tsx";
 
 export const SCREEN = "inbox.contact-tab";
+/** An address no draft is written to (the reserved .invalid domain): what the drafts query asks for while the conversation is still loading. */
+const NOBODY = "nobody@drafts.invalid";
 type MailboxesOut = { mailboxes: Mailbox[] };
 type DraftsOut = { drafts: DraftRow[] };
 
@@ -127,6 +130,8 @@ function HeadButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected: on, disabled }}
+      // a header button that is on (the channel in use, a star, Following) says so to a screen reader: a button's own word for it is pressed
+      aria-pressed={on}
       testID={testID}
       disabled={disabled}
       onPress={(e) => {
@@ -213,7 +218,15 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const [images, setImages] = useState(false);
   const threadsQ = useScreenQuery<ThreadsOut>(SCREEN, "threads", { ...state, ...(images ? { images: true } : {}) });
   const opts = useScreenQuery<SendOptions>(SCREEN, "options", state);
-  const drafts = useScreenQuery<DraftsOut>(SCREEN, "drafts", contactId ? { contactId } : {});
+  // The drafts of THIS conversation only: by its contact, else by its address. Never an empty filter: the list then answers every draft the caller may read, and a
+  // conversation opened by its id showed drafts written to other people (owner's Inbox, 16 Nov 2026). Until the conversation is known the query asks for nobody.
+  const known = thread.status === "ready" ? thread.data.conversation : null;
+  const draftsOf = contactId ?? known?.contactId;
+  const drafts = useScreenQuery<DraftsOut>(
+    SCREEN,
+    "drafts",
+    draftsOf ? { contactId: draftsOf } : { address: known?.address || NOBODY },
+  );
   const boxes = useScreenQuery<MailboxesOut>("inbox.sidebar", "mailboxes");
 
   const ask = props.ask;
@@ -383,9 +396,19 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const textTo = conv ? (ask?.phone?.to ?? textTarget(conv, items)) : null;
 
   // the newest message is at the foot: open scrolled down, and again when something arrives; a thread with something new is landed on, subject first
+  const toEnd = (): void =>
+    (scroll.current as unknown as { scrollToEnd?: (o: { animated: boolean }) => void } | null)?.scrollToEnd?.({
+      animated: false,
+    });
   useEffect(() => {
-    if (!(landed.current ?? "").startsWith(`${conversationId}:`)) scroll.current?.scrollToEnd?.({ animated: false });
+    if (!(landed.current ?? "").startsWith(`${conversationId}:`)) toEnd();
   }, [feed.length, cards.length]);
+  // The end stays in view while the person is at it: when a card or a long mail finishes drawing, and when the reply box grows (a second line of people, a subject), the
+  // feed follows, so the last card is never left under the box (owner's Inbox, 16 Nov 2026). A person who scrolled up to read is left where they are.
+  const atEnd = useRef(true);
+  const keepEnd = (): void => {
+    if (atEnd.current && !(landed.current ?? "").startsWith(`${conversationId}:`)) toEnd();
+  };
   // opening the conversation reads it
   const unread = conv?.unreadCount ?? 0;
   useEffect(() => {
@@ -440,8 +463,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
       setBusy((b) => b.filter((x) => x !== key));
     }
   };
-  const fail = (e: unknown): string =>
-    (e as { error?: { message?: string } }).error?.message ?? (e instanceof Error ? e.message : "Could not send");
+  // what went wrong, in words a person reads: the server's own sentence when it has one, never a code, a trace or "fetch failed"
+  const fail = (e: unknown): string => problemWords((e as { error?: unknown }).error ?? e, "Could not send.").text;
 
   const send = async (text: string, files: ComposerSend["files"] = []): Promise<void> => {
     if (!inbox) return;
@@ -577,19 +600,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
       () => setNote("Could not load your templates. Try again."),
     );
   };
-  const showQuick = (x: number, y: number): void =>
-    menu.show(
-      quickEntries(!!conv.contactId, {
-        dial,
-        openRecord: () => props.onOpenRecord?.(conv.contactId as string, hdr?.recordId),
-        attach: () => {
-          if (props.onAttach) props.onAttach();
-          else setNote("Attach from Files is not connected in this view");
-        },
-      }),
-      x,
-      y,
-    );
   const mail = chan === "email";
   const unmatched = conv.needsMatch && !conv.contactId;
   // Replying in: the thread the reply goes into, Reply or Reply all, or a New email that starts its own thread
@@ -634,6 +644,55 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const blocker = sendBlocker(draft, inbox, online, textTo);
   const target = mail ? draft.to.join(", ") : (textTo ?? "");
 
+  // The thread a reply goes into is the reply box's own Subject row (owner, 16 Nov 2026: the bar above the box read as detached): the thread's name opens
+  // the list of threads, Reply and Reply all sit at the row's end; a new email types its subject there and offers the threads beside it.
+  const threadPick =
+    mail && mailThreads.length > 0 ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          inThread
+            ? `Replying in ${inThread.subject}. Change the conversation`
+            : "New email, a separate thread. Reply in a thread instead"
+        }
+        testID="reply-in-pick"
+        onPress={(e) => {
+          const p = pointOf(e);
+          showThreads(p.x, p.y);
+        }}
+        style={({ hovered }: { hovered?: boolean }) => [s.rinPick, hovered === true && s.hicOver]}
+      >
+        <Icon name="thread" size={13} />
+        <Text style={s.rinName} numberOfLines={1}>
+          {inThread ? inThread.subject : "Reply in a thread"}
+        </Text>
+        <Icon name="chevd" size={9} />
+      </Pressable>
+    ) : null;
+  const threadRow =
+    threadPick && inThread ? (
+      <View style={s.rin} testID="reply-in">
+        {threadPick}
+        <View style={s.grow} />
+        <View style={s.seg} accessibilityRole="radiogroup" accessibilityLabel="Reply or reply all">
+          {each(["one", "all"] as const, (m) => (
+            <Pressable
+              key={m}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: (draft.mode ?? "all") === m }}
+              aria-checked={(draft.mode ?? "all") === m}
+              testID={`reply-mode-${m}`}
+              onPress={() => reTarget(inThread.threadId, m)}
+              style={[s.segBtn, (draft.mode ?? "all") === m && s.segOn]}
+            >
+              <Text style={[s.segText, (draft.mode ?? "all") === m && s.segTextOn]}>
+                {m === "one" ? "Reply" : "Reply all"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    ) : null;
   return (
     <View style={s.main} testID="contact-tab" accessibilityLabel={`Conversation with ${conv.displayName}`}>
       <View style={s.head} testID="contact-head">
@@ -742,7 +801,19 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
         </Text>
       )}
 
-      <ScrollView ref={scroll} style={s.feed} contentContainerStyle={s.col} testID="contact-feed">
+      <ScrollView
+        ref={scroll}
+        style={s.feed}
+        contentContainerStyle={s.col}
+        testID="contact-feed"
+        scrollEventThrottle={64}
+        onScroll={(e) => {
+          const n = e.nativeEvent;
+          atEnd.current = n.contentOffset.y + n.layoutMeasurement.height >= n.contentSize.height - 48;
+        }}
+        onContentSizeChange={keepEnd}
+        onLayout={keepEnd}
+      >
         {feed.length === 0 && cards.length === 0 ? <States kind="empty" title="No messages yet." icon="chat" /> : null}
         {each(feed, (f): ReactElement => {
           switch (f.kind) {
@@ -877,59 +948,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
               </Text>
             )
           ) : null}
-          {mail && mailThreads.length > 0 ? (
-            <View style={s.rin} testID="reply-in">
-              {phone ? null : inThread ? (
-                <Text style={s.rinLabel} numberOfLines={1}>
-                  Replying in
-                </Text>
-              ) : (
-                <Text style={s.rinLabel} numberOfLines={1}>
-                  New email
-                </Text>
-              )}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  inThread
-                    ? `Replying in ${inThread.subject}. Change the conversation`
-                    : "New email, a separate thread. Reply in a thread instead"
-                }
-                testID="reply-in-pick"
-                onPress={(e) => {
-                  const p = pointOf(e);
-                  showThreads(p.x, p.y);
-                }}
-                style={({ hovered }: { hovered?: boolean }) => [s.rinPick, hovered === true && s.hicOver]}
-              >
-                <Icon name={inThread ? "thread" : "edit"} size={13} />
-                <Text style={s.rinName} numberOfLines={1}>
-                  {inThread ? inThread.subject : "Starts a separate conversation"}
-                </Text>
-                <Icon name="chevd" size={9} />
-              </Pressable>
-              <View style={s.grow} />
-              {inThread ? (
-                <View style={s.seg} accessibilityRole="radiogroup" accessibilityLabel="Reply or reply all">
-                  {each(["one", "all"] as const, (m) => (
-                    <Pressable
-                      key={m}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: (draft.mode ?? "all") === m }}
-                      aria-checked={(draft.mode ?? "all") === m}
-                      testID={`reply-mode-${m}`}
-                      onPress={() => reTarget(inThread.threadId, m)}
-                      style={[s.segBtn, (draft.mode ?? "all") === m && s.segOn]}
-                    >
-                      <Text style={[s.segText, (draft.mode ?? "all") === m && s.segTextOn]}>
-                        {m === "one" ? "Reply" : "Reply all"}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ) : null}
           <Composer
             key={`${conv.id}:${chan}`}
             whoWillAnswer={inbox ? "" : "No inbox can send"}
@@ -939,22 +957,9 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             enterSends={!mail}
             symbols={[]}
             barExtra={
+              // the reply box's row is the plus, the field, ONE button (Templates) and Send. Call, Ask and the record are in the header; a file is added from the plus menu.
               <View style={s.bx}>
                 <BarButton icon="tpl" label="Templates" testID="composer-templates" onPress={showTemplates} />
-                <BarButton icon="bolt" label="Quick actions" testID="composer-quick" onPress={showQuick} />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Ask"
-                  testID="composer-ask"
-                  onPress={() =>
-                    props.onAsk?.(conv.contactId, { conversationId: conv.id, title: hdr?.title ?? conv.displayName })
-                  }
-                  style={({ hovered }: { hovered?: boolean }) => [s.askChip, hovered === true && s.hicOver]}
-                >
-                  <Face name="intake" size={16} round={false} />
-                  <Text style={s.askText}>Ask</Text>
-                  <Icon name="chevd" size={9} />
-                </Pressable>
               </View>
             }
             sendsOutside
@@ -971,9 +976,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             recipients={
               <OutgoingHeader
                 channel={mail ? "email" : "text"}
-                channels={(["email", "sms"] as const)
-                  .filter((c) => options?.channels.includes(c) ?? false)
-                  .map((c) => (c === "email" ? ("email" as const) : ("text" as const)))}
+                // one switch between Email and Text, the one in the conversation's header: the reply box does not repeat it (owner, 16 Nov 2026: the box is sleek)
+                channels={[]}
                 onChannel={(c) => pickChan(c === "email" ? "email" : "sms")}
                 to={
                   mail ? (
@@ -999,6 +1003,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                 {...(mail && !inThread
                   ? { subject: draft.subject, onSubject: (t: string) => patch({ subject: t }) }
                   : {})}
+                {...(threadRow ? { subjectSlot: threadRow } : {})}
+                {...(threadPick && !inThread ? { subjectEnd: <View testID="reply-in">{threadPick}</View> } : {})}
               />
             }
           />
@@ -1126,12 +1132,12 @@ const s = StyleSheet.create({
   },
   mlinkText: { fontSize: 12.5, fontWeight: "600", color: ink("--accent") },
   offline: { fontSize: 12.5, color: ink("--ink-3"), paddingHorizontal: 18, paddingVertical: 6 },
-  feed: { flex: 1 },
+  feed: { flex: 1, minHeight: 0 },
   col: { width: "100%", maxWidth: 740, alignSelf: "center", paddingHorizontal: 28, paddingTop: 18, paddingBottom: 20 },
   cmpWrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
   cmpIn: { width: "100%", maxWidth: 740, alignSelf: "center" },
   toText: { fontSize: 13, color: ink("--ink") },
-  rin: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4, paddingBottom: 6, minWidth: 0 },
+  rin: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
   rinLabel: { fontSize: 12.5, color: ink("--ink-3"), flexShrink: 0 },
   rinPick: {
     flexDirection: "row",
@@ -1162,7 +1168,7 @@ const s = StyleSheet.create({
     borderWidth: 0,
   },
   note: { marginTop: 8, fontSize: 12.5, color: ink("--ink-2") },
-  bx: { flexDirection: "row", alignItems: "center", gap: 2 },
+  bx: { flexDirection: "row", alignItems: "center", gap: 2, height: 32 },
   tool: { width: 28, height: 28, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   askChip: {
     height: 26,

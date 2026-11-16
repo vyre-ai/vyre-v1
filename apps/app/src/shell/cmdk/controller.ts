@@ -258,30 +258,45 @@ export class CmdKController {
           { type: "head", key: "h-ask", title: "Ask" },
           { type: "ask", key: "ask", question: parsed.text.trim() },
         ];
-        rows =
-          this.opts.enterStartsChat || isQuestion(parsed.text) || rows.length === 0
-            ? [...ask, ...rows]
-            : [...rows, ...ask];
+        rows = isQuestion(parsed.text) || rows.length === 0 ? [...ask, ...rows] : [...rows, ...ask];
       }
     }
     // Nothing typed and nothing recent is not a search with no results: the field stands alone until there is something to say.
     const asked = parsed.prefix !== null || parsed.text !== "" || filter.length > 0;
     if (!rows.length && asked)
       rows = [
-        { type: "empty", key: "empty", title: this.chatDefault() ? "No results. Enter starts a chat." : "No results" },
+        {
+          type: "empty",
+          key: "empty",
+          title: this.chatDefault(rows) ? "No results. Enter starts a chat." : "No results",
+        },
       ];
     // the Ask row is not a place to stay: the highlight starts again at the top, where Ask is for a question and the best hit is not
     const keep = prevKey && prevKey !== "ask" ? rows.findIndex((r) => r.key === prevKey) : -1;
     // in the new tab nothing is selected until the arrows or the pointer move the selection: Enter is the chat until then
-    const active = this.chatDefault() ? -1 : keep >= 0 ? keep : stepActive(rows, -1, "first");
+    // the best match is the result named by the words (a place called Records for "Records"), wherever its group sits; failing that the first result
+    const named = rows.findIndex(
+      (r) => r.type === "hit" && r.hit.title.trim().toLowerCase() === parsed.text.trim().toLowerCase(),
+    );
+    const active = this.chatDefault(rows)
+      ? -1
+      : keep >= 0
+        ? keep
+        : this.opts.enterStartsChat === true && named >= 0
+          ? named
+          : stepActive(rows, -1, "first");
     this.set({ rows, active, counts });
     if (!first) this.syncPreview();
   }
 
-  /** In the new tab, typed plain words with the selection not moved: what Enter would do is start a chat. */
-  private chatDefault(): boolean {
+  /**
+   * In the new tab, typed plain words with the selection not moved and nothing that matches them: what Enter would do is start a chat. When something matches (a place, a chat, a record, a file, a person)
+   * the best match is selected and Enter opens it in this tab; the chat is for words that find nothing, or the Ask row chosen by the arrows or its chord.
+   */
+  private chatDefault(rows: readonly RowModel[] = this.s.rows): boolean {
     const p = this.s.parsed;
     return (
+      !rows.some((r) => isSelectable(r) && r.type !== "ask" && r.type !== "empty") &&
       this.opts.enterStartsChat === true &&
       this.data.startChat !== undefined &&
       this.s.ask === null &&
@@ -413,7 +428,7 @@ export class CmdKController {
       this.data.startChat !== undefined &&
       this.s.ask === null &&
       p.prefix === null &&
-      !this.moved
+      (p.text === "" || this.chatDefault())
     ) {
       if (p.text !== "" && !newTab) {
         if (this.data.openLink?.(this.s.raw.trim()) === true) return;

@@ -9,7 +9,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { injectCss } from "../theme/css.ts";
 import { MenuIcon } from "../Menu/index.tsx";
 
-/** One mark of the layer as the viewer draws it. `by` and `when` are already words ("Irfad Imtiaz (Agent)", "9:41 today"). */
+/** One mark of the layer as the viewer draws it. `by` and `when` are already words ("Imran Ibarra (Agent)", "9:41 today"). */
 export interface ViewerMark {
   id: string;
   kind: "redact" | "highlight";

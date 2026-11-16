@@ -835,10 +835,11 @@ export async function itemDelete(ctx: VaultCtx, input: { itemId: string }) {
 }
 
 /**
- * Take back a key that a card saved a moment ago and could not connect: the item, its sealed value, its history and its shares are removed for good, so nothing of it is left in the Vault or in Trash. It works only
- * for a person's own call, only on an item that person put in the last two minutes, and only while the item has no use, reveal, edit or move on its record. Nothing older, and nothing anyone used, is ever erased here.
+ * Take back a key that a connect card saved and could not connect: the item, its sealed value, its history and its shares are removed for good, so nothing of it is left in the Vault or in Trash.
+ * It is no general erase (review r-keyreach-9-b-connect, item C). It works only for a person's own call, only with the id of the connect request that saved this very item in its open try (the request module
+ * answers that, and only for that person's own request), only on the person's own item, and only while the item has no use, reveal, edit or move on its record. An agent never reaches it.
  */
-export async function itemDiscardNew(ctx: VaultCtx, input: { itemId: string }) {
+export async function itemDiscardNew(ctx: VaultCtx, input: { itemId: string; requestId: string }) {
   ensure(ctx);
   if (ctx.principal.kind !== "person") refuse(ctx, "Only a person can take back a key they just saved.");
   const r = reachable(ctx, input.itemId, "manage");
@@ -846,8 +847,14 @@ export async function itemDiscardNew(ctx: VaultCtx, input: { itemId: string }) {
   const x = first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, id));
   const history = ctx.db.all(`SELECT * FROM vault_history WHERE "itemId" = ?`, id) as Record<string, unknown>[];
   const only = history.every((h) => ["created", "shared"].includes(String(h["action"])));
-  if (!x || ctx.now() - num(x, "createdAt") > 120_000 || !only || str(r, "owner") !== ctx.principal.id)
-    refuse(ctx, "Only a key you saved a moment ago, and nobody has used, can be taken back.");
+  if (!x || !only || str(r, "owner") !== ctx.principal.id)
+    refuse(ctx, "Only a key you saved from a connect card, and nobody has used, can be taken back.");
+  // bound to the one request: the card that saved this item in this try says yes, nobody else does
+  try {
+    await ctx.call("vault.connect_card.may_discard", { requestId: input.requestId, itemId: id });
+  } catch {
+    refuse(ctx, "Only a key you saved from a connect card, and nobody has used, can be taken back.");
+  }
   ctx.db.run(`DELETE FROM vault_secret WHERE "itemId" = ?`, id);
   ctx.db.run(`DELETE FROM vault_history WHERE "itemId" = ?`, id);
   ctx.db.run(`DELETE FROM vault_item_x WHERE "itemId" = ?`, id);

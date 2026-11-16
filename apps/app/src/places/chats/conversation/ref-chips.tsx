@@ -179,18 +179,25 @@ export function useRefChips(
     };
   }, [data, externals]);
   const [names, setNames] = useState<ReadonlyMap<string, string | null>>(new Map());
+  // every Vyre id the reply links is looked up, the ones written bare and the ones written as [[Name|id]]: a link is drawn only for what is found and may be opened
+  const lookups = useMemo(() => {
+    const seen = new Map(ids.map((r) => [r.id, r] as const));
+    for (const id of named.keys())
+      if (VYRE_ID.test(id) && !seen.has(id)) seen.set(id, { id, kind: KIND_OF[id.split("_")[0]!.toLowerCase()]! });
+    return [...seen.values()];
+  }, [ids, named]);
   useEffect(() => {
-    if (!data || ids.length === 0) return;
+    if (!data || lookups.length === 0) return;
     let live = true;
     void Promise.all(
-      ids.map(async (r) => [r.id, (await preview(data, { ...r, title: "" }))?.title ?? null] as const),
+      lookups.map(async (r) => [r.id, (await preview(data, { ...r, title: "" }))?.title ?? null] as const),
     ).then((rows) => {
       if (live) setNames(new Map(rows));
     });
     return () => {
       live = false;
     };
-  }, [data, ids]);
+  }, [data, lookups]);
   const keys = useMemo(() => keysIn(body), [body]);
   const [known, setKnown] = useState<ReadonlyMap<string, string>>(new Map());
   useEffect(() => {
@@ -230,10 +237,13 @@ export function useRefChips(
         : (href: string, children: ReactNode, key: number) => {
             const r = refOfHref(href);
             if (!r) return null;
-            const title = names.get(r.id) ?? named.get(r.id) ?? titled.get(r.id);
-            if (r.kind === "mail" || r.kind === "event")
+            if (r.kind === "mail" || r.kind === "event") {
+              const title = names.get(r.id) ?? named.get(r.id) ?? titled.get(r.id);
               return title ? <LinkPiece key={key} r={{ ...r, title }} data={data} /> : <>{children}</>;
-            // not resolved (yet, or not yours): the plain words, never the id and never a dead link
+            }
+            // A link is drawn only for a thing Vyre found and the reader may open (search.resolve answers for exactly that): the name the agent wrote is never enough. A file that was never saved, or one
+            // the reader cannot open, stays the plain words, and so does a link whose lookup has not answered yet (owner, rc.28: a link to a file that was not there).
+            const title = names.get(r.id) ?? titled.get(r.id);
             return title ? <LinkPiece key={key} r={{ ...r, title }} data={data} /> : <>{children}</>;
           },
     [data, ids, names, named, known, titled, ext],

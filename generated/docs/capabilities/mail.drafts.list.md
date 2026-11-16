@@ -27,6 +27,7 @@ List drafts for a mailbox or contact
 type In = {
   mailboxId?: string;
   contactId?: string;
+  address?: string;
   cursor?: string;
   limit?: number;
 };
@@ -88,6 +89,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "address": "maya@example.com",
     "contactId": "rec_a1b2c3",
     "cursor": "example",
     "limit": 1,

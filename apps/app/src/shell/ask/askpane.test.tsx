@@ -47,7 +47,7 @@ function runtime(
       if (cap === "agents.list")
         return {
           agents: [
-            { agentId: "agt_assistant", name: "Assistant", kind: "assistant", ownerId: "usr_irfad" },
+            { agentId: "agt_assistant", name: "Assistant", kind: "assistant", ownerId: "usr_imran" },
             { agentId: "agt_billing", name: "Billing", kind: "agent" },
           ],
         };

@@ -264,10 +264,12 @@ test("Codex gets the same file and a trusted hash for each hook, as Codex record
         a.includes(codexHash("PreToolUse", shimCommand(stdio, "PreToolUse"))),
     ),
   );
-  // the hash recipe reproduces a hash a real Codex wrote for a hook of ~/.codex/hooks.json
+  // The hash recipe was proved against a hash a real Codex wrote for a hook of a real ~/.codex/hooks.json. The path here is a sample one (no real person's
+  // name in the repo): its expected value was worked out by a second implementation of the recipe (compact JSON with sorted keys, SHA-256, python3) that reproduces the
+  // real record.
   assert.equal(
-    codexHash("pre_compact", "python3 '/Users/irfad/Claude/.codex/hooks/journal.py'", 15),
-    "sha256:e118ef3121a2e4aaa5660d749a199e647e5fcc599a35970745354ba1963b134d",
+    codexHash("pre_compact", "python3 '/Users/imran/Claude/.codex/hooks/journal.py'", 15),
+    "sha256:cfabd7fef0f73917f30a3b0a240ad395c46ca2acab4706d897242acf23e507e2",
   );
   const files = hookFiles("codex", { workFolder: "/work", stdio });
   assert.deepEqual(Object.keys(files), ["/work/.codex/hooks.json"]);

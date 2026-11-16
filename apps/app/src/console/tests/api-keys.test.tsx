@@ -13,7 +13,7 @@ function draw(initialSessionId?: string) {
         {
           sessionId: "ses_example",
           kind: "outside",
-          principal: "usr_irfad",
+          principal: "usr_imran",
           name: "Release review tool",
           startedAt: now - 5000,
           closedAt: now - 1000,

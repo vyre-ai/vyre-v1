@@ -80,7 +80,7 @@ test(
       const page = await r.context.newPage();
       await page.setViewportSize({ width: 1280, height: 800 });
       await page.goto(srv.url + "/login");
-      await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_mla" }));
+      await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_northwind" }));
       await page.click("#em");
       const badge = await boxOf(page, "button", "Sign in with Vyre");
       const field = await page.locator("#em").boundingBox();
@@ -129,7 +129,7 @@ test(
     });
     push = (m) => r.bridge.push(m);
     try {
-      await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_mla" }));
+      await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_northwind" }));
       const page = await r.context.newPage();
       await page.setViewportSize({ width: 1280, height: 800 });
       await page.goto(srv.url + "/login");
@@ -195,7 +195,7 @@ test(
       forms: [...document.querySelectorAll("input")].map((i) => (i as HTMLInputElement).value),
     });
     try {
-      await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_mla" }));
+      await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_northwind" }));
       const page = await r.context.newPage();
       await page.goto(srv.url + "/login");
       await page.fill("#em", USERNAME);

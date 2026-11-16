@@ -224,7 +224,7 @@ export function createProviderProbe(
         return { ok: false, models: [], detail: "The provider did not accept this key.", refused: true };
       if (!r.ok) return { ok: false, models: [], detail: `The provider answered ${r.status}.` };
       const models = pick(await r.json());
-      // OpenCode Go answers its model list to a request its chat refuses (rc.16 on MLA: every chat 400 MissingSessionID while the list passed): the check is a real one-token chat
+      // OpenCode Go answers its model list to a request its chat refuses (rc.16 on Northwind: every chat 400 MissingSessionID while the list passed): the check is a real one-token chat
       if (p.providerKey === "opencode-go") return { ...(await opencodeChat(fetchFn, p.apiKey!, models)), models };
       return { ok: true, models };
     } catch {

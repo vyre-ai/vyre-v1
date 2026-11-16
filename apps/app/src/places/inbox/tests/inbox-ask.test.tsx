@@ -50,7 +50,7 @@ const request = (o: Partial<AskRequest> = {}): AskRequest => ({
   contactId: "ct_elena",
   name: "Elena Rivera",
   first: "Elena",
-  sender: "Irfad",
+  sender: "Imran",
   email: { to: "elena@example.test" },
   phone: { to: "+1 415 555 0161" },
   titles: TITLES,
@@ -68,7 +68,7 @@ test("the email draft names the missing fields, in a short neutral subject, sign
   const d = seedFor(request(), "email");
   assert.equal(d.subject, "A few details for your file");
   assert.equal(d.subject, ASK_SUBJECT);
-  assert.equal(d.text, "Hi Elena,\n\nCould you send me your phone, next step due and tax id?\n\nThanks,\nIrfad");
+  assert.equal(d.text, "Hi Elena,\n\nCould you send me your phone, next step due and tax id?\n\nThanks,\nImran");
   assert.equal(listOf(["Phone"]), "phone");
   assert.equal(listOf(["Phone", "Email"]), "phone and email");
 });
@@ -90,7 +90,7 @@ test("the quick form's link joins an untouched draft and leaves it again; an edi
     url = "https://acme.example/f/details?t=abc";
   const plain = seedFor(r, "email").text;
   const linked = withLink(r, "email", plain, url);
-  assert.ok(linked.includes(`The quickest way is this form: ${url}`) && linked.includes("Thanks,\nIrfad"));
+  assert.ok(linked.includes(`The quickest way is this form: ${url}`) && linked.includes("Thanks,\nImran"));
   assert.equal(withoutLink(r, "email", linked, url), plain);
   assert.equal(withLink(r, "email", linked, url), linked, "the link is never added twice");
   const edited = "Elena, one thing: please send the missing items.";
@@ -140,7 +140,7 @@ test("askRequestFor turns a Team Space into an available form and a Personal Spa
     contact: { contactId: "cl_0", name: "Elena Rivera", email: "elena@example.test" },
   };
   const team = askRequestFor(input, {
-    sender: "Irfad",
+    sender: "Imran",
     spaceKind: "team",
     baseUrl: "https://acme.vyre.run",
     deferred: () => false,
@@ -148,11 +148,11 @@ test("askRequestFor turns a Team Space into an available form and a Personal Spa
   assert.equal(team.form.available, true);
   assert.deepEqual(
     [team.first, team.sender, team.email, team.phone, team.titles],
-    ["Elena", "Irfad", { to: "elena@example.test" }, undefined, TITLES],
+    ["Elena", "Imran", { to: "elena@example.test" }, undefined, TITLES],
   );
   assert.deepEqual([team.form.type, team.form.recordId, team.form.fields], ["clients", "cl_0", FIELDS]);
   const mac = askRequestFor(input, {
-    sender: "Irfad",
+    sender: "Imran",
     spaceKind: "personal",
     baseUrl: "http://127.0.0.1:7777",
     deferred: () => false,
@@ -264,7 +264,7 @@ test("screen: an email ask opens the composer on Email with the person, subject 
   const start = askStart(request());
   assert.deepEqual([start.chan, start.to, start.subject], ["email", ["elena@example.test"], ASK_SUBJECT]);
   const { out, s } = tab(request());
-  assert.ok(has(out, 'data-testid="contact-tab"') && has(out, "Elena Rivera") && has(out, 'data-testid="chan-email"'));
+  assert.ok(has(out, 'data-testid="contact-tab"') && has(out, "Elena Rivera") && has(out, 'data-testid="head-email"'));
   assert.ok(
     has(out, "Could you send me your phone, next step due and tax id?") && has(out, "Thanks,"),
     "the body names the fields",

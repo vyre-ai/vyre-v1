@@ -56,7 +56,7 @@ test("a Deny on a member: her own automations are refused, whoami drops the perm
   );
   const why = await h.owner.call("access.exceptions.explain", { principal: m.personId, perm: "automations.personal" });
   assert.equal(why.allowed, false);
-  assert.match(why.words, /^Exception set by Irfad on .*, overrides Member: Allowed\. Reason: First week$/);
+  assert.match(why.words, /^Exception set by Imran on .*, overrides Member: Allowed\. Reason: First week$/);
   await h.owner.call("access.exceptions.remove", { exceptionId: x.exceptionId });
   assert.ok((await perms(m)).includes("automations.personal"));
   await m.call("automations.create", { name: "Back", definition: { triggers: [{ key: "manual" }], nodes: [] } });

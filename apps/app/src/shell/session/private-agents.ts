@@ -1,6 +1,6 @@
 // Private agents in the shell's directory, the one place every screen turns an id into a name and a face. A person's assistant and an outside agent they connected through /mcp are theirs
 // alone: agents.list answers each person with only the agents they may use, so any other agent principal with an owner is someone else's private one. Owner ruling (3 Nov): to everyone else,
-// whatever it did is credited to its person, "Irfad Imtiaz (Agent)", with the person's face; its own name never shows. It is never offered: not to @mention, not in Cmd-K, not as a chat.
+// whatever it did is credited to its person, "Imran Ibarra (Agent)", with the person's face; its own name never shows. It is never offered: not to @mention, not in Cmd-K, not as a chat.
 // The person themselves sees their agents by name. Logs (Console audit) add which agent it was in a details line, from `agentName`.
 import type { Principal } from "./runtime-data.ts";
 import { agentForPerson, agentOfName, creditedName, namesItsPerson } from "../../../../../lib/words/agent-name.ts";
@@ -72,7 +72,7 @@ export function standInsOf(list: readonly Principal[]): Map<string, string> {
 
 /**
  * Who did something, in the one way every "Set by", "Created by" and "Made by" line says it (owner ruling 3 Nov). `by` is who acted; `for` is the person an agent acted for (absent: the agent's
- * own person from the directory). A person: "You" or their name. An agent for a person: "You, through Assistant" to that person, "Irfad Imtiaz (Agent)" to everyone else. An agent for nobody:
+ * own person from the directory). A person: "You" or their name. An agent for a person: "You, through Assistant" to that person, "Imran Ibarra (Agent)" to everyone else. An agent for nobody:
  * its name. Nothing known: a plain word, never an id.
  */
 export function creditLine(

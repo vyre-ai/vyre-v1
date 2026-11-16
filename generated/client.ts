@@ -121,6 +121,9 @@ export function createClient(transport: Transport) {
       },
       create: call("agents.create", 1),
       delete: call("agents.delete", 1),
+      delete_for_good: call("agents.delete_for_good", 1),
+      delete_preview: call("agents.delete_preview", 1),
+      erased: call("agents.erased", 1),
       get: call("agents.get", 1),
       guide: {
         get: call("agents.guide.get", 1),
@@ -180,6 +183,9 @@ export function createClient(transport: Transport) {
         apply: call("agents.template.apply", 1),
         get: call("agents.template.get", 1),
         preview: call("agents.template.preview", 1),
+      },
+      trash: {
+        list: call("agents.trash.list", 1),
       },
       update: call("agents.update", 1),
       versions: call("agents.versions", 1),
@@ -431,6 +437,7 @@ export function createClient(transport: Transport) {
       composer: {
         suggest: call("chat.composer.suggest", 1),
       },
+      connect_line: call("chat.connect_line", 1),
       crew_line: call("chat.crew_line", 1),
       delete_message: call("chat.delete_message", 1),
       edit: call("chat.edit", 1),
@@ -657,6 +664,7 @@ export function createClient(transport: Transport) {
       undo: call("conflicts.undo", 1),
     },
     connections: {
+      approve_hosts: call("connections.approve_hosts", 1),
       complete_auth: call("connections.complete_auth", 1),
       create: call("connections.create", 1),
       delete: call("connections.delete", 1),
@@ -1042,6 +1050,7 @@ export function createClient(transport: Transport) {
         delete: call("files.folder.delete", 1),
         get: call("files.folder.get", 1),
         move: call("files.folder.move", 1),
+        purge: call("files.folder.purge", 1),
         rename: call("files.folder.rename", 1),
         restore: call("files.folder.restore", 1),
         search: call("files.folder.search", 1),
@@ -3045,6 +3054,8 @@ export function createClient(transport: Transport) {
         ask_admin: call("vault.connect_card.ask_admin", 1),
         disconnect: call("vault.connect_card.disconnect", 1),
         get: call("vault.connect_card.get", 1),
+        line: call("vault.connect_card.line", 1),
+        may_discard: call("vault.connect_card.may_discard", 1),
         options: call("vault.connect_card.options", 1),
         reopen: call("vault.connect_card.reopen", 1),
         submit: call("vault.connect_card.submit", 1),

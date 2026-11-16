@@ -278,7 +278,7 @@ test("sections, search and the arrow keys", () => {
 
 test("an account whose saved item cannot be opened reads 'Can't be opened, sign in again' in the list and in its state words", async () => {
   const { stateWords } = await import("../providers/model.ts");
-  const it = item({ id: "p", name: "Codex, irfad47@icloud.com", kind: "ai_subscription" });
+  const it = item({ id: "p", name: "Codex, imran47@icloud.com", kind: "ai_subscription" });
   const prov = { via: "Sign in with Codex", scope: "mine", unopenable: true, state: "needs_sign_in" } as never;
   assert.equal(secondLine(it, prov), "Can't be opened, sign in again");
   assert.equal(

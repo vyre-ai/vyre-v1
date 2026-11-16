@@ -41,6 +41,8 @@ export interface RecordsNav {
   openRecord(recordId: string): void;
   /** An agent's own page. Left out, the Agents type shows as a plain table. */
   openAgent?(agentId: string): void;
+  /** A type's table as a page of its own: a tab beside this one (Cmd-press, the middle button, Open in New Tab). Left out where the shell has no tabs. */
+  openType?(typeKey: string): void;
   /** The read-only list of record types (the screen records.types). */
   openRecordTypes(): void;
   openSchemaMap(): void;

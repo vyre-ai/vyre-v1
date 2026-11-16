@@ -130,7 +130,7 @@ export function ActivityLine({
         key={s.id}
         testID={`activity-step-${s.id}`}
         style={st.step}
-      >{`${s.state === "live" ? "•" : s.state === "failed" ? "×" : "✓"}  ${s.name !== "" ? stepLabel(s.name, s.detail) : "A step"}`}</Text>,
+      >{`${s.state === "live" ? "•" : s.state === "failed" ? "×" : "✓"}  ${s.name !== "" ? stepLabel(s.name, s.detail) : "A step"}${s.state === "failed" ? ", did not work" : ""}`}</Text>,
     );
   const thought = thinkingExcerpt(snap.thinking, 420);
   const inner = (

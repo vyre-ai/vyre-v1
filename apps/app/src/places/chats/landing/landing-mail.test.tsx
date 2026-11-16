@@ -15,7 +15,7 @@ import { publishProgress } from "../../../onboarding/store.ts";
 import type { ShellRuntime, ShellTarget } from "../../../shell/providers/runtime.tsx";
 import { Landing } from "./Landing.tsx";
 
-const ME: Principal = { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" };
+const ME: Principal = { id: "usr_imran", name: "Imran Ibarra", kind: "person" };
 const ready = (data: unknown): LiveQuery<unknown> => {
   const snap = { status: "ready" as const, data };
   return { subscribe: () => () => undefined, getSnapshot: () => snap };

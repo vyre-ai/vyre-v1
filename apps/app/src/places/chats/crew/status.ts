@@ -5,9 +5,9 @@ import type { CrewMember, CrewStatusOut } from "./model.ts";
 
 export type Call = (cap: string, input: unknown) => Promise<unknown>;
 
-// the helpers and teammates are polled while they work; the engine's own subagents are not (their start and end come over the live stream the chat already has)
+// everything that works is polled, the engine's own subagents too: one started in the background works on after its turn ended, so no live stream of that turn carries its end
 const live = (s: CrewStatusOut | null): boolean =>
-  s !== null && s.members.some((m) => m.kind !== "subagent" && (m.state === "working" || m.state === "needs_you"));
+  s !== null && s.members.some((m) => m.state === "working" || m.state === "needs_you");
 
 export function useCrewStatus(
   call: Call | undefined,

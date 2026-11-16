@@ -56,10 +56,10 @@ test(
     push = (m) => r.bridge.push(m);
     const agent = { id: "agt_scout", name: "Scout" };
     const call = (tool: string, input: Record<string, unknown> = {}) =>
-      r.bridge.callTool({ tool, input, agent, space: "spc_mla" }) as Promise<any>;
+      r.bridge.callTool({ tool, input, agent, space: "spc_northwind" }) as Promise<any>;
     const eventsOf = (name: string) => r.events.filter((e) => e["event"] === name);
     try {
-      await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_mla" }));
+      await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_northwind" }));
       const page = await r.context.newPage();
       await page.goto(srv.url + "/");
       const tabId = await r.worker.evaluate(
@@ -68,7 +68,7 @@ test(
         srv.url,
       );
       await r.waitFor(() => r.bridge.connected === 1, 15_000, "the extension's agent channel");
-      r.bridge.optIn(["spc_mla"], "personal");
+      r.bridge.optIn(["spc_northwind"], "personal");
       await r.waitFor(() => r.callsTo("hello").length >= 0 && true);
       await new Promise((x) => setTimeout(x, 300));
 
@@ -88,7 +88,7 @@ test(
       // Read only: another agent may read this site and is refused an act, in words that say where to change it
       const intake = { id: "agt_intake", name: "Intake" };
       const asIntake = (tool: string, input: Record<string, unknown> = {}) =>
-        r.bridge.callTool({ tool, input, agent: intake, space: "spc_mla" }) as Promise<any>;
+        r.bridge.callTool({ tool, input, agent: intake, space: "spc_northwind" }) as Promise<any>;
       const page2 = await r.context.newPage();
       await page2.goto(srv.url + "/");
       const tab2 = await r.worker.evaluate(

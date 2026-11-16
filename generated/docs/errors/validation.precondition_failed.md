@@ -13,6 +13,7 @@ HTTP 422. Retryable: no.
 - access.roles.delete
 - access.roles.unassign
 - access.share
+- agents.delete_for_good
 - agents.routine.delegate
 - agents.routine.run_now
 - agents.suggestion.accept
@@ -30,4 +31,3 @@ HTTP 422. Retryable: no.
 - browser.sites.set
 - changesets.approve
 - changesets.edit
-- chat.answer_block

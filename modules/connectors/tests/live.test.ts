@@ -9,8 +9,8 @@ const mine = registry.capabilities
   .map((c) => c.name)
   .sort();
 
-test("connectors live: the handler map equals the manifest's 64 capabilities", () => {
-  assert.equal(mine.length, 64);
+test("connectors live: the handler map equals the manifest's 65 capabilities", () => {
+  assert.equal(mine.length, 65); // 64 plus connections.approve_hosts (b-connect2)
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   for (const name of mine)
     assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);

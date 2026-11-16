@@ -39,6 +39,8 @@ export interface StepAsk {
   suggestions: readonly string[];
 }
 export const ASK: Partial<Record<CardKind, StepAsk>> = {
+  // with an AI account the Assistant leads this step (interview.ts interviewAsk gives the live line and picks); this is the line before the first answer
+  interview: { prompt: "What do you do?", suggestions: [] },
   import_sessions: {
     prompt: "Ask me which sessions to bring in.",
     suggestions: ["Which sessions are worth importing?", "Where do imported sessions go?"],

@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0-rc.29",
+  "version": "1.0.0-rc.31",
   "lines": [
-    "Automations is rebuilt: steps read as plain sentences, edits save as you go, and you can test a draft on a real past event.",
-    "Ask Vyre can build an Automation from one sentence. Its steps appear as a draft that you accept or discard.",
-    "Switching tabs no longer jumps: every place uses the same sidebar, and a place opened from a new tab takes that tab.",
-    "Getting started is shorter: connect your AI in one card, then finish setting up beside your first chat.",
-    "Rewind: go back to an earlier message in a chat with an agent, with Undo. The agent's work folder goes back too.",
-    "You can type into an agent's terminal, and on a shared agent's computer each person's folders and terminals are private."
+    "Every place has the same sidebar, with Hide and Expand, and a tab remembers where you were.",
+    "Chat shows one working indicator and a shorter message menu, and tells you when someone is typing.",
+    "Connect a service from one card in the chat: paste the key, and Vyre says where it is sent and keeps it in your Vault.",
+    "Getting started's How you work is a talk with the Assistant, and what it learns is a list you can edit.",
+    "Drive and OneDrive files open in Vyre's own viewers, and your edits go back to where the file lives.",
+    "Delete an agent for good. A goal says why a check-in could not run. The Inbox keeps each conversation's own drafts."
   ]
 }

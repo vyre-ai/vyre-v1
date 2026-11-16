@@ -218,7 +218,7 @@ test("/export reads every page, names files and people by their names, and hands
   assert.match(r.saved[0]!.name, /\.md$/);
   assert.equal(r.saved[0]!.mime, "text/markdown;charset=utf-8");
   assert.match(r.saved[0]!.content, /^# /);
-  assert.ok(!/usr_irfad|agt_intake/.test(r.saved[0]!.content), "no ids where a name belongs");
+  assert.ok(!/usr_imran|agt_intake/.test(r.saved[0]!.content), "no ids where a name belongs");
   await runSlash("/export json", r.env);
   assert.match(r.saved[1]!.name, /\.json$/);
   const json = JSON.parse(r.saved[1]!.content);

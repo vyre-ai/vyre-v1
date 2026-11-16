@@ -59,9 +59,9 @@ test("a write on one computer reaches the other whole, and only the tables and c
     "no integer-keyed log, no denied table",
   );
   a.db.exec("INSERT INTO chat_thread (id, title, body) VALUES ('t1', 'Plan', x'0102ff')");
-  a.db.exec("INSERT INTO chat_member VALUES ('t1', 'usr_irfad', 'owner'), ('t1', 'usr_aina', NULL)");
+  a.db.exec("INSERT INTO chat_member VALUES ('t1', 'usr_imran', 'owner'), ('t1', 'usr_aina', NULL)");
   a.db.exec("INSERT INTO logs_row (line) VALUES ('local only')");
-  a.db.exec("INSERT INTO network_phone VALUES ('irfad', 'claimed')");
+  a.db.exec("INSERT INTO network_phone VALUES ('imran', 'claimed')");
   a.db.exec("INSERT INTO network_peer VALUES ('peer_a', 'Office iMac', 99)");
   assert.equal(a.cells.waiting(0), 4, "four rows written here wait for the other computer");
   assert.equal(sync(a.cells, b.cells, "peer_a"), 4);

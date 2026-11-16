@@ -124,7 +124,7 @@ export function givenByVyre(provider: string, itemName: string): boolean {
   return n === "" || new RegExp(`^${esc(provider)}(?: \\d+| sign-in(?: \\d+)?|, .+)?$`, "i").test(n);
 }
 
-/** The name an account reads by in the composer and the pickers: the name the person gave it, else the provider and the account ("Claude Code, irfad@..."), else the provider alone. Never a counter. */
+/** The name an account reads by in the composer and the pickers: the name the person gave it, else the provider and the account ("Claude Code, imran@..."), else the provider alone. Never a counter. */
 export function shownName(provider: string, itemName: string, label?: string): string {
   if (!givenByVyre(provider, itemName)) return itemName.trim();
   return label ? `${provider}, ${label}` : provider;

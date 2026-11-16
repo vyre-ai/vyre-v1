@@ -131,8 +131,10 @@ test("chat walker findings: send follows, the Worked line, the plan card in orde
       })
     ).thread.threadId as string;
     await go(work);
-    await page.locator('[data-testid^="work-"]').first().waitFor({ timeout: 30_000 });
-    assert.match(await page.locator('[data-testid^="work-"]').first().innerText(), /Worked/);
+    // the quiet line under the reply, not the island above the composer (its test id starts the same way)
+    const line = page.locator('[data-testid^="work-msg_"]').first();
+    await line.waitFor({ timeout: 30_000 });
+    assert.match(await line.innerText(), /Worked/);
     await shot("03-work-line");
 
     // 3: the plan card: the words first, the plan's title on the card, Change it marks it Changing

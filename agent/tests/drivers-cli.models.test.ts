@@ -5,7 +5,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { createLocalLauncher } from "../src/drivers/cli/index.ts";
-import { ModelListError, claudeModels, codexModel, grokModels, grokTitle } from "../src/drivers/cli/models.ts";
+import {
+  ModelListError,
+  claudeModels,
+  codexModel,
+  grokModels,
+  grokTitle,
+  listCliModels,
+} from "../src/drivers/cli/models.ts";
 import { createSessionOpener } from "../src/drivers/open/index.ts";
 import type { OpenAccount } from "../src/drivers/open/index.ts";
 import { ctx } from "../src/drivers/api/testing.ts";
@@ -216,5 +223,26 @@ test("an engine that fails, errors or never answers throws a plain reason, and i
   await assert.rejects(
     rig().opener.models({ ref: "#K", driver: "anthropic", kind: "api_key" }, "dana"),
     /not a CLI engine/,
+  );
+});
+
+test("an engine that closes its input before the question is written gives its own reason, never a raw pipe error", async () => {
+  // the race CI hit three times on 15 and 16 Nov 2026: the engine exits first, the write fails with EPIPE, and the person read "write EPIPE"
+  const launcher = {
+    spawn: async () => ({
+      pid: 1,
+      stdout: (async function* (): AsyncGenerator<string> {})(),
+      write: async (): Promise<void> => {
+        throw Object.assign(new Error("write EPIPE"), { code: "EPIPE" });
+      },
+      endInput: (): void => undefined,
+      kill: (): void => undefined,
+      exited: Promise.resolve({ code: 1, signal: null }),
+      stderrTail: (): string => "could not reach the model list\n",
+    }),
+  };
+  await assert.rejects(
+    listCliModels(launcher as never, "codex", { graceMs: 10 }),
+    (e) => e instanceof ModelListError && /could not reach the model list/.test(e.message) && !/EPIPE/.test(e.message),
   );
 });

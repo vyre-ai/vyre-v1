@@ -7,7 +7,7 @@ import { PeoplePopover, footerOf, memberMenu, placeOf, walk } from "./index.tsx"
 import type { MemberAction, MemberRow, PeopleWhere } from "./index.tsx";
 
 const rows: MemberRow[] = [
-  { id: "usr_me", name: "Irfad Imtiaz", kind: "person", role: "Lead" },
+  { id: "usr_me", name: "Imran Ibarra", kind: "person", role: "Lead" },
   { id: "usr_sara", name: "Sara Malik", kind: "person", role: "Member" },
   { id: "agt_ember", name: "Ember", kind: "agent", role: "Can use" },
   { id: "agt_docs", name: "Docs", kind: "agent", role: "Can edit" },

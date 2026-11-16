@@ -49,7 +49,7 @@ test("the running account, every account with its models, usability and limits (
     "CREATE TABLE IF NOT EXISTS engine_turn_info (turn_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, reply_message_id TEXT, info TEXT, cost TEXT, updated_at INTEGER NOT NULL)",
   );
   h.db.run(
-    "INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES ('trn_a', 'thr_1', 'agt_1', 'usr_irfad', 'claude-sonnet-5-5', ?, 1000000, 8300, 0)",
+    "INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES ('trn_a', 'thr_1', 'agt_1', 'usr_imran', 'claude-sonnet-5-5', ?, 1000000, 8300, 0)",
     NOW,
   );
   h.db.run(
@@ -60,7 +60,7 @@ test("the running account, every account with its models, usability and limits (
   const ctx = {
     ...h.ctx,
     now: () => NOW,
-    principal: { kind: "person", id: "usr_irfad" },
+    principal: { kind: "person", id: "usr_imran" },
     async call(cap: string, input: Record<string, unknown>) {
       if (cap === "engine.accounts.list") {
         assert.equal(input["place"], "chat");

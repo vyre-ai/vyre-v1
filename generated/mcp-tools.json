@@ -2764,7 +2764,7 @@
             "type": "string"
           },
           "notify": {
-            "description": "Tell the person: a notification and an Inbox line (\"Irfad shared Dex with you\"), with this optional message",
+            "description": "Tell the person: a notification and an Inbox line (\"Imran shared Dex with you\"), with this optional message",
             "properties": {
               "message": {
                 "type": "string"
@@ -3299,6 +3299,73 @@
       },
       "name": "agents_delete",
       "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.delete_for_good",
+      "deferred": false,
+      "description": "Delete an agent in Trash for good: its memory, its one-to-one chats, its computer, its folder, its access and what it ran are erased; what others built that names it asks them to choose another agent. Not an Assistant",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_delete_for_good",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.delete_preview",
+      "deferred": false,
+      "description": "What deleting this agent for good would remove, with real counts, and what made by others names it and needs someone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "agents_delete_preview",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.erased",
+      "deferred": false,
+      "description": "The agents deleted for good, by the name they had, for the places that still show what they said (a chat or channel shows the name with a quiet deleted mark). Never a person's Assistant",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_erased",
+      "planMode": "allowed",
       "toolset": "agents",
       "v": 1
     },
@@ -4249,6 +4316,21 @@
     },
     {
       "blocks": [],
+      "cap": "agents.trash.list",
+      "deferred": false,
+      "description": "The agents in Trash, with which are being deleted for good",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_trash_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.update",
       "deferred": false,
       "description": "Change an agent: name, model, fallback, account, tools, vault key names, limits, memory capture, handoffs; a broken agent.toml keeps the last good version running",
@@ -4337,7 +4419,7 @@
       "blocks": [],
       "cap": "sites.artifact_publish",
       "deferred": false,
-      "description": "THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "description": "Needs a title and exactly one of html, fileId, folderId, path or port. THE way to show what you made: publishes it privately, the person gets a card to open. Example: artifact_publish {\"title\":\"Q3 plan\",\"html\":\"<h1>Q3</h1>\"}. Same title or artifactId updates the link. No title: its <title> is used",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -22029,7 +22111,7 @@
       "blocks": [],
       "cap": "files.create",
       "deferred": false,
-      "description": "Create a file in a folder from text, base64 or an uploaded blob",
+      "description": "Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person's own files. A name already taken becomes \"name (2)\" for an agent. A direct write holds at most 256 KB: split larger content into several files",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -22348,6 +22430,32 @@
         "type": "object"
       },
       "name": "files_folder_move",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "files.folder.purge",
+      "deferred": false,
+      "description": "Delete a folder in Trash for good, with every file and folder in it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "folderId"
+        ],
+        "type": "object"
+      },
+      "name": "files_folder_purge",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -23573,7 +23681,7 @@
       "blocks": [],
       "cap": "files.write",
       "deferred": false,
-      "description": "Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
+      "description": "Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -24813,7 +24921,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -24907,7 +25016,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -25002,7 +25112,8 @@
               "signin_change",
               "install",
               "approve",
-              "github_approval"
+              "github_approval",
+              "agent_erase"
             ],
             "type": "string"
           },
@@ -33241,7 +33352,7 @@
       "blocks": [],
       "cap": "inbox.counts",
       "deferred": false,
-      "description": "Unread counts for the sidebar: per inbox, per number and the Needs a match total",
+      "description": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -36771,6 +36882,13 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "address": {
+            "description": "Only drafts written to this address (To or Cc): a conversation with someone who is not a contact yet",
+            "examples": [
+              "maya@example.com"
+            ],
+            "type": "string"
+          },
           "contactId": {
             "examples": [
               "rec_a1b2c3"
@@ -70133,209 +70251,6 @@
       },
       "name": "vault_connect",
       "planMode": "allowed",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.ask_admin",
-      "deferred": false,
-      "description": "Ask an admin to connect the service when this person may not",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "admin": {
-            "examples": [
-              "usr_a1b2c3"
-            ],
-            "pattern": "^usr_[a-z0-9]+$",
-            "type": "string"
-          },
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_ask_admin",
-      "planMode": "blocked",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.disconnect",
-      "deferred": false,
-      "description": "Disconnect the service; the key stays in the Vault",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_disconnect",
-      "planMode": "blocked",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.get",
-      "deferred": false,
-      "description": "The connect card of one request: its state, the fields, who can fill it, where the key is kept",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_get",
-      "planMode": "allowed",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.options",
-      "deferred": false,
-      "description": "Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_options",
-      "planMode": "allowed",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.reopen",
-      "deferred": false,
-      "description": "Open a card the person folded with Not now",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_reopen",
-      "planMode": "blocked",
-      "toolset": "vault",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "vault.connect_card.submit",
-      "deferred": false,
-      "description": "Try the key, connect the service and keep the key; nothing is kept unless the key works. The values are in this call only",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "audience": {
-            "enum": [
-              "asker",
-              "anyone"
-            ],
-            "type": "string"
-          },
-          "fields": {
-            "items": {
-              "properties": {
-                "key": {
-                  "examples": [
-                    "api_key"
-                  ],
-                  "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "key",
-                "value"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "folderId": {
-            "examples": [
-              "vfd_a1b2c3"
-            ],
-            "pattern": "^vfd_[a-z0-9]+$",
-            "type": "string"
-          },
-          "requestId": {
-            "examples": [
-              "vrq_a1b2c3"
-            ],
-            "pattern": "^vrq_[a-z0-9]+$",
-            "type": "string"
-          },
-          "useSaved": {
-            "description": "Use the key the person already has instead of a typed one",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "requestId"
-        ],
-        "type": "object"
-      },
-      "name": "vault_connect_card_submit",
-      "planMode": "blocked",
       "toolset": "vault",
       "v": 1
     },

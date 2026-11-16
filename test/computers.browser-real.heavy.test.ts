@@ -32,18 +32,25 @@ test(
     const url = `http://${process.env["VYRE_BRIDGE_HOST"] ?? "172.17.0.1"}:${port}/pricing`;
     let agent = "";
     const said: string[] = [];
+    let wakeMs = -1;
+    let name = "";
     const model = scriptedModel(async function* (input, run) {
       if (input.agent.id === agent && /pricing/.test(input.trigger?.body ?? "")) {
         yield* run("tool_search", { query: "chrome open" });
         said.push(JSON.stringify(yield* run("chrome_open", { url })).slice(0, 1500));
         yield* run("tool_search", { query: "chrome snapshot" });
         said.push(JSON.stringify(yield* run("chrome_snapshot", {})).slice(0, 3000));
+        // the Space browser goes to sleep (its container stops), and the agent's next first call to it wakes it inside the call: no "call it once more", no failure (16 Nov 2026, the owner: "for browser ... its first attempts are failing")
+        execFileSync("docker", ["stop", "-t", "2", name], { stdio: "ignore" });
+        const woke = Date.now();
+        said.push(JSON.stringify(yield* run("chrome_open", { url })).slice(0, 1500));
+        wakeMs = Date.now() - woke;
         yield { type: "text", text: "The pricing page is open." };
       }
     });
     const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-browser-real-")));
     // a Space browser of its own: never the machine's vyre-sbrowser, removed with its volume at the end however the test ends
-    const name = `vyre-sbrowser-test-${process.pid}`;
+    name = `vyre-sbrowser-test-${process.pid}`;
     const before = process.env["VYRE_SPACE_BROWSER_NAME"];
     process.env["VYRE_SPACE_BROWSER_NAME"] = name;
     const cleanup = (): void => {
@@ -137,13 +144,20 @@ test(
       await waitFor(
         async () => {
           await d.hooks?.pump?.();
-          return said.length >= 2 ? true : null;
+          return said.length >= 3 ? true : null;
         },
         300_000,
         () => `${said.join("\n")}\n${hostLog(d)}`,
       );
       assert.doesNotMatch(said[0]!, /"ok":false/, `chrome_open: ${said[0]}`);
       assert.match(said[1]!, /Harbor Quotes pricing/, `chrome_snapshot reads the page: ${said[1]}`);
+      assert.doesNotMatch(
+        said[2]!,
+        /"ok":false|not available|call it once more/,
+        `chrome_open after a sleep: ${said[2]}`,
+      );
+      assert.match(said[2]!, /Harbor Quotes/, `the first open after a sleep reaches the page: ${said[2]}`);
+      console.log(`browser: first open after a sleep ${wakeMs} ms`);
       // the step keeps a real picture of the page, and the chat's card points at it
       const steps = (await api("computers.browser.timeline", { agentId: agent })).steps as Array<{
         caption: string;

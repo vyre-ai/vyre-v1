@@ -75,7 +75,7 @@ test("right-click on the goal page: Pause calls goals.pause, Mark Stuck asks why
       goalId="gol_lab8"
       call={logged}
       changes={undefined}
-      me="usr_irfad"
+      me="usr_imran"
       nameOf={(id) => id}
       clock={() => ({ now: NOW, offsetMin: 300 })}
       conversationFor={() => ({}) as ConversationData}

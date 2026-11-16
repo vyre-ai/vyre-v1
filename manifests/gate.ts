@@ -23,6 +23,7 @@ const actKey = t.enm(
   "install",
   "approve",
   "github_approval",
+  "agent_erase",
 );
 const holdState = t.enm("held", "approved", "denied", "expired");
 const approverRule = t.str({ description: "role:<name>, owner or asker", examples: ["role:admin"] });
@@ -117,6 +118,10 @@ export default defineManifest({
     }),
     // A session's use of the person's own GitHub (a push to the default branch, a merge, a delete of it): only the person it acts for lifts it, once. No Space rule, Always allow, goal or turn can.
     gateAct("github_approval", "Let a session use my GitHub", "high", "table", {
+      approvers: { default: "asker", peopleOnly: true },
+    }),
+    // Deleting an agent for good (F77): only a person presses it, and any other caller stops here. No Space rule, Always allow, goal or turn lifts it.
+    gateAct("agent_erase", "Delete an agent for good", "high", "record_card", {
       approvers: { default: "asker", peopleOnly: true },
     }),
     // Ask mode in a chat: the agent stops before any step that changes something and the person it works for allows it, whatever the step is.

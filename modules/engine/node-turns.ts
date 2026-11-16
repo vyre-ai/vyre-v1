@@ -301,7 +301,7 @@ export interface RouteDeps {
   nodeOpener(nodeId: string, person?: string): OpenSession;
   db: Db;
   now?: () => number;
-  /** The Space's own server in a line ("the MLA server"). */
+  /** The Space's own server in a line ("the Northwind server"). */
   spaceName?: () => Promise<string>;
   /** A server of the person's by its id, for its name. */
   serverName?: (serverId: string, person: string) => Promise<string | undefined>;

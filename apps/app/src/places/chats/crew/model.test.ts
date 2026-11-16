@@ -23,6 +23,9 @@ import {
   sorted,
   span,
   stripTitle,
+  backgroundWords,
+  sideBySide,
+  withLive,
   stripTone,
   timeline,
   tokenSplit,
@@ -99,10 +102,10 @@ test("a row says what it is on, what it found, or what went wrong", () => {
 });
 
 test("the strip's line counts them, says who needs you, and the light follows", () => {
-  assert.equal(stripTitle(T({ working: 2, done: 1, elapsedMs: 12_000 })), "3 helpers · working · 0:12");
+  assert.equal(stripTitle(T({ working: 2, done: 1, elapsedMs: 12_000 })), "3 helpers · working · 1 of 3 done · 0:12");
   assert.equal(
     stripTitle(T({ working: 1, needsYou: 1, done: 1, elapsedMs: 12_000 })),
-    "3 helpers · 1 needs you · 0:12",
+    "3 helpers · 1 needs you · 1 of 3 done · 0:12",
   );
   assert.equal(stripTitle(T()), "3 of 3 done · 41 s");
   assert.equal(stripTitle(T({ done: 2, failed: 1 })), "2 of 3 done · 1 failed · 41 s");
@@ -293,4 +296,33 @@ test("Review all and Merge are not offered while any helper of the strip still w
   );
   assert.equal(mergeStateOf([coder("done"), M({ state: "done" })]), "ready");
   assert.equal(mergeStateOf([coder("done", true), M({ state: "done" })]), "merged");
+});
+
+// ---- helpers working in the background (owner's rc.28 report, 16 Nov 2026) ----
+
+test("the line above the composer says what is true: how many work, how many of all are done, for how long", () => {
+  assert.equal(backgroundWords(T({ members: 4, working: 4, done: 0, elapsedMs: 41_000 })), "4 helpers working, 41 s");
+  assert.equal(
+    backgroundWords(T({ members: 4, working: 3, done: 1, elapsedMs: 120_000 })),
+    "3 helpers working, 1 of 4 done, 2 min",
+  );
+  assert.equal(
+    backgroundWords(T({ members: 2, working: 1, done: 1, elapsedMs: 80_000 })),
+    "1 helper working, 1 of 2 done, 1 min 20 s",
+  );
+});
+
+test("Side by side means something only for two or more helpers that ran at least a second each", () => {
+  assert.equal(sideBySide([M({ elapsedMs: 41_000 })]), false, "one bar says nothing");
+  assert.equal(sideBySide([M({ elapsedMs: 400 }), M({ elapsedMs: 900 })]), false, "bars of under a second say nothing");
+  assert.equal(sideBySide([M({ elapsedMs: 4_000 }), M({ elapsedMs: 7_000 })]), true);
+});
+
+test("a subagent the live frames call done while the read says it works was only launched: the read wins; an ended one is the frames'", () => {
+  const read = { members: [M({ kind: "subagent", id: "sub_a", state: "working" })], totals: T() } as never;
+  const frames = [M({ kind: "subagent", id: "sub_a", state: "done", elapsedMs: 4_000 })];
+  assert.equal(withLive(read, frames)!.members[0]!.state, "working");
+  const ended = { members: [M({ kind: "subagent", id: "sub_a", state: "done" })], totals: T() } as never;
+  assert.equal(withLive(ended, [M({ kind: "subagent", id: "sub_a", state: "failed" })])!.members[0]!.state, "failed");
+  assert.equal(withLive(read, [M({ kind: "subagent", id: "sub_a", state: "working" })])!.members[0]!.state, "working");
 });

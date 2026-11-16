@@ -1,4 +1,4 @@
-// The @mention wash on a long draft (owner report, rc.20 on MLA: boxes sat on "able to" and "t on CX" instead of @Aliza and @Rubab, and slid as lines were added). Two causes had to go: the wash never followed
+// The @mention wash on a long draft (owner report, rc.20 on Northwind: boxes sat on "able to" and "t on CX" instead of @Aliza and @Rubab, and slid as lines were added). Two causes had to go: the wash never followed
 // the field's scroll (React Native Web's onScroll carries no contentOffset), and nothing proved the wash and the field hold the same text, so a box lands on the word it names.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -21,7 +21,7 @@ const NAMES = ["Aliza Cohen", "Rubab Khan", "Sol"];
 
 /** Ten lines, three mentions, each line long enough to wrap in a narrow field. */
 const LINES = [
-  "Kickoff notes for the Meier file, written the morning after the call so nothing is lost.",
+  "Kickoff notes for the Moore file, written the morning after the call so nothing is lost.",
   "@Aliza please confirm that the engagement letter went out and that the client was able to sign it on the first try.",
   "The retainer is paid, the intake form is complete, and the conflict check came back clean.",
   "Two open questions remain about the trust schedule and who holds the originals.",

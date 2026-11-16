@@ -27,6 +27,8 @@ export interface ToolDef {
   gated: boolean;
   /** The capability needs an idempotency key (`create`): the tool layer makes one, so the model is not shown it (agent/src/tools/fill.ts). */
   keyed?: boolean;
+  /** The capability REQUIRES a chat (`threadId`) and the tool layer fills it with the chat the agent is in when the model names none (agent/src/tools/fill.ts). A tool that takes a chat as a filter never has it filled. */
+  thread?: boolean;
   /** What the capability acts on: the resource type and the JSON pointer of its id in the input. Absent for a capability with no single target. */
   resource?: { type: string; id: string };
 }

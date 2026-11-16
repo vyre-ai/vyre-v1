@@ -10,6 +10,8 @@ export const TELL = {
     `The person cannot connect ${t}; the card offers to ask an admin. Say one line and wait.`,
   declined: (t: string) =>
     `The person chose not to connect ${t} now. Carry on without it; they can press Connect on the card.`,
+  older_way: (t: string) =>
+    `${t} has its own place under Connections in the Vault, not a card. Say so in one line; build no connector.`,
   no_connector: (t: string) =>
     `No connector for ${t} yet. Build one (connectors_init, connectors_define, connectors_publish), then call vault_connect again.`,
 } as const;

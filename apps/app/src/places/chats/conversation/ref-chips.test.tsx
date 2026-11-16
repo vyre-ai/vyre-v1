@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createRoot } from "test-renderer";
+import { find, flush, installDom, mount } from "../../../../../../ui/src/testing/dom.ts";
 import {
+  useRefChips,
   externalIds,
   idsIn,
   isExternalId,
@@ -10,6 +13,8 @@ import {
   withKeys,
   withNames,
 } from "./ref-chips.tsx";
+
+installDom();
 
 const REC = "rec_01a1b2c3d4e5f6g7h8";
 
@@ -188,4 +193,33 @@ test("an id is resolved by the capability that reads it: mail thread, then calen
     { kind: "event", title: "Standup" },
   );
   assert.equal(await resolveExternal(mk({}), "zzz999zzz999"), null);
+});
+
+// ---- a link to a file that is not there (owner's rc.28 report, 16 Nov 2026) ----
+const datas = new WeakMap<object, never>();
+function Probe({ body, call }: { body: string; call: (cap: string, input: unknown) => Promise<unknown> }) {
+  // one stable data object per call, as the app's own (a new one each render would look the ids up again each time)
+  const data = (datas.get(call) ??
+    datas.set(call, { call, nav: { openBeside: () => undefined } } as never).get(call)) as never;
+  const { renderLink } = useRefChips(body, data);
+  const here = refOfHref("https://ref.vyre.invalid/file/file_01abcdefghijk");
+  return (
+    <>
+      {renderLink && here
+        ? renderLink("https://ref.vyre.invalid/file/file_01abcdefghijk", "Ranked shortlist.md", 0)
+        : "plain"}
+    </>
+  );
+}
+
+test("a file link is drawn only when the file is found and the reader may open it; the name the agent wrote is never enough", async () => {
+  const body = "Saved [[Ranked shortlist.md|file_01abcdefghijk]]";
+  const none = async (): Promise<unknown> => ({ hit: null });
+  const found = async (): Promise<unknown> => ({ hit: { title: "Ranked shortlist.md", recordType: "file" } });
+  const gone = await mount(createRoot, <Probe body={body} call={none} />);
+  await flush();
+  assert.equal(find(gone, "link-file_01abcdefghijk"), null, "no such file: plain words, no link");
+  const there = await mount(createRoot, <Probe body={body} call={found} />);
+  await flush();
+  assert.ok(find(there, "link-file_01abcdefghijk"), "found: a link");
 });

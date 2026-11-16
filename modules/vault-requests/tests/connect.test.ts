@@ -6,7 +6,7 @@ import { handlers } from "../impl.ts";
 import { world } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 
-// the connect card is off by default (lib/connect-switch.ts); this file tests it, so it turns it on for itself
+// the connect card is on by default (lib/connect-switch.ts, rc.29); this file says so, so a run with the variable set to 0 still tests the card
 process.env["VYRE_CONNECT_CARD"] = "1";
 
 const KEY = "fk_live_TYPED_KEY_0001";
@@ -42,10 +42,24 @@ const submit = (
   fields: { key: string; value: string }[] = [{ key: "api_key", value: KEY }],
   who = "usr_asker",
   extra = {},
-) => handlers["vault.connect_card.submit"](person(w, who), { requestId, fields, ...extra } as never);
+) =>
+  handlers["vault.connect_card.submit"](person(w, who), {
+    hosts: ["api.fathom.ai"],
+    requestId,
+    fields,
+    ...extra,
+  } as never);
 const card = (w: World, requestId: string, who = "usr_asker") =>
   handlers["vault.connect_card.get"](person(w, who), { requestId } as never).then((r) => r.card);
 const names = (w: World) => w.calls.map((c) => c.cap);
+/** What the card's own save writes on a key (who, and the hosts it goes to). A test says it was saved by the card; a key a person named or typed into the Vault by hand has none. */
+const stamp = (w: World, requestId: string, item = "vit_old", hosts = ["api.fathom.ai"], by = "usr_asker"): void => {
+  w.db.run(
+    `UPDATE vault_requests_requests SET saved_json = ? WHERE id = ?`,
+    JSON.stringify([{ item, by, hosts }]),
+    requestId,
+  );
+};
 
 test("an agent names the service and gets a short answer; the person gets one card", async () => {
   const w = room();
@@ -93,6 +107,17 @@ test("a service with no connector answers no_connector with the one next step, a
   assert.match(r.tell, /Build one/);
   assert.equal(BANNED.test(r.tell), false);
   assert.equal(w.called("chat.post").length, 0);
+});
+
+test("a built-in service the card does not offer says so to the agent: its older way, and no second connector built for it", async () => {
+  const w = room({ older: ["Stripe"] });
+  const r = await ask(w, "Stripe");
+  assert.equal(r.status, "no_connector");
+  assert.match(r.tell, /own place under Connections/);
+  assert.match(r.tell, /build no connector/i);
+  assert.doesNotMatch(r.tell, /Build one|connectors_init/);
+  assert.equal(BANNED.test(r.tell.replace(/Connections in the Vault/, "")), false);
+  assert.equal(w.called("chat.post").length, 0, "no card is drawn for it");
 });
 
 test("Connect: the key is tried first, kept second, connected third, and nothing but the try ever carries it", async () => {
@@ -175,10 +200,15 @@ test("a key the person already saved is offered back, and Use it connects withou
   const w = room({ saved: [{ id: "vit_old", name: "Fathom", folderId: "vfd_mine", fieldKeys: ["api_key"] }] });
   const { requestId, status } = await ask(w);
   assert.equal(status, "waiting_person");
+  stamp(w, requestId!);
   const c = await card(w, requestId!);
   assert.equal(c.state, "have");
   assert.deepEqual(c.have, { itemId: "vit_old", name: "Fathom", keptIn: "Mine" });
-  const out = await handlers["vault.connect_card.submit"](person(w), { requestId, useSaved: true } as never);
+  const out = await handlers["vault.connect_card.submit"](person(w), {
+    hosts: ["api.fathom.ai"],
+    requestId,
+    useSaved: true,
+  } as never);
   assert.equal(out.result, "connected");
   assert.equal(w.called("vault.item.put").length, 0, "no second copy of the key");
   assert.equal(w.called("connectors.check_key").length, 0, "the connection's own probe tries it");
@@ -248,6 +278,30 @@ test("Disconnect removes the connection, keeps the key and folds the card to Not
   assert.equal(w.called("vault.item.delete").length, 0, "the key stays in the Vault");
 });
 
+test("after Disconnect the agent's next call asks again with a new card, while a card folded with Not now stays folded; the old card stays Not connected and the key is not offered on the new one", async () => {
+  const w = room();
+  const first = await ask(w);
+  await submit(w, first.requestId!);
+  await handlers["vault.connect_card.disconnect"](person(w), { requestId: first.requestId } as never);
+  const again = await ask(w, "Fathom", "k2");
+  assert.equal(again.status, "waiting_person", "the next call asks again");
+  assert.notEqual(again.requestId, first.requestId, "with a new card");
+  assert.equal((await card(w, first.requestId!)).state, "later", "the old card stays Not connected");
+  assert.equal(
+    (await card(w, again.requestId!)).state,
+    "ask",
+    "the key is not offered back: Disconnect took its stamp",
+  );
+  assert.equal((await card(w, again.requestId!)).have, undefined);
+  assert.ok(w.called("chat.post").length >= 2, "the new card is drawn in the chat");
+  // Not now is the other case: it stays folded however often the agent asks
+  const w2 = room();
+  const f = await ask(w2);
+  await handlers["vault.requests.decline"](person(w2), { requestId: f.requestId } as never);
+  const f2 = await ask(w2, "Fathom", "k2");
+  assert.deepEqual([f2.status, f2.requestId], ["declined", f.requestId]);
+});
+
 test("Kept in: Mine first, the folders an agent can use next, the others listed but not usable", async () => {
   const w = room({ unusable: ["vfd_fin"] });
   const { requestId } = await ask(w);
@@ -298,7 +352,7 @@ test("the card's own acts are a person's: an agent, even one acting for the aske
   const { requestId } = await ask(w, "HubSpot");
   const as = dex(w);
   for (const [cap, input] of [
-    ["vault.connect_card.submit", { requestId, useSaved: true }],
+    ["vault.connect_card.submit", { hosts: ["api.fathom.ai"], requestId, useSaved: true }],
     ["vault.connect_card.ask_admin", { requestId }],
     ["vault.connect_card.reopen", { requestId }],
     ["vault.connect_card.disconnect", { requestId }],
@@ -352,7 +406,12 @@ test("a saved key whose connection fails its probe leaves the connection removed
     probe: "down",
   });
   const { requestId } = await ask(w);
-  const out = await handlers["vault.connect_card.submit"](person(w), { requestId, useSaved: true } as never);
+  stamp(w, requestId!);
+  const out = await handlers["vault.connect_card.submit"](person(w), {
+    hosts: ["api.fathom.ai"],
+    requestId,
+    useSaved: true,
+  } as never);
   assert.notEqual(out.result, "connected");
   assert.equal(w.called("connections.delete").length, 1);
   assert.equal(w.called("vault.item.delete").length, 0);
@@ -382,7 +441,7 @@ test("Tested is only said when a call really ran; a connector with no check show
   assert.equal(out.card.tested, undefined);
 });
 
-test("a connector that is not built in says on Ask which host the key is tried against", async () => {
+test("B: the card says on Ask which hosts the key goes to, built in or not", async () => {
   const w = room({ thirdParty: true });
   const { requestId } = await ask(w);
   assert.equal(
@@ -390,9 +449,10 @@ test("a connector that is not built in says on Ask which host the key is tried a
     "api.example.test, files.example.test",
     "every host the key can be sent to",
   );
+  // B: the card shows the hosts the key goes to for a built-in service too, before the person saves anything
   const b = room();
   const r = await ask(b);
-  assert.equal((await card(b, r.requestId!)).checksWith, undefined);
+  assert.equal((await card(b, r.requestId!)).checksWith, "api.fathom.ai");
 });
 
 test("the typed key is in no event, log line, request row or nested call but the check and the Vault put", async () => {
@@ -419,6 +479,7 @@ test("a Space service is kept in the Connections folder even when the admin is t
     "no Mine, no team folders; the folder is made on first use",
   );
   const out = await admin("vault.connect_card.submit", {
+    hosts: ["api.fathom.ai"],
     requestId: r.requestId,
     fields: [{ key: "token", value: KEY }],
     folderId: "vfd_mine",
@@ -435,12 +496,17 @@ test("a Space service is kept in the Connections folder even when the admin is t
 test("an agent cannot connect a person's saved key with no press: submit useSaved by an agent is refused and nothing is made", async () => {
   const w = room({ saved: [{ id: "vit_old", name: "Fathom", folderId: "vfd_mine", fieldKeys: ["api_key"] }] });
   const { requestId } = await ask(w);
+  stamp(w, requestId!);
   await assert.rejects(
-    handlers["vault.connect_card.submit"](dex(w), { requestId, useSaved: true } as never),
+    handlers["vault.connect_card.submit"](dex(w), { hosts: ["api.fathom.ai"], requestId, useSaved: true } as never),
     (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.no_grant",
   );
   await assert.rejects(
-    handlers["vault.connect_card.submit"](dex(w), { requestId, fields: [{ key: "api_key", value: KEY }] } as never),
+    handlers["vault.connect_card.submit"](dex(w), {
+      hosts: ["api.fathom.ai"],
+      requestId,
+      fields: [{ key: "api_key", value: KEY }],
+    } as never),
   );
   assert.equal(w.called("connections.create").length, 0);
   assert.equal(w.called("connectors.check_key").length, 0);
@@ -450,6 +516,7 @@ test("a second key for the same service gets its own item name, never a raw dupl
   const w = room({ saved: [{ id: "vit_old", name: "Fathom", folderId: "vfd_mine", fieldKeys: ["api_key"] }] });
   const { requestId } = await ask(w);
   await handlers["vault.connect_card.submit"](person(w), {
+    hosts: ["api.fathom.ai"],
     requestId,
     useSaved: false,
     fields: [{ key: "api_key", value: KEY }],
@@ -464,17 +531,77 @@ test("if the erase itself fails the card says the key is saved, and Retry offers
   assert.equal(out.card.notice, "Your key is saved in Mine. Couldn't connect.");
 });
 
-test("a saved key is offered only when the card itself saved it for this service: a name that merely starts alike is not", async () => {
+test("A: a saved key is offered only from the card's own stamp (same service, same person, same hosts), never by its name", async () => {
+  const keep = { id: "vit_a", name: "Fathom", folderId: "vfd_mine", fieldKeys: ["api_key"] };
+  // named exactly like the service, with every field, in Mine: still not offered (nobody stamped it)
   const w = room({
-    saved: [
-      { id: "vit_a", name: "Fathom key old", folderId: "vfd_mine", fieldKeys: ["api_key"] },
-      { id: "vit_b", name: "FathomX", folderId: "vfd_mine", fieldKeys: ["api_key"] },
-    ],
+    saved: [keep, { ...keep, id: "vit_b", name: "Fathom_2" }, { ...keep, id: "vit_c", name: "Fathom key old" }],
   });
   const { requestId } = await ask(w);
-  assert.equal((await card(w, requestId!)).state, "ask");
-  const w2 = room({ saved: [{ id: "vit_c", name: "Fathom_3", folderId: "vfd_mine", fieldKeys: ["api_key"] }] });
-  assert.equal((await card(w2, (await ask(w2)).requestId!)).state, "have");
+  const c0 = await card(w, requestId!);
+  assert.deepEqual([c0.state, c0.have], ["ask", undefined]);
+  // stamped by another person, or for other hosts (the connector changed where its key goes): not offered
+  stamp(w, requestId!, "vit_a", ["api.fathom.ai"], "usr_other");
+  assert.equal((await card(w, requestId!)).state, "ask", "another person's stamp");
+  stamp(w, requestId!, "vit_a", ["api.fathom.ai", "files.example.test"]);
+  assert.equal((await card(w, requestId!)).state, "ask", "other hosts");
+  // the card's own stamp for this person and these hosts: offered
+  stamp(w, requestId!, "vit_b");
+  const c1 = await card(w, requestId!);
+  assert.deepEqual([c1.state, c1.have?.itemId], ["have", "vit_b"]);
+});
+
+test("A: the agent learns nothing of what is in the Vault: it reads no card, no options, and its tell is the same with or without a saved key", async () => {
+  const saved = [{ id: "vit_old", name: "Fathom", folderId: "vfd_mine", fieldKeys: ["api_key"] }];
+  const without = room({ saved });
+  const a = await ask(without);
+  const withKey = room({ saved });
+  const b = await ask(withKey);
+  stamp(withKey, b.requestId!);
+  const b2 = await ask(withKey, "Fathom", "k9");
+  assert.deepEqual([b.status, b.tell], [a.status, a.tell]);
+  assert.deepEqual([b2.status, b2.tell], [a.status, a.tell], "asking again says the same");
+  for (const cap of ["vault.connect_card.get", "vault.connect_card.options"] as const)
+    await assert.rejects(handlers[cap](dex(withKey), { requestId: b.requestId } as never), (e: unknown) =>
+      /Only a person/.test((e as { error?: { message?: string } }).error?.message ?? ""),
+    );
+  // nothing an agent is handed names the saved key: not the tell, not the chat block, not what the agent's own calls returned
+  const heard = JSON.stringify([b, b2, withKey.called("chat.post")]);
+  assert.equal(/vit_old|Fathom_|saved/i.test(heard.replace(/"service":"fathom"/g, "")), false, heard);
+  // another person in the chat (not the one asked) reads no card either
+  await assert.rejects(
+    handlers["vault.connect_card.get"](person(withKey, "usr_bea"), { requestId: b.requestId } as never),
+  );
+  // the asked person is shown it, and only on their own card
+  assert.equal((await card(withKey, b.requestId!)).state, "have");
+});
+
+test("C: the card takes back only the key it saved in its open try: a request id and an item the request names; Not now on a kept key takes it too", async () => {
+  const w = room({ fail: { "connections.create": "boom", "vault.item.discard_new": "no" } });
+  const { requestId } = await ask(w);
+  const out = await submit(w, requestId!);
+  assert.equal(out.card.notice, "Your key is saved in Mine. Couldn't connect.");
+  const tried = w.called("vault.item.discard_new")[0]!.input;
+  assert.deepEqual(
+    [tried["itemId"], tried["requestId"]],
+    ["vit_new", requestId],
+    "bound to this request and this item",
+  );
+  const row = w.db.dump();
+  assert.match(row, /vit_new/);
+  // the key is still waiting for its connection: the Vault may take it back for this card only
+  const may = await handlers["vault.connect_card.may_discard"](person(w), { requestId, itemId: "vit_new" } as never);
+  assert.deepEqual(may, { ok: true });
+  await assert.rejects(
+    handlers["vault.connect_card.may_discard"](person(w), { requestId, itemId: "vit_other" } as never),
+  );
+  await assert.rejects(
+    handlers["vault.connect_card.may_discard"](dex(w), { requestId, itemId: "vit_new" } as never),
+    (e: unknown) => /Only a person/.test((e as { error?: { message?: string } }).error?.message ?? ""),
+  );
+  await assert.rejects(
+    handlers["vault.connect_card.may_discard"](person(w, "usr_bea"), { requestId, itemId: "vit_new" } as never),
+  );
 });
 
 test("a not built-in service shows every host on the saved-key state too", async () => {
@@ -482,6 +609,41 @@ test("a not built-in service shows every host on the saved-key state too", async
     thirdParty: true,
     saved: [{ id: "vit_c", name: "Fathom", folderId: "vfd_mine", fieldKeys: ["api_key"] }],
   });
-  const c = await card(w, (await ask(w)).requestId!);
+  const asked = await ask(w);
+  stamp(w, asked.requestId!, "vit_c", ["api.example.test", "files.example.test"]);
+  const c = await card(w, asked.requestId!);
   assert.deepEqual([c.state, c.checksWith], ["have", "api.example.test, files.example.test"]);
+});
+
+test("H: Connect with the addresses the card showed is refused when the service's addresses are no longer those, before anything is sent or kept", async () => {
+  const w = room();
+  const { requestId } = await ask(w);
+  const shown = (await card(w, requestId!)).checksWith!.split(", ");
+  await assert.rejects(
+    submit(w, requestId!, undefined, "usr_asker", { hosts: [...shown, "evil.example"] }),
+    /changed since this card was shown/,
+  );
+  assert.equal(w.called("connectors.check_key").length, 0, "no key was sent");
+  assert.equal(w.called("vault.item.put").length, 0, "nothing was kept");
+  const ok = await submit(w, requestId!, undefined, "usr_asker", { hosts: shown });
+  assert.equal(ok.result, "connected");
+});
+
+test("I: the line of a connect request is read only by its asker, a person who can see its chat, or a service; a member outside the chat, an agent and a stranger holding the id are told there is no such request", async () => {
+  const w = room({ outsiders: ["usr_out"] });
+  const { requestId } = await ask(w);
+  const line = (who: ReturnType<typeof person>) =>
+    handlers["vault.connect_card.line"](who, { requestId: requestId! } as never);
+  const mine = await line(person(w));
+  assert.deepEqual([mine.service, mine.state, mine.threadId, mine.agentId], ["Fathom", "asked", "thr_1", "agt_dex"]);
+  assert.equal((await line(person(w, "usr_inchat"))).service, "Fathom", "a person who can see the chat");
+  await assert.rejects(line(person(w, "usr_out")), /No such request/);
+  await assert.rejects(line(dex(w)), /No such request/, "an agent is not the asker and reads nothing");
+  assert.equal((await line(w.as("svc_engine", "service" as never))).service, "Fathom", "the trusted service");
+  // a service a tenant can create is not trusted by its kind (lib/trust.ts): a Space Automation's own service and a public form's read nothing
+  await assert.rejects(
+    line(w.as("svc_0123456789abcdef0123456789abcdef", "service" as never) as never),
+    /No such request/,
+  );
+  await assert.rejects(line(w.as("svc_form_frm_1", "service" as never) as never), /No such request/);
 });

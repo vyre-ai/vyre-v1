@@ -54,11 +54,10 @@ export function naiveValue(key: string, p: P): unknown {
   const alt = p.oneOf?.[0] ?? p.anyOf?.[0];
   if (alt && p.type === undefined) return naiveValue(key, alt);
   const ex = p.examples?.[0];
-  if (typeof ex === "string" && p.pattern !== undefined && !/example\.(com|org|net)/i.test(ex)) return ex;
-  // an example that is not an id's shape is not copied: the tool layer shows it, but a placeholder one (example.com) is refused as a test call, and this branch does not hide them
+  if (typeof ex === "string" && p.pattern !== undefined) return ex;
   switch (p.type) {
     case "string":
-      return text(key, p);
+      return typeof ex === "string" ? ex : text(key, p);
     case "integer":
     case "number": {
       const lo = p.minimum ?? 0;
@@ -75,7 +74,7 @@ export function naiveValue(key: string, p: P): unknown {
     case "object":
       return naiveObject(p);
     default:
-      return text(key, p);
+      return typeof ex === "string" ? ex : text(key, p);
   }
 }
 

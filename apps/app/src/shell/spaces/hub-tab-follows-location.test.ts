@@ -11,7 +11,7 @@ import { readUrlIntoHub } from "../session/url.ts";
 const TASK = "screen=tasks.page&taskId=tsk_1";
 function restored(tabs: TabEntry[], active: string) {
   const rows = new Map<string, string>([
-    [tabsStorageKey("web", "irfad", SEED_DEFS[0]!.spaceId), writeTabs({ tabs, active })],
+    [tabsStorageKey("web", "imran", SEED_DEFS[0]!.spaceId), writeTabs({ tabs, active })],
   ]);
   const storage = {
     getItem: (k: string) => rows.get(k) ?? null,
@@ -22,7 +22,7 @@ function restored(tabs: TabEntry[], active: string) {
   return createShellHub({
     spaces: SEED_DEFS,
     openId: SEED_DEFS[0]!.spaceId,
-    personId: "irfad",
+    personId: "imran",
     deviceId: "web",
     storage,
     skeletonMs: 0,

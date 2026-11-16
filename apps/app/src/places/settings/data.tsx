@@ -74,6 +74,8 @@ export interface SettingsData {
   openConsole?(): void;
   /** Opens Connect your company, for a person who may change the company's connection. */
   openCompany?(): void;
+  /** A page of Settings as a tab beside this one (Cmd-press, the middle button). Absent where the shell has no tabs. */
+  openPageTab?(page: string): void;
   sessionImporter?: import("../../../../../client/src/session-import/desktop.ts").SessionImporter | undefined;
   /** Update this desktop app (This computer). Absent in a browser. */
   desktopUpdater?: DesktopUpdater | undefined;

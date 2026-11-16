@@ -8,7 +8,7 @@ import { createMcpServer } from "../src/mcp/index.ts";
 import type { McpCaller } from "../src/mcp/index.ts";
 import { loadGenerated, validatingInvoke } from "../src/tools/harness.ts";
 import { slimTool } from "../src/drivers/api/slim.ts";
-import { parseDefaultTools } from "../src/tools/catalog.ts";
+import { offerable, parseDefaultTools, POINT_TO_CARD } from "../src/tools/catalog.ts";
 import { estimateTokens } from "../../lib/reply-format.ts";
 import { TELL } from "../../lib/connect-tell.ts";
 
@@ -91,4 +91,18 @@ test("a CLI engine's first call, written from the description with no key, is ac
   assert.ok(!r.result.isError, JSON.stringify(r.result));
   assert.equal(sent.length, 1);
   assert.equal((sent[0]!.input as { service?: string }).service, "Fathom");
+});
+
+test("a plain key request points an agent to the card for a service, only while the card is on, and the frozen wording is untouched", () => {
+  const raw = g.catalog.byName("vault_request")!;
+  assert.equal(/vault_connect/.test(raw.summary), false, "the contract's own description is the rc.27 one");
+  const seen = (): string => offerable(g.catalog, () => false).all.find((t) => t.name === "vault_request")!.summary;
+  assert.equal(seen(), `${raw.summary}${POINT_TO_CARD}`);
+  assert.match(seen(), /vault_connect/);
+  process.env["VYRE_CONNECT_CARD"] = "0";
+  try {
+    assert.equal(seen(), raw.summary, "switched off: no word of it");
+  } finally {
+    process.env["VYRE_CONNECT_CARD"] = "1";
+  }
 });

@@ -81,6 +81,7 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
     nav: {
       // a subject, not a screen, so the tab is named for the file (titles.ts)
       openFile: (fileId) => rt.open({ subject: { type: "file", id: fileId } }),
+      openFolder: (folderId) => rt.open({ subject: { type: "folder", id: folderId } }),
       openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }),
       ...(acts?.share ? { shareFolder: (folderId: string) => acts.share?.(folderId) } : {}),
       ...(acts?.shareFile ? { shareFile: (fileId: string, name: string) => acts.shareFile?.(fileId, name) } : {}),
@@ -102,6 +103,7 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
       ...(memory ? { leaveMemory: () => memory.open(null) } : {}),
       resolveConflict: (fileId) =>
         rt.open({ screen: "shell.conflicts-tab", args: { entity: "file", recordId: fileId } }),
+      openItem: (type, id) => rt.open({ subject: { type, id } }),
       openExternal: (url) => rt.openUrl(url),
     },
   };

@@ -800,7 +800,7 @@ Total rows: 661
 - HistoryTab, DiffTab, Viewer and ConflictsTab are tested in ui/src but mounted in no place, and the Kit runtime shows "not available" for any `ui:` key nobody registered. Only 11 `ui:` keys appear in apps/app/src against 179 registry screens.
 - imapflow is loaded dynamically by modules/mail/impl.ts but is not in any package.json or the lockfile, so the live IMAP session would fail at first use; the same is true of mailparser, nodemailer, mailauth, sigma and graphology which spec b12 names.
 - The spec sentence for label-vs-provider ("Restricted: not available to <provider>; switch to ...") appears nowhere in code; the refusal carries code `permission.provider_label` with different text. Behaviour is tested, wording is not.
-- The brief path /Users/irfad/Claude/Orgs/Vyre/v1-wt/P-L11_15 does not exist; I read P-L11_15b (branch build/P-L11_15b, tip 1e3bfa9f).
+- The brief path /Users/imran/Claude/Orgs/Vyre/v1-wt/P-L11_15 does not exist; I read P-L11_15b (branch build/P-L11_15b, tip 1e3bfa9f).
 - Every stub module already has handlers and tests in modules/<m>; only the host/modules.json flip is missing, so the gap is flipping and fixing live-boot issues, not writing code.
 - Golden flows with open GAPS run as node:test todo, so a green CI does not show flows 1 to 4, 6 to 12, 14 and 15 working end to end; several GAPS comments (chat has no handlers, sync cannot boot live) look stale.
 - Passkeys and SSO are not in docs/deferred.md: passkey capabilities answer internal.not_implemented and SSO answers validation.unsupported, while the Join page lists SSO and Settings shows a Passkeys row; spec 3.12 still lists passkeys and TOTP among Vault item types although the owner removed passkeys.
@@ -809,7 +809,7 @@ Total rows: 661
 - Every generated contract test for "real handler passes the examples" is a permanent `todo` that fails with "handler not implemented", including for the 1320 capabilities on live modules.
 - The spec's single events.db with inline projections in one transaction is not how modules work: module tables sit in modules.db and handlers write them directly. Replay-rebuild of module state is not possible.
 - `npm run gen`, `perf`, `golden` and `release` are echo placeholders, security.yml is a placeholder, and boundaries run `|| true` in check.yml; several "MUST ... checked by a script in CI" rules are tested scripts that CI does not enforce on main.
-- Housekeeping: I wrote this file first under a wrong directory name (/private/tmp/claude-501/-Users-irfad) and removed that directory with rm -rf; it was created by my own write, but I could not check whether a directory of that name existed before.
+- Housekeeping: I wrote this file first under a wrong directory name (/private/tmp/claude-501/-Users-imran) and removed that directory with rm -rf; it was created by my own write, but I could not check whether a directory of that name existed before.
 - release.yml reports "live gate passed" while seven of its called workflows (client, images, heavy, security, native, desktop, deploy) only echo "placeholder"; the tag pipeline cannot publish anything yet.
 - scripts/license-check.ts and its test exist, but no workflow runs the script; the binding "AGPL/GPL block" is unenforced.
 - `npm run gen`, `npm run perf`, `npm run golden` and `npm run release` in package.json are still placeholder echoes, while the real tools are in tools/gen and scripts/.

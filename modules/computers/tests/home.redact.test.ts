@@ -36,7 +36,7 @@ function rig(refuse: Record<string, string>) {
   let version = 1;
   const callAs = async (_a: string, cap: string, input: any): Promise<any> => {
     // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (cap === "agents.get") return { agent: { folderId: "fld_home", ownerId: "usr_irfad" } };
+    if (cap === "agents.get") return { agent: { folderId: "fld_home", ownerId: "usr_imran" } };
     if (cap === "files.list")
       return {
         files: [

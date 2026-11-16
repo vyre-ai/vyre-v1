@@ -48,6 +48,10 @@ export interface Script {
   >;
   /** the person's own connection to a service, by connector key, as connectors.for_service reports it */
   connections?: Record<string, { connectionId: string; owner: "mine" | "space"; state: string }>;
+  /** built-in services the card does not offer (their hosts cannot be made exact), by name: connectors.for_service answers `older` for them */
+  older?: string[];
+  /** people with no access to the chat the card is in (threads.get refuses them) */
+  outsiders?: string[];
   /** the connector is not built in (an agent's draft made live) */
   thirdParty?: boolean;
   /** the connector has no call that tries a key */
@@ -75,7 +79,7 @@ export function world(over: Partial<Script> = {}) {
   };
   let task = 0;
   let put: { folderId: string; keys: string[]; by: string } | null = null;
-  const call = async (cap: string, input: unknown): Promise<unknown> => {
+  const callAs = async (who: string, cap: string, input: unknown): Promise<unknown> => {
     const i = input as Record<string, unknown>;
     calls.push({ cap, input: i });
     const f = script.fail[cap];
@@ -118,6 +122,7 @@ export function world(over: Partial<Script> = {}) {
           return {
             item: {
               id: old.id,
+              name: old.name,
               folderId: old.folderId,
               scope: f?.scope ?? "mine",
               owner: "usr_asker",
@@ -159,6 +164,8 @@ export function world(over: Partial<Script> = {}) {
         const key = Object.keys(script.connectors ?? {}).find(
           (k) => k === want || script.connectors![k]!.title.toLowerCase() === want,
         );
+        const older = (script.older ?? []).find((t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "") === want);
+        if (older) return { found: false, near: [], older };
         if (!key) return { found: false, near: [] };
         const c = script.connectors![key]!;
         return {
@@ -170,7 +177,7 @@ export function world(over: Partial<Script> = {}) {
             mode: "api",
             fields: c.fields,
             ...(c.site ? { site: c.site } : {}),
-            hosts: script.thirdParty ? ["api.example.test", "files.example.test"] : [],
+            hosts: script.thirdParty ? ["api.example.test", "files.example.test"] : ["api.fathom.ai"],
             builtin: script.thirdParty !== true,
             checks: script.noProbe !== true,
             ...(script.thirdParty ? { host: "api.example.test" } : {}),
@@ -231,6 +238,10 @@ export function world(over: Partial<Script> = {}) {
         return { run: { id: i["runId"] } };
       case "chat.post":
         return { message: { id: `msg_${calls.length}` } };
+      case "threads.get":
+        // a person outside the chat is refused: the world says who is in it
+        if (script.outsiders?.includes(who)) throw new Error("not found");
+        return { thread: { threadId: i["threadId"] } };
       default:
         throw new Error(`unexpected call ${cap}`);
     }
@@ -245,7 +256,7 @@ export function world(over: Partial<Script> = {}) {
     emit(name, subject, payload) {
       events.push({ name, subject, payload });
     },
-    call,
+    call: (cap: string, input: unknown) => callAs(id, cap, input),
     log: {
       warn(msg, attrs) {
         warnings.push(`${msg} ${JSON.stringify(attrs ?? {})}`);

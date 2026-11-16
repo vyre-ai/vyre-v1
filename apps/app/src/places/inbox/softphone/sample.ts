@@ -137,12 +137,12 @@ export function withTelephony<T extends ContactTabSample>(base: T): PhoneSample<
           {
             id: SAMPLE_NUMBER_ID,
             e164: "+14155550132",
-            title: "Irfad",
+            title: "Imran",
             capabilities: ["voice", "sms"],
             assigneeKind: "person",
-            assigneeId: "usr_irfad",
+            assigneeId: "usr_imran",
             route: {
-              ring: [{ kind: "person", id: "usr_irfad" }],
+              ring: [{ kind: "person", id: "usr_imran" }],
               ringSeconds: 20,
               voicemail: true,
               voicemailTranscript: true,
@@ -224,7 +224,7 @@ export function withTelephony<T extends ContactTabSample>(base: T): PhoneSample<
             recordingUrl: SILENT_WAV,
             transcript: [
               { who: who.displayName.split(" ")[0] ?? "Caller", text: "Hi, it is me. Can you call me back?" },
-              { who: "Irfad", text: "Yes, I will call this afternoon." },
+              { who: "Imran", text: "Yes, I will call this afternoon." },
             ],
           }
         : { state: "completed", durationSec: secs, via: String(call["numberId"]), address: other };

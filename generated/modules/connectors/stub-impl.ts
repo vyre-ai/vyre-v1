@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "connections.approve_hosts": async () => ({"hosts":["example"]} as unknown) as never,
   "connections.complete_auth": async () => ({"connectionId":"con_a1b2c3"} as unknown) as never,
   "connections.create": async () => ({"authUrl":"example","connection":{"connectionId":"con_a1b2c3","connector":"hubspot","createdAt":1760000000000,"filled":["example"],"handles":["#Dana_Lawmatics"],"lastSyncAt":1760000000000,"owner":{"id":"example","kind":"person"},"pausedBy":"example","scopes":["example"],"state":"pending","title":"example"}} as unknown) as never,
   "connections.delete": async () => ({"deleted":true} as unknown) as never,
@@ -21,7 +22,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "connectors.define": async () => ({"actions":["example"],"domains":["example"],"draftId":"cdr_a1b2c3","key":"hubspot"} as unknown) as never,
   "connectors.diff": async () => ({"breaking":true,"files":[{"added":1,"path":"example","removed":1}]} as unknown) as never,
   "connectors.export": async () => ({"folderId":"fld_a1b2c3"} as unknown) as never,
-  "connectors.for_service": async () => ({"connection":{"connectionId":"con_a1b2c3","owner":"mine","state":"pending"},"connector":{"builtin":true,"checks":true,"fields":[{"label":"example","name":"example","optional":true}],"host":"example","hosts":["example"],"key":"hubspot","mode":"api","scope":"person","site":"example","title":"example"},"found":true,"near":["example"]} as unknown) as never,
+  "connectors.for_service": async () => ({"connection":{"connectionId":"con_a1b2c3","owner":"mine","state":"pending"},"connector":{"builtin":true,"checks":true,"fields":[{"label":"example","name":"example","optional":true}],"host":"example","hosts":["example"],"key":"hubspot","mode":"api","scope":"person","site":"example","title":"example"},"found":true,"near":["example"],"older":"example"} as unknown) as never,
   "connectors.get": async () => ({"connector":{"actions":["example"],"builtin":true,"connections":1,"domains":["example"],"key":"hubspot","mode":"api","objects":{},"scope":"person","secrets":[{"description":"example","name":"example"}],"sourceFolderId":"fld_a1b2c3","sources":["example"],"state":"live","syncedTypes":["example"],"title":"example","version":"1.0.0"}} as unknown) as never,
   "connectors.health": async () => ({"detail":"example","failing":["con_a1b2c3"],"latencyMs":1,"state":"healthy"} as unknown) as never,
   "connectors.init": async () => ({"folderId":"fld_a1b2c3","key":"hubspot"} as unknown) as never,

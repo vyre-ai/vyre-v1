@@ -45,5 +45,5 @@ test("Automations opens a run through the shell's door", () => {
   });
   d.nav.openFailedRuns();
   assert.deepEqual(opened, ["runs.failed"]);
-  assert.equal(d.name("usr_irfad"), "Irfad Imtiaz");
+  assert.equal(d.name("usr_imran"), "Imran Ibarra");
 });

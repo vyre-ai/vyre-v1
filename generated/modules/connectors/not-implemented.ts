@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "connections.approve_hosts": async (ctx) => { throw new VyreErr(notImplemented("connections.approve_hosts", ctx.trace)); },
   "connections.complete_auth": async (ctx) => { throw new VyreErr(notImplemented("connections.complete_auth", ctx.trace)); },
   "connections.create": async (ctx) => { throw new VyreErr(notImplemented("connections.create", ctx.trace)); },
   "connections.delete": async (ctx) => { throw new VyreErr(notImplemented("connections.delete", ctx.trace)); },

@@ -271,9 +271,9 @@ test("a given focus is the subject (and the old scope name still reaches the who
 test("a page that has the person's own name is the page it opens on, ahead of the first", () => {
   const pages = [
     { pageId: "a", title: "Ian Brooks", kind: "client", ownerRef: "x" },
-    { pageId: "me", title: "Irfad Imtiaz", kind: "person", ownerRef: "usr_irfad" },
+    { pageId: "me", title: "Imran Ibarra", kind: "person", ownerRef: "usr_imran" },
   ];
-  assert.equal(startSubject(pages, { id: "usr_irfad", name: "Irfad Imtiaz" }), "me");
+  assert.equal(startSubject(pages, { id: "usr_imran", name: "Imran Ibarra" }), "me");
   assert.equal(startSubject(pages, { id: "usr_other", name: "Nobody" }), "a", "else the first page");
   assert.equal(startSubject(pages), "a");
   assert.equal(startSubject([]), undefined);
