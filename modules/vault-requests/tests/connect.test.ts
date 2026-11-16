@@ -640,4 +640,10 @@ test("I: the line of a connect request is read only by its asker, a person who c
   await assert.rejects(line(person(w, "usr_out")), /No such request/);
   await assert.rejects(line(dex(w)), /No such request/, "an agent is not the asker and reads nothing");
   assert.equal((await line(w.as("svc_engine", "service" as never))).service, "Fathom", "the trusted service");
+  // a service a tenant can create is not trusted by its kind (lib/trust.ts): a Space Automation's own service and a public form's read nothing
+  await assert.rejects(
+    line(w.as("svc_0123456789abcdef0123456789abcdef", "service" as never) as never),
+    /No such request/,
+  );
+  await assert.rejects(line(w.as("svc_form_frm_1", "service" as never) as never), /No such request/);
 });

@@ -5,6 +5,7 @@
 // DECISION: the agent is told in one line what to do next and nothing else. The words handle, folder, clearance and role never reach a person from it; the card carries what a person must know.
 // DECISION: the same request answers a second ask for the same service (the same card is updated); a card the person folded with Not now is opened again by the next ask.
 import { ensureSpaceFolder } from "../../../lib/space-folder.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import { TELL } from "../../../lib/connect-tell.ts";
 import type { ConnectStatus as Status } from "../../../lib/connect-tell.ts";
 import { keptUsable, madeByService } from "../kept.ts";
@@ -658,7 +659,8 @@ export async function connectLine(ctx: VaultReqCtx, input: { requestId: string }
         sees = false;
       }
     }
-    if (!sees && ctx.principal.kind !== "service") raise(ctx.trace.traceId, "validation.not_found", "No such request.");
+    // only a service the host runs reads it for someone else; a service a tenant can create (a Space Automation, a public form, a site) is judged like anyone who cannot see the chat
+    if (!sees && !isTrustedService(ctx.principal)) raise(ctx.trace.traceId, "validation.not_found", "No such request.");
   }
   const svc = await serviceOf(ctx, row.service);
   return {
