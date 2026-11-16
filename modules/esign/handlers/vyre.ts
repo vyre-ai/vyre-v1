@@ -622,6 +622,18 @@ export async function signerDoc(ctx: Ctx, input: unknown): Promise<{ base64: str
   return { base64: toBase64(bytesOf(doc.sent)) };
 }
 
+function decodePng(ctx: Ctx, raw: unknown): Uint8Array {
+  const b64 = typeof raw === "string" ? raw : "";
+  if (b64.length === 0 || b64.length > 420 * 1024 || !/^[A-Za-z0-9+/=]+$/.test(b64))
+    fail(ctx, "validation.bad_input", "Draw your signature again.", { field: "signature" });
+  const png = fromBase64(b64);
+  if (!pngSize(png))
+    fail(ctx, "validation.bad_input", "That drawing is not a picture this page can use. Draw it again.", {
+      field: "signature",
+    });
+  return png;
+}
+
 function markOf(
   ctx: Ctx,
   raw: unknown,
@@ -631,6 +643,11 @@ function markOf(
     const text = typeof s.text === "string" ? s.text.trim() : "";
     if (text.length === 0 || text.length > 200)
       fail(ctx, "validation.bad_input", "Type your signature.", { field: "signature" });
+    // the page may send the typed name already drawn in its own script face (png): that picture is stamped, validated like a drawing; without it the name is drawn in a standard font
+    if (s.png !== undefined && s.png !== null) {
+      const png = decodePng(ctx, s.png);
+      return { mark: { kind: "typed", text, png }, kind: "typed", text, png };
+    }
     if (!drawable(text))
       fail(ctx, "validation.bad_input", "That name has a letter a typed signature cannot show. Use Draw instead.", {
         field: "signature",
@@ -638,14 +655,7 @@ function markOf(
     return { mark: { kind: "typed", text }, kind: "typed", text, png: null };
   }
   if (s.kind === "drawn") {
-    const b64 = typeof s.png === "string" ? s.png : "";
-    if (b64.length === 0 || b64.length > 420 * 1024 || !/^[A-Za-z0-9+/=]+$/.test(b64))
-      fail(ctx, "validation.bad_input", "Draw your signature again.", { field: "signature" });
-    const png = fromBase64(b64);
-    if (!pngSize(png))
-      fail(ctx, "validation.bad_input", "That drawing is not a picture this page can use. Draw it again.", {
-        field: "signature",
-      });
+    const png = decodePng(ctx, s.png);
     return { mark: { kind: "drawn", png }, kind: "drawn", text: null, png };
   }
   return fail(ctx, "validation.bad_input", "Type or draw your signature.", { field: "signature" });
@@ -748,7 +758,9 @@ async function complete(ctx: Ctx, envId: string): Promise<void> {
     mark:
       str(s.sig_kind) === "drawn"
         ? { kind: "drawn", png: bytesOf(s.sig_png) }
-        : { kind: "typed", text: str(s.sig_text) },
+        : bytesOf(s.sig_png).length > 0
+          ? { kind: "typed", text: str(s.sig_text), png: bytesOf(s.sig_png) }
+          : { kind: "typed", text: str(s.sig_text) },
     signedAt: num(s.signed_at),
   }));
   const audit: Audit = {

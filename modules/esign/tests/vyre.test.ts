@@ -244,6 +244,29 @@ test("a drawn signature is an image on the page; a picture that is not a PNG, a 
   assert.match(final.toString("latin1"), /\/Subtype\s*\/Image/);
 });
 
+test("a typed name the page already drew in its own script face (png) is stamped as that picture and the audit page says typed", async () => {
+  const h = await setup();
+  const { links } = await send(h, [ANDREA]);
+  const token = tokenOf(links[0]);
+  await assert.rejects(
+    act(h, token, "sign", {
+      name: "A",
+      consent: true,
+      signature: { kind: "typed", text: "A", png: toBase64(new Uint8Array(40)) },
+    }),
+    /not a picture/,
+  );
+  const done = await act(h, token, "sign", {
+    name: "Andrea Lindahl",
+    consent: true,
+    signature: { kind: "typed", text: "山田 Andrea", png: toBase64(samplePng()) },
+  });
+  await finish(h, done.result.finish.envelopeId);
+  const final = Buffer.from(h.created[0]!.base64, "base64");
+  assert.match(final.toString("latin1"), /\/Subtype\s*\/Image/);
+  assert.match(textOf(final), /Signed as typed/);
+});
+
 test("nothing a signer sends is kept as markup: a name with tags is drawn as plain letters", async () => {
   const h = await setup();
   const { links } = await send(h, [ANDREA]);

@@ -30,7 +30,7 @@ export interface Prepared {
   places: Place[];
   pages: PageSize[];
 }
-export type SignatureMark = { kind: "typed"; text: string } | { kind: "drawn"; png: Uint8Array };
+export type SignatureMark = { kind: "typed"; text: string; png?: Uint8Array } | { kind: "drawn"; png: Uint8Array };
 export interface Stamp {
   signer: number;
   name: string;
@@ -242,7 +242,7 @@ async function fit(
   mark: SignatureMark,
   box: { x: number; y: number; w: number; h: number },
 ) {
-  if (mark.kind === "drawn") {
+  if (mark.png) {
     const size = pngSize(mark.png);
     if (!size) throw new PdfError("That signature drawing is not a usable picture.");
     const img = await doc.embedPng(mark.png);
@@ -300,7 +300,7 @@ export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[
       if (p.kind === "signature") {
         await fit(doc, italic, page, s.mark, b);
         const cap = safe(`Signed by ${s.name}`).slice(0, 60);
-        page.drawText(cap, { x: b.x + 2, y: Math.max(b.y - 9, 2), size: 7, font, color: rgb(0.4, 0.4, 0.4) });
+        page.drawText(cap, { x: b.x + 2, y: Math.max(b.y - 22, 2), size: 7, font, color: rgb(0.4, 0.4, 0.4) });
       } else {
         const t = formatAt(s.signedAt, audit.zone);
         let sz = 11;
