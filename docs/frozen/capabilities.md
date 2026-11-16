@@ -657,3 +657,11 @@ Signed: lead, 16 Nov 2026 04:45 PKT
 - Snapshots: docs/frozen/snapshots/connectors.json, vault-requests.json.
 
 Signed: lead, 16 Nov 2026 (after the security review and its re-check)
+
+## 16 Nov 2026: a board can draw only chosen stages (lane r32-board), for the lead to sign
+
+- What changed in contracts, additive: the `board` view kind's config (`manifests/records.ts`, view kinds) gains an optional `stages`, a list of stage keys of the group field, drawn as the board's columns in that order. Absent or empty is today's behaviour (a column for every stage). `views.save` refuses a key that is not a stage of the group field ("<key> is not a stage of <field>."), a key listed twice and a `stages` that is not a list of keys. The key is `config.stages`, beside `config.group`; no new capability, no new event.
+- Not a contract change: a record whose stage is not among the chosen ones is not on that board (it is not lost: the table and any other board show it); a board with chosen stages has no column for records without a stage; the board's count line says how many records the chosen stages show of the view's records.
+- Snapshots: none changed (`node tools/gen/src/cli.ts --snapshots` wrote the same 88 files); `generated/registry.json` carries the new config.
+
+Signed: pending, for the lead

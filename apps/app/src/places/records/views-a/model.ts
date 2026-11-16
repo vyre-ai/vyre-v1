@@ -52,7 +52,13 @@ export function laneFieldOf(
 ): FieldDef | undefined {
   const lanes = def.fields.filter(isLaneField);
   const cfg = saved?.config?.["lane"];
-  for (const key of [picked, typeof cfg === "string" ? cfg : null, saved?.group]) {
+  const group = saved?.config?.["group"];
+  for (const key of [
+    picked,
+    typeof cfg === "string" ? cfg : null,
+    typeof group === "string" ? group : null,
+    saved?.group,
+  ]) {
     const hit = key ? lanes.find((f) => f.key === key) : undefined;
     if (hit) return hit;
   }
@@ -68,16 +74,73 @@ export const isPersonField = (f: FieldDef): boolean =>
   f.key !== "deliverability" &&
   !f.key.startsWith("pref_");
 
-/** The lanes of a field, in the order of its options, then the lane for records with no value. */
-export function lanesOf(f: FieldDef): Lane[] {
-  const out: Lane[] = optionsOf(f).map((o) => ({
+/** The stage keys a board draws, in order: the saved view's `config.stages`. Empty means every stage. */
+export function stagesOfView(saved?: Pick<ViewRow, "config">): string[] {
+  const list = saved?.config?.["stages"];
+  return Array.isArray(list) ? list.filter((k): k is string => typeof k === "string") : [];
+}
+
+/** The chosen stage keys that are stages of this field, in the chosen order (a key the field no longer has is left out). */
+export function chosenOf(f: FieldDef, chosen: readonly string[]): string[] {
+  const have = new Set(optionsOf(f).map((o) => o.key));
+  return chosen.filter((k, i) => have.has(k) && chosen.indexOf(k) === i);
+}
+
+/**
+ * The lanes of a field. Without a choice: every option in the order of the field, then the lane for records with no value. With chosen stages: only those, in that order, and no lane for
+ * records without a value (a record whose stage is not chosen is not on this board; the table and the other boards still show it).
+ */
+export function lanesOf(f: FieldDef, chosen: readonly string[] = []): Lane[] {
+  const all: Lane[] = optionsOf(f).map((o) => ({
     key: o.key,
     title: o.title,
     ...(o.color ? { color: o.color } : {}),
     none: false,
   }));
-  out.push({ key: NONE_KEY, title: `No ${f.title.toLowerCase()}`, none: true });
+  const keys = chosenOf(f, chosen);
+  if (keys.length > 0) {
+    const out: Lane[] = [];
+    for (const k of keys) {
+      const lane = all.find((l) => l.key === k);
+      if (lane) out.push(lane);
+    }
+    return out;
+  }
+  return [...all, { key: NONE_KEY, title: `No ${f.title.toLowerCase()}`, none: true }];
+}
+
+/** A stage added to the end of the chosen ones, or taken out of them. */
+export const toggleStage = (chosen: readonly string[], key: string): string[] =>
+  chosen.includes(key) ? chosen.filter((k) => k !== key) : [...chosen, key];
+
+/** A chosen stage one place earlier or later. */
+export function moveStageKey(chosen: readonly string[], key: string, dir: -1 | 1): string[] {
+  const i = chosen.indexOf(key);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= chosen.length) return [...chosen];
+  const out = [...chosen];
+  [out[i], out[j]] = [out[j]!, out[i]!];
   return out;
+}
+
+/** The count line of a board with chosen stages: how many records it shows of how many the view has. */
+export function shownLine(shown: number, total: number, plural: string, stages: number): string {
+  const n = (x: number): string => x.toLocaleString("en-US");
+  return `${n(shown)} of ${n(total)} ${plural.toLowerCase()} are in ${stages === 1 ? "this stage" : `these ${n(stages)} stages`}`;
+}
+
+/** What the count line asks: the view's filter (the lane field's own clauses dropped, as the lanes do), with or without the chosen stages. */
+export function shownSpec(
+  type: string,
+  v: TableViewState,
+  titleField: string,
+  f: FieldDef,
+  keys: readonly string[] | null,
+): CapMap["records.counts"]["in"] {
+  const own = filterOf({ ...v, clauses: v.clauses.filter((c) => c.field !== f.key) }, titleField);
+  const among = keys ? { field: f.key, op: "in", value: [...keys] } : undefined;
+  const parts = [own, among].filter((x) => x !== undefined);
+  return { type, ...(parts.length === 0 ? {} : { filter: parts.length === 1 ? parts[0] : { and: parts } }) };
 }
 
 export function laneClause(f: FieldDef, lane: Lane): Clause {
