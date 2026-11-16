@@ -73,5 +73,7 @@ export function signShell(): string {
 
 /** One file of the page (`assets/<name>`), or null. */
 export function signAsset(name: string): { mime: string; bytes: Uint8Array } | null {
-  return Object.prototype.hasOwnProperty.call(ASSETS, name) ? (ASSETS[name] as { mime: string; bytes: Uint8Array }) : null;
+  return Object.prototype.hasOwnProperty.call(ASSETS, name)
+    ? (ASSETS[name] as { mime: string; bytes: Uint8Array })
+    : null;
 }

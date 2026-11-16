@@ -129,33 +129,64 @@ test("state changes only by a JSON POST: a GET, a form post and a text post do n
       body: "name=A&consent=true",
     });
     assert.equal(form.status, 415, `form POST ${p}`);
-    const text = await fetch(`${base}/p/sign/${GOOD}/${p}`, { method: "POST", headers: { "content-type": "text/plain" }, body: "{}" });
+    const text = await fetch(`${base}/p/sign/${GOOD}/${p}`, {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: "{}",
+    });
     assert.equal(text.status, 415, `text POST ${p}`);
-    assert.equal((await fetch(`${base}/p/sign/${GOOD}/${p}`, { method: "PUT", headers: { "content-type": "application/json" }, body: "{}" })).status, 405);
+    assert.equal(
+      (
+        await fetch(`${base}/p/sign/${GOOD}/${p}`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        })
+      ).status,
+      405,
+    );
   }
   assert.equal((await fetch(`${base}/p/sign/${GOOD}/doc`, { method: "POST", ...j() })).status, 404);
   assert.equal(calls.length, 0, "nothing reached the module");
-  const ok = await fetch(`${base}/p/sign/${GOOD}/sign`, j({ name: "Andrea Lindahl", consent: true, signature: { kind: "typed", text: "Andrea Lindahl" } }));
+  const ok = await fetch(
+    `${base}/p/sign/${GOOD}/sign`,
+    j({ name: "Andrea Lindahl", consent: true, signature: { kind: "typed", text: "Andrea Lindahl" } }),
+  );
   assert.equal(ok.status, 200);
   assert.deepEqual(await ok.json(), { data: { state: "signed" } });
-  assert.deepEqual(calls[0]!.input.body, { name: "Andrea Lindahl", consent: true, signature: { kind: "typed", text: "Andrea Lindahl" } });
+  assert.deepEqual(calls[0]!.input.body, {
+    name: "Andrea Lindahl",
+    consent: true,
+    signature: { kind: "typed", text: "Andrea Lindahl" },
+  });
   assert.equal(calls[0]!.input.op, "sign");
   assert.equal(calls[0]!.input.token, GOOD);
 });
 
 test("a body that is not JSON, an array, or over a megabyte is turned away before the module", async () => {
   for (const body of ["not json", "[1,2]", "null"]) {
-    const r = await fetch(`${base}/p/sign/${GOOD}/sign`, { method: "POST", headers: { "content-type": "application/json" }, body });
+    const r = await fetch(`${base}/p/sign/${GOOD}/sign`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
     assert.equal(r.status, 400, body);
   }
-  const big = await fetch(`${base}/p/sign/${GOOD}/sign`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ x: "y".repeat(1_100_000) }) });
+  const big = await fetch(`${base}/p/sign/${GOOD}/sign`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ x: "y".repeat(1_100_000) }),
+  });
   assert.equal(big.status, 413);
   assert.equal(calls.length, 0);
 });
 
 test("the visitor the relay saw reaches the module as the address, with the browser name; a relay header never lets a caller pick another address", async () => {
   script = () => ({ session: { state: "ready" } });
-  await fetch(`${base}/p/sign/${GOOD}/view`, j({}, { "x-vyre-visitor": "203.0.113.9", "user-agent": "TestBrowser/1", "x-forwarded-for": "198.51.100.1" }));
+  await fetch(
+    `${base}/p/sign/${GOOD}/view`,
+    j({}, { "x-vyre-visitor": "203.0.113.9", "user-agent": "TestBrowser/1", "x-forwarded-for": "198.51.100.1" }),
+  );
   assert.deepEqual(calls[0]!.input.visitor, { ip: "203.0.113.9", ua: "TestBrowser/1" });
 });
 
@@ -163,7 +194,9 @@ test("what the module refuses in plain words is shown in those words; anything e
   script = () => Promise.reject(bad("validation.bad_input", "Tick the box to agree to sign electronically."));
   const a = await fetch(`${base}/p/sign/${GOOD}/sign`, j({}));
   assert.equal(a.status, 422);
-  assert.deepEqual(await a.json(), { error: { code: "validation.bad_input", message: "Tick the box to agree to sign electronically." } });
+  assert.deepEqual(await a.json(), {
+    error: { code: "validation.bad_input", message: "Tick the box to agree to sign electronically." },
+  });
   script = () => Promise.reject(new Error("SQLITE_BUSY: database is locked at /srv/data/space.db"));
   const b = await fetch(`${base}/p/sign/${GOOD}/view`, j({}));
   assert.equal(b.status, 503);
@@ -202,25 +235,51 @@ test("a token is limited to 60 tries a minute, an address to 150, and an address
   assert.deepEqual(statuses.slice(60), [429, 429]);
   const limited = await fetch(`${base}/p/sign/${GOOD}/view`, j());
   assert.equal(limited.headers.get("retry-after"), "60");
-  assert.deepEqual(await limited.json(), { error: { code: "rate_limit.exceeded", message: "Too many tries. Wait a minute and try again." } });
-  assert.equal((await fetch(`${base}/p/sign/${OTHER}/view`, j())).status, 200, "another token is not held up by the first one's count");
+  assert.deepEqual(await limited.json(), {
+    error: { code: "rate_limit.exceeded", message: "Too many tries. Wait a minute and try again." },
+  });
+  assert.equal(
+    (await fetch(`${base}/p/sign/${OTHER}/view`, j())).status,
+    200,
+    "another token is not held up by the first one's count",
+  );
   clock += 61_000;
   assert.equal((await fetch(`${base}/p/sign/${GOOD}/view`, j())).status, 200, "a minute later it is open again");
   // guessing: the module keeps refusing, so the address is shut out after 20 refusals
   script = () => Promise.reject(bad("auth.bad_credentials"));
   clock += 61_000;
   const guesses: number[] = [];
-  for (let i = 0; i < 24; i++) guesses.push((await fetch(`${base}/p/sign/${String.fromCharCode(97 + (i % 26)).repeat(43)}/view`, j({}, { "x-vyre-visitor": "198.51.100.77" }))).status);
+  for (let i = 0; i < 24; i++)
+    guesses.push(
+      (
+        await fetch(
+          `${base}/p/sign/${String.fromCharCode(97 + (i % 26)).repeat(43)}/view`,
+          j({}, { "x-vyre-visitor": "198.51.100.77" }),
+        )
+      ).status,
+    );
   assert.ok(guesses.includes(429), "an address that keeps guessing is stopped");
   assert.equal(guesses[0], 404);
   script = () => ({ session: { state: "ready" } });
-  assert.equal((await fetch(`${base}/p/sign/${GOOD}/view`, j({}, { "x-vyre-visitor": "203.0.113.50" }))).status, 200, "another address is not affected");
+  assert.equal(
+    (await fetch(`${base}/p/sign/${GOOD}/view`, j({}, { "x-vyre-visitor": "203.0.113.50" }))).status,
+    200,
+    "another address is not affected",
+  );
 });
 
 test("signing and declining are held to 12 an address a minute", async () => {
   script = () => ({ result: { state: "signed" } });
   const out: number[] = [];
-  for (let i = 0; i < 14; i++) out.push((await fetch(`${base}/p/sign/${String.fromCharCode(97 + i).repeat(43)}/sign`, j({}, { "x-vyre-visitor": "203.0.113.77" }))).status);
+  for (let i = 0; i < 14; i++)
+    out.push(
+      (
+        await fetch(
+          `${base}/p/sign/${String.fromCharCode(97 + i).repeat(43)}/sign`,
+          j({}, { "x-vyre-visitor": "203.0.113.77" }),
+        )
+      ).status,
+    );
   assert.equal(out.filter((s) => s === 200).length, 12);
   assert.deepEqual(out.slice(12), [429, 429]);
 });

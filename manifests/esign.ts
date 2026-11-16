@@ -76,30 +76,34 @@ export default defineManifest({
     ),
   ],
   capabilities: [
-    outward("esign.send", "Send a PDF for signature. Built-in signing needs no account: it returns one link per signer to copy and emails them when the Space has a sending mailbox", {
-      in: {
-        fileId: id.file,
-        recordId: t.opt(id.record),
-        signers: t.arr(signer),
-        provider: t.opt(provider),
-        message: t.opt(t.str()),
-        places: t.opt(t.arr(place)),
-        expiresInDays: t.opt(t.int()),
+    outward(
+      "esign.send",
+      "Send a PDF for signature. Built-in signing needs no account: it returns one link per signer to copy and emails them when the Space has a sending mailbox",
+      {
+        in: {
+          fileId: id.file,
+          recordId: t.opt(id.record),
+          signers: t.arr(signer),
+          provider: t.opt(provider),
+          message: t.opt(t.str()),
+          places: t.opt(t.arr(place)),
+          expiresInDays: t.opt(t.int()),
+        },
+        out: {
+          envelopeId,
+          links: t.opt(t.arr(link)),
+          emailed: t.opt(t.arr(t.str())),
+          notice: t.opt(t.str()),
+        },
+        on: ["file", "/fileId"],
+        perm: "comms.shared_send",
+        gate: "signature_send",
+        emits: ["signature.sent"],
+        tool: "files",
+        team: true,
+        run: { kind: "signature", stoppable: true },
       },
-      out: {
-        envelopeId,
-        links: t.opt(t.arr(link)),
-        emailed: t.opt(t.arr(t.str())),
-        notice: t.opt(t.str()),
-      },
-      on: ["file", "/fileId"],
-      perm: "comms.shared_send",
-      gate: "signature_send",
-      emits: ["signature.sent"],
-      tool: "files",
-      team: true,
-      run: { kind: "signature", stoppable: true },
-    }),
+    ),
     read("esign.status", "Envelope status: who has opened and signed", {
       in: { envelopeId },
       out: {

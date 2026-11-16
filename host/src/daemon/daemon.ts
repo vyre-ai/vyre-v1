@@ -6812,10 +6812,31 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
       // /p/sign/<token>/...: the signer holds no session and the token is all they have, so the host runs the three public signing calls as itself; the esign module decides what a token may do
       signRoute = createSignRoute({
-        call: (cap, input) =>
-          invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).then(
-            (r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))),
-          ),
+        call: async (cap, input) => {
+          const out = await invoke(cap, input, {
+            space: spaceId,
+            principal: { ...SYSTEM_PRINCIPAL },
+            preAuth: true,
+            origin: "hook",
+          }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
+          // the last signature is in: the file is saved as the sender, so it is theirs and they can open it (a file made by this door would belong to nobody). The signer never sees who or which envelope.
+          const result = (out as { result?: { finish?: { envelopeId: string; person: string } } } | null)?.result;
+          const finish = result?.finish;
+          if (result && finish) {
+            delete result.finish;
+            const as = { space: spaceId, origin: "hook" as const };
+            const save = (principal: { kind: "person" | "system"; id: string }, preAuth: boolean) =>
+              invoke(
+                "esign.fetch_signed",
+                { envelopeId: finish.envelopeId, idempotencyKey: `esign-finish-${finish.envelopeId}` },
+                { ...as, principal, ...(preAuth ? { preAuth: true } : {}) } as never,
+              ).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error("held"))));
+            await save({ kind: "person", id: finish.person }, false).catch(() =>
+              save({ ...SYSTEM_PRINCIPAL } as never, true).catch(() => undefined),
+            );
+          }
+          return out;
+        },
         shell: signShell,
         asset: signAsset,
       });

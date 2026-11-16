@@ -22,7 +22,10 @@ const DATA_CSP = "default-src 'none'; frame-ancestors 'none'";
 
 export interface SignDeps {
   /** Runs one of the three public capabilities as the host. Rejects with the capability's error. */
-  call(cap: "esign.signer_view" | "esign.signer_doc" | "esign.signer_act", input: Record<string, unknown>): Promise<unknown>;
+  call(
+    cap: "esign.signer_view" | "esign.signer_doc" | "esign.signer_act",
+    input: Record<string, unknown>,
+  ): Promise<unknown>;
   shell(): string;
   asset(name: string): { mime: string; bytes: Uint8Array } | null;
   now?: () => number;
@@ -63,20 +66,45 @@ function common(extra: Record<string, string | number> = {}): Record<string, str
   };
 }
 
-function json(res: http.ServerResponse, status: number, body: unknown, extra: Record<string, string | number> = {}): void {
+function json(
+  res: http.ServerResponse,
+  status: number,
+  body: unknown,
+  extra: Record<string, string | number> = {},
+): void {
   const text = typeof body === "string" ? body : JSON.stringify(body);
-  res.writeHead(status, common({ "content-type": "application/json; charset=utf-8", "content-security-policy": DATA_CSP, "content-length": Buffer.byteLength(text), ...extra }));
+  res.writeHead(
+    status,
+    common({
+      "content-type": "application/json; charset=utf-8",
+      "content-security-policy": DATA_CSP,
+      "content-length": Buffer.byteLength(text),
+      ...extra,
+    }),
+  );
   res.end(text);
 }
 
 function pageNotValid(res: http.ServerResponse): void {
   const body = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>This link is not valid</title><style>html{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif}main{max-width:26rem;padding:2rem 1.25rem;text-align:center}h1{font-size:1.25rem}</style><body><main><h1>This link is not valid</h1><p>Ask the person who sent it for a new one.</p></main></body></html>`;
-  res.writeHead(404, common({ "content-type": "text/html; charset=utf-8", "content-security-policy": SHELL_CSP, "content-length": Buffer.byteLength(body) }));
+  res.writeHead(
+    404,
+    common({
+      "content-type": "text/html; charset=utf-8",
+      "content-security-policy": SHELL_CSP,
+      "content-length": Buffer.byteLength(body),
+    }),
+  );
   res.end(body);
 }
 
-async function readJson(req: http.IncomingMessage): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; status: number; text: string }> {
-  const type = String(req.headers["content-type"] ?? "").split(";")[0]!.trim().toLowerCase();
+async function readJson(
+  req: http.IncomingMessage,
+): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; status: number; text: string }> {
+  const type = String(req.headers["content-type"] ?? "")
+    .split(";")[0]!
+    .trim()
+    .toLowerCase();
   if (type !== "application/json") {
     req.resume();
     return { ok: false, status: 415, text: "This address takes a JSON request." };
@@ -101,7 +129,9 @@ async function readJson(req: http.IncomingMessage): Promise<{ ok: true; body: Re
 const codeOf = (e: unknown): string | undefined => (e as { error?: { code?: string } } | null)?.error?.code;
 const messageOf = (e: unknown): string | undefined => (e as { error?: { message?: string } } | null)?.error?.message;
 
-export function createSignRoute(deps: SignDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse, token: string, tail: string): void } {
+export function createSignRoute(deps: SignDeps): {
+  handle(req: http.IncomingMessage, res: http.ServerResponse, token: string, tail: string): void;
+} {
   const now = deps.now ?? Date.now;
   const perToken = new Window(now);
   const perAddress = new Window(now);
@@ -125,21 +155,41 @@ export function createSignRoute(deps: SignDeps): { handle(req: http.IncomingMess
       return;
     }
     if (code === "validation.bad_input" || code === "validation.too_large") {
-      json(res, 422, { error: { code: "validation.bad_input", message: messageOf(e) ?? "That did not work. Check it and try again." } });
+      json(res, 422, {
+        error: { code: "validation.bad_input", message: messageOf(e) ?? "That did not work. Check it and try again." },
+      });
       return;
     }
     if (code === "rate_limit.exceeded") {
-      json(res, 429, { error: { code: "rate_limit.exceeded", message: "Too many tries. Wait a minute and try again." } }, { "retry-after": 60 });
+      json(
+        res,
+        429,
+        { error: { code: "rate_limit.exceeded", message: "Too many tries. Wait a minute and try again." } },
+        { "retry-after": 60 },
+      );
       return;
     }
-    json(res, 503, { error: { code: "unavailable", message: "This did not work just now. Try again in a minute." } }, { "retry-after": 30 });
+    json(
+      res,
+      503,
+      { error: { code: "unavailable", message: "This did not work just now. Try again in a minute." } },
+      { "retry-after": 30 },
+    );
   }
 
   return {
     handle(req, res, token, tail) {
       const method = (req.method ?? "GET").toUpperCase();
       if (method === "OPTIONS") {
-        res.writeHead(204, common({ "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-allow-headers": "content-type", "access-control-max-age": 600, "content-length": 0 }));
+        res.writeHead(
+          204,
+          common({
+            "access-control-allow-methods": "GET, POST, OPTIONS",
+            "access-control-allow-headers": "content-type",
+            "access-control-max-age": 600,
+            "content-length": 0,
+          }),
+        );
         res.end();
         return;
       }
@@ -151,9 +201,16 @@ export function createSignRoute(deps: SignDeps): { handle(req: http.IncomingMess
       const { ip, ua } = visitorOf(req);
       const rest = tail === "" ? "/" : tail;
       const limited = (): boolean =>
-        !perAddress.allow(ip, LIMITS.address) || !perToken.allow(token, LIMITS.token) || refusals.over(ip, LIMITS.tries);
+        !perAddress.allow(ip, LIMITS.address) ||
+        !perToken.allow(token, LIMITS.token) ||
+        refusals.over(ip, LIMITS.tries);
       const tooMany = (): void =>
-        json(res, 429, { error: { code: "rate_limit.exceeded", message: "Too many tries. Wait a minute and try again." } }, { "retry-after": 60 });
+        json(
+          res,
+          429,
+          { error: { code: "rate_limit.exceeded", message: "Too many tries. Wait a minute and try again." } },
+          { "retry-after": 60 },
+        );
       const html = rest === "/";
       if (!TOKEN.test(token)) {
         refusals.allow(ip, LIMITS.tries);
@@ -166,7 +223,14 @@ export function createSignRoute(deps: SignDeps): { handle(req: http.IncomingMess
       if (method === "GET" || method === "HEAD") {
         if (html) {
           const body = deps.shell();
-          res.writeHead(200, common({ "content-type": "text/html; charset=utf-8", "content-security-policy": SHELL_CSP, "content-length": Buffer.byteLength(body) }));
+          res.writeHead(
+            200,
+            common({
+              "content-type": "text/html; charset=utf-8",
+              "content-security-policy": SHELL_CSP,
+              "content-length": Buffer.byteLength(body),
+            }),
+          );
           res.end(method === "HEAD" ? undefined : body);
           return;
         }
@@ -175,7 +239,15 @@ export function createSignRoute(deps: SignDeps): { handle(req: http.IncomingMess
           const name = decodeURIComponent(asset[1] as string);
           const file = ASSET.test(name) ? deps.asset(name) : null;
           if (!file) return json(res, 404, REFUSAL_BODY);
-          res.writeHead(200, common({ "content-type": file.mime, "content-security-policy": DATA_CSP, "content-length": file.bytes.length, "cache-control": "public, max-age=300" }));
+          res.writeHead(
+            200,
+            common({
+              "content-type": file.mime,
+              "content-security-policy": DATA_CSP,
+              "content-length": file.bytes.length,
+              "cache-control": "public, max-age=300",
+            }),
+          );
           res.end(method === "HEAD" ? undefined : Buffer.from(file.bytes));
           return;
         }
@@ -183,7 +255,15 @@ export function createSignRoute(deps: SignDeps): { handle(req: http.IncomingMess
           void deps.call("esign.signer_doc", { token, visitor: { ip, ua } }).then(
             (out) => {
               const bytes = Buffer.from(String((out as { base64?: string }).base64 ?? ""), "base64");
-              res.writeHead(200, common({ "content-type": "application/pdf", "content-security-policy": DATA_CSP, "content-disposition": 'inline; filename="document.pdf"', "content-length": bytes.length }));
+              res.writeHead(
+                200,
+                common({
+                  "content-type": "application/pdf",
+                  "content-security-policy": DATA_CSP,
+                  "content-disposition": 'inline; filename="document.pdf"',
+                  "content-length": bytes.length,
+                }),
+              );
               res.end(bytes);
             },
             (e: unknown) => fromError(res, e, ip),
@@ -204,11 +284,21 @@ export function createSignRoute(deps: SignDeps): { handle(req: http.IncomingMess
             const out = (await deps.call("esign.signer_view", { token, visitor })) as { session: unknown };
             return json(res, 200, { data: out.session });
           }
-          const out = (await deps.call("esign.signer_act", { token, visitor, op, body: got.body })) as { result: Record<string, unknown> };
+          const out = (await deps.call("esign.signer_act", { token, visitor, op, body: got.body })) as {
+            result: Record<string, unknown>;
+          };
           if (op === "copy") {
             if (out.result.state === "done") {
               const bytes = Buffer.from(String(out.result.base64 ?? ""), "base64");
-              res.writeHead(200, common({ "content-type": "application/pdf", "content-security-policy": DATA_CSP, "content-disposition": 'attachment; filename="signed.pdf"', "content-length": bytes.length }));
+              res.writeHead(
+                200,
+                common({
+                  "content-type": "application/pdf",
+                  "content-security-policy": DATA_CSP,
+                  "content-disposition": 'attachment; filename="signed.pdf"',
+                  "content-length": bytes.length,
+                }),
+              );
               res.end(bytes);
               return;
             }
