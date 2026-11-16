@@ -37,7 +37,10 @@ test("the artifact host: <name>-a.vyre.run for a relay name, a.<domain> for an o
 test("reached through the relay is a fact (the Space holds that phone name), never a guess from a .vyre.run ending", () => {
   // the owner's Space on rc.26: address northwind.vyre.run, DNS straight at its own server, no phone name held at the relay
   assert.deepEqual(publicOriginOf("northwind.vyre.run", null), { origin: "https://northwind.vyre.run", relay: false });
-  assert.deepEqual(publicOriginOf("https://northwind.vyre.run/", null), { origin: "https://northwind.vyre.run", relay: false });
+  assert.deepEqual(publicOriginOf("https://northwind.vyre.run/", null), {
+    origin: "https://northwind.vyre.run",
+    relay: false,
+  });
   assert.equal(
     artifactHostOf("northwind.vyre.run", null),
     "a.northwind.vyre.run",

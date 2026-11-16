@@ -5,13 +5,13 @@ import type { Check } from './core.ts';
 
 function d_s_3c40d334b2(v: unknown, p: string, e: string[]): void {
 {
-const x273 = v;
-const g273 = typeOf(x273);
-const b273: string[] = []; lf(x273, p, b273, L0); if (b273.length) e.push(...b273);
-if (g273 === "object") {
-if (g273 === 'object') { const o273 = x273 as Record<string, unknown>;
-if (!("hook" in o273)) e.push(p + "/hook" + ': required');
-if ("hook" in o273) d_s_dd5380ebe2(o273["hook"], p + "/hook", e);
+const x271 = v;
+const g271 = typeOf(x271);
+const b271: string[] = []; lf(x271, p, b271, L0); if (b271.length) e.push(...b271);
+if (g271 === "object") {
+if (g271 === 'object') { const o271 = x271 as Record<string, unknown>;
+if (!("hook" in o271)) e.push(p + "/hook" + ': required');
+if ("hook" in o271) d_s_dd5380ebe2(o271["hook"], p + "/hook", e);
 }
 }
 }
@@ -19,16 +19,16 @@ if ("hook" in o273) d_s_dd5380ebe2(o273["hook"], p + "/hook", e);
 
 function d_s_3fdca2a95a(v: unknown, p: string, e: string[]): void {
 {
-const x291 = v;
-const g291 = typeOf(x291);
-const b291: string[] = []; lf(x291, p, b291, L0); if (b291.length) e.push(...b291);
-if (g291 === "object") {
-if (g291 === 'object') { const o291 = x291 as Record<string, unknown>;
-if (!("id" in o291)) e.push(p + "/id" + ': required');
-if (!("threadId" in o291)) e.push(p + "/threadId" + ': required');
-if ("id" in o291) lf(o291["id"], p + "/id", e, L1);
-if ("threadId" in o291) lf(o291["threadId"], p + "/threadId", e, L13);
-if ("messageId" in o291) lf(o291["messageId"], p + "/messageId", e, L91);
+const x289 = v;
+const g289 = typeOf(x289);
+const b289: string[] = []; lf(x289, p, b289, L0); if (b289.length) e.push(...b289);
+if (g289 === "object") {
+if (g289 === 'object') { const o289 = x289 as Record<string, unknown>;
+if (!("id" in o289)) e.push(p + "/id" + ': required');
+if (!("threadId" in o289)) e.push(p + "/threadId" + ': required');
+if ("id" in o289) lf(o289["id"], p + "/id", e, L1);
+if ("threadId" in o289) lf(o289["threadId"], p + "/threadId", e, L13);
+if ("messageId" in o289) lf(o289["messageId"], p + "/messageId", e, L91);
 }
 }
 }
@@ -36,42 +36,42 @@ if ("messageId" in o291) lf(o291["messageId"], p + "/messageId", e, L91);
 
 function d_s_7f21b4145a(v: unknown, p: string, e: string[]): void {
 {
-const x639 = v;
-const g639 = typeOf(x639);
-const b639: string[] = []; lf(x639, p, b639, L0); if (b639.length) e.push(...b639);
-if (g639 === "object") {
-if (g639 === 'object') { const o639 = x639 as Record<string, unknown>;
-if (!("runs" in o639)) e.push(p + "/runs" + ': required');
-if ("runs" in o639) {
-{
-const x640 = o639["runs"];
+const x640 = v;
 const g640 = typeOf(x640);
-const b640: string[] = []; lf(x640, p + "/runs", b640, L4); if (b640.length) e.push(...b640);
-if (g640 === "array") {
-if (g640 === 'array') { const a640 = x640 as unknown[];
-for (let i640 = 0; i640 < a640.length; i640++) {
+const b640: string[] = []; lf(x640, p, b640, L0); if (b640.length) e.push(...b640);
+if (g640 === "object") {
+if (g640 === 'object') { const o640 = x640 as Record<string, unknown>;
+if (!("runs" in o640)) e.push(p + "/runs" + ': required');
+if ("runs" in o640) {
 {
-const x641 = a640[i640];
+const x641 = o640["runs"];
 const g641 = typeOf(x641);
-const b641: string[] = []; lf(x641, p + "/runs" + '/' + i640, b641, L0); if (b641.length) e.push(...b641);
-if (g641 === "object") {
-if (g641 === 'object') { const o641 = x641 as Record<string, unknown>;
-if (!("id" in o641)) e.push(p + "/runs" + '/' + i640 + "/id" + ': required');
-if (!("hookId" in o641)) e.push(p + "/runs" + '/' + i640 + "/hookId" + ': required');
-if (!("event" in o641)) e.push(p + "/runs" + '/' + i640 + "/event" + ': required');
-if (!("outcome" in o641)) e.push(p + "/runs" + '/' + i640 + "/outcome" + ': required');
-if (!("ms" in o641)) e.push(p + "/runs" + '/' + i640 + "/ms" + ': required');
-if (!("at" in o641)) e.push(p + "/runs" + '/' + i640 + "/at" + ': required');
-if ("id" in o641) lf(o641["id"], p + "/runs" + '/' + i640 + "/id", e, L2);
-if ("hookId" in o641) lf(o641["hookId"], p + "/runs" + '/' + i640 + "/hookId", e, L1);
-if ("event" in o641) lf(o641["event"], p + "/runs" + '/' + i640 + "/event", e, L1);
-if ("threadId" in o641) lf(o641["threadId"], p + "/runs" + '/' + i640 + "/threadId", e, L1);
-if ("agentId" in o641) lf(o641["agentId"], p + "/runs" + '/' + i640 + "/agentId", e, L1);
-if ("tool" in o641) lf(o641["tool"], p + "/runs" + '/' + i640 + "/tool", e, L1);
-if ("outcome" in o641) lf(o641["outcome"], p + "/runs" + '/' + i640 + "/outcome", e, L292);
-if ("detail" in o641) lf(o641["detail"], p + "/runs" + '/' + i640 + "/detail", e, L1);
-if ("ms" in o641) lf(o641["ms"], p + "/runs" + '/' + i640 + "/ms", e, L2);
-if ("at" in o641) lf(o641["at"], p + "/runs" + '/' + i640 + "/at", e, L17);
+const b641: string[] = []; lf(x641, p + "/runs", b641, L4); if (b641.length) e.push(...b641);
+if (g641 === "array") {
+if (g641 === 'array') { const a641 = x641 as unknown[];
+for (let i641 = 0; i641 < a641.length; i641++) {
+{
+const x642 = a641[i641];
+const g642 = typeOf(x642);
+const b642: string[] = []; lf(x642, p + "/runs" + '/' + i641, b642, L0); if (b642.length) e.push(...b642);
+if (g642 === "object") {
+if (g642 === 'object') { const o642 = x642 as Record<string, unknown>;
+if (!("id" in o642)) e.push(p + "/runs" + '/' + i641 + "/id" + ': required');
+if (!("hookId" in o642)) e.push(p + "/runs" + '/' + i641 + "/hookId" + ': required');
+if (!("event" in o642)) e.push(p + "/runs" + '/' + i641 + "/event" + ': required');
+if (!("outcome" in o642)) e.push(p + "/runs" + '/' + i641 + "/outcome" + ': required');
+if (!("ms" in o642)) e.push(p + "/runs" + '/' + i641 + "/ms" + ': required');
+if (!("at" in o642)) e.push(p + "/runs" + '/' + i641 + "/at" + ': required');
+if ("id" in o642) lf(o642["id"], p + "/runs" + '/' + i641 + "/id", e, L2);
+if ("hookId" in o642) lf(o642["hookId"], p + "/runs" + '/' + i641 + "/hookId", e, L1);
+if ("event" in o642) lf(o642["event"], p + "/runs" + '/' + i641 + "/event", e, L1);
+if ("threadId" in o642) lf(o642["threadId"], p + "/runs" + '/' + i641 + "/threadId", e, L1);
+if ("agentId" in o642) lf(o642["agentId"], p + "/runs" + '/' + i641 + "/agentId", e, L1);
+if ("tool" in o642) lf(o642["tool"], p + "/runs" + '/' + i641 + "/tool", e, L1);
+if ("outcome" in o642) lf(o642["outcome"], p + "/runs" + '/' + i641 + "/outcome", e, L292);
+if ("detail" in o642) lf(o642["detail"], p + "/runs" + '/' + i641 + "/detail", e, L1);
+if ("ms" in o642) lf(o642["ms"], p + "/runs" + '/' + i641 + "/ms", e, L2);
+if ("at" in o642) lf(o642["at"], p + "/runs" + '/' + i641 + "/at", e, L17);
 }
 }
 }

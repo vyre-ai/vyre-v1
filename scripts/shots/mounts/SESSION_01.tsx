@@ -361,7 +361,8 @@ export default function Mount(): ReactNode {
           goals: [
             {
               id: "g1",
-              title: "Ship rc.22.1: server fixes, Chrome extension, composer and context windows, then update Northwind.",
+              title:
+                "Ship rc.22.1: server fixes, Chrome extension, composer and context windows, then update Northwind.",
               status: "active",
               owner: "usr_imran",
               leadAgentId: "agt_intake",

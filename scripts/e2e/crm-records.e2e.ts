@@ -30,7 +30,8 @@ const HOST = "services.leadconnectorhq.com";
 const ACCOUNT = process.argv[2] ?? "sales";
 const MODE = process.argv[3] ?? "run";
 const TOKEN = process.env["VYRE_TEST_CLAUDE_SETUP_TOKEN"] ?? "";
-const KEY = (ACCOUNT === "sales" ? process.env["NORTHWIND_GHL_SALES_API_KEY"] : process.env[`GHL_TCPA_KEY_${ACCOUNT}`]) ?? "";
+const KEY =
+  (ACCOUNT === "sales" ? process.env["NORTHWIND_GHL_SALES_API_KEY"] : process.env[`GHL_TCPA_KEY_${ACCOUNT}`]) ?? "";
 const LOCATION =
   (ACCOUNT === "sales" ? process.env["NORTHWIND_GHL_SALES_LOCATION_ID"] : process.env[`GHL_TCPA_LOC_${ACCOUNT}`]) ?? "";
 if (!TOKEN || !KEY || !LOCATION)

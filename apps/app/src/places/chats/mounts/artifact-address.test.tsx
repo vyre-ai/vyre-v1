@@ -6,7 +6,10 @@ import { artifactAddress, plainLink } from "./artifact-address.ts";
 test("the artifact host's code is framed with ?embed=1 and opened in a browser as it is; the code is not framed with it outside the host", () => {
   const code = "a".repeat(48);
   const open = { path: `/x/${code}`, url: `https://northwind-a.vyre.run/x/${code}` };
-  assert.equal(artifactAddress(open, "https://northwind.vyre.run", true), `https://northwind-a.vyre.run/x/${code}?embed=1`);
+  assert.equal(
+    artifactAddress(open, "https://northwind.vyre.run", true),
+    `https://northwind-a.vyre.run/x/${code}?embed=1`,
+  );
   assert.equal(artifactAddress(open, "https://northwind.vyre.run"), `https://northwind-a.vyre.run/x/${code}`);
 });
 
