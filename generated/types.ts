@@ -11848,7 +11848,7 @@ export type ConnectorsCheckKeyIn = {
   secrets: Record<string, string>;
 };
 export type ConnectorsCheckKeyOut = {
-  result: "ok" | "rejected" | "unreachable";
+  result: "ok" | "rejected" | "limited" | "unreachable";
   tested?: string;
 };
 export type ConnectorsDefineIn = {
@@ -11914,6 +11914,16 @@ export type ConnectorsForServiceOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
     site?: string;
     builtin: boolean;
     host?: string;
@@ -46675,6 +46685,17 @@ export type VaultConnectCardAskAdminOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
@@ -46716,6 +46737,17 @@ export type VaultConnectCardDisconnectOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
@@ -46757,6 +46789,17 @@ export type VaultConnectCardGetOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
@@ -46829,6 +46872,17 @@ export type VaultConnectCardReopenOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
@@ -46862,6 +46916,7 @@ export type VaultConnectCardSubmitIn = {
   useSaved?: boolean;
   folderId?: string;
   audience?: "asker" | "anyone";
+  choice?: string;
   hosts: Array<string>;
 };
 export type VaultConnectCardSubmitOut = {
@@ -46879,6 +46934,17 @@ export type VaultConnectCardSubmitOut = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
+    problem?: "permission";
     agentId?: string;
     mayFill: boolean;
     admin?: {
