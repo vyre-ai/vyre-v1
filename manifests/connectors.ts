@@ -147,10 +147,7 @@ const bindingIn = {
 };
 
 // ---- SyncSpec: the one document an agent fills to bring an app's records into Records
-const specPointer = t.str({
-  description: "A JSON pointer: /id, /properties/email. / is the whole answer.",
-  examples: ["/id"],
-});
+const specPointer = t.str({ description: "A JSON pointer such as /id; / is the whole answer" });
 const specField = t.obj({
   path: specPointer,
   label: t.str(),
@@ -185,7 +182,7 @@ const specCursor = t.obj({
 const specWrite = t.obj({
   path: t.str({ examples: ["/contacts/{id}"] }),
   method: t.opt(t.enm("POST", "PUT", "PATCH", "DELETE")),
-  evidence: t.str({ description: "The docs page or quote that shows this call. A write without it is refused." }),
+  evidence: t.str({ description: "The docs page or quote that shows this call; a write without it is refused" }),
   bodyAt: t.opt(t.str({ description: "Pointer in the body where the properties go; empty for the body itself" })),
   idAt: t.opt(specPointer),
 });
@@ -199,14 +196,7 @@ const specObject = t.obj({
     cursor: t.opt(specCursor),
     updatedSince: t.opt(t.obj({ param: t.str(), format: t.opt(t.str()) })),
     filter: t.opt(t.obj({ param: t.str(), value: t.str() })),
-    checkEveryMinutes: t.opt(
-      t.int({
-        minimum: 1,
-        maximum: 10080,
-        description:
-          "Minutes between whole reads of this object when the app cannot answer changed-since. Set it long for a big object.",
-      }),
-    ),
+    checkEveryMinutes: t.opt(t.int({ minimum: 1, maximum: 10080 })),
   }),
   get: t.opt(t.obj({ path: t.str() })),
   create: t.opt(specWrite),
@@ -248,8 +238,7 @@ const syncSpec = t.obj({
     logoHint: t.opt(t.str()),
     account: t.opt(
       t.str({
-        description:
-          "Which account of the app this is (a location, a workspace); accounts share record types and each record says which it came from",
+        description: "Which account of the app this is (a location, a workspace); accounts share record types",
       }),
     ),
   }),
@@ -266,14 +255,7 @@ const syncSpec = t.obj({
     firstPull: t.obj({ words: t.str({ description: "Plain words: what the first pull brings in" }) }),
     backfill: t.enm("later", "now"),
     conflicts: t.lit("newest"),
-    requestsPerMinute: t.opt(
-      t.num({
-        minimum: 1,
-        maximum: 6000,
-        description:
-          "The most calls a minute to the app, for the whole connection. Take it from the app's documented limit and leave room for the firm's own tools. Default 300.",
-      }),
-    ),
+    requestsPerMinute: t.opt(t.num({ minimum: 1, maximum: 6000 })),
     audience: t.opt(t.enm("space", "added", "me")),
   }),
 });
@@ -1310,12 +1292,7 @@ export default defineManifest({
           failures: t.arr(t.obj({ at: t.ts(), summary: t.str() })),
           sentToday: t.int({ minimum: 0 }),
           nextPollAt: t.opt(t.ts()),
-          slowedDown: t.opt(
-            t.obj({
-              words: t.str({ description: "Plain words: the app asked Vyre to slow down, and when the pull goes on" }),
-              resumesAt: t.ts(),
-            }),
-          ),
+          slowedDown: t.opt(t.obj({ words: t.str(), resumesAt: t.ts() })),
           spec: t.bool(),
         },
         on: ["record_type", "/type"],

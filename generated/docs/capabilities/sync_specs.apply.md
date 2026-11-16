@@ -199,17 +199,17 @@ type Out = {
             {
               "direction": "both",
               "field": "email",
-              "path": "/id"
+              "path": "example"
             }
           ],
           "match": [
-            "/id"
+            "example"
           ],
           "recordType": "contact",
           "remote": "example",
-          "stagesFrom": "/id",
+          "stagesFrom": "example",
           "title": "example",
-          "titleField": "/id"
+          "titleField": "example"
         }
       ],
       "objects": [
@@ -218,14 +218,14 @@ type Out = {
           "create": {
             "bodyAt": "example",
             "evidence": "example",
-            "idAt": "/id",
+            "idAt": "example",
             "method": "POST",
             "path": "/contacts/{id}"
           },
           "delete": {
             "bodyAt": "example",
             "evidence": "example",
-            "idAt": "/id",
+            "idAt": "example",
             "method": "POST",
             "path": "/contacts/{id}"
           },
@@ -238,7 +238,7 @@ type Out = {
                 }
               ],
               "label": "example",
-              "path": "/id",
+              "path": "example",
               "readOnly": true,
               "relationTo": "example",
               "type": "text"
@@ -247,14 +247,14 @@ type Out = {
           "get": {
             "path": "example"
           },
-          "id": "/id",
-          "itemsAt": "/id",
+          "id": "example",
+          "itemsAt": "example",
           "label": "example",
           "list": {
             "checkEveryMinutes": 1,
             "cursor": {
               "kind": "none",
-              "next": "/id",
+              "next": "example",
               "param": "example",
               "size": 1,
               "sizeParam": "example",
@@ -276,11 +276,11 @@ type Out = {
           "update": {
             "bodyAt": "example",
             "evidence": "example",
-            "idAt": "/id",
+            "idAt": "example",
             "method": "POST",
             "path": "/contacts/{id}"
           },
-          "updatedAt": "/id",
+          "updatedAt": "example",
           "webhook": {
             "events": [
               "example"
