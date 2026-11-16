@@ -21282,7 +21282,7 @@
       "blocks": [],
       "cap": "esign.cancel",
       "deferred": false,
-      "description": "Cancel an envelope",
+      "description": "Cancel an envelope; every signer link stops",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -21308,7 +21308,7 @@
       "blocks": [],
       "cap": "esign.fetch_signed",
       "deferred": false,
-      "description": "Fetch the signed PDF and audit certificate into the record folder as a new version",
+      "description": "Save the signed PDF to Files",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -21338,11 +21338,21 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
           "recordId": {
             "examples": [
               "rec_a1b2c3"
             ],
             "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           }
         },
@@ -21363,6 +21373,7 @@
         "properties": {
           "provider": {
             "enum": [
+              "vyre",
               "documenso",
               "dropbox_sign",
               "docusign"
@@ -21384,7 +21395,7 @@
       "blocks": [],
       "cap": "esign.providers",
       "deferred": false,
-      "description": "Providers and which is the default (Documenso, unmodified container)",
+      "description": "Signing services and the default",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -21399,10 +21410,13 @@
       "blocks": [],
       "cap": "esign.send",
       "deferred": false,
-      "description": "Send a file from the record folder for signature, signer fields mapped from the record",
+      "description": "Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can",
       "effects": "outward",
       "inputSchema": {
         "properties": {
+          "expiresInDays": {
+            "type": "integer"
+          },
           "fileId": {
             "examples": [
               "fil_a1b2c3"
@@ -21417,8 +21431,18 @@
             "minLength": 1,
             "type": "string"
           },
+          "message": {
+            "type": "string"
+          },
+          "places": {
+            "items": {
+              "description": "Any JSON value"
+            },
+            "type": "array"
+          },
           "provider": {
             "enum": [
+              "vyre",
               "documenso",
               "dropbox_sign",
               "docusign"
@@ -21446,8 +21470,7 @@
                 }
               },
               "required": [
-                "name",
-                "email"
+                "name"
               ],
               "type": "object"
             },
@@ -21470,7 +21493,7 @@
       "blocks": [],
       "cap": "esign.status",
       "deferred": false,
-      "description": "Envelope status",
+      "description": "Envelope status and signers",
       "effects": "read",
       "inputSchema": {
         "properties": {

@@ -15273,7 +15273,7 @@ export type EsignHealthOut = {
   latencyMs?: number;
 };
 export type EsignHookIn = {
-  provider: "documenso" | "dropbox_sign" | "docusign";
+  provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
   payload: unknown;
 };
 export type EsignHookOut = {
@@ -15281,16 +15281,24 @@ export type EsignHookOut = {
 };
 export type EsignListIn = {
   recordId?: string;
+  fileId?: string;
+  status?: string;
 };
 export type EsignListOut = {
   envelopes: Array<{
       envelopeId: string;
       title: string;
-      status: "sent" | "viewed" | "signed" | "declined" | "cancelled";
+      status: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+      provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
+      recordId?: string;
+      fileId: string;
+      signedFileId?: string;
+      createdAt: number;
+      expiresAt?: number;
     }>;
 };
 export type EsignProviderSetIn = {
-  provider: "documenso" | "dropbox_sign" | "docusign";
+  provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
 };
 export type EsignProviderSetOut = {
   ok: boolean;
@@ -15298,33 +15306,103 @@ export type EsignProviderSetOut = {
 export type EsignProvidersIn = Record<string, unknown>;
 export type EsignProvidersOut = {
   providers: Array<{
-      key: "documenso" | "dropbox_sign" | "docusign";
+      key: "vyre" | "documenso" | "dropbox_sign" | "docusign";
+      title: string;
       default: boolean;
       connected: boolean;
+      why?: string;
     }>;
+};
+export type EsignRemindIn = {
+  envelopeId: string;
+  signer: number;
+  idempotencyKey: string;
+};
+export type EsignRemindOut = {
+  link?: {
+    index: number;
+    name: string;
+    email?: string;
+    url?: string;
+    path: string;
+  };
+  emailed: boolean;
+  notice?: string;
 };
 export type EsignSendIn = {
   fileId: string;
   recordId?: string;
   signers: Array<{
       name: string;
-      email: string;
+      email?: string;
       order?: number;
     }>;
-  provider?: "documenso" | "dropbox_sign" | "docusign";
+  provider?: "vyre" | "documenso" | "dropbox_sign" | "docusign";
+  message?: string;
+  places?: Array<unknown>;
+  expiresInDays?: number;
   idempotencyKey: string;
 };
 export type EsignSendOut = {
   envelopeId: string;
+  links?: Array<{
+      index: number;
+      name: string;
+      email?: string;
+      url?: string;
+      path: string;
+    }>;
+  emailed?: Array<string>;
+  notice?: string;
+};
+export type EsignSignerActIn = {
+  token: string;
+  visitor: {
+    ip?: string;
+    ua?: string;
+  };
+  op: "sign" | "decline" | "copy";
+  body?: unknown;
+};
+export type EsignSignerActOut = {
+  result: unknown;
+};
+export type EsignSignerDocIn = {
+  token: string;
+  visitor: {
+    ip?: string;
+    ua?: string;
+  };
+};
+export type EsignSignerDocOut = {
+  base64: string;
+};
+export type EsignSignerViewIn = {
+  token: string;
+  visitor: {
+    ip?: string;
+    ua?: string;
+  };
+};
+export type EsignSignerViewOut = {
+  session: unknown;
 };
 export type EsignStatusIn = {
   envelopeId: string;
 };
 export type EsignStatusOut = {
-  status: "sent" | "viewed" | "signed" | "declined" | "cancelled";
+  status: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+  expiresAt?: number;
+  declinedReason?: string;
+  signedFileId?: string;
+  finalSha256?: string;
   signers: Array<{
       name: string;
-      status: "sent" | "viewed" | "signed" | "declined" | "cancelled";
+      email?: string;
+      status: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+      order?: number;
+      openedAt?: number;
+      signedAt?: number;
     }>;
 };
 export type EventsGetIn = {
@@ -48940,7 +49018,11 @@ export interface CapMap {
   "esign.list": { in: EsignListIn; out: EsignListOut };
   "esign.provider_set": { in: EsignProviderSetIn; out: EsignProviderSetOut };
   "esign.providers": { in: EsignProvidersIn; out: EsignProvidersOut };
+  "esign.remind": { in: EsignRemindIn; out: EsignRemindOut };
   "esign.send": { in: EsignSendIn; out: EsignSendOut };
+  "esign.signer_act": { in: EsignSignerActIn; out: EsignSignerActOut };
+  "esign.signer_doc": { in: EsignSignerDocIn; out: EsignSignerDocOut };
+  "esign.signer_view": { in: EsignSignerViewIn; out: EsignSignerViewOut };
   "esign.status": { in: EsignStatusIn; out: EsignStatusOut };
   "events.get": { in: EventsGetIn; out: EventsGetOut };
   "events.list": { in: EventsListIn; out: EventsListOut };
@@ -53766,6 +53848,9 @@ export type SheetRowUpdatedPayload = {
   columns: Array<string>;
   runId?: string;
 };
+export type SignatureCancelledPayload = {
+  envelopeId: string;
+};
 export type SignatureDeclinedPayload = {
   envelopeId: string;
   signer: string;
@@ -53774,7 +53859,7 @@ export type SignatureDeclinedPayload = {
 export type SignatureSentPayload = {
   envelopeId: string;
   recordId?: string;
-  provider: "documenso" | "dropbox_sign" | "docusign";
+  provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
 };
 export type SignatureSignedPayload = {
   envelopeId: string;
@@ -55436,6 +55521,7 @@ export interface EventMap {
   "sheet.row_appended": SheetRowAppendedPayload;
   "sheet.row_deleted": SheetRowDeletedPayload;
   "sheet.row_updated": SheetRowUpdatedPayload;
+  "signature.cancelled": SignatureCancelledPayload;
   "signature.declined": SignatureDeclinedPayload;
   "signature.sent": SignatureSentPayload;
   "signature.signed": SignatureSignedPayload;
