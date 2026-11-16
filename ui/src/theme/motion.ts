@@ -98,3 +98,62 @@ export function holdView(el: unknown, host: unknown): Swap | null {
     },
   };
 }
+
+/** A still copy of a view as it looked, kept off the page: what a tab showed when it was left, to show again at once when the tab is chosen (showKept). */
+export interface Kept {
+  node: unknown;
+  /** where each scrolled part stood: its place among the copy's parts, then top and left */
+  scroll: readonly (readonly [number, number, number])[];
+}
+
+/** Copies `el` as it looks now. Null when there is nothing to copy, or when a still copy lies over it (a copy is never made of a copy). */
+export function keepView(el: unknown): Kept | null {
+  const from = el as (El & { querySelector?(q: string): unknown }) | null;
+  if (!from || typeof from.cloneNode !== "function") return null;
+  if (from.querySelector?.("[data-swap]")) return null;
+  const copy = from.cloneNode(true);
+  const a = from.querySelectorAll("*");
+  const scroll: [number, number, number][] = [];
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]!;
+    if (x.scrollTop !== 0 || x.scrollLeft !== 0) scroll.push([i, x.scrollTop, x.scrollLeft]);
+  }
+  copy.removeAttribute("data-testid");
+  for (const n of Array.from(
+    copy.querySelectorAll("[data-testid]") as unknown as ArrayLike<{ removeAttribute(k: string): void }>,
+  ))
+    n.removeAttribute("data-testid");
+  copy.setAttribute("data-swap", "1");
+  copy.setAttribute("aria-hidden", "true");
+  return { node: copy, scroll };
+}
+
+/**
+ * Puts a kept copy over `host` (its own view, as it was when it was left). The live view is made under it and `fade` lets the copy go in one frame, as holdView
+ * does. `background` is painted behind the copy so the live view never shows through it.
+ */
+export function showKept(kept: Kept, host: unknown, background?: string): Swap | null {
+  const on = host as El | null;
+  const copy = kept.node as (El & { style: { opacity: string; backgroundColor?: string } }) | null;
+  if (!on || !copy || typeof on.appendChild !== "function") return null;
+  for (const old of Array.from(on.querySelectorAll("[data-swap]") as unknown as ArrayLike<{ remove(): void }>))
+    old.remove();
+  if (background !== undefined && background !== "") copy.style.backgroundColor = background;
+  on.appendChild(copy);
+  const b = copy.querySelectorAll("*");
+  for (const [i, top, left] of kept.scroll) {
+    const y = b[i];
+    if (y) {
+      y.scrollTop = top;
+      y.scrollLeft = left;
+    }
+  }
+  let gone = false;
+  const drop = (): void => {
+    if (!gone) {
+      gone = true;
+      copy.remove();
+    }
+  };
+  return { drop, fade: drop };
+}
