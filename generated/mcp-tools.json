@@ -61693,7 +61693,7 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "A JSON pointer; / is the whole answer",
                             "type": "string"
                           }
                         },
@@ -61707,7 +61707,7 @@
                     },
                     "match": {
                       "items": {
-                        "description": "A JSON pointer such as /id; / is the whole answer",
+                        "description": "A JSON pointer; / is the whole answer",
                         "type": "string"
                       },
                       "type": "array"
@@ -61723,7 +61723,7 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "title": {
@@ -61732,12 +61732,12 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "A JSON pointer; / is the whole answer",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -61767,15 +61767,13 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         "method": {
@@ -61800,15 +61798,13 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         "method": {
@@ -61858,11 +61854,45 @@
                             },
                             "type": "array"
                           },
+                          "key": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
                           "label": {
                             "type": "string"
                           },
+                          "onlyWhen": {
+                            "properties": {
+                              "equals": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                  }
+                                ]
+                              },
+                              "path": {
+                                "description": "A JSON pointer; / is the whole answer",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "equals"
+                            ],
+                            "type": "object"
+                          },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "A JSON pointer; / is the whole answer",
                             "type": "string"
                           },
                           "readOnly": {
@@ -61911,11 +61941,11 @@
                       "type": "object"
                     },
                     "id": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "itemsAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "label": {
@@ -61941,7 +61971,7 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "A JSON pointer such as /id; / is the whole answer",
+                              "description": "A JSON pointer; / is the whole answer",
                               "type": "string"
                             },
                             "param": {
@@ -62018,15 +62048,13 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         "method": {
@@ -62049,7 +62077,7 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "webhook": {
@@ -62338,7 +62366,7 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "A JSON pointer; / is the whole answer",
                             "type": "string"
                           }
                         },
@@ -62352,7 +62380,7 @@
                     },
                     "match": {
                       "items": {
-                        "description": "A JSON pointer such as /id; / is the whole answer",
+                        "description": "A JSON pointer; / is the whole answer",
                         "type": "string"
                       },
                       "type": "array"
@@ -62368,7 +62396,7 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "title": {
@@ -62377,12 +62405,12 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "A JSON pointer; / is the whole answer",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -62412,15 +62440,13 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         "method": {
@@ -62445,15 +62471,13 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         "method": {
@@ -62503,11 +62527,45 @@
                             },
                             "type": "array"
                           },
+                          "key": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
                           "label": {
                             "type": "string"
                           },
+                          "onlyWhen": {
+                            "properties": {
+                              "equals": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                  }
+                                ]
+                              },
+                              "path": {
+                                "description": "A JSON pointer; / is the whole answer",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "equals"
+                            ],
+                            "type": "object"
+                          },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "A JSON pointer; / is the whole answer",
                             "type": "string"
                           },
                           "readOnly": {
@@ -62556,11 +62614,11 @@
                       "type": "object"
                     },
                     "id": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "itemsAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "label": {
@@ -62586,7 +62644,7 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "A JSON pointer such as /id; / is the whole answer",
+                              "description": "A JSON pointer; / is the whole answer",
                               "type": "string"
                             },
                             "param": {
@@ -62663,15 +62721,13 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         "method": {
@@ -62694,7 +62750,7 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "webhook": {
@@ -63102,7 +63158,7 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "A JSON pointer; / is the whole answer",
                             "type": "string"
                           }
                         },
@@ -63116,7 +63172,7 @@
                     },
                     "match": {
                       "items": {
-                        "description": "A JSON pointer such as /id; / is the whole answer",
+                        "description": "A JSON pointer; / is the whole answer",
                         "type": "string"
                       },
                       "type": "array"
@@ -63132,7 +63188,7 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "title": {
@@ -63141,12 +63197,12 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "A JSON pointer; / is the whole answer",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -63176,15 +63232,13 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         "method": {
@@ -63209,15 +63263,13 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         "method": {
@@ -63267,11 +63319,45 @@
                             },
                             "type": "array"
                           },
+                          "key": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
                           "label": {
                             "type": "string"
                           },
+                          "onlyWhen": {
+                            "properties": {
+                              "equals": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                  }
+                                ]
+                              },
+                              "path": {
+                                "description": "A JSON pointer; / is the whole answer",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "equals"
+                            ],
+                            "type": "object"
+                          },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "A JSON pointer; / is the whole answer",
                             "type": "string"
                           },
                           "readOnly": {
@@ -63320,11 +63406,11 @@
                       "type": "object"
                     },
                     "id": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "itemsAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "label": {
@@ -63350,7 +63436,7 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "A JSON pointer such as /id; / is the whole answer",
+                              "description": "A JSON pointer; / is the whole answer",
                               "type": "string"
                             },
                             "param": {
@@ -63427,15 +63513,13 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "A JSON pointer; / is the whole answer",
                           "type": "string"
                         },
                         "method": {
@@ -63458,7 +63542,7 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "A JSON pointer; / is the whole answer",
                       "type": "string"
                     },
                     "webhook": {

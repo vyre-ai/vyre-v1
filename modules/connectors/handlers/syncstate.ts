@@ -63,6 +63,8 @@ export interface TypeStatus {
   nextPollAt?: number;
   /** The app asked Vyre to slow down: what to tell the person, and when the pull goes on. */
   slowedDown?: { words: string; resumesAt: number };
+  /** Sealed values read from the app that the Vault could not take yet: filled on a later pass. */
+  sealedWaiting?: { count: number; words: string };
   spec: boolean;
 }
 
@@ -221,6 +223,16 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
             resumesAt: slowRow.resume_at,
           }
         : undefined;
+    const owedRow = has("sy_sealed_wait")
+      ? tx.get<{ n: number }>("SELECT n FROM sy_sealed_wait WHERE sync_type = ?", b.sync_type_id)
+      : undefined;
+    const sealedWaiting =
+      owedRow && owedRow.n > 0
+        ? {
+            count: owedRow.n,
+            words: `${owedRow.n} sealed ${owedRow.n === 1 ? "value is" : "values are"} waiting for the Vault. They are filled in on a later pass once the Vault can be used.`,
+          }
+        : undefined;
     const filtered = spec !== undefined && spec.plan.backfill === "later" && object?.list.filter !== undefined;
     return {
       type: b.type,
@@ -248,6 +260,7 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
       sentToday: outbox?.sent ?? 0,
       ...(poll ? { nextPollAt: poll.at } : {}),
       ...(slowedDown ? { slowedDown } : {}),
+      ...(sealedWaiting ? { sealedWaiting } : {}),
       spec: spec !== undefined,
     };
   };

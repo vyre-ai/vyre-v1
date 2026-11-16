@@ -7,6 +7,8 @@ import { ensureTables, mintShort, nowOf, pointerGet, refuse, seedBuiltins } from
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase } from "../projections.ts";
 import {
   JOIN_PREFIX,
+  fieldOf,
+  valueOfRemote,
   SECRET_ID,
   SSN_SHAPE,
   coerceValue,
@@ -358,13 +360,25 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       const missing: string[] = [];
       let found = 0;
       for (const mf of m.fields) {
-        const f = o.fields.find((x) => x.path === mf.path);
+        const f = fieldOf(o, mf);
         const fa = `${at}.fields.${mf.path}`;
         if (!f) {
           err(fa, `${mf.path} is mapped but not described in the object's fields.`);
           continue;
         }
         if (mf.direction === "off") continue;
+        if (f.onlyWhen) {
+          if (!o.fields.some((x) => x.path === f.onlyWhen!.path))
+            err(
+              fa,
+              `${f.label} only applies when ${f.onlyWhen.path} says so, but ${f.onlyWhen.path} is not described in the object's fields.`,
+            );
+          if (mf.direction !== "pull")
+            err(
+              fa,
+              `${f.label} only applies for some records, so it is read from the app only: set its direction to pull (or off).`,
+            );
+        }
         const vals = items.map((it) => pointerGet(it, mf.path));
         const present = vals.filter((v) => v !== undefined);
         if (items.length && present.length === 0) {
@@ -549,12 +563,14 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
             label: o.fields.find((x) => x.path === f.remote)?.label ?? f.key,
             value: f.remote.startsWith(JOIN_PREFIX)
               ? joinTitle(r.data, f.remote.slice(JOIN_PREFIX.length).split("|"))
-              : f.sealed
-                ? {
-                    sealed: true,
-                    present: r.data[f.remote] !== undefined && r.data[f.remote] !== null && r.data[f.remote] !== "",
-                  }
-                : (r.data[f.remote] ?? null),
+              : f.remote.startsWith("=when:") && !f.sealed
+                ? (valueOfRemote(r.data, f.remote) ?? null)
+                : f.sealed
+                  ? {
+                      sealed: true,
+                      present: ![undefined, null, ""].includes(valueOfRemote(r.data, f.remote) as never),
+                    }
+                  : (r.data[f.remote] ?? null),
           })),
         });
       }

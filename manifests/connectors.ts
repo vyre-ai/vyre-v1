@@ -148,7 +148,7 @@ const bindingIn = {
 };
 
 // ---- SyncSpec: the one document an agent fills to bring an app's records into Records
-const specPointer = t.str({ description: "A JSON pointer such as /id; / is the whole answer" });
+const specPointer = t.str({ description: "A JSON pointer; / is the whole answer" });
 const specField = t.obj({
   path: specPointer,
   label: t.str(),
@@ -172,6 +172,8 @@ const specField = t.obj({
   ),
   relationTo: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
+  key: t.opt(fieldKey),
+  onlyWhen: t.opt(t.obj({ path: specPointer, equals: t.union(t.str(), t.arr(t.str(), { minItems: 1 })) })),
 });
 const specCursor = t.obj({
   kind: t.enm("none", "page", "cursor", "offset", "link"),
@@ -184,8 +186,8 @@ const specCursor = t.obj({
 const specWrite = t.obj({
   path: t.str(),
   method: t.opt(t.enm("POST", "PUT", "PATCH", "DELETE")),
-  evidence: t.str({ description: "The docs page or quote that shows this call; a write without it is refused" }),
-  bodyAt: t.opt(t.str({ description: "Where in the body the properties go; empty: the body itself" })),
+  evidence: t.str(),
+  bodyAt: t.opt(t.str()),
   idAt: t.opt(specPointer),
 });
 const specObject = t.obj({
@@ -1293,6 +1295,7 @@ export default defineManifest({
           sentToday: t.int({ minimum: 0 }),
           nextPollAt: t.opt(t.ts()),
           slowedDown: t.opt(t.obj({ words: t.str(), resumesAt: t.ts() })),
+          sealedWaiting: t.opt(t.obj({ count: t.int(), words: t.str() })),
           spec: t.bool(),
         },
         on: ["record_type", "/type"],

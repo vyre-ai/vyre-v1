@@ -463,3 +463,5 @@ export const periodic = {
     },
   },
 };
+
+export { SYNC_PASS_TOKEN } from "./projections.ts";

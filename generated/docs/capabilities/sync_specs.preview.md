@@ -103,6 +103,11 @@ type In = {
               }>;
             relationTo?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -266,7 +271,12 @@ type Out = {
                   "label": "Lead"
                 }
               ],
+              "key": "email",
               "label": "example",
+              "onlyWhen": {
+                "equals": "example",
+                "path": "example"
+              },
               "path": "example",
               "readOnly": true,
               "relationTo": "example",

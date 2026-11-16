@@ -681,3 +681,11 @@ Signed: (for the lead to sign)
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: (for the lead to sign)
+
+## 16 Nov 2026: sealed values masked and waiting; fields that apply only when another pointer says so (lane r32-syncrate), for the lead to sign
+
+- Additive: a spec field (`objects[].fields[]`) gains `key` (names the field when several share a path; the mapping entry's `field` is the same name) and `onlyWhen { path, equals }` (`equals` is one value or a list; compared without case or spaces). The field takes its value only when the pointer `path` of the same row holds one of the values, otherwise it is empty for that record (and cleared if it held something). It is read from the app only (direction `pull`; push or both is a validation error) and works for any type, `relation` and `sealed` included. An `onlyWhen` path the object does not describe is a validation error. `sync_types.status` answers an optional `sealedWaiting { count, words }`. `titleField` list and `sealed` are as noted above.
+- Not a contract change, the rule the tests pin: a compiled sync connector carries its sealed pointers. Every output of its actions (run, read, test, the Automation step, error bodies) shows "[sealed]" at those pointers for every caller, and for the other value-bearing keys of the same custom-field item (all but id, name and a type), in both list forms when they carry the same id. Only the sync engine's own pass, which holds a token known only inside the server process, is given the values, and seals them at once. The name guard on outputs also masks keys named like a secret identifier (ssn, social security, tax id, ein, tin, account number, routing number, driver licence, passport number, card number). When the Vault cannot take a sealed value (a Space nobody has signed in to, a locked Vault) the pass finishes, the record is written without that field, the value is kept nowhere, the Sync page says how many are waiting, and the next pass reads the app again from the start and fills them. Several relations from one type to one target get their own inverse key.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: (for the lead to sign)
