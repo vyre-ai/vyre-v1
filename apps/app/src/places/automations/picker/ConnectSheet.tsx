@@ -22,6 +22,8 @@ export interface ConnectSheetProps {
   onOpenVault?(): void;
   /** The credential card for the chosen app, drawn in place of the list. `back` returns to the list. */
   renderAdd?(choice: AddChoice, back: () => void): ReactNode;
+  /** An app chosen under Add an app, handled by the host (the shared connect flow for a known app, Describe it for any other). Takes the click before `renderAdd`. */
+  onAdd?(choice: AddChoice): void;
   iconOf?(appId: string): string | undefined;
 }
 
@@ -123,7 +125,7 @@ export function ConnectSheet(p: ConnectSheetProps): ReactElement {
                   iconUrl={c.kind === "known" ? p.iconOf?.(c.id) : undefined}
                 />
               }
-              onPress={() => (p.renderAdd ? setAdding(c) : undefined)}
+              onPress={() => (p.onAdd ? p.onAdd(c) : p.renderAdd ? setAdding(c) : p.onDescribe())}
             />
           ))}
         </View>

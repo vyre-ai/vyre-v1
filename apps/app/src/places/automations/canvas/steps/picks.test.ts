@@ -78,3 +78,33 @@ test("an agent on someone's own computer is offered only in its owner's Personal
     ["agt_desk", "agt_team"],
   );
 });
+
+// rc.32 lane r32-auto, item 4: records, files, folders and connections are picked by name like a channel or an agent, never typed as an id
+import { THINGS, thingPicks, thingInput } from "./picks.ts";
+
+test("files, folders and connections are listed by their names; a record by its own name field", () => {
+  assert.deepEqual(thingPicks(THINGS["fil"]!, { files: [{ fileId: "fil_1", name: "Engagement letter.docx" }] }), [
+    { value: "fil_1", label: "Engagement letter.docx" },
+  ]);
+  assert.deepEqual(thingPicks(THINGS["fld"]!, { files: [], folders: [{ id: "fld_1", name: "Contracts" }] }), [
+    { value: "fld_1", label: "Contracts" },
+  ]);
+  assert.deepEqual(
+    thingPicks(THINGS["con"]!, {
+      connections: [{ connectionId: "con_1", connector: "stripe", title: "Stripe, live" }],
+    }),
+    [{ value: "con_1", label: "Stripe, live" }],
+  );
+  assert.deepEqual(
+    thingPicks(THINGS["rec"]!, {
+      rows: [{ id: "rec_1", fields: { name: "Imran Ibarra", email: "imran@northwind.example" } }],
+    }),
+    [{ value: "rec_1", label: "Imran Ibarra" }],
+  );
+});
+
+test("a record is asked for only once the step names its type, and a plain list needs nothing", () => {
+  assert.equal(thingInput(THINGS["rec"]!, {}), null);
+  assert.deepEqual(thingInput(THINGS["rec"]!, { type: "contact" }), { type: "contact", q: "", limit: 200 });
+  assert.deepEqual(thingInput(THINGS["chn"]!, {}), { limit: 200 });
+});

@@ -119,7 +119,8 @@ function ScheduleChoices({ task }: { task: unknown }): ReactElement | null {
 }
 
 /** Schedule recovery requests (runs missed while the server was off), each with its own choices. They sit with the Needs-you cards on the first page. */
-export function RecoveryRequests(): ReactElement | null {
+/** The requests that wait on this person; `skip` names the ones another card on the page already answers (an approval has its own card). */
+export function RecoveryRequests({ skip }: { skip?: ReadonlySet<string> } = {}): ReactElement | null {
   const state = useCall("tasks.needs_you", {}, (out) => {
     if (!out || typeof out !== "object" || !Array.isArray((out as { items?: unknown }).items)) return null;
     const items: NeedsRow[] = [];
@@ -137,11 +138,12 @@ export function RecoveryRequests(): ReactElement | null {
     }
     return items;
   });
-  if (state.phase !== "ready" || state.value.length === 0) return null;
+  const shown = state.phase === "ready" ? state.value.filter((x) => !skip?.has(x.id)) : [];
+  if (shown.length === 0) return null;
   return (
     <View style={v.stack} testID="recovery-requests">
       {/* ui-rows-lint: not a list (each item is a title plus its own choice buttons) */}
-      {state.value.map((item) => (
+      {shown.map((item) => (
         <View key={item.id} style={v.stack}>
           <Text style={v.row}>{`${item.title} · ${item.reason}`}</Text>
           <ScheduleChoices task={item.task} />

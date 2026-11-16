@@ -248,3 +248,11 @@ test("the Channel field of Post a chat message is a picker by name", () => {
   assert.ok(!control(out, "field-channelId") || !/placeholder="chn_/.test(out));
   assert.match(out, /Choose a channel/);
 });
+
+// rc.32 lane r32-auto, item 4: a file, folder, record or connection that is already chosen stays on the form under its name; the form never hides it as an unnamed id
+test("a chosen file's field stays on the form, so it can be searched and changed", () => {
+  const step = registry.steps.find((s) => s.key === "files.get")!;
+  const node: DefNode = { id: "n1", key: "files.get", input: { fileId: "fil_abc12345" } };
+  const def: Definition = { triggers: [{ key: "manual" }], nodes: [node], start: ["n1"] };
+  assert.ok(ids(page(def, node, schemaOf(step))).has("field-fileId"), "the file field is on the form");
+});
