@@ -822,7 +822,14 @@ function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteSco
           ? concat(new Uint8Array([1]), utf8(e.data))
           : concat(new Uint8Array([2]), new Uint8Array(e.data as ArrayBuffer));
       if (m.length + 5 + TAGLEN > 1 << 20) {
-        ws.close(1009, "too big");
+        // 1009 is a code only a server may send: Node's WebSocket refuses it from a client with a throw, which escaped this handler and ended the
+        // whole daemon (17 Nov 2026, a firm's server restarted on every reconnect of a browser on its vyre.run address). 4009 is ours to use.
+        try {
+          ws.close(4009, "too big");
+        } catch {
+          /* closed already */
+        }
+        if (ch.streams.has(s.id)) ch.end(s);
         return;
       }
       ch.frame(FRAME.data, s.id, m);
@@ -840,7 +847,13 @@ function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteSco
       if (c.length < 1 || c.length > MAX_WS_MESSAGE || ws.readyState !== 1) return;
       ws.send(c[0] === 1 ? fromUtf8(c.subarray(1)) : c.subarray(1));
     };
-    s.onEnd = () => ws.close(1000);
+    s.onEnd = () => {
+      try {
+        ws.close(1000);
+      } catch {
+        /* closed */
+      }
+    };
     s.onReset = () => {
       try {
         ws.close();
