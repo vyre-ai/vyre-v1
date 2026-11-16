@@ -464,4 +464,4 @@ export const periodic = {
   },
 };
 
-export { SYNC_PASS_TOKEN } from "./projections.ts";
+export { SYNC_PASS_TOKEN, SEALED_HELD } from "./projections.ts";

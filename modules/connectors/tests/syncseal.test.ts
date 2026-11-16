@@ -105,7 +105,7 @@ test("sync_specs.sample shows a secret identifier as sealed, never its value", a
   assert.ok(text.includes("Imran Ibarra"), "everything else is shown as before");
 });
 
-import { maskSealed, SYNC_PASS_TOKEN, secretKeyName } from "../projections.ts";
+import { maskSealed, SEALED_HELD, SYNC_PASS_TOKEN, secretKeyName } from "../projections.ts";
 
 const SECRET = "123-45-6789";
 test("maskSealed masks the leaf, its item's other values and every list item with the same id, in the firm's custom-field shape", () => {
@@ -188,8 +188,13 @@ test("a compiled sync connector masks sealed values in every output; only the en
   assert.ok(JSON.stringify(masked).includes("Ada Stone"));
   const guess = await read({ __unmask: "guess" });
   assert.ok(!JSON.stringify(guess).includes(PHONE), "a wrong token gets nothing");
-  const real = await read({ __unmask: SYNC_PASS_TOKEN });
-  assert.ok(JSON.stringify(real).includes(PHONE), "the engine's own pass is given the value");
+  // the engine's own pass: the answer is masked too (it crosses the pipeline); the real value stays in this process for the engine to take
+  const real = await read({ __unmask: `${SYNC_PASS_TOKEN}:n1` });
+  assert.ok(!JSON.stringify(real).includes(PHONE), "even the engine's answer carries the mask");
+  assert.equal(SEALED_HELD.get("n1", "1")?.["/attributes/phone"], "+1 555 0101", "the value is kept in the process for the engine");
+  SEALED_HELD.done("n1");
+  assert.equal(SEALED_HELD.get("n1", "1"), undefined);
+  assert.equal(SEALED_HELD.get("other", "1"), undefined, "a wrong nonce gets nothing");
   const run = await w.k.hs["connectors.run"](w.ctx, {
     key: out.connector,
     action: "list_people",
