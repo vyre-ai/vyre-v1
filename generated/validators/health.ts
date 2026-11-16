@@ -5,31 +5,31 @@ import type { Check } from './core.ts';
 
 function d_s_43f71a957b(v: unknown, p: string, e: string[]): void {
 {
-const x305 = v;
-const g305 = typeOf(x305);
-const b305: string[] = []; lf(x305, p, b305, L4); if (b305.length) e.push(...b305);
-if (g305 === "array") {
-if (g305 === 'array') { const a305 = x305 as unknown[];
-for (let i305 = 0; i305 < a305.length; i305++) {
+const x304 = v;
+const g304 = typeOf(x304);
+const b304: string[] = []; lf(x304, p, b304, L4); if (b304.length) e.push(...b304);
+if (g304 === "array") {
+if (g304 === 'array') { const a304 = x304 as unknown[];
+for (let i304 = 0; i304 < a304.length; i304++) {
 {
-const x306 = a305[i305];
-const g306 = typeOf(x306);
-const b306: string[] = []; lf(x306, p + '/' + i305, b306, L0); if (b306.length) e.push(...b306);
-if (g306 === "object") {
-if (g306 === 'object') { const o306 = x306 as Record<string, unknown>;
-if (!("key" in o306)) e.push(p + '/' + i305 + "/key" + ': required');
-if (!("title" in o306)) e.push(p + '/' + i305 + "/title" + ': required');
-if (!("state" in o306)) e.push(p + '/' + i305 + "/state" + ': required');
-if (!("checkedAt" in o306)) e.push(p + '/' + i305 + "/checkedAt" + ': required');
-if (!("module" in o306)) e.push(p + '/' + i305 + "/module" + ': required');
-if (!("next" in o306)) e.push(p + '/' + i305 + "/next" + ': required');
-if ("key" in o306) lf(o306["key"], p + '/' + i305 + "/key", e, L1);
-if ("title" in o306) lf(o306["title"], p + '/' + i305 + "/title", e, L1);
-if ("state" in o306) lf(o306["state"], p + '/' + i305 + "/state", e, L45);
-if ("detail" in o306) lf(o306["detail"], p + '/' + i305 + "/detail", e, L1);
-if ("checkedAt" in o306) lf(o306["checkedAt"], p + '/' + i305 + "/checkedAt", e, L17);
-if ("module" in o306) lf(o306["module"], p + '/' + i305 + "/module", e, L1);
-if ("next" in o306) lf(o306["next"], p + '/' + i305 + "/next", e, L1);
+const x305 = a304[i304];
+const g305 = typeOf(x305);
+const b305: string[] = []; lf(x305, p + '/' + i304, b305, L0); if (b305.length) e.push(...b305);
+if (g305 === "object") {
+if (g305 === 'object') { const o305 = x305 as Record<string, unknown>;
+if (!("key" in o305)) e.push(p + '/' + i304 + "/key" + ': required');
+if (!("title" in o305)) e.push(p + '/' + i304 + "/title" + ': required');
+if (!("state" in o305)) e.push(p + '/' + i304 + "/state" + ': required');
+if (!("checkedAt" in o305)) e.push(p + '/' + i304 + "/checkedAt" + ': required');
+if (!("module" in o305)) e.push(p + '/' + i304 + "/module" + ': required');
+if (!("next" in o305)) e.push(p + '/' + i304 + "/next" + ': required');
+if ("key" in o305) lf(o305["key"], p + '/' + i304 + "/key", e, L1);
+if ("title" in o305) lf(o305["title"], p + '/' + i304 + "/title", e, L1);
+if ("state" in o305) lf(o305["state"], p + '/' + i304 + "/state", e, L45);
+if ("detail" in o305) lf(o305["detail"], p + '/' + i304 + "/detail", e, L1);
+if ("checkedAt" in o305) lf(o305["checkedAt"], p + '/' + i304 + "/checkedAt", e, L17);
+if ("module" in o305) lf(o305["module"], p + '/' + i304 + "/module", e, L1);
+if ("next" in o305) lf(o305["next"], p + '/' + i304 + "/next", e, L1);
 }
 }
 }

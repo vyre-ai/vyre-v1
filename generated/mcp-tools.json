@@ -61851,6 +61851,16 @@
                             },
                             "type": "array"
                           },
+                          "inverseKey": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
+                          "inverseTitle": {
+                            "type": "string"
+                          },
                           "label": {
                             "type": "string"
                           },
@@ -62495,6 +62505,16 @@
                               "type": "object"
                             },
                             "type": "array"
+                          },
+                          "inverseKey": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
+                          "inverseTitle": {
+                            "type": "string"
                           },
                           "label": {
                             "type": "string"
@@ -63259,6 +63279,16 @@
                               "type": "object"
                             },
                             "type": "array"
+                          },
+                          "inverseKey": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
+                          "inverseTitle": {
+                            "type": "string"
                           },
                           "label": {
                             "type": "string"

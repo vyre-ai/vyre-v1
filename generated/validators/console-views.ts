@@ -5,25 +5,25 @@ import type { Check } from './core.ts';
 
 function d_s_4c3990d0f8(v: unknown, p: string, e: string[]): void {
 {
-const x356 = v;
-const g356 = typeOf(x356);
-const b356: string[] = []; lf(x356, p, b356, L4); if (b356.length) e.push(...b356);
-if (g356 === "array") {
-if (g356 === 'array') { const a356 = x356 as unknown[];
-for (let i356 = 0; i356 < a356.length; i356++) {
+const x355 = v;
+const g355 = typeOf(x355);
+const b355: string[] = []; lf(x355, p, b355, L4); if (b355.length) e.push(...b355);
+if (g355 === "array") {
+if (g355 === 'array') { const a355 = x355 as unknown[];
+for (let i355 = 0; i355 < a355.length; i355++) {
 {
-const x357 = a356[i356];
-const g357 = typeOf(x357);
-const b357: string[] = []; lf(x357, p + '/' + i356, b357, L0); if (b357.length) e.push(...b357);
-if (g357 === "object") {
-if (g357 === 'object') { const o357 = x357 as Record<string, unknown>;
-if (!("at" in o357)) e.push(p + '/' + i356 + "/at" + ': required');
-if (!("actor" in o357)) e.push(p + '/' + i356 + "/actor" + ': required');
-if (!("action" in o357)) e.push(p + '/' + i356 + "/action" + ': required');
-if ("at" in o357) lf(o357["at"], p + '/' + i356 + "/at", e, L17);
-if ("actor" in o357) lf(o357["actor"], p + '/' + i356 + "/actor", e, L1);
-if ("action" in o357) lf(o357["action"], p + '/' + i356 + "/action", e, L1);
-if ("resource" in o357) lf(o357["resource"], p + '/' + i356 + "/resource", e, L1);
+const x356 = a355[i355];
+const g356 = typeOf(x356);
+const b356: string[] = []; lf(x356, p + '/' + i355, b356, L0); if (b356.length) e.push(...b356);
+if (g356 === "object") {
+if (g356 === 'object') { const o356 = x356 as Record<string, unknown>;
+if (!("at" in o356)) e.push(p + '/' + i355 + "/at" + ': required');
+if (!("actor" in o356)) e.push(p + '/' + i355 + "/actor" + ': required');
+if (!("action" in o356)) e.push(p + '/' + i355 + "/action" + ': required');
+if ("at" in o356) lf(o356["at"], p + '/' + i355 + "/at", e, L17);
+if ("actor" in o356) lf(o356["actor"], p + '/' + i355 + "/actor", e, L1);
+if ("action" in o356) lf(o356["action"], p + '/' + i355 + "/action", e, L1);
+if ("resource" in o356) lf(o356["resource"], p + '/' + i355 + "/resource", e, L1);
 }
 }
 }

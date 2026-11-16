@@ -225,6 +225,38 @@ test("retype converts what it can, clears the rest, and keeps the old values; re
   assert.match(bad.problems[0]!.message, /cannot be retyped to relation/);
 });
 
+test("four relations from one type to one target all apply, each far end shows its own list, a re-apply changes nothing", async () => {
+  const k = kit();
+  await base(k);
+  const ops: SchemaOp[] = [
+    ["employer", "staff", "Staff"],
+    ["owner", "staff_owner", "Staff (owner)"],
+    ["referrer", "staff_referrer", "Staff (referrer)"],
+    ["former", "staff_former", "Staff (former)"],
+  ].map(([field, inverse, inverseTitle]) => ({
+    op: "relation.add",
+    type: "acme_person",
+    field: field!,
+    def: { to: "acme_company", inverse: inverse!, inverseTitle: inverseTitle! },
+  }));
+  await k.h["schema.apply"](k.ctx, { ops });
+  const company = (await k.h["schema.types.get"](k.ctx, { type: "acme_company" })).type;
+  for (const [field, inverse, title] of [
+    ["employer", "staff", "Staff"],
+    ["owner", "staff_owner", "Staff (owner)"],
+    ["referrer", "staff_referrer", "Staff (referrer)"],
+    ["former", "staff_former", "Staff (former)"],
+  ]) {
+    const far = company.fields.find((f) => f.key === inverse)!;
+    assert.equal(far.title, title);
+    assert.deepEqual(far.options, { target: "acme_person", inverse: field });
+  }
+  const before = JSON.stringify((await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type);
+  const again = await k.h["schema.diff"](k.ctx, { ops });
+  assert.ok(again.problems.length === 4, "the same four relations are refused as already there, not made twice");
+  assert.equal(JSON.stringify((await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type), before);
+});
+
 test("relations are made and dropped as pairs; dropping a type needs its relations gone first", async () => {
   const k = kit();
   await base(k);

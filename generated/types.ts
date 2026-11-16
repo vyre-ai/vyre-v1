@@ -40116,6 +40116,8 @@ export type SyncSpecsApplyIn = {
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
           }>;
         webhook?: {
@@ -40256,6 +40258,8 @@ export type SyncSpecsGetOut = {
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
           }>;
         webhook?: {
@@ -40377,6 +40381,8 @@ export type SyncSpecsPreviewIn = {
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
           }>;
         webhook?: {
@@ -40621,6 +40627,8 @@ export type SyncSpecsValidateIn = {
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
           }>;
         webhook?: {

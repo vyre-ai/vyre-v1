@@ -5,13 +5,13 @@ import type { Check } from './core.ts';
 
 function d_s_4378c74ec9(v: unknown, p: string, e: string[]): void {
 {
-const x304 = v;
-const g304 = typeOf(x304);
-const b304: string[] = []; lf(x304, p, b304, L0); if (b304.length) e.push(...b304);
-if (g304 === "object") {
-if (g304 === 'object') { const o304 = x304 as Record<string, unknown>;
-if (!("tools" in o304)) e.push(p + "/tools" + ': required');
-if ("tools" in o304) d_s_fcd2dfbd95(o304["tools"], p + "/tools", e);
+const x303 = v;
+const g303 = typeOf(x303);
+const b303: string[] = []; lf(x303, p, b303, L0); if (b303.length) e.push(...b303);
+if (g303 === "object") {
+if (g303 === 'object') { const o303 = x303 as Record<string, unknown>;
+if (!("tools" in o303)) e.push(p + "/tools" + ': required');
+if ("tools" in o303) d_s_fcd2dfbd95(o303["tools"], p + "/tools", e);
 }
 }
 }
@@ -19,17 +19,17 @@ if ("tools" in o304) d_s_fcd2dfbd95(o304["tools"], p + "/tools", e);
 
 function d_s_c282f10646(v: unknown, p: string, e: string[]): void {
 {
-const x959 = v;
-const g959 = typeOf(x959);
-const b959: string[] = []; lf(x959, p, b959, L0); if (b959.length) e.push(...b959);
-if (g959 === "object") {
-if (g959 === 'object') { const o959 = x959 as Record<string, unknown>;
-if (!("agentId" in o959)) e.push(p + "/agentId" + ': required');
-if (!("person" in o959)) e.push(p + "/person" + ': required');
-if (!("why" in o959)) e.push(p + "/why" + ': required');
-if ("agentId" in o959) lf(o959["agentId"], p + "/agentId", e, L10);
-if ("person" in o959) lf(o959["person"], p + "/person", e, L1);
-if ("why" in o959) lf(o959["why"], p + "/why", e, L1);
+const x958 = v;
+const g958 = typeOf(x958);
+const b958: string[] = []; lf(x958, p, b958, L0); if (b958.length) e.push(...b958);
+if (g958 === "object") {
+if (g958 === 'object') { const o958 = x958 as Record<string, unknown>;
+if (!("agentId" in o958)) e.push(p + "/agentId" + ': required');
+if (!("person" in o958)) e.push(p + "/person" + ': required');
+if (!("why" in o958)) e.push(p + "/why" + ': required');
+if ("agentId" in o958) lf(o958["agentId"], p + "/agentId", e, L10);
+if ("person" in o958) lf(o958["person"], p + "/person", e, L1);
+if ("why" in o958) lf(o958["why"], p + "/why", e, L1);
 }
 }
 }

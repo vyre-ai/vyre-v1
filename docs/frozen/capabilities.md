@@ -665,3 +665,10 @@ Signed: lead, 16 Nov 2026 (after the security review and its re-check)
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: (for the lead to sign)
+
+## 16 Nov 2026: a sync spec names the far end of a relation, so a second relation to the same table does not collide (lane r32-synclink), for the lead to sign
+
+- What changed in contracts, additive and optional, so no spec that exists changes: `sync_specs.validate`, `preview`, `apply` and `get` take, on a spec field with `relationTo`, `inverseKey` (lowercase letters, digits and underscores) and `inverseTitle` (the name on the other record). Left out, the first relation from a record type to a target keeps its old far end (the type and an s, title the object label and an s), so a Space already synced does not change; a further relation to the same target gets `<recordType>_<fieldKey>s` titled with the object label, an s and the field label in brackets (for example "Matters (owner)"). `validate` and `apply` refuse two relations that would put one name on the same target, in plain words, before anything is made.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: (for the lead to sign)

@@ -94,17 +94,17 @@ if (![t117_0, t117_1].some((x) => x.length === 0)) e.push(p + "/pin" + ': matche
 
 function d_s_3063e4ff68(v: unknown, p: string, e: string[]): void {
 {
-const x217 = v;
-const g217 = typeOf(x217);
-const b217: string[] = []; lf(x217, p, b217, L0); if (b217.length) e.push(...b217);
-if (g217 === "object") {
-if (g217 === 'object') { const o217 = x217 as Record<string, unknown>;
-if (!("scope" in o217)) e.push(p + "/scope" + ': required');
-if (!("things" in o217)) e.push(p + "/things" + ': required');
-if (!("entries" in o217)) e.push(p + "/entries" + ': required');
-if ("scope" in o217) lf(o217["scope"], p + "/scope", e, L1);
-if ("things" in o217) lf(o217["things"], p + "/things", e, L17);
-if ("entries" in o217) lf(o217["entries"], p + "/entries", e, L17);
+const x216 = v;
+const g216 = typeOf(x216);
+const b216: string[] = []; lf(x216, p, b216, L0); if (b216.length) e.push(...b216);
+if (g216 === "object") {
+if (g216 === 'object') { const o216 = x216 as Record<string, unknown>;
+if (!("scope" in o216)) e.push(p + "/scope" + ': required');
+if (!("things" in o216)) e.push(p + "/things" + ': required');
+if (!("entries" in o216)) e.push(p + "/entries" + ': required');
+if ("scope" in o216) lf(o216["scope"], p + "/scope", e, L1);
+if ("things" in o216) lf(o216["things"], p + "/things", e, L17);
+if ("entries" in o216) lf(o216["entries"], p + "/entries", e, L17);
 }
 }
 }
@@ -112,15 +112,15 @@ if ("entries" in o217) lf(o217["entries"], p + "/entries", e, L17);
 
 function d_s_4723a562bf(v: unknown, p: string, e: string[]): void {
 {
-const x327 = v;
-const g327 = typeOf(x327);
-const b327: string[] = []; lf(x327, p, b327, L0); if (b327.length) e.push(...b327);
-if (g327 === "object") {
-if (g327 === 'object') { const o327 = x327 as Record<string, unknown>;
-if (!("person" in o327)) e.push(p + "/person" + ': required');
-if (!("scope" in o327)) e.push(p + "/scope" + ': required');
-if ("person" in o327) lf(o327["person"], p + "/person", e, L1);
-if ("scope" in o327) lf(o327["scope"], p + "/scope", e, L1);
+const x326 = v;
+const g326 = typeOf(x326);
+const b326: string[] = []; lf(x326, p, b326, L0); if (b326.length) e.push(...b326);
+if (g326 === "object") {
+if (g326 === 'object') { const o326 = x326 as Record<string, unknown>;
+if (!("person" in o326)) e.push(p + "/person" + ': required');
+if (!("scope" in o326)) e.push(p + "/scope" + ': required');
+if ("person" in o326) lf(o326["person"], p + "/person", e, L1);
+if ("scope" in o326) lf(o326["scope"], p + "/scope", e, L1);
 }
 }
 }

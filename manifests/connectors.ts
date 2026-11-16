@@ -169,6 +169,8 @@ const specField = t.obj({
     t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }), { examples: [[{ value: "lead", label: "Lead" }]] }),
   ),
   relationTo: t.opt(t.str({ description: "The remote object a relation points at" })),
+  inverseKey: t.opt(fieldKey),
+  inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
 });
 const specCursor = t.obj({

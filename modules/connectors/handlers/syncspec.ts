@@ -5,7 +5,15 @@
 import { canonical } from "../../../lib/canonical.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase } from "../projections.ts";
-import { coerceValue, compileSpec, firstPageRequest, parseSpec, readPage, unflatten } from "../syncspec.ts";
+import {
+  coerceValue,
+  compileSpec,
+  firstPageRequest,
+  parseSpec,
+  readPage,
+  relationClashes,
+  unflatten,
+} from "../syncspec.ts";
 import type { Compiled, CompiledType, Problem, SpecObject, SyncSpec } from "../syncspec.ts";
 import { createConnectionsHandlers } from "./connections.ts";
 import { diffDefs, executeAction, runCases } from "./runtime.ts";
@@ -235,6 +243,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     if (!deps.probe) return refuse(ctx, "internal.unavailable", "Reading the app is not available right now.");
     const probe = deps.probe;
     const mapped = new Map(spec.mapping.map((m) => [m.remote, m]));
+    for (const said of relationClashes(spec)) err("mapping", said);
     const types = new Set<string>();
     for (const m of spec.mapping) {
       if (types.has(m.recordType)) err(`mapping.${m.remote}.recordType`, `${m.recordType} is used by two mappings.`);

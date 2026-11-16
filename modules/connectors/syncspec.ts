@@ -29,6 +29,9 @@ export interface SpecField {
   type: SpecFieldType;
   choices?: { value: string; label?: string }[];
   relationTo?: string;
+  /** The name of the far end of a relation (on the target's records). Without it the first relation from a type to a target is named after the type; a further one after the type and this field. */
+  inverseKey?: string;
+  inverseTitle?: string;
   readOnly?: boolean;
 }
 export interface SpecCursor {
@@ -266,6 +269,10 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
             bad(`${fa}.type`, `type is one of ${FIELD_TYPES.join(", ")}.`);
           if (f["type"] === "relation" && !str(f["relationTo"]))
             bad(`${fa}.relationTo`, "A relation names the object it points to.");
+          if (f["inverseKey"] !== undefined && (!str(f["inverseKey"]) || !KEY.test(String(f["inverseKey"]))))
+            bad(`${fa}.inverseKey`, "inverseKey is lowercase letters, digits and underscores, starting with a letter.");
+          if (f["inverseTitle"] !== undefined && !str(f["inverseTitle"]))
+            bad(`${fa}.inverseTitle`, "inverseTitle is the name people read on the other record.");
         }
       }
   }
@@ -474,6 +481,50 @@ export function directionOf(
   return f.direction;
 }
 
+/** The far end of every relation of a spec, by "<recordType>|<path>". The first relation from a type to a target keeps the old name (the type and an s), a further one is named after its field so it cannot collide; a name the spec gives wins. */
+export function relationEnds(spec: SyncSpec): Map<string, { key: string; title: string; to: string; field: string }> {
+  const out = new Map<string, { key: string; title: string; to: string; field: string }>();
+  const byRemote = new Map(spec.objects.map((o) => [o.remote, o]));
+  const seen = new Map<string, number>();
+  for (const m of spec.mapping) {
+    const o = byRemote.get(m.remote);
+    if (!o) continue;
+    const keys = fieldKeys(o, m);
+    for (const f of m.fields) {
+      if (f.direction === "off") continue;
+      const sf = o.fields.find((x) => x.path === f.path);
+      const target = sf?.type === "relation" ? spec.mapping.find((x) => x.remote === sf.relationTo) : undefined;
+      if (!sf || !target) continue;
+      const pair = `${m.recordType}>${target.recordType}`;
+      const n = seen.get(pair) ?? 0;
+      seen.set(pair, n + 1);
+      const field = keys.get(f.path)!;
+      out.set(`${m.recordType}|${f.path}`, {
+        key: (sf.inverseKey ?? (n === 0 ? `${m.recordType}s` : `${m.recordType}_${field}s`)).slice(0, 60),
+        title: sf.inverseTitle ?? (n === 0 ? `${o.label}s` : `${o.label}s (${sf.label.toLowerCase()})`),
+        to: target.recordType,
+        field,
+      });
+    }
+  }
+  return out;
+}
+
+/** Two relations that would put the same name on one record type, said in plain words (empty when none). */
+export function relationClashes(spec: SyncSpec): string[] {
+  const names = new Map<string, string>();
+  const said: string[] = [];
+  for (const [at, e] of relationEnds(spec)) {
+    const near = at.split("|")[0]!;
+    const k = `${e.to}|${e.key}`;
+    const was = names.get(k);
+    if (was !== undefined)
+      said.push(`${was} and ${near}.${e.field} both put ${e.key} on ${e.to}. Give one of them its own inverseKey.`);
+    else names.set(k, `${near}.${e.field}`);
+  }
+  return said;
+}
+
 export function compileSpec(spec: SyncSpec): Compiled {
   const secretSlot = "Key";
   const types: CompiledType[] = [];
@@ -481,6 +532,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
   const objects: NonNullable<ConnectorDef["objects"]> = {};
   const baseHeaders: Record<string, string> = { Accept: "application/json", ...(spec.auth.headers ?? {}) };
   const byRemote = new Map(spec.objects.map((o) => [o.remote, o]));
+  const ends = relationEnds(spec);
 
   for (const m of spec.mapping) {
     const o = byRemote.get(m.remote);
@@ -624,7 +676,8 @@ export function compileSpec(spec: SyncSpec): Compiled {
       const key = keys.get(f.path)!;
       const dir = directionOf(f, sf, writable.update);
       const target = sf?.type === "relation" ? spec.mapping.find((x) => x.remote === sf.relationTo) : undefined;
-      const inverse = target ? `${m.recordType}s`.slice(0, 60) : undefined;
+      const end = target ? ends.get(`${m.recordType}|${f.path}`) : undefined;
+      const inverse = end?.key;
       fields.push({
         key,
         remote: f.path,
@@ -643,7 +696,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
             title: sf.label,
             to: target.recordType,
             inverse: inverse!,
-            inverseTitle: `${o.label}s`,
+            inverseTitle: end!.title,
           });
         continue;
       }

@@ -1,0 +1,1 @@
+A synced app can now bring in several links from one table to the same other table (a matter's lead attorney, owner and salesperson all pointing at staff), and each shows its own list on the other record.

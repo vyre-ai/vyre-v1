@@ -112,6 +112,8 @@ type Out = {
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
           }>;
         webhook?: {
@@ -241,6 +243,8 @@ type Out = {
                   "label": "Lead"
                 }
               ],
+              "inverseKey": "email",
+              "inverseTitle": "example",
               "label": "example",
               "path": "example",
               "readOnly": true,
