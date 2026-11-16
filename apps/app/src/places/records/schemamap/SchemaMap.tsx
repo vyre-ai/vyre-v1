@@ -110,9 +110,14 @@ export function SchemaMap({ selected = null, expanded = [], details: preload, si
   for (const n of nodes) rowsOf.set(n.type, fieldRows(n.type, edges, titleOf, details.get(n.type)));
   const heights = new Map<string, number>();
   for (const n of nodes) heights.set(n.type, cardHeight((rowsOf.get(n.type) as FieldRow[]).length, false));
+  // a card that is opened to all its fields is taller: the cards under it move down (each stays in its column), so it never lies over the next card's own
+  // buttons (the click checker found a card's "records" button under an opened card, 17 Nov 2026)
+  const drawn = new Map<string, number>();
+  for (const n of nodes) drawn.set(n.type, cardHeight((rowsOf.get(n.type) as FieldRow[]).length, exp[n.type] === true));
   let nodeKey = `#${edges.length}`;
-  for (const n of nodes) nodeKey += `|${n.type}:${(rowsOf.get(n.type) as FieldRow[]).length}`;
-  const pos = useMemo(() => layout(nodes, edges, heights), [nodeKey]);
+  for (const n of nodes)
+    nodeKey += `|${n.type}:${(rowsOf.get(n.type) as FieldRow[]).length}${exp[n.type] === true ? "+" : ""}`;
+  const pos = useMemo(() => layout(nodes, edges, heights, drawn), [nodeKey]);
   const rects = new Map<string, Rect>();
   for (const n of nodes) {
     const p = pos.get(n.type) ?? [70, 40];
