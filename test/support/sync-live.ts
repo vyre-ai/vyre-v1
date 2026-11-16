@@ -50,7 +50,8 @@ export function app(seen: { keys: string[]; urls: string[] }, opts: AppOptions =
       id: 1000 + i,
       attributes: { name: `Bulk ${i}`, social_security: "", custom_field_values: {}, custom_fields: [] },
     } as never);
-  const named = (kind: string) => [1, 2].map((id) => ({ id, name: `${kind} ${id}` }));
+  const named = (kind: string) =>
+    [1, 2].map((id) => ({ id, name: `${kind} ${id}`, extra: `extra ${kind} ${id}`, contact_id: id }));
   const notes = [
     { id: 1, text: "note a", kind: "prospect", target_id: 1 },
     { id: 2, text: "note b", kind: "contact", target_id: 1 },
