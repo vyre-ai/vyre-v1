@@ -8470,6 +8470,12 @@ export type ChatComposerSuggestOut = {
       detail?: string;
     }>;
 };
+export type ChatConnectLineIn = {
+  requestId: string;
+};
+export type ChatConnectLineOut = {
+  messageId: string;
+};
 export type ChatCrewLineIn = {
   threadId: string;
   jobId: string;
@@ -11653,6 +11659,13 @@ export type ConflictsUndoIn = {
 export type ConflictsUndoOut = {
   state: "open" | "proposed" | "needs_you" | "resolved" | "undone";
 };
+export type ConnectionsApproveHostsIn = {
+  connectionId: string;
+  hosts: Array<string>;
+};
+export type ConnectionsApproveHostsOut = {
+  hosts: Array<string>;
+};
 export type ConnectionsCompleteAuthIn = {
   state: string;
   code?: string;
@@ -11913,6 +11926,7 @@ export type ConnectorsForServiceOut = {
     state: "pending" | "active" | "paused" | "needs_reconnect" | "failing";
   };
   near?: Array<string>;
+  older?: string;
 };
 export type ConnectorsGetIn = {
   key: string;
@@ -25167,6 +25181,7 @@ export type MailDraftsDiscardOut = {
 export type MailDraftsListIn = {
   mailboxId?: string;
   contactId?: string;
+  address?: string;
   cursor?: string;
   limit?: number;
 };
@@ -46766,6 +46781,25 @@ export type VaultConnectCardGetOut = {
       }>;
   };
 };
+export type VaultConnectCardLineIn = {
+  requestId: string;
+};
+export type VaultConnectCardLineOut = {
+  state: "asked" | "connected" | "declined";
+  service: string;
+  asker?: string;
+  connectedBy?: string;
+  threadId?: string;
+  agentId?: string;
+  answeredAt?: number;
+};
+export type VaultConnectCardMayDiscardIn = {
+  requestId: string;
+  itemId: string;
+};
+export type VaultConnectCardMayDiscardOut = {
+  ok: boolean;
+};
 export type VaultConnectCardOptionsIn = {
   requestId: string;
 };
@@ -46828,6 +46862,7 @@ export type VaultConnectCardSubmitIn = {
   useSaved?: boolean;
   folderId?: string;
   audience?: "asker" | "anyone";
+  hosts: Array<string>;
 };
 export type VaultConnectCardSubmitOut = {
   result: "connected" | "wrong" | "offline";
@@ -47045,6 +47080,7 @@ export type VaultItemDeleteOut = {
 };
 export type VaultItemDiscardNewIn = {
   itemId: string;
+  requestId: string;
 };
 export type VaultItemDiscardNewOut = {
   ok: boolean;
@@ -48366,6 +48402,7 @@ export interface CapMap {
   "chat.chapters": { in: ChatChaptersIn; out: ChatChaptersOut };
   "chat.chapters_write": { in: ChatChaptersWriteIn; out: ChatChaptersWriteOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
+  "chat.connect_line": { in: ChatConnectLineIn; out: ChatConnectLineOut };
   "chat.crew_line": { in: ChatCrewLineIn; out: ChatCrewLineOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
@@ -48526,6 +48563,7 @@ export interface CapMap {
   "conflicts.redo": { in: ConflictsRedoIn; out: ConflictsRedoOut };
   "conflicts.resolve": { in: ConflictsResolveIn; out: ConflictsResolveOut };
   "conflicts.undo": { in: ConflictsUndoIn; out: ConflictsUndoOut };
+  "connections.approve_hosts": { in: ConnectionsApproveHostsIn; out: ConnectionsApproveHostsOut };
   "connections.complete_auth": { in: ConnectionsCompleteAuthIn; out: ConnectionsCompleteAuthOut };
   "connections.create": { in: ConnectionsCreateIn; out: ConnectionsCreateOut };
   "connections.delete": { in: ConnectionsDeleteIn; out: ConnectionsDeleteOut };
@@ -50252,6 +50290,8 @@ export interface CapMap {
   "vault.connect_card.ask_admin": { in: VaultConnectCardAskAdminIn; out: VaultConnectCardAskAdminOut };
   "vault.connect_card.disconnect": { in: VaultConnectCardDisconnectIn; out: VaultConnectCardDisconnectOut };
   "vault.connect_card.get": { in: VaultConnectCardGetIn; out: VaultConnectCardGetOut };
+  "vault.connect_card.line": { in: VaultConnectCardLineIn; out: VaultConnectCardLineOut };
+  "vault.connect_card.may_discard": { in: VaultConnectCardMayDiscardIn; out: VaultConnectCardMayDiscardOut };
   "vault.connect_card.options": { in: VaultConnectCardOptionsIn; out: VaultConnectCardOptionsOut };
   "vault.connect_card.reopen": { in: VaultConnectCardReopenIn; out: VaultConnectCardReopenOut };
   "vault.connect_card.submit": { in: VaultConnectCardSubmitIn; out: VaultConnectCardSubmitOut };
