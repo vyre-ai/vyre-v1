@@ -4,26 +4,27 @@
 import { readFileSync } from "node:fs";
 
 const DIR = new URL("./sign-assets/", import.meta.url);
-const FILES: Record<string, string> = {
-  "sign.css": "text/css; charset=utf-8",
-  "sign.js": "text/javascript; charset=utf-8",
-  "pdf.js": "text/javascript; charset=utf-8",
-  "pdf.worker.classic.js": "text/javascript; charset=utf-8",
-  "script.woff2": "font/woff2",
-  "script-OFL.txt": "text/plain; charset=utf-8",
-  "pdf-LICENSE.txt": "text/plain; charset=utf-8",
+// the served name, the file under sign-assets/ and its type; third-party files sit in vendor/ with their licences
+const FILES: Record<string, { file: string; mime: string }> = {
+  "sign.css": { file: "sign.css", mime: "text/css; charset=utf-8" },
+  "sign.js": { file: "sign.js", mime: "text/javascript; charset=utf-8" },
+  "pdf.js": { file: "vendor/pdf.js", mime: "text/javascript; charset=utf-8" },
+  "pdf.worker.classic.js": { file: "vendor/pdf.worker.classic.js", mime: "text/javascript; charset=utf-8" },
+  "script.woff2": { file: "vendor/script.woff2", mime: "font/woff2" },
+  "script-OFL.txt": { file: "vendor/script-OFL.txt", mime: "text/plain; charset=utf-8" },
+  "pdf-LICENSE.txt": { file: "vendor/pdf-LICENSE.txt", mime: "text/plain; charset=utf-8" },
 };
 const cache = new Map<string, Uint8Array>();
 
 export function signAsset(name: string): { mime: string; bytes: Uint8Array } | null {
-  const mime = FILES[name];
-  if (!mime || !/^[A-Za-z0-9._-]+$/.test(name)) return null;
+  const entry = Object.hasOwn(FILES, name) ? FILES[name] : undefined;
+  if (!entry || !/^[A-Za-z0-9._-]+$/.test(name)) return null;
   let bytes = cache.get(name);
   if (!bytes) {
-    bytes = new Uint8Array(readFileSync(new URL(name, DIR)));
+    bytes = new Uint8Array(readFileSync(new URL(entry.file, DIR)));
     cache.set(name, bytes);
   }
-  return { mime, bytes };
+  return { mime: entry.mime, bytes };
 }
 
 const SHELL = `<!doctype html>
