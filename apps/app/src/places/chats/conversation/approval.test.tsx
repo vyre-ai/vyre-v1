@@ -514,5 +514,43 @@ test("a card with no capability, no ask and no question is drawn as its plain wo
     />,
   );
   await flush();
-  assert.match(textOf(find(plain, "approval-tsk_1")), /Helper asks: Send the notes to Mia/);
+  // a teammate's plain yes or no is a quiet line with two buttons: the one approval vocabulary (Allow, Always allow, Deny) is only for held actions
+  assert.equal(find(plain, "approval-tsk_1"), null, "not an approval card");
+  assert.match(textOf(find(plain, "approval-plain-tsk_1")), /Helper asks: Send the notes to Mia/);
+  assert.ok(find(plain, "approval-yes-tsk_1") && find(plain, "approval-no-tsk_1"), "two buttons, Yes and No");
+  assert.ok(!/Allow|Deny/.test(textOf(plain)), "no approval words on a plain question");
+});
+
+test("a teammate's plain question is answered with Yes or No, and the line afterwards says what was said", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const mk = () => ({
+    call: async (cap: string, input: unknown) => {
+      calls.push({ cap, input });
+      if (cap === "tasks.get")
+        return {
+          task: {
+            id: "tsk_1",
+            kind: "approve",
+            title: "Send the notes to Mia",
+            state: "awaiting_approval",
+            blocks: [{ type: "table", data: { cap: "", act: "", plain: true, ask: { what: "approve the notes" } } }],
+            actions: [],
+          },
+        };
+      return {};
+    },
+    nav: { openBeside: () => undefined },
+  });
+  const root = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_1" agent="Helper" agentId="agt_1" data={mk() as never} />,
+  );
+  await flush();
+  await press(find(root, "approval-yes-tsk_1"));
+  await flush();
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "tasks.act").map((c) => (c.input as { action: string }).action),
+    ["approve"],
+  );
+  assert.match(textOf(root), /You said yes · Send the notes to Mia/);
 });

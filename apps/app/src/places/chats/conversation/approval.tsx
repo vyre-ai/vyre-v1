@@ -4,7 +4,7 @@
 // choice that is gone, and a press that was too late hears "Already decided.".
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CARD_INSET, Card, CardActions, CardDeny, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
@@ -358,7 +358,7 @@ export function ApprovalCard({
         }
         text={
           held.plain
-            ? `${ended === "allowed" ? "Approved" : "Sent back"} · ${task.title}`
+            ? `${ended === "allowed" ? "You said yes" : "You said no"} · ${task.title}`
             : held.cap === "chat.message_person"
               ? sentLine(
                   ended,
@@ -439,7 +439,37 @@ export function ApprovalCard({
         ? `${agent} wants to send ${keyRead.handle} (${keyRead.name}) to ${keyRead.host}`
         : `${agent} wants to send a key you cannot see${keyRead?.host ? ` to ${keyRead.host}` : ""}`
       : null);
-  // a teammate's plain question (no capability behind it: pressing answers the agent, nothing runs) reads as the question it is, never as "asks you to: approve ..."
+  // a teammate's plain question (no capability behind it: pressing answers the agent, nothing runs) is a quiet line with two buttons, never an approval card and never Allow or Deny
+  if (held.plain)
+    return (
+      <View testID={`approval-plain-${taskId}`} accessibilityLabel={`${agent} asks: ${task.title}`} style={st.quiet}>
+        <Text style={st.quietText}>{`${agent} asks: ${task.title}`}</Text>
+        {held.detail ? <Text style={st.quietDetail}>{held.detail}</Text> : null}
+        <View style={st.quietRow}>
+          {/* ui-rows-lint: not a list (the two answer buttons) */}
+          {(
+            [
+              ["yes", "Yes", "approve"],
+              ["no", "No", "reject"],
+            ] as const
+          ).map(([k, label, key]) => (
+            <Pressable
+              key={k}
+              testID={`approval-${k}-${taskId}`}
+              accessibilityRole="button"
+              accessibilityLabel={label}
+              disabled={busy}
+              onPress={() => act(key)}
+              style={st.quietBtn}
+            >
+              <Text style={st.quietBtnText}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {line ? <Text style={st.quietDetail}>{line}</Text> : null}
+      </View>
+    );
+  // a key or a held act reads as what it wants
   const headline = held.plain
     ? `${agent} asks: ${task.title}`
     : held.what
@@ -522,6 +552,20 @@ export function ApprovalCard({
 }
 
 const st = StyleSheet.create({
+  quiet: { gap: 4, paddingVertical: 4 },
+  quietText: { fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
+  quietDetail: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
+  quietRow: { flexDirection: "row", gap: 8 },
+  quietBtn: {
+    paddingHorizontal: 12,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
+  quietBtnText: { fontSize: 13, color: "var(--ink)" as string },
   excerpt: { gap: 6, padding: 10, borderRadius: 12, backgroundColor: CARD_INSET },
   line: { gap: 1 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
