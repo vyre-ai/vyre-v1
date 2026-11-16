@@ -2,6 +2,7 @@
 // dates and money come from the tag name, records feed tags through a mapping, and the template list follows the marks.
 // @reads /modules/documents/migrations/0001_documents.sql
 
+import { createRequire } from "node:module";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
@@ -97,7 +98,11 @@ test("a missing value stops the fill, names every missing field, makes no file a
     "an empty string is missing, sorted",
   );
   const zero = fill(docx(para("{a} and {b}")), { a: 0, b: false });
-  assert.deepEqual(textOf(zero.buffer), ["0 and false"], "zero and false are values");
+  assert.deepEqual(
+    textOf(zero.buffer),
+    ["0 and No"],
+    "zero and false are values (false prints as No, a checkbox as words)",
+  );
 });
 
 test("a fill makes a new file in the folder, a first version, an event, and leaves the template alone", async () => {
@@ -468,4 +473,154 @@ test("marking a template, listing templates, folder filter, access, paging and u
     "Alpha.docx",
     "a cursor that is not a number starts again from the top",
   );
+});
+
+// ---- 16 Nov 2026: a big filled file, and every kind of value prints as words ----
+
+async function printedText(w: World, body: string, values: Record<string, unknown>): Promise<string[]> {
+  const id = w.add("Kinds.docx", docx(body));
+  return textOf((await filled(w, id, { values })).bytes);
+}
+
+async function refusedWith(w: World, body: string, values: Record<string, unknown>): Promise<VyreErr> {
+  const id = w.add("Refused.docx", docx(body));
+  const before = w.files.size;
+  const filledBefore = w.events.filter((x) => x.name === "document.filled").length;
+  const e = await expectCode("validation.precondition_failed", () =>
+    handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, values }),
+  );
+  assert.equal(w.files.size, before, "no file was made");
+  assert.equal(w.events.filter((x) => x.name === "document.filled").length, filledBefore, "no event");
+  assert.doesNotMatch(e.error.message, /\[object Object\]/);
+  return e;
+}
+
+for (const size of [400 * 1024, 2 * 1024 * 1024]) {
+  test(`a template with a ${size / 1024} KB letterhead picture fills into a file of that size and every byte of the picture comes through`, async () => {
+    const w = world();
+    const picture = Buffer.alloc(size);
+    let x = 0x2545f491; // xorshift: bytes a zip cannot shrink, the same every run
+    for (let i = 0; i < size; i++) {
+      x ^= x << 13;
+      x ^= x >>> 17;
+      x ^= x << 5;
+      picture[i] = x & 0xff;
+    }
+    const id = w.add("Letterhead.docx", docx(para("Dear {client.name},"), { "word/media/letterhead.png": picture }));
+    const out = await filled(w, id, { values: { client: { name: "Imran Ibarra" } } });
+    assert.ok(out.bytes.length > size, "the file is as large as its picture");
+    assert.deepEqual(textOf(out.bytes), ["Dear Imran Ibarra,"]);
+    const back = partOf(out.bytes, "word/media/letterhead.png");
+    assert.ok(back !== undefined);
+    const zipped = new (createRequire(import.meta.url)("pizzip"))(out.bytes) as {
+      file(n: string): { asNodeBuffer(): Buffer };
+    };
+    assert.ok(zipped.file("word/media/letterhead.png").asNodeBuffer().equals(picture), "the picture, byte for byte");
+  });
+}
+
+test("money prints as an amount in its currency, in a plain place, nested and in a list", async () => {
+  const w = world();
+  const out = await printedText(
+    w,
+    para("Retainer: {matter.retainer}") +
+      para("Due: {matter.due}") +
+      para("{#items}{label}: {price}; {/items}") +
+      para("Other: {matter.other}"),
+    {
+      matter: {
+        retainer: { amount: 1250, currency: "USD" },
+        due: { amount: -3.5, currency: "EUR" },
+        other: { amount: 1000000, currency: "CHF" },
+      },
+      items: [
+        { label: "Filing", price: { amount: 400, currency: "USD" } },
+        { label: "Copies", price: { amount: 12.5, currency: "USD" } },
+      ],
+    },
+  );
+  assert.deepEqual(out, [
+    "Retainer: $1,250.00",
+    "Due: -€3.50",
+    "Filing: $400.00; Copies: $12.50; ",
+    "Other: 1,000,000.00 CHF",
+  ]);
+});
+
+test("a sealed value is never printed: the fill is refused in plain words naming the field, nested and in a list too", async () => {
+  const sealed = { sealed: "ssn", ref: "vault_ref_1", present: true };
+  const w = world();
+  const plain = await refusedWith(w, para("Number: {client.ssn}"), { client: { ssn: sealed } });
+  assert.match(plain.error.message, /client\.ssn is a sealed value, and a sealed value is never printed/);
+  const inList = await refusedWith(w, para("{#people}{name} {ssn};{/people}"), {
+    people: [{ name: "Andrea Lindahl", ssn: sealed }],
+  });
+  assert.match(inList.error.message, /ssn is a sealed value/);
+  const sent = await refusedWith(w, para("Number: {key}"), { key: { sealed: true, value: "123-45-6789" } });
+  assert.doesNotMatch(sent.error.message, /123-45-6789/);
+});
+
+test("an address, a checkbox, a multi-choice, a date and time and a duration print as words", async () => {
+  const w = world();
+  const out = await printedText(
+    w,
+    para("At {site.where}") +
+      para("Agreed: {site.agreed} / Open: {site.open}") +
+      para("Tags: {site.tags}") +
+      para("Met: {site.met}") +
+      para("Effort: {site.effort}") +
+      para("Long: {site.duration}") +
+      para("Short: {site.span_duration}"),
+    {
+      site: {
+        where: {
+          line1: "12 Harbour Road",
+          line2: "Suite 4",
+          city: "Northwind",
+          region: "CA",
+          postal: "90210",
+          country: "US",
+        },
+        agreed: true,
+        open: false,
+        tags: ["urgent", "estate", "review"],
+        met: "2026-10-24T14:30:00.000Z",
+        effort: 9000000,
+        duration: 3 * 86400000,
+        span_duration: 1000,
+      },
+    },
+  );
+  assert.deepEqual(out, [
+    "At 12 Harbour Road, Suite 4, Northwind, CA 90210, US",
+    "Agreed: Yes / Open: No",
+    "Tags: urgent, estate, review",
+    "Met: October 24, 2026, 14:30 UTC",
+    "Effort: 2 hours 30 minutes",
+    "Long: 3 days",
+    "Short: less than a minute",
+  ]);
+});
+
+test("files and relations print as names; a link that cannot be named refuses the fill naming the field; a person id is never printed", async () => {
+  const w = world();
+  const a = w.add("Deed of trust.docx", docx(para("x")), FOLDER, `fil_${"a1".repeat(16)}`);
+  const b = w.add("Survey.docx", docx(para("x")), FOLDER, `fil_${"b2".repeat(16)}`);
+  const out = await printedText(w, para("Attached: {matter.files}") + para("One: {matter.main}"), {
+    matter: { files: [a, b], main: a },
+  });
+  assert.deepEqual(out, ["Attached: Deed of trust.docx, Survey.docx", "One: Deed of trust.docx"]);
+  const gone = await refusedWith(w, para("File: {matter.file}"), {
+    matter: { file: "fil_00000000000000000000000000000000" },
+  });
+  assert.match(gone.error.message, /matter\.file points to something that cannot be named here/);
+  const person = await refusedWith(w, para("By: {matter.owner}"), { matter: { owner: "usr_ec028017ceefaf270b" } });
+  assert.match(person.error.message, /matter\.owner points to something/);
+  assert.doesNotMatch(person.error.message, /usr_ec0/);
+});
+
+test("a group of values with no one text form is refused naming the field, never printed as [object Object]", async () => {
+  const w = world();
+  const e = await refusedWith(w, para("Who: {client}"), { client: { name: "Imran Ibarra", city: "Northwind" } });
+  assert.match(e.error.message, /client is a group of values; name one part of it, such as \{client\.name\}/);
 });

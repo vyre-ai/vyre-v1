@@ -16,6 +16,7 @@ import { createRequire } from "node:module";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { findRecord } from "../../../lib/record-type.ts";
+import { isRawId } from "../../../lib/id-shapes.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 
 type Row = Record<string, unknown>;
@@ -97,7 +98,7 @@ export const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_ENTRIES = 2000;
 const MAX_UNPACKED = 80 * 1024 * 1024;
 
-export type FillCode = "bad_input" | "bad_date" | "too_big" | "bad_template" | "missing_values";
+export type FillCode = "bad_input" | "bad_date" | "too_big" | "bad_template" | "missing_values" | "unprintable";
 
 export class FillError extends Error {
   readonly code: FillCode;
@@ -178,18 +179,97 @@ const OPEN = "";
 const MID = "";
 const CLOSE = "";
 
+/** Why a value could not be printed, by tag. The fill is refused with these in plain words. */
+type Problems = Map<string, string>;
+const SEALED_WORDS = "is a sealed value, and a sealed value is never printed in a document";
+const ID_WORDS = "points to something that cannot be named here (it may be gone, or not yours to open)";
+
+const CURRENCY_SIGN: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", JPY: "¥", INR: "₹" };
+
+/** A money value ({ amount, currency }) as an amount in its currency: $1,250.00. */
+function moneyIn(amount: number, currency: string): string {
+  const sign = CURRENCY_SIGN[currency];
+  const body = money(amount);
+  if (sign === undefined) return `${body.replace("$", "")} ${currency}`;
+  return body.replace("$", sign);
+}
+
+/** A span in milliseconds as a person says it: "2 hours 30 minutes", "3 days". */
+function spanIn(ms: number): string {
+  const min = Math.floor(Math.max(0, ms) / 60_000);
+  if (min < 1) return "less than a minute";
+  const days = Math.floor(min / 1440);
+  const hours = Math.floor((min % 1440) / 60);
+  const mins = min % 60;
+  const unit = (n: number, w: string): string => `${n} ${w}${n === 1 ? "" : "s"}`;
+  return [days > 0 ? unit(days, "day") : "", hours > 0 ? unit(hours, "hour") : "", mins > 0 ? unit(mins, "minute") : ""]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function stampIn(iso: string): string {
+  const d = new Date(iso);
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}, ${hh}:${mm} UTC`;
+}
+
+const durationTag = (tag: string): boolean =>
+  /(^|_)(duration|effort)$/.test((tag.split(".").pop() ?? tag).toLowerCase());
+
+/** One value as the text a document prints. A value that has no honest printed form is noted in `problems` (the fill is then refused) and prints as nothing. */
+function printed(raw: unknown, tag: string, problems: Problems): string | number {
+  if (typeof raw === "string") {
+    if (isRawId(raw)) {
+      problems.set(tag, ID_WORDS);
+      return "";
+    }
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw) && !Number.isNaN(Date.parse(raw))) return stampIn(raw);
+    return show(kindOf(tag), raw);
+  }
+  if (typeof raw === "number") {
+    if (durationTag(tag) && Number.isFinite(raw)) return spanIn(raw);
+    return show(kindOf(tag), raw);
+  }
+  if (typeof raw === "boolean") return raw ? "Yes" : "No";
+  if (Array.isArray(raw))
+    return raw
+      .map((x) => String(printed(x, tag, problems)))
+      .filter((x) => x !== "")
+      .join(", ");
+  if (isPlain(raw)) {
+    if (raw.sealed !== undefined) {
+      problems.set(tag, SEALED_WORDS);
+      return "";
+    }
+    if (typeof raw.amount === "number" && typeof raw.currency === "string") return moneyIn(raw.amount, raw.currency);
+    if (typeof raw.line1 === "string") {
+      const part = (k: string): string => (typeof raw[k] === "string" ? String(raw[k]).trim() : "");
+      const regionPostal = [part("region"), part("postal")].filter(Boolean).join(" ");
+      return [part("line1"), part("line2"), part("city"), regionPostal, part("country")].filter(Boolean).join(", ");
+    }
+  }
+  problems.set(tag, `is a group of values; name one part of it, such as {${tag}.name}`);
+  return "";
+}
+
 /** The parser docxtemplater asks for: dotted paths, `.` for the current item of a loop, formats from the tag name; with `marks` every shown value is wrapped so a preview can find it. */
 function parserFor(
   marks: string[] | null,
-): (tag: string) => { get(scope: unknown, ctx?: { scopeList?: unknown[] }): unknown } {
-  return (tag: string) => {
+  problems: Problems = new Map(),
+): (
+  tag: string,
+  options?: { tag?: { module?: unknown } },
+) => { get(scope: unknown, ctx?: { scopeList?: unknown[] }): unknown } {
+  return (tag: string, options?: { tag?: { module?: unknown } }) => {
     const t = tag.trim();
+    const section = Boolean(options?.tag?.module);
     return {
       get: (scope: unknown, ctx?: { scopeList?: unknown[] }): unknown => {
         const raw = t === "." ? scope : lookup(ctx?.scopeList ?? [scope], t);
         if (raw === undefined || raw === null) return raw;
-        if (typeof raw !== "string" && typeof raw !== "number") return raw;
-        const shown = show(kindOf(t), raw);
+        if (section) return raw;
+        const shown = printed(raw, t, problems);
         if (marks === null || shown === "") return shown;
         marks.push(t);
         return `${OPEN}${marks.length - 1}${MID}${String(shown)}${CLOSE}`;
@@ -350,6 +430,7 @@ function leafKeys(node: Record<string, unknown>, prefix = ""): string[] {
   return out;
 }
 
+const isEmptyList = (v: unknown): boolean => Array.isArray(v) && v.length === 0;
 const blank = (v: unknown): boolean => v === undefined || v === null || v === "";
 
 function ordinal(n: number): string {
@@ -393,8 +474,9 @@ function render(buf: Buffer, values: Record<string, unknown>, mark: boolean): Re
   const zip = open(buf);
   const missing = new Set<string>();
   const marks: string[] = [];
+  const problems: Problems = new Map();
   const doc = compile(zip, {
-    parser: parserFor(mark ? marks : null),
+    parser: parserFor(mark ? marks : null, problems),
     // Called for any placeholder whose value is undefined or null; the document is refused by fill, whatever this returns.
     // A section tag ({#x}, {^x}) is asked too (part.module is set): an absent section reads as false, and one that holds tags is checked below.
     nullGetter: (part: { value?: unknown; module?: unknown } | undefined) => {
@@ -408,10 +490,22 @@ function render(buf: Buffer, values: Record<string, unknown>, mark: boolean): Re
   } catch (e) {
     if (missing.size === 0) throw templateError(e);
   }
+  if (problems.size > 0) {
+    const fields = [...problems.keys()].sort();
+    throw new FillError(
+      "unprintable",
+      `the document was not made: ${fields.map((f) => `${f} ${problems.get(f)}`).join("; ")}`,
+      fields,
+    );
+  }
   // A blank is missing too (an empty string in a legal paper is a mistake), and so is a section with no list or no true/false: docxtemplater renders nothing for either without asking.
   const info = placeholders(buf);
   for (const n of info.names) {
-    if (!info.loops.some((l) => n.startsWith(`${l}.`)) && lookup([values], n) === "") missing.add(n);
+    if (
+      !info.loops.some((l) => n.startsWith(`${l}.`)) &&
+      (lookup([values], n) === "" || isEmptyList(lookup([values], n)))
+    )
+      missing.add(n);
   }
   for (const l of info.loops) if (blank(lookup([values], l))) missing.add(l);
   const out = doc.getZip();
@@ -548,6 +642,8 @@ function refuse(ctx: Ctx, e: unknown): never {
       return fail(ctx, "validation.precondition_failed", `${e.message}.`);
     case "missing_values":
       return fail(ctx, "validation.precondition_failed", `${e.message}.`, { missing: e.missing });
+    case "unprintable":
+      return fail(ctx, "validation.precondition_failed", `${e.message}.`, { fields: e.missing });
   }
 }
 
@@ -611,6 +707,39 @@ async function fieldsOf(
   return { fields, loops: info.loops, problems: [] };
 }
 
+/** A link to a file or a record is printed as its name, never as its id. What cannot be named (gone, or not the caller's to open) stays an id, and the fill is refused naming the field. */
+async function nameIds(ctx: Ctx, value: unknown, seen: Map<string, string | undefined> = new Map()): Promise<unknown> {
+  if (Array.isArray(value)) return Promise.all(value.map((x) => nameIds(ctx, x, seen)));
+  if (isPlain(value)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = await nameIds(ctx, v, seen);
+    return out;
+  }
+  if (typeof value !== "string" || !isRawId(value)) return value;
+  const id = value.trim();
+  if (!seen.has(id)) {
+    let name: string | undefined;
+    try {
+      if (id.startsWith("fil_")) {
+        const got = (await ctx.call("files.get", { fileId: id })) as { file?: { name?: unknown } };
+        if (typeof got.file?.name === "string") name = got.file.name;
+      } else if (id.startsWith("rec_")) {
+        const call = (cap: string, input: unknown): Promise<unknown> => ctx.call(cap as never, input as never);
+        const found = await findRecord(call, id);
+        const fields = isPlain(found?.record.fields) ? found.record.fields : {};
+        const pick = [fields.name, fields.title, fields.label, ...Object.values(fields)].find(
+          (x) => typeof x === "string" && x.trim() !== "" && !isRawId(x),
+        );
+        if (typeof pick === "string") name = pick;
+      }
+    } catch (e) {
+      if (!(e instanceof VyreErr)) throw e;
+    }
+    seen.set(id, name);
+  }
+  return seen.get(id) ?? value;
+}
+
 /** The values to render with, the keys the caller gave itself, and the record they came from. */
 async function valuesOf(
   ctx: Ctx,
@@ -644,6 +773,7 @@ async function valuesOf(
   }
   values = merge(values, explicit);
   delete values.recordType;
+  values = (await nameIds(ctx, values)) as Record<string, unknown>;
   const date = optStr(ctx, o, "signingDate");
   if (date !== undefined) {
     try {
