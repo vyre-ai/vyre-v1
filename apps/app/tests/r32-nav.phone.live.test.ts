@@ -26,7 +26,8 @@ test("phone: Vault and Settings open on their list, Back goes list then out; the
     await shot("vault-list-first");
     assert.equal(await page.getByTestId("vault-section-page").count(), 0, "no item list yet");
     await page.getByTestId("row-nav-logins").click();
-    await page.waitForTimeout(1200);
+    await page.getByTestId("list-title").first().waitFor({ timeout: 10_000 });
+    assert.match(await page.getByTestId("list-title").first().innerText(), /^Logins/, "the row opens its own list");
     say(`vault logins: ${await screens(page)}`);
     await shot("vault-logins");
     assert.ok(

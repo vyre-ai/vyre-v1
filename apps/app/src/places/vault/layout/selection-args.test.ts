@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { selectionArgs, selectionOfArgs } from "./model.ts";
 import type { Selection } from "./model.ts";
 import { vaultRoute } from "../../../shell/providers/vault.tsx";
+import { formatHash, parseHash } from "../../../shell/hash/hash.ts";
 
 test("every kind of row and every folder round-trips through its address", () => {
   const rows: Selection[] = [
@@ -31,4 +32,9 @@ test("the Vault route reads the row an address names", () => {
     select: { kind: "keys" },
   });
   assert.deepEqual(vaultRoute({ screen: "vault.layout", args: {} } as never), { surface: "layout" });
+});
+
+test("the address a phone row opens reads back as that row (through the hash the shell writes)", () => {
+  const hash = formatHash({ screen: "vault.layout", args: selectionArgs({ kind: "logins" }) });
+  assert.deepEqual(vaultRoute(parseHash(hash)), { surface: "layout", select: { kind: "logins" } });
 });

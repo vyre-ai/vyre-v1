@@ -250,6 +250,11 @@ function Page({
       setSelection({ kind: "folder", folderId: route.folderId });
       setSelectedId(null);
       setDetailOpen(false);
+    } else if (route.surface === "layout" && route.select !== undefined) {
+      // a row of the sidebar opened as its own address (a phone's row, Open in New Tab): the page may be this very instance, kept from the list that was under it
+      setSelection(route.select);
+      setSelectedId(null);
+      setDetailOpen(false);
     }
   }, [route]);
 
