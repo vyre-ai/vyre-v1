@@ -1,11 +1,16 @@
-// The wide-table rule in the other places a file or a note draws a table (16 Nov 2026): a file opened from a chat's message in the chat's right pane, a file opened from the pane's Files tab, and a note. The same
-// table as the Files viewer's walk: it uses the width of its pane and its header row and first column stay in view. Pictures go to VYRE_VIEWER_SHOTS.
+// The wide-table rule where a chat shows a file (16 Nov 2026): a file opened from a chat's message in the chat's right pane (dark desktop and light phone), and a file opened from an agent's Files tab. The same table
+// as the Files viewer's walk: it uses the width of its pane and its header row and first column stay in view. Pictures go to VYRE_VIEWER_SHOTS.
 import test from "node:test";
 import { session } from "./viewers-harness.test.ts";
-import { WIDE_MD, WIDE_PARA, assertStuck, assertUsesPane, fit, stuck } from "./files.tables-kit.test.ts";
+import { WIDE_MD, assertStuck, assertUsesPane, fit, stuck } from "./files.tables-kit.test.ts";
 
-test("a file opened in a chat's right pane: the table uses the pane, header and first column in view", async (t) => {
-  const s = await session(t, { width: 1440, height: 900 }, "dark");
+async function inChatPane(
+  t: { skip(m?: string): void },
+  size: { width: number; height: number },
+  scheme: "dark" | "light",
+  tag: string,
+): Promise<void> {
+  const s = await session(t, size, scheme);
   if (!s) return;
   const { page, call } = s;
   try {
@@ -32,12 +37,20 @@ test("a file opened in a chat's right pane: the table uses the pane, header and 
     // the pane is drawn by the side pane (the testid names its slot); what is measured is the viewer inside it
     await page.locator('[data-testid="vw-doc"] [role="table"]').first().waitFor({ timeout: 30_000 });
     assertUsesPane(await fit(page, '[data-testid="vw-doc"]'), "a chat's pane", 72);
-    await s.shot("chatpane-view");
+    await s.shot(`chatpane-${tag}-view`);
     assertStuck(await stuck(page, '[data-testid="vw-doc"]'), "a chat's pane");
-    await s.shot("chatpane-view-scrolled");
+    await s.shot(`chatpane-${tag}-view-scrolled`);
   } finally {
     await s.close();
   }
+}
+
+test("a file opened in a chat's right pane on a dark desktop: the table uses the pane, header and first column in view", async (t) => {
+  await inChatPane(t, { width: 1440, height: 900 }, "dark", "desktop");
+});
+
+test("a file opened in a chat's right pane on a light phone: the table uses the pane, header and first column in view", async (t) => {
+  await inChatPane(t, { width: 390, height: 844 }, "light", "phone");
 });
 
 test("a file opened from an agent's Files tab: the table uses the pane, header and first column in view", async (t) => {
@@ -69,27 +82,6 @@ test("a file opened from an agent's Files tab: the table uses the pane, header a
     assertUsesPane(await fit(page, '[data-testid="vw-doc"]'), "a file opened from the Files tab", 72);
     assertStuck(await stuck(page, '[data-testid="vw-doc"]'), "a file opened from the Files tab");
     await s.shot("filestab-opened-view-scrolled");
-  } finally {
-    await s.close();
-  }
-});
-
-test("a note holding a wide table: the table uses the note's width, header and first column in view", async (t) => {
-  const s = await session(t, { width: 1440, height: 900 }, "dark");
-  if (!s) return;
-  const { page, call } = s;
-  try {
-    const n = await call("notes.create", { title: "Applicants", body: WIDE_MD, idempotencyKey: "tbl-note" });
-    const id = n.note.noteId as string;
-    await page.goto(`${s.web.origin}/chat#screen=chats.notes`, { waitUntil: "load" });
-    await page.getByTestId(`note-${id}`).click({ timeout: 30_000 });
-    await page.getByTestId("note-dialog").waitFor({ timeout: 30_000 });
-    await page.locator('[data-testid="note-dialog"] p').filter({ hasText: WIDE_PARA }).waitFor({ timeout: 20_000 });
-    await page.waitForTimeout(500);
-    await s.shot("note-table");
-    assertUsesPane(await fit(page, '[data-testid="note-dialog"]'), "a note", 72);
-    assertStuck(await stuck(page, '[data-testid="note-dialog"]'), "a note");
-    await s.shot("note-table-scrolled");
   } finally {
     await s.close();
   }

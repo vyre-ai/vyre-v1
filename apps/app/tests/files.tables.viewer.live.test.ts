@@ -26,8 +26,12 @@ async function walk(
     await page.getByTestId("md-table").waitFor({ timeout: 20_000 });
     assertUsesPane(await fit(page, '[data-testid="vw-doc-editor"]'), `${tag} Edit`);
     await s.shot(`${tag}-edit`);
-    assertStuck(await stuck(page, '[data-testid="vw-doc-editor"]'), `${tag} Edit`);
+    assertStuck(await stuck(page, '[data-testid="vw-doc-editor"]'), `${tag} Edit`, false);
     await s.shot(`${tag}-edit-scrolled`);
+    // the cell's menu, on this table
+    await page.getByTestId("md-table-menu-btn").first().dispatchEvent("mousedown");
+    await page.getByTestId("md-table-act-row-below").waitFor({ timeout: 10_000 });
+    await s.shot(`${tag}-edit-cell-menu`);
   } finally {
     await s.close();
   }

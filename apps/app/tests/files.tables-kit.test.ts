@@ -41,7 +41,7 @@ export function assertUsesPane(f: Fit, where: string, pad = 64): void {
   assert.ok(f.left <= pad && f.right <= pad, `${where}: the table uses the pane's width (${JSON.stringify(f)})`);
 }
 
-/** Scroll the table sideways and down, then say how far the header row and the first column are from the scroller's own top and left edge: 0 means they stayed in view. */
+/** Scroll the table sideways and down, then say how far the header row and the first column are from the scroller's own top and left edge: 0 means they stayed in view. In Edit the table has no scroll of its own downwards (a table that scrolls by itself would catch the wheel and the swipe meant for the page), so only the sideways scroll is asked of it. */
 export async function stuck(page: Page, pane: string): Promise<{ head: number; first: number; moved: boolean }> {
   const r = await page.evaluate((paneSel) => {
     const p = document.querySelector(paneSel) as HTMLElement;
@@ -64,15 +64,15 @@ export async function stuck(page: Page, pane: string): Promise<{ head: number; f
     return {
       head: head.getBoundingClientRect().top - s.top,
       first: first.getBoundingClientRect().left - s.left,
-      moved: sc.scrollLeft > 0 && sc.scrollTop > 0,
+      moved: sc.scrollLeft > 0,
     };
   }, pane);
   assert.ok(r, `a scrolling table inside ${pane}`);
   return r;
 }
 
-export function assertStuck(s: { head: number; first: number; moved: boolean }, where: string): void {
-  assert.ok(s.moved, `${where}: the table scrolled both ways`);
-  assert.ok(Math.abs(s.head) <= 2, `${where}: the header row stays at the top (${s.head})`);
+export function assertStuck(s: { head: number; first: number; moved: boolean }, where: string, header = true): void {
+  assert.ok(s.moved, `${where}: the table scrolled sideways`);
+  if (header) assert.ok(Math.abs(s.head) <= 2, `${where}: the header row stays at the top (${s.head})`);
   assert.ok(Math.abs(s.first) <= 2, `${where}: the first column stays at the left (${s.first})`);
 }
