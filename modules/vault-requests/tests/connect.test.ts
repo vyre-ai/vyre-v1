@@ -5,6 +5,26 @@ import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { world } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
+import { CODE_BUILTINS } from "../../../lib/builtin-connectors.ts";
+
+/** What a connector definition says, as far as this test needs it (the connectors module's own type is not imported: modules are leaf nodes). */
+interface Def {
+  key: string;
+  title: string;
+  health?: string;
+  secrets: { name: string; description: string; label?: string }[];
+  actions: { name: string; url?: string }[];
+}
+/** The hosts a key goes to: the check's first, then each action's (the order the connectors module reports them in). */
+const keyHosts = (def: Def): string[] => {
+  const host = (u?: string): string | undefined => (u ? new URL(u.replace(/\{[^}]*\}/g, "x")).hostname : undefined);
+  const out: string[] = [];
+  for (const u of [def.actions.find((a) => a.name === def.health)?.url, ...def.actions.map((a) => a.url)]) {
+    const h = host(u);
+    if (h && !out.includes(h)) out.push(h);
+  }
+  return out;
+};
 
 // the connect card is on by default (lib/connect-switch.ts, rc.29); this file says so, so a run with the variable set to 0 still tests the card
 process.env["VYRE_CONNECT_CARD"] = "1";
@@ -647,3 +667,81 @@ test("I: the line of a connect request is read only by its asker, a person who c
   );
   await assert.rejects(line(w.as("svc_form_frm_1", "service" as never) as never), /No such request/);
 });
+
+// EVERY SERVICE THE CARD OFFERS (r32-connect, 16 Nov 2026): test E for each of them. The typed values are in the check and the Vault put and nowhere else (no event, no log line, no request row, no other nested call), the hosts the key
+// is sent to are exactly the hosts the card said (and are recorded for the saved item, with no value in that call), a key without the permission says so and keeps nothing, and a wrong key keeps nothing.
+const OFFERED = (CODE_BUILTINS as readonly unknown[] as Def[]).filter((d) => d.key !== "mailgun-eu");
+for (const def of OFFERED) {
+  const fields = def.secrets.map((s) => ({
+    name: s.name,
+    label: s.label ?? s.name,
+    optional: /\boptional\b/i.test(s.description),
+  }));
+  const typedFor = (tag: string) =>
+    fields.filter((f) => !f.optional).map((f) => ({ key: f.name, value: `sentinel_${tag}_${def.key}_${f.name}_77` }));
+  const svc = (over = {}) =>
+    world({
+      connectors: { [def.key]: { title: def.title, scope: "space" as const, fields, hosts: keyHosts(def) } },
+      folders: [MINE, TEAM],
+      ...over,
+    });
+  const run = async (w: World, fieldsIn: { key: string; value: string }[]) => {
+    const asked = await handlers["vault.connect"](
+      { ...w.as("agt_dex", "agent", "usr_admin"), thread: "thr_1" } as never,
+      { service: def.title, idempotencyKey: `e-${def.key}` } as never,
+    );
+    return {
+      requestId: asked.requestId!,
+      out: await handlers["vault.connect_card.submit"](
+        w.as("usr_admin", "person") as never,
+        {
+          hosts: keyHosts(def),
+          requestId: asked.requestId!,
+          fields: fieldsIn,
+        } as never,
+      ),
+    };
+  };
+  test(`E for ${def.title}: the typed values are in the check and the Vault put only, the key's hosts are recorded, a wrong key and a key without the permission keep nothing`, async () => {
+    // a good key
+    const w = svc();
+    const typed = typedFor("GOOD");
+    const { out } = await run(w, typed);
+    assert.equal(out.result, "connected", def.key);
+    const only = new Set(["connectors.check_key", "vault.item.put"]);
+    for (const c of w.calls)
+      for (const t of typed)
+        assert.equal(JSON.stringify(c.input).includes(t.value), only.has(c.cap), `${def.key}: ${c.cap}`);
+    for (const t of typed)
+      assert.equal(JSON.stringify([w.events, w.warnings, w.db.dump()]).includes(t.value), false, def.key);
+    const allowed = w.calls
+      .filter((c) => c.cap === "automations.key_hosts.allow")
+      .map((c) => (c.input as { host: string }).host);
+    assert.deepEqual(
+      allowed.sort(),
+      keyHosts(def).slice().sort(),
+      `${def.key}: the key is approved for exactly the hosts the card said`,
+    );
+    // a wrong key keeps nothing
+    const bad = svc({ check: "rejected" as const });
+    const b = await run(bad, typedFor("BAD"));
+    assert.equal(b.out.result, "wrong");
+    assert.equal(
+      bad.calls.some((c) => c.cap === "vault.item.put" || c.cap === "connections.create"),
+      false,
+      def.key,
+    );
+    // a key without the permission keeps nothing, and the card says why
+    const lim = svc({ check: "limited" as const });
+    const l = await run(lim, typedFor("LIM"));
+    assert.equal(l.out.result, "wrong");
+    assert.equal(l.out.card.problem, "permission", `${def.key}: said as a permission problem`);
+    assert.equal(
+      lim.calls.some((c) => c.cap === "vault.item.put" || c.cap === "connections.create"),
+      false,
+      def.key,
+    );
+    for (const t of typedFor("LIM"))
+      assert.equal(JSON.stringify([lim.events, lim.warnings, lim.db.dump(), l.out]).includes(t.value), false, def.key);
+  });
+}

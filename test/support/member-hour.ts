@@ -237,8 +237,11 @@ export const model: OpenSession = async (spec) => {
         yield { type: "done" };
         return;
       }
-      if (/connect fathom/i.test(body)) {
-        const r = yield* run("vault_connect", { service: "Fathom", idempotencyKey: `hour-connect-${++asks}` });
+      const wanted = /connect (fathom|stripe|resend|hubspot|mailgun|dropbox sign|zoom|twilio)/i.exec(body);
+      if (wanted) {
+        // the service as a person says it ("connect stripe" asks for Stripe): the title is the words with each one capitalised
+        const service = wanted[1]!.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+        const r = yield* run("vault_connect", { service, idempotencyKey: `hour-connect-${++asks}` });
         yield {
           type: "text",
           text: r.ok ? "Not yet. Add its key." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}`,

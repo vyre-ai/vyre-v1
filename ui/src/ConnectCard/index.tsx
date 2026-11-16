@@ -49,6 +49,11 @@ export interface ConnectCardProps {
   askedAt?: string | undefined;
   /** Connected: what was tested, who can use it, who connected it (an admin did, not you). */
   tested?: string | undefined;
+  /** A choice the person makes before pasting (a region): one option is chosen, and the hosts line follows it. */
+  choice?: { label: string; value: string; options: readonly { value: string; label: string }[] } | undefined;
+  onChoice?: ((value: string) => void) | undefined;
+  /** Wrong: the key was understood but may not read what the check needs (not a wrong key). */
+  problem?: "permission" | undefined;
   /** Ask: the hosts the key is sent to ("a, b"), said before the person saves, built in or not, so Connect is an informed yes. */
   checksWith?: string | undefined;
   /** One line when a typed key was kept but could not be connected ("Your key is saved in Mine. Couldn't connect."). */
@@ -315,6 +320,35 @@ export function ConnectCard(p: ConnectCardProps): ReactElement {
       />
       {state === "ask" || state === "wrong" || state === "offline" ? (
         <View style={st.col}>
+          {p.choice ? (
+            <View
+              accessibilityRole="radiogroup"
+              accessibilityLabel={p.choice.label}
+              testID={`${id}-choice`}
+              style={st.choice}
+            >
+              <Text style={st.label}>{p.choice.label}</Text>
+              {/* ui-rows-lint: not a list (the two or three options of one choice) */}
+              {p.choice.options.map((o) => (
+                <Pressable
+                  key={o.value}
+                  accessibilityRole="radio"
+                  accessibilityState={{
+                    checked: p.choice!.value === o.value,
+                    disabled: working || state === "offline",
+                  }}
+                  accessibilityLabel={o.label}
+                  testID={`${id}-choice-${o.value}`}
+                  disabled={working || state === "offline"}
+                  onPress={() => p.onChoice?.(o.value)}
+                  style={st.choiceRow}
+                >
+                  <View style={[st.dot, p.choice!.value === o.value && st.dotOn]} />
+                  <Text style={st.choiceText}>{o.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           {/* ui-rows-lint: not a list (one secure field for each thing the service needs) */}
           {p.fields.map((f, i) => (
             <SecretField
@@ -324,7 +358,15 @@ export function ConnectCard(p: ConnectCardProps): ReactElement {
               value={p.values[f.name] ?? ""}
               onChange={(v) => p.onChange(f.name, v)}
               locked={working || state === "offline"}
-              error={state === "wrong" && i === 0 ? `${service} didn't accept this key.` : null}
+              error={
+                state === "wrong" && i === 0
+                  ? p.problem === "permission"
+                    ? `This key can't read ${service}'s account. Give it the access it needs, or paste another.`
+                    : p.fields.filter((x) => !x.optional).length > 1
+                      ? `${service} didn't accept these.`
+                      : `${service} didn't accept this key.`
+                  : null
+              }
               site={p.site}
               first={i === 0}
               autoFocus={state === "wrong" && p.focusField === f.name}
@@ -469,6 +511,17 @@ function KeptRow({
 const st = StyleSheet.create({
   col: { gap: 10 },
   field: { gap: 4 },
+  choice: { gap: 6 },
+  choiceRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 32 },
+  choiceText: { fontSize: 13.5, color: "var(--ink)" as string },
+  dot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: "var(--ink-3)" as string,
+  },
+  dotOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent)" as string },
   labelRow: { flexDirection: "row", alignItems: "baseline", gap: 8 },
   label: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   optional: { fontSize: 12, color: "var(--ink-3)" as string },

@@ -44,6 +44,8 @@ export interface Script {
       scope: "person" | "space";
       fields: { name: string; label: string; optional: boolean }[];
       site?: string;
+      /** the exact hosts a key goes to (default: Fathom's) */
+      hosts?: string[];
     }
   >;
   /** the person's own connection to a service, by connector key, as connectors.for_service reports it */
@@ -57,7 +59,7 @@ export interface Script {
   /** the connector has no call that tries a key */
   noProbe?: boolean;
   /** what trying a typed key answers */
-  check?: "ok" | "rejected" | "unreachable";
+  check?: "ok" | "rejected" | "limited" | "unreachable";
   /** what probing a connection made from a saved key answers */
   probe?: "healthy" | "down";
   /** Vault items vault.items.list answers (a key the person already saved) */
@@ -162,7 +164,7 @@ export function world(over: Partial<Script> = {}) {
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "");
         const key = Object.keys(script.connectors ?? {}).find(
-          (k) => k === want || script.connectors![k]!.title.toLowerCase() === want,
+          (k) => k === want || script.connectors![k]!.title.toLowerCase().replace(/[^a-z0-9]+/g, "") === want,
         );
         const older = (script.older ?? []).find((t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "") === want);
         if (older) return { found: false, near: [], older };
@@ -177,7 +179,7 @@ export function world(over: Partial<Script> = {}) {
             mode: "api",
             fields: c.fields,
             ...(c.site ? { site: c.site } : {}),
-            hosts: script.thirdParty ? ["api.example.test", "files.example.test"] : ["api.fathom.ai"],
+            hosts: script.thirdParty ? ["api.example.test", "files.example.test"] : (c.hosts ?? ["api.fathom.ai"]),
             builtin: script.thirdParty !== true,
             checks: script.noProbe !== true,
             ...(script.thirdParty ? { host: "api.example.test" } : {}),
@@ -232,6 +234,9 @@ export function world(over: Partial<Script> = {}) {
         return { folders: (script.folders ?? []).filter((f) => i["scope"] === undefined || f.scope === i["scope"]) };
       case "vault.folders.create":
         return { folder: { id: "vfd_company" } };
+      case "automations.key_hosts.allow":
+        // the hosts the card said the key goes to are recorded for the item it saved
+        return { hosts: [{ host: String(i["host"]), by: who, at: NOW }] };
       case "access.labels.set":
         return { ok: true };
       case "runs.resume":

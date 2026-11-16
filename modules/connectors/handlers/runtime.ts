@@ -24,6 +24,7 @@ import {
   originKey,
   recordHosts,
   fillString,
+  withoutSecretValues,
   fillValue,
   clone,
   PAGE,
@@ -142,6 +143,10 @@ export interface ExecOpts {
   actor?: string;
   /** Set on the one retry after a refresh, so a token the app still rejects ends in a reconnect instead of a loop. */
   refreshed?: boolean;
+  /** Called with the answer's status and text before the status is turned into an error, so a check can read a verdict from it. It must keep nothing of the text but its own verdict. */
+  verdict?: (status: number, text: string) => void;
+  /** Set by the runtime itself for the token call that stands before another action: only then does the token action's answer (the short-lived token) come back out of it. */
+  tokenChain?: boolean;
 }
 export interface ExecResult {
   output: unknown;
@@ -277,8 +282,15 @@ export async function executeAction(
     await oauthOf(deps).refresh(ctx, def, conn);
 
   // secrets, by name, at call time
-  const needed = new Set<string>([...secretsIn(a.headers), ...secretsIn(a.body)]);
-  if (def.auth.type !== "none" && def.auth.secret) needed.add(def.auth.secret);
+  const basic = a.basic ?? (def.auth.type === "api_key" || def.auth.type === "bearer" ? def.auth.basic : undefined);
+  const needed = new Set<string>([
+    ...secretsIn(a.headers),
+    ...secretsIn(a.body),
+    ...secretsIn(a.form),
+    ...secretsIn(basic),
+  ]);
+  if (def.auth.type !== "none" && def.auth.type !== "client_credentials" && def.auth.secret)
+    needed.add(def.auth.secret);
   const values: Record<string, string> = {};
   for (const name of needed) {
     if (!def.secrets.some((s) => s.name === name))
@@ -314,6 +326,40 @@ export async function executeAction(
       } catch {
         /* an unreadable item has nothing to scrub */
       }
+    }
+  }
+  // HTTP Basic: the joined credential and its encodings are scrubbed as secrets are, since an app may echo the header it was sent
+  let basicHeader: string | undefined;
+  if (basic) {
+    try {
+      const own = { input: {}, secret: values, connection: { id: "" } };
+      const cred = `${fillString(basic.user, own)}:${fillString(basic.pass ?? "", own)}`;
+      const enc = Buffer.from(cred).toString("base64");
+      basicHeader = `Basic ${enc}`;
+      everySecret.push(cred, enc, basicHeader);
+    } catch (e) {
+      return refuse(ctx, "validation.bad_input", `The sign-in for ${actionName} could not be built.`);
+    }
+  }
+  // a server-to-server token: the connection's own secrets are traded for a short-lived token by the connector's token action; it is held for this call only and is never kept
+  let tokenValue: string | undefined;
+  if (def.auth.type === "client_credentials") {
+    const ta = def.auth.tokenAction;
+    if (!ta) refuse(ctx, "validation.bad_input", `${def.key} names no token action.`);
+    if (actionName !== ta && !o.dryRun) {
+      const got = await executeAction(deps, ctx, def, ta!, {
+        ...(conn ? { connection: conn } : {}),
+        ...(o.secrets ? { secrets: o.secrets } : {}),
+        ...(o.http ? { http: o.http } : {}),
+        persist: false,
+        input: {},
+        actor,
+        tokenChain: true,
+      });
+      if (typeof got.output !== "string" || got.output === "")
+        refuse(ctx, "provider.bad_response", `${def.title} gave no token.`);
+      tokenValue = got.output as string;
+      everySecret.push(tokenValue, `Bearer ${tokenValue}`);
     }
   }
   const scrub = scrubber(everySecret);
@@ -387,12 +433,18 @@ export async function executeAction(
       }
     }
     headers = {};
-    if (def.auth.type === "api_key" && def.auth.secret)
+    if (basicHeader) headers["Authorization"] = basicHeader;
+    else if (tokenValue) headers["Authorization"] = `Bearer ${tokenValue}`;
+    else if (def.auth.type === "api_key" && def.auth.secret)
       headers[def.auth.header ?? "Authorization"] = `${def.auth.prefix ?? ""}${values[def.auth.secret]}`;
     else if ((def.auth.type === "bearer" || def.auth.type === "oauth2") && def.auth.secret)
       headers["Authorization"] = `Bearer ${values[def.auth.secret]}`;
     for (const [k, v] of Object.entries(a.headers ?? {})) headers[k] = fillString(v, scope);
-    if (a.body !== undefined && method !== "GET") {
+    if (a.form !== undefined && method !== "GET") {
+      body = new URLSearchParams(Object.entries(a.form).map(([k, v]) => [k, fillString(v, scope)])).toString();
+      if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
+        headers["Content-Type"] = "application/x-www-form-urlencoded";
+    } else if (a.body !== undefined && method !== "GET") {
       body = JSON.stringify(fillValue(a.body, scope));
       if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
         headers["Content-Type"] = "application/json";
@@ -413,7 +465,12 @@ export async function executeAction(
           method,
           url: url.toString(),
           headers,
-          ...(body !== undefined ? { body: JSON.parse(body) as unknown } : {}),
+          ...(body !== undefined
+            ? {
+                body:
+                  a.form !== undefined ? Object.fromEntries(new URLSearchParams(body)) : (JSON.parse(body) as unknown),
+              }
+            : {}),
         }),
       },
       dryRun: true,
@@ -460,6 +517,7 @@ export async function executeAction(
   }
   const text = await res.text();
   const ms = nowOf(deps) - started;
+  o.verdict?.(res.status, text);
   if (res.status === 401 || res.status === 403) {
     logRow(res.status, "rejected the sign-in");
     // an OAuth token the app rejects is refreshed once and the call repeated; only a refresh that fails (or a repeat that is rejected again) asks the person to reconnect
@@ -487,7 +545,8 @@ export async function executeAction(
     logRow(res.status, "refused the request");
     return refuse(ctx, "provider.bad_response", `The app refused the request (${res.status}).`, {
       status: res.status,
-      body: scrub.text(text).slice(0, 200),
+      // the service's own words for the refusal, guarded like an answer: a refusal that carries someone's token (an account list in an error) never shows it
+      body: scrub.text(withoutSecretValues(text)).slice(0, 200),
     });
   }
   let parsed: unknown = text;
@@ -511,6 +570,11 @@ export async function executeAction(
     logRow(res.status, e.message);
     return refuse(ctx, "provider.bad_response", scrub.text(`${actionName}: ${e.message}`));
   }
+  // the token a server-to-server service hands out is the runtime's own: run on its own (by an agent, a person's test or a check) the token call answers nothing of it
+  if (def.auth.type === "client_credentials" && actionName === def.auth.tokenAction && o.tokenChain !== true)
+    output = null;
+  // no action hands a secret back, whatever the app put in its answer (an auth token of another account, a client secret): values under secret-named keys are never part of an output. The runtime's own token call is the one exception.
+  if (o.tokenChain !== true) output = withoutSecretValues(output);
   output = scrub.value(output);
   logRow(res.status, null);
   return { output, dryRun: false, status: res.status, ms };
@@ -528,11 +592,14 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
   // static
   const declared = new Set(def.secrets.map((s) => s.name));
   const used = new Set<string>(def.auth.secret ? [def.auth.secret] : []);
+  secretsIn(def.auth.basic, used);
   const bad: string[] = [];
   for (const a of def.actions) {
     if (!a.url) continue;
     secretsIn(a.headers, used);
     secretsIn(a.body, used);
+    secretsIn(a.form, used);
+    secretsIn(a.basic, used);
     if (secretsIn(a.url).size || secretsIn(a.query).size) bad.push(`${a.name}: a secret in the address`);
     const probe = a.url.replace(/\{(input|connection)\.[A-Za-z0-9_.]+\}/g, "x");
     const eg = checkEgress(probe, def.domains);

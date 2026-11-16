@@ -33,53 +33,60 @@ const STATED: Record<string, Stated> = {
     check: "GET https://api.fathom.ai/external/v1/meetings (list_meetings): a real call; 401 or 403 is a wrong key",
   },
   stripe: {
-    card: false,
+    card: true,
     hosts: ["api.stripe.com"],
-    key: "secret key and a webhook secret",
-    check: "cannot be checked from a card yet",
-    why: NAMED_ONLY,
+    key: "secret or restricted key (Bearer) and an optional webhook secret",
+    check:
+      "GET https://api.stripe.com/v1/balance (check_balance): a real read; 401 is a wrong key, 403 a key without the permission",
   },
   resend: {
-    card: false,
+    card: true,
     hosts: ["api.resend.com"],
-    key: "API key and a webhook secret",
-    check: "cannot be checked from a card yet",
-    why: NAMED_ONLY,
+    key: "API key (Bearer) and an optional webhook secret",
+    check:
+      "GET https://api.resend.com/domains (check_domains): a real read; 400 invalid or 401/403 is a wrong key, 401 restricted_api_key a send-only key",
   },
   hubspot: {
-    card: false,
-    hosts: ["api.hubapi.com", "app.hubspot.com"],
-    key: "private app token",
-    check: "cannot be checked from a card yet",
-    why: NAMED_ONLY,
+    card: true,
+    hosts: ["api.hubapi.com"],
+    key: "private app token (Bearer)",
+    check:
+      "GET https://api.hubapi.com/account-info/v3/details (check_account): a real read; 401 is a wrong token, 403 a token without the access",
   },
   mailgun: {
-    card: false,
-    hosts: ["api.mailgun.net", "api.eu.mailgun.net"],
-    key: "API key and a signing key",
-    check: "cannot be checked from a card yet",
-    why: NAMED_ONLY,
+    card: true,
+    hosts: ["api.mailgun.net"],
+    key: "private API key (Basic, user api) and an optional signing key; the person picks US or EU on the card",
+    check:
+      "GET https://api.mailgun.net/v4/domains (check_domains): a real read; 401 is a wrong key, 403 a key without the access",
+  },
+  "mailgun-eu": {
+    card: true,
+    hosts: ["api.eu.mailgun.net"],
+    key: "the same key as Mailgun, for the EU region (one host, chosen by the person on the Mailgun card)",
+    check:
+      "GET https://api.eu.mailgun.net/v4/domains (check_domains): a real read; 401 is a wrong key, 403 a key without the access",
   },
   "dropbox-sign": {
-    card: false,
+    card: true,
     hosts: ["api.hellosign.com"],
-    key: "API key",
-    check: "cannot be checked from a card yet",
-    why: NAMED_ONLY,
+    key: "API key (Basic, the key as the user)",
+    check:
+      "GET https://api.hellosign.com/v3/account (check_account): a real read; 401 is a wrong key, 403 a key without the access",
   },
   zoom: {
-    card: false,
-    hosts: ["api.zoom.us", "zoom.us"],
-    key: "server-to-server OAuth credentials and a webhook secret",
-    check: "cannot be checked from a card yet",
-    why: NAMED_ONLY,
+    card: true,
+    hosts: ["zoom.us", "api.zoom.us"],
+    key: "server-to-server account ID, client ID and client secret, and an optional webhook secret",
+    check:
+      "POST https://zoom.us/oauth/token with grant_type=account_credentials (token): the documented token call and nothing else; 400 or 401 is a wrong value",
   },
   twilio: {
-    card: false,
-    hosts: ["api.twilio.com", "*.twilio.com"],
-    key: "account SID, auth token, API key",
-    check: "cannot be checked from a card yet",
-    why: "a wildcard domain matches other hosts, and the actions have no addresses",
+    card: true,
+    hosts: ["api.twilio.com"],
+    key: "account SID and auth token (Basic)",
+    check:
+      "GET https://api.twilio.com/2010-04-01/Accounts.json (check_account): a real read; 401 is a wrong SID or token, 403 a refused one",
   },
   docusign: {
     card: false,
@@ -208,6 +215,6 @@ test("no listed service's declared domain is a wildcard or a bare suffix that an
 
 test("a built-in service that is not offered by the card says so to the agent, and tells it not to build a second connector", async () => {
   const k = kit({ builtins: loadBuiltins() });
-  const got = await k.hs["connectors.for_service"](k.ctx, { service: "Stripe" });
-  assert.deepEqual([got.found, got.older], [false, "Stripe"]);
+  const got = await k.hs["connectors.for_service"](k.ctx, { service: "DocuSign" });
+  assert.deepEqual([got.found, got.older], [false, "DocuSign"]);
 });

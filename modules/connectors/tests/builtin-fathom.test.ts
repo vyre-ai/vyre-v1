@@ -16,10 +16,10 @@ const registry = (): string[] =>
     .map((c) => c.key)
     .sort();
 
-test("the file seeds Fathom and nothing else", () => {
+test("the file seeds Fathom and the services a key is pasted for, and nothing else", () => {
   assert.deepEqual(
     CODE_BUILTINS.map((c) => c.key),
-    ["fathom"],
+    ["fathom", "stripe", "resend", "hubspot", "mailgun", "mailgun-eu", "dropbox-sign", "zoom", "twilio"],
   );
 });
 
@@ -40,7 +40,10 @@ test("on (VYRE_CONNECT_CARD=1): Fathom is built in as well", async () => {
   try {
     const k = kit();
     const all = await k.hs["connectors.list"](k.ctx, {});
-    assert.deepEqual(all.connectors.map((c) => c.key).sort(), [...registry(), "fathom"].sort());
+    assert.deepEqual(
+      all.connectors.map((c) => c.key).sort(),
+      [...new Set([...registry(), ...CODE_BUILTINS.map((c) => c.key)])].sort(),
+    );
   } finally {
     delete process.env["VYRE_CONNECT_CARD"];
   }
