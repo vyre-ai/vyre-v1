@@ -127,3 +127,31 @@ test("syncengine: a sealed field is sealed at once, kept out of the sync's own t
   assert.equal((await byName("Imran Ibarra")).data["ssn"] ?? null, null);
   assert.ok(!everywhere().includes(SSN2));
 });
+
+test("syncengine: a title made of several parts of the row is joined at read, empty parts left out", async () => {
+  const ctx = {
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+    emit: () => ({}),
+    call: async (cap: string) =>
+      cap === "connectors.get"
+        ? { connector: { key: "fakeapp" } }
+        : {
+            output: {
+              results: [
+                { id: "1", properties: { "/first": "Imran", "/last": "Ibarra" } },
+                { id: "2", properties: { "/first": "", "/last": "Lindahl" } },
+                { id: "3", properties: { "/first": null, "/last": " " } },
+              ],
+            },
+          },
+  };
+  const { remoteStore } = await import("../src/daemon/syncengine.ts");
+  const store = remoteStore(ctx, { connector: "fakeapp", connectionId: "con_1", remote: "contacts" }, undefined, {
+    joins: ["=join:/first|/last"],
+  });
+  const page = await store.page();
+  assert.deepEqual(
+    page.rows.map((r) => r.data["=join:/first|/last"]),
+    ["Imran Ibarra", "Lindahl", null],
+  );
+});

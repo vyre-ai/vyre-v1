@@ -133,7 +133,7 @@ type Out = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
       }>;
@@ -224,14 +224,14 @@ type Out = {
             "evidence": "example",
             "idAt": "example",
             "method": "POST",
-            "path": "/contacts/{id}"
+            "path": "example"
           },
           "delete": {
             "bodyAt": "example",
             "evidence": "example",
             "idAt": "example",
             "method": "POST",
-            "path": "/contacts/{id}"
+            "path": "example"
           },
           "fields": [
             {
@@ -268,7 +268,7 @@ type Out = {
               "param": "example",
               "value": "example"
             },
-            "path": "/contacts",
+            "path": "example",
             "query": {},
             "updatedSince": {
               "format": "example",
@@ -282,7 +282,7 @@ type Out = {
             "evidence": "example",
             "idAt": "example",
             "method": "POST",
-            "path": "/contacts/{id}"
+            "path": "example"
           },
           "updatedAt": "example",
           "webhook": {

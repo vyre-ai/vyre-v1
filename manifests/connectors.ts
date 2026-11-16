@@ -170,7 +170,7 @@ const specField = t.obj({
   choices: t.opt(
     t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }), { examples: [[{ value: "lead", label: "Lead" }]] }),
   ),
-  relationTo: t.opt(t.str({ description: "The remote object a relation points at" })),
+  relationTo: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
 });
 const specCursor = t.obj({
@@ -182,10 +182,10 @@ const specCursor = t.obj({
   start: t.opt(t.int({ minimum: 0 })),
 });
 const specWrite = t.obj({
-  path: t.str({ examples: ["/contacts/{id}"] }),
+  path: t.str(),
   method: t.opt(t.enm("POST", "PUT", "PATCH", "DELETE")),
   evidence: t.str({ description: "The docs page or quote that shows this call; a write without it is refused" }),
-  bodyAt: t.opt(t.str({ description: "Pointer in the body where the properties go; empty for the body itself" })),
+  bodyAt: t.opt(t.str({ description: "Where in the body the properties go; empty: the body itself" })),
   idAt: t.opt(specPointer),
 });
 const specObject = t.obj({
@@ -193,7 +193,7 @@ const specObject = t.obj({
   label: t.str(),
   count: t.opt(t.int({ minimum: 0 })),
   list: t.obj({
-    path: t.str({ examples: ["/contacts"] }),
+    path: t.str(),
     query: t.opt(t.rec(t.str())),
     cursor: t.opt(specCursor),
     updatedSince: t.opt(t.obj({ param: t.str(), format: t.opt(t.str()) })),
@@ -207,9 +207,7 @@ const specObject = t.obj({
   id: specPointer,
   updatedAt: t.opt(specPointer),
   itemsAt: specPointer,
-  openUrl: t.opt(
-    t.str({ description: "Address of a record in the app; {id} is filled in. Shown as Open in the app." }),
-  ),
+  openUrl: t.opt(t.str({ description: "Address of a record in the app, {id} filled in; shown as Open in the app" })),
   fields: t.arr(specField),
   webhook: t.opt(
     t.obj({
@@ -228,7 +226,7 @@ const specMapping = t.obj({
   fields: t.arr(t.obj({ path: specPointer, field: t.opt(fieldKey), direction: t.enm("both", "pull", "push", "off") })),
   match: t.opt(t.arr(specPointer)),
   stagesFrom: t.opt(specPointer),
-  titleField: t.opt(specPointer),
+  titleField: t.opt(t.union(specPointer, t.arr(specPointer, { minItems: 1, maxItems: 5 }))),
   deletes: t.opt(deletes),
   createAtSource: t.opt(t.bool()),
 });
@@ -254,7 +252,7 @@ const syncSpec = t.obj({
   objects: t.arr(specObject, { minItems: 1 }),
   mapping: t.arr(specMapping, { minItems: 1 }),
   plan: t.obj({
-    firstPull: t.obj({ words: t.str({ description: "Plain words: what the first pull brings in" }) }),
+    firstPull: t.obj({ words: t.str() }),
     backfill: t.enm("later", "now"),
     conflicts: t.lit("newest"),
     requestsPerMinute: t.opt(t.num({ minimum: 1, maximum: 6000 })),

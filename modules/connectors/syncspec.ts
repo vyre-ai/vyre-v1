@@ -94,7 +94,8 @@ export interface SpecMapping {
   fields: SpecMappingField[];
   match?: string[];
   stagesFrom?: string;
-  titleField?: string;
+  /** One pointer, or a list of pointers joined with a space (first and last name): empty parts are left out. */
+  titleField?: string | string[];
   deletes?: "off" | "soft" | "travel";
   createAtSource?: boolean;
 }
@@ -424,6 +425,22 @@ export function fieldKeys(obj: SpecObject, m: SpecMapping): Map<string, string> 
 
 // ---- compile ----
 
+/** The remote key of a title made from several pointers. */
+export const JOIN_PREFIX = "=join:";
+/** The pointers a mapping's titleField names (one or several). */
+export const titlePaths = (m: Pick<SpecMapping, "titleField">): string[] =>
+  m.titleField === undefined ? [] : Array.isArray(m.titleField) ? m.titleField : [m.titleField];
+/** The parts of a title (keys of a pulled row, which are the spec's pointers), joined with one space, empty parts left out; null when every part is empty. */
+export function joinTitle(data: unknown, parts: readonly string[]): string | null {
+  const out: string[] = [];
+  for (const p of parts) {
+    const v = isObj(data) ? data[p] : undefined;
+    const t = typeof v === "string" ? v.trim() : typeof v === "number" || typeof v === "boolean" ? String(v) : "";
+    if (t !== "") out.push(t);
+  }
+  return out.length ? out.join(" ") : null;
+}
+
 export interface FieldMapOut {
   key: string;
   remote: string;
@@ -506,12 +523,16 @@ export function compileSpec(spec: SyncSpec): Compiled {
     if (cursor.kind === "offset" && cursor.param) query[cursor.param] = String(cursor.start ?? 0);
 
     const mapped = m.fields.filter((f) => f.direction !== "off");
-    const shapeFields = [...new Set(mapped.map((f) => f.path))];
+    const titleParts = Array.isArray(m.titleField) ? m.titleField : [];
+    const shapeFields = [...new Set([...mapped.map((f) => f.path), ...titleParts])];
     const types_: Record<string, string> = {};
     const choices: Record<string, string[]> = {};
     for (const p of shapeFields) {
       const sf = o.fields.find((x) => x.path === p);
-      if (!sf) continue;
+      if (!sf) {
+        if (titleParts.includes(p)) types_[p] = "text";
+        continue;
+      }
       // a pick-list or a multi-pick with no choices listed becomes plain text locally; the sync reads it the same way
       // a sealed value is read as text and sealed by the engine the moment it leaves the answer
       types_[p] = sf.type === "multi" && !sf.choices?.length ? "list" : sf.type === "sealed" ? "text" : sf.type;
@@ -675,7 +696,16 @@ export function compileSpec(spec: SyncSpec): Compiled {
     }
     // relation fields are mapped with their pointer; the target record type's synced binding resolves the remote id to a record
     const textKeys = defs.filter((d) => d.type === "text" || d.type === "email").map((d) => d.key);
-    const wanted = m.titleField ? (keys.get(m.titleField) ?? m.titleField) : undefined;
+    // a title made from several pointers is its own text field, read apart from the others: first and last name joined with a space
+    let joinedKey: string | undefined;
+    if (Array.isArray(m.titleField)) {
+      const taken = new Set(defs.map((d) => d.key));
+      joinedKey = ["name", "title", "full_title"].find((k) => !taken.has(k)) ?? "full_title_2";
+      fields.push({ key: joinedKey, remote: `${JOIN_PREFIX}${m.titleField.join("|")}`, dir: "pull" });
+      defs.unshift({ key: joinedKey, type: "text", title: "Name" });
+    }
+    const wanted =
+      joinedKey ?? (m.titleField ? (keys.get(m.titleField as string) ?? (m.titleField as string)) : undefined);
     const titleField =
       wanted && defs.some((d) => d.key === wanted && d.type !== "sealed")
         ? wanted

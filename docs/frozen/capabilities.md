@@ -673,3 +673,11 @@ Signed: (for the lead to sign)
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: (for the lead to sign)
+
+## 16 Nov 2026: a sync spec's titleField may be a list of pointers (lane r32-syncrate), for the lead to sign
+
+- What changed in contracts, additive: `mapping[].titleField` in the spec of `sync_specs.validate`, `preview`, `apply` and `get` accepts a list of 1 to 5 pointers as well as one pointer; a single string means what it always did.
+- Not a contract change, the rule the tests pin: with a list, apply makes one more text field on the record type (named `name`, else `title`, else `full_title`) and makes it the record's title. Its value is the parts joined with one space, empty parts left out, and is worked out again from the app's row on every pull, so the title is right after every update; when every part is empty the field is empty, as a single empty pointer was. Each part must be described in the object's `fields` (an undescribed part is a validation error; a part empty on every sampled record is a warning); a sealed field cannot be a part. The title field is read from the app only.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: (for the lead to sign)

@@ -260,6 +260,8 @@ export function remoteStore(
     onResume?: () => void;
     /** Fields of this object that are sealed: their values are taken out of every row the moment it is read and handed to `held`, never left in the row's data. */
     sealed?: { remote: string; local: string }[];
+    /** Remote keys of the form "=join:/first|/last": a title made of several parts of the row, joined with a space, empty parts left out. */
+    joins?: string[];
   } = {},
 ): Store & {
   updatedAtOf(id: string): number;
@@ -326,8 +328,19 @@ export function remoteStore(
   const held = new Map<string, { at: number; values: Record<string, string | null> }>();
   const takeSealed = (r: RemoteRow): RemoteRow["data"] => {
     const fields = opts.sealed ?? [];
-    if (!fields.length || !isObj(r.data)) return r.data;
+    const joins = opts.joins ?? [];
+    if ((!fields.length && !joins.length) || !isObj(r.data)) return r.data;
     const data = { ...r.data } as Record<string, unknown>;
+    for (const j of joins) {
+      const parts: string[] = [];
+      for (const p of j.slice("=join:".length).split("|")) {
+        const v = data[p];
+        const t = typeof v === "string" ? v.trim() : typeof v === "number" || typeof v === "boolean" ? String(v) : "";
+        if (t !== "") parts.push(t);
+      }
+      data[j] = parts.length ? parts.join(" ") : null;
+    }
+    if (!fields.length) return data as RemoteRow["data"];
     const values: Record<string, string | null> = {};
     for (const f of fields) {
       const v = data[f.remote];
@@ -553,6 +566,7 @@ export function createSyncEngine(o: {
       nonce: ctx.trace.traceId,
       ...slow,
       sealed: b.fields.filter((f) => f.sealed === true).map((f) => ({ remote: f.remote, local: f.key })),
+      joins: b.fields.filter((f) => f.remote.startsWith("=join:")).map((f) => f.remote),
     });
     // a relation names a record type; the engine needs the synced type that pulls it, to turn the app's id into a link
     const relations = new Map<string, string>();

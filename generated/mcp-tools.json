@@ -61730,8 +61730,21 @@
                       "type": "string"
                     },
                     "titleField": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "type": "string"
+                          },
+                          "maxItems": 5,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -61754,7 +61767,7 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -61775,9 +61788,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -61790,7 +61800,7 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -61811,9 +61821,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -61862,7 +61869,6 @@
                             "type": "boolean"
                           },
                           "relationTo": {
-                            "description": "The remote object a relation points at",
                             "type": "string"
                           },
                           "type": {
@@ -61974,9 +61980,6 @@
                           "type": "object"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts"
-                          ],
                           "type": "string"
                         },
                         "query": {
@@ -62006,7 +62009,7 @@
                       "type": "object"
                     },
                     "openUrl": {
-                      "description": "Address of a record in the app; {id} is filled in. Shown as Open in the app.",
+                      "description": "Address of a record in the app, {id} filled in; shown as Open in the app",
                       "type": "string"
                     },
                     "remote": {
@@ -62015,7 +62018,7 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -62036,9 +62039,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -62116,7 +62116,6 @@
                   "firstPull": {
                     "properties": {
                       "words": {
-                        "description": "Plain words: what the first pull brings in",
                         "type": "string"
                       }
                     },
@@ -62376,8 +62375,21 @@
                       "type": "string"
                     },
                     "titleField": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "type": "string"
+                          },
+                          "maxItems": 5,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -62400,7 +62412,7 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -62421,9 +62433,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -62436,7 +62445,7 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -62457,9 +62466,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -62508,7 +62514,6 @@
                             "type": "boolean"
                           },
                           "relationTo": {
-                            "description": "The remote object a relation points at",
                             "type": "string"
                           },
                           "type": {
@@ -62620,9 +62625,6 @@
                           "type": "object"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts"
-                          ],
                           "type": "string"
                         },
                         "query": {
@@ -62652,7 +62654,7 @@
                       "type": "object"
                     },
                     "openUrl": {
-                      "description": "Address of a record in the app; {id} is filled in. Shown as Open in the app.",
+                      "description": "Address of a record in the app, {id} filled in; shown as Open in the app",
                       "type": "string"
                     },
                     "remote": {
@@ -62661,7 +62663,7 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -62682,9 +62684,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -62762,7 +62761,6 @@
                   "firstPull": {
                     "properties": {
                       "words": {
-                        "description": "Plain words: what the first pull brings in",
                         "type": "string"
                       }
                     },
@@ -63141,8 +63139,21 @@
                       "type": "string"
                     },
                     "titleField": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "type": "string"
+                          },
+                          "maxItems": 5,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -63165,7 +63176,7 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -63186,9 +63197,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -63201,7 +63209,7 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -63222,9 +63230,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -63273,7 +63278,6 @@
                             "type": "boolean"
                           },
                           "relationTo": {
-                            "description": "The remote object a relation points at",
                             "type": "string"
                           },
                           "type": {
@@ -63385,9 +63389,6 @@
                           "type": "object"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts"
-                          ],
                           "type": "string"
                         },
                         "query": {
@@ -63417,7 +63418,7 @@
                       "type": "object"
                     },
                     "openUrl": {
-                      "description": "Address of a record in the app; {id} is filled in. Shown as Open in the app.",
+                      "description": "Address of a record in the app, {id} filled in; shown as Open in the app",
                       "type": "string"
                     },
                     "remote": {
@@ -63426,7 +63427,7 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -63447,9 +63448,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -63527,7 +63525,6 @@
                   "firstPull": {
                     "properties": {
                       "words": {
-                        "description": "Plain words: what the first pull brings in",
                         "type": "string"
                       }
                     },

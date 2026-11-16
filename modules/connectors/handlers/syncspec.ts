@@ -6,13 +6,16 @@ import { canonical } from "../../../lib/canonical.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase } from "../projections.ts";
 import {
+  JOIN_PREFIX,
   SECRET_ID,
   SSN_SHAPE,
   coerceValue,
   compileSpec,
   firstPageRequest,
+  joinTitle,
   parseSpec,
   readPage,
+  titlePaths,
   unflatten,
 } from "../syncspec.ts";
 import type { Compiled, CompiledType, Problem, SpecObject, SyncSpec } from "../syncspec.ts";
@@ -378,7 +381,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           // a sealed field is read from the app only, and says whether values are there, never what they are
           if (mf.direction !== "pull")
             err(fa, `${f.label} is sealed, so it is only read from the app: set its direction to pull (or off).`);
-          if (m.titleField === mf.path || m.stagesFrom === mf.path || (m.match ?? []).includes(mf.path))
+          if (titlePaths(m).includes(mf.path) || m.stagesFrom === mf.path || (m.match ?? []).includes(mf.path))
             err(fa, `${f.label} is sealed: it cannot be the title, the stage or a match rule.`);
           const withValue = present.filter((v) => v !== null && v !== "").length;
           warn(
@@ -412,6 +415,18 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           warn(fa, `${f.label} looks sensitive. Bring it in only if the person wants it.`);
         if ((mf.direction === "push" || mf.direction === "both") && f.type !== "relation" && !f.readOnly && !o.update)
           warn(fa, `${o.remote} has no documented update, so ${f.label} is pulled only.`);
+      }
+      for (const p of Array.isArray(m.titleField) ? m.titleField : []) {
+        const tf = o.fields.find((x) => x.path === p);
+        if (!tf)
+          err(`mapping.${o.remote}.titleField`, `${p} is part of the title but not described in the object's fields.`);
+        else if (tf.type === "sealed")
+          err(`mapping.${o.remote}.titleField`, `${tf.label} is sealed: it cannot be part of the title.`);
+        else if (items.length && !items.some((it) => pointerGet(it, p) !== undefined))
+          warn(
+            `mapping.${o.remote}.titleField`,
+            `${p} is empty on the ${items.length} records looked at; it will fill in where the app has a value.`,
+          );
       }
       if (m.stagesFrom) {
         const sf = o.fields.find((x) => x.path === m.stagesFrom);
@@ -532,12 +547,14 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           fields: t.fields.map((f) => ({
             key: f.key,
             label: o.fields.find((x) => x.path === f.remote)?.label ?? f.key,
-            value: f.sealed
-              ? {
-                  sealed: true,
-                  present: r.data[f.remote] !== undefined && r.data[f.remote] !== null && r.data[f.remote] !== "",
-                }
-              : (r.data[f.remote] ?? null),
+            value: f.remote.startsWith(JOIN_PREFIX)
+              ? joinTitle(r.data, f.remote.slice(JOIN_PREFIX.length).split("|"))
+              : f.sealed
+                ? {
+                    sealed: true,
+                    present: r.data[f.remote] !== undefined && r.data[f.remote] !== null && r.data[f.remote] !== "",
+                  }
+                : (r.data[f.remote] ?? null),
           })),
         });
       }
