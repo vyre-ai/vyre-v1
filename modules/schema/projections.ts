@@ -365,6 +365,19 @@ export async function allDefs(deps: SchemaDeps): Promise<Map<string, TypeDefT>> 
   return out;
 }
 
+/**
+ * One type's definition: its sc_types row, parsed alone. `allDefs` reads and parses every type (twice: the store's copy and the module's) and a call that wants one type must not pay for them all:
+ * every record event made by a connector's sync asks schema.types.get from two consumers, and on a Space whose types have 100 fields that was the server's whole CPU. A type only the store knows
+ * (no sc_types row) is read the long way.
+ */
+export async function oneDef(deps: SchemaDeps, type: string): Promise<TypeDefT | undefined> {
+  ensureTables(deps.tx);
+  const m = deps.tx.get<MetaRow>("SELECT def, version, system FROM sc_types WHERE type = ?", type);
+  if (m)
+    return { ...(JSON.parse(m.def) as TypeDefT), key: type, version: m.version, ...(m.system ? { system: true } : {}) };
+  return (await allDefs(deps)).get(type);
+}
+
 export function saveDef(deps: SchemaDeps, d: TypeDefT, version: number): void {
   const now = nowOf(deps);
   const { version: _v, ...rest } = d;
