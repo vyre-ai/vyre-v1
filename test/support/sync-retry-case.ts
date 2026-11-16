@@ -48,6 +48,7 @@ export function retryCase(mode: "500" | "drop"): void {
       const done = (await call(w.d, "sync_types.status", { type: "person" })).data;
       assert.equal(done.records, TOTAL, "every record is in, none twice");
       assert.ok(typeof done.nextPollAt === "number", "the chain goes on after the pull");
+      assert.deepEqual(done.failures, [], "the failure is cleared by the pass that succeeded");
       assert.ok(!JSON.stringify(await rowsOf(w.d, "person")).includes("123-45-6789"));
     } finally {
       await w.close();
