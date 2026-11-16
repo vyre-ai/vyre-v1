@@ -32,6 +32,7 @@ import {
   withoutSecretValues,
   maskSealed,
   SYNC_PASS_TOKEN,
+  SEALED_HELD,
   fillValue,
   clone,
   PAGE,
@@ -156,6 +157,8 @@ export interface ExecOpts {
   tokenChain?: boolean;
   /** The sync engine's own pass: it is given the real values of sealed fields. */
   unmask?: boolean;
+  /** With unmask: where the pass keeps the real values it was given (never in the answer). */
+  passNonce?: string;
 }
 export interface ExecResult {
   output: unknown;
@@ -249,10 +252,11 @@ export async function clearReconnectTask(
 
 /** Run one action of a connector. Throws the catalogue error for anything that goes wrong; the message and details never hold a secret. */
 /** The sync engine's pass says so with the process's own token inside the action's input; the token is taken out before the input is used. Anyone else's input is left as it is. */
-function passOf(input: unknown): { input: unknown; unmask: boolean } {
+function passOf(input: unknown): { input: unknown; unmask: boolean; nonce?: string } {
   if (input !== null && typeof input === "object" && !Array.isArray(input) && "__unmask" in input) {
     const { __unmask, ...rest } = input as Record<string, unknown>;
-    return { input: rest, unmask: __unmask === SYNC_PASS_TOKEN };
+    const [token, nonce] = typeof __unmask === "string" ? __unmask.split(":") : [];
+    return { input: rest, unmask: token === SYNC_PASS_TOKEN && !!nonce, ...(nonce ? { nonce } : {}) };
   }
   return { input, unmask: false };
 }
@@ -615,7 +619,19 @@ export async function executeAction(
   // no action hands a secret back, whatever the app put in its answer (an auth token of another account, a client secret): values under secret-named keys are never part of an output. The runtime's own token call is the one exception.
   if (o.tokenChain !== true) output = withoutSecretValues(output);
   // a sealed field's value (and the other values of its item) is "[sealed]" for every caller but the sync engine's own pass
-  if (def.sealed?.length && o.unmask !== true) output = maskSealed(output, def.sealed);
+  if (def.sealed?.length && o.unmask === true && o.passNonce !== undefined) {
+    // the sync engine's pass: the real values stay in this process for the engine to seal; the answer carries the mask like everyone's
+    const rows = (output as { rows?: unknown } | null)?.rows;
+    if (Array.isArray(rows))
+      for (const r of rows as { id?: unknown; data?: Record<string, unknown> }[])
+        if (r && typeof r.id === "string" && r.data) {
+          const held: Record<string, unknown> = {};
+          for (const p of def.sealed) if (p in r.data) held[p] = r.data[p];
+          SEALED_HELD.put(o.passNonce, r.id, held);
+        }
+  }
+  // (a recorded case of the harness holds made-up values and is compared as it is)
+  if (def.sealed?.length && !(o.unmask === true && o.passNonce === undefined)) output = maskSealed(output, def.sealed);
   output = scrub.value(output);
   logRow(res.status, null);
   return { output, dryRun: false, status: res.status, ms };
@@ -1152,7 +1168,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const out = await executeAction(deps, ctx, def, input.action, {
         connection: conn,
         input: pass.input,
-        ...(pass.unmask ? { unmask: true } : {}),
+        ...(pass.unmask ? { unmask: true, passNonce: pass.nonce! } : {}),
       });
       tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
       return { output: out.output };
@@ -1176,7 +1192,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         connection: conn,
         input: pass.input,
         dryRun: input.dryRun === true,
-        ...(pass.unmask ? { unmask: true } : {}),
+        ...(pass.unmask ? { unmask: true, passNonce: pass.nonce! } : {}),
       });
       if (!out.dryRun)
         tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);

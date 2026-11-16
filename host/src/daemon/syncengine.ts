@@ -266,6 +266,9 @@ export function remoteStore(
     whens?: string[];
     /** The process's own token that asks a list for the real values of sealed fields (nobody else has it). */
     unmaskToken?: string;
+    /** The real values of sealed fields of a row, kept in this process by the connector (never in an answer). */
+    heldOf?: (nonce: string, rowId: string) => Record<string, unknown> | undefined;
+    heldDone?: (nonce: string) => void;
   } = {},
 ): Store & {
   updatedAtOf(id: string): number;
@@ -304,7 +307,7 @@ export function remoteStore(
           connectionId: b.connectionId,
           input:
             opts.unmaskToken && reading && opts.sealed?.length
-              ? { ...(isObj(input) ? input : {}), __unmask: opts.unmaskToken }
+              ? { ...(isObj(input) ? input : {}), __unmask: `${opts.unmaskToken}:${opts.nonce ?? "pass"}` }
               : input,
           idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}|${opts.nonce ?? ""}`).slice(0, 32)}`,
         })) as { output?: unknown };
@@ -339,6 +342,9 @@ export function remoteStore(
     const whens = opts.whens ?? [];
     if ((!fields.length && !joins.length && !whens.length) || !isObj(r.data)) return r.data;
     const data = { ...r.data } as Record<string, unknown>;
+    // the connector's answer carries "[sealed]" at sealed pointers; the real values are taken from the process's own keeping
+    const real = opts.heldOf?.(opts.nonce ?? "pass", r.id);
+    if (real) for (const [k, v] of Object.entries(real)) data[k] = v;
     for (const wk of whens) {
       const c = JSON.parse(wk.slice("=when:".length)) as { p: string; w: string; e: string[] };
       const norm = (x: unknown): string => String(x).trim().toLowerCase();
@@ -528,6 +534,8 @@ export function createSyncEngine(o: {
   sleep?: (ms: number) => Promise<void>;
   groupRows?: number;
   unmaskToken?: string;
+  heldOf?: (nonce: string, rowId: string) => Record<string, unknown> | undefined;
+  heldDone?: (nonce: string) => void;
 }): SyncEngineLike {
   // the connector's own names for its objects, read once per connector (a connector row without them keeps the convention)
   const maps = new Map<string, Promise<unknown>>();
@@ -585,6 +593,7 @@ export function createSyncEngine(o: {
       ...slow,
       sealed: b.fields.filter((f) => f.sealed === true).map((f) => ({ remote: f.remote, local: f.key })),
       ...(o.unmaskToken ? { unmaskToken: o.unmaskToken } : {}),
+      ...(o.heldOf ? { heldOf: o.heldOf } : {}),
       whens: b.fields.filter((f) => f.remote.startsWith("=when:")).map((f) => f.remote),
       joins: b.fields.filter((f) => f.remote.startsWith("=join:")).map((f) => f.remote),
     });
@@ -654,6 +663,7 @@ export function createSyncEngine(o: {
           }
         }
         remote.held.clear();
+        o.heldDone?.(ctx.trace.traceId);
         try {
           tx.exec("CREATE TABLE IF NOT EXISTS sy_sealed_wait (sync_type TEXT PRIMARY KEY, n INTEGER NOT NULL)");
           if (owed > 0)

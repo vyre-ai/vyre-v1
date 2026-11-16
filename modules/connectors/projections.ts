@@ -706,6 +706,22 @@ export const secretKeyName = (k: string): boolean => {
 /** Known only inside this process: the sync engine's own pass says it (in the action's input) to be given the real values of sealed fields, which it seals at once. Nobody else can. */
 export const SYNC_PASS_TOKEN = `sp_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 export const SEALED_MASK = "[sealed]";
+/**
+ * The real values of sealed fields read by one sync pass, kept in this process only, by the pass's nonce and the row's id. They never travel in an action's answer (the answer is masked): the engine takes them
+ * from here, in the same process, to seal them, so no kept answer, log or span of the pipeline can hold them.
+ */
+const heldByPass = new Map<string, Map<string, Record<string, unknown>>>();
+export const SEALED_HELD = {
+  put(nonce: string, rowId: string, values: Record<string, unknown>): void {
+    let m = heldByPass.get(nonce);
+    if (!m) heldByPass.set(nonce, (m = new Map()));
+    m.set(rowId, { ...(m.get(rowId) ?? {}), ...values });
+  },
+  get: (nonce: string, rowId: string): Record<string, unknown> | undefined => heldByPass.get(nonce)?.get(rowId),
+  done(nonce: string): void {
+    heldByPass.delete(nonce);
+  },
+};
 const KEEP = new Set(["id", "name", "type", "field_type", "label", "key"]);
 /**
  * The value with every sealed path masked, nested and in lists. A path is a pointer into one item (/attributes/ssn, /attributes/custom_field_values/<id>/formatted_value). Besides the leaf, the other

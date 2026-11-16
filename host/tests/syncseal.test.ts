@@ -236,3 +236,27 @@ test("syncengine: a Vault that cannot take the value yet leaves the record witho
   assert.equal(tx.get("SELECT n FROM sy_sealed_wait WHERE sync_type = 'syt_1'"), undefined);
   assert.ok(!dump().includes(SSN));
 });
+
+test("syncengine: the engine takes a sealed value from the connector's own keeping, not from the answer, which carries the mask", async () => {
+  const { remoteStore } = await import("../src/daemon/syncengine.ts");
+  const asked: unknown[] = [];
+  const ctx = {
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+    emit: () => ({}),
+    call: async (cap: string, input: unknown) => {
+      if (cap === "connectors.get") return { connector: { key: "x" } };
+      asked.push(input);
+      return { output: { results: [{ id: "1", properties: { "/name": "Imran Ibarra", "/ssn": "[sealed]" } }] } };
+    },
+  };
+  const store = remoteStore(ctx, { connector: "x", connectionId: "c", remote: "things" }, undefined, {
+    nonce: "n9",
+    sealed: [{ remote: "/ssn", local: "ssn" }],
+    unmaskToken: "tok",
+    heldOf: (n, id) => (n === "n9" && id === "1" ? { "/ssn": SSN } : undefined),
+  });
+  const page = await store.page();
+  assert.ok(!JSON.stringify(page.rows).includes(SSN), "the row the sync keeps never holds it");
+  assert.equal(store.held.get("1")?.values["ssn"], SSN, "it is held for sealing");
+  assert.equal((asked[0] as { input: { __unmask: string } }).input.__unmask, "tok:n9");
+});
