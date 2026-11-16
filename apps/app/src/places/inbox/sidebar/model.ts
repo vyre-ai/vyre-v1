@@ -10,6 +10,31 @@ export type Scope =
   | { kind: "number"; id: string }
   | { kind: "starred" }
   | { kind: "follow" };
+/** Where a sidebar row leads: an inbox or list (scope and view) or one of the other main views. */
+export interface InboxAddress {
+  scope?: Scope;
+  view?: View;
+  main?: "calendar" | "meetings" | "replies";
+}
+/** The address of a sidebar row, so a tab can open on it (Open in New Tab). */
+export function scopeArgs(a: InboxAddress): Record<string, string> {
+  const s = a.scope;
+  const at = s === undefined ? undefined : s.kind === "mailbox" || s.kind === "number" ? `${s.kind}:${s.id}` : s.kind;
+  return { ...(at ? { scope: at } : {}), ...(a.view ? { view: a.view } : {}), ...(a.main ? { main: a.main } : {}) };
+}
+/** What an address names for the Inbox's first state: nothing it does not understand. */
+export function scopeOfArgs(args: Readonly<Record<string, string>>): Partial<InboxState> {
+  const raw = args["scope"] ?? "";
+  const view =
+    args["view"] === "contact" || args["view"] === "thread" || args["view"] === "calls" ? args["view"] : undefined;
+  const main =
+    args["main"] === "calendar" || args["main"] === "meetings" || args["main"] === "replies" ? args["main"] : undefined;
+  let scope: Scope | undefined;
+  if (raw === "all" || raw === "starred" || raw === "follow") scope = { kind: raw };
+  else if (raw.startsWith("mailbox:") && raw.length > 8) scope = { kind: "mailbox", id: raw.slice(8) };
+  else if (raw.startsWith("number:") && raw.length > 7) scope = { kind: "number", id: raw.slice(7) };
+  return { ...(scope ? { scope } : {}), ...(view ? { view } : {}), ...(main ? { main } : {}) };
+}
 export type MainView = "list" | "calendar" | "connect" | "meetings" | "replies";
 
 export interface InboxState {

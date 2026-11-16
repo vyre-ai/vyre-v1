@@ -1,0 +1,1 @@
+On a phone, the browser's Back inside the app now steps back through the screens you opened and ends on the Space's first screen; after joining by an invite link it never goes to the join page or out of the app.

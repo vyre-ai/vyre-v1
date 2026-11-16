@@ -17,7 +17,8 @@ export function tabOf(place: PlaceId): TabId {
 }
 
 /** The screens that are a conversation: its header carries the Back chevron, so the shell draws no Back bar above it. */
-export const headerBack = (e: Entry): boolean => e.tab === "chats" && /^(chat|thread|channel|ask):/.test(e.screen);
+export const headerBack = (e: Entry): boolean =>
+  (e.tab === "chats" && /^(chat|thread|channel|ask):/.test(e.screen)) || e.screen === "you:settings";
 
 /** Places only a computer draws. On a phone a link to one opens the Chat-about-it line instead. */
 export const DESKTOP_ONLY: readonly PlaceId[] = ["automations", "console"];

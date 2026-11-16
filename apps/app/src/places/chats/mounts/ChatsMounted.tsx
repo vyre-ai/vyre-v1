@@ -87,7 +87,7 @@ import { PANE_MEMORY } from "./pane-memory.ts";
 import { ThingPane } from "./ThingPane.tsx";
 import { nextTrail, thingOf } from "./thing-model.ts";
 import type { Thing } from "./thing-model.ts";
-import { openIn } from "../../../shell/tabs/open-how.ts";
+import { openIn, takeOpenHow } from "../../../shell/tabs/open-how.ts";
 import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
 import type { PaneKind, TabKey } from "../rightpane/model.ts";
@@ -153,7 +153,7 @@ export interface ChatsMountedProps {
   closeSelf?: () => void;
   /** A phone: what opens from the first screen goes on top of its history, so Back returns here. */
   stacked?: boolean;
-  /** Opens a link of this place in a tab behind this one (a row's "Open in a new tab"). Left out where the shell has no tabs. */
+  /** Opens a link of this place in a tab behind this one (a row's "Open in New Tab"). Left out where the shell has no tabs. */
   openInNewTab?: (hash: string) => void;
   /** Where Notes starts: a sheet, a menu or the bar open (tests and screenshots). */
   notesInitial?: NotesInitial;
@@ -705,6 +705,12 @@ export function ChatsMounted({
     });
     // a task link in the chat opens beside it, where it was pressed
     const openBeside = (kind: string, id: string): void => {
+      // Cmd-press (Ctrl on Windows), the middle button: the file, record or task opens as a tab beside this one, as the open rule says; a plain press opens it beside the chat
+      const how = takeOpenHow();
+      if (how !== "here") {
+        openIn(how, () => wired.nav.openBeside(kind, id));
+        return;
+      }
       const thing = thingOf(kind, id);
       if (kind === "task") openSideTask(id);
       else if (thing !== null) {

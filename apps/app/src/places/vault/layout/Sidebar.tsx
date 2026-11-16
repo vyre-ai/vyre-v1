@@ -2,10 +2,12 @@
 // Logins, Cards, Health when something needs a look), then Shared with its folders, Mine and Advanced. Each has a count. A Personal Space has no Shared and no Mine: everything there is yours. Rows are the shared ui/Row with a leading icon and a trailing count.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
+import { openIn, takeOpenHow } from "../../../shell/tabs/open-how.ts";
+import { useOpenRowMenu } from "../../../shell/tabs/row-menu.tsx";
 import { sameSelection } from "./model.ts";
 import type { Counts, Folder, Selection } from "./model.ts";
 import { Glyph, IconBtn } from "./parts.tsx";
@@ -28,6 +30,10 @@ export interface SidebarProps {
   advanced?: boolean;
   /** Vault > Connections opens the Connections page (every app and tool server you and your agents can use). Absent: the Connections section lists the Vault's connection items. */
   onConnections?: () => void;
+  /** A phone: the sections are the screen's whole first page (a row opens its list on top of it; Back returns here). */
+  phone?: boolean;
+  /** A row as a tab of its own: the row's Open in New Tab (and Cmd-press, the middle button). */
+  onOpenTab?: (sel: Selection) => void;
   /** Connections is open, so it carries the highlight. */
   connections?: boolean;
   /** Connections that need a look (a refused key, a sign-in, no answer): shown as the row's count. */
@@ -50,6 +56,8 @@ export function Sidebar({
   hideShared = false,
   advanced = false,
   onConnections,
+  onOpenTab,
+  phone = false,
   connections = false,
   connectionsNeedYou = 0,
   connectionCount,
@@ -58,20 +66,38 @@ export function Sidebar({
   const inSlot = useInSidebarSlot();
   const [naming, setNaming] = useState<string | null>(null);
   const [folderError, setFolderError] = useState<string | null>(null);
+  const rowMenu = useOpenRowMenu();
+  const press = (sel: Selection): void => {
+    // Cmd-press or the middle button: the row opens as a tab beside this one (tabs/open-rule.ts)
+    const how = takeOpenHow();
+    if (how !== "here" && onOpenTab) {
+      openIn(how, () => onOpenTab(sel));
+      return;
+    }
+    onSelect(sel);
+  };
   const item = (sel: Selection, key: string, label: string, icon: IconName, n?: number): ReactElement => (
-    <Row
+    <View
       key={key}
-      id={`nav-${key}`}
-      title={label}
-      selected={!routed && sameSelection(sel, selection)}
-      leading={
-        <View style={s.lead}>
-          <Glyph name={icon} size={16} color={sameSelection(sel, selection) ? "var(--ink)" : "var(--ink-2)"} />
-        </View>
-      }
-      trailing={n !== undefined ? <Count n={n} /> : undefined}
-      onPress={() => onSelect(sel)}
-    />
+      {...rowMenu.on({
+        label,
+        open: () => onSelect(sel),
+        ...(onOpenTab ? { openTab: () => onOpenTab(sel) } : {}),
+      })}
+    >
+      <Row
+        id={`nav-${key}`}
+        title={label}
+        selected={!routed && sameSelection(sel, selection)}
+        leading={
+          <View style={s.lead}>
+            <Glyph name={icon} size={16} color={sameSelection(sel, selection) ? "var(--ink)" : "var(--ink-2)"} />
+          </View>
+        }
+        trailing={n !== undefined ? <Count n={n} /> : undefined}
+        onPress={() => press(sel)}
+      />
+    </View>
   );
   const shared = folders.filter((f) => f.scope === "shared");
   const depthOf = (f: Folder): number => {
@@ -122,13 +148,13 @@ export function Sidebar({
             </View>
           }
           trailing={<Count n={counts.folders.get(f.id) ?? f.itemCount} />}
-          onPress={() => onSelect({ kind: "folder", folderId: f.id })}
+          onPress={() => press({ kind: "folder", folderId: f.id })}
         />
       </View>,
     );
   }
   return (
-    <Column>
+    <Column phone={phone}>
       {inSlot ? null : (
         <View style={s.title}>
           <Text accessibilityRole="header" style={s.titleText}>
@@ -229,13 +255,25 @@ export function Sidebar({
           onPress={onAdvanced}
         />
       </View>
+      {rowMenu.element}
     </Column>
   );
 }
 
 /** Inside the app the sections are drawn in the shell's one sidebar column (the same place and width as every other place's list: team/v1/TABS-2026-11-15.md); standing alone, in a column of their own. */
-function Column({ children }: { children: ReactNode }): ReactElement {
+function Column({ children, phone = false }: { children: ReactNode; phone?: boolean }): ReactElement {
   const inSlot = useInSidebarSlot();
+  if (phone)
+    return (
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={s.sideSlot}
+        testID="vault-sidebar"
+        accessibilityLabel="Vault sections"
+      >
+        {children}
+      </ScrollView>
+    );
   if (inSlot)
     return (
       <SidebarContent title="Vault" noSearch>
