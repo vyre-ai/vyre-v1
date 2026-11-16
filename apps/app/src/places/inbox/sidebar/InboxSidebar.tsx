@@ -183,6 +183,8 @@ function Sidebar(): ReactElement {
     const entries: MenuEntry[] = [
       ...openEntries({
         open: () => pick(b.scope, view),
+        // a mailbox row has its own menu trigger, which does not run Cmd+Enter: no key is shown
+        tabKey: false,
         ...(openTab
           ? { openTab: () => openIn("tab", () => openTab({ scope: b.scope, ...(view ? { view } : {}) })) }
           : {}),

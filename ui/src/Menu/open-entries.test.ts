@@ -28,3 +28,8 @@ test("each item runs its own function, and Open in New Tab carries the shared ke
   const tab = e[1]! as { hint?: string };
   assert.equal(tab.hint, "⌘↵");
 });
+
+test("a row that does not answer Cmd+Enter shows no key for Open in New Tab", () => {
+  const e = openEntries({ open: () => undefined, openTab: () => undefined, tabKey: false });
+  assert.equal((e[1]! as { hint?: string }).hint, undefined);
+});

@@ -91,7 +91,7 @@ export interface AutomationDo {
 }
 export function automationMenu(f: AutomationFacts, d: AutomationDo): MenuEntry[] {
   return tidy([
-    ...openEntries({ open: d.open, ...(d.openTab ? { openTab: d.openTab } : {}) }),
+    ...openEntries({ open: d.open, ...(d.openTab ? { openTab: d.openTab } : {}), tabKey: false }),
     f.canRun ? item("Run Now", d.run) : null,
     f.canEdit
       ? f.enabled
