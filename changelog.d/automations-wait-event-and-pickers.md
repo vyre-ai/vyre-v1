@@ -1,0 +1,1 @@
+A Wait step picks what it waits for from the events your Space has, searched by typing, and narrows it with that event's own fields; its row says what it waits for. Files, folders, records and connections in a step are picked by name from a searchable list, and the chosen one stays on the form.

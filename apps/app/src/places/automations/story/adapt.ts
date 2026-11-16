@@ -3,7 +3,7 @@
 // A step whose app this person may not use is kept whole with one plain line: an Automation someone else built always opens whole.
 import { appMarkOfStep, glyphKeyOf } from "../picker/model.ts";
 import { sentence } from "./model.ts";
-import { durationWords, parseTemplate, stepSentence, triggerSentence } from "./sentences.ts";
+import { durationWords, parseTemplate, sentenceInput, stepSentence, triggerSentence } from "./sentences.ts";
 import type { Clause } from "./sentences.ts";
 import type { Need, StepIn, TriggerIn, Value } from "./model.ts";
 
@@ -300,7 +300,7 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
       : n.title?.trim()
         ? { template: title, values: {} }
         : stepSentence(n.key)
-          ? fromTemplate(parseTemplate(stepSentence(n.key)!), n.input, ctx)
+          ? fromTemplate(parseTemplate(stepSentence(n.key)!), sentenceInput(n.key, n.input), ctx)
           : sentenceOf(title, n.input, ctx);
     // the mark a step wears: an app's own for its own steps (the Drive mark for a Drive step), a Vyre glyph for Vyre's
     const own = appMarkOfStep({ key: n.key, title: "" });

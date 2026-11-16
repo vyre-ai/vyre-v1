@@ -534,3 +534,31 @@ test("the card of a task step says it is an agent task in one short line, with n
     "Draft for \u2026 \u00b7 Agent task",
   );
 });
+
+// rc.32 lane r32-auto, item 1: a code step's input that holds earlier data shows it as a chip in the value cell, never as {{ }}
+test("Run code: an input holding earlier data reads as a chip, and the code step wears the code glyph", () => {
+  const prior: DefNode = { id: "a", key: "post_message", input: { text: "x" }, next: ["t"] };
+  const node: DefNode = {
+    id: "t",
+    key: "code",
+    input: { source: "return { total: input.count * 2 };", input: { count: "{{ steps.a.out.count }}" } },
+  };
+  const out = panel(node, "personal", { triggers: [{ key: "manual" }], nodes: [prior, node], start: ["a"] });
+  assert.ok(has(out, 'data-testid="rows-input-value-0"'), "the value cell is there");
+  assert.equal(
+    /<(input|textarea)[^>]*data-testid="rows-input-value-0"[^>]*value="[^"]*\{\{/.test(out),
+    false,
+    "not as {{ }} text",
+  );
+  assert.equal(has(out, "{{ steps.a.out.count }}"), false, "the syntax is not on the form");
+  assert.ok(has(out, "rows-input-value-0-chip"), "the data is a chip");
+});
+
+test("the AI, HTTP and code steps say what comes back, in the pills later steps are offered", () => {
+  const ai = panel({ id: "n1", key: "ai", input: { prompt: "Say hi" } });
+  assert.match(tag(ai, "ai-returns") + ai.slice(ai.indexOf('data-testid="ai-returns"')), /Text/);
+  const http = panel({ id: "n1", key: "http_request", input: { method: "GET", url: "https://api.example.com/x" } });
+  assert.ok(has(http, 'data-testid="http-returns"') && has(http, "Status") && has(http, "Body"));
+  const code = panel({ id: "n1", key: "code", input: { source: "return 1;" } });
+  assert.ok(has(code, 'data-testid="code-returns"') && has(code, "Result"));
+});

@@ -89,3 +89,30 @@ test("an automation row: Run Now, Turn Off or On by state, Test, Runs, a Persona
     [{ automationId: id }],
   );
 });
+
+test("the row's menu is the page's: Open, Rename…, Duplicate first; Duplicate copies, Rename asks for a name", async () => {
+  const s = createSampleAutomations(northwind);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={s.data}>
+      <AutomationsList selectedId={null} query="" onChoose={() => undefined} />
+    </AutomationsDataProvider>,
+  );
+  await flush();
+  const row = rowIdOf(root as never);
+  const id = row.slice("row-auto-".length);
+  await rightClick(root as never, row);
+  assert.deepEqual(ids(root as never).slice(0, 3), ["Open", "Rename…", "Duplicate"]);
+  await press(find(root as never, "menu-item-Duplicate") as never);
+  await flush();
+  const calls = (s as unknown as { calls: { cap: string; input: any }[] }).calls; // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "automations.get").map((c) => c.input.automationId),
+    [id],
+  );
+  assert.equal(calls.filter((c) => c.cap === "automations.create").length, 1);
+  await rightClick(root as never, row);
+  await press(find(root as never, "menu-item-Rename…") as never);
+  await flush();
+  assert.ok(find(root as never, "text-ask"), "it asks for the new name");
+});

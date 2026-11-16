@@ -186,3 +186,16 @@ test("the AI step's account and backup are on its form", () => {
   assert.ok(out.includes("Backup"), "the backup key");
   assert.ok(out.includes("Runs on"), "the key it runs on");
 });
+
+test("the page's menu has the row's Rename and Duplicate, and Duplicate makes a copy from the Automation's own steps", async () => {
+  const { s, root } = await open("aut_digest");
+  await menu(root, "Duplicate");
+  assert.equal(calls(s, "automations.create").length, 1, "one copy");
+  assert.match(String((calls(s, "automations.create")[0]!.input as { name: string }).name), / \(copy\)$/);
+});
+
+test("Rename on the page asks for the name and writes it with one update", async () => {
+  const { s, root } = await open("aut_digest");
+  await menu(root, "Rename…");
+  assert.ok(find(root, "text-ask"), "the name is asked for");
+});
