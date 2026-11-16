@@ -61878,7 +61878,8 @@
                               "phone",
                               "url",
                               "relation",
-                              "json"
+                              "json",
+                              "sealed"
                             ],
                             "type": "string"
                           }
@@ -62523,7 +62524,8 @@
                               "phone",
                               "url",
                               "relation",
-                              "json"
+                              "json",
+                              "sealed"
                             ],
                             "type": "string"
                           }
@@ -63287,7 +63289,8 @@
                               "phone",
                               "url",
                               "relation",
-                              "json"
+                              "json",
+                              "sealed"
                             ],
                             "type": "string"
                           }
@@ -63705,6 +63708,9 @@
                 },
                 "remote": {
                   "type": "string"
+                },
+                "sealed": {
+                  "type": "boolean"
                 },
                 "transform": {
                   "description": "Small expression over the value",
@@ -64439,6 +64445,9 @@
                 },
                 "remote": {
                   "type": "string"
+                },
+                "sealed": {
+                  "type": "boolean"
                 },
                 "transform": {
                   "description": "Small expression over the value",

@@ -5,7 +5,16 @@
 import { canonical } from "../../../lib/canonical.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase } from "../projections.ts";
-import { coerceValue, compileSpec, firstPageRequest, parseSpec, readPage, unflatten } from "../syncspec.ts";
+import {
+  SECRET_ID,
+  SSN_SHAPE,
+  coerceValue,
+  compileSpec,
+  firstPageRequest,
+  parseSpec,
+  readPage,
+  unflatten,
+} from "../syncspec.ts";
 import type { Compiled, CompiledType, Problem, SpecObject, SyncSpec } from "../syncspec.ts";
 import { createConnectionsHandlers } from "./connections.ts";
 import { diffDefs, executeAction, runCases } from "./runtime.ts";
@@ -365,6 +374,26 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           continue;
         }
         found++;
+        if (f.type === "sealed") {
+          // a sealed field is read from the app only, and says whether values are there, never what they are
+          if (mf.direction !== "pull")
+            err(fa, `${f.label} is sealed, so it is only read from the app: set its direction to pull (or off).`);
+          if (m.titleField === mf.path || m.stagesFrom === mf.path || (m.match ?? []).includes(mf.path))
+            err(fa, `${f.label} is sealed: it cannot be the title, the stage or a match rule.`);
+          const withValue = present.filter((v) => v !== null && v !== "").length;
+          warn(
+            fa,
+            `${f.label} is sealed: ${withValue} of ${items.length} sampled records have a value, and the values are never shown.`,
+          );
+          continue;
+        }
+        const looksSecret =
+          SECRET_ID.test(`${mf.path} ${f.label}`) || present.some((v) => typeof v === "string" && SSN_SHAPE.test(v));
+        if (looksSecret)
+          warn(
+            fa,
+            `${f.label} looks like a secret identifier. Map it as sealed (set its type to sealed) so it is kept out of sight.`,
+          );
         const choices = f.choices?.map((c) => c.value);
         const bad = present.filter((v) => v !== null && v !== "" && !coerceValue(v, f.type, choices).ok);
         if (bad.length)
@@ -379,7 +408,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           if (!target)
             err(fa, `${f.label} points at ${f.relationTo}, which is not mapped. Map it too, or leave this field off.`);
         }
-        if (SENSITIVE.test(`${mf.path} ${f.label}`))
+        if (!looksSecret && SENSITIVE.test(`${mf.path} ${f.label}`))
           warn(fa, `${f.label} looks sensitive. Bring it in only if the person wants it.`);
         if ((mf.direction === "push" || mf.direction === "both") && f.type !== "relation" && !f.readOnly && !o.update)
           warn(fa, `${o.remote} has no documented update, so ${f.label} is pulled only.`);
@@ -503,7 +532,12 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           fields: t.fields.map((f) => ({
             key: f.key,
             label: o.fields.find((x) => x.path === f.remote)?.label ?? f.key,
-            value: r.data[f.remote] ?? null,
+            value: f.sealed
+              ? {
+                  sealed: true,
+                  present: r.data[f.remote] !== undefined && r.data[f.remote] !== null && r.data[f.remote] !== "",
+                }
+              : (r.data[f.remote] ?? null),
           })),
         });
       }
@@ -791,6 +825,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           : {}),
         ...(f.inverse ? { inverse: f.inverse } : {}),
         ...(f.constant !== undefined ? { constant: f.constant } : {}),
+        ...(f.sealed ? { sealed: true } : {}),
       }));
       const account = spec.app.account ?? "";
       const bound = tx.get<{ sync_type_id: string }>(

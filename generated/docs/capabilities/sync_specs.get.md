@@ -106,7 +106,7 @@ type Out = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;

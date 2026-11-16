@@ -665,3 +665,11 @@ Signed: lead, 16 Nov 2026 (after the security review and its re-check)
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: (for the lead to sign)
+
+## 16 Nov 2026: a sync spec field can be sealed (lane r32-syncrate, owner decision 16 Nov), for the lead to sign
+
+- What changed in contracts, additive: a spec field's `type` (`objects[].fields[].type`) accepts `sealed` (the exact spelling) besides the existing types, and a synced type's field map entry (`sync_types.create` and `update` `fields[]`) accepts an optional `sealed` boolean. A sealed spec field maps to a Records `sealed` field.
+- Not a contract change, the rule the tests pin: a sealed field is read from the app only (direction `pull`; push or both is a validation error) and cannot be the title, the stage or a match rule. The engine takes the value out of the app's row the moment it is read: it never reaches the sync's own tables (base, conflicts, outbox, log), and goes to the Vault through `records.update` only (the record keeps a reference). A newer value from the app replaces it, an empty one clears it, and a record the app has not changed since the last seal is not sealed again. `sync_specs.validate` and `preview` say a sealed field is sealed and whether values are present, never the value or its length; `sync_specs.sample` shows a value under a secret-identifier name (ssn, tax id, account number, routing, driver licence, passport, card number) or an SSN-shaped value as "[sealed]". Validate warns, naming the field, when a field named like a secret identifier or holding SSN-shaped values is mapped as a plain type.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+
+Signed: (for the lead to sign)

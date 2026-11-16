@@ -40110,7 +40110,7 @@ export type SyncSpecsApplyIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40250,7 +40250,7 @@ export type SyncSpecsGetOut = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40371,7 +40371,7 @@ export type SyncSpecsPreviewIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40615,7 +40615,7 @@ export type SyncSpecsValidateIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40694,6 +40694,7 @@ export type SyncTypesCreateIn = {
       relation?: string;
       inverse?: string;
       constant?: string;
+      sealed?: boolean;
     }>;
   match: Array<string>;
   createAtSource?: boolean;
@@ -40724,6 +40725,7 @@ export type SyncTypesCreateOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -40798,6 +40800,7 @@ export type SyncTypesGetOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -40841,6 +40844,7 @@ export type SyncTypesListOut = {
           relation?: string;
           inverse?: string;
           constant?: string;
+          sealed?: boolean;
         }>;
       match: Array<string>;
       createAtSource: boolean;
@@ -41071,6 +41075,7 @@ export type SyncTypesUpdateIn = {
       relation?: string;
       inverse?: string;
       constant?: string;
+      sealed?: boolean;
     }>;
   match?: Array<string>;
   createAtSource?: boolean;
@@ -41100,6 +41105,7 @@ export type SyncTypesUpdateOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;

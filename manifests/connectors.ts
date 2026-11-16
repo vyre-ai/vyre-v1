@@ -34,6 +34,7 @@ const fieldMap = t.obj({
   relation: t.opt(id.recordType),
   inverse: t.opt(fieldKey),
   constant: t.opt(t.str({ description: "A value stamped on every record this binding pulls (the From field)" })),
+  sealed: t.opt(t.bool()),
 });
 const polling = t.obj({
   activeSec: t.int({ minimum: 30 }),
@@ -164,6 +165,7 @@ const specField = t.obj({
     "url",
     "relation",
     "json",
+    "sealed",
   ),
   choices: t.opt(
     t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }), { examples: [[{ value: "lead", label: "Lead" }]] }),

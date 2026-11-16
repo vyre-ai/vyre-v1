@@ -17,8 +17,13 @@ export const FIELD_TYPES = [
   "url",
   "relation",
   "json",
+  "sealed",
 ] as const;
 export type SpecFieldType = (typeof FIELD_TYPES)[number];
+/** Names that mark a secret identifier: map these as sealed. A date of birth is not one of them. */
+export const SECRET_ID =
+  /(?<![a-z])(ssn|ein|tin)(?![a-z])|social[ _-]?security|tax[ _-]?id|account[ _-]?(number|no|num)(?![a-z])|routing|licen[cs]e[ _-]?(number|no|num)(?![a-z])|driver'?s?[ _-]?licen[cs]e|passport|card[ _-]?(number|no|num)(?![a-z])/i;
+export const SSN_SHAPE = /^\d{3}-\d{2}-\d{4}$/;
 export const AUTH_STYLES = ["bearer", "header", "basic", "query", "oauth"] as const;
 export const CURSOR_KINDS = ["none", "page", "cursor", "offset", "link"] as const;
 export const DIRECTIONS = ["both", "pull", "push", "off"] as const;
@@ -312,6 +317,7 @@ export function coerceValue(
     case "text":
     case "email":
     case "phone":
+    case "sealed":
       return text();
     case "relation":
       return text();
@@ -425,6 +431,8 @@ export interface FieldMapOut {
   relation?: string;
   inverse?: string;
   constant?: string;
+  /** Kept out of the sync's own tables: the value is sealed in the Vault the moment it is read, and never travels with the record's other values. */
+  sealed?: true;
 }
 export interface CompiledType {
   remote: string;
@@ -459,6 +467,7 @@ const LOCAL_TYPE: Record<SpecFieldType, string> = {
   url: "url",
   relation: "relation",
   json: "longtext",
+  sealed: "sealed",
 };
 
 const titleOf = (key: string): string => key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -504,7 +513,8 @@ export function compileSpec(spec: SyncSpec): Compiled {
       const sf = o.fields.find((x) => x.path === p);
       if (!sf) continue;
       // a pick-list or a multi-pick with no choices listed becomes plain text locally; the sync reads it the same way
-      types_[p] = sf.type === "multi" && !sf.choices?.length ? "list" : sf.type;
+      // a sealed value is read as text and sealed by the engine the moment it leaves the answer
+      types_[p] = sf.type === "multi" && !sf.choices?.length ? "list" : sf.type === "sealed" ? "text" : sf.type;
       if (sf.choices?.length) choices[p] = sf.choices.map((c) => c.value);
     }
     const listShape = {
@@ -623,6 +633,11 @@ export function compileSpec(spec: SyncSpec): Compiled {
       const sf = o.fields.find((x) => x.path === f.path);
       const key = keys.get(f.path)!;
       const dir = directionOf(f, sf, writable.update);
+      if (sf?.type === "sealed") {
+        fields.push({ key, remote: f.path, dir: "pull", sealed: true });
+        defs.push({ key, type: "sealed", title: sf.label });
+        continue;
+      }
       const target = sf?.type === "relation" ? spec.mapping.find((x) => x.remote === sf.relationTo) : undefined;
       const inverse = target ? `${m.recordType}s`.slice(0, 60) : undefined;
       fields.push({
@@ -662,7 +677,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
     const textKeys = defs.filter((d) => d.type === "text" || d.type === "email").map((d) => d.key);
     const wanted = m.titleField ? (keys.get(m.titleField) ?? m.titleField) : undefined;
     const titleField =
-      wanted && defs.some((d) => d.key === wanted)
+      wanted && defs.some((d) => d.key === wanted && d.type !== "sealed")
         ? wanted
         : (textKeys.find((k) => /name|title/.test(k)) ?? textKeys[0] ?? defs[0]?.key ?? "name");
     if (!defs.some((d) => d.key === titleField))
