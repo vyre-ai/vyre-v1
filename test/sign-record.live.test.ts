@@ -64,6 +64,17 @@ test("sign: a record's Files tab sends its PDF for signature and shows the reque
     await page.getByText("Files", { exact: true }).locator("visible=true").last().click();
     await page.getByText("Waiting for Imran").first().waitFor({ timeout: 30_000 });
     await shot(page, s.shotsDir, "record-envelope-light-phone");
+    // Cancel request, from the file it was sent from: the status says Cancelled and the link stops working
+    const asked = await s.call("esign.list", { recordId: rec.id });
+    const sentFile = asked.envelopes[0].fileId as string;
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.goto(`${s.web.origin}/files#subject=file:${sentFile}`, { waitUntil: "load" });
+    await page.getByTestId("vw-more").click({ timeout: 40_000 });
+    await page.getByText("Cancel signature request").click();
+    await page.getByText("Cancelled", { exact: true }).first().waitFor({ timeout: 20_000 });
+    assert.equal((await s.call("esign.status", { envelopeId: asked.envelopes[0].envelopeId })).status, "cancelled");
+    await shot(page, s.shotsDir, "file-cancelled-dark");
     const listed = await s.call("esign.list", { recordId: rec.id });
     assert.equal(listed.envelopes.length, 1, "the request is tied to the record");
     assert.deepEqual(
