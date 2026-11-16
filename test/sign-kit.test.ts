@@ -78,8 +78,11 @@ export async function linkOf(page: Page, who: string): Promise<string> {
   return m[0];
 }
 
-export const shot = (page: Page, dir: string, name: string): Promise<unknown> =>
-  page.screenshot({ path: path.join(dir, `${name}.png`) });
+/** A picture, taken once a sheet's fade-in (about 200 ms) has finished; the wait is for the picture only, nothing is asserted after it. */
+export const shot = async (page: Page, dir: string, name: string): Promise<unknown> => {
+  await page.waitForTimeout(450);
+  return page.screenshot({ path: path.join(dir, `${name}.png`) });
+};
 
 /** Sign by typing: the name is already filled from the sender; the consent box, then Sign. */
 export async function signByTyping(page: Page, name: string, before?: () => Promise<unknown>): Promise<void> {
