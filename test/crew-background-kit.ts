@@ -1,11 +1,12 @@
 // @tsx
+// Shared walk of test/crew.background.<skin>-<size>.live.test.ts (split from one file that ran 95 to 105 s; each part walks one of the four skin and size configs). Not a test file.
 // Findings F90 to F94 in the real app (lane w-crew, 16 Nov 2026, the owner's own rc.28 chat): an agent on a command-line engine starts THREE helpers in the background (the launch call answers "Async agent launched
 // successfully." at once) and its turn ends. The production export, a booted daemon with the real engine, the real CLI driver and the stand-in claude of host/tests/fixtures/fake-cli-driver (scenario bgsubagents: the
 // helpers finish 5, 10 and 15 s later and the engine wakes itself as it does), a browser signed in as the owner. The walk, per skin and size: at launch all three Work (none Done, no "4 of 4 done"), the launch
 // tool's words are nowhere, the chat says one live line "3 helpers working" with Stop, the chat's row in the sidebar keeps its working ring; the Crew pane draws the Session block once and no Side by side; at one
 // done the line says "2 helpers working, 1 of 3 done" and the Assistant has not posted a line for it; at all done the line is gone, the ring is gone and the Assistant comes back by itself, once, with the answer. No id
 // or tool name is on screen. Pictures go to VYRE_CREW_SHOTS.
-import test from "node:test";
+import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -20,7 +21,15 @@ const FAKE_CLI = fileURLToPath(new URL("../host/tests/fixtures/fake-cli-driver/f
 const cli = { command: { claude: [process.execPath, FAKE_CLI, "claude"] }, programRead: [path.dirname(FAKE_CLI)] };
 const T = (id: string): string => `[data-testid="${id}"]`;
 
-test("helpers launched in the background, real app: Working until their own end, one live line with Stop, the sidebar ring, the Assistant back once (dark and light, wide and phone)", async (t) => {
+export type Config = readonly [
+  "graphite" | "paper",
+  "wide" | "phone",
+  { readonly width: number; readonly height: number },
+];
+export const WIDE = { width: 1440, height: 900 } as const;
+export const PHONE = { width: 390, height: 844 } as const;
+
+export async function crewBackgroundWalk(t: TestContext, part: string, configs: readonly Config[]): Promise<void> {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) {
     t.skip("VYRE_APP_DIST required for production browser evidence");
@@ -109,12 +118,7 @@ test("helpers launched in the background, real app: Working until their own end,
       await new Promise((r) => setTimeout(r, 1500));
       assert.deepEqual(serverRefusals().slice(before.length), [], "a plain turn refuses no call");
     }
-    for (const [skin, size, vp] of [
-      ["graphite", "wide", { width: 1440, height: 900 }],
-      ["paper", "wide", { width: 1440, height: 900 }],
-      ["graphite", "phone", { width: 390, height: 844 }],
-      ["paper", "phone", { width: 390, height: 844 }],
-    ] as const) {
+    for (const [skin, size, vp] of configs) {
       const tag = `${skin}-${size}`;
       const threadId = (
         await call(d, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: `w-start-${tag}` })
@@ -314,7 +318,10 @@ test("helpers launched in the background, real app: Working until their own end,
       seen.push({ config: tag, liveAfterMs: end.totals.elapsedMs, names: end.members.map((m) => m.title) });
       await ctx.close();
     }
-    fs.writeFileSync(path.join(shots, "refused.json"), JSON.stringify({ refused: [...refused], seen }, null, 2));
+    fs.writeFileSync(
+      path.join(shots, `refused-${part}.json`),
+      JSON.stringify({ refused: [...refused], seen }, null, 2),
+    );
     assert.deepEqual([...refused], [], "no call of the walk is refused");
   } finally {
     await browser.close();
@@ -322,4 +329,4 @@ test("helpers launched in the background, real app: Working until their own end,
     await daemon.stop();
     fs.rmSync(dir, { recursive: true, force: true });
   }
-});
+}
