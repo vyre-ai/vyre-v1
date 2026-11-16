@@ -68,7 +68,17 @@ export function app(seen: { keys: string[]; urls: string[] }) {
   };
 }
 
-export const spec = () => ({
+/** `only: "people"` is the spec of the sealed walks: one object, so the first pull is one scheduled run, not five (a loaded runner took over 90 s for five). */
+export const spec = (only?: "people") => {
+  const all = full();
+  if (only !== "people") return all;
+  return {
+    ...all,
+    objects: all.objects.filter((o) => o.remote === "people"),
+    mapping: all.mapping.filter((m) => m.remote === "people"),
+  };
+};
+const full = () => ({
   app: { name: "Crm", domain: DOMAIN },
   auth: { vaultHandle: "#Crm_Key", style: "header", header: "X-Api-Key" },
   objects: [
@@ -255,7 +265,7 @@ export async function pulled(d: Daemon, types: string[]): Promise<void> {
       for (const t of types) if ((await rowsOf(d, t)).length === 0) return null;
       return true;
     },
-    90_000,
+    115_000,
     () => hostLog(d),
   );
 }

@@ -26,7 +26,7 @@ test("the Space the firm's is tonight: the Vault never unlocked. What the real V
       console.log(`UNCLAIMED-SPACE ${JSON.stringify(outcome)}`);
       return;
     }
-    const applied = await call(w.d, "sync_specs.apply", { spec: spec(), idempotencyKey: "apply-2" });
+    const applied = await call(w.d, "sync_specs.apply", { spec: spec("people"), idempotencyKey: "apply-2" });
     outcome["apply"] = applied.status;
     assert.equal(applied.status, 200, JSON.stringify(applied.data));
     await pulled(w.d, ["person"]);
@@ -40,7 +40,7 @@ test("the Space the firm's is tonight: the Vault never unlocked. What the real V
           ? { p, st }
           : null;
       },
-      90_000,
+      115_000,
       () => hostLog(w.d),
     );
     const imran = settled.p;
@@ -57,12 +57,12 @@ test("the Space the firm's is tonight: the Vault never unlocked. What the real V
       [],
       "whatever the Vault does, nothing plain is stored",
     );
-    // does the Vault seal with nobody signed in and no unlock, once the record can be seen? (the pass looks again after 30 seconds)
+    // does the Vault seal with nobody signed in and no unlock, once the record can be seen? (the pass looks again after 10 seconds)
     const filledAlone = await waitFor(async () => {
       await pump(w.d);
       const p = (await rowsOf(w.d, "person")).find((x) => JSON.stringify(x).includes("Imran"));
       return (p?.fields["ssn"] as { present?: boolean } | undefined)?.present === true ? { yes: true } : null;
-    }, 75_000).catch(() => ({ yes: false }));
+    }, 50_000).catch(() => ({ yes: false }));
     outcome["sealedWithoutUnlock"] = filledAlone.yes;
     if (!filledAlone.yes) {
       assert.ok(
@@ -84,7 +84,7 @@ test("the Space the firm's is tonight: the Vault never unlocked. What the real V
           const p = (await rowsOf(w.d, "person")).find((x) => JSON.stringify(x).includes("Imran"));
           return (p?.fields["ssn"] as { present?: boolean } | undefined)?.present === true ? true : null;
         },
-        90_000,
+        115_000,
         () => hostLog(w.d),
       );
     }

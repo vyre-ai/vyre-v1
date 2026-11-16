@@ -557,11 +557,11 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       runId ?? null,
     );
   };
-  /** Sealed values the Vault could not take yet: look again soon (30 s), not at the idle interval. */
+  /** Sealed values the Vault could not take yet: look again soon (10 s), not at the idle interval. */
   const owedAt = (r: SyncDb): number | undefined => {
     try {
       const n = tx.get<{ n: number }>("SELECT n FROM sy_sealed_wait WHERE sync_type = ?", r.sync_type_id)?.n ?? 0;
-      return n > 0 ? nowOf(deps) + 30_000 : undefined;
+      return n > 0 ? nowOf(deps) + 10_000 : undefined;
     } catch {
       return undefined;
     }
