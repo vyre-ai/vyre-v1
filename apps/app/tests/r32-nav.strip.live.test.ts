@@ -79,7 +79,12 @@ test("tab strip, dark: a new tab shows a plus; the fade follows the tabs; Find a
     for (let i = 0; i < mains.length; i++) {
       await page.evaluate((h) => void (location.hash = h), `subject=thread:${mains[i]}`);
       await page.waitForTimeout(500);
-      const st = await stripState(page);
+      let st = await stripState(page);
+      // the fade follows the scroll with a throttle: wait for it to settle on what the strip is, then hold it to that
+      for (let w = 0; w < 30 && st.fade !== st.truth; w++) {
+        await page.waitForTimeout(100);
+        st = await stripState(page);
+      }
       rows.push(`${st.count}:${st.fade}/${st.truth}`);
       assert.equal(st.fade, st.truth, `with ${st.count} tabs the fade is "${st.truth}" (it says "${st.fade}")`);
       if (st.count >= 10 && st.scrolls) {
@@ -96,7 +101,11 @@ test("tab strip, dark: a new tab shows a plus; the fade follows the tabs; Find a
     for (let i = 0; i < 6; i++) {
       await page.keyboard.press("Control+w");
       await page.waitForTimeout(450);
-      const st = await stripState(page);
+      let st = await stripState(page);
+      for (let w = 0; w < 30 && st.fade !== st.truth; w++) {
+        await page.waitForTimeout(100);
+        st = await stripState(page);
+      }
       assert.equal(
         st.fade,
         st.truth,
