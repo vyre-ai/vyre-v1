@@ -557,6 +557,31 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       runId ?? null,
     );
   };
+  /**
+   * A pass failed: count it and say when to try again. A type still catching up on its first pull (a place is saved) tries again soon, 30 s doubling to 10 min, because the saved place makes the retry cheap and a
+   * blip must not stop a pull that has 20,000 records to go; any other type waits its idle interval doubled, up to an hour.
+   */
+  const failedAt = (r: SyncDb): number => {
+    const now = nowOf(deps);
+    const next = noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), false, now);
+    let catching = false;
+    try {
+      const c = tx.get<{ cursor: string | null }>(
+        "SELECT cursor FROM sy_state WHERE sync_type = ?",
+        r.sync_type_id,
+      )?.cursor;
+      catching = c ? (JSON.parse(c) as { done?: boolean }).done === false : false;
+    } catch {
+      /* no place kept */
+    }
+    if (!catching) return next;
+    const failures =
+      tx.get<{ failures: number }>("SELECT failures FROM cn_sync_guard WHERE sync_type_id = ?", r.sync_type_id)
+        ?.failures ?? 1;
+    const soon = now + Math.min(600_000, 30_000 * 2 ** Math.max(0, failures - 1));
+    tx.run("UPDATE cn_sync_guard SET next_at = ? WHERE sync_type_id = ?", soon, r.sync_type_id);
+    return soon;
+  };
   /** Sealed values the Vault could not take yet: look again soon (10 s), not at the idle interval. */
   const owedAt = (r: SyncDb): number | undefined => {
     try {
@@ -1108,6 +1133,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
       const parts: string[] = [];
       let failed: { code: string; message: string } | undefined;
       let more = false;
+      const retry: { r: SyncDb; at: number }[] = [];
       for (const id of req.syncTypeIds) {
         const r = tx.get<SyncDb>("SELECT * FROM cn_synced_types WHERE sync_type_id = ?", id);
         if (!r) continue;
@@ -1123,7 +1149,8 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
           if (out.more) more = true;
           else if (!out.dryRun) await planPoll(ctx, r, owedAt(r));
         } catch (e) {
-          noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), false, nowOf(deps)); // the driver waits longer after each failure in a row
+          // a failed pass always leaves a next poll (the saved place of a first pull is kept, so it carries on from there), waiting longer after each failure in a row, up to once an hour
+          retry.push({ r, at: failedAt(r) });
           const err = (e as { error?: { code?: string; message?: string } }).error;
           const message = err?.message ?? (e instanceof Error ? e.message : "The sync failed.");
           failed = { code: err?.code ?? "provider.unavailable", message };
@@ -1141,6 +1168,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
           /* nothing can schedule: finish here; the next poll carries on */
         }
       }
+      for (const f of retry) await planPoll(ctx, f.r, f.at);
       // the pass ended (a run that carries on keeps its mark)
       for (const id of req.syncTypeIds) {
         const r = tx.get<SyncDb>("SELECT connection_id FROM cn_synced_types WHERE sync_type_id = ?", id);
@@ -1193,7 +1221,7 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
             r.sync_type_id,
             `sync of ${r.type} failed: ${err?.message ?? (e instanceof Error ? e.message : "failed")}`,
           );
-          retryAt = noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), false, nowOf(deps)); // a failing app is asked less and less often, up to once an hour
+          retryAt = failedAt(r); // a failing app is asked less and less often, up to once an hour; a first pull still going is asked again within minutes
         } finally {
           clearRunning(tx, r.connection_id);
         }
