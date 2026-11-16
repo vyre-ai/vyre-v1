@@ -38,3 +38,13 @@ test("a card opened to all its fields pushes the cards under it down: nothing ov
     assert.deepEqual(after.get(opened.type), before.get(opened.type), "the opened card itself does not move");
   }
 });
+
+test("cards that really draw taller than the estimate (wrapped titles, inverse rows) still never overlap, closed or opened", () => {
+  const taller = new Map(nodes.map((n, i) => [n.type, cardHeight(12, false) + 18 + i * 9]));
+  assert.deepEqual(overlaps(layout(nodes, [], plain, taller), taller), []);
+  for (const opened of nodes) {
+    const drawn = new Map(taller);
+    drawn.set(opened.type, cardHeight(30, true) + 40);
+    assert.deepEqual(overlaps(layout(nodes, [], plain, drawn), drawn), [], `opened ${opened.type}`);
+  }
+});
