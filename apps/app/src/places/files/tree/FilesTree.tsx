@@ -3,7 +3,11 @@
 // ui/FolderTree SlotRow for the folders); a folder is a drop target; dropping a file or folder on a folder moves it there. The Trash is in the list's more menu.
 import { useEffect, useRef, useState } from "react";
 import { tellIfRefused } from "./refusal.ts";
-import type { Dispatch, ReactElement, SetStateAction } from "react";
+import { MoveAskSheet } from "../list/MoveAsk.tsx";
+import { planTreeDrop } from "./drop-ask.ts";
+import { useBox, useDragDelegation, useDraggableRows } from "../list/DragWrap.tsx";
+import type { DragRegistry } from "../list/DragWrap.tsx";
+import type { Dispatch, MutableRefObject, ReactElement, SetStateAction } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -14,17 +18,16 @@ import { each, matchRows } from "../../../shell/sidebar/model.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { useFilesData, useLive, useOptionalFilesData, useSource } from "./data.tsx";
 import {
-  dropMoves,
+  folderLine,
   hasAgentFace,
   trashCall,
   openByDefault,
   orderFolders,
-  parsePayload,
   rootRank,
   sameWhere,
   spaceRoots,
 } from "./model.ts";
-import type { FolderRow, TreeRoots, Where } from "./model.ts";
+import type { FolderRow, Line, MoveAsk as MoveAskState, TreeRoots, Where } from "./model.ts";
 import { KNOW_ROWS, rowOf } from "../memory/know.ts";
 import { Glyph } from "./parts.tsx";
 import { FolderMovePicker } from "./FolderMovePicker.tsx";
@@ -209,7 +212,11 @@ interface RowCtx {
   goFolder(id: string | null): void;
   menu: ReturnType<typeof useMenu>;
   handlers: FolderHandlers;
-  onDrop(payload: string, target: string | null, scope: FolderScope): void;
+  onDrop(payload: string, target: string | null, scope: FolderScope, source: string | null): void;
+  /** Every folder the tree has drawn, by id: a folder dragged out of the list or the tree is looked up here. */
+  known: Map<string, Line>;
+  /** What a drop on each folder row does, by its data-fkey. */
+  registry: MutableRefObject<DragRegistry>;
   rank: ReadonlyMap<string, number>;
   /** The Space's registered roots: the only top folders listed under Space. */
   allow: ReadonlySet<string>;
@@ -245,6 +252,7 @@ function FolderLine({
   /** the mount the folder above is in */ within?: string | undefined;
 }): ReactElement {
   const fid = f.folderId;
+  c.known.set(fid, folderLine(f));
   const isOpen = c.openF[fid] ?? openByDefault(f);
   const kids = f.folderCount;
   const face = hasAgentFace(f);
@@ -280,25 +288,20 @@ function FolderLine({
       )}
     </View>
   );
-  const drop = {
-    // a folder is dragged out as "folder:<id>": onto another folder it moves, onto a chat it is shared with the chat's agents
-    draggable: true,
-    onDragStart: (e: { dataTransfer?: { setData?: (t: string, v: string) => void; effectAllowed?: string } }) => {
-      e.dataTransfer?.setData?.("text/plain", `folder:${fid}`);
-      if (e.dataTransfer) e.dataTransfer.effectAllowed = "copyMove";
-    },
-    onDragOver: (e: { preventDefault: () => void }) => {
-      e.preventDefault();
-      c.setOver(fid);
-    },
-    onDragLeave: () => c.setOver((o) => (o === fid ? null : o)),
-    onDrop: (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }) => {
-      e.preventDefault();
+  // a folder is dragged out as "folder:<id>": onto another folder it moves, onto a chat it is shared with the chat's agents. React Native Web does not pass drag events to a View, so the tree's box listens once
+  // (the shared drag delegation of the list) and finds the row by its data-fkey.
+  c.registry.current.set(`folder:${fid}`, {
+    payload: () => `folder:${fid}`,
+    folder: true,
+    onMods: () => undefined,
+    onOver: () => c.setOver(fid),
+    onLeave: () => c.setOver((o) => (o === fid ? null : o)),
+    onDrop: (payload) => {
       c.setOver(null);
-      const item = e.dataTransfer?.getData?.("text/plain") ?? "";
-      if (item.length > 0) c.onDrop(item, fid, f.scope);
+      if (payload.length > 0) c.onDrop(payload, fid, f.scope, f.source?.provider ?? null);
     },
-  };
+  });
+  const drop = { dataSet: { fkey: `folder:${fid}` } };
   const node = nodeOf(f);
   const mountState = c.mounts.get(fid);
   const words = mountState ? MOUNT_WORDS[mountState.state] : undefined;
@@ -425,8 +428,18 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const flip = (k: string): void => setShut((o) => ({ ...o, [k]: o[k] !== true }));
   const isShut = (k: string): boolean => shut[k] === true;
 
-  const onDrop = (payload: string, target: string | null, _scope: FolderScope): void => {
-    for (const m of dropMoves(parsePayload(payload), target, () => null)) void data.call(m.cap, m.input);
+  // a drop that crosses a connected folder's edge asks first, in the same sheet the list uses
+  const known = useRef(new Map<string, Line>());
+  const registry = useRef<DragRegistry>(new Map());
+  const [box, setBox] = useBox();
+  useDragDelegation(box, registry);
+  useDraggableRows(box);
+  const [ask, setAsk] = useState<MoveAskState | null>(null);
+  const onDrop = (payload: string, target: string | null, _scope: FolderScope, source: string | null): void => {
+    void planTreeDrop(data.call, payload, { id: target, source }, known.current).then(({ planned, ask: a }) => {
+      if (a !== null) setAsk(a);
+      else for (const m of planned) tellIfRefused(data.call(m.cap, m.input), "Could not move it");
+    });
   };
   const c: RowCtx = {
     mounts,
@@ -439,6 +452,8 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
     goFolder,
     menu,
     onDrop,
+    known: known.current,
+    registry,
     rank: rootRank(rootRows),
     allow: spaceRoots(rootRows),
     waiting,
@@ -501,22 +516,22 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const knowQuiet = knowShown.length === 0 && (q === "" || matchRows([{ title: "Knowledge" }], q).length > 0);
   const allFiles = q === "" || matchRows([{ title: "All files" }], q).length > 0;
 
-  const dropAll = {
-    onDragOver: (e: { preventDefault: () => void }) => {
-      e.preventDefault();
-      setOver("all");
-    },
-    onDragLeave: () => setOver((o) => (o === "all" ? null : o)),
-    onDrop: (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }) => {
-      e.preventDefault();
+  registry.current.set("root:all", {
+    payload: () => "",
+    folder: true,
+    onMods: () => undefined,
+    onOver: () => setOver("all"),
+    onLeave: () => setOver((o) => (o === "all" ? null : o)),
+    onDrop: (payload) => {
       setOver(null);
-      const item = e.dataTransfer?.getData?.("text/plain") ?? "";
-      if (item.length > 0) onDrop(item, null, "space");
+      if (payload.length > 0) onDrop(payload, null, "space", null);
     },
-  };
+  });
+  const dropAll = { dataSet: { fkey: "root:all" } };
 
   return (
-    <View style={styles.side} testID="files-tree" accessibilityLabel="Files sidebar">
+    <View ref={setBox} style={styles.side} testID="files-tree" accessibilityLabel="Files sidebar">
+      {ask !== null ? <MoveAskSheet ask={ask} call={data.call} onDone={() => setAsk(null)} /> : null}
       {moving ? (
         <FolderMovePicker
           moving={moving}

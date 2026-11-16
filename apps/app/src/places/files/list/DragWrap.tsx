@@ -1,7 +1,7 @@
 // The drag and click wiring of a line or tile (P-L9e_25). Drag events are not on the list React Native Web forwards, so the page's own listeners do it, and they are set ONCE on the list's box and
 // look the handlers up by the `data-fkey` of the element the event came from (event delegation): dragstart (what travels), dragover, dragleave and drop (on a folder), and a capture-phase click that
 // records Cmd, Ctrl and Shift for the selection rules. A line adds nothing but two attributes (the shared Row's domProps); a tile does the same through this wrapper. Off the web there is no drag.
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject, ReactElement, ReactNode } from "react";
 import { Platform, View } from "react-native";
 import type { Mods } from "../tree/model.ts";
@@ -28,11 +28,11 @@ const keyOf = (e: Event): string | null => {
   return t?.closest?.("[data-fkey]")?.getAttribute("data-fkey") ?? null;
 };
 
-/** One set of listeners for the whole list: put it on the list's box. */
-export function useDragDelegation(box: MutableRefObject<View | null>, registry: MutableRefObject<DragRegistry>): void {
+/** One set of listeners for the whole list: put it on the list's box. The box is held in state (a callback ref), so the listeners are set when the box is drawn, even if the list showed something else first (loading, empty). */
+export function useDragDelegation(box: HTMLElement | null, registry: MutableRefObject<DragRegistry>): void {
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
-    const el = box.current as unknown as HTMLElement | null;
+    const el = box;
     if (!el || typeof el.addEventListener !== "function") return undefined;
     const at = (e: Event): DragHandlers | undefined => {
       const k = keyOf(e);
@@ -108,4 +108,29 @@ export function DragWrap({
       {children}
     </View>
   );
+}
+
+/** A stable callback ref that holds the element drawn (web: the DOM element) in state, for the hooks above. */
+export function useBox(): [HTMLElement | null, (el: unknown) => void] {
+  const [box, set] = useState<HTMLElement | null>(null);
+  const setBox = useCallback((el: unknown) => set((el as HTMLElement | null) ?? null), []);
+  return [box, setBox];
+}
+
+/** Every element carrying a data-fkey inside the box is a drag source: set once as it appears (rows are drawn at different times, by different parts of the tree). */
+export function useDraggableRows(box: HTMLElement | null): void {
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    const el = box;
+    if (!el || typeof el.querySelectorAll !== "function") return undefined;
+    const mark = (): void => {
+      for (const n of Array.from(el.querySelectorAll<HTMLElement>("[data-fkey]"))) {
+        if (n.draggable !== true && n.getAttribute("data-fkey") !== "root:all") n.draggable = true;
+      }
+    };
+    mark();
+    const seen = new MutationObserver(mark);
+    seen.observe(el, { childList: true, subtree: true });
+    return () => seen.disconnect();
+  }, [box]);
 }

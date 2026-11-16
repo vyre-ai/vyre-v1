@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { MoveAsk as Ask } from "../tree/model.ts";
 import { providerWord } from "../tree/model.ts";
+import { tellIfRefused } from "../tree/refusal.ts";
 
 export function MoveAsk({
   ask,
@@ -24,7 +25,7 @@ export function MoveAsk({
       <Pressable accessibilityRole="button" testID="move-ask-move" onPress={onMove} style={[s.btn, s.pri]}>
         <Text style={[s.btnText, s.priText]}>{ask.dir === "out" ? "Move it" : "Upload it"}</Text>
       </Pressable>
-      {ask.dir === "out" ? (
+      {ask.dir === "out" && ask.copies.length > 0 ? (
         <Pressable accessibilityRole="button" testID="move-ask-copy" onPress={onCopy} style={s.btn}>
           <Text style={s.btnText}>{`Keep a copy at ${providerWord(ask.provider)}`}</Text>
         </Pressable>
@@ -33,6 +34,31 @@ export function MoveAsk({
         <Text style={s.btnText}>Cancel</Text>
       </Pressable>
     </View>
+  );
+}
+
+/** The sheet with its answers wired: Move it, Keep a copy, Cancel. The list and the tree draw this one component; a call the folder refuses is said to the person. */
+export function MoveAskSheet({
+  ask,
+  call,
+  onDone,
+}: {
+  ask: Ask;
+  call: (cap: string, input: unknown) => Promise<unknown>;
+  onDone: () => void;
+}): ReactElement {
+  const label = ask.names.length === 1 ? (ask.names[0] ?? "it") : "the files";
+  const run = (moves: Ask["moves"], what: string): void => {
+    for (const m of moves) tellIfRefused(call(m.cap, m.input), `Could not ${what} ${label}`);
+    onDone();
+  };
+  return (
+    <MoveAsk
+      ask={ask}
+      onMove={() => run(ask.moves, ask.dir === "out" ? "move" : "upload")}
+      onCopy={() => run(ask.copies, "copy")}
+      onCancel={onDone}
+    />
   );
 }
 
