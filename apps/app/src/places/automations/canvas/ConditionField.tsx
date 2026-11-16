@@ -1,6 +1,6 @@
 // Conditions as real controls (AUTOMATIONS-BUILD-RC29 round five, item 3): a path's "if", the If step, and what a Wait waits for. Rows of a field (from Insert data), an operator in words and a value with chips, joined by "and" or "or";
 // a condition the rows cannot write back exactly is one read-only line, "Advanced condition". Nothing here is a JSON box.
-import { useContext } from "react";
+import { useContext, useEffect, useRef } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { build, OP_WORDS, OPS, parse } from "./conditions.ts";
@@ -182,6 +182,29 @@ export function EventField({
     v.event,
   );
   const carried = v.event ? payloadFields(catalogue, v.event) : [];
+  const showEvents = (x: number, y: number): void =>
+    openMenu(
+      choices.map((c) => ({
+        label: c.label,
+        checked: c.name === v.event,
+        onSelect: () => onCommit({ event: c.name }),
+      })),
+      x,
+      y,
+      "other",
+      undefined,
+      { search: "Search events" },
+    );
+  const wanted = useRef<{ x: number; y: number } | null>(null);
+  const settled = types.state !== "loading";
+  useEffect(() => {
+    const at = wanted.current;
+    if (!settled || at === null) return;
+    wanted.current = null;
+    showEvents(at.x, at.y);
+    // the list the menu shows is the one of this draw, the first with the catalogue in it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settled]);
   const flat =
     v.filter === undefined ||
     (typeof v.filter === "object" &&
@@ -196,20 +219,12 @@ export function EventField({
           v.event ? (choices.find((c) => c.name === v.event)?.label ?? eventWords(v.event)) : "Choose what to wait for"
         }
         {...tid(testID, "event")}
-        onOpen={(x, y) =>
-          openMenu(
-            choices.map((c) => ({
-              label: c.label,
-              checked: c.name === v.event,
-              onSelect: () => onCommit({ event: c.name }),
-            })),
-            x,
-            y,
-            "other",
-            undefined,
-            { search: "Search events" },
-          )
-        }
+        onOpen={(x, y) => {
+          // The menu holds the list it was opened with. A press that comes before the catalogue has arrived waits for it (a moment), so the person is offered
+          // every event and not the curated few for as long as that menu stays open (CI, 16 Nov 2026: eight events offered where the Space has hundreds).
+          if (types.state === "loading") wanted.current = { x, y };
+          else showEvents(x, y);
+        }}
       />
       {flat ? (
         <ConditionField
