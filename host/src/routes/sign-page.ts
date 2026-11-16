@@ -41,7 +41,7 @@ const SHELL = `<!doctype html>
 <body>
 <a class="skip" href="#app">Skip to the document</a>
 <header class="top" id="top" hidden><div class="top-in"><span class="space" id="space"></span><span class="doc-title" id="doctitle"></span></div></header>
-<main id="app" aria-live="polite"><div class="center"><p class="dim">Opening</p></div></main>
+<main id="app"><div class="center"><p class="dim">Opening</p></div></main>
 <noscript><main><p>This page needs JavaScript to show the document and take a signature.</p></main></noscript>
 </body>
 </html>

@@ -82,10 +82,12 @@ export const shot = (page: Page, dir: string, name: string): Promise<unknown> =>
   page.screenshot({ path: path.join(dir, `${name}.png`) });
 
 /** Sign by typing: the name is already filled from the sender; the consent box, then Sign. */
-export async function signByTyping(page: Page, name: string): Promise<void> {
+export async function signByTyping(page: Page, name: string, before?: () => Promise<unknown>): Promise<void> {
   await page.locator(".page canvas").first().waitFor({ timeout: 30_000 });
   await page.fill("#nm", name);
   await page.check("#consent");
+  await page.locator("#signcard").scrollIntoViewIfNeeded();
+  await before?.();
   await page.click("#signbtn");
   await page.getByText(`Thank you, ${name.split(" ")[0]}`).waitFor({ timeout: 30_000 });
 }

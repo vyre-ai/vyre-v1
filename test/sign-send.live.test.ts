@@ -57,7 +57,7 @@ test("sign: send from the viewer, two signers sign without an account, the file 
     );
     await imran.page.locator(".page canvas").first().waitFor({ timeout: 30_000 });
     await shot(imran.page, s.shotsDir, "signer-first-dark");
-    await signByTyping(imran.page, "Imran Ibarra");
+    await signByTyping(imran.page, "Imran Ibarra", () => shot(imran.page, s.shotsDir, "signer-typed-dark"));
     await shot(imran.page, s.shotsDir, "signer-done-dark");
     // the link is spent: the same address now says one sentence and nothing else
     const again = await imran.ctx.newPage();
@@ -99,6 +99,15 @@ test("sign: send from the viewer, two signers sign without an account, the file 
     await page.getByText("Opening the file").waitFor({ state: "detached", timeout: 30_000 });
     await page.getByText("/ 4").first().waitFor({ timeout: 30_000 });
     await shot(page, s.shotsDir, "signed-copy-open-dark");
+    // the added signature page carries both marks; the last page is the audit trail
+    await page.getByTestId("vw-page-input").fill("3");
+    await page.getByTestId("vw-page-input").press("Enter");
+    await page.waitForTimeout(1200);
+    await shot(page, s.shotsDir, "signed-copy-signature-page-dark");
+    await page.getByTestId("vw-page-input").fill("4");
+    await page.getByTestId("vw-page-input").press("Enter");
+    await page.waitForTimeout(1200);
+    await shot(page, s.shotsDir, "signed-copy-audit-page-dark");
     assert.deepEqual(
       s.errors.filter((e) => !/net::ERR|favicon/i.test(e)),
       [],

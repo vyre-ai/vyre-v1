@@ -55,6 +55,15 @@ test("sign: a record's Files tab sends its PDF for signature and shows the reque
     assert.match(await page.getByTestId("sign-file").innerText(), /Northwind services agreement\.pdf/);
     await page.getByTestId("sign-cancel").click();
     await page.getByTestId("sign-sheet").waitFor({ state: "detached", timeout: 10_000 });
+    // the same on a phone, light: the pane opens from the Details control, Files is behind More tabs
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.goto(`${s.web.origin}/records#subject=record:${rec.id}&type=company`, { waitUntil: "load" });
+    await page.getByLabel("Details").first().click({ timeout: 40_000 });
+    await page.getByLabel("More tabs").click({ timeout: 20_000 });
+    await page.getByText("Files", { exact: true }).locator("visible=true").last().click();
+    await page.getByText("Waiting for Imran").first().waitFor({ timeout: 30_000 });
+    await shot(page, s.shotsDir, "record-envelope-light-phone");
     const listed = await s.call("esign.list", { recordId: rec.id });
     assert.equal(listed.envelopes.length, 1, "the request is tied to the record");
     assert.deepEqual(
