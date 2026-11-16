@@ -80,6 +80,10 @@ test("r32 wait: a Wait picks its event from the Space's events by typing and nar
     await page.getByTestId("field-event-event").click();
     const search = page.getByRole("menu").last().locator("input");
     await search.waitFor({ timeout: 10_000 });
+    // the catalogue is read when the menu opens: wait for it to arrive, then count (on a busy runner the count was read while the first rows were still alone)
+    await page
+      .waitForFunction(`document.querySelectorAll('[role="menuitem"]').length > 20`, undefined, { timeout: 15_000 })
+      .catch(() => undefined);
     const before = await page.getByRole("menuitem").count();
     assert.ok(before > 20, `the whole catalogue is offered (${before})`);
     await search.fill("reached Done");

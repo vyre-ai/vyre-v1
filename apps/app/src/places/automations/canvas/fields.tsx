@@ -486,6 +486,7 @@ export function ReturnsLine({ labels, testID }: { labels: readonly string[]; tes
   return (
     <View style={f.returns} testID={testID}>
       <Text style={f.returnsLabel}>Comes back as</Text>
+      {/* ui-rows-lint: not a list (chips set in one line of a sentence, nothing to select) */}
       {labels.map((l) => (
         <View key={l} style={f.chip}>
           <Text numberOfLines={1} style={f.chipLabel}>

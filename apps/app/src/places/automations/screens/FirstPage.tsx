@@ -139,6 +139,7 @@ export function FirstPage({
         ? {
             approvals: (
               <>
+                {/* ui-rows-lint: not a list (cards, each with its own Allow and Deny; no row is selected) */}
                 {waiting.map((w) => (
                   <ApprovalCard
                     key={w.card.taskId}

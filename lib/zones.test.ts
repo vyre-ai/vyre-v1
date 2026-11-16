@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  zoneCity,
   clockIn,
   dayWord,
   deviceZone,
@@ -188,4 +189,24 @@ test("a zone's name follows its clock (the name is kept per offset, never across
     [...ahead].sort((x, y) => x - y),
     "still in the order of the clocks, west to east",
   );
+});
+
+test("a date with no zone given is still named (this computer's zone), and never throws", () => {
+  const none = undefined as unknown as string;
+  const at = Date.UTC(2026, 10, 16, 9, 0);
+  const local = new Intl.DateTimeFormat("en-US", { timeZoneName: "long" })
+    .formatToParts(new Date(at))
+    .find((p) => p.type === "timeZoneName")!.value;
+  const name = zoneName(none, at);
+  assert.equal(typeof name, "string");
+  if (!/^GMT[+-]/.test(local))
+    assert.equal(
+      name,
+      local
+        .replace(/\s+(Standard|Daylight|Summer)\s+/i, " ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    );
+  assert.equal(zoneCity(none), "");
+  assert.equal(zoneName("", at), "", "an empty zone has no name, as before");
 });
