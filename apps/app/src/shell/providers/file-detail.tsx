@@ -10,6 +10,9 @@ import type { FilesViewerData } from "../../places/files/viewer/data.tsx";
 import { nameLookup } from "./records-live.ts";
 import { openAsk } from "./ask.ts";
 import { FolderShareSheet } from "./files-share.tsx";
+import { SignDataProvider } from "../../places/files/sign/data.tsx";
+import type { SignData } from "../../places/files/sign/data.tsx";
+import { notices } from "../noticeslot/model.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function FileDetail({ rt, fileId }: { rt: ShellRuntime; fileId: string }): ReactElement {
@@ -43,10 +46,22 @@ export function FileDetail({ rt, fileId }: { rt: ShellRuntime; fileId: string })
     }),
     [rt, agents],
   );
+  const signData = useMemo<SignData>(
+    () => ({
+      call: rt.call,
+      clock: rt.clock,
+      ...(rt.baseUrl ? { origin: rt.baseUrl } : {}),
+      openFile: (id) => rt.open({ subject: { type: "file", id } }),
+      say: (t) => notices.pass(t),
+    }),
+    [rt],
+  );
   if (error) return <States kind="error" message={error} retryable onRetry={() => setError("")} />;
   return (
     <FilesViewerDataProvider value={data}>
-      <FileViewer key={fileId} fileId={fileId} />
+      <SignDataProvider value={signData}>
+        <FileViewer key={fileId} fileId={fileId} />
+      </SignDataProvider>
       {sharing ? (
         <FolderShareSheet
           rt={rt}

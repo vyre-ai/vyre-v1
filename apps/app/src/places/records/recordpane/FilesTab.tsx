@@ -9,6 +9,11 @@ import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import { useLive, usePageData } from "../recordpage/data.tsx";
 import type { AttachFile } from "../recordpage/data.tsx";
 import { PaneEmpty } from "./Empty.tsx";
+import { useMaybeSignData } from "../../files/sign/data.tsx";
+import { canSignFile, statusLine } from "../../files/sign/model.ts";
+import { SignSheet } from "../../files/sign/SignSheet.tsx";
+import { useRequests } from "../../files/sign/useRequests.ts";
+import { Status } from "../../../../../../ui/src/Status/index.tsx";
 
 const size = (n: number): string =>
   n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`;
@@ -63,7 +68,27 @@ export function FilesTab({
       () => setState("failed"),
     );
   };
+  const sign = useMaybeSignData();
+  const [signing, setSigning] = useState<{ id: string; name: string } | null>(null);
+  const reqs = useRequests(sign, { recordId });
   const rows: ReactElement[] = [];
+  // the signature requests made from this record: each is a related item with its state; pressing it opens the signed copy (or the file that was sent)
+  if (sign)
+    for (const e of reqs.list) {
+      const line = statusLine(e, sign.clock().now, sign.clock().offsetMin ?? 0);
+      const open = e.signedFileId ?? e.fileId;
+      rows.push(
+        <View key={e.id} style={s.row}>
+          <Row
+            id={`sign:${e.id}`}
+            title={e.title}
+            note={line.note ?? line.label}
+            trailing={<Status inline tone={line.tone} label={line.label} testID={`sign-state-${e.id}`} />}
+            {...(open && sign.openFile ? { onPress: () => sign.openFile?.(open) } : {})}
+          />
+        </View>,
+      );
+    }
   if (q.status === "ready" && folderId !== null) {
     for (const d of q.data.folders)
       rows.push(
@@ -83,6 +108,23 @@ export function FilesTab({
             id={`file:${x.fileId}`}
             title={x.name}
             titleSuffix={size(x.size)}
+            {...(sign && canSignFile(x.name)
+              ? {
+                  trailing: (
+                    <Tooltip text="Send for signature">
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Send ${x.name} for signature`}
+                        testID={`sign-file-${x.fileId}`}
+                        onPress={() => setSigning({ id: x.fileId, name: x.name })}
+                        style={({ hovered }: { hovered?: boolean }) => [s.pen, hovered === true && s.attachOver]}
+                      >
+                        <Text style={s.openText}>Sign</Text>
+                      </Pressable>
+                    </Tooltip>
+                  ),
+                }
+              : {})}
             onPress={() => (data.nav.openFile ? data.nav.openFile(x.fileId) : data.nav.openFiles(type, recordId))}
           />
         </View>,
@@ -140,6 +182,15 @@ export function FilesTab({
         ) : null}
       </View>
       {body}
+      {signing && sign ? (
+        <SignSheet
+          fileId={signing.id}
+          fileName={signing.name}
+          recordId={recordId}
+          onClose={() => setSigning(null)}
+          onSent={() => reqs.reload()}
+        />
+      ) : null}
       {web && data.files
         ? createElement("input", {
             ref: input,
@@ -182,6 +233,7 @@ const s = StyleSheet.create({
   open: { height: 26, paddingHorizontal: 8, justifyContent: "center" },
   openText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   dim: { opacity: 0.5 },
+  pen: { height: 24, paddingHorizontal: 8, borderRadius: 12, justifyContent: "center" },
   list: { flex: 1, minHeight: 0 },
   row: { paddingHorizontal: 6 },
 });

@@ -37,6 +37,8 @@ export interface FilesNav {
   shareFolder?(folderId: string): void;
   /** Share a file: the same sheet, on the file. Left out where there is no one to share with. */
   shareFile?(fileId: string, name: string): void;
+  /** Send a PDF for signature: the shell opens the one signing sheet. Left out where the Space has none. */
+  signFile?(fileId: string, name: string): void;
   /** Rename and Move need a name or a place; the shell asks for it and calls the capability. */
   renameEntry(kind: "file" | "folder", id: string, current: string): void;
   newFolder(scope: "personal" | "space", parentId: string | null): void;

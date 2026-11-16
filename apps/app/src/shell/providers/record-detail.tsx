@@ -14,6 +14,9 @@ import { attachToRecord, findRecordFolder, storeOnRecord } from "../../places/re
 import { openAskPane } from "../ask/pane.ts";
 import { askRequestFor, putAsk } from "../../places/inbox/contacttab/ask.ts";
 import { AgentRecord } from "./agent-record.tsx";
+import { SignDataProvider } from "../../places/files/sign/data.tsx";
+import type { SignData } from "../../places/files/sign/data.tsx";
+import { notices } from "../noticeslot/model.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export async function resolveRecordType(call: ShellRuntime["call"], recordId: string, hint?: string): Promise<string> {
@@ -178,6 +181,16 @@ export function RecordDetail({
     }),
     [rt],
   );
+  const signData = useMemo<SignData>(
+    () => ({
+      call: rt.call,
+      clock: rt.clock,
+      ...(rt.baseUrl ? { origin: rt.baseUrl } : {}),
+      openFile: (id) => rt.open({ subject: { type: "file", id } }),
+      say: (t) => notices.pass(t),
+    }),
+    [rt],
+  );
   const projectData = useMemo<ProjectPageData>(() => projectPageData(rt), [rt]);
   if (actionError) return <States kind="error" message={actionError} retryable onRetry={() => setActionError("")} />;
   if (resolved.error) return <States kind="error" message={resolved.error} />;
@@ -186,22 +199,30 @@ export function RecordDetail({
     return <AgentRecord key={recordId} rt={rt} recordId={resolved.recordId ?? recordId} />;
   return !fields && resolved.projectId !== undefined ? (
     <ProjectPageDataProvider value={projectData}>
-      <ProjectPage
-        key={recordId}
-        projectId={resolved.projectId!}
-        tab={tab}
-        onTabChange={(next) =>
-          rt.open({
-            subject: { type: "record", id: recordId },
-            args: { ...(resolved.type ? { type: resolved.type } : {}), tab: next },
-            local: true,
-          })
-        }
-      />
+      <SignDataProvider value={signData}>
+        <ProjectPage
+          key={recordId}
+          projectId={resolved.projectId!}
+          tab={tab}
+          onTabChange={(next) =>
+            rt.open({
+              subject: { type: "record", id: recordId },
+              args: { ...(resolved.type ? { type: resolved.type } : {}), tab: next },
+              local: true,
+            })
+          }
+        />
+      </SignDataProvider>
     </ProjectPageDataProvider>
   ) : (
     <RecordPageDataProvider value={data}>
-      <RecordPage key={`${resolved.type}:${recordId}`} type={resolved.type} recordId={resolved.recordId ?? recordId} />
+      <SignDataProvider value={signData}>
+        <RecordPage
+          key={`${resolved.type}:${recordId}`}
+          type={resolved.type}
+          recordId={resolved.recordId ?? recordId}
+        />
+      </SignDataProvider>
     </RecordPageDataProvider>
   );
 }

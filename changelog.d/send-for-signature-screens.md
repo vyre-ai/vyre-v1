@@ -1,0 +1,1 @@
+A PDF can be sent for signature from Files, a file's menu and a record: say who signs, press Send, and copy each person's link; the file shows Waiting for Andrea, then Signed, and opens the signed copy. The signer needs no account: the link opens a page with the document, a typed or drawn signature and one line of consent.

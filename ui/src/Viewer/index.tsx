@@ -348,6 +348,7 @@ const ICON = {
   history: `${SVG}<path d="M2.500 8a5.500 5.500 0 105.500-5.500A5.500 5.500 0 004 4.500M2 2.500v2.500h2.500M8 5v3l2 1.200"/></svg>`,
   pages: `${SVG}<rect x="2.500" y="2.500" width="4.500" height="11" rx="1"/><path d="M9.500 4h4M9.500 8h4M9.500 12h4"/></svg>`,
   more: `${SVG}<path d="M3.500 8h.1M8 8h.1M12.500 8h.1"/></svg>`,
+  sign: `${SVG}<path d="M2 12.500c1.500 0 2-4 3-4s.5 3 1.800 3 1.200-5 2.700-5 .800 4.500 2 4.500M2 14h12"/></svg>`,
 } as const;
 
 /* ---------- the view ---------- */
@@ -398,6 +399,8 @@ export interface ViewerViewProps extends ViewerProps {
   saved?: number;
   onEditMode?: (edit: boolean) => void;
   onInfo?: () => void;
+  /** Send the file for signature (a pen button beside Details). Left out, the button is not drawn. */
+  onSign?: () => void;
   /** The versions of the file; the point is where the button was pressed. Left out, the History button is not drawn. */
   onHistory?: (x: number, y: number) => void;
   /** The file's other actions (copy link, download); the point is where the button was pressed. Left out, the More button is not drawn. */
@@ -876,6 +879,9 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         },
         detailsOpen,
       )}
+      {props.onSign && props.compact !== true
+        ? iconBtn("Send for signature", ICON.sign, "vw-sign", () => props.onSign?.())
+        : null}
       {props.onHistory && props.compact !== true
         ? iconBtn("History", ICON.history, "vw-history", (e) => {
             const q = pressPoint(e);
@@ -893,6 +899,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
                 ? [
                     { label: "Find in file", onSelect: () => setFindOpen(true) },
                     ...(props.onHistory ? [{ label: "History", onSelect: () => props.onHistory?.(q.x, q.y) }] : []),
+                    ...(props.onSign ? [{ label: "Send for signature…", onSelect: () => props.onSign?.() }] : []),
                   ]
                 : undefined,
             );
