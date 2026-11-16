@@ -112,6 +112,8 @@ type Out = {
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
             onlyWhen?: {
@@ -246,6 +248,8 @@ type Out = {
                   "label": "Lead"
                 }
               ],
+              "inverseKey": "email",
+              "inverseTitle": "example",
               "key": "email",
               "label": "example",
               "onlyWhen": {

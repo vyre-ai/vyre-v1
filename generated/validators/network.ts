@@ -5,19 +5,19 @@ import type { Check } from './core.ts';
 
 function d_s_c89e548762(v: unknown, p: string, e: string[]): void {
 {
-const x992 = v;
-const g992 = typeOf(x992);
-const b992: string[] = []; lf(x992, p, b992, L0); if (b992.length) e.push(...b992);
-if (g992 === "object") {
-if (g992 === 'object') { const o992 = x992 as Record<string, unknown>;
-if (!("os" in o992)) e.push(p + "/os" + ': required');
-if (!("arch" in o992)) e.push(p + "/arch" + ': required');
-if (!("docker" in o992)) e.push(p + "/docker" + ': required');
-if (!("version" in o992)) e.push(p + "/version" + ': required');
-if ("os" in o992) lf(o992["os"], p + "/os", e, L1);
-if ("arch" in o992) lf(o992["arch"], p + "/arch", e, L1);
-if ("docker" in o992) lf(o992["docker"], p + "/docker", e, L3);
-if ("version" in o992) lf(o992["version"], p + "/version", e, L1);
+const x993 = v;
+const g993 = typeOf(x993);
+const b993: string[] = []; lf(x993, p, b993, L0); if (b993.length) e.push(...b993);
+if (g993 === "object") {
+if (g993 === 'object') { const o993 = x993 as Record<string, unknown>;
+if (!("os" in o993)) e.push(p + "/os" + ': required');
+if (!("arch" in o993)) e.push(p + "/arch" + ': required');
+if (!("docker" in o993)) e.push(p + "/docker" + ': required');
+if (!("version" in o993)) e.push(p + "/version" + ': required');
+if ("os" in o993) lf(o993["os"], p + "/os", e, L1);
+if ("arch" in o993) lf(o993["arch"], p + "/arch", e, L1);
+if ("docker" in o993) lf(o993["docker"], p + "/docker", e, L3);
+if ("version" in o993) lf(o993["version"], p + "/version", e, L1);
 }
 }
 }

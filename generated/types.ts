@@ -40116,6 +40116,8 @@ export type SyncSpecsApplyIn = {
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
             onlyWhen?: {
@@ -40261,6 +40263,8 @@ export type SyncSpecsGetOut = {
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
             onlyWhen?: {
@@ -40387,6 +40391,8 @@ export type SyncSpecsPreviewIn = {
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
             onlyWhen?: {
@@ -40636,6 +40642,8 @@ export type SyncSpecsValidateIn = {
                 label?: string;
               }>;
             relationTo?: string;
+            inverseKey?: string;
+            inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
             onlyWhen?: {
