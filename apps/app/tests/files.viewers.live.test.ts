@@ -63,6 +63,14 @@ test("a 30 page PDF is drawn as pages: find steps through, a comment pins to pag
     await page.waitForFunction(() => !!document.querySelector('[data-testid="vwp-page-12"] mark.vwf-on'), null, {
       timeout: 10_000,
     });
+    // the page number is set by the page coming into view, a frame or two after the match is marked: wait for it, then assert it (CI, 16 Nov 2026: read in that gap on a busy runner)
+    await page
+      .waitForFunction(
+        () => (document.querySelector('[data-testid="vw-page-input"]') as HTMLInputElement | null)?.value === "12",
+        null,
+        { timeout: 5_000 },
+      )
+      .catch(() => undefined);
     assert.equal(await page.getByTestId("vw-page-input").inputValue(), "12", "the page number follows the match");
     await page.getByTestId("vw-find-input").fill("");
     // jump to page 12 by its number
