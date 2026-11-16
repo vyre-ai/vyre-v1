@@ -175,6 +175,8 @@ const specField = t.obj({
   inverseKey: t.opt(t.str()),
   inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
+  key: t.opt(fieldKey),
+  onlyWhen: t.opt(t.obj({ path: specPointer, equals: t.union(t.str(), t.arr(t.str(), { minItems: 1 })) })),
 });
 const specCursor = t.obj({
   kind: t.enm("none", "page", "cursor", "offset", "link"),
@@ -187,8 +189,8 @@ const specCursor = t.obj({
 const specWrite = t.obj({
   path: t.str(),
   method: t.opt(t.enm("POST", "PUT", "PATCH", "DELETE")),
-  evidence: t.str({ description: "The docs page or quote that shows this call; a write without it is refused" }),
-  bodyAt: t.opt(t.str({ description: "Where in the body the properties go; empty: the body itself" })),
+  evidence: t.str(),
+  bodyAt: t.opt(t.str()),
   idAt: t.opt(specPointer),
 });
 const specObject = t.obj({
@@ -1298,6 +1300,7 @@ export default defineManifest({
           nextPollAt: t.opt(t.ts()),
           slowedDown: t.opt(t.obj({ words: t.str(), resumesAt: t.ts() })),
           links: t.opt(t.str()),
+          sealedWaiting: t.opt(t.obj({ count: t.int(), words: t.str() })),
           spec: t.bool(),
         },
         on: ["record_type", "/type"],

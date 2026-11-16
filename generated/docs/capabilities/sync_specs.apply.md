@@ -105,6 +105,11 @@ type In = {
             inverseKey?: string;
             inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -243,7 +248,12 @@ type Out = {
               ],
               "inverseKey": "example",
               "inverseTitle": "example",
+              "key": "email",
               "label": "example",
+              "onlyWhen": {
+                "equals": "example",
+                "path": "example"
+              },
               "path": "example",
               "readOnly": true,
               "relationTo": "example",

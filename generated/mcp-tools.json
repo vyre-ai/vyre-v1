@@ -61770,11 +61770,9 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
@@ -61803,11 +61801,9 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
@@ -61867,8 +61863,42 @@
                           "inverseTitle": {
                             "type": "string"
                           },
+                          "key": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
                           "label": {
                             "type": "string"
+                          },
+                          "onlyWhen": {
+                            "properties": {
+                              "equals": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                  }
+                                ]
+                              },
+                              "path": {
+                                "description": "JSON pointer such as /id; / is all",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "equals"
+                            ],
+                            "type": "object"
                           },
                           "path": {
                             "description": "JSON pointer such as /id; / is all",
@@ -62027,11 +62057,9 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
@@ -62424,11 +62452,9 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
@@ -62457,11 +62483,9 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
@@ -62521,8 +62545,42 @@
                           "inverseTitle": {
                             "type": "string"
                           },
+                          "key": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
                           "label": {
                             "type": "string"
+                          },
+                          "onlyWhen": {
+                            "properties": {
+                              "equals": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                  }
+                                ]
+                              },
+                              "path": {
+                                "description": "JSON pointer such as /id; / is all",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "equals"
+                            ],
+                            "type": "object"
                           },
                           "path": {
                             "description": "JSON pointer such as /id; / is all",
@@ -62681,11 +62739,9 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
@@ -63197,11 +63253,9 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
@@ -63230,11 +63284,9 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {
@@ -63294,8 +63346,42 @@
                           "inverseTitle": {
                             "type": "string"
                           },
+                          "key": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
                           "label": {
                             "type": "string"
+                          },
+                          "onlyWhen": {
+                            "properties": {
+                              "equals": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                  }
+                                ]
+                              },
+                              "path": {
+                                "description": "JSON pointer such as /id; / is all",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "equals"
+                            ],
+                            "type": "object"
                           },
                           "path": {
                             "description": "JSON pointer such as /id; / is all",
@@ -63454,11 +63540,9 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
-                          "description": "The docs page or quote that shows this call; a write without it is refused",
                           "type": "string"
                         },
                         "idAt": {

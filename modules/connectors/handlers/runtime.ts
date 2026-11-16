@@ -30,6 +30,8 @@ import {
   recordHosts,
   fillString,
   withoutSecretValues,
+  maskSealed,
+  SYNC_PASS_TOKEN,
   fillValue,
   clone,
   PAGE,
@@ -152,6 +154,8 @@ export interface ExecOpts {
   verdict?: (status: number, text: string) => void;
   /** Set by the runtime itself for the token call that stands before another action: only then does the token action's answer (the short-lived token) come back out of it. */
   tokenChain?: boolean;
+  /** The sync engine's own pass: it is given the real values of sealed fields. */
+  unmask?: boolean;
 }
 export interface ExecResult {
   output: unknown;
@@ -244,6 +248,24 @@ export async function clearReconnectTask(
 }
 
 /** Run one action of a connector. Throws the catalogue error for anything that goes wrong; the message and details never hold a secret. */
+/** The sync engine's pass says so with the process's own token inside the action's input; the token is taken out before the input is used. Anyone else's input is left as it is. */
+function passOf(input: unknown): { input: unknown; unmask: boolean } {
+  if (input !== null && typeof input === "object" && !Array.isArray(input) && "__unmask" in input) {
+    const { __unmask, ...rest } = input as Record<string, unknown>;
+    return { input: rest, unmask: __unmask === SYNC_PASS_TOKEN };
+  }
+  return { input, unmask: false };
+}
+
+/** An error body with sealed values masked (JSON read and written back; text that is not JSON is cut to nothing when the connector has sealed fields). */
+function maskedText(text: string, paths: readonly string[]): string {
+  try {
+    return JSON.stringify(maskSealed(JSON.parse(text) as unknown, paths));
+  } catch {
+    return "";
+  }
+}
+
 export async function executeAction(
   deps: ConnectorsDeps,
   ctx: ConnectorsCtx,
@@ -563,7 +585,7 @@ export async function executeAction(
     return refuse(ctx, "provider.bad_response", `The app refused the request (${res.status}).`, {
       status: res.status,
       // the service's own words for the refusal, guarded like an answer: a refusal that carries someone's token (an account list in an error) never shows it
-      body: scrub.text(withoutSecretValues(text)).slice(0, 200),
+      body: scrub.text(withoutSecretValues(def.sealed?.length ? maskedText(text, def.sealed) : text)).slice(0, 200),
     });
   }
   let parsed: unknown = text;
@@ -592,6 +614,8 @@ export async function executeAction(
     output = null;
   // no action hands a secret back, whatever the app put in its answer (an auth token of another account, a client secret): values under secret-named keys are never part of an output. The runtime's own token call is the one exception.
   if (o.tokenChain !== true) output = withoutSecretValues(output);
+  // a sealed field's value (and the other values of its item) is "[sealed]" for every caller but the sync engine's own pass
+  if (def.sealed?.length && o.unmask !== true) output = maskSealed(output, def.sealed);
   output = scrub.value(output);
   logRow(res.status, null);
   return { output, dryRun: false, status: res.status, ms };
@@ -677,6 +701,7 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
         http,
         persist: false,
         actor: "harness",
+        unmask: true, // a recorded case holds made-up values, and what it expects is compared as it is
       });
       if (t.expect?.error) {
         add(t.name, false, `expected the error ${t.expect.error}, got an output`);
@@ -1123,7 +1148,12 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         refuse(ctx, "validation.not_found", "There is no such connection.");
       if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system"))
         refuse(ctx, "validation.not_found", "There is no such connection.");
-      const out = await executeAction(deps, ctx, def, input.action, { connection: conn, input: input.input });
+      const pass = passOf(input.input);
+      const out = await executeAction(deps, ctx, def, input.action, {
+        connection: conn,
+        input: pass.input,
+        ...(pass.unmask ? { unmask: true } : {}),
+      });
       tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
       return { output: out.output };
     },
@@ -1141,10 +1171,12 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         refuse(ctx, "validation.not_found", "There is no such connection.");
       if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system"))
         refuse(ctx, "validation.not_found", "There is no such connection.");
+      const pass = passOf(input.input);
       const out = await executeAction(deps, ctx, JSON.parse(c.def) as ConnectorDef, input.action, {
         connection: conn,
-        input: input.input,
+        input: pass.input,
         dryRun: input.dryRun === true,
+        ...(pass.unmask ? { unmask: true } : {}),
       });
       if (!out.dryRun)
         tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
