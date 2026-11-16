@@ -1,0 +1,1 @@
+A first pull that fails part way (the app answers an error, drops the connection, or the connection is briefly unavailable) tries again by itself, 30 seconds then longer up to 10 minutes, and carries on from where it stopped instead of waiting for someone to press Sync.
