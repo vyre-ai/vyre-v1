@@ -293,6 +293,8 @@ export function scriptedModel(
     };
     // like the real engine, a cancel stops the turn that is running: the plan's pending await is left behind and the turn ends without a word more
     const live = new Set<() => void>();
+    // a cancel is not lost when it comes before the send starts (the Stop reaches the session while the turn is still being set up): the next send is stopped at once, like a real session's
+    let cancelled = false;
     return {
       warm: true,
       async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
@@ -306,6 +308,10 @@ export function scriptedModel(
           stop = () => resolve("stopped");
         });
         live.add(stop);
+        if (cancelled) {
+          cancelled = false; // it stops this one send; a session kept warm serves the next turn normally
+          stop();
+        }
         try {
           const held = o.gate?.(input);
           if (held && (await Promise.race([held.then(() => "go" as const), stopped])) === "stopped") return;
@@ -331,6 +337,7 @@ export function scriptedModel(
       inject() {},
       async cancel() {
         if (process.env["SCRIPTED_DEBUG"]) console.log("CANCEL", live.size);
+        cancelled = live.size === 0;
         for (const f of [...live]) f();
       },
       async close() {
