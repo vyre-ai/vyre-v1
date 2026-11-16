@@ -20,6 +20,11 @@ export const MAX_INLINE = 256 * 1024;
 export const MAX_UPLOAD = 25 * 1024 * 1024;
 /** What a refused direct write says: the limit, and what to do (an agent that was only told "over the size limit" did not know how large was too large or what to try). */
 export const TOO_LARGE_WORDS = `This file is over the ${MAX_INLINE / 1024} KB limit for a direct write. Split the content into smaller files, each under ${MAX_INLINE / 1024} KB.`;
+/** The most a direct write may carry. The document fill is a server-side maker of whole files (a template with a letterhead picture is over the direct-write limit), so the call it makes
+ * (the pipeline names the calling capability in ctx.callerCap; a caller cannot set it) is held to the upload limit, the same one files.upload_url holds. */
+export function inlineLimit(ctx: Pick<Ctx, "callerCap">): number {
+  return ctx.callerCap === "documents.fill" ? MAX_UPLOAD : MAX_INLINE;
+}
 const UPLOAD_MS = 15 * 60 * 1000;
 const PAGE_DEFAULT = 100;
 /** A deep list reads at most this many files, newest first, before access and paging. */
@@ -911,7 +916,8 @@ async function blobForPlain(
   plain: Uint8Array,
   mime: string,
 ): Promise<{ id: string; hash: string; size: number }> {
-  if (plain.byteLength > MAX_INLINE) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
+  if (plain.byteLength > MAX_UPLOAD) fail(ctx, "validation.too_large", "This file is over the size limit.");
+  if (plain.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
   const hash = await sha256(plain);
   const existing = one(ctx, "SELECT * FROM files_blob WHERE hash = ?", hash);
   if (existing) return { id: String(existing.id), hash, size: num(existing.size) };
