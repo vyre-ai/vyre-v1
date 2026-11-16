@@ -108,3 +108,100 @@ export function refPicks(kind: "types" | "forms" | "journeys", out: unknown): Re
   }
   return picks;
 }
+
+/** The things a field can hold the id of, by the id's prefix: which list to ask, and which row field is the id and which the name. Never shown as ids. */
+export interface ThingKind {
+  cap: string;
+  input: Record<string, unknown>;
+  /** The step's own settings the list needs before it can be asked (a record's type). */
+  needs?: string;
+  key: string;
+  ids: string[];
+  names: string[];
+  word: string;
+}
+export const THINGS: Record<string, ThingKind> = {
+  chn: {
+    cap: "channels.list",
+    input: { limit: 200 },
+    key: "channels",
+    ids: ["id", "channelId"],
+    names: ["name", "title"],
+    word: "channel",
+  },
+  mbx: {
+    cap: "mail.mailbox.list",
+    input: { limit: 200 },
+    key: "mailboxes",
+    ids: ["id", "mailboxId"],
+    names: ["address", "name"],
+    word: "mailbox",
+  },
+  agt: { cap: "agents.list", input: {}, key: "agents", ids: ["agentId", "id"], names: ["name"], word: "agent" },
+  aut: { cap: "automations.list", input: {}, key: "automations", ids: ["id"], names: ["name"], word: "automation" },
+  jrn: { cap: "journeys.list", input: {}, key: "journeys", ids: ["id"], names: ["name"], word: "journey" },
+  frm: {
+    cap: "forms.list",
+    input: { limit: 200 },
+    key: "forms",
+    ids: ["formId", "id"],
+    names: ["name", "title"],
+    word: "form",
+  },
+  fil: {
+    cap: "files.list",
+    input: { section: "space", deep: true, limit: 200 },
+    key: "files",
+    ids: ["fileId", "id"],
+    names: ["name"],
+    word: "file",
+  },
+  fld: {
+    cap: "files.list",
+    input: { section: "space", limit: 200 },
+    key: "folders",
+    ids: ["id", "folderId"],
+    names: ["name"],
+    word: "folder",
+  },
+  con: {
+    cap: "connections.list",
+    input: { whose: "all", limit: 200 },
+    key: "connections",
+    ids: ["connectionId", "id"],
+    names: ["title"],
+    word: "connection",
+  },
+  rec: {
+    cap: "records.search",
+    input: { q: "", limit: 200 },
+    needs: "type",
+    key: "rows",
+    ids: ["id"],
+    names: ["fields.name", "fields.title", "fields.full_name", "fields.email"],
+    word: "record",
+  },
+};
+export interface ThingPick {
+  value: string;
+  label: string;
+}
+export function thingPicks(kind: ThingKind, out: unknown): ThingPick[] {
+  const rows = rec(out) && Array.isArray(out[kind.key]) ? (out[kind.key] as unknown[]) : [];
+  const picks: ThingPick[] = [];
+  for (const raw of rows) {
+    if (!rec(raw)) continue;
+    const at = (k: string): string =>
+      text(k.split(".").reduce<unknown>((o, part) => (rec(o) ? o[part] : undefined), raw));
+    const value = kind.ids.map(at).find((v) => v !== "") ?? "";
+    const label = kind.names.map(at).find((v) => v !== "") ?? "";
+    if (value !== "" && label !== "") picks.push({ value, label });
+  }
+  return picks;
+}
+/** What to ask the list with: its own input and, for a record, the type the step already names. Null when the step does not name it yet. */
+export function thingInput(kind: ThingKind, step: Record<string, unknown>): Record<string, unknown> | null {
+  if (!kind.needs) return kind.input;
+  const v = step[kind.needs];
+  return typeof v === "string" && v !== "" && !/\{\{/.test(v) ? { [kind.needs]: v, ...kind.input } : null;
+}

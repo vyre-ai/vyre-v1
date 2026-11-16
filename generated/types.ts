@@ -39110,6 +39110,7 @@ export type SpacesOnboardingFlowOut = {
       key: string;
       state: "done" | "later";
     }>;
+  fresh: boolean;
 };
 export type SpacesOnboardingGetIn = Record<string, unknown>;
 export type SpacesOnboardingGetOut = {

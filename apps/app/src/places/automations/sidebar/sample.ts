@@ -680,6 +680,7 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
     return next;
   };
   const writes: Record<string, (input: any) => unknown> = {
+    "tasks.act": () => ({}),
     "automations.senders": () => ({
       senders: [{ id: "snd_1", channel: "text", address: "+14155550100", usable: true }],
     }),

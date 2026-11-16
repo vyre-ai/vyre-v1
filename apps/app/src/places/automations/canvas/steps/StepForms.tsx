@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import type { MenuEntry } from "../../../../../../../ui/src/Menu/index.tsx";
 import { unnamed } from "../../../chats/names.ts";
 import { Avatar } from "../../../../../../../ui/src/Avatar/index.tsx";
-import { ChipText, Choice, TextBox, Group, Hint, More, Rows, Segmented } from "../fields.tsx";
+import { ChipText, Choice, TextBox, Group, Hint, More, Rows, Segmented, ReturnsLine } from "../fields.tsx";
 import { useOpenConnect } from "../../../../shell/connect/context.ts";
 import { connectEntries } from "../../../../shell/connect/model.ts";
 import { REMOVED_KEY, cardTitle, updateStep } from "../model.ts";
@@ -52,7 +52,14 @@ import type { Load } from "./useLists.ts";
 import type { AgentPick, VaultPick, WhoPick } from "./picks.ts";
 import { taskAgents } from "./picks.ts";
 
-export type OpenMenu = (entries: MenuEntry[], x: number, y: number, kind: "other") => void;
+export type OpenMenu = (
+  entries: MenuEntry[],
+  x: number,
+  y: number,
+  kind: "other",
+  context?: undefined,
+  opts?: { search?: string; width?: number },
+) => void;
 interface Props {
   def: Definition;
   node: DefNode;
@@ -65,6 +72,12 @@ const show = (v: unknown): string =>
 const inputOf = (node: DefNode): Input => (node.input ?? {}) as Input;
 const sentence = (load: Load<unknown>, none: string): string | null =>
   load.state === "loading" ? "Loading..." : load.state === "unavailable" ? none : null;
+
+/** What a step gives to later steps, named the way Insert data names it there ("Ask AI · Text"). */
+const returnsOf = (node: DefNode, parts: readonly string[]): string[] => {
+  const t = cardTitle(node);
+  return parts.map((p) => `${t} \u00b7 ${p}`);
+};
 
 // ---------------------------------------------------------------- HTTP request
 
@@ -201,6 +214,7 @@ export function HttpForm({ def, node, onChange, openMenu, vault }: Props & { vau
           ) : null}
         </>
       )}
+      <ReturnsLine testID="http-returns" labels={returnsOf(node, ["Status", "Body"])} />
       <Group head="Authentication" testID="http-auth">
         <Choice
           label="Sign the request with"
@@ -332,6 +346,7 @@ export function CodeForm({ def, node, onChange }: Omit<Props, "openMenu">): Reac
         testID="rows-input"
         onCommit={(rows) => write(withField(input, "input", recordOf(rows, true)))}
       />
+      <ReturnsLine testID="code-returns" labels={returnsOf(node, ["Result"])} />
       <TextBox
         label="Hosts it may reach"
         value={hostsText ?? hosts.join("\n")}
@@ -884,6 +899,15 @@ export function AiForm({
             )}
           </>
         ) : null}
+        <ReturnsLine
+          testID="ai-returns"
+          labels={returnsOf(
+            node,
+            answer === "json" && flat && flat.length > 0
+              ? flat.map((p) => p.key.replace(/^./, (c) => c.toUpperCase()))
+              : ["Text"],
+          )}
+        />
       </Group>
       <Group head="Before it goes on" testID="ai-review">
         <Choice label="Reviewer" value={whoLine(ai.reviewer)} testID="choose-reviewer" onOpen={pickWho("reviewer")} />

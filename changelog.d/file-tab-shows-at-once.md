@@ -1,0 +1,1 @@
+Coming back to a file that is open in a tab shows it at once: what it showed last is drawn straight away and read again behind it, and a file is read in one round instead of five steps one after another.

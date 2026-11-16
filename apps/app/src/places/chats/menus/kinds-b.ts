@@ -77,6 +77,10 @@ export interface AutomationFacts {
 }
 export interface AutomationDo {
   open(): void;
+  /** Ask for a new name. Absent where the host cannot ask. */
+  rename?(): void;
+  /** Make a copy named "(copy)". Absent where the host cannot. */
+  duplicate?(): void;
   run(): void;
   setEnabled(on: boolean): void;
   test(): void;
@@ -86,9 +90,20 @@ export interface AutomationDo {
   copyLink(): void;
   remove(): void;
 }
+/** Rename and Duplicate, the two entries the list's menu and the page's menu share. */
+export function renameDuplicate(
+  f: Pick<AutomationFacts, "canEdit">,
+  d: Pick<AutomationDo, "rename" | "duplicate">,
+): MenuEntry[] {
+  return [
+    f.canEdit && d.rename ? item(ellipsis("Rename"), d.rename) : null,
+    f.canEdit && d.duplicate ? item("Duplicate", d.duplicate) : null,
+  ].filter((x): x is MenuItem => x !== null);
+}
 export function automationMenu(f: AutomationFacts, d: AutomationDo): MenuEntry[] {
   return tidy([
     item("Open", d.open, { hint: KEY.enter }),
+    ...renameDuplicate(f, d),
     f.canRun ? item("Run Now", d.run) : null,
     f.canEdit
       ? f.enabled

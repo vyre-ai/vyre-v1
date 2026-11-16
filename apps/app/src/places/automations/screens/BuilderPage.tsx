@@ -6,6 +6,9 @@ import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { renameDuplicate } from "../../chats/menus/kinds-b.ts";
+import { createMenuApiB } from "../../chats/menus/actions-b.ts";
+import { TextAsk } from "../../chats/menus/TextAsk.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
@@ -169,6 +172,7 @@ function Body({
   const { element, show } = useMenu();
   const locked = a.kind === "space" && (canEdit === undefined ? data.canSpace === false : !canEdit);
   const [tab, setTab] = useState<Tab>(phone ? "runs" : initialTab);
+  const [renaming, setRenaming] = useState(false);
   // on a phone a run and its fix work; building (the steps page) says it opens on a computer
   const phoneFix = phone && initialSelected !== null;
   // the draft lives on the server, saved as the person edits (AUTOMATIONS-BUILD-RC29 1c); this is the copy being typed into
@@ -670,7 +674,7 @@ function Body({
             const node = def.nodes.find((n) => n.id === st.step);
             let values: readonly (readonly [string, string])[] = [];
             try {
-              values = node ? inputValues(node.key, io?.input, (id) => data.name(id)) : [];
+              values = node ? inputValues(node.key, io?.input, (id) => thingNames[id] ?? data.name(id)) : [];
             } catch {
               values = [];
             }
@@ -840,7 +844,29 @@ function Body({
   };
   const openMore = (e: unknown): void => {
     const p = pos(e);
+    const menuApi = createMenuApiB(data);
     const items: MenuEntry[] = [
+      // the same Rename and Duplicate as the row's own menu in the list
+      ...(locked
+        ? []
+        : [
+            ...renameDuplicate(
+              { canEdit: true },
+              {
+                rename: () => setRenaming(true),
+                duplicate: () =>
+                  void menuApi
+                    .automationDuplicate(a.id)
+                    .then(() => flash("A copy is in your Automations"))
+                    .catch((x: unknown) => flash(x instanceof Error ? x.message : "No copy was made")),
+              },
+            ),
+            {
+              label: a.status === "on" ? "Turn Off" : "Turn On",
+              onSelect: () => void setEnabled(a.status !== "on"),
+            } as MenuEntry,
+            { separator: true } as MenuEntry,
+          ]),
       { label: "History", onSelect: () => setTab("history") },
       { label: "Move running work to this version", onSelect: () => setTab("history") },
       { label: "Make a copy to share", onSelect: () => setPackagesOpen(true) },
@@ -1109,7 +1135,21 @@ function Body({
       {connectOpen ? (
         <ConnectSheet
           apps={sheetApps}
-          known={[]}
+          known={ADDABLE_APPS}
+          onAdd={(c) => {
+            // a known app goes through the shared connect flow over this page; any other starts the Describe flow
+            if (c.kind === "known" && openConnect) {
+              setConnectOpen(false);
+              void openConnect({ kind: "connector", service: c.id }).then((made) => {
+                if (!made) return;
+                setCatalogTick((n) => n + 1);
+                flash(`${c.label} is connected. Its steps are in Your apps.`);
+              });
+              return;
+            }
+            setConnectOpen(false);
+            data.nav.buildConnector?.();
+          }}
           onSetup={(id) => {
             const o = vaultOffers.find((x) => x.appName.toLowerCase() === id);
             setConnectOpen(false);
@@ -1137,9 +1177,32 @@ function Body({
         </Overlay>
       ) : null}
       {element}
+      {renaming ? (
+        <TextAsk
+          title="Rename this Automation"
+          label="Name"
+          action="Rename"
+          initial={a.name}
+          onDone={(name) => {
+            setRenaming(false);
+            void createMenuApiB(data)
+              .automationRename(a.id, name)
+              .catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not change"));
+          }}
+          onClose={() => setRenaming(false)}
+        />
+      ) : null}
     </Page>
   );
 }
+
+/** The apps the shared connect flow signs in to (shell/connect/sheets.tsx ConnectorSheet): what Add an app can search for. */
+const ADDABLE_APPS: readonly { id: string; name: string }[] = [
+  { id: "google", name: "Google Workspace" },
+  { id: "microsoft", name: "Microsoft 365" },
+  { id: "github", name: "GitHub" },
+  { id: "dropbox", name: "Dropbox" },
+];
 
 /** An app's own steps keep the app they belong to, whether or not this person may use it. */
 function appOf(s: CatalogStep): { app?: { id: string; name: string } } {

@@ -110,19 +110,27 @@ test("streaming: a half-written last row waits for its closing pipe, and finishe
   );
 });
 
-test("a table agrees with the editor's Markdown reader about what a table is", () => {
+test("a table agrees with the editor's Markdown reader about what a table is, and about its shape", () => {
+  // The editor reads a table as a table of cells (an mdTable node: one mdRow per line, the header row first), not as a raw block of text.
   for (const [md, isTable] of [
     [TABLE, true],
     ["| not | a table |\nsome text\n", false],
     ["a | b\n---|---\n1 | 2\n", true],
     ["| A |\n|---|\n| 1 |\n", true],
   ] as const) {
-    const chat = parseChunk(md, 0).some((b) => b.kind === "table");
-    const editor = (markdownToDoc(md).content ?? []).some(
-      (n) => n.type === "rawBlock" && n.attrs?.["kind"] === "table",
+    const chatBlock = parseChunk(md, 0).find((b) => b.kind === "table");
+    const editorTable = (markdownToDoc(md).content ?? []).find((n) => n.type === "mdTable");
+    assert.equal(chatBlock !== undefined, isTable, `chat: ${JSON.stringify(md)}`);
+    assert.equal(editorTable !== undefined, isTable, `editor: ${JSON.stringify(md)}`);
+    assert.ok(
+      !(markdownToDoc(md).content ?? []).some((n) => n.type === "rawBlock" && n.attrs?.["kind"] === "table"),
+      `editor keeps no table as raw text: ${JSON.stringify(md)}`,
     );
-    assert.equal(chat, isTable, `chat: ${JSON.stringify(md)}`);
-    assert.equal(editor, isTable, `editor: ${JSON.stringify(md)}`);
+    if (chatBlock?.kind === "table" && editorTable) {
+      const rows = editorTable.content ?? [];
+      assert.equal(rows.length, chatBlock.rows.length + 1, `same rows: ${JSON.stringify(md)}`);
+      assert.equal(rows[0]?.content?.length, chatBlock.head.length, `same columns: ${JSON.stringify(md)}`);
+    }
   }
 });
 

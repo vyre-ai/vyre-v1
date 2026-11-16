@@ -25,7 +25,7 @@ import { asFixture } from "../builder/fields.ts";
 import { DataShelf, MappingFix, advancedInputEdit, basicFieldEdit, nodeIdSet } from "../builder/marks.tsx";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { glyphOf, tintOf } from "../picker/glyphs.ts";
-import { Choice, DataWordsContext, TextBox, MapTargetContext, More } from "./fields.tsx";
+import { Choice, DataWordsContext, TextBox, MapTargetContext, More, Segmented } from "./fields.tsx";
 import type { DataWords } from "./fields.tsx";
 import { mappingExpression, shelfRows, withExpression } from "../builder/fields.ts";
 import type { MapTarget } from "./fields.tsx";
@@ -54,11 +54,13 @@ import { arrangeControls, controlsFor, humanize, specOf } from "./form-model.ts"
 import { actOf } from "../story/issues.ts";
 import { chipForIssue } from "../../../../../../lib/words/step-missing.ts";
 import type { GiveRow } from "../builder/insert-data.ts";
-import { addChip, chipLabel } from "./steps/edits.ts";
+import { addChip, chipLabel, waitModeOf, withWaitMode } from "./steps/edits.ts";
+import type { WaitMode } from "./steps/edits.ts";
 import { inputValues } from "../builder/step-values.ts";
 import type { IconKey } from "./model.ts";
 import type { DefNode, DefTrigger, Definition, Issue, KeyChoice } from "./model.ts";
 import { LiveStepForm } from "./steps/LiveStepForm.tsx";
+import { THINGS } from "./steps/picks.ts";
 import type { KeysStatus } from "./data.tsx";
 import { useOptionalAutomationsData } from "./data.tsx";
 import { SendApproval, sendsOutward } from "./AskBeforeSending.tsx";
@@ -434,9 +436,24 @@ export function Inspector({
   // an engineering line ("Twilio · action messages.create") and an id no name can be found for are not the person's to read: they stay in the step's saved settings and in Advanced
   const nameOfId = (id: string): string | null =>
     accounts.find((a) => a.id === id)?.title ?? keys.find((k) => k.id === id)?.name ?? null;
+  // a field the form picks by name (a file, a folder, a record, a connection, a channel) shows its name, so its id is never an unnamed one
+  const picked = new Set(
+    [
+      ...arrangeControls(node.key, controlsFor(inputSchema)).main,
+      ...arrangeControls(node.key, controlsFor(inputSchema)).details,
+    ]
+      .filter((c) => c.ref !== undefined && THINGS[c.ref] !== undefined)
+      .map((c) => c.name),
+  );
   const opaqueId = (name: string): boolean => {
     const v = node.input?.[name];
-    return /Ids?$/.test(name) && typeof v === "string" && /^[a-z]{2,6}_[A-Za-z0-9]+$/.test(v) && nameOfId(v) === null;
+    return (
+      !picked.has(name) &&
+      /Ids?$/.test(name) &&
+      typeof v === "string" &&
+      /^[a-z]{2,6}_[A-Za-z0-9]+$/.test(v) &&
+      nameOfId(v) === null
+    );
   };
   const skipField = (name: string): boolean =>
     skipAccount(name) || onTheStep(name) || name === "summary" || opaqueId(name);
@@ -447,7 +464,11 @@ export function Inspector({
     onChange(updateStep(def, node.id, { input }));
   };
   const arranged = arrangeControls(node.key, controlsFor(inputSchema));
-  const controls = arranged.main;
+  // a Wait waits for a time or for an event: one is chosen at the top and only that kind's fields show
+  const waitMode = node.key === "wait" ? waitModeOf(node.input ?? {}) : null;
+  const controls = waitMode
+    ? arranged.main.filter((c) => (waitMode === "event" ? c.name === "event" : c.name !== "event"))
+    : arranged.main;
   const covered = new Set([...arranged.main, ...arranged.details].map((c) => c.name));
   const skipControl = (c: { name: string }): boolean => skipField(c.name);
   const stray: ReactElement[] = [];
@@ -476,6 +497,19 @@ export function Inspector({
       onInput={(next) => onChange(updateStep(def, node.id, { input: next }))}
     />
   );
+  if (waitMode)
+    fields.push(
+      <Segmented
+        key={`${node.id}-wait-mode`}
+        testID="wait-mode"
+        value={waitMode}
+        onPick={(k) => onChange(updateStep(def, node.id, { input: withWaitMode(node.input ?? {}, k as WaitMode) }))}
+        options={[
+          { key: "time", label: "A time" },
+          { key: "event", label: "An event" },
+        ]}
+      />,
+    );
   fields.push(
     <SchemaForm
       key={`${node.id}-schema`}

@@ -480,6 +480,24 @@ export function More({
   );
 }
 
+/** What a step gives to the steps after it, as the data pills Insert data offers there: "Comes back as [Ask AI · Text]". Not a field: nothing here is edited. */
+export function ReturnsLine({ labels, testID }: { labels: readonly string[]; testID?: string }): ReactElement | null {
+  if (labels.length === 0) return null;
+  return (
+    <View style={f.returns} testID={testID}>
+      <Text style={f.returnsLabel}>Comes back as</Text>
+      {/* ui-rows-lint: not a list (chips set in one line of a sentence, nothing to select) */}
+      {labels.map((l) => (
+        <View key={l} style={f.chip}>
+          <Text numberOfLines={1} style={f.chipLabel}>
+            {l}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function Hint({
   children,
   testID,
@@ -545,6 +563,7 @@ export function Rows({
 }): ReactElement {
   const [local, setLocal] = useState<Pair[]>(() => [...pairs]);
   const map = useContext(MapTargetContext);
+  const words = useContext(DataWordsContext);
   const isValid = (p: Pair): boolean => p.key.trim() !== "" && !(check && check(p.key));
   const saved = JSON.stringify(pairs);
   useEffect(() => {
@@ -600,6 +619,18 @@ export function Rows({
             </Text>
             <Glyph name="chevD" size={12} color="var(--ink-3)" />
           </Pressable>
+        ) : words && /\{\{[^{}]*\}\}/.test(p.value) ? (
+          // a value that holds data reads as chips ("Trigger · Count"), never as {{ }}
+          <View style={f.pairValue}>
+            <ChipText
+              compact
+              label={`${label} ${valueLabel.toLowerCase()} ${n + 1}`}
+              value={p.value}
+              testID={`${testID}-value-${n}`}
+              chipLabel={(ref) => chipWords(ref, words.titleOf)}
+              onCommit={(v) => write(local.map((q, at) => (at === n ? { ...q, value: v } : q)))}
+            />
+          </View>
         ) : (
           <TextInput
             accessibilityLabel={`${label} ${valueLabel.toLowerCase()} ${n + 1}`}
@@ -727,6 +758,8 @@ export const f = StyleSheet.create({
     maxWidth: 220,
   },
   chipLabel: { fontSize: 12, color: "var(--ink)" as string, flexShrink: 1 },
+  returns: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
+  returnsLabel: { fontSize: 12.5, color: "var(--ink-3)" as string },
   moreHead: { flexDirection: "row", alignItems: "center", gap: 6, height: 24 },
   seg: {
     flexDirection: "row",

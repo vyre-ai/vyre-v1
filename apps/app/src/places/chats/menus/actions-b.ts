@@ -17,6 +17,9 @@ export interface MenuApiB {
   automationPersonalCopy(automationId: string): Promise<void>;
   automationMove(automationId: string, groupId: string | null): Promise<void>;
   automationTrash(automationId: string): Promise<void>;
+  automationRename(automationId: string, name: string): Promise<void>;
+  /** A copy named "<name> (copy)" with the same steps; it is the person's own and starts off. */
+  automationDuplicate(automationId: string): Promise<void>;
   // Goals
   goalPause(goalId: string): Promise<void>;
   goalResume(goalId: string): Promise<void>;
@@ -70,6 +73,17 @@ export function createMenuApiB(data: Call): MenuApiB {
       c("automations.make_personal_copy", { automationId, idempotencyKey: key("copy", automationId) }),
     automationMove: (automationId, groupId) => c("automations.move", { automationId, groupId }),
     automationTrash: (automationId) => c("automations.delete", { automationId }),
+    automationRename: (automationId, name) => c("automations.update", { automationId, name }),
+    automationDuplicate: async (automationId) => {
+      const got = (await data.call("automations.get", { automationId })) as {
+        automation: { name: string; definition: unknown };
+      };
+      await data.call("automations.create", {
+        name: `${got.automation.name} (copy)`,
+        definition: got.automation.definition,
+        idempotencyKey: key("dup", automationId),
+      });
+    },
 
     goalPause: (goalId) => c("goals.pause", { goalId }),
     goalResume: (goalId) => c("goals.resume", { goalId }),

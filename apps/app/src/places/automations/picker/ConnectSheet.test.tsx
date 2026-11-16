@@ -120,3 +120,24 @@ test("an app just added shows at the top, ready, with an optional link to the Va
   await press(find(root, "cs-open-vault"));
   assert.deepEqual(calls, ["vault"]);
 });
+
+// rc.32 lane r32-auto, item 5: a click in Add an app is always defined; with no card of its own to draw it starts the same flow as Another app
+test("an app chosen under Add an app starts the Describe flow when the sheet has no card of its own", async () => {
+  const { calls, el } = setup();
+  const root = await mount(createRoot, el);
+  await typeInto(find(root, "cs-add-search"), "hub");
+  await press(find(root, "row-cs-add-hubspot"));
+  await flush();
+  assert.deepEqual(calls, ["describe"]);
+});
+
+test("the host can take an app chosen under Add an app: a known app by its id, any other by its name", async () => {
+  const chosen: string[] = [];
+  const { calls, el } = setup({ onAdd: (c) => chosen.push(c.kind === "known" ? `known:${c.id}` : `custom:${c.name}`) });
+  const root = await mount(createRoot, el);
+  await typeInto(find(root, "cs-add-search"), "hub");
+  await press(find(root, "row-cs-add-hubspot"));
+  await flush();
+  assert.deepEqual(chosen, ["known:hubspot"]);
+  assert.deepEqual(calls, [], "nothing else started");
+});

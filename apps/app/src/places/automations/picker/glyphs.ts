@@ -21,6 +21,7 @@ const OF: Readonly<Record<string, readonly string[]>> = {
   forms: PATHS.inbox,
   ai: PATHS.ai,
   logic: PATHS.branch,
+  code: PATHS.code,
   more: PATHS.more,
   plug: ["M6 2v3M10 2v3M4.5 5h7v3a3.5 3.5 0 01-7 0zM8 11.5V14"],
 };
@@ -50,6 +51,7 @@ const TINT: Readonly<Record<string, string>> = {
   forms: "#7c5cdb",
   ai: "#d946a8",
   logic: "#6b7280",
+  code: "#6b7280",
   more: "#6b7280",
   plug: "#6b7280",
 };

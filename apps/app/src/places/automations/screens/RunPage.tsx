@@ -2,7 +2,8 @@
 // that opens the step and one that runs it again. Read from the run's step log and the Automation's story; nothing here shows an id or a code.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { RunChat } from "../runs/index.ts";
 import { useAutomationsData } from "../canvas/data.tsx";
 import { loadProductCatalog } from "../catalog/model.ts";
@@ -12,6 +13,9 @@ import { fromDefinition } from "../story/adapt.ts";
 import { look } from "./look.ts";
 import { RunView } from "./RunView.tsx";
 import { BuilderPage } from "./BuilderPage.tsx";
+import { ApprovalCard } from "../approvals/ApprovalCard.tsx";
+import { loadApproval } from "../approvals/load.ts";
+import type { ApprovalCard as Card } from "../approvals/model.ts";
 
 interface StepLog {
   step: string;
@@ -31,6 +35,8 @@ const valuesOf = (out: unknown): readonly (readonly [string, string])[] =>
 
 export function RunPage({ runId }: { runId: string }): ReactElement {
   const data = useAutomationsData();
+  // on a phone the one step's form takes the page, with a way back to the run; beside the rows there is no room for it
+  const phone = isPhoneWidth(useWindowDimensions().width);
   const [tick, setTick] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   // the fix opens on this page: the step's own form, in place, then the run goes again on the version it was fixed in
@@ -43,6 +49,7 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
     titles: Record<string, { title: string; app?: { id: string; name: string } }>;
     test: boolean;
     outward: ReadonlySet<string>;
+    approval?: Card | null;
   } | null>(null);
   useEffect(() => {
     let live = true;
@@ -68,6 +75,17 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
               automation: { definition: Parameters<typeof fromDefinition>[0] };
             }
           ).automation.definition;
+        // a run that waits for an approval shows the card the approver answers
+        const approval =
+          run.run.status === "waiting" && subject?.type === "automation" && definition
+            ? await loadApproval({
+                call: data.call,
+                me: data.me.id,
+                automationId: subject.id,
+                runId,
+                def: definition,
+              }).catch(() => null)
+            : null;
         const cat = await loadProductCatalog((cap, input) => data.call(cap, input));
         const titles = cat.ok ? Object.fromEntries(cat.catalog.all.map((s) => [s.key, { title: s.title }])) : {};
         const outward = new Set(cat.ok ? cat.catalog.all.filter((c) => c.effects === "outward").map((c) => c.key) : []);
@@ -80,6 +98,7 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
             titles,
             test: run.run.kind === "automation_test",
             outward,
+            approval,
           });
       } catch {
         if (live)
@@ -124,7 +143,11 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
           why: plain(st.error?.message ?? "It could not run."),
           fix: "Fix it here",
         };
-      else if (st.state === "waiting") results[st.step] = { status: "waiting", line: "Waiting" };
+      else if (st.state === "waiting")
+        results[st.step] = {
+          status: "waiting",
+          line: state.approval ? "Waiting for your answer" : "Waiting for an answer",
+        };
     }
     return runView(story.steps, results, story.trigger ?? undefined);
   }, [state]);
@@ -149,18 +172,36 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
   return (
     <View testID="run-page" style={s.page}>
       <View style={s.cols}>
-        <View style={s.rows}>
-          <RunView view={view} onFix={() => setFixing((f) => !f)} />
-          {view.banner && !fixing ? (
-            <Pressable testID="run-again" accessibilityRole="button" style={[look.btn, s.again]} onPress={runAgain}>
-              <Text style={look.btnText}>Run again</Text>
-            </Pressable>
-          ) : null}
-          {note ? <Text style={look.quiet}>{note}</Text> : null}
-        </View>
+        {phone && fixing ? null : (
+          <View style={s.rows}>
+            {state.approval ? <ApprovalCard card={state.approval} onAnswered={() => setTick((t) => t + 1)} /> : null}
+            <RunView view={view} onFix={() => setFixing((f) => !f)} />
+            {view.banner && !fixing ? (
+              <Pressable testID="run-again" accessibilityRole="button" style={[look.btn, s.again]} onPress={runAgain}>
+                <Text style={look.btnText}>Run again</Text>
+              </Pressable>
+            ) : null}
+            {note ? <Text style={look.quiet}>{note}</Text> : null}
+          </View>
+        )}
         {fixing ? (
           // the one step's form, in a side panel of this page; the rows stay where they are
-          <View testID="run-fix" style={s.fix}>
+          <View testID="run-fix" style={[s.fix, phone ? s.fixPhone : null]}>
+            {phone ? (
+              <Pressable
+                testID="run-fix-back"
+                accessibilityRole="button"
+                onPress={() => setFixing(false)}
+                style={s.fixBack}
+              >
+                <Text style={look.btnText}>Back to the run</Text>
+              </Pressable>
+            ) : null}
+            {phone && view.banner ? (
+              <Text testID="run-fix-why" style={[look.body, s.fixWhy]}>
+                {view.banner.text}
+              </Text>
+            ) : null}
             <View style={s.fixBody}>
               <BuilderPage
                 automationId={state.automationId}
@@ -189,6 +230,9 @@ const s = StyleSheet.create({
   rows: { flex: 1, minWidth: 0, gap: 10 },
   fixBody: { flex: 1, minHeight: 360 },
   fixFoot: { margin: 12, alignSelf: "stretch", alignItems: "center" },
+  fixPhone: { width: "100%" as unknown as number, flex: 1 },
+  fixWhy: { paddingHorizontal: 14, paddingBottom: 6 },
+  fixBack: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4 },
   again: { alignSelf: "flex-start" },
   fix: {
     width: 380,

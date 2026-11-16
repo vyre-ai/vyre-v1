@@ -64,7 +64,7 @@ test("a wide table grows to the pane while text keeps its column; Edit scrolls a
     });
     console.log("F96 scroll owners", JSON.stringify(owner));
     const box = (await page.getByTestId("file-md-editor").boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.move(box.x + box.width / 2, 450);
     await page.mouse.wheel(0, 900);
     await page.waitForTimeout(400);
     const moved: string[] = await page.evaluate(() => {
@@ -79,23 +79,7 @@ test("a wide table grows to the pane while text keeps its column; Edit scrolls a
       `the wheel scrolls the editor in Edit (${moved.join(", ")})`,
     );
     await s.shot("owner-F96-edit-scrolled");
-    const raw = await page.evaluate(() => {
-      const r = document.querySelector("pre.vyre-raw, .vyre-raw") as HTMLElement | null;
-      if (!r) return null;
-      const cs = getComputedStyle(r);
-      return {
-        font: cs.fontFamily.slice(0, 40),
-        ox: cs.overflowX,
-        sw: r.scrollWidth,
-        cw: r.clientWidth,
-        white: cs.whiteSpace,
-      };
-    });
-    console.log("F96 raw table", JSON.stringify(raw));
-    assert.ok(
-      raw && raw.ox === "auto" && raw.white === "pre",
-      "the table in Edit is a monospace block that scrolls sideways, not wrapped text",
-    );
+    assert.equal(await page.locator("pre.vyre-raw").count(), 0, "a table in Edit is a table, not raw pipes");
   } finally {
     await s.close();
   }

@@ -9,7 +9,11 @@ import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app
 
 const PASSWORD = "fixture password 123";
 
-export async function session(t: { skip(m?: string): void }, size = { width: 1440, height: 900 }) {
+export async function session(
+  t: { skip(m?: string): void },
+  size = { width: 1440, height: 900 },
+  colorScheme?: "dark" | "light",
+) {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) {
     if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
@@ -21,7 +25,11 @@ export async function session(t: { skip(m?: string): void }, size = { width: 144
   const space = await bootFreshSpace();
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
-  const ctx = await browser.newContext({ viewport: size, deviceScaleFactor: 1 });
+  const ctx = await browser.newContext({
+    viewport: size,
+    deviceScaleFactor: 1,
+    ...(colorScheme ? { colorScheme } : {}),
+  });
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));

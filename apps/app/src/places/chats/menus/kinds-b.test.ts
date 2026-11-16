@@ -426,3 +426,25 @@ test("console group, role, computer, number and domain: Manage shows the changin
   ])
     dangerLast(e);
 });
+
+test("automation: Rename and Duplicate follow Open for an editor, in the page's words, and are not offered where the host gives no way to do them or the person may not edit", () => {
+  const d = {
+    ...autoDo,
+    setEnabled: rec("enabled"),
+    move: rec("move"),
+    rename: rec("rename"),
+    duplicate: rec("duplicate"),
+  };
+  assert.deepEqual(labels(automationMenu(autoFacts(), d)).slice(0, 5), [
+    "Open",
+    "Rename…",
+    "Duplicate",
+    "Run Now",
+    "Turn Off",
+  ]);
+  const member = labels(automationMenu(autoFacts({ canEdit: false, canRun: false, canDelete: false }), d));
+  assert.ok(!member.includes("Rename…") && !member.includes("Duplicate"), member.join("|"));
+  assert.ok(
+    !labels(automationMenu(autoFacts(), { ...autoDo, setEnabled: rec("e"), move: rec("m") })).includes("Rename…"),
+  );
+});
