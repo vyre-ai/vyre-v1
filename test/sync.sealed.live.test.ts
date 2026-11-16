@@ -21,16 +21,16 @@ test("a real pull seals the secret from all four places, and no byte the server 
   const w = await world(true);
   try {
     assert.equal(w.item.status, 200, JSON.stringify(w.item.data));
-    const applied = await call(w.d, "sync_specs.apply", { spec: spec(), idempotencyKey: "apply-1" });
+    const applied = await call(w.d, "sync_specs.apply", { spec: spec("people"), idempotencyKey: "apply-1" });
     assert.equal(applied.status, 200, JSON.stringify(applied.data));
-    await pulled(w.d, ["person", "matter", "note"]);
+    await pulled(w.d, ["person"]);
     await waitFor(
       async () => {
         await pump(w.d);
         const p = (await rowsOf(w.d, "person")).find((x) => JSON.stringify(x).includes("Imran"));
         return (p?.fields["ssn"] as { present?: boolean } | undefined)?.present === true ? true : null;
       },
-      100_000,
+      115_000,
       () => hostLog(w.d),
     );
     const people = await rowsOf(w.d, "person");

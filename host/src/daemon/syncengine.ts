@@ -952,7 +952,14 @@ export function createSyncEngine(o: {
       // sealed values still waiting for the Vault: once a pull is whole, the app is read again from the start to fill them
       try {
         const owedRow = tx.get<{ n: number }>("SELECT n FROM sy_sealed_wait WHERE sync_type = ?", b.syncTypeId);
-        if (owedRow && owedRow.n > 0 && progress && (progress as { done?: boolean }).done !== false)
+        // owed with nothing held in memory (the server restarted): read the app again; otherwise the held values are simply tried again
+        if (
+          owedRow &&
+          owedRow.n > 0 &&
+          !(waiting.get(b.syncTypeId)?.size ?? 0) &&
+          progress &&
+          (progress as { done?: boolean }).done !== false
+        )
           progress = undefined;
       } catch {
         /* nothing owed */
