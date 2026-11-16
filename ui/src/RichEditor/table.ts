@@ -93,6 +93,26 @@ export const MdHeader = Node.create({
   },
 });
 
+/**
+ * Brings the editor's cursor to where the browser's cursor is. The browser tells the editor about a moved cursor in a later turn; a key (or a paste) that reaches the page
+ * before that turn, as it does on a slow computer, would otherwise act on the cell the cursor was in before the click. Found 16 Nov 2026: Tab after a click went nowhere.
+ */
+export function syncCursor(view: EditorView): void {
+  const sel = view.dom.ownerDocument.getSelection();
+  if (sel === null || sel.anchorNode === null || sel.focusNode === null) return;
+  if (!view.dom.contains(sel.anchorNode) || !view.dom.contains(sel.focusNode)) return;
+  try {
+    const anchor = view.posAtDOM(sel.anchorNode, sel.anchorOffset);
+    const head = view.posAtDOM(sel.focusNode, sel.focusOffset);
+    const now = view.state.selection;
+    if (now.anchor === anchor && now.head === head) return;
+    const { doc } = view.state;
+    view.dispatch(view.state.tr.setSelection(TextSelection.between(doc.resolve(anchor), doc.resolve(head))));
+  } catch {
+    // a cursor the editor cannot place (between pieces it draws itself): leave the editor's own
+  }
+}
+
 /** Enter goes to the cell below; in the last row it adds a row first. */
 const goDown: Cmd = (state, dispatch) => {
   if (!isInTable(state) || dispatch === undefined) return isInTable(state);
@@ -237,6 +257,7 @@ function pastePlugin(): Plugin {
   return new Plugin({
     props: {
       handlePaste(view, event) {
+        syncCursor(view);
         const cd = (event as ClipboardEvent).clipboardData;
         const text = cd?.getData("text/plain") ?? "";
         const html = cd?.getData("text/html") ?? "";
@@ -304,9 +325,18 @@ export const MdTableEditing = Extension.create({
   },
   addKeyboardShortcuts() {
     return {
-      Tab: () => goAcross(this.editor.state, this.editor.view.dispatch),
-      "Shift-Tab": () => isInTable(this.editor.state) && goToNextCell(-1)(this.editor.state, this.editor.view.dispatch),
-      Enter: () => isInTable(this.editor.state) && goDown(this.editor.state, this.editor.view.dispatch),
+      Tab: () => {
+        syncCursor(this.editor.view);
+        return goAcross(this.editor.state, this.editor.view.dispatch);
+      },
+      "Shift-Tab": () => {
+        syncCursor(this.editor.view);
+        return isInTable(this.editor.state) && goToNextCell(-1)(this.editor.state, this.editor.view.dispatch);
+      },
+      Enter: () => {
+        syncCursor(this.editor.view);
+        return isInTable(this.editor.state) && goDown(this.editor.state, this.editor.view.dispatch);
+      },
     };
   },
 });
