@@ -1,0 +1,1 @@
+Under a finished reply, the work line (how long and how many steps) opens to its steps, and each step opens to what it did: what it touched, whether it worked and how long it took. No step shows an id.

@@ -48,6 +48,7 @@ import { ReplyHover } from "../details/ReplyCard.tsx";
 import type { ReplyDetailsActions } from "../details/ReplyCard.tsx";
 import { LearnedLines } from "../memory/Learned.tsx";
 import type { MenuMessage, ShowMenu } from "../memory/menu.tsx";
+import { StepRow } from "./step-row.tsx";
 import { SubjectText, useSubjectBlocks } from "../memory/Subjects.tsx";
 import { ReplyLessonsMark } from "../memory/LessonMark.tsx";
 import { ReplyMemory } from "../memory/Used.tsx";
@@ -1351,15 +1352,13 @@ function Theirs({
             <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part="line" />
           )}
           {collect(work.steps, (l) => (
-            <View key={l.id} testID={`step-${l.id}`} style={st.step}>
-              <View style={[st.stepDot, l.state === "live" && st.stepLive, l.state === "error" && st.stepError]} />
-              <Text style={st.stepTitle}>{l.title}</Text>
-              {l.sub ? (
-                <Text numberOfLines={1} style={st.stepSub}>
-                  {l.sub}
-                </Text>
-              ) : null}
-            </View>
+            <StepRow
+              key={l.id}
+              line={l}
+              threadId={m.threadId}
+              messageId={m.messageId}
+              {...(actions.files ? { call: actions.files.call } : {})}
+            />
           ))}
         </Fold>
       ) : null}
@@ -2121,6 +2120,8 @@ export function ErrorRowView({
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<[string, string][] | null>(null);
   const [retried, setRetried] = useState(false);
+  // Dismiss puts the row away on this screen (G67); the message and its turn stay in the chat's history
+  const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
     if (!open || detail !== null || e.turnId === "" || !actions.turnDetail) return undefined;
     let live = true;
@@ -2191,8 +2192,10 @@ export function ErrorRowView({
       : []),
   ];
   const [fix, ...otherSteps] = steps;
+  if (dismissed) return <View testID="err-dismissed" />;
   const more: MenuEntry[] = [
     ...otherSteps.map((s) => ({ label: s.label, onSelect: s.run })),
+    { label: "Dismiss", onSelect: () => setDismissed(true) },
     { label: "Details", onSelect: () => setOpen((o) => !o) },
     { label: "Copy id", onSelect: () => actions.copy(e.traceId || e.turnId) },
     { label: "Report", onSelect: () => reportProblem({ label: reportLabel(e.message, e.traceId) }) },
@@ -2369,12 +2372,7 @@ export const st = StyleSheet.create({
   /** under an agent's message for its person, read by the teammate it went to (lane l-agentdm) */
   muteLine: { marginTop: 4 },
   body: { paddingRight: 8, marginBottom: -BLOCK_GAP },
-  step: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24 },
-  stepDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
-  stepLive: { backgroundColor: "var(--ok)" as string },
-  stepError: { backgroundColor: "var(--danger)" as string },
   stepTitle: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
-  stepSub: { flexShrink: 1, fontSize: 12, color: "var(--ink-4)" as string },
   hover: {
     position: "absolute",
     // above the message's top-right corner: the bar's own height (28) sits over the gap between messages, never over the words

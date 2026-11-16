@@ -26,6 +26,7 @@ import { isTurnStatus } from "./status.ts";
 import { route } from "../../../../../../lib/route.ts";
 import { agentForPerson } from "../../../../../../lib/words/agent-name.ts";
 import { chatName } from "../../../../../../lib/chat-name.ts";
+import { withoutRawIds } from "../../../../../../lib/id-shapes.ts";
 
 export type Thread = CapMap["threads.get"]["out"]["thread"];
 export type Message = CapMap["chat.messages.list"]["out"]["messages"][number];
@@ -261,11 +262,38 @@ export interface StepLine {
   title: string;
   sub: string;
   state: MessageBlock["state"];
+  /** Which tool call of the turn this is (0 for the first), when it is one: the host's own record of it, read when the step is opened. */
+  tool?: number;
+  /** How the host recorded it ending, from the saved result: undefined when no result was saved. */
+  ok?: boolean;
+  /** Whole seconds it took, when the host measured it. */
+  secs?: number;
+}
+
+/** A step's words with no id in them (a file's or a chat's id never shows); nothing left reads "A step". */
+const plainStep = (text: string): string => withoutRawIds(text) || "A step";
+
+/** What a step did, in a sentence a person reads when they open it: what it touched (the host's note of it, no ids), then how it ended and how long it took. */
+export function stepDid(line: StepLine, tool?: { args?: string; ok?: boolean; durationMs?: number }): string {
+  const ok = tool?.ok ?? line.ok;
+  const ms = tool?.durationMs ?? (line.secs !== undefined ? line.secs * 1000 : undefined);
+  const touched = withoutRawIds(tool?.args ?? line.sub).slice(0, 200);
+  const took = ms === undefined ? "" : ms < 1000 ? " in under a second" : ` in ${workTime(Math.round(ms / 1000))}`;
+  const end =
+    ok === false ? "It did not work" : ok === undefined && line.state === "live" ? "Still running" : `Done${took}`;
+  return touched ? `${touched}. ${end}.` : `${end}.`;
 }
 
 export function stepLine(b: MessageBlock): StepLine {
   const d = dataOf(b);
-  return { id: b.id, title: str(d.title) || b.type.replaceAll("_", " "), sub: str(d.sub), state: b.state };
+  return {
+    id: b.id,
+    title: plainStep(str(d.title) || b.type.replaceAll("_", " ")),
+    sub: str(d.sub),
+    state: b.state,
+    ...(typeof d.ok === "boolean" ? { ok: d.ok } : {}),
+    ...(typeof d.secs === "number" ? { secs: d.secs } : {}),
+  };
 }
 
 export interface Work {
@@ -289,18 +317,33 @@ export function workOf(m: Message): Work | null {
   const tools = m.blocks.filter(isToolStep);
   const steps = [...m.blocks.filter(isStep), ...tools.filter((b) => b.type === "tool_call" || b.type === "tool_steps")];
   if (steps.length === 0) return null;
-  const lines = steps.map((b) =>
-    b.type === "tool_call"
-      ? {
-          id: b.id,
-          title: stepLabel(str(dataOf(b).name), str(dataOf(b).detail) || undefined),
-          sub: "",
-          state: "done" as const,
-        }
-      : b.type === "tool_steps"
-        ? { id: b.id, title: `${num(dataOf(b).calls)} steps`, sub: "", state: "done" as const }
-        : stepLine(b),
-  );
+  // the saved result of each call, by the call's id: how it ended and how long it took
+  const ended = new Map<string, { ok?: boolean; secs?: number }>();
+  for (const b of tools)
+    if (b.type === "tool_result") {
+      const d = dataOf(b);
+      ended.set(str(d.id), {
+        ...(typeof d.ok === "boolean" ? { ok: d.ok } : {}),
+        ...(typeof d.secs === "number" ? { secs: d.secs } : {}),
+      });
+    }
+  let calls = 0;
+  const lines: StepLine[] = steps.map((b) => {
+    if (b.type === "tool_call") {
+      const done = ended.get(str(dataOf(b).id));
+      return {
+        id: b.id,
+        title: plainStep(stepLabel(str(dataOf(b).name), str(dataOf(b).detail) || undefined)),
+        sub: "",
+        state: "done" as const,
+        tool: calls++,
+        ...(done ?? {}),
+      };
+    }
+    return b.type === "tool_steps"
+      ? { id: b.id, title: `${num(dataOf(b).calls)} steps`, sub: "", state: "done" as const }
+      : stepLine(b);
+  });
   steps.push(...tools.filter((b) => b.type === "tool_result")); // their times count, they are not lines of their own
   const live = lines.some((l) => l.state === "live");
   // the whole turn when the host said how long it took (thinking and writing too), else the time of the steps
@@ -1070,4 +1113,16 @@ export function presenceLine(typing: readonly string[], working: readonly string
   if (t.length > 0) parts.push(`${list(t)} ${t.length === 1 ? "is" : "are"} typing`);
   if (w.length > 0) parts.push(`${list(w)} ${w.length === 1 ? "is" : "are"} working`);
   return parts.length === 0 ? "" : `${parts.join(", ")}\u2026`;
+}
+
+/** The decision a thread reached (G55): the words of the newest "Noted: decision" line posted in it (chat.noted writes it as a quiet card), or null while there is none. */
+export function decisionOf(messages: readonly Message[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    for (const b of messages[i]!.blocks) {
+      if (b.type !== "link_card") continue;
+      const d = dataOf(b);
+      if (/^Noted: decision/.test(str(d.lead)) && str(d.title) !== "") return withoutRawIds(str(d.title)) || null;
+    }
+  }
+  return null;
 }

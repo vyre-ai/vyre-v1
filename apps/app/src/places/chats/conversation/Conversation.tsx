@@ -171,6 +171,7 @@ import {
   withoutAnswered,
   faceDoor,
   peopleIn,
+  decisionOf,
 } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
@@ -307,14 +308,13 @@ function useLiveTurns(data: ConversationData): readonly import("../../../shell/s
 }
 
 /** The lead of this chat runs outside Vyre and has gone quiet: said plainly above the composer, because a message here will wait. Only its owner can read it, and only its owner can ask it. */
-/** A menu opened low in the chat opens upward instead of over the composer: its top is pulled up so its bottom stays above the composer's top (the rows are about 28 px each). */
-function aboveComposer(y: number, rows: number): number {
+/** The composer's top edge: a menu opened low in the chat opens upward from the pointer instead of over the composer. Infinity where the composer is not drawn. */
+function composerTop(): number {
   const doc = (
     globalThis as { document?: { querySelector(s: string): { getBoundingClientRect(): { top: number } } | null } }
   ).document;
   const top = doc?.querySelector('[data-testid="composer"]')?.getBoundingClientRect().top;
-  if (typeof top !== "number" || top <= 0) return y;
-  return y + rows * 28 + 16 > top - 8 ? Math.max(8, top - 8 - (rows * 28 + 16)) : y;
+  return typeof top === "number" && top > 0 ? top : Number.POSITIVE_INFINITY;
 }
 
 /** The people (ids) typing in this chat now, from the live link; empty where nothing is live. */
@@ -1659,8 +1659,9 @@ function ConversationView(): ReactElement {
       setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id));
       unsay();
     },
+    // a message's menu opens at the pointer and flips to the left at the window's right edge and upward above the composer (owner, 16 Nov)
     showMenu: (entries, x, y, label, source) =>
-      menu.show(entries, x, aboveComposer(y, entries.length), source ?? "context", { label }),
+      menu.show(entries, x, y, source ?? "context", { label }, { flip: true, bottomLimit: composerTop() - 8 }),
     ...(lead
       ? {
           liveCard: {
@@ -2095,6 +2096,7 @@ function ConversationView(): ReactElement {
             kindOf={data.kindOf}
             clock={data.clock()}
             count={thread.replyCount ?? all.length}
+            decided={decisionOf(all)}
             writing={writingName}
             onOpen={
               thread.parentThreadId && thread.parentMessageId
