@@ -62,7 +62,10 @@ for (const skin of ["graphite", "paper"])
       const boxOf = async (i) => (await rows.nth(i).boundingBox()) ?? { x: 0, y: 200, width: w, height: 40 };
       const menuBox = async (label) => {
         const m = page.getByTestId("menu");
-        const ok = await m.waitFor({ timeout: 4000 }).then(() => true, () => false);
+        const ok = await m.waitFor({ timeout: 4000 }).then(
+          () => true,
+          () => false,
+        );
         if (!ok) {
           report.push(`${tag} ${label}: no menu opened`);
           return null;
@@ -75,11 +78,16 @@ for (const skin of ["graphite", "paper"])
       await page.mouse.click(Math.round(mb.x + mb.width - 8), Math.round(mb.y + mb.height / 2), { button: "right" });
       const m1 = await menuBox("right edge");
       await shot("menu-flip-left");
-      if (m1) report.push(`${tag} right edge: pointer ${Math.round(mb.x + mb.width - 8)}, menu x ${Math.round(m1.x)} to ${Math.round(m1.x + m1.width)} of ${w}`);
+      if (m1)
+        report.push(
+          `${tag} right edge: pointer ${Math.round(mb.x + mb.width - 8)}, menu x ${Math.round(m1.x)} to ${Math.round(m1.x + m1.width)} of ${w}`,
+        );
       await page.keyboard.press("Escape");
       // bottom: the last message, the pointer low in the window
       const last = await boxOf(n - 1);
-      await page.mouse.click(Math.round(w / 2), Math.min(last.y + Math.min(12, last.height / 2), h - 90), { button: "right" });
+      await page.mouse.click(Math.round(w / 2), Math.min(last.y + Math.min(12, last.height / 2), h - 90), {
+        button: "right",
+      });
       const m2 = await menuBox("bottom");
       await shot("menu-flip-up");
       if (m2) report.push(`${tag} bottom: menu y ${Math.round(m2.y)} to ${Math.round(m2.y + m2.height)} of ${h}`);
@@ -114,15 +122,26 @@ for (const skin of ["graphite", "paper"])
     // G55 the thread's decision; G4 Rewind in the head menu; G67 a failed row's menu has Dismiss
     if (PARTS.includes("rows")) {
       await go("/m/R32CHAT_01?part=decided");
-      await page.waitForSelector("[data-testid=thread-decided]", { timeout: 8000 }).catch(() => report.push(`${tag} no decided line`));
+      await page
+        .waitForSelector("[data-testid=thread-decided]", { timeout: 8000 })
+        .catch(() => report.push(`${tag} no decided line`));
       await shot("G55-thread-decided");
       await go("/m/CHATFRAME_01");
-      await page.locator("[data-testid=more-button]").first().click({ timeout: 4000 }).catch(() => report.push(`${tag} no head menu`));
+      await page
+        .locator("[data-testid=more-button]")
+        .first()
+        .click({ timeout: 4000 })
+        .catch(() => report.push(`${tag} no head menu`));
       await shot("G4-head-menu-rewind");
       await page.keyboard.press("Escape");
       await go("/m/CARDS_01?part=err");
-      await page.waitForSelector("[data-testid=err-more]", { timeout: 8000 }).catch(() => report.push(`${tag} no error card`));
-      await page.getByTestId("err-more").click({ timeout: 3000 }).catch(() => undefined);
+      await page
+        .waitForSelector("[data-testid=err-more]", { timeout: 8000 })
+        .catch(() => report.push(`${tag} no error card`));
+      await page
+        .getByTestId("err-more")
+        .click({ timeout: 3000 })
+        .catch(() => undefined);
       await shot("G67-error-row-menu");
       await page.keyboard.press("Escape");
     }

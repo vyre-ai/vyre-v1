@@ -41,7 +41,11 @@ export default function Mount(): ReactNode {
           threadId="thr_1"
           messageId="m1"
           call={async () => ({
-            message: { author: { id: "usr_sara" }, body: "Which vendor should we use for the Northwind rollout?", createdAt: Date.UTC(2026, 10, 16, 9, 30) },
+            message: {
+              author: { id: "usr_sara" },
+              body: "Which vendor should we use for the Northwind rollout?",
+              createdAt: Date.UTC(2026, 10, 16, 9, 30),
+            },
           })}
           nameOf={() => "Sara Malik"}
           clock={{ now: Date.UTC(2026, 10, 16, 10, 0), offsetMin: 0 }}
