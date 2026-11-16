@@ -31,6 +31,7 @@ export interface BindingRow {
     relation?: string;
     inverse?: string;
     constant?: string;
+    sealed?: boolean;
   }[];
   match: string[];
   createAtSource: boolean;
@@ -237,6 +238,10 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
 }
 
 const RATE_CODES = new Set(["rate_limit.exceeded", "provider.rate_limited"]);
+/** Waits in a row, with nothing answered between, before a pass gives up on an app that keeps saying slow down. */
+const SLOW_DOWNS = 8;
+const SLOW_DOWN_FIRST_MS = 30_000;
+const SLOW_DOWN_CAP_MS = 480_000;
 const pause = (ms: number): Promise<void> =>
   new Promise((ok) => {
     setTimeout(ok, ms);
@@ -249,12 +254,21 @@ export function remoteStore(
   opts: {
     sleep?: (ms: number) => Promise<void>;
     /** Tells one pass from the next: the same call in another pass is a new call, not a replay of the old answer. */ nonce?: string;
+    /** The app asked Vyre to slow down: the wait in milliseconds, before it starts. */
+    onSlow?: (waitMs: number) => void;
+    /** A call went through again after a wait. */
+    onResume?: () => void;
+    /** Fields of this object that are sealed: their values are taken out of every row the moment it is read and handed to `held`, never left in the row's data. */
+    sealed?: { remote: string; local: string }[];
+    /** Remote keys of the form "=join:/first|/last": a title made of several parts of the row, joined with a space, empty parts left out. */
+    joins?: string[];
   } = {},
 ): Store & {
   updatedAtOf(id: string): number;
   page(after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string }>;
   supportsSince: boolean;
   lazy: boolean;
+  held: Map<string, { at: number; values: Record<string, string | null> }>;
 } {
   const one = oneOf(b.remote);
   const names = namesFor(objects, b.remote);
@@ -265,9 +279,18 @@ export function remoteStore(
     nameDelete = names.delete ?? `delete_${one}`;
   const stamps = new Map<string, number>();
   const sleep = opts.sleep ?? pause;
-  // A pass over thousands of records is many calls. An app (or the connection's own limit) that says slow down is waited for, not failed: the call is tried again after a short pause.
+  // A pass over thousands of records is many calls. An app (or the connection's own budget) that says slow down is waited for, not failed. The wait is what the app asked (Retry-After), or the connection's own
+  // refill time; with no Retry-After the connection backs off from 30 s, doubling. Only after SLOW_DOWNS waits in a row with nothing answered does the pass give up (and then it counts as a failed pass).
+  const waitOf = (e: unknown): { code?: string; ms?: number } => {
+    const err = isObj(e) && isObj(e["error"]) ? e["error"] : undefined;
+    const code = err && typeof err["code"] === "string" ? err["code"] : undefined;
+    const details = err && isObj(err["details"]) ? err["details"] : undefined;
+    const ms = details && typeof details["retryAfterMs"] === "number" ? details["retryAfterMs"] : undefined;
+    return { ...(code !== undefined ? { code } : {}), ...(ms !== undefined ? { ms } : {}) };
+  };
+  let slowedDowns = 0;
   const run = async (action: string, input: unknown): Promise<unknown> => {
-    for (let wait = 0; ; wait++) {
+    for (let own = 0; ; own++) {
       try {
         // a list is a read: it does not wait at the Gate when the pass runs as an agent or the host; a write goes through connectors.run
         const reading = action === nameList || action === nameAfter;
@@ -278,19 +301,65 @@ export function remoteStore(
           input,
           idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}|${opts.nonce ?? ""}`).slice(0, 32)}`,
         })) as { output?: unknown };
+        if (slowedDowns > 0) {
+          slowedDowns = 0;
+          opts.onResume?.();
+        }
         return out.output;
       } catch (e) {
-        const code = isObj(e) && isObj(e["error"]) ? e["error"]["code"] : undefined;
-        if (typeof code !== "string" || !RATE_CODES.has(code) || wait >= 40) throw e;
-        await sleep(Math.min(1500, 250 * (wait + 1)));
+        const { code, ms } = waitOf(e);
+        if (code === undefined || !RATE_CODES.has(code)) throw e;
+        if (code === "provider.rate_limited") {
+          // the app asked Vyre to slow down
+          if (slowedDowns >= SLOW_DOWNS) throw e;
+          slowedDowns++;
+          const wait = ms ?? Math.min(SLOW_DOWN_CAP_MS, SLOW_DOWN_FIRST_MS * 2 ** (slowedDowns - 1));
+          opts.onSlow?.(wait);
+          await sleep(wait);
+        } else {
+          // the connection's own budget is spent: wait until it has room again
+          if (own >= 400) throw e;
+          await sleep(ms !== undefined ? Math.max(50, Math.min(ms, 60_000)) : Math.min(1500, 250 * (own + 1)));
+        }
       }
     }
+  };
+  /** Sealed values read in this pass, by the app's id for the record: taken out of the row's data at once. */
+  const held = new Map<string, { at: number; values: Record<string, string | null> }>();
+  const takeSealed = (r: RemoteRow): RemoteRow["data"] => {
+    const fields = opts.sealed ?? [];
+    const joins = opts.joins ?? [];
+    if ((!fields.length && !joins.length) || !isObj(r.data)) return r.data;
+    const data = { ...r.data } as Record<string, unknown>;
+    for (const j of joins) {
+      const parts: string[] = [];
+      for (const p of j.slice("=join:".length).split("|")) {
+        const v = data[p];
+        const t = typeof v === "string" ? v.trim() : typeof v === "number" || typeof v === "boolean" ? String(v) : "";
+        if (t !== "") parts.push(t);
+      }
+      data[j] = parts.length ? parts.join(" ") : null;
+    }
+    if (!fields.length) return data as RemoteRow["data"];
+    const values: Record<string, string | null> = {};
+    for (const f of fields) {
+      const v = data[f.remote];
+      delete data[f.remote];
+      values[f.local] =
+        typeof v === "string" && v.trim() !== ""
+          ? v.trim()
+          : typeof v === "number" || typeof v === "boolean"
+            ? String(v)
+            : null;
+    }
+    held.set(r.id, { at: r.updatedAt, values });
+    return data as RemoteRow["data"];
   };
   const toRecord = (r: RemoteRow, version = 1): StoredRecord => ({
     type: b.remote,
     id: r.id,
     version,
-    data: r.data as StoredRecord["data"],
+    data: takeSealed(r) as StoredRecord["data"],
     created_at: r.updatedAt,
     updated_at: r.updatedAt,
     ...(r.archived ? { deleted_at: r.updatedAt || 1 } : {}),
@@ -375,6 +444,7 @@ export function remoteStore(
     page,
     supportsSince: names.since === true,
     lazy: names.since === true,
+    held,
   });
 }
 
@@ -386,22 +456,24 @@ const bindingOf = (b: BindingRow, relations: Map<string, string> = new Map()): S
   remote: b.remote,
   connector: b.connector,
   label: b.connector,
-  fields: b.fields.map((f) => ({
-    local: f.key,
-    remote: f.remote,
-    direction: f.dir,
-    ...(f.transform !== undefined ? { transform: f.transform } : {}),
-    ...(f.constant !== undefined ? { constant: f.constant } : {}),
-    ...(f.relation !== undefined && relations.has(f.relation)
-      ? {
-          relation: {
-            syncTypeId: relations.get(f.relation)!,
-            type: f.relation,
-            ...(f.inverse !== undefined ? { inverse: f.inverse } : {}),
-          },
-        }
-      : {}),
-  })),
+  fields: b.fields
+    .filter((f) => f.sealed !== true)
+    .map((f) => ({
+      local: f.key,
+      remote: f.remote,
+      direction: f.dir,
+      ...(f.transform !== undefined ? { transform: f.transform } : {}),
+      ...(f.constant !== undefined ? { constant: f.constant } : {}),
+      ...(f.relation !== undefined && relations.has(f.relation)
+        ? {
+            relation: {
+              syncTypeId: relations.get(f.relation)!,
+              type: f.relation,
+              ...(f.inverse !== undefined ? { inverse: f.inverse } : {}),
+            },
+          }
+        : {}),
+    })),
   match: b.match,
   createAtSource: b.createAtSource,
   deletes: b.deletes !== "off",
@@ -463,9 +535,38 @@ export function createSyncEngine(o: {
     binding: SyncBindingLike;
   }> => {
     const { store, tx } = o.local.open();
+    // what the Sync page says while the app has asked Vyre to slow down: that it did, and when the pull goes on
+    const slow = {
+      onSlow: (waitMs: number): void => {
+        const at = (o.now ?? Date.now)();
+        try {
+          tx.exec(
+            "CREATE TABLE IF NOT EXISTS sy_slow (sync_type TEXT PRIMARY KEY, since INTEGER NOT NULL, resume_at INTEGER NOT NULL)",
+          );
+          tx.run(
+            "INSERT INTO sy_slow (sync_type, since, resume_at) VALUES (?, ?, ?) ON CONFLICT(sync_type) DO UPDATE SET resume_at = excluded.resume_at",
+            b.syncTypeId,
+            at,
+            at + waitMs,
+          );
+        } catch {
+          /* the note is for the Sync page only: the wait itself still happens */
+        }
+      },
+      onResume: (): void => {
+        try {
+          tx.run("DELETE FROM sy_slow WHERE sync_type = ?", b.syncTypeId);
+        } catch {
+          /* no note was made */
+        }
+      },
+    };
     const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector), {
       ...(o.sleep ? { sleep: o.sleep } : {}),
       nonce: ctx.trace.traceId,
+      ...slow,
+      sealed: b.fields.filter((f) => f.sealed === true).map((f) => ({ remote: f.remote, local: f.key })),
+      joins: b.fields.filter((f) => f.remote.startsWith("=join:")).map((f) => f.remote),
     });
     // a relation names a record type; the engine needs the synced type that pulls it, to turn the app's id into a link
     const relations = new Map<string, string>();
@@ -496,6 +597,42 @@ export function createSyncEngine(o: {
     async run(ctx, b, opts) {
       const { deps, binding, remote, tx } = await depsOf(ctx, b);
       const dry = opts.mode === "dry_run";
+      // A pass over a type with sealed fields: after the engine has made or updated the records, each sealed value read in the pass is sealed into its record (Records puts it in the Vault and keeps a reference).
+      // The value is never in the engine's own tables (base, conflicts, outbox): it was taken out of the row when the row was read. A value the app sent empty clears the field.
+      const sealedIn = async (): Promise<void> => {
+        for (const [remoteId, got] of remote.held) {
+          const link = tx.get<{ local_id: string }>(
+            "SELECT local_id FROM sy_links WHERE sync_type = ? AND remote_id = ? AND (removed_at IS NULL OR removed_at = 0)",
+            b.syncTypeId,
+            remoteId,
+          );
+          if (!link) continue;
+          const rec = await deps.local.get(b.type, link.local_id);
+          if (!rec) continue;
+          const patch: Record<string, unknown> = {};
+          for (const [local, value] of Object.entries(got.values)) {
+            const have = rec.data[local];
+            const haveRef = isObj(have) && typeof have["ref"] === "string" ? have : undefined;
+            if (value === null) {
+              if (haveRef) patch[local] = null;
+            } else if (
+              !haveRef ||
+              got.at === 0 ||
+              got.at > (typeof haveRef["set_at"] === "number" ? haveRef["set_at"] : 0)
+            )
+              patch[local] = { sealed: true, value };
+          }
+          // through records.update: that is the one door that puts a sealed value in the Vault and keeps the reference (the Space store itself refuses a sealed value)
+          if (Object.keys(patch).length)
+            await ctx.call("records.update", { type: b.type, recordId: link.local_id, patch });
+        }
+        remote.held.clear();
+      };
+      const runSyncS: SyncCore["runSync"] = async (d, bnd, o2) => {
+        const r = await o.core.runSync(d, bnd, o2);
+        if (!o2?.dryRun && !dry) await sealedIn();
+        return r;
+      };
       // The first pull (and a backfill) reads the app a group of pages at a time and keeps its place; the next pass carries on from there. Newest first is the app's own order (the spec's list query sorts).
       // After it, an app that can answer "changed since" is polled for only that; what the app deleted is found by a sweep once a day. An app that cannot is listed whole every poll.
       // the sync tables are made by the first pass: before it there is no place kept, and this is the first pull
@@ -574,7 +711,7 @@ export function createSyncEngine(o: {
             .all<{ remote_id: string }>("SELECT remote_id FROM sy_seen WHERE sync_type = ?", b.syncTypeId)
             .map((x) => x.remote_id),
         );
-        const r = await o.core.runSync(deps, binding, { mode: "both", partial: [], sweepSeen: ids, ...common });
+        const r = await runSyncS(deps, binding, { mode: "both", partial: [], sweepSeen: ids, ...common });
         tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
         const { sweep: _done, ...rest } = p;
         save({ ...rest, sweepAt: startedAt });
@@ -583,7 +720,7 @@ export function createSyncEngine(o: {
       const deltaStep = async (p: Progress): Promise<RunOut> => {
         const d = p.delta ?? { since: p.hwm ?? 0, newHwm: startedAt - SINCE_OVERLAP_MS };
         const g = await group(d.after, d.since);
-        const r = await o.core.runSync(deps, binding, {
+        const r = await runSyncS(deps, binding, {
           mode: "both",
           partial: g.rows,
           pushLocalSince: p.lastStart ?? d.since,
@@ -605,7 +742,7 @@ export function createSyncEngine(o: {
           progress ??= { pulled: 0, done: false };
           const began = progress.began ?? startedAt;
           const g = await group(progress.after);
-          const r = await o.core.runSync(deps, binding, { mode: "both", partial: g.rows, ...common });
+          const r = await runSyncS(deps, binding, { mode: "both", partial: g.rows, ...common });
           const total = progress.pulled + g.rows.length;
           const saved: Progress =
             g.next !== undefined
@@ -625,7 +762,7 @@ export function createSyncEngine(o: {
           return deltaStep(progress);
         }
       }
-      const r = await o.core.runSync(deps, binding, {
+      const r = await runSyncS(deps, binding, {
         mode: "both",
         dryRun: dry,
         ...(opts.runAutomations ? { runAutomations: true } : {}),

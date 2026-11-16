@@ -20,6 +20,11 @@ import {
   secretsIn,
   seedBuiltins,
   takeToken,
+  tokenWaitMs,
+  parseRetryAfter,
+  noteRateLimited,
+  noteServed,
+  SLOW_DOWN_FIRST_MS,
   checkEgress,
   originKey,
   recordHosts,
@@ -477,7 +482,12 @@ export async function executeAction(
     };
 
   if (conn && !takeToken(conn.connection_id, def.rate, nowOf(deps)))
-    refuse(ctx, "rate_limit.exceeded", `The connection is at its rate limit (${def.rate!.rps} per second).`);
+    refuse(
+      ctx,
+      "rate_limit.exceeded",
+      `The connection is at its rate limit (${def.rate ? Math.round(def.rate.rps * 60) : 0} a minute).`,
+      { retryAfterMs: Math.max(50, tokenWaitMs(conn.connection_id, def.rate, nowOf(deps))) },
+    );
   const http = o.http ?? ctx.http;
   const started = nowOf(deps);
   const logRow = (status: number | null, error: string | null): void => {
@@ -497,7 +507,7 @@ export async function executeAction(
       actor,
     );
   };
-  let res: { status: number; text(): Promise<string>; link?: string };
+  let res: { status: number; text(): Promise<string>; link?: string; retryAfter?: string };
   try {
     res = await http(url.toString(), { method, headers, ...(body !== undefined ? { body } : {}) });
   } catch (e) {
@@ -535,8 +545,15 @@ export async function executeAction(
   }
   if (res.status === 429) {
     logRow(res.status, "rate limited");
-    return refuse(ctx, "provider.rate_limited", "The app is rate limiting this connection.", { status: res.status });
+    // the whole connection waits (every object of it), for what the app asked, or 30 s doubling when it said nothing
+    const asked = parseRetryAfter(res.retryAfter, nowOf(deps));
+    const wait = conn ? noteRateLimited(conn.connection_id, nowOf(deps), asked) : (asked ?? SLOW_DOWN_FIRST_MS);
+    return refuse(ctx, "provider.rate_limited", "The app asked Vyre to slow down.", {
+      status: res.status,
+      retryAfterMs: wait,
+    });
   }
+  if (conn) noteServed(conn.connection_id);
   if (res.status >= 500) {
     logRow(res.status, "server error");
     return refuse(ctx, "provider.unavailable", `The app answered ${res.status}.`, { status: res.status });

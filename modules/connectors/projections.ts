@@ -189,6 +189,7 @@ export interface ProbeReply {
   status: number;
   text: string;
   link?: string;
+  retryAfter?: string;
 }
 export type Probe = (ctx: ConnectorsCtx, req: ProbeRequest) => Promise<ProbeReply>;
 
@@ -217,6 +218,7 @@ export interface ConnectorsCtx {
     status: number;
     text(): Promise<string>;
     /** The Link response header, when the app sent one (link-header pagination). */ link?: string;
+    /** The Retry-After response header, when the app sent one (seconds or an HTTP date). */ retryAfter?: string;
   }>;
   /** Run a capability later as the person who asked (ctx.schedule). Absent in tests, where a pass is run by calling the capability. */
   schedule?(at: number | string, cap: string, input: unknown): Promise<string>;
@@ -389,8 +391,17 @@ export function scrubber(values: readonly string[]): { text(s: string): string; 
 // ---- rate limit ----
 
 const buckets = new Map<string, { tokens: number; at: number }>();
+/** What an app's "slow down" asks of one connection: no call goes before `until`, for every object of the connection together. */
+const holds = new Map<string, { until: number; strikes: number }>();
+/** Without a Retry-After the wait starts here and doubles each time the app says it again, up to the cap. */
+export const SLOW_DOWN_FIRST_MS = 30_000;
+export const SLOW_DOWN_CAP_MS = 480_000;
+/** An app's own Retry-After is believed, up to this. */
+export const SLOW_DOWN_LONGEST_MS = 900_000;
 /** Token bucket per connection: `rps` refill, `burst` capacity. Returns false when the call must wait. */
 export function takeToken(key: string, rate: { rps: number; burst: number } | undefined, nowMs: number): boolean {
+  const held = holds.get(key);
+  if (held && held.until > nowMs) return false;
   if (!rate) return true;
   const b = buckets.get(key) ?? { tokens: rate.burst, at: nowMs };
   b.tokens = Math.min(rate.burst, b.tokens + ((nowMs - b.at) / 1000) * rate.rps);
@@ -403,7 +414,43 @@ export function takeToken(key: string, rate: { rps: number; burst: number } | un
   buckets.set(key, b);
   return true;
 }
-export const resetRateLimits = (): void => buckets.clear();
+/** How long until a call on this connection may go (0: now). Reads only. */
+export function tokenWaitMs(key: string, rate: { rps: number; burst: number } | undefined, nowMs: number): number {
+  const held = holds.get(key);
+  const hold = held && held.until > nowMs ? held.until - nowMs : 0;
+  const b = buckets.get(key);
+  if (!rate || !b || rate.rps <= 0) return hold;
+  const tokens = Math.min(rate.burst, b.tokens + ((nowMs - b.at) / 1000) * rate.rps);
+  const refill = tokens >= 1 ? 0 : Math.ceil(((1 - tokens) / rate.rps) * 1000);
+  return Math.max(hold, refill, 0);
+}
+/** A Retry-After header: seconds, or an HTTP date. Undefined when it is missing or unreadable. */
+export function parseRetryAfter(value: string | undefined, nowMs: number): number | undefined {
+  const v = value?.trim();
+  if (!v) return undefined;
+  if (/^\d+(\.\d+)?$/.test(v)) return Math.round(Number(v) * 1000);
+  const at = Date.parse(v);
+  return Number.isNaN(at) ? undefined : Math.max(0, at - nowMs);
+}
+/** The app answered 429: hold every call of this connection for what it asked (or a doubling wait from 30 s), and return the wait. */
+export function noteRateLimited(key: string, nowMs: number, askedMs?: number): number {
+  const strikes = (holds.get(key)?.strikes ?? 0) + 1;
+  const backoff = Math.min(SLOW_DOWN_CAP_MS, SLOW_DOWN_FIRST_MS * 2 ** (strikes - 1));
+  const wait = Math.min(SLOW_DOWN_LONGEST_MS, Math.max(1000, askedMs ?? backoff));
+  holds.set(key, { until: nowMs + wait, strikes });
+  const b = buckets.get(key);
+  if (b) b.tokens = 0;
+  return wait;
+}
+/** The app answered something other than 429: the next "slow down" starts the doubling again. */
+export function noteServed(key: string): void {
+  const h = holds.get(key);
+  if (h) h.strikes = 0;
+}
+export const resetRateLimits = (): void => {
+  buckets.clear();
+  holds.clear();
+};
 
 // ---- rows ----
 

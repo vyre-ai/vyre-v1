@@ -204,6 +204,7 @@ test("a probe makes a pending connection active, and reports what went wrong", a
   k.state.reply = () => ({ status: 429 });
   assert.equal((await k.hs["connections.test"](k.ctx, { connectionId: id })).state, "degraded");
   assert.equal(await stateOf(), "active", "rate limited is not broken");
+  k.clock.t += 31_000; // the app's slow-down holds the connection for 30 s
   k.state.reply = () => new Error("ECONNREFUSED");
   assert.equal((await k.hs["connections.test"](k.ctx, { connectionId: id })).state, "down");
   assert.equal(await stateOf(), "failing");

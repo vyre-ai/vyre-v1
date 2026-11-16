@@ -40,7 +40,7 @@ export interface ConnectorRequest {
   (
     url: URL,
     options: { ips: readonly string[]; method: string; headers: Record<string, string>; body?: string },
-  ): Promise<{ status: number; location?: string; link?: string; text: string }>;
+  ): Promise<{ status: number; location?: string; link?: string; retryAfter?: string; text: string }>;
 }
 export interface ConnectorNetwork {
   resolve?: (host: string) => Promise<string[]>;
@@ -80,6 +80,7 @@ const request: ConnectorRequest = (url, o) =>
             status: res.statusCode ?? 0,
             ...(res.headers.location ? { location: res.headers.location } : {}),
             ...(res.headers.link ? { link: String(res.headers.link) } : {}),
+            ...(res.headers["retry-after"] ? { retryAfter: String(res.headers["retry-after"]) } : {}),
             text: Buffer.concat(chunks).toString("utf8"),
           }),
         );
@@ -291,7 +292,12 @@ export function createConnectorsHost(o: {
           }
           continue;
         }
-        return { status: result.status, ...(result.link ? { link: result.link } : {}), text: async () => result.text };
+        return {
+          status: result.status,
+          ...(result.link ? { link: result.link } : {}),
+          ...(result.retryAfter ? { retryAfter: result.retryAfter } : {}),
+          text: async () => result.text,
+        };
       }
       throw fail("provider.bad_response", caller.trace.traceId, {
         message: "The connector returned too many redirects.",
