@@ -11,11 +11,12 @@ import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { fail as hostFail } from "../../../host/src/routes/errors.ts";
 
-export type ProviderKey = "documenso" | "dropbox_sign" | "docusign";
-export type EnvelopeStatus = "sent" | "viewed" | "signed" | "declined" | "cancelled";
+export type ProviderKey = "vyre" | "documenso" | "dropbox_sign" | "docusign";
+export type EnvelopeStatus = "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
 
-export const PROVIDER_KEYS: readonly ProviderKey[] = ["documenso", "dropbox_sign", "docusign"];
-export const DEFAULT_PROVIDER: ProviderKey = "documenso";
+export const PROVIDER_KEYS: readonly ProviderKey[] = ["vyre", "documenso", "dropbox_sign", "docusign"];
+/** Built-in signing needs nothing connected, so it is what a fresh Space sends with. */
+export const DEFAULT_PROVIDER: ProviderKey = "vyre";
 export const MAX_SIGNERS = 20;
 export const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
@@ -92,37 +93,37 @@ export function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Reco
   throw hostFail(code, ctx.trace.traceId, { ...(message ? { message } : {}), ...(details ? { details } : {}) });
 }
 
-const str = (v: unknown): string => (typeof v === "string" ? v : "");
-const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-const isNull = (v: unknown): boolean => v === null || v === undefined;
+export const str = (v: unknown): string => (typeof v === "string" ? v : "");
+export const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+export const isNull = (v: unknown): boolean => v === null || v === undefined;
 export const one = (ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined =>
   (ctx.db.all(sql, ...args) as Row[])[0];
 export const many = (ctx: Ctx, sql: string, ...args: unknown[]): Row[] => ctx.db.all(sql, ...args) as Row[];
-const nid = (ctx: Ctx, prefix: string): string => `${prefix}_${mintUuid(ctx.now()).replaceAll("-", "")}`;
+export const nid = (ctx: Ctx, prefix: string): string => `${prefix}_${mintUuid(ctx.now()).replaceAll("-", "")}`;
 
-function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
+export function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
   if (input === undefined || input === null) return {};
   if (typeof input !== "object" || Array.isArray(input)) fail(ctx, "validation.bad_input", "The input is not valid.");
   return input as Record<string, unknown>;
 }
 
-function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): string {
+export function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): string {
   const v = o[key];
   if (typeof v !== "string" || v.length === 0)
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
-function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
+export function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
   if (typeof v !== "string") fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
-function providerKey(ctx: Ctx, v: unknown, field: string): ProviderKey {
+export function providerKey(ctx: Ctx, v: unknown, field: string): ProviderKey {
   if (typeof v !== "string" || !(PROVIDER_KEYS as readonly string[]).includes(v))
-    fail(ctx, "validation.bad_input", "Choose documenso, dropbox_sign or docusign.", { field });
+    fail(ctx, "validation.bad_input", "Choose vyre, dropbox_sign or docusign.", { field });
   return v as ProviderKey;
 }
 
@@ -249,7 +250,7 @@ export function subject(envelopeId: string): string {
 
 // ---- neighbours: tasks and the run thread (best effort, never fail the signature) -----------------------------
 
-async function soft(ctx: Ctx, what: string, run: () => Promise<unknown>): Promise<void> {
+export async function soft(ctx: Ctx, what: string, run: () => Promise<unknown>): Promise<void> {
   try {
     await run();
   } catch (e) {
@@ -271,7 +272,7 @@ export async function tellThread(ctx: Ctx, env: EnvelopeRow, body: string, key: 
   );
 }
 
-function assigneeOf(ctx: Ctx): { kind: "person" | "agent"; id: string } | null {
+export function assigneeOf(ctx: Ctx): { kind: "person" | "agent"; id: string } | null {
   if (ctx.actingFor) return { kind: "person", id: ctx.actingFor };
   if (ctx.principal.kind === "person") return { kind: "person", id: ctx.principal.id };
   if (ctx.principal.kind === "agent") return { kind: "agent", id: ctx.principal.id };
@@ -415,7 +416,7 @@ async function providers(
 
 async function providerSet(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
   const key = providerKey(ctx, rec(ctx, input).provider, "provider");
-  connected(ctx, key);
+  if (key !== "vyre") connected(ctx, key);
   if (one(ctx, "SELECT * FROM esign_setting WHERE name = ?", "default_provider"))
     ctx.db.run("UPDATE esign_setting SET value = ? WHERE name = ?", key, "default_provider");
   else ctx.db.run("INSERT INTO esign_setting (name, value) VALUES (?, ?)", "default_provider", key);

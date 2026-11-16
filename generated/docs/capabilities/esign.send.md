@@ -1,6 +1,6 @@
 # esign.send
 
-Send a file from the record folder for signature, signer fields mapped from the record
+Send a PDF for signature. Built-in signing needs no account: it returns one link per signer to copy and emails them when the Space has a sending mailbox
 
 | | |
 |---|---|
@@ -29,10 +29,21 @@ type In = {
   recordId?: string;
   signers: Array<{
       name: string;
-      email: string;
+      email?: string;
       order?: number;
     }>;
-  provider?: "documenso" | "dropbox_sign" | "docusign";
+  provider?: "vyre" | "documenso" | "dropbox_sign" | "docusign";
+  message?: string;
+  places?: Array<{
+      signer: number;
+      kind: "signature" | "date";
+      page: number;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }>;
+  expiresInDays?: number;
   idempotencyKey: string;
 };
 ```
@@ -42,6 +53,15 @@ type In = {
 ```ts
 type Out = {
   envelopeId: string;
+  links?: Array<{
+      index: number;
+      name: string;
+      email?: string;
+      url?: string;
+      path: string;
+    }>;
+  emailed?: Array<string>;
+  notice?: string;
 };
 ```
 
@@ -63,9 +83,22 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "expiresInDays": 1,
     "fileId": "fil_a1b2c3",
     "idempotencyKey": "idem_1",
-    "provider": "documenso",
+    "message": "example",
+    "places": [
+      {
+        "h": 1,
+        "kind": "signature",
+        "page": 1,
+        "signer": 1,
+        "w": 1,
+        "x": 1,
+        "y": 1
+      }
+    ],
+    "provider": "vyre",
     "recordId": "rec_a1b2c3",
     "signers": [
       {
@@ -76,7 +109,20 @@ type Out = {
     ]
   },
   "output": {
-    "envelopeId": "env_a1b2c3"
+    "emailed": [
+      "example"
+    ],
+    "envelopeId": "env_a1b2c3",
+    "links": [
+      {
+        "email": "example",
+        "index": 1,
+        "name": "example",
+        "path": "example",
+        "url": "example"
+      }
+    ],
+    "notice": "example"
   }
 }
 ```

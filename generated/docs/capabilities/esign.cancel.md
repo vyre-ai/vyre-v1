@@ -1,6 +1,6 @@
 # esign.cancel
 
-Cancel an envelope
+Cancel an envelope; every signer link stops working at once
 
 | | |
 |---|---|
@@ -19,7 +19,7 @@ Cancel an envelope
 | HTTP | POST /v1/esign/cancel |
 | MCP tool | esign_cancel (files) |
 | CLI | none |
-| Emits | none |
+| Emits | signature.cancelled |
 
 ## Input
 

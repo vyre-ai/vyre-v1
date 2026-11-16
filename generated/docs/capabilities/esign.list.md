@@ -1,6 +1,6 @@
 # esign.list
 
-List envelopes
+List envelopes, newest first
 
 | | |
 |---|---|
@@ -26,6 +26,8 @@ List envelopes
 ```ts
 type In = {
   recordId?: string;
+  fileId?: string;
+  status?: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
 };
 ```
 
@@ -36,7 +38,13 @@ type Out = {
   envelopes: Array<{
       envelopeId: string;
       title: string;
-      status: "sent" | "viewed" | "signed" | "declined" | "cancelled";
+      status: "sent" | "viewed" | "signed" | "declined" | "cancelled" | "expired";
+      provider: "vyre" | "documenso" | "dropbox_sign" | "docusign";
+      recordId?: string;
+      fileId: string;
+      signedFileId?: string;
+      createdAt: number;
+      expiresAt?: number;
     }>;
 };
 ```
@@ -54,12 +62,20 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "recordId": "rec_a1b2c3"
+    "fileId": "fil_a1b2c3",
+    "recordId": "rec_a1b2c3",
+    "status": "sent"
   },
   "output": {
     "envelopes": [
       {
+        "createdAt": 1760000000000,
         "envelopeId": "env_a1b2c3",
+        "expiresAt": 1760000000000,
+        "fileId": "fil_a1b2c3",
+        "provider": "vyre",
+        "recordId": "rec_a1b2c3",
+        "signedFileId": "fil_a1b2c3",
         "status": "sent",
         "title": "example"
       }

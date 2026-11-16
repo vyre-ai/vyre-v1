@@ -13116,6 +13116,24 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/esign/remind",
+    "cap": "esign.remind",
+    "v": 1,
+    "module": "esign",
+    "effects": "outward",
+    "permission": "comms.shared_send",
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": true,
+    "gate": "signature_send"
+  },
+  {
+    "method": "POST",
     "path": "/v1/esign/send",
     "cap": "esign.send",
     "v": 1,
@@ -13132,6 +13150,60 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": true,
     "gate": "signature_send"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/esign/signer_act",
+    "cap": "esign.signer_act",
+    "v": 1,
+    "module": "esign",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/esign/signer_doc",
+    "cap": "esign.signer_doc",
+    "v": 1,
+    "module": "esign",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/esign/signer_view",
+    "cap": "esign.signer_view",
+    "v": 1,
+    "module": "esign",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
   },
   {
     "method": "POST",
@@ -16581,7 +16653,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/goals/list",
@@ -16653,10 +16728,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/goals/plan",
@@ -22079,7 +22151,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mail/message/erase",
@@ -22153,10 +22228,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mail/message/set_private",
@@ -27572,7 +27644,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": true,
     "gate": "enroll_node"
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/network/server_decline",
@@ -27644,10 +27719,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/network/servers",
@@ -33094,7 +33166,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sessions/list",
@@ -33166,10 +33241,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/settings/contact/verify_start",
@@ -38602,7 +38674,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/terminal/capture",
@@ -38678,10 +38753,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/terminal/health",
