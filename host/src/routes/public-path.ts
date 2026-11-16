@@ -244,7 +244,7 @@ export async function serve(
 }
 
 export function createPublicPathRoute(deps: PublicPathDeps): Inner {
-  return {
+  const route: Inner = {
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://vyred");
       // an artifact's plain address: the app opens it for whoever is signed in. Only a token below it serves anything
@@ -356,6 +356,18 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
         res,
       ).catch(fail500);
       return true;
+    },
+  };
+  // no /p/* route may take the daemon down with a thrown error: whatever a route throws is a plain 500 page and the next request is served as usual
+  return {
+    handle(req, res) {
+      try {
+        return route.handle(req, res);
+      } catch {
+        if (!res.headersSent) page(res, 500, "Not answering", "Try again soon.");
+        else res.end();
+        return true;
+      }
     },
   };
 }

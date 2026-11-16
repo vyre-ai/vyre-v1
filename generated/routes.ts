@@ -13012,17 +13012,17 @@ const routes2: Route[] = [
     "cap": "esign.cancel",
     "v": 1,
     "module": "esign",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
+    "effects": "outward",
+    "permission": "comms.shared_send",
+    "level": "use",
     "resource": {
       "type": "space"
     },
-    "idempotency": "natural",
-    "risk": "medium",
+    "idempotency": "key",
+    "risk": "high",
     "offline": null,
     "teamOnly": true,
-    "gate": null
+    "gate": "signature_send"
   },
   {
     "method": "POST",

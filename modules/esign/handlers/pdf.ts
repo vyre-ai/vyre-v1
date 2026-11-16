@@ -62,6 +62,16 @@ export interface Audit {
   seal?: { spaceName: string; fingerprint: string; own: boolean };
 }
 
+/** Does the PDF library really take this picture? A PNG can pass every header check and still fail to decode (a palette image with no palette); this finds out before anyone is asked to depend on it. */
+export async function embeds(png: Uint8Array): Promise<boolean> {
+  try {
+    await (await PDFDocument.create()).embedPng(png);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** A plain refusal a person can read; the handler turns it into validation.bad_input. */
 export class PdfError extends Error {}
 

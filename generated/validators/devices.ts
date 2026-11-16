@@ -5,13 +5,13 @@ import type { Check } from './core.ts';
 
 function d_s_a966ed63d5(v: unknown, p: string, e: string[]): void {
 {
-const x859 = v;
-const g859 = typeOf(x859);
-const b859: string[] = []; lf(x859, p, b859, L4); if (b859.length) e.push(...b859);
-if (g859 === "array") {
-if (g859 === 'array') { const a859 = x859 as unknown[];
-for (let i859 = 0; i859 < a859.length; i859++) {
-d_s_c963887871(a859[i859], p + '/' + i859, e);
+const x858 = v;
+const g858 = typeOf(x858);
+const b858: string[] = []; lf(x858, p, b858, L4); if (b858.length) e.push(...b858);
+if (g858 === "array") {
+if (g858 === 'array') { const a858 = x858 as unknown[];
+for (let i858 = 0; i858 < a858.length; i858++) {
+d_s_c963887871(a858[i858], p + '/' + i858, e);
 }
 }
 }
@@ -20,25 +20,25 @@ d_s_c963887871(a859[i859], p + '/' + i859, e);
 
 function d_s_c963887871(v: unknown, p: string, e: string[]): void {
 {
-const x992 = v;
-const g992 = typeOf(x992);
-const b992: string[] = []; lf(x992, p, b992, L0); if (b992.length) e.push(...b992);
-if (g992 === "object") {
-if (g992 === 'object') { const o992 = x992 as Record<string, unknown>;
-if (!("id" in o992)) e.push(p + "/id" + ': required');
-if (!("person" in o992)) e.push(p + "/person" + ': required');
-if (!("name" in o992)) e.push(p + "/name" + ': required');
-if (!("class" in o992)) e.push(p + "/class" + ': required');
-if (!("epoch" in o992)) e.push(p + "/epoch" + ': required');
-if ("id" in o992) lf(o992["id"], p + "/id", e, L248);
-if ("person" in o992) lf(o992["person"], p + "/person", e, L16);
-if ("name" in o992) lf(o992["name"], p + "/name", e, L1);
-if ("class" in o992) lf(o992["class"], p + "/class", e, L289);
-if ("epoch" in o992) lf(o992["epoch"], p + "/epoch", e, L17);
-if ("lastSeenAt" in o992) lf(o992["lastSeenAt"], p + "/lastSeenAt", e, L17);
-if ("location" in o992) lf(o992["location"], p + "/location", e, L1);
-if ("revokedAt" in o992) lf(o992["revokedAt"], p + "/revokedAt", e, L17);
-if ("current" in o992) lf(o992["current"], p + "/current", e, L3);
+const x991 = v;
+const g991 = typeOf(x991);
+const b991: string[] = []; lf(x991, p, b991, L0); if (b991.length) e.push(...b991);
+if (g991 === "object") {
+if (g991 === 'object') { const o991 = x991 as Record<string, unknown>;
+if (!("id" in o991)) e.push(p + "/id" + ': required');
+if (!("person" in o991)) e.push(p + "/person" + ': required');
+if (!("name" in o991)) e.push(p + "/name" + ': required');
+if (!("class" in o991)) e.push(p + "/class" + ': required');
+if (!("epoch" in o991)) e.push(p + "/epoch" + ': required');
+if ("id" in o991) lf(o991["id"], p + "/id", e, L248);
+if ("person" in o991) lf(o991["person"], p + "/person", e, L16);
+if ("name" in o991) lf(o991["name"], p + "/name", e, L1);
+if ("class" in o991) lf(o991["class"], p + "/class", e, L289);
+if ("epoch" in o991) lf(o991["epoch"], p + "/epoch", e, L17);
+if ("lastSeenAt" in o991) lf(o991["lastSeenAt"], p + "/lastSeenAt", e, L17);
+if ("location" in o991) lf(o991["location"], p + "/location", e, L1);
+if ("revokedAt" in o991) lf(o991["revokedAt"], p + "/revokedAt", e, L17);
+if ("current" in o991) lf(o991["current"], p + "/current", e, L3);
 }
 }
 }

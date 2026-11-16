@@ -50,7 +50,7 @@ type Out = {
       name: string;
       email?: string;
       url?: string;
-      path: string;
+      path?: string;
     }>;
   emailed?: Array<string>;
   notice?: string;

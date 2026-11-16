@@ -659,7 +659,7 @@ test("replay: a request cancelled at Dropbox Sign cancels the envelope; events a
 test("replay: a cancel from Vyre removes the request at Dropbox Sign", async () => {
   const { server, h } = rig();
   const { envelopeId } = await sendIt(h);
-  assert.deepEqual(await h.call("esign.cancel", { envelopeId }), { cancelled: true });
+  assert.deepEqual(await h.call("esign.cancel", { envelopeId, idempotencyKey: "cxd1" }), { cancelled: true });
   assert.equal(server.reqs.size, 0);
   assert.equal((await h.call("esign.status", { envelopeId })).status, "cancelled");
 });

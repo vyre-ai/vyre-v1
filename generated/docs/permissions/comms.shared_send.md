@@ -14,5 +14,6 @@ Area: comms. Risk: medium. Applies to: inbox, mailbox.
 
 ## Capabilities that need it
 
+- esign.cancel
 - esign.remind
 - esign.send

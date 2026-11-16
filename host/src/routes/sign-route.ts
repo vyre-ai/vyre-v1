@@ -137,6 +137,13 @@ export function createSignRoute(deps: SignDeps): {
   const perAddress = new Window(now);
   const refusals = new Window(now);
   const acts = new Window(now);
+  /** tokens the module accepted, by when; bounded */
+  const good = new Map<string, number>();
+  const remember = (token: string): void => {
+    good.delete(token);
+    good.set(token, now());
+    if (good.size > MAX_KEYS) good.delete(good.keys().next().value as string);
+  };
 
   function visitorOf(req: http.IncomingMessage): { ip: string; ua: string } {
     const xff = req.headers["x-forwarded-for"];
@@ -200,10 +207,14 @@ export function createSignRoute(deps: SignDeps): {
       }
       const { ip, ua } = visitorOf(req);
       const rest = tail === "" ? "/" : tail;
+      // a token the module has accepted lately is a real signer: their requests are counted against their own link only, never against the address's junk and guess buckets
+      const known = (good.get(token) ?? 0) > now() - 3_600_000;
       const limited = (): boolean =>
-        !perAddress.allow(ip, LIMITS.address) ||
-        !perToken.allow(token, LIMITS.token) ||
-        refusals.over(ip, LIMITS.tries);
+        known
+          ? !perToken.allow(token, LIMITS.token)
+          : !perAddress.allow(ip, LIMITS.address) ||
+            !perToken.allow(token, LIMITS.token) ||
+            refusals.over(ip, LIMITS.tries);
       const tooMany = (): void =>
         json(
           res,
@@ -234,10 +245,10 @@ export function createSignRoute(deps: SignDeps): {
           res.end(method === "HEAD" ? undefined : body);
           return;
         }
-        const asset = /^\/assets\/([^/]+)$/.exec(rest);
+        // the raw segment against a strict pattern: nothing is decoded, so a malformed escape is just a name nothing has
+        const asset = /^\/assets\/([A-Za-z0-9._-]{1,64})$/.exec(rest);
         if (asset) {
-          const name = decodeURIComponent(asset[1] as string);
-          const file = ASSET.test(name) ? deps.asset(name) : null;
+          const file = deps.asset(asset[1] as string);
           if (!file) return json(res, 404, REFUSAL_BODY);
           res.writeHead(
             200,
@@ -254,6 +265,7 @@ export function createSignRoute(deps: SignDeps): {
         if (rest === "/doc" && method === "GET") {
           void deps.call("esign.signer_doc", { token, visitor: { ip, ua } }).then(
             (out) => {
+              remember(token);
               const bytes = Buffer.from(String((out as { base64?: string }).base64 ?? ""), "base64");
               res.writeHead(
                 200,
@@ -282,6 +294,7 @@ export function createSignRoute(deps: SignDeps): {
           const visitor = { ip, ua };
           if (op === "view") {
             const out = (await deps.call("esign.signer_view", { token, visitor })) as { session: unknown };
+            remember(token);
             return json(res, 200, { data: out.session });
           }
           const out = (await deps.call("esign.signer_act", { token, visitor, op, body: got.body })) as {
@@ -304,6 +317,7 @@ export function createSignRoute(deps: SignDeps): {
             }
             return json(res, 202, { data: { state: "waiting" } });
           }
+          remember(token);
           return json(res, 200, { data: out.result });
         } catch (e) {
           fromError(res, e, ip);

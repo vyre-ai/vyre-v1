@@ -65,6 +65,28 @@ export function samplePng(w = 120, h = 40): Uint8Array {
   return out;
 }
 
+/** A PNG that passes every header check but cannot be decoded: a palette image with no palette (71 bytes or so). */
+export function brokenPng(): Uint8Array {
+  const head = new Uint8Array(13);
+  const hv = new DataView(head.buffer);
+  hv.setUint32(0, 1);
+  hv.setUint32(4, 1);
+  head.set([8, 3, 0, 0, 0], 8);
+  const parts = [
+    Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", head),
+    chunk("IDAT", deflateSync(new Uint8Array([0, 0]))),
+    chunk("IEND", new Uint8Array(0)),
+  ];
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+}
+
 /** Every string a PDF shows with Tj (content streams are inflated first; standard-font text is stored as hex or literal strings). */
 export function textOf(pdf: Uint8Array): string {
   const raw = Buffer.from(pdf).toString("latin1");
