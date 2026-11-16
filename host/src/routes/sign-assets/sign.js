@@ -390,7 +390,10 @@ async function ready(v) {
     let r;
     try {
       const png = (await signaturePng()).replace(/^data:image\/png;base64,/, "");
-      r = await post("./sign", { name: state.name.trim(), consent: true, signature: { kind: "drawn", png } });
+      // a typed name goes with its text and with the picture the person saw (the script face); a drawing is the picture alone
+      const signature =
+        state.mode === "type" ? { kind: "typed", text: state.name.trim(), png } : { kind: "drawn", png };
+      r = await post("./sign", { name: state.name.trim(), consent: true, signature });
     } catch {
       r = { status: 0, json: null };
     }
