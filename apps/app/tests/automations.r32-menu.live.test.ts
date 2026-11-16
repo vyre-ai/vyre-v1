@@ -74,7 +74,7 @@ test("r32 list menu: right-click and the keyboard open the page's menu: Open, Re
     await rowOf("Lead follow-up").click({ button: "right" });
     await page.getByRole("menuitem").first().waitFor({ timeout: 10_000 });
     const labels = await menuLabels();
-    assert.deepEqual(labels.slice(0, 3), ["Open", "Rename…", "Duplicate"], labels.join("|"));
+    assert.deepEqual(labels.slice(0, 4), ["Open", "Open in New Tab", "Rename…", "Duplicate"], labels.join("|"));
     assert.ok(
       labels.some((l) => /^Turn (On|Off)$/.test(l)),
       "turn on or off",
