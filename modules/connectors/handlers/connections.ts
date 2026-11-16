@@ -18,7 +18,14 @@ import {
   scrubber,
   seedBuiltins,
 } from "../projections.ts";
-import type { ConnectionDb, ConnectionState, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
+import type {
+  ConnectionDb,
+  ConnectionState,
+  ConnectorDef,
+  ConnectorsCtx,
+  ConnectorsDeps,
+  VerdictRule,
+} from "../projections.ts";
 import { clearReconnectTask, executeAction } from "./runtime.ts";
 import { destinationProblem } from "../destination.ts";
 
@@ -84,7 +91,7 @@ export interface ConnectionsHandlers {
   "connectors.check_key"(
     ctx: ConnectorsCtx,
     input: { connector: string; secrets: Record<string, string> },
-  ): Promise<{ result: "ok" | "rejected" | "unreachable"; tested?: string }>;
+  ): Promise<{ result: "ok" | "rejected" | "limited" | "unreachable"; tested?: string }>;
 }
 
 /** The connector a service named in words points at, for the connect card: what it needs, and whether the caller already has it. */
@@ -96,6 +103,12 @@ export interface ForService {
     scope: "person" | "space";
     mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
     fields: { name: string; label: string; optional: boolean }[];
+    /** A choice the person makes on the card (a region): each option has its own exact hosts, and the key goes to the chosen option's hosts only. */
+    choice?: {
+      name: string;
+      label: string;
+      options: { value: string; label: string; connector: string; hosts: string[] }[];
+    };
     site?: string;
     host?: string;
     hosts: string[];
@@ -621,8 +634,28 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       if (!hostsEqualDomains(hit, builtinDefs()))
         return hit.builtin === true ? { found: false, near: [], older: hit.title } : { found: false, near: [] };
       const me = actorOf(ctx);
+      // a choice (a region) makes each option a connector of its own: a connection to any of them counts, and each option says its own hosts
+      const optionDefs = (hit.choice?.options ?? []).map((o) => ({ o, def: defs.find((d) => d.key === o.connector) }));
+      const family = [hit.key, ...optionDefs.map((x) => x.o.connector)];
+      const choiceOut =
+        hit.choice && optionDefs.every((x) => x.def && hostsEqualDomains(x.def, builtinDefs()))
+          ? {
+              name: hit.choice.name,
+              label: hit.choice.label,
+              options: optionDefs.map((x) => ({
+                value: x.o.value,
+                label: x.o.label,
+                connector: x.o.connector,
+                hosts: keyHosts(x.def!),
+              })),
+            }
+          : undefined;
+      if (hit.choice && !choiceOut) return { found: false, near: [], older: hit.title };
       const mine = tx
-        .all<ConnectionDb>("SELECT * FROM cn_connections WHERE connector = ? ORDER BY created_at", hit.key)
+        .all<ConnectionDb>(
+          `SELECT * FROM cn_connections WHERE connector IN (${family.map(() => "?").join(", ")}) ORDER BY created_at`,
+          ...family,
+        )
         .filter((r) => (r.owner_kind === "person" ? r.owner_id === me : (ctx.canViewSpace?.() ?? true)))
         .filter((r) => r.state !== "paused");
       // a connection that works beats one that does not; the person's own beats the Space's
@@ -640,10 +673,11 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
           mode: hit.mode,
           fields: hit.secrets.map((x) => ({
             name: x.name,
-            label: labelOfSlot(x.name),
+            label: x.label ?? labelOfSlot(x.name),
             optional: /\boptional\b/i.test(x.description),
           })),
-          ...(host ? { site: `https://${host.replace(/^api\./, "")}`, host } : {}),
+          ...(choiceOut ? { choice: choiceOut } : {}),
+          ...(host ? { site: hit.keysPage ?? `https://${host.replace(/^api\./, "")}`, host } : {}),
           hosts: keyHosts(hit),
           builtin: hit.builtin === true,
           checks: probeHost(hit) !== undefined,
@@ -691,10 +725,26 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
           "validation.precondition_failed",
           `${def.title}'s check reaches a host it does not declare, so no key was sent.`,
         );
+      // what the answer says, read here and nowhere else: only the verdict leaves this function, never a word of the answer
+      const said: { v?: "limited" | "rejected" } = {};
+      const rules = def.verdicts;
+      const matches = (r: VerdictRule, status: number, text: string): boolean =>
+        r.status === status && (r.has === undefined || text.toLowerCase().includes(r.has.toLowerCase()));
       try {
-        await executeAction(deps, ctx, def, probe, { input: {}, secrets: input.secrets, persist: false });
+        await executeAction(deps, ctx, def, probe, {
+          input: {},
+          secrets: input.secrets,
+          persist: false,
+          verdict: (status, text) => {
+            // a 5xx or anything that is not a client error is never a verdict on the key
+            if (status < 400 || status >= 500) return;
+            if (rules?.limited?.some((r) => matches(r, status, text))) said.v = "limited";
+            else if (rules?.rejected?.some((r) => matches(r, status, text))) said.v = "rejected";
+          },
+        });
       } catch (e) {
         const code = (e as { error?: { code?: string } }).error?.code;
+        if (said.v) return { result: said.v };
         if (code === "provider.auth_failed") return { result: "rejected" as const };
         if (
           code === "validation.precondition_failed" ||

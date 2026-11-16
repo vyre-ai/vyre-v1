@@ -20,7 +20,7 @@ export type ConnectionState = "pending" | "active" | "paused" | "needs_reconnect
 export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface AuthDef {
-  type: "api_key" | "bearer" | "oauth2" | "none";
+  type: "api_key" | "bearer" | "oauth2" | "client_credentials" | "none";
   /** Declared secret that holds the key or the access token. */
   secret?: string;
   /** api_key: the header the key travels in, and a prefix such as "Token ". Default Authorization. */
@@ -35,6 +35,10 @@ export interface AuthDef {
   clientSecret?: string;
   /** Where a token is revoked when a connection is deleted; optional, best effort. */
   revokeUrl?: string;
+  /** api_key or bearer only: send HTTP Basic (user:password) instead of a header. Both are templates (`{secret.Name}` or plain words, "api"); the password may be empty. The joined value is scrubbed like a secret. */
+  basic?: { user: string; pass?: string };
+  /** client_credentials (a server-to-server token): the action that trades the connection's own secrets for a short-lived token, which is sent as a Bearer on every other action. The token is held in memory for the call and never kept. */
+  tokenAction?: string;
 }
 
 /** One call the connector makes. `{input.x}`, `{secret.Name}` and `{connection.id}` are filled in at call time; secrets only in headers and body. */
@@ -45,6 +49,10 @@ export interface ActionDef {
   headers?: Record<string, string>;
   query?: Record<string, string>;
   body?: unknown;
+  /** HTTP Basic for this call alone (the token call of a server-to-server service): templates like auth.basic. */
+  basic?: { user: string; pass?: string };
+  /** A form body (application/x-www-form-urlencoded) filled like a template; used instead of `body`. A secret may sit here, never in the address. */
+  form?: Record<string, string>;
   /** JSON pointer into the JSON response that becomes the output. */
   output?: string;
   /** Changes something in the app: a dry run never sends it and the Gate treats it as outward. */
@@ -80,6 +88,11 @@ export interface TestCase {
   responses: RecordedResponse[];
   expect?: { output?: unknown; error?: string; requests?: number };
 }
+/** A rule on a check answer: the status, and optionally words that must be in the answer's body (read on the server, never passed on). */
+export interface VerdictRule {
+  status: number;
+  has?: string;
+}
 export interface ConnectorDef {
   key: string;
   title: string;
@@ -88,8 +101,14 @@ export interface ConnectorDef {
   version: string;
   auth: AuthDef;
   domains: string[];
-  secrets: { name: string; description: string }[];
+  secrets: { name: string; description: string; label?: string }[];
   actions: ActionDef[];
+  /** The service's own page where its keys are found: a link for the person on the card, never a place a key is sent. */
+  keysPage?: string;
+  /** How a check call's answer tells a wrong key from a key without the needed permission. Only the verdict leaves the server, never the answer. A 4xx that matches nothing here is an unclear answer (not a wrong key). */
+  verdicts?: { limited?: VerdictRule[]; rejected?: VerdictRule[] };
+  /** A choice the person makes on the card that picks which connector is used (a region): each option is a connector of its own with its own exact hosts. Set on the first one only. */
+  choice?: { name: string; label: string; options: { value: string; label: string; connector: string }[] };
   sources?: string[];
   syncedTypes?: string[];
   health?: string;
@@ -441,25 +460,8 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
   if (seeded.has(deps.tx)) return;
   ensureTables(deps.tx);
   const now = nowOf(deps);
-  for (const b of deps.builtins) {
-    makeRoomForBuiltin(deps.tx, b.key, now);
-    if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", b.key)) continue;
-    const def = builtinDef(b);
-    deps.tx.run(
-      "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'live', ?, ?, ?)",
-      b.key,
-      b.title,
-      b.mode,
-      b.scope,
-      def.version,
-      JSON.stringify(def),
-      now,
-      now,
-    );
-  }
-  for (const def of activeCodeBuiltins() as readonly ConnectorDef[]) {
-    makeRoomForBuiltin(deps.tx, def.key, now);
-    if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", def.key)) continue;
+  const code = activeCodeBuiltins() as readonly ConnectorDef[];
+  const insert = (def: ConnectorDef): void => {
     deps.tx.run(
       "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'live', ?, ?, ?)",
       def.key,
@@ -471,6 +473,53 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
       now,
       now,
     );
+  };
+  for (const b of deps.builtins) {
+    // a service the product now defines in code (exact addresses, a real check) takes the registry's place: it is seeded below, carrying the registry's own action names
+    if (code.some((c) => c.key === b.key)) continue;
+    makeRoomForBuiltin(deps.tx, b.key, now);
+    if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", b.key)) continue;
+    insert(builtinDef(b));
+  }
+  for (const own of code) {
+    makeRoomForBuiltin(deps.tx, own.key, now);
+    const reg = deps.builtins.find((b) => b.key === own.key);
+    // the registry's actions that have no address stay named (their module runs them); the ones written here have addresses
+    const named = reg
+      ? reg.actions.filter((n) => !own.actions.some((a) => a.name === n)).map((name) => ({ name }))
+      : [];
+    const def: ConnectorDef = {
+      ...own,
+      actions: [...own.actions, ...named],
+      ...(reg?.sources?.length ? { sources: reg.sources.map((x) => x.key) } : {}),
+    };
+    const have = deps.tx.get<{ def: string; builtin: number }>(
+      "SELECT def, builtin FROM cn_connectors WHERE key = ?",
+      own.key,
+    );
+    if (!have) {
+      insert(def);
+      continue;
+    }
+    // a built-in row the registry wrote and nobody has changed (every action still only a name) is brought up to the definition written here; a row with an address in it was changed and is never overwritten
+    const stored = JSON.parse(have.def) as ConnectorDef;
+    if (
+      reg &&
+      have.builtin === 1 &&
+      !stored.actions.some((a) => a.url !== undefined) &&
+      stored.version !== own.version
+    ) {
+      deps.tx.run(
+        "UPDATE cn_connectors SET title = ?, mode = ?, scope = ?, version = ?, def = ?, updated_at = ? WHERE key = ?",
+        def.title,
+        def.mode,
+        def.scope,
+        def.version,
+        JSON.stringify(def),
+        now,
+        own.key,
+      );
+    }
   }
   backfillHosts(deps.tx);
   seeded.add(deps.tx);

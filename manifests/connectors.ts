@@ -86,12 +86,18 @@ const connectionRow = t.obj({
   }),
 });
 
+const serviceChoice = t.obj({
+  name: t.str(),
+  label: t.str(),
+  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()) })),
+});
 const serviceRow = t.obj({
   key: id.connector,
   title: t.str(),
   scope: t.enm("person", "space"),
   mode,
   fields: t.arr(t.obj({ name: t.str(), label: t.str(), optional: t.bool() })),
+  choice: t.opt(serviceChoice),
   site: t.opt(t.str({ description: "The app's own page, where its keys are found" })),
   builtin: t.bool(),
   /** The host a key is tried against: the connector's first declared host */
@@ -694,12 +700,12 @@ export default defineManifest({
     ),
     write(
       "connectors.check_key",
-      "Try the key a person typed against the app before it is stored; answers ok, rejected or unreachable and never repeats the key",
+      "Try the key a person typed against the app before it is stored; answers ok, rejected, limited (the key works but may not read what the check needs) or unreachable and never repeats the key",
       {
         level: "member",
         in: { connector: id.connector, secrets: t.rec(t.str()) },
         out: {
-          result: t.enm("ok", "rejected", "unreachable"),
+          result: t.enm("ok", "rejected", "limited", "unreachable"),
           tested: t.opt(t.str({ description: "What the check read, in a few words" })),
         },
         audit: "none",

@@ -44,6 +44,16 @@ type Out = {
         label: string;
         optional: boolean;
       }>;
+    choice?: {
+      name: string;
+      label: string;
+      options: Array<{
+          value: string;
+          label: string;
+          connector: string;
+          hosts: Array<string>;
+        }>;
+    };
     site?: string;
     builtin: boolean;
     host?: string;
@@ -85,6 +95,20 @@ type Out = {
     "connector": {
       "builtin": true,
       "checks": true,
+      "choice": {
+        "label": "example",
+        "name": "example",
+        "options": [
+          {
+            "connector": "hubspot",
+            "hosts": [
+              "example"
+            ],
+            "label": "example",
+            "value": "example"
+          }
+        ]
+      },
       "fields": [
         {
           "label": "example",

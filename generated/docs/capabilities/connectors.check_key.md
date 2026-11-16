@@ -1,6 +1,6 @@
 # connectors.check_key
 
-Try the key a person typed against the app before it is stored; answers ok, rejected or unreachable and never repeats the key
+Try the key a person typed against the app before it is stored; answers ok, rejected, limited (the key works but may not read what the check needs) or unreachable and never repeats the key
 
 | | |
 |---|---|
@@ -34,7 +34,7 @@ type In = {
 
 ```ts
 type Out = {
-  result: "ok" | "rejected" | "unreachable";
+  result: "ok" | "rejected" | "limited" | "unreachable";
   tested?: string;
 };
 ```

@@ -57,6 +57,8 @@ export function ConnectCardLive({
   // what the person has done to the card since the server last spoke: typed after a refusal (the red goes), or chose to use a different key
   const [edited, setEdited] = useState(false);
   const [other, setOther] = useState(false);
+  // the option the person picked for the service's choice (a region); the first until they pick
+  const [picked, setPicked] = useState<string | undefined>(undefined);
   const { element, show } = useMenu();
   const whenText = useWhenText(true);
   const live = useRef(true);
@@ -92,6 +94,11 @@ export function ConnectCardLive({
   // someone else in the chat: the card is the asked person's own, so all they read is one quiet line about how the ask stands
   if (card === null) return <OthersLine requestId={requestId} agent={agent} asker={asker} data={data} named={named} />;
   const name = card.service.title;
+  // where the key goes now: the picked option's hosts when the service has a choice, else the card's own
+  const option = card.choice
+    ? (card.choice.options.find((o) => o.value === picked) ?? card.choice.options[0])
+    : undefined;
+  const hostsNow = option ? option.hosts : card.checksWith ? card.checksWith.split(", ") : [];
 
   const put = (field: string, value: string): void => {
     setValues((v) => ({ ...v, [field]: value }));
@@ -109,7 +116,8 @@ export function ConnectCardLive({
       const out = (await data.call("vault.connect_card.submit", {
         requestId,
         // the addresses this card said the key goes to: the server refuses when they are no longer the service's
-        hosts: card.checksWith ? card.checksWith.split(", ") : [],
+        hosts: hostsNow,
+        ...(option ? { choice: option.value } : {}),
         ...(useSaved
           ? { useSaved: true }
           : {
@@ -222,7 +230,18 @@ export function ConnectCardLive({
         admin={adminName || undefined}
         askedAt={card.admin?.askedAt ? whenText(card.admin.askedAt, Date.now()) : undefined}
         tested={card.tested}
-        checksWith={card.checksWith}
+        checksWith={hostsNow.length > 0 ? hostsNow.join(", ") : undefined}
+        choice={
+          card.choice && option
+            ? {
+                label: card.choice.label,
+                value: option.value,
+                options: card.choice.options.map((o) => ({ value: o.value, label: o.label })),
+              }
+            : undefined
+        }
+        onChoice={(v) => setPicked(v)}
+        problem={card.problem}
         notice={card.notice}
         usedBy={card.usedBy.length > 0 ? card.usedBy.map(() => agent).join(", ") : undefined}
         connectedBy={card.connectedBy ? named(card.connectedBy) || undefined : undefined}

@@ -371,7 +371,7 @@ test("list and get: built-in connectors come from the generator's registry", asy
     connectors: { key: string; title: string; domains: string[]; actions: string[]; sources?: { key: string }[] }[];
   };
   const all = await k.hs["connectors.list"](k.ctx, {});
-  const keys = [...reg.connectors.map((c) => c.key), ...activeCodeBuiltins().map((c) => c.key)].sort();
+  const keys = [...new Set([...reg.connectors.map((c) => c.key), ...activeCodeBuiltins().map((c) => c.key)])].sort();
   assert.equal(
     all.total,
     keys.length,
@@ -381,9 +381,15 @@ test("list and get: built-in connectors come from the generator's registry", asy
   const stripe = (await k.hs["connectors.get"](k.ctx, { key: "stripe" })).connector;
   const want = reg.connectors.find((c) => c.key === "stripe")!;
   assert.deepEqual(
-    [stripe.title, stripe.builtin, stripe.state, stripe.domains, stripe.actions, stripe.sources],
-    [want.title, true, "live", want.domains, want.actions, (want.sources ?? []).map((s) => s.key)],
+    [stripe.title, stripe.builtin, stripe.state, stripe.domains, stripe.sources],
+    [want.title, true, "live", want.domains, (want.sources ?? []).map((s) => s.key)],
   );
+  // the registry's own action names are all still there; the ones written in code (with addresses) come before them
+  assert.deepEqual(
+    stripe.actions.filter((a) => want.actions.includes(a)),
+    want.actions,
+  );
+  assert.ok(stripe.actions.includes("check_balance"), "and the check the card tries a key with");
   const page = await k.hs["connectors.list"](k.ctx, { limit: 5 });
   assert.equal(page.connectors.length, 5);
   assert.equal(page.next, "5");
