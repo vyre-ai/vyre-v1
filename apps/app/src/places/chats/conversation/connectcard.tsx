@@ -62,6 +62,7 @@ export function ConnectCardLive({
   const { element, show } = useMenu();
   const whenText = useWhenText(true);
   const live = useRef(true);
+  const busy = useRef(false);
   useEffect(
     () => () => {
       live.current = false;
@@ -107,6 +108,16 @@ export function ConnectCardLive({
 
   /** The call that tries, keeps and connects. The steps show only after 300 ms, tick when the server says yes, and stop where it says no. */
   const submit = async (useSaved: boolean): Promise<void> => {
+    // one submit at a time: Enter in the field and a press on Connect a moment later are one ask, not two
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      await submitOnce(useSaved);
+    } finally {
+      busy.current = false;
+    }
+  };
+  const submitOnce = async (useSaved: boolean): Promise<void> => {
     setProblem("");
     setEdited(false);
     const steps = stepsFor(useSaved, card.checks !== false);
@@ -130,12 +141,14 @@ export function ConnectCardLive({
       clearTimeout(wait);
       const next = cardOf(out);
       if (out.result === "connected") {
+        // emptied and closed the moment the server says yes, not after the ticks: the done row can already be on screen (the card follows the Space's changes), and
+        // closing it after the ticks undid a press a person had just made on it (the phone walk, 16 Nov 2026: the row shut under the walk's finger)
+        setValues({});
+        setOpen(false);
         for (let i = 1; i <= steps.length; i++) {
           setWork({ steps, step: i, visible: true });
           await new Promise((r) => setTimeout(r, TICK_MS));
         }
-        setValues({});
-        setOpen(false);
       } else setFocusField(card.fields[0]?.name);
       if (live.current) {
         setWork(null);
