@@ -840,6 +840,7 @@ function Page({
   // a phone opens on the Vault's sections (the list) and a row opens its list on top: Back goes list, then out (the same order as Chats, Inbox and Files)
   const phoneList =
     !wide &&
+    width > 0 &&
     initial === undefined &&
     route.surface === "layout" &&
     route.select === undefined &&

@@ -60,13 +60,19 @@ export function SettingsPlace(props: SettingsProps): ReactElement {
 
 function SettingsBody(props: SettingsProps): ReactElement {
   const { initialAccount, initialPage = "profile", initialQuery = "", initialFound = null, width: given } = props;
-  // a phone opens on the list of pages; a link that names a page, an account or a search opens that page (Back then goes list, then out)
-  const initialView =
-    props.initialView ??
-    (props.initialPage !== undefined || initialAccount !== undefined || initialQuery !== "" ? "page" : "nav");
   const data = useSettingsData();
   const measured = useWindowDimensions().width;
   const phone = belowPhone(given ?? measured);
+  // a phone opens on the list of pages; a link that names a page, an account or a search opens that page (Back then goes list, then out). A width not measured yet (0) is no phone.
+  const initialView =
+    props.initialView ??
+    (phone &&
+    (given ?? measured) > 0 &&
+    props.initialPage === undefined &&
+    initialAccount === undefined &&
+    initialQuery === ""
+      ? "nav"
+      : "page");
   const inSlot = useInSidebarSlot();
   const [page, setPageRaw] = useState<PageKey>(homeOf(initialPage));
   const setPage = (k: PageKey): void => setPageRaw(homeOf(k));
