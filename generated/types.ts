@@ -40119,6 +40119,11 @@ export type SyncSpecsApplyIn = {
             inverseKey?: string;
             inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40261,6 +40266,11 @@ export type SyncSpecsGetOut = {
             inverseKey?: string;
             inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40384,6 +40394,11 @@ export type SyncSpecsPreviewIn = {
             inverseKey?: string;
             inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -40630,6 +40645,11 @@ export type SyncSpecsValidateIn = {
             inverseKey?: string;
             inverseTitle?: string;
             readOnly?: boolean;
+            key?: string;
+            onlyWhen?: {
+              path: string;
+              equals: string | Array<string>;
+            };
           }>;
         webhook?: {
           events: Array<string>;
@@ -41062,6 +41082,10 @@ export type SyncTypesStatusOut = {
   slowedDown?: {
     words: string;
     resumesAt: number;
+  };
+  sealedWaiting?: {
+    count: number;
+    words: string;
   };
   spec: boolean;
 };

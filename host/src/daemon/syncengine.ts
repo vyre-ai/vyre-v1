@@ -262,6 +262,13 @@ export function remoteStore(
     sealed?: { remote: string; local: string }[];
     /** Remote keys of the form "=join:/first|/last": a title made of several parts of the row, joined with a space, empty parts left out. */
     joins?: string[];
+    /** Remote keys of the form "=when:{p,w,e}": the value at p, only when the value at w is one of e (compared without case or spaces); otherwise empty. */
+    whens?: string[];
+    /** The process's own token that asks a list for the real values of sealed fields (nobody else has it). */
+    unmaskToken?: string;
+    /** The real values of sealed fields of a row, kept in this process by the connector (never in an answer). */
+    heldOf?: (nonce: string, rowId: string) => Record<string, unknown> | undefined;
+    heldDone?: (nonce: string) => void;
   } = {},
 ): Store & {
   updatedAtOf(id: string): number;
@@ -298,7 +305,10 @@ export function remoteStore(
           key: b.connector,
           action,
           connectionId: b.connectionId,
-          input,
+          input:
+            opts.unmaskToken && reading && opts.sealed?.length
+              ? { ...(isObj(input) ? input : {}), __unmask: `${opts.unmaskToken}:${opts.nonce ?? "pass"}` }
+              : input,
           idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}|${opts.nonce ?? ""}`).slice(0, 32)}`,
         })) as { output?: unknown };
         if (slowedDowns > 0) {
@@ -329,8 +339,19 @@ export function remoteStore(
   const takeSealed = (r: RemoteRow): RemoteRow["data"] => {
     const fields = opts.sealed ?? [];
     const joins = opts.joins ?? [];
-    if ((!fields.length && !joins.length) || !isObj(r.data)) return r.data;
+    const whens = opts.whens ?? [];
+    if ((!fields.length && !joins.length && !whens.length) || !isObj(r.data)) return r.data;
     const data = { ...r.data } as Record<string, unknown>;
+    // the connector's answer carries "[sealed]" at sealed pointers; the real values are taken from the process's own keeping
+    const real = opts.heldOf?.(opts.nonce ?? "pass", r.id);
+    if (real) for (const [k, v] of Object.entries(real)) data[k] = v;
+    for (const wk of whens) {
+      const c = JSON.parse(wk.slice("=when:".length)) as { p: string; w: string; e: string[] };
+      const norm = (x: unknown): string => String(x).trim().toLowerCase();
+      const have = data[c.w];
+      data[wk] =
+        have !== undefined && have !== null && c.e.some((v) => norm(v) === norm(have)) ? (data[c.p] ?? null) : null;
+    }
     for (const j of joins) {
       const parts: string[] = [];
       for (const p of j.slice("=join:".length).split("|")) {
@@ -345,6 +366,8 @@ export function remoteStore(
     for (const f of fields) {
       const v = data[f.remote];
       delete data[f.remote];
+      // a masked value ("[sealed]": the pass was not given the real one) is left alone, never sealed
+      if (v === "[sealed]") continue;
       values[f.local] =
         typeof v === "string" && v.trim() !== ""
           ? v.trim()
@@ -510,6 +533,9 @@ export function createSyncEngine(o: {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   groupRows?: number;
+  unmaskToken?: string;
+  heldOf?: (nonce: string, rowId: string) => Record<string, unknown> | undefined;
+  heldDone?: (nonce: string) => void;
 }): SyncEngineLike {
   // the connector's own names for its objects, read once per connector (a connector row without them keeps the convention)
   const maps = new Map<string, Promise<unknown>>();
@@ -566,6 +592,9 @@ export function createSyncEngine(o: {
       nonce: ctx.trace.traceId,
       ...slow,
       sealed: b.fields.filter((f) => f.sealed === true).map((f) => ({ remote: f.remote, local: f.key })),
+      ...(o.unmaskToken ? { unmaskToken: o.unmaskToken } : {}),
+      ...(o.heldOf ? { heldOf: o.heldOf } : {}),
+      whens: b.fields.filter((f) => f.remote.startsWith("=when:")).map((f) => f.remote),
       joins: b.fields.filter((f) => f.remote.startsWith("=join:")).map((f) => f.remote),
     });
     // a relation names a record type; the engine needs the synced type that pulls it, to turn the app's id into a link
@@ -600,6 +629,7 @@ export function createSyncEngine(o: {
       // A pass over a type with sealed fields: after the engine has made or updated the records, each sealed value read in the pass is sealed into its record (Records puts it in the Vault and keeps a reference).
       // The value is never in the engine's own tables (base, conflicts, outbox): it was taken out of the row when the row was read. A value the app sent empty clears the field.
       const sealedIn = async (): Promise<void> => {
+        let owed = 0;
         for (const [remoteId, got] of remote.held) {
           const link = tx.get<{ local_id: string }>(
             "SELECT local_id FROM sy_links WHERE sync_type = ? AND remote_id = ? AND (removed_at IS NULL OR removed_at = 0)",
@@ -623,10 +653,29 @@ export function createSyncEngine(o: {
               patch[local] = { sealed: true, value };
           }
           // through records.update: that is the one door that puts a sealed value in the Vault and keeps the reference (the Space store itself refuses a sealed value)
-          if (Object.keys(patch).length)
-            await ctx.call("records.update", { type: b.type, recordId: link.local_id, patch });
+          if (Object.keys(patch).length) {
+            // the Vault cannot take it (a Space nobody has signed in to, a locked Vault): the record stays without the field, the value is NOT kept anywhere, and the next pass reads the app again to fill it
+            try {
+              await ctx.call("records.update", { type: b.type, recordId: link.local_id, patch });
+            } catch {
+              owed += Object.values(patch).filter((x) => x !== null).length;
+            }
+          }
         }
         remote.held.clear();
+        o.heldDone?.(ctx.trace.traceId);
+        try {
+          tx.exec("CREATE TABLE IF NOT EXISTS sy_sealed_wait (sync_type TEXT PRIMARY KEY, n INTEGER NOT NULL)");
+          if (owed > 0)
+            tx.run(
+              "INSERT INTO sy_sealed_wait (sync_type, n) VALUES (?, ?) ON CONFLICT(sync_type) DO UPDATE SET n = excluded.n",
+              b.syncTypeId,
+              owed,
+            );
+          else tx.run("DELETE FROM sy_sealed_wait WHERE sync_type = ?", b.syncTypeId);
+        } catch {
+          /* the note is for the Sync page only */
+        }
       };
       const runSyncS: SyncCore["runSync"] = async (d, bnd, o2) => {
         const r = await o.core.runSync(d, bnd, o2);
@@ -643,6 +692,14 @@ export function createSyncEngine(o: {
         state = undefined;
       }
       let progress: Progress | undefined = state?.cursor ? (JSON.parse(state.cursor) as Progress) : undefined;
+      // sealed values still waiting for the Vault: once a pull is whole, the app is read again from the start to fill them
+      try {
+        const owedRow = tx.get<{ n: number }>("SELECT n FROM sy_sealed_wait WHERE sync_type = ?", b.syncTypeId);
+        if (owedRow && owedRow.n > 0 && progress && (progress as { done?: boolean }).done !== false)
+          progress = undefined;
+      } catch {
+        /* nothing owed */
+      }
       const fresh = state === undefined || state === null;
       const startedAt = (o.now ?? Date.now)();
       const save = (p: Progress): void => {

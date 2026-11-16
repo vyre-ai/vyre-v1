@@ -38,6 +38,10 @@ export interface SpecField {
   inverseKey?: string;
   inverseTitle?: string;
   readOnly?: boolean;
+  /** Names this field when several fields of one object share a path (the mapping's `field` is the same name). */
+  key?: string;
+  /** The field takes its value only when the other pointer of the same item has this value (compared without case or spaces); otherwise it is empty for that record. */
+  onlyWhen?: { path: string; equals: string | string[] };
 }
 export interface SpecCursor {
   kind: (typeof CURSOR_KINDS)[number];
@@ -243,6 +247,17 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
       if (c["kind"] === "cursor" && !pointerOk(c["next"]))
         bad(`${at}.list.cursor.next`, "A cursor needs next: the pointer to the next cursor in the answer.");
     }
+    for (const [fi, fd] of (Array.isArray(o["fields"]) ? (o["fields"] as unknown[]) : []).entries()) {
+      const ow = isObj(fd) ? fd["onlyWhen"] : undefined;
+      if (ow === undefined) continue;
+      const eq = isObj(ow) ? ow["equals"] : undefined;
+      if (
+        !isObj(ow) ||
+        !pointerOk(ow["path"]) ||
+        !(typeof eq === "string" || (Array.isArray(eq) && eq.length > 0 && eq.every((x) => typeof x === "string")))
+      )
+        bad(`${at}.fields[${fi}].onlyWhen`, "onlyWhen is { path: a pointer, equals: a value or a list of values }.");
+    }
     const wh = o["webhook"];
     if (wh !== undefined) {
       if (!isObj(wh) || !Array.isArray(wh["events"]))
@@ -415,17 +430,41 @@ export const connectorKeyOf = (spec: SyncSpec): string =>
   `crm_${slug(spec.app.name) || "app"}${spec.app.account ? `_${slug(spec.app.account)}` : ""}`.slice(0, 40);
 const actionName = (kind: string, remote: string): string => `${kind}_${slug(remote)}`;
 
+/** The object's field a mapping entry points at: by path, and by key when several fields share the path. */
+export function fieldOf(o: SpecObject | undefined, mf: { path: string; field?: string }): SpecField | undefined {
+  const same = o?.fields.filter((x) => x.path === mf.path) ?? [];
+  return same.length > 1 ? (same.find((x) => x.key !== undefined && x.key === mf.field) ?? same[0]) : same[0];
+}
+export const WHEN_PREFIX = "=when:";
+/** The remote key of a conditional field: the value at `p`, only when `w` holds one of `e`. */
+export const whenRemote = (p: string, w: { path: string; equals: string | string[] }): string =>
+  `${WHEN_PREFIX}${JSON.stringify({ p, w: w.path, e: Array.isArray(w.equals) ? w.equals : [w.equals] })}`;
+/** The value of a pulled row's remote key, which may be a conditional one. */
+export function valueOfRemote(data: Record<string, unknown>, remote: string): unknown {
+  if (!remote.startsWith(WHEN_PREFIX)) return data[remote];
+  const c = JSON.parse(remote.slice(WHEN_PREFIX.length)) as { p: string; w: string; e: string[] };
+  const have = data[c.w];
+  const norm = (x: unknown): string => String(x).trim().toLowerCase();
+  return have !== undefined && have !== null && c.e.some((v) => norm(v) === norm(have)) ? (data[c.p] ?? null) : null;
+}
+
 /** The record field key for each mapped path of one mapping: the explicit one, else from the label, made unique. */
 export function fieldKeys(obj: SpecObject, m: SpecMapping): Map<string, string> {
   const out = new Map<string, string>();
+  for (const [i, k] of fieldKeyList(obj, m).entries()) if (!out.has(m.fields[i]!.path)) out.set(m.fields[i]!.path, k);
+  return out;
+}
+/** One key per mapping entry, in order (entries sharing a path each have their own). */
+export function fieldKeyList(obj: SpecObject, m: SpecMapping): string[] {
+  const out: string[] = [];
   const used = new Set<string>();
   for (const f of m.fields) {
-    const spec = obj.fields.find((x) => x.path === f.path);
+    const spec = fieldOf(obj, f);
     let key = f.field ?? fieldKeyOf(spec?.label ?? f.path.split("/").pop() ?? "field");
     const base = key;
     for (let n = 2; used.has(key); n++) key = `${base}_${n}`.slice(0, 63);
     used.add(key);
-    out.set(f.path, key);
+    out.push(key);
   }
   return out;
 }
@@ -515,17 +554,17 @@ export function relationEnds(spec: SyncSpec): Map<string, { key: string; title: 
   for (const m of spec.mapping) {
     const o = byRemote.get(m.remote);
     if (!o) continue;
-    const keys = fieldKeys(o, m);
-    for (const f of m.fields) {
+    const keyList = fieldKeyList(o, m);
+    for (const [mi, f] of m.fields.entries()) {
       if (f.direction === "off") continue;
-      const sf = o.fields.find((x) => x.path === f.path);
+      const sf = fieldOf(o, f);
       const target = sf?.type === "relation" ? spec.mapping.find((x) => x.remote === sf.relationTo) : undefined;
       if (!sf || !target) continue;
       const pair = `${m.recordType}>${target.recordType}`;
       const n = seen.get(pair) ?? 0;
       seen.set(pair, n + 1);
-      const field = keys.get(f.path)!;
-      out.set(`${m.recordType}|${f.path}`, {
+      const field = keyList[mi]!;
+      out.set(`${m.recordType}|${field}`, {
         key: (sf.inverseKey ?? (n === 0 ? `${m.recordType}s` : `${m.recordType}_${field}s`)).slice(0, 60),
         title: sf.inverseTitle ?? (n === 0 ? `${o.label}s` : `${o.label}s (${sf.label.toLowerCase()})`),
         to: target.recordType,
@@ -564,6 +603,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
     const o = byRemote.get(m.remote);
     if (!o) continue;
     const keys = fieldKeys(o, m);
+    const keyList = fieldKeyList(o, m);
     const cursor = o.list.cursor ?? { kind: "none" as const };
     const filter = spec.plan.backfill === "now" ? undefined : o.list.filter;
     const query: Record<string, string> = {
@@ -576,13 +616,17 @@ export function compileSpec(spec: SyncSpec): Compiled {
 
     const mapped = m.fields.filter((f) => f.direction !== "off");
     const titleParts = Array.isArray(m.titleField) ? m.titleField : [];
-    const shapeFields = [...new Set([...mapped.map((f) => f.path), ...titleParts])];
+    const whenPaths = mapped.flatMap((f) => {
+      const w = fieldOf(o, f)?.onlyWhen;
+      return w ? [w.path] : [];
+    });
+    const shapeFields = [...new Set([...mapped.map((f) => f.path), ...titleParts, ...whenPaths])];
     const types_: Record<string, string> = {};
     const choices: Record<string, string[]> = {};
     for (const p of shapeFields) {
       const sf = o.fields.find((x) => x.path === p);
       if (!sf) {
-        if (titleParts.includes(p)) types_[p] = "text";
+        if (titleParts.includes(p) || whenPaths.includes(p)) types_[p] = "text";
         continue;
       }
       // a pick-list or a multi-pick with no choices listed becomes plain text locally; the sync reads it the same way
@@ -702,21 +746,25 @@ export function compileSpec(spec: SyncSpec): Compiled {
     const relations: CompiledType["relations"] = [];
     const fields: FieldMapOut[] = [];
     let statusField: string | undefined;
-    for (const f of mapped) {
-      const sf = o.fields.find((x) => x.path === f.path);
-      const key = keys.get(f.path)!;
-      const dir = directionOf(f, sf, writable.update);
+    for (const [mi, f] of m.fields.entries()) {
+      if (f.direction === "off") continue;
+      const sf = fieldOf(o, f);
+      const key = keyList[mi]!;
+      // a field that takes its value only when another pointer says so is read, never written back
+      const when = sf?.onlyWhen;
+      const remoteKey = when ? whenRemote(f.path, when) : f.path;
+      const dir = when ? "pull" : directionOf(f, sf, writable.update);
       if (sf?.type === "sealed") {
-        fields.push({ key, remote: f.path, dir: "pull", sealed: true });
+        fields.push({ key, remote: remoteKey, dir: "pull", sealed: true });
         defs.push({ key, type: "sealed", title: sf.label });
         continue;
       }
       const target = sf?.type === "relation" ? spec.mapping.find((x) => x.remote === sf.relationTo) : undefined;
-      const end = target ? ends.get(`${m.recordType}|${f.path}`) : undefined;
+      const end = target ? ends.get(`${m.recordType}|${key}`) : undefined;
       const inverse = end?.key;
       fields.push({
         key,
-        remote: f.path,
+        remote: remoteKey,
         dir,
         ...(sf?.type === "relation" ? { relation: sf.relationTo! } : {}),
         ...(inverse ? { inverse } : {}),
@@ -807,10 +855,21 @@ export function compileSpec(spec: SyncSpec): Compiled {
     objects,
     syncedTypes: spec.mapping.map((m) => m.remote),
     rate: rateOf(spec),
+    ...(sealedPaths(spec).length ? { sealed: sealedPaths(spec) } : {}),
     // a first page of the first list: what "test the connection" reads, so a replaced key brings a connection back
     ...(actions[0] ? { health: actions[0].name } : {}),
   };
   return { connector, types, secretSlot };
+}
+
+/** The pointers of every sealed field of a spec's mapped objects. */
+export function sealedPaths(spec: SyncSpec): string[] {
+  const out = new Set<string>();
+  for (const m of spec.mapping) {
+    const o = spec.objects.find((x) => x.remote === m.remote);
+    for (const f of m.fields) if (f.direction !== "off" && fieldOf(o, f)?.type === "sealed") out.add(f.path);
+  }
+  return [...out];
 }
 
 /** The connection's budget: what the spec says in calls a minute (one call at a time, spaced evenly, so no minute holds more than that), else the old default. */

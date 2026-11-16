@@ -80,6 +80,10 @@ type Out = {
     words: string;
     resumesAt: number;
   };
+  sealedWaiting?: {
+    count: number;
+    words: string;
+  };
   spec: boolean;
 };
 ```
@@ -145,6 +149,10 @@ type Out = {
     },
     "records": 1,
     "schemaChanges": 1,
+    "sealedWaiting": {
+      "count": 1,
+      "words": "example"
+    },
     "sentToday": 1,
     "slowedDown": {
       "resumesAt": 1760000000000,
