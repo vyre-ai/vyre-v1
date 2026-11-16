@@ -12,9 +12,9 @@ export const title = "Tasks: two people edited one task";
 
 const NOW = Date.UTC(2026, 10, 3, 9, 30);
 const DAY = 86_400_000;
-const ME = "usr_irfad";
+const ME = "usr_imran";
 const PEOPLE = [
-  { id: ME, name: "Irfad Imtiaz", kind: "person" },
+  { id: ME, name: "Imran Ibarra", kind: "person" },
   { id: "usr_sara", name: "Sara Khan", kind: "person" },
   { id: "agt_mira", name: "Mira", kind: "agent" },
 ];
@@ -133,7 +133,7 @@ function runtime(): unknown {
     screens,
     call,
     principals: live(PEOPLE),
-    me: { id: ME, name: "Irfad Imtiaz" },
+    me: { id: ME, name: "Imran Ibarra" },
     assistant: { id: "agt_assistant", name: "Assistant" },
     clock: () => ({ now: NOW, offsetMin: 300 }),
     recordTitle: () => undefined,
@@ -174,7 +174,7 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
       },
     };
     return createThemeController({
-      personId: "irfad",
+      personId: "imran",
       spaceId: "nw",
       spaceSkin: { nw: skin },
       prefersDark: skin === "graphite",

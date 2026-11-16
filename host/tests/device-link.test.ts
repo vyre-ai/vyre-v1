@@ -46,8 +46,8 @@ test("a computer refuses a turn for anyone but its own person, and one before it
 test("the turn's network rule always reaches the Space at the address this computer joined by, and the engine works in a folder the sandbox accepts", async () => {
   const { withSpace, RULE_ENV } = await import("../src/compute/node.ts");
   assert.equal(
-    withSpace(undefined, "https://mla.vyre.run"),
-    JSON.stringify({ egress: "public", space: "mla.vyre.run:443" }),
+    withSpace(undefined, "https://northwind.vyre.run"),
+    JSON.stringify({ egress: "public", space: "northwind.vyre.run:443" }),
   );
   assert.equal(
     withSpace(JSON.stringify({ egress: "list", allow: ["api.anthropic.com"] }), "http://192.168.1.20:8420"),
@@ -68,7 +68,7 @@ test("the turn's network rule always reaches the Space at the address this compu
       },
     },
     dataDir: dir,
-    server: "https://mla.vyre.run",
+    server: "https://northwind.vyre.run",
     log: () => undefined,
     person: () => "usr_olivia",
   });
@@ -89,8 +89,8 @@ test("the turn's network rule always reaches the Space at the address this compu
     path.join(dir, "work", "usr_olivia", "prc_" + "d".repeat(24)),
     "<data dir>/work/<person>/<process>, as modules/engine/sandbox.ts requires",
   );
-  assert.equal(seen[0]?.env["MCP"], "https://mla.vyre.run/mcp", "Vyre's tools at the Space's own address");
-  assert.equal(seen[0]?.env[RULE_ENV], JSON.stringify({ egress: "public", space: "mla.vyre.run:443" }));
+  assert.equal(seen[0]?.env["MCP"], "https://northwind.vyre.run/mcp", "Vyre's tools at the Space's own address");
+  assert.equal(seen[0]?.env[RULE_ENV], JSON.stringify({ egress: "public", space: "northwind.vyre.run:443" }));
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

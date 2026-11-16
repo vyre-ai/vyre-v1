@@ -41,7 +41,7 @@ const marketing: Folder = {
   id: "fld_marketing",
   name: "Marketing",
   scope: "shared",
-  owner: "usr_irfad",
+  owner: "usr_imran",
   itemCount: 3,
   whoCanExport: [],
   yourLevel: "manage",
@@ -50,7 +50,7 @@ const mine: Folder = {
   id: "fld_mine",
   name: "Mine",
   scope: "mine",
-  owner: "usr_irfad",
+  owner: "usr_imran",
   itemCount: 3,
   whoCanExport: [],
   yourLevel: "manage",
@@ -61,7 +61,7 @@ const item = (o: Partial<Item>): Item => ({
   name: "x",
   kind: "api_key",
   folderId: "fld_marketing",
-  owner: "usr_irfad",
+  owner: "usr_imran",
   scope: "shared",
   fieldKeys: [],
   handle: "#N_x",
@@ -179,10 +179,10 @@ test("item page: the who line comes from the real grants, you and the owner left
       agt_billing: "Billing",
       usr_omar: "Omar Haddad",
       usr_maya: "Maya Chen",
-      usr_irfad: "Irfad Imtiaz",
+      usr_imran: "Imran Ibarra",
     })[s.id] ?? s.id;
   const shares: Share[] = [
-    { subject: { kind: "person", id: "usr_irfad" }, level: "manage", through: "owner" },
+    { subject: { kind: "person", id: "usr_imran" }, level: "manage", through: "owner" },
     { subject: { kind: "agent", id: "agt_intake" }, level: "use", through: "direct" },
     { subject: { kind: "agent", id: "agt_research" }, level: "use", through: "direct" },
     { subject: { kind: "agent", id: "agt_billing" }, level: "use", through: "direct" },
@@ -190,15 +190,15 @@ test("item page: the who line comes from the real grants, you and the owner left
     { subject: { kind: "person", id: "usr_maya" }, level: "edit", through: "direct" },
   ];
   assert.equal(
-    whoLine(item({}), marketing, shares, "usr_irfad", nameOf),
+    whoLine(item({}), marketing, shares, "usr_imran", nameOf),
     "Intake, Research and 1 more can use it · Omar can see it · Maya can change it · Shared › Marketing",
   );
   assert.equal(
-    whoLine(item({}), marketing, shares.slice(0, 3), "usr_irfad", nameOf),
+    whoLine(item({}), marketing, shares.slice(0, 3), "usr_imran", nameOf),
     "Intake and Research can use it · Shared › Marketing",
   );
   assert.equal(
-    whoLine(item({}), marketing, [shares[0]!], "usr_irfad", nameOf),
+    whoLine(item({}), marketing, [shares[0]!], "usr_imran", nameOf),
     accessLine(item({}), marketing),
     "with no one else the plain line",
   );
@@ -206,7 +206,7 @@ test("item page: the who line comes from the real grants, you and the owner left
   assert.equal(fmtList(["A", "B"]), "A and B");
   assert.equal(fmtList(["A", "B", "C", "D"]), "A, B and 2 more");
   assert.equal(
-    whoLine(item({ scope: "mine", folderId: "fld_mine" }), mine, [], "usr_irfad", nameOf),
+    whoLine(item({ scope: "mine", folderId: "fld_mine" }), mine, [], "usr_imran", nameOf),
     "Only you can use it · Mine",
   );
 });
@@ -244,7 +244,7 @@ test("who can use it: the grants of the sample item, a level menu with the curre
   assert.deepEqual(
     before.map((s) => `${s.subject.id}:${s.level}:${s.through}`),
     [
-      "usr_irfad:manage:owner",
+      "usr_imran:manage:owner",
       "usr_maya:edit:direct",
       "usr_omar:view:direct",
       "agt_intake:use:direct",

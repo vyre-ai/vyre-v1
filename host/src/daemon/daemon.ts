@@ -942,7 +942,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return /^(127\.0\.0\.1|localhost|\[::1\])$/.test(cfg.host) ? `a.localhost:${boundPort}` : null;
   };
   // The artifact host this server hands out is one it has found answering: a request to HOST_CHECK_PATH on that host must come back with this Space's own marker. A name that was never routed to this server
-  // (13 Nov 2026: mla-a.vyre.run fell to the relay's wildcard and answered 404) fails here, and no address is given out for it: an artifact says so plainly and Console, Health says what to add. A Space reached
+  // (13 Nov 2026: northwind-a.vyre.run fell to the relay's wildcard and answered 404) fails here, and no address is given out for it: an artifact says so plainly and Console, Health says what to add. A Space reached
   // through the relay is reached by its control link, which carries the artifact host's own paths only, so it is not asked over HTTP; its held phone name is the fact. A Space on this computer (a.localhost) needs no DNS.
   type ArtifactHostState = { host: string; ok: boolean; at: number; why: string };
   let artifactHostState: ArtifactHostState | null = null;

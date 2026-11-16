@@ -511,7 +511,7 @@ test("two contacts who share a Cc: each contact's view shows only the drafts add
     contacts: {
       "josh@jcs.test": [{ recordId: "rec_josh1", score: 0.9 }],
       "osama@mail.test": [{ recordId: "rec_osama", score: 0.9 }],
-      "aliza@mla.test": [{ recordId: "rec_aliza", score: 0.9 }],
+      "aliza@northwind.test": [{ recordId: "rec_aliza", score: 0.9 }],
     },
   });
   const josh = await ingest(
@@ -529,14 +529,14 @@ test("two contacts who share a Cc: each contact's view shows only the drafts add
   const forJosh = await draft(h.ctx, {
     mailboxId: MBX,
     replyToMessageId: josh.messageId,
-    cc: [{ address: "aliza@mla.test", contactId: "rec_aliza" } as never],
+    cc: [{ address: "aliza@northwind.test", contactId: "rec_aliza" } as never],
     text: "Josh, the call is set.",
     idempotencyKey: key(),
   });
   const forOsama = await draft(h.ctx, {
     mailboxId: MBX,
     replyToMessageId: osama.messageId,
-    cc: [{ address: "aliza@mla.test", contactId: "rec_aliza" } as never],
+    cc: [{ address: "aliza@northwind.test", contactId: "rec_aliza" } as never],
     text: "Osama, the setup is ready.",
     contactId: "rec_josh1",
     idempotencyKey: key(),

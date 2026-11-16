@@ -22,7 +22,7 @@ test("a reply goes through createReply on the message it answers, with our body 
   const out = await mailSend(h.ctx, {
     ...act,
     to: ["josh@cohenshah.test"],
-    cc: ["andrey@scout.test"],
+    cc: ["andrea@scout.test"],
     subject: "Re: Welcome to Scout, Josh",
     text: "Wednesday works.",
     replyTo: "AAMk-copy",
@@ -33,7 +33,7 @@ test("a reply goes through createReply on the message it answers, with our body 
     subject: "Re: Welcome to Scout, Josh",
     body: { contentType: "Text", content: "Wednesday works." },
     toRecipients: [{ emailAddress: { address: "josh@cohenshah.test" } }],
-    ccRecipients: [{ emailAddress: { address: "andrey@scout.test" } }],
+    ccRecipients: [{ emailAddress: { address: "andrea@scout.test" } }],
   });
   assert.equal(h.hits(`${U}/messages/draft-r1/send`, "POST").length, 1);
   assert.equal(h.hits(`${U}/sendMail`).length, 0);

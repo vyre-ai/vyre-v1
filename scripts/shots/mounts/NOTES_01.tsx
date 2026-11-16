@@ -22,7 +22,7 @@ import type { CapMap } from "../../../generated/types.ts";
 
 export const title = "Notes";
 
-const ME = "usr_irfad";
+const ME = "usr_imran";
 const NOW = Date.UTC(2026, 10, 3, 4, 30);
 const at = (d: number, h: number, m: number): number => Date.UTC(2026, 10, d, h - 5, m);
 const F = 'font-family="-apple-system,Helvetica,Arial,sans-serif"';
@@ -43,7 +43,7 @@ const SVG: Record<string, string> = {
       `<rect x="210" y="${y}" width="86" height="14" rx="3" fill="#F1EFEA"/><text x="214" y="${y + 9.5}" font-size="6.5" fill="#8A877F">${t}</text>`;
     return `<svg viewBox="0 0 320 190" xmlns="http://www.w3.org/2000/svg" ${F}><rect width="320" height="190" fill="#F7F5F0"/><rect width="320" height="30" fill="#0E2A47"/><text x="14" y="19" font-size="9.5" font-weight="700" letter-spacing="1.2" fill="#fff">BAILEY &amp; GALYEN</text><text x="196" y="19" font-size="7.5" fill="#C9D4E2">Practice areas   Locations   Contact</text><text x="14" y="58" font-size="15" font-weight="700" fill="#0E2A47">Hurt in Texas?</text><text x="14" y="76" font-size="15" font-weight="700" fill="#0E2A47">Talk to a lawyer today.</text><rect x="12" y="88" width="132" height="14" fill="#FFE58A"/><text x="14" y="98" font-size="8.5" fill="#1C2733">Call us 24/7. Se habla español.</text><rect x="12" y="103" width="92" height="14" fill="#FFE58A"/><text x="14" y="113" font-size="8.5" fill="#1C2733">No fee unless we win.</text><rect x="14" y="132" width="92" height="22" rx="4" fill="#C8102E"/><text x="25" y="146" font-size="8.5" font-weight="600" fill="#fff">Free consultation</text><rect x="200" y="44" width="106" height="134" rx="6" fill="#fff" stroke="#E2DED5"/><text x="210" y="60" font-size="8" font-weight="600" fill="#0E2A47">Tell us what happened</text>${f(68, "Type of accident")}${f(88, "When did it happen?")}${f(108, "Were you hurt?")}${f(128, "Phone")}<rect x="210" y="152" width="86" height="16" rx="3" fill="#0E2A47"/><text x="238" y="163" font-size="7" fill="#fff">Continue</text></svg>`;
   })(),
-  skool: `<svg viewBox="0 0 320 120" xmlns="http://www.w3.org/2000/svg" ${F}><rect width="320" height="120" fill="#1D1B22"/><rect x="232" y="18" width="70" height="84" rx="10" fill="#2B2833"/><circle cx="267" cy="50" r="16" fill="#F3B33D"/><text x="259" y="56" font-size="16" font-weight="800" fill="#1D1B22">M</text><text x="250" y="86" font-size="8" fill="#A9A4B6">AI Labs</text><text x="16" y="30" font-size="9" font-weight="600" fill="#F3B33D">MLA AI LABS</text><text x="16" y="56" font-size="17" font-weight="700" fill="#fff">Lab 8: Claude reads</text><text x="16" y="76" font-size="17" font-weight="700" fill="#fff">your intake calls</text><text x="16" y="98" font-size="9" fill="#A9A4B6">Thu 6 Nov · 6:00 PM ET · Zoom</text></svg>`,
+  skool: `<svg viewBox="0 0 320 120" xmlns="http://www.w3.org/2000/svg" ${F}><rect width="320" height="120" fill="#1D1B22"/><rect x="232" y="18" width="70" height="84" rx="10" fill="#2B2833"/><circle cx="267" cy="50" r="16" fill="#F3B33D"/><text x="259" y="56" font-size="16" font-weight="800" fill="#1D1B22">M</text><text x="250" y="86" font-size="8" fill="#A9A4B6">AI Labs</text><text x="16" y="30" font-size="9" font-weight="600" fill="#F3B33D">Northwind AI LABS</text><text x="16" y="56" font-size="17" font-weight="700" fill="#fff">Lab 8: Claude reads</text><text x="16" y="76" font-size="17" font-weight="700" fill="#fff">your intake calls</text><text x="16" y="98" font-size="9" fill="#A9A4B6">Thu 6 Nov · 6:00 PM ET · Zoom</text></svg>`,
   lawm: `<svg viewBox="0 0 320 120" xmlns="http://www.w3.org/2000/svg" ${F}><rect width="320" height="120" fill="#22304F"/><rect x="200" y="22" width="104" height="10" rx="3" fill="#33446B"/><rect x="200" y="40" width="80" height="10" rx="3" fill="#33446B"/><rect x="200" y="58" width="96" height="10" rx="3" fill="#33446B"/><rect x="200" y="76" width="64" height="10" rx="3" fill="#4C64A0"/><text x="16" y="34" font-size="9" fill="#9FB0D6">Help Center</text><text x="16" y="62" font-size="20" font-weight="700" fill="#fff">Custom fields</text><text x="16" y="84" font-size="9.5" fill="#C9D3EA">Create, map to forms, use in the API</text></svg>`,
   reel: `<svg viewBox="0 0 320 180" xmlns="http://www.w3.org/2000/svg" ${F}><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2A1F5C"/><stop offset="1" stop-color="#0F0E14"/></linearGradient></defs><rect width="320" height="180" fill="url(#rg)"/><text x="18" y="34" font-size="9" font-weight="600" fill="#B9AEFF">LAB 8 · REEL 1</text><text x="18" y="70" font-size="18" font-weight="700" fill="#fff">3 questions Claude asks</text><text x="18" y="92" font-size="18" font-weight="700" fill="#fff">on every intake call</text><circle cx="276" cy="134" r="20" fill="rgba(255,255,255,.16)"/><path d="M270 124v20l16-10z" fill="#fff"/><text x="18" y="160" font-size="9" fill="#A9A4B6">0:42 · cut by Aliza</text></svg>`,
   board: (() => {
@@ -130,14 +130,14 @@ function notes(clipFresh: boolean, part = ""): Note[] {
   const rest = [
     n("n1", {
       title: "Lab 8 run of show",
-      body: "6:00 doors open, Zoom waiting room\n6:05 Andrey welcome, two minutes\n6:08 Claude reads a PI intake call live\n6:30 Build the intake triage skill together\n6:50 Poll: which practice area next\n6:55 Q&A, Aliza runs the chat",
+      body: "6:00 doors open, Zoom waiting room\n6:05 Andrea welcome, two minutes\n6:08 Claude reads a PI intake call live\n6:30 Build the intake triage skill together\n6:50 Poll: which practice area next\n6:55 Q&A, Aliza runs the chat",
       labels: ["Lab 8"],
       color: "lilac",
       pinned: true,
       share: {
         people: [
           { personId: "usr_aliza", role: "edit" },
-          { personId: "usr_andrey", role: "view" },
+          { personId: "usr_andrea", role: "view" },
         ],
         space: "off",
       },
@@ -161,7 +161,7 @@ function notes(clipFresh: boolean, part = ""): Note[] {
     ...(clipFresh ? [] : [clip]),
     n("n6", {
       title: "Reel ideas for Lab 8",
-      body: "1. Three questions Claude asks on every intake call\n2. Before and after: a 40 minute intake note in 2 minutes\n3. Andrey reacts to a live demo",
+      body: "1. Three questions Claude asks on every intake call\n2. Before and after: a 40 minute intake note in 2 minutes\n3. Andrea reacts to a live demo",
       labels: ["Lab 8"],
       color: "sand",
       owner: "usr_aliza",
@@ -183,7 +183,7 @@ function notes(clipFresh: boolean, part = ""): Note[] {
     }),
     n("n7", {
       title: "GT+ pricing",
-      body: "$1,500 a month, 3 month minimum. Andrey confirms Thursday, then the GHL pipeline goes live.",
+      body: "$1,500 a month, 3 month minimum. Andrea confirms Thursday, then the GHL pipeline goes live.",
       labels: ["Sales"],
       color: "rose",
       share: { people: [], space: "view" },
@@ -259,10 +259,10 @@ const TYPES = [
     ],
   },
 ];
-const PEOPLE_MLA = [
+const PEOPLE_NORTHWIND = [
   ...PEOPLE.filter((p) => p.id === ME || p.kind === "agent"),
   { id: "usr_aliza", name: "Aliza", kind: "person" as const },
-  { id: "usr_andrey", name: "Andrey", kind: "person" as const },
+  { id: "usr_andrea", name: "Andrea", kind: "person" as const },
   { id: "usr_jason", name: "Jason", kind: "person" as const },
 ];
 
@@ -271,7 +271,7 @@ const ASK = "t_note_ask";
 type Msg = CapMap["chat.messages.list"]["out"]["messages"][number];
 type Thr = CapMap["threads.get"]["out"]["thread"];
 function askScreens(): ScreenHooks {
-  const replica = createFakeReplica("mla");
+  const replica = createFakeReplica("northwind");
   const thread: Thr = {
     threadId: ASK,
     kind: "ask",
@@ -339,7 +339,7 @@ function askScreens(): ScreenHooks {
   return createScreenHooks(replica, screensById);
 }
 
-/** The sample runtime with the notes capabilities answered from memory, as the notes module would for Irfad. */
+/** The sample runtime with the notes capabilities answered from memory, as the notes module would for Imran. */
 function notesRuntime(part: string): ShellRuntime {
   const sample = createMountSample({ who: "member" });
   let rows = part === "empty" ? [] : notes(part === "clip", part);
@@ -463,7 +463,7 @@ function notesRuntime(part: string): ShellRuntime {
           meta: {
             title: "Lab 8: Claude reads your intake calls",
             siteName: "Skool",
-            description: "MLA AI Labs · Thu 6 Nov, 6:00 PM ET",
+            description: "Northwind AI Labs · Thu 6 Nov, 6:00 PM ET",
           },
           preview: { contentType: "image/svg+xml", data: b64(SVG["skool"]!), from: "image" },
         };
@@ -492,7 +492,7 @@ function notesRuntime(part: string): ShellRuntime {
         return base.call(cap, input);
     }
   };
-  const people = { status: "ready" as const, data: PEOPLE_MLA };
+  const people = { status: "ready" as const, data: PEOPLE_NORTHWIND };
   const ask = askScreens();
   // the note's Ask thread reads from its own copy; everything else from the sample
   const screens: ScreenHooks = {
@@ -504,8 +504,8 @@ function notesRuntime(part: string): ShellRuntime {
     ...base,
     screens,
     call: call as ShellRuntime["call"],
-    me: { ...base.me, id: ME, name: "Irfad Imtiaz" },
-    space: { id: "mla", kind: "team", name: "My Legal Academy" },
+    me: { ...base.me, id: ME, name: "Imran Ibarra" },
+    space: { id: "northwind", kind: "team", name: "Northwind Academy" },
     principals: { subscribe: () => () => undefined, getSnapshot: () => people },
     clock: () => ({ now: NOW, offsetMin: 300 }),
   };
@@ -523,14 +523,14 @@ const TAKE: Record<string, NotesInitial["take"]> = {
     title: "Lab 8 promo",
     body: "Reel 1 is cut. Post it with the Skool link on Tuesday.",
     labels: ["Lab 8"],
-    reading: "https://skool.com/mla-ai-labs/lab-8",
+    reading: "https://skool.com/northwind-ai-labs/lab-8",
   },
   reading: {
     open: true,
     title: "Lab 8 promo",
     body: "Reel 1 is cut. Post it with the Skool link on Tuesday.",
     labels: ["Lab 8"],
-    reading: "https://skool.com/mla-ai-labs/lab-8",
+    reading: "https://skool.com/northwind-ai-labs/lab-8",
   },
 };
 
@@ -591,7 +591,7 @@ export default function Mount(): ReactNode {
         <NotesPage
           key={part}
           rt={rt}
-          nameOf={(id) => PEOPLE_MLA.find((p) => p.id === id)?.name ?? id}
+          nameOf={(id) => PEOPLE_NORTHWIND.find((p) => p.id === id)?.name ?? id}
           initial={initial}
           phone
         />
@@ -603,7 +603,7 @@ export default function Mount(): ReactNode {
     <SidebarSlotProvider
       deviceId="d1"
       personId={ME}
-      spaceId="mla"
+      spaceId="northwind"
       place="chats"
       epoch={1}
       compact={false}

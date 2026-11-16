@@ -1,4 +1,4 @@
-// What a model reads back from the calendar and mail tools (Andrey's rc.20 report: one "what is on my calendar and what needs a reply" cost minutes and ~560k tokens). Fixtures have the shapes of the real
+// What a model reads back from the calendar and mail tools (Andrea's rc.20 report: one "what is on my calendar and what needs a reply" cost minutes and ~560k tokens). Fixtures have the shapes of the real
 // capability outputs (generated/types.ts) at the sizes real mail and calendars have: HTML bodies with quoted history, long descriptions, attendee blobs, dial-ins. Each list result must stay under RESULT_BUDGET.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +13,7 @@ const lorem = (n: number): string =>
     .repeat(Math.ceil(n / 80))
     .slice(0, n);
 const DAY0 = Date.UTC(2026, 10, 2);
-const people = ["maya", "omar", "lena", "sam", "irfad", "priya", "elena", "marcus", "hannah", "wei", "jonas", "sofia"];
+const people = ["maya", "omar", "lena", "sam", "imran", "priya", "elena", "marcus", "hannah", "wei", "jonas", "sofia"];
 
 /** A crowded week: 60 events with a long HTML description, an agenda, twelve attendees and a conference with dial-ins. */
 const eventsOut = (n: number): { events: unknown[]; next?: string; total: number } => ({
@@ -66,7 +66,7 @@ const msg = (t: number, k: number): Record<string, unknown> => ({
   mailboxId: "mbx_1",
   mailboxIds: ["mbx_1"],
   from: addr(people[k % people.length]!),
-  to: [addr("irfad")],
+  to: [addr("imran")],
   cc: [addr("maya"), addr("omar")],
   subject: `Re: Contract review ${t}`,
   body: lorem(2500),
@@ -120,7 +120,7 @@ const mailRowsOut = (n: number): unknown => ({
     direction: i % 3 === 0 ? "out" : "in",
     status: i % 3 === 0 ? "sent" : "received",
     from: { ...addr(people[i % 12]!), contactId: `rec_${i}` },
-    to: [addr("irfad")],
+    to: [addr("imran")],
     cc: [addr("maya")],
     subject: `Question about invoice ${i} and the schedule for next week`,
     snippet: lorem(400),

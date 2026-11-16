@@ -1,4 +1,4 @@
-// isRelayAddress for a screen: the name rule at first paint, then what the address answers. A browser page on a direct vyre.run Space (mla.vyre.run) asks its own origin, so its
+// isRelayAddress for a screen: the name rule at first paint, then what the address answers. A browser page on a direct vyre.run Space (northwind.vyre.run) asks its own origin, so its
 // "Open in Vyre" appears once the Space has answered; on a relay phone address it never does.
 import { useEffect, useState } from "react";
 import { isPhoneAddress, isRelayAddress } from "./entry.ts";

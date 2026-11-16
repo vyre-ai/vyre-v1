@@ -66,7 +66,7 @@ const ROWS: Record<string, MountRow> = {
     name: "Projects",
     state: "paused",
     reviewChanges: false,
-    fromDevice: "Irfad's MacBook",
+    fromDevice: "Imran's MacBook",
     lastSyncAt: NOW - 86_400_000,
   },
   off: {

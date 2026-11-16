@@ -9,7 +9,7 @@ import type { Db, Kind, MachinesCtx } from "../projections.ts";
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 export const ADMIN = "usr_admin",
   MAYA = "usr_maya",
-  IRFAD = "usr_irfad";
+  IMRAN = "usr_imran";
 /** Tue 3 Nov 2026, 10:00 in Karachi. */
 export const T0 = Date.UTC(2026, 10, 3, 5, 0);
 export const MIN = 60_000,
@@ -24,7 +24,7 @@ export interface Caller {
 }
 export const admin: Caller = { id: ADMIN, kind: "person", admin: true };
 export const maya: Caller = { id: MAYA, kind: "person" };
-export const irfad: Caller = { id: IRFAD, kind: "person" };
+export const imran: Caller = { id: IMRAN, kind: "person" };
 export const host: Caller = { id: "svc_host", kind: "service" };
 
 /** A report of a machine with 8 cores, 16 GB and a 500 GB disk, a given share busy. */
@@ -164,7 +164,7 @@ export function world(f: Fakes = {}, file = ":memory:", fast = false) {
     const r = (
       await call(
         "machines.rooms",
-        { ids: ids ?? ["space", "srv_berlin1", "device:dev_irfadmac", "device:dev_mayaair"] },
+        { ids: ids ?? ["space", "srv_berlin1", "device:dev_imranmac", "device:dev_mayaair"] },
         who,
       )
     ).rooms as Array<{ machineId: string; score: number; why: string; name: string }>;

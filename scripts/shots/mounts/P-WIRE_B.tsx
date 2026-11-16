@@ -32,7 +32,7 @@ export default function Mount(): ReactNode {
       if (cap === "email_builder.list")
         return { emails: [{ emailId: "eml_welcome", name: "Welcome", updatedAt: Date.now() }] };
       if (cap === "email_builder.versions")
-        return { versions: [{ version: 3, at: Date.now() - 3_600_000, by: "usr_irfad" }] };
+        return { versions: [{ version: 3, at: Date.now() - 3_600_000, by: "usr_imran" }] };
       if (cap === "email_builder.saved_blocks.list") return { blocks: [] };
       if (cap === "agents.list") return { agents: [{ agentId: "agt_docs", name: "Docs", role: "Drafts documents" }] };
       return apps.data.call(cap, input);

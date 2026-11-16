@@ -14,7 +14,7 @@
 
 ## What's new (the @ menu)
 
-- The @ menu shows your own Assistant as "Assistant" with its V logo, never as "Irfad Imtiaz (Agent)". After it come the other agents of the Space and the chat's teammates, each with its own face, then people. Another person's Assistant and anyone's outside agent (Claude Code, Codex and the like, which show as "<person> (Agent)") are not in it, and neither is an agent kept from you. Nothing that is not a mention is in the menu, so a stray Report a problem row is gone. Picking Assistant in a shared channel names your own Assistant. A guest sees only the agents the chat allows.
+- The @ menu shows your own Assistant as "Assistant" with its V logo, never as "Imran Ibarra (Agent)". After it come the other agents of the Space and the chat's teammates, each with its own face, then people. Another person's Assistant and anyone's outside agent (Claude Code, Codex and the like, which show as "<person> (Agent)") are not in it, and neither is an agent kept from you. Nothing that is not a mention is in the menu, so a stray Report a problem row is gone. Picking Assistant in a shared channel names your own Assistant. A guest sees only the agents the chat allows.
 
 ## What's new (Notes)
 
@@ -65,7 +65,7 @@
 
 ## What's new (Inbox drafts)
 
-- An agent's draft in Inbox says who drafted it by name ("Assistant drafted a reply"), never by id, and the line under it reads "Sends from techmanager@... when you press Send" in place of "Gate: <id> sends from ...".
+- An agent's draft in Inbox says who drafted it by name ("Assistant drafted a reply"), never by id, and the line under it reads "Sends from ops@... when you press Send" in place of "Gate: <id> sends from ...".
 - One pending draft per thread per agent: a new draft from the same agent on the same thread takes the old one's place. The card says Updated with the time and the earlier draft is one click away.
 - By contact shows only drafts to or from that contact. A draft is filed under a contact only when one of its recipients is that contact's address, and a draft already filed under the wrong contact is left out of the list.
 - Edit and Send on an agent draft in Inbox use the stored draft, not the card preview: Edit opens the draft in its own card with every character of its body and Save keeps its recipients and thread; Send goes to the draft's own recipients and Cc from its own mailbox, filed under its own contact, never to or under the thread that happens to be open. A body that ends in a cut-off marker the person did not type is never sent.

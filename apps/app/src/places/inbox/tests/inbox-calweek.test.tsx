@@ -124,11 +124,11 @@ test("titles and time: two lines before a cut, the time on its own line only whe
 test("all-day lane: one chip per event per day, a multi-day event is one bar, more than two rows fold into +N per day", () => {
   const days = [0, 1, 2, 3, 4, 5, 6].map((i) => D0 - 2 * DAY + i * DAY);
   const evs = [
-    allDay("u1", "MLA Updates", -2),
-    allDay("u2", "MLA Updates", -1),
-    allDay("u2b", "MLA Updates", -1),
-    allDay("u3", "MLA Updates", 0),
-    allDay("u3b", "MLA Updates", 0),
+    allDay("u1", "Northwind Updates", -2),
+    allDay("u2", "Northwind Updates", -1),
+    allDay("u2b", "Northwind Updates", -1),
+    allDay("u3", "Northwind Updates", 0),
+    allDay("u3b", "Northwind Updates", 0),
     allDay("sum", "Summit", 0, 3),
     allDay("bd", "Birthday", 0),
     allDay("car", "Car", 0),
@@ -138,7 +138,7 @@ test("all-day lane: one chip per event per day, a multi-day event is one bar, mo
   assert.equal(sums.length, 1, "a multi-day event is one bar");
   assert.deepEqual([sums[0]!.a, sums[0]!.b], [2, 4], "across its three days");
   assert.equal(
-    lane.segs.filter((x) => x.e.title === "MLA Updates").length,
+    lane.segs.filter((x) => x.e.title === "Northwind Updates").length,
     3,
     "a copy of the same title on the same day is one chip",
   );
@@ -159,8 +159,8 @@ test("all-day lane: one chip per event per day, a multi-day event is one bar, mo
 test("month: three events, then +N more; all-day first one per title; a background band is not listed", () => {
   const day = D0;
   const evs = [
-    allDay("a", "MLA Updates", 0),
-    allDay("a2", "MLA Updates", 0),
+    allDay("a", "Northwind Updates", 0),
+    allDay("a2", "Northwind Updates", 0),
     row("blk", "Block", 9, 17),
     row("m1", "One", 10, 11),
     row("m2", "Two", 11, 12),

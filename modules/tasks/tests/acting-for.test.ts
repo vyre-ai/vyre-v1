@@ -15,7 +15,7 @@ function world(): Harness {
   h.callee("threads.add_agent", () => ({}));
   h.callee("chat.post", () => ({ message: {} }));
   h.callee("access.principals.get", (i: { principal: { id: string } }) => ({
-    principal: { name: i.principal.id === bot.id ? "Assistant" : i.principal.id === owner.id ? "Irfad" : "Someone" },
+    principal: { name: i.principal.id === bot.id ? "Assistant" : i.principal.id === owner.id ? "Imran" : "Someone" },
   }));
   return h;
 }
@@ -24,7 +24,7 @@ const mine = (h: Harness) =>
 const lines = (h: Harness): string[] =>
   h.threadCalls.filter((c) => c.cap === "chat.post").map((c) => (c.input as { body: string }).body);
 
-test("the Assistant completes the task assigned to its person, and the thread reads 'Assistant did this for Irfad'", async () => {
+test("the Assistant completes the task assigned to its person, and the thread reads 'Assistant did this for Imran'", async () => {
   const h = world();
   const id = await mine(h);
   const r = await h.call(
@@ -34,7 +34,7 @@ test("the Assistant completes the task assigned to its person, and the thread re
   );
   assert.equal(r.next, "done");
   assert.equal(findTask(h.db, id)!.state, "done");
-  assert.match(lines(h).join("\n"), /^Assistant did this for Irfad\.\n\nSubmitted: Sent the invoices/m);
+  assert.match(lines(h).join("\n"), /^Assistant did this for Imran\.\n\nSubmitted: Sent the invoices/m);
 });
 
 test("it may also ask and block for its person, as the person could", async () => {

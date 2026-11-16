@@ -1,4 +1,4 @@
-// One calendar per Google account, and no event twice (MLA, 4 Nov: the same Google event sat in four calendar rows, one for every reconnect, and clicking it said "not there any more"): a reconnect
+// One calendar per Google account, and no event twice (Northwind, 4 Nov: the same Google event sat in four calendar rows, one for every reconnect, and clicking it said "not there any more"): a reconnect
 // answers the calendar that is already here, an event lands once per calendar and provider id, the duplicates an earlier reconnect left are folded into the oldest calendar (newest version of each event
 // wins, grants kept, one audit row), and what Calendar lists is exactly what it opens.
 import test from "node:test";
@@ -16,7 +16,7 @@ import { NOW, at, codeOf, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 const MAYA = "usr_maya01";
-const ACCOUNT = "techmanager@mylegalacademy.com";
+const ACCOUNT = "ops@northwind.example";
 const admin = (): Harness => harness({ principal: { kind: "service", id: "svc_host" } });
 const rowsOf = (h: Harness, sql: string, ...a: unknown[]) => h.rows(sql, ...a);
 
@@ -130,7 +130,7 @@ test("reconnecting the same Google account twice leaves one calendar, and an eve
   const other = await connectProvider(h.ctx, {
     provider: "google",
     ownerId: MAYA,
-    account: "other@mylegalacademy.com",
+    account: "other@northwind.example",
     connectionId: "con_g09",
   });
   assert.notEqual(other.calendarId, first.calendarId);
@@ -150,7 +150,7 @@ test("reconnecting the same Google account twice leaves one calendar, and an eve
 
 test("the merge folds the duplicate calendars of one account into the oldest: events once by provider id, the newest version wins, grants and the audit row kept", async () => {
   const h = admin();
-  // shaped like MLA: four rows for one Google calendar, created at different times, the newest holding a full re-import
+  // shaped like Northwind: four rows for one Google calendar, created at different times, the newest holding a full re-import
   addCalendar(h, "cld_01a19e1b8c85", { connectionId: "con_a", at: NOW - 5000 });
   addCalendar(h, "cld_01a19e21129d", { connectionId: "con_b", at: NOW - 4000 });
   addCalendar(h, "cld_01a19e5fddda", { connectionId: "con_c", at: NOW - 3000 });

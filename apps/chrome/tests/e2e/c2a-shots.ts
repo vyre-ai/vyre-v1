@@ -108,12 +108,12 @@ export async function shootExtension(scheme: "light" | "dark", skin: "paper" | "
   push = (m) => r.bridge.push(m);
   const agent = { id: "agt_scout", name: "Scout" };
   const call = (tool: string, input: Record<string, unknown> = {}) =>
-    r.bridge.callTool({ tool, input, agent, space: "spc_mla" }) as Promise<any>;
+    r.bridge.callTool({ tool, input, agent, space: "spc_northwind" }) as Promise<any>;
   try {
-    await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_mla" }));
+    await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_northwind" }));
     const page = await r.context.newPage();
     await r.waitFor(() => r.bridge.connected === 1, 15_000, "the agent channel");
-    r.bridge.optIn(["spc_mla"], "personal");
+    r.bridge.optIn(["spc_northwind"], "personal");
     await new Promise((x) => setTimeout(x, 300));
     const name = (piece: string, size: string) => `chrome-${piece}-${skin}-${size}`;
     for (const [size, vp] of Object.entries(SIZES)) {

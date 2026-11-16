@@ -301,7 +301,7 @@ test("a crew teammate's thread runs on the host, whatever device is online and w
 test("Automatic skips a busy machine for the next one with room and says where it would have gone and why not", () => {
   const busy: PlaceDevice = {
     ...laptop,
-    name: "Irfad's MacBook Pro",
+    name: "Imran's MacBook Pro",
     busy: true,
     busyWhy: "it was busy, 4 of 4 turns running",
   };
@@ -311,7 +311,7 @@ test("Automatic skips a busy machine for the next one with room and says where i
     online: true,
     engines: ["claude_code"],
     lastSeen: 50,
-    name: "Irfad's Mac mini",
+    name: "Imran's Mac mini",
   };
   assert.deepEqual(
     placeTurn(input({ asker: { devices: [busy, mini] } })),
@@ -319,7 +319,7 @@ test("Automatic skips a busy machine for the next one with room and says where i
       placement: "device",
       reason: "other_device",
       deviceId: "dev_mini",
-      moved: { from: "Irfad's MacBook Pro", why: "it was busy, 4 of 4 turns running" },
+      moved: { from: "Imran's MacBook Pro", why: "it was busy, 4 of 4 turns running" },
     },
     "the order is kept, the busy one is passed over",
   );
@@ -335,7 +335,7 @@ test("Automatic skips a busy machine for the next one with room and says where i
       placement: "host",
       reason: "own_server",
       nodeId: "srv_box",
-      moved: { from: "Irfad's MacBook Pro", why: "it was busy, 4 of 4 turns running" },
+      moved: { from: "Imran's MacBook Pro", why: "it was busy, 4 of 4 turns running" },
     },
     "then their servers",
   );
@@ -346,7 +346,7 @@ test("Automatic skips a busy machine for the next one with room and says where i
     {
       placement: "host",
       reason: "space",
-      moved: { from: "Irfad's MacBook Pro", why: "it was busy, 4 of 4 turns running" },
+      moved: { from: "Imran's MacBook Pro", why: "it was busy, 4 of 4 turns running" },
     },
     "then the Space's server",
   );

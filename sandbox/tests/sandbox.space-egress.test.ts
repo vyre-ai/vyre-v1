@@ -45,13 +45,13 @@ test("the Space's own address is reachable under any rule; its other ports and o
 });
 
 test("a rule's space is host:port and nothing else; an address is written the same way the proxy compares it", () => {
-  assert.deepEqual(validateRule({ egress: "public", space: "mla.vyre.run:443" }), {
+  assert.deepEqual(validateRule({ egress: "public", space: "northwind.vyre.run:443" }), {
     egress: "public",
-    space: "mla.vyre.run:443",
+    space: "northwind.vyre.run:443",
   });
-  assert.throws(() => validateRule({ egress: "public", space: "mla.vyre.run" }), /host:port/);
+  assert.throws(() => validateRule({ egress: "public", space: "northwind.vyre.run" }), /host:port/);
   assert.throws(() => validateRule({ egress: "public", space: "http://x:1" }), /host:port/);
-  assert.equal(spaceTarget("https://MLA.vyre.run"), "mla.vyre.run:443");
+  assert.equal(spaceTarget("https://Northwind.vyre.run"), "northwind.vyre.run:443");
   assert.equal(spaceTarget("http://192.168.1.20:8420/"), "192.168.1.20:8420");
   assert.equal(spaceTarget("ftp://x"), null);
 });

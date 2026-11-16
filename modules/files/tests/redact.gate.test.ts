@@ -9,7 +9,7 @@ import { agentGate } from "../handlers/redact.ts";
 import { redactWorld, INTAKE, SECRETS } from "../fixtures/redact-world.ts";
 
 type Obj = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-const AGENT = { principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_irfad", thread: "thr_1" };
+const AGENT = { principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_imran", thread: "thr_1" };
 
 async function claim() {
   const w = redactWorld(new DatabaseSync(":memory:"));
@@ -26,7 +26,7 @@ async function claim() {
   const er = await w.file(med, "ER record.txt", "Patient Elena Rivera. MRN 00-4471882.");
   const costs = await w.file(bill, "case-costs.csv", "Item,Amount\nMRI films,$30\n", "text/csv");
   const open = await w.file(r["projects"]!, "public-notes.txt", "Nothing secret here. Elena Rivera is a client.");
-  const ctx = w.irfad;
+  const ctx = w.imran;
   await w.call(ctx, "files.agent_access.set", { target: { type: "folder", id: claimId }, value: "redact" });
   await w.call(ctx, "files.agent_access.set", { target: { type: "folder", id: bill }, value: "off" });
   return { w, ctx, root: r["projects"]!, claimId, med, bill, intake, retainer, er, costs, open };
@@ -40,7 +40,7 @@ const gate = (
   phase = "after",
 ) => agentGate(w.ctxFor({ kind: "service", id: "svc_host" }), { phase, cap, input, output, who }) as Promise<Obj>;
 const readRaw = async (w: ReturnType<typeof redactWorld>, fileId: string, extra: Obj = {}) =>
-  w.call(w.irfad, "files.read", { fileId, as: "text", ...extra });
+  w.call(w.imran, "files.read", { fileId, as: "text", ...extra });
 const noSecret = (v: unknown) => {
   const s = JSON.stringify(v);
   for (const x of SECRETS) assert.ok(!s.includes(x), `${x} reached the agent: ${s.slice(0, 300)}`);
@@ -71,7 +71,7 @@ test("Agent access is inherited down the tree and a subfolder or file can set it
   );
   await assert.rejects(
     () =>
-      c.w.call(c.w.ctxFor({ kind: "agent", id: "agt_intake", actingFor: "usr_irfad" }), "files.agent_access.set", {
+      c.w.call(c.w.ctxFor({ kind: "agent", id: "agt_intake", actingFor: "usr_imran" }), "files.agent_access.set", {
         target: { type: "folder", id: c.claimId },
         value: "on",
       }),
@@ -98,7 +98,7 @@ test("files.read: Not available is refused, Needs review is refused and asks a p
   const req = c.w.events.find((e) => e.name === "file.redact_requested")!.payload;
   assert.deepEqual(
     [req.agentId, req.actingFor, req.threadId, req.name],
-    ["agt_intake", "usr_irfad", "thr_1", "Rivera intake form.txt"],
+    ["agt_intake", "usr_imran", "thr_1", "Rivera intake form.txt"],
   );
 
   for (const s of SECRETS)
@@ -119,7 +119,7 @@ test("files.read: Not available is refused, Needs review is refused and asks a p
   const ready = c.w.events.find((e) => e.name === "file.redact_ready")!.payload;
   assert.deepEqual(
     [ready.agentId, ready.actingFor, ready.threadId, ready.by],
-    ["agt_intake", "usr_irfad", "thr_1", "usr_irfad"],
+    ["agt_intake", "usr_imran", "thr_1", "usr_imran"],
   );
 
   const ok = await gate(c.w, "files.read", { fileId: c.intake, as: "text" }, rawIntake);
@@ -375,7 +375,7 @@ test("a new version carries redactions over; one it cannot place sends the file 
 
 test("an agent may add a redaction but never take one off, review a file, or carry a file out of its layer", async () => {
   const c = await claim();
-  const agent = c.w.ctxFor({ kind: "agent", id: "agt_intake", actingFor: "usr_irfad" });
+  const agent = c.w.ctxFor({ kind: "agent", id: "agt_intake", actingFor: "usr_imran" });
   const m = (
     await c.w.call(agent, "files.marks.add", {
       target: { type: "file", id: c.intake },
@@ -385,7 +385,7 @@ test("an agent may add a redaction but never take one off, review a file, or car
     })
   ).mark;
   assert.equal(m.byAgent, "agt_intake");
-  assert.equal(m.by, "usr_irfad", "credited to the person it acts for: Irfad Imtiaz (Agent)");
+  assert.equal(m.by, "usr_imran", "credited to the person it acts for: Imran Ibarra (Agent)");
   await assert.rejects(
     () => c.w.call(agent, "files.marks.remove", { markId: m.markId }),
     /Only a person can un-redact/,
@@ -427,12 +427,12 @@ test("disk and git: a CLI engine is not handed a folder with anything hidden bel
   const c = await claim();
   const folders = {
     folders: [
-      { mountId: "mnt_a", folderId: c.claimId, path: "/Users/irfad/Claims" },
-      { mountId: "mnt_b", folderId: c.root, path: "/Users/irfad/Projects" },
+      { mountId: "mnt_a", folderId: c.claimId, path: "/Users/imran/Claims" },
+      { mountId: "mnt_b", folderId: c.root, path: "/Users/imran/Projects" },
     ],
   };
   const kept = (
-    await gate(c.w, "mounts.engine_folders", { person: "usr_irfad" }, folders, {
+    await gate(c.w, "mounts.engine_folders", { person: "usr_imran" }, folders, {
       principal: { kind: "service", id: "svc_host" },
       origin: "engine",
     })
@@ -445,7 +445,7 @@ test("disk and git: a CLI engine is not handed a folder with anything hidden bel
       await gate(
         c.w,
         "mounts.engine_folders",
-        { person: "usr_irfad" },
+        { person: "usr_imran" },
         { folders: [{ mountId: "m", folderId: clean, path: "/T" }] },
         { principal: { kind: "service", id: "svc_host" }, origin: "engine" },
       )

@@ -57,7 +57,7 @@ The database lives on the Space's server and keeps its data through every redepl
 
 ## 5. Open it
 
-When the status says **Live**, press **Open**. The address looks like `https://cx-dashboard.mla.vyre.run`.
+When the status says **Live**, press **Open**. The address looks like `https://cx-dashboard.northwind.vyre.run`.
 
 - **People in this Space** (the default): teammates open the address, sign in to Vyre once, and get in. Someone removed from the Space loses access at once.
 - **Anyone with the password**: set a password on the site page, then pick this.
@@ -83,4 +83,4 @@ Check the Vyre site with your team for a day, then remove the Railway service an
 Sites need two things on the Space's server:
 
 1. **The sites runner.** Vyre Server 1.0.0-rc.17 and later run it beside Vyre: a small service that alone holds the Docker socket and builds and runs only site containers, on the `vyre-sites` network, with every capability dropped and a CPU, memory and process cap. Vyre itself never holds the socket. A new install has it; an existing server gets it with `vyre-server update`. `vyre-server check` lists it.
-2. **An address for sites.** One DNS record: `*.<your Space's domain>` as an A record to the server's IP (DNS only, not proxied). For My Legal Academy that is `*.mla.vyre.run`, already in place, so sites are `<name>.mla.vyre.run`. Vyre notices the record by itself. `VYRE_SITES_DOMAIN` in `vyre.env` names another wildcard domain instead.
+2. **An address for sites.** One DNS record: `*.<your Space's domain>` as an A record to the server's IP (DNS only, not proxied). For Northwind Academy that is `*.northwind.vyre.run`, already in place, so sites are `<name>.northwind.vyre.run`. Vyre notices the record by itself. `VYRE_SITES_DOMAIN` in `vyre.env` names another wildcard domain instead.

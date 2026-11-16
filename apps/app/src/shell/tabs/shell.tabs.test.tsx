@@ -34,7 +34,7 @@ function storage(): TabsStorage & { keys(): string[] } {
 }
 
 const controller = (s: TabsStorage | null, device = "mac", space = "nw", start: "chats" | "home" = "chats") =>
-  createTabsController({ deviceId: device, personId: "irfad", spaceId: space, storage: s, start });
+  createTabsController({ deviceId: device, personId: "imran", spaceId: space, storage: s, start });
 
 test("opening a tab selects it, opening it again selects the same one, background keeps the current tab", () => {
   let s = openTab(EMPTY_TABS, placeTab("chats"));
@@ -120,11 +120,11 @@ test("tabs restore per device and per Space and never leave the device", () => {
     ["home"],
   );
 
-  for (const k of disk.keys()) assert.ok(k.startsWith("vyre.tabs.v1:mac:irfad:"), k);
-  assert.equal(tabsStorageKey("mac", "irfad", "nw"), "vyre.tabs.v1:mac:irfad:nw");
+  for (const k of disk.keys()) assert.ok(k.startsWith("vyre.tabs.v1:mac:imran:"), k);
+  assert.equal(tabsStorageKey("mac", "imran", "nw"), "vyre.tabs.v1:mac:imran:nw");
   assert.deepEqual(
     disk.keys(),
-    ["vyre.tabs.v1:mac:irfad:nw"],
+    ["vyre.tabs.v1:mac:imran:nw"],
     "only the tabs that changed were written, under the device key",
   );
 });

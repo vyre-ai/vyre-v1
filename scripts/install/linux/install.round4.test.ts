@@ -193,7 +193,7 @@ test("claim-link: a link on 0.0.0.0 is printed alone on stdout, and stderr says 
   assert.match(r.stderr, /--domain/);
   fs.writeFileSync(
     path.join(dir, "space/logs/claim-link.txt"),
-    "https://mla.example.com/claim/abcdefghijklmnop#s=spc_fixture\n",
+    "https://northwind.example.com/claim/abcdefghijklmnop#s=spc_fixture\n",
   );
   assert.equal(sh(SERVER, `DATA_DIR="${dir}"; main claim-link`).stderr, "", "a real address needs no explanation");
   fs.rmSync(dir, { recursive: true });

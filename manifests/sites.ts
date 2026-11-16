@@ -318,7 +318,7 @@ export default defineManifest({
           deploy: t.opt(t.bool()),
           deployNeed: t.opt(t.str()),
           sitesDomain: t.opt(
-            t.str({ description: "Sites get <name>.<this> as their own address", examples: ["mla.vyre.run"] }),
+            t.str({ description: "Sites get <name>.<this> as their own address", examples: ["northwind.vyre.run"] }),
           ),
         },
         perm: null,

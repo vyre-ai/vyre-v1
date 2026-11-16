@@ -63,7 +63,7 @@ type Out = {
     "domainsNeed": "example",
     "origin": "example",
     "relay": true,
-    "sitesDomain": "mla.vyre.run"
+    "sitesDomain": "northwind.vyre.run"
   }
 }
 ```

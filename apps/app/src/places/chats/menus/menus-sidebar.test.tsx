@@ -246,7 +246,7 @@ test("a goal row: right-click gives the goal menu for its owner; Pause calls goa
     id: "gol_a",
     title: "Fill Lab 8",
     status: "active",
-    owner: "usr_irfad",
+    owner: "usr_imran",
     leadAgentId: "agt_assistant",
     deadline: Date.UTC(2026, 11, 1),
     progress: { tasksDone: 1, tasks: 4 },

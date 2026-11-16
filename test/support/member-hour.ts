@@ -1,5 +1,5 @@
 // A newly invited team member's first hour on a Vyre Server Space (release gate, test/member-first-hour*.live.test.ts), the way the owner's team met it on 3 Nov: a server-role daemon at its own
-// address behind Caddy (https://mla.firm.test), the real identity and the real Vault, Google sign-in through the stand-in OpenID provider (fixtures/suite/idp.ts), a stand-in Google for mail,
+// address behind Caddy (https://northwind.firm.test), the real identity and the real Vault, Google sign-in through the stand-in OpenID provider (fixtures/suite/idp.ts), a stand-in Google for mail,
 // calendar and Drive behind the module egress and the seam fetch, and a Space AI key from a fake provider. Every call a person makes goes the way the app makes it: the client's capability caller
 // (client/src/gateway createCapCaller, the route table, GET or POST) at the Space's https address, which the edge hands to the daemon as Caddy does (x-forwarded-proto https). Each person's answers
 // are kept, so a walk can say that no screen showed a Space id and that no call was refused unless the refusal was meant and said in plain words.
@@ -35,13 +35,13 @@ import { SPACE_KEY, SUB, vendor } from "../member-key-kit.ts";
 
 export { SPACE_KEY, SUB };
 
-export const ADDRESS = "https://mla.firm.test";
-export const SPACE_NAME = "My Legal Academy";
+export const ADDRESS = "https://northwind.firm.test";
+export const SPACE_NAME = "Northwind Academy";
 export const DOMAIN = "firm.test";
 const ISSUER = "https://accounts.google.com";
-const SSO_CLIENT = "mla-app-client";
-const SSO_SECRET = "mla-client-secret-123"; // secret-scan: fake
-const SA_EMAIL = "vyre-space@mla-prod.iam.gserviceaccount.com";
+const SSO_CLIENT = "northwind-app-client";
+const SSO_SECRET = "northwind-client-secret-123"; // secret-scan: fake
+const SA_EMAIL = "vyre-space@northwind-prod.iam.gserviceaccount.com";
 const SCOPE = "https://www.googleapis.com/auth/";
 const caddyProbe: FetchFn = () =>
   Promise.resolve({
@@ -58,7 +58,7 @@ type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const sa = generateKeyPairSync("rsa", { modulusLength: 2048 });
 export const SA_KEY_JSON = JSON.stringify({
   type: "service_account",
-  project_id: "mla-prod",
+  project_id: "northwind-prod",
   client_id: "104857384729183746501",
   client_email: SA_EMAIL,
   private_key: sa.privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
@@ -559,7 +559,7 @@ export async function bootHour(prefix: string, extra: Record<string, unknown> = 
   };
   try {
     // the owner claims the fresh Space from the server's one-time link, on the Mac app, and hands their key to the Space's door
-    const owner = person("owner", "irfad", `irfad@${DOMAIN}`, "owner horse battery staple 9");
+    const owner = person("owner", "imran", `imran@${DOMAIN}`, "owner horse battery staple 9");
     const code = decodeURIComponent(new URL(d.claim!.url).pathname.split("/").pop() ?? "");
     const spaceId = new URLSearchParams(new URL(d.claim!.url).hash.slice(1)).get("s") ?? d.space!;
     const made = await makeBundle(owner.password, "owner-recovery-code-for-the-test", { spaceId });
@@ -569,7 +569,7 @@ export async function bootHour(prefix: string, extra: Record<string, unknown> = 
         code,
         spaceId,
         username: owner.username,
-        displayName: "Irfad",
+        displayName: "Imran",
         password: owner.password,
         deviceName: "Vyre desktop",
         deviceClass: "desktop",

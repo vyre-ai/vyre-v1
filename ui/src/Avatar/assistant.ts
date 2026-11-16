@@ -20,7 +20,7 @@ function emit(): void {
 const quote = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * The one name a person sees for their own assistant. The server has to keep agent names unique in a Space, so it files the assistant under a default such as "Irfad’s Assistant" or "Assistant 3f9a"; to its
+ * The one name a person sees for their own assistant. The server has to keep agent names unique in a Space, so it files the assistant under a default such as "Imran’s Assistant" or "Assistant 3f9a"; to its
  * person it is Assistant until they rename it. A name they chose is shown as it is.
  */
 export function assistantName(name: string, person: string): string {
@@ -33,7 +33,7 @@ export function assistantName(name: string, person: string): string {
 export const agentName = (id: string, name: string): string =>
   id === state.id && state.name !== "" ? state.name : name;
 
-/** The open Space's assistant. Called by the shell as it opens a Space; renaming it ("Irfad's Assistant") changes nothing about its face. */
+/** The open Space's assistant. Called by the shell as it opens a Space; renaming it ("Imran's Assistant") changes nothing about its face. */
 export function setAssistantId(id: string, name = ""): void {
   state = state.name === name ? state : { ...state, name };
   if (state.id === id) return;

@@ -25,7 +25,7 @@ const ROWS = [
   W({
     watchId: "wch_1",
     title: "Lab 8 registrations",
-    url: "https://lu.ma/mla-ai-lab-8",
+    url: "https://lu.ma/northwind-ai-lab-8",
     host: "lu.ma",
     mode: "region",
     region: { label: "Guest count" },

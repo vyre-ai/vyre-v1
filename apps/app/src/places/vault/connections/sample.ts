@@ -1,4 +1,4 @@
-// Sample Vault > Connections for tests and the screenshot mount: a Team Space where Irfad (an admin) has his own connections, the Space has some for everyone or for Legal, plugins and skills bring
+// Sample Vault > Connections for tests and the screenshot mount: a Team Space where Imran (an admin) has his own connections, the Space has some for everyone or for Legal, plugins and skills bring
 // servers, and the built-in integrations sit beside them; a recorded slice of the MCP registry for Browse. Calls answer in memory; nothing reaches a network.
 import type { CatalogEntry } from "../../../../../../lib/mcp-registry.ts";
 import type { ConnectionsData } from "./ConnectionsView.tsx";
@@ -176,8 +176,8 @@ export const SAMPLE_ACCOUNTS: Account[] = [
   {
     connectionId: "con_google",
     connector: "google",
-    title: "irfad@northwind.example",
-    owner: { kind: "person", id: "usr_irfad" },
+    title: "imran@northwind.example",
+    owner: { kind: "person", id: "usr_imran" },
     state: "active",
     scopes: [],
     lastSyncAt: m(6),
@@ -383,7 +383,7 @@ export function sampleConnectionsCall(
             connectionId: "mcs_new",
             name: i["name"],
             scope: cap.endsWith("mine") ? "mine" : "space",
-            owner: "usr_irfad",
+            owner: "usr_imran",
           },
         };
       case "plugins.connection.update":

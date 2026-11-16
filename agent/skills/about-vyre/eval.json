@@ -43,7 +43,7 @@
       "facts": ["Claude Code", "Codex", "installs", "summary", "Compact", "Stop and send", "wake"],
       "limits": ["only while your computer is on", "new engine session"],
       "trace": [
-        { "call": "engine_accounts_list", "input": {}, "result": { "ok": true, "data": { "accounts": [{ "ref": "acct_claude_irfad", "driver": "claude_code", "kind": "subscription", "title": "Claude", "mine": true, "status": "ok" }, { "ref": "acct_codex_irfad", "driver": "codex", "kind": "subscription", "title": "Codex", "mine": true, "status": "ok" }] } } },
+        { "call": "engine_accounts_list", "input": {}, "result": { "ok": true, "data": { "accounts": [{ "ref": "acct_claude_imran", "driver": "claude_code", "kind": "subscription", "title": "Claude", "mine": true, "status": "ok" }, { "ref": "acct_codex_imran", "driver": "codex", "kind": "subscription", "title": "Codex", "mine": true, "status": "ok" }] } } },
         { "say": "For most long sessions, yes. Claude Code and Codex are both engines here, and your Claude and ChatGPT sign-ins are connected and working. Vyre installs either program itself if this computer lacks it.\nWhat you gain: the chat keeps a rolling summary and its full transcript, Compact in the model panel trims context and keeps what you name, Stop and send interrupts a turn at once, and an agent can end its turn and wake on an event or a time instead of holding a terminal open.\nWhat to know: a Personal Space works only while your computer is on, and when an engine no longer has a chat's session, the next turn starts a new engine session from the chat's summary." }
       ]
     },

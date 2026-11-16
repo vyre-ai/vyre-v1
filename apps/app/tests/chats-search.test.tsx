@@ -16,7 +16,7 @@ import type { Act } from "../src/places/chats/mounts/route.ts";
 const clean = (s: string): string =>
   s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const names: Record<string, string> = {
-  usr_irfad: "You",
+  usr_imran: "You",
   usr_maya: "Maya Chen",
   agt_intake: "Intake",
   agt_docs: "Docs",
@@ -33,12 +33,12 @@ const hit = (o: Partial<Hit> = {}): Hit => ({
   at: Date.UTC(2026, 9, 29, 15, 30),
   score: 0.9,
   found: "keyword",
-  thread: { kind: "chat", agentIds: ["agt_intake"], memberIds: ["usr_irfad"] },
+  thread: { kind: "chat", agentIds: ["agt_intake"], memberIds: ["usr_imran"] },
   ...o,
 });
 const data = (o: Partial<SearchData> = {}): SearchData => ({
   call: async () => ({ hits: [], meaning: false, sealedChats: 0, tookMs: 1 }),
-  me: { id: "usr_irfad", name: "You" },
+  me: { id: "usr_imran", name: "You" },
   nameOf,
   kindOf: (id) => (id.startsWith("agt_") ? "agent" : "person"),
   clock: () => clock,
@@ -55,7 +55,7 @@ test("a chat is named by its channel, its title, or who it is with, never by an 
     chatTitle(
       hit({ thread: { kind: "channel", channelName: "intake", agentIds: [], memberIds: [] } }),
       nameOf,
-      "usr_irfad",
+      "usr_imran",
     ),
     "#intake",
   );
@@ -63,29 +63,29 @@ test("a chat is named by its channel, its title, or who it is with, never by an 
     chatTitle(
       hit({ thread: { kind: "chat", title: "Plan the launch", agentIds: ["agt_intake"], memberIds: [] } }),
       nameOf,
-      "usr_irfad",
+      "usr_imran",
     ),
     "Plan the launch",
   );
-  assert.equal(chatTitle(hit(), nameOf, "usr_irfad"), "Intake");
+  assert.equal(chatTitle(hit(), nameOf, "usr_imran"), "Intake");
   assert.equal(
     chatTitle(
       hit({ thread: { kind: "chat", agentIds: ["agt_intake", "agt_docs", "agt_x"], memberIds: [] } }),
       nameOf,
-      "usr_irfad",
+      "usr_imran",
     ),
     "Intake and 2 more",
   );
   assert.equal(
     chatTitle(
-      hit({ thread: { kind: "chat", agentIds: [], memberIds: ["usr_irfad", "usr_maya"] } }),
+      hit({ thread: { kind: "chat", agentIds: [], memberIds: ["usr_imran", "usr_maya"] } }),
       nameOf,
-      "usr_irfad",
+      "usr_imran",
     ),
     "Maya Chen",
   );
   assert.equal(
-    chatTitle(hit({ thread: { kind: "chat", agentIds: [], memberIds: ["usr_irfad"] } }), nameOf, "usr_irfad"),
+    chatTitle(hit({ thread: { kind: "chat", agentIds: [], memberIds: ["usr_imran"] } }), nameOf, "usr_imran"),
     "Chat",
   );
 });

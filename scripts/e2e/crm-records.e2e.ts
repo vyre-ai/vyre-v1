@@ -3,7 +3,7 @@
 // through the API that a connector, a connection holding only the Vault handle, record types with fields and a few records exist.
 //
 // NOT part of any CI glob. Run by hand:
-//   set -a; source /Users/irfad/Claude/simba/secrets/.env.simba; set +a
+//   set -a; source /Users/imran/Claude/simba/secrets/.env.simba; set +a
 //   node --import tsx --import ./scripts/shots/rn-alias.mjs scripts/e2e/crm-records.e2e.ts
 // Secrets: the token, the GoHighLevel key and the location id come from the environment, go into the Vault through its write capability (the id into the first message as the person would say
 // it) and nowhere else. Every line this script prints or saves is scrubbed of all three.
@@ -25,21 +25,21 @@ import { CORE_SPACE } from "../../fixtures/seed/core/recipe.ts";
 import { syncOpening } from "../../apps/app/src/places/records/sync/opening.ts";
 
 const HOST = "services.leadconnectorhq.com";
-// argv: [account] [mode]. account 1..4 reads GHL_TCPA_KEY_n / GHL_TCPA_LOC_n (set -a; source simba/secrets/ghl-tcpa-2026-11.env), account sales reads MLA_GHL_SALES_*.
+// argv: [account] [mode]. account 1..4 reads GHL_TCPA_KEY_n / GHL_TCPA_LOC_n (set -a; source simba/secrets/ghl-tcpa-2026-11.env), account sales reads NORTHWIND_GHL_SALES_*.
 // mode run (default): the agent syncs it; mode discover: survey and a 5-row sample through the capabilities, no apply.
 const ACCOUNT = process.argv[2] ?? "sales";
 const MODE = process.argv[3] ?? "run";
 const TOKEN = process.env["VYRE_TEST_CLAUDE_SETUP_TOKEN"] ?? "";
-const KEY = (ACCOUNT === "sales" ? process.env["MLA_GHL_SALES_API_KEY"] : process.env[`GHL_TCPA_KEY_${ACCOUNT}`]) ?? "";
+const KEY = (ACCOUNT === "sales" ? process.env["NORTHWIND_GHL_SALES_API_KEY"] : process.env[`GHL_TCPA_KEY_${ACCOUNT}`]) ?? "";
 const LOCATION =
-  (ACCOUNT === "sales" ? process.env["MLA_GHL_SALES_LOCATION_ID"] : process.env[`GHL_TCPA_LOC_${ACCOUNT}`]) ?? "";
+  (ACCOUNT === "sales" ? process.env["NORTHWIND_GHL_SALES_LOCATION_ID"] : process.env[`GHL_TCPA_LOC_${ACCOUNT}`]) ?? "";
 if (!TOKEN || !KEY || !LOCATION)
   throw new Error(
     "load the vault env first: VYRE_TEST_CLAUDE_SETUP_TOKEN and the account's key and location id are required",
   );
 const OUT =
   process.env["E2E_OUT"] ??
-  "/private/tmp/claude-501/-Users-irfad-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/e2e-crm";
+  "/private/tmp/claude-501/-Users-imran-Claude/244d818f-f61b-4448-8728-ddfc2a911874/scratchpad/e2e-crm";
 const note = (name: string): string => (MODE === "run" ? name : `${name}-${MODE}-${ACCOUNT}`);
 fs.mkdirSync(OUT, { recursive: true });
 

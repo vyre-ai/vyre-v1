@@ -201,7 +201,7 @@ test("reveal asks once, then each reveal is one logged capability call and the v
     { itemId: "vit_ghl" },
   ).entries;
   assert.ok(
-    log.some((e) => e.action === "revealed" && e.field === "GHL_PIT" && e.actor.id === "usr_irfad"),
+    log.some((e) => e.action === "revealed" && e.field === "GHL_PIT" && e.actor.id === "usr_imran"),
     "the item's history shows the reveal under my name",
   );
   store.hide(["GHL_PIT"]);

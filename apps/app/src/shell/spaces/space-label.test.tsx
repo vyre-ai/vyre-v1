@@ -8,14 +8,14 @@ import { SPACE_ID, spaceHost, spaceLabel } from "./space-label.ts";
 import { signInInvite } from "../session/SessionGate.tsx";
 
 test('a Space\'s label is its name, else "your Space", never its id and never its address', () => {
-  assert.equal(spaceLabel("MLA", "https://mla.vyre.run"), "MLA");
+  assert.equal(spaceLabel("Northwind", "https://northwind.vyre.run"), "Northwind");
   assert.equal(
-    spaceLabel("spc_2a7c98c337e1dfd2e05e1aab", "https://mla.vyre.run"),
+    spaceLabel("spc_2a7c98c337e1dfd2e05e1aab", "https://northwind.vyre.run"),
     "your Space",
     "an id is no name and the address does not stand in for one",
   );
-  assert.equal(spaceLabel("  ", "https://mla.vyre.run:443/"), "your Space");
-  assert.equal(spaceLabel(undefined, "mla.vyre.run"), "your Space");
+  assert.equal(spaceLabel("  ", "https://northwind.vyre.run:443/"), "your Space");
+  assert.equal(spaceLabel(undefined, "northwind.vyre.run"), "your Space");
   assert.equal(spaceLabel("spc_x", ""), "your Space");
   assert.equal(spaceHost("http://127.0.0.1:4100"), "127.0.0.1");
 });
@@ -23,11 +23,11 @@ test('a Space\'s label is its name, else "your Space", never its id and never it
 test('the sign-in screen names the Space, or "your Space" when the server answers an id: the address is not a name', () => {
   const opts = { fingerprint: "", password: true, github: false, sso: [], secondFactorRequired: false };
   assert.equal(
-    signInInvite("https://mla.vyre.run", { ...opts, name: "spc_2a7c98c337e1dfd2e05e1aab" }).space,
+    signInInvite("https://northwind.vyre.run", { ...opts, name: "spc_2a7c98c337e1dfd2e05e1aab" }).space,
     "your Space",
   );
-  assert.equal(signInInvite("https://mla.vyre.run", { ...opts, name: "My Legal Academy" }).space, "My Legal Academy");
-  assert.equal(signInInvite("https://mla.vyre.run", null).space, "your Space");
+  assert.equal(signInInvite("https://northwind.vyre.run", { ...opts, name: "Northwind Academy" }).space, "Northwind Academy");
+  assert.equal(signInInvite("https://northwind.vyre.run", null).space, "your Space");
 });
 
 // ---- lint: no UI string carries a Space id

@@ -1,4 +1,4 @@
-// OpenCode Go (rc.16 on MLA, 3 Nov 2026: every chat answered 400 MissingSessionID, "Request is missing x-opencode-session", while the model list answered). It takes a request only with both
+// OpenCode Go (rc.16 on Northwind, 3 Nov 2026: every chat answered 400 MissingSessionID, "Request is missing x-opencode-session", while the model list answered). It takes a request only with both
 // `user-agent: vyre/<version>` (a generic SDK or HTTP library agent is refused) and `x-opencode-session`, a stable id of the conversation: the same for every turn of one agent in one chat, so its
 // cache works. One-shot jobs get one id per job kind and person. A 400 MissingSessionID, should it come back, reads in plain words.
 import test from "node:test";

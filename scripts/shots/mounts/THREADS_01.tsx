@@ -18,7 +18,7 @@ const NAMES: Record<string, string> = {
   usr_leo: "Leo Park",
   usr_maya: "Maya Chen",
   usr_priya: "Priya Nair",
-  usr_irfad: "Irfad Imtiaz",
+  usr_imran: "Imran Ibarra",
 };
 
 /** The sample sidebar's own rows, with unread replies on two chats (as chat.recent returns them) and two Ask rows for the Asks filter. */

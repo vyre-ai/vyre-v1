@@ -18,7 +18,7 @@ export const title = "A long running session";
 // the night ended 14 minutes ago, so every time in it is relative to now and nothing reads years
 const START = Date.now() - (285 + 14) * 60_000;
 const at = (h: number, m: number, day = 0): number => START + (h * 60 + m + day * 1440 - 1200) * 60_000;
-const ME = { kind: "person" as const, id: "usr_irfad" };
+const ME = { kind: "person" as const, id: "usr_imran" };
 const MAYA = { kind: "person" as const, id: "usr_maya" };
 const AGENTS = ["agt_intake", "agt_docs", "agt_research", "agt_scout"].map((id) => ({ kind: "agent" as const, id }));
 const INTAKE = AGENTS[0]!;
@@ -146,7 +146,7 @@ function build() {
   add(
     "n1",
     INTAKE,
-    "On it. Tonight is four pieces: server fixes, the Chrome extension, the composer and context windows. I will run them as a crew so they move at the same time, and bring each one back here when it is done.\n\nNothing goes out without your yes. The release and the MLA update each ask you once.",
+    "On it. Tonight is four pieces: server fixes, the Chrome extension, the composer and context windows. I will run them as a crew so they move at the same time, and bring each one back here when it is done.\n\nNothing goes out without your yes. The release and the Northwind update each ask you once.",
     at(20, 4),
   );
   CREW.forEach((c, i) =>
@@ -235,14 +235,14 @@ function build() {
       ),
     ],
   });
-  add("n9c", INTAKE, "The MLA update could not start", at(0, 31, 1), {
+  add("n9c", INTAKE, "The Northwind update could not start", at(0, 31, 1), {
     kind: "system",
     blocks: [
       block(
         "status_card",
         "bc3",
         {
-          title: "The MLA update could not start",
+          title: "The Northwind update could not start",
           body: "The server ran out of disk (2.1 GB free, needs 4). Free old images, then update.",
           tone: "warn",
           fix: { key: "fix", label: "Free space and update" },
@@ -260,7 +260,7 @@ function build() {
   add(
     "n10",
     INTAKE,
-    "MLA is on rc.22.1 and healthy. The Mac and Windows links are in the release. Kai still needs your corner answer before the composer change lands.",
+    "Northwind is on rc.22.1 and healthy. The Mac and Windows links are in the release. Kai still needs your corner answer before the composer change lands.",
     at(0, 45, 1),
   );
   s.replica.put(
@@ -361,9 +361,9 @@ export default function Mount(): ReactNode {
           goals: [
             {
               id: "g1",
-              title: "Ship rc.22.1: server fixes, Chrome extension, composer and context windows, then update MLA.",
+              title: "Ship rc.22.1: server fixes, Chrome extension, composer and context windows, then update Northwind.",
               status: "active",
-              owner: "usr_irfad",
+              owner: "usr_imran",
               leadAgentId: "agt_intake",
               threadId: pane.threadId,
               deadline: 0,
@@ -385,7 +385,7 @@ export default function Mount(): ReactNode {
     return {
       sidebar: createSampleSidebar(northwind).data,
       conversation: conv.data,
-      pane: { ...pane, call: paneCall, me: { id: "usr_irfad" }, nameOf: (id: string) => NAMES[id] ?? id },
+      pane: { ...pane, call: paneCall, me: { id: "usr_imran" }, nameOf: (id: string) => NAMES[id] ?? id },
     };
   }, []);
   return (

@@ -63,13 +63,13 @@ test("a person finds their own notes and those shared with them in top search, a
   );
   const theirs = (await query(noah.ctx, { q: "lawmatics" })).hits.filter((h) => h.kind === "note").map((h) => h.id);
   assert.deepEqual(theirs, ["nte_shared", "nte_noah"]);
-  const andrey = asPerson(
+  const andrea = asPerson(
     dana,
-    { kind: "person", id: "usr_andrey" },
-    { respond: { "notes.search": notesSearch("usr_andrey") } },
+    { kind: "person", id: "usr_andrea" },
+    { respond: { "notes.search": notesSearch("usr_andrea") } },
   );
   assert.deepEqual(
-    (await query(andrey.ctx, { q: "lawmatics" })).hits.filter((h) => h.kind === "note"),
+    (await query(andrea.ctx, { q: "lawmatics" })).hits.filter((h) => h.kind === "note"),
     [],
     "nobody else finds a private note",
   );

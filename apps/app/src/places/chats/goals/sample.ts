@@ -60,7 +60,7 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
               : state === "active" || state === "budget"
                 ? { statusReason: "Approve: email to 1,240 Lab 7 attendees" }
                 : {}),
-    owner: "usr_irfad",
+    owner: "usr_imran",
     leadAgentId: "agt_labdesk",
     deadline: state === "missed" || state === "done" ? now - 2 * HOUR : now + 3 * DAY + 8 * HOUR,
     ...(state === "missed" || state === "done" || state === "draft" || state === "paused"
@@ -94,7 +94,7 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
     zone: "Asia/Karachi",
     quiet: { from: "22:00", to: "08:00" },
     permissions: [
-      { act: "post", target: "skool", label: "Post in the MLA AI Labs community", granted: true },
+      { act: "post", target: "skool", label: "Post in the Northwind AI Labs community", granted: true },
       {
         act: "send",
         target: "mail.send",
@@ -110,7 +110,7 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
       state === "budget" ? 20_500_000 : state === "paused" ? 25_100_000 : state === "done" ? 14_800_000 : 4_100_000,
     turns: state === "budget" ? 164 : state === "paused" ? 151 : state === "done" ? 118 : 38,
     stuckAfter: 3,
-    createdBy: "usr_irfad",
+    createdBy: "usr_imran",
     createdAt: created,
     ...(state === "missed"
       ? {
@@ -154,7 +154,7 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
     {
       taskId: "tsk_skool",
       key: "VY-312",
-      title: "Post Lab 8 in the MLA AI Labs community",
+      title: "Post Lab 8 in the Northwind AI Labs community",
       state: "done",
       assigned: { kind: "agent", id: "agt_content" },
       blocked: false,
@@ -191,14 +191,14 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
             taskId: "tsk_hold",
             kind: "approve",
             title: "Approve: email to 1,240 Lab 7 attendees",
-            assigned: { kind: "person", id: "usr_irfad" },
+            assigned: { kind: "person", id: "usr_imran" },
             since: now - 26 * HOUR,
           },
           {
             taskId: "tsk_ask",
             kind: "answer",
             title: "Email the Lab 7 no-shows too?",
-            assigned: { kind: "person", id: "usr_irfad" },
+            assigned: { kind: "person", id: "usr_imran" },
             since: now - 3 * HOUR,
           },
         ]
@@ -219,18 +219,18 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
       at: now - 4 * HOUR + 60_000,
       kind: "report",
       text: "212, behind pace by 30. The Lab 7 reminder is the biggest lever; it waits on your approval.",
-      by: "agt_labdesk>usr_irfad",
+      by: "agt_labdesk>usr_imran",
     },
     {
       at: now - 26 * HOUR,
       kind: "waiting",
-      text: `${whoToken("agt_labdesk")} asked ${whoToken("usr_irfad")}: Approve: email to 1,240 Lab 7 attendees?`,
+      text: `${whoToken("agt_labdesk")} asked ${whoToken("usr_imran")}: Approve: email to 1,240 Lab 7 attendees?`,
       ref: "tsk_hold",
     },
     {
       at: now - 2 * DAY,
       kind: "task",
-      text: "VY-312 Post Lab 8 in the MLA AI Labs community is done.",
+      text: "VY-312 Post Lab 8 in the Northwind AI Labs community is done.",
       ref: "tsk_skool",
     },
     {
@@ -242,13 +242,13 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
     {
       at: now - 5 * DAY,
       kind: "started",
-      text: `${whoToken("usr_irfad")} started the goal. Due ${atToken(goal.deadline)}.`,
+      text: `${whoToken("usr_imran")} started the goal. Due ${atToken(goal.deadline)}.`,
     },
     {
       at: now - 5 * DAY - 60_000,
       kind: "created",
-      text: `${whoToken("agt_labdesk")} drafted this goal for ${whoToken("usr_irfad")}.`,
-      by: "agt_labdesk>usr_irfad",
+      text: `${whoToken("agt_labdesk")} drafted this goal for ${whoToken("usr_imran")}.`,
+      by: "agt_labdesk>usr_imran",
     },
   ];
   // what holds the check-ins back, in the words the server says (modules/goals life.ts blockedOut), and the Activity line that said so
@@ -340,7 +340,7 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
       id: "gol_onboard",
       title: "Close every onboarding task for new clients",
       status: "active",
-      owner: "usr_irfad",
+      owner: "usr_imran",
       leadAgentId: "agt_content",
       deadline: now + 4 * DAY,
       nextCheckinAt: now + 6 * HOUR,
@@ -351,7 +351,7 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
       id: "gol_reviews",
       title: "20 new Google reviews this month",
       status: "active",
-      owner: "usr_irfad",
+      owner: "usr_imran",
       leadAgentId: "agt_labdesk",
       deadline: now + 20 * DAY,
       nextCheckinAt: now + 2 * DAY,

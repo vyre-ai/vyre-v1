@@ -62,7 +62,7 @@ test("a face opens one right tab per person or agent; closing it lands on its ne
   const mira = profileTab("a", "Mira Lane", "agent"),
     sara = profileTab("p", "Sara Malik", "person");
   assert.equal(mira.title, "Mira");
-  assert.equal(profileTab("x", "Irfad's Assistant", "assistant").title, "Assistant");
+  assert.equal(profileTab("x", "Imran's Assistant", "assistant").title, "Assistant");
   const tabs = withTab(withTab(withTab([], mira), sara), mira);
   assert.deepEqual(
     tabs.map((t) => t.key),

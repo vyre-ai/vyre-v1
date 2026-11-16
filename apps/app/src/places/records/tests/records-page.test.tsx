@@ -57,7 +57,7 @@ const row = (s: SamplePage, type = "clients", id = "cl_0"): RecordRow =>
   (s.replica.rows(`records:${type}`) as unknown as RecordRow[]).find((r) => r.id === id)!;
 const field = (k: string) => CLIENT.fields.find((f) => f.key === k)!;
 const names = (id: string): string =>
-  (({ usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_irfad: "Irfad Imtiaz" }) as Record<string, string>)[id] ?? id;
+  (({ usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_imran: "Imran Ibarra" }) as Record<string, string>)[id] ?? id;
 
 // ---------------------------------------------------------------- the model
 
@@ -268,7 +268,7 @@ test("the right pane: activity lines say who set what, versions go to the shared
   const v = historyVersions(
     [
       { versionId: "v1", n: 1, by: "usr_maya", at: 0, reason: "Created" },
-      { versionId: "v2", n: 2, by: "usr_irfad", at: 86_400_000 },
+      { versionId: "v2", n: 2, by: "usr_imran", at: 86_400_000 },
     ],
     names,
   );
@@ -276,7 +276,7 @@ test("the right pane: activity lines say who set what, versions go to the shared
     v.map((x) => [x.n, x.who, x.why, x.undoable]),
     [
       [1, "Maya Chen", "Created", false],
-      [2, "Irfad Imtiaz", "", true],
+      [2, "Imran Ibarra", "", true],
     ],
   );
   assert.equal(
@@ -438,7 +438,7 @@ test("screen: on a wide window the sheet is two columns and the right pane start
 test("screen: the pane's tabs: Activity after an edit, Memory with the fact and its source, History in the shared tab, Chat, Files and Comments are panes of their own", async () => {
   const s = createSamplePage();
   await saveField(s.data, "clients", row(s), field("phone"), "+1 415 555 0100");
-  assert.ok(has(page(s, { tab: "activity" }), "Irfad set phone to +1 415 555 0100"));
+  assert.ok(has(page(s, { tab: "activity" }), "Imran set phone to +1 415 555 0100"));
   const memory = page(s, { tab: "memory" });
   assert.ok(
     has(memory, 'data-testid="pane-memory"') &&

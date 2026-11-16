@@ -23,7 +23,7 @@ test("an all-day event sits on its own date in any zone, not across two days", (
   for (const off of [-480, -300, 0, 300, 330, 600]) {
     const sunday = Date.UTC(2026, 10, 8); // Sunday 8 Nov 2026 as a date: midnight UTC to midnight UTC
     const days = viewDays("week", sunday - off * MIN, off); // the week the viewer sees, Monday first
-    const lane = allDayLane([allDayLocal(ev("MLA Updates", sunday, sunday + DAY, true), off)], days);
+    const lane = allDayLane([allDayLocal(ev("Northwind Updates", sunday, sunday + DAY, true), off)], days);
     assert.deepEqual(
       lane.segs.map((s) => [s.a, s.b]),
       [[6, 6]],
@@ -31,7 +31,7 @@ test("an all-day event sits on its own date in any zone, not across two days", (
     );
     const mon = Date.UTC(2026, 10, 9);
     const l2 = allDayLane(
-      [allDayLocal(ev("MLA Updates", mon, mon + DAY, true), off)],
+      [allDayLocal(ev("Northwind Updates", mon, mon + DAY, true), off)],
       viewDays("week", mon - off * MIN, off),
     );
     assert.deepEqual(

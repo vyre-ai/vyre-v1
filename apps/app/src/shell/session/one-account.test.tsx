@@ -64,10 +64,10 @@ function desktopShell(): { fire(payload: unknown): Promise<void> } {
 const PERSONAL = {
   baseUrl: "http://127.0.0.1:7801",
   token: "tok_personal",
-  personId: "usr_irfad",
+  personId: "usr_imran",
   marker: "m",
-  username: "irfad",
-  displayName: "Irfad Imtiaz",
+  username: "imran",
+  displayName: "Imran Ibarra",
   def: {
     spaceId: "spc_personal",
     name: "Personal",
@@ -125,7 +125,7 @@ const JOIN = {
 };
 const CLAIM = {
   action: "claim",
-  params: { address: "https://mla.example.com", token: "clm_abcdefgh", s: "spc_mla", n: "MLA" },
+  params: { address: "https://northwind.example.com", token: "clm_abcdefgh", s: "spc_northwind", n: "Northwind" },
 };
 
 test("join in the desktop app with the Personal Space signed in: Continue as, then Use a different account is today's form", async () => {
@@ -133,7 +133,7 @@ test("join in the desktop app with the Personal Space signed in: Continue as, th
     await shell.fire(JOIN);
     await flush();
     assert.ok(find(root, "join-as-password"), "only the password is asked");
-    assert.match(textOf(root), /Continue as irfad/);
+    assert.match(textOf(root), /Continue as imran/);
     assert.match(textOf(root), /join Acme/);
     await press(find(root, "join-as-other"));
     await flush();
@@ -156,8 +156,8 @@ test("an owner claim link handed to the desktop app opens Continue as for the Sp
     await shell.fire(CLAIM);
     await flush();
     assert.ok(find(root, "claim-as-password"), "the claim asks only for the password");
-    assert.match(textOf(root), /Continue as irfad/);
-    assert.match(textOf(root), /set up MLA/);
+    assert.match(textOf(root), /Continue as imran/);
+    assert.match(textOf(root), /set up Northwind/);
     await press(find(root, "claim-as-other"));
     await flush();
     assert.ok(find(root, "claim-name") && find(root, "claim-confirm"), "Use a different account: today's form");

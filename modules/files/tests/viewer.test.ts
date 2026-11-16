@@ -778,7 +778,7 @@ test("live image, PDF and Word placeholders: fetched before they are shown, and 
     return undefined;
   };
   const files: [string, string, string][] = [
-    ["MLA logo.png", "image/png", "iVBORw0="],
+    ["Northwind logo.png", "image/png", "iVBORw0="],
     ["brief.pdf", "application/pdf", "JVBERi0="],
     ["letter.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "UEsDBA=="],
   ];

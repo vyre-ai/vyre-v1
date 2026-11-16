@@ -7,7 +7,7 @@ const hub = () =>
   createShellHub({
     spaces: SEED_DEFS,
     openId: SEED_DEFS[0]!.spaceId,
-    personId: "irfad",
+    personId: "imran",
     deviceId: "web",
     storage: null,
     skeletonMs: 0,

@@ -62,15 +62,15 @@ test("the recovery code carries the same person key to a new Space under a passw
 
 test("a link: the kept password and code open the other Space, its Space key is sealed again for the kept key pair, and its data key comes back through formerKey", async () => {
   const kept = await makeBundle("kept password", "KEPT-CODE-AAAA-BBBB", { ...o, spaceId: "spc_personal" });
-  const other = await makeBundle("other password", "OTHR-CODE-AAAA-BBBB", { ...o, spaceId: "spc_mla" });
+  const other = await makeBundle("other password", "OTHR-CODE-AAAA-BBBB", { ...o, spaceId: "spc_northwind" });
   const otherOpened = await openBundle("other password", { ...other }, o);
-  const otherSpaceKey = await openSpaceKey(otherOpened.privateKey, other.spaceKeys![0]!, "spc_mla");
+  const otherSpaceKey = await openSpaceKey(otherOpened.privateKey, other.spaceKeys![0]!, "spc_northwind");
   // a second epoch, so every one is carried over
-  const second = await sealSpaceKey(new Uint8Array(32).fill(7), other.publicKey, "spc_mla", 1);
+  const second = await sealSpaceKey(new Uint8Array(32).fill(7), other.publicKey, "spc_northwind", 1);
   const linked = await linkBundle(
     { password: "kept password", bundle: kept },
     { secret: { password: "other password" }, bundle: { ...other, spaceKeys: [...other.spaceKeys!, second] } },
-    "spc_mla",
+    "spc_northwind",
     o,
   );
   assert.equal(linked.publicKey, kept.publicKey);
@@ -87,12 +87,12 @@ test("a link: the kept password and code open the other Space, its Space key is 
     assert.equal(hex(opened.personKey), hex(kept.personKey), "the kept person key");
     assert.equal(hex(heldKeyOf(opened)), hex(other.personKey), "the Space is handed the key its data is under");
     assert.equal(
-      hex(await openSpaceKey(opened.privateKey, linked.spaceKeys[0]!, "spc_mla")),
+      hex(await openSpaceKey(opened.privateKey, linked.spaceKeys[0]!, "spc_northwind")),
       hex(otherSpaceKey),
       "the same Space key, now for the kept key pair",
     );
     assert.equal(
-      hex(await openSpaceKey(opened.privateKey, linked.spaceKeys[1]!, "spc_mla")),
+      hex(await openSpaceKey(opened.privateKey, linked.spaceKeys[1]!, "spc_northwind")),
       hex(new Uint8Array(32).fill(7)),
     );
     wipeOpened(opened);

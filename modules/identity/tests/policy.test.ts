@@ -161,10 +161,10 @@ test("the identity row's Space name follows the Space at each boot, and an id ne
   const name = (): unknown => (raw.prepare("SELECT name FROM identity_space").get() as { name: unknown }).name;
   ensure("spc_2a7c98c337e1dfd2e05e1aab");
   assert.equal(name(), "spc_2a7c98c337e1dfd2e05e1aab", "a Space that never learnt its name");
-  ensure("My Legal Academy");
-  assert.equal(name(), "My Legal Academy", "the next boot gives it the name");
-  ensure("MLA Team");
-  assert.equal(name(), "MLA Team", "a rename lands at the next boot");
+  ensure("Northwind Academy");
+  assert.equal(name(), "Northwind Academy", "the next boot gives it the name");
+  ensure("Northwind Team");
+  assert.equal(name(), "Northwind Team", "a rename lands at the next boot");
   ensure("spc_2a7c98c337e1dfd2e05e1aab");
-  assert.equal(name(), "MLA Team", "an id never replaces a name");
+  assert.equal(name(), "Northwind Team", "an id never replaces a name");
 });

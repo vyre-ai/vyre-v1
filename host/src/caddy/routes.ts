@@ -32,7 +32,7 @@ export function normalizeUpstream(upstream: string): string {
   return u;
 }
 
-/** The host Caddy serves for a Space's own-domain address ("mla.example.com" or "https://mla.example.com/"), or null when the address is not one Caddy fronts on :443: the
+/** The host Caddy serves for a Space's own-domain address ("northwind.example.com" or "https://northwind.example.com/"), or null when the address is not one Caddy fronts on :443: the
  *  local http:// URL a Space without an address records, an explicit port, credentials, an IP address. */
 export function ingressHostOf(address: string | null | undefined): string | null {
   if (typeof address !== "string" || !address.trim()) return null;

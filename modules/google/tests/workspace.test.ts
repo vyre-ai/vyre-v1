@@ -1311,7 +1311,7 @@ test("a Drive push notice wakes the mounts that watch the channel; the first not
   assert.equal(h.calls("mounts.nudge").length, 1, "only Drive notices wake mounts");
 });
 
-// ---- the Space's Google connection reads active and used (MLA, 4 Nov: "Needs sign-in, never used" while mail and calendar polled)
+// ---- the Space's Google connection reads active and used (Northwind, 4 Nov: "Needs sign-in, never used" while mail and calendar polled)
 
 test("a member's own read through the Space's delegation never calls connections.mark_working; the host's poll does", async () => {
   const h = admin();
@@ -1364,7 +1364,7 @@ test("a pending Google connection whose delegation check passed becomes active o
   await dwdSetup(h.ctx, setupInput);
   seedMailbox(h);
   h.connection.state = "pending";
-  h.connection.lastSyncAt = null; // MLA's row: pending since 2 Nov, never stamped
+  h.connection.lastSyncAt = null; // Northwind's row: pending since 2 Nov, never stamped
   h.advance(5 * 60_000);
   await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
   assert.deepEqual(h.connection, { state: "active", lastSyncAt: NOW + 5 * 60_000 });

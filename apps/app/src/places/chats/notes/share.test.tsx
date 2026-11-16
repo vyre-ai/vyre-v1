@@ -10,10 +10,10 @@ import { ShareSheet } from "./NoteSheets.tsx";
 import type { Person } from "./NoteSheets.tsx";
 
 const T0 = Date.UTC(2026, 10, 3, 4, 0);
-const names: Record<string, string> = { usr_me: "Irfad", usr_omar: "Omar Reyes", usr_sara: "Sara Malik" };
+const names: Record<string, string> = { usr_me: "Imran", usr_omar: "Omar Reyes", usr_sara: "Sara Malik" };
 const who: Who = { meId: "usr_me", nameOf: (id) => names[id] ?? id, spaceName: "Northwind" };
 const people: Person[] = [
-  { id: "usr_me", name: "Irfad", kind: "person" },
+  { id: "usr_me", name: "Imran", kind: "person" },
   { id: "usr_omar", name: "Omar Reyes", kind: "person" },
   { id: "usr_sara", name: "Sara Malik", kind: "person" },
   { id: "agt_a", name: "Scout", kind: "agent" },
@@ -83,7 +83,7 @@ test("the sheet: title, the owner once, Omar at Can view, General access, and no
       "Lab 8 run of show",
       "General access",
       "Everyone in Northwind",
-      "Irfad",
+      "Imran",
       "Owner",
       "Omar Reyes",
       "Can view",

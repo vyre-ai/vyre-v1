@@ -69,7 +69,7 @@ const berlin = row({
   serverId: "srv_box",
   name: "Berlin box",
   nickname: "Berlin box",
-  owner: "usr_irfad",
+  owner: "usr_imran",
   mine: true,
   runs: { turns: 2, agentComputers: 1, sites: 0, automations: 0 },
   load: { cpu: 71, memPct: 64, diskPct: 92, diskFreeBytes: 12e9 },
@@ -79,10 +79,10 @@ const berlin = row({
 });
 const mbp = row({
   serverId: "srv_dev_mbp",
-  name: "Irfad's MacBook Pro",
+  name: "Imran's MacBook Pro",
   kind: "linked",
   mine: true,
-  owner: "usr_irfad",
+  owner: "usr_imran",
   os: "macOS 15.1",
   arch: "arm64",
   cores: 10,
@@ -97,10 +97,10 @@ const mbp = row({
 });
 const mini = row({
   serverId: "srv_dev_mini",
-  name: "Irfad's Mac mini",
+  name: "Imran's Mac mini",
   kind: "linked",
   mine: true,
-  owner: "usr_irfad",
+  owner: "usr_imran",
   os: "macOS 15.0",
   arch: "arm64",
   cores: 8,
@@ -156,7 +156,7 @@ const ALERTS: MachinesOut["alerts"] = [
     alertId: "memory:srv_dev_mbp",
     serverId: "srv_dev_mbp",
     kind: "memory",
-    title: "Irfad's MacBook Pro is short of memory",
+    title: "Imran's MacBook Pro is short of memory",
     detail: "87% in use",
   },
   {
@@ -167,7 +167,7 @@ const ALERTS: MachinesOut["alerts"] = [
     detail: "Last seen 125 minutes ago. The pinned work waits until it is back",
   },
 ];
-const WHO: Record<string, string> = { usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", usr_omar: "Omar Haddad" };
+const WHO: Record<string, string> = { usr_imran: "Imran Ibarra", usr_maya: "Maya Chen", usr_omar: "Omar Haddad" };
 const who = (id: string): string => WHO[id] ?? id;
 const ALL = [space, berlin, mbp, mini, maya, omar];
 const answer = (ms: MachineRow[], alerts: MachinesOut["alerts"]): MachinesOut => ({
