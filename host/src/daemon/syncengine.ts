@@ -721,6 +721,9 @@ export function createSyncEngine(o: {
   heldOf?: (nonce: string, rowId: string) => Record<string, unknown> | undefined;
   heldDone?: (nonce: string) => void;
 }): SyncEngineLike {
+  // Sealed values the Vault could not take yet, held in this process's memory only (never stored) and tried again at the next group or pass; a restart loses them, and the count left in sy_sealed_wait makes the next pass read the app again.
+  const waiting = new Map<string, Map<string, Record<string, unknown>>>();
+  const WAITING_MAX = 50_000;
   // the connector's own names for its objects, read once per connector (a connector row without them keeps the convention)
   const maps = new Map<string, Promise<unknown>>();
   const objectsOf = (ctx: EngineCtx, connector: string): Promise<unknown> => {
@@ -849,7 +852,38 @@ export function createSyncEngine(o: {
       // A pass over a type with sealed fields: after the engine has made or updated the records, each sealed value read in the pass is sealed into its record (Records puts it in the Vault and keeps a reference).
       // The value is never in the engine's own tables (base, conflicts, outbox): it was taken out of the row when the row was read. A value the app sent empty clears the field.
       const sealedIn = async (): Promise<void> => {
-        let owed = 0;
+        if (!b.fields.some((f) => f.sealed === true)) return;
+        const mine = waiting.get(b.syncTypeId) ?? new Map<string, Record<string, unknown>>();
+        waiting.set(b.syncTypeId, mine);
+        const note = (e: unknown): void => {
+          // why, in the Vault's own words (never the value): shown in the type's log so a person can see what to fix
+          const err = isObj(e) && isObj(e["error"]) ? e["error"] : undefined;
+          const why =
+            typeof err?.["message"] === "string"
+              ? err["message"]
+              : e instanceof Error
+                ? e.message
+                : "the Vault refused";
+          try {
+            tx.run(
+              "INSERT INTO sy_log (sync_type, at, kind, summary, run_id, trace_id) VALUES (?, ?, 'error', ?, NULL, NULL)",
+              b.syncTypeId,
+              (o.now ?? Date.now)(),
+              `A sealed value could not be kept yet: ${why}`.slice(0, 300),
+            );
+          } catch {
+            /* the log is for the Sync page only */
+          }
+        };
+        // first the ones that could not be kept before (the record may be visible now, or the Vault open)
+        for (const [recordId, patch] of [...mine]) {
+          try {
+            await ctx.call("records.update", { type: b.type, recordId, patch });
+            mine.delete(recordId);
+          } catch {
+            /* still waiting */
+          }
+        }
         for (const [remoteId, got] of remote.held) {
           const link = tx.get<{ local_id: string }>(
             "SELECT local_id FROM sy_links WHERE sync_type = ? AND remote_id = ? AND (removed_at IS NULL OR removed_at = 0)",
@@ -874,14 +908,17 @@ export function createSyncEngine(o: {
           }
           // through records.update: that is the one door that puts a sealed value in the Vault and keeps the reference (the Space store itself refuses a sealed value)
           if (Object.keys(patch).length) {
-            // the Vault cannot take it (a Space nobody has signed in to, a locked Vault): the record stays without the field, the value is NOT kept anywhere, and the next pass reads the app again to fill it
+            // the Vault cannot take it (a Space nobody has signed in to, a locked Vault, a record not visible yet): the record stays without the field, the value is NOT stored anywhere, and it is tried again at the next group or pass
             try {
               await ctx.call("records.update", { type: b.type, recordId: link.local_id, patch });
-            } catch {
-              owed += Object.values(patch).filter((x) => x !== null).length;
+              mine.delete(link.local_id);
+            } catch (e) {
+              note(e);
+              if (mine.size < WAITING_MAX) mine.set(link.local_id, { ...(mine.get(link.local_id) ?? {}), ...patch });
             }
           }
         }
+        const owed = [...mine.values()].reduce((n, p) => n + Object.values(p).filter((x) => x !== null).length, 0);
         remote.held.clear();
         o.heldDone?.(ctx.trace.traceId);
         try {
