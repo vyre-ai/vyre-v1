@@ -64,6 +64,7 @@ type In = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -133,6 +134,7 @@ type In = {
         titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -209,6 +211,7 @@ type Out = {
               "path": "example"
             }
           ],
+          "link": {},
           "match": [
             "example"
           ],
@@ -280,6 +283,7 @@ type Out = {
             },
             "path": "example",
             "query": {},
+            "sweepEveryDays": 1,
             "updatedSince": {
               "format": "example",
               "param": "example"

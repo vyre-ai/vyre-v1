@@ -138,5 +138,8 @@ test("validate says how many sampled rows a conditional field applies to", async
     };
   });
   const v = await w.k.hs["sync_specs.validate"](w.ctx, { spec });
-  assert.ok(v.problems.some((p) => /applies to \d+ of 2 sampled records/.test(p.message)), JSON.stringify(v.problems));
+  assert.ok(
+    v.problems.some((p) => /applies to \d+ of 2 sampled records/.test(p.message)),
+    JSON.stringify(v.problems),
+  );
 });

@@ -191,7 +191,11 @@ test("a compiled sync connector masks sealed values in every output; only the en
   // the engine's own pass: the answer is masked too (it crosses the pipeline); the real value stays in this process for the engine to take
   const real = await read({ __unmask: `${SYNC_PASS_TOKEN}:n1` });
   assert.ok(!JSON.stringify(real).includes(PHONE), "even the engine's answer carries the mask");
-  assert.equal(SEALED_HELD.get("n1", "1")?.["/attributes/phone"], "+1 555 0101", "the value is kept in the process for the engine");
+  assert.equal(
+    SEALED_HELD.get("n1", "1")?.["/attributes/phone"],
+    "+1 555 0101",
+    "the value is kept in the process for the engine",
+  );
   SEALED_HELD.done("n1");
   assert.equal(SEALED_HELD.get("n1", "1"), undefined);
   assert.equal(SEALED_HELD.get("other", "1"), undefined, "a wrong nonce gets nothing");

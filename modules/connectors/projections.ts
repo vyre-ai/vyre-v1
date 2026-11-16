@@ -129,6 +129,8 @@ export interface ConnectorDef {
       update?: string;
       delete?: string;
       /** The list can be asked for what changed since a time (`input.since`, in ms): a poll reads only that. */ since?: boolean;
+      /** Each row of this object also relates two already-synced records to each other (a many-to-many made from join rows). */
+      link?: { from: { type: string; at: string }; to: { type: string; at: string }; key: string; inverseKey: string };
     }
   >;
 }

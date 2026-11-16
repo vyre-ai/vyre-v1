@@ -689,12 +689,15 @@ Signed: (for the lead to sign)
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: (for the lead to sign)
+- Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: lead, 17 Nov 2026
 
 ## 16 Nov 2026: a sync spec names the far end of a relation, so a second relation to the same table does not collide (lane r32-synclink), for the lead to sign
 
 - What changed in contracts, additive and optional, so no spec that exists changes: `sync_specs.validate`, `preview`, `apply` and `get` take, on a spec field with `relationTo`, `inverseKey` (lowercase letters, digits and underscores) and `inverseTitle` (the name on the other record). Left out, the first relation from a record type to a target keeps its old far end (the type and an s, title the object label and an s), so a Space already synced does not change; a further relation to the same target gets `<recordType>_<fieldKey>s` titled with the object label, an s and the field label in brackets (for example "Matters (owner)"). `validate` and `apply` refuse two relations that would put one name on the same target, in plain words, before anything is made.
+- Also additive and optional (item 2, join rows): a spec mapping takes `link` ({ from: { recordType, at }, to: { recordType, at }, key, title, inverseKey, inverseTitle }): for each pulled row of that object, apply makes a many-to-many relation on the `from` record type (field `key`, far end `inverseKey` on the `to` type) and each pass relates the two records the row names (`at` is a pointer in the row to the other record's id in the app; both types must be mapped by the same spec). The connector's `objects[remote]` carries the same as `link` ({ from: { type, at }, to: { type, at }, key, inverseKey }) so the engine can read it. A mapping with a link needs at least one mapped field (the row stays a record of its own, with the relationship type). `sync_types.status` gains the optional output `links` ({ made, waiting, words }). Not a contract change, the rule the tests pin: a join row relates its two records at both ends; a row that changes its ends moves the relation; a row the app no longer returns (the deletion sweep) takes the relation away only when no other live join row names the same pair; an end that is not pulled yet waits and is tried on every later pass (never dropped, never linked by a bare id); the pass makes no call to the app for it, and a repeat or a backfill changes nothing. No new capability: the sync engine writes the relation fields through the Space store, as it does for an ordinary relation.
+- Also additive and optional (sweep): a spec object's `list.sweepEveryDays` (whole days, 1 to 30, default 1) is how often the whole list is read to find what the app deleted; apply sets the synced type's `polling.sweepSec` (86400 or more, optional) from it, and the sync engine uses `polling.sweepSec`, else a day. A large table can be swept weekly, a core one daily.
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: lead, 17 Nov 2026

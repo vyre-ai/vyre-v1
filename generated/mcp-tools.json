@@ -61693,7 +61693,7 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           }
                         },
@@ -61705,9 +61705,12 @@
                       },
                       "type": "array"
                     },
+                    "link": {
+                      "description": "Any JSON value"
+                    },
                     "match": {
                       "items": {
-                        "description": "A JSON pointer; / is the whole answer",
+                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -61723,7 +61726,7 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
@@ -61732,12 +61735,12 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "A JSON pointer; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -61773,7 +61776,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -61804,7 +61807,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -61891,7 +61894,7 @@
                                 ]
                               },
                               "path": {
-                                "description": "A JSON pointer; / is the whole answer",
+                                "description": "JSON pointer such as /id; / is all",
                                 "type": "string"
                               }
                             },
@@ -61902,7 +61905,7 @@
                             "type": "object"
                           },
                           "path": {
-                            "description": "A JSON pointer; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "readOnly": {
@@ -61951,11 +61954,11 @@
                       "type": "object"
                     },
                     "id": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "itemsAt": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "label": {
@@ -61981,7 +61984,7 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "A JSON pointer; / is the whole answer",
+                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -62028,6 +62031,11 @@
                           },
                           "type": "object"
                         },
+                        "sweepEveryDays": {
+                          "maximum": 30,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
                         "updatedSince": {
                           "properties": {
                             "format": {
@@ -62064,7 +62072,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62087,7 +62095,7 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -62376,7 +62384,7 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           }
                         },
@@ -62388,9 +62396,12 @@
                       },
                       "type": "array"
                     },
+                    "link": {
+                      "description": "Any JSON value"
+                    },
                     "match": {
                       "items": {
-                        "description": "A JSON pointer; / is the whole answer",
+                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -62406,7 +62417,7 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
@@ -62415,12 +62426,12 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "A JSON pointer; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -62456,7 +62467,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62487,7 +62498,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62574,7 +62585,7 @@
                                 ]
                               },
                               "path": {
-                                "description": "A JSON pointer; / is the whole answer",
+                                "description": "JSON pointer such as /id; / is all",
                                 "type": "string"
                               }
                             },
@@ -62585,7 +62596,7 @@
                             "type": "object"
                           },
                           "path": {
-                            "description": "A JSON pointer; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "readOnly": {
@@ -62634,11 +62645,11 @@
                       "type": "object"
                     },
                     "id": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "itemsAt": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "label": {
@@ -62664,7 +62675,7 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "A JSON pointer; / is the whole answer",
+                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -62711,6 +62722,11 @@
                           },
                           "type": "object"
                         },
+                        "sweepEveryDays": {
+                          "maximum": 30,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
                         "updatedSince": {
                           "properties": {
                             "format": {
@@ -62747,7 +62763,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62770,7 +62786,7 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -63178,7 +63194,7 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           }
                         },
@@ -63190,9 +63206,12 @@
                       },
                       "type": "array"
                     },
+                    "link": {
+                      "description": "Any JSON value"
+                    },
                     "match": {
                       "items": {
-                        "description": "A JSON pointer; / is the whole answer",
+                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -63208,7 +63227,7 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
@@ -63217,12 +63236,12 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "A JSON pointer; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -63258,7 +63277,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63289,7 +63308,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63376,7 +63395,7 @@
                                 ]
                               },
                               "path": {
-                                "description": "A JSON pointer; / is the whole answer",
+                                "description": "JSON pointer such as /id; / is all",
                                 "type": "string"
                               }
                             },
@@ -63387,7 +63406,7 @@
                             "type": "object"
                           },
                           "path": {
-                            "description": "A JSON pointer; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "readOnly": {
@@ -63436,11 +63455,11 @@
                       "type": "object"
                     },
                     "id": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "itemsAt": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "label": {
@@ -63466,7 +63485,7 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "A JSON pointer; / is the whole answer",
+                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -63513,6 +63532,11 @@
                           },
                           "type": "object"
                         },
+                        "sweepEveryDays": {
+                          "maximum": 30,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
                         "updatedSince": {
                           "properties": {
                             "format": {
@@ -63549,7 +63573,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63572,7 +63596,7 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "A JSON pointer; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -63869,6 +63893,10 @@
               },
               "idleSec": {
                 "minimum": 60,
+                "type": "integer"
+              },
+              "sweepSec": {
+                "minimum": 86400,
                 "type": "integer"
               }
             },
@@ -64599,6 +64627,10 @@
               },
               "idleSec": {
                 "minimum": 60,
+                "type": "integer"
+              },
+              "sweepSec": {
+                "minimum": 86400,
                 "type": "integer"
               }
             },
