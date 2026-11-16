@@ -170,6 +170,18 @@ test("every offered service: asked by name, wrong and limited and unreachable ke
         `${s.key}: only its own hosts: ${JSON.stringify(seen.map((q) => q.host))}`,
       );
       assert.ok(!JSON.stringify(ran).includes("ZTOK_standin"), "a token never comes back");
+      if (s.key === "zoom") {
+        const direct = await own.call("connectors.run", {
+          key: "zoom",
+          action: "token",
+          connectionId: conn,
+          input: {},
+        });
+        assert.ok(
+          !JSON.stringify(direct).includes("ZTOK_standin"),
+          "run on its own, the token call answers nothing of the token",
+        );
+      }
       // Disconnect, and the next ask is a clean card
       await own.call("vault.connect_card.disconnect", { requestId });
       assert.equal(((await own.call("connections.list", { connector: s.key })).connections as unknown[]).length, 0);

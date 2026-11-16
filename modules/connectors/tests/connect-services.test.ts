@@ -334,3 +334,21 @@ test("every definition of this file is in the list of services the card is for, 
     }
   }
 });
+
+test("Zoom: the token the token call hands out comes back from no call an agent or a person can make, only into the next call's header", async () => {
+  const k = await setup();
+  const def = JSON.parse(
+    k.tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = 'zoom'")!.def,
+  ) as ConnectorDef;
+  const sec = secretsFor(def, "tok");
+  k.state.reply = (req) =>
+    req.url.includes("/oauth/token")
+      ? { status: 200, body: { access_token: "ZTOK_unit_value_01" } }
+      : { status: 200, body: { meetings: [], echoed: req.headers["Authorization"] } };
+  const { executeAction } = await import("../handlers/runtime.ts");
+  const alone = await executeAction(k.deps, k.ctx, def, "token", { secrets: sec, persist: false });
+  assert.equal(alone.output, null, "on its own the token call answers nothing of the token");
+  const next = await executeAction(k.deps, k.ctx, def, "list_meetings", { secrets: sec, persist: false });
+  assert.equal(k.sent.at(-1)!.headers["Authorization"], "Bearer ZTOK_unit_value_01", "the next call carries it");
+  assert.ok(!JSON.stringify(next).includes("ZTOK_unit_value_01"), "and nothing of it comes back");
+});

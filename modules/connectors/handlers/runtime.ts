@@ -144,6 +144,8 @@ export interface ExecOpts {
   refreshed?: boolean;
   /** Called with the answer's status and text before the status is turned into an error, so a check can read a verdict from it. It must keep nothing of the text but its own verdict. */
   verdict?: (status: number, text: string) => void;
+  /** Set by the runtime itself for the token call that stands before another action: only then does the token action's answer (the short-lived token) come back out of it. */
+  tokenChain?: boolean;
 }
 export interface ExecResult {
   output: unknown;
@@ -351,6 +353,7 @@ export async function executeAction(
         persist: false,
         input: {},
         actor,
+        tokenChain: true,
       });
       if (typeof got.output !== "string" || got.output === "")
         refuse(ctx, "provider.bad_response", `${def.title} gave no token.`);
@@ -565,6 +568,9 @@ export async function executeAction(
     logRow(res.status, e.message);
     return refuse(ctx, "provider.bad_response", scrub.text(`${actionName}: ${e.message}`));
   }
+  // the token a server-to-server service hands out is the runtime's own: run on its own (by an agent, a person's test or a check) the token call answers nothing of it
+  if (def.auth.type === "client_credentials" && actionName === def.auth.tokenAction && o.tokenChain !== true)
+    output = null;
   output = scrub.value(output);
   logRow(res.status, null);
   return { output, dryRun: false, status: res.status, ms };
