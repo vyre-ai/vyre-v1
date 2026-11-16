@@ -8,6 +8,7 @@ import {
   anchorRightFor,
   clampMenu,
   menuLeft,
+  menuTop,
   noteAnchor,
   resetAnchor,
   iconNames,
@@ -660,4 +661,20 @@ test("a long menu with a wrapped entry: the arrow keys reach it in order, and th
   const html = renderToStaticMarkup(<Menu items={items} x={0} y={0} />);
   assert.match(html, /max-height:\d+px;overflow-y:auto/, "the panel is height-capped to the window and scrolls");
   assert.match(html, /-webkit-line-clamp:2/, "the wrapped entry's text clamps at two lines, no more");
+});
+
+test("a menu opened at the pointer flips left at the right edge and up near the bottom, its far edge on the pointer (a message's menu)", () => {
+  // 1440 wide: a menu 220 wide opened at x 1380 ends on x
+  assert.equal(menuLeft(1380, 220, 1440, 1380), 1160);
+  assert.equal(menuLeft(600, 220, 1440, 600), 600, "room on the right: it stays at the pointer");
+  // 1024 wide, 390 wide
+  assert.equal(menuLeft(900, 220, 1024, 900), 680);
+  assert.equal(menuLeft(300, 220, 390, 300), 80);
+  // near the bottom: the menu's bottom edge is the pointer's y
+  assert.equal(menuTop(700, 260, 800, 700), 440);
+  assert.equal(menuTop(200, 260, 800, 200), 200, "room below: it stays");
+  // above the composer (its top at 640): a pointer at 600 with a 260 tall menu flips up
+  assert.equal(menuTop(600, 260, 800, 600, 632), 340);
+  // too tall to flip either way: it is held inside the window
+  assert.equal(menuTop(100, 790, 800, 100), 8);
 });

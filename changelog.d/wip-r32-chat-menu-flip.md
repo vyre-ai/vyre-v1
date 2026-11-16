@@ -1,0 +1,1 @@
+A message's menu now opens the way a native menu does: when it would leave the right edge of the window it opens to the left of the pointer, and near the bottom or above the message box it opens upward, so it never covers the message you pressed.

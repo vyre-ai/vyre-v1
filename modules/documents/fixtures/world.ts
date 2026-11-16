@@ -16,7 +16,7 @@ export const TRACE = "0123456789abcdef0123456789abcdef";
 // ---- a Word file built in code ----
 
 interface ZipApi {
-  file(name: string, data: string): unknown;
+  file(name: string, data: string | Buffer): unknown;
   file(name: string): { asText(): string } | null;
   files: Record<string, unknown>;
   generate(o: { type: "nodebuffer" }): Buffer;
@@ -27,7 +27,7 @@ const Zip = need("pizzip") as new (data?: Uint8Array) => ZipApi;
 const NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 /** A minimal valid .docx whose body is the given WordprocessingML; `extra` adds more parts (styles, headers). */
-export function docx(body: string, extra: Record<string, string> = {}): Buffer {
+export function docx(body: string, extra: Record<string, string | Buffer> = {}): Buffer {
   const z = new Zip();
   z.file(
     "[Content_Types].xml",
