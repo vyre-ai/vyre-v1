@@ -375,6 +375,16 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
               fa,
               `${f.label} only applies when ${f.onlyWhen.path} says so, but ${f.onlyWhen.path} is not described in the object's fields.`,
             );
+          {
+            const eq = (Array.isArray(f.onlyWhen.equals) ? f.onlyWhen.equals : [f.onlyWhen.equals]).map((v) =>
+              v.trim().toLowerCase(),
+            );
+            const hit = items.filter((it) => {
+              const k = pointerGet(it, f.onlyWhen!.path);
+              return k !== undefined && k !== null && eq.includes(String(k).trim().toLowerCase());
+            }).length;
+            warn(fa, `${f.label} applies to ${hit} of ${items.length} sampled records (the others have it empty).`);
+          }
           if (mf.direction !== "pull")
             err(
               fa,

@@ -128,3 +128,15 @@ test("three relations from one id pointer to one target each get their own inver
   assert.equal(new Set(person.relations.map((r) => r.inverse)).size, 3);
   assert.equal(new Set(person.relations.map((r) => r.inverseTitle)).size, 3);
 });
+
+test("validate says how many sampled rows a conditional field applies to", async () => {
+  const w = world();
+  const spec = mutate(ledgerSpec(), (s) => {
+    s["objects"][1]["fields"].find((f: any) => f.path === "/attributes/tier").onlyWhen = {
+      path: "/attributes/status",
+      equals: ["LEAD", " client "],
+    };
+  });
+  const v = await w.k.hs["sync_specs.validate"](w.ctx, { spec });
+  assert.ok(v.problems.some((p) => /applies to \d+ of 2 sampled records/.test(p.message)), JSON.stringify(v.problems));
+});
