@@ -92,6 +92,41 @@ test("Ask to Connected: the typed key goes in the submit call and in no other, a
   }
 });
 
+test("two presses while the first is still out are one submit, and the done row a person opens stays open", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { find, flush, installDom, mount, press, textOf, typeInto } = await import("../../../onboarding/test-dom.ts");
+  const restore = installDom();
+  try {
+    let state = "ask";
+    const h = harness({
+      "vault.connect_card.get": () =>
+        card(state, state === "connected" ? { keptIn: "Mine", tested: "Reached Fathom" } : {}),
+      // a slow answer: the second press lands while the first is still out
+      "vault.connect_card.submit": async () => {
+        await new Promise((r) => setTimeout(r, 120));
+        state = "connected";
+        return { result: "connected", ...card("connected", { keptIn: "Mine", tested: "Reached Fathom" }) };
+      },
+    });
+    const root = await mount(createRoot, <ConnectCardLive requestId="vrq_1" agent="Dex" data={h.data} />);
+    await typeInto(find(root, "connect-vrq_1-api_key-input"), KEY);
+    await press(find(root, "connect-vrq_1-connect"));
+    const again = find(root, "connect-vrq_1-connect");
+    if (again) await press(again);
+    await flush();
+    await new Promise((r) => setTimeout(r, 900));
+    await flush();
+    assert.equal(h.calls.filter((c) => c.cap === "vault.connect_card.submit").length, 1, "one submit");
+    await press(find(root, "connect-vrq_1-row"));
+    // longer than the ticks of a submit: nothing shuts the row a person opened
+    await new Promise((r) => setTimeout(r, 700));
+    await flush();
+    assert.ok(textOf(root).includes("Disconnect"), "the opened row is still open");
+  } finally {
+    restore();
+  }
+});
+
 test("a wrong key marks the field with the service's name, keeps nothing, and typing again takes the red away", async () => {
   const { createRoot } = await import("test-renderer");
   const { find, flush, installDom, mount, press, textOf, typeInto } = await import("../../../onboarding/test-dom.ts");
