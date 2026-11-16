@@ -454,6 +454,29 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
   return { envelopeId, links, emailed, ...(notice ? { notice } : {}) };
 }
 
+/** Tells the sender, in Needs you, that their document is signed or sent back. Never fails the signature. */
+async function notifySender(
+  ctx: Ctx,
+  envId: string,
+  kind: "task.finished" | "task.returned",
+  subject: string,
+  title: string,
+  data: Record<string, string>,
+): Promise<void> {
+  const to = str(one(ctx, "SELECT created_by FROM esign_envelope WHERE id = ?", envId)?.created_by);
+  if (!to.startsWith("usr_")) return;
+  await soft(ctx, "telling the sender", () =>
+    ctx.call("notifications.send", {
+      to,
+      kind,
+      subject: { type: "file", id: subject },
+      title,
+      data,
+      collapseKey: `esign:${kind}:${envId}`,
+    }),
+  );
+}
+
 // ---- esign.remind -------------------------------------------------------------------------------------------
 
 export async function remind(ctx: Ctx, input: unknown): Promise<Row> {
@@ -695,6 +718,10 @@ export async function signerAct(ctx: Ctx, input: unknown): Promise<{ result: Row
       signer: str(hit.signer.name),
       ...(reason ? { reason } : {}),
     });
+    await notifySender(ctx, envId, "task.returned", env.fileId, env.title, {
+      from: str(hit.signer.name),
+      note: reason || "declined",
+    });
     await finishTask(ctx, env, "canceled", `${str(hit.signer.name)} declined to sign.`);
     await tellThread(
       ctx,
@@ -921,6 +948,8 @@ export async function fetchVyre(ctx: Ctx, envelopeId: string): Promise<{ fileId:
     envelopeId,
   );
   ctx.emit("signature.signed", subject(envelopeId), { envelopeId, fileId: id });
+  const first = signers.map((s) => (str(s.signed_name) || str(s.name)).split(/\s+/)[0] as string).join(", ");
+  await notifySender(ctx, envelopeId, "task.finished", id, `${env.title} signed`, { from: first });
   await finishTask(ctx, env, "done", "Everyone signed.");
   await tellThread(
     ctx,

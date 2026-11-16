@@ -260,6 +260,7 @@ export function harness(o: HarnessOptions = {}) {
     created.push({ folderId: i.folderId, name: i.name, base64: i.content.base64 });
     return { file: { fileId: `fil_cert${created.length}`, folderId: i.folderId, name: i.name } };
   };
+  callees["notifications.send"] = () => ({ outcome: "badge" });
   callees["tasks.create"] = () => ({ task: { id: `tsk_sig${++taskSeq}` } });
   callees["tasks.transition"] = () => ({ task: {} });
   callees["chat.post"] = () => ({ message: { id: "msg_1" } });
