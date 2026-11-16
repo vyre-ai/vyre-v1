@@ -90,7 +90,7 @@ test("an automation row: Run Now, Turn Off or On by state, Test, Runs, a Persona
   );
 });
 
-test("the row's menu is the page's: Open, Rename…, Duplicate first; Duplicate copies, Rename asks for a name", async () => {
+test("the row's menu is the page's: Open, Open in New Tab, Rename…, Duplicate first; Duplicate copies, Rename asks for a name", async () => {
   const s = createSampleAutomations(northwind);
   const root = await mount(
     createRoot,
@@ -102,7 +102,7 @@ test("the row's menu is the page's: Open, Rename…, Duplicate first; Duplicate 
   const row = rowIdOf(root as never);
   const id = row.slice("row-auto-".length);
   await rightClick(root as never, row);
-  assert.deepEqual(ids(root as never).slice(0, 3), ["Open", "Rename…", "Duplicate"]);
+  assert.deepEqual(ids(root as never).slice(0, 4), ["Open", "Open in New Tab", "Rename…", "Duplicate"]);
   await press(find(root as never, "menu-item-Duplicate") as never);
   await flush();
   const calls = (s as unknown as { calls: { cap: string; input: any }[] }).calls; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -115,4 +115,20 @@ test("the row's menu is the page's: Open, Rename…, Duplicate first; Duplicate 
   await press(find(root as never, "menu-item-Rename…") as never);
   await flush();
   assert.ok(find(root as never, "text-ask"), "it asks for the new name");
+});
+
+test("an automation row's menu offers Open in New Tab right after Open (lane r32-nav)", async () => {
+  const s = createSampleAutomations(northwind);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={s.data}>
+      <AutomationsList selectedId={null} query="" onChoose={() => undefined} />
+    </AutomationsDataProvider>,
+  );
+  await flush();
+  const row = rowIdOf(root as never);
+  assert.ok(row, "a row is drawn");
+  await rightClick(root as never, row);
+  assert.ok(ids(root as never).includes("Open in New Tab"), "Open in New Tab is in the menu");
+  assert.equal(ids(root as never)[0], "Open");
 });

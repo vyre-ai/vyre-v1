@@ -210,6 +210,12 @@ test("a tab keeps its hover while the pointer is on its close button: hover is e
       (tab.props.onPointerEnter as () => void)();
     });
     assert.notEqual(close().opacity, 0, "hovering the tab shows its x");
+    // while the x is over the tab's right edge, the end of the name fades out before it (the letters used to show through and beside the button)
+    const title = (): { maskImage?: string } => {
+      const st = find(root, "tab-title-b")!.props.style as unknown;
+      return Object.assign({}, ...([st].flat(Infinity) as object[]).filter(Boolean)) as { maskImage?: string };
+    };
+    assert.match(title().maskImage ?? "", /transparent/, "the name fades under the x");
     await act(async () => {
       (find(root, "tab-close-b")!.props.onPointerEnter as (() => void) | undefined)?.();
     });
@@ -218,6 +224,7 @@ test("a tab keeps its hover while the pointer is on its close button: hover is e
       (find(root, "tab-b")!.props.onPointerLeave as () => void)();
     });
     assert.equal(close().opacity, 0, "leaving the tab hides it again");
+    assert.equal(title().maskImage, undefined, "and the whole name is back");
   } finally {
     restore();
   }

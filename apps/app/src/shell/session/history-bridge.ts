@@ -3,6 +3,8 @@
 // person back on the middle entry. So the browser never walks away from what the tab remembers, and the address bar always names what is on screen.
 // The guards are made on the first press or key, never at load: a browser skips entries a page made without one.
 import type { ShellHub } from "../spaces/hub.ts";
+import { joinedByLink } from "./entry.ts";
+import { phoneBack } from "./phone-back.ts";
 import { hubUrl, readUrlIntoHub } from "./url.ts";
 
 type Mark = "back" | "here" | "fwd";
@@ -74,8 +76,10 @@ export function startHistoryBridge(hub: ShellHub, win: BridgeWindow): () => void
     }
     if (mark === "back" || mark === "fwd") {
       returning = true;
-      const moved = mark === "back" ? hub.back({ up: false }) : hub.forward();
-      if (!moved && mark === "back") {
+      // the hub first; then the phone's own stack (it keeps one the hub does not know)
+      const moved = mark === "back" ? hub.back({ up: false }) || phoneBack() : hub.forward();
+      // a person who came in by an invite link has no page of ours behind them and the link they pressed is spent: Back stays on the first screen, never the join page and never out of the app
+      if (!moved && mark === "back" && !joinedByLink()) {
         // Nothing of Vyre's own to go back to (the person came from a mail or another site): the browser's Back leaves, it is never trapped. If there is nowhere to leave to, the
         // middle entry comes back.
         win.history.go(-1);

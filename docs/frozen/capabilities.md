@@ -649,3 +649,11 @@ Signed: lead, 16 Nov 2026 04:20 PKT
 - Snapshots: docs/frozen/snapshots/connectors.json, vault-requests.json.
 
 Signed: lead, 16 Nov 2026 04:45 PKT
+
+## 16 Nov 2026: the connect card offers every service that takes a pasted key (lane r32-connect), for the lead to sign
+
+- What changed in contracts, all additive: `connectors.check_key` answers `limited` as well as `ok`, `rejected` and `unreachable` (the key works but may not read what the check needs; a wrong key and a missing permission are told apart, and a 5xx, a 429 or a timeout is still `unreachable`, never a verdict on the key). `connectors.for_service` and `vault.connect_card.get` (and every other answer that carries the card) gain an optional `choice` (a choice the person makes on the card, today Mailgun's region: each option names its own connector and its own exact hosts), and the card gains an optional `problem` (`permission`, on a wrong try that was a key without access). `vault.connect_card.submit` gains an optional `choice` (the option picked; the first when left out); its required `hosts` must equal the PICKED option's hosts, so the key goes to one host and never to both.
+- Not a contract change, the rule the tests pin: Stripe, Resend, HubSpot (private app token), Mailgun (US and EU, two connectors with one host each), Dropbox Sign, Zoom (server-to-server) and Twilio are defined in code (`lib/builtin-connectors.ts`) with an address on every action they carry, exact hosts (Twilio's wildcard `*.twilio.com` and HubSpot's `app.hubspot.com` are gone from what a key may be sent to) and one read-only check from the service's public documents. Each passes `destinationProblem` unchanged. A key travels in a header or HTTP Basic, never in an address; the check answer is read on the server for a verdict and nothing else leaves it. The registry's older actions that have no address stay beside the new ones as names (their module runs them); a row the registry wrote and nobody changed is brought up to the new definition at start-up, a changed row is never overwritten. DocuSign, Google and Documenso keep their older way.
+- Snapshots: docs/frozen/snapshots/connectors.json, vault-requests.json.
+
+Signed: lead, 16 Nov 2026 (after the security review and its re-check)

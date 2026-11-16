@@ -65,7 +65,7 @@ const KINDS: { kind: ItemKind; o?: Partial<Item>; want: string[] }[] = [
     kind: "chat",
     want: [
       "Open",
-      "Open in a new tab",
+      "Open in New Tab",
       "Mark as unread",
       "Pin",
       "Mute",
@@ -81,7 +81,7 @@ const KINDS: { kind: ItemKind; o?: Partial<Item>; want: string[] }[] = [
     o: { withPeople: true, unread: 2, muted: true, archived: true },
     want: [
       "Open",
-      "Open in a new tab",
+      "Open in New Tab",
       "Mark as read",
       "Pin",
       "Unmute",
@@ -97,7 +97,7 @@ const KINDS: { kind: ItemKind; o?: Partial<Item>; want: string[] }[] = [
     o: { threadId: "t" },
     want: [
       "Message",
-      "Open in a new tab",
+      "Open in New Tab",
       "Mark as unread",
       "Pin",
       "Mute",
@@ -108,27 +108,18 @@ const KINDS: { kind: ItemKind; o?: Partial<Item>; want: string[] }[] = [
   },
   {
     kind: "person",
-    want: ["Message", "Open in a new tab", "Pin", "Mute", "View profile", "Add to a chat…", "Copy @handle"],
+    want: ["Message", "Open in New Tab", "Pin", "Mute", "View profile", "Add to a chat…", "Copy @handle"],
   },
   {
     kind: "channel",
-    want: [
-      "Open",
-      "Open in a new tab",
-      "Mark as unread",
-      "Pin",
-      "Mute",
-      "Invite people…",
-      "Copy link",
-      "Leave channel",
-    ],
+    want: ["Open", "Open in New Tab", "Mark as unread", "Pin", "Mute", "Invite people…", "Copy link", "Leave channel"],
   },
-  { kind: "project", want: ["Open project", "Open in a new tab", "Mark as unread", "Pin", "Mute", "Copy link"] },
+  { kind: "project", want: ["Open project", "Open in New Tab", "Mark as unread", "Pin", "Mute", "Copy link"] },
   {
     kind: "agent",
     want: [
       "Message",
-      "Open in a new tab",
+      "Open in New Tab",
       "Pin",
       "Mute",
       "View profile",
@@ -141,13 +132,13 @@ const KINDS: { kind: ItemKind; o?: Partial<Item>; want: string[] }[] = [
   {
     kind: "agent",
     o: { assistant: true },
-    want: ["Message", "Open in a new tab", "Pin", "Mute", "View profile", "Add to a chat…"],
+    want: ["Message", "Open in New Tab", "Pin", "Mute", "View profile", "Add to a chat…"],
   },
   {
     kind: "goal",
-    want: ["Open", "Open in a new tab", "Pin", "Report progress…", "Mark stuck…", "Pause", "Copy link"],
+    want: ["Open", "Open in New Tab", "Pin", "Report progress…", "Mark stuck…", "Pause", "Copy link"],
   },
-  { kind: "task", want: ["Open", "Open in a new tab", "Copy link"] },
+  { kind: "task", want: ["Open", "Open in New Tab", "Copy link"] },
 ];
 KINDS.forEach((c, n) =>
   test(`menu ${n}: ${c.kind}${c.o ? ` ${JSON.stringify(c.o)}` : ""}`, () => {
@@ -191,7 +182,7 @@ test("the hint column is the key the focused row runs: Enter, tab, U, P, M, F2, 
   const h = hints(rowMenu(item("chat"), false, ALL));
   assert.deepEqual(h, {
     Open: "Enter",
-    "Open in a new tab": "⌘↵",
+    "Open in New Tab": "⌘↵",
     "Mark as unread": "U",
     Pin: "P",
     Mute: "M",
@@ -217,14 +208,14 @@ test("the letter keys run the menu's item on the focused row (the shared key map
 
 test("Tasks: Open, a new tab, New task", () => {
   const m = tasksMenu({ open: () => {}, openTab: () => {}, newTask: () => {} }, () => "⌥⌘T");
-  assert.deepEqual(labels(m), ["Open", "Open in a new tab", "New task"]);
+  assert.deepEqual(labels(m), ["Open", "Open in New Tab", "New task"]);
   assert.equal(hints(m)["New task"], "⌥⌘T");
 });
 
 test("Notes & artifacts: Open, each tab by name, a new tab, New note", () => {
   const f = () => {};
   const m = notesMenu({ open: f, openNotes: f, openArtifacts: f, openTab: f, newNote: f });
-  assert.deepEqual(labels(m), ["Open", "Open Notes", "Open Artifacts", "Open in a new tab", "New note"]);
+  assert.deepEqual(labels(m), ["Open", "Open Notes", "Open Artifacts", "Open in New Tab", "New note"]);
 });
 
 const HEAD_TABLE: { section: "pinned" | "chats" | "channels" | "team" | "goals"; folded: boolean; want: string[] }[] = [

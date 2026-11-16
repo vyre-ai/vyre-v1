@@ -15,6 +15,7 @@ import { connectorOpening } from "../../places/vault/itemenv/automations.ts";
 import { syncOpening } from "../../places/records/sync/opening.ts";
 import { openAsk } from "./ask.ts";
 import { attemptKey } from "./files-review.ts";
+import { selectionArgs, selectionOfArgs } from "../../places/vault/layout/model.ts";
 import { connectionsRoute, connectionsTarget } from "../../places/vault/connections/links.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -30,6 +31,8 @@ export function vaultRoute(target: HashTarget): VaultRoute {
   if (conns) return conns;
   if (target.args["addProvider"] === "true") return { surface: "layout", addProvider: true };
   if (target.args["add"]) return { surface: "layout", addApp: target.args["add"] };
+  const select = selectionOfArgs(target.args);
+  if (select) return { surface: "layout", select };
   return { surface: "layout" };
 }
 
@@ -116,6 +119,7 @@ export function vaultData(
       ...(actors ? { openOutsideActors: actors.open } : {}),
       openPolicy: () => rt.open({ screen: "vault.layout", args: { policy: true } }),
       openRequests: () => rt.open({ screen: "vault_requests.list" }),
+      openSelection: (sel) => rt.open({ screen: "vault.layout", args: selectionArgs(sel) }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
       ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
       addToAutomations: (item) =>

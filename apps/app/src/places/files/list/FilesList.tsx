@@ -12,6 +12,7 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import { openEntries } from "../../../../../../ui/src/Menu/open-entries.ts";
 import { useFilesData, useFolderNodes, useLive, useOnline, useOptionalFilesData, useSource } from "../tree/data.tsx";
 import {
   SORTS,
@@ -114,11 +115,11 @@ export function lineMenuEntries(
     if (one.conflict === true && h.resolve)
       out.push({ label: "Resolve Conflict…", onSelect: () => h.resolve?.(one) }, { separator: true });
     // the keys shown are the keys the list answers to: Enter opens, Space looks, F2 renames, Delete trashes
-    out.push(
-      { label: "Open", hint: "Enter", onSelect: () => h.open(one) },
-      ...(h.openTab ? [{ label: "Open in New Tab", onSelect: () => h.openTab?.(one) }] : []),
-      { label: "Quick Look", hint: "Space", onSelect: () => h.quickLook(one) },
-    );
+    out.push(...openEntries({ open: () => h.open(one), ...(h.openTab ? { openTab: () => h.openTab?.(one) } : {}) }), {
+      label: "Quick Look",
+      hint: "Space",
+      onSelect: () => h.quickLook(one),
+    });
     // a file from a connected folder also opens in the app it lives in (Google Docs, Word, Excel, Dropbox)
     const app = one.type === "file" && h.openIn ? openInLabel(one) : null;
     if (app !== null) out.push({ label: openInWords(app), onSelect: () => h.openIn?.(one) });

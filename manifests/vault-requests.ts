@@ -30,11 +30,20 @@ const requestRow = t.obj({
 /** One connect card (b-connect, 14 Nov 2026): the whole of its state, read from the server, never guessed on the screen. Names, never a value. */
 const connectState = t.enm("ask", "have", "admin", "asked", "connected", "wrong", "offline", "later", "gone");
 const connectField = t.obj({ name: t.str(), label: t.str(), optional: t.bool() });
+/** a choice the person makes on the card (a region): each option is a connector of its own with its own exact hosts; the key goes to the chosen option's hosts only */
+const connectChoice = t.obj({
+  name: t.str(),
+  label: t.str(),
+  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()) })),
+});
 const connectCard = t.obj({
   requestId: reqId,
   state: connectState,
   service: t.obj({ key: id.connector, title: t.str(), site: t.opt(t.str()) }),
   fields: t.arr(connectField),
+  choice: t.opt(connectChoice),
+  /** a wrong try: the key itself, or a key that works but may not read what the check needs */
+  problem: t.opt(t.enm("permission")),
   agentId: t.opt(id.agent),
   /** this viewer can type the key into the card: the person it was asked for, or the admin it was passed to */
   mayFill: t.bool(),
@@ -243,6 +252,9 @@ export default defineManifest({
           useSaved: t.opt(t.bool({ description: "Use the key the person already has instead of a typed one" })),
           folderId: t.opt(id.vaultFolder),
           audience: t.opt(t.enm("asker", "anyone")),
+          choice: t.opt(
+            t.str({ description: "The option picked for the service's choice (a region); the first when left out" }),
+          ),
           hosts: t.arr(t.str(), {
             description:
               "The addresses the card showed the key would be sent to; refused when the service's addresses are no longer exactly these",

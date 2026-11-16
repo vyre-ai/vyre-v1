@@ -85,11 +85,14 @@ test("egress: https to a declared domain, nothing else", () => {
 
 test("templates, pointers and scrubbing", () => {
   const scope = {
-    input: { id: "a b/c", n: 3, deep: { x: true } },
+    input: { id: "a b", n: 3, deep: { x: true } },
     secret: { K: "kkkk-1234" },
     connection: { id: "con_1" },
   };
-  assert.equal(fillString("https://h/{input.id}/{connection.id}", scope, true), "https://h/a%20b%2Fc/con_1");
+  assert.equal(fillString("https://h/{input.id}/{connection.id}", scope, true), "https://h/a%20b/con_1");
+  // a value that is a place in the path (".." or a slash, backslash, ? or #, raw or encoded) is refused before any request (review of 9bdda3ef3, item 4)
+  for (const bad of ["..", ".", "a/b", "a\\b", "a?b", "a#b", "%2e%2e", "a%2Fb"])
+    assert.throws(() => fillString("https://h/{input.id}", { ...scope, input: { id: bad } }, true), /cannot be/, bad);
   assert.equal(fillString("Bearer {secret.K}", scope), "Bearer kkkk-1234");
   assert.throws(() => fillString("{input.missing}", scope), /input\.missing has no value/);
   assert.deepEqual(fillValue({ a: "{input.n}", b: "n={input.n}", c: ["{input.deep.x}"] }, scope), {
@@ -371,7 +374,7 @@ test("list and get: built-in connectors come from the generator's registry", asy
     connectors: { key: string; title: string; domains: string[]; actions: string[]; sources?: { key: string }[] }[];
   };
   const all = await k.hs["connectors.list"](k.ctx, {});
-  const keys = [...reg.connectors.map((c) => c.key), ...activeCodeBuiltins().map((c) => c.key)].sort();
+  const keys = [...new Set([...reg.connectors.map((c) => c.key), ...activeCodeBuiltins().map((c) => c.key)])].sort();
   assert.equal(
     all.total,
     keys.length,
@@ -381,9 +384,15 @@ test("list and get: built-in connectors come from the generator's registry", asy
   const stripe = (await k.hs["connectors.get"](k.ctx, { key: "stripe" })).connector;
   const want = reg.connectors.find((c) => c.key === "stripe")!;
   assert.deepEqual(
-    [stripe.title, stripe.builtin, stripe.state, stripe.domains, stripe.actions, stripe.sources],
-    [want.title, true, "live", want.domains, want.actions, (want.sources ?? []).map((s) => s.key)],
+    [stripe.title, stripe.builtin, stripe.state, stripe.domains, stripe.sources],
+    [want.title, true, "live", want.domains, (want.sources ?? []).map((s) => s.key)],
   );
+  // the registry's own action names are all still there; the ones written in code (with addresses) come before them
+  assert.deepEqual(
+    stripe.actions.filter((a) => want.actions.includes(a)),
+    want.actions,
+  );
+  assert.ok(stripe.actions.includes("check_balance"), "and the check the card tries a key with");
   const page = await k.hs["connectors.list"](k.ctx, { limit: 5 });
   assert.equal(page.connectors.length, 5);
   assert.equal(page.next, "5");

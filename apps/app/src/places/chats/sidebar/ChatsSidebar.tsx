@@ -1188,10 +1188,10 @@ function LegacySidebar({
       },
     );
   };
-  // Notes: Open, Open in a new tab, Take a note
+  // Notes: Open, Open in New Tab, Take a note
   const notesMenu = (e: Entry): MenuEntry[] => [
     { label: "Open", onSelect: () => open(e) },
-    ...(data.nav.openNotesTab ? [{ label: "Open in a new tab", onSelect: () => data.nav.openNotesTab?.() }] : []),
+    ...(data.nav.openNotesTab ? [{ label: "Open in New Tab", onSelect: () => data.nav.openNotesTab?.() }] : []),
     ...(data.nav.takeNote
       ? [
           {

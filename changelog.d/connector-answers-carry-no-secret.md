@@ -1,0 +1,1 @@
+A connected app's answer never carries a secret: any field named like a key, a password or a token is masked, also inside a document a service sends as text and in a service's refusal, while the tokens that only page through a list are kept.

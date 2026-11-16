@@ -12,6 +12,7 @@ import type { AskInvoke } from "../../../../../ui/src/LockedState/index.tsx";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { useOpenRowMenu } from "../../shell/tabs/row-menu.tsx";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Audit } from "../pages/audit/Audit.tsx";
@@ -127,6 +128,7 @@ function ShellBody({
   /** The page each section was last on, so a click on a section returns to it. */
   const [lastIn, setLastIn] = useState<Readonly<Record<string, string>>>({});
   const menu = useMenu();
+  const rowMenu = useOpenRowMenu();
   const searchBtn = useRef<unknown>(null);
   const skinBtn = useRef<unknown>(null);
   const pagesBtn = useRef<unknown>(null);
@@ -262,35 +264,51 @@ function ShellBody({
   const navRows: ReactElement[] = [];
   for (const sec of sections) {
     if (sec.id === "space") navRows.push(<View key="gap" style={{ height: 12 }} />);
+    const landTo = (): string | undefined => landing(sec, ok, lastIn[sec.id]);
     navRows.push(
-      <Row
+      <View
         key={sec.id}
-        id={`nav-${sec.id}`}
-        title={sec.title}
-        selected={here?.id === sec.id}
-        leading={
-          <Lead>
-            <Glyph name={sec.icon} size={15} color={here?.id === sec.id ? "var(--ink)" : "var(--ink-3)"} />
-          </Lead>
-        }
-        {...(sec.id === "machines" && machineAlerts > 0
-          ? {
-              trailing: (
-                <View
-                  style={s.alertDot}
-                  testID="nav-machines-alerts"
-                  accessibilityLabel={`${machineAlerts} machine alert${machineAlerts === 1 ? "" : "s"}`}
-                >
-                  <Text style={s.alertDotText}>{machineAlerts}</Text>
-                </View>
-              ),
-            }
-          : {})}
-        onPress={() => {
-          const to = landing(sec, ok, lastIn[sec.id]);
-          if (to) go(to);
-        }}
-      />,
+        {...rowMenu.on({
+          label: sec.title,
+          open: () => {
+            const to = landTo();
+            if (to) go(to);
+          },
+          // inside the app a section can be a tab of its own; the open rule (tabs/open-rule.ts) decides where it goes
+          openTab: () => {
+            const to = landTo();
+            if (to) go(to);
+          },
+        })}
+      >
+        <Row
+          id={`nav-${sec.id}`}
+          title={sec.title}
+          selected={here?.id === sec.id}
+          leading={
+            <Lead>
+              <Glyph name={sec.icon} size={15} color={here?.id === sec.id ? "var(--ink)" : "var(--ink-3)"} />
+            </Lead>
+          }
+          {...(sec.id === "machines" && machineAlerts > 0
+            ? {
+                trailing: (
+                  <View
+                    style={s.alertDot}
+                    testID="nav-machines-alerts"
+                    accessibilityLabel={`${machineAlerts} machine alert${machineAlerts === 1 ? "" : "s"}`}
+                  >
+                    <Text style={s.alertDotText}>{machineAlerts}</Text>
+                  </View>
+                ),
+              }
+            : {})}
+          onPress={() => {
+            const to = landing(sec, ok, lastIn[sec.id]);
+            if (to) go(to);
+          }}
+        />
+      </View>,
     );
   }
   const tabs = here ? visibleTabs(here, ok) : [];
@@ -637,6 +655,7 @@ function ShellBody({
         ) : null}
       </View>
       {menu.element}
+      {rowMenu.element}
     </View>
   );
 }
