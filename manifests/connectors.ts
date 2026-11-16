@@ -34,6 +34,7 @@ const fieldMap = t.obj({
   relation: t.opt(id.recordType),
   inverse: t.opt(fieldKey),
   constant: t.opt(t.str({ description: "A value stamped on every record this binding pulls (the From field)" })),
+  sealed: t.opt(t.bool()),
 });
 const polling = t.obj({
   activeSec: t.int({ minimum: 30 }),
@@ -49,14 +50,7 @@ const objectActions = t.obj({
   update: t.opt(t.str()),
   delete: t.opt(t.str()),
   since: t.opt(t.bool()),
-  link: t.opt(
-    t.obj({
-      from: t.obj({ type: id.recordType, at: t.str() }),
-      to: t.obj({ type: id.recordType, at: t.str() }),
-      key: fieldKey,
-      inverseKey: fieldKey,
-    }),
-  ),
+  link: t.opt(t.json()),
 });
 
 const connectorRow = t.obj({
@@ -155,7 +149,7 @@ const bindingIn = {
 };
 
 // ---- SyncSpec: the one document an agent fills to bring an app's records into Records
-const specPointer = t.str({ description: "A JSON pointer such as /id; / is the whole answer" });
+const specPointer = t.str({ description: "JSON pointer such as /id; / is all" });
 const specField = t.obj({
   path: specPointer,
   label: t.str(),
@@ -172,12 +166,13 @@ const specField = t.obj({
     "url",
     "relation",
     "json",
+    "sealed",
   ),
   choices: t.opt(
     t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }), { examples: [[{ value: "lead", label: "Lead" }]] }),
   ),
-  relationTo: t.opt(t.str({ description: "The remote object a relation points at" })),
-  inverseKey: t.opt(fieldKey),
+  relationTo: t.opt(t.str()),
+  inverseKey: t.opt(t.str()),
   inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
 });
@@ -190,10 +185,10 @@ const specCursor = t.obj({
   start: t.opt(t.int({ minimum: 0 })),
 });
 const specWrite = t.obj({
-  path: t.str({ examples: ["/contacts/{id}"] }),
+  path: t.str(),
   method: t.opt(t.enm("POST", "PUT", "PATCH", "DELETE")),
   evidence: t.str({ description: "The docs page or quote that shows this call; a write without it is refused" }),
-  bodyAt: t.opt(t.str({ description: "Pointer in the body where the properties go; empty for the body itself" })),
+  bodyAt: t.opt(t.str({ description: "Where in the body the properties go; empty: the body itself" })),
   idAt: t.opt(specPointer),
 });
 const specObject = t.obj({
@@ -201,7 +196,7 @@ const specObject = t.obj({
   label: t.str(),
   count: t.opt(t.int({ minimum: 0 })),
   list: t.obj({
-    path: t.str({ examples: ["/contacts"] }),
+    path: t.str(),
     query: t.opt(t.rec(t.str())),
     cursor: t.opt(specCursor),
     updatedSince: t.opt(t.obj({ param: t.str(), format: t.opt(t.str()) })),
@@ -215,9 +210,7 @@ const specObject = t.obj({
   id: specPointer,
   updatedAt: t.opt(specPointer),
   itemsAt: specPointer,
-  openUrl: t.opt(
-    t.str({ description: "Address of a record in the app; {id} is filled in. Shown as Open in the app." }),
-  ),
+  openUrl: t.opt(t.str({ description: "Address of a record in the app, {id} filled in; shown as Open in the app" })),
   fields: t.arr(specField),
   webhook: t.opt(
     t.obj({
@@ -236,19 +229,10 @@ const specMapping = t.obj({
   fields: t.arr(t.obj({ path: specPointer, field: t.opt(fieldKey), direction: t.enm("both", "pull", "push", "off") })),
   match: t.opt(t.arr(specPointer)),
   stagesFrom: t.opt(specPointer),
-  titleField: t.opt(specPointer),
+  titleField: t.opt(t.union(specPointer, t.arr(specPointer, { minItems: 1, maxItems: 5 }))),
   deletes: t.opt(deletes),
   createAtSource: t.opt(t.bool()),
-  link: t.opt(
-    t.obj({
-      from: t.obj({ recordType: id.recordType, at: specPointer }),
-      to: t.obj({ recordType: id.recordType, at: specPointer }),
-      key: fieldKey,
-      title: t.str(),
-      inverseKey: fieldKey,
-      inverseTitle: t.str(),
-    }),
-  ),
+  link: t.opt(t.json()),
 });
 const syncSpec = t.obj({
   app: t.obj({
@@ -272,7 +256,7 @@ const syncSpec = t.obj({
   objects: t.arr(specObject, { minItems: 1 }),
   mapping: t.arr(specMapping, { minItems: 1 }),
   plan: t.obj({
-    firstPull: t.obj({ words: t.str({ description: "Plain words: what the first pull brings in" }) }),
+    firstPull: t.obj({ words: t.str() }),
     backfill: t.enm("later", "now"),
     conflicts: t.lit("newest"),
     requestsPerMinute: t.opt(t.num({ minimum: 1, maximum: 6000 })),
@@ -1313,7 +1297,7 @@ export default defineManifest({
           sentToday: t.int({ minimum: 0 }),
           nextPollAt: t.opt(t.ts()),
           slowedDown: t.opt(t.obj({ words: t.str(), resumesAt: t.ts() })),
-          links: t.opt(t.obj({ made: t.int({ minimum: 0 }), waiting: t.int({ minimum: 0 }), words: t.str() })),
+          links: t.opt(t.str()),
           spec: t.bool(),
         },
         on: ["record_type", "/type"],

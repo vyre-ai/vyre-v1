@@ -17,8 +17,13 @@ export const FIELD_TYPES = [
   "url",
   "relation",
   "json",
+  "sealed",
 ] as const;
 export type SpecFieldType = (typeof FIELD_TYPES)[number];
+/** Names that mark a secret identifier: map these as sealed. A date of birth is not one of them. */
+export const SECRET_ID =
+  /(?<![a-z])(ssn|ein|tin)(?![a-z])|social[ _-]?security|tax[ _-]?id|account[ _-]?(number|no|num)(?![a-z])|routing|licen[cs]e[ _-]?(number|no|num)(?![a-z])|driver'?s?[ _-]?licen[cs]e|passport|card[ _-]?(number|no|num)(?![a-z])/i;
+export const SSN_SHAPE = /^\d{3}-\d{2}-\d{4}$/;
 export const AUTH_STYLES = ["bearer", "header", "basic", "query", "oauth"] as const;
 export const CURSOR_KINDS = ["none", "page", "cursor", "offset", "link"] as const;
 export const DIRECTIONS = ["both", "pull", "push", "off"] as const;
@@ -92,7 +97,8 @@ export interface SpecMapping {
   fields: SpecMappingField[];
   match?: string[];
   stagesFrom?: string;
-  titleField?: string;
+  /** One pointer, or a list of pointers joined with a space (first and last name): empty parts are left out. */
+  titleField?: string | string[];
   deletes?: "off" | "soft" | "travel";
   createAtSource?: boolean;
   /** A join object (who is on which deal): each row also relates two already-synced records through a many-to-many relation that apply makes. `at` is a pointer in the row to the other record's id in the app. */
@@ -348,6 +354,7 @@ export function coerceValue(
     case "text":
     case "email":
     case "phone":
+    case "sealed":
       return text();
     case "relation":
       return text();
@@ -454,6 +461,22 @@ export function fieldKeys(obj: SpecObject, m: SpecMapping): Map<string, string> 
 
 // ---- compile ----
 
+/** The remote key of a title made from several pointers. */
+export const JOIN_PREFIX = "=join:";
+/** The pointers a mapping's titleField names (one or several). */
+export const titlePaths = (m: Pick<SpecMapping, "titleField">): string[] =>
+  m.titleField === undefined ? [] : Array.isArray(m.titleField) ? m.titleField : [m.titleField];
+/** The parts of a title (keys of a pulled row, which are the spec's pointers), joined with one space, empty parts left out; null when every part is empty. */
+export function joinTitle(data: unknown, parts: readonly string[]): string | null {
+  const out: string[] = [];
+  for (const p of parts) {
+    const v = isObj(data) ? data[p] : undefined;
+    const t = typeof v === "string" ? v.trim() : typeof v === "number" || typeof v === "boolean" ? String(v) : "";
+    if (t !== "") out.push(t);
+  }
+  return out.length ? out.join(" ") : null;
+}
+
 export interface FieldMapOut {
   key: string;
   remote: string;
@@ -461,6 +484,8 @@ export interface FieldMapOut {
   relation?: string;
   inverse?: string;
   constant?: string;
+  /** Kept out of the sync's own tables: the value is sealed in the Vault the moment it is read, and never travels with the record's other values. */
+  sealed?: true;
 }
 export interface CompiledType {
   remote: string;
@@ -497,6 +522,7 @@ const LOCAL_TYPE: Record<SpecFieldType, string> = {
   url: "url",
   relation: "relation",
   json: "longtext",
+  sealed: "sealed",
 };
 
 const titleOf = (key: string): string => key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -580,14 +606,21 @@ export function compileSpec(spec: SyncSpec): Compiled {
     if (cursor.kind === "offset" && cursor.param) query[cursor.param] = String(cursor.start ?? 0);
 
     const mapped = m.fields.filter((f) => f.direction !== "off");
-    const shapeFields = [...new Set([...mapped.map((f) => f.path), ...(m.link ? [m.link.from.at, m.link.to.at] : [])])];
+    const titleParts = Array.isArray(m.titleField) ? m.titleField : [];
+    const shapeFields = [
+      ...new Set([...mapped.map((f) => f.path), ...titleParts, ...(m.link ? [m.link.from.at, m.link.to.at] : [])]),
+    ];
     const types_: Record<string, string> = {};
     const choices: Record<string, string[]> = {};
     for (const p of shapeFields) {
       const sf = o.fields.find((x) => x.path === p);
-      if (!sf) continue;
+      if (!sf) {
+        if (titleParts.includes(p)) types_[p] = "text";
+        continue;
+      }
       // a pick-list or a multi-pick with no choices listed becomes plain text locally; the sync reads it the same way
-      types_[p] = sf.type === "multi" && !sf.choices?.length ? "list" : sf.type;
+      // a sealed value is read as text and sealed by the engine the moment it leaves the answer
+      types_[p] = sf.type === "multi" && !sf.choices?.length ? "list" : sf.type === "sealed" ? "text" : sf.type;
       if (sf.choices?.length) choices[p] = sf.choices.map((c) => c.value);
     }
     const listShape = {
@@ -713,6 +746,11 @@ export function compileSpec(spec: SyncSpec): Compiled {
       const sf = o.fields.find((x) => x.path === f.path);
       const key = keys.get(f.path)!;
       const dir = directionOf(f, sf, writable.update);
+      if (sf?.type === "sealed") {
+        fields.push({ key, remote: f.path, dir: "pull", sealed: true });
+        defs.push({ key, type: "sealed", title: sf.label });
+        continue;
+      }
       const target = sf?.type === "relation" ? spec.mapping.find((x) => x.remote === sf.relationTo) : undefined;
       const end = target ? ends.get(`${m.recordType}|${f.path}`) : undefined;
       const inverse = end?.key;
@@ -760,9 +798,18 @@ export function compileSpec(spec: SyncSpec): Compiled {
       });
     // relation fields are mapped with their pointer; the target record type's synced binding resolves the remote id to a record
     const textKeys = defs.filter((d) => d.type === "text" || d.type === "email").map((d) => d.key);
-    const wanted = m.titleField ? (keys.get(m.titleField) ?? m.titleField) : undefined;
+    // a title made from several pointers is its own text field, read apart from the others: first and last name joined with a space
+    let joinedKey: string | undefined;
+    if (Array.isArray(m.titleField)) {
+      const taken = new Set(defs.map((d) => d.key));
+      joinedKey = ["name", "title", "full_title"].find((k) => !taken.has(k)) ?? "full_title_2";
+      fields.push({ key: joinedKey, remote: `${JOIN_PREFIX}${m.titleField.join("|")}`, dir: "pull" });
+      defs.unshift({ key: joinedKey, type: "text", title: "Name" });
+    }
+    const wanted =
+      joinedKey ?? (m.titleField ? (keys.get(m.titleField as string) ?? (m.titleField as string)) : undefined);
     const titleField =
-      wanted && defs.some((d) => d.key === wanted)
+      wanted && defs.some((d) => d.key === wanted && d.type !== "sealed")
         ? wanted
         : (textKeys.find((k) => /name|title/.test(k)) ?? textKeys[0] ?? defs[0]?.key ?? "name");
     if (!defs.some((d) => d.key === titleField))

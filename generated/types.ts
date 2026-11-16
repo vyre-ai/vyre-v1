@@ -11966,6 +11966,7 @@ export type ConnectorsGetOut = {
         update?: string;
         delete?: string;
         since?: boolean;
+        link?: unknown;
       }>;
     sourceFolderId?: string;
   };
@@ -12019,6 +12020,7 @@ export type ConnectorsListOut = {
           update?: string;
           delete?: string;
           since?: boolean;
+          link?: unknown;
         }>;
       sourceFolderId?: string;
     }>;
@@ -40110,7 +40112,7 @@ export type SyncSpecsApplyIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40139,9 +40141,10 @@ export type SyncSpecsApplyIn = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40252,7 +40255,7 @@ export type SyncSpecsGetOut = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40281,9 +40284,10 @@ export type SyncSpecsGetOut = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40375,7 +40379,7 @@ export type SyncSpecsPreviewIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40404,9 +40408,10 @@ export type SyncSpecsPreviewIn = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40621,7 +40626,7 @@ export type SyncSpecsValidateIn = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -40650,9 +40655,10 @@ export type SyncSpecsValidateIn = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -40702,6 +40708,7 @@ export type SyncTypesCreateIn = {
       relation?: string;
       inverse?: string;
       constant?: string;
+      sealed?: boolean;
     }>;
   match: Array<string>;
   createAtSource?: boolean;
@@ -40732,6 +40739,7 @@ export type SyncTypesCreateOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -40806,6 +40814,7 @@ export type SyncTypesGetOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -40849,6 +40858,7 @@ export type SyncTypesListOut = {
           relation?: string;
           inverse?: string;
           constant?: string;
+          sealed?: boolean;
         }>;
       match: Array<string>;
       createAtSource: boolean;
@@ -41059,6 +41069,7 @@ export type SyncTypesStatusOut = {
     words: string;
     resumesAt: number;
   };
+  links?: string;
   spec: boolean;
 };
 export type SyncTypesUndoPushIn = {
@@ -41079,6 +41090,7 @@ export type SyncTypesUpdateIn = {
       relation?: string;
       inverse?: string;
       constant?: string;
+      sealed?: boolean;
     }>;
   match?: Array<string>;
   createAtSource?: boolean;
@@ -41108,6 +41120,7 @@ export type SyncTypesUpdateOut = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;

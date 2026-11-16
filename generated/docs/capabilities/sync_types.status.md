@@ -80,6 +80,7 @@ type Out = {
     words: string;
     resumesAt: number;
   };
+  links?: string;
   spec: boolean;
 };
 ```
@@ -135,6 +136,7 @@ type Out = {
       "at": 1760000000000,
       "summary": "example"
     },
+    "links": "example",
     "nextPollAt": 1760000000000,
     "paused": true,
     "pending": 1,

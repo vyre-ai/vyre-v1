@@ -61693,7 +61693,7 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           }
                         },
@@ -61705,9 +61705,12 @@
                       },
                       "type": "array"
                     },
+                    "link": {
+                      "description": "Any JSON value"
+                    },
                     "match": {
                       "items": {
-                        "description": "A JSON pointer such as /id; / is the whole answer",
+                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -61723,15 +61726,28 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
                       "type": "string"
                     },
                     "titleField": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "description": "JSON pointer such as /id; / is all",
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "description": "JSON pointer such as /id; / is all",
+                            "type": "string"
+                          },
+                          "maxItems": 5,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -61754,7 +61770,7 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -61762,7 +61778,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -61775,9 +61791,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -61790,7 +61803,7 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -61798,7 +61811,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -61811,9 +61824,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -61852,10 +61862,6 @@
                             "type": "array"
                           },
                           "inverseKey": {
-                            "examples": [
-                              "email"
-                            ],
-                            "pattern": "^[a-z][a-z0-9_]*$",
                             "type": "string"
                           },
                           "inverseTitle": {
@@ -61865,14 +61871,13 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "readOnly": {
                             "type": "boolean"
                           },
                           "relationTo": {
-                            "description": "The remote object a relation points at",
                             "type": "string"
                           },
                           "type": {
@@ -61888,7 +61893,8 @@
                               "phone",
                               "url",
                               "relation",
-                              "json"
+                              "json",
+                              "sealed"
                             ],
                             "type": "string"
                           }
@@ -61914,11 +61920,11 @@
                       "type": "object"
                     },
                     "id": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "itemsAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "label": {
@@ -61944,7 +61950,7 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "A JSON pointer such as /id; / is the whole answer",
+                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -61983,9 +61989,6 @@
                           "type": "object"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts"
-                          ],
                           "type": "string"
                         },
                         "query": {
@@ -62015,7 +62018,7 @@
                       "type": "object"
                     },
                     "openUrl": {
-                      "description": "Address of a record in the app; {id} is filled in. Shown as Open in the app.",
+                      "description": "Address of a record in the app, {id} filled in; shown as Open in the app",
                       "type": "string"
                     },
                     "remote": {
@@ -62024,7 +62027,7 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -62032,7 +62035,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62045,9 +62048,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -62058,7 +62058,7 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -62125,7 +62125,6 @@
                   "firstPull": {
                     "properties": {
                       "words": {
-                        "description": "Plain words: what the first pull brings in",
                         "type": "string"
                       }
                     },
@@ -62348,7 +62347,7 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           }
                         },
@@ -62360,9 +62359,12 @@
                       },
                       "type": "array"
                     },
+                    "link": {
+                      "description": "Any JSON value"
+                    },
                     "match": {
                       "items": {
-                        "description": "A JSON pointer such as /id; / is the whole answer",
+                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -62378,15 +62380,28 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
                       "type": "string"
                     },
                     "titleField": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "description": "JSON pointer such as /id; / is all",
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "description": "JSON pointer such as /id; / is all",
+                            "type": "string"
+                          },
+                          "maxItems": 5,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -62409,7 +62424,7 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -62417,7 +62432,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62430,9 +62445,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -62445,7 +62457,7 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -62453,7 +62465,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62466,9 +62478,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -62507,10 +62516,6 @@
                             "type": "array"
                           },
                           "inverseKey": {
-                            "examples": [
-                              "email"
-                            ],
-                            "pattern": "^[a-z][a-z0-9_]*$",
                             "type": "string"
                           },
                           "inverseTitle": {
@@ -62520,14 +62525,13 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "readOnly": {
                             "type": "boolean"
                           },
                           "relationTo": {
-                            "description": "The remote object a relation points at",
                             "type": "string"
                           },
                           "type": {
@@ -62543,7 +62547,8 @@
                               "phone",
                               "url",
                               "relation",
-                              "json"
+                              "json",
+                              "sealed"
                             ],
                             "type": "string"
                           }
@@ -62569,11 +62574,11 @@
                       "type": "object"
                     },
                     "id": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "itemsAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "label": {
@@ -62599,7 +62604,7 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "A JSON pointer such as /id; / is the whole answer",
+                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -62638,9 +62643,6 @@
                           "type": "object"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts"
-                          ],
                           "type": "string"
                         },
                         "query": {
@@ -62670,7 +62672,7 @@
                       "type": "object"
                     },
                     "openUrl": {
-                      "description": "Address of a record in the app; {id} is filled in. Shown as Open in the app.",
+                      "description": "Address of a record in the app, {id} filled in; shown as Open in the app",
                       "type": "string"
                     },
                     "remote": {
@@ -62679,7 +62681,7 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -62687,7 +62689,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62700,9 +62702,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -62713,7 +62712,7 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -62780,7 +62779,6 @@
                   "firstPull": {
                     "properties": {
                       "words": {
-                        "description": "Plain words: what the first pull brings in",
                         "type": "string"
                       }
                     },
@@ -63122,7 +63120,7 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           }
                         },
@@ -63134,9 +63132,12 @@
                       },
                       "type": "array"
                     },
+                    "link": {
+                      "description": "Any JSON value"
+                    },
                     "match": {
                       "items": {
-                        "description": "A JSON pointer such as /id; / is the whole answer",
+                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -63152,15 +63153,28 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
                       "type": "string"
                     },
                     "titleField": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
-                      "type": "string"
+                      "anyOf": [
+                        {
+                          "description": "JSON pointer such as /id; / is all",
+                          "type": "string"
+                        },
+                        {
+                          "items": {
+                            "description": "JSON pointer such as /id; / is all",
+                            "type": "string"
+                          },
+                          "maxItems": 5,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -63183,7 +63197,7 @@
                     "create": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -63191,7 +63205,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63204,9 +63218,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -63219,7 +63230,7 @@
                     "delete": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -63227,7 +63238,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63240,9 +63251,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -63281,10 +63289,6 @@
                             "type": "array"
                           },
                           "inverseKey": {
-                            "examples": [
-                              "email"
-                            ],
-                            "pattern": "^[a-z][a-z0-9_]*$",
                             "type": "string"
                           },
                           "inverseTitle": {
@@ -63294,14 +63298,13 @@
                             "type": "string"
                           },
                           "path": {
-                            "description": "A JSON pointer such as /id; / is the whole answer",
+                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "readOnly": {
                             "type": "boolean"
                           },
                           "relationTo": {
-                            "description": "The remote object a relation points at",
                             "type": "string"
                           },
                           "type": {
@@ -63317,7 +63320,8 @@
                               "phone",
                               "url",
                               "relation",
-                              "json"
+                              "json",
+                              "sealed"
                             ],
                             "type": "string"
                           }
@@ -63343,11 +63347,11 @@
                       "type": "object"
                     },
                     "id": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "itemsAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "label": {
@@ -63373,7 +63377,7 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "A JSON pointer such as /id; / is the whole answer",
+                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -63412,9 +63416,6 @@
                           "type": "object"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts"
-                          ],
                           "type": "string"
                         },
                         "query": {
@@ -63444,7 +63445,7 @@
                       "type": "object"
                     },
                     "openUrl": {
-                      "description": "Address of a record in the app; {id} is filled in. Shown as Open in the app.",
+                      "description": "Address of a record in the app, {id} filled in; shown as Open in the app",
                       "type": "string"
                     },
                     "remote": {
@@ -63453,7 +63454,7 @@
                     "update": {
                       "properties": {
                         "bodyAt": {
-                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "description": "Where in the body the properties go; empty: the body itself",
                           "type": "string"
                         },
                         "evidence": {
@@ -63461,7 +63462,7 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "A JSON pointer such as /id; / is the whole answer",
+                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63474,9 +63475,6 @@
                           "type": "string"
                         },
                         "path": {
-                          "examples": [
-                            "/contacts/{id}"
-                          ],
                           "type": "string"
                         }
                       },
@@ -63487,7 +63485,7 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "A JSON pointer such as /id; / is the whole answer",
+                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -63554,7 +63552,6 @@
                   "firstPull": {
                     "properties": {
                       "words": {
-                        "description": "Plain words: what the first pull brings in",
                         "type": "string"
                       }
                     },
@@ -63735,6 +63732,9 @@
                 },
                 "remote": {
                   "type": "string"
+                },
+                "sealed": {
+                  "type": "boolean"
                 },
                 "transform": {
                   "description": "Small expression over the value",
@@ -64469,6 +64469,9 @@
                 },
                 "remote": {
                   "type": "string"
+                },
+                "sealed": {
+                  "type": "boolean"
                 },
                 "transform": {
                   "description": "Small expression over the value",

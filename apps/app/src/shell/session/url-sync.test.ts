@@ -36,3 +36,27 @@ test("the link Vyre for Chrome opens for Watching lands in Automations with the 
   assert.equal(hubUrl(hub), "/automations#screen=watching");
   assert.deepEqual(parseHash("screen=watching").screen, "watching");
 });
+
+test("a popover or sheet address read at page load lands on the place; any other address is kept", () => {
+  const read = (hash: string, load: boolean): { place: string; hash: string } => {
+    let state = { place: "records", hash: "" };
+    const hub = {
+      state: () => state,
+      go: (place: string, h: string) => {
+        state = { place, hash: h };
+      },
+    } as unknown as ShellHub;
+    readUrlIntoHub(hub, { pathname: "/chat", hash }, { load });
+    return state;
+  };
+  for (const screen of ["chats.terminal-list", "chats.all-agents", "chats.terminal-rules"]) {
+    assert.deepEqual(read(`#screen=${screen}&at=1`, true), { place: "chats", hash: "" }, screen);
+    // a link followed inside the app (not a load) still opens it
+    assert.deepEqual(read(`#screen=${screen}&at=1`, false), { place: "chats", hash: `screen=${screen}&at=1` });
+  }
+  assert.deepEqual(read("#subject=thread:thr_1", true), { place: "chats", hash: "subject=thread:thr_1" });
+  assert.deepEqual(read("#screen=chats.recording&recordingId=r1", true), {
+    place: "chats",
+    hash: "screen=chats.recording&recordingId=r1",
+  });
+});

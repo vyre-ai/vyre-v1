@@ -106,7 +106,7 @@ type Out = {
         fields: Array<{
             path: string;
             label: string;
-            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json";
+            type: "text" | "number" | "money" | "date" | "bool" | "choice" | "multi" | "email" | "phone" | "url" | "relation" | "json" | "sealed";
             choices?: Array<{
                 value: string;
                 label?: string;
@@ -135,9 +135,10 @@ type Out = {
           }>;
         match?: Array<string>;
         stagesFrom?: string;
-        titleField?: string;
+        titleField?: string | Array<string>;
         deletes?: "off" | "soft" | "travel";
         createAtSource?: boolean;
+        link?: unknown;
       }>;
     plan: {
       firstPull: {
@@ -208,6 +209,7 @@ type Out = {
               "path": "example"
             }
           ],
+          "link": {},
           "match": [
             "example"
           ],
@@ -226,14 +228,14 @@ type Out = {
             "evidence": "example",
             "idAt": "example",
             "method": "POST",
-            "path": "/contacts/{id}"
+            "path": "example"
           },
           "delete": {
             "bodyAt": "example",
             "evidence": "example",
             "idAt": "example",
             "method": "POST",
-            "path": "/contacts/{id}"
+            "path": "example"
           },
           "fields": [
             {
@@ -243,7 +245,7 @@ type Out = {
                   "label": "Lead"
                 }
               ],
-              "inverseKey": "email",
+              "inverseKey": "example",
               "inverseTitle": "example",
               "label": "example",
               "path": "example",
@@ -272,7 +274,7 @@ type Out = {
               "param": "example",
               "value": "example"
             },
-            "path": "/contacts",
+            "path": "example",
             "query": {},
             "updatedSince": {
               "format": "example",
@@ -286,7 +288,7 @@ type Out = {
             "evidence": "example",
             "idAt": "example",
             "method": "POST",
-            "path": "/contacts/{id}"
+            "path": "example"
           },
           "updatedAt": "example",
           "webhook": {

@@ -180,3 +180,20 @@ test("a person who came in by an invite link is never sent back to the join page
   assert.equal(win.entries.length, before, "no entry was walked past");
   stop();
 });
+
+test("a page loaded on a popover address (the Terminals list) lands on the place and the address is cleaned", () => {
+  const hub = createShellHub({
+    spaces: SEED_DEFS,
+    openId: SEED_DEFS[0]!.spaceId,
+    personId: "imran",
+    deviceId: "web",
+    storage: null,
+    skeletonMs: 0,
+  });
+  const win = fakeWindow("/chat#screen=chats.terminal-list&at=1");
+  const stop = startHistoryBridge(hub, win);
+  assert.equal(hub.state().place, "chats");
+  assert.equal(hub.state().hash, "");
+  assert.equal(win.location.hash, "");
+  stop();
+});

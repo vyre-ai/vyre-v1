@@ -37,6 +37,7 @@ type In = {
       relation?: string;
       inverse?: string;
       constant?: string;
+      sealed?: boolean;
     }>;
   match: Array<string>;
   createAtSource?: boolean;
@@ -72,6 +73,7 @@ type Out = {
         relation?: string;
         inverse?: string;
         constant?: string;
+        sealed?: boolean;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -123,6 +125,7 @@ type Out = {
         "key": "email",
         "relation": "contact",
         "remote": "example",
+        "sealed": true,
         "transform": "example"
       }
     ],
@@ -160,6 +163,7 @@ type Out = {
           "key": "email",
           "relation": "contact",
           "remote": "example",
+          "sealed": true,
           "transform": "example"
         }
       ],

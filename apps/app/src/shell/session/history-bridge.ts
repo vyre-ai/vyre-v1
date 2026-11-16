@@ -40,7 +40,7 @@ export function startHistoryBridge(hub: ShellHub, win: BridgeWindow): () => void
   const born = spaceOf();
 
   const here = (): string => `${win.location.pathname}${win.location.search}${win.location.hash}`;
-  const read = (): void => readUrlIntoHub(hub, win.location);
+  const read = (load = false): void => readUrlIntoHub(hub, win.location, { load });
 
   /** The address bar names what is on screen. */
   const show = (): void => {
@@ -99,7 +99,8 @@ export function startHistoryBridge(hub: ShellHub, win: BridgeWindow): () => void
   };
   const onFirstPress = (): void => guard();
 
-  read();
+  // the address the page was loaded with: a popover or sheet address is spent (url.ts loadedHash)
+  read(true);
   win.addEventListener("popstate", onPop as (e: never) => void);
   win.addEventListener("hashchange", onHash);
   win.addEventListener("pointerdown", onFirstPress, true);

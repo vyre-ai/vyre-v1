@@ -64,7 +64,7 @@ export interface TypeStatus {
   /** The app asked Vyre to slow down: what to tell the person, and when the pull goes on. */
   slowedDown?: { words: string; resumesAt: number };
   /** A join object that relates records (a link): how many links stand, and how many wait for a record that is not pulled yet. */
-  links?: { made: number; waiting: number; words: string };
+  links?: string;
   spec: boolean;
 }
 
@@ -234,11 +234,7 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
             b.sync_type_id,
           )!.n;
           if (made === 0 && waiting === 0) return undefined;
-          return {
-            made,
-            waiting,
-            words: `${made} link${made === 1 ? "" : "s"} made between records${waiting ? `, ${waiting} waiting for a record that is not in yet` : ""}.`,
-          };
+          return `${made} link${made === 1 ? "" : "s"} made between records${waiting ? `, ${waiting} waiting for a record that is not in yet` : ""}.`;
         })()
       : undefined;
     const filtered = spec !== undefined && spec.plan.backfill === "later" && object?.list.filter !== undefined;
