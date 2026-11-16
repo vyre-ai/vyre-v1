@@ -111,7 +111,7 @@ function waiting(v) {
       h("h1", { text: "Not your turn yet" }),
       h("p", {
         class: "lead",
-        text: `${v.sender.name} asked ${first(v.signer.name)} to sign ${v.title}, after the person before you. Come back to this link when they have signed.`,
+        text: `${v.sender.name} asked you to sign ${v.title}. Someone has to sign before you. Come back to this link when they have.`,
       }),
       foot(v),
     ),
@@ -149,12 +149,17 @@ async function ready(v) {
   });
   const padWrap = h(
     "div",
-    { class: "pad", id: "padwrap" },
+    { class: "pad", id: "padwrap", role: "tabpanel", "aria-labelledby": "tab-draw" },
     pad,
     h("div", { class: "line" }),
     h("div", { class: "hint", id: "padhint", text: "Draw your signature here" }),
   );
-  const typedWrap = h("div", { class: "pad", id: "typedwrap" }, h("div", { class: "line" }), typedFace);
+  const typedWrap = h(
+    "div",
+    { class: "pad", id: "typedwrap", role: "tabpanel", "aria-labelledby": "tab-type" },
+    h("div", { class: "line" }),
+    typedFace,
+  );
   const clear = h("button", { class: "link", type: "button", text: "Clear", onclick: () => clearPad() });
   const typeBtn = h("button", {
     type: "button",
@@ -385,7 +390,10 @@ async function ready(v) {
     let r;
     try {
       const png = (await signaturePng()).replace(/^data:image\/png;base64,/, "");
-      r = await post("./sign", { name: state.name.trim(), consent: true, signature: { kind: "drawn", png } });
+      // a typed name goes with its text and with the picture the person saw (the script face); a drawing is the picture alone
+      const signature =
+        state.mode === "type" ? { kind: "typed", text: state.name.trim(), png } : { kind: "drawn", png };
+      r = await post("./sign", { name: state.name.trim(), consent: true, signature });
     } catch {
       r = { status: 0, json: null };
     }

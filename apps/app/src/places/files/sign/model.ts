@@ -96,6 +96,8 @@ export interface Envelope {
   declinedBy?: string;
   declinedReason?: string;
   expiresAt?: number;
+  /** The finished file carries the Space's seal: the short fingerprint. */
+  sealed?: string;
 }
 
 const STATES: readonly EnvState[] = ["approval", "sent", "viewed", "signed", "declined", "cancelled", "expired"];
@@ -142,6 +144,7 @@ export function envelopeOf(raw: unknown): Envelope | null {
   const declinedBy = signers.find((x) => x.state === "declined")?.name;
   const declinedReason = str(r.declinedReason);
   const expiresAt = num(r.expiresAt);
+  const sealed = r.sealed === true ? (str(r.sealFingerprint) ?? str(r.fingerprint) ?? "").slice(0, 8) : "";
   return {
     id,
     title: str(r.title) ?? "Document",
@@ -154,6 +157,7 @@ export function envelopeOf(raw: unknown): Envelope | null {
     ...(declinedBy ? { declinedBy } : {}),
     ...(declinedReason ? { declinedReason } : {}),
     ...(expiresAt !== undefined ? { expiresAt } : {}),
+    ...(sealed ? { sealed } : {}),
   };
 }
 
@@ -195,7 +199,9 @@ export function statusLine(e: Envelope, now: number, zone = 0): { tone: Tone; la
       return {
         tone: "ok",
         label: day ? `Signed on ${day}` : "Signed",
-        ...(e.signers.length > 0 ? { note: `By ${names(e.signers.map((s) => s.name))}` } : {}),
+        ...(e.signers.length > 0
+          ? { note: `By ${names(e.signers.map((s) => s.name))}${e.sealed ? ` · Sealed ${e.sealed}` : ""}` }
+          : {}),
       };
     case "declined":
       return { tone: "bad", label: e.declinedBy ? `${first(e.declinedBy)} declined` : "Signing declined" };
@@ -213,6 +219,16 @@ export function statusLine(e: Envelope, now: number, zone = 0): { tone: Tone; la
       };
     }
   }
+}
+
+/** The one passing line to say when a request the person is looking at changed under them: everyone signed, or someone declined. Null for any other change. */
+export function changeWords(before: Envelope | null, after: Envelope | null): string | null {
+  if (before === null || after === null || before.id !== after.id || !isOpen(before)) return null;
+  const name = after.title.replace(/\.pdf$/i, "");
+  if (after.state === "signed") return `${name} was signed`;
+  if (after.state === "declined")
+    return after.declinedBy ? `${first(after.declinedBy)} declined ${name}` : `${name} was turned down`;
+  return null;
 }
 
 export interface SentLink {

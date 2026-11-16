@@ -24,6 +24,7 @@ test("sign: send from the viewer, two signers sign without an account, the file 
     await page.getByTestId("sign-email-0").fill("imran@northwind.example");
     await page.getByTestId("sign-add").click();
     await page.getByTestId("sign-name-1").fill("Andrea Lindahl");
+    await page.getByTestId("sign-order").click(); // One after another: Imran first, then Andrea
     await page.getByTestId("sign-message").fill("Please sign before Friday.");
     await shot(page, s.shotsDir, "send-sheet-filled-dark");
     await page.getByTestId("sign-send").click();
@@ -45,9 +46,30 @@ test("sign: send from the viewer, two signers sign without an account, the file 
       .waitFor({ timeout: 20_000 });
     await shot(page, s.shotsDir, "file-waiting-dark");
 
+    // Andrea opens hers early: it is not her turn, and no document is shown
+    const early = await s.signer({ width: 1440, height: 900 }, "dark");
+    await early.page.goto(`${s.web.origin}${andreaLink}`, { waitUntil: "load" });
+    await early.page.getByText("Not your turn yet").waitFor({ timeout: 20_000 });
+    assert.equal(await early.page.locator(".page canvas").count(), 0, "no document while it is not her turn");
+    await shot(early.page, s.shotsDir, "signer-waiting-dark");
+    await early.ctx.close();
+
+    // Copy link: a new link for each person still to sign, and the old ones stop working
+    await page.getByTestId("sign-bar-status-alt").click();
+    await page.getByTestId("sign-links").waitFor({ timeout: 20_000 });
+    const imranNow = await linkOf(page, "Imran");
+    const andreaNow = await linkOf(page, "Andrea");
+    assert.notEqual(imranNow, imranLink, "a new link");
+    await shot(page, s.shotsDir, "links-again-dark");
+    await page.getByTestId("sign-links-done").click();
+    const stale = await s.signer({ width: 1440, height: 900 }, "dark");
+    await stale.page.goto(`${s.web.origin}${imranLink}`, { waitUntil: "load" });
+    await stale.page.getByText("This link is not valid").waitFor({ timeout: 15_000 });
+    await stale.ctx.close();
+
     // Imran: no session, the link only
     const imran = await s.signer({ width: 1440, height: 900 }, "dark");
-    await imran.page.goto(`${s.web.origin}${imranLink}`, { waitUntil: "load" });
+    await imran.page.goto(`${s.web.origin}${imranNow}`, { waitUntil: "load" });
     assert.equal(
       await imran.page.evaluate(
         "(function(){try{return localStorage.getItem('vyre.session.v1')}catch(e){return null}})()",
@@ -57,11 +79,11 @@ test("sign: send from the viewer, two signers sign without an account, the file 
     );
     await imran.page.locator(".page canvas").first().waitFor({ timeout: 30_000 });
     await shot(imran.page, s.shotsDir, "signer-first-dark");
-    await signByTyping(imran.page, "Imran Ibarra");
+    await signByTyping(imran.page, "Imran Ibarra", () => shot(imran.page, s.shotsDir, "signer-typed-dark"));
     await shot(imran.page, s.shotsDir, "signer-done-dark");
     // the link is spent: the same address now says one sentence and nothing else
     const again = await imran.ctx.newPage();
-    await again.goto(`${s.web.origin}${imranLink}`, { waitUntil: "load" });
+    await again.goto(`${s.web.origin}${imranNow}`, { waitUntil: "load" });
     await again.getByText("This link is not valid").waitFor({ timeout: 15_000 });
     assert.equal(
       await again
@@ -82,15 +104,19 @@ test("sign: send from the viewer, two signers sign without an account, the file 
 
     // Andrea signs the other link
     const andrea = await s.signer({ width: 1440, height: 900 }, "dark");
-    await andrea.page.goto(`${s.web.origin}${andreaLink}`, { waitUntil: "load" });
+    await andrea.page.goto(`${s.web.origin}${andreaNow}`, { waitUntil: "load" });
     await signByDrawing(andrea.page, "Andrea Lindahl", () => shot(andrea.page, s.shotsDir, "signer-drawn-dark"));
     await andrea.ctx.close();
 
     // the file's own status turns to Signed, and the signed copy opens in the viewer
-    await page
-      .getByText(/Signed on/)
-      .first()
-      .waitFor({ timeout: 45_000 });
+    // the sender, who has the file open, is told in the top bar the moment it is over
+    await Promise.all([
+      page.getByText("Northwind NDA was signed").first().waitFor({ timeout: 45_000 }),
+      page
+        .getByText(/Signed on/)
+        .first()
+        .waitFor({ timeout: 45_000 }),
+    ]);
     await shot(page, s.shotsDir, "file-signed-dark");
     await page.getByTestId("sign-bar-status-action").click();
     await page.getByText("Northwind NDA (signed).pdf").first().waitFor({ timeout: 30_000 });
@@ -99,6 +125,15 @@ test("sign: send from the viewer, two signers sign without an account, the file 
     await page.getByText("Opening the file").waitFor({ state: "detached", timeout: 30_000 });
     await page.getByText("/ 4").first().waitFor({ timeout: 30_000 });
     await shot(page, s.shotsDir, "signed-copy-open-dark");
+    // the added signature page carries both marks; the last page is the audit trail
+    await page.getByTestId("vw-page-input").fill("3");
+    await page.getByTestId("vw-page-input").press("Enter");
+    await page.waitForTimeout(1200);
+    await shot(page, s.shotsDir, "signed-copy-signature-page-dark");
+    await page.getByTestId("vw-page-input").fill("4");
+    await page.getByTestId("vw-page-input").press("Enter");
+    await page.waitForTimeout(1200);
+    await shot(page, s.shotsDir, "signed-copy-audit-page-dark");
     assert.deepEqual(
       s.errors.filter((e) => !/net::ERR|favicon/i.test(e)),
       [],

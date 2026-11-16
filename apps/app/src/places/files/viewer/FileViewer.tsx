@@ -132,7 +132,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   // a signature request made from this file: its status shows above the page, and the pen sends one
   const sign = useMaybeSignData();
   const [signing, setSigning] = useState(false);
-  const reqs = useRequests(sign, { fileId });
+  const reqs = useRequests(sign, { fileId }, 0, true);
   // where a file from a connected folder opens at its provider (Google Docs, Word, Excel, Dropbox); null for a file Vyre holds itself
   const [link, setLink] = useState<FileLink | null>(null);
   const version = useRef(0);

@@ -97,32 +97,34 @@ export function SignSheet({ fileId, fileName, recordId, suggest, onClose, onSent
           return (
             <View key={r.key} style={st.rowWrap}>
               <View style={st.row}>
-                <View style={st.name}>
-                  <TextField
-                    value={r.name}
-                    onChangeText={(v) => change(r.key, { name: v })}
-                    accessibilityLabel={`Signer ${i + 1} name`}
-                    placeholder="Name"
-                    autoComplete="name"
-                    testID={`sign-name-${i}`}
-                    style={st.input}
-                  />
-                </View>
-                <View style={st.email}>
-                  <TextField
-                    value={r.email}
-                    onChangeText={(v) => change(r.key, { email: v })}
-                    accessibilityLabel={`Signer ${i + 1} email`}
-                    placeholder="Email (optional)"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    spellCheck={false}
-                    inputMode="email"
-                    keyboardType="email-address"
-                    autoComplete="email"
-                    testID={`sign-email-${i}`}
-                    style={st.input}
-                  />
+                <View style={st.fields}>
+                  <View style={st.name}>
+                    <TextField
+                      value={r.name}
+                      onChangeText={(v) => change(r.key, { name: v })}
+                      accessibilityLabel={`Signer ${i + 1} name`}
+                      placeholder="Name"
+                      autoComplete="name"
+                      testID={`sign-name-${i}`}
+                      style={st.input}
+                    />
+                  </View>
+                  <View style={st.email}>
+                    <TextField
+                      value={r.email}
+                      onChangeText={(v) => change(r.key, { email: v })}
+                      accessibilityLabel={`Signer ${i + 1} email`}
+                      placeholder="Email (optional)"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      spellCheck={false}
+                      inputMode="email"
+                      keyboardType="email-address"
+                      autoComplete="email"
+                      testID={`sign-email-${i}`}
+                      style={st.input}
+                    />
+                  </View>
                 </View>
                 {rows.length > 1 ? (
                   <Pressable
@@ -223,7 +225,7 @@ export function CopyLink({ name, url }: { name: string; url: string }): ReactEle
 export function LinkRows({ links }: { links: readonly SentLink[] }): ReactElement {
   return (
     <View style={st.links} testID="sign-links-list">
-      {/* ui-rows-lint: not a list (each link is a ui/Row, wrapped with the name a walk finds it by) */}
+      {/* ui-rows-lint: not a list (each slot holds one ui/Row; the wrapper only carries its test id) */}
       {links.map((l) => (
         <View key={l.index} testID={`sign-link-${first(l.name)}`} style={st.linkSlot}>
           <Row
@@ -244,12 +246,13 @@ const st = StyleSheet.create({
   file: { fontSize: 12.5, color: "var(--ink-3)" as string },
   label: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string, marginTop: 4 },
   rowWrap: { gap: 4 },
-  row: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
+  row: { flexDirection: "row", gap: 6, alignItems: "flex-start" },
+  fields: { flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", gap: 8 },
   name: { flexGrow: 1, flexBasis: 150, minWidth: 140 },
   email: { flexGrow: 1.4, flexBasis: 190, minWidth: 160 },
   input: { width: "100%" },
   message: { minHeight: 64, textAlignVertical: "top" },
-  x: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  x: { marginTop: 6, width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   xText: { fontSize: 18, lineHeight: 20, color: "var(--ink-3)" as string },
   over: { backgroundColor: "var(--hover)" as string },
   add: { alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 8, marginLeft: -8, borderRadius: 7 },

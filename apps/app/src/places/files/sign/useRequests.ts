@@ -1,7 +1,7 @@
 // The signature requests of a file or a record, read live: once on open, then every few seconds while one is waiting, so the status turns to Signed on its own.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readRequest, requestsOf } from "./actions.ts";
-import { current, isOpen } from "./model.ts";
+import { changeWords, current, isOpen } from "./model.ts";
 import type { Envelope } from "./model.ts";
 import type { SignData } from "./data.tsx";
 
@@ -11,11 +11,14 @@ export function useRequests(
   d: SignData | null,
   key: { fileId?: string; recordId?: string },
   rev = 0,
+  /** Say, in the top bar, when the request being watched finishes (the file's viewer; a record's list stays quiet). */
+  announce = false,
 ): { list: Envelope[]; now: Envelope | null; loaded: boolean; reload(): void } {
   const [list, setList] = useState<Envelope[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [tick, setTick] = useState(0);
   const alive = useRef(true);
+  const seen = useRef<Envelope | null>(null);
   const k = `${key.fileId ?? ""}|${key.recordId ?? ""}`;
   useEffect(() => {
     alive.current = true;
@@ -42,6 +45,11 @@ export function useRequests(
         rows = [];
       }
       if (!live) return;
+      if (announce) {
+        const said = changeWords(seen.current, current(rows));
+        if (said) d.say?.(said);
+        seen.current = current(rows);
+      }
       setList(rows);
       setLoaded(true);
       const open = current(rows);
