@@ -313,7 +313,7 @@ export function remoteStore(
         } else {
           // the connection's own budget is spent: wait until it has room again
           if (own >= 400) throw e;
-          await sleep(Math.max(50, Math.min(ms ?? 250, 60_000)));
+          await sleep(ms !== undefined ? Math.max(50, Math.min(ms, 60_000)) : Math.min(1500, 250 * (own + 1)));
         }
       }
     }
