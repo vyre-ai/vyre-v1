@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TestContext } from "node:test";
-import { browserOrSkip } from "../../test/support/mail-browser.ts";
+import { browserOrSkip } from "../../../test/support/mail-browser.ts";
 
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 
