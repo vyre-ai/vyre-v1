@@ -223,6 +223,7 @@ export function CopyLink({ name, url }: { name: string; url: string }): ReactEle
 export function LinkRows({ links }: { links: readonly SentLink[] }): ReactElement {
   return (
     <View style={st.links} testID="sign-links-list">
+      {/* ui-rows-lint: not a list (each link is a ui/Row, wrapped with the name a walk finds it by) */}
       {links.map((l) => (
         <View key={l.index} testID={`sign-link-${first(l.name)}`} style={st.linkSlot}>
           <Row
