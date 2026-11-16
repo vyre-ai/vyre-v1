@@ -6,16 +6,19 @@ import { canonical } from "../../../lib/canonical.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase } from "../projections.ts";
 import {
+  JOIN_PREFIX,
+  fieldOf,
+  valueOfRemote,
+  SECRET_ID,
+  SSN_SHAPE,
   coerceValue,
   compileSpec,
+  fieldKeys,
   firstPageRequest,
-  JOIN_PREFIX,
   joinTitle,
   parseSpec,
   readPage,
   relationClashes,
-  SECRET_ID,
-  SSN_SHAPE,
   titlePaths,
   unflatten,
 } from "../syncspec.ts";
@@ -174,6 +177,8 @@ function testsOf(spec: SyncSpec, compiled: Compiled): TestCase[] {
       };
     else if (cursor.kind === "link") link = `<https://${spec.app.domain}${o.list.path}?page=2>; rel="next"`;
     const first = shapeList(body, link, action.shape!, undefined);
+    // a sealed pointer reads masked in every answer of a live connector, so that connector's test checks the call and not the shape of the answer
+    const sealedHere = (compiled.connector.sealed ?? []).some((p) => paths.includes(p));
     tests.push({
       name: `${t.remote}: first page`,
       action: action.name,
@@ -186,7 +191,7 @@ function testsOf(spec: SyncSpec, compiled: Compiled): TestCase[] {
           ...(link ? { link } : {}),
         },
       ],
-      expect: { requests: 1, output: first },
+      expect: sealedHere ? { requests: 1 } : { requests: 1, output: first },
     });
   }
   return tests;
@@ -360,13 +365,35 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       const missing: string[] = [];
       let found = 0;
       for (const mf of m.fields) {
-        const f = o.fields.find((x) => x.path === mf.path);
+        const f = fieldOf(o, mf);
         const fa = `${at}.fields.${mf.path}`;
         if (!f) {
           err(fa, `${mf.path} is mapped but not described in the object's fields.`);
           continue;
         }
         if (mf.direction === "off") continue;
+        if (f.onlyWhen) {
+          if (!o.fields.some((x) => x.path === f.onlyWhen!.path))
+            err(
+              fa,
+              `${f.label} only applies when ${f.onlyWhen.path} says so, but ${f.onlyWhen.path} is not described in the object's fields.`,
+            );
+          {
+            const eq = (Array.isArray(f.onlyWhen.equals) ? f.onlyWhen.equals : [f.onlyWhen.equals]).map((v) =>
+              v.trim().toLowerCase(),
+            );
+            const hit = items.filter((it) => {
+              const k = pointerGet(it, f.onlyWhen!.path);
+              return k !== undefined && k !== null && eq.includes(String(k).trim().toLowerCase());
+            }).length;
+            warn(fa, `${f.label} applies to ${hit} of ${items.length} sampled records (the others have it empty).`);
+          }
+          if (mf.direction !== "pull")
+            err(
+              fa,
+              `${f.label} only applies for some records, so it is read from the app only: set its direction to pull (or off).`,
+            );
+        }
         const vals = items.map((it) => pointerGet(it, mf.path));
         const present = vals.filter((v) => v !== undefined);
         if (items.length && present.length === 0) {
@@ -417,6 +444,36 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           warn(fa, `${f.label} looks sensitive. Bring it in only if the person wants it.`);
         if ((mf.direction === "push" || mf.direction === "both") && f.type !== "relation" && !f.readOnly && !o.update)
           warn(fa, `${o.remote} has no documented update, so ${f.label} is pulled only.`);
+      }
+      if (m.link) {
+        const lat = `mapping.${o.remote}.link`;
+        const ends = [m.link.from, m.link.to];
+        for (const e of ends)
+          if (!spec.mapping.some((x) => x.recordType === e.recordType))
+            err(
+              lat,
+              `${e.recordType} is not a record type this spec brings in. Both ends of a link must be mapped, so a person is never linked by a bare id.`,
+            );
+        if (!m.fields.some((f) => f.direction !== "off"))
+          err(
+            lat,
+            `${o.label} needs at least one mapped field (such as the kind of link), so each row is kept as a record.`,
+          );
+        for (const e of ends) {
+          if (!o.fields.some((x) => x.path === e.at))
+            err(lat, `${e.at} is not described in ${o.remote}.fields. Add it so the link can read it.`);
+          else if (items.length && !items.some((it) => ["string", "number"].includes(typeof pointerGet(it, e.at))))
+            err(lat, `${e.at} holds no id in the sampled ${o.label} rows.`);
+        }
+        for (const [key, side] of [
+          [m.link.key, m.link.from.recordType],
+          [m.link.inverseKey, m.link.to.recordType],
+        ] as const) {
+          const holder = spec.mapping.find((x) => x.recordType === side);
+          const ho = spec.objects.find((x) => x.remote === holder?.remote);
+          if (holder && ho && new Set(fieldKeys(ho, holder).values()).has(key))
+            err(lat, `${side} already has a field ${key}. Give the link another key.`);
+        }
       }
       for (const p of Array.isArray(m.titleField) ? m.titleField : []) {
         const tf = o.fields.find((x) => x.path === p);
@@ -551,12 +608,14 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
             label: o.fields.find((x) => x.path === f.remote)?.label ?? f.key,
             value: f.remote.startsWith(JOIN_PREFIX)
               ? joinTitle(r.data, f.remote.slice(JOIN_PREFIX.length).split("|"))
-              : f.sealed
-                ? {
-                    sealed: true,
-                    present: r.data[f.remote] !== undefined && r.data[f.remote] !== null && r.data[f.remote] !== "",
-                  }
-                : (r.data[f.remote] ?? null),
+              : f.remote.startsWith("=when:") && !f.sealed
+                ? (valueOfRemote(r.data, f.remote) ?? null)
+                : f.sealed
+                  ? {
+                      sealed: true,
+                      present: ![undefined, null, ""].includes(valueOfRemote(r.data, f.remote) as never),
+                    }
+                  : (r.data[f.remote] ?? null),
           })),
         });
       }
@@ -571,10 +630,12 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       seen.add(t.recordType);
       return Math.max(
         0,
-        ...t.relations.map((r) => {
-          const target = types.find((x) => x.recordType === r.to);
-          return target ? 1 + rank(target, seen) : 0;
-        }),
+        ...t.relations.flatMap((r) =>
+          [r.to, ...(r.on !== undefined ? [r.on] : [])].map((name) => {
+            const target = types.find((x) => x.recordType === name);
+            return target ? 1 + rank(target, seen) : 0;
+          }),
+        ),
       );
     };
     return [...types].sort((a, b) => rank(a) - rank(b));
@@ -635,10 +696,10 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       );
     const rels = compiled.types.flatMap((t) =>
       t.relations
-        .filter((r) => !existing.get(t.recordType)?.has(r.field))
+        .filter((r) => !existing.get(r.on ?? t.recordType)?.has(r.field))
         .map((r) => ({
           op: "relation.add",
-          type: t.recordType,
+          type: r.on ?? t.recordType,
           field: r.field,
           def: { to: r.to, inverse: r.inverse, title: r.title, inverseTitle: r.inverseTitle },
         })),
@@ -862,12 +923,14 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         createAtSource: t.createAtSource,
         deletes: t.deletes,
         conflict: "newest" as const,
-        polling:
-          every !== undefined
+        polling: {
+          ...(every !== undefined
             ? { activeSec: every, idleSec: every, dormantSec: Math.max(14_400, every) }
             : slow
               ? { activeSec: 900, idleSec: 3600, dormantSec: 14_400 }
-              : { activeSec: 120, idleSec: 120, dormantSec: 900 },
+              : { activeSec: 120, idleSec: 120, dormantSec: 900 }),
+          ...(listed?.sweepEveryDays !== undefined ? { sweepSec: listed.sweepEveryDays * 86_400 } : {}),
+        },
       };
       const row = bound
         ? (await sync["sync_types.update"](ctx, { type: t.recordType, account, fields, match: t.match, ...rules }))

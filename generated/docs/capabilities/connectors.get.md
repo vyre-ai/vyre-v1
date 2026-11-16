@@ -57,6 +57,7 @@ type Out = {
         update?: string;
         delete?: string;
         since?: boolean;
+        link?: unknown;
       }>;
     sourceFolderId?: string;
   };

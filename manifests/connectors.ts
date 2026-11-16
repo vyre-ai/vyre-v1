@@ -40,6 +40,7 @@ const polling = t.obj({
   activeSec: t.int({ minimum: 30 }),
   idleSec: t.int({ minimum: 60 }),
   dormantSec: t.int({ minimum: 300 }),
+  sweepSec: t.opt(t.int({ minimum: 86400 })),
 });
 
 /** The action names a connector uses to sync one object; a name left out keeps the convention list_<objects>, list_<objects>_after, create_<object>, update_<object>, delete_<object>. */
@@ -50,6 +51,7 @@ const objectActions = t.obj({
   update: t.opt(t.str()),
   delete: t.opt(t.str()),
   since: t.opt(t.bool()),
+  link: t.opt(t.json()),
 });
 
 const connectorRow = t.obj({
@@ -148,7 +150,7 @@ const bindingIn = {
 };
 
 // ---- SyncSpec: the one document an agent fills to bring an app's records into Records
-const specPointer = t.str({ description: "A JSON pointer (/id); / is the whole answer" });
+const specPointer = t.str({ description: "JSON pointer such as /id; / is all" });
 const specField = t.obj({
   path: specPointer,
   label: t.str(),
@@ -174,6 +176,8 @@ const specField = t.obj({
   inverseKey: t.opt(fieldKey),
   inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
+  key: t.opt(fieldKey),
+  onlyWhen: t.opt(t.obj({ path: specPointer, equals: t.union(t.str(), t.arr(t.str(), { minItems: 1 })) })),
 });
 const specCursor = t.obj({
   kind: t.enm("none", "page", "cursor", "offset", "link"),
@@ -186,8 +190,8 @@ const specCursor = t.obj({
 const specWrite = t.obj({
   path: t.str(),
   method: t.opt(t.enm("POST", "PUT", "PATCH", "DELETE")),
-  evidence: t.str({ description: "The docs page or quote that shows this call; a write without it is refused" }),
-  bodyAt: t.opt(t.str({ description: "Where in the body the properties go; empty: the body itself" })),
+  evidence: t.str(),
+  bodyAt: t.opt(t.str()),
   idAt: t.opt(specPointer),
 });
 const specObject = t.obj({
@@ -201,6 +205,7 @@ const specObject = t.obj({
     updatedSince: t.opt(t.obj({ param: t.str(), format: t.opt(t.str()) })),
     filter: t.opt(t.obj({ param: t.str(), value: t.str() })),
     checkEveryMinutes: t.opt(t.int({ minimum: 1, maximum: 10080 })),
+    sweepEveryDays: t.opt(t.int({ minimum: 1, maximum: 30 })),
   }),
   get: t.opt(t.obj({ path: t.str() })),
   create: t.opt(specWrite),
@@ -231,6 +236,7 @@ const specMapping = t.obj({
   titleField: t.opt(t.union(specPointer, t.arr(specPointer, { minItems: 1, maxItems: 5 }))),
   deletes: t.opt(deletes),
   createAtSource: t.opt(t.bool()),
+  link: t.opt(t.json()),
 });
 const syncSpec = t.obj({
   app: t.obj({
@@ -1295,6 +1301,8 @@ export default defineManifest({
           sentToday: t.int({ minimum: 0 }),
           nextPollAt: t.opt(t.ts()),
           slowedDown: t.opt(t.obj({ words: t.str(), resumesAt: t.ts() })),
+          links: t.opt(t.str()),
+          sealedWaiting: t.opt(t.obj({ count: t.int(), words: t.str() })),
           spec: t.bool(),
         },
         on: ["record_type", "/type"],

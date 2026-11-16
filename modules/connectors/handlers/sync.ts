@@ -35,6 +35,7 @@ export interface PollingRow {
   activeSec: number;
   idleSec: number;
   dormantSec: number;
+  /** How often the whole list is read to find what the app deleted (default a day). */ sweepSec?: number;
 }
 export interface SchemaChange {
   changeKey: string;
