@@ -63,6 +63,8 @@ export interface TypeStatus {
   nextPollAt?: number;
   /** The app asked Vyre to slow down: what to tell the person, and when the pull goes on. */
   slowedDown?: { words: string; resumesAt: number };
+  /** A join object that relates records (a link): how many links stand, and how many wait for a record that is not pulled yet. */
+  links?: { made: number; waiting: number; words: string };
   spec: boolean;
 }
 
@@ -221,6 +223,24 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
             resumesAt: slowRow.resume_at,
           }
         : undefined;
+    const links = has("sy_related")
+      ? (() => {
+          const made = tx.get<{ n: number }>(
+            "SELECT count(*) AS n FROM sy_related WHERE sync_type = ?",
+            b.sync_type_id,
+          )!.n;
+          const waiting = tx.get<{ n: number }>(
+            "SELECT count(*) AS n FROM (SELECT DISTINCT lft, rgt FROM sy_pairs p WHERE sync_type = ? AND live = 1 AND NOT EXISTS (SELECT 1 FROM sy_related r WHERE r.sync_type = p.sync_type AND r.lft = p.lft AND r.rgt = p.rgt))",
+            b.sync_type_id,
+          )!.n;
+          if (made === 0 && waiting === 0) return undefined;
+          return {
+            made,
+            waiting,
+            words: `${made} link${made === 1 ? "" : "s"} made between records${waiting ? `, ${waiting} waiting for a record that is not in yet` : ""}.`,
+          };
+        })()
+      : undefined;
     const filtered = spec !== undefined && spec.plan.backfill === "later" && object?.list.filter !== undefined;
     return {
       type: b.type,
@@ -248,6 +268,7 @@ export function createStateHandlers(deps: SyncDeps): StateHandlers {
       sentToday: outbox?.sent ?? 0,
       ...(poll ? { nextPollAt: poll.at } : {}),
       ...(slowedDown ? { slowedDown } : {}),
+      ...(links ? { links } : {}),
       spec: spec !== undefined,
     };
   };

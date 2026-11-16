@@ -49,6 +49,14 @@ const objectActions = t.obj({
   update: t.opt(t.str()),
   delete: t.opt(t.str()),
   since: t.opt(t.bool()),
+  link: t.opt(
+    t.obj({
+      from: t.obj({ type: id.recordType, at: t.str() }),
+      to: t.obj({ type: id.recordType, at: t.str() }),
+      key: fieldKey,
+      inverseKey: fieldKey,
+    }),
+  ),
 });
 
 const connectorRow = t.obj({
@@ -231,6 +239,16 @@ const specMapping = t.obj({
   titleField: t.opt(specPointer),
   deletes: t.opt(deletes),
   createAtSource: t.opt(t.bool()),
+  link: t.opt(
+    t.obj({
+      from: t.obj({ recordType: id.recordType, at: specPointer }),
+      to: t.obj({ recordType: id.recordType, at: specPointer }),
+      key: fieldKey,
+      title: t.str(),
+      inverseKey: fieldKey,
+      inverseTitle: t.str(),
+    }),
+  ),
 });
 const syncSpec = t.obj({
   app: t.obj({
@@ -1295,6 +1313,7 @@ export default defineManifest({
           sentToday: t.int({ minimum: 0 }),
           nextPollAt: t.opt(t.ts()),
           slowedDown: t.opt(t.obj({ words: t.str(), resumesAt: t.ts() })),
+          links: t.opt(t.obj({ made: t.int({ minimum: 0 }), waiting: t.int({ minimum: 0 }), words: t.str() })),
           spec: t.bool(),
         },
         on: ["record_type", "/type"],

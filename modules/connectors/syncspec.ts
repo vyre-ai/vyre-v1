@@ -95,6 +95,15 @@ export interface SpecMapping {
   titleField?: string;
   deletes?: "off" | "soft" | "travel";
   createAtSource?: boolean;
+  /** A join object (who is on which deal): each row also relates two already-synced records through a many-to-many relation that apply makes. `at` is a pointer in the row to the other record's id in the app. */
+  link?: {
+    from: { recordType: string; at: string };
+    to: { recordType: string; at: string };
+    key: string;
+    title: string;
+    inverseKey: string;
+    inverseTitle: string;
+  };
 }
 export interface SyncSpec {
   app: {
@@ -285,6 +294,26 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
     if (!str(m["remote"])) bad(`${at}.remote`, "Name the object this maps.");
     if (!str(m["recordType"]) || !KEY.test(String(m["recordType"])))
       bad(`${at}.recordType`, "recordType is lowercase letters, digits and underscores, starting with a letter.");
+    if (m["link"] !== undefined) {
+      const l = m["link"];
+      const end = (e: unknown): boolean =>
+        isObj(e) && str(e["recordType"]) && KEY.test(String(e["recordType"])) && pointerOk(e["at"]) && e["at"] !== "";
+      if (
+        !isObj(l) ||
+        !end(l["from"]) ||
+        !end(l["to"]) ||
+        !str(l["key"]) ||
+        !KEY.test(String(l["key"])) ||
+        !str(l["inverseKey"]) ||
+        !KEY.test(String(l["inverseKey"])) ||
+        !str(l["title"]) ||
+        !str(l["inverseTitle"])
+      )
+        bad(
+          `${at}.link`,
+          "A link names both ends (from and to, each with a recordType and the pointer to its id in the row), the field key and title on the from records (key, title), and on the to records (inverseKey, inverseTitle).",
+        );
+    }
     if (!Array.isArray(m["fields"])) bad(`${at}.fields`, "fields is a list.");
     else
       for (const [j, f] of (m["fields"] as unknown[]).entries()) {
@@ -443,7 +472,9 @@ export interface CompiledType {
   deletes: "off" | "soft" | "travel";
   /** Field definitions for schema.apply; relations are made separately (relation.add) once both types exist. */
   defs: { key: string; type: string; title: string; options?: Record<string, unknown> }[];
-  relations: { field: string; title: string; to: string; inverse: string; inverseTitle: string }[];
+  relations: { field: string; title: string; to: string; inverse: string; inverseTitle: string; on?: string }[];
+  /** A join object that also relates two records of other types (the relation is on `from`, listed in `relations` with `on`). */
+  link?: { from: { type: string; at: string }; to: { type: string; at: string }; key: string; inverseKey: string };
   titleField: string;
   statusField?: string;
 }
@@ -549,7 +580,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
     if (cursor.kind === "offset" && cursor.param) query[cursor.param] = String(cursor.start ?? 0);
 
     const mapped = m.fields.filter((f) => f.direction !== "off");
-    const shapeFields = [...new Set(mapped.map((f) => f.path))];
+    const shapeFields = [...new Set([...mapped.map((f) => f.path), ...(m.link ? [m.link.from.at, m.link.to.at] : [])])];
     const types_: Record<string, string> = {};
     const choices: Record<string, string[]> = {};
     for (const p of shapeFields) {
@@ -664,6 +695,13 @@ export function compileSpec(spec: SyncSpec): Compiled {
         write: true,
       });
     }
+    if (m.link)
+      entry.link = {
+        from: { type: m.link.from.recordType, at: m.link.from.at },
+        to: { type: m.link.to.recordType, at: m.link.to.at },
+        key: m.link.key,
+        inverseKey: m.link.inverseKey,
+      };
     objects[o.remote] = entry;
 
     // record type: fields, choices, stages
@@ -711,6 +749,15 @@ export function compileSpec(spec: SyncSpec): Compiled {
       const type = (sf.type === "choice" || sf.type === "multi") && !options ? "text" : LOCAL_TYPE[sf.type];
       defs.push({ key, type, title: sf.label, ...(options ? { options: { choices: options } } : {}) });
     }
+    if (m.link)
+      relations.push({
+        field: m.link.key,
+        title: m.link.title,
+        to: m.link.to.recordType,
+        inverse: m.link.inverseKey,
+        inverseTitle: m.link.inverseTitle,
+        on: m.link.from.recordType,
+      });
     // relation fields are mapped with their pointer; the target record type's synced binding resolves the remote id to a record
     const textKeys = defs.filter((d) => d.type === "text" || d.type === "email").map((d) => d.key);
     const wanted = m.titleField ? (keys.get(m.titleField) ?? m.titleField) : undefined;
@@ -732,6 +779,16 @@ export function compileSpec(spec: SyncSpec): Compiled {
       fields,
       defs,
       relations,
+      ...(m.link
+        ? {
+            link: {
+              from: { type: m.link.from.recordType, at: m.link.from.at },
+              to: { type: m.link.to.recordType, at: m.link.to.at },
+              key: m.link.key,
+              inverseKey: m.link.inverseKey,
+            },
+          }
+        : {}),
       match: (m.match ?? []).map((p) => keys.get(p) ?? p).filter((k) => fields.some((f) => f.key === k)),
       createAtSource: (m.createAtSource ?? false) && o.create !== undefined,
       deletes: o.delete ? (m.deletes ?? "off") : "off",

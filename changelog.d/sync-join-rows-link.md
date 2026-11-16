@@ -1,0 +1,1 @@
+A synced app that gives "who is on this deal" only as a list of join rows now fills a real two-way link: a deal's page lists its people and a person's page lists their deals, and the Sync page says how many links were made.

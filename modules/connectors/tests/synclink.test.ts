@@ -78,3 +78,114 @@ test("a spec that gives an unusable far-end name is refused by shape", () => {
     /inverseKey/,
   );
 });
+
+// ---- a link: join rows that relate two synced types
+
+/** The ledger spec plus a join object (who belongs to which organization, and as what) that also relates a person to an organization many to many. */
+function withLink(change: (m: Record<string, any>) => void = () => undefined): Record<string, unknown> {
+  const raw = JSON.parse(JSON.stringify(ledgerSpec())) as Record<string, any>;
+  raw["objects"].push({
+    remote: "memberships",
+    label: "Membership",
+    id: "/id",
+    itemsAt: "/data",
+    list: { path: "/api/v2/memberships" },
+    fields: [
+      { path: "/person", label: "Person", type: "text" },
+      { path: "/org", label: "Organization", type: "text" },
+      { path: "/kind", label: "Kind", type: "text" },
+    ],
+  });
+  const mapping: Record<string, any> = {
+    remote: "memberships",
+    recordType: "membership",
+    title: "Membership",
+    fields: [{ path: "/kind", field: "kind", direction: "pull" }],
+    link: {
+      from: { recordType: "org", at: "/org" },
+      to: { recordType: "person", at: "/person" },
+      key: "members",
+      title: "Members",
+      inverseKey: "member_of",
+      inverseTitle: "Member of",
+    },
+  };
+  change(mapping);
+  raw["mapping"].push(mapping);
+  return raw;
+}
+
+test("a link compiles to a relation on the from type, the pointers in the shape, and the link on the connector's object", () => {
+  const spec = parseSpec(withLink()).spec!;
+  const compiled = compileSpec(spec);
+  const join = compiled.types.find((t) => t.recordType === "membership")!;
+  assert.deepEqual(join.relations, [
+    { field: "members", title: "Members", to: "person", inverse: "member_of", inverseTitle: "Member of", on: "org" },
+  ]);
+  assert.deepEqual(join.link, {
+    from: { type: "org", at: "/org" },
+    to: { type: "person", at: "/person" },
+    key: "members",
+    inverseKey: "member_of",
+  });
+  assert.deepEqual(compiled.connector.objects!["memberships"]!.link, join.link);
+  const list = compiled.connector.actions.find((a) => a.name === "list_memberships")!;
+  assert.deepEqual((list.shape as { fields: string[] }).fields.sort(), ["/kind", "/org", "/person"]);
+  // a spec without a link compiles as before: no link, no `on`
+  const plain = JSON.stringify(compileSpec(parseSpec(ledgerSpec()).spec!));
+  assert.equal(plain.includes('"link"') || plain.includes('"on"'), false);
+});
+
+test("validate proves a link against a real page and says what is wrong in plain words", async () => {
+  const w = world();
+  const ok = await w.k.hs["sync_specs.validate"](w.ctx, { spec: withLink() });
+  assert.deepEqual(
+    ok.problems.filter((p: { level: string }) => p.level === "error"),
+    [],
+  );
+  const unmapped = await w.k.hs["sync_specs.validate"](w.ctx, {
+    spec: withLink((m) => {
+      m["link"]["to"]["recordType"] = "nobody";
+    }),
+  });
+  assert.match(JSON.stringify(unmapped.problems), /nobody is not a record type this spec brings in/);
+  const missing = await w.k.hs["sync_specs.validate"](w.ctx, {
+    spec: withLink((m) => {
+      m["link"]["from"]["at"] = "/nowhere";
+    }),
+  });
+  assert.match(JSON.stringify(missing.problems), /\/nowhere is not described/);
+  const bare = await w.k.hs["sync_specs.validate"](w.ctx, {
+    spec: withLink((m) => {
+      m["fields"] = [];
+    }),
+  });
+  assert.match(JSON.stringify(bare.problems), /needs at least one mapped field/);
+});
+
+test("apply makes the many-to-many once, and a second apply makes nothing new", async () => {
+  const w = world();
+  await w.k.hs["sync_specs.apply"](w.ctx, { spec: withLink(), idempotencyKey: "l1" });
+  const rel = w.calls
+    .filter((c) => c.cap === "schema.apply")
+    .flatMap((c) => c.input.ops)
+    .filter((o: any) => o.op === "relation.add" && o.field === "members");
+  assert.deepEqual(rel, [
+    {
+      op: "relation.add",
+      type: "org",
+      field: "members",
+      def: { to: "person", inverse: "member_of", title: "Members", inverseTitle: "Member of" },
+    },
+  ]);
+  const row = w.k.tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = 'crm_ledger'")!;
+  assert.equal(JSON.parse(row.def).objects.memberships.link.key, "members");
+  const before = w.calls.filter((c) => c.cap === "schema.apply").length;
+  await w.k.hs["sync_specs.apply"](w.ctx, { spec: withLink(), idempotencyKey: "l2" });
+  const after = w.calls
+    .filter((c) => c.cap === "schema.apply")
+    .slice(before)
+    .flatMap((c) => c.input.ops)
+    .filter((o: any) => o.field === "members");
+  assert.deepEqual(after, [], "a re-apply makes no relation twice");
+});

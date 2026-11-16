@@ -8,6 +8,7 @@ import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ProbeRequest, TestCase 
 import {
   coerceValue,
   compileSpec,
+  fieldKeys,
   firstPageRequest,
   parseSpec,
   readPage,
@@ -393,6 +394,36 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         if ((mf.direction === "push" || mf.direction === "both") && f.type !== "relation" && !f.readOnly && !o.update)
           warn(fa, `${o.remote} has no documented update, so ${f.label} is pulled only.`);
       }
+      if (m.link) {
+        const lat = `mapping.${o.remote}.link`;
+        const ends = [m.link.from, m.link.to];
+        for (const e of ends)
+          if (!spec.mapping.some((x) => x.recordType === e.recordType))
+            err(
+              lat,
+              `${e.recordType} is not a record type this spec brings in. Both ends of a link must be mapped, so a person is never linked by a bare id.`,
+            );
+        if (!m.fields.some((f) => f.direction !== "off"))
+          err(
+            lat,
+            `${o.label} needs at least one mapped field (such as the kind of link), so each row is kept as a record.`,
+          );
+        for (const e of ends) {
+          if (!o.fields.some((x) => x.path === e.at))
+            err(lat, `${e.at} is not described in ${o.remote}.fields. Add it so the link can read it.`);
+          else if (items.length && !items.some((it) => ["string", "number"].includes(typeof pointerGet(it, e.at))))
+            err(lat, `${e.at} holds no id in the sampled ${o.label} rows.`);
+        }
+        for (const [key, side] of [
+          [m.link.key, m.link.from.recordType],
+          [m.link.inverseKey, m.link.to.recordType],
+        ] as const) {
+          const holder = spec.mapping.find((x) => x.recordType === side);
+          const ho = spec.objects.find((x) => x.remote === holder?.remote);
+          if (holder && ho && new Set(fieldKeys(ho, holder).values()).has(key))
+            err(lat, `${side} already has a field ${key}. Give the link another key.`);
+        }
+      }
       if (m.stagesFrom) {
         const sf = o.fields.find((x) => x.path === m.stagesFrom);
         if (!sf?.choices?.length)
@@ -527,10 +558,12 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       seen.add(t.recordType);
       return Math.max(
         0,
-        ...t.relations.map((r) => {
-          const target = types.find((x) => x.recordType === r.to);
-          return target ? 1 + rank(target, seen) : 0;
-        }),
+        ...t.relations.flatMap((r) =>
+          [r.to, ...(r.on !== undefined ? [r.on] : [])].map((name) => {
+            const target = types.find((x) => x.recordType === name);
+            return target ? 1 + rank(target, seen) : 0;
+          }),
+        ),
       );
     };
     return [...types].sort((a, b) => rank(a) - rank(b));
@@ -591,10 +624,10 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       );
     const rels = compiled.types.flatMap((t) =>
       t.relations
-        .filter((r) => !existing.get(t.recordType)?.has(r.field))
+        .filter((r) => !existing.get(r.on ?? t.recordType)?.has(r.field))
         .map((r) => ({
           op: "relation.add",
-          type: t.recordType,
+          type: r.on ?? t.recordType,
           field: r.field,
           def: { to: r.to, inverse: r.inverse, title: r.title, inverseTitle: r.inverseTitle },
         })),
