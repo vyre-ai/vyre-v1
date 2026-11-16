@@ -44,7 +44,9 @@ export async function readRequest(call: Call, envelopeId: string): Promise<Envel
   return envelopeOf(out && !out.envelopeId ? { ...out, envelopeId } : out);
 }
 
-export const cancelRequest = (call: Call, envelopeId: string): Promise<unknown> => call("esign.cancel", { envelopeId });
+// One key for one envelope: cancelling is the same act however often it is pressed (the server asks for a key on every outward signing call).
+export const cancelRequest = (call: Call, envelopeId: string): Promise<unknown> =>
+  call("esign.cancel", { envelopeId, idempotencyKey: `cancel-${envelopeId}` });
 
 /** Remind: a new link for the person still to sign (the old one stops working), mailed when the Space can; the answer carries the link to copy. */
 export async function remind(call: Call, envelopeId: string, signer: number, origin: string): Promise<Sent | null> {
