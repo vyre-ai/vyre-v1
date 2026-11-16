@@ -5,13 +5,13 @@
 // Needs Node 24, a Chromium and VYRE_APP_DIST; without them it skips and says why (VYRE_REQUIRE_CHROME=1 makes that a failure).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createCapCaller } from "../../../client/src/gateway/index.ts";
-import { bootScreens, browserOrSkip, open, seat } from "../../../test/support/mail-browser.ts";
-import { shoot } from "../../../test/support/chat-shots.ts";
-import { scriptedModel } from "../../../test/support/live.ts";
-import { saveApiKey } from "../src/onboarding/connect-ai.ts";
-import { loadFlow, markStep } from "../src/onboarding/store.ts";
-import type { CapCall } from "../src/shell/session/caps.ts";
+import { createCapCaller } from "../client/src/gateway/index.ts";
+import { bootScreens, browserOrSkip, open, seat } from "./support/mail-browser.ts";
+import { shoot } from "./support/chat-shots.ts";
+import { scriptedModel } from "./support/live.ts";
+import { saveApiKey } from "../apps/app/src/onboarding/connect-ai.ts";
+import { loadFlow, markStep } from "../apps/app/src/onboarding/store.ts";
+import type { CapCall } from "../apps/app/src/shell/session/caps.ts";
 
 const OUT = process.env["VYRE_HOWYOUWORK_SHOTS"] ?? "shots-evidence/onboarding-howyouwork";
 // a made-up key for the model stand-in; the stand-in provider accepts any key without "invalid" in it
