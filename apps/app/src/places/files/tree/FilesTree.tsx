@@ -36,6 +36,8 @@ import type { MarkKind } from "../mounts/icons.tsx";
 import { WithProviderMark } from "../marks.tsx";
 import type { IconName } from "./parts.tsx";
 import { useFilesState } from "./state.tsx";
+import { useKept } from "./kept.ts";
+import { useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 
 function NavRow({
   id,
@@ -398,8 +400,10 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
   const stars = useLive("stars.list", { type: "file" });
   const open = useLive("changesets.list", { state: "open" });
   const waiting = new Set<string>(open.status === "ready" ? open.data.changesets.map((x) => x.by) : []);
-  const [shut, setShut] = useState<Record<string, boolean>>({});
-  const [openF, setOpenF] = useState<Record<string, boolean>>({});
+  // which sections are folded and which folders are open stay as the person left them when they come back to Files (kept.ts)
+  const session = useOptionalShellRuntime();
+  const [shut, setShut] = useKept<Record<string, boolean>>(session, "files.tree.sections", {});
+  const [openF, setOpenF] = useKept<Record<string, boolean>>(session, "files.tree.folders", {});
   const mounts = useMountStates(data.call);
   const [over, setOver] = useState<string | null>(null);
   const menuAt = useRef<{ x: number; y: number }>({ x: 8, y: 48 });
