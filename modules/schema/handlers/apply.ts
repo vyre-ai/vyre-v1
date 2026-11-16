@@ -1124,14 +1124,18 @@ async function execute(
     o.reason ?? null,
   );
 
-  // 4. events
-  ctx.emit("schema.changed", `record_type/${ops[0]!.type}`, {
-    changeId,
-    type: ops[0]!.type,
-    types,
-    ops: ops.map((op) => ({ op: op.op, type: op.type, ...(op.field !== undefined ? { field: op.field } : {}) })),
-    destructive: destructive.length > 0,
-  });
+  // 4. events. One schema.changed for each type the change touched, the first op's type first: a type becomes something a person can be given access to when an event names it,
+  // so a change that made three types and named only the first left the other two that nobody, not even the owner, could open (17 Nov 2026, a sync that made its tables in one change).
+  const said = ops.map((op) => ({ op: op.op, type: op.type, ...(op.field !== undefined ? { field: op.field } : {}) }));
+  const gone = new Set(plan.dropped);
+  for (const k of [ops[0]!.type, ...types.filter((t) => t !== ops[0]!.type && !gone.has(t))])
+    ctx.emit("schema.changed", `record_type/${k}`, {
+      changeId,
+      type: k,
+      types,
+      ops: said,
+      destructive: destructive.length > 0,
+    });
   for (const k of plan.dropped) ctx.emit("schema.type_dropped", `record_type/${k}`, { type: k, changeId });
   for (const l of plan.labelChanges)
     ctx.emit("schema.label_changed", `record_type/${l.type}`, {

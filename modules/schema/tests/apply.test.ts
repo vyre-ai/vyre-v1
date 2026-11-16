@@ -99,6 +99,16 @@ test("apply: additions go straight through, rows use the new fields, events and 
   const ev = k.seen.find((e) => e.name === "schema.changed")!;
   assert.deepEqual([...(ev.payload.types as string[])].sort(), ["acme_company", "acme_person"]);
   assert.equal(ev.payload.destructive, false);
+  // every type one change made is named by an event of its own (the host makes a type openable from the event that names it): a change that makes two types names both
+  const made = k.seen.filter(
+    (e) =>
+      e.name === "schema.changed" &&
+      (e.payload.types as string[]).includes("acme_person") &&
+      (e.payload.types as string[]).includes("acme_company"),
+  );
+  assert.deepEqual(made.map((e) => e.subject).sort(), ["record_type/acme_company", "record_type/acme_person"]);
+  assert.deepEqual(made.map((e) => e.payload.type).sort(), ["acme_company", "acme_person"]);
+  assert.equal(new Set(made.map((e) => e.payload.changeId)).size, 1);
 
   const id = await person(k, { email: "a@x.com", stage: "new" });
   assert.equal((await k.s.store.get("acme_person", id))?.data.stage, "new");
