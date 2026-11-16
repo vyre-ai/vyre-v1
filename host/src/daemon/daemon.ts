@@ -1634,6 +1634,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let syncPlain: (force?: boolean) => Promise<void> = async () => {};
   /** Commits being written (to their sync and the passes after it). A call that meets a thing made by one of them waits for it here, so what a person can already read is never ahead of what access knows (F76). */
   const commitsInFlight = new Set<Promise<unknown>>();
+  /** Agents found to be Guests after a heal, and when: for half a minute their calls skip the heal (a Guest by right would otherwise pay for it on every call). */
+  const guestByRight = new Map<string, number>();
   const trackCommit =
     <A extends unknown[], R>(commit: (...a: A) => Promise<R>) =>
     (...a: A): Promise<R> => {
@@ -3333,11 +3335,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         agentReady: async (id) => {
           const known = access.snap.info(id);
           if (known && known.roleNames !== "Guest") return;
+          // an agent that is still a Guest after the heal is most likely a Guest by right (its person is one): for half a minute its calls do not pay for the heal again
+          if (known && Date.now() - (guestByRight.get(id) ?? 0) < 30_000) return;
           // not in the snapshot yet: the agent is in the middle of its birth (its row can be read the instant it is written, access learns of it a moment later) only when the agents module holds it
           if (!known && (db?.all(`SELECT 1 FROM agents_agent WHERE "id" = ?`, id) ?? []).length === 0) return;
           await Promise.all([...commitsInFlight]);
           if (!access.snap.info(id)) await syncAccess();
-          if (access.snap.info(id)?.roleNames === "Guest") await healAgents();
+          if (access.snap.info(id)?.roleNames === "Guest") {
+            await healAgents();
+            if (access.snap.info(id)?.roleNames === "Guest") guestByRight.set(id, Date.now());
+            else guestByRight.delete(id);
+          }
         },
         ensureResource: async (r) => {
           if (
