@@ -64,6 +64,7 @@ type In = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -246,7 +247,7 @@ type Out = {
                   "label": "Lead"
                 }
               ],
-              "inverseKey": "example",
+              "inverseKey": "email",
               "inverseTitle": "example",
               "key": "email",
               "label": "example",
@@ -282,6 +283,7 @@ type Out = {
             },
             "path": "example",
             "query": {},
+            "sweepEveryDays": 1,
             "updatedSince": {
               "format": "example",
               "param": "example"

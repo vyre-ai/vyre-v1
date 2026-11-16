@@ -226,3 +226,72 @@ test("a pass over the join object relates the records it already pulled, makes n
   const again = await engine.run(ctx, b, { mode: "incremental" });
   assert.doesNotMatch(again.summary, /link/);
 });
+
+// ---- how often the app is swept for deletions: a large table weekly, a core one daily
+
+test("a binding with sweepSec is swept on its own schedule, one without every day", async () => {
+  const DAY = 86_400_000;
+  const run = async (polling: BindingRow["polling"]): Promise<{ swept: boolean }> => {
+    const k = await kit();
+    const now = 100 * DAY;
+    k.l.host.tx.run(
+      "INSERT INTO sy_state (sync_type, cursor) VALUES (?, ?)",
+      SID,
+      JSON.stringify({ pulled: 1, done: true, hwm: now - 3 * DAY, lastStart: now - 3 * DAY, sweepAt: now - 3 * DAY }),
+    );
+    k.l.host.tx.exec(
+      "CREATE TABLE IF NOT EXISTS sy_seen (sync_type TEXT NOT NULL, remote_id TEXT NOT NULL, PRIMARY KEY (sync_type, remote_id))",
+    );
+    const ctx: EngineCtx = {
+      trace: { traceId: "0123456789abcdef0123456789abcdef" },
+      emit: () => ({}),
+      call: async (cap) => {
+        if (cap === "connectors.get") return { connector: { objects: { joins: { list: "list_joins", since: true } } } };
+        if (cap === "connectors.read") return { output: { rows: [] } };
+        throw new Error(`no ${cap}`);
+      },
+    };
+    const core = {
+      runSync: async () => ({
+        local: { created: 0, updated: 0 },
+        remote: { created: 0, updated: 0, removed: 0 },
+        matched: 0,
+        ambiguous: 0,
+        conflicts: 0,
+        askedConflicts: 0,
+        removedAtSource: 0,
+        pausedDeletes: false,
+        summary: "Nothing to change.",
+      }),
+    } as unknown as SyncCore;
+    const engine = createSyncEngine({
+      core,
+      local: { open: () => ({ store: k.l.store, tx: k.l.host.tx }), space: "sp_local" },
+      now: () => now,
+    });
+    const b: BindingRow = {
+      syncTypeId: SID,
+      type: "join",
+      connector: "crm",
+      connectionId: "conn",
+      remote: "joins",
+      fields: [],
+      match: [],
+      createAtSource: false,
+      deletes: "off",
+      conflict: "newest",
+      ...(polling ? { polling } : {}),
+    };
+    await engine.run(ctx, b, { mode: "incremental" });
+    const saved = JSON.parse(
+      k.l.host.tx.get<{ cursor: string }>("SELECT cursor FROM sy_state WHERE sync_type = ?", SID)!.cursor,
+    );
+    return { swept: saved.sweepAt === now };
+  };
+  assert.deepEqual(await run(undefined), { swept: true }, "a core table is swept daily");
+  assert.deepEqual(
+    await run({ sweepSec: 7 * 86_400 }),
+    { swept: false },
+    "a large table is swept weekly: three days is too soon",
+  );
+});

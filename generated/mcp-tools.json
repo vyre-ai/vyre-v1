@@ -61858,6 +61858,10 @@
                             "type": "array"
                           },
                           "inverseKey": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
                             "type": "string"
                           },
                           "inverseTitle": {
@@ -62026,6 +62030,11 @@
                             "type": "string"
                           },
                           "type": "object"
+                        },
+                        "sweepEveryDays": {
+                          "maximum": 30,
+                          "minimum": 1,
+                          "type": "integer"
                         },
                         "updatedSince": {
                           "properties": {
@@ -62540,6 +62549,10 @@
                             "type": "array"
                           },
                           "inverseKey": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
                             "type": "string"
                           },
                           "inverseTitle": {
@@ -62708,6 +62721,11 @@
                             "type": "string"
                           },
                           "type": "object"
+                        },
+                        "sweepEveryDays": {
+                          "maximum": 30,
+                          "minimum": 1,
+                          "type": "integer"
                         },
                         "updatedSince": {
                           "properties": {
@@ -63341,6 +63359,10 @@
                             "type": "array"
                           },
                           "inverseKey": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
                             "type": "string"
                           },
                           "inverseTitle": {
@@ -63509,6 +63531,11 @@
                             "type": "string"
                           },
                           "type": "object"
+                        },
+                        "sweepEveryDays": {
+                          "maximum": 30,
+                          "minimum": 1,
+                          "type": "integer"
                         },
                         "updatedSince": {
                           "properties": {
@@ -63866,6 +63893,10 @@
               },
               "idleSec": {
                 "minimum": 60,
+                "type": "integer"
+              },
+              "sweepSec": {
+                "minimum": 86400,
                 "type": "integer"
               }
             },
@@ -64596,6 +64627,10 @@
               },
               "idleSec": {
                 "minimum": 60,
+                "type": "integer"
+              },
+              "sweepSec": {
+                "minimum": 86400,
                 "type": "integer"
               }
             },

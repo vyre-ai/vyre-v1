@@ -189,3 +189,23 @@ test("apply makes the many-to-many once, and a second apply makes nothing new", 
     .filter((o: any) => o.field === "members");
   assert.deepEqual(after, [], "a re-apply makes no relation twice");
 });
+
+test("sweepEveryDays is a whole number of days from 1 to 30 and becomes the type's sweepSec", async () => {
+  const bad = (n: unknown) => {
+    const raw = JSON.parse(JSON.stringify(ledgerSpec())) as Record<string, any>;
+    raw["objects"][1].list.sweepEveryDays = n;
+    return parseSpec(raw);
+  };
+  assert.match(bad(0).problems.map((p) => p.message).join(" "), /sweepEveryDays/);
+  assert.match(bad(31).problems.map((p) => p.message).join(" "), /sweepEveryDays/);
+  assert.match(bad(1.5).problems.map((p) => p.message).join(" "), /sweepEveryDays/);
+  assert.ok(bad(7).spec);
+  const raw = JSON.parse(JSON.stringify(ledgerSpec())) as Record<string, any>;
+  raw["objects"][1].list.sweepEveryDays = 7;
+  const w = world();
+  await w.k.hs["sync_specs.apply"](w.ctx, { spec: raw, idempotencyKey: "s1" });
+  const polling = (type: string) =>
+    JSON.parse(w.k.tx.get<{ polling: string }>("SELECT polling FROM cn_synced_types WHERE type = ?", type)!.polling);
+  assert.equal(polling("person").sweepSec, 7 * 86_400, "a large table is swept weekly");
+  assert.equal(polling("org").sweepSec, undefined, "a core one keeps the daily sweep");
+});

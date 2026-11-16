@@ -59,6 +59,8 @@ export interface SpecList {
   filter?: { param: string; value: string };
   /** How often this object is read whole when the app cannot answer "changed since", in minutes. Without it a check is every 15 minutes (60 when idle). */
   checkEveryMinutes?: number;
+  /** How often the whole list is read to find what the app deleted, in days (1 to 30; default 1). A large table can be swept weekly. */
+  sweepEveryDays?: number;
 }
 export interface SpecWrite {
   path: string;
@@ -237,6 +239,17 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
       )
     )
       bad(`${at}.list.checkEveryMinutes`, "checkEveryMinutes is a whole number of minutes, from 1 to 10080.");
+    if (
+      isObj(list) &&
+      list["sweepEveryDays"] !== undefined &&
+      !(
+        typeof list["sweepEveryDays"] === "number" &&
+        Number.isInteger(list["sweepEveryDays"]) &&
+        list["sweepEveryDays"] >= 1 &&
+        list["sweepEveryDays"] <= 30
+      )
+    )
+      bad(`${at}.list.sweepEveryDays`, "sweepEveryDays is a whole number of days, from 1 to 30.");
     if (isObj(list) && isObj(list["updatedSince"])) {
       const u = list["updatedSince"];
       if (!str(u["param"]))

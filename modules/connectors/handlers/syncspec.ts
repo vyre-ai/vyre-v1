@@ -904,18 +904,21 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       // an app with a "changed since" filter is cheap to check (a page), so a person's edit leaves within two minutes; one without is read whole at every check, so its checks are slower
       const listed = spec.objects.find((o) => o.remote === t.remote)?.list;
       const slow = listed?.updatedSince === undefined;
-      // the spec may say how often an object is read whole: the first schedule is then already right
-      const every = listed?.checkEveryMinutes !== undefined && slow ? listed.checkEveryMinutes * 60 : undefined;
+      // the spec may say how often an object is checked, whether it is read whole or by "changed since": the first schedule is then already right (a large table
+      // of an app with a small request allowance is checked less often than every two minutes, lead 17 Nov 2026)
+      const every = listed?.checkEveryMinutes !== undefined ? listed.checkEveryMinutes * 60 : undefined;
       const rules = {
         createAtSource: t.createAtSource,
         deletes: t.deletes,
         conflict: "newest" as const,
-        polling:
-          every !== undefined
+        polling: {
+          ...(every !== undefined
             ? { activeSec: every, idleSec: every, dormantSec: Math.max(14_400, every) }
             : slow
               ? { activeSec: 900, idleSec: 3600, dormantSec: 14_400 }
-              : { activeSec: 120, idleSec: 120, dormantSec: 900 },
+              : { activeSec: 120, idleSec: 120, dormantSec: 900 }),
+          ...(listed?.sweepEveryDays !== undefined ? { sweepSec: listed.sweepEveryDays * 86_400 } : {}),
+        },
       };
       const row = bound
         ? (await sync["sync_types.update"](ctx, { type: t.recordType, account, fields, match: t.match, ...rules }))

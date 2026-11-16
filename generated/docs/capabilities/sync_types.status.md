@@ -56,6 +56,7 @@ type Out = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   records: number;
   estimate?: number;
@@ -147,7 +148,8 @@ type Out = {
     "polling": {
       "activeSec": 30,
       "dormantSec": 300,
-      "idleSec": 60
+      "idleSec": 60,
+      "sweepSec": 86400
     },
     "records": 1,
     "schemaChanges": 1,

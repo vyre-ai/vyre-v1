@@ -40080,6 +40080,7 @@ export type SyncSpecsApplyIn = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40228,6 +40229,7 @@ export type SyncSpecsGetOut = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40357,6 +40359,7 @@ export type SyncSpecsPreviewIn = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40609,6 +40612,7 @@ export type SyncSpecsValidateIn = {
             value: string;
           };
           checkEveryMinutes?: number;
+          sweepEveryDays?: number;
         };
         get?: {
           path: string;
@@ -40738,6 +40742,7 @@ export type SyncTypesCreateIn = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   nightlyReconcile?: boolean;
   idempotencyKey: string;
@@ -40769,6 +40774,7 @@ export type SyncTypesCreateOut = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;
@@ -40844,6 +40850,7 @@ export type SyncTypesGetOut = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;
@@ -40888,6 +40895,7 @@ export type SyncTypesListOut = {
         activeSec: number;
         idleSec: number;
         dormantSec: number;
+        sweepSec?: number;
       };
       nightlyReconcile: boolean;
       lastSyncAt?: number;
@@ -41065,6 +41073,7 @@ export type SyncTypesStatusOut = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   records: number;
   estimate?: number;
@@ -41124,6 +41133,7 @@ export type SyncTypesUpdateIn = {
     activeSec: number;
     idleSec: number;
     dormantSec: number;
+    sweepSec?: number;
   };
   nightlyReconcile?: boolean;
 };
@@ -41154,6 +41164,7 @@ export type SyncTypesUpdateOut = {
       activeSec: number;
       idleSec: number;
       dormantSec: number;
+      sweepSec?: number;
     };
     nightlyReconcile: boolean;
     lastSyncAt?: number;

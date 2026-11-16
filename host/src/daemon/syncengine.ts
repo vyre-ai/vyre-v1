@@ -37,6 +37,8 @@ export interface BindingRow {
   createAtSource: boolean;
   deletes: "off" | "soft" | "travel";
   conflict: "newest" | "source" | "vyre" | "ask";
+  /** The binding's polling: `sweepSec` is how often the whole list is read to find what the app deleted. */
+  polling?: { sweepSec?: number };
 }
 export interface RunOut {
   summary: string;
@@ -531,6 +533,9 @@ const FIRST_GROUP_PAGES = 400;
 const SINCE_OVERLAP_MS = 60_000;
 /** A poll does not see what an app deleted; a sweep of the whole list, once a day and a group at a time, does. */
 const SWEEP_EVERY_MS = 86_400_000;
+/** How long a binding goes between deletion sweeps: what its polling says (a large table weekly), else a day. */
+export const sweepEveryMs = (b: Pick<BindingRow, "polling">): number =>
+  b.polling?.sweepSec !== undefined ? b.polling.sweepSec * 1000 : SWEEP_EVERY_MS;
 interface Progress {
   after?: string;
   pulled: number;
@@ -1033,7 +1038,7 @@ export function createSyncEngine(o: {
           );
         }
         if (remote.supportsSince && progress?.hwm !== undefined) {
-          if (startedAt - (progress.sweepAt ?? 0) > SWEEP_EVERY_MS) return sweepStep(progress);
+          if (startedAt - (progress.sweepAt ?? 0) > sweepEveryMs(b)) return sweepStep(progress);
           return deltaStep(progress);
         }
       }

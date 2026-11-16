@@ -40,6 +40,7 @@ const polling = t.obj({
   activeSec: t.int({ minimum: 30 }),
   idleSec: t.int({ minimum: 60 }),
   dormantSec: t.int({ minimum: 300 }),
+  sweepSec: t.opt(t.int({ minimum: 86400 })),
 });
 
 /** The action names a connector uses to sync one object; a name left out keeps the convention list_<objects>, list_<objects>_after, create_<object>, update_<object>, delete_<object>. */
@@ -172,7 +173,7 @@ const specField = t.obj({
     t.arr(t.obj({ value: t.str(), label: t.opt(t.str()) }), { examples: [[{ value: "lead", label: "Lead" }]] }),
   ),
   relationTo: t.opt(t.str()),
-  inverseKey: t.opt(t.str()),
+  inverseKey: t.opt(fieldKey),
   inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
   key: t.opt(fieldKey),
@@ -204,6 +205,7 @@ const specObject = t.obj({
     updatedSince: t.opt(t.obj({ param: t.str(), format: t.opt(t.str()) })),
     filter: t.opt(t.obj({ param: t.str(), value: t.str() })),
     checkEveryMinutes: t.opt(t.int({ minimum: 1, maximum: 10080 })),
+    sweepEveryDays: t.opt(t.int({ minimum: 1, maximum: 30 })),
   }),
   get: t.opt(t.obj({ path: t.str() })),
   create: t.opt(specWrite),
