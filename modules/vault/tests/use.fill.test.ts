@@ -671,3 +671,21 @@ test("a company key is for the server alone: no agent fills, injects, exports or
     assert.equal(got.length, 0, "no value left the Vault");
   }
 });
+
+test("F67: using an item (its last-used time) does not move the version an agent compares against (expectedUpdatedAt)", async () => {
+  const h = harness();
+  const f = await folder(h);
+  const id = await put(h, f, "Dana Notely");
+  const read = Number(out(out(await v.itemGet(h.ctx, { itemId: id })).item).updatedAt);
+  h.advance(5_000);
+  await u.use(h.ctx, { item: id, purpose: "sync" }); // bookkeeping: lastUsedAt
+  const after = Number(out(out(await v.itemGet(h.ctx, { itemId: id })).item).updatedAt);
+  assert.equal(after, read, "a use is not a change to the item");
+  // what the agent read before it used the item still saves
+  const saved = out(
+    await v.itemUpdate(h.ctx, { itemId: id, name: "Dana Notely 2", expectedUpdatedAt: read } as Parameters<
+      typeof v.itemUpdate
+    >[1]),
+  );
+  assert.equal(out(saved.item).name, "Dana Notely 2");
+});
