@@ -17,13 +17,17 @@ async function inNote(
     const n = await call("notes.create", { title: "Applicants", body: WIDE_MD, idempotencyKey: "tbl-note" });
     const id = n.note.noteId as string;
     await page.goto(`${s.web.origin}/chat#screen=chats.notes`, { waitUntil: "load" });
+    // on a phone the Chats list is the first screen: Notes & artifacts is a row at its foot
+    if (tag === "phone") await page.getByText("Notes & artifacts", { exact: true }).first().click({ timeout: 30_000 });
+    await s.shot(`note-${tag}-grid`);
     await page.getByTestId(`note-${id}`).click({ timeout: 30_000 });
-    await page.getByTestId("note-dialog").waitFor({ timeout: 30_000 });
-    await page.locator('[data-testid="note-dialog"] p').filter({ hasText: WIDE_PARA }).waitFor({ timeout: 20_000 });
+    const sheet = tag === "phone" ? '[data-testid="note-phone-page"]' : '[data-testid="note-dialog"]';
+    await page.locator(sheet).waitFor({ timeout: 30_000 });
+    await page.locator(`${sheet} p`).filter({ hasText: WIDE_PARA }).waitFor({ timeout: 20_000 });
     await page.waitForTimeout(500);
     await s.shot(`note-${tag}-table`);
-    assertUsesPane(await fit(page, '[data-testid="note-dialog"]'), `a note on a ${tag}`, 72);
-    assertStuck(await stuck(page, '[data-testid="note-dialog"]'), `a note on a ${tag}`, false);
+    assertUsesPane(await fit(page, sheet), `a note on a ${tag}`, 72);
+    assertStuck(await stuck(page, sheet), `a note on a ${tag}`, false);
     await s.shot(`note-${tag}-table-scrolled`);
   } finally {
     await s.close();

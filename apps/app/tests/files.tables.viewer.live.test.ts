@@ -29,6 +29,10 @@ async function walk(
     assertStuck(await stuck(page, '[data-testid="vw-doc-editor"]'), `${tag} Edit`, false);
     await s.shot(`${tag}-edit-scrolled`);
     // the cell's menu, on this table
+    await page.evaluate(() => {
+      (document.querySelector('[data-testid="md-table"]') as HTMLElement).scrollLeft = 0;
+    });
+    await page.locator('[data-testid="md-table"] tbody tr:nth-child(2) td:nth-child(3)').click();
     await page.getByTestId("md-table-menu-btn").first().dispatchEvent("mousedown");
     await page.getByTestId("md-table-act-row-below").waitFor({ timeout: 10_000 });
     await s.shot(`${tag}-edit-cell-menu`);
