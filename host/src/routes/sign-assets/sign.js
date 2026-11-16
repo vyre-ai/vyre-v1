@@ -111,7 +111,7 @@ function waiting(v) {
       h("h1", { text: "Not your turn yet" }),
       h("p", {
         class: "lead",
-        text: `${v.sender.name} asked ${first(v.signer.name)} to sign ${v.title}, after the person before you. Come back to this link when they have signed.`,
+        text: `${v.sender.name} asked you to sign ${v.title}. Someone has to sign before you. Come back to this link when they have.`,
       }),
       foot(v),
     ),

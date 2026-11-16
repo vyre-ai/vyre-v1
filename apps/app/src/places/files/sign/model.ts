@@ -215,6 +215,16 @@ export function statusLine(e: Envelope, now: number, zone = 0): { tone: Tone; la
   }
 }
 
+/** The one passing line to say when a request the person is looking at changed under them: everyone signed, or someone declined. Null for any other change. */
+export function changeWords(before: Envelope | null, after: Envelope | null): string | null {
+  if (before === null || after === null || before.id !== after.id || !isOpen(before)) return null;
+  const name = after.title.replace(/\.pdf$/i, "");
+  if (after.state === "signed") return `${name} was signed`;
+  if (after.state === "declined")
+    return after.declinedBy ? `${first(after.declinedBy)} declined ${name}` : `${name} was turned down`;
+  return null;
+}
+
 export interface SentLink {
   index: number;
   name: string;

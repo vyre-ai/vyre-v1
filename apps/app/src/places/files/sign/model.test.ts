@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   blankSigner,
   canSignFile,
+  changeWords,
   current,
   dayWords,
   envelopeOf,
@@ -173,4 +174,20 @@ test("a remind answers with one link and no envelope id", () => {
 test("a PDF can be sent", () => {
   assert.equal(canSignFile("Northwind NDA.pdf"), true);
   assert.equal(canSignFile("notes.txt"), false);
+});
+
+test("a request that finishes while it is open says so once; nothing else does", () => {
+  const open = envelopeOf({ envelopeId: "env_1", title: "Northwind NDA.pdf", status: "sent" })!;
+  const signed = envelopeOf({ envelopeId: "env_1", title: "Northwind NDA.pdf", status: "signed" })!;
+  const declined = envelopeOf({
+    envelopeId: "env_1",
+    title: "Northwind NDA.pdf",
+    status: "declined",
+    signers: [{ name: "Andrea Lindahl", status: "declined" }],
+  })!;
+  assert.equal(changeWords(open, signed), "Northwind NDA was signed");
+  assert.equal(changeWords(open, declined), "Andrea declined Northwind NDA");
+  assert.equal(changeWords(signed, signed), null, "already over");
+  assert.equal(changeWords(null, signed), null, "first read");
+  assert.equal(changeWords(open, open), null);
 });

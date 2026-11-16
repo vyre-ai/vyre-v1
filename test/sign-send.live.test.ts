@@ -24,6 +24,7 @@ test("sign: send from the viewer, two signers sign without an account, the file 
     await page.getByTestId("sign-email-0").fill("imran@northwind.example");
     await page.getByTestId("sign-add").click();
     await page.getByTestId("sign-name-1").fill("Andrea Lindahl");
+    await page.getByTestId("sign-order").click(); // One after another: Imran first, then Andrea
     await page.getByTestId("sign-message").fill("Please sign before Friday.");
     await shot(page, s.shotsDir, "send-sheet-filled-dark");
     await page.getByTestId("sign-send").click();
@@ -44,6 +45,14 @@ test("sign: send from the viewer, two signers sign without an account, the file 
       .first()
       .waitFor({ timeout: 20_000 });
     await shot(page, s.shotsDir, "file-waiting-dark");
+
+    // Andrea opens hers early: it is not her turn, and no document is shown
+    const early = await s.signer({ width: 1440, height: 900 }, "dark");
+    await early.page.goto(`${s.web.origin}${andreaLink}`, { waitUntil: "load" });
+    await early.page.getByText("Not your turn yet").waitFor({ timeout: 20_000 });
+    assert.equal(await early.page.locator(".page canvas").count(), 0, "no document while it is not her turn");
+    await shot(early.page, s.shotsDir, "signer-waiting-dark");
+    await early.ctx.close();
 
     // Imran: no session, the link only
     const imran = await s.signer({ width: 1440, height: 900 }, "dark");
@@ -87,10 +96,14 @@ test("sign: send from the viewer, two signers sign without an account, the file 
     await andrea.ctx.close();
 
     // the file's own status turns to Signed, and the signed copy opens in the viewer
-    await page
-      .getByText(/Signed on/)
-      .first()
-      .waitFor({ timeout: 45_000 });
+    // the sender, who has the file open, is told in the top bar the moment it is over
+    await Promise.all([
+      page.getByText("Northwind NDA was signed").first().waitFor({ timeout: 45_000 }),
+      page
+        .getByText(/Signed on/)
+        .first()
+        .waitFor({ timeout: 45_000 }),
+    ]);
     await shot(page, s.shotsDir, "file-signed-dark");
     await page.getByTestId("sign-bar-status-action").click();
     await page.getByText("Northwind NDA (signed).pdf").first().waitFor({ timeout: 30_000 });
