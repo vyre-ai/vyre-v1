@@ -332,7 +332,7 @@ const MAX_STREAMS = 64;
 const MAX_BODY = 32 * 1024 * 1024;
 const MAX_WS_MESSAGE = 1 << 20;
 
-interface Stream {
+export interface Stream {
   id: number;
   head: Record<string, unknown>;
   body: Uint8Array[];
@@ -345,7 +345,7 @@ interface Stream {
   ws?: WebSocket;
 }
 
-class Channel {
+export class Channel {
   private txq: Promise<void> = Promise.resolve();
   private rxq: Promise<void> = Promise.resolve();
   readonly streams = new Map<number, Stream>();
@@ -785,7 +785,8 @@ const refuseInvite = (s: Stream, ch: Channel): void => {
   ch.end(s);
 };
 
-function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteScope | null = null): void {
+/** Exported for the test that drives it with a stand-in channel. */
+export function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteScope | null = null): void {
   const path0 =
     typeof s.head["ws"] === "string" ? s.head["ws"] : typeof s.head["path"] === "string" ? s.head["path"] : "";
   if (!path0.startsWith("/") || path0.startsWith("//") || path0.length > 4096) {
@@ -829,7 +830,8 @@ function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteSco
         } catch {
           /* closed already */
         }
-        if (ch.streams.has(s.id)) ch.end(s);
+        // the stream is reset, not ended: an end looks like the server's own clean close and the device would reconnect from the same cursor to the same message for ever
+        if (ch.streams.has(s.id)) ch.reset(s, "too big");
         return;
       }
       ch.frame(FRAME.data, s.id, m);

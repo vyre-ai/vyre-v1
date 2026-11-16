@@ -265,6 +265,8 @@ export function pullChanges(
   req: PullReq,
   trace = "0".repeat(32),
   onScope?: (entity: string, rows: number) => void,
+  /** Stop once the changes taken weigh this many bytes of JSON (the one that crosses it is kept, so a single big change still goes through). The live hub sets it so a frame fits the relay. */
+  maxBytes?: number,
 ): PullRes {
   const db = d.db;
   const epoch = deviceEpochOf(db, who.person, who.device);
@@ -330,7 +332,12 @@ export function pullChanges(
   const whole = new Map<string, Change>();
   let used = 0,
     last = cursor,
-    stopped = false;
+    stopped = false,
+    weight = 0;
+  const heavy = (e: Emission): void => {
+    if (maxBytes !== undefined) weight += JSON.stringify(e.kind === "change" ? e.change : e.hide).length;
+  };
+  let weighed = 0;
   db.exec("BEGIN IMMEDIATE");
   try {
     for (const c of scan) {
@@ -390,7 +397,8 @@ export function pullChanges(
           }
         }
       }
-      if (used >= limit) {
+      if (maxBytes !== undefined) for (; weighed < out.length; weighed++) heavy(out[weighed]!);
+      if (used >= limit || (maxBytes !== undefined && weight >= maxBytes)) {
         stopped = true;
         break;
       }

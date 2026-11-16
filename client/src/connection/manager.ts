@@ -18,6 +18,10 @@ export const HELLO_TIMEOUT_MS = 10_000;
 export const IDLE_CLOSE_MS = 30_000;
 export const BACKOFF_BASE_MS = 500;
 export const BACKOFF_CAP_MS = 30_000;
+/** A link that was behind the server's head, closed within this long of opening, and moved the cursor not at all, failed in a way that will happen again: the next try waits. */
+export const FLAP_MS = 10_000;
+/** After a link flapped, a new one is not called live until it has stayed up this long. */
+export const SETTLE_MS = 3_000;
 
 export type Status = "idle" | "connecting" | "live" | "reconnecting" | "read_only" | "stopped";
 
@@ -91,6 +95,12 @@ export function createConnection(o: ConnectionOpts): Connection {
   let chain: Promise<void> = Promise.resolve();
   let wantOn = false;
   let everLive = false;
+  // the link now held: when it opened and what it started from, to tell a link that dies the same way every time from one that was cut
+  let adoptedAt = 0;
+  let cursorAtAdopt = 0;
+  let behindAtAdopt = false;
+  let flaps = 0;
+  let cancelSettle: (() => void) | null = null;
   const stats = { dials: 0, opened: 0, closed: 0, failovers: 0 };
 
   const set = (s: Status): void => {
@@ -242,14 +252,30 @@ export function createConnection(o: ConnectionOpts): Connection {
     stats.opened++;
     everLive = true;
     lastRx = clock.now();
+    adoptedAt = clock.now();
+    cursorAtAdopt = o.cursor.get();
+    behindAtAdopt = r.ok.head > cursorAtAdopt;
     r.t.onFrame((f) => {
       if (gen === generation) onFrame(f);
     });
     r.t.onClose(() => {
       if (gen === generation && current?.t === r.t) lost(r.ep, "closed");
     });
-    if (r.ok.mode === "live") set("live");
-    else set("read_only");
+    cancelSettle?.();
+    cancelSettle = null;
+    if (r.ok.mode !== "live") set("read_only");
+    else if (flaps === 0) set("live");
+    else {
+      // the last link of this kind died at once: say so (reconnecting) until this one has held
+      set("reconnecting");
+      cancelSettle = clock.after(SETTLE_MS, () => {
+        cancelSettle = null;
+        if (gen !== generation || current?.t !== r.t) return;
+        flaps = 0;
+        behindAtAdopt = false;
+        set("live");
+      });
+    }
     if (r.ok.mode === "purge") {
       o.on?.purge?.(r.ok.epoch);
       o.on?.mode?.(r.ok.mode, r.ok);
@@ -320,6 +346,8 @@ export function createConnection(o: ConnectionOpts): Connection {
     pendingRace = null;
     stopHeartbeat?.();
     stopHeartbeat = null;
+    cancelSettle?.();
+    cancelSettle = null;
     const c = current;
     current = null;
     generation++;
@@ -336,15 +364,18 @@ export function createConnection(o: ConnectionOpts): Connection {
   /** The link failed (closed, silent, or a batch would not apply): mark the endpoint, reconnect to the best other one. */
   function lost(ep: Endpoint, _why: string, mark = true): void {
     if (!current || current.ep !== ep) return;
+    const flapped = behindAtAdopt && o.cursor.get() === cursorAtAdopt && clock.now() - adoptedAt < FLAP_MS;
+    flaps = flapped ? flaps + 1 : 0;
     if (mark) down(ep);
     stats.failovers++;
     drop();
     if (!wantOn) return;
     set("reconnecting");
-    if (mark) {
+    if (mark && !flapped) {
       void connect();
       return;
     }
+    if (flapped) attempts = flaps - 1;
     // The link was fine and the replica could not take the batch: wait before trying again, so a batch that always fails does not spin.
     attempts++;
     cancelRetry?.();
